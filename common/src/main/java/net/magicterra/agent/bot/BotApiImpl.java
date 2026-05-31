@@ -79,7 +79,7 @@ public final class BotApiImpl implements BotApi {
 
     @Override
     public Map<String, Object> mcGoto(Map<String, Object> params) {
-        final Map<String, Object> p = (params == null) ? Map.of() : params;
+        final Params p = Params.of(params);
         return onClient(() -> {
             LocalPlayer player = Minecraft.getInstance().player;
             if (player == null) {
@@ -198,11 +198,11 @@ public final class BotApiImpl implements BotApi {
      * returns null when no selector is recognized so the caller can emit the
      * "missing goal" error.
      */
-    private Goal resolveGoal(Map<String, Object> p, LocalPlayer player) {
+    private Goal resolveGoal(Params p, LocalPlayer player) {
         Goal base = resolveBaseGoal(p, player);
         if (base == null) return null;
         // Baritone GoalInverted: flee whatever the resolved goal converges on.
-        return Boolean.TRUE.equals(p.get("invert")) ? new Goal.Inverted(base) : base;
+        return p.getBool("invert") ? new Goal.Inverted(base) : base;
     }
 
     /**
@@ -214,13 +214,13 @@ public final class BotApiImpl implements BotApi {
      *   "adjacent"     → stand next to / above / below it (chests, furnaces).
      * {@code near>0} always wins and relaxes to a Euclidean radius (GoalNear).
      */
-    private Goal resolveBaseGoal(Map<String, Object> p, LocalPlayer player) {
+    private Goal resolveBaseGoal(Params p, LocalPlayer player) {
         // GoalAxis: reach the nearest world axis/diagonal at the configured Y.
-        if (Boolean.TRUE.equals(p.get("axis"))) return new Goal.Axis(BotConfig.axisHeight);
+        if (p.getBool("axis")) return new Goal.Axis(BotConfig.axisHeight);
 
         String mode = p.get("goalMode") instanceof String s ? s.trim().toLowerCase(Locale.ROOT) : "in";
 
-        Goal classic = parseGoal(p);
+        Goal classic = parseGoal(p.map());
         if (classic != null) {
             // parseGoal already honored near/xz/y; only a bare pos respects goalMode.
             if (classic instanceof Goal.Block b && !"in".equals(mode)) return targetGoal(b.target(), mode, 0);
@@ -228,7 +228,7 @@ public final class BotApiImpl implements BotApi {
         }
 
         if (p.get("block") instanceof String blockId && !blockId.isBlank()) {
-            int radius = clamp(intOr(p.get("radius"), 32), 1, 64);
+            int radius = p.getIntClamped("radius", 32, 1, 64);
             BlockPos stand = findNearestStandForBlock(player, blockId, radius);
             if (stand == null) throw new IllegalArgumentException(
                     "no reachable '" + blockId + "' within radius " + radius);
@@ -239,31 +239,31 @@ public final class BotApiImpl implements BotApi {
             Level lvl = Minecraft.getInstance().level;
             Entity e = (lvl == null) ? null : lvl.getEntity(eid);
             if (e == null) throw new IllegalArgumentException("no entity with id " + eid);
-            int near = clamp(intOr(p.get("near"), 3), 0, 16);
+            int near = p.getIntClamped("near", 3, 0, 16);
             return targetGoal(blockPosOf(e), mode, near);
         }
         if (p.get("entity") instanceof String entType && !entType.isBlank()) {
             Entity e = findNearestEntity(player, entType);
             if (e == null) throw new IllegalArgumentException("no '" + entType + "' visible nearby");
-            int near = clamp(intOr(p.get("near"), 3), 0, 16);
+            int near = p.getIntClamped("near", 3, 0, 16);
             return targetGoal(blockPosOf(e), mode, near);
         }
         if (p.get("direction") instanceof String dirName && !dirName.isBlank()) {
             String d = dirName.trim().toLowerCase(Locale.ROOT);
             // Baritone GoalStrictDirection: keep boring this way with no fixed
             // endpoint (the best-effort fallback carries it as far as it can).
-            if (Boolean.TRUE.equals(p.get("strict"))) {
+            if (p.getBool("strict")) {
                 BlockPos origin = blockPosOf(player);
                 int[] step = horizontalStep(player, d);
                 if (step == null) throw new IllegalArgumentException(
                         "strict direction must be horizontal (north|south|east|west|forward|backward|left|right), got '" + dirName + "'");
                 return new Goal.StrictDirection(origin, step[0], step[1]);
             }
-            int distance = clamp(intOr(p.get("distance"), 8), 1, 256);
+            int distance = p.getIntClamped("distance", 8, 1, 256);
             BlockPos target = applyDirection(player, dirName, distance);
             if (target == null) throw new IllegalArgumentException(
                     "unknown direction '" + dirName + "' (north|south|east|west|up|down|forward|backward|left|right)");
-            int near = clamp(intOr(p.get("near"), 0), 0, 64);
+            int near = p.getIntClamped("near", 0, 0, 64);
             // Pure-horizontal directions → XZ goal (free Y), vertical → YLevel,
             // mixed (rare — only via 'forward'/'backward' which is horizontal) →
             // Block. `near>0` always uses Near to relax the constraint.
@@ -274,7 +274,7 @@ public final class BotApiImpl implements BotApi {
         if (p.get("waypoint") instanceof String wpName && !wpName.isBlank()) {
             BlockPos wpPos = waypoints.get(wpName);
             if (wpPos == null) throw new IllegalArgumentException("no waypoint named '" + wpName + "'");
-            int near = clamp(intOr(p.get("near"), 0), 0, 64);
+            int near = p.getIntClamped("near", 0, 0, 64);
             return targetGoal(wpPos, mode, near);
         }
         return null;
@@ -283,12 +283,13 @@ public final class BotApiImpl implements BotApi {
     @Override
     public Map<String, Object> mine(Map<String, Object> params) {
         if (params == null) return Map.of("ok", false, "error", "missing blocks");
-        List<String> ids = parseStringList(params.get("blocks"));
+        Params p = Params.of(params);
+        List<String> ids = p.getStringList("blocks");
         if (ids.isEmpty()) return Map.of("ok", false, "error", "blocks list required");
-        int qtyIn = intOr(params.get("quantity"), 1);
+        int qtyIn = p.getInt("quantity", 1);
         if (qtyIn < 1) return Map.of("ok", false, "error", "quantity must be ≥ 1");
         final int qty = clamp(qtyIn, 1, 256);
-        final int radius = clamp(intOr(params.get("radius"), 16), 1, 64);
+        final int radius = p.getIntClamped("radius", 16, 1, 64);
         return onClient(() -> {
             if (Minecraft.getInstance().player == null) {
                 state.mine.lastError = "no player";
@@ -327,8 +328,9 @@ public final class BotApiImpl implements BotApi {
     }
 
     @Override public Map<String, Object> cancel(Map<String, Object> params) {
+        Params p = Params.of(params);
         return onClient(() -> {
-            String which = params != null && params.get("process") instanceof String s ? s : "all";
+            String which = p.get("process") instanceof String s ? s : "all";
             BotProcess c = current;
             boolean match = "all".equals(which) || (c != null && which.equals(c.kind()));
             if (match) cancelCurrent("user-cancel");
@@ -341,8 +343,9 @@ public final class BotApiImpl implements BotApi {
     @Override
     public Map<String, Object> clearArea(Map<String, Object> params) {
         if (params == null) return Map.of("ok", false, "error", "missing from/to");
-        BlockPos from = readPos(params.get("from"));
-        BlockPos to   = readPos(params.get("to"));
+        Params p = Params.of(params);
+        BlockPos from = p.getPos("from");
+        BlockPos to   = p.getPos("to");
         if (from == null || to == null) return Map.of("ok", false, "error", "from and to required");
         long volume = (long)(Math.abs(from.getX() - to.getX()) + 1) * (Math.abs(from.getY() - to.getY()) + 1) * (Math.abs(from.getZ() - to.getZ()) + 1);
         if (volume > 4096) return Map.of("ok", false, "error", "area too large (max 4096 blocks)");
@@ -351,9 +354,9 @@ public final class BotApiImpl implements BotApi {
         // leaves the to id behind. Each cell costs walk+break(+place) so the
         // bbox is bot-driven (matches Baritone's survival path — survival
         // requires the fill blocks to be in inventory, hotbar preferred).
-        final String fillId = (params.get("fill") instanceof String fs && !fs.isBlank()) ? fs : null;
+        final String fillId = p.getNonBlank("fill");
         String rFrom = null, rTo = null;
-        if (params.get("replace") instanceof Map<?,?> rm) {
+        if (p.get("replace") instanceof Map<?,?> rm) {
             if (rm.get("from") instanceof String s) rFrom = s;
             if (rm.get("to") instanceof String s)   rTo = s;
             if (rFrom == null || rTo == null) return Map.of("ok", false, "error", "replace requires {from:'id', to:'id'}");
@@ -381,8 +384,9 @@ public final class BotApiImpl implements BotApi {
     @Override
     public Map<String, Object> farm(Map<String, Object> params) {
         if (params == null) return Map.of("ok", false, "error", "missing from/to");
-        BlockPos from = readPos(params.get("from"));
-        BlockPos to   = readPos(params.get("to"));
+        Params p = Params.of(params);
+        BlockPos from = p.getPos("from");
+        BlockPos to   = p.getPos("to");
         if (from == null || to == null) return Map.of("ok", false, "error", "from and to required");
         long area = (long)(Math.abs(from.getX() - to.getX()) + 1) * (Math.abs(from.getZ() - to.getZ()) + 1);
         if (area > 4096) return Map.of("ok", false, "error", "area too large (max 4096 cells)");
@@ -390,14 +394,14 @@ public final class BotApiImpl implements BotApi {
         // vanilla crops. Validated against known ids — unknown entries get
         // silently dropped (Baritone shrugs the same way on bad filter input).
         Set<String> crops = new HashSet<>();
-        if (params.get("crops") instanceof List<?> l) {
+        if (p.get("crops") instanceof List<?> l) {
             for (Object o : l) if (o instanceof String s && FarmProcess.SEED_FOR.containsKey(s)) crops.add(s);
             if (crops.isEmpty()) return Map.of("ok", false, "error",
                     "crops must be subset of " + FarmProcess.SEED_FOR.keySet());
         } else {
             crops = new HashSet<>(FarmProcess.SEED_FOR.keySet());
         }
-        boolean replant = !(params.get("replant") instanceof Boolean rb) || rb;
+        boolean replant = !(p.get("replant") instanceof Boolean rb) || rb;
         final Set<String> effCrops = crops;
         return onClient(() -> {
             if (Minecraft.getInstance().player == null) return Map.of("ok", false, "error", "no player");
@@ -471,9 +475,9 @@ public final class BotApiImpl implements BotApi {
 
     @Override
     public Map<String, Object> sleep(Map<String, Object> params) {
-        final Map<String, Object> p = (params == null) ? Map.of() : params;
-        BlockPos explicit = readPos(p.get("pos"));
-        int radius = clamp(intOr(p.get("radius"), 16), 1, 64);
+        final Params p = Params.of(params);
+        BlockPos explicit = p.getPos("pos");
+        int radius = p.getIntClamped("radius", 16, 1, 64);
         return onClient(() -> {
             Minecraft mc = Minecraft.getInstance();
             LocalPlayer pl = mc.player;
@@ -491,10 +495,11 @@ public final class BotApiImpl implements BotApi {
     @Override
     public Map<String, Object> build(Map<String, Object> params) {
         if (params == null) return Map.of("ok", false, "error", "missing origin/schematic");
-        BlockPos origin = readPos(params.get("origin"));
+        Params p = Params.of(params);
+        BlockPos origin = p.getPos("origin");
         if (origin == null) return Map.of("ok", false, "error", "origin required");
-        Object schemObj = params.get("schematic");
-        Object schemB64Obj = params.get("schematicBase64");
+        Object schemObj = p.get("schematic");
+        Object schemB64Obj = p.get("schematicBase64");
         if (schemObj != null && schemB64Obj != null)
             return Map.of("ok", false, "error", "specify either schematic OR schematicBase64, not both");
         Schematic s;
@@ -527,10 +532,11 @@ public final class BotApiImpl implements BotApi {
 
     @Override
     public Map<String, Object> follow(Map<String, Object> params) {
-        String entityType = params != null && params.get("entityType") instanceof String s ? s : null;
-        String name = params != null && params.get("name") instanceof String s ? s : null;
-        int radius = clamp(intOr(params == null ? null : params.get("radius"), 3), 1, 16);
-        int maxIdleTicks = clamp(intOr(params == null ? null : params.get("maxIdleTicks"), 0), 0, 100_000);
+        Params p = Params.of(params);
+        String entityType = p.getString("entityType");
+        String name = p.getString("name");
+        int radius = p.getIntClamped("radius", 3, 1, 16);
+        int maxIdleTicks = p.getIntClamped("maxIdleTicks", 0, 0, 100_000);
         if (entityType == null && name == null) return Map.of("ok", false, "error", "entityType or name required");
         return onClient(() -> {
             if (Minecraft.getInstance().player == null) return Map.of("ok", false, "error", "no player");
@@ -548,11 +554,12 @@ public final class BotApiImpl implements BotApi {
     @Override
     public Map<String, Object> explore(Map<String, Object> params) {
         if (params == null) return Map.of("ok", false, "error", "missing centerX/centerZ");
-        int cx = intOr(params.get("centerX"), Integer.MIN_VALUE);
-        int cz = intOr(params.get("centerZ"), Integer.MIN_VALUE);
+        Params p = Params.of(params);
+        int cx = p.getInt("centerX", Integer.MIN_VALUE);
+        int cz = p.getInt("centerZ", Integer.MIN_VALUE);
         if (cx == Integer.MIN_VALUE || cz == Integer.MIN_VALUE)
             return Map.of("ok", false, "error", "centerX and centerZ required");
-        int maxChunks = clamp(intOr(params.get("maxChunks"), 16), 1, 64);
+        int maxChunks = p.getIntClamped("maxChunks", 16, 1, 64);
         return onClient(() -> {
             if (Minecraft.getInstance().player == null) return Map.of("ok", false, "error", "no player");
             startProcess(new ExploreProcess(cx, cz, maxChunks));
@@ -562,8 +569,9 @@ public final class BotApiImpl implements BotApi {
 
     @Override
     public Map<String, Object> runAway(Map<String, Object> params) {
-        BlockPos source = params == null ? null : readPos(params.get("from"));
-        int minDist = clamp(intOr(params == null ? null : params.get("minDist"), 16), 4, 64);
+        Params q = Params.of(params);
+        BlockPos source = q.getPos("from");
+        int minDist = q.getIntClamped("minDist", 16, 4, 64);
         return onClient(() -> {
             LocalPlayer p = Minecraft.getInstance().player;
             if (p == null) return Map.of("ok", false, "error", "no player");
@@ -577,8 +585,9 @@ public final class BotApiImpl implements BotApi {
     @Override
     public Map<String, Object> lookAt(Map<String, Object> params) {
         if (params == null) return Map.of("ok", false, "error", "missing pos or yaw/pitch");
-        BlockPos at = readPos(params.get("pos"));
-        Object yawO = params.get("yaw"), pitchO = params.get("pitch");
+        Params q = Params.of(params);
+        BlockPos at = q.getPos("pos");
+        Object yawO = q.get("yaw"), pitchO = q.get("pitch");
         return onClient(() -> {
             LocalPlayer p = Minecraft.getInstance().player;
             if (p == null) return Map.of("ok", false, "error", "no player");
@@ -607,7 +616,7 @@ public final class BotApiImpl implements BotApi {
 
     @Override
     public Map<String, Object> useItem(Map<String, Object> params) {
-        InteractionHand hand = parseHand(params == null ? null : params.get("hand"));
+        InteractionHand hand = parseHand(Params.of(params).get("hand"));
         return onClient(() -> {
             Minecraft mc = Minecraft.getInstance();
             LocalPlayer p = mc.player;
@@ -630,7 +639,8 @@ public final class BotApiImpl implements BotApi {
     @Override
     public Map<String, Object> attackEntity(Map<String, Object> params) {
         if (params == null) return Map.of("ok", false, "error", "missing entityId");
-        Object idObj = params.get("entityId");
+        Params q = Params.of(params);
+        Object idObj = q.get("entityId");
         if (!(idObj instanceof Number)) return Map.of("ok", false, "error", "entityId required (integer)");
         final int entityId = ((Number) idObj).intValue();
         return onClient(() -> {
@@ -671,11 +681,12 @@ public final class BotApiImpl implements BotApi {
     @Override
     public Map<String, Object> useItemOn(Map<String, Object> params) {
         if (params == null) return Map.of("ok", false, "error", "missing pos");
-        BlockPos blockPos = readPos(params.get("pos"));
+        Params q = Params.of(params);
+        BlockPos blockPos = q.getPos("pos");
         if (blockPos == null) return Map.of("ok", false, "error", "pos required");
-        Direction face = parseFace(params.get("face"));
-        InteractionHand hand = parseHand(params.get("hand"));
-        Boolean wantLookAt = params.get("lookAt") instanceof Boolean b ? b : Boolean.TRUE;
+        Direction face = parseFace(q.get("face"));
+        InteractionHand hand = parseHand(q.get("hand"));
+        boolean wantLookAt = q.getBool("lookAt", true);
 
         return onClient(() -> {
             Minecraft mc = Minecraft.getInstance();
