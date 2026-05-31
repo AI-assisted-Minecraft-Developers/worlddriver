@@ -21,15 +21,7 @@ public final class QueryParams {
         if (sel instanceof List<?> l) {
             p.select = (List<String>) l;
         }
-        Object c = m.get("center");
-        if (c instanceof BlockPos bp) p.center = bp;
-        else if (c instanceof Map<?, ?> cm && cm.get("x") instanceof Number && cm.get("y") instanceof Number && cm.get("z") instanceof Number) {
-            p.center = new BlockPos(
-                ((Number) cm.get("x")).intValue(),
-                ((Number) cm.get("y")).intValue(),
-                ((Number) cm.get("z")).intValue()
-            );
-        }
+        p.center = ApiSupport.readPos(m.get("center"));
         return p;
     }
 }

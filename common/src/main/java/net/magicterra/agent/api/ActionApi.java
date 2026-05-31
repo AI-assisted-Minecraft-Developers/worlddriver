@@ -21,18 +21,6 @@ public final class ActionApi {
     private final AgentApi api;
     ActionApi(AgentApi api) { this.api = api; }
 
-    public Map<String, Object> placeBlock(PlaceParams p) {
-        ServerLevel level = api.level();
-        return api.onServerThread(() -> {
-            BlockPos bp = p.pos;
-            BlockState before = level.getBlockState(bp);
-            String prev = ApiSupport.blockId(before);
-            level.setBlockAndUpdate(bp, ApiSupport.parseBlock(p.type));
-            api.emit("block.place", p.pos, p.type);
-            return Map.of("ok", true, "replaced", prev);
-        });
-    }
-
     /**
      * Fill an axis-aligned box with one block type in a single server-thread hop.
      * Volume is clamped to 32768 (= 32x32x32) to avoid pathological calls. Emits

@@ -2,7 +2,6 @@ package net.magicterra.agent.api;
 
 import net.magicterra.agent.model.AgentEvent;
 import net.minecraft.core.BlockPos;
-import net.magicterra.agent.model.BlockSnapshot;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -10,7 +9,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -27,26 +25,6 @@ import java.util.Set;
 public final class ObserveApi {
     private final AgentApi api;
     ObserveApi(AgentApi api) { this.api = api; }
-
-    public AreaResult area(AreaParams p) {
-        ServerLevel level = api.level();
-        return api.onServerThread(() -> {
-            List<BlockSnapshot> out = new ArrayList<>();
-            int r = p.radius;
-            for (int dx = -r; dx <= r; dx++)
-                for (int dy = -r; dy <= r; dy++)
-                    for (int dz = -r; dz <= r; dz++) {
-                        BlockPos bp = new BlockPos(
-                                p.center.getX() + dx, p.center.getY() + dy, p.center.getZ() + dz);
-                        BlockState st = level.getBlockState(bp);
-                        if (st.isAir()) continue;
-                        String type = ApiSupport.blockId(st);
-                        if (p.typeFilter != null && !type.equals(p.typeFilter)) continue;
-                        out.add(new BlockSnapshot(new BlockPos(bp.getX(), bp.getY(), bp.getZ()), type));
-                    }
-            return new AreaResult(out);
-        });
-    }
 
     public long cursor() {
         api.level(); // require server: pre-fix this returned 0 even with no world, which is misleading

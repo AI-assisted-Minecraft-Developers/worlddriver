@@ -2,8 +2,6 @@ package net.magicterra.agent.rpc;
 
 import net.magicterra.agent.model.AgentEvent;
 import net.minecraft.core.BlockPos;
-import net.magicterra.agent.model.BlockSnapshot;
-import net.magicterra.agent.api.AreaResult;
 
 import java.lang.reflect.Field;
 import java.util.*;
@@ -40,26 +38,12 @@ public final class JsonCodec {
             sb.append("{\"x\":").append(bp.getX()).append(",\"y\":").append(bp.getY()).append(",\"z\":").append(bp.getZ()).append("}");
             return;
         }
-        if (v instanceof BlockSnapshot bs) {
-            sb.append("{\"pos\":");
-            write(sb, bs.pos);
-            sb.append(",\"type\":");
-            writeStr(sb, bs.type);
-            sb.append("}");
-            return;
-        }
         if (v instanceof AgentEvent ae) {
             sb.append("{\"seq\":").append(ae.seq)
               .append(",\"timestamp\":").append(ae.timestamp)
               .append(",\"type\":"); writeStr(sb, ae.type);
             sb.append(",\"pos\":"); write(sb, ae.pos);
             sb.append(",\"data\":"); writeStr(sb, ae.data);
-            sb.append("}");
-            return;
-        }
-        if (v instanceof AreaResult ar) {
-            sb.append("{\"blocks\":");
-            write(sb, ar.blocks);
             sb.append("}");
             return;
         }
