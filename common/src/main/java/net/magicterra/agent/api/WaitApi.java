@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Objects;
 
 /**
  * {@code mc.wait.*} long-polling handlers, extracted from {@code AgentApi}. All
@@ -44,13 +45,13 @@ public final class WaitApi {
         long budgetMs = ApiSupport.clamp(ApiSupport.numL(p.getOrDefault("timeoutMs", 5000L)), 100L, MAX_BUDGET_MS);
         long pollMs = ApiSupport.clamp(ApiSupport.numL(p.getOrDefault("pollMs", 100L)), 50L, 2000L);
 
-        long t0 = java.lang.System.nanoTime();
+        long t0 = System.nanoTime();
         long deadlineNanos = t0 + budgetMs * 1_000_000L;
         Set<String> finalTypes = types;
         while (true) {
             List<AgentEvent> page = api.observe.eventsSince(cursor, finalTypes, limit);
             if (!page.isEmpty()) {
-                long ms = (java.lang.System.nanoTime() - t0) / 1_000_000L;
+                long ms = (System.nanoTime() - t0) / 1_000_000L;
                 long newCursor = page.get(page.size() - 1).seq;
                 Map<String, Object> out = new LinkedHashMap<>();
                 out.put("events", page);
@@ -60,7 +61,7 @@ public final class WaitApi {
                 return out;
             }
             if (sleepUntil(deadlineNanos, pollMs)) {
-                long ms = (java.lang.System.nanoTime() - t0) / 1_000_000L;
+                long ms = (System.nanoTime() - t0) / 1_000_000L;
                 Map<String, Object> out = new LinkedHashMap<>();
                 out.put("events", List.of());
                 out.put("timedOut", true);
@@ -80,14 +81,14 @@ public final class WaitApi {
     public Map<String, Object> worldReady(Map<String, Object> p) {
         long budgetMs = ApiSupport.clamp(ApiSupport.numL(p.getOrDefault("timeoutMs", 30_000L)), 100L, MAX_BUDGET_MS);
         long pollMs = ApiSupport.clamp(ApiSupport.numL(p.getOrDefault("pollMs", 250L)), 50L, 2000L);
-        long t0 = java.lang.System.nanoTime();
+        long t0 = System.nanoTime();
         long deadlineNanos = t0 + budgetMs * 1_000_000L;
         Map<String, Object> info = null;
         while (true) {
             info = AgentApi.requireClient().screenInfo();
             boolean ready = Boolean.TRUE.equals(info.get("worldOpen")) && Boolean.TRUE.equals(info.get("hasPlayer"));
             if (ready) {
-                long ms = (java.lang.System.nanoTime() - t0) / 1_000_000L;
+                long ms = (System.nanoTime() - t0) / 1_000_000L;
                 Map<String, Object> out = new LinkedHashMap<>();
                 out.put("ready", true);
                 out.put("ms", ms);
@@ -95,7 +96,7 @@ public final class WaitApi {
                 return out;
             }
             if (sleepUntil(deadlineNanos, pollMs)) {
-                long ms = (java.lang.System.nanoTime() - t0) / 1_000_000L;
+                long ms = (System.nanoTime() - t0) / 1_000_000L;
                 Map<String, Object> out = new LinkedHashMap<>();
                 out.put("ready", false);
                 out.put("ms", ms);
@@ -124,16 +125,16 @@ public final class WaitApi {
         long budgetMs = ApiSupport.clamp(ApiSupport.numL(p.getOrDefault("timeoutMs", 30_000L)), 100L, MAX_BUDGET_MS);
         long pollMs = ApiSupport.clamp(ApiSupport.numL(p.getOrDefault("pollMs", 500L)), 50L, 5000L);
 
-        long t0 = java.lang.System.nanoTime();
+        long t0 = System.nanoTime();
         long deadlineNanos = t0 + budgetMs * 1_000_000L;
         Object lastValue = null;
         while (true) {
             Object result = api.route(method, params);
             Object value = (field == null || field.isEmpty()) ? result : ApiSupport.walkPath(result, field);
             lastValue = value;
-            boolean ok = strict ? java.util.Objects.equals(value, target) : ApiSupport.isTruthy(value);
+            boolean ok = strict ? Objects.equals(value, target) : ApiSupport.isTruthy(value);
             if (ok) {
-                long ms = (java.lang.System.nanoTime() - t0) / 1_000_000L;
+                long ms = (System.nanoTime() - t0) / 1_000_000L;
                 Map<String, Object> out = new LinkedHashMap<>();
                 out.put("satisfied", true);
                 out.put("value", value);
@@ -141,7 +142,7 @@ public final class WaitApi {
                 return out;
             }
             if (sleepUntil(deadlineNanos, pollMs)) {
-                long ms = (java.lang.System.nanoTime() - t0) / 1_000_000L;
+                long ms = (System.nanoTime() - t0) / 1_000_000L;
                 Map<String, Object> out = new LinkedHashMap<>();
                 out.put("satisfied", false);
                 out.put("value", lastValue);
@@ -154,7 +155,7 @@ public final class WaitApi {
     /** Sleep up to {@code pollMs}, but not past the deadline. Returns true when the
      *  deadline has been reached (the caller should bail), false to keep looping. */
     private boolean sleepUntil(long deadlineNanos, long pollMs) {
-        long now = java.lang.System.nanoTime();
+        long now = System.nanoTime();
         if (now >= deadlineNanos) return true;
         long remainingMs = (deadlineNanos - now) / 1_000_000L;
         try {

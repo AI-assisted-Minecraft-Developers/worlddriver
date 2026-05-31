@@ -9,6 +9,12 @@ import java.util.List;
 import java.util.Map;
 
 import static net.magicterra.agent.client.internal.ClientThread.runOnClient;
+import java.util.Locale;
+import java.lang.reflect.Method;
+import java.lang.reflect.Field;
+import net.minecraft.network.chat.Component;
+import java.util.Collections;
+import net.minecraft.client.tutorial.TutorialSteps;
 
 /**
  * Chat send/history and HUD-overlay dismissal for {@code mc.client.chat.*} and
@@ -90,7 +96,7 @@ public final class ClientChat {
             Minecraft mc = Minecraft.getInstance();
             List<Map<String, Object>> rows = chatLinesSince(mc, sinceSeq);
             // Newest first, then trim.
-            java.util.Collections.reverse(rows);
+            Collections.reverse(rows);
             if (rows.size() > cap) rows = rows.subList(0, cap);
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("ok", true);
@@ -108,18 +114,18 @@ public final class ClientChat {
             out.put("ok", true);
             if (tutorial) {
                 try {
-                    Class<?> stepsCls = Class.forName("net.minecraft.client.tutorial.TutorialSteps");
+                    Class<?> stepsCls = Class.forName("TutorialSteps");
                     Object none = Enum.valueOf((Class<Enum>) stepsCls, "NONE");
                     // Options.tutorialStep is a plain TutorialSteps field, not an
                     // OptionInstance — write it directly. (OptionInstance applies
                     // to most options but tutorialStep stayed simple.)
-                    java.lang.reflect.Field optField = mc.options.getClass().getDeclaredField("tutorialStep");
+                    Field optField = mc.options.getClass().getDeclaredField("tutorialStep");
                     optField.setAccessible(true);
                     optField.set(mc.options, none);
                     // Apply immediately to the live Tutorial controller so the
                     // active step changes without waiting for an options-screen save.
                     Object tut = mc.getTutorial();
-                    java.lang.reflect.Method setStep = tut.getClass().getMethod("setStep", stepsCls);
+                    Method setStep = tut.getClass().getMethod("setStep", stepsCls);
                     setStep.invoke(tut, none);
                     out.put("tutorial", "NONE");
                 } catch (Throwable t) {
@@ -140,19 +146,19 @@ public final class ClientChat {
 
     /** Cached reflective handle for {@code ChatComponent.allMessages}. Looked up
      *  once per JVM since obfuscated names are stable per dev mappings build. */
-    private static volatile java.lang.reflect.Field CHAT_ALL_FIELD;
+    private static volatile Field CHAT_ALL_FIELD;
 
-    private static java.lang.reflect.Field resolveAllMessagesField(Object chat) {
-        java.lang.reflect.Field f = CHAT_ALL_FIELD;
+    private static Field resolveAllMessagesField(Object chat) {
+        Field f = CHAT_ALL_FIELD;
         if (f != null) return f;
         // Prefer the MojMap name "allMessages"; fall back to scanning fields
         // for a List type if obfuscated.
         try {
             f = chat.getClass().getDeclaredField("allMessages");
         } catch (NoSuchFieldException nsfe) {
-            for (java.lang.reflect.Field cand : chat.getClass().getDeclaredFields()) {
-                if (java.util.List.class.isAssignableFrom(cand.getType())) {
-                    String n = cand.getName().toLowerCase(java.util.Locale.ROOT);
+            for (Field cand : chat.getClass().getDeclaredFields()) {
+                if (List.class.isAssignableFrom(cand.getType())) {
+                    String n = cand.getName().toLowerCase(Locale.ROOT);
                     // allMessages typically has "all" in the name even when obfuscated
                     // mappings are not in play; pick the first List<?> field as a last resort.
                     if (n.contains("all") || n.contains("message") || f == null) {
@@ -171,9 +177,9 @@ public final class ClientChat {
     private static int readChatSize(Minecraft mc) {
         try {
             Object chat = mc.gui.getChat();
-            java.lang.reflect.Field f = resolveAllMessagesField(chat);
+            Field f = resolveAllMessagesField(chat);
             if (f == null) return 0;
-            java.util.List<?> list = (java.util.List<?>) f.get(chat);
+            List<?> list = (List<?>) f.get(chat);
             return list == null ? 0 : list.size();
         } catch (Throwable t) {
             return 0;
@@ -184,9 +190,9 @@ public final class ClientChat {
         List<Map<String, Object>> out = new ArrayList<>();
         try {
             Object chat = mc.gui.getChat();
-            java.lang.reflect.Field f = resolveAllMessagesField(chat);
+            Field f = resolveAllMessagesField(chat);
             if (f == null) return out;
-            java.util.List<?> list = (java.util.List<?>) f.get(chat);
+            List<?> list = (List<?>) f.get(chat);
             if (list == null) return out;
             int size = list.size();
             long nowTick = mc.level != null ? mc.level.getGameTime() : 0L;
@@ -197,12 +203,12 @@ public final class ClientChat {
                 String plain = "";
                 long addedTick = 0L;
                 try {
-                    java.lang.reflect.Method content = gm.getClass().getMethod("content");
+                    Method content = gm.getClass().getMethod("content");
                     Object comp = content.invoke(gm);
-                    if (comp instanceof net.minecraft.network.chat.Component c) plain = c.getString();
+                    if (comp instanceof Component c) plain = c.getString();
                 } catch (Throwable ignore) {}
                 try {
-                    java.lang.reflect.Method addedTime = gm.getClass().getMethod("addedTime");
+                    Method addedTime = gm.getClass().getMethod("addedTime");
                     Object v = addedTime.invoke(gm);
                     if (v instanceof Number n) addedTick = n.longValue();
                 } catch (Throwable ignore) {}

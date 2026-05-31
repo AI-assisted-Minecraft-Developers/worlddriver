@@ -22,6 +22,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import net.magicterra.agent.client.ClientHooks;
+import net.magicterra.agent.client.ClientAgentApi;
+import net.magicterra.agent.bot.BotApi;
+import java.util.Set;
+import net.magicterra.agent.rpc.JsonCodec;
+import net.magicterra.agent.bot.BotHooks;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.ExecutionException;
 
 /* Ring buffer cap keeps memory bounded for long-running servers. Old events
  * roll off; eventsSince(cursor) on an out-of-window cursor returns whatever
@@ -58,7 +66,7 @@ public final class AgentApi {
     final ArrayDeque<AgentEvent> events = new ArrayDeque<>(EVENT_BUFFER_CAP);
     final Object eventsLock = new Object();
     final AtomicLong eventSeq = new AtomicLong();
-    final long startNanos = java.lang.System.nanoTime();
+    final long startNanos = System.nanoTime();
     private final Map<String, Function<Map<String, Object>, Object>> routes = new HashMap<>();
     private volatile Function<Map<String, Object>, Object> scriptHandler;
 
@@ -147,8 +155,8 @@ public final class AgentApi {
                     } else {
                         // q='blocks' — reuse observeArea client path; unwrap to
                         // match the server's flat-array shape.
-                        java.util.Set<String> ids = (typeFilter == null) ? null
-                                : new LinkedHashSet<>(java.util.Set.of(typeFilter));
+                        Set<String> ids = (typeFilter == null) ? null
+                                : new LinkedHashSet<>(Set.of(typeFilter));
                         Map<String, Object> wrapped = c.observeArea(r, cx, cy, cz, ids);
                         Object blocks = wrapped.get("blocks");
                         return (blocks instanceof List) ? blocks : List.of();
@@ -237,18 +245,18 @@ public final class AgentApi {
         this.scriptHandler = handler;
     }
 
-    static net.magicterra.agent.client.ClientAgentApi requireClient() {
-        net.magicterra.agent.client.ClientAgentApi c = net.magicterra.agent.client.ClientHooks.impl();
+    static ClientAgentApi requireClient() {
+        ClientAgentApi c = ClientHooks.impl();
         if (c == null) throw new IllegalStateException("mc.client.* not available (no client registered)");
         return c;
     }
 
-    private static net.magicterra.agent.client.ClientAgentApi clientOrNull() {
-        return net.magicterra.agent.client.ClientHooks.impl();
+    private static ClientAgentApi clientOrNull() {
+        return ClientHooks.impl();
     }
 
-    private static net.magicterra.agent.bot.BotApi requireBot() {
-        net.magicterra.agent.bot.BotApi b = net.magicterra.agent.bot.BotHooks.impl();
+    private static BotApi requireBot() {
+        BotApi b = BotHooks.impl();
         if (b == null) throw new IllegalStateException("mc.bot.* not available (client only; bot impl not registered)");
         return b;
     }
@@ -277,11 +285,11 @@ public final class AgentApi {
         if (paramsJson == null || paramsJson.isBlank() || paramsJson.equals("null")) {
             params = Map.of();
         } else {
-            Object decoded = net.magicterra.agent.rpc.JsonCodec.decode(paramsJson);
+            Object decoded = JsonCodec.decode(paramsJson);
             params = (decoded instanceof Map<?, ?> m) ? (Map<String, Object>) m : Map.of();
         }
         Object result = route(method, params);
-        return net.magicterra.agent.rpc.JsonCodec.encode(result);
+        return JsonCodec.encode(result);
     }
 
     public Set<String> methods() { return Collections.unmodifiableSet(routes.keySet()); }
@@ -374,10 +382,10 @@ public final class AgentApi {
         });
         try {
             return f.get(SERVER_THREAD_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-        } catch (java.util.concurrent.TimeoutException e) {
+        } catch (TimeoutException e) {
             throw new RuntimeException("server thread did not run task within "
                     + SERVER_THREAD_TIMEOUT_MS + "ms (server busy or paused)");
-        } catch (java.util.concurrent.ExecutionException e) {
+        } catch (ExecutionException e) {
             Throwable cause = e.getCause() != null ? e.getCause() : e;
             if (cause instanceof RuntimeException re) throw re;
             throw new RuntimeException(cause);
@@ -419,7 +427,7 @@ public final class AgentApi {
             return started;
         }
 
-        long t0 = java.lang.System.nanoTime();
+        long t0 = System.nanoTime();
         long deadlineNanos = t0 + budgetMs * 1_000_000L;
         long pollMs = 200L;
         Map<String, Object> finalStatus = null;
@@ -441,7 +449,7 @@ public final class AgentApi {
             }
             if (sleepUntilNanos(deadlineNanos, pollMs)) break;
         }
-        long ms = (java.lang.System.nanoTime() - t0) / 1_000_000L;
+        long ms = (System.nanoTime() - t0) / 1_000_000L;
         Map<String, Object> out = new LinkedHashMap<>(started);
         out.put("awaited", true);
         out.put("completed", completed);
@@ -481,7 +489,7 @@ public final class AgentApi {
     /** Sleep up to pollMs without exceeding deadlineNanos. Returns true when the
      *  deadline has been reached (caller should bail). */
     private static boolean sleepUntilNanos(long deadlineNanos, long pollMs) {
-        long now = java.lang.System.nanoTime();
+        long now = System.nanoTime();
         if (now >= deadlineNanos) return true;
         long remainingMs = (deadlineNanos - now) / 1_000_000L;
         try {

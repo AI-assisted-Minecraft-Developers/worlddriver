@@ -3,6 +3,7 @@ package net.magicterra.agent.bot.pathfinder.moves;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
+import net.magicterra.agent.bot.BotConfig;
 
 /**
  * 4-block cardinal leap — Baritone {@code allowParkour4} analogue. At
@@ -17,7 +18,7 @@ import net.minecraft.core.BlockPos;
 public final class Parkour4 extends Move {
     public Parkour4(int dx, int dz) { super(dx * 4, 0, dz * 4, 42); }
     public boolean valid(WorldView w, BlockPos from) {
-        if (!net.magicterra.agent.bot.BotConfig.allowParkour4) return false;
+        if (!BotConfig.allowParkour4) return false;
         if (!Move.hasRunway(w, from)) return false;
         BlockPos to = apply(from);
         if (!w.canStandAt(to)) return false;

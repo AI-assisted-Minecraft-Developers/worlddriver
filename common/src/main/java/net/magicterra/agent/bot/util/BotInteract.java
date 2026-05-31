@@ -14,6 +14,16 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
+import java.util.Locale;
+import net.minecraft.world.item.enchantment.Enchantments;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.core.Holder;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.core.component.DataComponents;
 
 
 /**
@@ -36,7 +46,7 @@ public final class BotInteract {
     /** Parse "up"/"down"/"north"/... ; null on missing or unrecognized. */
     public static Direction parseFace(Object o) {
         if (!(o instanceof String s) || s.isBlank()) return null;
-        try { return Direction.byName(s.toLowerCase(java.util.Locale.ROOT)); }
+        try { return Direction.byName(s.toLowerCase(Locale.ROOT)); }
         catch (Exception e) { return null; }
     }
 
@@ -89,7 +99,7 @@ public final class BotInteract {
 
     public static boolean isFoodStack(ItemStack stk) {
         if (stk == null || stk.isEmpty()) return false;
-        return stk.get(net.minecraft.core.component.DataComponents.FOOD) != null;
+        return stk.get(DataComponents.FOOD) != null;
     }
 
     public static int findFoodHotbarSlot(LocalPlayer p) {
@@ -118,10 +128,10 @@ public final class BotInteract {
      *  may be null (no enchant registry / data pack) → raw tool speed. */
     public static float effSpeed(ItemStack stk,
                                  BlockState bs,
-                                 net.minecraft.core.Holder<net.minecraft.world.item.enchantment.Enchantment> eff) {
+                                 Holder<Enchantment> eff) {
         float sp = stk.getDestroySpeed(bs);
         if (sp > 1f && eff != null) {
-            int el = net.minecraft.world.item.enchantment.EnchantmentHelper.getItemEnchantmentLevel(eff, stk);
+            int el = EnchantmentHelper.getItemEnchantmentLevel(eff, stk);
             if (el > 0) sp += el * el + 1;
         }
         return sp;
@@ -137,11 +147,11 @@ public final class BotInteract {
         // Resolve the Efficiency holder so this ranks tools the same way the A*
         // breakCost did (a +Efficiency tool can out-mine a higher-base one); a
         // data pack missing the vanilla enchant just falls back to raw speed.
-        net.minecraft.core.Holder<net.minecraft.world.item.enchantment.Enchantment> eff = null;
+        Holder<Enchantment> eff = null;
         try {
             eff = lvl.registryAccess()
-                    .lookupOrThrow(net.minecraft.core.registries.Registries.ENCHANTMENT)
-                    .getOrThrow(net.minecraft.world.item.enchantment.Enchantments.EFFICIENCY);
+                    .lookupOrThrow(Registries.ENCHANTMENT)
+                    .getOrThrow(Enchantments.EFFICIENCY);
         } catch (Exception ignored) { eff = null; }
         int bestSlot = -1;
         float bestSpeed = effSpeed(inv.getSelected(), bs, eff);
@@ -160,7 +170,7 @@ public final class BotInteract {
         if (bestSlot >= 0 && bestSlot != inv.selected) {
             inv.selected = bestSlot;
             if (p.connection != null) {
-                p.connection.send(new net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket(bestSlot));
+                p.connection.send(new ServerboundSetCarriedItemPacket(bestSlot));
             }
         }
     }
@@ -171,21 +181,21 @@ public final class BotInteract {
         LocalPlayer p = mc.player;
         if (p == null) return false;
         Inventory inv = p.getInventory();
-        if (!inv.getSelected().isEmpty() && inv.getSelected().getItem() instanceof net.minecraft.world.item.BlockItem) return true;
+        if (!inv.getSelected().isEmpty() && inv.getSelected().getItem() instanceof BlockItem) return true;
         for (int s = 0; s < 9; s++) {
             ItemStack stk = inv.items.get(s);
-            if (!stk.isEmpty() && stk.getItem() instanceof net.minecraft.world.item.BlockItem) {
+            if (!stk.isEmpty() && stk.getItem() instanceof BlockItem) {
                 inv.selected = s;
                 if (p.connection != null) p.connection.send(
-                        new net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket(s));
+                        new ServerboundSetCarriedItemPacket(s));
                 return true;
             }
         }
         if (p.isCreative()) {
             for (int s = 9; s < inv.items.size(); s++) {
-                if (!inv.items.get(s).isEmpty() && inv.items.get(s).getItem() instanceof net.minecraft.world.item.BlockItem) {
+                if (!inv.items.get(s).isEmpty() && inv.items.get(s).getItem() instanceof BlockItem) {
                     inv.pickSlot(s);
-                    return inv.getSelected().getItem() instanceof net.minecraft.world.item.BlockItem;
+                    return inv.getSelected().getItem() instanceof BlockItem;
                 }
             }
         }
@@ -193,14 +203,14 @@ public final class BotInteract {
     }
 
     /** First hotbar slot (0-8) holding {@code item}, or -1. */
-    public static int hotbarSlotOf(LocalPlayer p, net.minecraft.world.item.Item item) {
+    public static int hotbarSlotOf(LocalPlayer p, Item item) {
         Inventory inv = p.getInventory();
         for (int s = 0; s < 9; s++) if (inv.items.get(s).getItem() == item) return s;
         return -1;
     }
 
     /** Swap the selected hotbar slot to one holding {@code item}; false if none. */
-    public static boolean ensureHolding(Minecraft mc, net.minecraft.world.item.Item item) {
+    public static boolean ensureHolding(Minecraft mc, Item item) {
         LocalPlayer p = mc.player;
         if (p == null) return false;
         Inventory inv = p.getInventory();
@@ -209,7 +219,7 @@ public final class BotInteract {
         if (s < 0) return false;
         inv.selected = s;
         if (p.connection != null) p.connection.send(
-                new net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket(s));
+                new ServerboundSetCarriedItemPacket(s));
         return true;
     }
 

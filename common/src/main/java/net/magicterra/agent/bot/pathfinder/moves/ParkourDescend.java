@@ -3,6 +3,7 @@ package net.magicterra.agent.bot.pathfinder.moves;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
+import net.magicterra.agent.bot.BotConfig;
 
 /**
  * Parkour DESCEND -- Baritone {@code MovementParkour} with a lower landing: a
@@ -36,7 +37,7 @@ public final class ParkourDescend extends Move {
         // landing-brake can't recover a body still well above the pad), so those
         // ride the allowParkour4 "marginal physics" tier -- same contract as the
         // dist-3 ascend, which also needs a boost to land.
-        if ((dist >= 3 || drop >= 2) && !net.magicterra.agent.bot.BotConfig.allowParkour4) return false;
+        if ((dist >= 3 || drop >= 2) && !BotConfig.allowParkour4) return false;
         if (!Move.hasRunway(w, from)) return false;
         BlockPos to = apply(from);                 // (sx*dist, -drop, sz*dist)
         if (!w.canStandAt(to)) return false;

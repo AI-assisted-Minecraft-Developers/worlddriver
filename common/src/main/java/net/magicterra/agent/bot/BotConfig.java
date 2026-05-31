@@ -1,4 +1,6 @@
 package net.magicterra.agent.bot;
+import java.util.Set;
+import net.magicterra.agent.bot.pathfinder.PathFinder;
 
 /**
  * Mutable tuning values exposed via {@code mc.bot.setting}. Read by Walker,
@@ -51,7 +53,7 @@ public final class BotConfig {
      *  {@code pathTimeoutMS} analogue. Maps directly to
      *  {@link net.magicterra.agent.bot.pathfinder.PathFinder} default. */
     public static volatile int pathfinderMaxNodes =
-            net.magicterra.agent.bot.pathfinder.PathFinder.DEFAULT_MAX_NODES;
+            PathFinder.DEFAULT_MAX_NODES;
 
     /** Per-tick compute slice (ms) for the time-sliced A* search. The Walker
      *  advances an in-flight search by at most this much each client tick, so a
@@ -63,7 +65,7 @@ public final class BotConfig {
 
     /** A* wall-clock cap, ms. Default mirrors {@code PathFinder.DEFAULT_MAX_MS}. */
     public static volatile long pathfinderMaxMs =
-            net.magicterra.agent.bot.pathfinder.PathFinder.DEFAULT_MAX_MS;
+            PathFinder.DEFAULT_MAX_MS;
 
     /** Y plane targeted by {@code mc.bot.goto{axis:true}} — Baritone's
      *  {@code axisHeight} setting (default 120, the classic "highway" Y). Read
@@ -89,7 +91,7 @@ public final class BotConfig {
      *  {@code mc.bot.setting{blocksToAvoid:[id,...]}}. Read on every WorldView
      *  query so changes apply immediately. Stored as an immutable Set; writers
      *  replace the whole reference. */
-    public static volatile java.util.Set<String> extraHazardBlocks = java.util.Set.of();
+    public static volatile Set<String> extraHazardBlocks = Set.of();
 
     /** Baritone {@code allowParkour4} analogue — enables 4-block cardinal
      *  leaps in A*. Off by default because the leap is at the edge of vanilla

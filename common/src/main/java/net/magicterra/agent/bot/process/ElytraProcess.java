@@ -47,6 +47,11 @@ import java.util.Set;
 import static net.magicterra.agent.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.agent.bot.util.BotInteract.*;
 import static net.magicterra.agent.bot.util.BotUtil.*;
+import java.util.Locale;
+import static net.magicterra.agent.AgentDriverCommon.LOG;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket;
+import net.magicterra.agent.bot.elytra.ElytraPathfinder;
 
 public final class ElytraProcess implements BotProcess {
     /** Give up arming flight after this many ticks (~3 s) — no elytra, stuck
@@ -138,7 +143,7 @@ public final class ElytraProcess implements BotProcess {
         st.elytra.active = true;
         st.elytra.goal = target != null
                 ? "fly→" + target.getX() + "," + target.getY() + "," + target.getZ()
-                : String.format(java.util.Locale.ROOT, "glide pitch %.1f", pitch);
+                : String.format(Locale.ROOT, "glide pitch %.1f", pitch);
         st.elytra.target = target;
         st.elytra.startedAtMs = System.currentTimeMillis();
         st.elytra.lastError = null;
@@ -152,8 +157,8 @@ public final class ElytraProcess implements BotProcess {
             if (p.isFallFlying()) {
                 phase = Phase.FLYING;
             } else {
-                ItemStack chest = p.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST);
-                boolean flyable = chest.is(net.minecraft.world.item.Items.ELYTRA)
+                ItemStack chest = p.getItemBySlot(EquipmentSlot.CHEST);
+                boolean flyable = chest.is(Items.ELYTRA)
                         && chest.getMaxDamage() > 0 && chest.getDamageValue() < chest.getMaxDamage() - 1;
                 if (!flyable) {
                     st.elytra.lastError = "no usable elytra in chest slot";
@@ -164,8 +169,8 @@ public final class ElytraProcess implements BotProcess {
                 } else {
                     mc.options.keyJump.setDown(false);
                     if (p.tryToStartFallFlying()) {
-                        p.connection.send(new net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket(
-                                p, net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket.Action.START_FALL_FLYING));
+                        p.connection.send(new ServerboundPlayerCommandPacket(
+                                p, ServerboundPlayerCommandPacket.Action.START_FALL_FLYING));
                         phase = Phase.FLYING;
                     }
                 }
@@ -190,7 +195,7 @@ public final class ElytraProcess implements BotProcess {
             if (BotConfig.elytraDebug) {
                 logSummary();
                 if (!p.onGround())
-                    net.magicterra.agent.AgentDriverCommon.LOG.info(
+                    LOG.info(
                             "[elytra] flight ended airborne at y={} — handing fall to the clutch",
                             f(p.getY()));
             }
@@ -205,7 +210,7 @@ public final class ElytraProcess implements BotProcess {
             double err = pred.subtract(curVel).length();
             sumErr += err; samples++; if (err > maxErr) maxErr = err;
             if (BotConfig.elytraDebug)
-                net.magicterra.agent.AgentDriverCommon.LOG.info(
+                LOG.info(
                         "[elytra] t={} pred=({},{},{}) obs=({},{},{}) err={} |v|={}",
                         ticks, f(pred.x), f(pred.y), f(pred.z), f(curVel.x), f(curVel.y), f(curVel.z),
                         f(err), f(curVel.length()));
@@ -222,13 +227,13 @@ public final class ElytraProcess implements BotProcess {
 
             // Failsafe 1 — durability: abort to a gentle descent before the
             // wing breaks (a mid-air snap would just drop the bot).
-            ItemStack chest = p.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST);
-            if (!aborting && chest.is(net.minecraft.world.item.Items.ELYTRA) && chest.getMaxDamage() > 0
+            ItemStack chest = p.getItemBySlot(EquipmentSlot.CHEST);
+            if (!aborting && chest.is(Items.ELYTRA) && chest.getMaxDamage() > 0
                     && chest.getDamageValue() >= chest.getMaxDamage() - DURABILITY_MARGIN) {
                 aborting = true; landing = true; landMinDist = Double.POSITIVE_INFINITY;
                 st.elytra.lastError = "elytra durability low — gliding down";
                 if (BotConfig.elytraDebug)
-                    net.magicterra.agent.AgentDriverCommon.LOG.info(
+                    LOG.info(
                             "[elytra] durability {}/{} ≤ margin — aborting to glide-down",
                             chest.getDamageValue(), chest.getMaxDamage());
             }
@@ -240,7 +245,7 @@ public final class ElytraProcess implements BotProcess {
                 aborting = true; landing = true; landMinDist = Double.POSITIVE_INFINITY;
                 st.elytra.lastError = "no progress (stalled / out of boost) — gliding down";
                 if (BotConfig.elytraDebug)
-                    net.magicterra.agent.AgentDriverCommon.LOG.info("[elytra] stalled — aborting to glide-down");
+                    LOG.info("[elytra] stalled — aborting to glide-down");
             }
             if (landing) {
                 // Descend to the GROUND near the goal and only finish once
@@ -268,7 +273,7 @@ public final class ElytraProcess implements BotProcess {
                 double hSpeed = Math.hypot(curVel.x, curVel.z);
                 st.elytra.pathLen = (int) Math.round(goalDist);
                 if (BotConfig.elytraDebug)
-                    net.magicterra.agent.AgentDriverCommon.LOG.info(
+                    LOG.info(
                             "[elytra] {} t={} pos=({},{},{}) landDist={} aboveGround={} pitch={} hSpeed={} hcol={}",
                             aborting ? "abort-glide" : "landing", ticks,
                             f(pos.x), f(pos.y), f(pos.z), f(landDist), f(aboveGround),
@@ -287,11 +292,11 @@ public final class ElytraProcess implements BotProcess {
                 // a route through chunks we can't see. Re-planning walks it out.
                 Vec3 planGoal = flightTarget(w, pos, goal);
                 if (waypoints == null || sinceReplan >= REPLAN_TICKS) {
-                    waypoints = net.magicterra.agent.bot.elytra.ElytraPathfinder.plan(w, pos, planGoal);
+                    waypoints = ElytraPathfinder.plan(w, pos, planGoal);
                     wpIndex = 0;
                     sinceReplan = 0;
                     if (BotConfig.elytraDebug)
-                        net.magicterra.agent.AgentDriverCommon.LOG.info(
+                        LOG.info(
                                 "[elytra] planned {} waypoint(s) to ({},{},{}){}",
                                 waypoints.size(), f(planGoal.x), f(planGoal.y), f(planGoal.z),
                                 frontierMode ? " [frontier]" : "");
@@ -300,7 +305,7 @@ public final class ElytraProcess implements BotProcess {
                 // Advance past waypoints we've reached or can already see past.
                 while (wpIndex < waypoints.size() - 1
                         && (waypoints.get(wpIndex).distanceTo(pos) <= WAYPOINT_REACH
-                            || net.magicterra.agent.bot.elytra.ElytraPathfinder.losClear(w, pos, waypoints.get(wpIndex + 1)))) {
+                            || ElytraPathfinder.losClear(w, pos, waypoints.get(wpIndex + 1)))) {
                     wpIndex++;
                 }
                 boolean onFinal = wpIndex >= waypoints.size() - 1;
@@ -308,7 +313,7 @@ public final class ElytraProcess implements BotProcess {
                 if (onFinal && goalH < LANDING_APPROACH) {
                     landing = true; landMinDist = goalDist;
                     if (BotConfig.elytraDebug)
-                        net.magicterra.agent.AgentDriverCommon.LOG.info(
+                        LOG.info(
                                 "[elytra] flare: final approach, goalH={}", f(goalH));
                 }
                 Vec3 wp = waypoints.get(wpIndex);
@@ -329,14 +334,14 @@ public final class ElytraProcess implements BotProcess {
                 float yaw = smoothAngle(prevYaw, rawYaw);
                 p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw;
                 p.setXRot(d.pitch());
-                if (d.fire() && ensureHolding(mc, net.minecraft.world.item.Items.FIREWORK_ROCKET)) {
+                if (d.fire() && ensureHolding(mc, Items.FIREWORK_ROCKET)) {
                     InteractionResult r = mc.gameMode.useItem(p, InteractionHand.MAIN_HAND);
                     if (r.consumesAction()) { p.swing(InteractionHand.MAIN_HAND); controller.onFired(); }
                 }
                 st.elytra.pathLen = (int) Math.round(goalDist);
                 st.elytra.pathStep = wpIndex;
                 if (BotConfig.elytraDebug)
-                    net.magicterra.agent.AgentDriverCommon.LOG.info(
+                    LOG.info(
                             "[elytra] reactive t={} pos=({},{},{}) wp{}/{}=({},{},{}) goalDist={} yawTgt={} yaw={} dYaw={} pitch={} fire={} boostOk={} knownFwd={} front={} |v|={} hp={} hcol={}",
                             ticks, f(pos.x), f(pos.y), f(pos.z), wpIndex, waypoints.size() - 1,
                             f(wp.x), f(wp.y), f(wp.z), f(goalDist), f(rawYaw), f(yaw),
@@ -360,7 +365,7 @@ public final class ElytraProcess implements BotProcess {
 
             // Firework boost policy.
             if (useFireworks && sinceFirework >= fireworkEveryTicks
-                    && ensureHolding(mc, net.minecraft.world.item.Items.FIREWORK_ROCKET)) {
+                    && ensureHolding(mc, Items.FIREWORK_ROCKET)) {
                 InteractionResult r = mc.gameMode.useItem(p, InteractionHand.MAIN_HAND);
                 if (r.consumesAction()) { p.swing(InteractionHand.MAIN_HAND); sinceFirework = 0; }
             } else if (sinceFirework < Integer.MAX_VALUE) {
@@ -368,7 +373,7 @@ public final class ElytraProcess implements BotProcess {
             }
 
             // Save this tick's inputs for next tick's prediction.
-            boolean slow = p.hasEffect(net.minecraft.world.effect.MobEffects.SLOW_FALLING) && curVel.y <= 0;
+            boolean slow = p.hasEffect(MobEffects.SLOW_FALLING) && curVel.y <= 0;
             prevVel = curVel;
             prevYaw = yaw; prevPitch = pitch;
             prevGravity = slow ? ElytraPhysics.GRAVITY_SLOW_FALLING : ElytraPhysics.GRAVITY;
@@ -442,10 +447,10 @@ public final class ElytraProcess implements BotProcess {
     }
 
     private void logSummary() {
-        net.magicterra.agent.AgentDriverCommon.LOG.info(
+        LOG.info(
                 "[elytra] glide-sim validation: samples={} meanErr={} maxErr={} (blocks/tick)",
                 samples, samples > 0 ? f(sumErr / samples) : "n/a", f(maxErr));
     }
 
-    private static String f(double d) { return String.format(java.util.Locale.ROOT, "%.4f", d); }
+    private static String f(double d) { return String.format(Locale.ROOT, "%.4f", d); }
 }

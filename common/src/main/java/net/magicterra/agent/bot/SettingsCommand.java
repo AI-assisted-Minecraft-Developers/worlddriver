@@ -11,6 +11,9 @@ import java.util.Map;
 
 import static net.magicterra.agent.bot.util.BotInteract.*;
 import static net.magicterra.agent.bot.util.BotUtil.*;
+import static net.magicterra.agent.AgentDriverCommon.LOG;
+import net.minecraft.resources.ResourceLocation;
+import java.util.Set;
 
 /**
  * Applies {@code mc.bot.setting{...}} param mutations to {@link BotConfig} and
@@ -152,13 +155,13 @@ public final class SettingsCommand {
                 mcf.execute(() -> {
                     LocalPlayer pf = mcf.player;
                     if (pf == null) {
-                        net.magicterra.agent.AgentDriverCommon.LOG.info("[debugFly] player null");
+                        LOG.info("[debugFly] player null");
                         return;
                     }
                     pf.getAbilities().mayfly = true;
                     pf.getAbilities().flying = dfly;
                     pf.onUpdateAbilities();
-                    net.magicterra.agent.AgentDriverCommon.LOG.info(
+                    LOG.info(
                             "[debugFly] requested={} readback mayfly={} flying={} onGround={} y={}",
                             dfly, pf.getAbilities().mayfly, pf.getAbilities().flying, pf.onGround(), pf.getY());
                 });
@@ -193,7 +196,7 @@ public final class SettingsCommand {
             }
             if (params.get("autoBackfillBlock") instanceof String abb && !abb.isBlank()) {
                 try {
-                    var rl = net.minecraft.resources.ResourceLocation.parse(abb);
+                    var rl = ResourceLocation.parse(abb);
                     if (!BuiltInRegistries.BLOCK.containsKey(rl)) {
                         rejected.add("autoBackfillBlock: unknown block id " + abb);
                     } else {
@@ -210,17 +213,17 @@ public final class SettingsCommand {
             // write to be rejected so the caller knows nothing was applied.
             if (params.get("blocksToAvoid") instanceof List<?> bl) {
                 List<String> bad = new ArrayList<>();
-                java.util.Set<String> nextSet = new java.util.LinkedHashSet<>();
+                Set<String> nextSet = new java.util.LinkedHashSet<>();
                 for (Object o : bl) {
                     if (!(o instanceof String s) || s.isBlank()) { bad.add(String.valueOf(o)); continue; }
                     try {
-                        net.minecraft.resources.ResourceLocation rl = net.minecraft.resources.ResourceLocation.parse(s);
+                        ResourceLocation rl = ResourceLocation.parse(s);
                         if (!BuiltInRegistries.BLOCK.containsKey(rl)) { bad.add(s); continue; }
                         nextSet.add(rl.toString());
                     } catch (Exception e) { bad.add(s); }
                 }
                 if (bad.isEmpty()) {
-                    BotConfig.extraHazardBlocks = java.util.Set.copyOf(nextSet);
+                    BotConfig.extraHazardBlocks = Set.copyOf(nextSet);
                     applied.add("blocksToAvoid");
                 } else {
                     rejected.add("blocksToAvoid: invalid ids " + bad);

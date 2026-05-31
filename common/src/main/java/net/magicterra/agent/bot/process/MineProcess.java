@@ -47,6 +47,7 @@ import java.util.Set;
 import static net.magicterra.agent.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.agent.bot.util.BotInteract.*;
 import static net.magicterra.agent.bot.util.BotUtil.*;
+import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
 
 public final class MineProcess implements BotProcess {
 
@@ -214,10 +215,10 @@ public final class MineProcess implements BotProcess {
     private BlockPos findCollectGoal(Minecraft mc, LocalPlayer p) {
         Level lvl = mc.level;
         if (lvl != null) {
-            net.minecraft.world.phys.AABB box = p.getBoundingBox().inflate(COLLECT_SCAN_RADIUS);
-            var items = lvl.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, box,
+            AABB box = p.getBoundingBox().inflate(COLLECT_SCAN_RADIUS);
+            var items = lvl.getEntitiesOfClass(ItemEntity.class, box,
                     it -> it.isAlive() && !it.hasPickUpDelay());
-            net.minecraft.world.entity.item.ItemEntity best = null;
+            ItemEntity best = null;
             double bestD2 = Double.MAX_VALUE;
             for (var it : items) {
                 double d2 = it.distanceToSqr(p);
@@ -359,7 +360,7 @@ public final class MineProcess implements BotProcess {
             // Sync to server so attack packets use the new item; client-side
             // ItemStack interactions (destroy speed) already reflect inv.selected.
             if (p.connection != null) {
-                p.connection.send(new net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket(bestSlot));
+                p.connection.send(new ServerboundSetCarriedItemPacket(bestSlot));
             }
         }
         // Inventory swap (creative-friendly): if no hotbar slot was good but main inventory has one.

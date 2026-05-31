@@ -1,4 +1,5 @@
 package net.magicterra.agent.client;
+import net.magicterra.agent.AgentDriverCommon;
 
 /**
  * Broker between the platform-neutral {@code AgentApi} and the platform-supplied
@@ -19,8 +20,8 @@ public final class ClientHooks {
         // evaluator) are reachable from TitleScreen / Pause — before any world
         // exists. Both ensure*Up() calls are idempotent so onServerStarting
         // can call them again without conflict.
-        net.magicterra.agent.AgentDriverCommon.ensureRpcUp();
-        net.magicterra.agent.AgentDriverCommon.ensureMcpUp();
+        AgentDriverCommon.ensureRpcUp();
+        AgentDriverCommon.ensureMcpUp();
     }
 
     public static ClientAgentApi impl() {

@@ -5,6 +5,7 @@ import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 
 import java.util.List;
+import net.magicterra.agent.bot.BotConfig;
 
 /**
  * Dig straight down one block and drop into the hole — Baritone's
@@ -16,7 +17,7 @@ public final class DownBreak extends Move {
     public DownBreak() { super(0, -1, 0, 10); }
     @Override public boolean valid(WorldView w, BlockPos from) { return eval(w, from) != null; }
     @Override public Edge eval(WorldView w, BlockPos from) {
-        if (!net.magicterra.agent.bot.BotConfig.allowBreak) return null;
+        if (!BotConfig.allowBreak) return null;
         BlockPos below = apply(from);                              // the cell we dig + drop into
         if (!w.isSolid(below)) return null;                        // air → Fall / StepDown handle it
         double c = w.breakCost(below);

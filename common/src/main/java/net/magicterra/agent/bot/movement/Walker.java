@@ -25,6 +25,8 @@ import static net.magicterra.agent.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.agent.bot.movement.PathSmoothing.*;
 import static net.magicterra.agent.bot.util.BotInteract.*;
 import static net.magicterra.agent.bot.util.BotUtil.*;
+import java.util.Locale;
+import static net.magicterra.agent.AgentDriverCommon.LOG;
 
 public final class Walker {
     private static final int CARROT_MAX_NODES = 10;
@@ -100,7 +102,7 @@ public final class Walker {
             p.getAbilities().flying = false;
             p.onUpdateAbilities();
             if (!descending && BotConfig.walkerDebug)
-                net.magicterra.agent.AgentDriverCommon.LOG.info(
+                LOG.info(
                         "[walker] creative flight detected → disabling, will descend (y={})", p.getY());
             descending = true;
         }
@@ -119,13 +121,13 @@ public final class Walker {
                 mc.options.keySprint.setDown(false);
                 p.setSprinting(false);
                 if (BotConfig.walkerDebug)
-                    net.magicterra.agent.AgentDriverCommon.LOG.info(
+                    LOG.info(
                             "[walker] descending… y={} onGround={}", p.getY(), p.onGround());
                 return Step.WALKING;
             }
             descending = false;
             if (BotConfig.walkerDebug)
-                net.magicterra.agent.AgentDriverCommon.LOG.info(
+                LOG.info(
                         "[walker] landed at y={} → resume ground pathing", p.getY());
         }
 
@@ -187,7 +189,7 @@ public final class Walker {
             long sb = System.nanoTime();
             searchDone = activeSearch.advance(BotConfig.pathfinderSliceMs);
             if (BotConfig.walkerDebug && !searchDone)
-                net.magicterra.agent.AgentDriverCommon.LOG.info(
+                LOG.info(
                         "[walker] search slice {}ms expanded={} (still running)",
                         (System.nanoTime() - sb) / 1_000_000, activeSearch.expanded());
         }
@@ -197,7 +199,7 @@ public final class Walker {
             lastStats = new PathStats(res.expanded(), res.ms(), res.goalReached(),
                     res.finalCost(), res.path().size());
             if (BotConfig.walkerDebug)
-                net.magicterra.agent.AgentDriverCommon.LOG.info(
+                LOG.info(
                         "[walker] repath from {} → goalReached={} pathLen={} expanded={} ms={}",
                         foot, res.goalReached(), res.path().size(), res.expanded(), res.ms());
             if (res.hasPath()) {
@@ -217,7 +219,7 @@ public final class Walker {
                         sbp.append(i).append(':').append(path.get(i).getX()).append(',').append(path.get(i).getY())
                            .append(',').append(path.get(i).getZ()).append('[').append(e != null ? e.move : "-").append("] ");
                     }
-                    net.magicterra.agent.AgentDriverCommon.LOG.info("[walker] path = {}", sbp);
+                    LOG.info("[walker] path = {}", sbp);
                 }
             } else if (path == null) {
                 // No route and nothing to fall back on. But if we're airborne
@@ -427,11 +429,11 @@ public final class Walker {
                 if (inReach) {
                     walkerPlace(mc, p, world, floor);
                     if (BotConfig.walkerDebug)
-                        net.magicterra.agent.AgentDriverCommon.LOG.info(
+                        LOG.info(
                                 "[walker] parkour-place floor={},{},{} y={} dy={} solid={}",
                                 floor.getX(), floor.getY(), floor.getZ(),
-                                String.format(java.util.Locale.ROOT, "%.2f", p.getY()),
-                                String.format(java.util.Locale.ROOT, "%.2f", p.getDeltaMovement().y),
+                                String.format(Locale.ROOT, "%.2f", p.getY()),
+                                String.format(Locale.ROOT, "%.2f", p.getDeltaMovement().y),
                                 world.isSolid(floor));
                 }
             }
@@ -472,9 +474,9 @@ public final class Walker {
             for (BlockPos b : edge.toPlace) {
                 if (!world.isSolid(b)) {
                     if (BotConfig.walkerDebug)
-                        net.magicterra.agent.AgentDriverCommon.LOG.info(
+                        LOG.info(
                                 "[walker] place-act foot={},{},{} y={} step={} placing={},{},{} onGround={} edge={}",
-                                foot.getX(), foot.getY(), foot.getZ(), String.format(java.util.Locale.ROOT, "%.2f", p.getY()),
+                                foot.getX(), foot.getY(), foot.getZ(), String.format(Locale.ROOT, "%.2f", p.getY()),
                                 step, b.getX(), b.getY(), b.getZ(), p.onGround(), edge.move);
                     aimAtBlockSnap(p, b);
                     walkerPlace(mc, p, world, b);
@@ -607,9 +609,9 @@ public final class Walker {
         mc.options.keySprint.setDown(sprint);
         p.setSprinting(sprint);
         if (BotConfig.walkerDebug && bridging)
-            net.magicterra.agent.AgentDriverCommon.LOG.info(
+            LOG.info(
                     "[walker] bridge-walk foot={},{},{} y={} step={} wp={},{},{} onGround={} jump={} sneak={} sprint={} stuck={} edge={}",
-                    foot.getX(), foot.getY(), foot.getZ(), String.format(java.util.Locale.ROOT, "%.2f", p.getY()),
+                    foot.getX(), foot.getY(), foot.getZ(), String.format(Locale.ROOT, "%.2f", p.getY()),
                     step, wp.getX(), wp.getY(), wp.getZ(), p.onGround(), jump, bridging, !bridging, stuckTicks,
                     edge != null ? edge.move : "-");
         return Step.WALKING;

@@ -47,6 +47,9 @@ import java.util.Set;
 import static net.magicterra.agent.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.agent.bot.util.BotInteract.*;
 import static net.magicterra.agent.bot.util.BotUtil.*;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtIo;
+import net.minecraft.nbt.NbtAccounter;
 
 public final class Schematic {
     public final int w, h, d;
@@ -115,14 +118,14 @@ public final class Schematic {
      * without state, so adding them here would silently lose data.
      */
     public static Schematic fromSpongeSchem(byte[] bytes) {
-        net.minecraft.nbt.CompoundTag root;
+        CompoundTag root;
         try {
-            root = net.minecraft.nbt.NbtIo.readCompressed(
+            root = NbtIo.readCompressed(
                     new java.io.ByteArrayInputStream(bytes),
-                    net.minecraft.nbt.NbtAccounter.unlimitedHeap());
+                    NbtAccounter.unlimitedHeap());
         } catch (Exception gzipFail) {
             try {
-                root = net.minecraft.nbt.NbtIo.read(
+                root = NbtIo.read(
                         new java.io.DataInputStream(new java.io.ByteArrayInputStream(bytes)));
             } catch (Exception rawFail) {
                 throw new IllegalArgumentException(
@@ -130,7 +133,7 @@ public final class Schematic {
             }
         }
         // v3 nests everything under "Schematic"; v2 is flat. Sniff which.
-        net.minecraft.nbt.CompoundTag s = root.contains("Schematic")
+        CompoundTag s = root.contains("Schematic")
                 ? root.getCompound("Schematic")
                 : root;
         int w = s.getShort("Width") & 0xFFFF;
@@ -141,9 +144,9 @@ public final class Schematic {
         if ((long) w * h * l > 4096) throw new IllegalArgumentException(
                 "schematic too large (" + (w * h * l) + " > 4096 blocks; crop first)");
         // v3 path: blocks live under s.Blocks.{Palette,Data}
-        net.minecraft.nbt.CompoundTag blocksHolder = s.contains("Blocks")
+        CompoundTag blocksHolder = s.contains("Blocks")
                 ? s.getCompound("Blocks") : s;
-        net.minecraft.nbt.CompoundTag palette = blocksHolder.contains("Palette")
+        CompoundTag palette = blocksHolder.contains("Palette")
                 ? blocksHolder.getCompound("Palette")
                 : (s.contains("Palette") ? s.getCompound("Palette") : null);
         if (palette == null) throw new IllegalArgumentException("Palette compound missing");

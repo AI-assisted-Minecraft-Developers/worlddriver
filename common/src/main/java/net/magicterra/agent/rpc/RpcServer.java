@@ -20,6 +20,7 @@ import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 
 /**
  * WebSocket RPC server (Netty). Endpoint: ws://host:port/rpc
@@ -84,7 +85,7 @@ public final class RpcServer implements Closeable {
         routeExec.shutdown();
     }
 
-    private static java.util.concurrent.ThreadFactory daemonFactory(String prefix) {
+    private static ThreadFactory daemonFactory(String prefix) {
         return r -> {
             Thread t = new Thread(r, prefix + "-" + Thread.currentThread().threadId());
             t.setDaemon(true);

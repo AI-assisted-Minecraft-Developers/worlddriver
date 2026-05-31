@@ -47,6 +47,7 @@ import java.util.Set;
 import static net.magicterra.agent.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.agent.bot.util.BotInteract.*;
 import static net.magicterra.agent.bot.util.BotUtil.*;
+import net.minecraft.client.multiplayer.ClientLevel;
 
 public final class FollowProcess implements BotProcess {
     private static final int REPLAN_TICKS = 30;
@@ -82,7 +83,7 @@ public final class FollowProcess implements BotProcess {
         LocalPlayer p = mc.player;
         Level lvl = mc.level;
         if (p == null || lvl == null) { st.follow.reset(); return true; }
-        net.minecraft.world.entity.Entity target = findTarget(lvl, p);
+        Entity target = findTarget(lvl, p);
         if (target == null) {
             // No target visible — clear keys and idle. If maxIdleTicks set and
             // exceeded, finish gracefully so the LLM can poll and react.
@@ -140,7 +141,7 @@ public final class FollowProcess implements BotProcess {
 
     /** Point head+body yaw and pitch at the entity's mid-height, via
      *  {@link #smoothAngle} so it honors the smoothLook toggle. */
-    private static void aimAtEntity(LocalPlayer p, net.minecraft.world.entity.Entity e) {
+    private static void aimAtEntity(LocalPlayer p, Entity e) {
         Vec3 eye = p.getEyePosition();
         double dx = e.getX() - eye.x;
         double dy = (e.getY() + e.getBbHeight() * 0.5) - eye.y;
@@ -152,17 +153,17 @@ public final class FollowProcess implements BotProcess {
         p.setYRot(ny); p.yHeadRot = ny; p.yBodyRot = ny; p.setXRot(np);
     }
 
-    private net.minecraft.world.entity.Entity findTarget(Level lvl, LocalPlayer self) {
-        if (!(lvl instanceof net.minecraft.client.multiplayer.ClientLevel cl)) return null;
+    private Entity findTarget(Level lvl, LocalPlayer self) {
+        if (!(lvl instanceof ClientLevel cl)) return null;
         double bestDist = Double.POSITIVE_INFINITY;
-        net.minecraft.world.entity.Entity best = null;
-        for (net.minecraft.world.entity.Entity e : cl.entitiesForRendering()) {
+        Entity best = null;
+        for (Entity e : cl.entitiesForRendering()) {
             if (e == self) continue;
             if (name != null) {
                 String n = e.getName().getString();
                 if (!name.equals(n)) continue;
             } else {
-                String t = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString();
+                String t = BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString();
                 if (!entityType.equals(t)) continue;
             }
             double d = e.distanceToSqr(self);

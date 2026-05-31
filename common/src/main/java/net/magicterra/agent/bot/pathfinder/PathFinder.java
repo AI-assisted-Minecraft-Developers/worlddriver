@@ -9,6 +9,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
+import net.magicterra.agent.bot.BotConfig;
+import java.util.Arrays;
 
 /**
  * A* over BlockPos with the {@link Move} catalog as the neighbor function.
@@ -67,8 +69,8 @@ public final class PathFinder {
      *  without restarting the JVM. */
     public PathFinder(WorldView world) {
         this(world,
-                net.magicterra.agent.bot.BotConfig.pathfinderMaxNodes,
-                net.magicterra.agent.bot.BotConfig.pathfinderMaxMs);
+                BotConfig.pathfinderMaxNodes,
+                BotConfig.pathfinderMaxMs);
     }
     public PathFinder(WorldView world, int maxNodes, long maxMs) {
         this.world = world;
@@ -117,7 +119,7 @@ public final class PathFinder {
             this.startNode = new Node(start, null, null, 0, goal.estimate(start));
             nodes.put(start, startNode);
             open.add(startNode);
-            java.util.Arrays.fill(bestHeuristic, Double.POSITIVE_INFINITY);
+            Arrays.fill(bestHeuristic, Double.POSITIVE_INFINITY);
         }
 
         public boolean done() { return result != null; }

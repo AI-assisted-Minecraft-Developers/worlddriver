@@ -5,6 +5,7 @@ import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 
 import java.util.List;
+import net.magicterra.agent.bot.BotConfig;
 
 /**
  * Pillar up one block — Baritone's {@code MovementPillar}: place a block at
@@ -33,7 +34,7 @@ public final class PillarUp extends Move {
         if (!w.isPassable(to) || w.isHazard(to)) return null;          // current head cell — must be open
         BlockPos ceiling = from.offset(0, 2, 0);                       // head room after rising (= to + 1)
         if (w.isSolid(ceiling)) {
-            if (!net.magicterra.agent.bot.BotConfig.allowBreak) return null;
+            if (!BotConfig.allowBreak) return null;
             double c = w.breakCost(ceiling);
             if (Double.isInfinite(c)) return null;
             return new Edge(to, Move.PILLAR_COST + c, List.of(ceiling), List.of(from), name());

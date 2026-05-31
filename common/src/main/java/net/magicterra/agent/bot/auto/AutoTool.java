@@ -6,6 +6,7 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
 
 /**
  * Baritone autoTool — when the crosshair points at a breakable block, swap the
@@ -46,7 +47,7 @@ public final class AutoTool {
         if (bestSlot != inv.selected) {
             inv.selected = bestSlot;
             if (p.connection != null) {
-                p.connection.send(new net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket(bestSlot));
+                p.connection.send(new ServerboundSetCarriedItemPacket(bestSlot));
             }
         }
     }

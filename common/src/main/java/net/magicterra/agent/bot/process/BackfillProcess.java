@@ -47,13 +47,15 @@ import java.util.Set;
 import static net.magicterra.agent.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.agent.bot.util.BotInteract.*;
 import static net.magicterra.agent.bot.util.BotUtil.*;
+import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
+import net.minecraft.resources.ResourceLocation;
 
 public final class BackfillProcess implements BotProcess {
     private static final int PLACE_TIMEOUT_TICKS = 60;
 
     private final BackfillTracker tracker;
     private final Walker walker = new Walker();
-    private final java.util.Set<BlockPos> failed = new java.util.HashSet<>();
+    private final Set<BlockPos> failed = new java.util.HashSet<>();
     private Phase phase = Phase.NEXT;
     private BlockPos currentBlock;
     private BlockPos currentStand;
@@ -257,7 +259,7 @@ public final class BackfillProcess implements BotProcess {
             if (matchesItem(inv.items.get(slot), blockId)) {
                 inv.selected = slot;
                 if (p.connection != null) {
-                    p.connection.send(new net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket(slot));
+                    p.connection.send(new ServerboundSetCarriedItemPacket(slot));
                 }
                 return true;
             }
@@ -276,8 +278,8 @@ public final class BackfillProcess implements BotProcess {
 
     private boolean matchesItem(ItemStack stk, String blockId) {
         if (stk.isEmpty()) return false;
-        net.minecraft.world.item.Item item = stk.getItem();
-        net.minecraft.resources.ResourceLocation rl = BuiltInRegistries.ITEM.getKey(item);
+        Item item = stk.getItem();
+        ResourceLocation rl = BuiltInRegistries.ITEM.getKey(item);
         return rl.toString().equals(blockId);
     }
 

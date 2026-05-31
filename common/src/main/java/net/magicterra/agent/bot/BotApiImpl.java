@@ -36,6 +36,15 @@ import static net.magicterra.agent.bot.GoalResolver.*;
 import static net.magicterra.agent.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.agent.bot.util.BotInteract.*;
 import static net.magicterra.agent.bot.util.BotUtil.*;
+import net.minecraft.world.entity.Entity;
+import java.util.Locale;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.magicterra.agent.bot.auto.AutoEat;
+import net.magicterra.agent.bot.auto.AutoTool;
+import net.magicterra.agent.bot.auto.AutoSwim;
+import net.magicterra.agent.bot.auto.AutoRespawn;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Phase-2 client bot impl. Hosts a single active {@link BotProcess} driven
@@ -56,10 +65,10 @@ public final class BotApiImpl implements BotApi {
      *  Survives across goto/mine/etc. so a script can label home/farm/base
      *  and revisit by name. ConcurrentHashMap because list/get can race a
      *  save from a separate RPC handler thread. */
-    private final java.util.Map<String, BlockPos> waypoints = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.Map<String, BlockPos> waypoints = new ConcurrentHashMap<>();
     /** autoEat hold-keyUse loop. Owns its own {@code eating} flag; the tick
      *  hook drives it and releases the key when a process takes over. */
-    private final net.magicterra.agent.bot.auto.AutoEat autoEat = new net.magicterra.agent.bot.auto.AutoEat();
+    private final AutoEat autoEat = new AutoEat();
 
     /** Records cells the player's foot passed through while {@link BotConfig#autoBackfill}
      *  is on. BackfillProcess consumes from this when no main process is
@@ -111,8 +120,8 @@ public final class BotApiImpl implements BotApi {
             double stopXZ = doubleOr(p.get("stopXZDist"), 3.0);
             // Ground fallback (milestone D): with no usable elytra, optionally walk
             // to the target via the normal pathfinder instead of failing.
-            ItemStack chest = player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST);
-            boolean flyable = chest.is(net.minecraft.world.item.Items.ELYTRA)
+            ItemStack chest = player.getItemBySlot(EquipmentSlot.CHEST);
+            boolean flyable = chest.is(Items.ELYTRA)
                     && chest.getMaxDamage() > 0 && chest.getDamageValue() < chest.getMaxDamage() - 1;
             if (!flyable && target != null && Boolean.TRUE.equals(p.get("groundFallback"))) {
                 int near = clamp(intOr(p.get("near"), 1), 0, 64);
@@ -131,7 +140,7 @@ public final class BotApiImpl implements BotApi {
     @Override
     public Map<String, Object> waypoint(Map<String, Object> params) {
         final Map<String, Object> p = (params == null) ? Map.of() : params;
-        final String op = (p.get("op") instanceof String s && !s.isBlank()) ? s.trim().toLowerCase(java.util.Locale.ROOT) : "list";
+        final String op = (p.get("op") instanceof String s && !s.isBlank()) ? s.trim().toLowerCase(Locale.ROOT) : "list";
         return onClient(() -> {
             switch (op) {
                 case "save" -> {
@@ -209,7 +218,7 @@ public final class BotApiImpl implements BotApi {
         // GoalAxis: reach the nearest world axis/diagonal at the configured Y.
         if (Boolean.TRUE.equals(p.get("axis"))) return new Goal.Axis(BotConfig.axisHeight);
 
-        String mode = p.get("goalMode") instanceof String s ? s.trim().toLowerCase(java.util.Locale.ROOT) : "in";
+        String mode = p.get("goalMode") instanceof String s ? s.trim().toLowerCase(Locale.ROOT) : "in";
 
         Goal classic = parseGoal(p);
         if (classic != null) {
@@ -228,19 +237,19 @@ public final class BotApiImpl implements BotApi {
         if (p.get("entityId") instanceof Number eidn) {
             int eid = eidn.intValue();
             Level lvl = Minecraft.getInstance().level;
-            net.minecraft.world.entity.Entity e = (lvl == null) ? null : lvl.getEntity(eid);
+            Entity e = (lvl == null) ? null : lvl.getEntity(eid);
             if (e == null) throw new IllegalArgumentException("no entity with id " + eid);
             int near = clamp(intOr(p.get("near"), 3), 0, 16);
             return targetGoal(blockPosOf(e), mode, near);
         }
         if (p.get("entity") instanceof String entType && !entType.isBlank()) {
-            net.minecraft.world.entity.Entity e = findNearestEntity(player, entType);
+            Entity e = findNearestEntity(player, entType);
             if (e == null) throw new IllegalArgumentException("no '" + entType + "' visible nearby");
             int near = clamp(intOr(p.get("near"), 3), 0, 16);
             return targetGoal(blockPosOf(e), mode, near);
         }
         if (p.get("direction") instanceof String dirName && !dirName.isBlank()) {
-            String d = dirName.trim().toLowerCase(java.util.Locale.ROOT);
+            String d = dirName.trim().toLowerCase(Locale.ROOT);
             // Baritone GoalStrictDirection: keep boring this way with no fixed
             // endpoint (the best-effort fallback carries it as far as it can).
             if (Boolean.TRUE.equals(p.get("strict"))) {
@@ -406,7 +415,7 @@ public final class BotApiImpl implements BotApi {
     @Override
     public Map<String, Object> construct(Map<String, Object> params) {
         final Map<String, Object> p = (params == null) ? Map.of() : params;
-        String mode = (p.get("mode") instanceof String s && !s.isBlank()) ? s.trim().toLowerCase(java.util.Locale.ROOT) : null;
+        String mode = (p.get("mode") instanceof String s && !s.isBlank()) ? s.trim().toLowerCase(Locale.ROOT) : null;
         if (mode == null || (!mode.equals("tower") && !mode.equals("bridge")))
             return Map.of("ok", false, "error", "mode required (tower|bridge)");
         String blockId = (p.get("block") instanceof String s && !s.isBlank()) ? s.trim() : null;
@@ -438,7 +447,7 @@ public final class BotApiImpl implements BotApi {
             });
         }
         // mode == "bridge"
-        String dir = (p.get("direction") instanceof String s && !s.isBlank()) ? s.trim().toLowerCase(java.util.Locale.ROOT) : "forward";
+        String dir = (p.get("direction") instanceof String s && !s.isBlank()) ? s.trim().toLowerCase(Locale.ROOT) : "forward";
         int distance = intOr(p.get("distance"), -1);
         if (distance < 1) return Map.of("ok", false, "error", "bridge requires distance >= 1");
         if (distance > 64) return Map.of("ok", false, "error", "distance too large (max 64)");
@@ -630,7 +639,7 @@ public final class BotApiImpl implements BotApi {
             if (p == null || mc.gameMode == null || mc.level == null) {
                 return Map.of("ok", false, "error", "no player");
             }
-            net.minecraft.world.entity.Entity target = mc.level.getEntity(entityId);
+            Entity target = mc.level.getEntity(entityId);
             if (target == null) {
                 return Map.of("ok", false, "error", "no entity with id " + entityId);
             }
@@ -639,7 +648,7 @@ public final class BotApiImpl implements BotApi {
             // turn to face, swing main arm, dispatch attack through MPGameMode so
             // the server applies weapon damage + cooldown + crit/sweep rules.
             p.setShiftKeyDown(false);
-            net.minecraft.world.phys.Vec3 ep = target.position();
+            Vec3 ep = target.position();
             double dx = ep.x - p.getX();
             double dz = ep.z - p.getZ();
             float yaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0);
@@ -727,7 +736,7 @@ public final class BotApiImpl implements BotApi {
         // DeathScreen shows briefly with mc.player still alive but at 0 HP, and
         // we want to skip past it ASAP. Done first so the rest of the tick sees
         // the post-respawn world state.
-        if (BotConfig.autoRespawn) net.magicterra.agent.bot.auto.AutoRespawn.tick(mc);
+        if (BotConfig.autoRespawn) AutoRespawn.tick(mc);
         if (mc.level == null || mc.player == null) { releaseKeys(); return; }
         if (paused) { releaseKeys(); return; }
         // Always-on water-bucket clutch (survival first): arm reactively on any
@@ -756,7 +765,7 @@ public final class BotApiImpl implements BotApi {
         // already sets keyJump every tick and would just be fought. Mining
         // BREAKING also releases keyJump so we're safe to layer there too.
         if (BotConfig.autoSwim && (c == null || !"goto".equals(c.kind()) && !"follow".equals(c.kind()) && !"explore".equals(c.kind()) && !"runAway".equals(c.kind()))) {
-            net.magicterra.agent.bot.auto.AutoSwim.tick(mc, mc.player);
+            AutoSwim.tick(mc, mc.player);
         }
         // autoTool only fires when no process owns hotbar selection — MineProcess
         // / BboxFillProcess / BuildProcess / FarmProcess all manage hotbar
@@ -764,7 +773,7 @@ public final class BotApiImpl implements BotApi {
         // tool when the player is manually mining" (or scripted-attack via
         // input.click), the same scope as Baritone's autoTool.
         if (BotConfig.autoTool && c == null) {
-            net.magicterra.agent.bot.auto.AutoTool.tick(mc, mc.player);
+            AutoTool.tick(mc, mc.player);
         }
         // Record foot position for autoBackfill — runs every tick the setting
         // is on, regardless of current process, so that cells passed through

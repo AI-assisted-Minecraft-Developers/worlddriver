@@ -10,6 +10,9 @@ import net.minecraft.world.level.Level;
 import java.util.Map;
 
 import static net.magicterra.agent.bot.util.BotUtil.*;
+import net.minecraft.world.entity.Entity;
+import java.util.Locale;
+import net.minecraft.client.multiplayer.ClientLevel;
 
 /**
  * Resolves goal / stand-position / direction descriptors from tool params into
@@ -63,12 +66,12 @@ public static BlockPos findNearestStandForBlock(LocalPlayer player, String block
     return bestStand;
 }
 
-public static net.minecraft.world.entity.Entity findNearestEntity(LocalPlayer self, String typeId) {
+public static Entity findNearestEntity(LocalPlayer self, String typeId) {
     Minecraft mc = Minecraft.getInstance();
-    if (!(mc.level instanceof net.minecraft.client.multiplayer.ClientLevel cl)) return null;
-    net.minecraft.world.entity.Entity best = null;
+    if (!(mc.level instanceof ClientLevel cl)) return null;
+    Entity best = null;
     double bestD = Double.MAX_VALUE;
-    for (net.minecraft.world.entity.Entity e : cl.entitiesForRendering()) {
+    for (Entity e : cl.entitiesForRendering()) {
         if (e == self) continue;
         String id = BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString();
         if (!typeId.equals(id)) continue;
@@ -85,7 +88,7 @@ public static BlockPos applyDirection(LocalPlayer p, String dirName, int distanc
     int x0 = (int) Math.floor(p.getX());
     int y0 = (int) Math.floor(p.getY());
     int z0 = (int) Math.floor(p.getZ());
-    String d = dirName.trim().toLowerCase(java.util.Locale.ROOT);
+    String d = dirName.trim().toLowerCase(Locale.ROOT);
     int dx = 0, dy = 0, dz = 0;
     switch (d) {
         case "north" -> dz = -distance;

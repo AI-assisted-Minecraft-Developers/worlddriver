@@ -47,6 +47,8 @@ import java.util.Set;
 import static net.magicterra.agent.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.agent.bot.util.BotInteract.*;
 import static net.magicterra.agent.bot.util.BotUtil.*;
+import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
+import net.minecraft.world.item.BlockItem;
 
 public final class TowerProcess implements BotProcess {
     /** Minimum ticks between jump-press and the place attempt — a lower bound
@@ -176,7 +178,7 @@ public final class TowerProcess implements BotProcess {
                 if (matchesItemId(inv.items.get(s), preferred)) {
                     inv.selected = s;
                     if (p.connection != null) p.connection.send(
-                            new net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket(s));
+                            new ServerboundSetCarriedItemPacket(s));
                     return true;
                 }
             }
@@ -196,7 +198,7 @@ public final class TowerProcess implements BotProcess {
             if (isPlaceableBlockItem(inv.items.get(s))) {
                 inv.selected = s;
                 if (p.connection != null) p.connection.send(
-                        new net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket(s));
+                        new ServerboundSetCarriedItemPacket(s));
                 return true;
             }
         }
@@ -209,6 +211,6 @@ public final class TowerProcess implements BotProcess {
     }
 
     private static boolean isPlaceableBlockItem(ItemStack stk) {
-        return !stk.isEmpty() && stk.getItem() instanceof net.minecraft.world.item.BlockItem;
+        return !stk.isEmpty() && stk.getItem() instanceof BlockItem;
     }
 }

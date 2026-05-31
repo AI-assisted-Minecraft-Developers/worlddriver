@@ -3,6 +3,7 @@ package net.magicterra.agent.bot.pathfinder.moves;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
+import net.magicterra.agent.bot.BotConfig;
 
 /**
  * Parkour ASCEND -- Baritone {@code MovementParkour} with a +1 landing: a
@@ -28,7 +29,7 @@ public final class ParkourAscend extends Move {
         this.dist = dist;
     }
     public boolean valid(WorldView w, BlockPos from) {
-        if (dist >= 3 && !net.magicterra.agent.bot.BotConfig.allowParkour4) return false;
+        if (dist >= 3 && !BotConfig.allowParkour4) return false;
         if (!Move.hasRunway(w, from)) return false;
         BlockPos to = apply(from);                 // (sx*dist, +1, sz*dist)
         if (!w.canStandAt(to)) return false;

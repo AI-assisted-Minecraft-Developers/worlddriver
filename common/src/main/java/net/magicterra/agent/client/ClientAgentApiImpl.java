@@ -7,6 +7,7 @@ import net.magicterra.agent.client.internal.ClientInput;
 import net.magicterra.agent.client.internal.ClientObserve;
 import net.magicterra.agent.client.internal.ScreenIntrospection;
 import net.magicterra.agent.client.internal.Screenshots;
+import java.util.Set;
 
 /**
  * Default {@link ClientAgentApi} implementation. Lives in the common module
@@ -67,7 +68,7 @@ public final class ClientAgentApiImpl implements ClientAgentApi {
 
     @Override
     public Map<String, Object> observeArea(int radius, Double cx, Double cy, Double cz,
-                                           java.util.Set<String> filterIds) {
+                                           Set<String> filterIds) {
         return ClientObserve.observeArea(radius, cx, cy, cz, filterIds);
     }
 

@@ -6,6 +6,7 @@ import net.minecraft.core.BlockPos;
 
 import java.util.ArrayList;
 import java.util.List;
+import net.magicterra.agent.bot.BotConfig;
 
 /**
  * Walk one cardinal cell at the same Y, mining whatever solid blocks
@@ -20,7 +21,7 @@ public final class TraverseBreak extends Move {
     public TraverseBreak(int dx, int dz) { super(dx, 0, dz, 10); }
     @Override public boolean valid(WorldView w, BlockPos from) { return eval(w, from) != null; }
     @Override public Edge eval(WorldView w, BlockPos from) {
-        if (!net.magicterra.agent.bot.BotConfig.allowBreak) return null;
+        if (!BotConfig.allowBreak) return null;
         BlockPos to = apply(from);
         BlockPos floor = to.offset(0, -1, 0);
         if (!w.isSolid(floor) || w.isHazard(floor)) return null;   // no safe ground to land on

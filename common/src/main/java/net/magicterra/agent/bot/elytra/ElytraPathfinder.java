@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.Collections;
 
 /**
  * Coarse 3D path planner for elytra flight — milestone C of the Baritone
@@ -159,7 +160,7 @@ public final class ElytraPathfinder {
             if (p == null) break;
             c = p;
         }
-        java.util.Collections.reverse(chain);
+        Collections.reverse(chain);
         return chain;
     }
 

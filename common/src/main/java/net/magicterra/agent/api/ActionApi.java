@@ -9,6 +9,7 @@ import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.List;
 import java.util.Map;
+import net.minecraft.commands.CommandSourceStack;
 
 /**
  * {@code mc.action.*} handlers, extracted from {@code AgentApi}. All writes bounce
@@ -162,7 +163,7 @@ public final class ActionApi {
             // dedicated server / before-anyone-joined.
             ServerPlayer anchor = s.getPlayerList().getPlayers().isEmpty()
                     ? null : s.getPlayerList().getPlayers().get(0);
-            net.minecraft.commands.CommandSourceStack src = (anchor != null)
+            CommandSourceStack src = (anchor != null)
                     ? anchor.createCommandSourceStack().withSuppressedOutput().withPermission(4)
                     : s.createCommandSourceStack().withSuppressedOutput().withPermission(4);
             try {

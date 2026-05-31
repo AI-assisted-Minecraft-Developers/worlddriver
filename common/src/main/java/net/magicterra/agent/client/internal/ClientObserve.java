@@ -14,6 +14,17 @@ import java.util.List;
 import java.util.Map;
 
 import static net.magicterra.agent.client.internal.ClientThread.runOnClient;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.entity.monster.Enemy;
+import net.minecraft.core.BlockPos;
+import net.minecraft.client.multiplayer.ClientLevel;
+import java.util.Set;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.LivingEntity;
 
 /**
  * World/player observation for {@code mc.observe.player} (client fallback),
@@ -93,7 +104,7 @@ public final class ClientObserve {
             // Same indexing as Player.getInventory(): 0–8 hotbar, 9–35 main,
             // 36–39 armor, 40 offhand.
             List<Object> inv = new ArrayList<>();
-            net.minecraft.world.entity.player.Inventory pInv = p.getInventory();
+            Inventory pInv = p.getInventory();
             int totalSlots = pInv.items.size() + pInv.armor.size() + pInv.offhand.size();
             for (int i = 0; i < totalSlots; i++) {
                 ItemStack st = pInv.getItem(i);
@@ -106,12 +117,12 @@ public final class ClientObserve {
             }
             out.put("inventory", inv);
             // HitResult — what the camera is aimed at right now (client-side raycast).
-            net.minecraft.world.phys.HitResult hr = mc.hitResult;
+            HitResult hr = mc.hitResult;
             Map<String, Object> hit = new LinkedHashMap<>();
-            if (hr == null || hr.getType() == net.minecraft.world.phys.HitResult.Type.MISS) {
+            if (hr == null || hr.getType() == HitResult.Type.MISS) {
                 hit.put("type", "miss");
-            } else if (hr.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
-                    && hr instanceof net.minecraft.world.phys.BlockHitResult bhr) {
+            } else if (hr.getType() == HitResult.Type.BLOCK
+                    && hr instanceof BlockHitResult bhr) {
                 var bp = bhr.getBlockPos();
                 hit.put("type", "block");
                 hit.put("blockPos", Map.of("x", bp.getX(), "y", bp.getY(), "z", bp.getZ()));
@@ -119,8 +130,8 @@ public final class ClientObserve {
                 var bs = p.level().getBlockState(bp);
                 hit.put("block", BuiltInRegistries.BLOCK.getKey(bs.getBlock()).toString());
                 hit.put("distance", Math.sqrt(bhr.getLocation().distanceToSqr(p.getEyePosition())));
-            } else if (hr.getType() == net.minecraft.world.phys.HitResult.Type.ENTITY
-                    && hr instanceof net.minecraft.world.phys.EntityHitResult ehr) {
+            } else if (hr.getType() == HitResult.Type.ENTITY
+                    && hr instanceof EntityHitResult ehr) {
                 var ent = ehr.getEntity();
                 hit.put("type", "entity");
                 hit.put("entityId", ent.getId());
@@ -136,11 +147,11 @@ public final class ClientObserve {
     }
 
     public static Map<String, Object> observeArea(int radius, Double cx, Double cy, Double cz,
-                                                  java.util.Set<String> filterIds) {
+                                                  Set<String> filterIds) {
         final int r = Math.max(0, Math.min(16, radius));
         return runOnClient(() -> {
             Minecraft mc = Minecraft.getInstance();
-            net.minecraft.client.multiplayer.ClientLevel level = mc.level;
+            ClientLevel level = mc.level;
             if (level == null) {
                 return Map.of("present", false, "error", "no client level");
             }
@@ -156,7 +167,7 @@ public final class ClientObserve {
             int by = (int) Math.floor(dy);
             int bz = (int) Math.floor(dz);
             List<Object> blocks = new ArrayList<>();
-            net.minecraft.core.BlockPos.MutableBlockPos pos = new net.minecraft.core.BlockPos.MutableBlockPos();
+            BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
             for (int ox = -r; ox <= r; ox++) {
                 for (int oy = -r; oy <= r; oy++) {
                     for (int oz = -r; oz <= r; oz++) {
@@ -186,21 +197,21 @@ public final class ClientObserve {
         final int r = Math.max(0, Math.min(32, radius));
         return runOnClient(() -> {
             Minecraft mc = Minecraft.getInstance();
-            net.minecraft.client.multiplayer.ClientLevel level = mc.level;
+            ClientLevel level = mc.level;
             if (level == null) return Map.of("present", false, "error", "no client level");
             double dx, dy, dz;
             if (cx != null && cy != null && cz != null) { dx = cx; dy = cy; dz = cz; }
             else if (mc.player != null) { dx = mc.player.getX(); dy = mc.player.getY(); dz = mc.player.getZ(); }
             else return Map.of("present", false, "error", "no player and no center");
-            net.minecraft.world.phys.AABB box = new net.minecraft.world.phys.AABB(
+            AABB box = new AABB(
                     dx - r, dy - r, dz - r, dx + r, dy + r, dz + r);
             List<Object> entities = new ArrayList<>();
             // entitiesForRendering() returns the loaded ClientLevel entity set —
             // includes mobs, items, projectiles, players. Filter by bbox + class.
-            for (net.minecraft.world.entity.Entity e : level.entitiesForRendering()) {
+            for (Entity e : level.entitiesForRendering()) {
                 if (e == mc.player) continue;
                 if (!box.intersects(e.getBoundingBox())) continue;
-                boolean hostile = e instanceof net.minecraft.world.entity.monster.Enemy;
+                boolean hostile = e instanceof Enemy;
                 if (hostileFilter != null && hostileFilter != hostile) continue;
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("id", e.getId());
@@ -209,7 +220,7 @@ public final class ClientObserve {
                 pos.put("x", e.getX()); pos.put("y", e.getY()); pos.put("z", e.getZ());
                 row.put("pos", pos);
                 row.put("hostile", hostile);
-                if (e instanceof net.minecraft.world.entity.LivingEntity le) {
+                if (e instanceof LivingEntity le) {
                     row.put("health", (double) le.getHealth());
                     row.put("maxHealth", (double) le.getMaxHealth());
                 }

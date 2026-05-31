@@ -9,6 +9,13 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static net.magicterra.agent.client.internal.ClientThread.runOnClient;
+import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
+import java.util.Locale;
+import java.lang.reflect.Method;
+import java.lang.reflect.Field;
+import net.minecraft.world.inventory.ClickType;
+import net.minecraft.client.MouseHandler;
+import net.minecraft.client.KeyboardHandler;
 
 /**
  * Input synthesis for {@code mc.client.screen.close} and {@code mc.client.input.*}
@@ -48,24 +55,24 @@ public final class ClientInput {
     }
 
     public static Map<String, Object> slotClick(int slotIndex, int button, String type) {
-        final String tn = (type == null || type.isBlank()) ? "pickup" : type.trim().toLowerCase(java.util.Locale.ROOT);
+        final String tn = (type == null || type.isBlank()) ? "pickup" : type.trim().toLowerCase(Locale.ROOT);
         // Map our short names to the vanilla enum. Surface the mapping in the
         // tool description so callers don't have to crack open ClickType.java.
-        net.minecraft.world.inventory.ClickType ct;
+        ClickType ct;
         switch (tn) {
-            case "pickup"     -> ct = net.minecraft.world.inventory.ClickType.PICKUP;
-            case "quickmove"  -> ct = net.minecraft.world.inventory.ClickType.QUICK_MOVE;
-            case "swap"       -> ct = net.minecraft.world.inventory.ClickType.SWAP;
-            case "clone"      -> ct = net.minecraft.world.inventory.ClickType.CLONE;
-            case "throw"      -> ct = net.minecraft.world.inventory.ClickType.THROW;
-            case "pickupall"  -> ct = net.minecraft.world.inventory.ClickType.PICKUP_ALL;
-            case "quickcraft" -> ct = net.minecraft.world.inventory.ClickType.QUICK_CRAFT;
+            case "pickup"     -> ct = ClickType.PICKUP;
+            case "quickmove"  -> ct = ClickType.QUICK_MOVE;
+            case "swap"       -> ct = ClickType.SWAP;
+            case "clone"      -> ct = ClickType.CLONE;
+            case "throw"      -> ct = ClickType.THROW;
+            case "pickupall"  -> ct = ClickType.PICKUP_ALL;
+            case "quickcraft" -> ct = ClickType.QUICK_CRAFT;
             default -> {
                 return Map.of("ok", false,
                         "error", "type must be one of pickup|quickMove|swap|clone|throw|pickupAll|quickCraft (got " + type + ")");
             }
         }
-        final net.minecraft.world.inventory.ClickType clickType = ct;
+        final ClickType clickType = ct;
         return runOnClient(() -> {
             Minecraft mc = Minecraft.getInstance();
             Screen s = mc.screen;
@@ -109,8 +116,8 @@ public final class ClientInput {
             String reflStatus = "ok";
             try {
                 var mh = mc.mouseHandler;
-                java.lang.reflect.Field fx = net.minecraft.client.MouseHandler.class.getDeclaredField("xpos");
-                java.lang.reflect.Field fy = net.minecraft.client.MouseHandler.class.getDeclaredField("ypos");
+                Field fx = MouseHandler.class.getDeclaredField("xpos");
+                Field fy = MouseHandler.class.getDeclaredField("ypos");
                 fx.setAccessible(true);
                 fy.setAccessible(true);
                 fx.setDouble(mh, wx);
@@ -142,7 +149,7 @@ public final class ClientInput {
             // resolve against the new held item. Mirrors how vanilla key
             // 1..9 press dispatches (Inventory.swapPaint → setCarriedItemPacket).
             if (p.connection != null) {
-                p.connection.send(new net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket(slot));
+                p.connection.send(new ServerboundSetCarriedItemPacket(slot));
             }
             return Map.of("ok", true, "slot", slot, "previous", prev);
         });
@@ -175,8 +182,8 @@ public final class ClientInput {
     }
 
     public static Map<String, Object> key(String key, String action) {
-        final String kn = (key == null) ? "" : key.trim().toUpperCase(java.util.Locale.ROOT);
-        final String act = (action == null || action.isBlank()) ? "click" : action.trim().toLowerCase(java.util.Locale.ROOT);
+        final String kn = (key == null) ? "" : key.trim().toUpperCase(Locale.ROOT);
+        final String act = (action == null || action.isBlank()) ? "click" : action.trim().toLowerCase(Locale.ROOT);
         int code = glfwKeyCode(kn);
         if (code < 0) {
             return Map.of("ok", false, "error", "unknown key name: " + kn);
@@ -198,7 +205,7 @@ public final class ClientInput {
                 int glfwPress = org.lwjgl.glfw.GLFW.GLFW_PRESS;
                 int glfwRelease = org.lwjgl.glfw.GLFW.GLFW_RELEASE;
                 try {
-                    java.lang.reflect.Method m = net.minecraft.client.KeyboardHandler.class
+                    Method m = KeyboardHandler.class
                             .getDeclaredMethod("keyPress", long.class, int.class, int.class, int.class, int.class);
                     m.setAccessible(true);
                     boolean pressed = false, released = false;

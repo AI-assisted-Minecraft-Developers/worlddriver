@@ -18,7 +18,7 @@ public final class SystemApi {
         return Map.of(
             "modid", "agent_driver",
             "version", "0.1.0-dev",
-            "uptimeMs", (java.lang.System.nanoTime() - api.startNanos) / 1_000_000L
+            "uptimeMs", (System.nanoTime() - api.startNanos) / 1_000_000L
         );
     }
 
@@ -37,13 +37,13 @@ public final class SystemApi {
         if (s != null && s.isSameThread()) {
             throw new IllegalStateException("waitTicks cannot block the server thread");
         }
-        long t0 = java.lang.System.nanoTime();
+        long t0 = System.nanoTime();
         try {
             Thread.sleep(ticks * 50L);
             return Map.of("waited", ticks);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            int waited = (int)((java.lang.System.nanoTime() - t0) / 50_000_000L);
+            int waited = (int)((System.nanoTime() - t0) / 50_000_000L);
             return Map.of("waited", waited, "interrupted", true);
         }
     }

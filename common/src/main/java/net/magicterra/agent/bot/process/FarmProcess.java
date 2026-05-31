@@ -47,6 +47,8 @@ import java.util.Set;
 import static net.magicterra.agent.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.agent.bot.util.BotInteract.*;
 import static net.magicterra.agent.bot.util.BotUtil.*;
+import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
+import net.minecraft.world.level.block.CropBlock;
 
 public final class FarmProcess implements BotProcess {
     /** Crop block id → item id that re-plants it. Kept private; the public
@@ -237,7 +239,7 @@ public final class FarmProcess implements BotProcess {
         BlockState bs = lvl.getBlockState(pos);
         String id = BuiltInRegistries.BLOCK.getKey(bs.getBlock()).toString();
         if (!crops.contains(id)) return false;
-        if (!(bs.getBlock() instanceof net.minecraft.world.level.block.CropBlock cb)) return false;
+        if (!(bs.getBlock() instanceof CropBlock cb)) return false;
         return cb.isMaxAge(bs);
     }
 
@@ -252,7 +254,7 @@ public final class FarmProcess implements BotProcess {
             if (matchesItem(inv.items.get(slot), itemId)) {
                 inv.selected = slot;
                 if (p.connection != null) {
-                    p.connection.send(new net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket(slot));
+                    p.connection.send(new ServerboundSetCarriedItemPacket(slot));
                 }
                 return true;
             }

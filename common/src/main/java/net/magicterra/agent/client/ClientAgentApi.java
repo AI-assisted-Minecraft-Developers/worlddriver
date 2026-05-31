@@ -1,6 +1,7 @@
 package net.magicterra.agent.client;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Client-side surface for the agent driver. A platform-specific implementation
@@ -76,7 +77,7 @@ public interface ClientAgentApi {
      * scans would just return air). Backs the client-MCP fallback path of
      * {@code mc.query q='blocks'} when no server is attached.
      */
-    Map<String, Object> observeArea(int radius, Double cx, Double cy, Double cz, java.util.Set<String> filterIds);
+    Map<String, Object> observeArea(int radius, Double cx, Double cy, Double cz, Set<String> filterIds);
 
     /**
      * Snapshot of whichever {@code AbstractContainerScreen} is currently open

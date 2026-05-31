@@ -17,6 +17,12 @@ import java.util.List;
 import java.util.Map;
 
 import static net.magicterra.agent.client.internal.ClientThread.runOnClient;
+import java.lang.reflect.Method;
+import java.lang.reflect.Field;
+import net.minecraft.network.chat.Component;
+import net.minecraft.client.gui.screens.DeathScreen;
+import net.minecraft.client.gui.screens.Overlay;
+import net.minecraft.client.gui.components.EditBox;
 
 /**
  * Screen / widget-tree introspection for {@code mc.client.screen.*}. Stateless;
@@ -37,7 +43,7 @@ public final class ScreenIntrospection {
             // after F3+T, etc.) is rendered ON TOP of the active Screen — so
             // {@code screen.type=TitleScreen} can be true while the user still
             // sees a fading Mojang splash. Surface it so callers can wait.
-            net.minecraft.client.gui.screens.Overlay ov = mc.getOverlay();
+            Overlay ov = mc.getOverlay();
             out.put("overlayActive", ov != null);
             if (ov != null) out.put("overlayType", ov.getClass().getSimpleName());
             if (s != null) {
@@ -49,7 +55,7 @@ public final class ScreenIntrospection {
                 // ("Player was slain by Phantom", "fell from a high place", …) is a
                 // separate private Component. Surface it here too so a cheap
                 // screen.info probe reveals WHY the bot died without a screen.tree.
-                if (s instanceof net.minecraft.client.gui.screens.DeathScreen ds) {
+                if (s instanceof DeathScreen ds) {
                     String cause = readDeathCause(ds);
                     if (cause != null) out.put("causeOfDeath", cause);
                 }
@@ -84,7 +90,7 @@ public final class ScreenIntrospection {
             // private Component field, never a child widget — without this
             // surfaceing, the agent has no client-side way to find out what
             // killed the player (server log is the only other source).
-            if (s instanceof net.minecraft.client.gui.screens.DeathScreen ds) {
+            if (s instanceof DeathScreen ds) {
                 String cause = readDeathCause(ds);
                 if (cause != null) root.put("causeOfDeath", cause);
             }
@@ -93,15 +99,15 @@ public final class ScreenIntrospection {
         });
     }
 
-    private static String readDeathCause(net.minecraft.client.gui.screens.DeathScreen ds) {
+    private static String readDeathCause(DeathScreen ds) {
         // Field is private and unobfuscated in dev mappings — fall back gracefully
         // if a future MC rename breaks the reflection.
         try {
-            java.lang.reflect.Field f = net.minecraft.client.gui.screens.DeathScreen.class
+            Field f = DeathScreen.class
                     .getDeclaredField("causeOfDeath");
             f.setAccessible(true);
             Object v = f.get(ds);
-            if (v instanceof net.minecraft.network.chat.Component c) return c.getString();
+            if (v instanceof Component c) return c.getString();
         } catch (NoSuchFieldException | IllegalAccessException ignored) {
         }
         return null;
@@ -125,7 +131,7 @@ public final class ScreenIntrospection {
             // EditBox holds typed text. Without exposing the current value, agents
             // can drive the cursor and call typeText but never verify what was
             // entered (or what vanilla pre-filled, e.g. last-used server address).
-            if (child instanceof net.minecraft.client.gui.components.EditBox eb) {
+            if (child instanceof EditBox eb) {
                 n.put("value", eb.getValue());
                 n.put("focused", eb.isFocused());
             }
@@ -155,12 +161,12 @@ public final class ScreenIntrospection {
         // baked into the protected getRowTop(int) method — read via reflection.
         int rowLeft = list.getRowLeft();
         int rowWidth = list.getRowWidth();
-        java.lang.reflect.Method getRowTop;
+        Method getRowTop;
         int itemHeight;
         try {
             getRowTop = AbstractSelectionList.class.getDeclaredMethod("getRowTop", int.class);
             getRowTop.setAccessible(true);
-            java.lang.reflect.Field f = AbstractSelectionList.class.getDeclaredField("itemHeight");
+            Field f = AbstractSelectionList.class.getDeclaredField("itemHeight");
             f.setAccessible(true);
             itemHeight = f.getInt(list);
         } catch (ReflectiveOperationException e) {
@@ -196,7 +202,7 @@ public final class ScreenIntrospection {
                 var m = entry.getClass().getMethod(getter);
                 Object v = m.invoke(entry);
                 if (v == null) continue;
-                if (v instanceof net.minecraft.network.chat.Component c) return c.getString();
+                if (v instanceof Component c) return c.getString();
                 String s = v.toString();
                 if (!s.isBlank()) return s;
             } catch (ReflectiveOperationException ignored) { /* try next */ }

@@ -7,6 +7,7 @@ import net.minecraft.core.BlockPos;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Collections;
 
 /**
  * Path post-processing for the {@link Walker}: string-pulling flat staircase
@@ -86,7 +87,7 @@ public final class PathSmoothing {
         }
         // ne.get(0) is the null start edge — List.copyOf rejects nulls, so use a
         // null-tolerant unmodifiable wrapper for the edges (path has no nulls).
-        return new SmoothResult(List.copyOf(np), java.util.Collections.unmodifiableList(ne));
+        return new SmoothResult(List.copyOf(np), Collections.unmodifiableList(ne));
     }
 
     /** True if the straight horizontal line from {@code a} to {@code b} is

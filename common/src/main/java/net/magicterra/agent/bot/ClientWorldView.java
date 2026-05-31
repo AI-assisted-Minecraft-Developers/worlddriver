@@ -20,6 +20,20 @@ import java.util.Set;
 
 import static net.magicterra.agent.bot.util.BotInteract.*;
 import static net.magicterra.agent.bot.util.BotUtil.*;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.item.enchantment.Enchantments;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.entity.monster.Enemy;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.core.Holder;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.effect.MobEffectUtil;
+import net.minecraft.world.effect.MobEffectInstance;
 
 /** Reads the live client {@link Level} for the pathfinder: passability, solidity,
  *  fluids, climbables, hazards and break-cost. Extracted from BotApiImpl. */
@@ -41,7 +55,7 @@ final class ClientWorldView implements WorldView {
     // Efficiency enchantment holder, resolved once per search (it needs a
     // registry lookup). Efficiency is per-tool, so the *level* is read per
     // stack inside breakCost; this just caches the holder to look it up with.
-    private volatile net.minecraft.core.Holder<net.minecraft.world.item.enchantment.Enchantment> efficiencyEnchant = null;
+    private volatile Holder<Enchantment> efficiencyEnchant = null;
     public boolean isSolid(BlockPos p) {
         Level lvl = Minecraft.getInstance().level;
         if (lvl == null) return false;
@@ -116,7 +130,7 @@ final class ClientWorldView implements WorldView {
             if (stk.isEmpty()) continue;
             float sp = stk.getDestroySpeed(s);
             if (sp > 1f && efficiencyEnchant != null) {
-                int el = net.minecraft.world.item.enchantment.EnchantmentHelper
+                int el = EnchantmentHelper
                         .getItemEnchantmentLevel(efficiencyEnchant, stk);
                 if (el > 0) sp += el * el + 1;
             }
@@ -146,7 +160,7 @@ final class ClientWorldView implements WorldView {
         Inventory inv = pl.getInventory();
         for (int slot = 0; slot < 9; slot++) {
             ItemStack stk = inv.items.get(slot);
-            if (!stk.isEmpty() && stk.getItem() instanceof net.minecraft.world.item.BlockItem) return true;
+            if (!stk.isEmpty() && stk.getItem() instanceof BlockItem) return true;
         }
         return false;
     }
@@ -183,7 +197,7 @@ final class ClientWorldView implements WorldView {
         if (!s.getFluidState().isEmpty()) return false;          // not a fluid
         // Waterloggable (trapdoor/slab/stairs/fence/…) → the bucket waterlogs
         // the block instead of filling the air cell above → fall not broken.
-        if (s.hasProperty(net.minecraft.world.level.block.state.properties.BlockStateProperties.WATERLOGGED))
+        if (s.hasProperty(BlockStateProperties.WATERLOGGED))
             return false;
         // Must be a full cube so the player lands flat on top and the water
         // source fills the whole landing cell (end rods / torches / partial
@@ -194,7 +208,7 @@ final class ClientWorldView implements WorldView {
         bucketFallReady = BotConfig.allowWaterBucketFall
                 && Minecraft.getInstance().player != null
                 && hotbarSlotOf(Minecraft.getInstance().player,
-                                net.minecraft.world.item.Items.WATER_BUCKET) >= 0;
+                                Items.WATER_BUCKET) >= 0;
         // Snapshot the player-global dig-speed multiplier (Haste / Mining
         // Fatigue) and resolve the Efficiency enchant holder for this search.
         digSpeedMul = 1f;
@@ -202,10 +216,10 @@ final class ClientWorldView implements WorldView {
         {
             LocalPlayer dp = Minecraft.getInstance().player;
             if (dp != null) {
-                if (net.minecraft.world.effect.MobEffectUtil.hasDigSpeed(dp))
-                    digSpeedMul *= 1f + (net.minecraft.world.effect.MobEffectUtil.getDigSpeedAmplification(dp) + 1) * 0.2f;
-                net.minecraft.world.effect.MobEffectInstance slow =
-                        dp.getEffect(net.minecraft.world.effect.MobEffects.DIG_SLOWDOWN);
+                if (MobEffectUtil.hasDigSpeed(dp))
+                    digSpeedMul *= 1f + (MobEffectUtil.getDigSpeedAmplification(dp) + 1) * 0.2f;
+                MobEffectInstance slow =
+                        dp.getEffect(MobEffects.DIG_SLOWDOWN);
                 if (slow != null) {
                     digSpeedMul *= switch (slow.getAmplifier()) {
                         case 0 -> 0.3f;
@@ -219,8 +233,8 @@ final class ClientWorldView implements WorldView {
             if (dl != null) {
                 try {
                     efficiencyEnchant = dl.registryAccess()
-                            .lookupOrThrow(net.minecraft.core.registries.Registries.ENCHANTMENT)
-                            .getOrThrow(net.minecraft.world.item.enchantment.Enchantments.EFFICIENCY);
+                            .lookupOrThrow(Registries.ENCHANTMENT)
+                            .getOrThrow(Enchantments.EFFICIENCY);
                 } catch (Exception ignored) {
                     efficiencyEnchant = null;   // data pack without the vanilla enchant → skip the bonus
                 }
@@ -230,11 +244,11 @@ final class ClientWorldView implements WorldView {
         if (!BotConfig.avoidMobs) return;
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer pl = mc.player;
-        if (!(mc.level instanceof net.minecraft.client.multiplayer.ClientLevel cl) || pl == null) return;
+        if (!(mc.level instanceof ClientLevel cl) || pl == null) return;
         double maxR = 64;                              // bound the snapshot to nearby mobs
         java.util.List<Float> buf = new java.util.ArrayList<>();
-        for (net.minecraft.world.entity.Entity e : cl.entitiesForRendering()) {
-            if (e instanceof net.minecraft.world.entity.monster.Enemy && e.isAlive()
+        for (Entity e : cl.entitiesForRendering()) {
+            if (e instanceof Enemy && e.isAlive()
                     && e.distanceToSqr(pl) <= maxR * maxR) {
                 buf.add((float) e.getX());
                 buf.add((float) e.getY());

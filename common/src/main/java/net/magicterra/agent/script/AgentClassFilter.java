@@ -33,7 +33,7 @@ public final class AgentClassFilter {
         "java.lang.Module",
         "java.lang.ModuleLayer",
         "java.lang.SecurityManager",
-        "java.lang.System$LoggerFinder",
+        "System$LoggerFinder",
         "java.io.File",
         "java.io.FileInputStream",
         "java.io.FileOutputStream",

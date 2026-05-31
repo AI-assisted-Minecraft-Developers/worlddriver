@@ -47,6 +47,7 @@ import java.util.Set;
 import static net.magicterra.agent.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.agent.bot.util.BotInteract.*;
 import static net.magicterra.agent.bot.util.BotUtil.*;
+import java.util.Locale;
 
 public final class LookProcess implements BotProcess {
     private static final int MAX_TICKS = 200;     // ~10 s @ 20 tps
@@ -67,7 +68,7 @@ public final class LookProcess implements BotProcess {
         st.look.active = true;
         st.look.goal = track != null
                 ? "pos " + track.getX() + "," + track.getY() + "," + track.getZ()
-                : String.format(java.util.Locale.ROOT, "yaw %.1f pitch %.1f", fixedYaw, fixedPitch);
+                : String.format(Locale.ROOT, "yaw %.1f pitch %.1f", fixedYaw, fixedPitch);
         if (track != null) st.look.target = track;
         st.look.startedAtMs = System.currentTimeMillis();
         st.look.lastError = null;

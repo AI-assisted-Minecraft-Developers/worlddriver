@@ -62,8 +62,8 @@ public final class AgentScriptManager {
         // Prelude: defines Agent global + invoke/invokeRpc + convenience accessors
         String prelude =
             "var console = {" +
-            "  log:   function(m){ java.lang.System.out.println('[js] ' + m); }," +
-            "  error: function(m){ java.lang.System.err.println('[js] ' + m); }" +
+            "  log:   function(m){ System.out.println('[js] ' + m); }," +
+            "  error: function(m){ System.err.println('[js] ' + m); }" +
             "};" +
             "var Agent = {};" +
             "Agent.invoke = function(method, params) {" +

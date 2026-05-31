@@ -7,6 +7,7 @@ import net.minecraft.world.item.ItemStack;
 
 import static net.magicterra.agent.bot.util.BotInteract.findFoodHotbarSlot;
 import static net.magicterra.agent.bot.util.BotInteract.isFoodStack;
+import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
 
 /**
  * Baritone-style autoEat. Holds the use key on a food item until the player is
@@ -49,7 +50,7 @@ public final class AutoEat {
             // change is visible to the integrated server first.
             p.getInventory().selected = slot;
             if (p.connection != null) {
-                p.connection.send(new net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket(slot));
+                p.connection.send(new ServerboundSetCarriedItemPacket(slot));
             }
             return;
         }

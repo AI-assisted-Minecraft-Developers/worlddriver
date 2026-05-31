@@ -14,6 +14,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.block.Block;
 
 /**
  * Stateless conversion / parsing / threading helpers shared across the bot
@@ -25,7 +27,7 @@ public final class BotUtil {
 
     private BotUtil() {}
 
-    public static BlockPos blockPosOf(net.minecraft.world.entity.Entity e) {
+    public static BlockPos blockPosOf(Entity e) {
         return new BlockPos((int) Math.floor(e.getX()), (int) Math.floor(e.getY()), (int) Math.floor(e.getZ()));
     }
 
@@ -97,7 +99,7 @@ public final class BotUtil {
      * listed by {@link net.minecraft.world.level.block.Block} reference for O(1)
      * lookup and so a modpack-added hazard can be added in a single line.
      */
-    public static final Set<net.minecraft.world.level.block.Block> HAZARD_BLOCKS = Set.of(
+    public static final Set<Block> HAZARD_BLOCKS = Set.of(
             Blocks.MAGMA_BLOCK,
             Blocks.CACTUS,
             Blocks.SWEET_BERRY_BUSH,
