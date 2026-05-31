@@ -1,6 +1,7 @@
 package net.magicterra.agent.api;
 
 import net.magicterra.agent.model.AgentEvent;
+import net.magicterra.agent.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
@@ -62,8 +63,9 @@ public final class ObserveApi {
      * are vanilla (furnace: 0=input, 1=fuel, 2=output). Cheap enough to poll from
      * {@code mc.wait.condition} to detect furnace cook completion, chest fill, etc.
      */
-    public Map<String, Object> container(Map<String, Object> p) {
-        BlockPos pos = ApiSupport.readPos(p.get("pos"));
+    public Map<String, Object> container(Map<String, Object> params) {
+        Params p = Params.of(params);
+        BlockPos pos = p.getPos("pos");
         if (pos == null) throw new IllegalArgumentException("pos required");
         ServerLevel level = api.level();
         return api.onServerThread(() -> {

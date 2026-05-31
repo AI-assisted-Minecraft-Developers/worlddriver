@@ -1,5 +1,6 @@
 package net.magicterra.agent.api;
 
+import net.magicterra.agent.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -28,10 +29,11 @@ public final class ActionApi {
      * one per cell, so listeners aren't flooded.
      */
     @SuppressWarnings("unchecked")
-    public Map<String, Object> fill(Map<String, Object> p) {
-        BlockPos from = ApiSupport.readPos(p.get("from"));
-        BlockPos to = ApiSupport.readPos(p.get("to"));
-        String type = (String) p.get("type");
+    public Map<String, Object> fill(Map<String, Object> params) {
+        Params p = Params.of(params);
+        BlockPos from = p.getPos("from");
+        BlockPos to = p.getPos("to");
+        String type = p.getString("type");
         if (from == null || to == null || type == null) {
             throw new IllegalArgumentException("from, to and type required");
         }
@@ -65,7 +67,8 @@ public final class ActionApi {
      * consumers keep working. Bad rows are skipped and counted in {@code skipped}.
      */
     @SuppressWarnings("unchecked")
-    public Map<String, Object> placeMany(Map<String, Object> p) {
+    public Map<String, Object> placeMany(Map<String, Object> params) {
+        Params p = Params.of(params);
         Object raw = p.get("blocks");
         if (!(raw instanceof List<?> list)) throw new IllegalArgumentException("blocks: list required");
         if (list.size() > 4096) throw new IllegalArgumentException("too many blocks: " + list.size() + " > 4096");
@@ -74,7 +77,7 @@ public final class ActionApi {
             int placed = 0, skipped = 0;
             for (Object o : list) {
                 if (!(o instanceof Map<?, ?> row)) { skipped++; continue; }
-                BlockPos bp = ApiSupport.readPos(row.get("pos"));
+                BlockPos bp = Params.toPos(row.get("pos"));
                 Object t = row.get("type");
                 if (bp == null || !(t instanceof String type)) { skipped++; continue; }
                 // parseBlock now throws IllegalArgumentException for unknown ids,

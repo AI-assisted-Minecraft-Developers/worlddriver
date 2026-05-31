@@ -220,7 +220,7 @@ public final class BotApiImpl implements BotApi {
 
         String mode = p.get("goalMode") instanceof String s ? s.trim().toLowerCase(Locale.ROOT) : "in";
 
-        Goal classic = parseGoal(p.map());
+        Goal classic = parseGoal(p);
         if (classic != null) {
             // parseGoal already honored near/xz/y; only a bare pos respects goalMode.
             if (classic instanceof Goal.Block b && !"in".equals(mode)) return targetGoal(b.target(), mode, 0);

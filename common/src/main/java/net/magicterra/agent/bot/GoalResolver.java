@@ -1,5 +1,7 @@
 package net.magicterra.agent.bot;
 
+import net.magicterra.agent.model.Params;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -176,11 +178,10 @@ public static Direction resolveCardinalDirection(LocalPlayer pl, String dir) {
     };
 }
 
-public static Goal parseGoal(Map<String, Object> p) {
-    if (p == null) return null;
-    BlockPos pos = readPos(p.get("pos"));
+public static Goal parseGoal(Params p) {
+    BlockPos pos = p.getPos("pos");
     if (pos != null) {
-        int radius = clamp(intOr(p.get("near"), 0), 0, 64);
+        int radius = p.getIntClamped("near", 0, 0, 64);
         return radius > 0 ? new Goal.Near(pos, radius) : new Goal.Block(pos);
     }
     Object xzObj = p.get("xz");
