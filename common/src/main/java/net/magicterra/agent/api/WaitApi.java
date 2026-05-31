@@ -1,6 +1,7 @@
 package net.magicterra.agent.api;
 
 import net.magicterra.agent.model.AgentEvent;
+import net.magicterra.agent.model.Params;
 
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
@@ -32,18 +33,18 @@ public final class WaitApi {
      * on deadline. {@code cursor} in the response is the seq of the last event
      * returned — pass it back on the next call to chain.
      */
-    public Map<String, Object> event(Map<String, Object> p) {
+    public Map<String, Object> event(Map<String, Object> params) {
         api.level();
-        long cursor = ApiSupport.numL(p.get("cursor"));
+        Params p = Params.of(params);
+        long cursor = p.getLong("cursor");
         Set<String> types = null;
-        if (p.get("types") instanceof List<?> l) {
-            types = new LinkedHashSet<>();
-            for (Object o : l) if (o instanceof String s) types.add(s);
+        if (p.get("types") instanceof List<?>) {
+            types = new LinkedHashSet<>(p.getStringList("types"));
             if (types.isEmpty()) types = null;
         }
-        int limit = (p.get("limit") instanceof Number n) ? Math.max(1, Math.min(256, n.intValue())) : 32;
-        long budgetMs = ApiSupport.clamp(ApiSupport.numL(p.getOrDefault("timeoutMs", 5000L)), 100L, MAX_BUDGET_MS);
-        long pollMs = ApiSupport.clamp(ApiSupport.numL(p.getOrDefault("pollMs", 100L)), 50L, 2000L);
+        int limit = p.getIntClamped("limit", 32, 1, 256);
+        long budgetMs = p.getLongClamped("timeoutMs", 5000L, 100L, MAX_BUDGET_MS);
+        long pollMs = p.getLongClamped("pollMs", 100L, 50L, 2000L);
 
         long t0 = System.nanoTime();
         long deadlineNanos = t0 + budgetMs * 1_000_000L;
@@ -78,9 +79,10 @@ public final class WaitApi {
      * the whole point is to wait until that happens. On dedicated server (no
      * client bound) throws "mc.client.* not available" immediately.
      */
-    public Map<String, Object> worldReady(Map<String, Object> p) {
-        long budgetMs = ApiSupport.clamp(ApiSupport.numL(p.getOrDefault("timeoutMs", 30_000L)), 100L, MAX_BUDGET_MS);
-        long pollMs = ApiSupport.clamp(ApiSupport.numL(p.getOrDefault("pollMs", 250L)), 50L, 2000L);
+    public Map<String, Object> worldReady(Map<String, Object> params) {
+        Params p = Params.of(params);
+        long budgetMs = p.getLongClamped("timeoutMs", 30_000L, 100L, MAX_BUDGET_MS);
+        long pollMs = p.getLongClamped("pollMs", 250L, 50L, 2000L);
         long t0 = System.nanoTime();
         long deadlineNanos = t0 + budgetMs * 1_000_000L;
         Map<String, Object> info = null;
@@ -114,16 +116,16 @@ public final class WaitApi {
      *   {invoke:"mc.observe.container", params:{pos:{...}}, field:"slots.2.count"} —
      *   wait for a furnace's output slot to be non-empty.
      */
-    public Map<String, Object> condition(Map<String, Object> p) {
-        String method = (String) p.get("invoke");
+    public Map<String, Object> condition(Map<String, Object> raw) {
+        Params p = Params.of(raw);
+        String method = p.getString("invoke");
         if (method == null || method.isBlank()) throw new IllegalArgumentException("invoke method name required");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> params = (p.get("params") instanceof Map<?, ?> m) ? (Map<String, Object>) m : Map.of();
-        String field = (String) p.get("field");
-        boolean strict = p.containsKey("value");
+        Map<String, Object> params = p.getMap("params");
+        String field = p.getString("field");
+        boolean strict = p.has("value");
         Object target = p.get("value");
-        long budgetMs = ApiSupport.clamp(ApiSupport.numL(p.getOrDefault("timeoutMs", 30_000L)), 100L, MAX_BUDGET_MS);
-        long pollMs = ApiSupport.clamp(ApiSupport.numL(p.getOrDefault("pollMs", 500L)), 50L, 5000L);
+        long budgetMs = p.getLongClamped("timeoutMs", 30_000L, 100L, MAX_BUDGET_MS);
+        long pollMs = p.getLongClamped("pollMs", 500L, 50L, 5000L);
 
         long t0 = System.nanoTime();
         long deadlineNanos = t0 + budgetMs * 1_000_000L;
