@@ -1,7 +1,7 @@
 package net.magicterra.agent.api;
 
 import net.magicterra.agent.model.AgentEvent;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.magicterra.agent.model.BlockSnapshot;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
@@ -36,8 +36,8 @@ public final class ObserveApi {
             for (int dx = -r; dx <= r; dx++)
                 for (int dy = -r; dy <= r; dy++)
                     for (int dz = -r; dz <= r; dz++) {
-                        net.minecraft.core.BlockPos bp = new net.minecraft.core.BlockPos(
-                                p.center.x + dx, p.center.y + dy, p.center.z + dz);
+                        BlockPos bp = new BlockPos(
+                                p.center.getX() + dx, p.center.getY() + dy, p.center.getZ() + dz);
                         BlockState st = level.getBlockState(bp);
                         if (st.isAir()) continue;
                         String type = ApiSupport.blockId(st);
@@ -89,7 +89,7 @@ public final class ObserveApi {
         if (pos == null) throw new IllegalArgumentException("pos required");
         ServerLevel level = api.level();
         return api.onServerThread(() -> {
-            net.minecraft.core.BlockPos bp = ApiSupport.mc(pos);
+            BlockPos bp = pos;
             BlockEntity be = level.getBlockEntity(bp);
             Map<String, Object> out = new LinkedHashMap<>();
             if (be == null) { out.put("present", false); return out; }

@@ -1,7 +1,7 @@
 package net.magicterra.agent.bot.util;
 
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -15,7 +15,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
-import static net.magicterra.agent.bot.util.BotUtil.toMc;
 
 /**
  * Player-facing interaction helpers: aiming, hotbar/tool selection, block
@@ -46,7 +45,7 @@ public final class BotInteract {
      *  caller didn't specify a face. */
     public static Direction pickFaceTowardsPlayer(BlockPos block, LocalPlayer p) {
         Vec3 eye = p.getEyePosition();
-        Vec3 center = new Vec3(block.x + 0.5, block.y + 0.5, block.z + 0.5);
+        Vec3 center = new Vec3(block.getX() + 0.5, block.getY() + 0.5, block.getZ() + 0.5);
         Vec3 delta = eye.subtract(center);
         double ax = Math.abs(delta.x), ay = Math.abs(delta.y), az = Math.abs(delta.z);
         if (ay >= ax && ay >= az) return delta.y >= 0 ? Direction.UP : Direction.DOWN;
@@ -58,10 +57,10 @@ public final class BotInteract {
      *  instead of the legacy server.setBlock bypass. Must be called from the
      *  client thread. */
     public static InteractionResult clientUseItemOn(Minecraft mc, LocalPlayer p, BlockPos clickBlock, Direction face) {
-        double cx = clickBlock.x + 0.5 + face.getStepX() * 0.5;
-        double cy = clickBlock.y + 0.5 + face.getStepY() * 0.5;
-        double cz = clickBlock.z + 0.5 + face.getStepZ() * 0.5;
-        BlockHitResult hit = new BlockHitResult(new Vec3(cx, cy, cz), face, toMc(clickBlock), false);
+        double cx = clickBlock.getX() + 0.5 + face.getStepX() * 0.5;
+        double cy = clickBlock.getY() + 0.5 + face.getStepY() * 0.5;
+        double cz = clickBlock.getZ() + 0.5 + face.getStepZ() * 0.5;
+        BlockHitResult hit = new BlockHitResult(new Vec3(cx, cy, cz), face, clickBlock, false);
         // Don't touch the sneak state here — placement callers (BuildProcess /
         // TowerProcess / BridgeProcess) deliberately sneak to shrink the player
         // AABB before clicking (Baritone MovementHelper.attemptToPlaceABlock
@@ -103,7 +102,7 @@ public final class BotInteract {
 
     public static void aimAtBlockSnap(LocalPlayer p, BlockPos block) {
         Vec3 eye = p.getEyePosition();
-        double dx = (block.x + 0.5) - eye.x, dy = (block.y + 0.5) - eye.y, dz = (block.z + 0.5) - eye.z;
+        double dx = (block.getX() + 0.5) - eye.x, dy = (block.getY() + 0.5) - eye.y, dz = (block.getZ() + 0.5) - eye.z;
         double horiz = Math.sqrt(dx * dx + dz * dz);
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         float pitch = (float) -Math.toDegrees(Math.atan2(dy, horiz));
@@ -133,7 +132,7 @@ public final class BotInteract {
         LocalPlayer p = mc.player;
         Level lvl = mc.level;
         if (p == null || lvl == null) return;
-        BlockState bs = lvl.getBlockState(toMc(pos));
+        BlockState bs = lvl.getBlockState(pos);
         Inventory inv = p.getInventory();
         // Resolve the Efficiency holder so this ranks tools the same way the A*
         // breakCost did (a +Efficiency tool can out-mine a higher-base one); a

@@ -10,7 +10,7 @@ import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.magicterra.agent.AgentDriverCommon;
 import net.magicterra.agent.api.AgentApi;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.magicterra.agent.script.AgentEvents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;

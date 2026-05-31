@@ -2,7 +2,7 @@ package net.magicterra.agent.neoforge;
 
 import net.magicterra.agent.AgentDriverCommon;
 import net.magicterra.agent.api.AgentApi;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.magicterra.agent.script.AgentEvents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.Entity;

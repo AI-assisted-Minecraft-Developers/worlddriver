@@ -8,7 +8,7 @@ import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -235,9 +235,9 @@ public final class MineProcess implements BotProcess {
         // next spot instead of looping.
         while (!recentBreaks.isEmpty()) {
             BlockPos bp = recentBreaks.peekFirst();
-            double dx = p.getX() - (bp.x + 0.5);
-            double dy = p.getY() - bp.y;
-            double dz = p.getZ() - (bp.z + 0.5);
+            double dx = p.getX() - (bp.getX() + 0.5);
+            double dy = p.getY() - bp.getY();
+            double dz = p.getZ() - (bp.getZ() + 0.5);
             if (dx * dx + dy * dy + dz * dz < 1.5 * 1.5) {
                 recentBreaks.removeFirst();
                 continue;
@@ -262,13 +262,13 @@ public final class MineProcess implements BotProcess {
                     scanned++;
                     BlockPos bp = foot.offset(dx, dy, dz);
                     if (blacklist.contains(bp)) continue;
-                    BlockState bs = lvl.getBlockState(toMc(bp));
+                    BlockState bs = lvl.getBlockState(bp);
                     String id = BuiltInRegistries.BLOCK.getKey(bs.getBlock()).toString();
                     if (!targetIds.contains(id)) continue;
                     // Find a standable adjacent position.
                     BlockPos stand = findStandableAdjacent(lvl, bp);
                     if (stand == null) continue;
-                    long d2 = bp.distSqr(foot);
+                    long d2 = (long) bp.distSqr(foot);
                     if (d2 < bestD2) {
                         bestD2 = d2;
                         best = new Target(bp, stand, faceFromStandToBlock(stand, bp));
@@ -297,9 +297,9 @@ public final class MineProcess implements BotProcess {
     }
 
     private boolean canStandHere(Level lvl, BlockPos foot) {
-        BlockState below = lvl.getBlockState(toMc(foot.offset(0, -1, 0)));
-        BlockState here = lvl.getBlockState(toMc(foot));
-        BlockState head = lvl.getBlockState(toMc(foot.offset(0, 1, 0)));
+        BlockState below = lvl.getBlockState(foot.offset(0, -1, 0));
+        BlockState here = lvl.getBlockState(foot);
+        BlockState head = lvl.getBlockState(foot.offset(0, 1, 0));
         if (!below.blocksMotion()) return false;
         if (here.blocksMotion() && !here.getFluidState().is(Fluids.WATER)) return false;
         if (head.blocksMotion() && !head.getFluidState().is(Fluids.WATER)) return false;
@@ -307,9 +307,9 @@ public final class MineProcess implements BotProcess {
     }
 
     private Direction faceFromStandToBlock(BlockPos stand, BlockPos block) {
-        int dx = block.x - stand.x;
-        int dy = block.y - stand.y;
-        int dz = block.z - stand.z;
+        int dx = block.getX() - stand.getX();
+        int dy = block.getY() - stand.getY();
+        int dz = block.getZ() - stand.getZ();
         if (dx == 1) return Direction.WEST;
         if (dx == -1) return Direction.EAST;
         if (dz == 1) return Direction.NORTH;
@@ -321,7 +321,7 @@ public final class MineProcess implements BotProcess {
 
     private void faceBlock(LocalPlayer p, BlockPos block) {
         Vec3 eye = p.getEyePosition();
-        double tx = block.x + 0.5, ty = block.y + 0.5, tz = block.z + 0.5;
+        double tx = block.getX() + 0.5, ty = block.getY() + 0.5, tz = block.getZ() + 0.5;
         double dx = tx - eye.x, dy = ty - eye.y, dz = tz - eye.z;
         double horiz = Math.sqrt(dx * dx + dz * dz);
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
@@ -337,7 +337,7 @@ public final class MineProcess implements BotProcess {
         LocalPlayer p = mc.player;
         Level lvl = mc.level;
         if (p == null || lvl == null) return;
-        BlockState bs = lvl.getBlockState(toMc(pos));
+        BlockState bs = lvl.getBlockState(pos);
         Inventory inv = p.getInventory();
         int bestSlot = -1;
         float bestSpeed = inv.getSelected().getDestroySpeed(bs);
@@ -389,7 +389,7 @@ public final class MineProcess implements BotProcess {
     private String currentBlockId(Minecraft mc) {
         Level lvl = mc.level;
         if (lvl == null || currentTarget == null) return "";
-        return BuiltInRegistries.BLOCK.getKey(lvl.getBlockState(toMc(currentTarget)).getBlock()).toString();
+        return BuiltInRegistries.BLOCK.getKey(lvl.getBlockState(currentTarget).getBlock()).toString();
     }
 
     /** A reachable mining target: the block + adjacent stand position + face direction. */

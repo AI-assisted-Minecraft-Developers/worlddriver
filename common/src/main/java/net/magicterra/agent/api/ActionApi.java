@@ -1,6 +1,6 @@
 package net.magicterra.agent.api;
 
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -23,7 +23,7 @@ public final class ActionApi {
     public Map<String, Object> placeBlock(PlaceParams p) {
         ServerLevel level = api.level();
         return api.onServerThread(() -> {
-            net.minecraft.core.BlockPos bp = ApiSupport.mc(p.pos);
+            BlockPos bp = p.pos;
             BlockState before = level.getBlockState(bp);
             String prev = ApiSupport.blockId(before);
             level.setBlockAndUpdate(bp, ApiSupport.parseBlock(p.type));
@@ -46,9 +46,9 @@ public final class ActionApi {
         if (from == null || to == null || type == null) {
             throw new IllegalArgumentException("from, to and type required");
         }
-        int minX = Math.min(from.x, to.x), maxX = Math.max(from.x, to.x);
-        int minY = Math.min(from.y, to.y), maxY = Math.max(from.y, to.y);
-        int minZ = Math.min(from.z, to.z), maxZ = Math.max(from.z, to.z);
+        int minX = Math.min(from.getX(), to.getX()), maxX = Math.max(from.getX(), to.getX());
+        int minY = Math.min(from.getY(), to.getY()), maxY = Math.max(from.getY(), to.getY());
+        int minZ = Math.min(from.getZ(), to.getZ()), maxZ = Math.max(from.getZ(), to.getZ());
         long volume = (long)(maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
         if (volume > 32768L) {
             throw new IllegalArgumentException("volume too large: " + volume + " > 32768");
@@ -61,7 +61,7 @@ public final class ActionApi {
             for (int x = minX; x <= maxX; x++)
                 for (int y = minY; y <= maxY; y++)
                     for (int z = minZ; z <= maxZ; z++) {
-                        level.setBlockAndUpdate(new net.minecraft.core.BlockPos(x, y, z), state);
+                        level.setBlockAndUpdate(new BlockPos(x, y, z), state);
                         n++;
                     }
             api.emit("block.fill", from, type + "@" + from + "->" + to);
@@ -94,7 +94,7 @@ public final class ActionApi {
                 // No block.place event is emitted for skipped rows.
                 try {
                     BlockState st = ApiSupport.parseBlock(type);
-                    level.setBlockAndUpdate(ApiSupport.mc(bp), st);
+                    level.setBlockAndUpdate(bp, st);
                     api.emit("block.place", bp, type);
                     placed++;
                 } catch (RuntimeException e) {
@@ -139,7 +139,7 @@ public final class ActionApi {
                 boolean isAir = type.equals("air") || type.equals("minecraft:air");
                 BlockState newState = isAir ? Blocks.AIR.defaultBlockState() : ApiSupport.parseBlock(type);
                 return api.onServerThread(() -> {
-                    net.minecraft.core.BlockPos bp = ApiSupport.mc(pos);
+                    BlockPos bp = pos;
                     BlockState before = level.getBlockState(bp);
                     String prev = ApiSupport.blockId(before);
                     level.setBlockAndUpdate(bp, newState);

@@ -2,7 +2,7 @@ package net.magicterra.agent.bot.movement;
 
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.Direction;
@@ -95,9 +95,9 @@ public final class ClutchController {
         int cx = (int) Math.floor(p.getX()), cz = (int) Math.floor(p.getZ());
         BlockPos floor = floorBelow(world, cx, (int) Math.floor(p.getY()) - 1, cz, 64);
         if (floor == null || !world.isMlgFloor(floor) || world.isHazard(floor)) return;
-        double remaining = p.getY() - (floor.y + 1);
+        double remaining = p.getY() - (floor.getY() + 1);
         if (remaining <= EMERGENCY_CLUTCH_MIN_DROP) return;
-        for (int y = (int) Math.floor(p.getY()); y >= floor.y + 1; y--)
+        for (int y = (int) Math.floor(p.getY()); y >= floor.getY() + 1; y--)
             if (world.isWater(new BlockPos(cx, y, cz))) return;   // water already breaks it
         armed = true;
         landingX = cx;
@@ -107,7 +107,7 @@ public final class ClutchController {
                     "[clutch] emergency water-clutch armed: remaining={} y={} floor={},{},{}",
                     String.format(java.util.Locale.ROOT, "%.1f", remaining),
                     String.format(java.util.Locale.ROOT, "%.1f", p.getY()),
-                    floor.x, floor.y, floor.z);
+                    floor.getX(), floor.getY(), floor.getZ());
     }
 
     /** Drive the committed descent. Returns true while the clutch OWNS this
@@ -150,7 +150,7 @@ public final class ClutchController {
             BlockPos floor = floorBelow(world, cx, (int) Math.floor(p.getY()) - 1, cz, 24);
             if (floor != null) {
                 BlockPos cell = floor.offset(0, 1, 0);     // water spawns here
-                double aboveFloor = p.getY() - cell.y;
+                double aboveFloor = p.getY() - cell.getY();
                 if (p.getDeltaMovement().y < -0.1 && aboveFloor > 0.4 && aboveFloor <= MLG_PLACE_HEIGHT
                         && !world.isWater(cell)
                         && ensureHolding(mc, net.minecraft.world.item.Items.WATER_BUCKET)) {
@@ -160,7 +160,7 @@ public final class ClutchController {
                     if (BotConfig.walkerDebug)
                         net.magicterra.agent.AgentDriverCommon.LOG.info(
                                 "[clutch] mlg-place cell={},{},{} aboveFloor={} y={} r={}",
-                                cell.x, cell.y, cell.z,
+                                cell.getX(), cell.getY(), cell.getZ(),
                                 String.format(java.util.Locale.ROOT, "%.2f", aboveFloor),
                                 String.format(java.util.Locale.ROOT, "%.2f", p.getY()), pr);
                 }
@@ -184,7 +184,7 @@ public final class ClutchController {
                 if (sr.consumesAction()) p.swing(InteractionHand.MAIN_HAND);
                 if (BotConfig.walkerDebug)
                     net.magicterra.agent.AgentDriverCommon.LOG.info(
-                            "[clutch] mlg-scoop feet={},{},{} t={}", feet.x, feet.y, feet.z, scoopTicks);
+                            "[clutch] mlg-scoop feet={},{},{} t={}", feet.getX(), feet.getY(), feet.getZ(), scoopTicks);
                 return true;
             }
             reset();

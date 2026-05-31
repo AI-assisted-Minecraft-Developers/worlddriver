@@ -1,6 +1,6 @@
 package net.magicterra.agent.api;
 
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -42,13 +42,18 @@ final class ApiSupport {
             return new BlockPos(nx.intValue(), ny.intValue(), nz.intValue());
         }
         if (o instanceof String s) {
-            try { return BlockPos.parse(s); } catch (Exception e) { return null; }
+            try { return parsePos(s); } catch (Exception e) { return null; }
         }
         return null;
     }
 
-    static net.minecraft.core.BlockPos mc(BlockPos p) {
-        return new net.minecraft.core.BlockPos(p.x, p.y, p.z);
+    /** Parse a {@code "x,y,z"} token to a BlockPos. Throws on a malformed token. */
+    static BlockPos parsePos(String s) {
+        String[] p = s.split(",");
+        return new BlockPos(
+            Integer.parseInt(p[0].trim()),
+            Integer.parseInt(p[1].trim()),
+            Integer.parseInt(p[2].trim()));
     }
 
     static String blockId(BlockState s) {

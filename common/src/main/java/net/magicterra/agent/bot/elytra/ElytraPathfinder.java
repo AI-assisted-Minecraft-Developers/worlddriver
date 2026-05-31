@@ -1,7 +1,7 @@
 package net.magicterra.agent.bot.elytra;
 
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;

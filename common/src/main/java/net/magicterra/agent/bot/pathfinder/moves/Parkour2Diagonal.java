@@ -2,7 +2,7 @@ package net.magicterra.agent.bot.pathfinder.moves;
 
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 
 /**
  * 2-block 45° diagonal leap — bridges the inside corner of an L-gap.

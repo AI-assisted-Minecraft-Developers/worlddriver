@@ -8,7 +8,7 @@ import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -66,7 +66,7 @@ public final class LookProcess implements BotProcess {
     public void attach(BotState st) {
         st.look.active = true;
         st.look.goal = track != null
-                ? "pos " + track.x + "," + track.y + "," + track.z
+                ? "pos " + track.getX() + "," + track.getY() + "," + track.getZ()
                 : String.format(java.util.Locale.ROOT, "yaw %.1f pitch %.1f", fixedYaw, fixedPitch);
         if (track != null) st.look.target = track;
         st.look.startedAtMs = System.currentTimeMillis();
@@ -79,7 +79,7 @@ public final class LookProcess implements BotProcess {
         float ty = fixedYaw, tp = fixedPitch;
         if (track != null) {
             Vec3 eye = p.getEyePosition();
-            double dx = track.x + 0.5 - eye.x, dy = track.y + 0.5 - eye.y, dz = track.z + 0.5 - eye.z;
+            double dx = track.getX() + 0.5 - eye.x, dy = track.getY() + 0.5 - eye.y, dz = track.getZ() + 0.5 - eye.z;
             ty = (float) Math.toDegrees(Math.atan2(-dx, dz));
             tp = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
         }

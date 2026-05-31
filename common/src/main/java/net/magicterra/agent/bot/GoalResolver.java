@@ -1,6 +1,6 @@
 package net.magicterra.agent.bot;
 
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.Direction;
@@ -49,9 +49,9 @@ public static BlockPos findNearestStandForBlock(LocalPlayer player, String block
             for (int dz = -radius; dz <= radius; dz++) {
                 if (++scanned > 200_000) break outer;
                 BlockPos bp = foot.offset(dx, dy, dz);
-                String id = BuiltInRegistries.BLOCK.getKey(lvl.getBlockState(toMc(bp)).getBlock()).toString();
+                String id = BuiltInRegistries.BLOCK.getKey(lvl.getBlockState(bp).getBlock()).toString();
                 if (!blockId.equals(id)) continue;
-                long d2 = bp.distSqr(foot);
+                long d2 = (long) bp.distSqr(foot);
                 if (d2 >= bestD2) continue;
                 BlockPos stand = findStandAdjacent(lvl, bp);
                 if (stand == null) continue;
@@ -136,8 +136,8 @@ public static int[] horizontalStep(LocalPlayer p, String d) {
         default -> {
             BlockPos far = applyDirection(p, d, 16);
             if (far == null) return null;
-            int dx = far.x - (int) Math.floor(p.getX());
-            int dz = far.z - (int) Math.floor(p.getZ());
+            int dx = far.getX() - (int) Math.floor(p.getX());
+            int dz = far.getZ() - (int) Math.floor(p.getZ());
             if (dx == 0 && dz == 0) return null;
             // Snap to the dominant cardinal axis.
             if (Math.abs(dx) >= Math.abs(dz)) return new int[]{Integer.signum(dx), 0};

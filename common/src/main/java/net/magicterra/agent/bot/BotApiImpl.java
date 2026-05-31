@@ -4,7 +4,7 @@ import net.magicterra.agent.bot.elytra.ElytraPhysics;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.client.KeyMapping;
@@ -259,8 +259,8 @@ public final class BotApiImpl implements BotApi {
             // mixed (rare — only via 'forward'/'backward' which is horizontal) →
             // Block. `near>0` always uses Near to relax the constraint.
             if (near > 0) return new Goal.Near(target, near);
-            if ("up".equals(d) || "down".equals(d)) return new Goal.YLevel(target.y);
-            return new Goal.XZ(target.x, target.z);
+            if ("up".equals(d) || "down".equals(d)) return new Goal.YLevel(target.getY());
+            return new Goal.XZ(target.getX(), target.getZ());
         }
         if (p.get("waypoint") instanceof String wpName && !wpName.isBlank()) {
             BlockPos wpPos = waypoints.get(wpName);
@@ -335,7 +335,7 @@ public final class BotApiImpl implements BotApi {
         BlockPos from = readPos(params.get("from"));
         BlockPos to   = readPos(params.get("to"));
         if (from == null || to == null) return Map.of("ok", false, "error", "from and to required");
-        long volume = (long)(Math.abs(from.x - to.x) + 1) * (Math.abs(from.y - to.y) + 1) * (Math.abs(from.z - to.z) + 1);
+        long volume = (long)(Math.abs(from.getX() - to.getX()) + 1) * (Math.abs(from.getY() - to.getY()) + 1) * (Math.abs(from.getZ() - to.getZ()) + 1);
         if (volume > 4096) return Map.of("ok", false, "error", "area too large (max 4096 blocks)");
         // Baritone sel-system parity: fill="id" places id after clearing each
         // cell; replace={from,to} only touches cells matching the from id and
@@ -375,7 +375,7 @@ public final class BotApiImpl implements BotApi {
         BlockPos from = readPos(params.get("from"));
         BlockPos to   = readPos(params.get("to"));
         if (from == null || to == null) return Map.of("ok", false, "error", "from and to required");
-        long area = (long)(Math.abs(from.x - to.x) + 1) * (Math.abs(from.z - to.z) + 1);
+        long area = (long)(Math.abs(from.getX() - to.getX()) + 1) * (Math.abs(from.getZ() - to.getZ()) + 1);
         if (area > 4096) return Map.of("ok", false, "error", "area too large (max 4096 cells)");
         // Crops filter: caller may restrict to a subset, otherwise all four
         // vanilla crops. Validated against known ids — unknown entries get
@@ -576,7 +576,7 @@ public final class BotApiImpl implements BotApi {
             float yaw, pitch;
             if (at != null) {
                 Vec3 eye = p.getEyePosition();
-                double dx = at.x + 0.5 - eye.x, dy = at.y + 0.5 - eye.y, dz = at.z + 0.5 - eye.z;
+                double dx = at.getX() + 0.5 - eye.x, dy = at.getY() + 0.5 - eye.y, dz = at.getZ() + 0.5 - eye.z;
                 yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
                 pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
             } else if (yawO instanceof Number yn && pitchO instanceof Number pn) {
@@ -682,11 +682,11 @@ public final class BotApiImpl implements BotApi {
             // Click location = center of that face. The integrated server uses
             // it for ranged interaction checks AND for items that key off the
             // exact hit Vec3 (e.g. slab top/bottom selection).
-            double cx = blockPos.x + 0.5 + effFace.getStepX() * 0.5;
-            double cy = blockPos.y + 0.5 + effFace.getStepY() * 0.5;
-            double cz = blockPos.z + 0.5 + effFace.getStepZ() * 0.5;
+            double cx = blockPos.getX() + 0.5 + effFace.getStepX() * 0.5;
+            double cy = blockPos.getY() + 0.5 + effFace.getStepY() * 0.5;
+            double cz = blockPos.getZ() + 0.5 + effFace.getStepZ() * 0.5;
             Vec3 hitLoc = new Vec3(cx, cy, cz);
-            BlockHitResult hit = new BlockHitResult(hitLoc, effFace, toMc(blockPos), false);
+            BlockHitResult hit = new BlockHitResult(hitLoc, effFace, blockPos, false);
 
             if (wantLookAt) {
                 // Aim at the hit location so the server-side rotation matches

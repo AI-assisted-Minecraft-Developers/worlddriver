@@ -8,7 +8,7 @@ import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -86,7 +86,7 @@ public final class BridgeProcess implements BotProcess {
                                      (int) Math.floor(p.getY()),
                                      (int) Math.floor(p.getZ()));
         if (startFoot == null) startFoot = foot;
-        int progress = Math.abs(foot.x - startFoot.x) + Math.abs(foot.z - startFoot.z);
+        int progress = Math.abs(foot.getX() - startFoot.getX()) + Math.abs(foot.getZ() - startFoot.getZ());
         st.builder.target = foot;
         st.builder.pathStep = progress;
         st.builder.pathLen = distance;
@@ -126,7 +126,7 @@ public final class BridgeProcess implements BotProcess {
         // The cell directly ahead of our feet, one step in `face`.
         BlockPos aheadFoot = foot.offset(face.getStepX(), 0, face.getStepZ());
         BlockPos aheadSupport = aheadFoot.offset(0, -1, 0);
-        boolean aheadSupportSolid = lvl.getBlockState(toMc(aheadSupport)).blocksMotion();
+        boolean aheadSupportSolid = lvl.getBlockState(aheadSupport).blocksMotion();
 
         switch (phase) {
             case WALKING -> {
@@ -152,7 +152,7 @@ public final class BridgeProcess implements BotProcess {
                 // +face puts the new block at aheadSupport, which becomes
                 // the support for the next step.
                 BlockPos currentSupport = foot.offset(0, -1, 0);
-                if (!lvl.getBlockState(toMc(currentSupport)).blocksMotion()) {
+                if (!lvl.getBlockState(currentSupport).blocksMotion()) {
                     st.builder.lastError = "no support under feet (fell off?)";
                     st.builder.reset();
                     releaseKeys();

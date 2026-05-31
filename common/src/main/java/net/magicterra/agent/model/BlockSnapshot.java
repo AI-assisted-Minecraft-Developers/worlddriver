@@ -1,4 +1,5 @@
 package net.magicterra.agent.model;
+import net.minecraft.core.BlockPos;
 
 public final class BlockSnapshot {
     public final BlockPos pos;

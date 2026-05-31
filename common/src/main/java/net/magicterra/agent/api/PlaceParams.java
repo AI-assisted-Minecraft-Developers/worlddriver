@@ -1,6 +1,6 @@
 package net.magicterra.agent.api;
 
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import java.util.Map;
 
 public final class PlaceParams {
@@ -17,7 +17,7 @@ public final class PlaceParams {
                 ((Number) mm.get("y")).intValue(),
                 ((Number) mm.get("z")).intValue()
             );
-        } else if (x instanceof String s) p.pos = BlockPos.parse(s);
+        } else if (x instanceof String s) p.pos = ApiSupport.parsePos(s);
         p.type = (String) m.get("type");
         return p;
     }

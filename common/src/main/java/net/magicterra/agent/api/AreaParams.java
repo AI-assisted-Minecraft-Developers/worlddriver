@@ -1,6 +1,6 @@
 package net.magicterra.agent.api;
 
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import java.util.Map;
 
 public final class AreaParams {
@@ -14,7 +14,7 @@ public final class AreaParams {
         AreaParams p = new AreaParams();
         Object c = m.get("center");
         if (c instanceof BlockPos bp) p.center = bp;
-        else if (c instanceof String s) p.center = BlockPos.parse(s);
+        else if (c instanceof String s) p.center = ApiSupport.parsePos(s);
         else if (c instanceof Map<?, ?> cm) {
             p.center = new BlockPos(
                 ((Number) cm.get("x")).intValue(),

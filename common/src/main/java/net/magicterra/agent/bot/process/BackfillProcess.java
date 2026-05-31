@@ -8,7 +8,7 @@ import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -133,8 +133,8 @@ public final class BackfillProcess implements BotProcess {
                 // Approach-center gate (mirror of BuildProcess fix):
                 // walker may stop ~0.4 short of stand-center which leaves
                 // <0.2 clearance from the placement target.
-                double dxToCenter = (currentStand.x + 0.5) - p.getX();
-                double dzToCenter = (currentStand.z + 0.5) - p.getZ();
+                double dxToCenter = (currentStand.getX() + 0.5) - p.getX();
+                double dzToCenter = (currentStand.getZ() + 0.5) - p.getZ();
                 double horizD = Math.sqrt(dxToCenter * dxToCenter + dzToCenter * dzToCenter);
                 if (horizD > 0.25) {
                     float yaw = (float) Math.toDegrees(Math.atan2(-dxToCenter, dzToCenter));
@@ -147,9 +147,9 @@ public final class BackfillProcess implements BotProcess {
                 mc.options.keyUp.setDown(false);
                 faceSupportFor(p, currentBlock, currentFace);
                 BlockPos support = new BlockPos(
-                        currentBlock.x - currentFace.getStepX(),
-                        currentBlock.y - currentFace.getStepY(),
-                        currentBlock.z - currentFace.getStepZ());
+                        currentBlock.getX() - currentFace.getStepX(),
+                        currentBlock.getY() - currentFace.getStepY(),
+                        currentBlock.getZ() - currentFace.getStepZ());
                 if (placeTicks < 2 || !p.isCrouching()) {
                     placeTicks++;
                     if (placeTicks > 12) { /* try anyway */ }
@@ -159,7 +159,7 @@ public final class BackfillProcess implements BotProcess {
                     clientUseItemOn(mc, p, support, currentFace);
                 }
                 placeTicks++;
-                BlockState now = lvl.getBlockState(toMc(currentBlock));
+                BlockState now = lvl.getBlockState(currentBlock);
                 String nowId = BuiltInRegistries.BLOCK.getKey(now.getBlock()).toString();
                 if (nowId.equals(BotConfig.autoBackfillBlock)) {
                     tracker.remove(currentBlock);
@@ -187,11 +187,11 @@ public final class BackfillProcess implements BotProcess {
         int bestD2 = Integer.MAX_VALUE;
         for (BlockPos cand : tracker.snapshot()) {
             if (failed.contains(cand)) continue;
-            int dx = cand.x - playerFoot.x;
-            int dy = cand.y - playerFoot.y;
-            int dz = cand.z - playerFoot.z;
+            int dx = cand.getX() - playerFoot.getX();
+            int dy = cand.getY() - playerFoot.getY();
+            int dz = cand.getZ() - playerFoot.getZ();
             if (Math.abs(dx) > radius || Math.abs(dy) > radius || Math.abs(dz) > radius) continue;
-            BlockState bs = lvl.getBlockState(toMc(cand));
+            BlockState bs = lvl.getBlockState(cand);
             if (!bs.isAir()) {
                 tracker.remove(cand);
                 continue;
@@ -206,7 +206,7 @@ public final class BackfillProcess implements BotProcess {
 
     private boolean hasSolidNeighbor(Level lvl, BlockPos pos) {
         for (Direction d : Direction.values()) {
-            BlockState ns = lvl.getBlockState(toMc(pos.offset(d.getStepX(), d.getStepY(), d.getStepZ())));
+            BlockState ns = lvl.getBlockState(pos.offset(d.getStepX(), d.getStepY(), d.getStepZ()));
             if (ns.isSolid()) return true;
         }
         return false;
@@ -216,7 +216,7 @@ public final class BackfillProcess implements BotProcess {
         Direction[] order = {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP};
         for (Direction d : order) {
             BlockPos support = block.offset(d.getStepX(), d.getStepY(), d.getStepZ());
-            BlockState ss = lvl.getBlockState(toMc(support));
+            BlockState ss = lvl.getBlockState(support);
             if (!ss.isSolid()) continue;
             BlockPos stand = findStandableNear(lvl, block, playerFoot);
             if (stand == null) continue;
@@ -238,9 +238,9 @@ public final class BackfillProcess implements BotProcess {
     }
 
     private boolean canStand(Level lvl, BlockPos foot) {
-        BlockState below = lvl.getBlockState(toMc(foot.offset(0, -1, 0)));
-        BlockState here = lvl.getBlockState(toMc(foot));
-        BlockState head = lvl.getBlockState(toMc(foot.offset(0, 1, 0)));
+        BlockState below = lvl.getBlockState(foot.offset(0, -1, 0));
+        BlockState here = lvl.getBlockState(foot);
+        BlockState head = lvl.getBlockState(foot.offset(0, 1, 0));
         if (!below.blocksMotion()) return false;
         if (here.blocksMotion()) return false;
         if (head.blocksMotion()) return false;
@@ -283,9 +283,9 @@ public final class BackfillProcess implements BotProcess {
 
     private void faceSupportFor(LocalPlayer p, BlockPos block, Direction face) {
         BlockPos support = block.offset(-face.getStepX(), -face.getStepY(), -face.getStepZ());
-        double tx = support.x + 0.5 + face.getStepX() * 0.5;
-        double ty = support.y + 0.5 + face.getStepY() * 0.5;
-        double tz = support.z + 0.5 + face.getStepZ() * 0.5;
+        double tx = support.getX() + 0.5 + face.getStepX() * 0.5;
+        double ty = support.getY() + 0.5 + face.getStepY() * 0.5;
+        double tz = support.getZ() + 0.5 + face.getStepZ() * 0.5;
         Vec3 eye = p.getEyePosition();
         double dx = tx - eye.x, dy = ty - eye.y, dz = tz - eye.z;
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));

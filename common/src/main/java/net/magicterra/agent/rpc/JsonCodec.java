@@ -1,7 +1,7 @@
 package net.magicterra.agent.rpc;
 
 import net.magicterra.agent.model.AgentEvent;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.magicterra.agent.model.BlockSnapshot;
 import net.magicterra.agent.api.AreaResult;
 
@@ -37,7 +37,7 @@ public final class JsonCodec {
             return;
         }
         if (v instanceof BlockPos bp) {
-            sb.append("{\"x\":").append(bp.x).append(",\"y\":").append(bp.y).append(",\"z\":").append(bp.z).append("}");
+            sb.append("{\"x\":").append(bp.getX()).append(",\"y\":").append(bp.getY()).append(",\"z\":").append(bp.getZ()).append("}");
             return;
         }
         if (v instanceof BlockSnapshot bs) {

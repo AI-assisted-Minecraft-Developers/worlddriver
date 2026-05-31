@@ -6,7 +6,7 @@ import net.magicterra.agent.bot.movement.PathSmoothing.SmoothResult;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.Direction;
@@ -214,8 +214,8 @@ public final class Walker {
                     StringBuilder sbp = new StringBuilder();
                     for (int i = 0; i < path.size(); i++) {
                         Move.Edge e = i < edges.size() ? edges.get(i) : null;
-                        sbp.append(i).append(':').append(path.get(i).x).append(',').append(path.get(i).y)
-                           .append(',').append(path.get(i).z).append('[').append(e != null ? e.move : "-").append("] ");
+                        sbp.append(i).append(':').append(path.get(i).getX()).append(',').append(path.get(i).getY())
+                           .append(',').append(path.get(i).getZ()).append('[').append(e != null ? e.move : "-").append("] ");
                     }
                     net.magicterra.agent.AgentDriverCommon.LOG.info("[walker] path = {}", sbp);
                 }
@@ -277,7 +277,7 @@ public final class Walker {
             // landed on the placed block — else we'd advance mid-jump and the
             // next edge would fire while airborne.
             if (se != null && "pillarUp".equals(se.move)
-                    && !(p.onGround() && p.getY() >= path.get(step).y - 0.1)) break;
+                    && !(p.onGround() && p.getY() >= path.get(step).getY() - 0.1)) break;
             // Don't advance past a parkour-place edge while airborne — keep the
             // settle phase owning the descent so it brakes the leap on landing.
             if (se != null && se.move != null && se.move.startsWith("parkourPlace")
@@ -288,10 +288,10 @@ public final class Walker {
             if (se != null && se.move != null && se.move.startsWith("parkourDescend")
                     && !p.onGround()) break;
             BlockPos w = path.get(step);
-            double dx = (w.x + 0.5) - p.getX();
-            double dz = (w.z + 0.5) - p.getZ();
+            double dx = (w.getX() + 0.5) - p.getX();
+            double dz = (w.getZ() + 0.5) - p.getZ();
             double cur2 = dx * dx + dz * dz;
-            boolean within = cur2 < REACH_DIST_SQ && Math.abs(w.y - p.getY()) < 1.2;
+            boolean within = cur2 < REACH_DIST_SQ && Math.abs(w.getY() - p.getY()) < 1.2;
             // Pure-pursuit re-sync: also advance past a node we've already gone
             // by — the next node being closer than this one means the player is
             // beyond it. Without this, sprinting toward a far carrot (or a
@@ -300,9 +300,9 @@ public final class Walker {
             boolean passed = false;
             if (!within && step + 1 < path.size()) {
                 BlockPos nx = path.get(step + 1);
-                double ndx = (nx.x + 0.5) - p.getX();
-                double ndz = (nx.z + 0.5) - p.getZ();
-                passed = (ndx * ndx + ndz * ndz) <= cur2 && Math.abs(w.y - p.getY()) < 1.5;
+                double ndx = (nx.getX() + 0.5) - p.getX();
+                double ndz = (nx.getZ() + 0.5) - p.getZ();
+                passed = (ndx * ndx + ndz * ndz) <= cur2 && Math.abs(w.getY() - p.getY()) < 1.5;
             }
             if (within || passed) step++;
             else break;
@@ -364,7 +364,7 @@ public final class Walker {
                 // vanilla jump (peak ~+1.25) only crosses +1.0 around tick 4, so
                 // the old fixed 3-tick delay fired at ~+0.99 and the place
                 // no-op'd against the player's own body. Gate on real height.
-                if (pillarSinceJump >= PILLAR_PLACE_DELAY && p.getY() >= place.y + 1.0) {
+                if (pillarSinceJump >= PILLAR_PLACE_DELAY && p.getY() >= place.getY() + 1.0) {
                     clientUseItemOn(mc, p, support, Direction.UP);
                 }
             }
@@ -401,8 +401,8 @@ public final class Walker {
                 return Step.WALKING;
             }
             // Snap heading at the destination — can't course-correct mid-air.
-            double adx = (dest.x + 0.5) - p.getX();
-            double adz = (dest.z + 0.5) - p.getZ();
+            double adx = (dest.getX() + 0.5) - p.getX();
+            double adz = (dest.getZ() + 0.5) - p.getZ();
             if (Math.abs(adx) > 1e-4 || Math.abs(adz) > 1e-4) {
                 float yaw = (float) Math.toDegrees(Math.atan2(-adx, adz));
                 p.setYRot(yaw);
@@ -422,14 +422,14 @@ public final class Walker {
             p.setShiftKeyDown(placed);
             if (!placed && !grounded && ensureHoldingPlaceableAny(mc)) {
                 Vec3 eye = p.getEyePosition();
-                double fdx = (floor.x + 0.5) - eye.x, fdy = (floor.y + 0.5) - eye.y, fdz = (floor.z + 0.5) - eye.z;
+                double fdx = (floor.getX() + 0.5) - eye.x, fdy = (floor.getY() + 0.5) - eye.y, fdz = (floor.getZ() + 0.5) - eye.z;
                 boolean inReach = fdx * fdx + fdy * fdy + fdz * fdz < 16;   // ~4 blocks of the eye
                 if (inReach) {
                     walkerPlace(mc, p, world, floor);
                     if (BotConfig.walkerDebug)
                         net.magicterra.agent.AgentDriverCommon.LOG.info(
                                 "[walker] parkour-place floor={},{},{} y={} dy={} solid={}",
-                                floor.x, floor.y, floor.z,
+                                floor.getX(), floor.getY(), floor.getZ(),
                                 String.format(java.util.Locale.ROOT, "%.2f", p.getY()),
                                 String.format(java.util.Locale.ROOT, "%.2f", p.getDeltaMovement().y),
                                 world.isSolid(floor));
@@ -474,8 +474,8 @@ public final class Walker {
                     if (BotConfig.walkerDebug)
                         net.magicterra.agent.AgentDriverCommon.LOG.info(
                                 "[walker] place-act foot={},{},{} y={} step={} placing={},{},{} onGround={} edge={}",
-                                foot.x, foot.y, foot.z, String.format(java.util.Locale.ROOT, "%.2f", p.getY()),
-                                step, b.x, b.y, b.z, p.onGround(), edge.move);
+                                foot.getX(), foot.getY(), foot.getZ(), String.format(java.util.Locale.ROOT, "%.2f", p.getY()),
+                                step, b.getX(), b.getY(), b.getZ(), p.onGround(), edge.move);
                     aimAtBlockSnap(p, b);
                     walkerPlace(mc, p, world, b);
                     return Step.WALKING;
@@ -490,7 +490,7 @@ public final class Walker {
         // horizontal walk) until grounded at the new level, so we don't walk
         // off the fresh block mid-jump.
         if (edge != null && "pillarUp".equals(edge.move)
-                && !(p.onGround() && p.getY() >= path.get(step).y - 0.1)) {
+                && !(p.onGround() && p.getY() >= path.get(step).getY() - 0.1)) {
             mc.options.keyUp.setDown(false);
             mc.options.keyDown.setDown(false);
             mc.options.keyLeft.setDown(false);
@@ -533,18 +533,18 @@ public final class Walker {
             // to be below the drifted-into column instead.
             BlockPos land = (edge != null && edge.move != null && edge.move.startsWith("fallBucket"))
                     ? wp : path.get(step + 1);
-            if (land != null) CLUTCH.armPlanned(land.x, land.z);
+            if (land != null) CLUTCH.armPlanned(land.getX(), land.getZ());
         }
 
         // Aim at a line-of-sight carrot further along the (now string-pulled)
         // path so the heading stays steady — no left-right wobble. For a
         // vertical move or a real parkour leap, face the actual waypoint so
         // the jump goes the right way.
-        boolean aimAtWaypoint = wp.y != foot.y || parkourEdge;
+        boolean aimAtWaypoint = wp.getY() != foot.getY() || parkourEdge;
         double adx, adz;
         if (aimAtWaypoint) {
-            adx = (wp.x + 0.5) - p.getX();
-            adz = (wp.z + 0.5) - p.getZ();
+            adx = (wp.getX() + 0.5) - p.getX();
+            adz = (wp.getZ() + 0.5) - p.getZ();
         } else {
             double[] c = carrotPoint(world, foot, p.getX(), p.getZ());
             adx = c[0] - p.getX();
@@ -576,8 +576,8 @@ public final class Walker {
         // SETTLE phase). We brake only when close to the landing center, so
         // cutting thrust can never drop the leap short into the gap.
         boolean descendLeap = edge != null && edge.move != null && edge.move.startsWith("parkourDescend");
-        double landDx = (wp.x + 0.5) - p.getX();
-        double landDz = (wp.z + 0.5) - p.getZ();
+        double landDx = (wp.getX() + 0.5) - p.getX();
+        double landDz = (wp.getZ() + 0.5) - p.getZ();
         boolean descendBrake = descendLeap && !p.onGround()
                 && (landDx * landDx + landDz * landDz) < 1.4;   // within ~1.2 block of landing center
         mc.options.keyUp.setDown(!descendBrake);
@@ -601,7 +601,7 @@ public final class Walker {
         // never wiggle-jump while bridging. Stop pressing jump once braking
         // (we're descending onto the block — no more lift wanted).
         boolean jump = !descendBrake
-                && (wp.y > foot.y || parkourEdge || (!bridging && stuckTicks > 10 && stuckTicks < 18));
+                && (wp.getY() > foot.getY() || parkourEdge || (!bridging && stuckTicks > 10 && stuckTicks < 18));
         mc.options.keyJump.setDown(jump);
         boolean sprint = !bridging && !steppingOffFall && !steppingOffWaterFall && !descendBrake;
         mc.options.keySprint.setDown(sprint);
@@ -609,8 +609,8 @@ public final class Walker {
         if (BotConfig.walkerDebug && bridging)
             net.magicterra.agent.AgentDriverCommon.LOG.info(
                     "[walker] bridge-walk foot={},{},{} y={} step={} wp={},{},{} onGround={} jump={} sneak={} sprint={} stuck={} edge={}",
-                    foot.x, foot.y, foot.z, String.format(java.util.Locale.ROOT, "%.2f", p.getY()),
-                    step, wp.x, wp.y, wp.z, p.onGround(), jump, bridging, !bridging, stuckTicks,
+                    foot.getX(), foot.getY(), foot.getZ(), String.format(java.util.Locale.ROOT, "%.2f", p.getY()),
+                    step, wp.getX(), wp.getY(), wp.getZ(), p.onGround(), jump, bridging, !bridging, stuckTicks,
                     edge != null ? edge.move : "-");
         return Step.WALKING;
     }
@@ -633,7 +633,7 @@ public final class Walker {
         double cx = px, cz = pz, tx = px, tz = pz;
         for (int i = step; i < path.size() && i - step <= CARROT_MAX_NODES; i++) {
             BlockPos node = path.get(i);
-            double nx = node.x + 0.5, nz = node.z + 0.5;
+            double nx = node.getX() + 0.5, nz = node.getZ() + 0.5;
             if (hasPendingEdge(world, edgeAt(i))) return new double[]{nx, nz}; // face the action cell
             if (!losWalkable(world, foot, node)) break;                        // don't aim past a wall
             double seg = Math.hypot(nx - cx, nz - cz);

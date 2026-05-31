@@ -1,6 +1,6 @@
 package net.magicterra.agent.bot;
 
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 
 /**
  * A* termination + admissible heuristic. Lightweight value type — created per
@@ -48,7 +48,7 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
     record Block(BlockPos target) implements Goal {
         public boolean reached(BlockPos p) { return p.equals(target); }
         public double estimate(BlockPos p) {
-            return blockHeuristic(p.x - target.x, p.y - target.y, p.z - target.z);
+            return blockHeuristic(p.getX() - target.getX(), p.getY() - target.getY(), p.getZ() - target.getZ());
         }
     }
 
@@ -63,14 +63,14 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
 
     /** Reach an XZ column at any Y. */
     record XZ(int x, int z) implements Goal {
-        public boolean reached(BlockPos p) { return p.x == x && p.z == z; }
-        public double estimate(BlockPos p) { return xzHeuristic(p.x - x, p.z - z); }
+        public boolean reached(BlockPos p) { return p.getX() == x && p.getZ() == z; }
+        public double estimate(BlockPos p) { return xzHeuristic(p.getX() - x, p.getZ() - z); }
     }
 
     /** Reach a given Y plane (used for surface/cave navigation). */
     record YLevel(int y) implements Goal {
-        public boolean reached(BlockPos p) { return p.y == y; }
-        public double estimate(BlockPos p) { return 10 * Math.abs(p.y - y); }
+        public boolean reached(BlockPos p) { return p.getY() == y; }
+        public double estimate(BlockPos p) { return 10 * Math.abs(p.getY() - y); }
     }
 
     /**
@@ -109,13 +109,13 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
      */
     record GetToBlock(BlockPos target) implements Goal {
         public boolean reached(BlockPos p) {
-            int dy = p.y - target.y;
-            return Math.abs(p.x - target.x) + Math.abs(dy < 0 ? dy + 1 : dy)
-                    + Math.abs(p.z - target.z) <= 1;
+            int dy = p.getY() - target.getY();
+            return Math.abs(p.getX() - target.getX()) + Math.abs(dy < 0 ? dy + 1 : dy)
+                    + Math.abs(p.getZ() - target.getZ()) <= 1;
         }
         public double estimate(BlockPos p) {
-            int dy = p.y - target.y;
-            return blockHeuristic(p.x - target.x, dy < 0 ? dy + 1 : dy, p.z - target.z);
+            int dy = p.getY() - target.getY();
+            return blockHeuristic(p.getX() - target.getX(), dy < 0 ? dy + 1 : dy, p.getZ() - target.getZ());
         }
     }
 
@@ -126,11 +126,11 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
      */
     record TwoBlocks(BlockPos target) implements Goal {
         public boolean reached(BlockPos p) {
-            return p.x == target.x && (p.y == target.y || p.y == target.y - 1) && p.z == target.z;
+            return p.getX() == target.getX() && (p.getY() == target.getY() || p.getY() == target.getY() - 1) && p.getZ() == target.getZ();
         }
         public double estimate(BlockPos p) {
-            int dy = p.y - target.y;
-            return blockHeuristic(p.x - target.x, dy < 0 ? dy + 1 : dy, p.z - target.z);
+            int dy = p.getY() - target.getY();
+            return blockHeuristic(p.getX() - target.getX(), dy < 0 ? dy + 1 : dy, p.getZ() - target.getZ());
         }
     }
 
@@ -143,14 +143,14 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
     record Axis(int axisHeight) implements Goal {
         private static final double SQRT_2_OVER_2 = Math.sqrt(2) / 2;
         public boolean reached(BlockPos p) {
-            return p.y == axisHeight && (p.x == 0 || p.z == 0 || Math.abs(p.x) == Math.abs(p.z));
+            return p.getY() == axisHeight && (p.getX() == 0 || p.getZ() == 0 || Math.abs(p.getX()) == Math.abs(p.getZ()));
         }
         public double estimate(BlockPos p) {
-            int x = Math.abs(p.x), z = Math.abs(p.z);
+            int x = Math.abs(p.getX()), z = Math.abs(p.getZ());
             int shrt = Math.min(x, z), lng = Math.max(x, z);
             int diff = lng - shrt;
             double flat = Math.min(x, Math.min(z, diff * SQRT_2_OVER_2));
-            return 10.0 * flat + 10.0 * Math.abs(p.y - axisHeight);
+            return 10.0 * flat + 10.0 * Math.abs(p.getY() - axisHeight);
         }
     }
 
@@ -175,9 +175,9 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
     record StrictDirection(BlockPos origin, int dx, int dz) implements Goal {
         public boolean reached(BlockPos p) { return false; }
         public double estimate(BlockPos p) {
-            int forward = (p.x - origin.x) * dx + (p.z - origin.z) * dz;
-            int sideways = Math.abs((p.x - origin.x) * dz) + Math.abs((p.z - origin.z) * dx);
-            int vertical = Math.abs(p.y - origin.y);
+            int forward = (p.getX() - origin.getX()) * dx + (p.getZ() - origin.getZ()) * dz;
+            int sideways = Math.abs((p.getX() - origin.getX()) * dz) + Math.abs((p.getZ() - origin.getZ()) * dx);
+            int vertical = Math.abs(p.getY() - origin.getY());
             return -forward * 100.0 + sideways * 1000.0 + vertical * 1000.0;
         }
     }

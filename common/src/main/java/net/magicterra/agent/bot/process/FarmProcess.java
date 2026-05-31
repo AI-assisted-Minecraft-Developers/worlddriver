@@ -8,7 +8,7 @@ import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -75,11 +75,11 @@ public final class FarmProcess implements BotProcess {
     private enum Phase { SEARCH, GOING, HARVEST, REPLANT }
 
     public FarmProcess(BlockPos a, BlockPos b, Set<String> crops, boolean replant) {
-        this.minP = new BlockPos(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.min(a.z, b.z));
-        this.maxP = new BlockPos(Math.max(a.x, b.x), Math.max(a.y, b.y), Math.max(a.z, b.z));
+        this.minP = new BlockPos(Math.min(a.getX(), b.getX()), Math.min(a.getY(), b.getY()), Math.min(a.getZ(), b.getZ()));
+        this.maxP = new BlockPos(Math.max(a.getX(), b.getX()), Math.max(a.getY(), b.getY()), Math.max(a.getZ(), b.getZ()));
         this.crops = crops;
         this.replant = replant;
-        this.totalEstimate = (maxP.x - minP.x + 1) * (maxP.y - minP.y + 1) * (maxP.z - minP.z + 1);
+        this.totalEstimate = (maxP.getX() - minP.getX() + 1) * (maxP.getY() - minP.getY() + 1) * (maxP.getZ() - minP.getZ() + 1);
     }
 
     public String kind() { return "builder"; }
@@ -109,7 +109,7 @@ public final class FarmProcess implements BotProcess {
                 }
                 currentTarget = found[0];
                 currentCropId = BuiltInRegistries.BLOCK.getKey(
-                        lvl.getBlockState(toMc(currentTarget)).getBlock()).toString();
+                        lvl.getBlockState(currentTarget).getBlock()).toString();
                 st.builder.target = currentTarget;
                 walker.setGoal(new Goal.Block(found[1]));
                 phase = Phase.GOING;
@@ -147,7 +147,7 @@ public final class FarmProcess implements BotProcess {
                 faceBlock(p, currentTarget);
                 mc.options.keyAttack.setDown(true);
                 breakingTicks++;
-                BlockState bs = lvl.getBlockState(toMc(currentTarget));
+                BlockState bs = lvl.getBlockState(currentTarget);
                 if (bs.isAir()) {
                     harvested++;
                     mc.options.keyAttack.setDown(false);
@@ -189,7 +189,7 @@ public final class FarmProcess implements BotProcess {
                     clientUseItemOn(mc, p, farmland, Direction.UP);
                 }
                 placeTicks++;
-                BlockState now = lvl.getBlockState(toMc(currentTarget));
+                BlockState now = lvl.getBlockState(currentTarget);
                 String nowId = BuiltInRegistries.BLOCK.getKey(now.getBlock()).toString();
                 if (nowId.equals(currentCropId)) {
                     replanted++;
@@ -214,15 +214,15 @@ public final class FarmProcess implements BotProcess {
         BlockPos foot = new BlockPos((int) Math.floor(p.getX()), (int) Math.floor(p.getY()), (int) Math.floor(p.getZ()));
         BlockPos bestCrop = null, bestStand = null;
         long bestD2 = Long.MAX_VALUE;
-        for (int y = minP.y; y <= maxP.y; y++) {
-            for (int x = minP.x; x <= maxP.x; x++) {
-                for (int z = minP.z; z <= maxP.z; z++) {
+        for (int y = minP.getY(); y <= maxP.getY(); y++) {
+            for (int x = minP.getX(); x <= maxP.getX(); x++) {
+                for (int z = minP.getZ(); z <= maxP.getZ(); z++) {
                     BlockPos bp = new BlockPos(x, y, z);
                     if (blacklist.contains(bp)) continue;
                     if (!stillMature(lvl, bp)) continue;
                     BlockPos stand = findStandAdjacent(lvl, bp);
                     if (stand == null) continue;
-                    long d2 = bp.distSqr(foot);
+                    long d2 = (long) bp.distSqr(foot);
                     if (d2 < bestD2) {
                         bestD2 = d2; bestCrop = bp; bestStand = stand;
                     }
@@ -234,7 +234,7 @@ public final class FarmProcess implements BotProcess {
 
     /** Crop at {@code pos} matches the filter and is at max age. */
     private boolean stillMature(Level lvl, BlockPos pos) {
-        BlockState bs = lvl.getBlockState(toMc(pos));
+        BlockState bs = lvl.getBlockState(pos);
         String id = BuiltInRegistries.BLOCK.getKey(bs.getBlock()).toString();
         if (!crops.contains(id)) return false;
         if (!(bs.getBlock() instanceof net.minecraft.world.level.block.CropBlock cb)) return false;
@@ -293,9 +293,9 @@ public final class FarmProcess implements BotProcess {
     }
 
     private boolean canStandHere(Level lvl, BlockPos foot) {
-        BlockState below = lvl.getBlockState(toMc(foot.offset(0, -1, 0)));
-        BlockState here = lvl.getBlockState(toMc(foot));
-        BlockState head = lvl.getBlockState(toMc(foot.offset(0, 1, 0)));
+        BlockState below = lvl.getBlockState(foot.offset(0, -1, 0));
+        BlockState here = lvl.getBlockState(foot);
+        BlockState head = lvl.getBlockState(foot.offset(0, 1, 0));
         if (!below.blocksMotion()) return false;
         if (here.blocksMotion() && !here.getFluidState().is(Fluids.WATER)) return false;
         if (head.blocksMotion() && !head.getFluidState().is(Fluids.WATER)) return false;
@@ -304,7 +304,7 @@ public final class FarmProcess implements BotProcess {
 
     private void faceBlock(LocalPlayer p, BlockPos block) {
         Vec3 eye = p.getEyePosition();
-        double dx = block.x + 0.5 - eye.x, dy = block.y + 0.5 - eye.y, dz = block.z + 0.5 - eye.z;
+        double dx = block.getX() + 0.5 - eye.x, dy = block.getY() + 0.5 - eye.y, dz = block.getZ() + 0.5 - eye.z;
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
         p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw; p.setXRot(pitch);
@@ -312,9 +312,9 @@ public final class FarmProcess implements BotProcess {
 
     private void faceSupportFor(LocalPlayer p, BlockPos crop, Direction face) {
         BlockPos support = crop.offset(-face.getStepX(), -face.getStepY(), -face.getStepZ());
-        double tx = support.x + 0.5 + face.getStepX() * 0.5;
-        double ty = support.y + 0.5 + face.getStepY() * 0.5;
-        double tz = support.z + 0.5 + face.getStepZ() * 0.5;
+        double tx = support.getX() + 0.5 + face.getStepX() * 0.5;
+        double ty = support.getY() + 0.5 + face.getStepY() * 0.5;
+        double tz = support.getZ() + 0.5 + face.getStepZ() * 0.5;
         Vec3 eye = p.getEyePosition();
         double dx = tx - eye.x, dy = ty - eye.y, dz = tz - eye.z;
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));

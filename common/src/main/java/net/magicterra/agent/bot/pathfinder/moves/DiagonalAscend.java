@@ -2,7 +2,7 @@ package net.magicterra.agent.bot.pathfinder.moves;
 
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 
 /**
  * Diagonal step UP one block (foot rises to {@code from + (dx, 1, dz)}) —

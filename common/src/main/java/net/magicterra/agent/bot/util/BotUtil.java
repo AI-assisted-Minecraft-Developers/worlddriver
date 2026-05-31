@@ -1,7 +1,7 @@
 package net.magicterra.agent.bot.util;
 
 import net.magicterra.agent.bot.BotConfig;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
@@ -30,7 +30,7 @@ public final class BotUtil {
     }
 
     public static Map<String, Object> posMap(BlockPos p) {
-        return Map.of("x", p.x, "y", p.y, "z", p.z);
+        return Map.of("x", p.getX(), "y", p.getY(), "z", p.getZ());
     }
 
     public static BlockPos readPos(Object o) {
@@ -70,10 +70,6 @@ public final class BotUtil {
         });
         try { return fut.get(); }
         catch (Exception e) { throw new RuntimeException(e); }
-    }
-
-    public static net.minecraft.core.BlockPos toMc(BlockPos p) {
-        return new net.minecraft.core.BlockPos(p.x, p.y, p.z);
     }
 
     // === Camera smoothing (mc.bot.setting{smoothLook}) =======================
@@ -127,9 +123,9 @@ public final class BotUtil {
     }
 
     public static boolean canStandHereStatic(Level lvl, BlockPos foot) {
-        BlockState below = lvl.getBlockState(toMc(foot.offset(0, -1, 0)));
-        BlockState here = lvl.getBlockState(toMc(foot));
-        BlockState head = lvl.getBlockState(toMc(foot.offset(0, 1, 0)));
+        BlockState below = lvl.getBlockState(foot.offset(0, -1, 0));
+        BlockState here = lvl.getBlockState(foot);
+        BlockState head = lvl.getBlockState(foot.offset(0, 1, 0));
         if (!below.blocksMotion()) return false;
         if (here.blocksMotion() && !here.getFluidState().is(Fluids.WATER)) return false;
         if (head.blocksMotion() && !head.getFluidState().is(Fluids.WATER)) return false;

@@ -2,7 +2,7 @@ package net.magicterra.agent.bot.pathfinder.moves;
 
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 
 /**
  * Fall further than the no-water cap (3 blocks) into a body of water that's

@@ -2,7 +2,7 @@ package net.magicterra.agent.bot.pathfinder.moves;
 
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 
 /** Climb down a ladder/vine. */
 public final class ClimbDown extends Move {

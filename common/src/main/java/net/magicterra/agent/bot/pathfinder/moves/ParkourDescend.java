@@ -2,7 +2,7 @@ package net.magicterra.agent.bot.pathfinder.moves;
 
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 
 /**
  * Parkour DESCEND -- Baritone {@code MovementParkour} with a lower landing: a

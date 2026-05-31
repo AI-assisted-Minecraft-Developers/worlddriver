@@ -8,7 +8,7 @@ import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -137,7 +137,7 @@ public final class ElytraProcess implements BotProcess {
     public void attach(BotState st) {
         st.elytra.active = true;
         st.elytra.goal = target != null
-                ? "fly→" + target.x + "," + target.y + "," + target.z
+                ? "fly→" + target.getX() + "," + target.getY() + "," + target.getZ()
                 : String.format(java.util.Locale.ROOT, "glide pitch %.1f", pitch);
         st.elytra.target = target;
         st.elytra.startedAtMs = System.currentTimeMillis();
@@ -214,7 +214,7 @@ public final class ElytraProcess implements BotProcess {
         if (reactive) {
             // --- milestones B+C+D: plan a corridor (C), fly it with the
             //     sim-lookahead controller (B), flare to land + fail safe (D) ---
-            Vec3 goal = new Vec3(target.x + 0.5, target.y + 0.5, target.z + 0.5);
+            Vec3 goal = new Vec3(target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5);
             Vec3 pos = p.position();
             if (Double.isNaN(cruiseY)) cruiseY = pos.y;   // hold launch altitude over far/unknown legs
             double goalDist = goal.distanceTo(pos);
@@ -352,7 +352,7 @@ public final class ElytraProcess implements BotProcess {
             float yaw;
             if (fixedYaw != null) yaw = fixedYaw;
             else if (target != null) {
-                double dx = (target.x + 0.5) - p.getX(), dz = (target.z + 0.5) - p.getZ();
+                double dx = (target.getX() + 0.5) - p.getX(), dz = (target.getZ() + 0.5) - p.getZ();
                 yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
             } else yaw = p.getYRot();
             p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw;
@@ -376,7 +376,7 @@ public final class ElytraProcess implements BotProcess {
 
             // Arrival / safety stop.
             if (target != null) {
-                double dx = (target.x + 0.5) - p.getX(), dz = (target.z + 0.5) - p.getZ();
+                double dx = (target.getX() + 0.5) - p.getX(), dz = (target.getZ() + 0.5) - p.getZ();
                 if (Math.sqrt(dx * dx + dz * dz) <= stopXZDist) {
                     if (BotConfig.elytraDebug) logSummary();
                     releaseKeys(); st.elytra.reset(); return true;

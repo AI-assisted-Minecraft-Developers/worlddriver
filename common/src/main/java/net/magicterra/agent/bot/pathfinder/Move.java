@@ -1,6 +1,6 @@
 package net.magicterra.agent.bot.pathfinder;
 
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.magicterra.agent.bot.pathfinder.moves.*;
 
 import java.util.ArrayList;

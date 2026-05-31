@@ -1,7 +1,7 @@
 package net.magicterra.agent.api;
 
 import net.magicterra.agent.model.AgentEvent;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -294,7 +294,7 @@ public final class AgentApi {
     public void seedTestArea() {
         ServerLevel level = level();
         onServerThread(() -> {
-            net.minecraft.core.BlockPos origin = ApiSupport.mc(ORIGIN);
+            BlockPos origin = ORIGIN;
             BlockState air = Blocks.AIR.defaultBlockState();
             for (int dx = -4; dx <= 4; dx++)
                 for (int dy = -1; dy <= 5; dy++)
@@ -319,13 +319,13 @@ public final class AgentApi {
             // and length-2 assertions in 05_query become flaky after a few ticks.
             Cow cow = EntityType.COW.create(level);
             if (cow != null) {
-                cow.moveTo(ORIGIN.x + 1 + 0.5, ORIGIN.y + 1, ORIGIN.z + 0.5, 0f, 0f);
+                cow.moveTo(ORIGIN.getX() + 1 + 0.5, ORIGIN.getY() + 1, ORIGIN.getZ() + 0.5, 0f, 0f);
                 cow.setPersistenceRequired();
                 level.addFreshEntity(cow);
             }
             Sheep sheep = EntityType.SHEEP.create(level);
             if (sheep != null) {
-                sheep.moveTo(ORIGIN.x - 1 + 0.5, ORIGIN.y + 1, ORIGIN.z + 1 + 0.5, 0f, 0f);
+                sheep.moveTo(ORIGIN.getX() - 1 + 0.5, ORIGIN.getY() + 1, ORIGIN.getZ() + 1 + 0.5, 0f, 0f);
                 sheep.setPersistenceRequired();
                 level.addFreshEntity(sheep);
             }
@@ -506,11 +506,11 @@ public final class AgentApi {
             String typeFilterId = (typeFilter instanceof String s && !s.isBlank()) ? s : null;
             return onServerThread(() -> {
                 List<Map<String, Object>> out = new ArrayList<>();
-                net.minecraft.core.BlockPos center = ApiSupport.mc(centerPos);
+                BlockPos center = centerPos;
                 for (int dx = -r; dx <= r; dx++)
                     for (int dy = -r; dy <= r; dy++)
                         for (int dz = -r; dz <= r; dz++) {
-                            net.minecraft.core.BlockPos bp = center.offset(dx, dy, dz);
+                            BlockPos bp = center.offset(dx, dy, dz);
                             BlockState st = level.getBlockState(bp);
                             if (st.isAir()) continue;
                             String id = ApiSupport.blockId(st);
@@ -527,7 +527,7 @@ public final class AgentApi {
             Boolean wantHostile = (p.filter.get("is_hostile") instanceof Boolean b) ? b : null;
             return onServerThread(() -> {
                 List<Map<String, Object>> out = new ArrayList<>();
-                net.minecraft.core.BlockPos center = ApiSupport.mc(centerPos);
+                BlockPos center = centerPos;
                 AABB box = new AABB(center).inflate(r);
                 for (Entity e : level.getEntities((Entity) null, box)) {
                     boolean hostile = e instanceof Enemy;

@@ -8,7 +8,7 @@ import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -87,7 +87,7 @@ public final class SleepProcess implements BotProcess {
         switch (phase) {
             case SEARCH -> {
                 BlockPos found = explicit != null ? explicit : scanNearestBed(lvl, p);
-                if (found == null || !lvl.getBlockState(toMc(found)).is(BlockTags.BEDS)) {
+                if (found == null || !lvl.getBlockState(found).is(BlockTags.BEDS)) {
                     st.mc_goto.lastError = "no bed within " + searchRadius;
                     st.mc_goto.reset();
                     return true;
@@ -115,7 +115,7 @@ public final class SleepProcess implements BotProcess {
             }
             case USE -> {
                 // Bed may have been griefed during the walk.
-                if (!lvl.getBlockState(toMc(bedPos)).is(BlockTags.BEDS)) {
+                if (!lvl.getBlockState(bedPos).is(BlockTags.BEDS)) {
                     st.mc_goto.lastError = "bed disappeared during approach";
                     st.mc_goto.reset();
                     return true;
@@ -159,8 +159,8 @@ public final class SleepProcess implements BotProcess {
             for (int dx = -searchRadius; dx <= searchRadius; dx++) {
                 for (int dz = -searchRadius; dz <= searchRadius; dz++) {
                     BlockPos bp = foot.offset(dx, dy, dz);
-                    if (!lvl.getBlockState(toMc(bp)).is(BlockTags.BEDS)) continue;
-                    long d2 = bp.distSqr(foot);
+                    if (!lvl.getBlockState(bp).is(BlockTags.BEDS)) continue;
+                    long d2 = (long) bp.distSqr(foot);
                     if (d2 < bestD2) { bestD2 = d2; best = bp; }
                 }
             }
@@ -170,7 +170,7 @@ public final class SleepProcess implements BotProcess {
 
     private void faceBlock(LocalPlayer p, BlockPos block) {
         Vec3 eye = p.getEyePosition();
-        double dx = block.x + 0.5 - eye.x, dy = block.y + 0.5 - eye.y, dz = block.z + 0.5 - eye.z;
+        double dx = block.getX() + 0.5 - eye.x, dy = block.getY() + 0.5 - eye.y, dz = block.getZ() + 0.5 - eye.z;
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
         p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw; p.setXRot(pitch);

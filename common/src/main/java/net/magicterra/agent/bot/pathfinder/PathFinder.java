@@ -1,7 +1,7 @@
 package net.magicterra.agent.bot.pathfinder;
 
 import net.magicterra.agent.bot.Goal;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 
 import java.util.ArrayList;
 import java.util.Collections;

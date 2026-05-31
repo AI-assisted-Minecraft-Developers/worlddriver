@@ -1,6 +1,6 @@
 package net.magicterra.agent.api;
 
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 
 import java.util.Map;

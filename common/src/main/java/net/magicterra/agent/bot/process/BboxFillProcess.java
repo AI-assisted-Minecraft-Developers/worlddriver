@@ -8,7 +8,7 @@ import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -69,11 +69,11 @@ public final class BboxFillProcess implements BotProcess {
     private enum Phase { SEARCH, GOING, BREAKING, PLACING }
 
     public BboxFillProcess(BlockPos a, BlockPos b, String fillId, String filterFromId) {
-        this.minP = new BlockPos(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.min(a.z, b.z));
-        this.maxP = new BlockPos(Math.max(a.x, b.x), Math.max(a.y, b.y), Math.max(a.z, b.z));
+        this.minP = new BlockPos(Math.min(a.getX(), b.getX()), Math.min(a.getY(), b.getY()), Math.min(a.getZ(), b.getZ()));
+        this.maxP = new BlockPos(Math.max(a.getX(), b.getX()), Math.max(a.getY(), b.getY()), Math.max(a.getZ(), b.getZ()));
         this.fillId = fillId;
         this.filterFromId = filterFromId;
-        this.totalEstimate = (maxP.x - minP.x + 1) * (maxP.y - minP.y + 1) * (maxP.z - minP.z + 1);
+        this.totalEstimate = (maxP.getX() - minP.getX() + 1) * (maxP.getY() - minP.getY() + 1) * (maxP.getZ() - minP.getZ() + 1);
     }
 
     public String kind() { return "builder"; }
@@ -124,7 +124,7 @@ public final class BboxFillProcess implements BotProcess {
                     // If the cell is already empty (someone else broke it
                     // during walk, or filterFromId mode picked something
                     // that's still air-passable), skip the break.
-                    BlockState bs = lvl.getBlockState(toMc(currentTarget));
+                    BlockState bs = lvl.getBlockState(currentTarget);
                     if (bs.isAir() || !bs.getFluidState().isEmpty()) {
                         if (fillId != null) {
                             placeTicks = 0;
@@ -154,10 +154,10 @@ public final class BboxFillProcess implements BotProcess {
                 // enough to make progress while still preventing dig-through.
                 boolean inBbox = false;
                 if (mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult br) {
-                    net.minecraft.core.BlockPos hp = br.getBlockPos();
-                    inBbox = hp.getX() >= minP.x && hp.getX() <= maxP.x
-                          && hp.getY() >= minP.y && hp.getY() <= maxP.y
-                          && hp.getZ() >= minP.z && hp.getZ() <= maxP.z;
+                    BlockPos hp = br.getBlockPos();
+                    inBbox = hp.getX() >= minP.getX() && hp.getX() <= maxP.getX()
+                          && hp.getY() >= minP.getY() && hp.getY() <= maxP.getY()
+                          && hp.getZ() >= minP.getZ() && hp.getZ() <= maxP.getZ();
                 }
                 mc.options.keyAttack.setDown(inBbox);
                 breakingTicks++;
@@ -187,7 +187,7 @@ public final class BboxFillProcess implements BotProcess {
                 p.setSprinting(false);
                 // Already-correct cell shortcut (race: another tick saw the
                 // place complete before we measured).
-                BlockState now = lvl.getBlockState(toMc(currentTarget));
+                BlockState now = lvl.getBlockState(currentTarget);
                 String nowId = BuiltInRegistries.BLOCK.getKey(now.getBlock()).toString();
                 if (nowId.equals(fillId)) {
                     placed++;
@@ -218,9 +218,9 @@ public final class BboxFillProcess implements BotProcess {
                 faceSupportFor(p, currentTarget, pl.face);
                 if (placeTicks == 0) {
                     BlockPos support = new BlockPos(
-                            currentTarget.x - pl.face.getStepX(),
-                            currentTarget.y - pl.face.getStepY(),
-                            currentTarget.z - pl.face.getStepZ());
+                            currentTarget.getX() - pl.face.getStepX(),
+                            currentTarget.getY() - pl.face.getStepY(),
+                            currentTarget.getZ() - pl.face.getStepZ());
                     clientUseItemOn(mc, p, support, pl.face);
                 }
                 placeTicks++;
@@ -244,12 +244,12 @@ public final class BboxFillProcess implements BotProcess {
      *  blacklisted + (in replace mode) non-matching cells; in clear/fill
      *  modes also skips cells that already hold fillId (idempotent). */
     private BlockPos[] scanNextCell(Level lvl) {
-        for (int y = minP.y; y <= maxP.y; y++) {
-            for (int x = minP.x; x <= maxP.x; x++) {
-                for (int z = minP.z; z <= maxP.z; z++) {
+        for (int y = minP.getY(); y <= maxP.getY(); y++) {
+            for (int x = minP.getX(); x <= maxP.getX(); x++) {
+                for (int z = minP.getZ(); z <= maxP.getZ(); z++) {
                     BlockPos bp = new BlockPos(x, y, z);
                     if (blacklist.contains(bp) || done.contains(bp)) continue;
-                    BlockState bs = lvl.getBlockState(toMc(bp));
+                    BlockState bs = lvl.getBlockState(bp);
                     String id = BuiltInRegistries.BLOCK.getKey(bs.getBlock()).toString();
                     // Replace mode: only act on cells matching the from id.
                     if (filterFromId != null && !filterFromId.equals(id)) {
@@ -285,7 +285,7 @@ public final class BboxFillProcess implements BotProcess {
         Direction[] order = {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP};
         for (Direction d : order) {
             BlockPos support = block.offset(d.getStepX(), d.getStepY(), d.getStepZ());
-            BlockState ss = lvl.getBlockState(toMc(support));
+            BlockState ss = lvl.getBlockState(support);
             if (!ss.isSolid()) continue;
             return new Placement(null, d.getOpposite());
         }
@@ -313,16 +313,16 @@ public final class BboxFillProcess implements BotProcess {
     }
 
     private static boolean withinReach(BlockPos stand, BlockPos block) {
-        double dx = (block.x + 0.5) - (stand.x + 0.5);
-        double dy = (block.y + 0.5) - (stand.y + 1.62);
-        double dz = (block.z + 0.5) - (stand.z + 0.5);
+        double dx = (block.getX() + 0.5) - (stand.getX() + 0.5);
+        double dy = (block.getY() + 0.5) - (stand.getY() + 1.62);
+        double dz = (block.getZ() + 0.5) - (stand.getZ() + 0.5);
         return dx * dx + dy * dy + dz * dz <= 4.0 * 4.0;
     }
 
     private boolean canStandHere(Level lvl, BlockPos foot) {
-        BlockState below = lvl.getBlockState(toMc(foot.offset(0, -1, 0)));
-        BlockState here = lvl.getBlockState(toMc(foot));
-        BlockState head = lvl.getBlockState(toMc(foot.offset(0, 1, 0)));
+        BlockState below = lvl.getBlockState(foot.offset(0, -1, 0));
+        BlockState here = lvl.getBlockState(foot);
+        BlockState head = lvl.getBlockState(foot.offset(0, 1, 0));
         if (!below.blocksMotion()) return false;
         if (here.blocksMotion() && !here.getFluidState().is(Fluids.WATER)) return false;
         if (head.blocksMotion() && !head.getFluidState().is(Fluids.WATER)) return false;
@@ -331,9 +331,9 @@ public final class BboxFillProcess implements BotProcess {
 
     private void faceBlock(LocalPlayer p, BlockPos block) {
         Vec3 eye = p.getEyePosition();
-        double dx = block.x + 0.5 - eye.x;
-        double dy = block.y + 0.5 - eye.y;
-        double dz = block.z + 0.5 - eye.z;
+        double dx = block.getX() + 0.5 - eye.x;
+        double dy = block.getY() + 0.5 - eye.y;
+        double dz = block.getZ() + 0.5 - eye.z;
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
         p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw; p.setXRot(pitch);
@@ -341,9 +341,9 @@ public final class BboxFillProcess implements BotProcess {
 
     private void faceSupportFor(LocalPlayer p, BlockPos block, Direction face) {
         BlockPos support = block.offset(-face.getStepX(), -face.getStepY(), -face.getStepZ());
-        double tx = support.x + 0.5 + face.getStepX() * 0.5;
-        double ty = support.y + 0.5 + face.getStepY() * 0.5;
-        double tz = support.z + 0.5 + face.getStepZ() * 0.5;
+        double tx = support.getX() + 0.5 + face.getStepX() * 0.5;
+        double ty = support.getY() + 0.5 + face.getStepY() * 0.5;
+        double tz = support.getZ() + 0.5 + face.getStepZ() * 0.5;
         Vec3 eye = p.getEyePosition();
         double dx = tx - eye.x, dy = ty - eye.y, dz = tz - eye.z;
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
@@ -353,12 +353,12 @@ public final class BboxFillProcess implements BotProcess {
 
     private String currentBlockId(Minecraft mc) {
         if (mc.level == null || currentTarget == null) return "";
-        return BuiltInRegistries.BLOCK.getKey(mc.level.getBlockState(toMc(currentTarget)).getBlock()).toString();
+        return BuiltInRegistries.BLOCK.getKey(mc.level.getBlockState(currentTarget).getBlock()).toString();
     }
 
     private boolean cleared(Minecraft mc) {
         if (mc.level == null || currentTarget == null) return false;
-        BlockState bs = mc.level.getBlockState(toMc(currentTarget));
+        BlockState bs = mc.level.getBlockState(currentTarget);
         return bs.isAir() || !bs.getFluidState().isEmpty();
     }
 

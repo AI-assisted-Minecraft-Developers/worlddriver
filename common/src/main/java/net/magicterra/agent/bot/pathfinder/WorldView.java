@@ -1,6 +1,6 @@
 package net.magicterra.agent.bot.pathfinder;
 
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 
 /**
  * Pathfinder's read-only view of the world. Keeps the A* core decoupled from

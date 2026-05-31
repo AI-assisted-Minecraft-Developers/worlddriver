@@ -1,6 +1,6 @@
 package net.magicterra.agent.bot;
 
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -53,7 +53,7 @@ public final class BotState {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("active", active);
             if (goal != null) m.put("goal", goal);
-            if (target != null) m.put("target", Map.of("x", target.x, "y", target.y, "z", target.z));
+            if (target != null) m.put("target", Map.of("x", target.getX(), "y", target.getY(), "z", target.getZ()));
             m.put("pathLen", pathLen);
             m.put("pathStep", pathStep);
             if (startedAtMs > 0) m.put("startedAtMs", startedAtMs);

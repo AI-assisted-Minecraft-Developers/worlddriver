@@ -3,7 +3,7 @@ package net.magicterra.agent.bot.movement;
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,7 +52,7 @@ public final class PathSmoothing {
         int i = 0;
         while (i < path.size() - 1) {
             int next = i + 1;
-            if (!plainFlatWalk(edges.get(next)) || path.get(next).y != path.get(i).y) {
+            if (!plainFlatWalk(edges.get(next)) || path.get(next).getY() != path.get(i).getY()) {
                 np.add(path.get(next));
                 ne.add(edges.get(next));
                 i = next;
@@ -61,7 +61,7 @@ public final class PathSmoothing {
             int j = next;
             while (j + 1 < path.size()
                     && plainFlatWalk(edges.get(j + 1))
-                    && path.get(j + 1).y == path.get(i).y
+                    && path.get(j + 1).getY() == path.get(i).getY()
                     && losWalkable(w, path.get(i), path.get(j + 1))) {
                 j++;
             }
@@ -94,13 +94,13 @@ public final class PathSmoothing {
      *  sampled per cell. Used by the Walker's carrot aim to avoid pointing the
      *  camera through walls / across gaps. */
     public static boolean losWalkable(WorldView w, BlockPos a, BlockPos b) {
-        int steps = Math.max(Math.abs(b.x - a.x), Math.abs(b.z - a.z));
+        int steps = Math.max(Math.abs(b.getX() - a.getX()), Math.abs(b.getZ() - a.getZ()));
         if (steps == 0) return true;
         for (int s = 1; s <= steps; s++) {
             double t = (double) s / steps;
-            int x = (int) Math.round(a.x + (b.x - a.x) * t);
-            int y = (int) Math.round(a.y + (b.y - a.y) * t);
-            int z = (int) Math.round(a.z + (b.z - a.z) * t);
+            int x = (int) Math.round(a.getX() + (b.getX() - a.getX()) * t);
+            int y = (int) Math.round(a.getY() + (b.getY() - a.getY()) * t);
+            int z = (int) Math.round(a.getZ() + (b.getZ() - a.getZ()) * t);
             BlockPos c = new BlockPos(x, y, z);
             if (!w.isPassable(c) || w.isHazard(c)) return false;
             if (!w.isPassable(c.offset(0, 1, 0)) || w.isHazard(c.offset(0, 1, 0))) return false;
@@ -123,14 +123,14 @@ public final class PathSmoothing {
      *  enter walking the straight line {@code a}→{@code b} (same per-cell
      *  sampling as {@link #losWalkable}, excluding the start cell). */
     public static double straightLineDanger(WorldView w, BlockPos a, BlockPos b) {
-        int steps = Math.max(Math.abs(b.x - a.x), Math.abs(b.z - a.z));
+        int steps = Math.max(Math.abs(b.getX() - a.getX()), Math.abs(b.getZ() - a.getZ()));
         if (steps == 0) return 0;
         double sum = 0;
         for (int s = 1; s <= steps; s++) {
             double t = (double) s / steps;
-            int x = (int) Math.round(a.x + (b.x - a.x) * t);
-            int y = (int) Math.round(a.y + (b.y - a.y) * t);
-            int z = (int) Math.round(a.z + (b.z - a.z) * t);
+            int x = (int) Math.round(a.getX() + (b.getX() - a.getX()) * t);
+            int y = (int) Math.round(a.getY() + (b.getY() - a.getY()) * t);
+            int z = (int) Math.round(a.getZ() + (b.getZ() - a.getZ()) * t);
             sum += w.dangerCost(new BlockPos(x, y, z));
         }
         return sum;

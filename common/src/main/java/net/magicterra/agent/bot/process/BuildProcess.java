@@ -8,7 +8,7 @@ import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -97,7 +97,7 @@ public final class BuildProcess implements BotProcess {
                 }
                 Schematic.Entry e = schematic.entries.get(idx);
                 currentBlock = origin.offset(e.dx, e.dy, e.dz);
-                BlockState existing = lvl.getBlockState(toMc(currentBlock));
+                BlockState existing = lvl.getBlockState(currentBlock);
                 String existingId = BuiltInRegistries.BLOCK.getKey(existing.getBlock()).toString();
                 if (existingId.equals(e.blockId)) {
                     // Already placed; skip.
@@ -160,8 +160,8 @@ public final class BuildProcess implements BotProcess {
                 // vanilla Level.isUnobstructed rejects. Hold keyUp until
                 // we're within 0.25 of stand center on the X/Z axes,
                 // THEN release and click.
-                double dxToCenter = (currentStand.x + 0.5) - p.getX();
-                double dzToCenter = (currentStand.z + 0.5) - p.getZ();
+                double dxToCenter = (currentStand.getX() + 0.5) - p.getX();
+                double dzToCenter = (currentStand.getZ() + 0.5) - p.getZ();
                 double horizD = Math.sqrt(dxToCenter * dxToCenter + dzToCenter * dzToCenter);
                 if (horizD > 0.25) {
                     // Re-aim forward toward stand center, hold keyUp,
@@ -201,9 +201,9 @@ public final class BuildProcess implements BotProcess {
                 // builds the synthetic BlockHitResult so we don't depend on
                 // mc.hitResult (which is one frame stale from our tick).
                 BlockPos support = new BlockPos(
-                        currentBlock.x - currentFace.getStepX(),
-                        currentBlock.y - currentFace.getStepY(),
-                        currentBlock.z - currentFace.getStepZ());
+                        currentBlock.getX() - currentFace.getStepX(),
+                        currentBlock.getY() - currentFace.getStepY(),
+                        currentBlock.getZ() - currentFace.getStepZ());
                 // Wait until vanilla server-side crouching state ticks in
                 // (Baritone MovementPillar pattern: request SNEAK on tick N,
                 // click on tick N+1 once isCrouching becomes true). Without
@@ -233,7 +233,7 @@ public final class BuildProcess implements BotProcess {
                 // useItemOn, then the server ack either confirms it or unwinds
                 // the prediction. If we still see the wanted id after the
                 // timeout window, count it as placed; otherwise skip.
-                BlockState now = lvl.getBlockState(toMc(currentBlock));
+                BlockState now = lvl.getBlockState(currentBlock);
                 String nowId = BuiltInRegistries.BLOCK.getKey(now.getBlock()).toString();
                 if (nowId.equals(wantId)) {
                     placed++;
@@ -261,7 +261,7 @@ public final class BuildProcess implements BotProcess {
         Direction[] order = {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP};
         for (Direction d : order) {
             BlockPos support = block.offset(d.getStepX(), d.getStepY(), d.getStepZ());
-            BlockState ss = lvl.getBlockState(toMc(support));
+            BlockState ss = lvl.getBlockState(support);
             if (!ss.isSolid()) continue;
             // Player needs to stand near `block` AND look at the appropriate face of `support`.
             BlockPos stand = findStandableNear(lvl, block);
@@ -294,9 +294,9 @@ public final class BuildProcess implements BotProcess {
     }
 
     private boolean canStand(Level lvl, BlockPos foot) {
-        BlockState below = lvl.getBlockState(toMc(foot.offset(0, -1, 0)));
-        BlockState here = lvl.getBlockState(toMc(foot));
-        BlockState head = lvl.getBlockState(toMc(foot.offset(0, 1, 0)));
+        BlockState below = lvl.getBlockState(foot.offset(0, -1, 0));
+        BlockState here = lvl.getBlockState(foot);
+        BlockState head = lvl.getBlockState(foot.offset(0, 1, 0));
         if (!below.blocksMotion()) return false;
         if (here.blocksMotion()) return false;
         if (head.blocksMotion()) return false;
@@ -345,9 +345,9 @@ public final class BuildProcess implements BotProcess {
         // The supporting block sits opposite to `face`. We want to click `face` of support
         // which points at block; aim at the center of that face.
         BlockPos support = block.offset(-face.getStepX(), -face.getStepY(), -face.getStepZ());
-        double tx = support.x + 0.5 + face.getStepX() * 0.5;
-        double ty = support.y + 0.5 + face.getStepY() * 0.5;
-        double tz = support.z + 0.5 + face.getStepZ() * 0.5;
+        double tx = support.getX() + 0.5 + face.getStepX() * 0.5;
+        double ty = support.getY() + 0.5 + face.getStepY() * 0.5;
+        double tz = support.getZ() + 0.5 + face.getStepZ() * 0.5;
         Vec3 eye = p.getEyePosition();
         double dx = tx - eye.x, dy = ty - eye.y, dz = tz - eye.z;
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));

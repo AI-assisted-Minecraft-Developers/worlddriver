@@ -2,7 +2,7 @@ package net.magicterra.agent.bot;
 
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.Direction;
@@ -45,7 +45,7 @@ final class ClientWorldView implements WorldView {
     public boolean isSolid(BlockPos p) {
         Level lvl = Minecraft.getInstance().level;
         if (lvl == null) return false;
-        return lvl.getBlockState(toMc(p)).blocksMotion();
+        return lvl.getBlockState(p).blocksMotion();
     }
     @Override public boolean isKnown(BlockPos p) {
         Level lvl = Minecraft.getInstance().level;
@@ -53,18 +53,18 @@ final class ClientWorldView implements WorldView {
         // ClientChunkCache.hasChunk → the chunk is actually loaded client-side
         // (an unloaded position reads as air from getBlockState, which is the
         // very ambiguity isKnown disambiguates for the long-distance planner).
-        return lvl.getChunkSource().hasChunk(p.x >> 4, p.z >> 4);
+        return lvl.getChunkSource().hasChunk(p.getX() >> 4, p.getZ() >> 4);
     }
     public boolean isPassable(BlockPos p) {
         Level lvl = Minecraft.getInstance().level;
         if (lvl == null) return true;
-        BlockState s = lvl.getBlockState(toMc(p));
+        BlockState s = lvl.getBlockState(p);
         return !s.blocksMotion() || s.getFluidState().is(Fluids.WATER);
     }
     public boolean isHazard(BlockPos p) {
         Level lvl = Minecraft.getInstance().level;
         if (lvl == null) return false;
-        BlockState s = lvl.getBlockState(toMc(p));
+        BlockState s = lvl.getBlockState(p);
         if (s.getFluidState().is(Fluids.LAVA)) return true;
         if (s.is(BlockTags.FIRE)) return true;
         if (HAZARD_BLOCKS.contains(s.getBlock())) return true;
@@ -79,11 +79,11 @@ final class ClientWorldView implements WorldView {
     }
     public boolean isWater(BlockPos p) {
         Level lvl = Minecraft.getInstance().level;
-        return lvl != null && lvl.getBlockState(toMc(p)).getFluidState().is(Fluids.WATER);
+        return lvl != null && lvl.getBlockState(p).getFluidState().is(Fluids.WATER);
     }
     public boolean isClimbable(BlockPos p) {
         Level lvl = Minecraft.getInstance().level;
-        return lvl != null && lvl.getBlockState(toMc(p)).is(BlockTags.CLIMBABLE);
+        return lvl != null && lvl.getBlockState(p).is(BlockTags.CLIMBABLE);
     }
     @Override public double breakCost(BlockPos p) {
         if (!BotConfig.allowBreak) return Double.POSITIVE_INFINITY;
@@ -91,7 +91,7 @@ final class ClientWorldView implements WorldView {
         Level lvl = mc.level;
         LocalPlayer pl = mc.player;
         if (lvl == null || pl == null) return Double.POSITIVE_INFINITY;
-        net.minecraft.core.BlockPos bp = toMc(p);
+        BlockPos bp = p;
         BlockState s = lvl.getBlockState(bp);
         if (s.isAir()) return 0;
         if (!s.getFluidState().isEmpty()) return Double.POSITIVE_INFINITY; // never "break" a fluid
@@ -178,7 +178,7 @@ final class ClientWorldView implements WorldView {
     @Override public boolean isMlgFloor(BlockPos p) {
         Level lvl = Minecraft.getInstance().level;
         if (lvl == null) return false;
-        net.minecraft.core.BlockPos bp = toMc(p);
+        BlockPos bp = p;
         BlockState s = lvl.getBlockState(bp);
         if (!s.getFluidState().isEmpty()) return false;          // not a fluid
         // Waterloggable (trapdoor/slab/stairs/fence/…) → the bucket waterlogs
@@ -254,7 +254,7 @@ final class ClientWorldView implements WorldView {
                 // plants. The old model lumped lava and fire at one flat cost
                 // and ignored the contact blocks entirely.
                 for (int[] o : DANGER_OFFSETS) {
-                    BlockState s = lvl.getBlockState(toMc(foot.offset(o[0], o[1], o[2])));
+                    BlockState s = lvl.getBlockState(foot.offset(o[0], o[1], o[2]));
                     if (s.getFluidState().is(Fluids.LAVA)) {
                         penalty += BotConfig.lavaDangerPenalty;
                     } else if (s.is(BlockTags.FIRE)) {
@@ -292,7 +292,7 @@ final class ClientWorldView implements WorldView {
         if (BotConfig.avoidMobs) {
             float[] m = mobXyz;
             double r = BotConfig.mobAvoidRadius;
-            double fx = foot.x + 0.5, fy = foot.y, fz = foot.z + 0.5;
+            double fx = foot.getX() + 0.5, fy = foot.getY(), fz = foot.getZ() + 0.5;
             for (int i = 0; i + 2 < m.length; i += 3) {
                 double dx = fx - m[i], dy = fy - m[i + 1], dz = fz - m[i + 2];
                 double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);

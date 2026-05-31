@@ -8,7 +8,7 @@ import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.model.BlockPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -89,7 +89,7 @@ public final class ExploreProcess implements BotProcess {
             currentChunkX = (int) (next >> 32);
             currentChunkZ = (int) (long) next;
             currentChunkCenter = new BlockPos(currentChunkX * 16 + 8, (int) Math.floor(p.getY()), currentChunkZ * 16 + 8);
-            walker.setGoal(new Goal.XZ(currentChunkCenter.x, currentChunkCenter.z));
+            walker.setGoal(new Goal.XZ(currentChunkCenter.getX(), currentChunkCenter.getZ()));
             st.explore.target = currentChunkCenter;
         }
         Walker.Step s = walker.tick(mc, w);
