@@ -53,6 +53,7 @@ public final class AgentApi {
     public final ObserveApi observe = new ObserveApi(this);
     public final ActionApi action = new ActionApi(this);
     public final WaitApi wait = new WaitApi(this);
+    public final WorldApi world = new WorldApi(this);
 
     static final BlockPos ORIGIN = new BlockPos(0, 200, 0);
 
@@ -122,6 +123,10 @@ public final class AgentApi {
         routes.put("mc.action.runCommand", p -> withEvents(p, () -> action.runCommand((String) p.get("cmd"))));
         routes.put("mc.action.fill",       p -> withEvents(p, () -> action.fill(p)));
         routes.put("mc.action.placeMany",  p -> withEvents(p, () -> action.placeMany(p)));
+        // World snapshot/restore — deterministic test setup/teardown. restore
+        // emits a world.restore event, so it honors returnEvents like the action.* group.
+        routes.put("mc.world.snapshot",    p -> world.snapshot(p));
+        routes.put("mc.world.restore",     p -> withEvents(p, () -> world.restore(p)));
         routes.put("mc.query", p -> {
             // Client-MCP fallback — server-side query() asserts attached server.
             // On a runClient JVM connected to a remote dedicated server, scan
@@ -272,6 +277,7 @@ public final class AgentApi {
             events.clear();
             eventSeq.set(0);
         }
+        world.clearSnapshots();
     }
 
     public Object route(String method, Map<String, Object> params) {

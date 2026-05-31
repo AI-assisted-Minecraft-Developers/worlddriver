@@ -66,7 +66,8 @@ public final class AgentDriverCommon {
             "29_chat_history.js",
             "30_backfill.js",
             "31_goal_types.js",
-            "32_break_place.js"
+            "32_break_place.js",
+            "33_world_snapshot.js"
     );
 
     private static AgentApi api;

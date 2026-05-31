@@ -109,6 +109,44 @@ public final class ObserveActionTools {
                     "required", List.of("blocks")
                 )),
 
+            roTool("mc.world.snapshot",
+                "Capture an axis-aligned box of block states (and block-entity NBT) into an " +
+                "in-memory store, for deterministic test setup/teardown. from/to are inclusive " +
+                "corners; order doesn't matter. Volume capped at 32768 (=32^3); up to 64 snapshots " +
+                "retained (cleared when the server stops). id names the snapshot (auto-generated " +
+                "when omitted); re-using an id overwrites it. blockEntities:false skips NBT capture " +
+                "(states only — a chest's contents then won't survive restore). " +
+                "Returns {ok, id, from, to, blocks, nonAir, blockEntities}. Pair with mc.world.restore.",
+                Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "from", blockPosSchema(),
+                        "to", blockPosSchema(),
+                        "id", Map.of("type", "string",
+                            "description", "Snapshot name. Optional — auto-generated when omitted."),
+                        "blockEntities", Map.of("type", "boolean",
+                            "description", "Capture block-entity NBT (default true).")
+                    ),
+                    "required", List.of("from", "to")
+                )),
+
+            wrTool("mc.world.restore",
+                "Put a region captured by mc.world.snapshot back verbatim (block states + " +
+                "block-entity contents). id required; an unknown id is an error. discard:true frees " +
+                "the snapshot after a successful restore. Emits a world.restore event (pass " +
+                "returnEvents:true to receive it inline). " +
+                "Returns {ok, id, restored, blockEntities}.",
+                Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "id", Map.of("type", "string"),
+                        "discard", Map.of("type", "boolean",
+                            "description", "Free the snapshot after restoring (default false)."),
+                        "returnEvents", returnEventsSchema()
+                    ),
+                    "required", List.of("id")
+                )),
+
             wrTool("mc.action.runCommand",
                 "Execute a vanilla Minecraft command (operator-level, output suppressed) through " +
                 "the server's Brigadier dispatcher. Any verb is accepted — there is no allow-list " +

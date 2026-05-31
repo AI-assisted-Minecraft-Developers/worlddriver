@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`mc.world.snapshot` / `mc.world.restore` — deterministic test setup/teardown.**
+  `snapshot` captures an axis-aligned box of block states *and* block-entity NBT
+  into a JVM-local, named in-memory store (volume capped at 32^3; up to 64
+  snapshots, cleared when the server detaches); `restore` puts the region back
+  verbatim, including a chest's contents and components. This is the prerequisite
+  the GameTest YAML layer (proposal §4.1 C) needs to stash a region, run a test,
+  and roll it back. New `WorldApi` handler behind `AgentApi.route(...)`; restore
+  emits a `world.restore` event and honors `returnEvents`. Validation script
+  `33_world_snapshot.js` covers state restore, block-entity contents round-trip,
+  and three-transport metadata parity — suite is now 60 GameTest cases.
+
 ### Changed
 - **Internal refactor: the five longest source files were split by responsibility
   — no behavior change.** `ToolCatalog` now concatenates per-category catalogs

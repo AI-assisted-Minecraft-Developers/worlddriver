@@ -12,7 +12,7 @@ etc.) working in this project. Keep it short and authoritative.
   `AgentApi.route(method, params)`. Do **not** add game-affecting behavior
   in a transport — add it in AgentApi, expose it through all three.
 - **Tests**: `./gradlew :neoforge:runGameTestServer` is the canonical
-  integration suite. 57 cases must pass.
+  integration suite. 60 cases must pass.
 
 ## Hard rules
 
