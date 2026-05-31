@@ -1,0 +1,5 @@
+[
+  {"query": "the mcp tool for mc.bot.setting keeps stripping maxWaterBucketFall, it never applies. is there a way around the tool layer to set it?", "should_trigger": true},
+  {"query": "commit the parkour-place changes on a new branch and push them, then open a PR", "should_trigger": false},
+  {"query": "use mc.script.eval to observe the player and kick off a goto in a single round trip", "should_trigger": true}
+]

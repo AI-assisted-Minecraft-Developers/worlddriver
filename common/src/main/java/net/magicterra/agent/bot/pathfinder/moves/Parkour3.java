@@ -1,0 +1,31 @@
+package net.magicterra.agent.bot.pathfinder.moves;
+
+import net.magicterra.agent.bot.pathfinder.Move;
+import net.magicterra.agent.bot.pathfinder.WorldView;
+import net.magicterra.agent.model.BlockPos;
+
+/**
+ * 3-block cardinal leap (sprint-jump max distance). Same gap-requirement as
+ * Parkour2: both intermediate cells must be air at foot+head with no
+ * stand-able floor below either, or A* should chain cheaper moves instead.
+ * Cost ≈ 32 (3×walk + jump+sprint overhead).
+ */
+public final class Parkour3 extends Move {
+    public Parkour3(int dx, int dz) { super(dx * 3, 0, dz * 3, 32); }
+    public boolean valid(WorldView w, BlockPos from) {
+        if (!Move.hasRunway(w, from)) return false;
+        BlockPos to = apply(from);
+        if (!w.canStandAt(to)) return false;
+        if (!w.isPassable(from.offset(0, 2, 0))) return false;
+        int sx = Integer.signum(dx), sz = Integer.signum(dz);
+        for (int i = 1; i <= 2; i++) {
+            BlockPos mid = from.offset(sx * i, 0, sz * i);
+            if (!w.isPassable(mid) || w.isHazard(mid)) return false;
+            BlockPos midHead = mid.offset(0, 1, 0);
+            if (!w.isPassable(midHead) || w.isHazard(midHead)) return false;
+            if (w.canStandAt(mid)) return false;
+        }
+        return w.isPassable(to.offset(0, 1, 0));
+    }
+    public String name() { return "parkour3"; }
+}

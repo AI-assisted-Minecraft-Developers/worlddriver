@@ -1,0 +1,15 @@
+{
+  "_comment": "Drop into ~/Library/Application Support/Claude/claude_desktop_config.json (macOS), %APPDATA%\\Claude\\claude_desktop_config.json (Windows), or ~/.config/Claude/claude_desktop_config.json (Linux). Then start the game with `./gradlew :fabric:runClient -Dagent.mcpPort=39800 -Dagent.rpcPort=39801` and restart Claude Desktop.",
+  "mcpServers": {
+    "agent-driver": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "http://127.0.0.1:39800/mcp",
+        "--transport",
+        "http-only"
+      ]
+    }
+  }
+}

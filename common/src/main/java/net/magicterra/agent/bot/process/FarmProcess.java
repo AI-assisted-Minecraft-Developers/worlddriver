@@ -1,0 +1,324 @@
+package net.magicterra.agent.bot.process;
+
+import net.magicterra.agent.bot.BotConfig;
+import net.magicterra.agent.bot.BotState;
+import net.magicterra.agent.bot.Goal;
+import net.magicterra.agent.bot.elytra.ElytraPhysics;
+import net.magicterra.agent.bot.movement.Walker;
+import net.magicterra.agent.bot.pathfinder.Move;
+import net.magicterra.agent.bot.pathfinder.PathFinder;
+import net.magicterra.agent.bot.pathfinder.WorldView;
+import net.magicterra.agent.model.BlockPos;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.Fluids;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static net.magicterra.agent.bot.movement.ClutchController.CLUTCH;
+import static net.magicterra.agent.bot.util.BotInteract.*;
+import static net.magicterra.agent.bot.util.BotUtil.*;
+
+public final class FarmProcess implements BotProcess {
+    /** Crop block id → item id that re-plants it. Kept private; the public
+     *  {@code farm()} entry validates incoming filter against this set. */
+    public static final Map<String, String> SEED_FOR = Map.of(
+            "minecraft:wheat",      "minecraft:wheat_seeds",
+            "minecraft:carrots",    "minecraft:carrot",
+            "minecraft:potatoes",   "minecraft:potato",
+            "minecraft:beetroots",  "minecraft:beetroot_seeds");
+
+    private static final int BREAK_TIMEOUT_TICKS = 60;
+    private static final int PLACE_TIMEOUT_TICKS = 40;
+
+    private final BlockPos minP, maxP;     // y range collapsed to a single scan plane below
+    private final Set<String> crops;
+    private final boolean replant;
+    private final Walker walker = new Walker();
+    private final Set<BlockPos> blacklist = new HashSet<>();
+    private final int totalEstimate;
+
+    private BlockPos currentTarget;
+    private String currentCropId;
+    private int breakingTicks, placeTicks;
+    private int harvested, replanted, skipped;
+    private Phase phase = Phase.SEARCH;
+    private enum Phase { SEARCH, GOING, HARVEST, REPLANT }
+
+    public FarmProcess(BlockPos a, BlockPos b, Set<String> crops, boolean replant) {
+        this.minP = new BlockPos(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.min(a.z, b.z));
+        this.maxP = new BlockPos(Math.max(a.x, b.x), Math.max(a.y, b.y), Math.max(a.z, b.z));
+        this.crops = crops;
+        this.replant = replant;
+        this.totalEstimate = (maxP.x - minP.x + 1) * (maxP.y - minP.y + 1) * (maxP.z - minP.z + 1);
+    }
+
+    public String kind() { return "builder"; }
+
+    public void attach(BotState st) {
+        st.builder.active = true;
+        st.builder.goal = "farm[" + String.join(",", crops) + "] " + minP + "→" + maxP +
+                " (cells=" + totalEstimate + ", replant=" + replant + ")";
+        st.builder.startedAtMs = System.currentTimeMillis();
+        st.builder.lastError = null;
+    }
+
+    public boolean tick(Minecraft mc, WorldView w, BotState st) {
+        LocalPlayer p = mc.player;
+        if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
+        Level lvl = mc.level;
+        if (lvl == null) return false;
+
+        switch (phase) {
+            case SEARCH -> {
+                BlockPos[] found = scanNextMature(lvl);
+                if (found == null) {
+                    st.builder.lastError = "done (harvested=" + harvested +
+                            ", replanted=" + replanted + ", skipped=" + skipped + ")";
+                    st.builder.reset();
+                    return true;
+                }
+                currentTarget = found[0];
+                currentCropId = BuiltInRegistries.BLOCK.getKey(
+                        lvl.getBlockState(toMc(currentTarget)).getBlock()).toString();
+                st.builder.target = currentTarget;
+                walker.setGoal(new Goal.Block(found[1]));
+                phase = Phase.GOING;
+            }
+            case GOING -> {
+                mc.options.keyAttack.setDown(false);
+                mc.options.keyUse.setDown(false);
+                Walker.Step s = walker.tick(mc, w);
+                st.builder.pathLen = walker.pathLen();
+                st.builder.pathStep = walker.pathStep();
+                if (s == Walker.Step.FAILED) {
+                    blacklist.add(currentTarget);
+                    currentTarget = null;
+                    phase = Phase.SEARCH;
+                    return false;
+                }
+                if (s == Walker.Step.ARRIVED) {
+                    // Crop may have despawned/been griefed during walk.
+                    if (!stillMature(lvl, currentTarget)) {
+                        blacklist.add(currentTarget);
+                        currentTarget = null;
+                        phase = Phase.SEARCH;
+                        return false;
+                    }
+                    faceBlock(p, currentTarget);
+                    breakingTicks = 0;
+                    phase = Phase.HARVEST;
+                }
+            }
+            case HARVEST -> {
+                mc.options.keyUp.setDown(false);
+                mc.options.keyJump.setDown(false);
+                mc.options.keySprint.setDown(false);
+                p.setSprinting(false);
+                faceBlock(p, currentTarget);
+                mc.options.keyAttack.setDown(true);
+                breakingTicks++;
+                BlockState bs = lvl.getBlockState(toMc(currentTarget));
+                if (bs.isAir()) {
+                    harvested++;
+                    mc.options.keyAttack.setDown(false);
+                    if (replant) {
+                        placeTicks = 0;
+                        phase = Phase.REPLANT;
+                    } else {
+                        blacklist.add(currentTarget); // prevent immediate re-scan of the now-empty cell
+                        currentTarget = null;
+                        phase = Phase.SEARCH;
+                    }
+                } else if (breakingTicks > BREAK_TIMEOUT_TICKS) {
+                    blacklist.add(currentTarget);
+                    mc.options.keyAttack.setDown(false);
+                    currentTarget = null;
+                    phase = Phase.SEARCH;
+                }
+            }
+            case REPLANT -> {
+                mc.options.keyAttack.setDown(false);
+                mc.options.keyUp.setDown(false);
+                mc.options.keyJump.setDown(false);
+                mc.options.keySprint.setDown(false);
+                String seedId = SEED_FOR.get(currentCropId);
+                if (seedId == null || !ensureHoldingItem(mc, seedId)) {
+                    // No seed in hand — skip this cell rather than spin.
+                    skipped++;
+                    blacklist.add(currentTarget);
+                    currentTarget = null;
+                    phase = Phase.SEARCH;
+                    return false;
+                }
+                // Plant by clicking the farmland (the block below the crop
+                // cell) on its UP face. Vanilla seed items only succeed
+                // when clicking farmland from above.
+                BlockPos farmland = currentTarget.offset(0, -1, 0);
+                faceSupportFor(p, currentTarget, Direction.UP);
+                if (placeTicks == 0) {
+                    clientUseItemOn(mc, p, farmland, Direction.UP);
+                }
+                placeTicks++;
+                BlockState now = lvl.getBlockState(toMc(currentTarget));
+                String nowId = BuiltInRegistries.BLOCK.getKey(now.getBlock()).toString();
+                if (nowId.equals(currentCropId)) {
+                    replanted++;
+                    blacklist.add(currentTarget); // crop is age 0 now; revisit only after maturity
+                    currentTarget = null;
+                    phase = Phase.SEARCH;
+                } else if (placeTicks > PLACE_TIMEOUT_TICKS) {
+                    skipped++;
+                    blacklist.add(currentTarget);
+                    currentTarget = null;
+                    phase = Phase.SEARCH;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Scan the bbox for the nearest mature, in-filter, reachable crop. */
+    private BlockPos[] scanNextMature(Level lvl) {
+        LocalPlayer p = Minecraft.getInstance().player;
+        if (p == null) return null;
+        BlockPos foot = new BlockPos((int) Math.floor(p.getX()), (int) Math.floor(p.getY()), (int) Math.floor(p.getZ()));
+        BlockPos bestCrop = null, bestStand = null;
+        long bestD2 = Long.MAX_VALUE;
+        for (int y = minP.y; y <= maxP.y; y++) {
+            for (int x = minP.x; x <= maxP.x; x++) {
+                for (int z = minP.z; z <= maxP.z; z++) {
+                    BlockPos bp = new BlockPos(x, y, z);
+                    if (blacklist.contains(bp)) continue;
+                    if (!stillMature(lvl, bp)) continue;
+                    BlockPos stand = findStandAdjacent(lvl, bp);
+                    if (stand == null) continue;
+                    long d2 = bp.distSqr(foot);
+                    if (d2 < bestD2) {
+                        bestD2 = d2; bestCrop = bp; bestStand = stand;
+                    }
+                }
+            }
+        }
+        return bestCrop == null ? null : new BlockPos[]{bestCrop, bestStand};
+    }
+
+    /** Crop at {@code pos} matches the filter and is at max age. */
+    private boolean stillMature(Level lvl, BlockPos pos) {
+        BlockState bs = lvl.getBlockState(toMc(pos));
+        String id = BuiltInRegistries.BLOCK.getKey(bs.getBlock()).toString();
+        if (!crops.contains(id)) return false;
+        if (!(bs.getBlock() instanceof net.minecraft.world.level.block.CropBlock cb)) return false;
+        return cb.isMaxAge(bs);
+    }
+
+    /** Swap hotbar to a stack matching itemId (or matching slot in main inv
+     *  in creative); reuses the same logic as BboxFillProcess.ensureHoldingBlock. */
+    private boolean ensureHoldingItem(Minecraft mc, String itemId) {
+        LocalPlayer p = mc.player;
+        if (p == null) return false;
+        Inventory inv = p.getInventory();
+        if (matchesItem(inv.getSelected(), itemId)) return true;
+        for (int slot = 0; slot < 9; slot++) {
+            if (matchesItem(inv.items.get(slot), itemId)) {
+                inv.selected = slot;
+                if (p.connection != null) {
+                    p.connection.send(new net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket(slot));
+                }
+                return true;
+            }
+        }
+        if (p.isCreative()) {
+            for (int slot = 9; slot < inv.items.size(); slot++) {
+                if (matchesItem(inv.items.get(slot), itemId)) {
+                    inv.pickSlot(slot);
+                    return matchesItem(inv.getSelected(), itemId);
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean matchesItem(ItemStack stk, String itemId) {
+        if (stk.isEmpty()) return false;
+        return BuiltInRegistries.ITEM.getKey(stk.getItem()).toString().equals(itemId);
+    }
+
+    private BlockPos findStandAdjacent(Level lvl, BlockPos crop) {
+        // Crops are 1 tall; the stand cell is the same Y as the farmland +1
+        // = same Y as the crop cell (player feet level with crop). Try 4
+        // cardinals; allow standing on the farmland itself (Y same) since
+        // crops don't blocksMotion.
+        int[][] dxz = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        for (int[] d : dxz) {
+            BlockPos c = crop.offset(d[0], 0, d[1]);
+            if (canStandHere(lvl, c)) return c;
+        }
+        // Diagonals as fallback.
+        int[][] diag = {{1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
+        for (int[] d : diag) {
+            BlockPos c = crop.offset(d[0], 0, d[1]);
+            if (canStandHere(lvl, c)) return c;
+        }
+        return null;
+    }
+
+    private boolean canStandHere(Level lvl, BlockPos foot) {
+        BlockState below = lvl.getBlockState(toMc(foot.offset(0, -1, 0)));
+        BlockState here = lvl.getBlockState(toMc(foot));
+        BlockState head = lvl.getBlockState(toMc(foot.offset(0, 1, 0)));
+        if (!below.blocksMotion()) return false;
+        if (here.blocksMotion() && !here.getFluidState().is(Fluids.WATER)) return false;
+        if (head.blocksMotion() && !head.getFluidState().is(Fluids.WATER)) return false;
+        return true;
+    }
+
+    private void faceBlock(LocalPlayer p, BlockPos block) {
+        Vec3 eye = p.getEyePosition();
+        double dx = block.x + 0.5 - eye.x, dy = block.y + 0.5 - eye.y, dz = block.z + 0.5 - eye.z;
+        float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
+        float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
+        p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw; p.setXRot(pitch);
+    }
+
+    private void faceSupportFor(LocalPlayer p, BlockPos crop, Direction face) {
+        BlockPos support = crop.offset(-face.getStepX(), -face.getStepY(), -face.getStepZ());
+        double tx = support.x + 0.5 + face.getStepX() * 0.5;
+        double ty = support.y + 0.5 + face.getStepY() * 0.5;
+        double tz = support.z + 0.5 + face.getStepZ() * 0.5;
+        Vec3 eye = p.getEyePosition();
+        double dx = tx - eye.x, dy = ty - eye.y, dz = tz - eye.z;
+        float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
+        float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
+        p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw; p.setXRot(pitch);
+    }
+}

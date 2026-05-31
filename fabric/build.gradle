@@ -1,0 +1,84 @@
+plugins {
+    id 'com.gradleup.shadow'
+}
+
+architectury {
+    platformSetupLoomIde()
+    fabric()
+}
+
+configurations {
+    common {
+        canBeResolved = true
+        canBeConsumed = false
+    }
+    compileClasspath.extendsFrom common
+    runtimeClasspath.extendsFrom common
+    developmentFabric.extendsFrom common
+
+    shadowBundle {
+        canBeResolved = true
+        canBeConsumed = false
+    }
+}
+
+repositories {
+    maven {
+        name = 'latvian-releases'
+        url = 'https://maven.latvian.dev/releases'
+    }
+}
+
+dependencies {
+    modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:$rootProject.fabric_api_version"
+
+    common(project(path: ':common', configuration: 'namedElements')) { transitive false }
+    shadowBundle project(path: ':common', configuration: 'transformProductionFabric')
+
+    shadowBundle "dev.latvian.mods:rhino:$rootProject.rhino_version"
+    implementation "dev.latvian.mods:rhino:$rootProject.rhino_version"
+
+    // netty-codec-http for WebSocket support. Fabric loader doesn't isolate
+    // libraries the way NeoForge does, so plain `implementation` is enough at
+    // runtime; `shadowBundle` ships it inside the prod jar.
+    shadowBundle("io.netty:netty-codec-http:$rootProject.netty_version") { transitive = false }
+    implementation "io.netty:netty-codec-http:$rootProject.netty_version"
+}
+
+processResources {
+    inputs.property 'version', project.version
+
+    filesMatching('fabric.mod.json') {
+        expand version: project.version
+    }
+}
+
+shadowJar {
+    configurations = [project.configurations.shadowBundle]
+    archiveClassifier = 'dev-shadow'
+}
+
+remapJar {
+    inputFile.set shadowJar.archiveFile
+}
+
+loom {
+    runs {
+        server { server() }
+        // Explicit client config so we can inject -Dfabric.addMods=run/mods,
+        // which makes Fabric Loader pick up Modrinth-distributed jars under
+        // fabric/run/mods/ in dev. Without this, the loader only sees mods
+        // declared via modImplementation/modRuntimeOnly.
+        client {
+            client()
+            vmArg '-Dfabric.addMods=run/mods'
+        }
+    }
+    runConfigs.configureEach {
+        property 'agent.runValidation', project.findProperty('agentRunValidation') ?: 'false'
+        // Cap heap so a stuck client/server can't trigger system OOM when run
+        // alongside the dedicated server + gametest. MC 1.21.1 fits comfortably.
+        vmArg '-Xmx2g'
+    }
+}

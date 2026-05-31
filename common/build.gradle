@@ -1,0 +1,23 @@
+architectury {
+    common rootProject.enabled_platforms.split(',')
+}
+
+repositories {
+    maven {
+        name = 'latvian-releases'
+        url = 'https://maven.latvian.dev/releases'
+    }
+}
+
+dependencies {
+    // Provides the @Environment annotation; do NOT use other Fabric Loader classes from common
+    modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
+
+    // Rhino JS engine (KubeJS fork) — common because both platforms use it
+    implementation "dev.latvian.mods:rhino:$rootProject.rhino_version"
+
+    // Netty WebSocket — MC ships only the core (transport/codec). We need
+    // codec-http for the WS server/client. Compile-only here; fabric/neoforge
+    // wire runtime visibility (forgeRuntimeLibrary on NeoForge) + shadow-bundle.
+    compileOnly "io.netty:netty-codec-http:$rootProject.netty_version"
+}

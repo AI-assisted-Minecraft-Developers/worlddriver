@@ -1,0 +1,79 @@
+// Client-only — mc.bot.useItem now covers BOTH the bare right-click ("use the
+// held item") and the right-click-on-block ("use the held item on a face")
+// modes. Pass `pos` to switch into the second mode; the tool routes through
+// MultiPlayerGameMode.useItem / useItemOn with a synthetic BlockHitResult.
+// On dedicated server / GameTest CI the client classes aren't loaded; record
+// a single skipped-PASS so headless runs stay green.
+
+function clientAvailable() {
+    try {
+        Agent.invoke("mc.client.screen.info", {});
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+if (!clientAvailable()) {
+    AgentTest.run("12_use_item: skipped (no client api — dedicated server)", function(t) {
+        // no-op: PASS so headless runs stay green
+    });
+} else {
+
+    AgentTest.run("12_use_item: useItem returns shape with empty hand (no crash)", function(t) {
+        var info = Agent.invoke("mc.client.screen.info", {});
+        if (!info.hasPlayer) {
+            var res = Agent.invoke("mc.bot.useItem", {});
+            t.assertEqual(res.ok, false, "useItem with no player must report ok:false");
+            t.assertTrue(typeof res.error === "string", "must include error string");
+            return;
+        }
+        var res = Agent.invoke("mc.bot.useItem", { hand: "main" });
+        t.assertTrue(res.ok, "useItem must succeed when a player exists (got " + JSON.stringify(res) + ")");
+        t.assertEqual(res.hand, "main", "hand must round-trip");
+        t.assertTrue(typeof res.result === "string", "result must be an InteractionResult name string");
+        t.assertEqual(typeof res.consumed, "boolean", "consumed must be a boolean");
+    });
+
+    AgentTest.run("12_use_item: pos-mode rejects malformed pos", function(t) {
+        var res = Agent.invoke("mc.bot.useItem", { pos: "not-a-pos" });
+        t.assertEqual(res.ok, false, "string-pos must report ok:false");
+    });
+
+    AgentTest.run("12_use_item: pos-mode echoes effective face", function(t) {
+        var info = Agent.invoke("mc.client.screen.info", {});
+        if (!info.hasPlayer) {
+            var res = Agent.invoke("mc.bot.useItem", { pos: { x: 0, y: 200, z: 0 }, face: "up" });
+            t.assertTrue(res.ok === false || typeof res.error === "string" || res.ok === undefined,
+                "no-player path must not pretend success");
+            return;
+        }
+        var res = Agent.invoke("mc.bot.useItem", {
+            pos:  { x: 0, y: 200, z: 0 },
+            face: "up",
+            lookAt: false
+        });
+        t.assertTrue(res.ok, "pos-mode against test arena stone must route (got " + JSON.stringify(res) + ")");
+        t.assertEqual(res.face, "up", "face must echo back as requested");
+        t.assertEqual(res.hand, "main", "hand default must be main");
+        t.assertEqual(res.pos.x, 0, "pos.x must round-trip");
+        t.assertEqual(res.pos.y, 200, "pos.y must round-trip");
+        t.assertEqual(res.pos.z, 0, "pos.z must round-trip");
+        t.assertTrue(typeof res.result === "string", "result must be an InteractionResult name");
+    });
+
+    AgentTest.run("12_use_item: pos-mode auto-picks face when omitted", function(t) {
+        var info = Agent.invoke("mc.client.screen.info", {});
+        if (!info.hasPlayer) return;
+        var res = Agent.invoke("mc.bot.useItem", {
+            pos: { x: 0, y: 200, z: 0 },
+            lookAt: false
+        });
+        t.assertTrue(res.ok, "pos-mode without explicit face must still route");
+        t.assertTrue(typeof res.face === "string" && res.face.length > 0,
+            "auto-picked face must be returned (got " + JSON.stringify(res) + ")");
+        var allowed = ["up", "down", "north", "south", "east", "west"];
+        t.assertTrue(allowed.indexOf(res.face) >= 0,
+            "auto-picked face must be a cardinal direction, got '" + res.face + "'");
+    });
+}

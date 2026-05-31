@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "agent_driver",
+  "version": "${version}",
+  "name": "AgentDriver",
+  "description": "AI agent driver: Minecraft observation, action and Rhino scripting over an in-game RPC channel.",
+  "authors": [
+    "AI-assisted-Minecraft-Developers"
+  ],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "net.magicterra.agent.fabric.AgentDriverFabric"
+    ],
+    "client": [
+      "net.magicterra.agent.fabric.client.AgentDriverFabricClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16",
+    "fabric-api": "*",
+    "minecraft": ">=1.21",
+    "java": ">=21"
+  }
+}
