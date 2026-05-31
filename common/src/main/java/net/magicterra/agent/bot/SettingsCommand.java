@@ -14,6 +14,7 @@ import static net.magicterra.agent.bot.util.BotUtil.*;
 import static net.magicterra.agent.AgentDriverCommon.LOG;
 import net.minecraft.resources.ResourceLocation;
 import java.util.Set;
+import java.util.LinkedHashSet;
 
 /**
  * Applies {@code mc.bot.setting{...}} param mutations to {@link BotConfig} and
@@ -213,7 +214,7 @@ public final class SettingsCommand {
             // write to be rejected so the caller knows nothing was applied.
             if (params.get("blocksToAvoid") instanceof List<?> bl) {
                 List<String> bad = new ArrayList<>();
-                Set<String> nextSet = new java.util.LinkedHashSet<>();
+                Set<String> nextSet = new LinkedHashSet<>();
                 for (Object o : bl) {
                     if (!(o instanceof String s) || s.isBlank()) { bad.add(String.valueOf(o)); continue; }
                     try {

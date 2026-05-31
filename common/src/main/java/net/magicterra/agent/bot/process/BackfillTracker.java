@@ -47,10 +47,12 @@ import java.util.Set;
 import static net.magicterra.agent.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.agent.bot.util.BotInteract.*;
 import static net.magicterra.agent.bot.util.BotUtil.*;
+import java.util.LinkedHashSet;
+import java.util.Iterator;
 
 public final class BackfillTracker {
     private static final int CAPACITY = 512;
-    private final java.util.LinkedHashSet<BlockPos> recent = new java.util.LinkedHashSet<>();
+    private final LinkedHashSet<BlockPos> recent = new LinkedHashSet<>();
 
     public synchronized void record(BlockPos foot) {
         if (recent.contains(foot)) {
@@ -60,14 +62,14 @@ public final class BackfillTracker {
         }
         recent.add(foot);
         if (recent.size() > CAPACITY) {
-            java.util.Iterator<BlockPos> it = recent.iterator();
+            Iterator<BlockPos> it = recent.iterator();
             it.next();
             it.remove();
         }
     }
 
-    synchronized java.util.List<BlockPos> snapshot() {
-        return new java.util.ArrayList<>(recent);
+    synchronized List<BlockPos> snapshot() {
+        return new ArrayList<>(recent);
     }
 
     synchronized void remove(BlockPos pos) { recent.remove(pos); }

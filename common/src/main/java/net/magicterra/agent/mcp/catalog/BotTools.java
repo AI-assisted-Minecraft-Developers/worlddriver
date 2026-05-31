@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import static net.magicterra.agent.mcp.schema.Schemas.*;
+import java.util.LinkedHashMap;
 
 /**
  * {@code mc.bot.*} (client-side autonomous actions) catalog entries.
@@ -48,7 +49,7 @@ public final class BotTools {
                 "Returns {ok, started, goal} or {ok:false, error}.",
                 Map.of(
                     "type", "object",
-                    "properties", new java.util.LinkedHashMap<String, Object>() {{
+                    "properties", new LinkedHashMap<String, Object>() {{
                         put("pos", blockPosSchema());
                         put("near", Map.of("type", "integer", "minimum", 0, "maximum", 64,
                             "description", "Acceptable Euclidean radius around the target. 0 = exact."));
@@ -246,7 +247,7 @@ public final class BotTools {
                 "Returns {ok, settings, applied?, rejected?}.",
                 Map.of(
                     "type", "object",
-                    "properties", new java.util.LinkedHashMap<String, Object>() {{
+                    "properties", new LinkedHashMap<String, Object>() {{
                         put("paused",                     Map.of("type", "boolean"));
                         put("autoEat",                    Map.of("type", "boolean"));
                         put("autoEatFoodThreshold",       Map.of("type", "integer", "minimum", 0,   "maximum", 20));
@@ -295,7 +296,7 @@ public final class BotTools {
                 "Returns {ok, started, mode, from, to, volume, fill?, replaceFrom?}.",
                 Map.of(
                     "type", "object",
-                    "properties", new java.util.LinkedHashMap<String, Object>() {{
+                    "properties", new LinkedHashMap<String, Object>() {{
                         put("from", blockPosSchema());
                         put("to",   blockPosSchema());
                         put("fill", Map.of("type", "string",
@@ -321,7 +322,7 @@ public final class BotTools {
                 "Async; pass awaitMs to block. Returns {ok, started, from, to, area, crops, replant}.",
                 Map.of(
                     "type", "object",
-                    "properties", new java.util.LinkedHashMap<String, Object>() {{
+                    "properties", new LinkedHashMap<String, Object>() {{
                         put("from", blockPosSchema());
                         put("to",   blockPosSchema());
                         put("crops", Map.of("type", "array", "items", Map.of("type", "string"),
@@ -350,7 +351,7 @@ public final class BotTools {
                 "Returns {ok, started, mode, ...echo}.",
                 Map.of(
                     "type", "object",
-                    "properties", new java.util.LinkedHashMap<String, Object>() {{
+                    "properties", new LinkedHashMap<String, Object>() {{
                         put("mode", Map.of("type", "string", "enum", List.of("tower", "bridge"),
                             "description", "tower = pillar up; bridge = scaffold forward."));
                         put("height", Map.of("type", "integer", "minimum", 1, "maximum", 256,
@@ -380,7 +381,7 @@ public final class BotTools {
                 "awaitMs to block. Returns {ok, started, pos?, radius}.",
                 Map.of(
                     "type", "object",
-                    "properties", new java.util.LinkedHashMap<String, Object>() {{
+                    "properties", new LinkedHashMap<String, Object>() {{
                         put("pos", blockPosSchema());
                         put("radius", Map.of("type", "integer", "minimum", 1, "maximum", 64,
                             "description", "Scan radius around the player when no explicit pos. Default 16."));

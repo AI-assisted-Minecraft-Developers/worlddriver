@@ -34,6 +34,7 @@ import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.effect.MobEffectUtil;
 import net.minecraft.world.effect.MobEffectInstance;
+import java.util.ArrayList;
 
 /** Reads the live client {@link Level} for the pathfinder: passability, solidity,
  *  fluids, climbables, hazards and break-cost. Extracted from BotApiImpl. */
@@ -246,7 +247,7 @@ final class ClientWorldView implements WorldView {
         LocalPlayer pl = mc.player;
         if (!(mc.level instanceof ClientLevel cl) || pl == null) return;
         double maxR = 64;                              // bound the snapshot to nearby mobs
-        java.util.List<Float> buf = new java.util.ArrayList<>();
+        List<Float> buf = new ArrayList<>();
         for (Entity e : cl.entitiesForRendering()) {
             if (e instanceof Enemy && e.isAlive()
                     && e.distanceToSqr(pl) <= maxR * maxR) {

@@ -72,7 +72,7 @@ public final class ElytraProcess implements BotProcess {
     // --- reactive waypoint following (milestone C) ---
     private static final int REPLAN_TICKS = 40;      // re-plan cadence (newly loaded terrain refines route)
     private static final double WAYPOINT_REACH = 6.0;
-    private java.util.List<Vec3> waypoints;          // corridor to the goal; last == goal
+    private List<Vec3> waypoints;          // corridor to the goal; last == goal
     private int wpIndex;
     private int sinceReplan;
 

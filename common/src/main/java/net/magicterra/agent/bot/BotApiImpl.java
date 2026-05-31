@@ -65,7 +65,7 @@ public final class BotApiImpl implements BotApi {
      *  Survives across goto/mine/etc. so a script can label home/farm/base
      *  and revisit by name. ConcurrentHashMap because list/get can race a
      *  save from a separate RPC handler thread. */
-    private final java.util.Map<String, BlockPos> waypoints = new ConcurrentHashMap<>();
+    private final Map<String, BlockPos> waypoints = new ConcurrentHashMap<>();
     /** autoEat hold-keyUse loop. Owns its own {@code eating} flag; the tick
      *  hook drives it and releases the key when a process takes over. */
     private final AutoEat autoEat = new AutoEat();

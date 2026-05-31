@@ -2,6 +2,7 @@ package net.magicterra.agent.mcp.schema;
 
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
 
 /**
  * Shared JSON-schema fragments and tool-entry builders for the MCP tool
@@ -99,7 +100,7 @@ public final class Schemas {
                                                 Map<String, Object> schema,
                                                 Map<String, Object> annotations,
                                                 Map<String, Object> meta) {
-        java.util.LinkedHashMap<String, Object> m = new java.util.LinkedHashMap<>();
+        LinkedHashMap<String, Object> m = new LinkedHashMap<>();
         m.put("name", name);
         m.put("description", description);
         m.put("inputSchema", schema);

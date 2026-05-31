@@ -48,6 +48,8 @@ import static net.magicterra.agent.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.agent.bot.util.BotInteract.*;
 import static net.magicterra.agent.bot.util.BotUtil.*;
 import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
+import java.util.Deque;
+import java.util.ArrayDeque;
 
 public final class MineProcess implements BotProcess {
 
@@ -66,7 +68,7 @@ public final class MineProcess implements BotProcess {
     // Last few break positions — used as goal hints during COLLECT so the
     // bot walks back through where it just mined and lets vanilla's pickup
     // magnet vacuum the drops. Capped to avoid backtracking forever.
-    private final java.util.Deque<BlockPos> recentBreaks = new java.util.ArrayDeque<>();
+    private final Deque<BlockPos> recentBreaks = new ArrayDeque<>();
     private int collectTicks;
     private final Walker collectWalker = new Walker();
     private BlockPos currentCollectGoal;

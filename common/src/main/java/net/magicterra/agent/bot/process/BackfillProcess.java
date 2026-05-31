@@ -55,7 +55,7 @@ public final class BackfillProcess implements BotProcess {
 
     private final BackfillTracker tracker;
     private final Walker walker = new Walker();
-    private final Set<BlockPos> failed = new java.util.HashSet<>();
+    private final Set<BlockPos> failed = new HashSet<>();
     private Phase phase = Phase.NEXT;
     private BlockPos currentBlock;
     private BlockPos currentStand;

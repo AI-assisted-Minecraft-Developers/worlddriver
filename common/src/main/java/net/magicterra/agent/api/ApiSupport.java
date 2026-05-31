@@ -9,6 +9,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Collection;
 
 /**
  * Pure, stateless helpers shared by {@link AgentApi} and the {@code *Api}
@@ -109,7 +110,7 @@ final class ApiSupport {
         if (v instanceof Boolean b) return b;
         if (v instanceof Number n) return n.doubleValue() != 0.0;
         if (v instanceof CharSequence s) return s.length() > 0;
-        if (v instanceof java.util.Collection<?> c) return !c.isEmpty();
+        if (v instanceof Collection<?> c) return !c.isEmpty();
         if (v instanceof Map<?, ?> m) return !m.isEmpty();
         return true;
     }
