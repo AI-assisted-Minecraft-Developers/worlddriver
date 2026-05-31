@@ -1,5 +1,6 @@
 package net.magicterra.agent.api;
 
+import net.magicterra.agent.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -20,8 +21,8 @@ import java.util.Collection;
 final class ApiSupport {
     private ApiSupport() {}
 
-    static long numL(Object o) { return o instanceof Number n ? n.longValue() : 0L; }
-    static long clamp(long v, long lo, long hi) { return Math.max(lo, Math.min(hi, v)); }
+    static long numL(Object o) { return Params.toLong(o, 0L); }
+    static long clamp(long v, long lo, long hi) { return Params.clamp(v, lo, hi); }
 
     /** Parse a coord token as an absolute decimal int. Returns null for
      *  Brigadier-style relative ({@code ~}, {@code ~N}, {@code ^N}) or otherwise
@@ -34,28 +35,7 @@ final class ApiSupport {
     }
 
     /** Decode {x,y,z} | BlockPos | "x,y,z" to BlockPos; null if shape doesn't match. */
-    static BlockPos readPos(Object o) {
-        if (o instanceof BlockPos bp) return bp;
-        if (o instanceof Map<?, ?> m
-                && m.get("x") instanceof Number nx
-                && m.get("y") instanceof Number ny
-                && m.get("z") instanceof Number nz) {
-            return new BlockPos(nx.intValue(), ny.intValue(), nz.intValue());
-        }
-        if (o instanceof String s) {
-            try { return parsePos(s); } catch (Exception e) { return null; }
-        }
-        return null;
-    }
-
-    /** Parse a {@code "x,y,z"} token to a BlockPos. Throws on a malformed token. */
-    static BlockPos parsePos(String s) {
-        String[] p = s.split(",");
-        return new BlockPos(
-            Integer.parseInt(p[0].trim()),
-            Integer.parseInt(p[1].trim()),
-            Integer.parseInt(p[2].trim()));
-    }
+    static BlockPos readPos(Object o) { return Params.toPos(o); }
 
     static String blockId(BlockState s) {
         return BuiltInRegistries.BLOCK.getKey(s.getBlock()).toString();

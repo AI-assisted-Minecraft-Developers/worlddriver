@@ -1,6 +1,7 @@
 package net.magicterra.agent.bot.util;
 
 import net.magicterra.agent.bot.BotConfig;
+import net.magicterra.agent.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.level.Level;
@@ -8,7 +9,6 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluids;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,26 +35,13 @@ public final class BotUtil {
         return Map.of("x", p.getX(), "y", p.getY(), "z", p.getZ());
     }
 
-    public static BlockPos readPos(Object o) {
-        if (!(o instanceof Map<?, ?> m)) return null;
-        Object x = m.get("x"), y = m.get("y"), z = m.get("z");
-        if (!(x instanceof Number) || !(y instanceof Number) || !(z instanceof Number)) return null;
-        return new BlockPos(((Number) x).intValue(), ((Number) y).intValue(), ((Number) z).intValue());
-    }
+    public static BlockPos readPos(Object o) { return Params.toPos(o); }
 
-    public static int intOr(Object o, int dflt) { return o instanceof Number n ? n.intValue() : dflt; }
-    public static double doubleOr(Object o, double dflt) { return o instanceof Number n ? n.doubleValue() : dflt; }
-    public static int clamp(int v, int lo, int hi) { return Math.max(lo, Math.min(hi, v)); }
+    public static int intOr(Object o, int dflt) { return Params.toInt(o, dflt); }
+    public static double doubleOr(Object o, double dflt) { return Params.toDouble(o, dflt); }
+    public static int clamp(int v, int lo, int hi) { return Params.clamp(v, lo, hi); }
 
-    public static List<String> parseStringList(Object o) {
-        List<String> out = new ArrayList<>();
-        if (o instanceof List<?> l) {
-            for (Object e : l) if (e instanceof String s) out.add(s);
-        } else if (o instanceof String s) {
-            out.add(s);
-        }
-        return out;
-    }
+    public static List<String> parseStringList(Object o) { return Params.toStringList(o); }
 
     public static Map<String, Object> unimplemented(String msg) {
         return Map.of("ok", false, "error", "unimplemented: " + msg);

@@ -1,6 +1,7 @@
 package net.magicterra.agent.api;
 
 import net.magicterra.agent.model.AgentEvent;
+import net.magicterra.agent.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
@@ -395,8 +396,8 @@ public final class AgentApi {
         }
     }
 
-    private int num(Object o) { return o instanceof Number n ? n.intValue() : 0; }
-    private double numD(Object o) { return o instanceof Number n ? n.doubleValue() : 0.0; }
+    private int num(Object o) { return Params.toInt(o, 0); }
+    private double numD(Object o) { return Params.toDouble(o, 0.0); }
 
     /**
      * Bot async-route wrapper. If {@code params.awaitMs} is set, invoke the
