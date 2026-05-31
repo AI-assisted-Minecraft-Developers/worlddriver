@@ -4,6 +4,7 @@ import net.magicterra.agent.bot.elytra.ElytraPhysics;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
 import net.magicterra.agent.bot.pathfinder.WorldView;
+import net.magicterra.agent.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -99,32 +100,31 @@ public final class BotApiImpl implements BotApi {
 
     @Override
     public Map<String, Object> elytraFly(Map<String, Object> params) {
-        final Map<String, Object> p = (params == null) ? Map.of() : params;
+        final Params p = Params.of(params);
         return onClient(() -> {
             LocalPlayer player = Minecraft.getInstance().player;
             if (player == null) return Map.of("ok", false, "error", "no player");
-            BlockPos target = readPos(p.get("pos"));
-            Float yaw = p.get("yaw") instanceof Number n ? n.floatValue() : null;
+            BlockPos target = p.getPos("pos");
+            Float yaw = p.getFloat("yaw");
             boolean hasPitch = p.get("pitch") instanceof Number;
-            float pitch = (float) doubleOr(p.get("pitch"), 0.0);
+            float pitch = (float) p.getDouble("pitch", 0.0);
             // Reactive sim-lookahead control (milestone B): used when a 3D target
             // is given and no fixed test-pitch is pinned (explicit pitch forces
             // the fixed-heading glide rig); can be forced on/off via `reactive`.
-            boolean reactive = target != null
-                    && (p.get("reactive") instanceof Boolean rb ? rb : !hasPitch);
+            boolean reactive = target != null && p.getBool("reactive", !hasPitch);
             boolean fireworks = reactive
                     ? !Boolean.FALSE.equals(p.get("fireworks"))   // reactive: boost on by default
-                    : Boolean.TRUE.equals(p.get("fireworks"));
-            int fwEvery = clamp(intOr(p.get("fireworkEveryTicks"), 40), 5, 400);
-            int maxTicks = clamp(intOr(p.get("ticks"), reactive ? 2000 : 200), 1, 20_000);
-            double stopXZ = doubleOr(p.get("stopXZDist"), 3.0);
+                    : p.getBool("fireworks");
+            int fwEvery = p.getIntClamped("fireworkEveryTicks", 40, 5, 400);
+            int maxTicks = p.getIntClamped("ticks", reactive ? 2000 : 200, 1, 20_000);
+            double stopXZ = p.getDouble("stopXZDist", 3.0);
             // Ground fallback (milestone D): with no usable elytra, optionally walk
             // to the target via the normal pathfinder instead of failing.
             ItemStack chest = player.getItemBySlot(EquipmentSlot.CHEST);
             boolean flyable = chest.is(Items.ELYTRA)
                     && chest.getMaxDamage() > 0 && chest.getDamageValue() < chest.getMaxDamage() - 1;
-            if (!flyable && target != null && Boolean.TRUE.equals(p.get("groundFallback"))) {
-                int near = clamp(intOr(p.get("near"), 1), 0, 64);
+            if (!flyable && target != null && p.getBool("groundFallback")) {
+                int near = p.getIntClamped("near", 1, 0, 64);
                 Goal g = near > 0 ? new Goal.Near(target, near) : new Goal.Block(target);
                 startProcess(new GotoProcess(g));
                 return Map.of("ok", true, "started", true, "mode", "groundFallback",
@@ -139,14 +139,14 @@ public final class BotApiImpl implements BotApi {
 
     @Override
     public Map<String, Object> waypoint(Map<String, Object> params) {
-        final Map<String, Object> p = (params == null) ? Map.of() : params;
+        final Params p = Params.of(params);
         final String op = (p.get("op") instanceof String s && !s.isBlank()) ? s.trim().toLowerCase(Locale.ROOT) : "list";
         return onClient(() -> {
             switch (op) {
                 case "save" -> {
-                    String name = (p.get("name") instanceof String s && !s.isBlank()) ? s : null;
+                    String name = p.getNonBlank("name");
                     if (name == null) return Map.of("ok", false, "error", "name required");
-                    BlockPos pos = readPos(p.get("pos"));
+                    BlockPos pos = p.getPos("pos");
                     if (pos == null) {
                         LocalPlayer pl = Minecraft.getInstance().player;
                         if (pl == null) return Map.of("ok", false, "error", "no pos provided and no player");
@@ -156,7 +156,7 @@ public final class BotApiImpl implements BotApi {
                     return Map.of("ok", true, "op", "save", "name", name, "pos", posMap(pos), "count", waypoints.size());
                 }
                 case "delete" -> {
-                    String name = (p.get("name") instanceof String s && !s.isBlank()) ? s : null;
+                    String name = p.getNonBlank("name");
                     if (name == null) return Map.of("ok", false, "error", "name required");
                     BlockPos prev = waypoints.remove(name);
                     return Map.of("ok", true, "op", "delete", "name", name, "existed", prev != null, "count", waypoints.size());
@@ -177,7 +177,7 @@ public final class BotApiImpl implements BotApi {
                     return Map.of("ok", true, "op", "list", "waypoints", entries, "count", entries.size());
                 }
                 case "get" -> {
-                    String name = (p.get("name") instanceof String s && !s.isBlank()) ? s : null;
+                    String name = p.getNonBlank("name");
                     if (name == null) return Map.of("ok", false, "error", "name required");
                     BlockPos pos = waypoints.get(name);
                     if (pos == null) return Map.of("ok", false, "error", "no waypoint named '" + name + "'");
@@ -414,7 +414,7 @@ public final class BotApiImpl implements BotApi {
 
     @Override
     public Map<String, Object> construct(Map<String, Object> params) {
-        final Map<String, Object> p = (params == null) ? Map.of() : params;
+        final Params p = Params.of(params);
         String mode = (p.get("mode") instanceof String s && !s.isBlank()) ? s.trim().toLowerCase(Locale.ROOT) : null;
         if (mode == null || (!mode.equals("tower") && !mode.equals("bridge")))
             return Map.of("ok", false, "error", "mode required (tower|bridge)");
@@ -423,7 +423,7 @@ public final class BotApiImpl implements BotApi {
             // height OR targetY; height is relative, targetY is absolute.
             Integer targetY = null;
             if (p.get("targetY") instanceof Number n) targetY = n.intValue();
-            int height = intOr(p.get("height"), -1);
+            int height = p.getInt("height", -1);
             if (targetY == null && height < 0) return Map.of("ok", false, "error", "tower requires height or targetY");
             if (height > 256) return Map.of("ok", false, "error", "height too large (max 256)");
             final Integer targetYf = targetY;
@@ -448,7 +448,7 @@ public final class BotApiImpl implements BotApi {
         }
         // mode == "bridge"
         String dir = (p.get("direction") instanceof String s && !s.isBlank()) ? s.trim().toLowerCase(Locale.ROOT) : "forward";
-        int distance = intOr(p.get("distance"), -1);
+        int distance = p.getInt("distance", -1);
         if (distance < 1) return Map.of("ok", false, "error", "bridge requires distance >= 1");
         if (distance > 64) return Map.of("ok", false, "error", "distance too large (max 64)");
         final int distanceF = distance;

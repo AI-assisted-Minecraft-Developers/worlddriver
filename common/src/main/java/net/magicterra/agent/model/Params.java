@@ -62,6 +62,16 @@ public final class Params {
     public String getString(String key) { return m.get(key) instanceof String s ? s : null; }
     public String getString(String key, String dflt) { return m.get(key) instanceof String s ? s : dflt; }
 
+    /** A present, non-blank string, else null — the common "optional name/id" shape. */
+    public String getNonBlank(String key) {
+        return m.get(key) instanceof String s && !s.isBlank() ? s : null;
+    }
+
+    /** A numeric field as a boxed Float, or null when absent/non-numeric (e.g. optional yaw/pitch). */
+    public Float getFloat(String key) {
+        return m.get(key) instanceof Number n ? n.floatValue() : null;
+    }
+
     @SuppressWarnings("unchecked")
     public Map<String, Object> getMap(String key) {
         return m.get(key) instanceof Map<?, ?> mm ? (Map<String, Object>) mm : Map.of();
