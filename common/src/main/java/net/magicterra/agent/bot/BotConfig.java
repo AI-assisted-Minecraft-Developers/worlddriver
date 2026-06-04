@@ -431,6 +431,10 @@ public final class BotConfig {
      *  HazardField (the bot would drown before climbing out). Default 2. */
     public static volatile int deepWaterMax = 2;
 
+    /** {@code mc.observe.scene} radius clamp (blocks). Requests larger than
+     *  this are truncated with a truncated:true report. Default 32. */
+    public static volatile int sceneQueryMaxRadius = 32;
+
     /** Diagnostic — when on, the elytra flight process validates the
      *  {@link net.magicterra.agent.bot.elytra.ElytraPhysics} simulator
      *  tick-by-tick against the live client (predicted vs observed

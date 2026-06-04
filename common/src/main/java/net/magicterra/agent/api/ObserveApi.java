@@ -1,5 +1,6 @@
 package net.magicterra.agent.api;
 
+import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.world.AsciiMapRenderer;
 import net.magicterra.agent.bot.world.HazardCell;
 import net.magicterra.agent.bot.world.HazardField;
@@ -343,7 +344,7 @@ public final class ObserveApi {
         Params p = Params.of(params);
         BlockPos explicit = p.getPos("center");
         int requestedRadius = p.getInt("radius", 12);
-        int radius = Params.clamp(requestedRadius, 1, 32);
+        int radius = Params.clamp(requestedRadius, 1, BotConfig.sceneQueryMaxRadius);
         String render = p.getString("render", "summary");
         List<String> overlays = p.getStringList("overlays");
         ServerLevel level = api.level();
@@ -372,7 +373,7 @@ public final class ObserveApi {
             out.put("center", Map.of("x", center.getX(), "y", center.getY(), "z", center.getZ()));
             out.put("radius", radius);
             // Fix 2: report truncation when the requested radius exceeded the max.
-            if (requestedRadius > 32) {
+            if (requestedRadius > BotConfig.sceneQueryMaxRadius) {
                 out.put("truncated", true);
                 out.put("requested", requestedRadius);
             }
