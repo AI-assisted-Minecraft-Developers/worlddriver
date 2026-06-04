@@ -7,6 +7,7 @@ import java.util.Map;
 import net.magicterra.agent.mcp.catalog.BotTools;
 import net.magicterra.agent.mcp.catalog.ClientTools;
 import net.magicterra.agent.mcp.catalog.ObserveActionTools;
+import net.magicterra.agent.mcp.catalog.RecipeTools;
 import net.magicterra.agent.mcp.catalog.ScriptTools;
 import net.magicterra.agent.mcp.catalog.SystemTools;
 import net.magicterra.agent.mcp.catalog.WaitTools;
@@ -39,6 +40,7 @@ public final class ToolCatalog {
         all.addAll(SystemTools.tools());
         all.addAll(ScriptTools.tools());
         all.addAll(ObserveActionTools.tools());
+        all.addAll(RecipeTools.tools());
         all.addAll(WaitTools.tools());
         all.addAll(ClientTools.tools());
         all.addAll(BotTools.tools());

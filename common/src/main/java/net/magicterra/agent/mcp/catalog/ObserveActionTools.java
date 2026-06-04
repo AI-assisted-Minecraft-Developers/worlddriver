@@ -39,6 +39,37 @@ public final class ObserveActionTools {
                     )
                 )),
 
+            roTool("mc.observe.threats",
+                "Scored hostile + incoming-projectile assessment around the player (client-only; " +
+                "empty without a client). Returns {threats:[{id, type, pos, distance, hostile, " +
+                "canSeeMe, facingMe, charging, creeperSwell, threat}], incomingProjectiles:[{id, " +
+                "type, pos, vel, willHit, ticksToImpact}]}. `threat` is a 0–1 danger score (higher " +
+                "= attack/flee this first); `canSeeMe` is a line-of-sight raycast; `creeperSwell` " +
+                "rises 0→1 as a creeper detonates. Use it to pick a combat target or judge danger; " +
+                "the bot's own reflexes (autoShield/autoRetreat/panic-dodge) already read it.",
+                Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "radius", Map.of("type", "integer", "minimum", 1, "maximum", 64,
+                            "description", "Scan radius in blocks (default 24).")
+                    ))),
+
+            roTool("mc.observe.boss",
+                "Boss-fight sensing (Phase G; client-only, absent on a dedicated server). Returns the " +
+                "nearest ender dragon or wither within radius plus the End-crystal list. Common fields: " +
+                "{present, type:'ender_dragon'|'wither', id, health, maxHealth, healthPct, pos, distance}. " +
+                "Dragon adds {phase (perch/circling/strafing/charging/landing/takeoff/dying/...), perched " +
+                "(the prime melee window), head:{x,y,z,id}, crystalsAlive}. Wither adds {invulTicks (>0 = " +
+                "spawn animation, about to explode), powered (<=50% hp, vanilla phase 2), phase (1|2|" +
+                "'spawning')}. crystals:[{id,pos,distance,caged}] is always present — the dragon playbook " +
+                "clears them as a hard gate (the dragon heals while any remain). present:false with no boss.",
+                Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "radius", Map.of("type", "integer", "minimum", 1, "maximum", 256,
+                            "description", "Scan radius in blocks (default 64 — covers the End-pillar ring).")
+                    ))),
+
             roTool("mc.observe.container",
                 "Read container contents. With pos: BlockEntity at pos (chest/barrel/hopper/" +
                 "furnace/dispenser); slot indices vanilla (furnace: 0=input,1=fuel,2=output). " +
@@ -184,7 +215,9 @@ public final class ObserveActionTools {
                             "properties", Map.of(
                                 "in_radius", Map.of("type", "integer", "minimum", 0, "maximum", 128),
                                 "type",      Map.of("type", "string",
-                                    "description", "Blocks only: restrict to this block id."),
+                                    "description", "Blocks only: restrict to this block id, or a '#tag' "
+                                        + "selector to match any block in that tag (e.g. '#minecraft:logs' "
+                                        + "matches every log species)."),
                                 "is_hostile", Map.of("type", "boolean",
                                     "description", "Entities only: restrict to hostile mobs.")
                             )

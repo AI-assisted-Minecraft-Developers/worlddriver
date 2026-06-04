@@ -55,9 +55,49 @@ public final class SettingsCommand {
                 BotConfig.autoRespawn = ar;
                 applied.add("autoRespawn");
             }
+            if (params.get("autoRetreat") instanceof Boolean art) {
+                BotConfig.autoRetreat = art;
+                applied.add("autoRetreat");
+            }
+            if (params.get("autoBunker") instanceof Boolean abk) {
+                BotConfig.autoBunker = abk;
+                applied.add("autoBunker");
+            }
+            if (params.get("autoTotem") instanceof Boolean ato) {
+                BotConfig.autoTotem = ato;
+                applied.add("autoTotem");
+            }
+            if (params.get("autoShield") instanceof Boolean ash) {
+                BotConfig.autoShield = ash;
+                applied.add("autoShield");
+            }
+            if (params.get("autoHeal") instanceof Boolean ah) {
+                BotConfig.autoHeal = ah;
+                applied.add("autoHeal");
+            }
+            if (params.get("autoDodge") instanceof Boolean ado) {
+                BotConfig.autoDodge = ado;
+                applied.add("autoDodge");
+            }
+            if (params.get("autoFight") instanceof Boolean af) {
+                BotConfig.autoFight = af;
+                applied.add("autoFight");
+            }
+            if (params.get("combatCrit") instanceof Boolean cc) {
+                BotConfig.combatCrit = cc;
+                applied.add("combatCrit");
+            }
+            if (params.get("autoEquip") instanceof Boolean ae2) {
+                BotConfig.autoEquip = ae2;
+                applied.add("autoEquip");
+            }
             if (params.get("autoSwim") instanceof Boolean as) {
                 BotConfig.autoSwim = as;
                 applied.add("autoSwim");
+            }
+            if (params.get("antiSuffocate") instanceof Boolean asf) {
+                BotConfig.antiSuffocate = asf;
+                applied.add("antiSuffocate");
             }
             if (params.get("allowParkour4") instanceof Boolean ap4) {
                 BotConfig.allowParkour4 = ap4;
@@ -70,6 +110,14 @@ public final class SettingsCommand {
             if (params.get("allowBreak") instanceof Boolean ab) {
                 BotConfig.allowBreak = ab;
                 applied.add("allowBreak");
+            }
+            if (params.get("allowSwimEscapeBreak") instanceof Boolean ase) {
+                BotConfig.allowSwimEscapeBreak = ase;
+                applied.add("allowSwimEscapeBreak");
+            }
+            if (params.get("allowSwimEscapePlace") instanceof Boolean asp) {
+                BotConfig.allowSwimEscapePlace = asp;
+                applied.add("allowSwimEscapePlace");
             }
             if (params.get("allowPlace") instanceof Boolean apl) {
                 BotConfig.allowPlace = apl;
@@ -136,6 +184,15 @@ public final class SettingsCommand {
                     applied.add("pathfinder.ledgeDangerMinDrop");
                 }
             }
+            if (params.get("pathfinder.waterDangerPenalty") instanceof Number wdp) {
+                double v = wdp.doubleValue();
+                if (v < 0 || v > 1000) {
+                    rejected.add("pathfinder.waterDangerPenalty: out of range [0,1000]");
+                } else {
+                    BotConfig.waterDangerPenalty = v;
+                    applied.add("pathfinder.waterDangerPenalty");
+                }
+            }
             if (params.get("avoidMobs") instanceof Boolean avm) {
                 BotConfig.avoidMobs = avm;
                 applied.add("avoidMobs");
@@ -175,6 +232,15 @@ public final class SettingsCommand {
                 } else {
                     BotConfig.mobAvoidRadius = v;
                     applied.add("pathfinder.mobAvoidRadius");
+                }
+            }
+            if (params.get("pathfinder.avoidZonePenalty") instanceof Number azp) {
+                double v = azp.doubleValue();
+                if (v < 0 || v > 5000) {
+                    rejected.add("pathfinder.avoidZonePenalty: out of range [0,5000]");
+                } else {
+                    BotConfig.avoidZonePenalty = v;
+                    applied.add("pathfinder.avoidZonePenalty");
                 }
             }
             if (params.get("pathfinder.mobAvoidPenalty") instanceof Number mp) {
@@ -230,6 +296,27 @@ public final class SettingsCommand {
                     rejected.add("blocksToAvoid: invalid ids " + bad);
                 }
             }
+            // avoidPoints: agent-marked danger zones to route around. List of points,
+            // each {x,y,z,radius?} (radius default 8). Whole-list replacement — pass []
+            // to clear. e.g. [{"x":50,"y":58,"z":350,"radius":10}].
+            if (params.get("avoidPoints") instanceof List<?> ap) {
+                List<double[]> zones = new ArrayList<>();
+                boolean ok = true;
+                for (Object o : ap) {
+                    if (!(o instanceof Map<?, ?> pm)) { ok = false; break; }
+                    Object x = pm.get("x"), y = pm.get("y"), z = pm.get("z"), r = pm.get("radius");
+                    if (!(x instanceof Number nx) || !(y instanceof Number ny) || !(z instanceof Number nz)) { ok = false; break; }
+                    double rad = (r instanceof Number nr) ? nr.doubleValue() : 8.0;
+                    if (rad < 1) rad = 1; if (rad > 64) rad = 64;
+                    zones.add(new double[]{ nx.doubleValue(), ny.doubleValue(), nz.doubleValue(), rad });
+                }
+                if (ok) {
+                    BotConfig.avoidZones = zones.toArray(new double[0][]);
+                    applied.add("avoidPoints");
+                } else {
+                    rejected.add("avoidPoints: each item must be {x,y,z,radius?}");
+                }
+            }
             for (Map.Entry<String, Object> e : params.entrySet()) {
                 String k = e.getKey();
                 Object v = e.getValue();
@@ -258,6 +345,54 @@ public final class SettingsCommand {
                     case "autoEatFoodThreshold":
                         if (n.intValue() >= 0 && n.intValue() <= 20) { BotConfig.autoEatFoodThreshold = n.intValue(); applied.add(k); }
                         else rejected.add(k + " out of range [0,20]");
+                        break;
+                    case "bunkerHpThreshold":
+                        if (n.floatValue() >= 0f && n.floatValue() <= 20f) { BotConfig.bunkerHpThreshold = n.doubleValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [0,20]");
+                        break;
+                    case "bunkerTriggerRadius":
+                        if (n.floatValue() >= 1f && n.floatValue() <= 16f) { BotConfig.bunkerTriggerRadius = n.doubleValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [1,16]");
+                        break;
+                    case "bunkerMinHostiles":
+                        if (n.intValue() >= 1 && n.intValue() <= 10) { BotConfig.bunkerMinHostiles = n.intValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [1,10]");
+                        break;
+                    case "bunkerDepth":
+                        if (n.intValue() >= 1 && n.intValue() <= 5) { BotConfig.bunkerDepth = n.intValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [1,5]");
+                        break;
+                    case "retreatHpThreshold":
+                        if (n.floatValue() >= 0f && n.floatValue() <= 20f) { BotConfig.retreatHpThreshold = n.floatValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [0,20]");
+                        break;
+                    case "healHpThreshold":
+                        if (n.floatValue() >= 0f && n.floatValue() <= 20f) { BotConfig.healHpThreshold = n.floatValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [0,20]");
+                        break;
+                    case "creeperKeepDistance":
+                        if (n.doubleValue() >= 1 && n.doubleValue() <= 16) { BotConfig.creeperKeepDistance = n.doubleValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [1,16]");
+                        break;
+                    case "projectileDodgeRadius":
+                        if (n.doubleValue() >= 1 && n.doubleValue() <= 32) { BotConfig.projectileDodgeRadius = n.doubleValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [1,32]");
+                        break;
+                    case "combatReach":
+                        if (n.doubleValue() >= 1 && n.doubleValue() <= 6) { BotConfig.combatReach = n.doubleValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [1,6]");
+                        break;
+                    case "kiteDistance":
+                        if (n.doubleValue() >= 3 && n.doubleValue() <= 32) { BotConfig.kiteDistance = n.doubleValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [3,32]");
+                        break;
+                    case "autoFightThreatThreshold":
+                        if (n.doubleValue() >= 0 && n.doubleValue() <= 1) { BotConfig.autoFightThreatThreshold = n.doubleValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [0,1]");
+                        break;
+                    case "equipDurabilityThreshold":
+                        if (n.doubleValue() >= 0 && n.doubleValue() <= 1) { BotConfig.equipDurabilityThreshold = n.doubleValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [0,1]");
                         break;
                     case "pathfinder.maxNodes":
                         if (n.intValue() >= 1000 && n.intValue() <= 1_000_000) { BotConfig.pathfinderMaxNodes = n.intValue(); applied.add(k); }
@@ -300,13 +435,37 @@ public final class SettingsCommand {
         snap.put("autoEat", BotConfig.autoEat);
         snap.put("autoEatFoodThreshold", BotConfig.autoEatFoodThreshold);
         snap.put("autoRespawn", BotConfig.autoRespawn);
+        snap.put("autoRetreat", BotConfig.autoRetreat);
+        snap.put("retreatHpThreshold", BotConfig.retreatHpThreshold);
+        snap.put("autoBunker", BotConfig.autoBunker);
+        snap.put("bunkerHpThreshold", BotConfig.bunkerHpThreshold);
+        snap.put("bunkerTriggerRadius", BotConfig.bunkerTriggerRadius);
+        snap.put("bunkerMinHostiles", BotConfig.bunkerMinHostiles);
+        snap.put("bunkerDepth", BotConfig.bunkerDepth);
+        snap.put("autoTotem", BotConfig.autoTotem);
+        snap.put("autoShield", BotConfig.autoShield);
+        snap.put("autoHeal", BotConfig.autoHeal);
+        snap.put("healHpThreshold", BotConfig.healHpThreshold);
+        snap.put("autoDodge", BotConfig.autoDodge);
+        snap.put("creeperKeepDistance", BotConfig.creeperKeepDistance);
+        snap.put("projectileDodgeRadius", BotConfig.projectileDodgeRadius);
+        snap.put("autoFight", BotConfig.autoFight);
+        snap.put("autoFightThreatThreshold", BotConfig.autoFightThreatThreshold);
+        snap.put("combatReach", BotConfig.combatReach);
+        snap.put("kiteDistance", BotConfig.kiteDistance);
+        snap.put("combatCrit", BotConfig.combatCrit);
+        snap.put("autoEquip", BotConfig.autoEquip);
+        snap.put("equipDurabilityThreshold", BotConfig.equipDurabilityThreshold);
         snap.put("autoSwim", BotConfig.autoSwim);
+        snap.put("antiSuffocate", BotConfig.antiSuffocate);
         snap.put("autoTool", BotConfig.autoTool);
         snap.put("autoBackfill", BotConfig.autoBackfill);
         snap.put("autoBackfillBlock", BotConfig.autoBackfillBlock);
         snap.put("autoBackfillRadius", BotConfig.autoBackfillRadius);
         snap.put("allowParkour4", BotConfig.allowParkour4);
         snap.put("allowBreak", BotConfig.allowBreak);
+        snap.put("allowSwimEscapeBreak", BotConfig.allowSwimEscapeBreak);
+        snap.put("allowSwimEscapePlace", BotConfig.allowSwimEscapePlace);
         snap.put("allowPlace", BotConfig.allowPlace);
         snap.put("allowParkourPlace", BotConfig.allowParkourPlace);
         snap.put("allowWaterBucketFall", BotConfig.allowWaterBucketFall);
@@ -317,6 +476,7 @@ public final class SettingsCommand {
         snap.put("pathfinder.lavaDangerPenalty", BotConfig.lavaDangerPenalty);
         snap.put("pathfinder.contactDangerPenalty", BotConfig.contactDangerPenalty);
         snap.put("pathfinder.ledgeDangerPenalty", BotConfig.ledgeDangerPenalty);
+        snap.put("pathfinder.waterDangerPenalty", BotConfig.waterDangerPenalty);
         snap.put("pathfinder.ledgeDangerMinDrop", BotConfig.ledgeDangerMinDrop);
         snap.put("avoidMobs", BotConfig.avoidMobs);
         snap.put("pathfinder.mobAvoidRadius", BotConfig.mobAvoidRadius);
@@ -330,10 +490,24 @@ public final class SettingsCommand {
         snap.put("pathfinder.sliceMs", BotConfig.pathfinderSliceMs);
         snap.put("pathfinder.axisHeight", BotConfig.axisHeight);
         snap.put("blocksToAvoid", new ArrayList<>(BotConfig.extraHazardBlocks));
+        snap.put("pathfinder.avoidZonePenalty", BotConfig.avoidZonePenalty);
+        {
+            List<Map<String, Object>> zs = new ArrayList<>();
+            for (double[] z : BotConfig.avoidZones) {
+                if (z.length < 4) continue;
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("x", z[0]); m.put("y", z[1]); m.put("z", z[2]); m.put("radius", z[3]);
+                zs.add(m);
+            }
+            snap.put("avoidPoints", zs);
+        }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("ok", true);
         out.put("settings", snap);
-        if (!applied.isEmpty())  out.put("applied", applied);
+        if (!applied.isEmpty()) {
+            out.put("applied", applied);
+            BotConfig.save();   // persist so these settings survive a client restart
+        }
         if (!rejected.isEmpty()) out.put("rejected", rejected);
         return out;
     }

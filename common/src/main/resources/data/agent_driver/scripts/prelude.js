@@ -57,7 +57,12 @@ Agent.observe = {
         return Agent.invoke('mc.observe.eventsSince', p);
     },
     player:    function (name) { return Agent.invoke('mc.observe.player', name ? { name: name } : {}); },
-    container: function (pos)  { return Agent.invoke('mc.observe.container', { pos: pos }); }
+    container: function (pos)  { return Agent.invoke('mc.observe.container', { pos: pos }); },
+    // Phase G boss sensing — nearest dragon/wither + End-crystal list.
+    boss:      function (opts)  { return Agent.invoke('mc.observe.boss', opts || {}); },
+    // ASCII spatial map — opts {plane:'xz'|'xy'|'zy', radius, height, center?}.
+    // Top-down heightmap (xz) or vertical cross-section (xy/zy); mobs overlaid.
+    map:       function (opts)  { return Agent.invoke('mc.observe.map', opts || {}); }
 };
 
 Agent.action = {
@@ -74,6 +79,44 @@ Agent.action = {
 };
 
 Agent.query = function (p) { return Agent.invoke('mc.query', p); };
+
+// Phase H — goal-directed acquisition planner: "I want X" → ordered mine/farm/
+// smelt/craft steps (recipe.resolve + how to get every missing leaf).
+Agent.plan = {
+    acquire: function (opts) { return Agent.invoke('mc.plan.acquire', opts || {}); }
+};
+
+// Phase H — persistent skill library (Voyager). Write a JS skill once, reuse it
+// by name across sessions. The skill reads its call args from a SKILL global.
+Agent.skill = {
+    save:   function (name, source) { return Agent.invoke('mc.skill', { op: 'save', name: name, source: source }); },
+    list:   function ()             { return Agent.invoke('mc.skill', { op: 'list' }); },
+    get:    function (name)         { return Agent.invoke('mc.skill', { op: 'get', name: name }); },
+    run:    function (name, args)   { return Agent.invoke('mc.skill', { op: 'run', name: name, args: args || {} }); },
+    remove: function (name)         { return Agent.invoke('mc.skill', { op: 'delete', name: name }); }
+};
+
+// Driver→agent event channel (server-side surface). The live push rides the
+// transports (subscribe over WebSocket / the MCP SSE stream at /mcp/events);
+// these helpers cover injecting custom events and registering condition watchers.
+Agent.events = {
+    // Inject a custom event into the stream (the manual "自定义条件满足" path).
+    emit:    function (type, data, pos) {
+        var p = { op: 'emit', type: type };
+        if (data !== undefined) p.data = data;
+        if (pos !== undefined) p.pos = pos;
+        return Agent.invoke('mc.events', p);
+    },
+    // Register a rising-edge watcher. opts: {invoke, params?, field?, value?|above?|
+    // below?, emitAs?, everyMs?, once?}. First poll where the predicate flips
+    // false→true emits emitAs (default 'condition.met') into the stream.
+    watch:   function (opts) {
+        var p = Object.assign({ op: 'watch' }, opts || {});
+        return Agent.invoke('mc.events', p);
+    },
+    unwatch: function (id) { return Agent.invoke('mc.events', { op: 'unwatch', id: id }); },
+    list:    function ()   { return Agent.invoke('mc.events', { op: 'list' }); }
+};
 
 // Wait helpers — convenience wrappers; full options accepted on the opts object.
 Agent.wait = {
@@ -111,7 +154,14 @@ Agent.client = {
         history: function (opts) { return Agent.invoke('mc.client.chat.history', opts || {}); }
     },
     overlays:   function (opts) { return Agent.invoke('mc.client.overlays',  opts || {}); },
-    screenshot: function (opts) { return Agent.invoke('mc.client.screenshot', opts || {}); }
+    screenshot: function (opts) { return Agent.invoke('mc.client.screenshot', opts || {}); },
+    // Client-AUTHORITATIVE reads — always the LocalPlayer / ClientLevel, even
+    // when a server is attached (unlike Agent.observe.player / Agent.query which
+    // prefer the server). player() adds pose, eyePos, isInWall/inWater, and the
+    // eye/feet block from the ClientLevel — diff vs Agent.observe.player() to
+    // spot a client/server desync. blocks({center,filter}) scans ClientLevel.
+    player:     function ()     { return Agent.invoke('mc.client.player', {}); },
+    blocks:     function (opts) { return Agent.invoke('mc.client.blocks', opts || {}); }
 };
 
 Agent.bot = {
@@ -216,6 +266,9 @@ Agent.bot = {
     setting:   function (opts) { return Agent.invoke('mc.bot.setting',   opts || {}); },
     status:    function ()     { return Agent.invoke('mc.bot.status',    {}); },
     cancel:    function (opts) { return Agent.invoke('mc.bot.cancel',    opts || {}); },
+    // Phase G boss playbooks — {name:'dragon'|'wither'} to start (async, background),
+    // {op:'status'} to poll, {op:'cancel'} to stop.
+    playbook:  function (opts) { return Agent.invoke('mc.bot.playbook',  opts || {}); },
     pause:     function ()     { return Agent.invoke('mc.bot.setting',   { paused: true  }); },
     resume:    function ()     { return Agent.invoke('mc.bot.setting',   { paused: false }); },
     // Baritone-style survival toggles — sugar over mc.bot.setting.

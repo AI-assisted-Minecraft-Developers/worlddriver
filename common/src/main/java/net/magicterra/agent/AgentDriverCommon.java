@@ -4,11 +4,14 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.magicterra.agent.api.AgentApi;
+import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.mcp.McpServer;
 import net.magicterra.agent.rpc.RpcServer;
 import net.magicterra.agent.script.AgentScriptManager;
 import net.magicterra.agent.script.McpBridge;
+import net.magicterra.agent.script.PlaybookRunner;
 import net.magicterra.agent.script.RpcBridge;
+import net.magicterra.agent.script.SkillLibrary;
 import net.magicterra.agent.script.ScriptEvaluator;
 import net.magicterra.agent.test.AgentTest;
 import net.minecraft.commands.CommandSourceStack;
@@ -67,7 +70,18 @@ public final class AgentDriverCommon {
             "30_backfill.js",
             "31_goal_types.js",
             "32_break_place.js",
-            "33_world_snapshot.js"
+            "33_world_snapshot.js",
+            "34_yaml_gametest.js",
+            "40_scheduler.js",
+            "41_defense.js",
+            "42_combat.js",
+            "43_recipe.js",
+            "44_craft.js",
+            "45_equip.js",
+            "46_boss.js",
+            "47_plan.js",
+            "48_skill.js",
+            "49_events.js"
     );
 
     private static AgentApi api;
@@ -95,6 +109,7 @@ public final class AgentDriverCommon {
         if (api != null && rpcServer != null) return;
         try {
             if (api == null) {
+                BotConfig.load();   // restore persisted bot settings before any tick reads them
                 api = new AgentApi();
                 ScriptEvaluator evaluator = new ScriptEvaluator(api);
                 api.setScriptHandler(p -> {
@@ -102,6 +117,13 @@ public final class AgentDriverCommon {
                     int to = (p.get("timeoutMs") instanceof Number n) ? n.intValue() : 0;
                     return evaluator.evaluate(src, to);
                 });
+                // Phase G — boss playbooks run on a background thread (long budget,
+                // cancellable) in the same Rhino sandbox as mc.script.eval.
+                PlaybookRunner playbookRunner = new PlaybookRunner(evaluator);
+                api.setPlaybookHandler(playbookRunner::dispatch);
+                // Phase H — persistent skill library (Voyager) under scripts/skills/.
+                SkillLibrary skillLibrary = new SkillLibrary(evaluator, userScriptsDir().resolve("skills"));
+                api.setSkillHandler(skillLibrary::dispatch);
             }
             if (rpcServer == null) {
                 int wantPort = Integer.getInteger("agent.rpcPort", 0);

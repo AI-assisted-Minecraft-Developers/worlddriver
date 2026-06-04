@@ -22,6 +22,7 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,6 +33,13 @@ import java.util.function.Supplier;
 
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.process.*;
+import net.magicterra.agent.bot.scheduler.BunkerChain;
+import net.magicterra.agent.bot.scheduler.CombatChain;
+import net.magicterra.agent.bot.scheduler.DodgeChain;
+import net.magicterra.agent.bot.scheduler.PanicChain;
+import net.magicterra.agent.bot.scheduler.ProcessScheduler;
+import net.magicterra.agent.bot.scheduler.RetreatChain;
+import net.magicterra.agent.bot.scheduler.UserTaskChain;
 
 import static net.magicterra.agent.bot.GoalResolver.*;
 import static net.magicterra.agent.bot.movement.ClutchController.CLUTCH;
@@ -42,8 +50,14 @@ import java.util.Locale;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.magicterra.agent.bot.auto.AutoEat;
+import net.magicterra.agent.bot.auto.AutoEquip;
+import net.magicterra.agent.bot.auto.AutoShield;
+import net.magicterra.agent.bot.auto.AutoHeal;
+import net.magicterra.agent.bot.auto.AutoTotem;
+import net.magicterra.agent.bot.combat.ThreatScanner;
 import net.magicterra.agent.bot.auto.AutoTool;
 import net.magicterra.agent.bot.auto.AutoSwim;
+import net.magicterra.agent.bot.auto.AntiSuffocate;
 import net.magicterra.agent.bot.auto.AutoRespawn;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -53,14 +67,36 @@ import java.util.concurrent.ConcurrentHashMap;
  * goto (Phase 1), mine (Phase 2). Others return unimplemented.
  *
  * Threading: every {@code mc.bot.*} call marshals to the client thread via
- * {@link #onClient}; {@link #clientTick} runs on it already. {@link #current}
- * is only written from the client thread.
+ * {@link #onClient}; {@link #clientTick} runs on it already. The movement
+ * channel ({@link ProcessScheduler}) is only mutated from the client thread.
  */
 public final class BotApiImpl implements BotApi {
 
     private final BotState state = new BotState();
     private final WorldView world = new ClientWorldView();
-    private volatile BotProcess current;
+    /** The foreground user task (goto/mine/build/...) lives in this chain. */
+    private final UserTaskChain userTask = new UserTaskChain(state);
+    /** Phase C active-combat chain (priority 60). Holds the combat intent set by
+     *  {@code mc.bot.combat} and the CombatProcess that executes it. */
+    private final CombatChain combatChain = new CombatChain(state);
+    /** Movement-channel scheduler: each tick runs the highest-priority chain,
+     *  letting survival/combat chains preempt the user task and hand it back. */
+    private final ProcessScheduler scheduler = new ProcessScheduler();
+    {
+        // Reflex chains outrank the user task (see Priorities); registration
+        // order is irrelevant, selection is purely by per-tick priority.
+        scheduler.register(new PanicChain());     // 1000 — creeper blast
+        scheduler.register(new DodgeChain());     // 900  — incoming projectile
+        // NOTE: the 挖三填一 bunker is NOT an auto-reflex chain (too uncontrollable —
+        // it fought the creeper-panic and dug at bad spots). It is an AGENT-INVOKED
+        // action instead: mc.bot.bunker{depth} → BunkerProcess, so the Agent plans
+        // when/where to dig in (e.g. at sunset) and pairs it with mc.wait.condition
+        // on observe time to wait out the night. See BunkerProcess / BunkerChain (kept
+        // for reference but unregistered).
+        scheduler.register(new RetreatChain(state)); // 100 — low-HP flee
+        scheduler.register(combatChain);          // 60  — active combat
+        scheduler.register(userTask);             // 50  — foreground task
+    }
     volatile boolean paused;
     /** Named positions persisted for the lifetime of the bot impl (no disk).
      *  Survives across goto/mine/etc. so a script can label home/farm/base
@@ -70,6 +106,12 @@ public final class BotApiImpl implements BotApi {
     /** autoEat hold-keyUse loop. Owns its own {@code eating} flag; the tick
      *  hook drives it and releases the key when a process takes over. */
     private final AutoEat autoEat = new AutoEat();
+    /** Phase B ambient hand reflexes (concurrent with movement). AutoShield/
+     *  AutoHeal contend for the use key with autoEat — arbitrated in clientTick;
+     *  AutoTotem owns the offhand slot independently. */
+    private final AutoShield autoShield = new AutoShield();
+    private final AutoHeal autoHeal = new AutoHeal();
+    private final AutoTotem autoTotem = new AutoTotem();
 
     /** Records cells the player's foot passed through while {@link BotConfig#autoBackfill}
      *  is on. BackfillProcess consumes from this when no main process is
@@ -301,13 +343,164 @@ public final class BotApiImpl implements BotApi {
         });
     }
 
+    @Override
+    public Map<String, Object> bunker(Map<String, Object> params) {
+        Params p = Params.of(params == null ? Map.of() : params);
+        final int depth = p.getIntClamped("depth", BotConfig.bunkerDepth, 1, 5);
+        return onClient(() -> {
+            if (Minecraft.getInstance().player == null) {
+                return Map.of("ok", false, "error", "no player");
+            }
+            startProcess(new BunkerProcess(depth));
+            return Map.of("ok", true, "started", true, "depth", depth);
+        });
+    }
+
+    @Override
+    public Map<String, Object> escape(Map<String, Object> params) {
+        Params p = Params.of(params == null ? Map.of() : params);
+        return onClient(() -> {
+            LocalPlayer pl = Minecraft.getInstance().player;
+            if (pl == null) return Map.of("ok", false, "error", "no player");
+            // Climb until this Y (default: ~32 above current — far enough to clear
+            // any pit; the skyOpen check ends it the moment it surfaces sooner).
+            int targetY = p.getIntClamped("targetY", pl.blockPosition().getY() + 32, -64, 320);
+            startProcess(new EscapeProcess(targetY));
+            return Map.of("ok", true, "started", true, "targetY", targetY);
+        });
+    }
+
+    @Override
+    public Map<String, Object> craft(Map<String, Object> params) {
+        if (params == null) return Map.of("ok", false, "error", "missing item");
+        Params p = Params.of(params);
+        String item = p.getNonBlank("item");
+        if (item == null) return Map.of("ok", false, "error", "item required");
+        final int count = p.getIntClamped("count", 1, 1, 256);
+        return onClient(() -> {
+            if (Minecraft.getInstance().player == null) {
+                state.craft.lastError = "no player";
+                return Map.of("ok", false, "error", "no player");
+            }
+            startProcess(new CraftProcess(item, count));
+            return Map.of("ok", true, "started", true, "item", item, "count", count);
+        });
+    }
+
+    @Override
+    public Map<String, Object> smelt(Map<String, Object> params) {
+        if (params == null) return Map.of("ok", false, "error", "missing item");
+        Params p = Params.of(params);
+        String item = p.getNonBlank("item");
+        if (item == null) return Map.of("ok", false, "error", "item required");
+        final int count = p.getIntClamped("count", 1, 1, 256);
+        final String fuel = p.getNonBlank("fuel");
+        return onClient(() -> {
+            if (Minecraft.getInstance().player == null) {
+                state.smelt.lastError = "no player";
+                return Map.of("ok", false, "error", "no player");
+            }
+            startProcess(new SmeltProcess(item, count, fuel));
+            return Map.of("ok", true, "started", true, "item", item, "count", count,
+                    "fuel", fuel == null ? "auto" : fuel);
+        });
+    }
+
+    @Override
+    public Map<String, Object> combat(Map<String, Object> params) {
+        Params p = Params.of(params);
+        String modeStr = p.get("mode") instanceof String s ? s.trim().toLowerCase() : "engage";
+        CombatProcess.Mode mode = switch (modeStr) {
+            case "kill"   -> CombatProcess.Mode.KILL;
+            case "defend" -> CombatProcess.Mode.DEFEND;
+            case "engage" -> CombatProcess.Mode.ENGAGE;
+            default       -> null;
+        };
+        if (mode == null) {
+            return Map.of("ok", false, "error", "mode must be engage|defend|kill");
+        }
+        // target:{id:int} or {type:"minecraft:zombie"} (also accepts a bare type/id key).
+        Integer id = null;
+        String type = null;
+        Object tgt = p.get("target");
+        if (tgt instanceof Map<?, ?> tm) {
+            Object idObj = tm.get("id");
+            if (idObj instanceof Number n) id = n.intValue();
+            Object tyObj = tm.get("type");
+            if (tyObj instanceof String ts && !ts.isBlank()) type = normalizeEntityId(ts.trim());
+        } else if (tgt instanceof Number n) {
+            id = n.intValue();
+        } else if (tgt instanceof String ts && !ts.isBlank()) {
+            type = normalizeEntityId(ts.trim());
+        }
+        if (mode == CombatProcess.Mode.KILL && id == null && type == null) {
+            return Map.of("ok", false, "error", "kill mode requires target:{id|type}");
+        }
+        final CombatProcess.Mode fMode = mode;
+        final Integer fId = id;
+        final String fType = type;
+        return onClient(() -> {
+            if (Minecraft.getInstance().player == null) {
+                state.combat.lastError = "no player";
+                return Map.of("ok", false, "error", "no player");
+            }
+            combatChain.engage(fMode, fId, fType);
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("ok", true);
+            out.put("started", true);
+            out.put("mode", fMode.name().toLowerCase());
+            if (fId != null) out.put("targetId", fId);
+            if (fType != null) out.put("targetType", fType);
+            return out;
+        });
+    }
+
+    /** Accept a bare entity name ("zombie") or a full id ("minecraft:zombie"). */
+    private static String normalizeEntityId(String s) {
+        return s.indexOf(':') >= 0 ? s : "minecraft:" + s;
+    }
+
+    @Override
+    public Map<String, Object> equip(Map<String, Object> params) {
+        Params p = Params.of(params);
+        // profile: "best"/"combat" → armor + weapon; "armor" → armor only.
+        String profile = p.get("profile") instanceof String s ? s.trim().toLowerCase() : "best";
+        boolean armorOnly = p.getBool("armorOnly", false) || "armor".equals(profile);
+        return onClient(() -> {
+            LocalPlayer player = Minecraft.getInstance().player;
+            if (player == null) return Map.of("ok", false, "error", "no player");
+            AutoEquip.Result r = AutoEquip.equipBest(
+                    Minecraft.getInstance(), player, !armorOnly, BotConfig.equipDurabilityThreshold);
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("ok", true);
+            out.put("profile", armorOnly ? "armor" : profile);
+            out.put("equipped", r.equipped());
+            out.put("loadout", r.loadout());
+            out.put("lowDurability", r.lowDurability());
+            out.put("missing", r.missing());
+            return out;
+        });
+    }
+
     @Override public Map<String, Object> status() {
         Map<String, Object> snap = state.snapshot();
         snap.put("paused", paused);
         // Snapshot the volatile field to a local; the client tick thread may
-        // null `current` between the null check and a subsequent `.kind()` read.
-        BotProcess c = current;
+        // null the held process between the null check and a subsequent read.
+        BotProcess c = userTask.process();
+        // activeProcess = the foreground user task (unchanged semantics, even
+        // while suspended by a survival/combat chain — that's what the agent
+        // started). activeChain = what's actually steering right now.
         snap.put("activeProcess", c == null ? null : c.kind());
+        // Sub-phase of a multi-phase process (e.g. bunker DIG_DOWN/…/SEALED/DONE)
+        // so the agent can distinguish "still working" from "safely sealed" from
+        // "finished/bailed" — a flat "bunker" reads identically in all cases and
+        // led to a working shelter being cancelled mid-seal. null for processes
+        // with no sub-state.
+        snap.put("activeProcessDetail", c == null ? null : c.statusDetail());
+        snap.put("activeChain", scheduler.currentName());
+        snap.put("userTaskSuspended", c != null && scheduler.current() != userTask);
+        snap.put("chainPriorities", scheduler.lastPriorities());
         // Pathfinder stats from the most recent A* run (any process). Useful
         // for debugging "why can't the bot get there" — exposes expansion
         // count, wall-clock ms, whether the goal was reached vs. fallback.
@@ -331,7 +524,15 @@ public final class BotApiImpl implements BotApi {
         Params p = Params.of(params);
         return onClient(() -> {
             String which = p.get("process") instanceof String s ? s : "all";
-            BotProcess c = current;
+            // Combat lives in its own chain, not the user-task slot — cancel it directly.
+            if ("all".equals(which) || "combat".equals(which)) {
+                if (combatChain.engaged()) {
+                    combatChain.standDown();
+                    state.combat.lastError = "user-cancel";
+                    state.combat.active = false;
+                }
+            }
+            BotProcess c = userTask.process();
             boolean match = "all".equals(which) || (c != null && which.equals(c.kind()));
             if (match) cancelCurrent("user-cancel");
             return Map.of("ok", true, "cancelled", which);
@@ -740,9 +941,49 @@ public final class BotApiImpl implements BotApi {
         return SettingsCommand.apply(this, params);
     }
 
+    // Client-tick event detectors (driver→agent push channel). Track the local
+    // player's health/death and the current top threat across ticks so we emit a
+    // one-shot event on each transition rather than every tick.
+    private float evtLastHealth = Float.NaN;
+    private boolean evtDeathScreenSeen = false;
+    private int evtLastThreatId = -1;
+    // Day-phase transition (day/sunset/night/sunrise) — emit on change so the Agent
+    // gets a 日落提醒 to bunker/return before dark, and a sunrise cue to resume.
+    private String evtLastPhase = null;
+    // Item-pickup detection: per-item inventory counts last tick; an increase = a
+    // pickup (or craft/give) → emit the gained id + delta. evtInvInit gates the
+    // first poll so the existing inventory isn't reported as a pickup.
+    private final Map<String, Integer> evtInvCounts = new HashMap<>();
+    private boolean evtInvInit = false;
+    // Advancement-earned detection (client-side, best-effort): completed advancement
+    // ids seen so far; new ones emit. evtAdvInit seeds the first poll silently.
+    private final Set<String> evtDoneAdv = new HashSet<>();
+    private boolean evtAdvInit = false;
+    private int evtAdvThrottle = 0;
+    // Fluid-entry detection: emit a one-shot on the rising edge of entering water /
+    // lava (the 落水 / 落岩浆 warnings — the bot fell in and may be drowning/burning).
+    private boolean evtInWater = false;
+    private boolean evtInLava = false;
+    // Client message surfaces (chat / action-bar / title). No server is attached in
+    // client-MCP mode, so the server-side chat hook never fires; instead poll the
+    // client's own display buffers each tick (best-effort reflection, like the
+    // advancement poll) and emit each NEW line. Captures system messages, command
+    // results and server broadcasts too — all land in the ChatComponent buffer.
+    private String evtLastChat = null;
+    private boolean evtChatInit = false;
+    private String evtLastActionBar = null;
+    private String evtLastTitle = null;
+    private String evtLastSubtitle = null;
+
     /** Called from the platform client-tick hook every client tick. */
     public void clientTick() {
         Minecraft mc = Minecraft.getInstance();
+        // Death detection must run BEFORE autoRespawn: autoRespawn dismisses the
+        // DeathScreen (setScreen(null)), and the screen is the only client-side
+        // carrier of the SPECIFIC cause of death (slain by X / drowned / blown
+        // up). Read it on the screen's rising edge, emit player.death + cancel
+        // active processes, THEN let autoRespawn skip past.
+        detectDeath(mc);
         // autoRespawn fires even when level/player is in the dying transition —
         // DeathScreen shows briefly with mc.player still alive but at 0 HP, and
         // we want to skip past it ASAP. Done first so the rest of the tick sees
@@ -759,25 +1000,55 @@ public final class BotApiImpl implements BotApi {
         // and drives the same descent here. Both gated on allowWaterBucketFall.
         if (BotConfig.allowWaterBucketFall) CLUTCH.armReactive(mc, world);
         if (CLUTCH.tick(mc, world)) return;
-        // autoEat runs whenever a process isn't actively driving keyUse — we
-        // only fight the bot for the use button if no other process needs it.
-        // useItem-based mining/placing happens through gameMode directly, not
-        // keyUse, so the only contender is BuildProcess (PLACING phase). Skip
-        // there to avoid stealing the place click.
-        BotProcess c = current;
+        // Refresh the shared threat picture once per tick — reflex chains
+        // (panic/dodge) and the use-key arbiter (shield) all read it below.
+        ThreatScanner.refresh(mc);
+        // Driver→agent push: emit one-shot events on threat-appeared / player-hurt
+        // / player-death transitions (client-sensed; no server-side equivalent for
+        // threats, and this is the player the agent actually controls).
+        detectClientEvents(mc);
+        // Driver→agent push: surface new chat / system / command-result lines and
+        // action-bar / title text the client displays (no server-side hook in
+        // client-MCP mode). Best-effort reflection, guarded — never breaks the tick.
+        detectClientMessages(mc);
+        // Ambient hand/equipment/hotbar gating reads the foreground user process
+        // (a preempting survival/combat chain leaves it held but suspended).
+        BotProcess c = userTask.process();
         boolean processOwnsUseKey = c != null && c.kind().equals("builder");
-        if (BotConfig.autoEat && !processOwnsUseKey) {
-            autoEat.tick(mc, mc.player);
+        // Use-key arbitration (Phase B): shield > heal > eat. Only one ambient
+        // may hold keyUse per tick; the losers release. useItem-based mining/
+        // placing goes through gameMode directly (not keyUse), so the only
+        // process contender is BuildProcess (PLACING) — it owns the key then.
+        if (processOwnsUseKey) {
+            autoShield.release(mc); autoHeal.release(mc); autoEat.releaseIfActive(mc);
         } else {
-            // process took over OR autoEat got toggled off — release the key.
-            autoEat.releaseIfActive(mc);
+            ThreatScanner.Scan scan = ThreatScanner.current(mc);
+            if (BotConfig.autoShield && autoShield.wants(mc, mc.player, scan)) {
+                autoHeal.release(mc); autoEat.releaseIfActive(mc);
+                autoShield.engage(mc, mc.player, scan);
+            } else if (BotConfig.autoHeal && autoHeal.wants(mc, mc.player)) {
+                autoShield.release(mc); autoEat.releaseIfActive(mc);
+                autoHeal.engage(mc, mc.player);
+            } else if (BotConfig.autoEat) {
+                autoShield.release(mc); autoHeal.release(mc);
+                autoEat.tick(mc, mc.player);
+            } else {
+                autoShield.release(mc); autoHeal.release(mc); autoEat.releaseIfActive(mc);
+            }
         }
-        // autoSwim runs whenever no process is actively walking — Walker
-        // already sets keyJump every tick and would just be fought. Mining
-        // BREAKING also releases keyJump so we're safe to layer there too.
-        if (BotConfig.autoSwim && (c == null || !"goto".equals(c.kind()) && !"follow".equals(c.kind()) && !"explore".equals(c.kind()) && !"runAway".equals(c.kind()))) {
-            AutoSwim.tick(mc, mc.player);
+        // autoTotem owns the offhand slot (not the use key) — runs concurrently.
+        if (BotConfig.autoTotem) autoTotem.tick(mc, mc.player);
+        // autoEquip (Phase F T0): gear up the moment combat starts and keep the
+        // best armor/weapon on through the fight. Gated on an engaged combat chain
+        // so it doesn't reshuffle the inventory during peaceful crafting/building;
+        // idempotent (worn gear outscores the inventory) so it settles after a tick.
+        if (BotConfig.autoEquip && combatChain.engaged()) {
+            AutoEquip.tick(mc, mc.player, BotConfig.equipDurabilityThreshold);
         }
+        // autoSwim is applied AFTER the chain scheduler's idle releaseKeys()
+        // below — see the note there. (Running it here was a no-op for an idle
+        // bot: the idle releaseKeys() clobbered the jump key every tick, so a
+        // submerged idle bot never surfaced and drowned with autoSwim "on".)
         // autoTool only fires when no process owns hotbar selection — MineProcess
         // / BboxFillProcess / BuildProcess / FarmProcess all manage hotbar
         // themselves and would fight us. So this is essentially "swap to best
@@ -803,52 +1074,320 @@ public final class BotApiImpl implements BotApi {
         // process self-terminates once its work is done.
         if (c == null && BotConfig.autoBackfill && backfillTracker.size() > 0) {
             startProcess(new BackfillProcess(backfillTracker));
-            c = current;
         }
-        if (c == null) { releaseKeys(); return; }
-        try {
-            if (c.tick(mc, world, state)) {
-                releaseKeys();
-                current = null;
+        // Movement channel: run the highest-priority chain (user task, or a
+        // survival/combat chain preempting it). When every chain sits out, the
+        // bot is idle — release the keys, matching the old single-process path.
+        scheduler.tick(mc, world, state);
+        if (scheduler.current() == null) releaseKeys();
+        // autoSwim LAST: drowning backstop. Must run after the idle releaseKeys()
+        // above — otherwise that call clears the jump key and an idle underwater
+        // bot never surfaces (GAP #7). But idle-only was still too narrow (GAP #9):
+        // a movement process can be ACTIVE yet STUCK in water — e.g. runAway boxed
+        // into a flooded pit with no escape path (expanded≈2, Walker not stepping),
+        // so its own swim-up never fires AND the idle branch is gated off by the
+        // active process → the bot drowns mid-process. So hold jump whenever the
+        // head is submerged, regardless of process state. Rising is compatible with
+        // a walking Walker (both want the surface), and we only ever ADD lift here —
+        // the release branch (surface transition) stays idle-gated so we never
+        // clobber a land jump the Walker set.
+        if (BotConfig.autoSwim && mc.player != null && mc.player.isInWater()) {
+            // Lift while submerged AND (when idle) actively swim to the nearest
+            // shore — a bot that respawned/fell into a lake with no process used
+            // to bob until it drowned (spawn-water death-loop). Steering is
+            // idle-gated inside AutoSwim so it never fights an active goto's own
+            // water-escape moves.
+            AutoSwim.tick(mc, mc.player, world, scheduler.current() == null);
+        }
+        // Suffocation backstop: when sand caves into the bot's head while it digs a
+        // disturbed pit (bunker/goto/escape all hit this), break the eye block so it
+        // can't be suffocated to death mid-dig. Unconditional like autoSwim's lift —
+        // runs after the scheduler so it overrides a digging process's aim ONLY while
+        // the head is actually choking, then hands control straight back.
+        if (mc.player != null) AntiSuffocate.tick(mc, mc.player);
+        // Keep the combat status slot's liveness in sync with the chain so the
+        // awaitable mc.bot.combat route (which polls combat.active) completes the
+        // moment the fight ends. Counters/goal/lastError persist for post-mortem.
+        state.combat.active = combatChain.engaged();
+    }
+
+    /** Emit driver→agent push events for the local player's threat/hurt/death
+     *  transitions. Called once per client tick after the threat scan refreshes.
+     *  Everything funnels through {@code AgentApi.emitExternal} → the same event
+     *  stream block/chat/death use → subscribers on both transports. */
+    /** Fire player.death off the DeathScreen rising edge, carrying the screen's
+     *  SPECIFIC cause (combat-kill message). Also cancels active bot processes so
+     *  an autoRespawn can't resume the lethal action into a death loop. Runs
+     *  before autoRespawn so the screen — and its cause — is still readable. */
+    private void detectDeath(Minecraft mc) {
+        boolean onDeath = mc.screen instanceof net.minecraft.client.gui.screens.DeathScreen;
+        if (onDeath && !evtDeathScreenSeen) {
+            net.magicterra.agent.api.AgentApi api = net.magicterra.agent.AgentDriverCommon.api();
+            String cause = net.magicterra.agent.client.internal.ScreenIntrospection
+                    .readDeathCause((net.minecraft.client.gui.screens.DeathScreen) mc.screen);
+            if (api != null) {
+                net.minecraft.core.BlockPos at = mc.player != null
+                        ? mc.player.blockPosition() : net.minecraft.core.BlockPos.ZERO;
+                java.util.Map<String, Object> data = new java.util.HashMap<>();
+                data.put("health", mc.player != null ? (double) mc.player.getHealth() : 0.0);
+                if (cause != null && !cause.isEmpty()) data.put("cause", cause);
+                api.emitExternal("player.death", at, net.magicterra.agent.rpc.JsonCodec.encode(data));
             }
-        } catch (RuntimeException e) {
-            String err = e.getClass().getSimpleName() + ": " + e.getMessage();
-            BotState.ProcessSlot slot = slotFor(c.kind());
-            slot.lastError = err;
-            slot.reset();
-            releaseKeys();
-            current = null;
+            cancelAllProcesses("player-death");
+        }
+        evtDeathScreenSeen = onDeath;
+    }
+
+    private void detectClientEvents(Minecraft mc) {
+        net.magicterra.agent.api.AgentApi api = net.magicterra.agent.AgentDriverCommon.api();
+        if (api == null || mc.player == null) return;
+        var pl = mc.player;
+        net.minecraft.core.BlockPos at = pl.blockPosition();
+
+        // Death emission + process-cancel live in detectDeath(), fired off the
+        // DeathScreen rising edge (before autoRespawn dismisses it) so the event
+        // carries the SPECIFIC cause. Here we only need `dead` to suppress hurt
+        // events during the dying transition.
+        boolean dead = pl.isDeadOrDying();
+
+        float hp = pl.getHealth();
+        if (!Float.isNaN(evtLastHealth) && hp < evtLastHealth - 0.01f && !dead) {
+            api.emitExternal("player.hurt", at, net.magicterra.agent.rpc.JsonCodec.encode(Map.of(
+                    "health", (double) hp, "prev", (double) evtLastHealth, "lost", (double) (evtLastHealth - hp))));
+        }
+        evtLastHealth = hp;
+
+        ThreatScanner.Threat top = ThreatScanner.current(mc).top();
+        int topId = (top != null) ? top.id() : -1;
+        if (topId != -1 && topId != evtLastThreatId) {
+            net.minecraft.core.BlockPos tp = top.entity().blockPosition();
+            api.emitExternal("threat.appeared", tp, net.magicterra.agent.rpc.JsonCodec.encode(Map.of(
+                    "type", top.type(), "id", topId,
+                    "distance", top.distance(), "score", top.score())));
+        }
+        evtLastThreatId = topId;
+
+        // --- Fluid entry (落水 / 落岩浆提醒) -------------------------------------
+        // One-shot on the rising edge of stepping into water / lava — the "I fell
+        // in" warning so the Agent can react (swim/escape ashore, or that it's
+        // burning in lava) without polling observe.player every tick. isInWater()
+        // and isInLava() are the vanilla body-in-fluid flags (true while any part
+        // of the hitbox is in the fluid), matched against last tick so leaving and
+        // re-entering re-fires.
+        boolean inWater = pl.isInWater();
+        if (inWater && !evtInWater) {
+            api.emitExternal("player.enteredWater", at, net.magicterra.agent.rpc.JsonCodec.encode(Map.of(
+                    "submerged", pl.isUnderWater())));
+        }
+        evtInWater = inWater;
+        boolean inLava = pl.isInLava();
+        if (inLava && !evtInLava) {
+            api.emitExternal("player.enteredLava", at, net.magicterra.agent.rpc.JsonCodec.encode(Map.of(
+                    "health", (double) pl.getHealth())));
+        }
+        evtInLava = inLava;
+
+        // --- Day-phase transition (日落提醒 etc.) --------------------------------
+        // Emit on each day/sunset/night/sunrise change. The sunset/night edges are
+        // the "go bunker NOW" warning whose absence got the naked bot swarmed; the
+        // sunrise edge is the cue to break out and resume. Buckets match
+        // observe.player.time.phase so the Agent reads the same vocabulary.
+        if (mc.level != null) {
+            long tod = mc.level.getDayTime() % 24000L;
+            if (tod < 0) tod += 24000L;
+            String phase = tod < 12000 ? "day" : tod < 13000 ? "sunset" : tod < 23000 ? "night" : "sunrise";
+            if (!phase.equals(evtLastPhase)) {
+                if (evtLastPhase != null) {
+                    api.emitExternal("time.phase", at, net.magicterra.agent.rpc.JsonCodec.encode(Map.of(
+                            "phase", phase, "prev", evtLastPhase, "dayTime", tod)));
+                }
+                evtLastPhase = phase;
+            }
+        }
+
+        // --- Item pickup (拾取物品提醒) -----------------------------------------
+        // Diff per-item inventory counts vs last tick; any increase is a gain
+        // (picked-up drop, craft result, or give). The Agent's "did my gather land?"
+        // signal — e.g. after mine/COLLECT, an item.pickup{oak_log} confirms it.
+        {
+            Map<String, Integer> cur = new HashMap<>();
+            var inv = pl.getInventory();
+            for (int s = 0; s < inv.getContainerSize(); s++) {
+                ItemStack st = inv.getItem(s);
+                if (st.isEmpty()) continue;
+                String id = BuiltInRegistries.ITEM.getKey(st.getItem()).toString();
+                cur.merge(id, st.getCount(), Integer::sum);
+            }
+            if (evtInvInit) {
+                for (Map.Entry<String, Integer> e : cur.entrySet()) {
+                    int delta = e.getValue() - evtInvCounts.getOrDefault(e.getKey(), 0);
+                    if (delta > 0) {
+                        api.emitExternal("item.pickup", at, net.magicterra.agent.rpc.JsonCodec.encode(Map.of(
+                                "id", e.getKey(), "count", delta, "total", e.getValue())));
+                    }
+                }
+            }
+            evtInvCounts.clear();
+            evtInvCounts.putAll(cur);
+            evtInvInit = true;
+        }
+
+        // --- Advancement earned (成就获取提醒) ----------------------------------
+        // Milestone signals (Getting Wood / Stone Age / Acquire Hardware=iron /
+        // We Need to Go Deeper=nether). The client has no clean hook, so poll the
+        // ClientAdvancements progress map (throttled ~1s) and emit newly-completed
+        // ids. Reflection is guarded — any mapping shift silently no-ops, never
+        // breaking the tick. First poll seeds the "already done" set without emitting.
+        if (++evtAdvThrottle >= 20 && pl.connection != null) {
+            evtAdvThrottle = 0;
+            try {
+                Object ca = pl.connection.getAdvancements();
+                for (java.lang.reflect.Field f : ca.getClass().getDeclaredFields()) {
+                    if (!Map.class.isAssignableFrom(f.getType())) continue;
+                    f.setAccessible(true);
+                    Map<?, ?> prog = (Map<?, ?>) f.get(ca);
+                    for (Map.Entry<?, ?> e : prog.entrySet()) {
+                        Object p = e.getValue();   // AdvancementProgress
+                        if (p == null) continue;
+                        Object doneObj = p.getClass().getMethod("isDone").invoke(p);
+                        if (!(doneObj instanceof Boolean b) || !b) continue;
+                        Object holder = e.getKey();   // AdvancementHolder
+                        Object id = holder.getClass().getMethod("id").invoke(holder);
+                        String key = String.valueOf(id);
+                        if (evtDoneAdv.add(key) && evtAdvInit) {
+                            api.emitExternal("advancement", at,
+                                    net.magicterra.agent.rpc.JsonCodec.encode(Map.of("id", key)));
+                        }
+                    }
+                    break;   // first Map field is the progress map
+                }
+                evtAdvInit = true;
+            } catch (Throwable ignored) { /* mapping/AT differences — never break ticks */ }
         }
     }
 
+    /** Poll the client's chat buffer + action-bar / title HUD and push each NEW
+     *  line as an event. In client-MCP mode no server is attached, so the
+     *  server-side chat hook is silent; everything the client DISPLAYS (player
+     *  chat, system messages, command results, server broadcasts) funnels into
+     *  the {@code ChatComponent} buffer, and the action-bar / title arrive as
+     *  client-bound packets the vanilla {@code Gui} stashes in private fields.
+     *  All reflection is guarded — a mapping shift silently no-ops (mirrors the
+     *  advancement poll); never breaks the tick. */
+    private void detectClientMessages(Minecraft mc) {
+        net.magicterra.agent.api.AgentApi api = net.magicterra.agent.AgentDriverCommon.api();
+        net.minecraft.client.gui.Gui gui = mc.gui;
+        if (api == null || gui == null) return;
+        net.minecraft.core.BlockPos at = mc.player != null
+                ? mc.player.blockPosition() : net.minecraft.core.BlockPos.ZERO;
+
+        // --- Chat / system / command-result lines -------------------------------
+        // ChatComponent.allMessages is newest-first; emit every line above the last
+        // one we saw, oldest-first so the stream stays chronological. First poll
+        // seeds the marker silently so existing history isn't replayed.
+        try {
+            java.util.List<?> all = readListField(gui.getChat(), "allMessages");
+            if (all != null) {
+                String newest = !all.isEmpty() ? guiMessageText(all.get(0)) : null;
+                if (!evtChatInit) {
+                    evtLastChat = newest;
+                    evtChatInit = true;
+                } else if (newest != null && !newest.equals(evtLastChat)) {
+                    java.util.List<String> fresh = new java.util.ArrayList<>();
+                    for (Object m : all) {
+                        String t = guiMessageText(m);
+                        if (t == null || t.equals(evtLastChat)) break;
+                        fresh.add(t);
+                    }
+                    for (int i = fresh.size() - 1; i >= 0; i--) {
+                        api.emitExternal("client.message", at,
+                                net.magicterra.agent.rpc.JsonCodec.encode(Map.of("text", fresh.get(i))));
+                    }
+                    evtLastChat = newest;
+                }
+            }
+        } catch (Throwable ignored) { /* mapping shift — never break the tick */ }
+
+        // --- Action bar (overlay message) ---------------------------------------
+        try {
+            String ab = componentFieldText(gui, "overlayMessageString");
+            if (ab != null && !ab.isEmpty() && !ab.equals(evtLastActionBar)) {
+                api.emitExternal("client.actionBar", at,
+                        net.magicterra.agent.rpc.JsonCodec.encode(Map.of("text", ab)));
+            }
+            evtLastActionBar = ab;
+        } catch (Throwable ignored) { }
+
+        // --- Title / subtitle ---------------------------------------------------
+        try {
+            String title = componentFieldText(gui, "title");
+            if (title != null && !title.isEmpty() && !title.equals(evtLastTitle)) {
+                String sub = componentFieldText(gui, "subtitle");
+                api.emitExternal("client.title", at, net.magicterra.agent.rpc.JsonCodec.encode(
+                        sub != null && !sub.isEmpty()
+                                ? Map.of("text", title, "subtitle", sub) : Map.of("text", title)));
+            }
+            evtLastTitle = title;
+        } catch (Throwable ignored) { }
+    }
+
+    /** Read a named {@code List} field (walking up the hierarchy), or null. */
+    private static java.util.List<?> readListField(Object obj, String name) {
+        java.lang.reflect.Field f = findField(obj.getClass(), name);
+        if (f == null) return null;
+        try { f.setAccessible(true); Object v = f.get(obj);
+            return (v instanceof java.util.List<?> l) ? l : null;
+        } catch (Throwable t) { return null; }
+    }
+
+    /** {@code GuiMessage.content().getString()} via reflection, or null. */
+    private static String guiMessageText(Object guiMessage) {
+        try {
+            Object content = guiMessage.getClass().getMethod("content").invoke(guiMessage);
+            return content == null ? null
+                    : String.valueOf(content.getClass().getMethod("getString").invoke(content));
+        } catch (Throwable t) { return null; }
+    }
+
+    /** Read a named {@code Component} field's {@code getString()}, or null. */
+    private static String componentFieldText(Object obj, String name) {
+        java.lang.reflect.Field f = findField(obj.getClass(), name);
+        if (f == null) return null;
+        try { f.setAccessible(true); Object c = f.get(obj);
+            return c == null ? null
+                    : String.valueOf(c.getClass().getMethod("getString").invoke(c));
+        } catch (Throwable t) { return null; }
+    }
+
+    private static java.lang.reflect.Field findField(Class<?> cls, String name) {
+        for (Class<?> k = cls; k != null && k != Object.class; k = k.getSuperclass()) {
+            try { return k.getDeclaredField(name); } catch (NoSuchFieldException ignored) { }
+        }
+        return null;
+    }
+
+    /** Start a foreground user task. The process lifecycle now lives in
+     *  {@link UserTaskChain}; this stays as the single entry point the verbs call. */
     private void startProcess(BotProcess next) {
-        cancelCurrent("superseded");
-        next.attach(state);
-        current = next;
+        userTask.setProcess(next);
         paused = false;
     }
 
     private void cancelCurrent(String reason) {
-        BotProcess c = current;
-        if (c == null) return;
-        slotFor(c.kind()).lastError = reason;
-        slotFor(c.kind()).reset();
-        releaseKeys();
-        current = null;
+        userTask.cancel(reason);
     }
 
-    private BotState.ProcessSlot slotFor(String kind) {
-        return switch (kind) {
-            case "goto"    -> state.mc_goto;
-            case "mine"    -> state.mine;
-            case "builder" -> state.builder;
-            case "follow"  -> state.follow;
-            case "explore" -> state.explore;
-            case "runAway" -> state.runAway;
-            case "look"    -> state.look;
-            case "elytra"  -> state.elytra;
-            default        -> state.mc_goto;
-        };
+    /** Cancel every active bot process — the user-task slot (goto/mine/craft/…)
+     *  and the combat chain. Mirrors {@link #cancel} with which="all"; used on
+     *  the player-death edge so a respawn doesn't resume a lethal action. The
+     *  always-on ClutchController is intentionally left running. */
+    private void cancelAllProcesses(String reason) {
+        if (combatChain.engaged()) {
+            combatChain.standDown();
+            state.combat.lastError = reason;
+            state.combat.active = false;
+        }
+        cancelCurrent(reason);
     }
 
     // === WorldView impl ======================================================

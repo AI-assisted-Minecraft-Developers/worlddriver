@@ -157,12 +157,21 @@ public final class ActionApi {
             CommandSourceStack src = (anchor != null)
                     ? anchor.createCommandSourceStack().withSuppressedOutput().withPermission(4)
                     : s.createCommandSourceStack().withSuppressedOutput().withPermission(4);
+            boolean ok;
+            String err = null;
             try {
                 s.getCommands().performPrefixedCommand(src, finalCmd);
+                ok = true;
             } catch (Throwable t) {
-                return Map.of("ok", false, "error", t.getMessage() == null ? t.toString() : t.getMessage());
+                ok = false;
+                err = t.getMessage() == null ? t.toString() : t.getMessage();
             }
-            return Map.of("ok", true, "via", "brigadier");
+            // Push a command.result event so subscribers see commands run by any
+            // agent/transport (the synchronous return only reaches the caller).
+            api.emit("command.result", null,
+                    net.magicterra.agent.rpc.JsonCodec.encode(Map.of("cmd", finalCmd, "ok", ok)));
+            return ok ? Map.of("ok", true, "via", "brigadier")
+                      : Map.of("ok", false, "error", err);
         });
     }
 }

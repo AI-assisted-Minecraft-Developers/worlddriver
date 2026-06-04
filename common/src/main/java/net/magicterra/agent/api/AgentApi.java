@@ -19,15 +19,23 @@ import net.minecraft.world.phys.AABB;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
+import net.magicterra.agent.bot.util.BlockMatch;
 import java.util.function.Supplier;
 import net.magicterra.agent.client.ClientHooks;
 import net.magicterra.agent.client.ClientAgentApi;
 import net.magicterra.agent.bot.BotApi;
 import java.util.Set;
 import net.magicterra.agent.rpc.JsonCodec;
+import net.magicterra.agent.test.yaml.YamlTestInterpreter;
+import net.magicterra.agent.test.yaml.YamlTestSpec;
 import net.magicterra.agent.bot.BotHooks;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.ExecutionException;
@@ -54,6 +62,8 @@ public final class AgentApi {
     public final ActionApi action = new ActionApi(this);
     public final WaitApi wait = new WaitApi(this);
     public final WorldApi world = new WorldApi(this);
+    public final RecipeApi recipe = new RecipeApi(this);
+    public final EventsApi eventsApi = new EventsApi(this);
 
     static final BlockPos ORIGIN = new BlockPos(0, 200, 0);
 
@@ -69,8 +79,21 @@ public final class AgentApi {
     final Object eventsLock = new Object();
     final AtomicLong eventSeq = new AtomicLong();
     final long startNanos = System.nanoTime();
+
+    /** Live push listeners (the WebSocket and SSE transports register here). Every
+     *  {@link #emit} hands the new event to each, off the caller's thread via
+     *  {@link #eventDispatch} so neither the server tick nor a client tick ever
+     *  blocks on socket I/O. Copy-on-write: registration is rare, iteration frequent. */
+    private final List<Consumer<AgentEvent>> eventListeners = new CopyOnWriteArrayList<>();
+    private final ExecutorService eventDispatch = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "agent-event-dispatch");
+        t.setDaemon(true);
+        return t;
+    });
     private final Map<String, Function<Map<String, Object>, Object>> routes = new HashMap<>();
     private volatile Function<Map<String, Object>, Object> scriptHandler;
+    private volatile Function<Map<String, Object>, Object> playbookHandler;
+    private volatile Function<Map<String, Object>, Object> skillHandler;
 
     public AgentApi() {
         routes.put("mc.system.version", p -> system.version());
@@ -102,6 +125,30 @@ public final class AgentApi {
             }
             return observe.player((String) p.get("name"));
         });
+        routes.put("mc.observe.threats", p -> {
+            // Client-only sensing (entity render set + creeper swell + projectile
+            // velocity are client state). No server-side equivalent; returns empty
+            // when no client is attached (e.g. dedicated-server GameTest).
+            int radius = p.get("radius") instanceof Number n
+                    ? Math.max(1, Math.min(64, n.intValue())) : 24;
+            var c = clientOrNull();
+            if (c != null) return c.observeThreats(radius);
+            return Map.of("threats", List.of(), "incomingProjectiles", List.of());
+        });
+        routes.put("mc.observe.boss", p -> {
+            // Phase G boss sensing — client-only (reads the ClientLevel entity set,
+            // dragon phaseManager, wither invul ticks). Returns absent on a
+            // dedicated server. Default radius 64 covers the End-pillar crystal ring.
+            int radius = p.get("radius") instanceof Number n
+                    ? Math.max(1, Math.min(256, n.intValue())) : 64;
+            var c = clientOrNull();
+            if (c != null) return c.observeBoss(radius);
+            return Map.of("present", false, "crystals", List.of());
+        });
+        // ASCII spatial map (top-down heightmap or vertical cross-section) — a
+        // compact, glanceable substitute for parsing block + threat JSON when
+        // making fast tactical/flee decisions. Server-side (works headless).
+        routes.put("mc.observe.map", p -> observe.map(p));
         routes.put("mc.observe.container", p -> {
             // No `pos` → look at whatever container menu is open client-side
             // (player inventory, crafting table, the chest the server just
@@ -117,6 +164,7 @@ public final class AgentApi {
         routes.put("mc.wait.event",       p -> wait.event(p));
         routes.put("mc.wait.worldReady",  p -> wait.worldReady(p));
         routes.put("mc.wait.condition",   p -> wait.condition(p));
+        routes.put("mc.wait.result",      p -> wait.result(p));
         // Action routes — optional `returnEvents:true` bracket-captures events emitted
         // during the call so a script doesn't need a separate cursor/eventsSince pair.
         // mc.action.placeBlock removed — single-block placement = mc.action.placeMany({blocks:[{pos,type}]}).
@@ -127,6 +175,18 @@ public final class AgentApi {
         // emits a world.restore event, so it honors returnEvents like the action.* group.
         routes.put("mc.world.snapshot",    p -> world.snapshot(p));
         routes.put("mc.world.restore",     p -> withEvents(p, () -> world.restore(p)));
+        // Run YAML GameTest definitions through the interpreter on demand (docs/
+        // yaml-gametest.md). {file:"x.yaml"} loads a classpath file, {inline:"..."}
+        // parses a literal; returns {results:[{name,pass,failures}], passed, failed}.
+        // The same YamlTestInterpreter also backs the @GameTestGenerator hook.
+        routes.put("mc.test.yaml",         p -> runYamlTests(p));
+        routes.put("mc.recipe.lookup",     p -> recipe.lookup(p));
+        routes.put("mc.recipe.resolve",    p -> recipe.resolve(p));
+        routes.put("mc.plan.acquire",      p -> recipe.planAcquire(p));
+        // Driver→agent event channel (server-side surface). op=emit|watch|unwatch|list.
+        // The live push itself rides the transports: subscribe over WebSocket
+        // (mc.events.subscribe frame) or the MCP SSE stream at /mcp/events.
+        routes.put("mc.events",            p -> eventsApi.dispatch(p));
         routes.put("mc.query", p -> {
             // Client-MCP fallback — server-side query() asserts attached server.
             // On a runClient JVM connected to a remote dedicated server, scan
@@ -178,6 +238,35 @@ public final class AgentApi {
         // which the JS test harness catches to skip gracefully.
         routes.put("mc.client.screen.tree",          p -> requireClient().screenTree());
         routes.put("mc.client.screen.info",          p -> requireClient().screenInfo());
+        // Client-AUTHORITATIVE player + world reads. Unlike mc.observe.player /
+        // mc.query (which prefer the SERVER when one is attached), these ALWAYS
+        // read the client LocalPlayer / ClientLevel — so an agent (or a
+        // mc.script.eval snippet) can see what the *client* predicts: pose,
+        // isInWall, eye-cell block — and diff it against the server. This is the
+        // introspection the client-tick reflexes (autoSwim, antiSuffocate) gate
+        // on; without it a desync (e.g. the client crawl-evading a command-placed
+        // block while the server suffocates) is invisible from the agent side.
+        routes.put("mc.client.player",               p -> requireClient().observePlayer());
+        routes.put("mc.client.blocks",               p -> {
+            ClientAgentApi c = requireClient();
+            int r = 4;
+            String typeFilter = null;
+            Object filter = p.get("filter");
+            if (filter instanceof Map<?, ?> fm) {
+                if (fm.get("in_radius") instanceof Number rn) r = rn.intValue();
+                if (fm.get("type") instanceof String s && !s.isBlank()) typeFilter = s;
+            }
+            Double cx = null, cy = null, cz = null;
+            if (p.get("center") instanceof Map<?, ?> cm
+                    && cm.get("x") instanceof Number nx
+                    && cm.get("y") instanceof Number ny
+                    && cm.get("z") instanceof Number nz) {
+                cx = nx.doubleValue(); cy = ny.doubleValue(); cz = nz.doubleValue();
+            }
+            Set<String> ids = (typeFilter == null) ? null
+                    : new LinkedHashSet<>(Set.of(typeFilter));
+            return c.observeArea(r, cx, cy, cz, ids);
+        });
         // Inventory / pause are reachable via mc.client.input.key{key:'E'} /
         // {key:'ESCAPE'} — same vanilla path. No separate tool needed.
         routes.put("mc.client.chat.send",            p -> requireClient().chatSend(
@@ -209,6 +298,12 @@ public final class AgentApi {
         // out), folding the final status snapshot into the response.
         routes.put("mc.bot.goto",      p -> awaitable(p, "goto",    requireBot()::mcGoto));
         routes.put("mc.bot.mine",      p -> awaitable(p, "mine",    requireBot()::mine));
+        routes.put("mc.bot.bunker",    p -> requireBot().bunker(p));
+        routes.put("mc.bot.escape",    p -> requireBot().escape(p));
+        routes.put("mc.bot.craft",     p -> awaitable(p, "craft",   requireBot()::craft));
+        routes.put("mc.bot.smelt",     p -> awaitable(p, "smelt",   requireBot()::smelt));
+        routes.put("mc.bot.combat",    p -> awaitable(p, "combat",  requireBot()::combat));
+        routes.put("mc.bot.equip",     p -> requireBot().equip(p));
         routes.put("mc.bot.build",     p -> awaitable(p, "builder", requireBot()::build));
         routes.put("mc.bot.clearArea", p -> awaitable(p, "builder", requireBot()::clearArea));
         routes.put("mc.bot.follow",    p -> awaitable(p, "follow",  requireBot()::follow));
@@ -232,6 +327,13 @@ public final class AgentApi {
         routes.put("mc.bot.sleep",     p -> awaitable(p, "goto",    requireBot()::sleep));
         routes.put("mc.bot.construct", p -> awaitable(p, "builder", requireBot()::construct));
         routes.put("mc.bot.elytraFly", p -> awaitable(p, "elytra",  requireBot()::elytraFly));
+        // Phase G boss playbooks — Rhino scripts run on a background thread by the
+        // PlaybookRunner (bound at startup, like scriptHandler). op=start|status|cancel.
+        routes.put("mc.bot.playbook", p -> {
+            Function<Map<String, Object>, Object> h = playbookHandler;
+            if (h == null) throw new IllegalStateException("mc.bot.playbook not available (no playbook runner bound)");
+            return h.apply(p == null ? Map.of() : p);
+        });
 
         // Script evaluation. Bound at startup via setScriptHandler() to avoid
         // making AgentApi depend on Rhino classes directly — keeps the api/
@@ -241,6 +343,12 @@ public final class AgentApi {
             if (h == null) throw new IllegalStateException("mc.script.eval not available (no evaluator bound)");
             return h.apply(p);
         });
+        // Phase H — persistent skill library (Voyager). op=save|list|get|run|delete.
+        routes.put("mc.skill", p -> {
+            Function<Map<String, Object>, Object> h = skillHandler;
+            if (h == null) throw new IllegalStateException("mc.skill not available (no skill library bound)");
+            return h.apply(p == null ? Map.of() : p);
+        });
     }
 
     /**
@@ -249,6 +357,20 @@ public final class AgentApi {
      */
     public void setScriptHandler(Function<Map<String, Object>, Object> handler) {
         this.scriptHandler = handler;
+    }
+
+    /**
+     * Bind the implementation of {@code mc.bot.playbook} (the Phase G boss-playbook
+     * runner). Bound from the platform bootstrap so the api package stays free of
+     * the script/ package, exactly like {@link #setScriptHandler}.
+     */
+    public void setPlaybookHandler(Function<Map<String, Object>, Object> handler) {
+        this.playbookHandler = handler;
+    }
+
+    /** Bind the implementation of {@code mc.skill} (the Phase H skill library). */
+    public void setSkillHandler(Function<Map<String, Object>, Object> handler) {
+        this.skillHandler = handler;
     }
 
     static ClientAgentApi requireClient() {
@@ -273,6 +395,7 @@ public final class AgentApi {
 
     public void detachServer() {
         this.server = null;
+        eventsApi.clear(); // stop condition watchers — their routes need the server
         synchronized (eventsLock) {
             events.clear();
             eventSeq.set(0);
@@ -352,17 +475,42 @@ public final class AgentApi {
         });
     }
 
-    /** Platform event hooks feed natural (non-API) block changes into the event stream. */
+    /** Platform event hooks (and client-tick detectors) feed natural (non-API)
+     *  signals — block changes, damage, death, chat, threats — into the event
+     *  stream through here. */
     public void emitExternal(String type, BlockPos pos, String data) {
         emit(type, pos, data);
     }
 
-    void emit(String type, BlockPos pos, String data) {
+    /** Append an event to the ring buffer (for replay via {@code mc.observe.eventsSince})
+     *  AND fan it out to live push subscribers. The buffer append is synchronous and
+     *  cheap; listener delivery is handed to the single-thread {@link #eventDispatch}
+     *  so the calling thread (server tick / client tick / watcher) never blocks on a
+     *  socket write. Returns the assigned sequence number. */
+    long emit(String type, BlockPos pos, String data) {
         AgentEvent e = new AgentEvent(eventSeq.incrementAndGet(), type, pos, data);
         synchronized (eventsLock) {
             if (events.size() >= EVENT_BUFFER_CAP) events.pollFirst();
             events.addLast(e);
         }
+        if (!eventListeners.isEmpty()) {
+            eventDispatch.execute(() -> {
+                for (Consumer<AgentEvent> l : eventListeners) {
+                    try { l.accept(e); } catch (Throwable ignored) { /* a bad listener never breaks emission */ }
+                }
+            });
+        }
+        return e.seq;
+    }
+
+    /** Register a live push listener (the WebSocket/SSE transports). Idempotent-ish:
+     *  the same consumer may appear twice if added twice — callers add exactly once. */
+    public void addEventListener(Consumer<AgentEvent> listener) {
+        if (listener != null) eventListeners.add(listener);
+    }
+
+    public void removeEventListener(Consumer<AgentEvent> listener) {
+        eventListeners.remove(listener);
     }
 
     ServerLevel level() {
@@ -508,6 +656,42 @@ public final class AgentApi {
         return false;
     }
 
+    // ---------------- YAML GameTest runner ----------------
+    /** Backs {@code mc.test.yaml}: parse {file}/{inline} into specs, run each
+     *  through {@link YamlTestInterpreter}, return a per-spec pass/fail report. */
+    private Map<String, Object> runYamlTests(Map<String, Object> p) {
+        List<YamlTestSpec> specs;
+        Object inline = (p == null) ? null : p.get("inline");
+        Object file = (p == null) ? null : p.get("file");
+        boolean all = p != null && Boolean.TRUE.equals(p.get("all"));
+        if (inline instanceof String s && !s.isBlank()) {
+            specs = net.magicterra.agent.test.yaml.YamlTestLoader.parseString(s, "<inline>");
+        } else if (file instanceof String f && !f.isBlank()) {
+            specs = net.magicterra.agent.test.yaml.YamlTestLoader.loadFile(f);
+        } else if (all) {
+            specs = net.magicterra.agent.test.yaml.YamlTestLoader.loadAll();
+        } else {
+            throw new IllegalArgumentException("mc.test.yaml requires 'file', 'inline', or 'all:true'");
+        }
+        YamlTestInterpreter interp = new YamlTestInterpreter(this);
+        List<Map<String, Object>> results = new ArrayList<>();
+        int passed = 0, failed = 0;
+        for (YamlTestSpec spec : specs) {
+            YamlTestInterpreter.Result r = interp.runSpec(spec);
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("name", r.name());
+            row.put("pass", r.pass());
+            row.put("failures", r.failures());
+            results.add(row);
+            if (r.pass()) passed++; else failed++;
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("results", results);
+        out.put("passed", passed);
+        out.put("failed", failed);
+        return out;
+    }
+
     // ---------------- Query DSL ----------------
     public Object query(QueryParams p) {
         ServerLevel level = level();
@@ -519,6 +703,9 @@ public final class AgentApi {
             // anything that doesn't match.
             Object typeFilter = p.filter.get("type");
             String typeFilterId = (typeFilter instanceof String s && !s.isBlank()) ? s : null;
+            // Supports exact ids and '#tag' selectors (e.g. #minecraft:logs).
+            Predicate<BlockState> match =
+                    (typeFilterId == null) ? null : BlockMatch.of(typeFilterId);
             return onServerThread(() -> {
                 List<Map<String, Object>> out = new ArrayList<>();
                 BlockPos center = centerPos;
@@ -528,8 +715,8 @@ public final class AgentApi {
                             BlockPos bp = center.offset(dx, dy, dz);
                             BlockState st = level.getBlockState(bp);
                             if (st.isAir()) continue;
+                            if (match != null && !match.test(st)) continue;
                             String id = ApiSupport.blockId(st);
-                            if (typeFilterId != null && !typeFilterId.equals(id)) continue;
                             Map<String, Object> row = new LinkedHashMap<>();
                             row.put("pos", new BlockPos(bp.getX(), bp.getY(), bp.getZ()));
                             row.put("type", id);

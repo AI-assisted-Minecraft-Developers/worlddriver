@@ -7,11 +7,18 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.Container;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 
 import java.util.ArrayList;
+import net.minecraft.world.entity.EquipmentSlot;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -129,6 +136,25 @@ public final class ObserveApi {
             out.put("maxHealth", pl.getMaxHealth());
             out.put("food", pl.getFoodData().getFoodLevel());
             out.put("xpLevel", pl.experienceLevel);
+            // World time so the Agent can plan around day/night — gather by day,
+            // hole up by night. phase: day | sunset | night | sunrise. Pair with
+            // mc.wait.condition{invoke:'mc.observe.player', field:'time.phase',
+            // value:'day'} to wait out a night after digging in.
+            if (pl.level() != null) {
+                long dt = pl.level().getDayTime();
+                long tod = ((dt % 24000L) + 24000L) % 24000L;
+                Map<String, Object> time = new LinkedHashMap<>();
+                time.put("dayTime", dt);
+                time.put("dayOfWorld", dt / 24000L);
+                time.put("timeOfDay", tod);
+                String phase;
+                if (tod < 12000) phase = "day";
+                else if (tod < 13000) phase = "sunset";
+                else if (tod < 23000) phase = "night";
+                else phase = "sunrise";
+                time.put("phase", phase);
+                out.put("time", time);
+            }
             out.put("gameMode", pl.gameMode.getGameModeForPlayer().getName());
             ItemStack main = pl.getMainHandItem();
             out.put("mainHand", ApiSupport.itemSnapshot(main));
@@ -138,7 +164,161 @@ public final class ObserveApi {
             for (int i = 0; i < 9; i++) hotbar.add(ApiSupport.itemSnapshot(pl.getInventory().getItem(i)));
             out.put("hotbar", hotbar);
             out.put("selectedSlot", pl.getInventory().selected);
+            // Worn armor (head/chest/legs/feet) — lets the agent see its defensive
+            // loadout + durability (Phase F equip + Boss prep read this).
+            Map<String, Object> armor = new LinkedHashMap<>();
+            armor.put("head", ApiSupport.itemSnapshot(pl.getItemBySlot(EquipmentSlot.HEAD)));
+            armor.put("chest", ApiSupport.itemSnapshot(pl.getItemBySlot(EquipmentSlot.CHEST)));
+            armor.put("legs", ApiSupport.itemSnapshot(pl.getItemBySlot(EquipmentSlot.LEGS)));
+            armor.put("feet", ApiSupport.itemSnapshot(pl.getItemBySlot(EquipmentSlot.FEET)));
+            out.put("armor", armor);
             return out;
         });
+    }
+
+    /**
+     * ASCII spatial map around a center (default the first player) — a compact,
+     * glanceable alternative to parsing block + threat JSON for tactical
+     * decisions ("which way can I flee / where is the lethal drop"). Server-side,
+     * so it works headless and in GameTest. North (-z) is up, West (-x) is left.
+     *
+     * <p>plane="xz" (default): top-down heightmap. Each cell is the local surface
+     * within a Y window, classified vs the centre Y: '#' wall (≥2 above), 'v'
+     * cliff/drop (≥3 below), '.' walkable, '~' water, '!' lava, ' ' no ground in
+     * range (deep void). plane="xy"/"zy": vertical cross-section through the
+     * centre — '#' solid, '.' air, '~' water, '!' lava (y-labelled, +y on top).
+     * Hostile mobs overlay by initial (C creeper, K skeleton, s spider, Z zombie,
+     * E enderman, D drowned, W witch, o slime, B blaze, P phantom, ? other); '@'
+     * is the centre.
+     *
+     * <p>Returns {present, plane, center:{x,y,z}, radius, width, height, threats,
+     * legend, map:"&lt;newline-joined grid&gt;"}.
+     */
+    public Map<String, Object> map(Map<String, Object> params) {
+        Params p = Params.of(params);
+        String plane = p.getString("plane", "xz").toLowerCase();
+        boolean cross = plane.equals("xy") || plane.equals("zy");
+        int r = p.getIntClamped("radius", 12, 1, 24);
+        int vr = p.getIntClamped("height", 7, 1, 24);
+        BlockPos explicit = p.getPos("center");
+        ServerLevel level = api.level();
+        return api.onServerThread(() -> {
+            BlockPos c = explicit;
+            if (c == null) {
+                List<ServerPlayer> all = api.server.getPlayerList().getPlayers();
+                if (all.isEmpty()) return Map.of("present", false, "error", "no player and no center");
+                c = all.get(0).blockPosition();
+            }
+            AABB box = new AABB(c).inflate(Math.max(r, vr) + 2);
+            List<Entity> mobs = new ArrayList<>();
+            for (Entity e : level.getEntities((Entity) null, box))
+                if (e instanceof Enemy && e.isAlive()) mobs.add(e);
+
+            List<String> lines = cross ? renderCross(level, c, plane, r, vr, mobs)
+                                       : renderTopDown(level, c, r, vr, mobs);
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("present", true);
+            out.put("plane", cross ? plane : "xz");
+            out.put("center", Map.of("x", c.getX(), "y", c.getY(), "z", c.getZ()));
+            out.put("radius", r);
+            out.put("width", lines.isEmpty() ? 0 : lines.get(0).length());
+            out.put("height", lines.size());
+            out.put("threats", mobs.size());
+            out.put("legend", cross
+                    ? "@=center #=solid .=air ~=water !=lava; mobs C/K/s/Z/E/D/W/o/B/P; up=+y, left=-axis"
+                    : "@=me .=walk #=wall(>=2up) v=cliff(>=3down) ~=water !=lava ' '=void; mobs C/K/s/Z/E/D/W/o/B/P; up=N(-z) left=W(-x)");
+            out.put("map", String.join("\n", lines));
+            return out;
+        });
+    }
+
+    /** Top-down (x-z) heightmap rows, north (-z) first. */
+    private List<String> renderTopDown(ServerLevel level, BlockPos c, int r, int vr, List<Entity> mobs) {
+        int cx = c.getX(), cy = c.getY(), cz = c.getZ();
+        Map<Long, Character> mobAt = new HashMap<>();
+        for (Entity e : mobs) {
+            BlockPos mp = e.blockPosition();
+            if (Math.abs(mp.getX() - cx) > r || Math.abs(mp.getZ() - cz) > r) continue;
+            mobAt.putIfAbsent(pack(mp.getX(), mp.getZ()), mobGlyph(e));
+        }
+        int up = 4, down = Math.max(12, vr + 4);
+        BlockPos.MutableBlockPos m = new BlockPos.MutableBlockPos();
+        List<String> rows = new ArrayList<>();
+        for (int z = cz - r; z <= cz + r; z++) {
+            StringBuilder sb = new StringBuilder();
+            for (int x = cx - r; x <= cx + r; x++) {
+                if (x == cx && z == cz) { sb.append('@'); continue; }
+                Character mob = mobAt.get(pack(x, z));
+                if (mob != null) { sb.append(mob.charValue()); continue; }
+                int surf = Integer.MIN_VALUE;
+                BlockState surfState = null;
+                for (int y = cy + up; y >= cy - down; y--) {
+                    BlockState st = level.getBlockState(m.set(x, y, z));
+                    if (!st.isAir()) { surf = y; surfState = st; break; }
+                }
+                if (surfState == null) { sb.append(' '); continue; }
+                sb.append(terrainGlyph(surfState, surf - cy));
+            }
+            rows.add(sb.toString());
+        }
+        return rows;
+    }
+
+    /** Vertical cross-section (xy at fixed z, or zy at fixed x), top (+y) first. */
+    private List<String> renderCross(ServerLevel level, BlockPos c, String plane, int r, int vr, List<Entity> mobs) {
+        boolean xy = plane.equals("xy");
+        int cx = c.getX(), cy = c.getY(), cz = c.getZ();
+        int fixed = xy ? cz : cx, centerAxis = xy ? cx : cz;
+        Map<Long, Character> mobAt = new HashMap<>();
+        for (Entity e : mobs) {
+            BlockPos mp = e.blockPosition();
+            int third = xy ? mp.getZ() : mp.getX();
+            int axis = xy ? mp.getX() : mp.getZ();
+            if (Math.abs(third - fixed) > 1 || Math.abs(axis - centerAxis) > r || Math.abs(mp.getY() - cy) > vr) continue;
+            mobAt.putIfAbsent(pack(axis, mp.getY()), mobGlyph(e));
+        }
+        BlockPos.MutableBlockPos m = new BlockPos.MutableBlockPos();
+        List<String> rows = new ArrayList<>();
+        for (int y = cy + vr; y >= cy - vr; y--) {
+            StringBuilder sb = new StringBuilder(String.format("%4d|", y));
+            for (int a = centerAxis - r; a <= centerAxis + r; a++) {
+                if (a == centerAxis && y == cy) { sb.append('@'); continue; }
+                Character mob = mobAt.get(pack(a, y));
+                if (mob != null) { sb.append(mob.charValue()); continue; }
+                BlockState st = level.getBlockState(m.set(xy ? a : cx, y, xy ? cz : a));
+                if (st.isAir()) sb.append('.');
+                else if (st.getFluidState().is(FluidTags.WATER)) sb.append('~');
+                else if (st.getFluidState().is(FluidTags.LAVA)) sb.append('!');
+                else sb.append('#');
+            }
+            rows.add(sb.toString());
+        }
+        return rows;
+    }
+
+    private static char terrainGlyph(BlockState st, int h) {
+        if (st.getFluidState().is(FluidTags.WATER)) return '~';
+        if (st.getFluidState().is(FluidTags.LAVA)) return '!';
+        if (h >= 2) return '#';
+        if (h <= -3) return 'v';
+        return '.';
+    }
+
+    private static long pack(int a, int b) { return ((long) a << 32) ^ (b & 0xffffffffL); }
+
+    private static char mobGlyph(Entity e) {
+        switch (BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).getPath()) {
+            case "creeper": return 'C';
+            case "skeleton": case "stray": case "wither_skeleton": return 'K';
+            case "spider": case "cave_spider": return 's';
+            case "zombie": case "husk": case "zombie_villager": case "zombified_piglin": return 'Z';
+            case "enderman": return 'E';
+            case "drowned": return 'D';
+            case "witch": return 'W';
+            case "slime": case "magma_cube": return 'o';
+            case "blaze": return 'B';
+            case "phantom": return 'P';
+            default: return '?';
+        }
     }
 }

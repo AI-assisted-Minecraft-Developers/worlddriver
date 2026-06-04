@@ -15,6 +15,24 @@ import java.util.Map;
 public interface BotApi {
     Map<String, Object> mcGoto(Map<String, Object> params);
     Map<String, Object> mine(Map<String, Object> params);
+    Map<String, Object> bunker(Map<String, Object> params);
+    Map<String, Object> escape(Map<String, Object> params);
+    Map<String, Object> craft(Map<String, Object> params);
+    Map<String, Object> smelt(Map<String, Object> params);
+    /**
+     * Phase C active combat. {@code mode} = "engage" (clear all hostiles in range),
+     * "defend" (only retaliate against hostiles actively eyeing the bot), or "kill"
+     * (a specific {@code target:{id|type}}). Runs at scheduler priority COMBAT (60),
+     * preempting the user task; reports progress via {@code mc.bot.status.combat}.
+     */
+    Map<String, Object> combat(Map<String, Object> params);
+    /**
+     * Phase F — equip the best armor on every body slot and (unless
+     * {@code armorOnly}) the best weapon in the main hand, scoring material tier
+     * then enchantments. Synchronous; returns {equipped, loadout, lowDurability,
+     * missing} so the caller (T2) can go repair / craft a missing piece.
+     */
+    Map<String, Object> equip(Map<String, Object> params);
     Map<String, Object> build(Map<String, Object> params);
     Map<String, Object> clearArea(Map<String, Object> params);
     Map<String, Object> follow(Map<String, Object> params);

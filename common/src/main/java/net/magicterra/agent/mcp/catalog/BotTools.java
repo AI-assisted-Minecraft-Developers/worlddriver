@@ -30,7 +30,8 @@ public final class BotTools {
                 "  - xz:{x,z}                 → reach this XZ column at any Y\n" +
                 "  - y:N                      → reach this Y level\n" +
                 "  - block:'minecraft:foo'    → nearest matching block within radius (default 32); " +
-                "Baritone 'goto <block>'\n" +
+                "Baritone 'goto <block>'. Accepts a '#tag' selector too — block:'#minecraft:logs' " +
+                "walks to the nearest tree of any species\n" +
                 "  - entity:'minecraft:cow'   → nearest entity of this type\n" +
                 "  - entityId:N               → specific entity by id (mc.query q='entities' supplies it)\n" +
                 "  - direction:'forward'+distance:N → Baritone 'thisway N'/'tunnel N'; " +
@@ -56,7 +57,8 @@ public final class BotTools {
                         put("xz", xzPosSchema());
                         put("y",  Map.of("type", "integer", "description", "Target Y level."));
                         put("block", Map.of("type", "string",
-                            "description", "Find nearest matching block id, then walk to a standable adjacent."));
+                            "description", "Find nearest matching block id (or '#tag' selector, e.g. "
+                                + "'#minecraft:logs'), then walk to a standable adjacent."));
                         put("entity", Map.of("type", "string",
                             "description", "Find nearest entity of this registry id (e.g. minecraft:cow)."));
                         put("entityId", Map.of("type", "integer", "minimum", 0,
@@ -216,13 +218,29 @@ public final class BotTools {
                 "  autoEat                   bool      — hold useItem on a food item while food≤threshold\n" +
                 "  autoEatFoodThreshold      [0,20] dflt 18 — trigger autoEat below this food level\n" +
                 "  autoRespawn               bool      — click Respawn on DeathScreen automatically\n" +
+                "  autoRetreat               bool      — flee to safety when HP drops below retreatHpThreshold (in-engine reflex; the only reliable mob defense — an MCP round-trip is too slow to react to a swarm)\n" +
+                "  autoBunker                bool      — 挖三填一 emergency dig-in: when CORNERED (HP≤bunkerHpThreshold AND ≥bunkerMinHostiles hostiles within bunkerTriggerRadius) dig straight down bunkerDepth blocks and seal the roof with the dug block — the no-gear survival move vs a swarm. Off by default (modifies the world)\n" +
+                "  bunkerHpThreshold         [0,20] dflt 10 — HP at/below which the bunker reflex may trigger (needs buffer to finish digging under fire)\n" +
+                "  bunkerTriggerRadius       [1,16] dflt 7 — a hostile within this many blocks counts as 'surrounding' (a moving swarm clusters at 5-8)\n" +
+                "  bunkerMinHostiles         [1,10] dflt 2 — how many surrounding hostiles before digging in\n" +
+                "  bunkerDepth               [1,5]  dflt 2 — blocks to dig straight down before sealing\n" +
+                "  autoFight                 bool      — auto-attack nearby hostiles scoring above autoFightThreatThreshold (CombatChain)\n" +
+                "  autoDodge                 bool      — sidestep creeper detonations and incoming projectiles\n" +
+                "  autoShield                bool      — raise a shield against melee/projectiles when threatened (needs a shield)\n" +
+                "  autoHeal                  bool      — eat/use a healing item when HP below healHpThreshold\n" +
+                "  autoTotem                 bool      — keep a totem of undying in the offhand\n" +
+                "  autoEquip                 bool      — equip best armor/weapon when a fight starts\n" +
+                "  combatCrit                bool      — time jumps for critical melee hits (default on)\n" +
                 "  autoSwim                  bool      — hold jump while submerged so the bot rises to the surface\n" +
+                "  antiSuffocate             bool      — break the block choking the bot's head (falling sand in a dig pit); needs allowBreak; default on\n" +
                 "  autoTool                  bool      — swap to best hotbar tool when crosshair on a breakable block\n" +
                 "  autoBackfill              bool      — Baritone BackfillProcess analogue; auto-fills cells the bot walked through when idle\n" +
                 "  autoBackfillBlock         id        — block placed by autoBackfill (default minecraft:cobblestone)\n" +
                 "  autoBackfillRadius        [1,16]    dflt 6 — Chebyshev radius around player considered for backfill\n" +
                 "  allowParkour4             bool      — enable 4-block cardinal leaps in A* (edge of vanilla physics; off by default)\n" +
                 "  allowBreak                bool      — Baritone allowBreak; A* may MINE through walls / dig straight down to reach the goal (tool-aware cost folded into the move). Off by default (keeps goto/follow non-destructive)\n" +
+                "  allowSwimEscapeBreak      bool      — when STUCK IN WATER (flooded pit / high lake-or-ocean bank too tall to step out of), A* may mine the BANK blocks to climb ashore even with allowBreak off. ON by default; fires only at the water's edge so dry-land routes never tunnel\n" +
+                "  allowSwimEscapePlace      bool      — when bob-stalled climbing a bank whose top is ABOVE the water surface (a floating bot can't swim-jump that high), the Walker PLACES one throwaway hotbar block on the surface to get grounded, then climbs out normally. ON by default; needs a placeable block in the hotbar; independent of allowPlace, fires only at the water's edge\n" +
                 "  allowPlace                bool      — Baritone allowPlace; A* may PLACE a throwaway hotbar block to bridge a 1-block gap. Off by default; needs a BlockItem in the hotbar (or creative)\n" +
                 "  allowParkourPlace         bool      — Baritone allowParkourPlace; A* may cross a 2-block gap with a sprint-jump onto a block placed mid-air (when the landing has a solid neighbour to place against). Faster than two sneak-bridges. Off by default; needs a BlockItem in the hotbar (or creative)\n" +
                 "  allowWaterBucketFall      bool      — Baritone maxFallHeightBucket; A* may fall >3 blocks by placing a water bucket on the landing (MLG) then scooping it back. Off by default; needs a water bucket in the hotbar\n" +
@@ -235,7 +253,11 @@ public final class BotTools {
                 "  pathfinder.mobAvoidPenalty[0,1000]  dflt 40 — peak cost (at the mob) of an avoided mob, ramping to 0 at mobAvoidRadius\n" +
                 "  smoothLook                bool      — pan camera over ticks (pathfinding + lookAt) for stream/demo instead of snapping; off by default\n" +
                 "  smoothLookDegPerTick      [1,180]   dflt 20 — turn rate when smoothLook on (20°/tick ≈ 400°/s)\n" +
+                "  walkerDebug               bool      — log per-tick Walker movement/break decisions to the client log (movement-bug instrumentation); off by default\n" +
+                "  elytraDebug               bool      — log per-tick elytra flight controller decisions; off by default\n" +
                 "  blocksToAvoid             [id,...]  — extra hazards pathfinder treats as impassable\n" +
+                "  avoidPoints               [{x,y,z,radius?},...] — AGENT-marked danger zones to route AROUND (radius default 8); the planner adds avoidZonePenalty ramping to 0 at the radius so it DETOURS. Use it to make a poorly-equipped/fresh-spawn bot take the long way around a mob-filled tunnel you spotted via mc.observe.threats. Whole-list replace; [] clears. Set right before a goto\n" +
+                "  pathfinder.avoidZonePenalty [0,5000] dflt 250 — peak cost at an avoidPoints zone centre (raise for a harder detour when unarmed)\n" +
                 "  walker.repathEveryTicks   [20,10000] dflt 200  — lower=more responsive\n" +
                 "  walker.totalTickBudget    [200,36000] dflt 1200 — fail after N no-progress ticks\n" +
                 "  walker.yawHysteresisDeg   [0,30]    dflt 5    — skip yaw write below this delta\n" +
@@ -252,13 +274,37 @@ public final class BotTools {
                         put("autoEat",                    Map.of("type", "boolean"));
                         put("autoEatFoodThreshold",       Map.of("type", "integer", "minimum", 0,   "maximum", 20));
                         put("autoRespawn",                Map.of("type", "boolean"));
+                        put("autoRetreat",                Map.of("type", "boolean"));
+                        put("retreatHpThreshold",         Map.of("type", "number",  "minimum", 0,  "maximum", 20));
+                        put("autoBunker",                 Map.of("type", "boolean"));
+                        put("bunkerHpThreshold",          Map.of("type", "number",  "minimum", 0,  "maximum", 20));
+                        put("bunkerTriggerRadius",        Map.of("type", "number",  "minimum", 1,  "maximum", 16));
+                        put("bunkerMinHostiles",          Map.of("type", "integer", "minimum", 1,  "maximum", 10));
+                        put("bunkerDepth",                Map.of("type", "integer", "minimum", 1,  "maximum", 5));
+                        put("autoFight",                  Map.of("type", "boolean"));
+                        put("autoFightThreatThreshold",   Map.of("type", "number",  "minimum", 0,  "maximum", 1));
+                        put("combatReach",                Map.of("type", "number",  "minimum", 1,  "maximum", 6));
+                        put("kiteDistance",               Map.of("type", "number",  "minimum", 3,  "maximum", 32));
+                        put("autoDodge",                  Map.of("type", "boolean"));
+                        put("creeperKeepDistance",        Map.of("type", "number",  "minimum", 1,  "maximum", 16));
+                        put("projectileDodgeRadius",      Map.of("type", "number",  "minimum", 1,  "maximum", 32));
+                        put("autoShield",                 Map.of("type", "boolean"));
+                        put("autoHeal",                   Map.of("type", "boolean"));
+                        put("healHpThreshold",            Map.of("type", "number",  "minimum", 0,  "maximum", 20));
+                        put("autoTotem",                  Map.of("type", "boolean"));
+                        put("autoEquip",                  Map.of("type", "boolean"));
+                        put("equipDurabilityThreshold",   Map.of("type", "number",  "minimum", 0,  "maximum", 1));
+                        put("combatCrit",                 Map.of("type", "boolean"));
                         put("autoSwim",                   Map.of("type", "boolean"));
+                        put("antiSuffocate",              Map.of("type", "boolean"));
                         put("autoTool",                   Map.of("type", "boolean"));
                         put("autoBackfill",               Map.of("type", "boolean"));
                         put("autoBackfillBlock",          Map.of("type", "string"));
                         put("autoBackfillRadius",         Map.of("type", "integer", "minimum", 1,   "maximum", 16));
                         put("allowParkour4",              Map.of("type", "boolean"));
                         put("allowBreak",                 Map.of("type", "boolean"));
+                        put("allowSwimEscapeBreak",        Map.of("type", "boolean"));
+                        put("allowSwimEscapePlace",        Map.of("type", "boolean"));
                         put("allowPlace",                 Map.of("type", "boolean"));
                         put("allowParkourPlace",          Map.of("type", "boolean"));
                         put("allowWaterBucketFall",       Map.of("type", "boolean"));
@@ -266,12 +312,29 @@ public final class BotTools {
                         put("waterBucketScoop",           Map.of("type", "boolean"));
                         put("avoidDanger",                Map.of("type", "boolean"));
                         put("pathfinder.dangerPenalty",   Map.of("type", "number",  "minimum", 0,   "maximum", 1000));
+                        put("pathfinder.lavaDangerPenalty",   Map.of("type", "number", "minimum", 0, "maximum", 5000));
+                        put("pathfinder.contactDangerPenalty", Map.of("type", "number", "minimum", 0, "maximum", 1000));
+                        put("pathfinder.ledgeDangerPenalty",  Map.of("type", "number", "minimum", 0, "maximum", 1000));
+                        put("pathfinder.ledgeDangerMinDrop",  Map.of("type", "integer", "minimum", 1, "maximum", 64));
+                        put("pathfinder.waterDangerPenalty",  Map.of("type", "number", "minimum", 0, "maximum", 1000));
+                        put("pathfinder.sliceMs",             Map.of("type", "integer", "minimum", 1, "maximum", 50));
                         put("avoidMobs",                  Map.of("type", "boolean"));
                         put("pathfinder.mobAvoidRadius",  Map.of("type", "number",  "minimum", 0,   "maximum", 64));
                         put("pathfinder.mobAvoidPenalty", Map.of("type", "number",  "minimum", 0,   "maximum", 1000));
                         put("smoothLook",                 Map.of("type", "boolean"));
                         put("smoothLookDegPerTick",       Map.of("type", "number",  "minimum", 1,   "maximum", 180));
+                        put("walkerDebug",                Map.of("type", "boolean"));
+                        put("elytraDebug",                Map.of("type", "boolean"));
                         put("blocksToAvoid",              Map.of("type", "array", "items", Map.of("type", "string")));
+                        put("pathfinder.avoidZonePenalty", Map.of("type", "number", "minimum", 0, "maximum", 5000));
+                        put("avoidPoints", Map.of("type", "array", "items", Map.of(
+                                "type", "object",
+                                "properties", Map.of(
+                                        "x", Map.of("type", "number"),
+                                        "y", Map.of("type", "number"),
+                                        "z", Map.of("type", "number"),
+                                        "radius", Map.of("type", "number")),
+                                "required", java.util.List.of("x", "y", "z"))));
                         put("walker.repathEveryTicks",    Map.of("type", "integer", "minimum", 20,  "maximum", 10000));
                         put("walker.totalTickBudget",     Map.of("type", "integer", "minimum", 200, "maximum", 36000));
                         put("walker.yawHysteresisDeg",    Map.of("type", "number",  "minimum", 0,   "maximum", 30));
@@ -424,7 +487,8 @@ public final class BotTools {
                     "type", "object",
                     "properties", Map.of(
                         "blocks", Map.of("type", "array", "items", Map.of("type", "string"),
-                            "description", "Block IDs to mine, e.g. ['minecraft:iron_ore','minecraft:deepslate_iron_ore']."),
+                            "description", "Block IDs to mine, e.g. ['minecraft:iron_ore','minecraft:deepslate_iron_ore']. "
+                                + "Entries may also be '#tag' selectors, e.g. ['#minecraft:logs'] to mine any log species."),
                         "quantity", Map.of("type", "integer", "minimum", 1, "maximum", 256,
                             "description", "How many to break. Default 1."),
                         "radius", Map.of("type", "integer", "minimum", 1, "maximum", 64,
@@ -434,9 +498,156 @@ public final class BotTools {
                     "required", List.of("blocks")
                 )),
 
+            wrTool("mc.bot.bunker",
+                "挖三填一 emergency shelter — dig straight DOWN `depth` blocks at the bot's current spot " +
+                "and seal the roof with a dug block, making a 1×1 pocket no mob can reach. The no-gear way " +
+                "to survive a night or a swarm. AGENT-DRIVEN (not an auto-reflex): YOU decide when/where — " +
+                "typical plan is, at sunset (mc.observe.player.time.phase=='sunset'/'night') when exposed, " +
+                "move to a safe dry spot, call mc.bot.bunker, then mc.wait.condition{invoke:'mc.observe.player', " +
+                "field:'time.phase', value:'day'} to wait out the night, then dig back out. Needs hand-mineable " +
+                "dirt/sand/gravel below to supply the cap (bare stone by hand drops nothing → digs but can't " +
+                "seal). Aborts on water/lava/bedrock below. Returns {ok, started, depth}.",
+                Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "depth", Map.of("type", "integer", "minimum", 1, "maximum", 5,
+                            "description", "Blocks to dig down before sealing. Default = bunkerDepth setting (2)."))
+                )),
+
+            wrTool("mc.bot.escape",
+                "Block-less pit / well ESCAPE — carve a staircase UP the DRY walls and climb out, the " +
+                "inverse of mc.bot.bunker. Use when the bot is trapped in a hole/well the pathfinder " +
+                "can't solve (mc.bot.goto returns 'no path' or stalls), e.g. foot-in-water in a 1-wide " +
+                "shaft with no blocks to pillar: A* would route through a flush water channel the walker " +
+                "can't thread. This sidesteps pathing — each step it breaks the up-forward foot+head cells " +
+                "in the driest carvable cardinal and steps onto the carved tread, repeating to the surface. " +
+                "Needs allowBreak ON and a solid non-falling wall to stair up (bare-hand sandstone is slow " +
+                "but works). Bails if no carvable direction exists. Climbs until targetY or open sky above. " +
+                "Returns {ok, started, targetY}. Poll mc.bot.status / mc.observe.player to see it surface.",
+                Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "targetY", Map.of("type", "integer", "minimum", -64, "maximum", 320,
+                            "description", "Climb until foot Y reaches this. Default = current Y + 32 (skyOpen ends it sooner)."))
+                )),
+
+            wrTool("mc.bot.craft",
+                "Craft an item, resolving the full sub-recipe tree from the inventory. Async; pass " +
+                "awaitMs to block. Internally runs mc.recipe.resolve over the current inventory, then " +
+                "executes each crafting step via the recipe-book placement path (server fills the grid, " +
+                "the bot shift-clicks the result out) — 2x2 recipes use the inventory grid, 3x3 recipes " +
+                "open a crafting table (an existing one within reach, or one placed from the hotbar). " +
+                "If a leaf material is missing it fails up front with lastError '缺 N 个 X' (left for the " +
+                "caller to gather). Smelting/blasting routes are NOT followed — use mc.bot.smelt for those. " +
+                "Returns {ok, started, item, count}. Watch mc.bot.status.craft for completion/lastError.",
+                Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "item", Map.of("type", "string",
+                            "description", "Result item id to craft, e.g. 'minecraft:wooden_pickaxe'."),
+                        "count", Map.of("type", "integer", "minimum", 1, "maximum", 256,
+                            "description", "How many to end up with. Default 1."),
+                        "awaitMs", awaitMsSchema()
+                    ),
+                    "required", List.of("item")
+                )),
+
+            wrTool("mc.bot.smelt",
+                "Smelt an ingredient in a furnace via slot simulation. Async; pass awaitMs to block. " +
+                "Opens a furnace (one within reach, or placed from the hotbar), shift-clicks the " +
+                "ingredient into the input slot and a fuel into the fuel slot, waits for the output to " +
+                "cook (~200 ticks/item), then shift-clicks the result back to the inventory. Fuel is the " +
+                "supplied `fuel` item or auto-picked from the inventory (vanilla fuel table). Fails with " +
+                "lastError '缺 N 个 X' if the ingredient isn't held, or a furnace/fuel error otherwise. " +
+                "Returns {ok, started, item, count, fuel}. Watch mc.bot.status.smelt for completion.",
+                Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "item", Map.of("type", "string",
+                            "description", "Ingredient item id to smelt, e.g. 'minecraft:raw_iron'."),
+                        "count", Map.of("type", "integer", "minimum", 1, "maximum", 256,
+                            "description", "How many to smelt (capped at what's in the inventory). Default 1."),
+                        "fuel", Map.of("type", "string",
+                            "description", "Optional fuel item id (e.g. 'minecraft:coal'). Omit to auto-pick."),
+                        "awaitMs", awaitMsSchema()
+                    ),
+                    "required", List.of("item")
+                )),
+
+            wrTool("mc.bot.combat",
+                "Actively fight hostiles (Phase C). Async; pass awaitMs to block until the fight ends. " +
+                "Runs at scheduler priority COMBAT (60), preempting goto/mine/etc. and resuming them when " +
+                "the area clears. Picks a target, closes to weapon range, and lands cooldown-gated hits " +
+                "(only swings at full attack-strength for max damage; pre-jumps for 1.5x crits) until done. " +
+                "Melee closes to combatReach and orbits a swarm; ranged (bow/crossbow in hand) keeps " +
+                "kiteDistance and fires at full draw. mode='engage' clears every hostile in range, " +
+                "'defend' only retaliates against mobs actively eyeing the bot, 'kill' targets a specific " +
+                "mob via target:{id} or target:{type}. Self-terminates when the target dies / area is clear. " +
+                "Returns {ok, started, mode, targetId?, targetType?}. Watch mc.bot.status.combat for " +
+                "{active, swings, wellTimed, crits, kills, lastError?}. (Set mc.bot.setting{autoFight:true} to " +
+                "auto-engage without calling this each time.)",
+                Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "mode", Map.of("type", "string", "enum", List.of("engage", "defend", "kill"),
+                            "description", "engage = clear all; defend = retaliate only; kill = one target. Default engage."),
+                        "target", Map.of("type", "object",
+                            "description", "For kill mode: {id:<entityId>} or {type:'minecraft:zombie'}.",
+                            "properties", Map.of(
+                                "id", Map.of("type", "integer", "description", "Entity id to kill."),
+                                "type", Map.of("type", "string", "description", "Entity type id (bare name ok).")
+                            )),
+                        "awaitMs", awaitMsSchema()
+                    )
+                )),
+
+            wrTool("mc.bot.equip",
+                "Equip the best armor on every body slot and (unless armorOnly) the best weapon in the " +
+                "main hand (Phase F). Synchronous. Scans the inventory, scoring material tier first " +
+                "(netherite>diamond>iron>chainmail>gold>leather) then enchantments; swaps each piece in via " +
+                "inventory slot-clicks. Swords are preferred over axes/tridents for the main hand. Returns " +
+                "{ok, profile, equipped:[ids newly put on], loadout:{head,chest,legs,feet,mainHand}, " +
+                "lowDurability:[ids below equipDurabilityThreshold], missing:[empty armor slots]} — hand " +
+                "lowDurability/missing back to the planner to go repair or craft the gap. (Set " +
+                "mc.bot.setting{autoEquip:true} to auto-gear at the start of every fight.)",
+                Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "profile", Map.of("type", "string", "enum", List.of("best", "combat", "armor"),
+                            "description", "best/combat = armor + weapon; armor = armor only. Default best."),
+                        "armorOnly", Map.of("type", "boolean",
+                            "description", "Equip armor but leave the held weapon alone. Default false.")
+                    )
+                )),
+
+            wrTool("mc.bot.playbook",
+                "Run a multi-phase boss playbook (Phase G) — a hot-reloadable Rhino script that " +
+                "orchestrates combat/goto/equip/setting + boss sensing into a full fight. Runs on a " +
+                "background thread (returns immediately) so the multi-minute loop outlives the " +
+                "mc.script.eval cap. op='start' (default) needs name='dragon'|'wither'; returns " +
+                "{ok, started, name}. op='status' returns {ok, active, name?, aborting, lastResult?, " +
+                "lastError?} — poll lastResult for the fight outcome. op='cancel' asks it to stop " +
+                "(honoured at the next loop turn). One playbook at a time. The dragon playbook clears " +
+                "the End crystals (hard gate) then perch-melees/bow-kites the dragon; the wither " +
+                "playbook gear-gates on Phase F (aborts if not full armor + sword), then summons " +
+                "(unless summon:false) and melee-grinds both phases.",
+                Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "name", Map.of("type", "string", "enum", List.of("dragon", "wither"),
+                            "description", "Which playbook to start (op=start)."),
+                        "op", Map.of("type", "string", "enum", List.of("start", "status", "cancel"),
+                            "description", "start (default) | status | cancel."),
+                        "summon", Map.of("type", "boolean",
+                            "description", "Wither only: summon the boss (default true; false = just gear-check)."),
+                        "maxRounds", Map.of("type", "integer",
+                            "description", "Safety cap on loop iterations before giving up.")
+                    )
+                )),
+
             roTool("mc.bot.status",
                 "Snapshot of every bot process. Poll via mc.wait.condition or use awaitMs on the " +
-                "starting action. Returns {paused, activeProcess, goto, mine, builder, follow, " +
+                "starting action. Returns {paused, activeProcess, goto, mine, craft, smelt, combat, builder, follow, " +
                 "explore, runAway, look, lastPath?} — each process slot has {active, pathLen, " +
                 "pathStep, lastError?, goal?, target?, startedAtMs?}. lastPath = stats from the " +
                 "most recent A* run: {expanded, ms, goalReached, finalCost, pathLen} — useful for " +
@@ -451,7 +662,7 @@ public final class BotTools {
                     "type", "object",
                     "properties", Map.of(
                         "process", Map.of("type", "string",
-                            "enum", List.of("all", "goto", "mine", "builder", "follow", "explore", "runAway", "look"),
+                            "enum", List.of("all", "goto", "mine", "craft", "smelt", "combat", "builder", "follow", "explore", "runAway", "look"),
                             "description", "Which process to cancel. Default 'all'.")
                     )
                 ))

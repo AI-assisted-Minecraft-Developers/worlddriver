@@ -15,7 +15,8 @@ public final class WaitTools {
                 "Long-poll for events with seq > cursor matching `types`. Returns when ≥1 event " +
                 "arrives, or {timedOut:true, events:[], cursor:N} on deadline. " +
                 "cursor in response = last event's seq; chain it as the next call's cursor. " +
-                "Returns {events, timedOut, cursor, ms}. timeoutMs default 5000, max 120000.",
+                "Returns {events, timedOut, cursor, ms}. timeoutMs default 5000, max 120000. " +
+                "background:true returns {waitId} at once; result later via mc.wait.result or a wait.done event.",
                 Map.of(
                     "type", "object",
                     "properties", Map.of(
@@ -23,7 +24,9 @@ public final class WaitTools {
                         "types", Map.of("type", "array", "items", Map.of("type", "string")),
                         "limit", Map.of("type", "integer", "minimum", 1, "maximum", 256),
                         "timeoutMs", Map.of("type", "integer", "minimum", 100, "maximum", 120000),
-                        "pollMs", Map.of("type", "integer", "minimum", 50, "maximum", 2000)
+                        "pollMs", Map.of("type", "integer", "minimum", 50, "maximum", 2000),
+                        "background", Map.of("type", "boolean",
+                            "description", "Run non-blocking: return {waitId} immediately; fetch via mc.wait.result.")
                     ),
                     "required", List.of("cursor")
                 )),
@@ -32,12 +35,15 @@ public final class WaitTools {
                 "Block until the client finishes loading into a world (player + world both ready). " +
                 "Use after 'Play Selected World' so subsequent calls don't fire on the loading screen. " +
                 "Does NOT require an attached server. " +
-                "Returns {ready, ms, info} (info = last screenInfo). timeoutMs default 30000.",
+                "Returns {ready, ms, info} (info = last screenInfo). timeoutMs default 30000. " +
+                "background:true returns {waitId} at once (fetch via mc.wait.result / wait.done event).",
                 Map.of(
                     "type", "object",
                     "properties", Map.of(
                         "timeoutMs", Map.of("type", "integer", "minimum", 100, "maximum", 120000),
-                        "pollMs", Map.of("type", "integer", "minimum", 50, "maximum", 2000)
+                        "pollMs", Map.of("type", "integer", "minimum", 50, "maximum", 2000),
+                        "background", Map.of("type", "boolean",
+                            "description", "Run non-blocking: return {waitId} immediately; fetch via mc.wait.result.")
                     )
                 )),
 
@@ -46,7 +52,10 @@ public final class WaitTools {
                 "the result, stops when truthy (or deep-equals `value` when given). " +
                 "E.g. wait for furnace output: {invoke:'mc.observe.container', " +
                 "params:{pos:...}, field:'slots.2.count'}. " +
-                "Returns {satisfied, value, ms}. timeoutMs default 30000, max 120000.",
+                "Returns {satisfied, value, ms}. timeoutMs default 30000, max 120000. " +
+                "IN LIVE PLAY use background:true for long phase/time waits — a blocking wait freezes " +
+                "the agent and blinds it to threat/hurt/death events for the whole budget. background " +
+                "returns {waitId} immediately; the result arrives via mc.wait.result{waitId} or a wait.done event.",
                 Map.of(
                     "type", "object",
                     "properties", Map.of(
@@ -59,9 +68,26 @@ public final class WaitTools {
                         "value", Map.of("description",
                             "Optional target value for deep-equal comparison. Omit for truthy check."),
                         "timeoutMs", Map.of("type", "integer", "minimum", 100, "maximum", 120000),
-                        "pollMs", Map.of("type", "integer", "minimum", 50, "maximum", 5000)
+                        "pollMs", Map.of("type", "integer", "minimum", 50, "maximum", 5000),
+                        "background", Map.of("type", "boolean",
+                            "description", "Run non-blocking: return {waitId} immediately; fetch via mc.wait.result.")
                     ),
                     "required", List.of("invoke")
+                )),
+
+            roTool("mc.wait.result",
+                "Fetch the result of a background wait (any wait.* started with background:true). " +
+                "Returns {pending:true} until it finishes, then the full original result " +
+                "(satisfied/timedOut/value/events …). Consumes the result unless consume:false. " +
+                "Alternatively, watch the event stream for a wait.done event carrying {waitId, kind, …}.",
+                Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "waitId", Map.of("type", "string", "description", "The waitId returned by the background wait."),
+                        "consume", Map.of("type", "boolean",
+                            "description", "Remove the stored result after reading (default true).")
+                    ),
+                    "required", List.of("waitId")
                 ))
         );
     }
