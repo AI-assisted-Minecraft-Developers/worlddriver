@@ -215,7 +215,7 @@ public final class BotConfig {
      *  no threat is within 12 blocks, dig a "挖三填一" bunker (BunkerProcess) after a
      *  short debounce. Off by default; enable for fully autonomous survival runs.
      *  Note: this is below the USER priority band, so any active task suppresses it. */
-    public static volatile boolean autoSecureAtDusk = false;
+    public static volatile boolean autoSecureAtDusk = true;
 
     /** Emergency "挖三填一" bunker reflex (BunkerChain): when cornered — low HP
      *  AND several hostiles right next to the bot, where fleeing just runs into
