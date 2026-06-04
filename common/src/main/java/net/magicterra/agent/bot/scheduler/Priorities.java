@@ -29,6 +29,10 @@ public final class Priorities {
     /** User foreground task (goto/mine/craft/...) via UserTaskChain. */
     public static final float USER = 50f;
 
+    /** Proactive idle-only "secure before dusk" (DuskSecureChain). BELOW user task so it
+     *  never preempts active work — only acts when nothing higher wants the channel. */
+    public static final float IDLE_SECURE = 40f;
+
     /**
      * Anti-flap margin. A challenger must beat the incumbent's last priority by
      * more than this to take the channel, so two chains with near-equal priority

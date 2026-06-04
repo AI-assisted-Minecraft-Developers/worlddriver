@@ -210,6 +210,13 @@ public final class BotConfig {
      *  but more pathing per tick. */
     public static volatile int autoBackfillRadius = 6;
 
+    /** Proactive idle-only dusk shelter (DuskSecureChain, priority IDLE_SECURE=40):
+     *  when the bot is sky-exposed at dusk/night, idle (no user task running), and
+     *  no threat is within 12 blocks, dig a "挖三填一" bunker (BunkerProcess) after a
+     *  short debounce. Off by default; enable for fully autonomous survival runs.
+     *  Note: this is below the USER priority band, so any active task suppresses it. */
+    public static volatile boolean autoSecureAtDusk = false;
+
     /** Emergency "挖三填一" bunker reflex (BunkerChain): when cornered — low HP
      *  AND several hostiles right next to the bot, where fleeing just runs into
      *  more mobs — dig straight down a couple of blocks and seal the roof with the

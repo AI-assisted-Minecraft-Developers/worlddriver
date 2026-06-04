@@ -36,6 +36,7 @@ import net.magicterra.agent.bot.process.*;
 import net.magicterra.agent.bot.scheduler.BunkerChain;
 import net.magicterra.agent.bot.scheduler.CombatChain;
 import net.magicterra.agent.bot.scheduler.DodgeChain;
+import net.magicterra.agent.bot.scheduler.DuskSecureChain;
 import net.magicterra.agent.bot.scheduler.PanicChain;
 import net.magicterra.agent.bot.scheduler.ProcessScheduler;
 import net.magicterra.agent.bot.scheduler.RetreatChain;
@@ -106,6 +107,7 @@ public final class BotApiImpl implements BotApi {
         scheduler.register(new RetreatChain(state)); // 100 — low-HP flee
         scheduler.register(combatChain);          // 60  — active combat
         scheduler.register(userTask);             // 50  — foreground task
+        scheduler.register(new DuskSecureChain(state, worldModel)); // 40 — idle dusk shelter
     }
     volatile boolean paused;
     /** Named positions persisted for the lifetime of the bot impl (no disk).
