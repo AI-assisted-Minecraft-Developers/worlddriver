@@ -145,6 +145,9 @@ public final class AgentApi {
             if (c != null) return c.observeBoss(radius);
             return Map.of("present", false, "crystals", List.of());
         });
+        // Server-side hazard scene: HazardField + SurvivalFacts + optional ASCII map.
+        // Works headless in GameTest; no client required.
+        routes.put("mc.observe.scene", p -> observe.scene(p));
         // ASCII spatial map (top-down heightmap or vertical cross-section) — a
         // compact, glanceable substitute for parsing block + threat JSON when
         // making fast tactical/flee decisions. Server-side (works headless).

@@ -70,6 +70,27 @@ public final class ObserveActionTools {
                             "description", "Scan radius in blocks (default 64 — covers the End-pillar ring).")
                     ))),
 
+            roTool("mc.observe.scene",
+                "Server-side hazard scene around a center (default: first player, else test origin). " +
+                "Computes a HazardField via ServerWorldView and derives survival facts: lethalCount " +
+                "(cells that would kill a 20-HP bot), cornered (no safe adjacent step), safeFleeStep " +
+                "({dx,dz} of the safest cardinal/diagonal step away from a threat). " +
+                "Returns {present, center:{x,y,z}, radius, authority:'server', " +
+                "hazardSummary:{lethalCount, cornered, safeFleeStep?}}. " +
+                "With render='map' also returns {rows:[...], legend:{...}} — an ASCII hazard grid " +
+                "('.':walk '#':wall 'v':survivable-drop 'V':lethal-drop '~':water '≈':deep-water " +
+                "'x':contact-damage '!':lava/fire '@':center). Works headless in GameTest.",
+                Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "center", blockPosSchema(),
+                        "radius", Map.of("type", "integer", "minimum", 1, "maximum", 32,
+                            "description", "Chebyshev radius in blocks (default 12, max 32)."),
+                        "render", Map.of("type", "string", "enum", List.of("summary", "map"),
+                            "description", "summary (default): hazardSummary only. map: also include ASCII rows + legend.")
+                    )
+                )),
+
             roTool("mc.observe.container",
                 "Read container contents. With pos: BlockEntity at pos (chest/barrel/hopper/" +
                 "furnace/dispenser); slot indices vanilla (furnace: 0=input,1=fuel,2=output). " +

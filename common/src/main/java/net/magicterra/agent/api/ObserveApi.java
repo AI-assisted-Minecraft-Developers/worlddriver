@@ -1,5 +1,11 @@
 package net.magicterra.agent.api;
 
+import net.magicterra.agent.bot.world.AsciiMapRenderer;
+import net.magicterra.agent.bot.world.HazardField;
+import net.magicterra.agent.bot.world.SceneModel;
+import net.magicterra.agent.bot.world.ServerWorldView;
+import net.magicterra.agent.bot.world.SurvivalFacts;
+import net.magicterra.agent.bot.world.SurvivalMath;
 import net.magicterra.agent.model.AgentEvent;
 import net.magicterra.agent.model.Params;
 import net.minecraft.core.BlockPos;
@@ -320,5 +326,53 @@ public final class ObserveApi {
             case "phantom": return 'P';
             default: return '?';
         }
+    }
+
+    /**
+     * Server-side hazard scene: computes a {@link HazardField} over the server
+     * world around a center point (default: first player, else test origin),
+     * derives survival facts (lethalCount, cornered, safeFleeStep), and
+     * optionally renders an ASCII map. Works headless in GameTest.
+     *
+     * <p>Returns {present, center, radius, hazardSummary:{lethalCount, cornered,
+     * safeFleeStep?}, authority:"server"} plus, when {@code render=="map"},
+     * {rows:[...], legend:{...}}.
+     */
+    public Map<String, Object> scene(Map<String, Object> params) {
+        Params p = Params.of(params);
+        BlockPos explicit = p.getPos("center");
+        int radius = p.getIntClamped("radius", 12, 1, 32);
+        String render = p.getString("render", "summary");
+        ServerLevel level = api.level();
+        return api.onServerThread(() -> {
+            BlockPos center = explicit;
+            if (center == null) {
+                List<ServerPlayer> all = api.server.getPlayerList().getPlayers();
+                if (!all.isEmpty()) {
+                    center = all.get(0).blockPosition();
+                } else {
+                    center = AgentApi.ORIGIN;
+                }
+            }
+            ServerWorldView w = new ServerWorldView(level);
+            int survivable = SurvivalMath.survivableFall(20f); // assume full HP server-side
+            HazardField f = HazardField.compute(w, center, radius, survivable, 2);
+            int lethal = SurvivalFacts.lethalCount(f);
+            boolean cornered = SurvivalFacts.cornered(f);
+            int[] flee = SurvivalFacts.safeFleeStep(f, 0, 1);
+            SceneModel sm = new SceneModel(center, radius, f, lethal, cornered, flee);
+
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("present", true);
+            out.put("center", Map.of("x", center.getX(), "y", center.getY(), "z", center.getZ()));
+            out.put("radius", radius);
+            out.put("hazardSummary", sm.summary());
+            if ("map".equals(render)) {
+                out.put("rows", AsciiMapRenderer.rows(f));
+                out.put("legend", AsciiMapRenderer.legend());
+            }
+            out.put("authority", "server");
+            return out;
+        });
     }
 }
