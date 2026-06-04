@@ -256,6 +256,8 @@ public final class BotTools {
                 "  avoidMobs                 bool      — Baritone mob avoidance; A* adds a distance-ramped cost near hostile mobs so routes give them a berth. Off by default (changes pathing noticeably)\n" +
                 "  pathfinder.mobAvoidRadius [0,64]    dflt 6  — radius a hostile mob influences when avoidMobs is on\n" +
                 "  pathfinder.mobAvoidPenalty[0,1000]  dflt 40 — peak cost (at the mob) of an avoided mob, ramping to 0 at mobAvoidRadius\n" +
+                "  rangedAvoidRadius         [4,48]    dflt 16 — wider avoid radius for RANGED mobs (skeleton/witch) when avoidMobs is on, so flee/goto routes give them more berth than melee mobs\n" +
+                "  fleeDangerBoost           [1,20]    dflt 8  — while actively fleeing (runAway/retreat), multiply water+ledge danger by this so the flee won't dive into water or off a cliff\n" +
                 "  smoothLook                bool      — pan camera over ticks (pathfinding + lookAt) for stream/demo instead of snapping; off by default\n" +
                 "  smoothLookDegPerTick      [1,180]   dflt 20 — turn rate when smoothLook on (20°/tick ≈ 400°/s)\n" +
                 "  walkerDebug               bool      — log per-tick Walker movement/break decisions to the client log (movement-bug instrumentation); off by default\n" +
@@ -331,6 +333,8 @@ public final class BotTools {
                         put("avoidMobs",                  Map.of("type", "boolean"));
                         put("pathfinder.mobAvoidRadius",  Map.of("type", "number",  "minimum", 0,   "maximum", 64));
                         put("pathfinder.mobAvoidPenalty", Map.of("type", "number",  "minimum", 0,   "maximum", 1000));
+                        put("rangedAvoidRadius",          Map.of("type", "integer", "minimum", 4,   "maximum", 48));
+                        put("fleeDangerBoost",            Map.of("type", "number",  "minimum", 1,   "maximum", 20));
                         put("smoothLook",                 Map.of("type", "boolean"));
                         put("smoothLookDegPerTick",       Map.of("type", "number",  "minimum", 1,   "maximum", 180));
                         put("walkerDebug",                Map.of("type", "boolean"));

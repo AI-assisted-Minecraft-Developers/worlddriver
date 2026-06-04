@@ -1128,6 +1128,10 @@ public final class BotApiImpl implements BotApi {
         // Movement channel: run the highest-priority chain (user task, or a
         // survival/combat chain preempting it). When every chain sits out, the
         // bot is idle — release the keys, matching the old single-process path.
+        // Reset the flee-context flag first: RunAwayProcess.tick (driven below by
+        // the scheduler) re-sets it true right before its A* search, so fleeSearch
+        // snapshots true only for an active flee and is never stuck-true.
+        BotConfig.fleeActive = false;
         scheduler.tick(mc, world, state);
         if (scheduler.current() == null) releaseKeys();
         // autoSwim LAST: drowning backstop. Must run after the idle releaseKeys()

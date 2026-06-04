@@ -3,6 +3,7 @@ package net.magicterra.agent.bot;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.magicterra.agent.bot.world.HazardField;
+import net.magicterra.agent.bot.world.ThreatAvoidance;
 import net.magicterra.agent.bot.world.WorldModel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
@@ -32,6 +33,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.entity.monster.Enemy;
+import net.minecraft.world.entity.monster.RangedAttackMob;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.core.Holder;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -69,6 +71,10 @@ final class ClientWorldView implements WorldView {
      *  dangerCost queries are consistent across the whole A* run and don't
      *  race the per-tick WorldModel update. */
     private HazardField hazardSnapshot;
+    /** Flee-context, snapshotted at beginSearch: when true (a RunAwayProcess is
+     *  driving this search) water/ledge danger is boosted so the flee won't dive
+     *  into water or off a cliff. Consistent for the whole A* run. */
+    private volatile boolean fleeSearch;
     public void setWorldModel(WorldModel wm) { this.worldModel = wm; }
     public boolean isSolid(BlockPos p) {
         Level lvl = Minecraft.getInstance().level;
@@ -240,7 +246,7 @@ final class ClientWorldView implements WorldView {
     // Hostile-mob positions snapshotted once per search (beginSearch) so the
     // per-node dangerCost doesn't rescan the entity list. Refreshed every
     // repath. Touched only on the client thread during a search.
-    private volatile float[] mobXyz = new float[0];   // flat [x0,y0,z0, x1,y1,z1, ...]
+    private volatile float[] mobXyz = new float[0];   // flat [x,y,z,r, ...] (stride-4; r = per-mob avoid radius)
     // Water-bucket (MLG) fall availability, snapshotted once per search:
     // Move.ALL enumerates ~68 candidate fall heights per node, so re-scanning
     // the hotbar for a water bucket in every WaterBucketFall.valid would be
@@ -306,24 +312,30 @@ final class ClientWorldView implements WorldView {
                 }
             }
         }
+        // Mob snapshot (stride-4: x,y,z,r; ranged mobs get the wider radius). Gated
+        // on avoidMobs — but NO early return: fleeSearch + hazardSnapshot below must
+        // ALWAYS be refreshed (a prior bug left them stale when avoidMobs was off).
         mobXyz = new float[0];
-        if (!BotConfig.avoidMobs) return;
-        Minecraft mc = Minecraft.getInstance();
-        LocalPlayer pl = mc.player;
-        if (!(mc.level instanceof ClientLevel cl) || pl == null) return;
-        double maxR = 64;                              // bound the snapshot to nearby mobs
-        List<Float> buf = new ArrayList<>();
-        for (Entity e : cl.entitiesForRendering()) {
-            if (e instanceof Enemy && e.isAlive()
-                    && e.distanceToSqr(pl) <= maxR * maxR) {
-                buf.add((float) e.getX());
-                buf.add((float) e.getY());
-                buf.add((float) e.getZ());
+        if (BotConfig.avoidMobs) {
+            Minecraft mcb = Minecraft.getInstance();
+            LocalPlayer pl = mcb.player;
+            if (mcb.level instanceof ClientLevel cl && pl != null) {
+                double maxR = 64;                          // bound the snapshot to nearby mobs
+                List<Float> buf = new ArrayList<>();
+                for (Entity e : cl.entitiesForRendering()) {
+                    if (e instanceof Enemy && e.isAlive() && e.distanceToSqr(pl) <= maxR * maxR) {
+                        boolean ranged = e instanceof RangedAttackMob;
+                        float r = (float) (ranged ? BotConfig.rangedAvoidRadius : BotConfig.mobAvoidRadius);
+                        buf.add((float) e.getX()); buf.add((float) e.getY()); buf.add((float) e.getZ()); buf.add(r);
+                    }
+                }
+                float[] arr = new float[buf.size()];
+                for (int i = 0; i < arr.length; i++) arr[i] = buf.get(i);
+                mobXyz = arr;
             }
         }
-        float[] arr = new float[buf.size()];
-        for (int i = 0; i < arr.length; i++) arr[i] = buf.get(i);
-        mobXyz = arr;
+        // Flee-context flag, snapshotted consistent for the whole A* run.
+        fleeSearch = BotConfig.fleeActive;
         // Snapshot the HazardField from WorldModel so dangerCost can apply the
         // lethal-cell penalty. Done AFTER the mob snapshot so both are consistent
         // for the full A* run. Null-safe: headless tests have no worldModel wired.
@@ -366,7 +378,7 @@ final class ClientWorldView implements WorldView {
                             empties++;
                         }
                         if (empties >= BotConfig.ledgeDangerMinDrop) {
-                            penalty += BotConfig.ledgeDangerPenalty;
+                            penalty += BotConfig.ledgeDangerPenalty * (fleeSearch ? BotConfig.fleeDangerBoost : 1.0);
                             break;
                         }
                     }
@@ -377,7 +389,7 @@ final class ClientWorldView implements WorldView {
                 // a long open-water swim loses to any reasonable land detour. This
                 // is the fix for "寻路太蠢/走进海里淹死".
                 if (BotConfig.waterDangerPenalty > 0 && isWater(foot)) {
-                    penalty += BotConfig.waterDangerPenalty;
+                    penalty += BotConfig.waterDangerPenalty * (fleeSearch ? BotConfig.fleeDangerBoost : 1.0);
                 }
                 // Prefer the surface: penalize a foot that sits well BELOW the
                 // world-surface heightmap at its x,z — i.e. underground, where mobs
@@ -401,14 +413,8 @@ final class ClientWorldView implements WorldView {
             }
         }
         if (BotConfig.avoidMobs) {
-            float[] m = mobXyz;
-            double r = BotConfig.mobAvoidRadius;
-            double fx = foot.getX() + 0.5, fy = foot.getY(), fz = foot.getZ() + 0.5;
-            for (int i = 0; i + 2 < m.length; i += 3) {
-                double dx = fx - m[i], dy = fy - m[i + 1], dz = fz - m[i + 2];
-                double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                if (dist < r) penalty += BotConfig.mobAvoidPenalty * (r - dist) / r;
-            }
+            penalty += ThreatAvoidance.cost(mobXyz, BotConfig.mobAvoidPenalty,
+                    foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5);
         }
         // Agent-supplied danger zones (mc.bot.setting avoidPoints): explicit regions
         // the Agent marked to route around — applied regardless of avoidMobs and not

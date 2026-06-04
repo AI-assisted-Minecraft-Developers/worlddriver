@@ -375,6 +375,10 @@ public final class BotConfig {
      *  is on; ramps down to 0 at {@link #mobAvoidRadius}. */
     public static volatile double mobAvoidPenalty = 40;
 
+    public static volatile int rangedAvoidRadius = 16;   // wider berth for ranged mobs (skeleton/witch) — Baritone Avoidance, AltoClef-style ranged split
+    public static volatile double fleeDangerBoost = 8;   // during an active flee, water/ledge danger ×this so the flee won't dive into water or off a cliff (F2)
+    public static volatile boolean fleeActive = false;   // RUNTIME flee-context flag (a RunAwayProcess ticked this frame); NOT persisted, NOT in MCP schema
+
     /** Agent-supplied danger zones to route AROUND — each row is
      *  {@code [x, y, z, radius]}. Set via {@code mc.bot.setting{avoidPoints:[...]}}
      *  (or cleared with {@code []}) right before a goto. Unlike {@link #mobAvoidPenalty}
@@ -519,11 +523,20 @@ public final class BotConfig {
         }
     }
 
+    /** Fields excluded from persistence even though their type is persistable:
+     *  pure RUNTIME state that must NOT survive a restart. {@code fleeActive} is
+     *  a per-frame flee-context flag (set true by RunAwayProcess.tick, reset each
+     *  clientTick) — if saved it would reload {@code true} and wrongly boost every
+     *  goto's terrain cost. Keep this in sync with any other transient scalar. */
+    private static final Set<String> NON_PERSISTED = Set.of("fleeActive");
+
     /** A static, non-final field of a scalar type (or the hazard-block Set) — the
-     *  set we round-trip. Arrays (avoidZones) and anything else are excluded. */
+     *  set we round-trip. Arrays (avoidZones), runtime-only flags ({@link
+     *  #NON_PERSISTED}), and anything else are excluded. */
     private static boolean persistable(Field f) {
         int m = f.getModifiers();
         if (!Modifier.isStatic(m) || Modifier.isFinal(m)) return false;
+        if (NON_PERSISTED.contains(f.getName())) return false;
         Class<?> t = f.getType();
         return t == boolean.class || t == int.class || t == long.class
                 || t == double.class || t == float.class

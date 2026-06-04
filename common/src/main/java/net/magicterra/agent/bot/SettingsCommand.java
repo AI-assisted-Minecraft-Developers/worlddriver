@@ -256,6 +256,24 @@ public final class SettingsCommand {
                     applied.add("pathfinder.mobAvoidPenalty");
                 }
             }
+            if (params.get("rangedAvoidRadius") instanceof Number rar) {
+                int v = rar.intValue();
+                if (v < 4 || v > 48) {
+                    rejected.add("rangedAvoidRadius: out of range [4,48]");
+                } else {
+                    BotConfig.rangedAvoidRadius = v;
+                    applied.add("rangedAvoidRadius");
+                }
+            }
+            if (params.get("fleeDangerBoost") instanceof Number fdb) {
+                double v = fdb.doubleValue();
+                if (v < 1 || v > 20) {
+                    rejected.add("fleeDangerBoost: out of range [1,20]");
+                } else {
+                    BotConfig.fleeDangerBoost = v;
+                    applied.add("fleeDangerBoost");
+                }
+            }
             if (params.get("smoothLook") instanceof Boolean sl) {
                 BotConfig.smoothLook = sl;
                 applied.add("smoothLook");
@@ -506,6 +524,8 @@ public final class SettingsCommand {
         snap.put("avoidMobs", BotConfig.avoidMobs);
         snap.put("pathfinder.mobAvoidRadius", BotConfig.mobAvoidRadius);
         snap.put("pathfinder.mobAvoidPenalty", BotConfig.mobAvoidPenalty);
+        snap.put("rangedAvoidRadius", BotConfig.rangedAvoidRadius);
+        snap.put("fleeDangerBoost", BotConfig.fleeDangerBoost);
         snap.put("walkerDebug", BotConfig.walkerDebug);
         snap.put("elytraDebug", BotConfig.elytraDebug);
         snap.put("smoothLook", BotConfig.smoothLook);

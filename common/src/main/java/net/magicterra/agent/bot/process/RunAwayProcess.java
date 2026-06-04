@@ -84,6 +84,12 @@ public final class RunAwayProcess implements BotProcess {
     }
 
     public boolean tick(Minecraft mc, WorldView w, BotState st) {
+        // Flee-context: mark this frame as an active flee BEFORE the Walker runs
+        // its A* search, so ClientWorldView.beginSearch snapshots fleeSearch=true
+        // and boosts water/ledge danger (no diving into water / off a cliff while
+        // running). Covers both the RetreatChain reflex and user mc.bot.runAway —
+        // both drive this process. Reset to false each clientTick (BotApiImpl).
+        BotConfig.fleeActive = true;
         BotState.ProcessSlot s = slot(st);
         Walker.Step step = walker.tick(mc, w);
         s.pathLen = walker.pathLen();
