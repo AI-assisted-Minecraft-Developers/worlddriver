@@ -74,11 +74,16 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class BotApiImpl implements BotApi {
 
     private final BotState state = new BotState();
-    private final WorldView world = new ClientWorldView();
+    private final ClientWorldView world = new ClientWorldView();
     /** Per-tick derived-facts blackboard. Updated each client tick; snapshotted
      *  for off-thread reads by {@code mc.client.scene}. */
     private final WorldModel worldModel = new WorldModel();
     @Override public WorldModel worldModel() { return worldModel; }
+    // Wire the WorldModel into the ClientWorldView so dangerCost can apply the
+    // HazardField lethal-cell penalty. Done in an instance initialiser so both
+    // final fields are guaranteed initialised before any tick fires. The cast is
+    // unnecessary because world is now declared as ClientWorldView directly.
+    { world.setWorldModel(worldModel); }
     /** The foreground user task (goto/mine/build/...) lives in this chain. */
     private final UserTaskChain userTask = new UserTaskChain(state);
     /** Phase C active-combat chain (priority 60). Holds the combat intent set by

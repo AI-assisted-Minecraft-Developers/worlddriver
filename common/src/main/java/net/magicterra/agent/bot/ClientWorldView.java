@@ -2,6 +2,8 @@ package net.magicterra.agent.bot;
 
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.WorldView;
+import net.magicterra.agent.bot.world.HazardField;
+import net.magicterra.agent.bot.world.WorldModel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -60,6 +62,14 @@ final class ClientWorldView implements WorldView {
     // registry lookup). Efficiency is per-tool, so the *level* is read per
     // stack inside breakCost; this just caches the holder to look it up with.
     private volatile Holder<Enchantment> efficiencyEnchant = null;
+    /** WorldModel injected from BotApiImpl so dangerCost can query the
+     *  per-tick HazardField; null until wired (headless / unit tests). */
+    private WorldModel worldModel;
+    /** HazardField snapshotted at the start of each search (beginSearch) so
+     *  dangerCost queries are consistent across the whole A* run and don't
+     *  race the per-tick WorldModel update. */
+    private HazardField hazardSnapshot;
+    public void setWorldModel(WorldModel wm) { this.worldModel = wm; }
     public boolean isSolid(BlockPos p) {
         Level lvl = Minecraft.getInstance().level;
         if (lvl == null) return false;
@@ -314,6 +324,10 @@ final class ClientWorldView implements WorldView {
         float[] arr = new float[buf.size()];
         for (int i = 0; i < arr.length; i++) arr[i] = buf.get(i);
         mobXyz = arr;
+        // Snapshot the HazardField from WorldModel so dangerCost can apply the
+        // lethal-cell penalty. Done AFTER the mob snapshot so both are consistent
+        // for the full A* run. Null-safe: headless tests have no worldModel wired.
+        hazardSnapshot = worldModel != null ? worldModel.hazard() : null;
     }
     @Override public double dangerCost(BlockPos foot) {
         double penalty = 0;
@@ -410,6 +424,15 @@ final class ClientWorldView implements WorldView {
                 double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
                 if (dist < r) penalty += BotConfig.avoidZonePenalty * (r - dist) / r;
             }
+        }
+        // HazardField lethal-cell penalty: a lethal cell (fatal drop, deep water,
+        // lava/fire contact) adds 10 000 to the node cost. Huge-but-finite keeps A*
+        // feasible even when every path crosses a lethal cell (bot holds on the
+        // safest reachable cell rather than refusing to move at all). Additive with
+        // the existing static-hazard and mob penalties so all signals are preserved.
+        HazardField hf = hazardSnapshot;
+        if (hf != null) {
+            penalty += hf.lethalPenalty(foot);
         }
         return penalty;
     }
