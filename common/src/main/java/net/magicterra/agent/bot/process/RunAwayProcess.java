@@ -51,30 +51,46 @@ import static net.magicterra.agent.bot.util.BotUtil.*;
 public final class RunAwayProcess implements BotProcess {
     private final BlockPos from;
     private final int minDist;
+    /** Status slot to report into. Lets the AUTO-retreat reflex (RetreatChain) use
+     *  its own slot ({@code state.retreat}) instead of the user mc.bot.runAway verb's
+     *  slot ({@code state.runAway}) — the two used to share one, so a reflex flee
+     *  stomped a user flee's status and left it stuck active forever. Null = the
+     *  user-verb default ({@code state.runAway}). */
+    private final BotState.ProcessSlot reportSlot;
     private final Walker walker = new Walker();
 
-    public RunAwayProcess(BlockPos from, int minDist) {
+    public RunAwayProcess(BlockPos from, int minDist) { this(from, minDist, null); }
+
+    public RunAwayProcess(BlockPos from, int minDist, BotState.ProcessSlot slot) {
         this.from = from;
         this.minDist = minDist;
+        this.reportSlot = slot;
         walker.setGoal(new Goal.RunAway(from, minDist));
+    }
+
+    /** The slot to report into — the explicit one, or {@code state.runAway} by default. */
+    private BotState.ProcessSlot slot(BotState st) {
+        return reportSlot != null ? reportSlot : st.runAway;
     }
 
     public String kind() { return "runAway"; }
     public void attach(BotState st) {
-        st.runAway.active = true;
-        st.runAway.goal = "runAway from=" + from + " minDist=" + minDist;
-        st.runAway.target = from;
-        st.runAway.startedAtMs = System.currentTimeMillis();
-        st.runAway.lastError = null;
+        BotState.ProcessSlot s = slot(st);
+        s.active = true;
+        s.goal = "runAway from=" + from + " minDist=" + minDist;
+        s.target = from;
+        s.startedAtMs = System.currentTimeMillis();
+        s.lastError = null;
     }
 
     public boolean tick(Minecraft mc, WorldView w, BotState st) {
-        Walker.Step s = walker.tick(mc, w);
-        st.runAway.pathLen = walker.pathLen();
-        st.runAway.pathStep = walker.pathStep();
-        if (s == Walker.Step.WALKING) return false;
-        if (s == Walker.Step.FAILED) st.runAway.lastError = walker.lastError;
-        st.runAway.reset();
+        BotState.ProcessSlot s = slot(st);
+        Walker.Step step = walker.tick(mc, w);
+        s.pathLen = walker.pathLen();
+        s.pathStep = walker.pathStep();
+        if (step == Walker.Step.WALKING) return false;
+        if (step == Walker.Step.FAILED) s.lastError = walker.lastError;
+        s.reset();
         return true;
     }
 }
