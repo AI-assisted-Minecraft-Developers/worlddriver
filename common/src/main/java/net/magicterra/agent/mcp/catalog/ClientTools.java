@@ -31,6 +31,38 @@ public final class ClientTools {
                 "children:[{type, x, y, width, height, visible, active, message?, children?}, ...]}.",
                 emptyObjectSchema()),
 
+            roTool("mc.client.player",
+                "Client-AUTHORITATIVE player snapshot — reads the LocalPlayer / ClientLevel " +
+                "directly, so unlike mc.observe.player (which prefers the SERVER when one is " +
+                "attached) it shows what the CLIENT predicts. Same fields as mc.observe.player " +
+                "PLUS the client-physics truth: pose (STANDING/CROUCHING/SWIMMING/…), eyePos{x,y,z}, " +
+                "inWall, inWater, underWater, crouching, and eyeBlock/feetBlock (the ClientLevel " +
+                "block id at the eye and feet cells). Diff against mc.observe.player to detect a " +
+                "client/server desync (e.g. the client crawl-evading a command-placed block while " +
+                "the server still suffocates). This is exactly what the client-tick reflexes " +
+                "(autoSwim, antiSuffocate) gate on. {present:false} when no LocalPlayer.",
+                emptyObjectSchema()),
+
+            roTool("mc.client.blocks",
+                "Client-AUTHORITATIVE block scan — reads ClientLevel around center (default the " +
+                "local player), Chebyshev radius filter.in_radius (default 4, cap 16). Optional " +
+                "filter.type restricts to one block id (or a '#tag' selector). Unlike mc.query " +
+                "(which prefers the SERVER when attached) this always returns what the CLIENT has " +
+                "loaded, so you can diff client vs server block state. Returns " +
+                "{blocks:[{pos,type}], center, radius}.",
+                Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "center", Map.of("type", "object", "properties", Map.of(
+                            "x", Map.of("type", "integer"),
+                            "y", Map.of("type", "integer"),
+                            "z", Map.of("type", "integer"))),
+                        "filter", Map.of("type", "object", "properties", Map.of(
+                            "in_radius", Map.of("type", "integer", "minimum", 0, "maximum", 16),
+                            "type", Map.of("type", "string")))
+                    )
+                )),
+
             wrTool("mc.client.chat.send",
                 "Send a chat message or command from the local client — equivalent to " +
                 "pressing T, typing, and pressing Enter. Text starting with '/' is sent " +

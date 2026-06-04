@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 import static net.magicterra.agent.client.internal.ClientThread.runOnClient;
+import net.magicterra.agent.bot.combat.ThreatScanner;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.EntityHitResult;
@@ -23,6 +24,9 @@ import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.multiplayer.ClientLevel;
 import java.util.Set;
+import java.util.function.Predicate;
+import net.minecraft.world.level.block.state.BlockState;
+import net.magicterra.agent.bot.util.BlockMatch;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.LivingEntity;
 
@@ -53,6 +57,30 @@ public final class ClientObserve {
             look.put("yaw", p.getYRot()); look.put("pitch", p.getXRot());
             out.put("look", look);
             out.put("onGround", p.onGround());
+            // Client-physics truth the SERVER-side mc.observe.player can't give:
+            // the client LocalPlayer's PREDICTED pose + eye position + the
+            // ClientLevel block at the eye/feet cells. pose/eye-height and
+            // isInWall are exactly what the client-tick reflexes (autoSwim,
+            // antiSuffocate) gate on, so this lets an agent see what the client
+            // sees — and diff it against the server when they desync (e.g. a
+            // command-placed block the client crawl-evades). Reached explicitly
+            // via mc.client.player even when a server is attached.
+            var eye = p.getEyePosition();
+            out.put("eyePos", Map.of("x", eye.x, "y", eye.y, "z", eye.z));
+            out.put("pose", p.getPose().name());
+            out.put("inWall", p.isInWall());
+            out.put("inWater", p.isInWater());
+            out.put("underWater", p.isUnderWater());
+            out.put("crouching", p.isCrouching());
+            ClientLevel lvl = mc.level;
+            if (lvl != null) {
+                BlockPos eyeCell = BlockPos.containing(eye);
+                BlockPos feetCell = p.blockPosition();
+                out.put("eyeBlock", BuiltInRegistries.BLOCK.getKey(
+                        lvl.getBlockState(eyeCell).getBlock()).toString());
+                out.put("feetBlock", BuiltInRegistries.BLOCK.getKey(
+                        lvl.getBlockState(feetCell).getBlock()).toString());
+            }
             out.put("health", p.getHealth());
             out.put("maxHealth", p.getMaxHealth());
             out.put("food", p.getFoodData().getFoodLevel());
@@ -166,6 +194,13 @@ public final class ClientObserve {
             int bx = (int) Math.floor(dx);
             int by = (int) Math.floor(dy);
             int bz = (int) Math.floor(dz);
+            // Build matchers once: each filter id may be an exact id or a '#tag'
+            // selector (e.g. #minecraft:logs matches every log species).
+            List<Predicate<BlockState>> matchers = null;
+            if (filterIds != null && !filterIds.isEmpty()) {
+                matchers = new ArrayList<>();
+                for (String f : filterIds) matchers.add(BlockMatch.of(f));
+            }
             List<Object> blocks = new ArrayList<>();
             BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
             for (int ox = -r; ox <= r; ox++) {
@@ -174,8 +209,12 @@ public final class ClientObserve {
                         pos.set(bx + ox, by + oy, bz + oz);
                         var bs = level.getBlockState(pos);
                         if (bs.isAir()) continue;
+                        if (matchers != null) {
+                            boolean ok = false;
+                            for (var m : matchers) { if (m.test(bs)) { ok = true; break; } }
+                            if (!ok) continue;
+                        }
                         String id = BuiltInRegistries.BLOCK.getKey(bs.getBlock()).toString();
-                        if (filterIds != null && !filterIds.isEmpty() && !filterIds.contains(id)) continue;
                         Map<String, Object> e = new LinkedHashMap<>();
                         Map<String, Object> p = new LinkedHashMap<>();
                         p.put("x", pos.getX()); p.put("y", pos.getY()); p.put("z", pos.getZ());
@@ -231,6 +270,16 @@ public final class ClientObserve {
             out.put("entities", entities);
             out.put("radius", r);
             return out;
+        });
+    }
+
+    public static Map<String, Object> observeThreats(int radius) {
+        return runOnClient(() -> {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.level == null || mc.player == null) {
+                return Map.of("threats", List.of(), "incomingProjectiles", List.of());
+            }
+            return ThreatScanner.toMap(ThreatScanner.compute(mc, radius));
         });
     }
 

@@ -2,6 +2,7 @@ package net.magicterra.agent.client;
 
 import java.util.Map;
 
+import net.magicterra.agent.client.internal.ClientBoss;
 import net.magicterra.agent.client.internal.ClientChat;
 import net.magicterra.agent.client.internal.ClientInput;
 import net.magicterra.agent.client.internal.ClientObserve;
@@ -76,6 +77,12 @@ public final class ClientAgentApiImpl implements ClientAgentApi {
     public Map<String, Object> queryEntities(int radius, Double cx, Double cy, Double cz, Boolean hostileFilter) {
         return ClientObserve.queryEntities(radius, cx, cy, cz, hostileFilter);
     }
+
+    @Override
+    public Map<String, Object> observeThreats(int radius) { return ClientObserve.observeThreats(radius); }
+
+    @Override
+    public Map<String, Object> observeBoss(int radius) { return ClientBoss.observeBoss(radius); }
 
     @Override
     public Map<String, Object> observeContainerMenu() { return ClientObserve.observeContainerMenu(); }

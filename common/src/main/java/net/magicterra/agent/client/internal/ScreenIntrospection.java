@@ -99,7 +99,13 @@ public final class ScreenIntrospection {
         });
     }
 
-    private static String readDeathCause(DeathScreen ds) {
+    /** Read the DeathScreen's specific cause-of-death Component (e.g. "… was
+     *  slain by Drowned", "… drowned", "… was blown up by Creeper"). Public so
+     *  the death-event detector can read it the moment the screen appears —
+     *  the local combat tracker lacks this at the isDeadOrDying tick; the
+     *  specific message arrives with the combat-kill packet that builds the
+     *  DeathScreen. Returns null if the screen field can't be read. */
+    public static String readDeathCause(DeathScreen ds) {
         // Field is private and unobfuscated in dev mappings — fall back gracefully
         // if a future MC rename breaks the reflection.
         try {
