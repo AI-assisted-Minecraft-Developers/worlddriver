@@ -409,6 +409,21 @@ public final class BotConfig {
      *  {@code mc.bot.setting{walkerDebug:true}} when chasing a movement bug. */
     public static volatile boolean walkerDebug = false;
 
+    // --- WorldModel / HazardField (perception slice) ---
+    /** Chebyshev radius (blocks) of the HazardField grid recomputed each
+     *  decimated tick by WorldModel.update. Larger = wider situational awareness,
+     *  higher per-tick cost. Default 12 keeps the grid under 625 cells. */
+    public static volatile int hazardGridRadius = 12;
+
+    /** WorldModel only recomputes the HazardField every N client ticks (unless
+     *  the player moved to a new block). 1 = every tick (max freshness, higher
+     *  CPU); 4 = ~4.8 Hz (good default). Must be ≥ 1. */
+    public static volatile int hazardGridDecimateTicks = 4;
+
+    /** Water depth (blocks) at or above which a water cell is lethal in the
+     *  HazardField (the bot would drown before climbing out). Default 2. */
+    public static volatile int deepWaterMax = 2;
+
     /** Diagnostic — when on, the elytra flight process validates the
      *  {@link net.magicterra.agent.bot.elytra.ElytraPhysics} simulator
      *  tick-by-tick against the live client (predicted vs observed
