@@ -63,6 +63,15 @@ public final class PathSmoothing {
             while (j + 1 < path.size()
                     && plainFlatWalk(edges.get(j + 1))
                     && path.get(j + 1).getY() == path.get(i).getY()
+                    // Only straighten genuinely AXIS-ALIGNED corridors (the merged
+                    // segment shares an x or z with the start). Collapsing a zigzag
+                    // into a multi-block DIAGONAL fabricates a long corner-cut the
+                    // walker can't thread in tight quarters — it aims at the far
+                    // node and grinds every wall the diagonal skims past (the
+                    // spawn-maze stall). Diagonal staircases stay as their cardinal
+                    // steps, which the walker threads one cell at a time.
+                    && (path.get(j + 1).getX() == path.get(i).getX()
+                        || path.get(j + 1).getZ() == path.get(i).getZ())
                     && losWalkable(w, path.get(i), path.get(j + 1))) {
                 j++;
             }
@@ -97,6 +106,7 @@ public final class PathSmoothing {
     public static boolean losWalkable(WorldView w, BlockPos a, BlockPos b) {
         int steps = Math.max(Math.abs(b.getX() - a.getX()), Math.abs(b.getZ() - a.getZ()));
         if (steps == 0) return true;
+        int px = a.getX(), pz = a.getZ();        // previous sampled cell (corner check)
         for (int s = 1; s <= steps; s++) {
             double t = (double) s / steps;
             int x = (int) Math.round(a.getX() + (b.getX() - a.getX()) * t);
@@ -106,8 +116,25 @@ public final class PathSmoothing {
             if (!w.isPassable(c) || w.isHazard(c)) return false;
             if (!w.isPassable(c.offset(0, 1, 0)) || w.isHazard(c.offset(0, 1, 0))) return false;
             if (!w.isSolid(c.offset(0, -1, 0)) && !w.isWater(c) && !w.isClimbable(c)) return false;
+            // Diagonal hop between samples: the two L-corner cells must BOTH be
+            // clear, else the straight line clips a solid corner the walker would
+            // wedge on. Without this, string-pulling collapses an L-shaped pair of
+            // safe cardinals into a single corner-cutting diagonal and the bot
+            // snags (the spawn-pit sandstone-corner stall). Match foot+head.
+            if (x != px && z != pz) {
+                if (cornerBlocked(w, new BlockPos(x, y, pz))      // corner sharing this x
+                 || cornerBlocked(w, new BlockPos(px, y, z))) return false; // corner sharing this z
+            }
+            px = x; pz = z;
         }
         return true;
+    }
+
+    /** A corner column the diagonal straight-line skims: blocked if either the
+     *  foot or head cell is non-passable or a hazard. */
+    private static boolean cornerBlocked(WorldView w, BlockPos c) {
+        return !w.isPassable(c) || w.isHazard(c)
+            || !w.isPassable(c.offset(0, 1, 0)) || w.isHazard(c.offset(0, 1, 0));
     }
 
     /** Sum of {@link WorldView#dangerCost} over the original path waypoints in

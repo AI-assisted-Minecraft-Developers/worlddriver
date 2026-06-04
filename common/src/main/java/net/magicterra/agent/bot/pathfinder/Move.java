@@ -136,6 +136,27 @@ public abstract class Move {
             || w.isSolid(cell.offset(0, 0, 1)) || w.isSolid(cell.offset(0, 0, -1));
     }
 
+    /**
+     * True when {@code from} sits in a "water-edge" context — the only place the
+     * water-escape break moves ({@link net.magicterra.agent.bot.pathfinder.moves.SwimAshoreBreak} /
+     * {@link net.magicterra.agent.bot.pathfinder.moves.SwimTraverseBreak}) are
+     * allowed to fire. That is: the feet are IN water, OR water sits in the 3×3
+     * ring directly below the feet (the bot is standing on the bank it just
+     * climbed out of, one break from the water it escaped). This trailing-edge
+     * definition lets a short dig-out stair stay in-context for a step or two
+     * past the waterline, then naturally stops — so escape-breaking can never
+     * run away into dry terrain (a route far from any water reads false here and
+     * the moves are pruned, leaving land pathing byte-for-byte unchanged).
+     */
+    public static boolean waterEscapeContext(WorldView w, BlockPos from) {
+        if (w.isWater(from)) return true;
+        BlockPos below = from.offset(0, -1, 0);
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                if (w.isWater(below.offset(dx, 0, dz))) return true;
+        return false;
+    }
+
     public abstract String name();
 
     @Override public String toString() { return name() + "(" + dx + "," + dy + "," + dz + ")"; }
@@ -223,7 +244,20 @@ public abstract class Move {
         // BotConfig flag is on AND the world view reports a finite break /
         // place cost, so they cost nothing when disabled.
         for (int[] d : CARDINAL) ms.add(new TraverseBreak(d[0], d[1]));
+        // Dry break-to-ASCEND: carve a staircase up a pit's walls with no placed
+        // blocks — the escape a block-less bot needs from its own sealed bunker
+        // (PillarUp needs blocks it spent sealing; on sand/sandstone nothing drops
+        // by hand). Gated on allowBreak; must break ≥1 cell or StepUp is cheaper.
+        for (int[] d : CARDINAL) ms.add(new StairUpBreak(d[0], d[1]));
         ms.add(new DownBreak());
+        // Water-escape breaks (Baritone has no analogue): mine the bank to climb
+        // ASHORE from water — gated on BotConfig.allowSwimEscapeBreak (default on,
+        // separate from allowBreak) and only valid in a waterEscapeContext, so a
+        // bot trapped in a flooded pit / behind a high lake bank can dig out even
+        // with general break-to-move off, while dry-land routes are untouched.
+        for (int[] d : CARDINAL) ms.add(new SwimAshoreBreak(d[0], d[1]));
+        for (int[] d : CARDINAL) ms.add(new SwimTraverseBreak(d[0], d[1]));
+        ms.add(new SwimUpBreak());   // vertical: break a solid ceiling to escape a capped pocket
         for (int[] d : CARDINAL) ms.add(new BridgePlace(d[0], d[1]));
         ms.add(new PillarUp());
         // Parkour-place (Baritone allowParkourPlace): a 2-block leap onto a

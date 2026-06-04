@@ -11,6 +11,8 @@ import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LightLayer;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluids;
@@ -26,6 +28,7 @@ import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.core.Holder;
@@ -96,12 +99,46 @@ final class ClientWorldView implements WorldView {
         Level lvl = Minecraft.getInstance().level;
         return lvl != null && lvl.getBlockState(p).getFluidState().is(Fluids.WATER);
     }
+    @Override public boolean isFallingBlock(BlockPos p) {
+        Level lvl = Minecraft.getInstance().level;
+        return lvl != null
+                && lvl.getBlockState(p).getBlock() instanceof FallingBlock;
+    }
     public boolean isClimbable(BlockPos p) {
         Level lvl = Minecraft.getInstance().level;
         return lvl != null && lvl.getBlockState(p).is(BlockTags.CLIMBABLE);
     }
     @Override public double breakCost(BlockPos p) {
         if (!BotConfig.allowBreak) return Double.POSITIVE_INFINITY;
+        return rawBreakCost(p);
+    }
+    /** Search origin (the bot's block pos when this findPath began), snapshotted
+     *  in {@link #beginSearch}. Water-escape breaks are only priced finite within
+     *  {@link #ESCAPE_RADIUS} of it — see {@link #escapeBreakCost}. */
+    private volatile BlockPos escapeOrigin = null;
+    /** Chebyshev radius around the search origin in which water-escape breaks are
+     *  allowed. WHY this exists: the swim-escape break moves let A* mine through
+     *  ANY bank, which — applied to every water cell of an open ocean — explodes
+     *  the branching factor (observed: 16k+ nodes, search never completes, bot
+     *  drowns waiting for a path). The escape use-case is purely LOCAL ("I'm stuck
+     *  HERE, dig out HERE"), so confining break candidates to a small bubble around
+     *  the stuck bot keeps the search tractable while still digging out of a pit /
+     *  high bank. Beyond it, water pathing uses only swim/walk/normal moves. */
+    private static final int ESCAPE_RADIUS = 6;
+    @Override public double escapeBreakCost(BlockPos p) {
+        if (!BotConfig.allowSwimEscapeBreak) return Double.POSITIVE_INFINITY;
+        BlockPos o = escapeOrigin;
+        if (o != null
+                && (Math.abs(p.getX() - o.getX()) > ESCAPE_RADIUS
+                 || Math.abs(p.getY() - o.getY()) > ESCAPE_RADIUS
+                 || Math.abs(p.getZ() - o.getZ()) > ESCAPE_RADIUS)) {
+            return Double.POSITIVE_INFINITY;                 // outside the local escape bubble
+        }
+        return rawBreakCost(p);
+    }
+    /** Tool-aware mining cost, independent of which break-gate authorised it
+     *  (general allowBreak vs the water-escape allowSwimEscapeBreak). */
+    private double rawBreakCost(BlockPos p) {
         Minecraft mc = Minecraft.getInstance();
         Level lvl = mc.level;
         LocalPlayer pl = mc.player;
@@ -153,7 +190,16 @@ final class ClientWorldView implements WorldView {
     @Override public boolean canParkourPlace() {
         return BotConfig.allowParkourPlace && hasPlaceableBlock();
     }
-    /** A placeable BlockItem is on the hotbar (creative can pull from anywhere). */
+    /** A placeable, NON-FALLING BlockItem is on the hotbar (creative can pull
+     *  from anywhere). Falling blocks (sand/gravel/concrete_powder) are excluded:
+     *  the place moves (PillarUp, BridgePlace, ParkourPlace) all set a block over
+     *  air/water, where a falling block immediately drops away — so it can never
+     *  form the footing/bridge those moves rely on. Counting sand as placeable
+     *  made A* plan a pillar-up the bot then couldn't build (it bobbed in place
+     *  forever). Require a stable block so canPlace() only enables a place move
+     *  the actuator can actually complete; with none, A* falls back to the
+     *  break-to-ascend moves (StairUpBreak / SwimAshoreBreak), which need no
+     *  placed blocks. */
     private static boolean hasPlaceableBlock() {
         LocalPlayer pl = Minecraft.getInstance().player;
         if (pl == null) return false;
@@ -161,7 +207,9 @@ final class ClientWorldView implements WorldView {
         Inventory inv = pl.getInventory();
         for (int slot = 0; slot < 9; slot++) {
             ItemStack stk = inv.items.get(slot);
-            if (!stk.isEmpty() && stk.getItem() instanceof BlockItem) return true;
+            if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) continue;
+            if (bi.getBlock() instanceof FallingBlock) continue;   // sand/gravel drop away over air
+            return true;
         }
         return false;
     }
@@ -206,6 +254,13 @@ final class ClientWorldView implements WorldView {
         return s.isCollisionShapeFullBlock(lvl, bp);
     }
     @Override public void beginSearch() {
+        // Snapshot the search origin so escapeBreakCost can confine water-escape
+        // break candidates to a small bubble around the (stuck) bot — see
+        // ESCAPE_RADIUS. Without this the break moves explode the search in open water.
+        {
+            LocalPlayer op = Minecraft.getInstance().player;
+            escapeOrigin = op != null ? op.blockPosition() : null;
+        }
         bucketFallReady = BotConfig.allowWaterBucketFall
                 && Minecraft.getInstance().player != null
                 && hotbarSlotOf(Minecraft.getInstance().player,
@@ -302,6 +357,33 @@ final class ClientWorldView implements WorldView {
                         }
                     }
                 }
+                // Prefer dry land over water: a node whose foot is in water costs
+                // extra so A* routes around ponds/oceans when a land path exists.
+                // Additive (not a ban) — a sole water crossing is still taken, but
+                // a long open-water swim loses to any reasonable land detour. This
+                // is the fix for "寻路太蠢/走进海里淹死".
+                if (BotConfig.waterDangerPenalty > 0 && isWater(foot)) {
+                    penalty += BotConfig.waterDangerPenalty;
+                }
+                // Prefer the surface: penalize a foot that sits well BELOW the
+                // world-surface heightmap at its x,z — i.e. underground, where mobs
+                // persist in daylight and a naked bot gets swarmed. Keying off the
+                // heightmap (not the search origin) is position-independent, so it
+                // always reflects "how far underground" even after the bot has
+                // already descended — the bug that let A* keep diving (origin reset
+                // underground → deeper stopped costing). Depth-scaled + additive →
+                // a deep cave route is prohibitively expensive vs any surface detour,
+                // but a short deliberate dig / a genuinely path-less descent still
+                // happens. Fix for the bot routing y70→y22 into a cave and dying
+                // (GAP #17, strengthened).
+                if (BotConfig.deepDarkPenalty > 0) {
+                    int surfaceY = lvl.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                            foot.getX(), foot.getZ());
+                    int depthBelow = surfaceY - foot.getY();
+                    if (depthBelow >= BotConfig.deepDarkMinDepth) {
+                        penalty += BotConfig.deepDarkPenalty * Math.min(depthBelow, 64);
+                    }
+                }
             }
         }
         if (BotConfig.avoidMobs) {
@@ -312,6 +394,21 @@ final class ClientWorldView implements WorldView {
                 double dx = fx - m[i], dy = fy - m[i + 1], dz = fz - m[i + 2];
                 double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
                 if (dist < r) penalty += BotConfig.mobAvoidPenalty * (r - dist) / r;
+            }
+        }
+        // Agent-supplied danger zones (mc.bot.setting avoidPoints): explicit regions
+        // the Agent marked to route around — applied regardless of avoidMobs and not
+        // tied to the live mob snapshot, so the planner detours around a known bad
+        // area (a monster tunnel it spotted from afar) even with no mob scanned there.
+        double[][] zones = BotConfig.avoidZones;
+        if (zones.length > 0) {
+            double fx = foot.getX() + 0.5, fy = foot.getY(), fz = foot.getZ() + 0.5;
+            for (double[] z : zones) {
+                if (z.length < 4) continue;
+                double dx = fx - z[0], dy = fy - z[1], dz = fz - z[2], r = z[3];
+                if (r <= 0) continue;
+                double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                if (dist < r) penalty += BotConfig.avoidZonePenalty * (r - dist) / r;
             }
         }
         return penalty;

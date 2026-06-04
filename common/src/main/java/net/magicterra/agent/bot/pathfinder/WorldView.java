@@ -40,6 +40,12 @@ public interface WorldView {
     /** True if the block is water at this position (player can swim through). */
     boolean isWater(BlockPos pos);
 
+    /** True if the block is a gravity-affected falling block (sand, gravel,
+     *  concrete powder, anvil). Default false. Used by the down-dig move to
+     *  refuse opening a shaft under a sand column that would cascade down and
+     *  bury/suffocate the descending bot. */
+    default boolean isFallingBlock(BlockPos pos) { return false; }
+
     /** True if the block lets you climb (ladder, vine, scaffolding). */
     boolean isClimbable(BlockPos pos);
 
@@ -57,6 +63,18 @@ public interface WorldView {
      * GameTest view inherits the default, so CI never mines.
      */
     default double breakCost(BlockPos pos) { return Double.POSITIVE_INFINITY; }
+
+    /**
+     * Like {@link #breakCost}, but gated on {@code BotConfig.allowSwimEscapeBreak}
+     * instead of {@code allowBreak}. The water-escape moves
+     * ({@link net.magicterra.agent.bot.pathfinder.moves.SwimAshoreBreak} /
+     * {@link net.magicterra.agent.bot.pathfinder.moves.SwimTraverseBreak}) price
+     * mining the bank with this so a bot trapped in water can dig ashore even
+     * when general break-to-move is disabled. Same tool-aware cost and same
+     * {@code +∞} for unbreakable/fluid cells. Default {@code +∞} — only the live
+     * client view enables it (the headless GameTest view never mines).
+     */
+    default double escapeBreakCost(BlockPos pos) { return Double.POSITIVE_INFINITY; }
 
     /**
      * True when the bot may place a throwaway block this search — Baritone

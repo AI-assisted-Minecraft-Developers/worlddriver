@@ -30,9 +30,12 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluids;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.CollisionContext;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -41,6 +44,8 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.function.Predicate;
+import net.magicterra.agent.bot.util.BlockMatch;
 import java.util.Map;
 import java.util.Set;
 
@@ -54,6 +59,10 @@ import java.util.ArrayDeque;
 public final class MineProcess implements BotProcess {
 
     private final Set<String> targetIds;
+    // Per-id matchers: each entry is an exact id or a '#tag' selector
+    // (e.g. #minecraft:logs matches any log species). A block is a target
+    // when ANY matcher accepts it.
+    private final List<Predicate<BlockState>> targetMatchers;
     private final int desiredQty;
     private final int searchRadius;
     private final Walker walker = new Walker();
@@ -77,8 +86,15 @@ public final class MineProcess implements BotProcess {
 
     public MineProcess(List<String> ids, int qty, int radius) {
         this.targetIds = new HashSet<>(ids);
+        this.targetMatchers = ids.stream().map(BlockMatch::of).toList();
         this.desiredQty = qty;
         this.searchRadius = radius;
+    }
+
+    /** True when {@code bs} matches any requested id / tag selector. */
+    private boolean isTarget(BlockState bs) {
+        for (Predicate<BlockState> m : targetMatchers) if (m.test(bs)) return true;
+        return false;
     }
 
     public String kind() { return "mine"; }
@@ -157,7 +173,7 @@ public final class MineProcess implements BotProcess {
                 String now = currentBlockId(mc);
                 // Robust completion: id changed away from the original block AND
                 // is no longer the same kind. Avoids the 1-tick flicker false-positive.
-                if (!now.equals(breakStartId) && !targetIds.contains(now)) {
+                if (!now.equals(breakStartId) && !isTarget(mc.level.getBlockState(currentTarget))) {
                     broken++;
                     // Remember where the block stood so COLLECT can walk
                     // back through it. Keep only the last 8 — past that,
@@ -266,10 +282,10 @@ public final class MineProcess implements BotProcess {
                     BlockPos bp = foot.offset(dx, dy, dz);
                     if (blacklist.contains(bp)) continue;
                     BlockState bs = lvl.getBlockState(bp);
-                    String id = BuiltInRegistries.BLOCK.getKey(bs.getBlock()).toString();
-                    if (!targetIds.contains(id)) continue;
-                    // Find a standable adjacent position.
-                    BlockPos stand = findStandableAdjacent(lvl, bp);
+                    if (!isTarget(bs)) continue;
+                    // Find a standable adjacent position (incl. a pillar-up
+                    // stand for an otherwise-too-high log, relative to our feet).
+                    BlockPos stand = findStandableAdjacent(lvl, bp, foot.getY());
                     if (stand == null) continue;
                     long d2 = (long) bp.distSqr(foot);
                     if (d2 < bestD2) {
@@ -283,7 +299,13 @@ public final class MineProcess implements BotProcess {
         return best;
     }
 
-    private BlockPos findStandableAdjacent(Level lvl, BlockPos block) {
+    /** How many blocks above the bot's own feet a pillar-up stand may sit. The bot
+     *  climbs a trunk one log at a time (each break re-SEARCHes from the new, higher
+     *  pillar top), so this only bounds the FIRST reach — keeping A* from committing
+     *  to one giant floating goal up a whole 6+ tall canopy in a single edge. */
+    private static final int MAX_PILLAR_RISE = 4;
+
+    private BlockPos findStandableAdjacent(Level lvl, BlockPos block, int footY) {
         // Try same-Y 4 cardinals, then Y-1, then Y+1.
         int[][] dxz = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
         int[] dyTry = {0, -1, 1};
@@ -293,10 +315,105 @@ public final class MineProcess implements BotProcess {
                 if (canStandHere(lvl, cand)) return cand;
             }
         }
-        // Last resort: standing on top of the block (mining downward).
+        // Stand DIRECTLY BELOW and mine UPWARD — the tree-trunk / overhead-log
+        // case the side checks miss: a vertical trunk's neighbours at its own
+        // level are all trunk/leaves, so no side-stand exists, yet the bot at the
+        // base can just look up and break it. Foot 2 below puts the block at
+        // head+1 (reach ~2) with the head cell (block.below(1)) clear for line of
+        // sight. canStandHere already requires that head cell passable.
+        BlockPos below2 = block.offset(0, -2, 0);
+        if (canStandHere(lvl, below2)) return below2;
+
+        // Standing on top of the block (mining downward).
         BlockPos above = block.offset(0, 1, 0);
         if (canStandHere(lvl, above)) return above;
-        return null;
+
+        // PILLAR-UP (踮脚): the log is too HIGH for any ground stand — an upper
+        // trunk/canopy log directly overhead is the tree itself (can't pillar
+        // into it). If a CLEAR vertical column sits BESIDE the log, return an
+        // elevated side-stand level with it. The pathfinder's PillarUp chain
+        // climbs that offset column (placing a held block under the feet each
+        // jump) and the bot then breaks the log from the side. We only offer it
+        // when the log is above our feet but within MAX_PILLAR_RISE, so the bot
+        // climbs a trunk one log per SEARCH rather than one huge floating goal.
+        int rise = block.getY() - footY;
+        if (rise >= 1 && rise <= MAX_PILLAR_RISE) {
+            for (int[] d : dxz) {
+                BlockPos stand = block.offset(d[0], 0, d[1]);   // beside the log, same Y
+                // The stand + head cells beside the log must be open to occupy,
+                // and the support cell directly below the stand must be open too
+                // (it's where PillarUp builds the top of the pillar).
+                if (lvl.getBlockState(stand).blocksMotion()) continue;
+                if (lvl.getBlockState(stand.above()).blocksMotion()) continue;
+                if (lvl.getBlockState(stand.below()).blocksMotion()) continue;
+                // The offset column must be clear from our feet up to the stand so
+                // the pillar can rise through it (A* re-validates; this prunes the
+                // obvious misses so we don't hand A* an unreachable floating goal).
+                boolean columnClear = true;
+                for (int y = footY; y < stand.getY(); y++) {
+                    if (lvl.getBlockState(new BlockPos(stand.getX(), y, stand.getZ())).blocksMotion()) {
+                        columnClear = false; break;
+                    }
+                }
+                if (columnClear) return stand;
+            }
+        }
+
+        // REACH-ACROSS (over-water / over-gap logs): nothing adjacent, below, on
+        // top, or a pillar-up column exists — the classic swamp oak whose trunk
+        // rises straight out of water, with the nearest solid footing a couple of
+        // blocks away ACROSS the water. The bot must NOT stand in the water (that
+        // is the drown risk this whole path exists to avoid) and cannot seed a
+        // pillar from water. But vanilla block reach is 4.5: if a DRY standable
+        // cell sits within reach with clear line of sight to the log, stand there
+        // and mine across the gap. The break aims via faceBlock's raycast
+        // (currentFace is cosmetic), so the non-unit offset mines fine.
+        return findReachStand(lvl, block);
+    }
+
+    /** Vanilla survival block-interaction reach is 4.5; keep a hair inside it. */
+    private static final double MAX_REACH = 4.4;
+    /** Horizontal disk radius scanned for a dry reach-across stand. */
+    private static final int REACH_SCAN_H = 4;
+
+    /**
+     * Find a DRY, solid, standable cell within vanilla block reach of {@code block}
+     * with a clear collider line of sight to the block centre — used to mine an
+     * over-water/over-gap log without entering the water. Returns the nearest such
+     * stand, or null if none (then the target is genuinely unreachable).
+     */
+    private BlockPos findReachStand(Level lvl, BlockPos block) {
+        double tx = block.getX() + 0.5, ty = block.getY() + 0.5, tz = block.getZ() + 0.5;
+        BlockPos bestStand = null;
+        double bestD2 = Double.MAX_VALUE;
+        for (int dx = -REACH_SCAN_H; dx <= REACH_SCAN_H; dx++) {
+            for (int dz = -REACH_SCAN_H; dz <= REACH_SCAN_H; dz++) {
+                if (dx == 0 && dz == 0) continue;
+                for (int dy = -3; dy <= 2; dy++) {
+                    BlockPos cand = block.offset(dx, dy, dz);
+                    // Dry footing only: solid (non-water) support, no water at foot.
+                    if (lvl.getBlockState(cand.below()).getFluidState().is(Fluids.WATER)) continue;
+                    if (lvl.getBlockState(cand).getFluidState().is(Fluids.WATER)) continue;
+                    if (!canStandHere(lvl, cand)) continue;
+                    double ex = cand.getX() + 0.5, ey = cand.getY() + 1.62, ez = cand.getZ() + 0.5;
+                    double d2 = (ex - tx) * (ex - tx) + (ey - ty) * (ey - ty) + (ez - tz) * (ez - tz);
+                    if (d2 > MAX_REACH * MAX_REACH || d2 >= bestD2) continue;
+                    if (!reachLineOfSight(lvl, ex, ey, ez, tx, ty, tz, block)) continue;
+                    bestD2 = d2;
+                    bestStand = cand;
+                }
+            }
+        }
+        return bestStand;
+    }
+
+    /** Collider raycast from the eye to the block centre lands on the target block. */
+    private boolean reachLineOfSight(Level lvl, double ex, double ey, double ez,
+                                     double tx, double ty, double tz, BlockPos target) {
+        BlockHitResult hit = lvl.clip(new ClipContext(
+                new Vec3(ex, ey, ez), new Vec3(tx, ty, tz),
+                ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, CollisionContext.empty()));
+        return hit.getType() == HitResult.Type.BLOCK && hit.getBlockPos().equals(target);
     }
 
     private boolean canStandHere(Level lvl, BlockPos foot) {

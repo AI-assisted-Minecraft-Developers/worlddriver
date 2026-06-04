@@ -72,4 +72,7 @@ public final class GotoProcess implements BotProcess {
         st.mc_goto.reset();
         return true;
     }
+    /** Resumed after preemption — discard the stale path and repath from where
+     *  the bot ended up (it may have been knocked back while suspended). */
+    @Override public void onResume() { walker.forceRepath(); }
 }

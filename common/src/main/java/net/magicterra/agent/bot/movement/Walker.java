@@ -34,6 +34,13 @@ public final class Walker {
     public enum Step { WALKING, ARRIVED, FAILED }
     private static final double REACH_DIST_SQ = 0.45;
     private static final int STUCK_TICKS = 60;
+    /** Per-step ticks of bob-stalling before the water climb-out actuator places
+     *  a foothold to ground a floating bot against a too-high bank. Keyed off the
+     *  per-step no-progress timer ({@code totalTicks}, which a bob can't reset —
+     *  unlike {@code stuckTicks}, which the oscillating foot-Y clears each cycle).
+     *  Well under {@code walkerTotalTickBudget}, comfortably past a normal flush /
+     *  staircase climb-out (grounds in <10 ticks, never stalls). */
+    private static final int WATER_CLIMB_STALL = 30;
     /** Ticks after the jump press before placing the pillar block beneath —
      *  by then the player has cleared the old feet cell (matches TowerProcess). */
     private static final int PILLAR_PLACE_DELAY = 3;
@@ -61,10 +68,14 @@ public final class Walker {
     private int actionTicks;          // ticks spent on the current break/place edge
     private int pillarStep = -1;      // path index of the pillar edge in progress
     private int pillarSinceJump = -1; // ticks since the pillar jump press (-1 = grounded)
+    private int waterClimbStall;      // ticks bob-stalled (no NET height gain) climbing out of water
+    private double waterClimbBestY = Double.NEGATIVE_INFINITY; // best Y this water-climb; a real rise resets the stall
     private boolean descending;       // ending creative flight; wait to land before pathing
     private PathFinder.Search activeSearch;  // in-flight time-sliced A* (null = none)
     private double bestDistToGoal = Double.POSITIVE_INFINITY;
     private BlockPos lastPlayerBlock;
+    private int dbgPrevStep = -1;     // walkerDebug: detect step changes for per-step timing
+    private int dbgTicksOnStep = 0;   // walkerDebug: ticks spent on the current step
     public String lastError;
 
     public void setGoal(Goal g) {
@@ -78,11 +89,38 @@ public final class Walker {
         this.actionTicks = 0;
         this.pillarStep = -1;
         this.pillarSinceJump = -1;
+        this.waterClimbStall = 0;
+        this.waterClimbBestY = Double.NEGATIVE_INFINITY;
         this.descending = false;
         this.activeSearch = null;
         this.bestDistToGoal = Double.POSITIVE_INFINITY;
         this.lastPlayerBlock = null;
         this.lastError = null;
+    }
+
+    /** Drop the cached path (keep the goal) so the next {@link #tick} recomputes
+     *  from the current position. Used when a movement process is resumed after
+     *  being preempted by a higher-priority chain — during the suspension the bot
+     *  may have been knocked back or the terrain changed, so reusing the stale
+     *  path would walk into a wall. See ProcessScheduler / UserTaskChain.onResume. */
+    public void forceRepath() {
+        this.path = null;
+        this.edges = null;
+        this.step = 0;
+        this.ticksSinceRepath = 0;
+        this.stuckTicks = 0;
+        this.actionTicks = 0;
+        this.pillarStep = -1;
+        this.pillarSinceJump = -1;
+        this.activeSearch = null;
+        this.lastPlayerBlock = null;
+        // Clear the water-climb-out / descent state too (setGoal resets these): a
+        // resume mid water-climb otherwise carries a stale waterClimbBestY/Stall, so
+        // the next tick either fires a spurious foothold-place takeover (stall already
+        // past threshold) or suppresses a legitimate stall (stale-high best-Y).
+        this.waterClimbStall = 0;
+        this.waterClimbBestY = Double.NEGATIVE_INFINITY;
+        this.descending = false;
     }
 
     public int pathLen() { return path == null ? 0 : path.size(); }
@@ -271,15 +309,35 @@ public final class Walker {
 
         while (step < path.size()) {
             Move.Edge se = edgeAt(step);
+            // Buoyant pillar (bunker / flooded-pit self-exit): the bot rises through
+            // a water-filled shaft. Detect it from the WORLD — the cell being risen
+            // FROM is water — not p.isInWater(), which flickers false at the bob peak
+            // when the head clears the surface (that flicker stalled the climb).
+            // A FLOODED shaft (destination cell is itself water) lets the bot float
+            // straight up; a buoyant pillar more broadly is any pillarUp begun from
+            // water (cell below is water / bot in water) — including the dry-air
+            // chimney where the bot must place a support to climb out.
+            boolean shaftFlooded = se != null && "pillarUp".equals(se.move) && world.isWater(path.get(step));
+            boolean waterPillar = se != null && "pillarUp".equals(se.move)
+                    && (shaftFlooded || p.isInWater() || world.isWater(path.get(step).offset(0, -1, 0)));
             // Don't advance past a cell whose break/place actions are still
             // pending — otherwise a DownBreak (foot vertically aligned, < 1.2
             // away) would be skipped before we ever mine the floor.
-            if (hasPendingEdge(world, se)) break;
-            // A pillar step isn't "reached" until we've actually risen and
-            // landed on the placed block — else we'd advance mid-jump and the
-            // next edge would fire while airborne.
+            if (waterPillar) {
+                // The buoyant climb never places the support via the dry path, so the
+                // unfilled place cell is not genuinely pending; only a still-solid
+                // ceiling is. (In the dry-air case the in-water actuator does place a
+                // support, which makes the bot ground and falls through to the gate.)
+                boolean ceilingPending = false;
+                for (BlockPos b : se.toBreak) if (world.isSolid(b)) { ceilingPending = true; break; }
+                if (ceilingPending) break;
+            } else if (hasPendingEdge(world, se)) break;
+            // A pillar step isn't "reached" until risen to height. A FLOODED-shaft
+            // float has no landing → risen-height alone promotes it; every other
+            // pillar (dry, or the water-exit place) must be grounded first so we
+            // don't advance mid-jump / before the support lands.
             if (se != null && "pillarUp".equals(se.move)
-                    && !(p.onGround() && p.getY() >= path.get(step).getY() - 0.1)) break;
+                    && !((p.onGround() || shaftFlooded) && p.getY() >= path.get(step).getY() - 0.1)) break;
             // Don't advance past a parkour-place edge while airborne — keep the
             // settle phase owning the descent so it brakes the leap on landing.
             if (se != null && se.move != null && se.move.startsWith("parkourPlace")
@@ -293,7 +351,29 @@ public final class Walker {
             double dx = (w.getX() + 0.5) - p.getX();
             double dz = (w.getZ() + 0.5) - p.getZ();
             double cur2 = dx * dx + dz * dz;
-            boolean within = cur2 < REACH_DIST_SQ && Math.abs(w.getY() - p.getY()) < 1.2;
+            // A climb node counts as REACHED only once the feet are up at it. The
+            // |Δy|<1.2 gate marks a +1 climb node "reached" from a full block below —
+            // fine on dry land (mid-step), but in WATER the bot bobs at the surface 1
+            // block under the node, so `within` fired early, advanced `step` to the
+            // NEXT node, and left an impossible +2 climb (trace: stuck at y62 targeting
+            // node y64). For an upward node while in water, don't advance until the
+            // feet have actually risen to it.
+            double dyNode = w.getY() - p.getY();
+            // In WATER the buoyant body rides the surface; a path node BELOW it
+            // (A* routed a wide crossing along the riverbed) can never be reached
+            // by Y — the bot floats over it forever (trace: rode y61.78 above a y60
+            // diagDown node, |dY|=1.78 > 1.2, never advanced → a ~50-block river was
+            // uncrossable). Treat horizontal alignment ALONE as "reached" for such
+            // a submerged below-node so the crossing advances node-by-node at the
+            // surface. Excluded: a deliberate swimDown dive edge (we want that
+            // descent); a climb-up node (dyNode>0) stays gated by the clause below
+            // so a buoyant bob can't skip an intermediate +1 climb node.
+            boolean diveEdge = se != null && se.move != null && se.move.startsWith("swimDown");
+            boolean floatOverSubmerged = p.isInWater() && !p.isUnderWater()
+                    && dyNode < -0.5 && !diveEdge;
+            boolean within = cur2 < REACH_DIST_SQ
+                    && (Math.abs(dyNode) < 1.2 || floatOverSubmerged)
+                    && !(p.isInWater() && dyNode > 0.5);
             // Pure-pursuit re-sync: also advance past a node we've already gone
             // by — the next node being closer than this one means the player is
             // beyond it. Without this, sprinting toward a far carrot (or a
@@ -304,7 +384,23 @@ public final class Walker {
                 BlockPos nx = path.get(step + 1);
                 double ndx = (nx.getX() + 0.5) - p.getX();
                 double ndz = (nx.getZ() + 0.5) - p.getZ();
-                passed = (ndx * ndx + ndz * ndz) <= cur2 && Math.abs(w.getY() - p.getY()) < 1.5;
+                // Skip the current node only if the player is genuinely beyond it
+                // (next node STRICTLY horizontally closer) AND the next node is
+                // itself vertically reachable from where the player actually IS.
+                // Without the vertical clause, standing at the bottom of a 2-deep
+                // pit the re-sync skips the intermediate +1 climb node and locks
+                // onto a node +2 above — an impossible single jump → bot wedged
+                // (bunker pit, totStuck>1000). The STRICT '<' matters when the next
+                // node is stacked directly above the current one (a pillarUp: same
+                // x,z → ndx²+ndz² EQUALS cur2): with '<=' the tie reads as "passed"
+                // and the bot skips the walk-to-the-pillar-base node, then tries to
+                // pillar in place wherever it happens to be standing (observed:
+                // mining an offset trunk, bot jumped at x=16.7 chasing a pillar at
+                // x=15, never placing). A real overshoot makes next STRICTLY closer,
+                // so '<' still resyncs those. The 1.2 gate matches a jump's climb.
+                passed = (ndx * ndx + ndz * ndz) < cur2
+                        && Math.abs(w.getY() - p.getY()) < 1.5
+                        && Math.abs(nx.getY() - p.getY()) < 1.2;
             }
             if (within || passed) step++;
             else break;
@@ -312,6 +408,112 @@ public final class Walker {
         if (step >= path.size()) return Step.ARRIVED;
 
         Move.Edge edge = edgeAt(step);
+
+        // === Comprehensive per-tick Walker trace (walkerDebug) ===
+        // The single source of truth for "why is the bot stuck": for the current
+        // step it prints the exact advance-decision inputs (horizontal dist² vs the
+        // REACH_DIST_SQ gate, the |Δy| vs the 1.2 gate that together decide `within`),
+        // how many ticks we've been stuck on THIS step, the move type + its
+        // break/place needs, and the live body state. Read this trace top-to-bottom
+        // to see precisely which condition fails tick after tick — no guessing.
+        if (BotConfig.walkerDebug) {
+            if (step != dbgPrevStep) { dbgPrevStep = step; dbgTicksOnStep = 0; }
+            dbgTicksOnStep++;
+            BlockPos nd = path.get(step);
+            double ddx = (nd.getX() + 0.5) - p.getX();
+            double ddz = (nd.getZ() + 0.5) - p.getZ();
+            double cur2 = ddx * ddx + ddz * ddz;
+            double dY = nd.getY() - p.getY();
+            boolean within = cur2 < REACH_DIST_SQ && Math.abs(dY) < 1.2;
+            BlockPos br0 = (edge != null && !edge.toBreak.isEmpty()) ? edge.toBreak.get(0) : null;
+            LOG.info("[walker] t={} step={}/{} move={} node={},{},{} p=({},{},{}) cur2={} (gate {}) |dY|={} (gate 1.2) within={} onG={} inW={} undW={} stuck={} totStuck={} pend={} break0={}{}",
+                    dbgTicksOnStep, step, path.size(), edge != null ? edge.move : "-",
+                    nd.getX(), nd.getY(), nd.getZ(),
+                    String.format(Locale.ROOT, "%.2f", p.getX()), String.format(Locale.ROOT, "%.2f", p.getY()), String.format(Locale.ROOT, "%.2f", p.getZ()),
+                    String.format(Locale.ROOT, "%.3f", cur2), REACH_DIST_SQ,
+                    String.format(Locale.ROOT, "%.2f", Math.abs(dY)), within,
+                    p.onGround(), p.isInWater(), p.isUnderWater(),
+                    stuckTicks, totalTicks, edge != null && hasPendingEdge(world, edge),
+                    br0, br0 != null ? (world.isSolid(br0) ? " (solid)" : " (clear)") : "");
+        }
+
+        // === Water climb-out foothold (place to get grounded) ===
+        // Runs BEFORE the break/place actuators so it catches a bob-stall no matter
+        // how A* labelled the climb (plain StepUp, StairUpBreak into the bank, …).
+        // A floating bot can't gain height onto a bank whose top sits ABOVE the
+        // water surface: swim-up tops out AT the surface (~0.6 short of the step-up
+        // grab) and a break/pillar can't actuate from deep water either — so it
+        // bob-cycles forever (live trace: y6.2 peak → sinks to y4.7, no NET rise).
+        // Fix: once stalled with no vertical progress, at a bob peak (feet clear of
+        // the water, surface right beneath) place ONE throwaway block to fill that
+        // top water cell → a flush foothold the bot rests on, GROUNDED; from solid
+        // ground the ordinary climb (step-up / break-carve / pillar) finishes the
+        // +1/+2 (verified live). The counter only advances while height is NOT
+        // rising, so a working pillar / swim-up that DOES gain height never trips
+        // it. Default-ON escape permission + a placeable in hand required; reads
+        // only here, so the pathfinder is byte-for-byte unchanged.
+        {
+            BlockPos cwp = path.get(step);
+            boolean waterClimbing = edge != null && cwp.getY() > foot.getY() && !p.onGround()
+                    && (p.isInWater() || world.isWater(foot) || world.isWater(foot.below()));
+            if (!waterClimbing) {
+                waterClimbStall = 0;
+                waterClimbBestY = p.getY();
+            } else if (p.getY() > waterClimbBestY + 0.3) {
+                waterClimbBestY = p.getY();        // real rise → reset the stall (don't fight a working climb)
+                waterClimbStall = 0;
+            } else {
+                waterClimbStall++;
+            }
+            if (waterClimbing && waterClimbStall > WATER_CLIMB_STALL
+                    && BotConfig.allowSwimEscapePlace && ensureHoldingPlaceableAny(mc)) {
+                // Locate the top water cell in the bot's column (the foothold to
+                // fill) and the surface above it — independent of the bob phase.
+                BlockPos topWater = world.isWater(foot) ? foot : foot.below();
+                while (world.isWater(topWater.above())) topWater = topWater.above();
+                int surfaceY = topWater.getY() + 1;                          // first air above the column
+                if (world.isWater(topWater) && Move.hasPlaceSupport(world, topWater)) {
+                    if (BotConfig.walkerDebug && waterClimbStall == WATER_CLIMB_STALL + 1)
+                        LOG.info("[walker] water climb-out: takeover engaged (bob-stalled), swimming up to foothold {},{},{} surfaceY={}",
+                                topWater.getX(), topWater.getY(), topWater.getZ(), surfaceY);
+                    // TAKE OVER the keys: a clean swim straight up toward the bank.
+                    // The break / walk actuators below otherwise pin the bot low
+                    // against the wall (aiming at the break) so it never clears the
+                    // place cell. Face the climb node so 'forward' holds the body
+                    // against the bank, hold jump to surface, look down to aim.
+                    double ax = (cwp.getX() + 0.5) - p.getX();
+                    double az = (cwp.getZ() + 0.5) - p.getZ();
+                    if (ax * ax + az * az > 1e-4) {
+                        float yaw = (float) Math.toDegrees(Math.atan2(-ax, az));
+                        p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw;
+                    }
+                    p.setXRot(40f);
+                    mc.options.keyUp.setDown(true);
+                    mc.options.keyDown.setDown(false);
+                    mc.options.keyLeft.setDown(false);
+                    mc.options.keyRight.setDown(false);
+                    mc.options.keySprint.setDown(false);
+                    p.setSprinting(false);
+                    mc.options.keyJump.setDown(true);
+                    if (p.getY() >= surfaceY) {                              // feet cleared the place cell
+                        walkerPlace(mc, p, world, topWater);                 // fill it → flush, grounded foothold
+                        // Re-plan from the (now grounded) surface. Unconditional —
+                        // the client place is same-tick, so next tick topWater reads
+                        // solid and the outer isWater guard blocks any re-place; the
+                        // bot then climbs the bank from solid ground.
+                        path = null;
+                        stuckTicks = 0;
+                        totalTicks = 0;
+                        waterClimbStall = 0;
+                        waterClimbBestY = p.getY();
+                        if (BotConfig.walkerDebug)
+                            LOG.info("[walker] water climb-out: foothold placed at {},{},{} → repath from grounded",
+                                    topWater.getX(), topWater.getY(), topWater.getZ());
+                    }
+                    return Step.WALKING;
+                }
+            }
+        }
 
         // Pillar-up actuator: clear the ceiling if one blocks the rise, then
         // jump and place the support block beneath at the apex. Distinct from
@@ -344,6 +546,30 @@ public final class Walker {
                 }
             }
             mc.options.keyAttack.setDown(false);
+            // Buoyant pillar — the bot is rising out of water. Two sub-cases:
+            //   (a) FLOODED shaft (the destination cell is itself water): just hold
+            //       jump and FLOAT up through it; water follows up so the next
+            //       ceiling break repeats until the bot surfaces. No place — a block
+            //       would only dam the float.
+            //   (b) DRY air above (a partly-mined bunker / 1-deep pocket with an open
+            //       chimney): the swim-bob alone never gains permanent height, so on
+            //       the crest — when the feet clear the place cell — PLACE a support
+            //       there to stand on, lifting the bot one block; after that first
+            //       lift it is grounded and the normal dry pillar climbs the rest.
+            // Detect water from the world (cell below is water), not p.isInWater(),
+            // which flickers false at the bob peak and would drop the jump.
+            boolean shaftFlooded = world.isWater(path.get(step));
+            if (shaftFlooded || p.isInWater() || world.isWater(path.get(step).offset(0, -1, 0))) {
+                mc.options.keyJump.setDown(true);
+                if (!shaftFlooded && ensureHoldingPlaceableAny(mc)) {
+                    BlockPos wp = edge.toPlace.get(0);
+                    p.setXRot(89.5f);                       // look down to aim the support
+                    if (p.getY() >= wp.getY() + 0.9) {      // bobbed clear of the place cell
+                        clientUseItemOn(mc, p, wp.offset(0, -1, 0), Direction.UP);
+                    }
+                }
+                return Step.WALKING;
+            }
             if (!ensureHoldingPlaceableAny(mc)) {
                 lastError = "pillar: no placeable block in hotbar";
                 path = null;
@@ -462,11 +688,27 @@ public final class Walker {
                 path = null;
                 return Step.WALKING;
             }
+            // Water-escape break (swimAshore / swimTraverseBreak): while breaking the
+            // bank, a FLOATING bot drifts off its foot cell and the edge invalidates
+            // before the block breaks — it bobs and never climbs out. We anchor by
+            // pressing INTO the bank, but ONLY when the head is at the surface
+            // (!isUnderWater). The earlier unconditional keyUp drowned the bot:
+            // forward input while SUBMERGED drops it into the prone swim pose and it
+            // sinks. Gating on surface means forward can't trigger swim-pose, so it
+            // presses the body against the bank + jumps to mount, holding position
+            // long enough to finish the dig. (#9 autoSwim still surfaces it each tick.)
+            boolean swimEscapeBreak = edge.move != null
+                    && (edge.move.startsWith("swimAshore") || edge.move.startsWith("swimTraverseBreak"));
             for (BlockPos b : edge.toBreak) {
                 if (world.isSolid(b)) {
                     selectBestToolFor(mc, b);
                     aimAtBlockSnap(p, b);
                     mc.options.keyAttack.setDown(true);
+                    if (swimEscapeBreak && p.isInWater() && !p.isUnderWater()) {
+                        mc.options.keyUp.setDown(true);     // press into the aimed bank (surface only)
+                        if (edge.move.startsWith("swimAshore"))
+                            mc.options.keyJump.setDown(true);   // rise to mount the +1
+                    }
                     return Step.WALKING;
                 }
             }
@@ -543,10 +785,47 @@ public final class Walker {
         // vertical move or a real parkour leap, face the actual waypoint so
         // the jump goes the right way.
         boolean aimAtWaypoint = wp.getY() != foot.getY() || parkourEdge;
+        // Re-centre recovery on a stuck flat walk: a 1-wide channel needs the
+        // body centred on the lane axis or the off-centre hitbox snags a corner
+        // and wedges (the look-ahead carrot aims diagonally, so it never centres
+        // and the bot grinds the boundary). When genuinely stuck, steer to the
+        // centre of the last confirmed on-spine node (the cell we came from):
+        // that pulls the body straight onto the lane axis, after which the carrot
+        // — aimed at the next node, same axis — is a clean straight push. Only
+        // fires when stuck (normal open walking never is), so it can't reverse a
+        // healthy run.
+        // Cross-axis re-centre on a stuck flat walk: a 1-wide channel flush against
+        // a wall needs the body held on the lane axis or the off-centre hitbox
+        // grazes the wall and can't slide forward. When stuck, steer PURELY along
+        // the cross axis of the immediate cardinal move (correct X for a N/S lane,
+        // Z for an E/W lane) — never along the lane itself, so it can't cancel the
+        // forward carrot by pulling backward (the bug that pinned the bot mid-
+        // channel). Once centred (≤0.1) it releases and the carrot's straight push
+        // resumes; the two alternate but only ever add forward + lateral, so the
+        // bot threads the channel instead of grinding the wall.
+        // Off-spine recovery: if we've drifted to a cell from which the immediate
+        // waypoint is diagonal (slid back across a corner), the carrot would aim
+        // diagonally and re-snag the wall — instead steer back to the previous
+        // on-spine node's centre to regain the lane. Lateral lane-CENTRING on the
+        // spine is handled by the strafe below, so this only handles the gross
+        // drift-off case (foot no longer in the spine cell).
+        boolean reCentre = false;
+        double recX = 0, recZ = 0;
+        if (!aimAtWaypoint && stuckTicks > 5 && step > 0) {
+            BlockPos sp = path.get(step - 1);
+            boolean onSpine = foot.getX() == sp.getX() && foot.getZ() == sp.getZ();
+            if (!onSpine && losWalkable(world, foot, sp)) {
+                recX = (sp.getX() + 0.5) - p.getX();
+                recZ = (sp.getZ() + 0.5) - p.getZ();
+                reCentre = true;
+            }
+        }
         double adx, adz;
         if (aimAtWaypoint) {
             adx = (wp.getX() + 0.5) - p.getX();
             adz = (wp.getZ() + 0.5) - p.getZ();
+        } else if (reCentre) {
+            adx = recX; adz = recZ;
         } else {
             double[] c = carrotPoint(world, foot, p.getX(), p.getZ());
             adx = c[0] - p.getX();
@@ -584,8 +863,42 @@ public final class Walker {
                 && (landDx * landDx + landDz * landDz) < 1.4;   // within ~1.2 block of landing center
         mc.options.keyUp.setDown(!descendBrake);
         mc.options.keyDown.setDown(false);
-        mc.options.keyLeft.setDown(false);
-        mc.options.keyRight.setDown(false);
+        // Lateral lane-keeping STRAFE: on a flat cardinal walk, hold the cross-axis
+        // at the lane centre with a sideways strafe so the body clears a flush 1-wide
+        // channel wall WITHOUT turning off the forward heading. Pure yaw steering
+        // can't do both (turning to centre kills forward progress, so the bot only
+        // creeps and grinds the wall); strafing centres while forward still drives
+        // it down the lane. Projects the cross-axis error onto the player's right
+        // vector to pick the key. Skipped during leaps/brakes/bridging.
+        boolean strafeL = false, strafeR = false;
+        // Climbing a +1 ledge OUT OF a water film: buoyancy drifts the body off the
+        // target column so the cardinal stepUp approach goes diagonal and forward
+        // just grinds the ledge side (trace: inW, foot drifted to a diagonal of the
+        // stepUp node, cur2 stuck at 1.27, bobbed 797 ticks → budget expiry, "never
+        // left spawn"). The lane-keep strafe below is gated to flat walks
+        // (wp.y==foot.y), so a vertical climb gets NO lateral correction. Treat a
+        // water climb-out like a lane-keep but centre on BOTH axes toward the target
+        // column so the body sits under the ledge; the existing forward+jump then
+        // mounts it (the aligned cardinal climb that already works on dry land).
+        boolean waterClimb = p.isInWater() && wp.getY() > foot.getY();
+        if (!descendBrake && !parkourEdge && !steppingOffFall && (wp.getY() == foot.getY() || waterClimb)) {
+            int ddx = wp.getX() - foot.getX();
+            int ddz = wp.getZ() - foot.getZ();
+            double latX = 0, latZ = 0;
+            if (waterClimb) { latX = (wp.getX() + 0.5) - p.getX(); latZ = (wp.getZ() + 0.5) - p.getZ(); } // centre on the target column
+            else if (ddx == 0 && ddz != 0) latX = (wp.getX() + 0.5) - p.getX();        // N/S lane → hold X
+            else if (ddz == 0 && ddx != 0) latZ = (wp.getZ() + 0.5) - p.getZ();   // E/W lane → hold Z
+            if (Math.abs(latX) > 0.06 || Math.abs(latZ) > 0.06) {
+                double yr = Math.toRadians(p.getYRot());
+                double fx = -Math.sin(yr), fz = Math.cos(yr);   // forward unit (x,z)
+                double rx = -fz, ry = fx;                       // player's right = forward rot +90°
+                double dotR = latX * rx + latZ * ry;
+                if (dotR > 0.04) strafeR = true;
+                else if (dotR < -0.04) strafeL = true;
+            }
+        }
+        mc.options.keyLeft.setDown(strafeL);
+        mc.options.keyRight.setDown(strafeR);
         // Bridging a chasm one placed block at a time: sneak (so a sprint
         // overshoot can't carry the bot off the fresh 1-wide block into the
         // gap ahead) and don't sprint. Triggered when the edge we're walking
@@ -602,18 +915,72 @@ public final class Walker {
         // 1-wide bridge it would hop the bot clean off into the gap — so
         // never wiggle-jump while bridging. Stop pressing jump once braking
         // (we're descending onto the block — no more lift wanted).
+        // Stay afloat while pathing through water. autoSwim is gated OFF during
+        // goto/follow/explore/runAway (it would fight the Walker's jump), so the
+        // Walker itself must swim up — otherwise the bot sinks in deep water and
+        // drowns mid-path (the "swam into the ocean and died" failure). Hold jump
+        // whenever the eyes are submerged, unless we're deliberately diving a
+        // swimDown edge (then let it descend).
+        boolean diving = edge != null && edge.move != null && edge.move.startsWith("swimDown");
+        boolean swimUp = p.isInWater() && p.isUnderWater() && !diving;
+        // The stuck-wiggle hop unsticks a corner on DRY land, but in shallow water
+        // on a flat walk it just bobs the bot off the floor into the buoyant drift
+        // (it floats off its cell and slides — the very stall it's meant to break).
+        // Suppress it there; treading + steady forward threads the channel instead.
+        boolean flatWaterWalk = wp.getY() == foot.getY() && p.isInWater();
+        boolean wiggle = !bridging && !flatWaterWalk && stuckTicks > 10 && stuckTicks < 18;
+        // Climbing a +1 ledge out of a SHALLOW water film needs a BALLISTIC,
+        // GROUNDED jump: |Δy|=0.8 exceeds the 0.6 auto-step, and a *held* jump in
+        // water just swims the bot up to bob at the surface (y+0.2, onGround=false)
+        // — it never clears the dry ledge (trace: stuck 797t at cur2≈1, |dY|=0.8).
+        // So for a water climb-out, jump ONLY when grounded: releasing between
+        // launches lets the body settle the 0.2 back onto the shaft floor, from
+        // which a real jump (+1.25) tops the ledge while the strafe-centring above
+        // holds it under the target column so forward carries it on. (swimUp below
+        // still rescues a genuinely-submerged deep-water climb — undW there.)
+        // Water climb-out jump rule covers BOTH depths:
+        //  • SUBMERGED (deep water / flooded pit, undW): swim up — hold jump so the
+        //    bot rises through the water column toward the surface (never sinks /
+        //    drowns; this is the original swimUp behaviour).
+        //  • AT THE SURFACE of a shallow film (inW, !undW): a held jump only bobs
+        //    (y+0.2, onGround=false) and can't clear the 0.8 dry ledge, so jump
+        //    ONLY when grounded — releasing lets the body settle the 0.2 onto the
+        //    floor, from which a real jump (+1.25) tops the ledge (strafe-centring
+        //    above holds it under the column so forward carries it on).
+        // Still ASCENDING a water column when the head cell (or eyes) is water —
+        // a deep/flooded pit is multiple blocks deep, so keep swimming up (hold
+        // jump) until the head clears; checking only undW stops mid-column (eyes
+        // pop out at y+0.5 while feet are still 2 below) and the bot sinks back,
+        // oscillating at the pit bottom (trace: bobbed y60.0↔60.57, never rose).
+        boolean swimColumn = p.isInWater() && (p.isUnderWater() || world.isWater(foot.above()));
+        // Climb a +1 ledge OUT of water like a dry-land climb: hold jump CONTINUOUSLY
+        // (vanilla "hold forward+jump to climb out of water"), not only when grounded.
+        // The old `waterClimb ? (swimColumn || onGround)` fired jump ~never at a shallow
+        // film — the buoyant body is onGround ≈1/10 ticks and swimColumn is false (no
+        // water above the head), so it just treaded into the bank wall (trace: stuck
+        // 814t at a lake bank, jump=false every tick). wp.getY()>foot.getY() is true for
+        // ANY water climb-out, so this presses jump throughout it; swimColumn still
+        // rises a deep submerged column and swimUp covers a fully-submerged climb.
         boolean jump = !descendBrake
-                && (wp.getY() > foot.getY() || parkourEdge || (!bridging && stuckTicks > 10 && stuckTicks < 18));
+                && (wp.getY() > foot.getY() || parkourEdge || swimUp || wiggle || swimColumn);
         mc.options.keyJump.setDown(jump);
-        boolean sprint = !bridging && !steppingOffFall && !steppingOffWaterFall && !descendBrake;
+        // NEVER sprint in water. ROOT CAUSE of "bot stuck bobbing, can't climb out
+        // of water" (found via the [walker] trace): sprint + forward while in water
+        // forces the PRONE SWIMMING POSE, so the body goes horizontal and swims along
+        // the surface instead of treading upright + rising — it stays ~2 blocks below
+        // every stepUp/diagUp/swimUp climb node and never advances (trace showed
+        // sprint=true, |dY|≈2.4, bobbing y61 under a y64 node). Treading (no sprint) +
+        // jump lets vanilla auto-climb the 1-block ledge out of the water.
+        boolean sprint = !bridging && !steppingOffFall && !steppingOffWaterFall
+                && !descendBrake && !p.isInWater();
         mc.options.keySprint.setDown(sprint);
         p.setSprinting(sprint);
-        if (BotConfig.walkerDebug && bridging)
-            LOG.info(
-                    "[walker] bridge-walk foot={},{},{} y={} step={} wp={},{},{} onGround={} jump={} sneak={} sprint={} stuck={} edge={}",
-                    foot.getX(), foot.getY(), foot.getZ(), String.format(Locale.ROOT, "%.2f", p.getY()),
-                    step, wp.getX(), wp.getY(), wp.getZ(), p.onGround(), jump, bridging, !bridging, stuckTicks,
-                    edge != null ? edge.move : "-");
+        if (BotConfig.walkerDebug)
+            LOG.info("[walker] walk-keys yaw={} wp={},{},{} up={} jump={} sprint={} sneak={} attack={} swimUp={} descBrake={}",
+                    String.format(Locale.ROOT, "%.0f", p.getYRot()),
+                    wp.getX(), wp.getY(), wp.getZ(),
+                    mc.options.keyUp.isDown(), mc.options.keyJump.isDown(), mc.options.keySprint.isDown(),
+                    mc.options.keyShift.isDown(), mc.options.keyAttack.isDown(), swimUp, descendBrake);
         return Step.WALKING;
     }
 

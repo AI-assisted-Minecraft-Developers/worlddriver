@@ -12,8 +12,11 @@ import net.minecraft.world.level.Level;
 import java.util.Map;
 
 import static net.magicterra.agent.bot.util.BotUtil.*;
+import net.magicterra.agent.bot.util.BlockMatch;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.block.state.BlockState;
 import java.util.Locale;
+import java.util.function.Predicate;
 import net.minecraft.client.multiplayer.ClientLevel;
 
 /**
@@ -48,14 +51,15 @@ public static BlockPos findNearestStandForBlock(LocalPlayer player, String block
     long bestD2 = Long.MAX_VALUE;
     BlockPos bestStand = null;
     int scanned = 0;
+    // Supports exact ids and '#tag' selectors (e.g. #minecraft:logs → any tree).
+    Predicate<BlockState> match = BlockMatch.of(blockId);
     outer:
     for (int dy = -vr; dy <= vr; dy++) {
         for (int dx = -radius; dx <= radius; dx++) {
             for (int dz = -radius; dz <= radius; dz++) {
                 if (++scanned > 200_000) break outer;
                 BlockPos bp = foot.offset(dx, dy, dz);
-                String id = BuiltInRegistries.BLOCK.getKey(lvl.getBlockState(bp).getBlock()).toString();
-                if (!blockId.equals(id)) continue;
+                if (!match.test(lvl.getBlockState(bp))) continue;
                 long d2 = (long) bp.distSqr(foot);
                 if (d2 >= bestD2) continue;
                 BlockPos stand = findStandAdjacent(lvl, bp);

@@ -6,6 +6,7 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.Direction;
+import net.minecraft.network.protocol.game.ServerboundContainerClosePacket;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Inventory;
@@ -81,6 +82,29 @@ public final class BotInteract {
         InteractionResult r = mc.gameMode.useItemOn(p, InteractionHand.MAIN_HAND, hit);
         if (r.consumesAction()) p.swing(InteractionHand.MAIN_HAND);
         return r;
+    }
+
+    /**
+     * Close any open server-side container (furnace/chest/table) and return to the
+     * plain inventory menu. Headless, opening a block container sets
+     * {@code player.containerMenu} on both sides but never spawns a client
+     * {@code Screen}, so {@code mc.setScreen(null)} is a no-op and the container
+     * LEAKS — every later {@code handleInventoryMouseClick} carries the inventory
+     * menu's id (0), which the game silently ignores while a different container is
+     * "open" (id mismatch). That stranded a furnace from one process and broke the
+     * next process's inventory clicks. This sends the real close packet AND resets
+     * the local menu, so subsequent inventory-menu clicks land. Safe to call when
+     * nothing is open (no-op).
+     */
+    public static void closeContainer(Minecraft mc) {
+        LocalPlayer p = mc.player;
+        if (p != null && p.containerMenu != p.inventoryMenu) {
+            if (p.connection != null) {
+                p.connection.send(new ServerboundContainerClosePacket(p.containerMenu.containerId));
+            }
+            p.closeContainer();   // Player.closeContainer(): containerMenu = inventoryMenu
+        }
+        if (mc.screen != null) mc.setScreen(null);
     }
 
     public static void releaseKeys() {

@@ -14,6 +14,8 @@ import net.magicterra.agent.bot.BotConfig;
  * open a long fall or drop into lava). Cost = step + break time.
  */
 public final class DownBreak extends Move {
+    private static final int[][] HORIZ = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+
     public DownBreak() { super(0, -1, 0, 10); }
     @Override public boolean valid(WorldView w, BlockPos from) { return eval(w, from) != null; }
     @Override public Edge eval(WorldView w, BlockPos from) {
@@ -24,6 +26,17 @@ public final class DownBreak extends Move {
         if (Double.isInfinite(c)) return null;
         BlockPos landFloor = below.offset(0, -1, 0);
         if (!w.isSolid(landFloor) || w.isHazard(landFloor) || w.isHazard(below)) return null;
+        // Suffocation guard: a falling block (sand/gravel) above the head
+        // cascades into the freshly opened shaft and buries the descending bot.
+        if (w.isFallingBlock(from.offset(0, 1, 0))) return null;
+        // Flood guard: opening a 1-wide shaft beside water lets it pour in and
+        // drown the bot (digging below sea level next to the ocean was lethal).
+        // Check both cells the bot occupies after dropping (below = feet,
+        // from = head) for horizontally adjacent water.
+        for (int[] h : HORIZ) {
+            if (w.isWater(below.offset(h[0], 0, h[1]))) return null;
+            if (w.isWater(from.offset(h[0], 0, h[1])))  return null;
+        }
         return new Edge(below, cost + c, List.of(below), List.of(), name());
     }
     public String name() { return "downBreak"; }

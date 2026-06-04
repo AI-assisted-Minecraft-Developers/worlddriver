@@ -15,8 +15,15 @@ public final class Diagonal extends Move {
         if (!w.canStandAt(to)) return false;
         BlockPos sideA = from.offset(dx, 0, 0);
         BlockPos sideB = from.offset(0, 0, dz);
-        // At least one side must be clear at head + foot for the body to slip through.
-        return clearColumn(w, sideA) || clearColumn(w, sideB);
+        // BOTH corner columns must be clear. The bot walks a diagonal by aiming
+        // straight at the destination centre (no active corner-navigation), so a
+        // single solid corner snags its hitbox and it wedges in place forever
+        // (observed: stuck bobbing against a sandstone corner, cur2 never closing).
+        // Requiring both sides clear matches this class's doc intent and forces A*
+        // to route a blocked corner as two cardinal walks through the open cell —
+        // which the Walker executes cleanly. Costs at most one extra step per
+        // corner; in exchange no diagonal ever wedges.
+        return clearColumn(w, sideA) && clearColumn(w, sideB);
     }
     private static boolean clearColumn(WorldView w, BlockPos p) {
         return w.isPassable(p) && w.isPassable(p.offset(0, 1, 0))
