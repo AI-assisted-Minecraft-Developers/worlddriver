@@ -38,6 +38,11 @@ etc.) working in this project. Keep it short and authoritative.
    and entities). Merge first; add only when the surface truly needs a new
    verb. The same goes for tool descriptions — keep them tight; the schema
    already documents types.
+7. **No fully-qualified names when there's no conflict.** Add a normal `import`
+   and use the simple name. Inline FQNs like
+   `net.magicterra.agent.bot.util.BlockMatch.of(...)` or
+   `java.util.function.Predicate<…>` are only allowed to disambiguate a genuine
+   name collision in that file.
 
 ## Log locations
 

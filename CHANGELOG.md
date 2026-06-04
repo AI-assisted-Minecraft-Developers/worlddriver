@@ -8,6 +8,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Claude Code channel bridge (`scripts/agent_channel_bridge.py`) — makes the mod
+  consumable as a native Claude Code "channel".** Claude Code's push protocol is
+  `notifications/claude/channel` over **stdio** (it spawns the channel server as a
+  subprocess), not the generic `notifications/message` the mod emits — so this is a
+  dependency-free (Python stdlib) stdio shim. It (1) proxies the mod's tools
+  (`tools/list`/`tools/call` over the mod's MCP HTTP) so Claude can drive the bot,
+  and (2) forwards live events (threat/hurt/death/chat/…) into the session as
+  `notifications/claude/channel`, marking `chat.message` `untrusted` (player-typed
+  text is an injection surface). Built for the dev loop: it answers `initialize`
+  immediately even with the mod offline, **auto-waits** for the mod's MCP port, and
+  **refreshes the tool list** (`notifications/tools/list_changed`) on first connect
+  and on every reconnect — a mod restart mid-session just blips offline→online
+  (verified live: kill client → `tools/call` returns a graceful error → relaunch →
+  auto-reconnect + tool-list refresh + tools work again). Register via
+  `scripts/agent-driver-channel.mcp.json.example` and launch with
+  `claude --dangerously-load-development-channels server:agent-driver` (custom
+  channels need the dev flag during the research preview).
+- **Driver→agent event push channel — the driver streams events to the agent in
+  real time instead of the agent only polling.** Every event still funnels through
+  the single `AgentApi.emit(...)` (ring buffer for `mc.observe.eventsSince` replay,
+  unchanged) which now also fans out to live push subscribers off a dedicated
+  dispatch thread (the game tick never blocks on a socket). Every event is a
+  standard server→client **`notifications/message`** (the MCP logging notification —
+  `params.level` mapped from the event type, full event in `params.data`), the shape
+  an MCP-aware agent loop already consumes, byte-identical on **both transports**:
+  **MCP** — the spec's server→client SSE: after `initialize` (server advertises the
+  `logging` capability), the client opens `GET /mcp` with `Accept: text/event-stream`
+  and receives the notifications as `data:` lines; `logging/setLevel` sets a minimum
+  severity. **WebSocket `/rpc`** — opt in with a `mc.events.subscribe` control frame
+  (`{types:[...]}` filter; `unsubscribe` to stop); connections that never subscribe
+  (incl. the parity harness) get nothing extra. The `/mcp` POST request/response path
+  is unchanged. Event sources: the existing block/death/chat
+  hooks now push; new `command.result` (every Brigadier `mc.action.runCommand`),
+  and client-tick detectors for `threat.appeared` (敌袭), `player.hurt` (受伤),
+  `player.death` (死亡). New `mc.events` route — `op:emit` injects a custom event;
+  `op:watch`/`unwatch`/`list` register rising-edge condition watchers (poll a route,
+  emit `emitAs` the first tick a predicate flips false→true, e.g. health `below` 6).
+  Prelude `Agent.events.{emit,watch,unwatch,list}`; catalog tool `mc.events`.
+  Validation `49_events.js` (4 sub-tests: emit→replay, emit-rejects-bad, watcher
+  rising-edge fires, watch/list/unwatch lifecycle) — suite now **91 GameTest cases,
+  all green**. Live push verified in runClient on both transports (MCP `GET /mcp` SSE
+  and WebSocket), as identical `notifications/message`, for all six event categories.
+  (`AgentGameTest`
+  `timeoutTicks` widened to 100000 — the GameTest server time-compresses ticks, so
+  the watcher's ~0.5 s real-time wait needs a larger wall-clock budget.)
+- **YAML → GameTest transpiler — declarative test cases over the agent routes
+  (proposal §4.1 C, Phase 2).** A YAML test (`docs/yaml-gametest.md`) is a list of
+  `{name, region, setup, asserts}` cases; `YamlTestInterpreter` runs each as
+  `snapshot → setup → asserts → restore` (the `finally` restore is why this layer
+  needed the `mc.world.snapshot`/`restore` primitive below — cases never pollute
+  each other). Every setup verb (`place`/`place_many`/`fill`/`run_command`/
+  `wait_ticks`) and assert (`block_present`/`block_absent`/`entity_present`, with
+  `namespace:*` wildcards) dispatches through `AgentApi.route(...)` — the same
+  single entry the JS/WS/MCP transports use, so a YAML test exercises the real
+  production path with no parallel implementation to drift. Parsing is snakeyaml
+  under `SafeConstructor` (the one dependency we shadow-**relocate**, since it's a
+  high-collision library, unlike the unrelocated Rhino/netty); files are
+  enumerated from `data/agent_driver/gametests/index.txt`. New `mc.test.yaml`
+  route (`{inline}` / `{file}` / `{all:true}`) returns
+  `{results:[{name,pass,failures}], passed, failed}`. Validation script
+  `34_yaml_gametest.js` (5 sub-tests: inline run, region-restore, classpath-file
+  load, index manifest, and failure-is-reported) plus a real
+  `smoke_place_observe.yaml` — suite is now **65 GameTest cases, all green**.
+  **Not** wired as per-case `@GameTestGenerator` tests: a batch's GameTests run
+  *concurrently* (StructureUtils spaces them in a grid), and this mod drives the
+  world at the **absolute** `ORIGIN` arena rather than GameTestHelper-relative
+  coords, so a second `@GameTest` would collide with `agentRpcSmoke`; instead the
+  YAML suite runs through `mc.test.yaml` inside the existing serial suite.
+  Per-case GameTests wait on spatial isolation (`docs/yaml-gametest.md` §7.1).
+  Deferred asserts (`tps`/`no_exception_in_log`/`block_changed_within`) are
+  recognised but raise `UnsupportedOperationException` so a test that uses them
+  fails loudly rather than silently passing.
 - **`mc.world.snapshot` / `mc.world.restore` — deterministic test setup/teardown.**
   `snapshot` captures an axis-aligned box of block states *and* block-entity NBT
   into a JVM-local, named in-memory store (volume capped at 32^3; up to 64

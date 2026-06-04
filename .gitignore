@@ -5,3 +5,5 @@ run/
 run-gametest/
 .idea/
 *.log
+
+scripts/__pycache__/

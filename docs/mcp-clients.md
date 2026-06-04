@@ -193,6 +193,72 @@ the call shape, the return shape, and a one-line example where useful.
 
 ---
 
+## 7.5 Subscribing to the event stream (driver → agent push)
+
+Besides polling `mc.observe.eventsSince`, the driver can **push** events to you in
+real time: threats appearing (`threat.appeared`), damage (`player.hurt`), death
+(`player.death` / `entity.death`), chat (`chat.message`), command results
+(`command.result`), block changes, and any custom/condition event you register.
+
+Every event is delivered as a standard JSON-RPC **`notifications/message`** (the
+MCP logging notification — the one server-initiated message any MCP-aware client
+already consumes), **byte-identical on both transports**:
+
+```jsonc
+{"jsonrpc":"2.0","method":"notifications/message","params":{
+   "level":"warning","logger":"minecraft.events",
+   "data":{"seq":42,"timestamp":1780400527904,"type":"threat.appeared","pos":{"x":3,"y":64,"z":1},
+           "data":"{\"type\":\"minecraft:zombie\",\"id\":3,\"distance\":1.0,\"score\":0.63}"}}}
+```
+
+`params.level` is an RFC 5424 / MCP severity mapped from the type
+(`player.death`→error, `threat.appeared`/`player.hurt`→warning,
+`entity.death`→notice, else info); the full event object
+(`{seq,timestamp,type,pos,data}`; inner `data` is a string, often a small JSON
+object you `JSON.parse`) rides in `params.data`. No `id` field → it's a
+notification (demux: has `method`, no `id`).
+
+**Over MCP (`http://127.0.0.1:<mcp>/mcp`)** — the spec's server→client SSE stream.
+After `initialize` (the server advertises the `logging` capability), open the
+stream with `GET /mcp` and `Accept: text/event-stream`; each event arrives as a
+`data:` line carrying the notification above. `logging/setLevel` sets a minimum
+severity. This is plain MCP Streamable HTTP — any compliant client/agent loop that
+listens for server notifications receives the events.
+
+```
+GET /mcp   Accept: text/event-stream
+→ : connected
+→ data: {"jsonrpc":"2.0","method":"notifications/message","params":{...}}
+```
+
+**Over WebSocket (`ws://127.0.0.1:<rpc>/rpc`)** — opt in with a control frame
+(per-connection, so a socket that never subscribes is unaffected), then read the
+same notification frames; `mc.events.unsubscribe` stops them. Supports a
+type-filter the MCP SSE doesn't:
+
+```jsonc
+{"id":1,"method":"mc.events.subscribe","params":{"types":["threat.appeared","chat.message"]}} // omit types for all
+{"id":1,"result":{"ok":true,"subscribed":true,"types":["threat.appeared","chat.message"]}}    // ack (has id)
+// → then unsolicited notifications/message frames (no id) …
+{"id":2,"method":"mc.events.unsubscribe","params":{}}
+```
+
+**Custom events & condition watchers** (`mc.events` tool, works on every transport):
+
+```jsonc
+{"name":"mc.events","arguments":{"op":"emit","type":"my.signal","data":{"x":1}}}        // inject one
+{"name":"mc.events","arguments":{"op":"watch","invoke":"mc.observe.player","field":"health","below":6,"emitAs":"player.lowHealth"}}  // auto-emit on rising edge
+{"name":"mc.events","arguments":{"op":"list"}}            // active watchers
+{"name":"mc.events","arguments":{"op":"unwatch","id":1}}  // cancel
+```
+
+A watcher polls the route every `everyMs` (default 1000) and emits `emitAs`
+(default `condition.met`) the first tick its predicate flips false→true; the
+emitted event then rides the same push stream. Predicate: `value` (equals),
+`above`/`below` (numeric), else JS-truthy. `once:true` self-cancels after firing.
+
+---
+
 ## 8. Common pitfalls
 
 - **"Connection refused"**: the MCP server comes up at client init (right
