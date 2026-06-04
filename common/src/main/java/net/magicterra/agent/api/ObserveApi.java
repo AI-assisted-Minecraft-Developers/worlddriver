@@ -1,6 +1,7 @@
 package net.magicterra.agent.api;
 
 import net.magicterra.agent.bot.world.AsciiMapRenderer;
+import net.magicterra.agent.bot.world.HazardCell;
 import net.magicterra.agent.bot.world.HazardField;
 import net.magicterra.agent.bot.world.SceneModel;
 import net.magicterra.agent.bot.world.ServerWorldView;
@@ -341,8 +342,10 @@ public final class ObserveApi {
     public Map<String, Object> scene(Map<String, Object> params) {
         Params p = Params.of(params);
         BlockPos explicit = p.getPos("center");
-        int radius = p.getIntClamped("radius", 12, 1, 32);
+        int requestedRadius = p.getInt("radius", 12);
+        int radius = Params.clamp(requestedRadius, 1, 32);
         String render = p.getString("render", "summary");
+        List<String> overlays = p.getStringList("overlays");
         ServerLevel level = api.level();
         return api.onServerThread(() -> {
             BlockPos center = explicit;
@@ -368,10 +371,36 @@ public final class ObserveApi {
             out.put("present", true);
             out.put("center", Map.of("x", center.getX(), "y", center.getY(), "z", center.getZ()));
             out.put("radius", radius);
+            // Fix 2: report truncation when the requested radius exceeded the max.
+            if (requestedRadius > 32) {
+                out.put("truncated", true);
+                out.put("requested", requestedRadius);
+            }
             out.put("hazardSummary", sm.summary());
             if ("map".equals(render)) {
                 out.put("rows", AsciiMapRenderer.rows(f));
                 out.put("legend", AsciiMapRenderer.legend());
+            }
+            // Fix 3: height overlay — surface-Y statistics over all standable cells.
+            if (overlays.contains("height")) {
+                int centerY = center.getY();
+                int minY = Integer.MAX_VALUE;
+                int maxY = Integer.MIN_VALUE;
+                for (int dx = -radius; dx <= radius; dx++) {
+                    for (int dz = -radius; dz <= radius; dz++) {
+                        HazardCell c = f.at(dx, dz);
+                        if (c.standable()) {
+                            int surfaceY = centerY - c.cliffDropDepth();
+                            if (surfaceY < minY) minY = surfaceY;
+                            if (surfaceY > maxY) maxY = surfaceY;
+                        }
+                    }
+                }
+                out.put("centerY", centerY);
+                if (minY != Integer.MAX_VALUE) {
+                    out.put("minY", minY);
+                    out.put("maxY", maxY);
+                }
             }
             out.put("authority", "server");
             return out;

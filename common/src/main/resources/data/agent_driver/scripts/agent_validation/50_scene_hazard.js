@@ -122,3 +122,59 @@ AgentTest.run("50_scene: deep water (>=2) lethal, shallow (1) not", function (t)
     t.assertEqual(sSafe.hazardSummary.lethalCount, 0,
         "1-deep water neighbour (depth 1 < deepWaterMax 2) is not lethal");
 });
+
+// ── Test 6: lava at body level renders '!' and is lethal (contactDamage fix) ──
+// Center (0,200,250). Stone platform at y=199, air above.
+// ONE neighbour cell (x=+1, z=250) has lava placed at y=200 (the bot body level),
+// with stone still at y=199 under it so the column exists — but the body/head
+// hazard check fires first and returns contactDamage=true, lethal=true.
+// Center cell itself is air at y=200 -> should still be walkable (no hazard there).
+AgentTest.run("50_scene: lava at body level renders '!' and is lethal", function (t) {
+    var ox = 0, oy = 200, oz = 250;
+    // 9x9 stone platform at y=199, clear air y=200..205.
+    fill(ox - 4, oy - 1, oz - 4, ox + 4, oy - 1, oz + 4, "minecraft:stone");
+    fill(ox - 4, oy,     oz - 4, ox + 4, oy + 5, oz + 4, "minecraft:air");
+    // Single lava block at the neighbour's body level (y=200, dx=+1).
+    // Stone at y=199 already present from the platform fill above.
+    fill(ox + 1, oy, oz, ox + 1, oy, oz, "minecraft:lava");
+
+    var s = Agent.invoke("mc.observe.scene", {
+        center: { x: ox, y: oy, z: oz },
+        radius: 1,
+        render: "map"
+    });
+    t.assertTrue(s.hazardSummary.lethalCount >= 1,
+        "lava body-level cell is lethal (contactDamage)");
+    var mapStr = s.rows.join("\n");
+    t.assertTrue(mapStr.indexOf("!") >= 0,
+        "lava at body level renders as '!'");
+});
+
+// ── Test 7: radius clamps to 32 with truncation report ───────────────────────
+// Request radius=99 -> should clamp to 32 and report truncated:true, requested:99.
+AgentTest.run("50_scene: radius clamps to 32 with truncation report", function (t) {
+    // Use a pre-built flat area (the test-5 platform at oz=200 works fine).
+    var s = Agent.invoke("mc.observe.scene", { center: { x: 0, y: 200, z: 200 }, radius: 99 });
+    t.assertEqual(s.radius, 32, "radius clamped to 32");
+    t.assertEqual(s.truncated, true, "reports truncated flag");
+    t.assertEqual(s.requested, 99, "reports original requested radius");
+});
+
+// ── Test 8: height overlay reports centerY / minY / maxY ─────────────────────
+// Center (0,200,300). Flat stone platform at y=199 -> surface Y = 200 for all
+// standable cells, so minY == maxY == 200 and centerY == 200.
+AgentTest.run("50_scene: height overlay reports centerY/minY/maxY", function (t) {
+    var ox = 0, oy = 200, oz = 300;
+    fill(ox - 4, oy - 1, oz - 4, ox + 4, oy - 1, oz + 4, "minecraft:stone");
+    fill(ox - 4, oy,     oz - 4, ox + 4, oy + 5, oz + 4, "minecraft:air");
+
+    var s = Agent.invoke("mc.observe.scene", {
+        center: { x: ox, y: oy, z: oz },
+        radius: 2,
+        overlays: ["height"]
+    });
+    t.assertEqual(s.centerY, 200, "centerY equals bot level (200)");
+    t.assertTrue("minY" in s && "maxY" in s, "height overlay populates minY and maxY");
+    t.assertEqual(s.minY, 200, "flat platform: minY == 200 (surface at center.y)");
+    t.assertEqual(s.maxY, 200, "flat platform: maxY == 200 (all cells same height)");
+});

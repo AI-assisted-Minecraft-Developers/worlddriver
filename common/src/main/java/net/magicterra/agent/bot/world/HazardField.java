@@ -56,6 +56,14 @@ public final class HazardField {
         int cx = center.getX() + dx, cz = center.getZ() + dz;
         BlockPos body = new BlockPos(cx, center.getY(), cz);
         if (!w.isKnown(body)) return HazardCell.unknown();
+        // Explicit body/head hazard check: if lava/fire/etc occupies the bot's own level,
+        // classify it immediately as contactDamage, not standable, lethal — before the
+        // standable-foot scan (canStandAt excludes hazard cells so they'd otherwise read
+        // as walls/drops and never set contactDamage=true).
+        BlockPos head = new BlockPos(cx, center.getY() + 1, cz);
+        if (w.isHazard(body) || w.isHazard(head)) {
+            return new HazardCell(0, 0, true, false, true);
+        }
         // Find where the bot would LAND stepping into this column: the highest standable
         // foot from center.y+1 down to center.y-DROP_PROBE. Searching from the bot's OWN
         // level downward is what makes a cliff register as a drop rather than as a wall.
