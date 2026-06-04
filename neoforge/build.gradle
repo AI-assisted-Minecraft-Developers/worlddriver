@@ -51,6 +51,11 @@ dependencies {
     // See https://docs.architectury.dev/loom/using_libraries
     shadowBundle("io.netty:netty-codec-http:$rootProject.netty_version") { transitive = false }
     forgeRuntimeLibrary "io.netty:netty-codec-http:$rootProject.netty_version"
+
+    // snakeyaml — same FML runtime-visibility dance as netty. shadowJar below
+    // RELOCATES it (see relocate rule) so it can't clash with another mod's copy.
+    shadowBundle("org.yaml:snakeyaml:$rootProject.snakeyaml_version") { transitive = false }
+    forgeRuntimeLibrary "org.yaml:snakeyaml:$rootProject.snakeyaml_version"
 }
 
 processResources {
@@ -70,6 +75,12 @@ processResources {
 shadowJar {
     configurations = [project.configurations.shadowBundle]
     archiveClassifier = 'dev-shadow'
+    // Isolate our snakeyaml from any unrelocated copy a modpack mod might bundle.
+    // Transparent to source (we import org.yaml.snakeyaml as usual); shadow
+    // rewrites both the lib and our call sites in the prod jar. NOTE: dev runs
+    // (incl. runGameTestServer) use the un-shadowed forgeRuntimeLibrary, so this
+    // relocation is NOT exercised by the GameTest CI — only the remapped prod jar.
+    relocate 'org.yaml.snakeyaml', 'net.magicterra.agent.shaded.snakeyaml'
 }
 
 remapJar {

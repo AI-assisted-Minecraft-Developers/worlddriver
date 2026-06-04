@@ -20,4 +20,8 @@ dependencies {
     // codec-http for the WS server/client. Compile-only here; fabric/neoforge
     // wire runtime visibility (forgeRuntimeLibrary on NeoForge) + shadow-bundle.
     compileOnly "io.netty:netty-codec-http:$rootProject.netty_version"
+
+    // snakeyaml — YAML GameTest definitions. Compile-only here; fabric/neoforge
+    // wire runtime visibility + shadow-bundle (relocated). See gradle.properties.
+    compileOnly "org.yaml:snakeyaml:$rootProject.snakeyaml_version"
 }

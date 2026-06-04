@@ -44,6 +44,11 @@ dependencies {
     // runtime; `shadowBundle` ships it inside the prod jar.
     shadowBundle("io.netty:netty-codec-http:$rootProject.netty_version") { transitive = false }
     implementation "io.netty:netty-codec-http:$rootProject.netty_version"
+
+    // snakeyaml — YAML GameTest definitions. Plain `implementation` is enough at
+    // runtime on Fabric; `shadowBundle` ships it (relocated, see shadowJar).
+    shadowBundle("org.yaml:snakeyaml:$rootProject.snakeyaml_version") { transitive = false }
+    implementation "org.yaml:snakeyaml:$rootProject.snakeyaml_version"
 }
 
 processResources {
@@ -57,6 +62,8 @@ processResources {
 shadowJar {
     configurations = [project.configurations.shadowBundle]
     archiveClassifier = 'dev-shadow'
+    // Match neoforge: relocate snakeyaml in the prod jar. Transparent to source.
+    relocate 'org.yaml.snakeyaml', 'net.magicterra.agent.shaded.snakeyaml'
 }
 
 remapJar {
@@ -77,6 +84,20 @@ loom {
     }
     runConfigs.configureEach {
         property 'agent.runValidation', project.findProperty('agentRunValidation') ?: 'false'
+        // Pin the MCP / RPC ports so the external driver (Claude harness, docs
+        // example, rpc.py) always finds the mod at a known address. Default to
+        // 39800/39801; AgentDriverCommon reads -Dagent.mcpPort / -Dagent.rpcPort
+        // (0 = random). Override with -PagentMcpPort=… / -PagentRpcPort=… if two
+        // clients must coexist.
+        property 'agent.mcpPort', project.findProperty('agentMcpPort') ?: '39800'
+        property 'agent.rpcPort', project.findProperty('agentRpcPort') ?: '39801'
+        // Persist mc.bot.setting changes to config/agent_driver_bot.properties so
+        // survival toggles (autoSwim, autoRetreat, …) survive a client restart and
+        // don't have to be re-applied every relaunch. Opt-in (set only on the dev
+        // runClient/runServer launch, NOT the headless GameTest task) so the
+        // validation suites stay deterministic on pure defaults. Override with
+        // -PagentPersistConfig=false.
+        property 'agent.persistConfig', project.findProperty('agentPersistConfig') ?: 'true'
         // Cap heap so a stuck client/server can't trigger system OOM when run
         // alongside the dedicated server + gametest. MC 1.21.1 fits comfortably.
         vmArg '-Xmx2g'
