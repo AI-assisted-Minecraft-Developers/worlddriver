@@ -3,6 +3,8 @@ package net.magicterra.agent.mcp;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import net.magicterra.agent.api.AgentApi;
+import net.magicterra.agent.model.AgentEvent;
+import net.magicterra.agent.rpc.EventNotifications;
 import net.magicterra.agent.rpc.JsonCodec;
 
 import java.io.Closeable;
@@ -14,7 +16,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Minimal MCP (Model Context Protocol) server speaking JSON-RPC 2.0 over HTTP.
@@ -22,9 +28,11 @@ import java.util.concurrent.Executors;
  * Transport conformance with the Streamable HTTP spec (2025-06-18, see
  * https://modelcontextprotocol.io/specification/2025-06-18/basic/transports):
  *
- *  - Single endpoint at {@code /mcp} supports POST; GET (and any other verb)
- *    returns 405 Method Not Allowed, which the spec explicitly permits for
- *    servers that don't offer a server-initiated SSE stream.
+ *  - Single endpoint at {@code /mcp} supports POST and GET.
+ *    POST carries client requests; GET (with {@code Accept: text/event-stream})
+ *    opens the spec's server→client SSE stream — that is how the driver pushes
+ *    event notifications to an MCP client (see "Server push" below). A GET without
+ *    that Accept gets 405, which the spec permits.
  *  - POST with a JSON-RPC request → 200 with {@code application/json} body
  *    (the spec allows either application/json or text/event-stream; we pick
  *    application/json — no SSE needed for stateless tool calls).
@@ -35,8 +43,20 @@ import java.util.concurrent.Executors;
  *  - Protocol version is negotiated in {@code initialize}: we echo the
  *    client's requested version if we know it, otherwise return our latest.
  *
+ * <b>Server push (driver→agent event notifications).</b> Per the Streamable HTTP
+ * spec, a client opens an SSE stream with {@code GET /mcp} (Accept:
+ * text/event-stream); the server then sends server-initiated JSON-RPC messages on
+ * it. We push each driver event as a {@code notifications/message} (the MCP logging
+ * notification — we advertise the {@code logging} capability in {@code initialize},
+ * and honor {@code logging/setLevel} as a minimum-severity filter). The frame is
+ * byte-identical to the one the WebSocket {@code /rpc} transport sends (shared
+ * {@link EventNotifications}). Simplification: events fan out to ALL open GET
+ * streams rather than being correlated to a session via {@code Mcp-Session-Id}
+ * (fine for the localhost single-agent setup; add session routing if that changes).
+ *
  * Supported MCP methods:
- *   initialize, notifications/initialized, tools/list, tools/call, ping
+ *   initialize, notifications/initialized, tools/list, tools/call, ping,
+ *   logging/setLevel; GET opens the server→client notification stream
  *
  * Routes tools/call -> AgentApi.route(method, params) — the same code path
  * in-JVM scripts use. Errors from AgentApi turn into MCP tool-error results
@@ -58,6 +78,12 @@ public final class McpServer implements Closeable {
 
     private final AgentApi api;
     private final HttpServer http;
+    /** Open server→client SSE streams (clients that issued {@code GET /mcp}).
+     *  {@link #onEvent} fans each driver event out to all of them. */
+    private final Set<SseSubscriber> sse = ConcurrentHashMap.newKeySet();
+    /** Minimum severity to forward, set by {@code logging/setLevel}. Default debug
+     *  (rank 0) = forward everything. */
+    private volatile int minLevelRank = 0;
 
     public McpServer(AgentApi api, int port) throws IOException {
         this.api = api;
@@ -70,6 +96,7 @@ public final class McpServer implements Closeable {
             return t;
         }));
         this.http.start();
+        api.addEventListener(this::onEvent);
     }
 
     public int port() { return http.getAddress().getPort(); }
@@ -94,6 +121,14 @@ public final class McpServer implements Closeable {
     @SuppressWarnings("unchecked")
     private void handle(HttpExchange ex) throws IOException {
         if (!checkOrigin(ex)) return;
+        // GET with Accept: text/event-stream opens the spec's server→client SSE
+        // stream — our event-notification push. Any other GET → 405 (allowed).
+        if ("GET".equals(ex.getRequestMethod())) {
+            String accept = ex.getRequestHeaders().getFirst("Accept");
+            if (accept != null && accept.contains("text/event-stream")) { handleSse(ex); return; }
+            send(ex, 405, "method not allowed (GET requires Accept: text/event-stream for the event stream)");
+            return;
+        }
         if (!"POST".equals(ex.getRequestMethod())) { send(ex, 405, "method not allowed"); return; }
 
         // Pre-flight Content-Length check (cheap path). When the header is
@@ -144,7 +179,12 @@ public final class McpServer implements Closeable {
                         "protocolVersion", negotiated,
                         // listChanged=false: catalog is baked at startup, no dynamic add/remove.
                         // Clients that respect this skip subscribing to notifications/tools/list_changed.
-                        "capabilities", Map.of("tools", Map.of("listChanged", false)),
+                        // logging:{} advertises we send notifications/message (our
+                        // event push on the GET SSE stream); tools listChanged=false
+                        // since the catalog is baked at startup.
+                        "capabilities", Map.of(
+                            "tools", Map.of("listChanged", false),
+                            "logging", Map.of()),
                         "serverInfo", Map.of("name", SERVER_NAME, "version", SERVER_VERSION)
                     );
                     sendJson(ex, 200, jsonRpcResult(id, result));
@@ -152,6 +192,12 @@ public final class McpServer implements Closeable {
                 case "notifications/initialized" -> {
                     // Spec: client tells server initialization complete. No response required.
                     sendNoBody(ex, isNotification ? 202 : 200);
+                }
+                case "logging/setLevel" -> {
+                    // Client sets the minimum severity it wants on the event stream.
+                    Object lvl = params.get("level");
+                    if (lvl instanceof String s) minLevelRank = EventNotifications.rank(s);
+                    sendJson(ex, 200, jsonRpcResult(id, Map.of()));
                 }
                 case "ping" -> sendJson(ex, 200, jsonRpcResult(id, Map.of()));
                 case "tools/list" -> {
@@ -181,6 +227,72 @@ public final class McpServer implements Closeable {
             }
         } catch (Throwable t) {
             sendJson(ex, 200, jsonRpcError(id, -32603, "internal: " + t.getMessage()));
+        }
+    }
+
+    /**
+     * {@code GET /mcp} (Accept: text/event-stream) — the spec's server→client SSE
+     * stream. Keeps the exchange open and parks the worker thread for the life of
+     * the connection, writing one {@code data:} frame (a JSON-RPC
+     * {@code notifications/message}) per driver event, plus a heartbeat comment
+     * every 15 s so a silently-dropped peer is detected.
+     */
+    private void handleSse(HttpExchange ex) throws IOException {
+        ex.getResponseHeaders().set("Content-Type", "text/event-stream; charset=utf-8");
+        ex.getResponseHeaders().set("Cache-Control", "no-cache");
+        ex.getResponseHeaders().set("Connection", "keep-alive");
+        ex.sendResponseHeaders(200, 0); // 0 = open-ended (chunked); stream stays open
+
+        SseSubscriber sub = new SseSubscriber(ex.getResponseBody());
+        sse.add(sub);
+        sub.raw(": connected\n\n"); // flushes headers; dies here if the client already left
+        try {
+            while (sub.alive) {
+                if (sub.done.await(15, TimeUnit.SECONDS)) break;
+                sub.raw(": ping\n\n");
+            }
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        } finally {
+            sse.remove(sub);
+            sub.die();
+            try { ex.getResponseBody().close(); } catch (IOException ignored) {}
+            ex.close();
+        }
+    }
+
+    /** Fan one driver event out to every open SSE stream as a
+     *  {@code notifications/message}, skipping streams below the client's
+     *  {@code logging/setLevel} minimum. Runs on AgentApi's event-dispatch thread. */
+    private void onEvent(AgentEvent e) {
+        if (sse.isEmpty()) return;
+        if (EventNotifications.rank(EventNotifications.levelFor(e.type)) < minLevelRank) return;
+        String frame = "data: " + EventNotifications.frame(e) + "\n\n";
+        for (SseSubscriber sub : sse) sub.raw(frame);
+    }
+
+    /** One open SSE connection: its output stream + a latch the parked handler
+     *  thread waits on. Writes are synchronized and fail-closed. */
+    private static final class SseSubscriber {
+        private final OutputStream os;
+        volatile boolean alive = true;
+        final CountDownLatch done = new CountDownLatch(1);
+
+        SseSubscriber(OutputStream os) { this.os = os; }
+
+        synchronized void raw(String s) {
+            if (!alive) return;
+            try {
+                os.write(s.getBytes(StandardCharsets.UTF_8));
+                os.flush();
+            } catch (IOException e) {
+                die();
+            }
+        }
+
+        void die() {
+            alive = false;
+            done.countDown();
         }
     }
 
@@ -317,6 +429,8 @@ public final class McpServer implements Closeable {
     }
 
     @Override public void close() {
+        for (SseSubscriber sub : sse) sub.die();
+        sse.clear();
         http.stop(0);
     }
 }

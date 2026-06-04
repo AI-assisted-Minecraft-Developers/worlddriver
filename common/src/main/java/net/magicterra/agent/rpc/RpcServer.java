@@ -6,6 +6,8 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.channel.group.ChannelGroup;
+import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
@@ -13,11 +15,18 @@ import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
+import io.netty.util.AttributeKey;
+import io.netty.util.concurrent.GlobalEventExecutor;
 import net.magicterra.agent.api.AgentApi;
+import net.magicterra.agent.model.AgentEvent;
 
 import java.io.Closeable;
 import java.net.InetSocketAddress;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -29,6 +38,22 @@ import java.util.concurrent.ThreadFactory;
  *
  * Same {@code AgentApi.route(method, params)} is invoked here AND from in-JVM Rhino
  * calls, guaranteeing structural parity between paths.
+ *
+ * <h2>Event push channel (driver→agent)</h2>
+ * This WebSocket is JSON-RPC over a custom transport (the spec permits custom
+ * transports that preserve the JSON-RPC message format), so the driver→agent event
+ * push rides it as standard server→client <b>{@code notifications/message}</b>
+ * (the MCP logging notification) — the same shape an MCP-aware agent loop already
+ * knows how to consume. A connection opts in with a control frame
+ * {@code {"id":N,"method":"mc.events.subscribe","params":{"types":[...]}}} (omit
+ * {@code types} for all); the server then pushes, unsolicited, one notification per
+ * event it emits — threats, damage, death, chat, command results, custom conditions:
+ * {@code {"jsonrpc":"2.0","method":"notifications/message","params":{"level","logger":"minecraft.events","data":{seq,timestamp,type,pos,data}}}}.
+ * These carry no {@code id}; a client demultiplexes JSON-RPC notifications (have
+ * {@code method}, no {@code id}) from responses ({@code result}/{@code error} with
+ * {@code id}). {@code mc.events.unsubscribe} stops the stream. Connections that never
+ * subscribe (every existing client, incl. the parity harness which opens one socket
+ * per call) receive nothing extra — zero regression.
  *
  * Threading: incoming frames arrive on Netty IO threads. {@code route()} internally
  * marshals work to the server tick via {@code server.execute() + future.get(30s)},
@@ -46,8 +71,16 @@ public final class RpcServer implements Closeable {
     private final Channel serverChannel;
     private final int port;
 
+    /** Channels that have opted into the event push stream. {@link DefaultChannelGroup}
+     *  auto-removes a channel when it closes, so there's no inactive-cleanup to do. */
+    private final ChannelGroup subscribers = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
+    /** Per-channel event-type filter; {@code null}/empty means "all types". Stored as a
+     *  channel attribute so it's GC'd with the connection. */
+    private static final AttributeKey<Set<String>> FILTER = AttributeKey.valueOf("agent.eventFilter");
+
     public RpcServer(AgentApi api, int requestedPort) {
         ServerBootstrap b = new ServerBootstrap();
+        final ChannelGroup subs = this.subscribers;
         b.group(boss, worker)
          .channel(NioServerSocketChannel.class)
          .childHandler(new ChannelInitializer<SocketChannel>() {
@@ -56,7 +89,7 @@ public final class RpcServer implements Closeable {
                    .addLast(new HttpServerCodec())
                    .addLast(new HttpObjectAggregator(1 << 20))
                    .addLast(new WebSocketServerProtocolHandler("/rpc", null, true))
-                   .addLast(new FrameHandler(api, routeExec));
+                   .addLast(new FrameHandler(api, routeExec, subs));
              }
          });
         try {
@@ -70,9 +103,31 @@ public final class RpcServer implements Closeable {
             throw e;
         }
         this.port = ((InetSocketAddress) serverChannel.localAddress()).getPort();
+        api.addEventListener(this::onEvent);
     }
 
     public int port() { return port; }
+
+    /** Fan one emitted event out to every subscribed channel whose filter accepts
+     *  its type. Runs on AgentApi's single-thread event-dispatch executor; Netty's
+     *  {@code writeAndFlush} is itself thread-safe and async, so this never blocks
+     *  the game thread that produced the event. */
+    private void onEvent(AgentEvent e) {
+        if (subscribers.isEmpty()) return;
+        String frame = eventFrame(e);
+        for (Channel ch : subscribers) {
+            if (!ch.isActive()) continue;
+            Set<String> filter = ch.attr(FILTER).get();
+            if (filter != null && !filter.isEmpty() && !filter.contains(e.type)) continue;
+            ch.writeAndFlush(new TextWebSocketFrame(frame));
+        }
+    }
+
+    /** Frame an event as the shared MCP {@code notifications/message} (identical on
+     *  the WS and MCP-HTTP transports — see {@link EventNotifications}). */
+    private static String eventFrame(AgentEvent e) {
+        return EventNotifications.frame(e);
+    }
 
     @Override public void close() {
         try { serverChannel.close().sync(); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
@@ -96,10 +151,12 @@ public final class RpcServer implements Closeable {
     private static final class FrameHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
         private final AgentApi api;
         private final ExecutorService routeExec;
+        private final ChannelGroup subscribers;
 
-        FrameHandler(AgentApi api, ExecutorService routeExec) {
+        FrameHandler(AgentApi api, ExecutorService routeExec, ChannelGroup subscribers) {
             this.api = api;
             this.routeExec = routeExec;
+            this.subscribers = subscribers;
         }
 
         @Override
@@ -107,13 +164,13 @@ public final class RpcServer implements Closeable {
             String text = msg.text();
             Channel ch = ctx.channel();
             routeExec.submit(() -> {
-                String response = handleRequest(text);
+                String response = handleRequest(text, ch);
                 ch.writeAndFlush(new TextWebSocketFrame(response));
             });
         }
 
         @SuppressWarnings("unchecked")
-        private String handleRequest(String line) {
+        private String handleRequest(String line, Channel ch) {
             try {
                 Object decoded = JsonCodec.decode(line);
                 if (!(decoded instanceof Map<?, ?> req)) {
@@ -122,6 +179,12 @@ public final class RpcServer implements Closeable {
                 Object id = req.get("id");
                 String method = (String) req.get("method");
                 Map<String, Object> params = (Map<String, Object>) req.get("params");
+                // Event-stream subscription is per-connection state, so it's handled
+                // at the transport layer (not an AgentApi route): it controls which
+                // frames THIS socket receives, not any game behavior.
+                if ("mc.events.subscribe".equals(method) || "mc.events.unsubscribe".equals(method)) {
+                    return subscriptionControl(method, params, ch, id);
+                }
                 try {
                     Object result = api.route(method, params);
                     return JsonCodec.encode(Map.of("id", id == null ? 0 : id, "result", result));
@@ -134,6 +197,27 @@ public final class RpcServer implements Closeable {
             } catch (Throwable parseErr) {
                 return JsonCodec.encode(Map.of("error", "parse: " + parseErr.getMessage()));
             }
+        }
+
+        private String subscriptionControl(String method, Map<String, Object> params, Channel ch, Object id) {
+            Map<String, Object> result = new LinkedHashMap<>();
+            if ("mc.events.subscribe".equals(method)) {
+                Set<String> types = new LinkedHashSet<>();
+                if (params != null && params.get("types") instanceof List<?> l) {
+                    for (Object o : l) if (o instanceof String s) types.add(s);
+                }
+                ch.attr(FILTER).set(types.isEmpty() ? null : types);
+                subscribers.add(ch);
+                result.put("ok", true);
+                result.put("subscribed", true);
+                result.put("types", List.copyOf(types));
+            } else {
+                subscribers.remove(ch);
+                ch.attr(FILTER).set(null);
+                result.put("ok", true);
+                result.put("subscribed", false);
+            }
+            return JsonCodec.encode(Map.of("id", id == null ? 0 : id, "result", result));
         }
     }
 }
