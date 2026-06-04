@@ -27,7 +27,7 @@ public final class AsciiMapRenderer {
         if (!c.standable()) return '#';
         if (c.contactDamage()) return c.lethal() ? '!' : 'x';
         if (c.deepWaterDepth() > 0) return c.lethal() ? '≈' : '~'; // ≈ for deep water
-        if (c.cliffDropDepth() > 0) return c.lethal() ? 'V' : 'v';
+        if (c.cliffDropDepth() > 1) return c.lethal() ? 'V' : 'v';
         return '.';
     }
 

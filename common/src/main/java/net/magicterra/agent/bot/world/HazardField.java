@@ -37,8 +37,6 @@ public final class HazardField {
         return cells.getOrDefault(key(dx, dz), HazardCell.unknown());
     }
 
-    /** Max vertical band to search for a standable foot around center.y. */
-    private static final int V_BAND = 4;
     /** How far down we probe for a drop before calling it "void/large". */
     private static final int DROP_PROBE = 24;
 
@@ -56,33 +54,29 @@ public final class HazardField {
     private static HazardCell cellAt(WorldView w, BlockPos center, int dx, int dz,
                                      int survivableFall, int deepWaterMax) {
         int cx = center.getX() + dx, cz = center.getZ() + dz;
-        // find a standable foot near center.y within the band (prefer highest <= center.y+1)
+        BlockPos body = new BlockPos(cx, center.getY(), cz);
+        if (!w.isKnown(body)) return HazardCell.unknown();
+        // Find where the bot would LAND stepping into this column: the highest standable
+        // foot from center.y+1 down to center.y-DROP_PROBE. Searching from the bot's OWN
+        // level downward is what makes a cliff register as a drop rather than as a wall.
         BlockPos foot = null;
-        for (int dy = 1; dy >= -V_BAND; dy--) {
+        for (int dy = 1; dy >= -DROP_PROBE; dy--) {
             BlockPos f = new BlockPos(cx, center.getY() + dy, cz);
-            if (!w.isKnown(f)) return HazardCell.unknown();
+            if (!w.isKnown(f)) break;
             if (w.canStandAt(f)) { foot = f; break; }
         }
         if (foot == null) {
-            // no standable footing in band -> treat as a wall (not standable, not lethal-to-flee
-            // because you can't step there anyway)
+            // blocked column or bottomless within probe: not a walkable step target.
             return new HazardCell(0, 0, false, false, false);
         }
+        int drop = Math.max(0, center.getY() - foot.getY());
         boolean contact = w.isHazard(foot) || w.isHazard(foot.above());
-        // drop depth: air below the support until we hit solid/water
-        int drop = 0;
-        BlockPos below = foot.below();
         if (w.isWater(foot)) {
-            // standing in water: measure water column depth downward
             int depth = 0;
             BlockPos p = foot;
             while (depth < DROP_PROBE && w.isKnown(p) && w.isWater(p)) { depth++; p = p.below(); }
-            boolean lethalW = depth >= deepWaterMax;
-            return new HazardCell(0, depth, contact, true, lethalW || contact);
+            return new HazardCell(drop, depth, contact, true, contact || depth >= deepWaterMax);
         }
-        // dry foot: count air gap under support (cliff)
-        BlockPos p = below;
-        while (drop < DROP_PROBE && w.isKnown(p) && w.isPassable(p) && !w.isWater(p)) { drop++; p = p.below(); }
         boolean lethal = contact || drop > survivableFall;
         return new HazardCell(drop, 0, contact, true, lethal);
     }
