@@ -39,6 +39,9 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class ScriptEvaluator {
     private static final int DEFAULT_TIMEOUT_MS = 3000;
     private static final int MAX_TIMEOUT_MS = 30_000;
+    /** Cap for {@link #evaluateOnThread} — boss playbooks run minutes, not the 30 s
+     *  ad-hoc {@code mc.script.eval} budget. Same sandbox, longer deadline. */
+    private static final int PLAYBOOK_MAX_TIMEOUT_MS = 20 * 60_000;
     private static final int MAX_SOURCE_CHARS = 64 * 1024;
     private static final int INSTRUCTION_THRESHOLD = 10_000;
     private static final String PRELUDE_RESOURCE = "/data/agent_driver/scripts/prelude.js";
@@ -101,6 +104,64 @@ public final class ScriptEvaluator {
             return errorEnvelope("interrupted", elapsedMs(t0));
         }
 
+        return decodeEnvelope(json, t0);
+    }
+
+    /**
+     * Evaluate a long-running script (a boss playbook) on the CALLING thread —
+     * the {@link PlaybookRunner}'s background worker — with a generous budget and a
+     * cooperative {@code abort} flag, reusing the exact same Rhino sandbox as
+     * {@link #evaluate}. The abort/deadline are enforced via Rhino's instruction
+     * observer, so they bite at the next script instruction (typically the next
+     * loop turn). Returns the same {result, error, log, ms} envelope.
+     */
+    public Map<String, Object> evaluateOnThread(String source, int requestedTimeoutMs,
+                                                java.util.function.BooleanSupplier abort) {
+        if (source == null) source = "";
+        if (source.length() > MAX_SOURCE_CHARS) {
+            return errorEnvelope("script source too large: " + source.length() + " > " + MAX_SOURCE_CHARS, 0L);
+        }
+        int budget = (requestedTimeoutMs <= 0)
+                ? DEFAULT_TIMEOUT_MS
+                : Math.min(requestedTimeoutMs, PLAYBOOK_MAX_TIMEOUT_MS);
+        long t0 = System.nanoTime();
+        long deadline = t0 + TimeUnit.MILLISECONDS.toNanos(budget);
+        java.util.function.BooleanSupplier abortOrFalse = (abort != null) ? abort : () -> false;
+        String json;
+        try {
+            json = runOnce(source, deadline, budget, abortOrFalse);
+        } catch (Throwable t) {
+            String msg = (t.getMessage() != null) ? t.getMessage() : t.toString();
+            return errorEnvelope(msg, elapsedMs(t0));
+        }
+        return decodeEnvelope(json, t0);
+    }
+
+    /**
+     * Parse-only syntax check (compiles, never executes) — the cheap "does it
+     * even parse" gate the skill library runs before persisting a new skill
+     * (Phase H / Voyager). Returns {@code null} if the source is syntactically
+     * valid, else the parser's error message. Uses the same sandboxed context
+     * (no deadline — compilation doesn't run instructions).
+     */
+    public String checkSyntax(String source) {
+        if (source == null) source = "";
+        ContextFactory factory = new ContextFactory() {
+            @Override
+            protected Context createContext() {
+                return new FilteredObservedContext(this, Long.MAX_VALUE, 0, () -> false);
+            }
+        };
+        Context cx = factory.enter();
+        try {
+            cx.compileString(source, "<skill>", 1, null);
+            return null;
+        } catch (RuntimeException e) {
+            return (e.getMessage() != null) ? e.getMessage() : e.toString();
+        }
+    }
+
+    private Map<String, Object> decodeEnvelope(String json, long t0) {
         Map<String, Object> out;
         try {
             Object decoded = JsonCodec.decode(json);
@@ -118,10 +179,15 @@ public final class ScriptEvaluator {
     }
 
     private String runOnce(String source, long deadlineNanos, int budgetMs) {
+        return runOnce(source, deadlineNanos, budgetMs, () -> false);
+    }
+
+    private String runOnce(String source, long deadlineNanos, int budgetMs,
+                           java.util.function.BooleanSupplier abort) {
         ContextFactory factory = new ContextFactory() {
             @Override
             protected Context createContext() {
-                return new FilteredObservedContext(this, deadlineNanos, budgetMs);
+                return new FilteredObservedContext(this, deadlineNanos, budgetMs, abort);
             }
         };
 
@@ -184,11 +250,14 @@ public final class ScriptEvaluator {
     private static final class FilteredObservedContext extends Context {
         private final long deadlineNanos;
         private final int budgetMs;
+        private final java.util.function.BooleanSupplier abort;
 
-        FilteredObservedContext(ContextFactory factory, long deadlineNanos, int budgetMs) {
+        FilteredObservedContext(ContextFactory factory, long deadlineNanos, int budgetMs,
+                                java.util.function.BooleanSupplier abort) {
             super(factory);
             this.deadlineNanos = deadlineNanos;
             this.budgetMs = budgetMs;
+            this.abort = abort;
         }
 
         @Override
@@ -198,6 +267,9 @@ public final class ScriptEvaluator {
 
         @Override
         protected void observeInstructionCount(int instructionCount) {
+            if (abort != null && abort.getAsBoolean()) {
+                throw new RuntimeException("script aborted");
+            }
             if (System.nanoTime() > deadlineNanos) {
                 throw new RuntimeException("script timeout (" + budgetMs + " ms)");
             }
