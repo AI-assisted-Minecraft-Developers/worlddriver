@@ -161,7 +161,8 @@ Agent.client = {
     // eye/feet block from the ClientLevel — diff vs Agent.observe.player() to
     // spot a client/server desync. blocks({center,filter}) scans ClientLevel.
     player:     function ()     { return Agent.invoke('mc.client.player', {}); },
-    blocks:     function (opts) { return Agent.invoke('mc.client.blocks', opts || {}); }
+    blocks:     function (opts) { return Agent.invoke('mc.client.blocks', opts || {}); },
+    scene:      function ()     { return Agent.invoke('mc.client.scene',  {}); }
 };
 
 Agent.bot = {

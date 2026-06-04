@@ -59,6 +59,7 @@ import net.magicterra.agent.bot.auto.AutoTool;
 import net.magicterra.agent.bot.auto.AutoSwim;
 import net.magicterra.agent.bot.auto.AntiSuffocate;
 import net.magicterra.agent.bot.auto.AutoRespawn;
+import net.magicterra.agent.bot.world.WorldModel;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -74,6 +75,10 @@ public final class BotApiImpl implements BotApi {
 
     private final BotState state = new BotState();
     private final WorldView world = new ClientWorldView();
+    /** Per-tick derived-facts blackboard. Updated each client tick; snapshotted
+     *  for off-thread reads by {@code mc.client.scene}. */
+    private final WorldModel worldModel = new WorldModel();
+    @Override public WorldModel worldModel() { return worldModel; }
     /** The foreground user task (goto/mine/build/...) lives in this chain. */
     private final UserTaskChain userTask = new UserTaskChain(state);
     /** Phase C active-combat chain (priority 60). Holds the combat intent set by
@@ -991,6 +996,9 @@ public final class BotApiImpl implements BotApi {
         if (BotConfig.autoRespawn) AutoRespawn.tick(mc);
         if (mc.level == null || mc.player == null) { releaseKeys(); return; }
         if (paused) { releaseKeys(); return; }
+        // Update the perception blackboard every tick so mc.client.scene always
+        // serves the freshest client-authoritative snapshot.
+        worldModel.update(mc, world, state);
         // Always-on water-bucket clutch (survival first): arm reactively on any
         // unplanned damaging fall, and once armed OWN the descent before any
         // process runs. While the clutch is driving the fall (placing/scooping

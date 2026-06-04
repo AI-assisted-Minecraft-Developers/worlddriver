@@ -250,6 +250,7 @@ public final class AgentApi {
         // on; without it a desync (e.g. the client crawl-evading a command-placed
         // block while the server suffocates) is invisible from the agent side.
         routes.put("mc.client.player",               p -> requireClient().observePlayer());
+        routes.put("mc.client.scene",                p -> requireBot().worldModel().snapshot().toMap());
         routes.put("mc.client.blocks",               p -> {
             ClientAgentApi c = requireClient();
             int r = 4;

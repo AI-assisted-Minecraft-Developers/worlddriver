@@ -43,6 +43,17 @@ public final class ClientTools {
                 "(autoSwim, antiSuffocate) gate on. {present:false} when no LocalPlayer.",
                 emptyObjectSchema()),
 
+            roTool("mc.client.scene",
+                "Client-AUTHORITATIVE derived-facts snapshot from the per-tick WorldModel " +
+                "blackboard. Returns {present:boolean, pos?, health?, food?, dayPhase?, " +
+                "skyExposed?, exposedAtNight?, cornered?, lethalCount?, rows?}. " +
+                "dayPhase is DAY/DUSK/NIGHT/DAWN. cornered=true when the hazard grid shows " +
+                "no safe retreat direction. lethalCount is the number of lethal-fall hazard " +
+                "cells in the local grid. rows is an ASCII map of the hazard field. " +
+                "{present:false} when no LocalPlayer. Client-only: unavailable on the " +
+                "dedicated server (throws 'no bot' like all mc.bot.* routes).",
+                emptyObjectSchema()),
+
             roTool("mc.client.blocks",
                 "Client-AUTHORITATIVE block scan — reads ClientLevel around center (default the " +
                 "local player), Chebyshev radius filter.in_radius (default 4, cap 16). Optional " +

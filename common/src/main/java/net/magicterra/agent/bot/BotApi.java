@@ -1,6 +1,7 @@
 package net.magicterra.agent.bot;
 
 import java.util.Map;
+import net.magicterra.agent.bot.world.WorldModel;
 
 /**
  * Client-side bot facade exposed through {@code mc.bot.*} MCP routes. Lives in
@@ -104,6 +105,13 @@ public interface BotApi {
      * {@code builder} status slot. Long-running; pass {@code awaitMs} to block.
      */
     Map<String, Object> construct(Map<String, Object> params);
+
+    /**
+     * Per-tick derived-facts blackboard updated on the client tick. Returns the
+     * client-authoritative {@link WorldModel} so that {@code mc.client.scene}
+     * can read the latest snapshot off-thread without blocking the tick.
+     */
+    WorldModel worldModel();
 
     /**
      * Elytra flight (Baritone elytra-alignment, milestone A). Takes the bot off
