@@ -30,13 +30,20 @@ import java.util.concurrent.atomic.AtomicReference;
  * retry semantics — {@code succeedWhen} treats the very first throw as a hard
  * failure, which becomes a race once the validation suite takes longer than
  * the framework's first tick.
+ *
+ * Timeout: the GameTestServer ticks as fast as it can, so {@code timeoutTicks} is
+ * a wall-clock budget compressed by the tick rate (~3000 ticks/s here). Some
+ * validation sub-tests sleep in real time — e.g. 49_events waits ~0.5 s for a
+ * background condition watcher to fire — so the budget must comfortably exceed the
+ * suite's real-time duration, not just its tick count. A passing run still ends the
+ * instant {@code result} is set, so a generous ceiling costs nothing.
  */
 @GameTestHolder(AgentDriverCommon.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class AgentGameTest {
     private AgentGameTest() {}
 
-    @GameTest(template = "empty", timeoutTicks = 6000)
+    @GameTest(template = "empty", timeoutTicks = 100000)
     public static void agentRpcSmoke(GameTestHelper helper) {
         if (AgentDriverCommon.api() == null) {
             helper.fail("AgentApi not initialized — was the mod loaded?");

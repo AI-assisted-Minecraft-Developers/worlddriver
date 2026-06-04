@@ -1,0 +1,4 @@
+# YAML GameTest definitions, one filename per line (docs/yaml-gametest.md §2).
+# Blank lines and #-comments are ignored. A jar can't list a resource directory,
+# so this manifest is the source of truth for YamlTestLoader.loadAll().
+smoke_place_observe.yaml

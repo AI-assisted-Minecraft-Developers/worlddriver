@@ -1,0 +1,15 @@
+# Smoke test for the YAML GameTest transpiler (docs/yaml-gametest.md).
+# Absolute coordinates around the seeded arena ORIGIN (0, 200, 0); y=210 is in
+# the air above the y=200 stone plane (clear of 34_yaml_gametest.js's inline
+# cells at y=206..208). snapshot -> place -> assert -> restore.
+- name: smoke-place-observe
+  timeout_ticks: 100
+  region:
+    from: [0, 210, 0]
+    to:   [0, 210, 0]
+  setup:
+    - place: { pos: [0, 210, 0], type: "minecraft:cobblestone" }
+  asserts:
+    - block_present: { pos: [0, 210, 0], type: "minecraft:cobblestone" }
+    - block_present: { pos: [0, 210, 0], type: "minecraft:*" }
+    - block_absent:  { pos: [0, 210, 0], type: "minecraft:diamond_block" }
