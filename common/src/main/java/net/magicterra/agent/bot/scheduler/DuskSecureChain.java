@@ -33,6 +33,10 @@ public final class DuskSecureChain implements Chain {
 
     @Override public float priority(Minecraft mc, WorldView w, BotState st) {
         if (!BotConfig.autoSecureAtDusk || mc.player == null) { idleTicks = 0; return 0f; }
+        // Once a shelter dig is committed, hold the channel until BunkerProcess finishes.
+        // The 1-wide shaft we dig makes the bot 'cornered', which must NOT trip our own
+        // start-gate and abandon a half-dug, unsealed hole. (Live-cert finding.)
+        if (process != null) return Priorities.IDLE_SECURE;
         WorldModel.Snapshot s = worldModel.snapshot();
         if (!s.present() || !s.exposedAtNight() || s.cornered()) { idleTicks = 0; return 0f; }
         for (ThreatScanner.Threat t : ThreatScanner.current(mc).threats()) {
