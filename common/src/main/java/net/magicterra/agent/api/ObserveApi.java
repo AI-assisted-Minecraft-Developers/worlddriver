@@ -360,7 +360,7 @@ public final class ObserveApi {
             }
             ServerWorldView w = new ServerWorldView(level);
             int survivable = SurvivalMath.survivableFall(20f); // assume full HP server-side
-            HazardField f = HazardField.compute(w, center, radius, survivable, 2);
+            HazardField f = HazardField.compute(w, center, radius, survivable, BotConfig.deepWaterMax);
             int lethal = SurvivalFacts.lethalCount(f);
             boolean cornered = SurvivalFacts.cornered(f);
             // (0,1) is a placeholder threat direction (south) for the server overview;

@@ -86,7 +86,8 @@ public final class AgentDriverCommon {
             "51_scene_facts.js",
             "52_client_scene.js",
             "53_flee_safety.js",
-            "54_scene_events.js"
+            "54_scene_events.js",
+            "55_setting_perception.js"
     );
 
     private static AgentApi api;

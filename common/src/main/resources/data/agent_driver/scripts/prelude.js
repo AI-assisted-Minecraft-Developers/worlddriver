@@ -60,6 +60,8 @@ Agent.observe = {
     container: function (pos)  { return Agent.invoke('mc.observe.container', { pos: pos }); },
     // Phase G boss sensing — nearest dragon/wither + End-crystal list.
     boss:      function (opts)  { return Agent.invoke('mc.observe.boss', opts || {}); },
+    // Hazard-field spatial scene — opts {radius?, center?, render?, overlays?}.
+    scene:     function (opts)  { return Agent.invoke('mc.observe.scene', opts || {}); },
     // ASCII spatial map — opts {plane:'xz'|'xy'|'zy', radius, height, center?}.
     // Top-down heightmap (xz) or vertical cross-section (xy/zy); mobs overlaid.
     map:       function (opts)  { return Agent.invoke('mc.observe.map', opts || {}); }

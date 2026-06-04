@@ -139,6 +139,10 @@ public final class SettingsCommand {
                 BotConfig.avoidDanger = avd;
                 applied.add("avoidDanger");
             }
+            if (params.get("autoSecureAtDusk") instanceof Boolean asad) {
+                BotConfig.autoSecureAtDusk = asad;
+                applied.add("autoSecureAtDusk");
+            }
             if (params.get("pathfinder.dangerPenalty") instanceof Number dp) {
                 double v = dp.doubleValue();
                 if (v < 0 || v > 1000) {
@@ -422,6 +426,22 @@ public final class SettingsCommand {
                         if (n.intValue() >= 4 && n.intValue() <= 256) { BotConfig.maxWaterBucketFall = n.intValue(); applied.add(k); }
                         else rejected.add(k + " out of range [4,256]");
                         break;
+                    case "hazardGridRadius":
+                        if (n.intValue() >= 4 && n.intValue() <= 32) { BotConfig.hazardGridRadius = n.intValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [4,32]");
+                        break;
+                    case "hazardGridDecimateTicks":
+                        if (n.intValue() >= 1 && n.intValue() <= 20) { BotConfig.hazardGridDecimateTicks = n.intValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [1,20]");
+                        break;
+                    case "deepWaterMax":
+                        if (n.intValue() >= 1 && n.intValue() <= 8) { BotConfig.deepWaterMax = n.intValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [1,8]");
+                        break;
+                    case "sceneQueryMaxRadius":
+                        if (n.intValue() >= 4 && n.intValue() <= 48) { BotConfig.sceneQueryMaxRadius = n.intValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [4,48]");
+                        break;
                 }
             }
         }
@@ -472,6 +492,11 @@ public final class SettingsCommand {
         snap.put("maxWaterBucketFall", BotConfig.maxWaterBucketFall);
         snap.put("waterBucketScoop", BotConfig.waterBucketScoop);
         snap.put("avoidDanger", BotConfig.avoidDanger);
+        snap.put("autoSecureAtDusk", BotConfig.autoSecureAtDusk);
+        snap.put("hazardGridRadius", BotConfig.hazardGridRadius);
+        snap.put("hazardGridDecimateTicks", BotConfig.hazardGridDecimateTicks);
+        snap.put("deepWaterMax", BotConfig.deepWaterMax);
+        snap.put("sceneQueryMaxRadius", BotConfig.sceneQueryMaxRadius);
         snap.put("pathfinder.dangerPenalty", BotConfig.dangerPenaltyPerCell);
         snap.put("pathfinder.lavaDangerPenalty", BotConfig.lavaDangerPenalty);
         snap.put("pathfinder.contactDangerPenalty", BotConfig.contactDangerPenalty);

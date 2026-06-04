@@ -247,6 +247,11 @@ public final class BotTools {
                 "  maxWaterBucketFall        [4,256]   dflt 20 — tallest drop committed to with a water-bucket fall when allowWaterBucketFall is on\n" +
                 "  waterBucketScoop          bool      — scoop the MLG water source back into the bucket after landing (reusable bucket, clean world). On by default\n" +
                 "  avoidDanger               bool      — Baritone avoidance; A* adds a soft cost to stand next to lava/fire so routes keep a 1-block buffer. On by default (still threads a forced corridor)\n" +
+                "  autoSecureAtDusk          bool      — idle-only dusk shelter: when sky-exposed at dusk/night with no user task, dig a 挖三填一 bunker (DuskSecureChain, priority IDLE_SECURE=40). Off by default; enable for fully autonomous survival runs\n" +
+                "  hazardGridRadius          [4,32]  dflt 12 — Chebyshev radius of the HazardField grid recomputed each decimated tick by WorldModel.update\n" +
+                "  hazardGridDecimateTicks   [1,20]  dflt 4  — WorldModel recomputes the HazardField every N client ticks; 1=every tick (max freshness), 4=~4.8 Hz\n" +
+                "  deepWaterMax              [1,8]   dflt 2  — water depth (blocks) at or above which a water cell is lethal in the HazardField (also used by mc.observe.scene server scene)\n" +
+                "  sceneQueryMaxRadius       [4,48]  dflt 32 — mc.observe.scene radius clamp; requests larger than this are truncated (truncated:true in the response)\n" +
                 "  pathfinder.dangerPenalty  [0,1000]  dflt 30 — cost added per lava/fire cell adjacent to a candidate stand position when avoidDanger is on\n" +
                 "  avoidMobs                 bool      — Baritone mob avoidance; A* adds a distance-ramped cost near hostile mobs so routes give them a berth. Off by default (changes pathing noticeably)\n" +
                 "  pathfinder.mobAvoidRadius [0,64]    dflt 6  — radius a hostile mob influences when avoidMobs is on\n" +
@@ -311,6 +316,11 @@ public final class BotTools {
                         put("maxWaterBucketFall",         Map.of("type", "integer", "minimum", 4,   "maximum", 256));
                         put("waterBucketScoop",           Map.of("type", "boolean"));
                         put("avoidDanger",                Map.of("type", "boolean"));
+                        put("autoSecureAtDusk",           Map.of("type", "boolean"));
+                        put("hazardGridRadius",           Map.of("type", "integer", "minimum", 4,  "maximum", 32));
+                        put("hazardGridDecimateTicks",    Map.of("type", "integer", "minimum", 1,  "maximum", 20));
+                        put("deepWaterMax",               Map.of("type", "integer", "minimum", 1,  "maximum", 8));
+                        put("sceneQueryMaxRadius",        Map.of("type", "integer", "minimum", 4,  "maximum", 48));
                         put("pathfinder.dangerPenalty",   Map.of("type", "number",  "minimum", 0,   "maximum", 1000));
                         put("pathfinder.lavaDangerPenalty",   Map.of("type", "number", "minimum", 0, "maximum", 5000));
                         put("pathfinder.contactDangerPenalty", Map.of("type", "number", "minimum", 0, "maximum", 1000));
