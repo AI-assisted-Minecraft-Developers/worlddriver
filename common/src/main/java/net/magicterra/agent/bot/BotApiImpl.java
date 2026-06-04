@@ -953,6 +953,11 @@ public final class BotApiImpl implements BotApi {
         return SettingsCommand.apply(this, params);
     }
 
+    // WorldModel rising-edge push: emit duskExposed/cornered once per false→true
+    // transition so the Agent learns of these without polling mc.client.scene.
+    private boolean prevExposedAtNight = false;
+    private boolean prevCornered = false;
+
     // Client-tick event detectors (driver→agent push channel). Track the local
     // player's health/death and the current top threat across ticks so we emit a
     // one-shot event on each transition rather than every tick.
@@ -1006,6 +1011,36 @@ public final class BotApiImpl implements BotApi {
         // Update the perception blackboard every tick so mc.client.scene always
         // serves the freshest client-authoritative snapshot.
         worldModel.update(mc, world, state);
+        // Rising-edge scene events: emit duskExposed / cornered once per
+        // false→true transition so the Agent learns of these without polling.
+        // Mirrors the fluid-entry (player.enteredWater/enteredLava) pattern:
+        // api.emitExternal → the same event stream all client-tick events use.
+        {
+            var wmSnap = worldModel.snapshot();
+            net.magicterra.agent.api.AgentApi sceneApi = net.magicterra.agent.AgentDriverCommon.api();
+            if (wmSnap.present() && sceneApi != null) {
+                net.minecraft.core.BlockPos scenePos = wmSnap.pos();
+                if (wmSnap.exposedAtNight() && !prevExposedAtNight) {
+                    sceneApi.emitExternal("duskExposed", scenePos,
+                            net.magicterra.agent.rpc.JsonCodec.encode(Map.of(
+                                    "pos", Map.of("x", scenePos.getX(),
+                                                  "y", scenePos.getY(),
+                                                  "z", scenePos.getZ()))));
+                }
+                if (wmSnap.cornered() && !prevCornered) {
+                    sceneApi.emitExternal("cornered", scenePos,
+                            net.magicterra.agent.rpc.JsonCodec.encode(Map.of(
+                                    "pos", Map.of("x", scenePos.getX(),
+                                                  "y", scenePos.getY(),
+                                                  "z", scenePos.getZ()))));
+                }
+                prevExposedAtNight = wmSnap.exposedAtNight();
+                prevCornered = wmSnap.cornered();
+            } else {
+                prevExposedAtNight = false;
+                prevCornered = false;
+            }
+        }
         // Always-on water-bucket clutch (survival first): arm reactively on any
         // unplanned damaging fall, and once armed OWN the descent before any
         // process runs. While the clutch is driving the fall (placing/scooping
