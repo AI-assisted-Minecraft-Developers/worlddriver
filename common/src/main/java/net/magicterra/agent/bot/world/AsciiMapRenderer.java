@@ -40,7 +40,7 @@ public final class AsciiMapRenderer {
         m.put("V", "drop (LETHAL -> flee avoids)");
         m.put("~", "water");
         m.put("≈", "deep-water (LETHAL)");
-        m.put("!", "lava/fire (LETHAL)");
+        m.put("!", "lethal contact (lava/fire/cactus/...)");
         m.put("x", "contact-damage");
         return m;
     }

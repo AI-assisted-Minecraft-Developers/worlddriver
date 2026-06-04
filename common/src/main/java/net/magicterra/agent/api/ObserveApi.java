@@ -359,6 +359,8 @@ public final class ObserveApi {
             HazardField f = HazardField.compute(w, center, radius, survivable, 2);
             int lethal = SurvivalFacts.lethalCount(f);
             boolean cornered = SurvivalFacts.cornered(f);
+            // (0,1) is a placeholder threat direction (south) for the server overview;
+            // the real flee direction is derived client-side from actual nearby threats.
             int[] flee = SurvivalFacts.safeFleeStep(f, 0, 1);
             SceneModel sm = new SceneModel(center, radius, f, lethal, cornered, flee);
 

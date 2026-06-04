@@ -1,8 +1,10 @@
 package net.magicterra.agent.bot.world;
 
+import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.magicterra.agent.bot.util.BotUtil;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.block.FallingBlock;
@@ -46,8 +48,15 @@ public final class ServerWorldView implements WorldView {
         BlockState s = level.getBlockState(pos);
         if (s.getFluidState().is(Fluids.LAVA)) return true;
         if (s.is(BlockTags.FIRE)) return true;
-        // cactus, magma, sweet berry, powder snow, wither rose — shared with ClientWorldView
-        return BotUtil.HAZARD_BLOCKS.contains(s.getBlock());
+        if (BotUtil.HAZARD_BLOCKS.contains(s.getBlock())) return true;
+        // User-configurable extras (Baritone-style blocksToAvoid). Map is
+        // checked last so the built-ins stay short-circuit cheap.
+        var extras = BotConfig.extraHazardBlocks;
+        if (!extras.isEmpty()) {
+            String id = BuiltInRegistries.BLOCK.getKey(s.getBlock()).toString();
+            if (extras.contains(id)) return true;
+        }
+        return false;
     }
 
     @Override
