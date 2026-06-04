@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static net.magicterra.agent.AgentDriverCommon.LOG;
 import static net.magicterra.agent.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.agent.bot.util.BotInteract.*;
 import static net.magicterra.agent.bot.util.BotUtil.*;
@@ -72,6 +73,9 @@ public final class LookProcess implements BotProcess {
         if (track != null) st.look.target = track;
         st.look.startedAtMs = System.currentTimeMillis();
         st.look.lastError = null;
+        if (BotConfig.walkerDebug)
+            LOG.info("[look] attach goal={} smoothLook={} degPerTick={}",
+                    st.look.goal, BotConfig.smoothLook, BotConfig.smoothLookDegPerTick);
     }
 
     public boolean tick(Minecraft mc, WorldView w, BotState st) {
@@ -84,11 +88,15 @@ public final class LookProcess implements BotProcess {
             ty = (float) Math.toDegrees(Math.atan2(-dx, dz));
             tp = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
         }
-        float ny = smoothAngle(p.getYRot(), ty);
-        float np = smoothAngle(p.getXRot(), tp);
+        float curY = p.getYRot(), curP = p.getXRot();
+        float ny = smoothAngle(curY, ty);
+        float np = smoothAngle(curP, tp);
         p.setYRot(ny); p.yHeadRot = ny; p.yBodyRot = ny; p.setXRot(np);
         float yawErr = Math.abs(((ty - ny) % 360f + 540f) % 360f - 180f);
         boolean aligned = yawErr < ALIGN_EPS && Math.abs(tp - np) < ALIGN_EPS;
+        if (BotConfig.walkerDebug)
+            LOG.info("[look] t={} yaw {}->{} (tgt {}) pitch {}->{} (tgt {}) yawErr={} aligned={}",
+                    ticks, curY, ny, ty, curP, np, tp, yawErr, aligned);
         if (aligned || ++ticks > MAX_TICKS) { st.look.reset(); return true; }
         return false;
     }
