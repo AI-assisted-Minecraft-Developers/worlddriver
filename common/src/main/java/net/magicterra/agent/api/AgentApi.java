@@ -421,6 +421,8 @@ public final class AgentApi {
      * Routes added here are reachable identically through every transport (Hard Rule #1).
      */
     public void addRoute(String method, Function<Map<String, Object>, Object> handler) {
+        Objects.requireNonNull(method, "method");
+        Objects.requireNonNull(handler, "handler");
         routes.put(method, handler);
     }
 

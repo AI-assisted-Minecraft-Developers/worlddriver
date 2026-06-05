@@ -3,6 +3,7 @@ package net.magicterra.agent.mcp;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
 
@@ -27,6 +28,7 @@ public final class ToolCatalog {
 
     /** Register an extra schema supplier (e.g. the path-debug tool). Inert until called. */
     public static void registerExtra(Supplier<List<Map<String, Object>>> supplier) {
+        Objects.requireNonNull(supplier, "supplier");
         EXTRA.add(supplier);
     }
 
