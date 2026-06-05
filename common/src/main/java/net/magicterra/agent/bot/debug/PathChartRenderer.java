@@ -289,7 +289,11 @@ public final class PathChartRenderer {
         double prevX = Double.NaN, prevY = Double.NaN;
         double prevVal = Double.NaN;
         for (int i = 0; i < tr.size(); i++) {
-            Double v = actual ? (double) wrap180(tr.get(i).yawActual()) : targetBearing(tr.get(i));
+            // NB: keep this as separate statements — a `actual ? (double)x : Double`
+            // ternary has type double and would unbox a null targetBearing() → NPE.
+            Double v;
+            if (actual) v = wrap180(tr.get(i).yawActual());
+            else v = targetBearing(tr.get(i));
             if (v == null) { prevX = Double.NaN; prevVal = Double.NaN; continue; }
             double x = x0 + 12 + (tr.size() == 1 ? 0 : (double) i / (tr.size() - 1) * (w - 24));
             double y = py.applyAsDouble(v);
