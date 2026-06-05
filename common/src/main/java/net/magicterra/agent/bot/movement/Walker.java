@@ -411,7 +411,7 @@ public final class Walker {
             if (within || passed) step++;
             else break;
         }
-        if (step >= path.size()) return Step.ARRIVED;
+        if (step >= path.size()) return terminal(Step.ARRIVED, PathTrace.Outcome.SUCCESS, null);
 
         Move.Edge edge = edgeAt(step);
 
