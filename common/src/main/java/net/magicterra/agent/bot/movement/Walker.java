@@ -5,6 +5,8 @@ import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.movement.PathSmoothing.SmoothResult;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
+import net.magicterra.agent.bot.pathfinder.PathTrace;
+import net.magicterra.agent.bot.pathfinder.PathTraceHolder;
 import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.magicterra.agent.bot.world.SurvivalMath;
 import net.minecraft.core.BlockPos;
@@ -129,7 +131,7 @@ public final class Walker {
 
     public Step tick(Minecraft mc, WorldView world) {
         LocalPlayer p = mc.player;
-        if (p == null) { lastError = "player vanished"; return Step.FAILED; }
+        if (p == null) { lastError = "player vanished"; return terminal(Step.FAILED, PathTrace.Outcome.ERROR, lastError); }
 
         // Ground pathfinder: end creative flight so the player descends and
         // the walk/jump actuator (which relies on gravity + onGround) works.
@@ -180,6 +182,7 @@ public final class Walker {
         // ARMS the planned case and biases the step-off keys.
 
         BlockPos foot = new BlockPos((int) Math.floor(p.getX()), (int) Math.floor(p.getY()), (int) Math.floor(p.getZ()));
+        sampleTick(p);
         if (goal.reached(foot)) {
             // While mid-pillar-jump the floored feet-Y can tick into the goal
             // cell at the apex before we've placed the block to stand on —
@@ -199,7 +202,7 @@ public final class Walker {
             boolean midAirEdge = ce != null && ce.move != null && !p.onGround()
                     && ("pillarUp".equals(ce.move) || ce.move.startsWith("parkourPlace")
                         || ce.move.startsWith("parkourDescend"));
-            if (!midAirEdge) return Step.ARRIVED;
+            if (!midAirEdge) return terminal(Step.ARRIVED, PathTrace.Outcome.SUCCESS, null);
         }
 
         // Hard tick budget: prevents infinite walking when A* returns a partial path
@@ -211,7 +214,7 @@ public final class Walker {
             totalTicks = 0;
         } else if (++totalTicks > BotConfig.walkerTotalTickBudget) {
             lastError = "no progress for " + BotConfig.walkerTotalTickBudget + " ticks (best dist=" + Math.round(bestDistToGoal) + ")";
-            return Step.FAILED;
+            return terminal(Step.FAILED, PathTrace.Outcome.STUCK, lastError);
         }
 
         boolean needRepath = (path == null) || (ticksSinceRepath > BotConfig.walkerRepathEveryTicks) || (stuckTicks > STUCK_TICKS);
@@ -237,6 +240,8 @@ public final class Walker {
             activeSearch = null;
             lastStats = new PathStats(res.expanded(), res.ms(), res.goalReached(),
                     res.finalCost(), res.path().size());
+            PathTraceHolder.SINK.onSearchResult(res.path(), res.edges(), res.goalReached(),
+                    res.expanded(), res.ms(), res.finalCost());
             if (BotConfig.walkerDebug)
                 LOG.info(
                         "[walker] repath from {} → goalReached={} pathLen={} expanded={} ms={}",
@@ -280,7 +285,7 @@ public final class Walker {
                     return Step.WALKING;
                 }
                 lastError = "no path (expanded=" + res.expanded() + ")";
-                return Step.FAILED;
+                return terminal(Step.FAILED, PathTrace.Outcome.NO_PATH, lastError);
             }
             // else: search failed but we still have the previous path — keep it.
         }
@@ -995,6 +1000,29 @@ public final class Walker {
                     mc.options.keyUp.isDown(), mc.options.keyJump.isDown(), mc.options.keySprint.isDown(),
                     mc.options.keyShift.isDown(), mc.options.keyAttack.isDown(), swimUp, descendBrake);
         return Step.WALKING;
+    }
+
+    /** Fire onTerminal and return the step verdict in one place, so every terminal
+     *  return site stays a one-liner. */
+    private Step terminal(Step s, PathTrace.Outcome outcome, String reason) {
+        PathTraceHolder.SINK.onTerminal(outcome, reason);
+        return s;
+    }
+
+    /** Emit a per-tick execution sample. Pure reads; cheap; gated to NOOP in release. */
+    private void sampleTick(LocalPlayer p) {
+        double tx = Double.NaN, tz = Double.NaN;
+        String mv = null;
+        if (path != null && step >= 0 && step < path.size()) {
+            BlockPos t = path.get(step);
+            tx = t.getX() + 0.5;
+            tz = t.getZ() + 0.5;
+            Move.Edge e = edgeAt(step);
+            mv = (e != null) ? e.move : null;
+        }
+        PathTraceHolder.SINK.onWalkerTick(new PathTrace.WalkerSample(
+                p.tickCount, p.getX(), p.getY(), p.getZ(), p.getYRot(),
+                tx, tz, step, mv, p.onGround(), p.isInWater()));
     }
 
     private static float angleDiff(float a, float b) { return ((b - a) % 360f + 540f) % 360f - 180f; }
