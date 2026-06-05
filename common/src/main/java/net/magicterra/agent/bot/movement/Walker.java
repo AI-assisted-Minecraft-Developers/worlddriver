@@ -1011,6 +1011,9 @@ public final class Walker {
 
     /** Emit a per-tick execution sample. Pure reads; cheap; gated to NOOP in release. */
     private void sampleTick(LocalPlayer p) {
+        // Cheap gate: skip the per-tick WalkerSample allocation entirely unless capture is on.
+        // Keeps the hot path free in normal play and in a stripped (NOOP) release build.
+        if (!BotConfig.pathDebug) return;
         double tx = Double.NaN, tz = Double.NaN;
         String mv = null;
         if (path != null && step >= 0 && step < path.size()) {
