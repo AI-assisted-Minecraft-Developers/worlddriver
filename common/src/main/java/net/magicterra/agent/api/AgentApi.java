@@ -19,6 +19,7 @@ import net.minecraft.world.phys.AABB;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -90,7 +91,7 @@ public final class AgentApi {
         t.setDaemon(true);
         return t;
     });
-    private final Map<String, Function<Map<String, Object>, Object>> routes = new HashMap<>();
+    private final Map<String, Function<Map<String, Object>, Object>> routes = new ConcurrentHashMap<>();
     private volatile Function<Map<String, Object>, Object> scriptHandler;
     private volatile Function<Map<String, Object>, Object> playbookHandler;
     private volatile Function<Map<String, Object>, Object> skillHandler;
@@ -411,6 +412,16 @@ public final class AgentApi {
         Function<Map<String, Object>, Object> fn = routes.get(method);
         if (fn == null) throw new IllegalArgumentException("unknown method: " + method);
         return fn.apply(params == null ? Map.of() : params);
+    }
+
+    /**
+     * Register an additional route after construction. Used by optional, strippable
+     * subsystems (e.g. the path-debug package) so core never compile-depends on them.
+     * Idempotent-safe: a duplicate name overwrites. Thread-safe via the concurrent map.
+     * Routes added here are reachable identically through every transport (Hard Rule #1).
+     */
+    public void addRoute(String method, Function<Map<String, Object>, Object> handler) {
+        routes.put(method, handler);
     }
 
     @SuppressWarnings("unchecked")
