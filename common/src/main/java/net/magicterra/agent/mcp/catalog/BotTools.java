@@ -263,6 +263,10 @@ public final class BotTools {
                 "  smoothLookDegPerTick      [1,180]   dflt 20 — turn rate when smoothLook on (20°/tick ≈ 400°/s)\n" +
                 "  walkerDebug               bool      — log per-tick Walker movement/break decisions to the client log (movement-bug instrumentation); off by default\n" +
                 "  elytraDebug               bool      — log per-tick elytra flight controller decisions; off by default\n" +
+                "  pathDebug                 bool      — capture A* candidates + planned routes + actual trajectory for mc.debug.pathChart; off by default (zero cost off)\n" +
+                "  pathChartAutoDump         bool      — auto-write a chart PNG on every goto terminal outcome (success and failure); off by default\n" +
+                "  pathDebugMaxNodes         [100,200000] dflt 4000 — cap on stored A* candidate nodes per search\n" +
+                "  pathDebugMaxSamples       [100,200000] dflt 6000 — cap on stored per-tick trajectory samples (ring buffer)\n" +
                 "  blocksToAvoid             [id,...]  — extra hazards pathfinder treats as impassable\n" +
                 "  mutedEvents               [type,...] — event types to SUPPRESS from the live push channel (e.g. [\"item.pickup\",\"chat.message\"]). ALL events push by default; muted ones still record + are pullable via mc.wait.event. Whole-list replace; [] un-mutes everything\n" +
                 "  avoidPoints               [{x,y,z,radius?},...] — AGENT-marked danger zones to route AROUND (radius default 8); the planner adds avoidZonePenalty ramping to 0 at the radius so it DETOURS. Use it to make a poorly-equipped/fresh-spawn bot take the long way around a mob-filled tunnel you spotted via mc.observe.threats. Whole-list replace; [] clears. Set right before a goto\n" +
@@ -342,6 +346,10 @@ public final class BotTools {
                         put("smoothLookDegPerTick",       Map.of("type", "number",  "minimum", 1,   "maximum", 180));
                         put("walkerDebug",                Map.of("type", "boolean"));
                         put("elytraDebug",                Map.of("type", "boolean"));
+                        put("pathDebug",                  Map.of("type", "boolean"));
+                        put("pathChartAutoDump",          Map.of("type", "boolean"));
+                        put("pathDebugMaxNodes",          Map.of("type", "integer", "minimum", 100, "maximum", 200000));
+                        put("pathDebugMaxSamples",        Map.of("type", "integer", "minimum", 100, "maximum", 200000));
                         put("blocksToAvoid",              Map.of("type", "array", "items", Map.of("type", "string")));
                         put("mutedEvents",                Map.of("type", "array", "items", Map.of("type", "string")));
                         put("pathfinder.avoidZonePenalty", Map.of("type", "number", "minimum", 0, "maximum", 5000));
