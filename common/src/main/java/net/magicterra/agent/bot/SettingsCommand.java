@@ -209,6 +209,14 @@ public final class SettingsCommand {
                 BotConfig.walkerDebug = wd;
                 applied.add("walkerDebug");
             }
+            if (params.get("pathDebug") instanceof Boolean pd) {
+                BotConfig.pathDebug = pd;
+                applied.add("pathDebug");
+            }
+            if (params.get("pathChartAutoDump") instanceof Boolean pcad) {
+                BotConfig.pathChartAutoDump = pcad;
+                applied.add("pathChartAutoDump");
+            }
             if (params.get("elytraDebug") instanceof Boolean ed) {
                 BotConfig.elytraDebug = ed;
                 applied.add("elytraDebug");
@@ -479,6 +487,14 @@ public final class SettingsCommand {
                         if (n.intValue() >= 4 && n.intValue() <= 48) { BotConfig.sceneQueryMaxRadius = n.intValue(); applied.add(k); }
                         else rejected.add(k + " out of range [4,48]");
                         break;
+                    case "pathDebugMaxNodes":
+                        if (n.intValue() >= 100 && n.intValue() <= 200000) { BotConfig.pathDebugMaxNodes = n.intValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [100,200000]");
+                        break;
+                    case "pathDebugMaxSamples":
+                        if (n.intValue() >= 100 && n.intValue() <= 200000) { BotConfig.pathDebugMaxSamples = n.intValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [100,200000]");
+                        break;
                 }
             }
         }
@@ -547,6 +563,10 @@ public final class SettingsCommand {
         snap.put("rangedAvoidRadius", BotConfig.rangedAvoidRadius);
         snap.put("fleeDangerBoost", BotConfig.fleeDangerBoost);
         snap.put("walkerDebug", BotConfig.walkerDebug);
+        snap.put("pathDebug", BotConfig.pathDebug);
+        snap.put("pathDebugMaxNodes", BotConfig.pathDebugMaxNodes);
+        snap.put("pathDebugMaxSamples", BotConfig.pathDebugMaxSamples);
+        snap.put("pathChartAutoDump", BotConfig.pathChartAutoDump);
         snap.put("elytraDebug", BotConfig.elytraDebug);
         snap.put("smoothLook", BotConfig.smoothLook);
         snap.put("smoothLookDegPerTick", BotConfig.smoothLookDegPerTick);

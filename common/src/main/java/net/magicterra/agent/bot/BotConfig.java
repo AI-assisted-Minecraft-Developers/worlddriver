@@ -471,6 +471,16 @@ public final class BotConfig {
      *  {@code mc.bot.setting{walkerDebug:true}} when chasing a movement bug. */
     public static volatile boolean walkerDebug = false;
 
+    /** Master gate for path-debug capture. When false the recorder early-returns and
+     *  the chart tool renders whatever (empty) session exists. Default off — debug only. */
+    public static volatile boolean pathDebug = false;
+    /** Cap on stored A* candidate nodes per search (reservoir-downsampled above this). */
+    public static volatile int pathDebugMaxNodes = 4000;
+    /** Cap on stored per-tick trajectory samples (ring buffer; oldest dropped). */
+    public static volatile int pathDebugMaxSamples = 6000;
+    /** When true, auto-write a chart on every goto terminal outcome (success and failure). */
+    public static volatile boolean pathChartAutoDump = false;
+
     // --- WorldModel / HazardField (perception slice) ---
     /** Chebyshev radius (blocks) of the HazardField grid recomputed each
      *  decimated tick by WorldModel.update. Larger = wider situational awareness,
