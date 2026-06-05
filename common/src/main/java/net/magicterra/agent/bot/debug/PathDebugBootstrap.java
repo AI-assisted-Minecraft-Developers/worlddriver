@@ -23,6 +23,7 @@ public final class PathDebugBootstrap {
 
     public static synchronized void init() {
         if (done) return;
+        done = true;   // set once up-front so SINK/bind/registerExtra can never double-register
         PathDebugRecorder recorder = new PathDebugRecorder();
         PathTraceHolder.SINK = recorder;
         PathChartTool.bind(recorder);
@@ -30,9 +31,9 @@ public final class PathDebugBootstrap {
         AgentApi api = AgentDriverCommon.api();
         if (api != null) {
             api.addRoute("mc.debug.pathChart", PathChartTool::render);
-            done = true;
             LOG.info("[pathdebug] initialised — mc.debug.pathChart ready (set pathDebug:true to capture)");
         } else {
+            // Unreachable on the real client path (ensureRpcUp builds the api before init runs).
             LOG.warn("[pathdebug] AgentApi not ready; route not registered");
         }
     }

@@ -179,11 +179,13 @@ public final class McpServer implements Closeable {
                             : LATEST_PROTOCOL_VERSION;
                     Map<String, Object> result = Map.of(
                         "protocolVersion", negotiated,
-                        // listChanged=false: catalog is baked at startup, no dynamic add/remove.
+                        // listChanged=false: the catalog is fixed by the time any client
+                        // initializes. Optional subsystems append schemas via
+                        // ToolCatalog.registerExtra at client-register, which runs before any
+                        // external client connects — so the list never changes mid-session.
                         // Clients that respect this skip subscribing to notifications/tools/list_changed.
                         // logging:{} advertises we send notifications/message (our
-                        // event push on the GET SSE stream); tools listChanged=false
-                        // since the catalog is baked at startup.
+                        // event push on the GET SSE stream).
                         "capabilities", Map.of(
                             "tools", Map.of("listChanged", false),
                             "logging", Map.of()),
