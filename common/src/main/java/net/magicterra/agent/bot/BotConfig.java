@@ -33,6 +33,15 @@ public final class BotConfig {
     /** Vertical band (+/-) of mine scans around the player's foot Y. */
     public static volatile int mineSearchVerticalRadius = 8;
 
+    /** Max horizontal distance (blocks) a single mine command may DRIFT from the
+     *  position where it started. Each SEARCH phase re-scans within searchRadius of
+     *  the bot's CURRENT cell, so without this cap the bot chains 16-block hops
+     *  toward scattered matches and can walk dozens of blocks — even straight across
+     *  open ocean chasing red_sand — stranding a survival bot far from start. The
+     *  scan rejects any candidate beyond this radius from the start anchor, bounding
+     *  a whole mine command to a fixed bubble. Set <=0 to disable the cap. */
+    public static volatile int mineMaxDriftFromStart = 32;
+
     /** Ticks the breaker waits before blacklisting a stuck block. */
     public static volatile int breakTimeoutTicks = 200;
 
@@ -181,6 +190,13 @@ public final class BotConfig {
      *  replace the whole reference. */
     public static volatile Set<String> extraHazardBlocks = Set.of();
 
+    /** Event types muted from the live PUSH channel via
+     *  {@code mc.bot.setting{mutedEvents:[type,...]}}. By default EVERY driver event
+     *  pushes to the MCP/WS channel; listing a type here suppresses ONLY its push — the
+     *  event is still recorded and retrievable via mc.wait.event / replay. Empty = push
+     *  everything. Whole-list replace; pass [] to clear. Persisted across relaunch. */
+    public static volatile Set<String> mutedEvents = Set.of();
+
     /** Baritone {@code allowParkour4} analogue — enables 4-block cardinal
      *  leaps in A*. Off by default because the leap is at the edge of vanilla
      *  sprint-jump physics; turning it on without jump-boost / Speed makes
@@ -213,9 +229,11 @@ public final class BotConfig {
     /** Proactive idle-only dusk shelter (DuskSecureChain, priority IDLE_SECURE=40):
      *  when the bot is sky-exposed at dusk/night, idle (no user task running), and
      *  no threat is within 12 blocks, dig a "挖三填一" bunker (BunkerProcess) after a
-     *  short debounce. Off by default; enable for fully autonomous survival runs.
-     *  Note: this is below the USER priority band, so any active task suppresses it. */
-    public static volatile boolean autoSecureAtDusk = true;
+     *  short debounce. OFF by default — 挖三填一 stays predominantly an Agent-invoked
+     *  action (mc.bot.bunker); enable only for fully autonomous survival runs. When it
+     *  DOES auto-fire it pushes a warning-level {@code duskSecure.triggered} event so an
+     *  unattended dig is never silent. Below the USER band, so any active task suppresses it. */
+    public static volatile boolean autoSecureAtDusk = false;
 
     /** Emergency "挖三填一" bunker reflex (BunkerChain): when cornered — low HP
      *  AND several hostiles right next to the bot, where fleeing just runs into
@@ -260,6 +278,29 @@ public final class BotConfig {
      *  Read by {@code SwimAshoreBreak}/{@code SwimTraverseBreak}.eval +
      *  WorldView.escapeBreakCost. Set false to forbid all autonomous mining. */
     public static volatile boolean allowSwimEscapeBreak = true;
+
+    /** Flee-escape break: when a {@code RunAwayProcess} is actively fleeing, the
+     *  pathfinder may mine LEAVES that box the bot in — even when the general
+     *  {@link #allowBreak} is off. Sibling of {@link #allowSwimEscapeBreak} (water)
+     *  for the canopy case: a naked bot sniped inside a tree's leaves used to have
+     *  no flee path (leaves collide, allowBreak off → A* "no path") and died in
+     *  place. Leaves are hardness-0.2 (near-instant), gated to an active flee +
+     *  leaves only, so normal demo-safe movement still never breaks anything. Read
+     *  by WorldView.breakCost when the search is a flee. Set false to forbid it. */
+    public static volatile boolean allowFleeBreak = true;
+
+    /** Max height (blocks) of a tall bank the pathfinder will break-CLIMB out of
+     *  deep water with the {@link net.magicterra.agent.bot.pathfinder.moves.SwimBankClimbBreak}
+     *  staircase. The horizontal escape twins ({@code SwimAshoreBreak}) only stay
+     *  "in water-escape context" for ~2 vertical steps (water leaves the ring
+     *  below the feet), so a bank taller than +2 rising from deep water was
+     *  unreachable — A* returned "no path" to any elevated far shore. This move
+     *  keeps the break-climb in context as long as water lies straight below
+     *  within this many blocks (through the continuous bank face), letting the
+     *  bot carve a staircase up a tall river/ocean cliff onto an elevated plateau.
+     *  Gated on the same {@link #allowSwimEscapeBreak}; 0 disables it. Bounded so
+     *  A* can't carve an arbitrarily tall shaft. Read by SwimBankClimbBreak.eval. */
+    public static volatile int swimBankClimbMaxHeight = 12;
 
     /** Sibling of {@link #allowSwimEscapeBreak} but for PLACING instead of
      *  breaking. A floating bot cannot swim-jump onto a bank whose top sits
@@ -378,6 +419,16 @@ public final class BotConfig {
     public static volatile int rangedAvoidRadius = 16;   // wider berth for ranged mobs (skeleton/witch) — Baritone Avoidance, AltoClef-style ranged split
     public static volatile double fleeDangerBoost = 8;   // during an active flee, water/ledge danger ×this so the flee won't dive into water or off a cliff (F2)
     public static volatile boolean fleeActive = false;   // RUNTIME flee-context flag (a RunAwayProcess ticked this frame); NOT persisted, NOT in MCP schema
+
+    /** Walker sneak-brake guard: while walking, if a LETHAL drop (fall deeper than
+     *  the bot can survive at its current HP) is one step ahead in the heading, hold
+     *  sneak so vanilla's ledge-guard stops the body at the block edge instead of
+     *  letting the controller drift off the cliff. Fixes DEATH #8 (RetreatChain/
+     *  RunAwayProcess flee path ran along a lip and the controller overshot off a
+     *  23-block drop). The planner can't prevent it: PathFinder caps planned falls at
+     *  survivableFall, so a lethal fall is pure controller drift, never a planned
+     *  move — hence lethal-only here never blocks a legitimate planned step-down. */
+    public static volatile boolean lethalEdgeBrake = true;
 
     /** Agent-supplied danger zones to route AROUND — each row is
      *  {@code [x, y, z, radius]}. Set via {@code mc.bot.setting{avoidPoints:[...]}}

@@ -192,7 +192,8 @@ public static Goal parseGoal(Params p) {
     if (xzObj instanceof Map<?, ?> xz) {
         int x = intOr(xz.get("x"), Integer.MIN_VALUE);
         int z = intOr(xz.get("z"), Integer.MIN_VALUE);
-        if (x != Integer.MIN_VALUE && z != Integer.MIN_VALUE) return new Goal.XZ(x, z);
+        if (x != Integer.MIN_VALUE && z != Integer.MIN_VALUE)
+            return new Goal.XZ(x, z, p.getIntClamped("near", 0, 0, 64));
     }
     if (p.get("y") instanceof Number n) return new Goal.YLevel(n.intValue());
     return null;

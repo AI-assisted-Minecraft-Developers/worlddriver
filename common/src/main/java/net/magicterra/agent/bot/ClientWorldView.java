@@ -125,7 +125,20 @@ final class ClientWorldView implements WorldView {
         return lvl != null && lvl.getBlockState(p).is(BlockTags.CLIMBABLE);
     }
     @Override public double breakCost(BlockPos p) {
-        if (!BotConfig.allowBreak) return Double.POSITIVE_INFINITY;
+        if (!BotConfig.allowBreak) {
+            // Flee-escape exception: a fleeing bot enclosed by LEAVES must be able to
+            // punch through them to escape (the canopy-snipe death — autoRetreat fired
+            // but the bot was boxed in by leaf blocks and couldn't move, so a skeleton
+            // shot it in place). Leaves are hardness-0.2 (near-instant), so pricing
+            // them finite can't explode the search the way general breaking would, and
+            // it's gated to an ACTIVE flee (fleeSearch) + leaves only — normal,
+            // demo-safe movement still never breaks anything.
+            if (fleeSearch && BotConfig.allowFleeBreak) {
+                Level lvl = Minecraft.getInstance().level;
+                if (lvl != null && lvl.getBlockState(p).is(BlockTags.LEAVES)) return rawBreakCost(p);
+            }
+            return Double.POSITIVE_INFINITY;
+        }
         return rawBreakCost(p);
     }
     /** Search origin (the bot's block pos when this findPath began), snapshotted
@@ -144,14 +157,57 @@ final class ClientWorldView implements WorldView {
     @Override public double escapeBreakCost(BlockPos p) {
         if (!BotConfig.allowSwimEscapeBreak) return Double.POSITIVE_INFINITY;
         BlockPos o = escapeOrigin;
-        if (o != null
-                && (Math.abs(p.getX() - o.getX()) > ESCAPE_RADIUS
-                 || Math.abs(p.getY() - o.getY()) > ESCAPE_RADIUS
-                 || Math.abs(p.getZ() - o.getZ()) > ESCAPE_RADIUS)) {
-            return Double.POSITIVE_INFINITY;                 // outside the local escape bubble
+        boolean nearOrigin = o == null
+                || (Math.abs(p.getX() - o.getX()) <= ESCAPE_RADIUS
+                 && Math.abs(p.getY() - o.getY()) <= ESCAPE_RADIUS
+                 && Math.abs(p.getZ() - o.getZ()) <= ESCAPE_RADIUS);
+        // Allow a break either inside the local bubble around the (stuck) bot OR
+        // on a BANK FACE that rises out of nearby water within a bounded depth.
+        // WHY the second clause: a bot that must SWIM a wide river (>ESCAPE_RADIUS)
+        // then climb a TALL far bank has its whole staircase outside the origin
+        // bubble, so every escape-break was +∞ and A* returned "no path" to the
+        // elevated far shore. Anchoring to "water down an open face nearby" lets
+        // the break-climb candidates follow the cliff UP while staying tied to the
+        // water the bot escaped — and mirrors the same geometry as
+        // {@link net.magicterra.agent.bot.pathfinder.Move#bankClimbContext}, so a
+        // candidate the move would emit is also priced finite. Bounded: the escape
+        // moves only eval from bot-cells in a water / bank-climb context (the
+        // actual path frontier), and open water far from any bank has no solid
+        // neighbours to break — no branching explosion.
+        if (!nearOrigin && !risesFromWater(p, BotConfig.swimBankClimbMaxHeight + 2)) {
+            return Double.POSITIVE_INFINITY;
         }
         return rawBreakCost(p);
     }
+
+    /** True if the candidate break cell {@code p} is part of a bank face rising
+     *  out of water within {@code maxDepth} blocks: water straight DOWN (the
+     *  waterline) OR water down an OPEN cardinal-neighbour face (the exposed sheet
+     *  of a sheer cliff over the water the bot escaped — the case that a strict
+     *  straight-down scan misses once the staircase has carved up into the cliff).
+     *  Mirrors {@link net.magicterra.agent.bot.pathfinder.Move#bankClimbContext}
+     *  so a break the move would emit is also priced finite. Each face scan stops
+     *  at the first solid cell, never tunnelling down through rock to unrelated
+     *  water. ≤5·maxDepth reads, only for cells outside the origin bubble. */
+    private boolean risesFromWater(BlockPos p, int maxDepth) {
+        BlockPos c = p.offset(0, -1, 0);
+        for (int d = 1; d <= maxDepth; d++, c = c.offset(0, -1, 0)) {
+            if (isWater(c)) return true;
+            if (!isSolid(c)) break;                       // gap under the column → try the open faces
+        }
+        for (int[] off : ESCAPE_FACE_OFFSETS) {
+            BlockPos face = p.offset(off[0], 0, off[1]);
+            if (isSolid(face)) continue;                  // solid neighbour = into the cliff, not a face
+            BlockPos f = face;
+            for (int d = 0; d <= maxDepth; d++, f = f.offset(0, -1, 0)) {
+                if (isWater(f)) return true;
+                if (isSolid(f)) break;                    // face interrupted by solid → not the open water face
+            }
+        }
+        return false;
+    }
+    /** Cardinal offsets for {@link #risesFromWater}'s open-face probe. */
+    private static final int[][] ESCAPE_FACE_OFFSETS = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
     /** Tool-aware mining cost, independent of which break-gate authorised it
      *  (general allowBreak vs the water-escape allowSwimEscapeBreak). */
     private double rawBreakCost(BlockPos p) {

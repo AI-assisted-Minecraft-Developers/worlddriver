@@ -6,6 +6,7 @@ import net.magicterra.agent.bot.movement.PathSmoothing.SmoothResult;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
 import net.magicterra.agent.bot.pathfinder.WorldView;
+import net.magicterra.agent.bot.world.SurvivalMath;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -906,8 +907,15 @@ public final class Walker {
         // same reason. Released the moment we're back on real ground.
         boolean bridging = (edge != null && "bridgePlace".equals(edge.move))
                 || (nextEdge != null && "bridgePlace".equals(nextEdge.move));
-        mc.options.keyShift.setDown(bridging || descendBrake);
-        p.setShiftKeyDown(bridging || descendBrake);
+        // Lethal-edge sneak-brake (DEATH #8 fix): if a fatal drop is one step ahead
+        // in the heading, hold sneak so vanilla's ledge-guard pins the body at the
+        // block edge — the controller can no longer drift off a cliff while fleeing
+        // or walking a lip. Lethal-only, so it never blocks a legitimate planned
+        // step-down (those are capped at survivableFall by the PathFinder).
+        boolean edgeBrake = BotConfig.lethalEdgeBrake && p.onGround()
+                && lethalDropAdjacent(world, p, foot);
+        mc.options.keyShift.setDown(bridging || descendBrake || edgeBrake);
+        p.setShiftKeyDown(bridging || descendBrake || edgeBrake);
         // Jump for a real upward step, a parkour-leap edge (by move type, not
         // raw distance — string-pulling makes plain walk waypoints far apart
         // too), or a brief stuck-wiggle.
@@ -964,15 +972,20 @@ public final class Walker {
         boolean jump = !descendBrake
                 && (wp.getY() > foot.getY() || parkourEdge || swimUp || wiggle || swimColumn);
         mc.options.keyJump.setDown(jump);
-        // NEVER sprint in water. ROOT CAUSE of "bot stuck bobbing, can't climb out
-        // of water" (found via the [walker] trace): sprint + forward while in water
-        // forces the PRONE SWIMMING POSE, so the body goes horizontal and swims along
-        // the surface instead of treading upright + rising — it stays ~2 blocks below
-        // every stepUp/diagUp/swimUp climb node and never advances (trace showed
-        // sprint=true, |dY|≈2.4, bobbing y61 under a y64 node). Treading (no sprint) +
-        // jump lets vanilla auto-climb the 1-block ledge out of the water.
+        // Sprint in water ONLY on a FLAT crossing (flatWaterWalk: wp.y==foot.y). The
+        // prone swim pose that sprint+forward forces is exactly what a wide open-ocean
+        // crossing needs (vanilla's fast swim) — WITHOUT it the bot treads upright in
+        // place and STALLS (full-HP naked bot stuck at the spawn bay edge, 0-1 blk over
+        // 40s; the deepWaterMax routing fix made the path exist but the controller
+        // couldn't execute it). Pitch is held ~horizontal (setXRot→0 above) so the prone
+        // swim hugs the surface and doesn't dive; swimUp/swimColumn still hold jump if it
+        // dips under, so it can't drown over a long crossing.
+        // KEEP no-sprint for CLIMB-OUT nodes (wp.y>foot.y → !flatWaterWalk): there the
+        // prone pose can't rise a bank — ROOT CAUSE of the old "stuck bobbing, can't climb
+        // out" trace (sprint=true, |dY|≈2.4, bobbing y61 under a y64 node). Treading + jump
+        // lets vanilla auto-climb the 1-block ledge out of the water.
         boolean sprint = !bridging && !steppingOffFall && !steppingOffWaterFall
-                && !descendBrake && !p.isInWater();
+                && !descendBrake && !edgeBrake && (!p.isInWater() || flatWaterWalk);
         mc.options.keySprint.setDown(sprint);
         p.setSprinting(sprint);
         if (BotConfig.walkerDebug)
@@ -985,6 +998,37 @@ public final class Walker {
     }
 
     private static float angleDiff(float a, float b) { return ((b - a) % 360f + 540f) % 360f - 180f; }
+
+    /** Horizontal neighbour offsets (4 cardinals + 4 diagonals) of the foot cell. */
+    private static final int[][] EDGE_NEIGHBOURS = {
+            {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
+
+    /** True if a LETHAL drop borders the cell the bot is standing on — any horizontal
+     *  neighbour that is an open foot-cell with no floor, falling to the next solid/
+     *  water surface deeper than {@link SurvivalMath#survivableFall} at the bot's HP.
+     *  Checking ALL neighbours (not just the heading) catches lateral/momentum drift
+     *  off a lip while walking ALONG it — the actual DEATH #8 mode. Vanilla sneak then
+     *  pins the body to this block in every direction. Lethal-only, so it never blocks
+     *  a legitimate planned step-down (those land within survivable, or in water). */
+    private static boolean lethalDropAdjacent(WorldView world, LocalPlayer p, BlockPos foot) {
+        int survivable = SurvivalMath.survivableFall(p.getHealth());
+        for (int[] o : EDGE_NEIGHBOURS) {
+            BlockPos n = foot.offset(o[0], 0, o[1]);
+            // A drop needs the foot-cell AND the cell below it both open (no floor).
+            // A present floor = flat walk or a safe 1-block step-down; water = a splash.
+            if (world.isSolid(n) || world.isWater(n)) continue;
+            BlockPos below = n.below();
+            if (world.isSolid(below) || world.isWater(below)) continue;
+            int fall = 1;
+            BlockPos pr = below.below();
+            while (fall <= survivable + 2 && !world.isSolid(pr) && !world.isWater(pr)) {
+                fall++;
+                pr = pr.below();
+            }
+            if (fall > survivable) return true;
+        }
+        return false;
+    }
 
     private Move.Edge edgeAt(int i) {
         return (edges != null && i >= 0 && i < edges.size()) ? edges.get(i) : null;

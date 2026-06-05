@@ -54,20 +54,28 @@ public final class RetreatChain implements Chain {
         float hp = mc.player.getHealth();
         float thr = BotConfig.retreatHpThreshold;
         if (!retreating) {
-            // Trigger only when hurt AND a hostile is actually near — fleeing from
-            // nothing (low HP, no threat) would just abandon the task pointlessly,
-            // and re-arming the trigger on bare HP is what let the goal yank the bot
-            // back into the mob every time HP ticked over the line.
-            if (hp > thr || !hostileWithin(mc, CLEAR_RADIUS)) return idle();
+            // Enter a flee on EITHER signal:
+            //  - REACTIVE: hurt (hp<=thr) with a hostile actually near — fleeing from
+            //    nothing would just abandon the task, and re-arming on bare HP is what
+            //    let the goal yank the bot back into the mob every time HP ticked over.
+            //  - PROACTIVE: a RANGED hostile (skeleton/witch) is within bow range,
+            //    aiming, with line-of-sight — flee BEFORE the arrows land, not after
+            //    HP has already cratered. A naked bot loses ~4HP/hit, so waiting for
+            //    the HP threshold means 2+ hits already connected (the canopy-snipe
+            //    death). React to the AIM, not the hit.
+            boolean lowHp = hp <= thr && hostileWithin(mc, CLEAR_RADIUS);
+            boolean ranged = rangedThreatAiming(mc);
+            if (!lowHp && !ranged) return idle();
             retreating = true;                       // latch the flee
         } else {
-            // Release once recovered a margin above the trigger OR we've outrun
-            // every hostile — whichever first. The margin is the hysteresis that
-            // kills the flip-flop; the threat-clear lets a bot that can't regen
-            // resume its task the moment it's genuinely safe.
+            // Release once we've outrun every hostile, OR HP recovered a margin above
+            // the trigger AND no ranged threat is still aiming. The margin is the
+            // hysteresis that kills the HP flip-flop; the extra ranged guard stops a
+            // HIGH-HP proactive flee (recovered is trivially true) from releasing on
+            // the spot and marching straight back into the skeleton.
             boolean recovered = hp >= thr + RELEASE_HP_MARGIN;
             boolean safe = !hostileWithin(mc, CLEAR_RADIUS);
-            if (recovered || safe) return idle();
+            if (safe || (recovered && !rangedThreatAiming(mc))) return idle();
         }
         // Ramp: the lower the HP below the threshold, the harder we flee.
         return Priorities.SURVIVAL + (thr - Math.min(hp, thr));
@@ -92,6 +100,19 @@ public final class RetreatChain implements Chain {
     private static boolean hostileWithin(Minecraft mc, double r) {
         for (ThreatScanner.Threat t : ThreatScanner.current(mc).threats()) {
             if (t.distance() <= r) return true;
+        }
+        return false;
+    }
+
+    /** A RANGED hostile within bow range that is about to shoot. {@code charging()}
+     *  is set by the scanner only when the mob is a {@link
+     *  net.minecraft.world.entity.monster.RangedAttackMob} that is facing the bot
+     *  AND has line-of-sight — exactly "a skeleton/witch is aiming at me". Using it
+     *  (rather than HP) is what makes the flee PROACTIVE: the bot bolts on the aim,
+     *  before the first arrow connects. {@link #CLEAR_RADIUS} (12) ~ skeleton range. */
+    private static boolean rangedThreatAiming(Minecraft mc) {
+        for (ThreatScanner.Threat t : ThreatScanner.current(mc).threats()) {
+            if (t.charging() && t.distance() <= CLEAR_RADIUS) return true;
         }
         return false;
     }

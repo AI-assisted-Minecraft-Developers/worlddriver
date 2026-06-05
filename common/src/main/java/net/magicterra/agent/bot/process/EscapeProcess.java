@@ -11,6 +11,8 @@ import net.minecraft.world.level.block.FallingBlock;
 
 import static net.magicterra.agent.AgentDriverCommon.LOG;
 import static net.magicterra.agent.bot.util.BotInteract.aimAtBlockSnap;
+import static net.magicterra.agent.bot.util.BotInteract.clientUseItemOn;
+import static net.magicterra.agent.bot.util.BotInteract.ensureHoldingPlaceableAny;
 import static net.magicterra.agent.bot.util.BotInteract.releaseKeys;
 import static net.magicterra.agent.bot.util.BotInteract.selectBestToolFor;
 
@@ -39,7 +41,7 @@ import static net.magicterra.agent.bot.util.BotInteract.selectBestToolFor;
  */
 public final class EscapeProcess implements BotProcess {
 
-    private enum Phase { PICK, CARVE, STEP_UP }
+    private enum Phase { PICK, CARVE, STEP_UP, VERT_BREAK, VERT_RISE }
 
     /** Climb until foot Y reaches this (or open sky is overhead). */
     private final int targetY;
@@ -81,9 +83,11 @@ public final class EscapeProcess implements BotProcess {
         if (steps >= MAX_STEPS) { dbg("BAIL max steps at foot={}", foot); releaseKeys(); return true; }
 
         return switch (phase) {
-            case PICK    -> pick(mc, w, p, foot);
-            case CARVE   -> carve(mc, w, p);
-            case STEP_UP -> stepUp(mc, w, p, foot);
+            case PICK       -> pick(mc, w, p, foot);
+            case CARVE      -> carve(mc, w, p);
+            case STEP_UP    -> stepUp(mc, w, p, foot);
+            case VERT_BREAK -> vertBreak(mc, w, p, foot);
+            case VERT_RISE  -> vertRise(mc, w, p, foot);
         };
     }
 
@@ -107,7 +111,28 @@ public final class EscapeProcess implements BotProcess {
             if (best == null || (dry && !bestDry)) { best = d; bestDry = dry; }
             if (dry) break;                     // a dry direction is ideal — take it
         }
-        if (best == null) { dbg("PICK no carvable up-direction at foot={} → BAIL", foot); releaseKeys(); return true; }
+        if (best == null) {
+            // No sideways staircase fits (a strict 1-wide shaft whose every cardinal
+            // niche above the wall tread is itself a blocked/hazard cell, or whose
+            // walls aren't carvable). The only remaining DRY escape is straight UP:
+            // mine the ceiling overhead and PILLAR up into it — the dry twin of
+            // SwimUpBreak, which a flooded shaft uses. Needs a placeable block to
+            // stand on the rise (a block-less dry shaft is physically inescapable —
+            // you can't levitate), so bail cleanly if the hotbar is empty.
+            BlockPos head = foot.above();
+            BlockPos ceil = head.above();
+            boolean ceilBreakable = !w.isSolid(ceil) || carvable(w, ceil);
+            if (ceilBreakable && ensureHoldingPlaceableAny(mc)) {
+                base = foot.immutable();
+                phase = Phase.VERT_BREAK;
+                actTicks = 0;
+                dbg("PICK no sideways carve → VERT_BREAK (pillar-up-break) from foot={}", foot);
+                return false;
+            }
+            dbg("PICK no carvable up-direction at foot={} (ceilBreakable={} placeable={}) → BAIL",
+                    foot, ceilBreakable, ensureHoldingPlaceableAny(mc));
+            releaseKeys(); return true;
+        }
         dir = best;
         base = foot.immutable();
         phase = Phase.CARVE;
@@ -174,6 +199,82 @@ public final class EscapeProcess implements BotProcess {
         if (++actTicks > 100) {                                   // ~5s; geometry may have shifted → re-pick
             releaseKeys();
             dbg("STEP_UP stall foot={} dest={} → re-PICK", foot, nf);
+            phase = Phase.PICK;
+        }
+        return false;
+    }
+
+    /** Clear the column straight above so a pillar-up has room to rise: the cell
+     *  the new feet enter ({@code base+2}) and the head-clearance cell above it
+     *  ({@code base+3}). Mined top-down so a falling block can't drop back in.
+     *  Once both are open we move to {@link Phase#VERT_RISE} to place the support. */
+    private boolean vertBreak(Minecraft mc, WorldView w, LocalPlayer p, BlockPos foot) {
+        // Hold the column centre so buoyancy/drift can't slide us off while mining.
+        p.setPos(base.getX() + 0.5, p.getY(), base.getZ() + 0.5);
+        p.setDeltaMovement(0, p.getDeltaMovement().y, 0);
+        BlockPos newHead = base.above(2);   // head cell after the +1 pillar (feet → base+1)
+        BlockPos arcClear = newHead.above(); // jump-arc clearance — head clips base+3 at the
+                                             // jump peak (~+2.25); leaving it solid suffocates.
+        BlockPos target = (w.isSolid(arcClear) && !Double.isInfinite(w.breakCost(arcClear))) ? arcClear
+                        : w.isSolid(newHead) ? newHead : null;
+        if (target == null) {
+            dbg("VERT_BREAK ceiling clear → VERT_RISE base={}", base);
+            mc.options.keyAttack.setDown(false);
+            phase = Phase.VERT_RISE;
+            actTicks = 0;
+            return false;
+        }
+        if (Double.isInfinite(w.breakCost(target))) {
+            mc.options.keyAttack.setDown(false);
+            dbg("VERT_BREAK unbreakable ceiling target={} → BAIL", target);
+            releaseKeys(); return true;
+        }
+        selectBestToolFor(mc, target);
+        aimAtBlockSnap(p, target);
+        mc.options.keyAttack.setDown(true);
+        if (++actTicks > BotConfig.breakTimeoutTicks * 3) {
+            mc.options.keyAttack.setDown(false);
+            dbg("VERT_BREAK timeout target={} → BAIL", target);
+            releaseKeys(); return true;
+        }
+        return false;
+    }
+
+    /** Pillar straight up one block: jump and place a support in the old feet cell
+     *  ({@code base}) at the apex, lifting the bot to {@code base+1}. Mirrors the
+     *  Walker's pillarUp actuator — vanilla rejects the place until the feet clear
+     *  the cell, so we gate on real height. On arrival, advance and re-PICK (a
+     *  sideways rim may now be reachable; else we VERT_BREAK the next ceiling). */
+    private boolean vertRise(Minecraft mc, WorldView w, LocalPlayer p, BlockPos foot) {
+        mc.options.keyAttack.setDown(false);
+        BlockPos dest = base.above();
+        if (foot.getY() >= dest.getY() && p.onGround()) {
+            p.setPos(dest.getX() + 0.5, p.getY(), dest.getZ() + 0.5);
+            p.setDeltaMovement(0, Math.min(0, p.getDeltaMovement().y), 0);
+            releaseKeys();
+            steps++;
+            dbg("VERT_RISE arrived foot={} (step {}) → PICK", foot, steps);
+            phase = Phase.PICK;
+            return false;
+        }
+        if (!ensureHoldingPlaceableAny(mc)) {
+            dbg("VERT_RISE no placeable block → BAIL");
+            releaseKeys(); return true;
+        }
+        p.setXRot(89.5f);   // look straight down to aim the support
+        if (p.onGround()) {
+            mc.options.keyJump.setDown(true);
+        } else {
+            mc.options.keyJump.setDown(false);
+            // Place into the old feet cell once the body has risen clear of it —
+            // vanilla's collision check silently rejects a block the AABB overlaps.
+            if (p.getY() >= base.getY() + 1.0) {
+                clientUseItemOn(mc, p, base.below(), Direction.UP);
+            }
+        }
+        if (++actTicks > 100) {
+            releaseKeys();
+            dbg("VERT_RISE stall foot={} dest={} → re-PICK", foot, dest);
             phase = Phase.PICK;
         }
         return false;

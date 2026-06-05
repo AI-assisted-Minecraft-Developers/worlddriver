@@ -3,6 +3,7 @@ package net.magicterra.agent.mcp;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import net.magicterra.agent.api.AgentApi;
+import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.model.AgentEvent;
 import net.magicterra.agent.rpc.EventNotifications;
 import net.magicterra.agent.rpc.JsonCodec;
@@ -81,8 +82,9 @@ public final class McpServer implements Closeable {
     /** Open server→client SSE streams (clients that issued {@code GET /mcp}).
      *  {@link #onEvent} fans each driver event out to all of them. */
     private final Set<SseSubscriber> sse = ConcurrentHashMap.newKeySet();
-    /** Minimum severity to forward, set by {@code logging/setLevel}. Default debug
-     *  (rank 0) = forward everything. */
+    /** The client's {@code logging/setLevel} minimum, kept for MCP protocol compliance.
+     *  NO LONGER gates the driver event channel — {@link #onEvent} pushes every non-muted
+     *  event regardless of level, so an info/notice event is never silently dropped. */
     private volatile int minLevelRank = 0;
 
     public McpServer(AgentApi api, int port) throws IOException {
@@ -262,11 +264,16 @@ public final class McpServer implements Closeable {
     }
 
     /** Fan one driver event out to every open SSE stream as a
-     *  {@code notifications/message}, skipping streams below the client's
-     *  {@code logging/setLevel} minimum. Runs on AgentApi's event-dispatch thread. */
+     *  {@code notifications/message}. EVERY event pushes by default; the only filter is
+     *  the per-type opt-out {@link BotConfig#mutedEvents} (mc.bot.setting{mutedEvents}).
+     *  We intentionally do NOT gate on the client's {@code logging/setLevel} minimum —
+     *  driver events are domain signals the Agent asked for, and a client that defaults
+     *  its filter to {@code warning} would otherwise silently drop every info/notice
+     *  event. The frame still carries a severity {@code level} for display/ordering.
+     *  Runs on AgentApi's event-dispatch thread. */
     private void onEvent(AgentEvent e) {
         if (sse.isEmpty()) return;
-        if (EventNotifications.rank(EventNotifications.levelFor(e.type)) < minLevelRank) return;
+        if (BotConfig.mutedEvents.contains(e.type)) return; // per-type opt-out; all else pushes
         String frame = "data: " + EventNotifications.frame(e) + "\n\n";
         for (SseSubscriber sub : sse) sub.raw(frame);
     }

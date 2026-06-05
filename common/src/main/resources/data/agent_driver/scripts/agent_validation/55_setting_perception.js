@@ -24,9 +24,13 @@ if (!clientAvailable()) {
         t.assertTrue(r.applied.indexOf("autoSecureAtDusk") >= 0, "must be in applied");
         t.assertEqual(r.settings.autoSecureAtDusk, false, "snapshot reflects autoSecureAtDusk=false");
 
-        // Toggle back to default (true)
+        // Toggle on, read back
         var r2 = Agent.invoke("mc.bot.setting", { autoSecureAtDusk: true });
         t.assertEqual(r2.settings.autoSecureAtDusk, true, "snapshot reflects autoSecureAtDusk=true");
+
+        // Restore default (OFF — 挖三填一 is Agent-invoked by default; auto-dig only
+        // when explicitly enabled, and it pushes duskSecure.triggered when it fires)
+        Agent.invoke("mc.bot.setting", { autoSecureAtDusk: false });
     });
 
     AgentTest.run("55_setting_perception: hazardGridRadius in-range round-trip and out-of-range clamp", function(t) {
@@ -54,6 +58,20 @@ if (!clientAvailable()) {
 
         // Restore defaults
         Agent.invoke("mc.bot.setting", { deepWaterMax: 2, sceneQueryMaxRadius: 32 });
+    });
+
+    AgentTest.run("55_setting_perception: mutedEvents round-trip + clear", function(t) {
+        // Mute two event types from the push channel
+        var r = Agent.invoke("mc.bot.setting", { mutedEvents: ["entity.death", "item.pickup"] });
+        t.assertEqual(r.ok, true, "write must succeed");
+        t.assertTrue(r.applied.indexOf("mutedEvents") >= 0, "mutedEvents must be in applied");
+        var m = r.settings.mutedEvents;
+        t.assertTrue(m.indexOf("entity.death") >= 0 && m.indexOf("item.pickup") >= 0,
+            "both muted types round-trip in the snapshot");
+
+        // Empty list un-mutes everything (the default: push all events)
+        var r2 = Agent.invoke("mc.bot.setting", { mutedEvents: [] });
+        t.assertEqual(r2.settings.mutedEvents.length, 0, "empty list clears all mutes");
     });
 
 }

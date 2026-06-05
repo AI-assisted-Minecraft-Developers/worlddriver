@@ -61,10 +61,22 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
         }
     }
 
-    /** Reach an XZ column at any Y. */
-    record XZ(int x, int z) implements Goal {
-        public boolean reached(BlockPos p) { return p.getX() == x && p.getZ() == z; }
-        public double estimate(BlockPos p) { return xzHeuristic(p.getX() - x, p.getZ() - z); }
+    /** Reach an XZ column at any Y, within {@code radius} blocks (Euclidean) of it.
+     *  radius 0 = the exact column. Honors the goto {@code near:N} arg so a target
+     *  landing on water (where the bot floats and can't step onto the exact cell)
+     *  is still satisfied by the surrounding column instead of spinning forever. */
+    record XZ(int x, int z, int radius) implements Goal {
+        /** Exact-column XZ goal (radius 0) — preserves the original 2-arg callers. */
+        public XZ(int x, int z) { this(x, z, 0); }
+        public boolean reached(BlockPos p) {
+            long dx = p.getX() - x, dz = p.getZ() - z;
+            return dx * dx + dz * dz <= (long) radius * radius;
+        }
+        public double estimate(BlockPos p) {
+            // Admissible: the goal is a disk of the given radius, not a point.
+            double h = xzHeuristic(p.getX() - x, p.getZ() - z) - 10.0 * radius;
+            return h <= 0 ? 0 : h;
+        }
     }
 
     /** Reach a given Y plane (used for surface/cave navigation). */

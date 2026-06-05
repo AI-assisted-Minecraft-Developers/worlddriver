@@ -49,6 +49,7 @@ import net.magicterra.agent.bot.util.BlockMatch;
 import java.util.Map;
 import java.util.Set;
 
+import static net.magicterra.agent.AgentDriverCommon.LOG;
 import static net.magicterra.agent.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.agent.bot.util.BotInteract.*;
 import static net.magicterra.agent.bot.util.BotUtil.*;
@@ -68,8 +69,17 @@ public final class MineProcess implements BotProcess {
     private final Walker walker = new Walker();
     private final Set<BlockPos> blacklist = new HashSet<>();
     private int broken;
+    // Position where this mine command began. Targets beyond
+    // BotConfig.mineMaxDriftFromStart of this anchor are rejected so a single
+    // mine command can't chain hops across the world (e.g. swim an ocean toward
+    // scattered red_sand). Set lazily on first tick (attach has no player).
+    private BlockPos startAnchor;
     private BlockPos currentTarget;
+    private BlockPos currentStand;
     private Direction currentFace;
+    // True when currentTarget is a leaf being cleared to open access to a real
+    // target (not itself a quota block) — see findClearingTarget.
+    private boolean currentTargetClearing;
     private int breakingTicks;
     private String breakStartId = "";
     private Phase phase = Phase.SEARCH;
@@ -118,6 +128,26 @@ public final class MineProcess implements BotProcess {
         }
         LocalPlayer p = mc.player;
         if (p == null) { st.mine.lastError = "player vanished"; st.mine.reset(); return true; }
+        // Anchor the command to where it began (first tick with a live player).
+        if (startAnchor == null) startAnchor = p.blockPosition();
+
+        // Lava-contact safety net: the instant we're touching lava, stop mining.
+        // The lava-near target/stand rejection below should keep us out of it, but
+        // a dig can reveal a pocket that floods our own cell — bail before the
+        // ~4-dmg/tick spiral instead of walking deeper toward the next target.
+        // (This is exactly what killed a naked run: a stone dig opened a hidden
+        // pocket and the next-target approach stepped into it.)
+        if (p.isInLava()) {
+            if (mc.options != null) {
+                mc.options.keyAttack.setDown(false);
+                mc.options.keyUp.setDown(false);
+                mc.options.keyJump.setDown(false);
+                mc.options.keySprint.setDown(false);
+            }
+            st.mine.lastError = "aborted: entered lava";
+            st.mine.reset();
+            return true;
+        }
 
         switch (phase) {
             case SEARCH -> {
@@ -128,7 +158,9 @@ public final class MineProcess implements BotProcess {
                     return true;
                 }
                 currentTarget = t.block;
+                currentStand = t.stand;
                 currentFace = t.face;
+                currentTargetClearing = t.clearing();
                 st.mine.target = currentTarget;
                 walker.setGoal(new Goal.Block(t.stand));
                 phase = Phase.GOING;
@@ -136,10 +168,52 @@ public final class MineProcess implements BotProcess {
             case GOING -> {
                 // Make sure attack isn't lingering from the previous block.
                 mc.options.keyAttack.setDown(false);
+                // Already standing on the target's stand cell? Then there is nothing
+                // to walk — go straight to breaking. This is the straight-up "mine
+                // the overhead block from directly below" case (stand == our own
+                // foot cell): handing the Walker a zero-length path makes it report
+                // FAILED, which would blacklist a perfectly good target. (The normal
+                // side/reach-across stand is a DIFFERENT cell, so this never short-
+                // circuits a real walk.)
+                if (currentStand != null && p.blockPosition().equals(currentStand)) {
+                    selectBestTool(mc, currentTarget);
+                    faceBlock(p, currentTarget);
+                    breakingTicks = 0;
+                    breakStartId = currentBlockId(mc);
+                    phase = Phase.BREAKING;
+                    return false;
+                }
                 Walker.Step s = walker.tick(mc, w);
                 st.mine.pathLen = walker.pathLen();
                 st.mine.pathStep = walker.pathStep();
                 if (s == Walker.Step.FAILED) {
+                    // The stand exists geometrically but the bot can't WALK to it.
+                    // For a leaf-encased canopy log this is the common case: the only
+                    // stand findReachStand finds has a clear LOS that slips past an
+                    // occluding leaf at an angle, yet no foot-path reaches it. Before
+                    // blacklisting the log forever (→ "no reachable target"), try to
+                    // CLEAR an occluding leaf — breaking it opens a reachable approach
+                    // (after the leaf directly below goes, the log becomes mineable
+                    // straight-up from the bot's own cell). Only blacklist if even a
+                    // clearing leaf is unreachable.
+                    if (!currentTargetClearing) {
+                        BlockPos foot = new BlockPos((int) Math.floor(p.getX()),
+                                (int) Math.floor(p.getY()), (int) Math.floor(p.getZ()));
+                        Target clear = findClearingTarget(mc.level, foot, currentTarget);
+                        if (clear != null) {
+                            if (BotConfig.walkerDebug)
+                                LOG.info("[mine] stand unreachable for {} -> clear leaf {} (stand {})",
+                                        currentTarget, clear.block(), clear.stand());
+                            currentTarget = clear.block();
+                            currentStand = clear.stand();
+                            currentFace = clear.face();
+                            currentTargetClearing = true;
+                            st.mine.target = currentTarget;
+                            walker.setGoal(new Goal.Block(clear.stand()));
+                            phase = Phase.GOING;
+                            return false;
+                        }
+                    }
                     blacklist.add(currentTarget);
                     currentTarget = null;
                     phase = Phase.SEARCH;
@@ -174,13 +248,23 @@ public final class MineProcess implements BotProcess {
                 // Robust completion: id changed away from the original block AND
                 // is no longer the same kind. Avoids the 1-tick flicker false-positive.
                 if (!now.equals(breakStartId) && !isTarget(mc.level.getBlockState(currentTarget))) {
-                    broken++;
-                    // Remember where the block stood so COLLECT can walk
-                    // back through it. Keep only the last 8 — past that,
-                    // the trail is long enough that the drops have likely
-                    // despawned anyway.
-                    recentBreaks.addLast(currentTarget);
-                    while (recentBreaks.size() > 8) recentBreaks.removeFirst();
+                    // A "clearing" break is an occluding leaf removed only to open
+                    // reach/LOS to a real target — it must NOT count toward the quota
+                    // nor seed COLLECT (leaves rarely drop, and we want COLLECT to
+                    // chase the actual log drops). Re-SEARCH: the now-exposed log
+                    // becomes reach-mineable on the next scan.
+                    if (!currentTargetClearing) {
+                        broken++;
+                        // Remember where the block stood so COLLECT can walk
+                        // back through it. Keep only the last 8 — past that,
+                        // the trail is long enough that the drops have likely
+                        // despawned anyway. Skip a cell that flooded with lava the
+                        // moment we broke it — COLLECT must never path back into it.
+                        if (!lavaTouching(mc.level, currentTarget)) {
+                            recentBreaks.addLast(currentTarget);
+                            while (recentBreaks.size() > 8) recentBreaks.removeFirst();
+                        }
+                    }
                     mc.options.keyAttack.setDown(false);
                     currentTarget = null;
                     if (broken >= desiredQty) {
@@ -274,29 +358,110 @@ public final class MineProcess implements BotProcess {
         int r = searchRadius;
         Target best = null;
         long bestD2 = Long.MAX_VALUE;
+        // Nearest real target we could SEE but not reach — the leaf-clearing
+        // fallback (below) tries to open access to it when nothing else is reachable.
+        BlockPos nearestUnreachable = null;
+        long nuD2 = Long.MAX_VALUE;
         int scanned = 0;
+        int targetHits = 0;          // DIAG: cells passing isTarget
+        int targetLavaSkips = 0;     // DIAG: targets skipped for lava
         for (int dy = -BotConfig.mineSearchVerticalRadius; dy <= BotConfig.mineSearchVerticalRadius; dy++) {
             for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
                     scanned++;
                     BlockPos bp = foot.offset(dx, dy, dz);
+                    // Cap horizontal drift from where the command began so a chain of
+                    // SEARCH hops can't walk the bot across the world / an ocean.
+                    if (BotConfig.mineMaxDriftFromStart > 0 && startAnchor != null) {
+                        long hx = bp.getX() - startAnchor.getX();
+                        long hz = bp.getZ() - startAnchor.getZ();
+                        long cap = BotConfig.mineMaxDriftFromStart;
+                        if (hx * hx + hz * hz > cap * cap) continue;
+                    }
                     if (blacklist.contains(bp)) continue;
                     BlockState bs = lvl.getBlockState(bp);
                     if (!isTarget(bs)) continue;
+                    targetHits++;
+                    // Don't dig a block that walls off lava: breaking it lets the
+                    // pocket flood toward us. Lava is loaded in the world model even
+                    // when hidden behind a solid face, so a face-neighbour scan
+                    // catches the pocket BEFORE the dig opens it.
+                    if (lavaTouching(lvl, bp)) { targetLavaSkips++; continue; }
                     // Find a standable adjacent position (incl. a pillar-up
                     // stand for an otherwise-too-high log, relative to our feet).
-                    BlockPos stand = findStandableAdjacent(lvl, bp, foot.getY());
-                    if (stand == null) continue;
                     long d2 = (long) bp.distSqr(foot);
+                    BlockPos stand = findStandableAdjacent(lvl, bp, foot.getY());
+                    if (stand == null) {
+                        // Real target, but no stand reaches it (the leaf-encased
+                        // floating-canopy oak: leaves wall it in and block the reach
+                        // raycast). Remember the nearest so we can clear its leaves.
+                        if (d2 < nuD2) { nuD2 = d2; nearestUnreachable = bp; }
+                        continue;
+                    }
                     if (d2 < bestD2) {
                         bestD2 = d2;
-                        best = new Target(bp, stand, faceFromStandToBlock(stand, bp));
+                        best = new Target(bp, stand, faceFromStandToBlock(stand, bp), false);
                     }
                 }
             }
             if (scanned > 50_000) break;
         }
-        return best;
+        if (best != null) return best;
+        // Nothing directly reachable. If a real target is occluded by leaves we can
+        // stand-and-break, return one as a clearing target so mining it opens access.
+        if (nearestUnreachable != null) {
+            Target clear = findClearingTarget(lvl, foot, nearestUnreachable);
+            if (BotConfig.walkerDebug)
+                LOG.info("[mine] no direct stand; nearestUnreachable={} -> clearing={}",
+                        nearestUnreachable, clear == null ? "null" : clear.block());
+            return clear;
+        }
+        if (BotConfig.walkerDebug)
+            LOG.info("[mine] scan found no target (scanned={} targetHits={} lavaSkips={} foot={} r={} vR={})",
+                    scanned, targetHits, targetLavaSkips, foot, r, BotConfig.mineSearchVerticalRadius);
+        return null;
+    }
+
+    /** Per-axis radius around an unreachable target searched for an occluding leaf
+     *  we can stand-and-break. Small so we chip the canopy around the log instead
+     *  of stripping a forest; one leaf per SEARCH, re-scanning after each break. */
+    private static final int LEAF_CLEAR_RADIUS = 3;
+
+    /**
+     * The leaf-encased floating-canopy case (badlands azalea oak): the target log has
+     * no reachable stand because leaves wall it in AND occlude the reach line of sight
+     * (leaves have full collision, so the reach raycast stops on them). Find the
+     * reachable leaf NEAREST the log (Chebyshev rings outward) and return it as a
+     * non-counting "clearing" target. Mining it — then re-SEARCHing — progressively
+     * opens the column until the log itself becomes reach-mineable. A naked,
+     * block-less bot breaks leaves by hand, so this needs no tools or pillar blocks.
+     * Returns null if no occluding leaf is reachable either (genuinely unreachable).
+     */
+    private Target findClearingTarget(Level lvl, BlockPos foot, BlockPos log) {
+        for (int rad = 1; rad <= LEAF_CLEAR_RADIUS; rad++) {
+            for (int dx = -rad; dx <= rad; dx++) {
+                for (int dy = -rad; dy <= rad; dy++) {
+                    for (int dz = -rad; dz <= rad; dz++) {
+                        // Only the cells on THIS Chebyshev ring (nearer rings already done).
+                        if (Math.max(Math.abs(dx), Math.max(Math.abs(dy), Math.abs(dz))) != rad) continue;
+                        BlockPos lp = log.offset(dx, dy, dz);
+                        if (blacklist.contains(lp)) continue;
+                        if (!isLeaf(lvl.getBlockState(lp))) continue;
+                        if (lavaTouching(lvl, lp)) continue;
+                        BlockPos stand = findStandableAdjacent(lvl, lp, foot.getY());
+                        if (BotConfig.walkerDebug)
+                            LOG.info("[mine] clearing-candidate leaf {} -> stand {}", lp, stand);
+                        if (stand == null) continue;
+                        return new Target(lp, stand, faceFromStandToBlock(stand, lp), true);
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private static boolean isLeaf(BlockState bs) {
+        return bs.is(BlockTags.LEAVES);
     }
 
     /** How many blocks above the bot's own feet a pillar-up stand may sit. The bot
@@ -306,6 +471,30 @@ public final class MineProcess implements BotProcess {
     private static final int MAX_PILLAR_RISE = 4;
 
     private BlockPos findStandableAdjacent(Level lvl, BlockPos block, int footY) {
+        // OVERHEAD log (well above our feet): a ground-level reach stand directly
+        // below — that the bot can actually walk to and mine straight up from — is
+        // what we want, NOT a stand sitting on TOP of an adjacent block at the log's
+        // own level (the dy=+1 side case below). Those upper stands are standable
+        // but unreachable for a bot on the ground, and returning one as a direct
+        // target makes the Walker fail and blacklist a perfectly mineable log. So
+        // for an overhead block, try the reach-from-below stand FIRST; only if it is
+        // out of reach / LOS-blocked do we fall through to the side/pillar cases
+        // (the genuine climb-the-trunk situations). LOS-blocked here is the
+        // leaf-encased canopy log — the GOING leaf-clearing fallback opens it up.
+        if (block.getY() >= footY + 2) {
+            BlockPos reach = findReachStand(lvl, block);
+            if (reach != null) return reach;
+            // Reach-from-below is blocked. If a LEAF occludes the straight-up column
+            // below the log, return null so the caller's leaf-clearing fallback opens
+            // it — rather than falling through to a side/on-top stand a ground bot
+            // can't path to (which makes the Walker drag the bot around, then
+            // blacklist the log). Once the occluding leaf is cleared, reach-from-below
+            // returns our own cell and the log is mined straight up. A NON-leaf
+            // occlusion (too tall / solid above) still falls through to pillar-up.
+            for (int y = footY + 1; y < block.getY(); y++) {
+                if (isLeaf(lvl.getBlockState(new BlockPos(block.getX(), y, block.getZ())))) return null;
+            }
+        }
         // Try same-Y 4 cardinals, then Y-1, then Y+1.
         int[][] dxz = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
         int[] dyTry = {0, -1, 1};
@@ -388,8 +577,14 @@ public final class MineProcess implements BotProcess {
         double bestD2 = Double.MAX_VALUE;
         for (int dx = -REACH_SCAN_H; dx <= REACH_SCAN_H; dx++) {
             for (int dz = -REACH_SCAN_H; dz <= REACH_SCAN_H; dz++) {
-                if (dx == 0 && dz == 0) continue;
-                for (int dy = -3; dy <= 2; dy++) {
+                // dy reaches -5 so a bot can stand directly under an overhead block
+                // and mine straight UP (eye→center of a block 4–5 up is within the
+                // 4.5 reach): the leaf-encased canopy log / low-ceiling case.
+                for (int dy = -5; dy <= 2; dy++) {
+                    // Same-column candidates are valid ONLY below the target (stand
+                    // under it, mine up). A same-column stand at/above the target is
+                    // meaningless here — the dedicated above/side cases cover those.
+                    if (dx == 0 && dz == 0 && dy >= 0) continue;
                     BlockPos cand = block.offset(dx, dy, dz);
                     // Dry footing only: solid (non-water) support, no water at foot.
                     if (lvl.getBlockState(cand.below()).getFluidState().is(Fluids.WATER)) continue;
@@ -423,7 +618,24 @@ public final class MineProcess implements BotProcess {
         if (!below.blocksMotion()) return false;
         if (here.blocksMotion() && !here.getFluidState().is(Fluids.WATER)) return false;
         if (head.blocksMotion() && !head.getFluidState().is(Fluids.WATER)) return false;
+        // Never stand where lava touches the foot or head cell — a freshly-dug
+        // pocket can flow into an adjacent cell and roast us. Reject the whole
+        // 1-block shell around both body cells.
+        if (lavaTouching(lvl, foot) || lavaTouching(lvl, foot.offset(0, 1, 0))) return false;
         return true;
+    }
+
+    private static boolean isLava(Level lvl, BlockPos p) {
+        return lvl.getBlockState(p).getFluidState().is(Fluids.LAVA);
+    }
+
+    /** True if {@code pos} itself or any of its 6 face-neighbours holds lava.
+     *  Lava is present in the world model even when hidden behind a solid block
+     *  face, so this catches a pocket about to be opened by a dig. */
+    private static boolean lavaTouching(Level lvl, BlockPos pos) {
+        if (isLava(lvl, pos)) return true;
+        for (Direction d : Direction.values()) if (isLava(lvl, pos.relative(d))) return true;
+        return false;
     }
 
     private Direction faceFromStandToBlock(BlockPos stand, BlockPos block) {
@@ -512,6 +724,8 @@ public final class MineProcess implements BotProcess {
         return BuiltInRegistries.BLOCK.getKey(lvl.getBlockState(currentTarget).getBlock()).toString();
     }
 
-    /** A reachable mining target: the block + adjacent stand position + face direction. */
-    private record Target(BlockPos block, BlockPos stand, Direction face) {}
+    /** A reachable mining target: the block + adjacent stand position + face direction.
+     *  {@code clearing} marks an intermediate occluding-leaf break that opens reach/LOS
+     *  to a real target — it does NOT count toward the requested quota. */
+    private record Target(BlockPos block, BlockPos stand, Direction face, boolean clearing) {}
 }

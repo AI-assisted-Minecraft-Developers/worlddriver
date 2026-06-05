@@ -1,12 +1,18 @@
 package net.magicterra.agent.bot.scheduler;
 
+import net.magicterra.agent.AgentDriverCommon;
+import net.magicterra.agent.api.AgentApi;
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.combat.ThreatScanner;
 import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.magicterra.agent.bot.process.BunkerProcess;
 import net.magicterra.agent.bot.world.WorldModel;
+import net.magicterra.agent.rpc.JsonCodec;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
+
+import java.util.Map;
 
 import static net.magicterra.agent.bot.util.BotInteract.releaseKeys;
 
@@ -52,8 +58,24 @@ public final class DuskSecureChain implements Chain {
         if (process == null) {
             process = new BunkerProcess(BotConfig.bunkerDepth);
             process.attach(st);
+            announceAutoTrigger(mc);
         }
         if (process.tick(mc, w, st)) process = null; // sheltered/done -> priority will drop next tick
+    }
+
+    /** Push a warning-level {@code duskSecure.triggered} event the instant this reflex
+     *  starts an UNATTENDED dig, so an auto-trigger is never a silent surprise: the Agent
+     *  can react (e.g. mc.bot.cancel) and the operator sees it. Pairs with the off-by-default
+     *  {@link BotConfig#autoSecureAtDusk} to keep 挖三填一 predominantly an Agent-invoked
+     *  action (mc.bot.bunker) rather than an uncontrolled reflex. */
+    private static void announceAutoTrigger(Minecraft mc) {
+        AgentApi api = AgentDriverCommon.api();
+        if (api == null || mc.player == null) return;
+        BlockPos p = mc.player.blockPosition();
+        api.emitExternal("duskSecure.triggered", p,
+                JsonCodec.encode(Map.of(
+                        "pos", Map.of("x", p.getX(), "y", p.getY(), "z", p.getZ()),
+                        "depth", BotConfig.bunkerDepth)));
     }
 
     @Override public void onInterrupt(Chain by) { process = null; releaseKeys(); }

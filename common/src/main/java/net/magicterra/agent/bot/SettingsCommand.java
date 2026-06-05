@@ -139,6 +139,10 @@ public final class SettingsCommand {
                 BotConfig.avoidDanger = avd;
                 applied.add("avoidDanger");
             }
+            if (params.get("lethalEdgeBrake") instanceof Boolean leb) {
+                BotConfig.lethalEdgeBrake = leb;
+                applied.add("lethalEdgeBrake");
+            }
             if (params.get("autoSecureAtDusk") instanceof Boolean asad) {
                 BotConfig.autoSecureAtDusk = asad;
                 applied.add("autoSecureAtDusk");
@@ -318,6 +322,17 @@ public final class SettingsCommand {
                     rejected.add("blocksToAvoid: invalid ids " + bad);
                 }
             }
+            // mutedEvents: event types suppressed from the live PUSH channel (the event
+            // is still recorded + retrievable via mc.wait.event / replay). Free-form
+            // strings — any event type. Whole-list replace; pass [] to un-mute everything.
+            if (params.get("mutedEvents") instanceof List<?> ml) {
+                Set<String> nextSet = new LinkedHashSet<>();
+                for (Object o : ml) {
+                    if (o instanceof String s && !s.isBlank()) nextSet.add(s);
+                }
+                BotConfig.mutedEvents = Set.copyOf(nextSet);
+                applied.add("mutedEvents");
+            }
             // avoidPoints: agent-marked danger zones to route around. List of points,
             // each {x,y,z,radius?} (radius default 8). Whole-list replacement — pass []
             // to clear. e.g. [{"x":50,"y":58,"z":350,"radius":10}].
@@ -453,8 +468,12 @@ public final class SettingsCommand {
                         else rejected.add(k + " out of range [1,20]");
                         break;
                     case "deepWaterMax":
-                        if (n.intValue() >= 1 && n.intValue() <= 8) { BotConfig.deepWaterMax = n.intValue(); applied.add(k); }
-                        else rejected.add(k + " out of range [1,8]");
+                        if (n.intValue() >= 1 && n.intValue() <= 64) { BotConfig.deepWaterMax = n.intValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [1,64]");
+                        break;
+                    case "swimBankClimbMaxHeight":
+                        if (n.intValue() >= 0 && n.intValue() <= 64) { BotConfig.swimBankClimbMaxHeight = n.intValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [0,64]");
                         break;
                     case "sceneQueryMaxRadius":
                         if (n.intValue() >= 4 && n.intValue() <= 48) { BotConfig.sceneQueryMaxRadius = n.intValue(); applied.add(k); }
@@ -514,6 +533,7 @@ public final class SettingsCommand {
         snap.put("hazardGridRadius", BotConfig.hazardGridRadius);
         snap.put("hazardGridDecimateTicks", BotConfig.hazardGridDecimateTicks);
         snap.put("deepWaterMax", BotConfig.deepWaterMax);
+        snap.put("swimBankClimbMaxHeight", BotConfig.swimBankClimbMaxHeight);
         snap.put("sceneQueryMaxRadius", BotConfig.sceneQueryMaxRadius);
         snap.put("pathfinder.dangerPenalty", BotConfig.dangerPenaltyPerCell);
         snap.put("pathfinder.lavaDangerPenalty", BotConfig.lavaDangerPenalty);
@@ -535,6 +555,7 @@ public final class SettingsCommand {
         snap.put("pathfinder.sliceMs", BotConfig.pathfinderSliceMs);
         snap.put("pathfinder.axisHeight", BotConfig.axisHeight);
         snap.put("blocksToAvoid", new ArrayList<>(BotConfig.extraHazardBlocks));
+        snap.put("mutedEvents", new ArrayList<>(BotConfig.mutedEvents));
         snap.put("pathfinder.avoidZonePenalty", BotConfig.avoidZonePenalty);
         {
             List<Map<String, Object>> zs = new ArrayList<>();

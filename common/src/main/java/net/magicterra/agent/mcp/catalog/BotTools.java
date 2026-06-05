@@ -250,7 +250,8 @@ public final class BotTools {
                 "  autoSecureAtDusk          bool      — idle-only dusk shelter: when sky-exposed at dusk/night with no user task, dig a 挖三填一 bunker (DuskSecureChain, priority IDLE_SECURE=40). Off by default; enable for fully autonomous survival runs\n" +
                 "  hazardGridRadius          [4,32]  dflt 12 — Chebyshev radius of the HazardField grid recomputed each decimated tick by WorldModel.update\n" +
                 "  hazardGridDecimateTicks   [1,20]  dflt 4  — WorldModel recomputes the HazardField every N client ticks; 1=every tick (max freshness), 4=~4.8 Hz\n" +
-                "  deepWaterMax              [1,8]   dflt 2  — water depth (blocks) at or above which a water cell is lethal in the HazardField (also used by mc.observe.scene server scene)\n" +
+                "  deepWaterMax              [1,64]  dflt 2  — water depth (blocks) at or above which a water cell is lethal in the HazardField (also used by mc.observe.scene server scene). Raise (e.g. 48) to let the planner route an autoSwim bot across deep ocean toward distant land/wood\n" +
+                "  swimBankClimbMaxHeight    [0,64]  dflt 12 — tallest bank (blocks) A* will break-CLIMB a staircase up out of deep water onto an elevated far shore (needs allowSwimEscapeBreak). 0 disables; the old water-escape moves only climbed ~2 up, leaving elevated plateaus across deep rivers unreachable\n" +
                 "  sceneQueryMaxRadius       [4,48]  dflt 32 — mc.observe.scene radius clamp; requests larger than this are truncated (truncated:true in the response)\n" +
                 "  pathfinder.dangerPenalty  [0,1000]  dflt 30 — cost added per lava/fire cell adjacent to a candidate stand position when avoidDanger is on\n" +
                 "  avoidMobs                 bool      — Baritone mob avoidance; A* adds a distance-ramped cost near hostile mobs so routes give them a berth. Off by default (changes pathing noticeably)\n" +
@@ -263,6 +264,7 @@ public final class BotTools {
                 "  walkerDebug               bool      — log per-tick Walker movement/break decisions to the client log (movement-bug instrumentation); off by default\n" +
                 "  elytraDebug               bool      — log per-tick elytra flight controller decisions; off by default\n" +
                 "  blocksToAvoid             [id,...]  — extra hazards pathfinder treats as impassable\n" +
+                "  mutedEvents               [type,...] — event types to SUPPRESS from the live push channel (e.g. [\"item.pickup\",\"chat.message\"]). ALL events push by default; muted ones still record + are pullable via mc.wait.event. Whole-list replace; [] un-mutes everything\n" +
                 "  avoidPoints               [{x,y,z,radius?},...] — AGENT-marked danger zones to route AROUND (radius default 8); the planner adds avoidZonePenalty ramping to 0 at the radius so it DETOURS. Use it to make a poorly-equipped/fresh-spawn bot take the long way around a mob-filled tunnel you spotted via mc.observe.threats. Whole-list replace; [] clears. Set right before a goto\n" +
                 "  pathfinder.avoidZonePenalty [0,5000] dflt 250 — peak cost at an avoidPoints zone centre (raise for a harder detour when unarmed)\n" +
                 "  walker.repathEveryTicks   [20,10000] dflt 200  — lower=more responsive\n" +
@@ -321,7 +323,8 @@ public final class BotTools {
                         put("autoSecureAtDusk",           Map.of("type", "boolean"));
                         put("hazardGridRadius",           Map.of("type", "integer", "minimum", 4,  "maximum", 32));
                         put("hazardGridDecimateTicks",    Map.of("type", "integer", "minimum", 1,  "maximum", 20));
-                        put("deepWaterMax",               Map.of("type", "integer", "minimum", 1,  "maximum", 8));
+                        put("deepWaterMax",               Map.of("type", "integer", "minimum", 1,  "maximum", 64));
+                        put("swimBankClimbMaxHeight",     Map.of("type", "integer", "minimum", 0,  "maximum", 64));
                         put("sceneQueryMaxRadius",        Map.of("type", "integer", "minimum", 4,  "maximum", 48));
                         put("pathfinder.dangerPenalty",   Map.of("type", "number",  "minimum", 0,   "maximum", 1000));
                         put("pathfinder.lavaDangerPenalty",   Map.of("type", "number", "minimum", 0, "maximum", 5000));
@@ -340,6 +343,7 @@ public final class BotTools {
                         put("walkerDebug",                Map.of("type", "boolean"));
                         put("elytraDebug",                Map.of("type", "boolean"));
                         put("blocksToAvoid",              Map.of("type", "array", "items", Map.of("type", "string")));
+                        put("mutedEvents",                Map.of("type", "array", "items", Map.of("type", "string")));
                         put("pathfinder.avoidZonePenalty", Map.of("type", "number", "minimum", 0, "maximum", 5000));
                         put("avoidPoints", Map.of("type", "array", "items", Map.of(
                                 "type", "object",

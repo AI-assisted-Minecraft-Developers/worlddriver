@@ -18,6 +18,7 @@ import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import net.magicterra.agent.api.AgentApi;
+import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.model.AgentEvent;
 
 import java.io.Closeable;
@@ -114,6 +115,7 @@ public final class RpcServer implements Closeable {
      *  the game thread that produced the event. */
     private void onEvent(AgentEvent e) {
         if (subscribers.isEmpty()) return;
+        if (BotConfig.mutedEvents.contains(e.type)) return; // unified per-type opt-out (same as the MCP channel)
         String frame = eventFrame(e);
         for (Channel ch : subscribers) {
             if (!ch.isActive()) continue;

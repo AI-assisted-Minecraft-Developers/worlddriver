@@ -98,12 +98,18 @@ public final class BotApiImpl implements BotApi {
         // order is irrelevant, selection is purely by per-tick priority.
         scheduler.register(new PanicChain());     // 1000 — creeper blast
         scheduler.register(new DodgeChain());     // 900  — incoming projectile
-        // NOTE: the 挖三填一 bunker is NOT an auto-reflex chain (too uncontrollable —
-        // it fought the creeper-panic and dug at bad spots). It is an AGENT-INVOKED
-        // action instead: mc.bot.bunker{depth} → BunkerProcess, so the Agent plans
-        // when/where to dig in (e.g. at sunset) and pairs it with mc.wait.condition
-        // on observe time to wait out the night. See BunkerProcess / BunkerChain (kept
-        // for reference but unregistered).
+        // 挖三填一 emergency dig-in, registered but DEFAULT-OFF (autoBunker=false):
+        // an OPT-IN last-resort reflex for a no-gear bot a flee can't save (a skeleton
+        // matches walking speed on open ground — fleeing just circles, HP bleeds out).
+        // The two original "too uncontrollable" concerns are now structurally fixed:
+        //  (1) it no longer fights the creeper-panic — BUNKER(300) sits BELOW
+        //      PANIC(1000)/DODGE(900), so those preempt it; and
+        //  (2) it no longer digs at bad spots — tick() bails on water/lava/hazard
+        //      below or beside the foot.
+        // Still default-off (it modifies the world); enable per-run via
+        // mc.bot.setting{autoBunker:true}. Agent-planned mc.bot.bunker{depth} stays
+        // available for deliberate (e.g. at-dusk) dig-ins.
+        scheduler.register(new BunkerChain());    // 300  — opt-in emergency dig-in (autoBunker)
         scheduler.register(new RetreatChain(state)); // 100 — low-HP flee
         scheduler.register(combatChain);          // 60  — active combat
         scheduler.register(userTask);             // 50  — foreground task

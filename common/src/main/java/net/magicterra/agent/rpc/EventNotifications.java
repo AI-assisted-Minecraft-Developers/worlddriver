@@ -35,17 +35,18 @@ public final class EventNotifications {
         return JsonCodec.encode(msg);
     }
 
-    /** Map an event type to an RFC 5424 / MCP logging severity level. */
+    /** Map an event type to an RFC 5424 / MCP logging severity level. Since the channel
+     *  now forwards EVERY non-muted event (McpServer.onEvent / RpcServer.onEvent), this
+     *  level is a DISPLAY/severity LABEL on the frame — a client can colour or prioritise
+     *  by it — not a push gate. */
     public static String levelFor(String type) {
         if (type == null) return "info";
         return switch (type) {
             case "player.death" -> "error";
-            // A background wait completing — or a command another agent/transport
-            // ran — is something a subscriber deliberately asked to be told about:
-            // it MUST clear a typical client's logging/setLevel(warning) filter, or
-            // the push silently never wakes the agent (it lands only in the replay
-            // log). Same reasoning for both wait.done and command.result.
-            case "threat.appeared", "player.hurt", "wait.done", "command.result" -> "warning";
+            // High-attention signals (incoming threat, taking damage, a background wait or
+            // another transport's command completing, the dusk reflex auto-starting an
+            // unattended dig) surface as warning so they stand out in a client UI.
+            case "threat.appeared", "player.hurt", "wait.done", "command.result", "duskSecure.triggered" -> "warning";
             case "entity.death" -> "notice";
             default -> "info";
         };

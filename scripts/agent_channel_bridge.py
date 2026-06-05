@@ -42,7 +42,9 @@ Config (flags or env)
   --mcp-port N / AGENT_MCP_PORT     mod MCP HTTP port
                                     (default: nearest agent-mcp.port file, else 39800)
   --types a,b / AGENT_CHANNEL_TYPES event types to forward, or "all"
-                                    (default: threat.appeared,player.hurt,player.death,chat.message)
+                                    (default: all — every non-muted event reaches the
+                                    channel; the mod's `mutedEvents` setting is the single
+                                    push filter. Pass an explicit list to narrow further.)
 
 Dependencies: Python 3 stdlib only. stdout carries ONLY MCP messages (spec
 requirement); every log line goes to stderr.
@@ -59,7 +61,6 @@ from urllib.request import Request, urlopen
 
 PROTOCOL_VERSION = "2025-06-18"
 SERVER_NAME = "agent-driver"
-DEFAULT_TYPES = {"threat.appeared", "player.hurt", "player.death", "chat.message"}
 INSTRUCTIONS = (
     "Live Minecraft events from the agent-driver mod arrive as "
     '<channel source="agent-driver"> tags (type, seq, level in the attributes). '
@@ -319,10 +320,11 @@ def serve_stdio():
 
 
 def parse_types():
+    # Default: forward EVERY event (None == "all"). The mod's server-side
+    # `mutedEvents` setting is the single source of truth for what reaches the
+    # channel; an explicit --types/env allowlist still narrows further if set.
     v = ARGS.types or os.environ.get("AGENT_CHANNEL_TYPES")
-    if not v:
-        return set(DEFAULT_TYPES)
-    if v.strip().lower() == "all":
+    if not v or v.strip().lower() == "all":
         return None
     return {s.strip() for s in v.split(",") if s.strip()}
 

@@ -157,6 +157,85 @@ public abstract class Move {
         return false;
     }
 
+    /**
+     * True when {@code from} sits partway up a TALL bank that rises out of water
+     * — the context the {@link net.magicterra.agent.bot.pathfinder.moves.SwimBankClimbBreak}
+     * staircase is allowed to fire in. Unlike {@link #waterEscapeContext} (which
+     * expires ~2 vertical steps past the waterline, because the water leaves the
+     * 3×3 ring directly below the feet), this stays in context all the way up a
+     * tall sheer cliff so an elevated far shore across deep water becomes
+     * reachable, while a route on dry land far from any water reads false and the
+     * move is pruned (keeping land pathing unchanged).
+     *
+     * <p><b>Why not a straight-down scan.</b> The earlier version scanned straight
+     * DOWN from the feet through continuous solid for water. On a SHEER cliff that
+     * holds only for the first step or two: once the bot has carved its staircase
+     * UP and INTO the cliff, the column directly beneath it is solid bank all the
+     * way down to the riverbed — no water in that vertical line — so the predicate
+     * went false above ~+2 and A* found "no path". (Confirmed by a live +5-cliff
+     * bracket: goalReached:false, pathLen 0.)
+     *
+     * <p><b>New geometry: scan the open FACE beside the bank, not through it.</b>
+     * A bank cell that rises out of water always has at least one OPEN horizontal
+     * neighbour — the exposed cliff face dropping toward the water the bot left.
+     * For each of the 4 cardinal neighbours that is NOT solid (a candidate face
+     * side), we scan straight down that neighbour column: if we reach water within
+     * {@code maxDepth} blocks while every cell above it on the face is water-or-air
+     * (never tunnelling DOWN through solid rock to find unrelated water), the bank
+     * is a face rising out of that water and {@code from} is climbing it. A dry
+     * cliff/hill in a desert has no water down any open face → false, so the move
+     * stays pruned off-water. The "face cell above the water must stay open" rule
+     * also tightly bounds where this is true: it is the thin vertical sheet of the
+     * cliff face directly over the water, not a fat volume around every water cell,
+     * so A* can't wander off break-climbing out over open water.
+     *
+     * <p><b>Bounded cost.</b> Worst case: the straight-down fast path (≤maxDepth
+     * reads) finds nothing, then 4 cardinal neighbour columns each scanned to
+     * maxDepth → 5·maxDepth reads (default 12 → 60 reads). Each scan short-circuits
+     * the instant it hits water (success) or a second solid cell on the face
+     * (failure), so on real terrain it returns in a handful of reads.
+     */
+    public static boolean bankClimbContext(WorldView w, BlockPos from, int maxDepth) {
+        if (maxDepth <= 0) return false;
+        if (w.isWater(from)) return true;                       // still in the water
+        // Fast path / waterline steps: water straight down through continuous bank.
+        BlockPos p = from.offset(0, -1, 0);
+        for (int d = 1; d <= maxDepth; d++, p = p.offset(0, -1, 0)) {
+            if (w.isWater(p)) return true;
+            if (!w.isSolid(p)) break;                           // gap under the column → try the open faces instead
+        }
+        // Sheer-cliff path: find water down an OPEN neighbour face (the exposed
+        // side of the cliff over the water the bot escaped). Only the 4 cardinals
+        // (radius 1) are probed, and only those that are open at the foot level.
+        for (int[] d : CARDINAL_OFFSETS) {
+            BlockPos face = from.offset(d[0], 0, d[1]);
+            if (w.isSolid(face)) continue;                      // solid neighbour = into the cliff, not a face
+            if (faceDropsToWater(w, face, maxDepth)) return true;
+        }
+        return false;
+    }
+
+    /** The 4 cardinal horizontal offsets, for {@link #bankClimbContext}'s face probe. */
+    private static final int[][] CARDINAL_OFFSETS = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+
+    /**
+     * True if scanning straight DOWN the column at {@code face} (an open neighbour
+     * of a bank cell) reaches water within {@code maxDepth} blocks while every cell
+     * above the water on that column is water-or-air — i.e. {@code face} is the
+     * exposed sheet of a cliff face standing over water, not a solid rock column
+     * that happens to have water somewhere far below. Stops at the first SOLID cell
+     * (the face is interrupted → this isn't the open face over the water) so it
+     * never tunnels down through bank to reach unrelated water. ≤maxDepth reads.
+     */
+    private static boolean faceDropsToWater(WorldView w, BlockPos face, int maxDepth) {
+        BlockPos c = face;
+        for (int d = 0; d <= maxDepth; d++, c = c.offset(0, -1, 0)) {
+            if (w.isWater(c)) return true;
+            if (w.isSolid(c)) return false;                     // face interrupted by solid → not the open water face
+        }
+        return false;
+    }
+
     public abstract String name();
 
     @Override public String toString() { return name() + "(" + dx + "," + dy + "," + dz + ")"; }
@@ -256,6 +335,14 @@ public abstract class Move {
         // bot trapped in a flooded pit / behind a high lake bank can dig out even
         // with general break-to-move off, while dry-land routes are untouched.
         for (int[] d : CARDINAL) ms.add(new SwimAshoreBreak(d[0], d[1]));
+        // Tall-bank break-CLIMB: the multi-block sibling of SwimAshoreBreak.
+        // SwimAshoreBreak's waterEscapeContext expires ~2 vertical steps past the
+        // waterline, leaving an elevated far shore across deep water unreachable
+        // ("no path"). SwimBankClimbBreak uses bankClimbContext (water straight
+        // below within swimBankClimbMaxHeight through a continuous bank face) so a
+        // staircase can carve all the way up a tall river/ocean cliff. Same
+        // escapeBreakCost gate; pruned on dry land far from water.
+        for (int[] d : CARDINAL) ms.add(new SwimBankClimbBreak(d[0], d[1]));
         for (int[] d : CARDINAL) ms.add(new SwimTraverseBreak(d[0], d[1]));
         ms.add(new SwimUpBreak());   // vertical: break a solid ceiling to escape a capped pocket
         for (int[] d : CARDINAL) ms.add(new BridgePlace(d[0], d[1]));
