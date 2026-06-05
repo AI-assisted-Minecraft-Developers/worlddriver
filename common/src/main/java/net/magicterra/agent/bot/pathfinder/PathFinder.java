@@ -119,6 +119,7 @@ public final class PathFinder {
             this.startNode = new Node(start, null, null, 0, goal.estimate(start));
             nodes.put(start, startNode);
             open.add(startNode);
+            PathTraceHolder.SINK.onSearchBegin(start, goal);
             Arrays.fill(bestHeuristic, Double.POSITIVE_INFINITY);
         }
 
@@ -144,6 +145,7 @@ public final class PathFinder {
                     if (cur.closed) continue;
                     cur.closed = true;
                     expanded++;
+                    PathTraceHolder.SINK.onNodeExpanded(cur.pos, cur.g);
 
                     if (goal.reached(cur.pos)) {
                         result = build(cur, true, expanded, totalMs(sliceStart), cur.g);
