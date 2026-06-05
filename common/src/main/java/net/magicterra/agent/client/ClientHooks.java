@@ -22,6 +22,9 @@ public final class ClientHooks {
         // can call them again without conflict.
         AgentDriverCommon.ensureRpcUp();
         AgentDriverCommon.ensureMcpUp();
+        // Optional, strippable: wire the path-debug recorder + mc.debug.pathChart now that
+        // AgentApi exists. Removing the bot.debug package + this line fully strips the feature.
+        net.magicterra.agent.bot.debug.PathDebugBootstrap.init();
     }
 
     public static ClientAgentApi impl() {
