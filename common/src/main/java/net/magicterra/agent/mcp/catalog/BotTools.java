@@ -278,6 +278,9 @@ public final class BotTools {
                 "  breakTimeoutTicks         [20,2000] dflt 200  — blacklist stuck block after N ticks\n" +
                 "  pathfinder.maxNodes       [1000,1000000] dflt 100000 — A* node budget\n" +
                 "  pathfinder.maxMs          [100,30000]    dflt 1500   — A* wall-clock budget, ms\n" +
+                "  pathfinder.heuristicWeight[1.0,3.0]      dflt 1.3    — weighted A* (f=g+W·h); >1 = greedier toward goal, deeper frontier per budget\n" +
+                "  pathfinderCacheEnabled    bool           dflt true   — per-search blockstate memoise (A/B knob for search throughput)\n" +
+                "  collisionAwarePathing     bool           dflt true   — use real collision VoxelShapes (not coarse blocksMotion): cocoa/fences/partial blocks aren't full-cube walls or standable floors\n" +
                 "  pathfinder.axisHeight     [-64,320]      dflt 120    — Y plane for goto{axis:true} (GoalAxis)\n" +
                 "Returns {ok, settings, applied?, rejected?}.",
                 Map.of(
@@ -368,6 +371,9 @@ public final class BotTools {
                         put("breakTimeoutTicks",          Map.of("type", "integer", "minimum", 20,  "maximum", 2000));
                         put("pathfinder.maxNodes",        Map.of("type", "integer", "minimum", 1000,"maximum", 1_000_000));
                         put("pathfinder.maxMs",           Map.of("type", "integer", "minimum", 100, "maximum", 30_000));
+                        put("pathfinder.heuristicWeight", Map.of("type", "number",  "minimum", 1.0, "maximum", 3.0));
+                        put("pathfinderCacheEnabled",     Map.of("type", "boolean"));
+                        put("collisionAwarePathing",      Map.of("type", "boolean"));
                         put("pathfinder.axisHeight",      Map.of("type", "integer", "minimum", -64, "maximum", 320));
                     }}
                 )),

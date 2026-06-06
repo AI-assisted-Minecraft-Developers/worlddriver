@@ -41,6 +41,20 @@ public abstract class Move {
     public abstract boolean valid(WorldView w, BlockPos from);
 
     /**
+     * Per-search relevance gate (move-set pruning). Returns false when this move's
+     * own preconditions are a SEARCH-CONSTANT that already rules it out everywhere —
+     * e.g. a WaterBucketFall with no bucket in hand, or a Parkour4-tier leap with
+     * {@code allowParkour4} off. The search calls this ONCE at start (over the live
+     * {@link WorldView}/{@link net.magicterra.agent.bot.BotConfig} snapshot) and
+     * iterates only the survivors, so a dropped move costs zero per-node dispatch
+     * instead of {@code valid()}-and-reject on every one of tens of thousands of
+     * expansions. Must stay conservative: return false ONLY when the move can never
+     * fire anywhere in the search, so routing is byte-for-byte unchanged. Default
+     * true (always considered).
+     */
+    public boolean availableInSearch(WorldView w) { return true; }
+
+    /**
      * Resolve this move from {@code from} into a concrete A* edge, or
      * {@code null} if the world doesn't allow it. The default delegates to
      * {@link #valid} with the static {@link #cost} and no block edits — covers

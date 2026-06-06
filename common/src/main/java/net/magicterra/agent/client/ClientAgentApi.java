@@ -150,6 +150,24 @@ public interface ClientAgentApi {
     Map<String, Object> typeText(String text);
 
     /**
+     * Overwrites a text input box's full contents via {@code EditBox.setValue}
+     * (atomic — unlike {@link #typeText} which appends). Targets the focused box,
+     * else the one whose value/label contains {@code match}, else the sole box.
+     * Returns the new value (and previous).
+     */
+    Map<String, Object> replaceText(String text, String match);
+
+    /**
+     * Reads or sets a GUI slider ({@code AbstractSliderButton}). With
+     * {@code fraction == null} it lists every slider's label + current 0..1 value
+     * (the value is only meaningful when shown). With a fraction in [0,1] it sets
+     * the slider matched by {@code match} (substring of its label), else
+     * {@code index}, else the sole slider — firing the vanilla apply/update hooks
+     * so the option commits and the label refreshes. Returns the new label+value.
+     */
+    Map<String, Object> setSlider(String match, Integer index, Double fraction);
+
+    /**
      * Synthesizes a keyboard key event on the current screen — Enter/Escape/Tab/F-keys,
      * letters and digits. action: "press" / "release" / "click" (default; press+release).
      * Returns ok:false when no screen is open or the key name is unrecognized.

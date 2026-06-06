@@ -53,6 +53,12 @@ public final class ClientAgentApiImpl implements ClientAgentApi {
     public Map<String, Object> typeText(String text) { return ClientInput.typeText(text); }
 
     @Override
+    public Map<String, Object> replaceText(String text, String match) { return ClientInput.replaceText(text, match); }
+
+    @Override
+    public Map<String, Object> setSlider(String match, Integer index, Double fraction) { return ClientInput.setSlider(match, index, fraction); }
+
+    @Override
     public Map<String, Object> key(String key, String action) { return ClientInput.key(key, action); }
 
     @Override

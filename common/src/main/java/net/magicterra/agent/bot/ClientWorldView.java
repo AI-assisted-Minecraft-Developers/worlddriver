@@ -3,6 +3,7 @@ package net.magicterra.agent.bot;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.magicterra.agent.bot.world.HazardField;
+import net.magicterra.agent.bot.world.SurvivalMath;
 import net.magicterra.agent.bot.world.ThreatAvoidance;
 import net.magicterra.agent.bot.world.WorldModel;
 import net.minecraft.core.BlockPos;
@@ -18,11 +19,16 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.shapes.VoxelShape;
+import net.minecraft.world.phys.shapes.Shapes;
+import net.minecraft.world.phys.shapes.BooleanOp;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.Vec3;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
@@ -83,11 +89,56 @@ final class ClientWorldView implements WorldView {
      *  driving this search) water/ledge danger is boosted so the flee won't dive
      *  into water or off a cliff. Consistent for the whole A* run. */
     private volatile boolean fleeSearch;
+    /** Survivable fall depth (blocks) for the controlled entity's CURRENT health,
+     *  snapshotted per search. The ledge penalty fires only for drops DEEPER than
+     *  this (a genuinely lethal lip) — a healthy bot descends hillsides freely; a
+     *  fragile one avoids dangerous drops. Default a full-HP value until snapshotted. */
+    private volatile int ledgeSafeDepth = 22;
     public void setWorldModel(WorldModel wm) { this.worldModel = wm; }
-    public boolean isSolid(BlockPos p) {
+
+    // ── Per-search blockstate cache ──────────────────────────────────────────
+    // Node expansion is the hot path: each candidate move re-reads the SAME cells
+    // (foot, head, the cell below, cardinal neighbours) and adjacent nodes overlap
+    // heavily, so a single expansion did ~100-200 getBlockState calls — each a
+    // chunk+section+palette lookup. Memoising per search collapses the duplicates
+    // (measured nodes/sec rises several-fold in dense terrain, where the search
+    // budget — not optimality — was the binding constraint on the backtrack).
+    //
+    // Correctness rests on the A* static-world assumption: the world doesn't change
+    // mid-search. The cache is therefore CLEARED each {@link #beginSearch} and is
+    // only LIVE while a search slice is expanding ({@code cacheActive}, toggled by
+    // PathFinder.Search.advance). The Walker's per-tick reads run with the cache
+    // INACTIVE so they always see the live world as the bot/blocks move.
+    // Long2Object (primitive long keys) — NOT HashMap<Long,…>: a search touches tens
+    // of thousands of distinct cells, so autoboxing every key into a Long on each
+    // get/put would allocate (and GC-churn) right on the render thread, eating the
+    // very getBlockState saving the cache exists to buy. fastutil hashes the long
+    // directly.
+    private final Long2ObjectOpenHashMap<BlockState> stateCache = new Long2ObjectOpenHashMap<>();
+    private boolean cacheActive = false;
+    /** Toggled true by the time-sliced search around its node-expansion work, false
+     *  otherwise (Walker per-tick reads). When false, {@link #state} bypasses the
+     *  cache entirely so live reads stay fresh. */
+    @Override public void cacheActive(boolean on) { this.cacheActive = on; }
+    /** Single funnel for every world blockstate read in this class. Cached only
+     *  while {@link #cacheActive} (a search slice) AND {@link BotConfig#pathfinderCacheEnabled};
+     *  otherwise reads straight through. Returns AIR when the level is gone so callers
+     *  behave as for an unloaded cell. */
+    private BlockState state(BlockPos p) {
         Level lvl = Minecraft.getInstance().level;
-        if (lvl == null) return false;
-        return lvl.getBlockState(p).blocksMotion();
+        if (lvl == null) return Blocks.AIR.defaultBlockState();
+        if (!cacheActive || !BotConfig.pathfinderCacheEnabled) return lvl.getBlockState(p);
+        long k = p.asLong();
+        BlockState s = stateCache.get(k);
+        if (s == null) {
+            s = lvl.getBlockState(p);
+            stateCache.put(k, s);
+        }
+        return s;
+    }
+
+    public boolean isSolid(BlockPos p) {
+        return state(p).blocksMotion();
     }
     @Override public boolean isKnown(BlockPos p) {
         Level lvl = Minecraft.getInstance().level;
@@ -97,16 +148,39 @@ final class ClientWorldView implements WorldView {
         // very ambiguity isKnown disambiguates for the long-distance planner).
         return lvl.getChunkSource().hasChunk(p.getX() >> 4, p.getZ() >> 4);
     }
+    /** The player's standing body column, cell-local (≈0.6 wide, full cell height),
+     *  used to test whether a block's collision shape actually obstructs the body. */
+    private static final VoxelShape PLAYER_COLUMN = Shapes.box(0.2, 0.0, 0.2, 0.8, 1.0, 0.8);
     public boolean isPassable(BlockPos p) {
+        BlockState s = state(p);
+        if (!s.blocksMotion() || s.getFluidState().is(FluidTags.WATER)) return true;
+        if (!BotConfig.collisionAwarePathing) return false;
+        // Collision-aware: a block that "blocks motion" may still leave room for the
+        // body if its real shape is partial/offset (cocoa pod, glass pane on one axis,
+        // wall nub). Passable iff the player's centred column doesn't intersect the
+        // actual collision shape. Empty shape (rare with blocksMotion) → passable.
         Level lvl = Minecraft.getInstance().level;
-        if (lvl == null) return true;
-        BlockState s = lvl.getBlockState(p);
-        return !s.blocksMotion() || s.getFluidState().is(FluidTags.WATER);
+        if (lvl == null) return false;
+        VoxelShape shape = s.getCollisionShape(lvl, p);
+        if (shape.isEmpty()) return true;
+        return !Shapes.joinIsNotEmpty(PLAYER_COLUMN, shape, BooleanOp.AND);
+    }
+    @Override public boolean canStandOn(BlockPos p) {
+        if (!BotConfig.collisionAwarePathing) return isSolid(p);
+        BlockState s = state(p);
+        if (!s.blocksMotion()) return false;                 // air / plants / non-collidable
+        Level lvl = Minecraft.getInstance().level;
+        if (lvl == null) return false;
+        VoxelShape shape = s.getCollisionShape(lvl, p);
+        if (shape.isEmpty()) return false;
+        // A valid floor needs a FULL 1×1 top face to stand on (full blocks, leaves,
+        // slabs, snow layers, soul sand → yes; cocoa pods, fences, partial pods → no).
+        return Block.isFaceFull(shape, Direction.UP);
     }
     @Override public Vec3 waterFlow(BlockPos p) {
         Level lvl = Minecraft.getInstance().level;
         if (lvl == null) return Vec3.ZERO;
-        FluidState fs = lvl.getFluidState(p);
+        FluidState fs = state(p).getFluidState();
         if (!fs.is(FluidTags.WATER)) return Vec3.ZERO;
         return fs.getFlow(lvl, p);   // (x,y,z) velocity; zero for a still source
     }
@@ -125,9 +199,7 @@ final class ClientWorldView implements WorldView {
         return BotConfig.waterFlowPenalty * upstream;         // |flow|·cosθ scaled
     }
     public boolean isHazard(BlockPos p) {
-        Level lvl = Minecraft.getInstance().level;
-        if (lvl == null) return false;
-        BlockState s = lvl.getBlockState(p);
+        BlockState s = state(p);
         if (s.getFluidState().is(Fluids.LAVA)) return true;
         if (s.is(BlockTags.FIRE)) return true;
         if (HAZARD_BLOCKS.contains(s.getBlock())) return true;
@@ -141,17 +213,13 @@ final class ClientWorldView implements WorldView {
         return false;
     }
     public boolean isWater(BlockPos p) {
-        Level lvl = Minecraft.getInstance().level;
-        return lvl != null && lvl.getBlockState(p).getFluidState().is(FluidTags.WATER);
+        return state(p).getFluidState().is(FluidTags.WATER);
     }
     @Override public boolean isFallingBlock(BlockPos p) {
-        Level lvl = Minecraft.getInstance().level;
-        return lvl != null
-                && lvl.getBlockState(p).getBlock() instanceof FallingBlock;
+        return state(p).getBlock() instanceof FallingBlock;
     }
     public boolean isClimbable(BlockPos p) {
-        Level lvl = Minecraft.getInstance().level;
-        return lvl != null && lvl.getBlockState(p).is(BlockTags.CLIMBABLE);
+        return state(p).is(BlockTags.CLIMBABLE);
     }
     @Override public double breakCost(BlockPos p) {
         if (!BotConfig.allowBreak) {
@@ -163,8 +231,7 @@ final class ClientWorldView implements WorldView {
             // it's gated to an ACTIVE flee (fleeSearch) + leaves only — normal,
             // demo-safe movement still never breaks anything.
             if (fleeSearch && BotConfig.allowFleeBreak) {
-                Level lvl = Minecraft.getInstance().level;
-                if (lvl != null && lvl.getBlockState(p).is(BlockTags.LEAVES)) return rawBreakCost(p);
+                if (state(p).is(BlockTags.LEAVES)) return rawBreakCost(p);
             }
             return Double.POSITIVE_INFINITY;
         }
@@ -245,7 +312,7 @@ final class ClientWorldView implements WorldView {
         LocalPlayer pl = mc.player;
         if (lvl == null || pl == null) return Double.POSITIVE_INFINITY;
         BlockPos bp = p;
-        BlockState s = lvl.getBlockState(bp);
+        BlockState s = state(bp);
         if (s.isAir()) return 0;
         if (!s.getFluidState().isEmpty()) return Double.POSITIVE_INFINITY; // never "break" a fluid
         float hardness = s.getDestroySpeed(lvl, bp);
@@ -390,7 +457,7 @@ final class ClientWorldView implements WorldView {
         Level lvl = Minecraft.getInstance().level;
         if (lvl == null) return false;
         BlockPos bp = p;
-        BlockState s = lvl.getBlockState(bp);
+        BlockState s = state(bp);
         if (!s.getFluidState().isEmpty()) return false;          // not a fluid
         // Waterloggable (trapdoor/slab/stairs/fence/…) → the bucket waterlogs
         // the block instead of filling the air cell above → fall not broken.
@@ -402,6 +469,9 @@ final class ClientWorldView implements WorldView {
         return s.isCollisionShapeFullBlock(lvl, bp);
     }
     @Override public void beginSearch() {
+        // Fresh world per search: drop any blockstates memoised for the previous run
+        // (the bot/world may have changed between searches).
+        stateCache.clear();
         // Snapshot the search origin so escapeBreakCost can confine water-escape
         // break candidates to a small bubble around the (stuck) bot — see
         // ESCAPE_RADIUS. Without this the break moves explode the search in open water.
@@ -485,6 +555,11 @@ final class ClientWorldView implements WorldView {
         snapshotMovementCaps();
         // Flee-context flag, snapshotted consistent for the whole A* run.
         fleeSearch = BotConfig.fleeActive;
+        // Survivable-fall depth for the ledge penalty (HP-aware lethal-lip detection).
+        {
+            LocalPlayer lp = Minecraft.getInstance().player;
+            ledgeSafeDepth = lp != null ? SurvivalMath.survivableFall(lp.getHealth()) : 22;
+        }
         // Snapshot the HazardField from WorldModel so dangerCost can apply the
         // lethal-cell penalty. Done AFTER the mob snapshot so both are consistent
         // for the full A* run. Null-safe: headless tests have no worldModel wired.
@@ -499,7 +574,7 @@ final class ClientWorldView implements WorldView {
                 // plants. The old model lumped lava and fire at one flat cost
                 // and ignored the contact blocks entirely.
                 for (int[] o : DANGER_OFFSETS) {
-                    BlockState s = lvl.getBlockState(foot.offset(o[0], o[1], o[2]));
+                    BlockState s = state(foot.offset(o[0], o[1], o[2]));
                     if (s.getFluidState().is(Fluids.LAVA)) {
                         penalty += BotConfig.lavaDangerPenalty;
                     } else if (s.is(BlockTags.FIRE)) {
@@ -509,24 +584,32 @@ final class ClientWorldView implements WorldView {
                     }
                 }
                 // Cliff / void edge: an open horizontal neighbour with a tall
-                // empty drop below means this stand cell is on a lip. One
-                // mild penalty (not per-side) tips the planner toward an
-                // equal-length interior route without blocking a sole bridge.
+                // empty drop below means this stand cell is on a lip. ONLY a LETHAL
+                // lip is penalised (drop deeper than the bot's survivable fall, no
+                // water to break it) — truly lethal cells are already hard-blocked by
+                // the HazardField (+10000) and the edge-brake reflex, so taxing
+                // SURVIVABLE hillside step-downs here was pure harm: it inflated every
+                // descending route, so best-effort fled UP onto flat hilltops/canopy
+                // and the bot walked in circles ("走回头路", the dense-jungle backtrack —
+                // A/B root cause 2026-06-06). Healthy bot descends freely; a fragile
+                // one (low HP → small survivableFall) still shuns dangerous drops.
                 if (BotConfig.ledgeDangerPenalty > 0) {
+                    int lethalDepth = Math.max(BotConfig.ledgeDangerMinDrop, ledgeSafeDepth + 1);
+                    int scanCap = lethalDepth + 1;
                     for (int[] h : HORIZONTAL_4) {
                         BlockPos n = foot.offset(h[0], 0, h[1]);
                         if (!isPassable(n) || isHazard(n)) continue;   // neighbour blocked → not an open edge
-                        // Count empty air below the neighbour. Water and
-                        // solid both terminate the count: a drop into water
-                        // is a safe splash (FallIntoWater/MLG), not a cliff.
-                        int empties = 0;
-                        for (BlockPos pr = n.offset(0, -1, 0);
-                             empties < BotConfig.ledgeDangerMinDrop
-                                     && isPassable(pr) && !isWater(pr) && !isHazard(pr);
-                             pr = pr.offset(0, -1, 0)) {
-                            empties++;
+                        // Measure the TRUE drop depth below the neighbour. Water ends
+                        // the scan as a safe splash (FallIntoWater/MLG); solid/hazard
+                        // ends it as the floor. Only an unbroken drop ≥ lethalDepth lips.
+                        int depth = 0;
+                        boolean water = false;
+                        for (BlockPos pr = n.offset(0, -1, 0); depth < scanCap; pr = pr.offset(0, -1, 0)) {
+                            if (isWater(pr)) { water = true; break; }
+                            if (!isPassable(pr) || isHazard(pr)) break;
+                            depth++;
                         }
-                        if (empties >= BotConfig.ledgeDangerMinDrop) {
+                        if (!water && depth >= lethalDepth) {
                             penalty += BotConfig.ledgeDangerPenalty * (fleeSearch ? BotConfig.fleeDangerBoost : 1.0);
                             break;
                         }
@@ -557,9 +640,16 @@ final class ClientWorldView implements WorldView {
                 // standing ON a leaf block so the planner prefers ground / going
                 // around / breaking through. Additive, not a ban.
                 if (BotConfig.leafSnagPenalty > 0
-                        && lvl.getBlockState(foot.offset(0, -1, 0)).is(BlockTags.LEAVES)) {
+                        && state(foot.offset(0, -1, 0)).is(BlockTags.LEAVES)) {
                     penalty += BotConfig.leafSnagPenalty;
                 }
+                // (Vine-cling A/B-DISPROVEN 2026-06-06: a blanket dangerCost penalty on
+                // vine body-cells inflated A* 6k→21k nodes / cost 315→1715 in dense jungle
+                // — every cell near a vine curtain got penalised, gutting the heuristic and
+                // producing winding paths — WITHOUT fixing the freeze, since the dominant
+                // stall there is solid LEAVES/trunks, not vines. Vine-cling needs a
+                // WALKER-side detach (sneak/release-forward off a climbable when the path
+                // doesn't go up), not a path cost. Reverted; vineSnagPenalty default 0.)
                 // Prefer the surface: penalize a foot that sits well BELOW the
                 // world-surface heightmap at its x,z — i.e. underground, where mobs
                 // persist in daylight and a naked bot gets swarmed. Keying off the

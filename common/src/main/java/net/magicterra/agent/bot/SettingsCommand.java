@@ -213,6 +213,14 @@ public final class SettingsCommand {
                 BotConfig.pathDebug = pd;
                 applied.add("pathDebug");
             }
+            if (params.get("pathfinderCacheEnabled") instanceof Boolean pce) {
+                BotConfig.pathfinderCacheEnabled = pce;
+                applied.add("pathfinderCacheEnabled");
+            }
+            if (params.get("collisionAwarePathing") instanceof Boolean cap) {
+                BotConfig.collisionAwarePathing = cap;
+                applied.add("collisionAwarePathing");
+            }
             if (params.get("pathChartAutoDump") instanceof Boolean pcad) {
                 BotConfig.pathChartAutoDump = pcad;
                 applied.add("pathChartAutoDump");
@@ -451,6 +459,10 @@ public final class SettingsCommand {
                         if (n.longValue() >= 1 && n.longValue() <= 50) { BotConfig.pathfinderSliceMs = n.longValue(); applied.add(k); }
                         else rejected.add(k + " out of range [1,50]");
                         break;
+                    case "pathfinder.heuristicWeight":
+                        if (n.doubleValue() >= 1.0 && n.doubleValue() <= 3.0) { BotConfig.pathfinderHeuristicWeight = n.doubleValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [1.0,3.0]");
+                        break;
                     case "pathfinder.axisHeight":
                         if (n.intValue() >= -64 && n.intValue() <= 320) { BotConfig.axisHeight = n.intValue(); applied.add(k); }
                         else rejected.add(k + " out of range [-64,320]");
@@ -573,6 +585,9 @@ public final class SettingsCommand {
         snap.put("pathfinder.maxNodes", BotConfig.pathfinderMaxNodes);
         snap.put("pathfinder.maxMs", BotConfig.pathfinderMaxMs);
         snap.put("pathfinder.sliceMs", BotConfig.pathfinderSliceMs);
+        snap.put("pathfinder.heuristicWeight", BotConfig.pathfinderHeuristicWeight);
+        snap.put("pathfinderCacheEnabled", BotConfig.pathfinderCacheEnabled);
+        snap.put("collisionAwarePathing", BotConfig.collisionAwarePathing);
         snap.put("pathfinder.axisHeight", BotConfig.axisHeight);
         snap.put("blocksToAvoid", new ArrayList<>(BotConfig.extraHazardBlocks));
         snap.put("mutedEvents", new ArrayList<>(BotConfig.mutedEvents));

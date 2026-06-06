@@ -30,6 +30,9 @@ public final class ParkourDescend extends Move {
         this.dist = dist;
         this.drop = drop;
     }
+    @Override public boolean availableInSearch(WorldView w) {
+        return !(dist >= 3 || drop >= 2) || BotConfig.allowParkour4;
+    }
     public boolean valid(WorldView w, BlockPos from) {
         // Only the shallow drop-1 descend lands reliably on a 1-wide block:
         // the extra airtime of a deeper drop (or a longer dist-3 gap) carries

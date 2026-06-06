@@ -135,6 +135,15 @@ public interface WorldView {
     default void beginSearch() {}
 
     /**
+     * Toggled by the time-sliced search around its node-expansion work so a view
+     * may memoise blockstate reads for the duration of a slice (the A* static-world
+     * assumption) and serve the Walker's per-tick reads live. Called {@code true}
+     * at the top of {@link PathFinder.Search#advance} and {@code false} when the
+     * slice yields. Default no-op (uncached views ignore it).
+     */
+    default void cacheActive(boolean on) {}
+
+    /**
      * Soft danger penalty (in 1/10-tick cost units) for <em>standing at</em>
      * {@code foot} — Baritone's avoidance heuristic. Unlike {@link #isHazard}
      * (a hard reject that makes a cell impassable), this is added to the A* cost
@@ -207,8 +216,17 @@ public interface WorldView {
      * Combined check: the position is a legal place for the player's feet given
      * a 2-block-tall hitbox. Default impl composes the primitives.
      */
+    /**
+     * Can the player stand on TOP of the block at {@code pos} — i.e. is it a valid
+     * floor. Distinct from {@link #isSolid} (which means "blocks motion / is an
+     * obstacle"): a cocoa pod or fence blocks motion but you can't stand on its
+     * partial top. Default delegates to {@link #isSolid} (legacy coarse model);
+     * a collision-shape-aware view overrides it with a full-top-face test.
+     */
+    default boolean canStandOn(BlockPos pos) { return isSolid(pos); }
+
     default boolean canStandAt(BlockPos foot) {
-        if (!isSolid(foot.offset(0, -1, 0)) && !isClimbable(foot) && !isWater(foot)) return false;
+        if (!canStandOn(foot.offset(0, -1, 0)) && !isClimbable(foot) && !isWater(foot)) return false;
         if (isHazard(foot.offset(0, -1, 0))) return false;
         if (!isPassable(foot) || isHazard(foot)) return false;
         BlockPos head = foot.offset(0, 1, 0);

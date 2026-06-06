@@ -293,6 +293,12 @@ public final class AgentApi {
                 numD(p.get("x")), numD(p.get("y"))));
         routes.put("mc.client.input.setHotbarSlot",  p -> requireClient().setHotbarSlot(num(p.get("slot"))));
         routes.put("mc.client.input.typeText",       p -> requireClient().typeText((String) p.get("text")));
+        routes.put("mc.client.input.replaceText",    p -> requireClient().replaceText(
+                (String) p.get("text"), (String) p.get("match")));
+        routes.put("mc.client.input.slider",         p -> requireClient().setSlider(
+                (String) p.get("match"),
+                p.get("index") == null ? null : num(p.get("index")),
+                p.get("fraction") == null ? null : numD(p.get("fraction"))));
         routes.put("mc.client.input.key",            p -> requireClient().key(
                 (String) p.get("key"), (String) p.get("action")));
         routes.put("mc.client.screenshot",           p -> requireClient().screenshot(p));

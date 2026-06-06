@@ -164,6 +164,41 @@ public final class BotConfig {
     public static volatile long pathfinderMaxMs =
             PathFinder.DEFAULT_MAX_MS;
 
+    /** Weighted-A* heuristic multiplier (W in {@code f = g + W·h}). W>1 makes the
+     *  search greedier toward the goal (bounded-suboptimal A*). The best-effort
+     *  selection still uses the RAW (unweighted) {@code h}, so segment commitment is
+     *  unaffected.
+     *
+     *  DEFAULT 1.0 (optimal A*) — A/B-DISPROVEN as a default for hilly/jungle terrain
+     *  (2026-06-06): at W=1.3 the greedy frontier drives the best-effort segment UP a
+     *  hill/canopy that is "toward the goal" but a dead end, and the bot PERMANENTLY
+     *  STALLS there (live test: 5+ consecutive repaths stuck at the same hilltop cell,
+     *  never recovered), whereas W=1.0 stays low, routes around, and reaches the goal
+     *  (~171 s). Admissible W=1.0 correctly prices the cost of climbing vs going
+     *  around; inflating h breaks that. Kept as an exposed knob
+     *  ({@code mc.bot.setting{pathfinder.heuristicWeight}}) because greedy search can
+     *  still help in OPEN terrain — opt in per use, don't ship it on. */
+    public static volatile double pathfinderHeuristicWeight = 1.0;
+
+    /** Collision-SHAPE-aware solidity/passability (vs the coarse {@code blocksMotion()}
+     *  boolean). When true the pathfinder reads each block's actual collision
+     *  {@code VoxelShape}: a cell is a valid FLOOR only if its collision top is a full
+     *  1×1 face ({@code Block.isFaceFull(shape, UP)} — keeps full blocks/leaves/slabs/
+     *  snow, EXCLUDES cocoa pods / fences / partial attachments the player can't truly
+     *  stand on), and a cell is PASSABLE if the player's body column doesn't intersect
+     *  the collision shape (so a cocoa pod offset to one side, panes, etc. stop being
+     *  treated as full-cube walls). Fixes the jungle "cocoa 挡路 / phantom foothold on a
+     *  pod → walker can't execute → stuck/oscillation" class of bugs. Off = legacy
+     *  {@code blocksMotion()} model. */
+    public static volatile boolean collisionAwarePathing = true;
+
+    /** Per-search blockstate memoisation in {@link net.magicterra.agent.bot.ClientWorldView}.
+     *  ON = cache getBlockState within a search slice (static-world assumption); the
+     *  Walker's per-tick reads always bypass it. Exposed as a knob purely so the
+     *  cache's search-throughput contribution can be A/B-measured live (set false to
+     *  read straight through). Default true. */
+    public static volatile boolean pathfinderCacheEnabled = true;
+
     /** Y plane targeted by {@code mc.bot.goto{axis:true}} — Baritone's
      *  {@code axisHeight} setting (default 120, the classic "highway" Y). Read
      *  when an Axis goal is constructed. */
@@ -396,13 +431,25 @@ public final class BotConfig {
      *  — so it just discourages hugging them when an equal route exists. */
     public static volatile double contactDangerPenalty = 12;
 
-    /** Cost added when a candidate stand position sits at the lip of a drop at
-     *  least {@link #ledgeDangerMinDrop} blocks deep (a cliff / void edge), when
-     *  {@link #avoidDanger} is on. Mild and applied once per cell regardless of
-     *  how many sides are open — it nudges the planner toward an equal-length
-     *  interior route ("rather detour than graze the edge") without forcing a
-     *  detour around every ledge or blocking a narrow bridge that is the only
-     *  way. Set 0 to disable edge avoidance entirely. */
+    /** Cost added when a candidate stand position sits at the lip of a drop
+     *  deeper than the bot can survive (a lethal cliff / void edge), when
+     *  {@link #avoidDanger} is on. The scan only counts a drop as dangerous when
+     *  it exceeds {@code survivableFall(health)} (see ClientWorldView) — a
+     *  step-down the bot would walk away from unharmed is never penalised
+     *  (lethal-only refinement, 2026-06-06), so harmless descents stay cheap.
+     *  <p><b>Default 15 (on).</b> NOTE (validated 2026-06-06): this penalty is
+     *  load-bearing — it keeps the planner on the traversable ridge instead of
+     *  committing a best-effort segment that DIVES into a deep ravine "toward
+     *  the goal". With it at 0 the bot fell ~29 blocks into a pit at the spawn
+     *  pinch and then oscillated forever between the high lip and the pit floor
+     *  (climb-out → re-dive), never reaching the goal. {@link HazardField} +
+     *  {@code lethalEdgeBrake} guard against <em>walking off</em> a lethal edge,
+     *  but they do NOT stop the SEARCH from routing a staircase/fall down into
+     *  an unescapable concave pit — that is exactly what this soft cost prevents.
+     *  Applied once per cell regardless of how many sides are open, so it nudges
+     *  toward an equal-length interior route without blocking a narrow bridge
+     *  that is the only way through. Set 0 only for flat/open worlds with no
+     *  ravines. */
     public static volatile double ledgeDangerPenalty = 15;
 
     /** Minimum empty blocks below an open neighbour for it to count as a real
@@ -440,6 +487,7 @@ public final class BotConfig {
      *  Additive (≥0, admissible), not a ban: a route with no alternative still walks
      *  the leaves, just at a cost. Set 0 to disable. */
     public static volatile double leafSnagPenalty = 20;
+
 
     /** Baritone mob-avoidance analogue — when on, A* adds a distance-ramped cost
      *  for standing near a hostile mob (snapshotted once per search), so routes

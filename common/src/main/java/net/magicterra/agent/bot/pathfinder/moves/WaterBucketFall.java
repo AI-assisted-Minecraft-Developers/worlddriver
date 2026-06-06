@@ -19,6 +19,11 @@ public final class WaterBucketFall extends Move {
         super(dx, -drop, dz, Move.WATER_BUCKET_COST + Move.WATER_FALL_PER_BLOCK * drop);
         this.drop = drop;
     }
+    @Override public boolean availableInSearch(WorldView w) {
+        // No bucket in hand (or this drop exceeds the live cap) → can't fire anywhere
+        // this search. Drops all ~68 WaterBucketFall variants for a bucketless bot.
+        return w.canWaterBucketFall() && drop <= w.maxWaterBucketFall();
+    }
     public boolean valid(WorldView w, BlockPos from) {
         if (!w.canWaterBucketFall() || drop > w.maxWaterBucketFall()) return false;
         BlockPos to = apply(from);

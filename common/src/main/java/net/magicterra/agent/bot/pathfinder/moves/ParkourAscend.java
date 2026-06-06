@@ -28,6 +28,7 @@ public final class ParkourAscend extends Move {
         super(dx * dist, 1, dz * dist, (dist == 2 ? 22 : 32) + 5);
         this.dist = dist;
     }
+    @Override public boolean availableInSearch(WorldView w) { return dist < 3 || BotConfig.allowParkour4; }
     public boolean valid(WorldView w, BlockPos from) {
         if (dist >= 3 && !BotConfig.allowParkour4) return false;
         if (!Move.hasRunway(w, from)) return false;

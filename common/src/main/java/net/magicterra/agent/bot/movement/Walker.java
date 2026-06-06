@@ -61,6 +61,17 @@ public final class Walker {
      *  steady bearing (a 20°/50° square wave settles to ~35° ±5° at 0.5) while still
      *  converging on a genuine turn in a few ticks. Launches bypass it (must snap). */
     private static final float YAW_SMOOTH_ALPHA = 0.5f;
+    /** Heading tolerance for committing to a +1 step climb. A step is climbed by
+     *  walking INTO the riser then jumping ONTO it, so the body must already FACE
+     *  the step — if it arrived off the climb column or after a sharp path turn the
+     *  bearing can be 90-150° off, and since smoothLook only turns
+     *  {@link #WALKER_MAX_YAW_SLEW_DEG}°/tick the forward key would RAM the riser
+     *  face (horizontalCollision, hSpd≈0) and the jump fire the wrong way for the
+     *  several ticks it pivots — the bot bob-jams in place (measured: 36% of a
+     *  jungle-hill climb was collision-stalled, sprint effective only 1% of ticks).
+     *  While the step is still mis-aimed beyond this tolerance we PIVOT in place
+     *  (cut forward + jump) so the body turns cleanly to face the step, then climbs. */
+    private static final float STEPUP_AIM_TOLERANCE_DEG = 40f;
     public enum Step { WALKING, ARRIVED, FAILED }
     private static final double REACH_DIST_SQ = 0.45;
     private static final int STUCK_TICKS = 60;
@@ -897,6 +908,50 @@ public final class Walker {
         BlockPos wp = path.get(step);
         Move.Edge nextEdge = edgeAt(step + 1);
         boolean parkourEdge = edge != null && edge.move != null && edge.move.startsWith("parkour");
+        // VINE traversal (user insight 2026-06-06): vines are CLIMBABLE, so when the
+        // walker fights a stale waypoint while the body is clinging to a vine it wedges
+        // for seconds (the jungle cling-freeze: suspended off-ground, hCol, hSpd≈0, while
+        // the waypoint sat 3 blocks BELOW). Don't fight it — a vine is a fixed climb
+        // sub-path. Once the body is suspended ON a vine (!onGround), take over: face the
+        // path-ahead bearing and, if the path ahead is up/level ("direction correct"),
+        // CLIMB the vine (forward+jump); the offPath(>3) / stuck repath then re-routes
+        // from the new elevation ("修正路径"). If the path ahead is BELOW (we over-climbed),
+        // release the climb keys so the body slides back down the vine to be re-planned.
+        // Gated on !onGround so it never hijacks normal ground-walking through a vine-
+        // draped cell; ladders are excluded by isClimbable's caller using vines in jungle.
+        boolean onVine = !parkourEdge && !p.isInWater() && !p.onGround() && world.isClimbable(foot);
+        if (onVine) {
+            BlockPos ahead = path.get(Math.min(step + 2, path.size() - 1));
+            double vdx = (ahead.getX() + 0.5) - p.getX();
+            double vdz = (ahead.getZ() + 0.5) - p.getZ();
+            float vYaw = (vdx * vdx + vdz * vdz < YAW_DEADZONE_SQ)
+                    ? p.getYRot()
+                    : (float) Math.toDegrees(Math.atan2(-vdx, vdz));
+            if (Math.abs(angleDiff(p.getYRot(), vYaw)) > BotConfig.walkerYawHysteresisDeg) {
+                float want = smoothAngle(p.getYRot(), vYaw);
+                float dyaw = angleDiff(p.getYRot(), want);
+                if (Math.abs(dyaw) > WALKER_MAX_YAW_SLEW_DEG) dyaw = Math.copySign(WALKER_MAX_YAW_SLEW_DEG, dyaw);
+                float ny = p.getYRot() + dyaw;
+                p.setYRot(ny); p.yHeadRot = ny; p.yBodyRot = ny;
+            }
+            p.setXRot(smoothAngle(p.getXRot(), 0f));
+            boolean climbUp = ahead.getY() >= foot.getY();   // path ahead up/level → climb; below → over-climbed, descend
+            mc.options.keyUp.setDown(climbUp);               // forward INTO the vine = climb up (vanilla vine ascent)
+            mc.options.keyJump.setDown(climbUp);             // jump also drives vine ascent; off → slide back down
+            mc.options.keyDown.setDown(false);
+            mc.options.keyLeft.setDown(false);
+            mc.options.keyRight.setDown(false);
+            mc.options.keyShift.setDown(false);              // sneak would HALT the vine climb
+            p.setShiftKeyDown(false);
+            mc.options.keySprint.setDown(false);
+            p.setSprinting(false);
+            if (BotConfig.walkerDebug)
+                LOG.info("[walker] vine-climb foot={},{},{} ahead={},{},{} climbUp={} yaw={}",
+                        foot.getX(), foot.getY(), foot.getZ(),
+                        ahead.getX(), ahead.getY(), ahead.getZ(), climbUp,
+                        String.format(Locale.ROOT, "%.0f", p.getYRot()));
+            return Step.WALKING;
+        }
         // Stepping off into an MLG fall: walk off at WALK speed (no sprint) so
         // the body drops near-vertically and lands in the water we place under
         // it — a sprint launch carries horizontal momentum that drifts the bot
@@ -1033,6 +1088,15 @@ public final class Walker {
             p.yBodyRot = ny;
         }
         p.setXRot(smoothAngle(p.getXRot(), 0f));
+        // STEP-UP HEADING GATE (卡碰撞箱 fix): if a +1 step is still badly mis-aimed,
+        // pivot in place instead of ramming the riser. The jump gate (ascendJumpReady
+        // below) already checks POSITION alignment, but neither it nor the forward key
+        // checked HEADING — so a drift-off-column / sharp-turn arrival bob-jammed the
+        // step. Gate both forward (keyUp) and the step jump on this. Excludes parkour
+        // and water (own handling; launches snap heading so the error is ≈0 anyway).
+        float stepHeadingErr = Math.abs(angleDiff(p.getYRot(), aimYaw));
+        boolean pivotForStepUp = wp.getY() > foot.getY() && !parkourEdge && !p.isInWater()
+                && stepHeadingErr > STEPUP_AIM_TOLERANCE_DEG;
         // Parkour DESCEND landing brake: a leap onto a LOWER 1-wide block
         // touches down with more horizontal momentum than a flat leap (extra
         // airtime accelerating forward), so a sprint launch slides the bot off
@@ -1048,7 +1112,7 @@ public final class Walker {
         double landDz = (wp.getZ() + 0.5) - p.getZ();
         boolean descendBrake = descendLeap && !p.onGround()
                 && (landDx * landDx + landDz * landDz) < 1.4;   // within ~1.2 block of landing center
-        mc.options.keyUp.setDown(!descendBrake);
+        mc.options.keyUp.setDown(!descendBrake && !pivotForStepUp);
         mc.options.keyDown.setDown(false);
         // Lateral lane-keeping STRAFE: on a flat cardinal walk, hold the cross-axis
         // at the lane centre with a sideways strafe so the body clears a flush 1-wide
@@ -1098,6 +1162,10 @@ public final class Walker {
             double sideDist = zA * Math.abs((wp.getX() + 0.5) - p.getX()) + xA * Math.abs((wp.getZ() + 0.5) - p.getZ());
             Vec3 vel = p.getDeltaMovement();
             double lateralMotion = xA * vel.z + zA * vel.x;
+            // A/B-DISPROVEN (2026-06-06): jumping earlier (flatDist≤1.7) to clear the riser
+            // before contact regressed hCol 13-19%→24% / time 30s→37s vs the pivot-only fix —
+            // an early walk-jump lands SHORT of the step as often as it clears, re-approaching.
+            // Kept the close gate (1.2); the pivot-in-place fix is the validated stair win.
             ascendJumpReady = Math.abs(lateralMotion) <= 0.1 && flatDist <= 1.2 && sideDist <= 0.2;
         }
         // Climbing a +1 ledge OUT OF a water film: buoyancy drifts the body off the
@@ -1175,7 +1243,7 @@ public final class Walker {
         // (it floats off its cell and slides — the very stall it's meant to break).
         // Suppress it there; treading + steady forward threads the channel instead.
         boolean flatWaterWalk = wp.getY() == foot.getY() && p.isInWater();
-        boolean wiggle = !bridging && !flatWaterWalk && stuckTicks > 10 && stuckTicks < 18;
+        boolean wiggle = !bridging && !flatWaterWalk && !pivotForStepUp && stuckTicks > 10 && stuckTicks < 18;
         // Climbing a +1 ledge out of a SHALLOW water film needs a BALLISTIC,
         // GROUNDED jump: |Δy|=0.8 exceeds the 0.6 auto-step, and a *held* jump in
         // water just swims the bot up to bob at the surface (y+0.2, onGround=false)
@@ -1215,7 +1283,7 @@ public final class Walker {
         // Jump a step only when a jump is actually needed (beyond auto-step) AND the
         // step is within reach (≤ maxJumpUp) — never bob-jump an unreachable height —
         // and, for the +1 cardinal case, only once Baritone-aligned.
-        boolean stepUpJump = needJumpForStep && upDy <= maxJumpUp && (!dryStepUp || ascendJumpReady);
+        boolean stepUpJump = needJumpForStep && upDy <= maxJumpUp && (!dryStepUp || ascendJumpReady) && !pivotForStepUp;
         boolean jump = !descendBrake
                 && (stepUpJump || parkourEdge || swimUp || wiggle || swimColumn);
         mc.options.keyJump.setDown(jump);
@@ -1233,15 +1301,34 @@ public final class Walker {
         // lets vanilla auto-climb the 1-block ledge out of the water.
         boolean sprint = !bridging && !steppingOffFall && !steppingOffWaterFall
                 && !descendBrake && !edgeBrake && !needJumpForStep   // Baritone doesn't sprint a jumped ascend (overshoots/bonks); a horse auto-walk-up keeps sprint
+                // A/B-DISPROVEN (2026-06-06): re-enabling sprint on an aligned ascend (sprintableAscend)
+                // regressed hCol 13%→36% / mean hSpd .112→.082 — because the jump fires CLOSE to the riser
+                // (ascendJumpReady flatDist≤1.2), the sprint forward-boost rams the riser face HARDER instead
+                // of arcing over it. A sprint-jump only clears a step if launched EARLY (before the riser);
+                // closing that gap needs an early-jump-timing change, not just flipping sprint on. Kept no-sprint.
                 && (!p.isInWater() || flatWaterWalk);
         mc.options.keySprint.setDown(sprint);
         p.setSprinting(sprint);
-        if (BotConfig.walkerDebug)
-            LOG.info("[walker] walk-keys yaw={} wp={},{},{} up={} jump={} sprint={} sneak={} attack={} swimUp={} descBrake={}",
+        if (BotConfig.walkerDebug) {
+            // [dbgcollide] hard physics evidence for the hill speed-sawtooth: is the
+            // bot actually COLLIDING (hitbox snagging a trunk/step face) or just
+            // turning? hSpd = horizontal velocity magnitude (sprint≈0.28 b/tick);
+            // hCol/minorCol = vanilla collision flags; pos = real feet so we can see
+            // dwell (pos frozen while wp/yaw change = stuck, not moving).
+            Vec3 dm = p.getDeltaMovement();
+            double hSpd = Math.sqrt(dm.x * dm.x + dm.z * dm.z);
+            LOG.info("[walker] walk-keys yaw={} wp={},{},{} up={} jump={} sprint={} sneak={} hCol={} minorCol={} hSpd={} pos={},{},{} onG={} attack={}",
                     String.format(Locale.ROOT, "%.0f", p.getYRot()),
                     wp.getX(), wp.getY(), wp.getZ(),
                     mc.options.keyUp.isDown(), mc.options.keyJump.isDown(), mc.options.keySprint.isDown(),
-                    mc.options.keyShift.isDown(), mc.options.keyAttack.isDown(), swimUp, descendBrake);
+                    mc.options.keyShift.isDown(),
+                    p.horizontalCollision, p.minorHorizontalCollision,
+                    String.format(Locale.ROOT, "%.3f", hSpd),
+                    String.format(Locale.ROOT, "%.2f", p.getX()),
+                    String.format(Locale.ROOT, "%.2f", p.getY()),
+                    String.format(Locale.ROOT, "%.2f", p.getZ()),
+                    p.onGround(), mc.options.keyAttack.isDown());
+        }
         return Step.WALKING;
     }
 

@@ -207,6 +207,46 @@ public final class ClientTools {
                     "required", List.of("text")
                 )),
 
+            wrTool("mc.client.input.replaceText",
+                "Overwrite a text box's ENTIRE contents (atomic EditBox.setValue) — unlike " +
+                "mc.client.input.typeText which only APPENDS at the cursor and can't clear a " +
+                "pre-filled field. Targets the focused box, else the box whose value/label contains " +
+                "'match', else the sole box on screen. " +
+                "Returns {ok, value, previous} or {ok:false, error}.",
+                Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "text", Map.of("type", "string",
+                            "description", "New full contents for the text box."),
+                        "match", Map.of("type", "string",
+                            "description", "Optional case-insensitive substring of the target box's " +
+                                "current value/label; needed only when several boxes exist and none is focused.")
+                    ),
+                    "required", List.of("text")
+                )),
+
+            wrTool("mc.client.input.slider",
+                "Read or set a GUI slider (AbstractSliderButton — render/simulation distance, FOV, " +
+                "volume, etc.). Omit 'fraction' to READ: returns every slider's {index, label, value} " +
+                "so you can see the live value first (a slider value is only meaningful when shown). " +
+                "Provide 'fraction' in [0,1] to SET the slider matched by 'match' (substring of its " +
+                "label, e.g. 'render'), else 'index', else the sole slider — firing the vanilla " +
+                "apply/update hooks so the option commits and the label refreshes. " +
+                "Returns {ok, mode:'read', sliders:[{index,label,value}]} or " +
+                "{ok, mode:'set', label, value, previousLabel, previousValue}.",
+                Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "match", Map.of("type", "string",
+                            "description", "Case-insensitive substring of the target slider's label."),
+                        "index", Map.of("type", "integer",
+                            "description", "0-based index into the on-screen slider list (use when no match)."),
+                        "fraction", Map.of("type", "number",
+                            "description", "Target value 0..1. OMIT to read all sliders instead of setting.")
+                    ),
+                    "required", List.of()
+                )),
+
             wrTool("mc.client.input.key",
                 "Synthesize a keyboard event. Keys: ENTER, ESCAPE, TAB, BACKSPACE, DELETE, SPACE, " +
                 "LEFT/RIGHT/UP/DOWN, HOME, END, PAGEUP/DOWN, F1..F25, A..Z, 0..9. action: 'press', " +

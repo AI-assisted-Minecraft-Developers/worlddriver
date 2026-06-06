@@ -17,6 +17,7 @@ import net.magicterra.agent.bot.BotConfig;
  */
 public final class Parkour4 extends Move {
     public Parkour4(int dx, int dz) { super(dx * 4, 0, dz * 4, 42); }
+    @Override public boolean availableInSearch(WorldView w) { return BotConfig.allowParkour4; }
     public boolean valid(WorldView w, BlockPos from) {
         if (!BotConfig.allowParkour4) return false;
         if (!Move.hasRunway(w, from)) return false;

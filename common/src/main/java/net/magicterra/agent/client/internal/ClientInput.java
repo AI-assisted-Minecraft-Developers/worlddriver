@@ -10,12 +10,18 @@ import java.util.Map;
 
 import static net.magicterra.agent.client.internal.ClientThread.runOnClient;
 import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.lang.reflect.Method;
 import java.lang.reflect.Field;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.client.MouseHandler;
 import net.minecraft.client.KeyboardHandler;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.AbstractSliderButton;
+import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.gui.components.events.ContainerEventHandler;
 
 /**
  * Input synthesis for {@code mc.client.screen.close} and {@code mc.client.input.*}
@@ -179,6 +185,167 @@ public final class ClientInput {
             }
             return Map.of("ok", true, "typed", typed, "length", t.length());
         });
+    }
+
+    /**
+     * Replace the entire contents of a text input box. Targets the focused
+     * {@link EditBox} if any; otherwise the box matched by {@code match}
+     * (case-insensitive substring of its message/value), else the sole EditBox
+     * on the screen. Calls {@link EditBox#setValue} so the value-listener fires
+     * exactly as if the user had retyped it. Returns the new value.
+     *
+     * <p>This is the missing twin of {@link #typeText}: typeText APPENDS at the
+     * cursor (and can't clear a pre-filled field), so to overwrite a field you
+     * had to spam BACKSPACE first. setValue is atomic and reliable.
+     */
+    public static Map<String, Object> replaceText(String text, String match) {
+        final String t = (text == null) ? "" : text;
+        final String m = (match == null) ? "" : match.trim().toLowerCase(Locale.ROOT);
+        return runOnClient(() -> {
+            Screen s = Minecraft.getInstance().screen;
+            if (s == null) return Map.of("ok", false, "error", "no screen open");
+            List<EditBox> edits = new ArrayList<>();
+            collectWidgets(s, null, edits);
+            if (edits.isEmpty()) return Map.of("ok", false, "error", "no text box on screen");
+            EditBox target = null;
+            // 1) explicit match wins
+            if (!m.isEmpty()) {
+                for (EditBox e : edits) {
+                    String v = e.getValue() == null ? "" : e.getValue();
+                    String msg = e.getMessage() == null ? "" : e.getMessage().getString();
+                    if (v.toLowerCase(Locale.ROOT).contains(m) || msg.toLowerCase(Locale.ROOT).contains(m)) {
+                        target = e; break;
+                    }
+                }
+                if (target == null) return Map.of("ok", false,
+                        "error", "no text box matching '" + match + "' (found " + edits.size() + ")");
+            }
+            // 2) focused box
+            if (target == null) {
+                for (EditBox e : edits) { if (e.isFocused()) { target = e; break; } }
+            }
+            // 3) sole box
+            if (target == null) {
+                if (edits.size() == 1) target = edits.get(0);
+                else return Map.of("ok", false,
+                        "error", edits.size() + " text boxes and none focused — pass match");
+            }
+            String prev = target.getValue();
+            target.setValue(t);
+            target.moveCursorToEnd(false);
+            return Map.of("ok", true, "value", target.getValue(),
+                    "previous", prev == null ? "" : prev);
+        });
+    }
+
+    /**
+     * Read or set a GUI slider (an {@link AbstractSliderButton} — render distance,
+     * volume, FOV, etc.). With {@code fraction == null} it just READS every slider
+     * (label + current 0..1 value) so the agent can see the live value before
+     * touching it. With a fraction in [0,1] it sets the matched slider's value,
+     * fires the vanilla {@code applyValue}/{@code updateMessage} hooks (so the
+     * option actually applies and the label refreshes), and returns the new
+     * label + value.
+     *
+     * <p>Target selection mirrors {@link #replaceText}: explicit {@code match}
+     * (case-insensitive substring of the slider's message, e.g. "render") first,
+     * else {@code index} into the on-screen slider list, else the sole slider.
+     */
+    public static Map<String, Object> setSlider(String match, Integer index, Double fraction) {
+        final String m = (match == null) ? "" : match.trim().toLowerCase(Locale.ROOT);
+        return runOnClient(() -> {
+            Screen s = Minecraft.getInstance().screen;
+            if (s == null) return Map.of("ok", false, "error", "no screen open");
+            List<AbstractSliderButton> sliders = new ArrayList<>();
+            collectWidgets(s, sliders, null);
+            if (sliders.isEmpty()) return Map.of("ok", false, "error", "no slider on screen");
+
+            // READ mode — list every slider with its label + current value so the
+            // agent always knows the live value (the value is only meaningful when
+            // shown). Render-distance label like "Render Distance: 5 chunks".
+            if (fraction == null) {
+                List<Map<String, Object>> list = new ArrayList<>();
+                for (int i = 0; i < sliders.size(); i++) {
+                    AbstractSliderButton sb = sliders.get(i);
+                    Map<String, Object> e = new LinkedHashMap<>();
+                    e.put("index", i);
+                    e.put("label", sb.getMessage().getString());
+                    e.put("value", readSliderValue(sb));
+                    list.add(e);
+                }
+                return Map.of("ok", true, "mode", "read", "count", sliders.size(), "sliders", list);
+            }
+
+            double f = Math.max(0.0, Math.min(1.0, fraction));
+            AbstractSliderButton target = null;
+            if (!m.isEmpty()) {
+                for (AbstractSliderButton sb : sliders) {
+                    if (sb.getMessage().getString().toLowerCase(Locale.ROOT).contains(m)) { target = sb; break; }
+                }
+                if (target == null) return Map.of("ok", false,
+                        "error", "no slider matching '" + match + "' (found " + sliders.size() + ")");
+            } else if (index != null) {
+                if (index < 0 || index >= sliders.size()) return Map.of("ok", false,
+                        "error", "slider index out of range 0.." + (sliders.size() - 1));
+                target = sliders.get(index);
+            } else if (sliders.size() == 1) {
+                target = sliders.get(0);
+            } else {
+                return Map.of("ok", false,
+                        "error", sliders.size() + " sliders — pass match or index");
+            }
+
+            double prev = readSliderValue(target);
+            String prevLabel = target.getMessage().getString();
+            try {
+                Field fv = AbstractSliderButton.class.getDeclaredField("value");
+                fv.setAccessible(true);
+                fv.setDouble(target, f);
+                // applyValue() commits the new value to the backing Option; then
+                // refresh the displayed label. Both are protected → reflection.
+                Method apply = AbstractSliderButton.class.getDeclaredMethod("applyValue");
+                apply.setAccessible(true);
+                apply.invoke(target);
+                Method upd = AbstractSliderButton.class.getDeclaredMethod("updateMessage");
+                upd.setAccessible(true);
+                upd.invoke(target);
+            } catch (ReflectiveOperationException e) {
+                return Map.of("ok", false, "error",
+                        "slider reflection failed: " + e.getClass().getSimpleName() + " " + e.getMessage());
+            }
+            return Map.of("ok", true, "mode", "set",
+                    "label", target.getMessage().getString(), "value", readSliderValue(target),
+                    "previousLabel", prevLabel, "previousValue", prev);
+        });
+    }
+
+    private static double readSliderValue(AbstractSliderButton sb) {
+        try {
+            Field fv = AbstractSliderButton.class.getDeclaredField("value");
+            fv.setAccessible(true);
+            return fv.getDouble(sb);
+        } catch (ReflectiveOperationException e) {
+            return Double.NaN;
+        }
+    }
+
+    /**
+     * Depth-first walk of a screen's widget tree collecting sliders and/or text
+     * boxes. Recurses through {@link ContainerEventHandler} children so it
+     * reaches options-list rows (each {@code OptionsList.Entry} is itself a
+     * container holding the actual widgets), not just top-level renderables.
+     * Pass {@code null} for a bucket you don't care about.
+     */
+    private static void collectWidgets(GuiEventListener node,
+                                       List<AbstractSliderButton> sliders,
+                                       List<EditBox> edits) {
+        if (node instanceof AbstractSliderButton sb && sliders != null) sliders.add(sb);
+        if (node instanceof EditBox eb && edits != null) edits.add(eb);
+        if (node instanceof ContainerEventHandler c) {
+            for (GuiEventListener child : c.children()) {
+                if (child != node) collectWidgets(child, sliders, edits);
+            }
+        }
     }
 
     public static Map<String, Object> key(String key, String action) {

@@ -114,6 +114,12 @@ public final class PathFinder {
         private final double[] bestHeuristic = new double[COEFFICIENTS.length];
         private final Node[] bestSoFar = new Node[COEFFICIENTS.length];
         private final Node startNode;
+        /** Move-set pruned to the catalog entries that can fire under this search's
+         *  world/config constants (see {@link Move#availableInSearch}). Built once
+         *  here so the per-node neighbour loop skips, e.g., all ~68 WaterBucketFall
+         *  variants for a bucketless bot and the Parkour4 tier when it's off —
+         *  ~100/259 fewer dispatch-and-reject per expansion in the default config. */
+        private final Move[] activeMoves;
         private int expanded;
         private long elapsedNanos;     // cumulative compute time across slices
         private Result result;         // null until done
@@ -122,6 +128,11 @@ public final class PathFinder {
             this.start = start;
             this.goal = goal;
             world.beginSearch();       // snapshot per-search state (e.g. nearby mobs)
+            // Prune the move catalog to this search's relevant subset (after
+            // beginSearch so bucket/flag snapshots are live). One pass over ALL.
+            List<Move> active = new ArrayList<>(Move.ALL.size());
+            for (Move m : Move.ALL) if (m.availableInSearch(world)) active.add(m);
+            this.activeMoves = active.toArray(new Move[0]);
             this.startNode = new Node(start, null, null, 0, goal.estimate(start));
             nodes.put(start, startNode);
             open.add(startNode);
@@ -141,6 +152,9 @@ public final class PathFinder {
             long sliceStart = System.nanoTime();
             long sliceLimit = (sliceMs >= Long.MAX_VALUE / 2) ? Long.MAX_VALUE : sliceMs * 1_000_000L;
             int sinceCheck = 0;
+            // Cache is LIVE only while this slice expands nodes (static-world memoise);
+            // cleared off in finally so the Walker's between-slice reads stay fresh.
+            world.cacheActive(true);
             try {
                 while (!open.isEmpty()) {
                     // Check the clock every TIME_CHECK_INTERVAL expansions, not every 128:
@@ -174,7 +188,7 @@ public final class PathFinder {
                     if (expanded >= maxNodes) break;
                     if (totalMs(sliceStart) > maxMs) break;
 
-                    for (Move m : Move.ALL) {
+                    for (Move m : activeMoves) {
                         // eval() → null for an inadmissible move, else a concrete
                         // edge (dynamic cost + any break/place actions).
                         Move.Edge edge = m.eval(world, cur.pos);
@@ -194,7 +208,7 @@ public final class PathFinder {
                             existing.parent = cur;
                             existing.edge = edge;
                             existing.g = ng;
-                            existing.f = ng + existing.h;
+                            existing.f = ng + BotConfig.pathfinderHeuristicWeight * existing.h;
                             existing.closed = false;
                             open.add(existing);
                         }
@@ -207,6 +221,7 @@ public final class PathFinder {
                         : build(segment, false, expanded, totalMs(sliceStart), segment.g);
                 return true;
             } finally {
+                world.cacheActive(false);
                 elapsedNanos += System.nanoTime() - sliceStart;
             }
         }
@@ -225,6 +240,13 @@ public final class PathFinder {
      * "no path" rather than committing to a segment that goes nowhere.
      */
     private static Node selectSegment(Node[] bestSoFar, BlockPos start) {
+        // (Anti-backtrack A/B-INCONCLUSIVE 2026-06-06: preferring the best-effort node that
+        // REDUCES h — to stop the chain committing to backward/sideways hops — only helped
+        // marginally and noisily. The real backtrack cause in dense jungle is the SEARCH
+        // BUDGET: at a terrain pinch the search hits maxMs (~31k nodes) before finding the
+        // forward route, so even pass-1 finds no h-reducing node and falls back to a backward
+        // hop anyway. Reverted to keep the core pathfinder unchanged; the real fix is a more
+        // efficient search / better heuristic / budget tuning, not the segment-selection rule.)
         double minSq = MIN_DIST_PATH * MIN_DIST_PATH;
         for (Node n : bestSoFar) {
             if (n == null) continue;
@@ -277,8 +299,10 @@ public final class PathFinder {
             this.parent = parent;
             this.edge = edge;
             this.g = g;
-            this.h = h;
-            this.f = g + h;
+            this.h = h;            // raw (admissible) heuristic — best-effort selection reads this
+            // Weighted A*: ordering key inflates h by W so the frontier drives harder
+            // toward the goal within the time budget (see BotConfig.pathfinderHeuristicWeight).
+            this.f = g + BotConfig.pathfinderHeuristicWeight * h;
         }
     }
 }
