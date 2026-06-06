@@ -144,6 +144,12 @@ public final class BotInteract {
         p.yHeadRot = yaw;
         p.yBodyRot = yaw;
         p.setXRot(pitch);
+        // Functional exact aim: vanilla keyAttack mining / interaction raycasts off
+        // the crosshair, so this snap must NOT be rate-limited by the global camera
+        // slew (a lagged crosshair would mine/click the wrong block). Exempt this one
+        // tick — see LookController. Cosmetic aims (synthetic placement, look-down)
+        // do NOT call this, so they stay smoothed.
+        net.magicterra.agent.bot.movement.LookController.requestSnap();
     }
 
     /** A stack's destroy speed against {@code bs} including its Efficiency enchant

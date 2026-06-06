@@ -60,6 +60,12 @@ public final class PathFinder {
      *  costs more CPU in repropagation than the path-time it buys. */
     private static final double MIN_IMPROVEMENT = 0.1;
 
+    /** How many node expansions between wall-clock checks in a time-sliced search.
+     *  Small enough that a slice can't overshoot {@code sliceMs} by much even when
+     *  each expansion is doing slow world/chunk access, large enough that the
+     *  {@code nanoTime()} cost stays negligible (~30ns × this ÷ work). */
+    private static final int TIME_CHECK_INTERVAL = 16;
+
     private final WorldView world;
     private final int maxNodes;
     private final long maxMs;
@@ -137,7 +143,13 @@ public final class PathFinder {
             int sinceCheck = 0;
             try {
                 while (!open.isEmpty()) {
-                    if (++sinceCheck >= 128) {           // amortise nanoTime() calls; bounds overshoot
+                    // Check the clock every TIME_CHECK_INTERVAL expansions, not every 128:
+                    // each expansion evaluates all moves with world/chunk lookups (costly at
+                    // high render distance), so a 128-expansion gap let a slice overshoot the
+                    // cap by ~200ms (a visible hitch). nanoTime() is ~30ns so a 16-wide gap is
+                    // still <0.2ms total over a 100k-node search while bounding overshoot ~8x
+                    // tighter, keeping each slice near sliceMs.
+                    if (++sinceCheck >= TIME_CHECK_INTERVAL) {
                         sinceCheck = 0;
                         if (System.nanoTime() - sliceStart >= sliceLimit) return false;  // pause, resume next call
                     }

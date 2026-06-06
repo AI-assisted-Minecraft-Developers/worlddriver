@@ -1169,6 +1169,12 @@ public final class BotApiImpl implements BotApi {
         // awaitable mc.bot.combat route (which polls combat.active) completes the
         // moment the fight ends. Counters/goal/lastError persist for post-mortem.
         state.combat.active = combatChain.engaged();
+        // STREAM-GRADE CAMERA (AIRI): single chokepoint, AFTER every actuator above
+        // has written the player's rotation. Rate-limits this tick's net yaw/pitch
+        // change so no code path can snap the view; a functional exact aim this tick
+        // (camera-raycast mine/attack, a leap heading) bypasses it via
+        // LookController.requestSnap(). See BotConfig.cameraSlew.
+        net.magicterra.agent.bot.movement.LookController.apply(mc.player);
     }
 
     /** Emit driver→agent push events for the local player's threat/hurt/death

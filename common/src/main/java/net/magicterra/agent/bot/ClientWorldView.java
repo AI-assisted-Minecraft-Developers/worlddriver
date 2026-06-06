@@ -21,6 +21,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluids;
 
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Set;
 
 import static net.magicterra.agent.bot.util.BotInteract.*;
@@ -308,6 +311,18 @@ final class ClientWorldView implements WorldView {
     // the hotbar for a water bucket in every WaterBucketFall.valid would be
     // wasteful. Refreshed every repath (the bucket may have been used/refilled).
     private volatile boolean bucketFallReady = false;
+    // Walker failure blacklist (Baritone-style): nodes where the Walker couldn't
+    // execute a move, mapped to their expiry time (ms). penalizeStuckNode adds an
+    // entry; beginSearch prunes expired ones and snapshots the rest into
+    // stuckAvoidXyz so dangerCost stays consistent across a sliced search.
+    private final Map<BlockPos, Long> stuckAvoid = new HashMap<>();
+    private float[] stuckAvoidXyz = new float[0];     // flat [x,y,z, ...] (stride-3), snapshot per search
+    private static final long STUCK_AVOID_MS = 15_000;        // entries decay after 15s
+    private static final double STUCK_AVOID_PENALTY = 600;    // soft, finite — a sole route is still taken
+    private static final double STUCK_AVOID_RADIUS = 2.5;     // blocks; smooth bump around the failed node
+    @Override public void penalizeStuckNode(BlockPos pos) {
+        stuckAvoid.put(pos.immutable(), System.currentTimeMillis() + STUCK_AVOID_MS);
+    }
     @Override public boolean canWaterBucketFall() { return bucketFallReady; }
     @Override public int maxWaterBucketFall() { return BotConfig.maxWaterBucketFall; }
     @Override public boolean isMlgFloor(BlockPos p) {
@@ -389,6 +404,20 @@ final class ClientWorldView implements WorldView {
                 for (int i = 0; i < arr.length; i++) arr[i] = buf.get(i);
                 mobXyz = arr;
             }
+        }
+        // Walker stuck-node blacklist: prune expired entries, then snapshot the
+        // live ones so dangerCost applies a consistent penalty for the whole run.
+        {
+            long now = System.currentTimeMillis();
+            for (Iterator<Map.Entry<BlockPos, Long>> it = stuckAvoid.entrySet().iterator(); it.hasNext(); ) {
+                if (it.next().getValue() < now) it.remove();
+            }
+            float[] arr = new float[stuckAvoid.size() * 3];
+            int i = 0;
+            for (BlockPos b : stuckAvoid.keySet()) {
+                arr[i++] = b.getX() + 0.5f; arr[i++] = b.getY(); arr[i++] = b.getZ() + 0.5f;
+            }
+            stuckAvoidXyz = arr;
         }
         // Flee-context flag, snapshotted consistent for the whole A* run.
         fleeSearch = BotConfig.fleeActive;
@@ -485,6 +514,19 @@ final class ClientWorldView implements WorldView {
                 if (r <= 0) continue;
                 double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
                 if (dist < r) penalty += BotConfig.avoidZonePenalty * (r - dist) / r;
+            }
+        }
+        // Walker stuck-node blacklist: a soft, decaying bump around each node the
+        // Walker couldn't execute a move at, so this search routes around the spot
+        // (the steep-mountain stepUp/pillar wedge) instead of re-planning into it.
+        float[] sa = stuckAvoidXyz;
+        if (sa.length > 0) {
+            double fx = foot.getX() + 0.5, fy = foot.getY(), fz = foot.getZ() + 0.5;
+            for (int i = 0; i + 2 < sa.length; i += 3) {
+                double dx = fx - sa[i], dy = fy - sa[i + 1], dz = fz - sa[i + 2];
+                double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                if (dist < STUCK_AVOID_RADIUS)
+                    penalty += STUCK_AVOID_PENALTY * (STUCK_AVOID_RADIUS - dist) / STUCK_AVOID_RADIUS;
             }
         }
         // HazardField lethal-cell penalty: a lethal cell (fatal drop, deep water,

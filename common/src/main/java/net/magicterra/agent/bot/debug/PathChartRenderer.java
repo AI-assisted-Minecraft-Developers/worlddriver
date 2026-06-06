@@ -323,7 +323,11 @@ public final class PathChartRenderer {
     private static Double targetBearing(PathTrace.WalkerSample t) {
         if (Double.isNaN(t.targetX())) return null;
         double dx = t.targetX() - t.x(), dz = t.targetZ() - t.z();
-        if (Math.hypot(dx, dz) < 1e-3) return null;
+        // The recorded target is the current WAYPOINT centre; as the bot reaches/passes
+        // it the bearing degenerates and flips ~180° (a node-passage artifact, not a real
+        // heading error). Skip samples within ~0.75 blk (just past the step-advance gate)
+        // so the yellow plot and maxYawError reflect actual travel heading, not those flips.
+        if (Math.hypot(dx, dz) < 0.75) return null;
         return wrap180(Math.toDegrees(Math.atan2(-dx, dz)));
     }
     private static double maxYawError(List<PathTrace.WalkerSample> tr) {

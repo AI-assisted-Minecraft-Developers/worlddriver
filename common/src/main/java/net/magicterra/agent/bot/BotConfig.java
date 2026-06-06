@@ -183,6 +183,25 @@ public final class BotConfig {
      *  cinematic, higher = snappier. Read every tick. */
     public static volatile float smoothLookDegPerTick = 20f;
 
+    /** Stream-grade camera guarantee (AIRI). When on, EVERY bot camera write is
+     *  rate-limited at a single chokepoint ({@code LookController.apply} at the end
+     *  of the client tick) so NO actuator — Walker, swim, pillar look-down, the
+     *  build/bunker/farm processes, the reflexes — can snap the view; the worst a
+     *  snap-style write does is begin a smooth multi-tick pan. Unlike
+     *  {@link #smoothLook} (which only shapes the Walker/lookAt TARGET and is opt-in),
+     *  this is a global post-write clamp and is ON by default. Functional exact aims
+     *  (camera-raycast mine/attack, a leap's takeoff heading) bypass it for one tick
+     *  via {@code LookController.requestSnap()}. Inert headless (no client tick). */
+    public static volatile boolean cameraSlew = true;
+
+    /** Max yaw degrees/tick for the {@link #cameraSlew} clamp. 30°/tick ≈ 600°/s →
+     *  a 180° turn takes ~6 ticks (~0.3 s): smooth on stream yet responsive. */
+    public static volatile float cameraSlewDegPerTick = 30f;
+
+    /** Max pitch degrees/tick for the {@link #cameraSlew} clamp. Pitch sweeps are
+     *  smaller (look-down to place/dig ≈ 90°), so a slightly gentler rate reads well. */
+    public static volatile float cameraPitchSlewDegPerTick = 20f;
+
     /** Extra block ids the pathfinder treats as hazardous (in addition to the
      *  built-in HAZARD_BLOCKS set in BotApiImpl). Mutable via
      *  {@code mc.bot.setting{blocksToAvoid:[id,...]}}. Read on every WorldView

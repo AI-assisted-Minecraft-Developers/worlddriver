@@ -149,6 +149,23 @@ public interface WorldView {
     default double dangerCost(BlockPos foot) { return 0; }
 
     /**
+     * Register a node the Walker could not execute a move at (a steep stepUp it
+     * keeps sliding off, a pillar it can't ground to place, …) so the NEXT search
+     * routes around it instead of re-planning the same dead end. The penalty is
+     * soft (added via {@link #dangerCost}) and decays, so a sole route is still
+     * taken eventually and a spot the bot merely struggled at once isn't banned
+     * forever. Default no-op (static views never fail a move, and the headless
+     * GameTest must stay deterministic).
+     *
+     * NOTE: this is OUR heuristic, not Baritone's. Baritone's PathExecutor does
+     * NOT blacklist on a failed movement — it cancels and replans, relying on
+     * robust per-move actuators (MovementAscend/Parkour/…) to rarely fail in the
+     * first place. We add the failure-avoidance because our Walker's steep-climb
+     * execution is weaker; once it's hardened this can be reduced/removed.
+     */
+    default void penalizeStuckNode(BlockPos pos) {}
+
+    /**
      * Combined check: the position is a legal place for the player's feet given
      * a 2-block-tall hitbox. Default impl composes the primitives.
      */
