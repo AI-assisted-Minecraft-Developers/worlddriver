@@ -431,6 +431,16 @@ public final class BotConfig {
      *  ≥0 (admissible): a sole crossing is still taken. Set 0 to disable. */
     public static volatile double waterFlowPenalty = 18;
 
+    /** Cost for STANDING ON a leaf block (canopy-walking), when {@link #avoidDanger}
+     *  is on. Leaves block motion, so A* treats the canopy as a walkable floor and
+     *  happily routes the bot ACROSS the bumpy tree-tops — where the irregular
+     *  block-by-block surface snags the hitbox and the bot wedges (the wooded-
+     *  mountain stall). This biases the planner onto the ground / around the tree,
+     *  or to break straight through, instead of tightrope-walking the canopy.
+     *  Additive (≥0, admissible), not a ban: a route with no alternative still walks
+     *  the leaves, just at a cost. Set 0 to disable. */
+    public static volatile double leafSnagPenalty = 20;
+
     /** Baritone mob-avoidance analogue — when on, A* adds a distance-ramped cost
      *  for standing near a hostile mob (snapshotted once per search), so routes
      *  give creepers/zombies a berth when they can. Off by default: it changes

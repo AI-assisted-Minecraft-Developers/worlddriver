@@ -550,6 +550,15 @@ final class ClientWorldView implements WorldView {
                     double fm = Math.sqrt(flow.x * flow.x + flow.z * flow.z);
                     if (fm > 1e-3) penalty += BotConfig.waterFlowPenalty * Math.min(1.0, fm);
                 }
+                // Canopy-walk snag: leaves block motion, so A* otherwise treats the
+                // tree-tops as a free floor and routes across them — the bumpy
+                // per-block surface wedges the bot (wooded-mountain stall). Penalise
+                // standing ON a leaf block so the planner prefers ground / going
+                // around / breaking through. Additive, not a ban.
+                if (BotConfig.leafSnagPenalty > 0
+                        && lvl.getBlockState(foot.offset(0, -1, 0)).is(BlockTags.LEAVES)) {
+                    penalty += BotConfig.leafSnagPenalty;
+                }
                 // Prefer the surface: penalize a foot that sits well BELOW the
                 // world-surface heightmap at its x,z — i.e. underground, where mobs
                 // persist in daylight and a naked bot gets swarmed. Keying off the
