@@ -1068,8 +1068,28 @@ public final class Walker {
         // cross axis (strafe gate below now includes dryStepUp), drop sprint, and
         // gate the jump on alignment+proximity. Scoped to a single cardinal +1 step
         // on dry land — diagUp / +2 / water / parkour keep their own handling.
-        boolean dryStepUp = wp.getY() == foot.getY() + 1 && !p.isInWater() && !parkourEdge
-                && ((wp.getX() == foot.getX()) ^ (wp.getZ() == foot.getZ()));   // exactly one cardinal axis differs
+        // Attribute-driven step/jump (read the controlled entity — the vehicle when
+        // mounted). On foot: step 0 (a +1 needs a jump), jump reaches +1. A horse:
+        // step 1.0 (walks a full block up, no jump), jump up to +2.
+        int upDy = wp.getY() - foot.getY();
+        int maxStepUp = world.maxStepUpBlocks();
+        int maxJumpUp = world.maxJumpUpBlocks();
+        boolean cardinalUp = upDy >= 1 && ((wp.getX() == foot.getX()) ^ (wp.getZ() == foot.getZ()));
+        // A jump is needed only to rise BEYOND the auto-step height.
+        boolean needJumpForStep = upDy >= 1 && upDy > maxStepUp;
+        // A step taller than we could clear even WITH a jump — we slid back below a
+        // +1 start so it now reads +2, or terrain demands a height we can't make.
+        // Don't bob against it: accelerate the stuck timer so the search blacklists
+        // the node and reroutes (the steep-climb wedge), instead of jumping forever.
+        boolean overJump = needJumpForStep && upDy > maxJumpUp && p.onGround() && !p.isInWater()
+                && edge != null && !"pillarUp".equals(edge.move) && !parkourEdge;
+        if (overJump) stuckTicks += 3;
+        // Baritone MovementAscend jump-timing applies whenever we actually JUMP a
+        // cardinal step within reach (+1, or +2 for a horse/jump-boost) — align +
+        // approach before the jump. A horse auto-walk-up needs no jump; water/parkour
+        // differ; an over-jump (handled above) is excluded.
+        boolean dryStepUp = needJumpForStep && cardinalUp && upDy <= maxJumpUp
+                && !p.isInWater() && !parkourEdge;
         boolean ascendJumpReady = true;
         if (dryStepUp) {
             int xA = wp.getX() != foot.getX() ? 1 : 0;
@@ -1090,7 +1110,7 @@ public final class Walker {
         // column so the body sits under the ledge; the existing forward+jump then
         // mounts it (the aligned cardinal climb that already works on dry land).
         boolean waterClimb = p.isInWater() && wp.getY() > foot.getY();
-        if (!descendBrake && !parkourEdge && !steppingOffFall && (wp.getY() == foot.getY() || waterClimb || dryStepUp)) {
+        if (!descendBrake && !parkourEdge && !steppingOffFall && (wp.getY() == foot.getY() || waterClimb || cardinalUp)) {
             int ddx = wp.getX() - foot.getX();
             int ddz = wp.getZ() - foot.getZ();
             double latX = 0, latZ = 0;
@@ -1181,7 +1201,10 @@ public final class Walker {
         // close + squared-up + not drifting. Early/off-axis jumps bonk the step and
         // slide back (the steep-climb wedge); waiting to jump also keeps the body
         // moving smoothly instead of bobbing in place (no jittery camera on stream).
-        boolean stepUpJump = wp.getY() > foot.getY() && (!dryStepUp || ascendJumpReady);
+        // Jump a step only when a jump is actually needed (beyond auto-step) AND the
+        // step is within reach (≤ maxJumpUp) — never bob-jump an unreachable height —
+        // and, for the +1 cardinal case, only once Baritone-aligned.
+        boolean stepUpJump = needJumpForStep && upDy <= maxJumpUp && (!dryStepUp || ascendJumpReady);
         boolean jump = !descendBrake
                 && (stepUpJump || parkourEdge || swimUp || wiggle || swimColumn);
         mc.options.keyJump.setDown(jump);
@@ -1198,7 +1221,7 @@ public final class Walker {
         // out" trace (sprint=true, |dY|≈2.4, bobbing y61 under a y64 node). Treading + jump
         // lets vanilla auto-climb the 1-block ledge out of the water.
         boolean sprint = !bridging && !steppingOffFall && !steppingOffWaterFall
-                && !descendBrake && !edgeBrake && !dryStepUp   // Baritone doesn't sprint an ascend — a sprint launch overshoots/bonks the step
+                && !descendBrake && !edgeBrake && !needJumpForStep   // Baritone doesn't sprint a jumped ascend (overshoots/bonks); a horse auto-walk-up keeps sprint
                 && (!p.isInWater() || flatWaterWalk);
         mc.options.keySprint.setDown(sprint);
         p.setSprinting(sprint);

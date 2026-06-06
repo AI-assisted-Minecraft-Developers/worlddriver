@@ -29,6 +29,8 @@ import java.util.Set;
 import static net.magicterra.agent.bot.util.BotInteract.*;
 import static net.magicterra.agent.bot.util.BotUtil.*;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.item.enchantment.Enchantment;
@@ -323,6 +325,41 @@ final class ClientWorldView implements WorldView {
     @Override public void penalizeStuckNode(BlockPos pos) {
         stuckAvoid.put(pos.immutable(), System.currentTimeMillis() + STUCK_AVOID_MS);
     }
+
+    // Controlled-entity movement attributes, snapshotted once per search so the
+    // whole A* run sees a consistent capability (and the Walker reads the same).
+    // Sourced from the VEHICLE when mounted (a horse steps/jumps differently).
+    private volatile int stepUpBlocks = 0;     // floor(STEP_HEIGHT): full blocks walkable-up without a jump
+    private volatile int jumpUpBlocks = 1;     // floor(jump apex): full blocks reachable WITH a jump
+    @Override public int maxStepUpBlocks() { return stepUpBlocks; }
+    @Override public int maxJumpUpBlocks() { return jumpUpBlocks; }
+
+    /** Simulate the vanilla jump arc (v0 = jump velocity, gravity 0.08, drag 0.98
+     *  per tick) and return how many FULL blocks the feet clear at the apex — the
+     *  tallest block the entity can land on top of. v=0.42 (on-foot) → ~1.25 → 1. */
+    private static int jumpApexBlocks(double v0) {
+        double y = 0, vy = v0;
+        for (int i = 0; i < 40 && vy > 0; i++) { y += vy; vy = (vy - 0.08) * 0.98; }
+        return (int) Math.floor(y);
+    }
+
+    /** Refresh {@link #stepUpBlocks}/{@link #jumpUpBlocks} from the entity the
+     *  player is actually controlling (itself, or its vehicle when riding). */
+    private void snapshotMovementCaps() {
+        LocalPlayer pl = Minecraft.getInstance().player;
+        Entity mover = pl;
+        if (pl != null && pl.getControlledVehicle() != null) mover = pl.getControlledVehicle();
+        if (mover == null) { stepUpBlocks = 0; jumpUpBlocks = 1; return; }
+        stepUpBlocks = (int) Math.floor(mover.maxUpStep());
+        double v = 0.42;   // vanilla on-foot fallback
+        if (mover instanceof LivingEntity le) {
+            if (le.getAttributes().hasAttribute(Attributes.JUMP_STRENGTH))
+                v = le.getAttributeValue(Attributes.JUMP_STRENGTH);
+            MobEffectInstance jb = le.getEffect(MobEffects.JUMP);
+            if (jb != null) v += 0.1 * (jb.getAmplifier() + 1);   // Jump Boost raises the apex
+        }
+        jumpUpBlocks = Math.max(1, jumpApexBlocks(v));
+    }
     @Override public boolean canWaterBucketFall() { return bucketFallReady; }
     @Override public int maxWaterBucketFall() { return BotConfig.maxWaterBucketFall; }
     @Override public boolean isMlgFloor(BlockPos p) {
@@ -419,6 +456,9 @@ final class ClientWorldView implements WorldView {
             }
             stuckAvoidXyz = arr;
         }
+        // Controlled-entity step/jump capability (on-foot vs mounted), snapshotted
+        // so the search and the Walker agree on what heights are reachable.
+        snapshotMovementCaps();
         // Flee-context flag, snapshotted consistent for the whole A* run.
         fleeSearch = BotConfig.fleeActive;
         // Snapshot the HazardField from WorldModel so dangerCost can apply the

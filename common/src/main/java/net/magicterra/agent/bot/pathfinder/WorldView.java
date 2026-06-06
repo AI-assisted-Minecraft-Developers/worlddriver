@@ -166,6 +166,25 @@ public interface WorldView {
     default void penalizeStuckNode(BlockPos pos) {}
 
     /**
+     * Max full blocks the controlled entity can rise WITHOUT jumping — its
+     * auto-step height (vanilla {@code STEP_HEIGHT}). On foot this is 0 (the 0.6
+     * step clears slabs/paths, not a full block, so a +1 needs a jump); a ridden
+     * horse steps 1.0, so it WALKS up a full block. Read from the live entity (the
+     * vehicle when mounted). Default 0 keeps the headless/test view on the
+     * on-foot-player assumption.
+     */
+    default int maxStepUpBlocks() { return 0; }
+
+    /**
+     * Max full blocks an ascend can rise WITH a jump, from the controlled entity's
+     * {@code JUMP_STRENGTH} apex (plus Jump Boost). On foot this is 1 (apex ≈1.25);
+     * a strong horse or Jump Boost reaches 2+. Used to gate the +2 ascend move and
+     * to let the Walker abandon (reroute) a step taller than it can ever jump
+     * instead of bobbing against it. Default 1 = the on-foot-player assumption.
+     */
+    default int maxJumpUpBlocks() { return 1; }
+
+    /**
      * Combined check: the position is a legal place for the player's feet given
      * a 2-block-tall hitbox. Default impl composes the primitives.
      */

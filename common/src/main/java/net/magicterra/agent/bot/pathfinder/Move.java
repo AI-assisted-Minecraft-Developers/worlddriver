@@ -253,6 +253,10 @@ public abstract class Move {
         for (int[] d : CARDINAL) ms.add(new Walk(d[0], d[1]));
         for (int[] d : DIAGONAL) ms.add(new Diagonal(d[0], d[1]));
         for (int[] d : CARDINAL) ms.add(new StepUp(d[0], d[1]));
+        // +2 ascend — only emitted when the controlled entity can jump that high
+        // (StepUp2.valid gates on WorldView.maxJumpUpBlocks ≥ 2: a strong horse /
+        // Jump Boost). Inert for an on-foot player, so default routing is unchanged.
+        for (int[] d : CARDINAL) ms.add(new StepUp2(d[0], d[1]));
         for (int[] d : CARDINAL) ms.add(new StepDown(d[0], d[1]));
         // Diagonal ascend / descend (Baritone MovementDiagonal with a Y delta) —
         // cut the corner of a staircase in one move instead of zig-zagging a
