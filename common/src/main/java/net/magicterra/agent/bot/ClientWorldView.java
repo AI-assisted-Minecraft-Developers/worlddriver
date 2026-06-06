@@ -11,6 +11,7 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -100,13 +101,13 @@ final class ClientWorldView implements WorldView {
         Level lvl = Minecraft.getInstance().level;
         if (lvl == null) return true;
         BlockState s = lvl.getBlockState(p);
-        return !s.blocksMotion() || s.getFluidState().is(Fluids.WATER);
+        return !s.blocksMotion() || s.getFluidState().is(FluidTags.WATER);
     }
     @Override public Vec3 waterFlow(BlockPos p) {
         Level lvl = Minecraft.getInstance().level;
         if (lvl == null) return Vec3.ZERO;
         FluidState fs = lvl.getFluidState(p);
-        if (!fs.is(Fluids.WATER)) return Vec3.ZERO;
+        if (!fs.is(FluidTags.WATER)) return Vec3.ZERO;
         return fs.getFlow(lvl, p);   // (x,y,z) velocity; zero for a still source
     }
     @Override public double directionalCost(BlockPos from, BlockPos to) {
@@ -141,7 +142,7 @@ final class ClientWorldView implements WorldView {
     }
     public boolean isWater(BlockPos p) {
         Level lvl = Minecraft.getInstance().level;
-        return lvl != null && lvl.getBlockState(p).getFluidState().is(Fluids.WATER);
+        return lvl != null && lvl.getBlockState(p).getFluidState().is(FluidTags.WATER);
     }
     @Override public boolean isFallingBlock(BlockPos p) {
         Level lvl = Minecraft.getInstance().level;
