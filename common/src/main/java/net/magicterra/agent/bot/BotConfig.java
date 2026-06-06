@@ -419,6 +419,18 @@ public final class BotConfig {
      *  disable. */
     public static volatile double waterDangerPenalty = 12;
 
+    /** Cost for FLOWING water (a current), on top of {@link #waterDangerPenalty}.
+     *  Vanilla water pushes the body ~0.014/tick per flow unit, so crossing a
+     *  current drifts the bot off the planned line and fighting it upstream is
+     *  slow — neither was modelled (flowing water was costed like still water).
+     *  Applied two ways, both scaled by this and the local flow magnitude:
+     *  (a) a flat per-cell drift penalty in {@code dangerCost} so A* minimises time
+     *  in a current (prefers a bridge / the narrowest crossing / still water);
+     *  (b) a directional upstream penalty in {@code directionalCost} so a route that
+     *  heads INTO the flow costs more than one going across or with it. Additive and
+     *  ≥0 (admissible): a sole crossing is still taken. Set 0 to disable. */
+    public static volatile double waterFlowPenalty = 18;
+
     /** Baritone mob-avoidance analogue — when on, A* adds a distance-ramped cost
      *  for standing near a hostile mob (snapshotted once per search), so routes
      *  give creepers/zombies a berth when they can. Off by default: it changes

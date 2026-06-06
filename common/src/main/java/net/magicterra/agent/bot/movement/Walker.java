@@ -1117,6 +1117,17 @@ public final class Walker {
             if (waterClimb) { latX = (wp.getX() + 0.5) - p.getX(); latZ = (wp.getZ() + 0.5) - p.getZ(); } // centre on the target column
             else if (ddx == 0 && ddz != 0) latX = (wp.getX() + 0.5) - p.getX();        // N/S lane → hold X
             else if (ddz == 0 && ddx != 0) latZ = (wp.getZ() + 0.5) - p.getZ();   // E/W lane → hold Z
+            // Anti-drift in a current: a flowing-water cell pushes the body
+            // downstream, so steer upstream (subtract the flow vector from the
+            // lateral target). The strafe is far stronger than the push, so this
+            // holds the crossing on the planned line PROACTIVELY instead of letting
+            // the lane-keep only react after the bot has already drifted. Only the
+            // cross-lane component survives the right-vector projection below; the
+            // along-lane part is ignored (handled by the upstream COST, not steering).
+            if (BotConfig.waterFlowPenalty > 0 && p.isInWater()) {
+                Vec3 flow = world.waterFlow(foot);
+                latX -= flow.x; latZ -= flow.z;
+            }
             if (Math.abs(latX) > 0.06 || Math.abs(latZ) > 0.06) {
                 double yr = Math.toRadians(p.getYRot());
                 double fx = -Math.sin(yr), fz = Math.cos(yr);   // forward unit (x,z)

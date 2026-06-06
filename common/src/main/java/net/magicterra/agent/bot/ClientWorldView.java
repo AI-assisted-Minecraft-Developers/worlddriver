@@ -19,6 +19,8 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluids;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
 import java.util.Map;
@@ -99,6 +101,27 @@ final class ClientWorldView implements WorldView {
         if (lvl == null) return true;
         BlockState s = lvl.getBlockState(p);
         return !s.blocksMotion() || s.getFluidState().is(Fluids.WATER);
+    }
+    @Override public Vec3 waterFlow(BlockPos p) {
+        Level lvl = Minecraft.getInstance().level;
+        if (lvl == null) return Vec3.ZERO;
+        FluidState fs = lvl.getFluidState(p);
+        if (!fs.is(Fluids.WATER)) return Vec3.ZERO;
+        return fs.getFlow(lvl, p);   // (x,y,z) velocity; zero for a still source
+    }
+    @Override public double directionalCost(BlockPos from, BlockPos to) {
+        if (BotConfig.waterFlowPenalty <= 0) return 0;
+        Vec3 flow = waterFlow(to);
+        double fx = flow.x, fz = flow.z;
+        double fm = Math.sqrt(fx * fx + fz * fz);
+        if (fm < 1e-3) return 0;                              // still water → no current
+        double dx = to.getX() - from.getX(), dz = to.getZ() - from.getZ();
+        double dm = Math.sqrt(dx * dx + dz * dz);
+        if (dm < 1e-6) return 0;                              // pure vertical move
+        // Component of travel AGAINST the current (>0 only when heading upstream).
+        double upstream = -(fx * dx + fz * dz) / dm;          // = |flow|·cos(angle to downstream), signed
+        if (upstream <= 0) return 0;                          // crossing or with the flow → no extra cost
+        return BotConfig.waterFlowPenalty * upstream;         // |flow|·cosθ scaled
     }
     public boolean isHazard(BlockPos p) {
         Level lvl = Minecraft.getInstance().level;
@@ -515,6 +538,17 @@ final class ClientWorldView implements WorldView {
                 // is the fix for "寻路太蠢/走进海里淹死".
                 if (BotConfig.waterDangerPenalty > 0 && isWater(foot)) {
                     penalty += BotConfig.waterDangerPenalty * (fleeSearch ? BotConfig.fleeDangerBoost : 1.0);
+                }
+                // FLOWING water (a current) costs extra on top of the still-water
+                // penalty: a current drifts the body off the planned line, so A*
+                // should minimise time in it (prefer a bridge / the narrowest crossing
+                // / still water). Flat + omnidirectional here (drift risk); the
+                // upstream-specific cost is in directionalCost. Scaled by flow
+                // magnitude (capped at 1 — a full-speed current).
+                if (BotConfig.waterFlowPenalty > 0) {
+                    Vec3 flow = waterFlow(foot);
+                    double fm = Math.sqrt(flow.x * flow.x + flow.z * flow.z);
+                    if (fm > 1e-3) penalty += BotConfig.waterFlowPenalty * Math.min(1.0, fm);
                 }
                 // Prefer the surface: penalize a foot that sits well BELOW the
                 // world-surface heightmap at its x,z — i.e. underground, where mobs

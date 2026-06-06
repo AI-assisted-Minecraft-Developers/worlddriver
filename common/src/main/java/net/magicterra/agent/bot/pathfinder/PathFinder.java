@@ -182,7 +182,8 @@ public final class PathFinder {
                         BlockPos npos = edge.to;
                         // Soft danger penalty per entered cell (Baritone avoidance);
                         // ≥ 0 so the heuristic stays admissible.
-                        double ng = cur.g + edge.cost + world.dangerCost(npos);
+                        double ng = cur.g + edge.cost + world.dangerCost(npos)
+                                + world.directionalCost(cur.pos, npos);
                         Node existing = nodes.get(npos);
                         if (existing != null && ng > existing.g - MIN_IMPROVEMENT) continue;
                         if (existing == null) {

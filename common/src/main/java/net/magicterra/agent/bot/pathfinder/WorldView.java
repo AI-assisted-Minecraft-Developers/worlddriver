@@ -1,6 +1,7 @@
 package net.magicterra.agent.bot.pathfinder;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Pathfinder's read-only view of the world. Keeps the A* core decoupled from
@@ -183,6 +184,24 @@ public interface WorldView {
      * instead of bobbing against it. Default 1 = the on-foot-player assumption.
      */
     default int maxJumpUpBlocks() { return 1; }
+
+    /**
+     * Horizontal flow (current) of the fluid at {@code pos}, as a velocity vector
+     * (Vec3, y≈0) — vanilla {@code FluidState.getFlow}. Zero for still water / no
+     * fluid. The pathfinder uses it to price drift across a current and resistance
+     * heading upstream; the Walker uses it to steer against the push so the actual
+     * line hugs the plan. Default zero (static/headless views don't model flow).
+     */
+    default Vec3 waterFlow(BlockPos pos) { return Vec3.ZERO; }
+
+    /**
+     * Extra DIRECTION-dependent cost for the edge {@code from → to}, added by the
+     * pathfinder alongside {@link #dangerCost}. Unlike dangerCost (a property of the
+     * destination cell), this sees the move direction — used for upstream water
+     * resistance (heading into a current costs more than crossing or going with it).
+     * Must be ≥ 0 to keep the A* heuristic admissible. Default 0.
+     */
+    default double directionalCost(BlockPos from, BlockPos to) { return 0; }
 
     /**
      * Combined check: the position is a legal place for the player's feet given
