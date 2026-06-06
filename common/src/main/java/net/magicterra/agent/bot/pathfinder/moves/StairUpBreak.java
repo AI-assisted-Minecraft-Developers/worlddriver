@@ -42,7 +42,22 @@ public final class StairUpBreak extends Move {
         if (!w.isSolid(floor) || w.isHazard(floor)) return null;// need a solid step to stand on (we don't place)
         BlockPos head = to.offset(0, 1, 0);
         double bc = 0;
-        List<BlockPos> br = new ArrayList<>(2);
+        List<BlockPos> br = new ArrayList<>(3);
+        // Source headroom (Baritone MovementAscend's {@code srcUp2}): to JUMP the
+        // +1 step the bot needs the cell TWO above its OWN foot clear, else the
+        // jump bonks the ceiling and it wedges bobbing in place (foot peaks ~+0.2,
+        // never climbs — the steep-hillside stairUpBreak stall). The old check only
+        // cleared the DESTINATION cells, so A* committed to an unjumpable step.
+        // Break the ceiling like Baritone does, or reject if it's an unbreakable
+        // hazard/fluid (then A* routes around instead of grinding the wall).
+        BlockPos srcUp2 = from.offset(0, 2, 0);
+        if (w.isSolid(srcUp2)) {
+            double c = w.breakCost(srcUp2);
+            if (Double.isInfinite(c)) return null;
+            bc += c; br.add(srcUp2);
+        } else if (!w.isPassable(srcUp2) || w.isHazard(srcUp2)) {
+            return null;
+        }
         // Destination foot cell — break it if it's a solid wall block.
         if (w.isSolid(to)) {
             double c = w.breakCost(to);
