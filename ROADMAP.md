@@ -26,6 +26,27 @@ LLM）/ **L1 process**（有界技能，数秒闭环）/ **L2 Agent**（外部 L
 当前优先级带：`PANIC=1000` · `DODGE=900` · `BUNKER=300`(user) · `SURVIVAL=100` · `COMBAT=60` ·
 `USER=50` · **`IDLE_SECURE=40`**（新）。
 
+### 1.1 🟡 执行层 actuation：去全局键盘化（发包驱动）
+
+三层模型决定"谁掌控"，这一层决定"L0/L1 如何按键驱动玩家"。方向：**绝不写人类共享的 `mc.options.keyXXX`，
+改驱动玩家自己的输入对象（`AgentInput` 的 impulse/jumping/shiftKeyDown）+ `setSprinting` + gameMode 包**
+——vanilla 自动把它们序列化成 `ServerboundMovePlayer` / `PlayerCommand` 包，这就是"发包不用按键"。
+
+- **根因**：`mc.options.keyXXX` 是人机共享对象，MC 只在 GLFW 按下边沿重置 isDown；旧执行层每 tick `setDown` /
+  idle `releaseKeys` 抢这些键 → **即使没 Agent 连接，手动 WASD/空格也被 ~50ms 清零卡手**（= Baritone
+  InputOverrideHandler 抢键问题），且移动硬绑镜头 yaw、slew 滞后时前进键顶错向墙。
+- **收益**：人机共存（手动游玩不被抢键）+ 镜头解耦动态纠偏（impulse 沿真实 heading，不等镜头追上）。
+- 🟡 **已落地**（compiled + headless GT 绿，待 live A/B）：`InputReleaseGate` edge-gate（bot 真按过键才清一次，
+  从不驱动 → 永不碰人类键）+ `AgentInput` 全 locomotion 通道（`commandMove` 解耦 + `commandForward/Jump/Sneak`）+
+  `BotInput` facade + `setSprinting`=sprint 发包（反编译 `LocalPlayer` 证：`keySprint.setDown` 在每站点都与
+  `setSprinting` 配对，纯冗余可删）→ **Walker + 14 进程/链全迁**（Build/Backfill/Mine/Follow/Farm/BboxFill/
+  Escape/Bunker/Bridge/Elytra/Panic/Dodge/Tower/Sleep）。
+- ⬜ **待续**：CombatProcess 环绕 strafe（需 2D 向量命令 forward+back+左右）；AutoSwim/ClutchController 反射
+  （与 `InputReleaseGate`/clientTick 时序耦合，单独打通）。终态后 `releaseKeys` 只剩管 keyAttack。
+- 🧊 **刻意边界**：`keyAttack`/`keyUse`（挖掘/用物）**保留键位**——直接调 `gameMode` 会让客户端预测闪烁、破坏
+  "方块是否挖完"判定（MineProcess 注释明示），vanilla `continueAttack`/`useItem` 管线才正确，且不撞移动。
+  **原则：能干净发包的才发包，挖掘/用物不能。**
+
 ---
 
 ## 2. ✅ 切片：感知层 + 决策边界基座（doc 04）
