@@ -236,6 +236,13 @@ public final class Walker {
         LocalPlayer p = mc.player;
         if (p == null) { lastError = "player vanished"; return terminal(Step.FAILED, PathTrace.Outcome.ERROR, lastError); }
 
+        // Drive locomotion at the impulse level, decoupled from the (cosmetically slewed)
+        // camera — see AgentInput. Installed lazily because a respawn / dimension change
+        // builds a fresh LocalPlayer with a vanilla KeyboardInput; re-installing here keeps
+        // the bot on the decoupled actuator without a separate lifecycle hook. AgentInput
+        // IS a KeyboardInput, so manual play is unaffected when the Walker isn't driving.
+        if (!(p.input instanceof AgentInput)) p.input = new AgentInput(mc.options);
+
         // Ground pathfinder: end creative flight so the player descends and
         // the walk/jump actuator (which relies on gravity + onGround) works.
         // While flying the player floats above the ground path, overshoots
@@ -1350,6 +1357,25 @@ public final class Walker {
         }
         mc.options.keyLeft.setDown(strafeL);
         mc.options.keyRight.setDown(strafeR);
+        // Camera-decoupled drive (see AgentInput). Rotate the body-frame movement intent
+        // (forward + lane-keep strafe) from the desired travel heading (aimYaw) into the
+        // camera frame by Δ = aimYaw − cameraYaw, so vanilla travel()'s rotate-by-yaw moves
+        // the body ALONG the heading even while the camera is still slewing toward it — the
+        // body no longer rams a wall waiting for the look to catch up (动态纠偏). At Δ=0
+        // (camera caught up) the impulse equals the old keyed (dL,dF), so steady-state walking
+        // is byte-identical; only the slew transient changes. spinFreeze deliberately holds
+        // the heading (water anti-wind), so drive along the frozen camera there (Δ=0) to keep
+        // its press-one-way climb-out behaviour. Special branches above return before here, so
+        // they keep their own key-based actuation (AgentInput falls back to keys uncommanded).
+        double driveF = (!descendBrake && !pivotForStepUp) ? 1.0 : 0.0;
+        double driveL = strafeL ? 1.0 : (strafeR ? -1.0 : 0.0);
+        double driveDelta = Math.toRadians(spinFreeze ? 0.0 : angleDiff(p.getYRot(), aimYaw));
+        double driveCos = Math.cos(driveDelta), driveSin = Math.sin(driveDelta);
+        if (p.input instanceof AgentInput ai) {
+            ai.commandMove(
+                    (float) (driveL * driveCos - driveF * driveSin),
+                    (float) (driveL * driveSin + driveF * driveCos));
+        }
         // Bridging a chasm one placed block at a time: sneak (so a sprint
         // overshoot can't carry the bot off the fresh 1-wide block into the
         // gap ahead) and don't sprint. Triggered when the edge we're walking
