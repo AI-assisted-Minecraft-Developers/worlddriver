@@ -60,6 +60,14 @@ public final class PathFinder {
      *  bot off course (see {@link BotConfig#pathfinderFrontierCommit}). */
     private static final double MIN_FRONTIER_GAIN = 50;
 
+    /** Min height (blocks) a vertical-escape segment must climb above the start to
+     *  be committed when the search is BOXED (no horizontal forward progress) — the
+     *  user-chosen "pillar-up / dig-up over the obstacle" escape from a local-minimum
+     *  pinch (bot wedged at the foot of a tall cliff, conservative selectSegment
+     *  returns null and it deadlocks). Pure up + forward, so no backtrack/oscillation;
+     *  height is monotone across the re-plan chain. */
+    private static final int MIN_CLIMB_ESCAPE = 2;
+
     /** A repropagated route must beat the incumbent g by more than this to be
      *  accepted — Baritone's minimum-improvement repropagation (0.01 ticks ≈
      *  0.1 cost units here). Re-opening a closed node to save a sliver of cost
@@ -137,6 +145,12 @@ public final class PathFinder {
         // goal commits to climbing ASHORE rather than a fake in-water segment.
         private Node bestAshore;
         private double bestAshoreH = Double.POSITIVE_INFINITY;
+        // Vertical-escape best-effort: when boxed at the foot of a tall obstacle, the
+        // node that climbed ABOVE the start and got nearest the goal (pillar-up / dig-up).
+        // Committed by chooseSegment only when selectSegment is null (no horizontal escape),
+        // so the bot scales the obstacle instead of deadlocking — see MIN_CLIMB_ESCAPE.
+        private Node bestClimb;
+        private double bestClimbScore = Double.POSITIVE_INFINITY;
         private final boolean startInWater;
         private final Node startNode;
         /** Move-set pruned to the catalog entries that can fire under this search's
@@ -307,6 +321,22 @@ public final class PathFinder {
                         bestAshoreH = cur.h;
                         bestAshore = cur;
                     }
+                    // Vertical escape: track the best node reached by climbing ABOVE the
+                    // start (pillar-up / dig-up). Score = h biased slightly toward greater
+                    // height, so it prefers a node that climbed AND advanced toward the goal
+                    // (lower h); on an h-tie (a straight-up pillar leaves the XZ estimate
+                    // unchanged) it prefers the highest rung, gaining the most vantage. Only
+                    // for Y-agnostic XZ goals — there "over the obstacle toward the column"
+                    // is the intent; a Y-aware goal guides height via its own 3D heuristic.
+                    // Inert unless the bot can place/break (else no climbed node exists), so
+                    // the headless GameTest view (canPlace=false, breakCost=∞) never trips it.
+                    if (goal.ignoresY() && cur.pos.getY() > start.getY()) {
+                        double climbScore = cur.h - 0.01 * (cur.pos.getY() - start.getY());
+                        if (climbScore < bestClimbScore) {
+                            bestClimbScore = climbScore;
+                            bestClimb = cur;
+                        }
+                    }
 
                     if (expanded >= maxNodes) break;
                     if (totalMs(sliceStart) > maxMs) break;
@@ -380,7 +410,19 @@ public final class PathFinder {
                     && bestFrontier.pos.distSqr(start) > MIN_DIST_PATH * MIN_DIST_PATH) {
                 return bestFrontier;
             }
-            return selectSegment(bestSoFar, start);
+            Node seg = selectSegment(bestSoFar, start);
+            if (seg != null) return seg;
+            // Boxed: no horizontal segment made real progress (conservative selector
+            // refuses a backward/lateral hop). Escape VERTICALLY over the obstacle if we
+            // climbed meaningfully above the start — pillar-up / dig-up, pure up + forward,
+            // so it never introduces the camera-jarring backtrack the selector guards
+            // against. The re-plan chain runs from the higher vantage; height is monotone
+            // so it can't oscillate, and it self-terminates when blocks run out (no
+            // climbed node → null → today's "no path"). User-chosen vertical escape.
+            if (bestClimb != null && bestClimb.pos.getY() - start.getY() >= MIN_CLIMB_ESCAPE) {
+                return bestClimb;
+            }
+            return null;
         }
 
         /** True if {@code p} is a dry standing cell — feet on solid dry ground, not

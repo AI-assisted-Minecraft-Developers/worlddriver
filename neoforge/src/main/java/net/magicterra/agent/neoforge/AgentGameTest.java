@@ -70,4 +70,28 @@ public final class AgentGameTest {
                 })
                 .thenSucceed();
     }
+
+    /**
+     * Deterministic regression guard for the vertical-escape fix to the planner BOXED
+     * local-minimum pinch (synthetic {@link net.magicterra.agent.bot.debug.PinchArena}).
+     * Pure CPU on an in-memory grid — no server world — so it runs synchronously here.
+     * Under search-budget pressure the conservative selector is boxed at the cliff foot;
+     * the fix must commit pillar-up segments so the re-plan chain scales the wall and
+     * reaches the plateau goal. Logs each budget's trail for diagnosis.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void pinchArena(GameTestHelper helper) {
+        StringBuilder log = new StringBuilder("[pinchArena]\n");
+        boolean anyReached = false;
+        for (int budget : new int[]{150, 300, 600, 2000, 60000}) {
+            net.magicterra.agent.bot.debug.PinchArena.Result r =
+                    net.magicterra.agent.bot.debug.PinchArena.run(budget);
+            log.append("  maxNodes=").append(budget).append(": ").append(r).append('\n');
+            anyReached |= r.reached;
+        }
+        AgentDriverCommon.LOG.info(log.toString());
+        if (!anyReached)
+            throw new GameTestAssertException("vertical-escape failed to scale the cliff at every budget; see [pinchArena] log");
+        helper.succeed();
+    }
 }
