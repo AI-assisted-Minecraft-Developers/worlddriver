@@ -7,9 +7,16 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import net.magicterra.agent.neoforge.sim.ServerPlayerAvatar;
+import net.magicterra.agent.bot.Goal;
+import net.magicterra.agent.bot.BotConfig;
+import net.magicterra.agent.bot.movement.Walker;
+import net.magicterra.agent.bot.world.LevelWorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.neoforged.neoforge.common.util.FakePlayer;
 
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -199,6 +206,73 @@ public final class AgentGameTest {
             throw new GameTestAssertException("jumped +1 step-up failed: climbed=" + climbed);
 
         AgentDriverCommon.LOG.info("[physicsParity] disp={} apex={} climbed={}", disp, apex, climbed);
+        helper.succeed();
+    }
+
+    /**
+     * End-to-end: the REAL {@link Walker} drives a {@link ServerPlayerAvatar}
+     * over a live {@link LevelWorldView} to pillar up through an oak-leaf canopy
+     * (a cardinal-neighbour leaf at each rung's ceiling, the live AABB-clip
+     * geometry). Exercises pathfinding + place + the canopy {@code toBreak} fix +
+     * physics, headlessly. Asserts the FakePlayer reaches the elevated goal.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void summitArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 8, cz = 8, floorY = 220, standY = 221;
+        buildFloor(level, cx, cz, floorY);
+        // Canopy: oak leaves on the -x cardinal neighbour at the rung ceilings.
+        for (int y = standY + 1; y <= standY + 4; y++)
+            level.setBlockAndUpdate(new BlockPos(cx - 1, y, cz), Blocks.OAK_LEAVES.defaultBlockState());
+        BlockPos goal = new BlockPos(cx, standY + 3, cz);   // 3 pillars up
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;
+        try {
+            // start slightly off-centre toward -x, mimicking the live drift that
+            // makes the head clip the -x neighbour leaf.
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.06, standY, cz + 0.5);
+            FakePlayer fp = av.fakePlayer();
+            fp.getInventory().clearContent();
+            fp.getInventory().add(new ItemStack(Items.DIRT, 64));
+            fp.getInventory().selected = 0;
+
+            LevelWorldView w = new LevelWorldView(level, fp);
+
+            // Deterministic canopy-fix proof: PillarUp.eval at the rung whose
+            // ceiling (from+2) is the leaf row must list the -x cardinal-neighbour
+            // leaf in toBreak (the AABB head-sweep fix), independent of execution.
+            net.magicterra.agent.bot.pathfinder.Move.Edge pe =
+                    new net.magicterra.agent.bot.pathfinder.moves.PillarUp()
+                            .eval(w, new BlockPos(cx, standY + 1, cz));        // from=222 → ceiling=224
+            BlockPos neighbourLeaf = new BlockPos(cx - 1, standY + 3, cz);     // (cx-1, 224)
+            if (pe == null || !pe.toBreak.contains(neighbourLeaf))
+                throw new GameTestAssertException(
+                        "canopy fix: PillarUp.eval did not add the ceiling-neighbour leaf "
+                        + neighbourLeaf + " to toBreak (got " + (pe == null ? "null" : pe.toBreak) + ")");
+
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.Block(goal));
+
+            Walker.Step s = Walker.Step.WALKING;
+            for (int t = 0; t < 400 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+            }
+            boolean reached = Math.abs(fp.getX() - (cx + 0.5)) < 1.5
+                    && Math.abs(fp.getZ() - (cz + 0.5)) < 1.5
+                    && fp.getY() >= standY + 3 - 0.4;
+            boolean leafCleared = level.getBlockState(new BlockPos(cx - 1, standY + 3, cz)).isAir();
+            AgentDriverCommon.LOG.info("[summitArena] step={} y={} reached={} leafCleared={}",
+                    s, fp.getY(), reached, leafCleared);
+            if (!reached)
+                throw new GameTestAssertException(
+                        "real Walker failed to pillar to goal: y=" + fp.getY() + " step=" + s);
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+        }
         helper.succeed();
     }
 
