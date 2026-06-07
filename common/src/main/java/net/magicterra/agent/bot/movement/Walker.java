@@ -75,6 +75,10 @@ public final class Walker {
     public enum Step { WALKING, ARRIVED, FAILED }
     private static final double REACH_DIST_SQ = 0.45;
     private static final int STUCK_TICKS = 60;
+    /** Bounded fresh re-searches at a loaded-chunk frontier before giving up (the
+     *  bot is stationary while waiting, so a couple of tries is plenty — see
+     *  {@link #frontierHoldOrArrive}). */
+    private static final int FRONTIER_WAIT_CAP = 3;
     /** Min reduction in distance² (blocks²) to the current node that counts as real
      *  forward progress for the {@link #stuckTicks} no-progress timer. Set above the
      *  sub-0.1 b/tick position jitter of a treading / water-creeping bot but below a
@@ -126,6 +130,7 @@ public final class Walker {
     private boolean pathBestEffort;                         // current path is a best-effort partial (goal NOT reached) → commit to it before re-searching
     private BlockPos commitEnd;                             // last node of the current best-effort segment (null for a full path) → where continuation searches launch from
     private boolean searchFromEnd;                          // activeSearch is a continuation launched from commitEnd (deferred splice) vs a foot-search (splice immediately)
+    private int frontierWaitTicks;                          // bounded retries re-searching at a loaded-chunk frontier before giving up (pathfinderFrontierCommit)
     private PathFinder.Result pendingSegment;              // a finished continuation segment awaiting splice at the current segment's end
     private int dbgPrevStep = -1;     // walkerDebug: detect step changes for per-step timing
     private int dbgTicksOnStep = 0;   // walkerDebug: ticks spent on the current step
@@ -352,9 +357,11 @@ public final class Walker {
                 // letting the kickoff re-launch the same boxed-in search forever.
                 pendingSegment = res;
             } else if (wasFromEnd && !res.hasPath()) {
-                // Already at/over the segment end and no onward route → we've gone
-                // as far as the best effort allows.
-                return terminal(Step.ARRIVED, PathTrace.Outcome.SUCCESS, null);
+                // Already at/over the segment end and no onward route. With frontier
+                // planning this may be a STALE continuation (computed before we
+                // arrived & loaded the chunks beyond) — re-search fresh before giving
+                // up; otherwise we've gone as far as the best effort allows.
+                return frontierHoldOrArrive(mc, world, p);
             } else if (res.hasPath()) {
                 adoptPath(res, world);
             } else if (path == null) {
@@ -548,7 +555,10 @@ public final class Walker {
                 if (next.hasPath() && next.path().size() > 1) {
                     adoptPath(next, world);     // step→1 on the new segment; fall through to walk it
                 } else {
-                    return terminal(Step.ARRIVED, PathTrace.Outcome.SUCCESS, null);
+                    // Stale eager continuation found nothing — at a chunk frontier the
+                    // newly-loaded terrain may now reveal the next segment, so re-search
+                    // fresh before giving up (bounded).
+                    return frontierHoldOrArrive(mc, world, p);
                 }
             } else {
                 if (activeSearch == null && commitEnd != null) {
@@ -1344,6 +1354,33 @@ public final class Walker {
      *  segment is precomputed from its end — see the kickoff/splice logic in
      *  {@link #tick}). {@code commitEnd} is the segment's last node, the launch
      *  point for that continuation search. */
+    /** At a loaded-chunk frontier the (stale) eager continuation from commitEnd —
+     *  computed before the bot arrived — found no onward route. Re-search FRESH from
+     *  the frontier: now that the bot stands there, chunks ~render-distance further
+     *  have loaded and the next segment is visible. Bounded by {@link #FRONTIER_WAIT_CAP}
+     *  (the bot is stationary while waiting, so retrying more can't load new chunks)
+     *  so a genuine box-in still terminates. Holds (keys released) and returns
+     *  WALKING while retrying; ARRIVED when out of retries or the feature is off. */
+    private Step frontierHoldOrArrive(Minecraft mc, WorldView world, LocalPlayer p) {
+        if (BotConfig.pathfinderFrontierCommit && commitEnd != null
+                && frontierWaitTicks < FRONTIER_WAIT_CAP) {
+            frontierWaitTicks++;
+            if (activeSearch == null) {
+                activeSearch = new PathFinder(world).newSearch(commitEnd, goal);
+                searchFromEnd = true;
+            }
+            mc.options.keyUp.setDown(false);
+            mc.options.keyDown.setDown(false);
+            mc.options.keyLeft.setDown(false);
+            mc.options.keyRight.setDown(false);
+            mc.options.keyJump.setDown(false);
+            mc.options.keySprint.setDown(false);
+            p.setSprinting(false);
+            return Step.WALKING;
+        }
+        return terminal(Step.ARRIVED, PathTrace.Outcome.SUCCESS, null);
+    }
+
     private void adoptPath(PathFinder.Result res, WorldView world) {
         // String-pull flat walk runs so the heading stays steady over the
         // staircase (no left-right camera wobble) and the bot walks straight;
@@ -1355,6 +1392,7 @@ public final class Walker {
         commitEnd = (pathBestEffort && !path.isEmpty()) ? path.get(path.size() - 1) : null;
         step = 1;
         stuckTicks = 0;
+        frontierWaitTicks = 0;          // progress made → reset the frontier re-search budget
         stuckStep = -1;                 // new path geometry → restart the progress window
         bestStepDist = Double.POSITIVE_INFINITY;
         actionTicks = 0;

@@ -245,6 +245,10 @@ public final class SettingsCommand {
                 BotConfig.pathfinderDepthSlack = Math.max(0, dps.intValue());
                 applied.add("pathfinderDepthSlack");
             }
+            if (params.get("pathfinderFrontierCommit") instanceof Boolean fc) {
+                BotConfig.pathfinderFrontierCommit = fc;
+                applied.add("pathfinderFrontierCommit");
+            }
             if (params.get("pathChartAutoDump") instanceof Boolean pcad) {
                 BotConfig.pathChartAutoDump = pcad;
                 applied.add("pathChartAutoDump");
@@ -618,6 +622,7 @@ public final class SettingsCommand {
         snap.put("goalFieldVerticalRadius", BotConfig.goalFieldVerticalRadius);
         snap.put("pathfinderDepthPenalty", BotConfig.pathfinderDepthPenalty);
         snap.put("pathfinderDepthSlack", BotConfig.pathfinderDepthSlack);
+        snap.put("pathfinderFrontierCommit", BotConfig.pathfinderFrontierCommit);
         snap.put("pathfinder.axisHeight", BotConfig.axisHeight);
         snap.put("blocksToAvoid", new ArrayList<>(BotConfig.extraHazardBlocks));
         snap.put("mutedEvents", new ArrayList<>(BotConfig.mutedEvents));

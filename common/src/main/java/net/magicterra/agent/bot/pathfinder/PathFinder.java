@@ -54,6 +54,12 @@ public final class PathFinder {
      *  candidates are treated as "no real progress" and rejected. */
     public static final double MIN_DIST_PATH = 5;
 
+    /** Minimum heuristic reduction (cost units ≈ 5 blocks toward the goal) a
+     *  loaded-chunk frontier node must offer over the start before a frontier
+     *  segment is committed — so a sideways/backward chunk edge never pulls the
+     *  bot off course (see {@link BotConfig#pathfinderFrontierCommit}). */
+    private static final double MIN_FRONTIER_GAIN = 50;
+
     /** A repropagated route must beat the incumbent g by more than this to be
      *  accepted — Baritone's minimum-improvement repropagation (0.01 ticks ≈
      *  0.1 cost units here). Re-opening a closed node to save a sliver of cost
@@ -113,6 +119,11 @@ public final class PathFinder {
         private final PriorityQueue<Node> open = new PriorityQueue<>((a, b) -> Double.compare(a.f, b.f));
         private final double[] bestHeuristic = new double[COEFFICIENTS.length];
         private final Node[] bestSoFar = new Node[COEFFICIENTS.length];
+        /** Reachable node nearest the goal (min raw h) that borders an unloaded
+         *  chunk — the goal-ward edge of known terrain. Drives segmented planning
+         *  to the loaded-chunk frontier (see {@link BotConfig#pathfinderFrontierCommit}). */
+        private Node bestFrontier;
+        private double bestFrontierH = Double.POSITIVE_INFINITY;
         private final Node startNode;
         /** Move-set pruned to the catalog entries that can fire under this search's
          *  world/config constants (see {@link Move#availableInSearch}). Built once
@@ -211,6 +222,14 @@ public final class PathFinder {
                             bestSoFar[i] = cur;
                         }
                     }
+                    // Loaded-chunk frontier: a reachable node bordering an unloaded
+                    // chunk is the edge of known terrain. Track the one nearest the
+                    // goal (min raw h) so a horizon-truncated search can commit toward
+                    // it (segmented planning, BotConfig.pathfinderFrontierCommit).
+                    if (BotConfig.pathfinderFrontierCommit && cur.h < bestFrontierH && bordersUnknown(cur.pos)) {
+                        bestFrontierH = cur.h;
+                        bestFrontier = cur;
+                    }
 
                     if (expanded >= maxNodes) break;
                     if (totalMs(sliceStart) > maxMs) break;
@@ -242,7 +261,7 @@ public final class PathFinder {
                     }
                 }
                 // open empty / node budget / time budget → commit best-effort segment
-                Node segment = selectSegment(bestSoFar, start);
+                Node segment = chooseSegment();
                 result = (segment == null)
                         ? new Result(List.of(), List.of(), false, expanded, totalMs(sliceStart), startNode.h)
                         : build(segment, false, expanded, totalMs(sliceStart), segment.g);
@@ -251,6 +270,28 @@ public final class PathFinder {
                 world.cacheActive(false);
                 elapsedNanos += System.nanoTime() - sliceStart;
             }
+        }
+
+        /** True if any cardinal-horizontal neighbour of {@code p} sits in an
+         *  unloaded chunk — i.e. {@code p} is on the edge of known terrain. */
+        private boolean bordersUnknown(BlockPos p) {
+            return !world.isKnown(p.offset(1, 0, 0)) || !world.isKnown(p.offset(-1, 0, 0))
+                || !world.isKnown(p.offset(0, 0, 1)) || !world.isKnown(p.offset(0, 0, -1));
+        }
+
+        /** Pick the segment to commit when the goal wasn't reached. With frontier
+         *  planning on, prefer walking to the goal-ward edge of known terrain (so the
+         *  bot advances, loads new chunks, and the next search extends) — but only
+         *  when that frontier is real progress toward the goal (else a backward chunk
+         *  edge would pull the bot the wrong way). Otherwise fall back to Baritone's
+         *  conservative best-effort backoff. */
+        private Node chooseSegment() {
+            if (BotConfig.pathfinderFrontierCommit && bestFrontier != null
+                    && bestFrontier.h < startNode.h - MIN_FRONTIER_GAIN
+                    && bestFrontier.pos.distSqr(start) > MIN_DIST_PATH * MIN_DIST_PATH) {
+                return bestFrontier;
+            }
+            return selectSegment(bestSoFar, start);
         }
 
         private long totalMs(long sliceStart) {

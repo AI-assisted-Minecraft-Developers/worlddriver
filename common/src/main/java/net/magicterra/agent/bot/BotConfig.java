@@ -247,6 +247,22 @@ public final class BotConfig {
      *  charged). */
     public static volatile int pathfinderDepthSlack = 4;
 
+    /** Segmented planning to the loaded-chunk frontier. The client only knows
+     *  chunks within render distance, so a far goal lies beyond loaded space; the
+     *  search can't path into unloaded chunks (no floor) and stops at the boundary.
+     *  When ON, a budget-/boundary-truncated search that can't reach the goal
+     *  commits toward the goal-WARD edge of known terrain (the reachable node
+     *  nearest the goal that borders an unloaded chunk) instead of the conservative
+     *  near-start best-effort — so the bot walks to the frontier, new chunks load,
+     *  and the next search extends the plan. This is what makes a long journey
+     *  chain smoothly across the horizon instead of committing a backward segment
+     *  and oscillating. Falls back to the normal best-effort when the goal-ward
+     *  frontier isn't reachable (a real wall in loaded terrain) so it composes with
+     *  go-around behaviour. Pairs with the Walker re-searching fresh on arrival at a
+     *  frontier (a stale eager continuation computed before arrival can't see the
+     *  newly-loaded chunks). Default OFF until A/B-validated live. */
+    public static volatile boolean pathfinderFrontierCommit = false;
+
     /** Y plane targeted by {@code mc.bot.goto{axis:true}} — Baritone's
      *  {@code axisHeight} setting (default 120, the classic "highway" Y). Read
      *  when an Axis goal is constructed. */

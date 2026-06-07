@@ -287,6 +287,7 @@ public final class BotTools {
                 "  goalFieldVerticalRadius   int            dflt 32     — goal-field vertical half-extent (blocks)\n" +
                 "  pathfinderDepthPenalty    number         dflt 6      — anti-basin-dive: cost/block for descending below the search start Y (XZ goals dive into dead-end valleys without it); biases routes higher/smoother. 0=off\n" +
                 "  pathfinderDepthSlack      int            dflt 4      — free descent blocks before pathfinderDepthPenalty applies\n" +
+                "  pathfinderFrontierCommit  bool           dflt false  — segmented planning to the loaded-chunk frontier: commit toward the goal-ward edge of known terrain so far journeys chain across the render horizon instead of backtracking\n" +
                 "  pathfinder.axisHeight     [-64,320]      dflt 120    — Y plane for goto{axis:true} (GoalAxis)\n" +
                 "Returns {ok, settings, applied?, rejected?}.",
                 Map.of(
@@ -386,6 +387,7 @@ public final class BotTools {
                         put("goalFieldVerticalRadius",    Map.of("type", "integer", "minimum", 4,  "maximum", 128));
                         put("pathfinderDepthPenalty",     Map.of("type", "number",  "minimum", 0,  "maximum", 100));
                         put("pathfinderDepthSlack",       Map.of("type", "integer", "minimum", 0,  "maximum", 64));
+                        put("pathfinderFrontierCommit",   Map.of("type", "boolean"));
                         put("pathfinder.axisHeight",      Map.of("type", "integer", "minimum", -64, "maximum", 320));
                     }}
                 )),
