@@ -221,6 +221,30 @@ public final class SettingsCommand {
                 BotConfig.collisionAwarePathing = cap;
                 applied.add("collisionAwarePathing");
             }
+            if (params.get("pathfinderGoalField") instanceof Boolean gf) {
+                BotConfig.pathfinderGoalField = gf;
+                applied.add("pathfinderGoalField");
+            }
+            if (params.get("goalFieldCellSize") instanceof Number gfc) {
+                BotConfig.goalFieldCellSize = Math.max(1, gfc.intValue());
+                applied.add("goalFieldCellSize");
+            }
+            if (params.get("goalFieldRadius") instanceof Number gfr) {
+                BotConfig.goalFieldRadius = Math.max(8, gfr.intValue());
+                applied.add("goalFieldRadius");
+            }
+            if (params.get("goalFieldVerticalRadius") instanceof Number gfvr) {
+                BotConfig.goalFieldVerticalRadius = Math.max(4, gfvr.intValue());
+                applied.add("goalFieldVerticalRadius");
+            }
+            if (params.get("pathfinderDepthPenalty") instanceof Number dpp) {
+                BotConfig.pathfinderDepthPenalty = Math.max(0, dpp.doubleValue());
+                applied.add("pathfinderDepthPenalty");
+            }
+            if (params.get("pathfinderDepthSlack") instanceof Number dps) {
+                BotConfig.pathfinderDepthSlack = Math.max(0, dps.intValue());
+                applied.add("pathfinderDepthSlack");
+            }
             if (params.get("pathChartAutoDump") instanceof Boolean pcad) {
                 BotConfig.pathChartAutoDump = pcad;
                 applied.add("pathChartAutoDump");
@@ -588,6 +612,12 @@ public final class SettingsCommand {
         snap.put("pathfinder.heuristicWeight", BotConfig.pathfinderHeuristicWeight);
         snap.put("pathfinderCacheEnabled", BotConfig.pathfinderCacheEnabled);
         snap.put("collisionAwarePathing", BotConfig.collisionAwarePathing);
+        snap.put("pathfinderGoalField", BotConfig.pathfinderGoalField);
+        snap.put("goalFieldCellSize", BotConfig.goalFieldCellSize);
+        snap.put("goalFieldRadius", BotConfig.goalFieldRadius);
+        snap.put("goalFieldVerticalRadius", BotConfig.goalFieldVerticalRadius);
+        snap.put("pathfinderDepthPenalty", BotConfig.pathfinderDepthPenalty);
+        snap.put("pathfinderDepthSlack", BotConfig.pathfinderDepthSlack);
         snap.put("pathfinder.axisHeight", BotConfig.axisHeight);
         snap.put("blocksToAvoid", new ArrayList<>(BotConfig.extraHazardBlocks));
         snap.put("mutedEvents", new ArrayList<>(BotConfig.mutedEvents));

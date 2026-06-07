@@ -120,6 +120,9 @@ public final class PathFinder {
          *  variants for a bucketless bot and the Parkour4 tier when it's off —
          *  ~100/259 fewer dispatch-and-reject per expansion in the default config. */
         private final Move[] activeMoves;
+        /** Obstacle-aware goal-distance field, or null when disabled / unusable
+         *  (then the heuristic is the plain Euclidean {@link Goal#estimate}). */
+        private final CoarseGoalField goalField;
         private int expanded;
         private long elapsedNanos;     // cumulative compute time across slices
         private Result result;         // null until done
@@ -133,7 +136,11 @@ public final class PathFinder {
             List<Move> active = new ArrayList<>(Move.ALL.size());
             for (Move m : Move.ALL) if (m.availableInSearch(world)) active.add(m);
             this.activeMoves = active.toArray(new Move[0]);
-            this.startNode = new Node(start, null, null, 0, goal.estimate(start));
+            // Build the obstacle-aware heuristic field once per search (before any
+            // node is created so the start node gets the field estimate too).
+            this.goalField = BotConfig.pathfinderGoalField
+                    ? CoarseGoalField.build(world, goal, start) : null;
+            this.startNode = new Node(start, null, null, 0, heuristic(start));
             nodes.put(start, startNode);
             open.add(startNode);
             PathTraceHolder.SINK.onSearchBegin(start, goal);
@@ -143,6 +150,26 @@ public final class PathFinder {
         public boolean done() { return result != null; }
         public Result result() { return result; }
         public int expanded() { return expanded; }
+
+        /** A* heuristic for a node: the obstacle-aware goal-field estimate when
+         *  available (max'd with the admissible Euclidean lower bound so it never
+         *  drops below it), else the plain Euclidean estimate. Falls back per-cell,
+         *  so an unbuilt or partial field simply yields today's behaviour. */
+        private double heuristic(BlockPos p) {
+            double h = goal.estimate(p);
+            if (goalField != null) {
+                double field = goalField.costToGoal(p);
+                if (field != CoarseGoalField.UNKNOWN) h = Math.max(h, field);
+            }
+            // Anti-basin-dive: an XZ goal's estimate ignores Y, so descending reads
+            // as free progress and the search dives into a dead-end low valley. Charge
+            // descent below this search's start (asymmetric — climbing stays free).
+            if (BotConfig.pathfinderDepthPenalty > 0) {
+                int below = start.getY() - BotConfig.pathfinderDepthSlack - p.getY();
+                if (below > 0) h += BotConfig.pathfinderDepthPenalty * below;
+            }
+            return h;
+        }
 
         /** Expand nodes until {@code sliceMs} of wall-clock elapses this call (or
          *  the search finishes / hits its total budget). Returns true once done;
@@ -201,7 +228,7 @@ public final class PathFinder {
                         Node existing = nodes.get(npos);
                         if (existing != null && ng > existing.g - MIN_IMPROVEMENT) continue;
                         if (existing == null) {
-                            Node next = new Node(npos, cur, edge, ng, goal.estimate(npos));
+                            Node next = new Node(npos, cur, edge, ng, heuristic(npos));
                             nodes.put(npos, next);
                             open.add(next);
                         } else {

@@ -281,6 +281,12 @@ public final class BotTools {
                 "  pathfinder.heuristicWeight[1.0,3.0]      dflt 1.3    — weighted A* (f=g+W·h); >1 = greedier toward goal, deeper frontier per budget\n" +
                 "  pathfinderCacheEnabled    bool           dflt true   — per-search blockstate memoise (A/B knob for search throughput)\n" +
                 "  collisionAwarePathing     bool           dflt true   — use real collision VoxelShapes (not coarse blocksMotion): cocoa/fences/partial blocks aren't full-cube walls or standable floors\n" +
+                "  pathfinderGoalField       bool           dflt false  — obstacle-aware goal-distance heuristic (coarse D*-lite field): routes AROUND concave pinches instead of backtracking. Phase-0 A/B knob\n" +
+                "  goalFieldCellSize         int            dflt 4      — goal-field coarse cell size (blocks)\n" +
+                "  goalFieldRadius           int            dflt 64     — goal-field horizontal half-extent (blocks; keep ≤ render distance)\n" +
+                "  goalFieldVerticalRadius   int            dflt 32     — goal-field vertical half-extent (blocks)\n" +
+                "  pathfinderDepthPenalty    number         dflt 6      — anti-basin-dive: cost/block for descending below the search start Y (XZ goals dive into dead-end valleys without it); biases routes higher/smoother. 0=off\n" +
+                "  pathfinderDepthSlack      int            dflt 4      — free descent blocks before pathfinderDepthPenalty applies\n" +
                 "  pathfinder.axisHeight     [-64,320]      dflt 120    — Y plane for goto{axis:true} (GoalAxis)\n" +
                 "Returns {ok, settings, applied?, rejected?}.",
                 Map.of(
@@ -374,6 +380,12 @@ public final class BotTools {
                         put("pathfinder.heuristicWeight", Map.of("type", "number",  "minimum", 1.0, "maximum", 3.0));
                         put("pathfinderCacheEnabled",     Map.of("type", "boolean"));
                         put("collisionAwarePathing",      Map.of("type", "boolean"));
+                        put("pathfinderGoalField",        Map.of("type", "boolean"));
+                        put("goalFieldCellSize",          Map.of("type", "integer", "minimum", 1,  "maximum", 16));
+                        put("goalFieldRadius",            Map.of("type", "integer", "minimum", 8,  "maximum", 192));
+                        put("goalFieldVerticalRadius",    Map.of("type", "integer", "minimum", 4,  "maximum", 128));
+                        put("pathfinderDepthPenalty",     Map.of("type", "number",  "minimum", 0,  "maximum", 100));
+                        put("pathfinderDepthSlack",       Map.of("type", "integer", "minimum", 0,  "maximum", 64));
                         put("pathfinder.axisHeight",      Map.of("type", "integer", "minimum", -64, "maximum", 320));
                     }}
                 )),

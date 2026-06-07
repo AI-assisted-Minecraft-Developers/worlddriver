@@ -60,7 +60,7 @@ import java.util.ArrayList;
 /** Reads the live client {@link Level} for the pathfinder: passability, solidity,
  *  fluids, climbables, hazards and break-cost. Extracted from BotApiImpl. */
 
-final class ClientWorldView implements WorldView {
+public final class ClientWorldView implements WorldView {
     // A* cost units are calibrated so one cardinal cell of walking (Move.Walk's
     // base cost, 10) ≈ the real time to traverse it: vanilla ground speed
     // 4.317 b/s → 20/4.317 ≈ 4.63 ticks/block (Baritone's WALK_ONE_BLOCK_COST).

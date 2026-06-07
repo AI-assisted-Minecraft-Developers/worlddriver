@@ -199,6 +199,54 @@ public final class BotConfig {
      *  read straight through). Default true. */
     public static volatile boolean pathfinderCacheEnabled = true;
 
+    /** Obstacle-aware goal-distance heuristic ({@link net.magicterra.agent.bot.pathfinder.CoarseGoalField}).
+     *  When ON, each search builds a coarse, symmetric, goal-rooted cost-to-goal
+     *  field over the loaded region and uses it (max'd with the Euclidean
+     *  estimate) as the A* heuristic, so the fine search routes AROUND a concave
+     *  pinch instead of expanding into the wall and committing a backward
+     *  best-effort segment (the "走回头路" oscillation). Degrades to the plain
+     *  Euclidean heuristic wherever the field has no value, so it can never be
+     *  worse than off. Phase-0 premise test: default OFF until A/B-validated. */
+    public static volatile boolean pathfinderGoalField = false;
+
+    /** Coarse-grid cell edge in blocks for {@link #pathfinderGoalField} (bigger =
+     *  cheaper to build, coarser routing). */
+    public static volatile int goalFieldCellSize = 4;
+
+    /** Horizontal half-extent (blocks) of the goal-field box around the search
+     *  start — keep within the client render distance so cells map to known
+     *  terrain. */
+    public static volatile int goalFieldRadius = 64;
+
+    /** Vertical half-extent (blocks) of the goal-field box around the search start. */
+    public static volatile int goalFieldVerticalRadius = 32;
+
+    /** Anti-basin-dive heuristic term (cost units per block). For an XZ goal the
+     *  estimate is Y-agnostic, so the search treats DESCENDING as free progress
+     *  and dives down a slope into a low valley/basin that is a dead-end toward
+     *  the goal, then gets boxed in (the deterministic root cause the mc.debug.plan
+     *  harness surfaced for the spawn pinch). This adds {@code penalty × max(0,
+     *  searchStartY − {@link #pathfinderDepthSlack} − nodeY)} to a node's heuristic
+     *  — an ASYMMETRIC bias: descending below where THIS search started costs
+     *  extra, climbing is free, so A* prefers a level/high route that can actually
+     *  progress. The reference is the per-search start Y (it drifts down on a
+     *  legitimate long descent, so a genuine downhill journey isn't over-charged).
+     *  Inadmissible by design (like weighted A*); keep modest or it refuses needed
+     *  descents and stalls on hilltops. Default 6 — a modest, calculated default:
+     *  harness A/B showed it is harmless when the path is already good (still
+     *  reaches, 0 backward segments) and biases the route a few blocks HIGHER /
+     *  smoother (better for a livestream camera), while plausibly countering the
+     *  XZ-goal basin-dive. NOT validated on the actual failure case (it is not
+     *  reliably reproducible via the live client — the search only sees loaded
+     *  chunks, which vary per session). Set 0 to disable; tune via the
+     *  mc.debug.plan chain harness. */
+    public static volatile double pathfinderDepthPenalty = 6;
+
+    /** Blocks of descent below the search start that are free before {@link
+     *  #pathfinderDepthPenalty} kicks in (so a normal step-down / small dip isn't
+     *  charged). */
+    public static volatile int pathfinderDepthSlack = 4;
+
     /** Y plane targeted by {@code mc.bot.goto{axis:true}} — Baritone's
      *  {@code axisHeight} setting (default 120, the classic "highway" Y). Read
      *  when an Axis goal is constructed. */
