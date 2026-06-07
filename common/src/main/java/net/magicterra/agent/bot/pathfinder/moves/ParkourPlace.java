@@ -52,4 +52,5 @@ public final class ParkourPlace extends Move {
         return new Edge(to, cost, List.of(), List.of(floor), name());
     }
     public String name() { return "parkourPlace2"; }
+    @Override public boolean placesBlock() { return true; }
 }

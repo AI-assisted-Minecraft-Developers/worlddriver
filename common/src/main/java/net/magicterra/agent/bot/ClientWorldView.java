@@ -392,6 +392,22 @@ public final class ClientWorldView implements WorldView {
         }
         return false;
     }
+    /** Total count of placeable, non-falling blocks on the hotbar — the placement
+     *  budget (see {@link WorldView#placeableBlockCount}). Creative = unbounded. */
+    @Override public int placeableBlockCount() {
+        LocalPlayer pl = Minecraft.getInstance().player;
+        if (pl == null) return 0;
+        if (pl.isCreative()) return Integer.MAX_VALUE;
+        Inventory inv = pl.getInventory();
+        int n = 0;
+        for (int slot = 0; slot < 9; slot++) {
+            ItemStack stk = inv.items.get(slot);
+            if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) continue;
+            if (bi.getBlock() instanceof FallingBlock) continue;
+            n += stk.getCount();
+        }
+        return n;
+    }
     // Cells checked for lava/fire around a candidate stand position: the 4
     // horizontal neighbours at foot, head, and foot-below levels. Diagonals
     // and the cell itself are skipped — the cell + the block directly below

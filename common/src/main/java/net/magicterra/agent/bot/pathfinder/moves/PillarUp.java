@@ -43,4 +43,5 @@ public final class PillarUp extends Move {
         return new Edge(to, Move.PILLAR_COST, List.of(), List.of(from), name());
     }
     public String name() { return "pillarUp"; }
+    @Override public boolean placesBlock() { return true; }
 }

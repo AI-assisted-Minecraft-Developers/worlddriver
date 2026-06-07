@@ -55,6 +55,15 @@ public abstract class Move {
     public boolean availableInSearch(WorldView w) { return true; }
 
     /**
+     * True if this move PLACES a block from inventory (bridge/pillar/parkour-place).
+     * The Walker uses this to drop all placing moves from a search when the bot
+     * doesn't carry enough blocks for a committed path's placements — "搭桥前算够
+     * 不够，否则就挖": rather than bridge partway and strand, re-search with placing
+     * off so A* digs through / routes around (break moves need no blocks). Default false.
+     */
+    public boolean placesBlock() { return false; }
+
+    /**
      * Resolve this move from {@code from} into a concrete A* edge, or
      * {@code null} if the world doesn't allow it. The default delegates to
      * {@link #valid} with the static {@link #cost} and no block edits — covers

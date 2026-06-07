@@ -86,6 +86,15 @@ public interface WorldView {
     default boolean canPlace() { return false; }
 
     /**
+     * Count of placeable (non-falling) blocks the bot carries — the budget for
+     * bridge/pillar/parkour placements. The Walker compares a committed path's
+     * placement count against this and, if short, re-searches with placing off so
+     * A* digs/routes around instead of bridging partway and stranding ("搭桥前算够
+     * 不够，否则就挖"). Default {@link Integer#MAX_VALUE} so a non-inventory view
+     * (headless tests) never triggers the budget reroute. Creative ≈ unbounded. */
+    default int placeableBlockCount() { return Integer.MAX_VALUE; }
+
+    /**
      * True when the bot may cross a gap with a parkour-place — Baritone's
      * {@code allowParkourPlace}: a sprint-jump onto a block placed mid-air over a
      * gap that has no floor of its own. Implies parkour-place is enabled

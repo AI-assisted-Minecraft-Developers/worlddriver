@@ -101,7 +101,15 @@ public final class PathFinder {
     }
 
     public Search newSearch(BlockPos start, Goal goal) {
-        return new Search(start, goal);
+        return new Search(start, goal, false);
+    }
+
+    /** Search variant that DROPS all block-placing moves (bridge/pillar/parkour-place)
+     *  when {@code suppressPlace} is true — used by the Walker to re-plan a route the
+     *  bot can afford (dig through / go around) after a normal search returned a path
+     *  needing more placed blocks than the inventory holds. */
+    public Search newSearch(BlockPos start, Goal goal, boolean suppressPlace) {
+        return new Search(start, goal, suppressPlace);
     }
 
     /**
@@ -144,15 +152,21 @@ public final class PathFinder {
         private long elapsedNanos;     // cumulative compute time across slices
         private Result result;         // null until done
 
-        private Search(BlockPos start, Goal goal) {
+        private Search(BlockPos start, Goal goal, boolean suppressPlace) {
             this.start = start;
             this.startInWater = world.isWater(start);
             this.goal = goal;
             world.beginSearch();       // snapshot per-search state (e.g. nearby mobs)
             // Prune the move catalog to this search's relevant subset (after
             // beginSearch so bucket/flag snapshots are live). One pass over ALL.
+            // suppressPlace additionally drops every block-placing move so an
+            // out-of-blocks re-plan digs/routes around instead of bridging.
             List<Move> active = new ArrayList<>(Move.ALL.size());
-            for (Move m : Move.ALL) if (m.availableInSearch(world)) active.add(m);
+            for (Move m : Move.ALL) {
+                if (!m.availableInSearch(world)) continue;
+                if (suppressPlace && m.placesBlock()) continue;
+                active.add(m);
+            }
             this.activeMoves = active.toArray(new Move[0]);
             // Build the obstacle-aware heuristic field once per search (before any
             // node is created so the start node gets the field estimate too).

@@ -43,4 +43,5 @@ public final class BridgePlace extends Move {
         return new Edge(to, BotConfig.pathfinderBridgeCost, List.of(), List.of(floor), name());
     }
     public String name() { return "bridgePlace"; }
+    @Override public boolean placesBlock() { return true; }
 }

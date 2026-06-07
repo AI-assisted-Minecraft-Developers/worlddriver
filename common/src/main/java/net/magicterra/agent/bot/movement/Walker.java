@@ -155,6 +155,7 @@ public final class Walker {
     private int stuckStep = -1;                             // path index bestStepDist tracks; a step change starts a fresh progress window
     private int noStepProgressTicks;                        // jitter-immune ticks on the SAME step (resets only when step advances/path changes) → wedge detector
     private int noProgressStep = -1;                        // path index noStepProgressTicks tracks (independent of bridge/progress resets)
+    private boolean searchSuppressedPlace;                  // the in-flight search dropped placing moves (block-budget reroute) → adopt its result without re-checking
     private float smoothTargetYaw = Float.NaN;              // EMA-low-passed target heading (NaN = uninitialised; resync on launch/new goal)
     private boolean pathBestEffort;                         // current path is a best-effort partial (goal NOT reached) → commit to it before re-searching
     private BlockPos commitEnd;                             // last node of the current best-effort segment (null for a full path) → where continuation searches launch from
@@ -353,6 +354,7 @@ public final class Walker {
             }
             activeSearch = new PathFinder(world).newSearch(foot, goal);
             searchFromEnd = false;
+            searchSuppressedPlace = false;    // normal search: placing allowed; budget re-checked on result
             pendingSegment = null;            // a foot-search supersedes any stashed continuation
             ticksSinceRepath = 0;
         } else if (pathBestEffort && commitEnd != null
@@ -360,6 +362,7 @@ public final class Walker {
             // Eagerly precompute the next best-effort segment from the committed end.
             activeSearch = new PathFinder(world).newSearch(commitEnd, goal);
             searchFromEnd = true;
+            searchSuppressedPlace = false;
             ticksSinceRepath = 0;
         }
         // Advance any in-flight search by one tick-slice so a big search never
@@ -431,6 +434,25 @@ public final class Walker {
                     mc.options.keySprint.setDown(false);
                     p.setSprinting(false);
                     return terminal(Step.ARRIVED, PathTrace.Outcome.SUCCESS, null);
+                }
+                // BLOCK-BUDGET ("搭桥前算够不够，否则就挖"): if this path would place
+                // more blocks (bridge/pillar/parkour-place) than the bot carries, it
+                // would bridge partway, burn its blocks and strand. Re-search with
+                // placing OFF so A* digs through / routes around (break moves need no
+                // blocks). Guard with searchSuppressedPlace so the place-off result is
+                // adopted as-is (no second reroute / loop).
+                if (!searchSuppressedPlace) {
+                    int placesNeeded = countPlaceEdges(res.edges());
+                    if (placesNeeded > world.placeableBlockCount()) {
+                        if (BotConfig.walkerDebug)
+                            LOG.info("[walker] path needs {} placed blocks, have {} → re-search place-off (dig/around)",
+                                    placesNeeded, world.placeableBlockCount());
+                        activeSearch = new PathFinder(world).newSearch(foot, goal, true);
+                        searchFromEnd = false;
+                        searchSuppressedPlace = true;
+                        pendingSegment = null;
+                        return Step.WALKING;
+                    }
                 }
                 adoptPath(res, world);
             } else if (path == null) {
@@ -1604,6 +1626,14 @@ public final class Walker {
 
     private Move.Edge edgeAt(int i) {
         return (edges != null && i >= 0 && i < edges.size()) ? edges.get(i) : null;
+    }
+
+    /** Total blocks a path would PLACE — the sum of each edge's toPlace size. Used
+     *  by the block-budget reroute (搭桥前算够不够) to compare against inventory. */
+    private static int countPlaceEdges(List<Move.Edge> edges) {
+        int n = 0;
+        for (Move.Edge e : edges) if (e != null && e.toPlace != null) n += e.toPlace.size();
+        return n;
     }
 
     /** A continuously-sliding aim point {@code CARROT_DIST} blocks ahead
