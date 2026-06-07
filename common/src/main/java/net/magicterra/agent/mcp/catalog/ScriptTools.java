@@ -27,22 +27,11 @@ public final class ScriptTools {
                 "Last expression = result. Fresh scope per call. Sandboxed (no file/network/reflection); " +
                 "bounded by timeoutMs (default 3000, max 30000). " +
                 "Returns {result, error, log, ms}.",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "source", Map.of(
-                            "type", "string",
-                            "description", "JavaScript source. Last expression is the result; use console.log for diagnostics."
-                        ),
-                        "timeoutMs", Map.of(
-                            "type", "integer",
-                            "minimum", 1,
-                            "maximum", 30000,
-                            "description", "Wall-clock budget in milliseconds. Defaults to 3000 if omitted."
-                        )
-                    ),
-                    "required", List.of("source")
-                )),
+                object()
+                    .req("source", string()
+                        .desc("JavaScript source. Last expression is the result; use console.log for diagnostics."))
+                    .prop("timeoutMs", integer(1, 30000)
+                        .desc("Wall-clock budget in milliseconds. Defaults to 3000 if omitted."))),
 
             wrTool("mc.skill",
                 "Persistent skill library (Phase H / Voyager): write a reusable JS skill once, " +
@@ -54,21 +43,17 @@ public final class ScriptTools {
                 "doesn't parse is rejected); list (→ {skills:[{name,bytes}]}); get {name} (→ source); " +
                 "run {name, args?} (→ {result, error, log, ms, skill}); delete {name}. Names are " +
                 "[a-z][a-z0-9_]*. Skills live under config/agent_driver/scripts/skills/.",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "op", Map.of("type", "string", "enum", List.of("save", "list", "get", "run", "delete"),
-                            "description", "Which action (default list)."),
-                        "name", Map.of("type", "string",
-                            "description", "Skill name [a-z][a-z0-9_]* (for save/get/run/delete)."),
-                        "source", Map.of("type", "string",
-                            "description", "JS source (for save). Last expression is the result; reads args from SKILL."),
-                        "args", Map.of("type", "object",
-                            "description", "Args passed to the skill as the SKILL global (for run). Optional."),
-                        "timeoutMs", Map.of("type", "integer", "minimum", 1, "maximum", 30000,
-                            "description", "Run budget ms (for run; default 3000).")
-                    )
-                )),
+                object()
+                    .prop("op", stringEnum("save", "list", "get", "run", "delete")
+                        .desc("Which action (default list)."))
+                    .prop("name", string()
+                        .desc("Skill name [a-z][a-z0-9_]* (for save/get/run/delete)."))
+                    .prop("source", string()
+                        .desc("JS source (for save). Last expression is the result; reads args from SKILL."))
+                    .prop("args", object()
+                        .desc("Args passed to the skill as the SKILL global (for run). Optional."))
+                    .prop("timeoutMs", integer(1, 30000)
+                        .desc("Run budget ms (for run; default 3000)."))),
 
             wrTool("mc.events",
                 "Driver→agent event channel — the server-side surface. Events (threats, " +
@@ -82,23 +67,18 @@ public final class ScriptTools {
                 "(default 'condition.met') the first tick the predicate flips false→true — " +
                 "e.g. watch mc.observe.player field 'health' below 6 for a low-health alert. " +
                 "unwatch {id} cancels; list shows active watchers.",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "op", Map.of("type", "string", "enum", List.of("emit", "watch", "unwatch", "list"),
-                            "description", "Which action."),
-                        "type", Map.of("type", "string", "description", "Event type (for emit)."),
-                        "data", Map.of("description", "Event payload — string or object (for emit). Optional."),
-                        "invoke", Map.of("type", "string", "description", "Route name to poll (for watch)."),
-                        "field", Map.of("type", "string", "description", "Dotted path into the poll result (for watch)."),
-                        "emitAs", Map.of("type", "string", "description", "Event type to emit on the rising edge (watch; default condition.met)."),
-                        "everyMs", Map.of("type", "integer", "minimum", 200, "maximum", 60000,
-                            "description", "Poll interval ms (watch; default 1000)."),
-                        "once", Map.of("type", "boolean", "description", "Cancel after the first fire (watch)."),
-                        "id", Map.of("type", "integer", "description", "Watcher id (for unwatch).")
-                    ),
-                    "required", List.of("op")
-                ))
+                object()
+                    .req("op", stringEnum("emit", "watch", "unwatch", "list")
+                        .desc("Which action."))
+                    .prop("type", string().desc("Event type (for emit)."))
+                    .prop("data", any().desc("Event payload — string or object (for emit). Optional."))
+                    .prop("invoke", string().desc("Route name to poll (for watch)."))
+                    .prop("field", string().desc("Dotted path into the poll result (for watch)."))
+                    .prop("emitAs", string().desc("Event type to emit on the rising edge (watch; default condition.met)."))
+                    .prop("everyMs", integer(200, 60000)
+                        .desc("Poll interval ms (watch; default 1000)."))
+                    .prop("once", bool().desc("Cancel after the first fire (watch)."))
+                    .prop("id", integer().desc("Watcher id (for unwatch).")))
         );
     }
 }

@@ -17,19 +17,14 @@ public final class WaitTools {
                 "cursor in response = last event's seq; chain it as the next call's cursor. " +
                 "Returns {events, timedOut, cursor, ms}. timeoutMs default 5000, max 120000. " +
                 "background:true returns {waitId} at once; result later via mc.wait.result or a wait.done event.",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "cursor", Map.of("type", "integer", "minimum", 0),
-                        "types", Map.of("type", "array", "items", Map.of("type", "string")),
-                        "limit", Map.of("type", "integer", "minimum", 1, "maximum", 256),
-                        "timeoutMs", Map.of("type", "integer", "minimum", 100, "maximum", 120000),
-                        "pollMs", Map.of("type", "integer", "minimum", 50, "maximum", 2000),
-                        "background", Map.of("type", "boolean",
-                            "description", "Run non-blocking: return {waitId} immediately; fetch via mc.wait.result.")
-                    ),
-                    "required", List.of("cursor")
-                )),
+                object()
+                    .req("cursor", integer().min(0))
+                    .prop("types", array(string()))
+                    .prop("limit", integer(1, 256))
+                    .prop("timeoutMs", integer(100, 120000))
+                    .prop("pollMs", integer(50, 2000))
+                    .prop("background", bool().desc(
+                        "Run non-blocking: return {waitId} immediately; fetch via mc.wait.result."))),
 
             roTool("mc.wait.worldReady",
                 "Block until the client finishes loading into a world (player + world both ready). " +
@@ -37,15 +32,11 @@ public final class WaitTools {
                 "Does NOT require an attached server. " +
                 "Returns {ready, ms, info} (info = last screenInfo). timeoutMs default 30000. " +
                 "background:true returns {waitId} at once (fetch via mc.wait.result / wait.done event).",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "timeoutMs", Map.of("type", "integer", "minimum", 100, "maximum", 120000),
-                        "pollMs", Map.of("type", "integer", "minimum", 50, "maximum", 2000),
-                        "background", Map.of("type", "boolean",
-                            "description", "Run non-blocking: return {waitId} immediately; fetch via mc.wait.result.")
-                    )
-                )),
+                object()
+                    .prop("timeoutMs", integer(100, 120000))
+                    .prop("pollMs", integer(50, 2000))
+                    .prop("background", bool().desc(
+                        "Run non-blocking: return {waitId} immediately; fetch via mc.wait.result."))),
 
             roTool("mc.wait.condition",
                 "Poll-until-truthy. Each iteration calls invoke(params), walks dotted field into " +
@@ -56,39 +47,28 @@ public final class WaitTools {
                 "IN LIVE PLAY use background:true for long phase/time waits — a blocking wait freezes " +
                 "the agent and blinds it to threat/hurt/death events for the whole budget. background " +
                 "returns {waitId} immediately; the result arrives via mc.wait.result{waitId} or a wait.done event.",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "invoke", Map.of("type", "string",
-                            "description", "Method name to call each poll, e.g. 'mc.observe.container'."),
-                        "params", Map.of("type", "object",
-                            "description", "Params object passed to the invoked tool."),
-                        "field", Map.of("type", "string",
-                            "description", "Dotted path into the result. Omit to test whole result for truthiness."),
-                        "value", Map.of("description",
-                            "Optional target value for deep-equal comparison. Omit for truthy check."),
-                        "timeoutMs", Map.of("type", "integer", "minimum", 100, "maximum", 120000),
-                        "pollMs", Map.of("type", "integer", "minimum", 50, "maximum", 5000),
-                        "background", Map.of("type", "boolean",
-                            "description", "Run non-blocking: return {waitId} immediately; fetch via mc.wait.result.")
-                    ),
-                    "required", List.of("invoke")
-                )),
+                object()
+                    .req("invoke", string().desc(
+                        "Method name to call each poll, e.g. 'mc.observe.container'."))
+                    .prop("params", object().desc("Params object passed to the invoked tool."))
+                    .prop("field", string().desc(
+                        "Dotted path into the result. Omit to test whole result for truthiness."))
+                    .prop("value", any().desc(
+                        "Optional target value for deep-equal comparison. Omit for truthy check."))
+                    .prop("timeoutMs", integer(100, 120000))
+                    .prop("pollMs", integer(50, 5000))
+                    .prop("background", bool().desc(
+                        "Run non-blocking: return {waitId} immediately; fetch via mc.wait.result."))),
 
             roTool("mc.wait.result",
                 "Fetch the result of a background wait (any wait.* started with background:true). " +
                 "Returns {pending:true} until it finishes, then the full original result " +
                 "(satisfied/timedOut/value/events …). Consumes the result unless consume:false. " +
                 "Alternatively, watch the event stream for a wait.done event carrying {waitId, kind, …}.",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "waitId", Map.of("type", "string", "description", "The waitId returned by the background wait."),
-                        "consume", Map.of("type", "boolean",
-                            "description", "Remove the stored result after reading (default true).")
-                    ),
-                    "required", List.of("waitId")
-                ))
+                object()
+                    .req("waitId", string().desc("The waitId returned by the background wait."))
+                    .prop("consume", bool().desc(
+                        "Remove the stored result after reading (default true).")))
         );
     }
 }

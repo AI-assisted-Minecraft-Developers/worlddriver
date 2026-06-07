@@ -19,21 +19,12 @@ public final class DebugTools {
                 "time-series. Requires mc.bot.setting{pathDebug:true} BEFORE the goto so data is captured. " +
                 "Callable any time — mid-walk or after success/failure. Returns {ok, path, width, height, " +
                 "bytes, outcome, plans, candidates, samples}.",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "width", Map.of("type", "integer", "minimum", 256, "maximum", 4096,
-                            "description", "Image width px. Default 1280."),
-                        "height", Map.of("type", "integer", "minimum", 256, "maximum", 4096,
-                            "description", "Image height px. Default 960."),
-                        "includeCandidates", Map.of("type", "boolean",
-                            "description", "Draw A* expanded-node heat. Default true."),
-                        "save", Map.of("type", "boolean",
-                            "description", "Write to disk. Default true; false returns dims only."),
-                        "name", Map.of("type", "string",
-                            "description", "Optional file name (no extension). Default pathchart-NNNN-<ms>.")
-                    )
-                )),
+                object()
+                    .prop("width", integer(256, 4096).desc("Image width px. Default 1280."))
+                    .prop("height", integer(256, 4096).desc("Image height px. Default 960."))
+                    .prop("includeCandidates", bool().desc("Draw A* expanded-node heat. Default true."))
+                    .prop("save", bool().desc("Write to disk. Default true; false returns dims only."))
+                    .prop("name", string().desc("Optional file name (no extension). Default pathchart-NNNN-<ms>."))),
             roTool("mc.debug.plan",
                 "READ-ONLY deterministic single-search probe (no Walker, no walking, no block edits, " +
                 "no world mutation). Runs one PathFinder.findPath from a fixed start to an XZ goal and " +
@@ -42,24 +33,11 @@ public final class DebugTools {
                 "so the search is fully repeatable, then call from a fixed suite of start feet and compare " +
                 "the forward-rate before/after a change. Returns {ok, start, goal, goalReached, pathLen, end, " +
                 "expanded, computeMs, finalCost, hStart, hEnd, hDelta (<0 = forward progress, >=0 = backward/lateral), forward}.",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "goal", Map.of("type", "object",
-                            "description", "XZ goal column {x,z}.",
-                            "properties", Map.of("x", Map.of("type", "integer"), "z", Map.of("type", "integer")),
-                            "required", List.of("x", "z")),
-                        "from", Map.of("type", "object",
-                            "description", "Optional fixed start foot {x,y,z}. Omit to use the bot's current block position.",
-                            "properties", Map.of("x", Map.of("type", "integer"), "y", Map.of("type", "integer"), "z", Map.of("type", "integer")),
-                            "required", List.of("x", "y", "z")),
-                        "chain", Map.of("type", "boolean",
-                            "description", "Simulate the full segment-commitment chain read-only: feed each committed endpoint back in as the next start until the goal is reached or no progress. Returns {reached, segments, backwardSegments, maxRegression (worst overshoot back past best progress; /10≈blocks), trail[]}. The headline backtrack metric."),
-                        "maxSegments", Map.of("type", "integer", "minimum", 1, "maximum", 200,
-                            "description", "Chain cap (default 40).")
-                    ),
-                    "required", List.of("goal")
-                ))
+                object()
+                    .req("goal", xz().desc("XZ goal column {x,z}."))
+                    .prop("from", pos().desc("Optional fixed start foot {x,y,z}. Omit to use the bot's current block position."))
+                    .prop("chain", bool().desc("Simulate the full segment-commitment chain read-only: feed each committed endpoint back in as the next start until the goal is reached or no progress. Returns {reached, segments, backwardSegments, maxRegression (worst overshoot back past best progress; /10≈blocks), trail[]}. The headline backtrack metric."))
+                    .prop("maxSegments", integer(1, 200).desc("Chain cap (default 40).")))
         );
     }
 }

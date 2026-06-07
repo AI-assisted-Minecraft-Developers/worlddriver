@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
 
+import com.mojang.serialization.JavaOps;
+
 /**
  * Shared JSON-schema fragments and tool-entry builders for the MCP tool
  * catalog. Extracted from {@code ToolCatalog} so the per-category catalog
@@ -13,56 +15,85 @@ import java.util.LinkedHashMap;
 public final class Schemas {
     private Schemas() {}
 
-    /** A {x,y,z} integer triple. Reused by several tools. */
-    public static Map<String, Object> blockPosSchema() {
-        return Map.of(
-            "type", "object",
-            "properties", Map.of(
-                "x", Map.of("type", "integer"),
-                "y", Map.of("type", "integer"),
-                "z", Map.of("type", "integer")
-            ),
-            "required", List.of("x", "y", "z")
-        );
+    // ----- Type-safe schema factories (preferred). See Schema for the DSL. -----
+
+    /** An object schema; add properties with {@code .prop(name, schema)} / {@code .req(...)}. */
+    public static Schema.Obj object() { return new Schema.Obj(); }
+    /** A plain string schema. */
+    public static Schema.Str string() { return new Schema.Str(); }
+    /** A string constrained to an enum. */
+    public static Schema.Str stringEnum(String... values) { return new Schema.Str().enumOf(values); }
+    /** An unbounded integer schema. */
+    public static Schema.Int integer() { return new Schema.Int(); }
+    /** An integer bounded to {@code [lo,hi]}. */
+    public static Schema.Int integer(int lo, int hi) { return new Schema.Int().range(lo, hi); }
+    /** An unbounded number (double) schema. */
+    public static Schema.Num number() { return new Schema.Num(); }
+    /** A number bounded to {@code [lo,hi]}. */
+    public static Schema.Num number(double lo, double hi) { return new Schema.Num().range(lo, hi); }
+    /** A boolean schema. */
+    public static Schema.Bool bool() { return new Schema.Bool(); }
+    /** An array over a typed item schema. */
+    public static Schema.Arr array(Schema items) { return new Schema.Arr(items); }
+    /** A typeless "accept anything" schema (no {@code type}) — for free-form values. */
+    public static Schema.Any any() { return new Schema.Any(); }
+
+    /** Typed {x,y,z} integer block position. */
+    public static Schema.Obj pos() {
+        return object().req("x", integer()).req("y", integer()).req("z", integer());
+    }
+    /** Typed {x,z} integer column (Y-agnostic goal). */
+    public static Schema.Obj xz() {
+        return object().req("x", integer()).req("z", integer());
+    }
+    /** Typed {@code awaitMs} option for async bot tools. */
+    public static Schema.Int awaitMs() {
+        return integer(1, 600_000).desc(
+            "If set, block until the bot slot goes idle (or this many ms elapse), then return "
+            + "the final status snapshot. Omit for fire-and-forget.");
+    }
+    /** A parameterless tool's input schema. */
+    public static Schema.Obj emptyObject() { return object(); }
+    /** Typed {@code returnEvents} option for action tools. */
+    public static Schema.Bool returnEvents() {
+        return bool().desc(
+            "If true, the response includes an `events` array of agent events emitted during "
+            + "this call. Saves a separate mc.observe.cursor + mc.observe.eventsSince pair.");
     }
 
-    /** An {x,z} integer pair (Y-agnostic column target for bot.goto). */
-    public static Map<String, Object> xzPosSchema() {
-        return Map.of(
-            "type", "object",
-            "properties", Map.of(
-                "x", Map.of("type", "integer"),
-                "z", Map.of("type", "integer")
-            ),
-            "required", List.of("x", "z")
-        );
+    // ----- Schema-based tool builders. -----
+
+    /**
+     * Render a typed {@link Schema} to its JSON-Schema map by running Minecraft's
+     * built-in {@link Schema#CODEC} through {@link JavaOps} (plain Java objects — no
+     * JSON-string round-trip). {@code optionalFieldOf} already dropped absent fields,
+     * so the result is clean.
+     */
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> render(Schema schema) {
+        Object encoded = Schema.CODEC.encodeStart(JavaOps.INSTANCE, schema)
+                .getOrThrow(e -> new IllegalStateException("schema encode failed: " + e));
+        return (Map<String, Object>) encoded;
     }
 
-    /** Shared schema for the {@code awaitMs} option on async bot tools. */
-    public static Map<String, Object> awaitMsSchema() {
-        return Map.of(
-            "type", "integer",
-            "minimum", 1,
-            "maximum", 600000,
-            "description", "If set, block until the bot slot goes idle (or this many ms elapse), " +
-                "then return the final status snapshot. Omit for fire-and-forget."
-        );
+    /** Plain tool from a typed schema. */
+    public static Map<String, Object> tool(String name, String description, Schema schema) {
+        return toolFull(name, description, render(schema), null, null);
+    }
+    /** Read-only tool from a typed schema. */
+    public static Map<String, Object> roTool(String name, String description, Schema schema) {
+        return toolFull(name, description, render(schema), readOnly(), null);
+    }
+    /** Destructive tool from a typed schema. */
+    public static Map<String, Object> wrTool(String name, String description, Schema schema) {
+        return toolFull(name, description, render(schema), destructive(), null);
+    }
+    /** Read-only + _meta tool from a typed schema. */
+    public static Map<String, Object> roTool(String name, String description, Schema schema, Map<String, Object> meta) {
+        return toolFull(name, description, render(schema), readOnly(), meta);
     }
 
-    /** Shared schema for the {@code returnEvents} option on action tools. */
-    public static Map<String, Object> returnEventsSchema() {
-        return Map.of(
-            "type", "boolean",
-            "description", "If true, the response includes an `events` array of agent events " +
-                "emitted during this call. Saves a separate mc.observe.cursor + mc.observe.eventsSince pair."
-        );
-    }
-
-    /** Plain tool — no annotations, no meta. Kept so call sites that don't care
-     *  about safety hints stay compact. */
-    public static Map<String, Object> tool(String name, String description, Map<String, Object> schema) {
-        return toolFull(name, description, schema, null, null);
-    }
+    // ----- Tool annotations + the master tool builder. -----
 
     /** Read-only annotation. Per MCP spec these are hints, not guarantees, but
      *  let clients render confirmations only on destructive tools. */
@@ -72,20 +103,6 @@ public final class Schemas {
     /** Destructive (state-mutating) tool annotation. */
     public static Map<String, Object> destructive() {
         return Map.of("readOnlyHint", false, "destructiveHint", true, "idempotentHint", false);
-    }
-
-    /** Read-only + annotations variant (most common shape). */
-    public static Map<String, Object> roTool(String name, String description, Map<String, Object> schema) {
-        return toolFull(name, description, schema, readOnly(), null);
-    }
-    /** Destructive + annotations variant. */
-    public static Map<String, Object> wrTool(String name, String description, Map<String, Object> schema) {
-        return toolFull(name, description, schema, destructive(), null);
-    }
-    /** Read-only + meta (used by screenshot, which is read-only but carries _meta). */
-    public static Map<String, Object> roTool(String name, String description,
-                                              Map<String, Object> schema, Map<String, Object> meta) {
-        return toolFull(name, description, schema, readOnly(), meta);
     }
 
     /**
@@ -107,13 +124,5 @@ public final class Schemas {
         if (annotations != null) m.put("annotations", annotations);
         if (meta != null) m.put("_meta", meta);
         return m;
-    }
-
-    public static Map<String, Object> emptyObjectSchema() {
-        return Map.of(
-            "type", "object",
-            "properties", Map.of(),
-            "additionalProperties", false
-        );
     }
 }

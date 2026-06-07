@@ -14,26 +14,20 @@ public final class SystemTools {
             roTool("mc.system.version",
                 "Probe the agent driver. Use first to confirm the server is reachable. " +
                 "Returns {modid:string, version:string, uptimeMs:integer}.",
-                emptyObjectSchema()),
+                emptyObject()),
 
             roTool("mc.system.testOrigin",
                 "Get the canonical test arena origin. Most observe/query tools below default " +
                 "their search center to this point. " +
                 "Returns {x:integer, y:integer, z:integer}.",
-                emptyObjectSchema()),
+                emptyObject()),
 
             roTool("mc.system.waitTicks",
                 "Block for N server ticks (~50ms each, approximate — server lag is not " +
                 "compensated). Refuses to run on the server thread itself. For condition-based " +
                 "waits (game ready, furnace done, event arrived), prefer mc.wait.* instead. " +
                 "Returns {waited:integer, interrupted?:true}.",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "ticks", Map.of("type", "integer", "minimum", 0, "maximum", 200)
-                    ),
-                    "required", List.of("ticks")
-                ))
+                object().req("ticks", integer(0, 200)))
         );
     }
 }

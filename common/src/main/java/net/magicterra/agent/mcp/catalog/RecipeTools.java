@@ -24,16 +24,13 @@ public final class RecipeTools {
                 "#planks lists all members); `tag` names the source tag when the slot is exactly " +
                 "one. `station` is inventory2x2 | crafting_table | furnace | blast_furnace | " +
                 "smoker | campfire | stonecutter | smithing_table.",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "result",     Map.of("type", "string",
-                            "description", "Item id whose recipes to find (recipes producing it)."),
-                        "ingredient", Map.of("type", "string",
-                            "description", "Item id used as an input (recipes consuming it)."),
-                        "limit",      Map.of("type", "integer", "minimum", 1, "maximum", 200,
-                            "description", "Max recipes to return (default 20).")
-                    ))),
+                object()
+                    .prop("result", string()
+                        .desc("Item id whose recipes to find (recipes producing it)."))
+                    .prop("ingredient", string()
+                        .desc("Item id used as an input (recipes consuming it)."))
+                    .prop("limit", integer(1, 200)
+                        .desc("Max recipes to return (default 20)."))),
 
             roTool("mc.recipe.resolve",
                 "Recursively expand \"I want N of an item\" into an ordered craft plan plus the raw " +
@@ -46,19 +43,14 @@ public final class RecipeTools {
                 "ordered (make earlier steps first). `missing` is the leaf items with no recipe " +
                 "(mine/gather them); raw materials like diamond/iron never resolve to their storage " +
                 "blocks.",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "target", Map.of("type", "string",
-                            "description", "Item id to make, e.g. minecraft:diamond_pickaxe."),
-                        "count",  Map.of("type", "integer", "minimum", 1, "maximum", 4096,
-                            "description", "How many to make (default 1)."),
-                        "have",   Map.of("type", "object",
-                            "description", "Map of itemId→count already in hand; deducted before " +
-                                "reporting missing. Optional (default: have nothing).")
-                    ),
-                    "required", List.of("target")
-                )),
+                object()
+                    .req("target", string()
+                        .desc("Item id to make, e.g. minecraft:diamond_pickaxe."))
+                    .prop("count", integer(1, 4096)
+                        .desc("How many to make (default 1)."))
+                    .prop("have", object()
+                        .desc("Map of itemId→count already in hand; deducted before " +
+                            "reporting missing. Optional (default: have nothing).")) ),
 
             roTool("mc.plan.acquire",
                 "Goal-directed acquisition planner (Phase H): \"I want N of an item\" → a full, " +
@@ -72,18 +64,13 @@ public final class RecipeTools {
                 "block ids], input?:smelt input, station?, from?}], unobtainable:[{item,count}]}. " +
                 "`unobtainable` = leaves needing mob drops / trading / structures (hand back to " +
                 "higher-level planning); `feasible` is unobtainable.isEmpty.",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "target", Map.of("type", "string",
-                            "description", "Item id to acquire, e.g. minecraft:iron_pickaxe."),
-                        "count",  Map.of("type", "integer", "minimum", 1, "maximum", 4096,
-                            "description", "How many (default 1)."),
-                        "have",   Map.of("type", "object",
-                            "description", "Map of itemId→count already in hand; deducted first. Optional.")
-                    ),
-                    "required", List.of("target")
-                ))
+                object()
+                    .req("target", string()
+                        .desc("Item id to acquire, e.g. minecraft:iron_pickaxe."))
+                    .prop("count", integer(1, 4096)
+                        .desc("How many (default 1)."))
+                    .prop("have", object()
+                        .desc("Map of itemId→count already in hand; deducted first. Optional.")))
         );
     }
 }

@@ -20,7 +20,7 @@ public final class ObserveActionTools {
                 "Returns an integer (JSON number). " +
                 "For cursor→action→events as one round-trip, use `mc.action.*` with `returnEvents:true` " +
                 "or wrap the flow in `mc.script.eval`.",
-                emptyObjectSchema()),
+                emptyObject()),
 
             roTool("mc.observe.player",
                 "Player snapshot. Server-mode: name picks the player (defaults to first); returns " +
@@ -31,13 +31,9 @@ public final class ObserveActionTools {
                 "carries inventory:[{slot,id,count},...], saturation, effects:[{id,amplifier," +
                 "durationTicks},...], time:{dayTime,dayOfWorld,timeOfDay,phase:day|sunset|night|" +
                 "sunrise}, hit (crosshair HitResult) — full state without opening any screen.",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "name", Map.of("type", "string",
-                            "description", "Player GameProfile name. Optional — defaults to first player.")
-                    )
-                )),
+                object()
+                    .prop("name", string()
+                        .desc("Player GameProfile name. Optional — defaults to first player."))),
 
             roTool("mc.observe.threats",
                 "Scored hostile + incoming-projectile assessment around the player (client-only; " +
@@ -47,12 +43,9 @@ public final class ObserveActionTools {
                 "= attack/flee this first); `canSeeMe` is a line-of-sight raycast; `creeperSwell` " +
                 "rises 0→1 as a creeper detonates. Use it to pick a combat target or judge danger; " +
                 "the bot's own reflexes (autoShield/autoRetreat/panic-dodge) already read it.",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "radius", Map.of("type", "integer", "minimum", 1, "maximum", 64,
-                            "description", "Scan radius in blocks (default 24).")
-                    ))),
+                object()
+                    .prop("radius", integer(1, 64)
+                        .desc("Scan radius in blocks (default 24)."))),
 
             roTool("mc.observe.boss",
                 "Boss-fight sensing (Phase G; client-only, absent on a dedicated server). Returns the " +
@@ -63,12 +56,9 @@ public final class ObserveActionTools {
                 "spawn animation, about to explode), powered (<=50% hp, vanilla phase 2), phase (1|2|" +
                 "'spawning')}. crystals:[{id,pos,distance,caged}] is always present — the dragon playbook " +
                 "clears them as a hard gate (the dragon heals while any remain). present:false with no boss.",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "radius", Map.of("type", "integer", "minimum", 1, "maximum", 256,
-                            "description", "Scan radius in blocks (default 64 — covers the End-pillar ring).")
-                    ))),
+                object()
+                    .prop("radius", integer(1, 256)
+                        .desc("Scan radius in blocks (default 64 — covers the End-pillar ring)."))),
 
             roTool("mc.observe.scene",
                 "Server-side hazard scene around a center (default: first player, else test origin). " +
@@ -80,16 +70,27 @@ public final class ObserveActionTools {
                 "With render='map' also returns {rows:[...], legend:{...}} — an ASCII hazard grid " +
                 "('.':walk '#':wall 'v':survivable-drop 'V':lethal-drop '~':water '≈':deep-water " +
                 "'x':contact-damage '!':lava/fire '@':center). Works headless in GameTest.",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "center", blockPosSchema(),
-                        "radius", Map.of("type", "integer", "minimum", 1, "maximum", 32,
-                            "description", "Chebyshev radius in blocks (default 12, max 32)."),
-                        "render", Map.of("type", "string", "enum", List.of("summary", "map"),
-                            "description", "summary (default): hazardSummary only. map: also include ASCII rows + legend.")
-                    )
-                )),
+                object()
+                    .prop("center", pos())
+                    .prop("radius", integer(1, 32)
+                        .desc("Chebyshev radius in blocks (default 12, max 32)."))
+                    .prop("render", stringEnum("summary", "map")
+                        .desc("summary (default): hazardSummary only. map: also include ASCII rows + legend."))),
+
+            roTool("mc.observe.map",
+                "Server-side ASCII spatial map — a compact, glanceable substitute for parsing block + " +
+                "threat JSON when making fast tactical/flee decisions. plane='xz' (default) is a top-down " +
+                "surface heightmap; plane='xy'/'zy' is a vertical cross-section through the center. " +
+                "Returns {present, plane, center:{x,y,z}, radius, width, height, threats, legend, " +
+                "map:'<newline-joined grid>'}. Works headless in GameTest.",
+                object()
+                    .prop("center", pos())
+                    .prop("radius", integer(1, 24)
+                        .desc("Horizontal half-extent in blocks (default 12, max 24)."))
+                    .prop("height", integer(1, 24)
+                        .desc("Cross-section vertical half-extent (xy/zy only; default 7, max 24)."))
+                    .prop("plane", stringEnum("xz", "xy", "zy")
+                        .desc("xz (default): top-down heightmap. xy/zy: vertical slice."))),
 
             roTool("mc.observe.container",
                 "Read container contents. With pos: BlockEntity at pos (chest/barrel/hopper/" +
@@ -97,12 +98,8 @@ public final class ObserveActionTools {
                 "Without pos: whichever container menu is currently open client-side (player " +
                 "inventory, crafting table, server-pushed chest). " +
                 "Returns {present, type?|screen?, slots?:[{index,id?,count?,empty?}]}.",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "pos", blockPosSchema()
-                    )
-                )),
+                object()
+                    .prop("pos", pos())),
 
             roTool("mc.observe.eventsSince",
                 "Pull events with seq > cursor (defaults to 0). Types: block.break, block.place, " +
@@ -111,14 +108,10 @@ public final class ObserveActionTools {
                 "(older cursors return what's left). " +
                 "Returns [{seq, timestamp, type, pos|null, data}, ...]. " +
                 "For act-then-observe, prefer returnEvents:true on the action tool.",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "cursor", Map.of("type", "integer", "minimum", 0),
-                        "types", Map.of("type", "array", "items", Map.of("type", "string")),
-                        "limit", Map.of("type", "integer", "minimum", 1, "maximum", 4096)
-                    )
-                )),
+                object()
+                    .prop("cursor", integer().min(0))
+                    .prop("types", array(string()))
+                    .prop("limit", integer(1, 4096))),
 
             wrTool("mc.action.fill",
                 "Fill an axis-aligned box with one block id in a single server-tick. " +
@@ -126,40 +119,23 @@ public final class ObserveActionTools {
                 "Emits a single block.fill event (not one per cell). " +
                 "Returns {ok:boolean, placed:integer, error?:string}. Pass `returnEvents:true` to receive the emitted block.fill event inline. " +
                 "Example: {from:{x:0,y:64,z:0}, to:{x:7,y:64,z:7}, type:'minecraft:cobblestone'}.",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "from", blockPosSchema(),
-                        "to", blockPosSchema(),
-                        "type", Map.of("type", "string"),
-                        "returnEvents", returnEventsSchema()
-                    ),
-                    "required", List.of("from", "to", "type")
-                )),
+                object()
+                    .req("from", pos())
+                    .req("to", pos())
+                    .req("type", string())
+                    .prop("returnEvents", returnEvents())),
 
             wrTool("mc.action.placeMany",
                 "Place a list of (pos,type) blocks in one server-tick. Up to 4096 entries. " +
                 "Emits one block.place per successful row; malformed rows skipped. " +
                 "Use for single block too: {blocks:[{pos,type}]}. " +
                 "Returns {ok, placed, skipped}. Pass returnEvents:true to receive the events inline.",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "blocks", Map.of(
-                            "type", "array",
-                            "items", Map.of(
-                                "type", "object",
-                                "properties", Map.of(
-                                    "pos", blockPosSchema(),
-                                    "type", Map.of("type", "string")
-                                ),
-                                "required", List.of("pos", "type")
-                            )
-                        ),
-                        "returnEvents", returnEventsSchema()
-                    ),
-                    "required", List.of("blocks")
-                )),
+                object()
+                    .req("blocks", array(
+                        object()
+                            .req("pos", pos())
+                            .req("type", string())))
+                    .prop("returnEvents", returnEvents())),
 
             roTool("mc.world.snapshot",
                 "Capture an axis-aligned box of block states (and block-entity NBT) into an " +
@@ -169,18 +145,13 @@ public final class ObserveActionTools {
                 "when omitted); re-using an id overwrites it. blockEntities:false skips NBT capture " +
                 "(states only — a chest's contents then won't survive restore). " +
                 "Returns {ok, id, from, to, blocks, nonAir, blockEntities}. Pair with mc.world.restore.",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "from", blockPosSchema(),
-                        "to", blockPosSchema(),
-                        "id", Map.of("type", "string",
-                            "description", "Snapshot name. Optional — auto-generated when omitted."),
-                        "blockEntities", Map.of("type", "boolean",
-                            "description", "Capture block-entity NBT (default true).")
-                    ),
-                    "required", List.of("from", "to")
-                )),
+                object()
+                    .req("from", pos())
+                    .req("to", pos())
+                    .prop("id", string()
+                        .desc("Snapshot name. Optional — auto-generated when omitted."))
+                    .prop("blockEntities", bool()
+                        .desc("Capture block-entity NBT (default true)."))),
 
             wrTool("mc.world.restore",
                 "Put a region captured by mc.world.snapshot back verbatim (block states + " +
@@ -188,16 +159,11 @@ public final class ObserveActionTools {
                 "the snapshot after a successful restore. Emits a world.restore event (pass " +
                 "returnEvents:true to receive it inline). " +
                 "Returns {ok, id, restored, blockEntities}.",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "id", Map.of("type", "string"),
-                        "discard", Map.of("type", "boolean",
-                            "description", "Free the snapshot after restoring (default false)."),
-                        "returnEvents", returnEventsSchema()
-                    ),
-                    "required", List.of("id")
-                )),
+                object()
+                    .req("id", string())
+                    .prop("discard", bool()
+                        .desc("Free the snapshot after restoring (default false)."))
+                    .prop("returnEvents", returnEvents())),
 
             wrTool("mc.action.runCommand",
                 "Execute a vanilla Minecraft command (operator-level, output suppressed) through " +
@@ -208,15 +174,10 @@ public final class ObserveActionTools {
                 "with mc.action.placeMany; everything else goes through Brigadier. An unknown " +
                 "block id in setblock throws (no silent AIR fallback). " +
                 "Returns {ok, via:'fast-path'|'brigadier', error?}.",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "cmd", Map.of("type", "string",
-                            "description", "Command body, leading slash optional."),
-                        "returnEvents", returnEventsSchema()
-                    ),
-                    "required", List.of("cmd")
-                )),
+                object()
+                    .req("cmd", string()
+                        .desc("Command body, leading slash optional."))
+                    .prop("returnEvents", returnEvents())),
 
             roTool("mc.query",
                 "Scan blocks or entities in a cube. center defaults to mc.system.testOrigin. " +
@@ -226,27 +187,18 @@ public final class ObserveActionTools {
                 "Client-MCP fallback (no server attached): scans ClientLevel. center defaults to " +
                 "local player; radius capped at 32 (entities) / 16 (blocks). q='entities' adds " +
                 "{id, hostile, maxHealth, distance} per row (id feeds mc.bot.attackEntity).",
-                Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "q", Map.of("type", "string", "enum", List.of("blocks", "entities")),
-                        "center", blockPosSchema(),
-                        "filter", Map.of(
-                            "type", "object",
-                            "properties", Map.of(
-                                "in_radius", Map.of("type", "integer", "minimum", 0, "maximum", 128),
-                                "type",      Map.of("type", "string",
-                                    "description", "Blocks only: restrict to this block id, or a '#tag' "
-                                        + "selector to match any block in that tag (e.g. '#minecraft:logs' "
-                                        + "matches every log species)."),
-                                "is_hostile", Map.of("type", "boolean",
-                                    "description", "Entities only: restrict to hostile mobs.")
-                            )
-                        ),
-                        "select", Map.of("type", "array", "items", Map.of("type", "string"))
-                    ),
-                    "required", List.of("q")
-                ))
+                object()
+                    .req("q", stringEnum("blocks", "entities"))
+                    .prop("center", pos())
+                    .prop("filter", object()
+                        .prop("in_radius", integer(0, 128))
+                        .prop("type", string()
+                            .desc("Blocks only: restrict to this block id, or a '#tag' "
+                                + "selector to match any block in that tag (e.g. '#minecraft:logs' "
+                                + "matches every log species)."))
+                        .prop("is_hostile", bool()
+                            .desc("Entities only: restrict to hostile mobs.")))
+                    .prop("select", array(string())))
         );
     }
 }
