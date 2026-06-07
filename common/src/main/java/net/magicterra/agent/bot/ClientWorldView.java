@@ -388,6 +388,7 @@ public final class ClientWorldView implements WorldView {
             ItemStack stk = inv.items.get(slot);
             if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) continue;
             if (bi.getBlock() instanceof FallingBlock) continue;   // sand/gravel drop away over air
+            if (!bi.getBlock().defaultBlockState().blocksMotion()) continue;   // sapling/flower/torch — no footing to stand on
             return true;
         }
         return false;
@@ -404,6 +405,7 @@ public final class ClientWorldView implements WorldView {
             ItemStack stk = inv.items.get(slot);
             if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) continue;
             if (bi.getBlock() instanceof FallingBlock) continue;
+            if (!bi.getBlock().defaultBlockState().blocksMotion()) continue;   // non-solid plants form no footing
             n += stk.getCount();
         }
         return n;

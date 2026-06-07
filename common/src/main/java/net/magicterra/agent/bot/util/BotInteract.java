@@ -21,6 +21,7 @@ import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.core.Holder;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
@@ -205,16 +206,29 @@ public final class BotInteract {
         }
     }
 
-    /** Hold (or swap to) a placeable BlockItem in the hotbar. Creative can pull
-     *  from main inventory. Returns false when nothing placeable is available. */
+    /** A BlockItem that forms a SOLID footing when placed over air — what the
+     *  pillar / bridge / parkour-place actuators must stand on. Excludes FallingBlock
+     *  (sand/gravel drop away over the gap) AND non-collidable blocks (sapling, flower,
+     *  torch, …): placing one leaves nothing to stand on, so the actuator bobs forever
+     *  with the place cell still air (pend=true) — observed live, the bot held an
+     *  oak_sapling and pillared saplings it then couldn't climb. Mirrors
+     *  {@code ClientWorldView.hasPlaceableBlock} so the planner's canPlace and the
+     *  actuator's block-selection agree on what counts as buildable. */
+    public static boolean isSupportBlock(ItemStack stk) {
+        if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) return false;
+        if (bi.getBlock() instanceof FallingBlock) return false;
+        return bi.getBlock().defaultBlockState().blocksMotion();
+    }
+
+    /** Hold (or swap to) a SOLID-support BlockItem in the hotbar (see {@link #isSupportBlock}).
+     *  Creative can pull from main inventory. Returns false when none is available. */
     public static boolean ensureHoldingPlaceableAny(Minecraft mc) {
         LocalPlayer p = mc.player;
         if (p == null) return false;
         Inventory inv = p.getInventory();
-        if (!inv.getSelected().isEmpty() && inv.getSelected().getItem() instanceof BlockItem) return true;
+        if (isSupportBlock(inv.getSelected())) return true;
         for (int s = 0; s < 9; s++) {
-            ItemStack stk = inv.items.get(s);
-            if (!stk.isEmpty() && stk.getItem() instanceof BlockItem) {
+            if (isSupportBlock(inv.items.get(s))) {
                 inv.selected = s;
                 if (p.connection != null) p.connection.send(
                         new ServerboundSetCarriedItemPacket(s));
@@ -223,9 +237,9 @@ public final class BotInteract {
         }
         if (p.isCreative()) {
             for (int s = 9; s < inv.items.size(); s++) {
-                if (!inv.items.get(s).isEmpty() && inv.items.get(s).getItem() instanceof BlockItem) {
+                if (isSupportBlock(inv.items.get(s))) {
                     inv.pickSlot(s);
-                    return inv.getSelected().getItem() instanceof BlockItem;
+                    return isSupportBlock(inv.getSelected());
                 }
             }
         }
