@@ -1,5 +1,7 @@
 package net.magicterra.agent.mcp.schema;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -106,8 +108,8 @@ public sealed interface Schema permits Schema.Obj, Schema.Str, Schema.Int, Schem
 
     /** Object schema: ordered properties, a required-subset, optional additionalProperties. */
     final class Obj implements Schema {
-        private final java.util.LinkedHashMap<String, Schema> properties = new java.util.LinkedHashMap<>();
-        private final java.util.ArrayList<String> required = new java.util.ArrayList<>();
+        private final LinkedHashMap<String, Schema> properties = new LinkedHashMap<>();
+        private final ArrayList<String> required = new ArrayList<>();
         private Boolean additionalProperties;   // null → omit; true → emit
         private String description;
 
