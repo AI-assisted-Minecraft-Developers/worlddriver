@@ -133,6 +133,11 @@ public final class ServerPlayerAvatar implements Avatar {
             }
             fp.hasImpulse = true;
         }
+        // Ground movement speed: on the client LocalPlayer.aiStep sets `speed`
+        // (and the sprint attribute modifier) each tick; without aiStep we must
+        // seed it from the MOVEMENT_SPEED attribute, approximating sprint ×1.3.
+        double ms = fp.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED);
+        fp.setSpeed((float) (fp.isSprinting() ? ms * 1.3 : ms));
         fp.setShiftKeyDown(pendingSneak);
         float mult = pendingSneak ? 0.3f : 1f;
         fp.xxa = pendingLeft * mult;

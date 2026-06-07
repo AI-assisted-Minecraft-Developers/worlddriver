@@ -6,6 +6,10 @@ import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+import net.magicterra.agent.neoforge.sim.ServerPlayerAvatar;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.Blocks;
 
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -138,5 +142,73 @@ public final class AgentGameTest {
             throw new GameTestAssertException("gate did not re-arm for a second drive burst");
 
         helper.succeed();
+    }
+
+    /**
+     * Physics-parity gate for {@link ServerPlayerAvatar}: a FakePlayer driven by
+     * manual travel()+move() must reproduce vanilla movement — horizontal travel,
+     * a jumped +1 step-up, and a standing-jump apex (~1.25). If this fails the
+     * harness can't be trusted, so the canopy arena is meaningless.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void physicsParity(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 3, cz = 3, floorY = 220, standY = 221;
+        buildFloor(level, cx, cz, floorY);
+
+        // 1) Flat sprint travel (+z) for 20 ticks → meaningful forward distance, stays grounded.
+        ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, standY, cz + 0.5);
+        var fp = av.fakePlayer();
+        for (int i = 0; i < 3; i++) { av.commandMove(0, 0); av.step(); }
+        double startY = fp.getY(), z0 = fp.getZ();
+        fp.setSprinting(true);
+        for (int i = 0; i < 20; i++) { fp.setYRot(0f); av.commandForward(1f); av.step(); }
+        double disp = fp.getZ() - z0;
+        fp.setSprinting(false);
+        if (disp <= 2.0)
+            throw new GameTestAssertException("flat travel too small: dz=" + disp + " (expected >2)");
+        if (Math.abs(fp.getY() - startY) > 0.4)
+            throw new GameTestAssertException("walker left the floor: dy=" + (fp.getY() - startY));
+
+        // 2) Standing jump apex ~1.25.
+        av = ServerPlayerAvatar.create(level, cx + 0.5, standY, cz + 0.5);
+        fp = av.fakePlayer();
+        for (int i = 0; i < 3; i++) { av.step(); }
+        double jy0 = fp.getY(), maxY = jy0;
+        for (int i = 0; i < 30; i++) {
+            av.commandJump(i == 0);
+            av.step();
+            maxY = Math.max(maxY, fp.getY());
+            if (i > 3 && fp.onGround()) break;
+        }
+        double apex = maxY - jy0;
+        if (apex < 1.0 || apex > 1.5)
+            throw new GameTestAssertException("jump apex off: " + apex + " (expected ~1.25)");
+
+        // 3) Jumped +1 step-up: a full block ahead is cleared by forward+jump.
+        av = ServerPlayerAvatar.create(level, cx + 0.5, standY, cz + 0.5);
+        fp = av.fakePlayer();
+        for (int dx = -1; dx <= 1; dx++)
+            level.setBlockAndUpdate(new BlockPos(cx + dx, standY, cz + 3), Blocks.STONE.defaultBlockState());
+        for (int i = 0; i < 3; i++) { av.step(); }
+        double su0 = fp.getY();
+        fp.setSprinting(true);
+        for (int i = 0; i < 30; i++) { fp.setYRot(0f); av.commandForward(1f); av.commandJump(fp.onGround()); av.step(); }
+        double climbed = fp.getY() - su0;
+        if (climbed < 0.9)
+            throw new GameTestAssertException("jumped +1 step-up failed: climbed=" + climbed);
+
+        AgentDriverCommon.LOG.info("[physicsParity] disp={} apex={} climbed={}", disp, apex, climbed);
+        helper.succeed();
+    }
+
+    /** 11x11 solid floor at {@code floorY}, clear 5 above — a clean test slab. */
+    private static void buildFloor(ServerLevel level, int cx, int cz, int floorY) {
+        for (int dx = -5; dx <= 5; dx++)
+            for (int dz = -5; dz <= 5; dz++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+                for (int dy = 1; dy <= 5; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+            }
     }
 }
