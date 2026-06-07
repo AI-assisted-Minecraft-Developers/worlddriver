@@ -438,12 +438,31 @@ public final class ClientWorldView implements WorldView {
     // entry; beginSearch prunes expired ones and snapshots the rest into
     // stuckAvoidXyz so dangerCost stays consistent across a sliced search.
     private final Map<BlockPos, Long> stuckAvoid = new HashMap<>();
-    private float[] stuckAvoidXyz = new float[0];     // flat [x,y,z, ...] (stride-3), snapshot per search
+    private final Map<BlockPos, Integer> stuckStrength = new HashMap<>();   // accumulated wedge count per node
+    private float[] stuckAvoidXyz = new float[0];     // flat [x,y,z,strength, ...] (stride-4), snapshot per search
     private static final long STUCK_AVOID_MS = 15_000;        // entries decay after 15s
     private static final double STUCK_AVOID_PENALTY = 600;    // soft, finite — a sole route is still taken
     private static final double STUCK_AVOID_RADIUS = 2.5;     // blocks; smooth bump around the failed node
+    private static final int STUCK_AVOID_MAX_STRENGTH = 6;    // cap: max bump = 6×600 = 3600 (overcomes a detour delta)
+    /**
+     * Blacklist a node the Walker couldn't execute a move at. Penalty ACCUMULATES:
+     * a flat one-shot bump (the original behaviour) doesn't route around a wedge
+     * whose only forward move (e.g. a parkour leap the bot rams without run-up) is
+     * cheaper-than-the-detour by MORE than the bump — A* re-picks it every repath,
+     * and escape was only ever non-deterministic physical drift (a ~31 s, 6-wedge-
+     * cycle stall observed at a steep mountain parkour gap). Escalating the bump
+     * each time the SAME node re-wedges within its live window makes the reroute
+     * deterministic in 2–3 cycles: a node the Walker fails repeatedly is almost
+     * certainly unexecutable, so it should get progressively more expensive. Capped
+     * + still 15 s-decaying, so a genuinely sole route reopens and is taken later.
+     */
     @Override public void penalizeStuckNode(BlockPos pos) {
-        stuckAvoid.put(pos.immutable(), System.currentTimeMillis() + STUCK_AVOID_MS);
+        long now = System.currentTimeMillis();
+        BlockPos key = pos.immutable();
+        Long exp = stuckAvoid.get(key);
+        int strength = (exp != null && exp > now) ? stuckStrength.getOrDefault(key, 1) + 1 : 1;
+        stuckAvoid.put(key, now + STUCK_AVOID_MS);
+        stuckStrength.put(key, Math.min(strength, STUCK_AVOID_MAX_STRENGTH));
     }
 
     // Controlled-entity movement attributes, snapshotted once per search so the
@@ -570,12 +589,14 @@ public final class ClientWorldView implements WorldView {
         {
             long now = System.currentTimeMillis();
             for (Iterator<Map.Entry<BlockPos, Long>> it = stuckAvoid.entrySet().iterator(); it.hasNext(); ) {
-                if (it.next().getValue() < now) it.remove();
+                Map.Entry<BlockPos, Long> e = it.next();
+                if (e.getValue() < now) { stuckStrength.remove(e.getKey()); it.remove(); }
             }
-            float[] arr = new float[stuckAvoid.size() * 3];
+            float[] arr = new float[stuckAvoid.size() * 4];
             int i = 0;
             for (BlockPos b : stuckAvoid.keySet()) {
                 arr[i++] = b.getX() + 0.5f; arr[i++] = b.getY(); arr[i++] = b.getZ() + 0.5f;
+                arr[i++] = stuckStrength.getOrDefault(b, 1);
             }
             stuckAvoidXyz = arr;
         }
@@ -725,11 +746,11 @@ public final class ClientWorldView implements WorldView {
         float[] sa = stuckAvoidXyz;
         if (sa.length > 0) {
             double fx = foot.getX() + 0.5, fy = foot.getY(), fz = foot.getZ() + 0.5;
-            for (int i = 0; i + 2 < sa.length; i += 3) {
+            for (int i = 0; i + 3 < sa.length; i += 4) {
                 double dx = fx - sa[i], dy = fy - sa[i + 1], dz = fz - sa[i + 2];
                 double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
                 if (dist < STUCK_AVOID_RADIUS)
-                    penalty += STUCK_AVOID_PENALTY * (STUCK_AVOID_RADIUS - dist) / STUCK_AVOID_RADIUS;
+                    penalty += STUCK_AVOID_PENALTY * sa[i + 3] * (STUCK_AVOID_RADIUS - dist) / STUCK_AVOID_RADIUS;
             }
         }
         // HazardField lethal-cell penalty: a lethal cell (fatal drop, deep water,

@@ -33,14 +33,48 @@ public final class PillarUp extends Move {
         BlockPos to = apply(from);                                     // new feet = from + 1
         if (!w.isPassable(to) || w.isHazard(to)) return null;          // current head cell — must be open
         BlockPos ceiling = from.offset(0, 2, 0);                       // head room after rising (= to + 1)
+
+        java.util.List<BlockPos> toBreak = new java.util.ArrayList<>();
+        double cost = Move.PILLAR_COST;
+
+        // Own-column ceiling: the cell the rising head climbs into. Must be open
+        // or breakable (then mined first so there's room to rise).
         if (w.isSolid(ceiling)) {
             if (!BotConfig.allowBreak) return null;
             double c = w.breakCost(ceiling);
             if (Double.isInfinite(c)) return null;
-            return new Edge(to, Move.PILLAR_COST + c, List.of(ceiling), List.of(from), name());
+            toBreak.add(ceiling);
+            cost += c;
+        } else if (w.isHazard(ceiling)) {
+            return null;
         }
-        if (w.isHazard(ceiling)) return null;
-        return new Edge(to, Move.PILLAR_COST, List.of(), List.of(from), name());
+
+        // AABB head-sweep: the player box is 0.6 wide, so when execution lands the
+        // bot off-centre in its cell the rising HEAD also sweeps the cardinal
+        // neighbours of the ceiling level. A breakable obstruction there — an
+        // oak_leaves canopy gap is the canonical case — caps the jump below the
+        // place height (head jams on the neighbour leaf at +2), so the pillar
+        // never reaches `place.y + 1` and bobs forever. Pre-list such breakables
+        // so the Walker clears a body-wide channel before jumping. A SOLID,
+        // UNBREAKABLE neighbour is left alone — a centred body clears it, and
+        // breaking the whole world to insure against drift would explode the
+        // search. Gated on allowBreak (demo-safe movement breaks nothing) and
+        // unreachable in headless GameTest (canPlace=false short-circuits above).
+        if (BotConfig.allowBreak) {
+            BlockPos[] sides = {
+                ceiling.offset(1, 0, 0), ceiling.offset(-1, 0, 0),
+                ceiling.offset(0, 0, 1), ceiling.offset(0, 0, -1),
+            };
+            for (BlockPos n : sides) {
+                if (!w.isSolid(n)) continue;                  // open / plant-with-no-collision → no clip
+                double c = w.breakCost(n);
+                if (Double.isInfinite(c)) continue;           // solid wall we can't break → centred body clears it
+                toBreak.add(n);
+                cost += c;
+            }
+        }
+
+        return new Edge(to, cost, toBreak, List.of(from), name());
     }
     public String name() { return "pillarUp"; }
     @Override public boolean placesBlock() { return true; }
