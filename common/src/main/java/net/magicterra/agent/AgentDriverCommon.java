@@ -6,6 +6,7 @@ import com.mojang.brigadier.context.CommandContext;
 import net.magicterra.agent.api.AgentApi;
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.mcp.McpServer;
+import net.magicterra.agent.mcp.ToolCatalog;
 import net.magicterra.agent.rpc.RpcServer;
 import net.magicterra.agent.script.AgentScriptManager;
 import net.magicterra.agent.script.McpBridge;
@@ -134,6 +135,11 @@ public final class AgentDriverCommon {
                 // Phase H — persistent skill library (Voyager) under scripts/skills/.
                 SkillLibrary skillLibrary = new SkillLibrary(evaluator, userScriptsDir().resolve("skills"));
                 api.setSkillHandler(skillLibrary::dispatch);
+                // Convergence guard: every route must ship an MCP ToolSchema, or we
+                // refuse to start (see AgentApi.requireSchemasFor / ToolCatalog). Runs
+                // while only core routes exist; optional subsystems (e.g. path-debug)
+                // register their route + schema together, later.
+                api.requireSchemasFor(ToolCatalog.declaredMethodNames());
             }
             if (rpcServer == null) {
                 int wantPort = Integer.getInteger("agent.rpcPort", 0);

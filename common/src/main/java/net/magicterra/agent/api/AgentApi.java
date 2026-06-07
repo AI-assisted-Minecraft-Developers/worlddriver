@@ -448,6 +448,28 @@ public final class AgentApi {
     public Set<String> methods() { return Collections.unmodifiableSet(routes.keySet()); }
 
     /**
+     * Boot-time invariant: every registered route MUST have a declared MCP
+     * {@code ToolSchema}. The set of declared names is passed in by the bootstrap
+     * (from {@code ToolCatalog.declaredMethodNames()}) so this stays in the api
+     * layer without depending on the mcp/transport layer (Hard Rule #1 — core is
+     * transport-agnostic). A route with no schema would be half-specified: invisible
+     * to MCP {@code tools/list} yet callable, the exact drift that let methods slip
+     * to RPC-only. We refuse to start rather than ship it; an intentional RPC-only
+     * method is declared as a {@code hidden} ToolSchema, so it counts as "declared".
+     *
+     * @throws IllegalStateException if any route lacks a declared schema
+     */
+    public void requireSchemasFor(Set<String> declaredToolNames) {
+        Set<String> missing = new TreeSet<>(routes.keySet());
+        missing.removeAll(declaredToolNames);
+        if (!missing.isEmpty()) {
+            throw new IllegalStateException(
+                "agent-driver: " + missing.size() + " route(s) have no MCP ToolSchema — declare each "
+                + "in ToolCatalog (a normal schema, or a hidden one for RPC-only verbs): " + missing);
+        }
+    }
+
+    /**
      * Lays down a deterministic test arena: 5x5 stones at y=200, oak log at y=201,
      * one cow at (3,201,0), one sheep at (-3,201,2). Clears surrounding air first
      * so {@code /agent test} is idempotent.
