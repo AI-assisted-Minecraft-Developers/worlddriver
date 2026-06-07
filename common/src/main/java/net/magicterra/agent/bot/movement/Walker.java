@@ -86,6 +86,11 @@ public final class Walker {
      *  repath. Generous (5 s) so genuinely slow legit moves (water creep, pillar climb)
      *  finish well within it; bridge edges are excluded (they hard-zero progress timers). */
     private static final int WEDGE_TICKS = 100;
+    /** Ticks an in-place pillar-up recovery is latched once armed — long enough for a
+     *  jump's airborne arc to crest and place a support (vanilla peak ~tick 6-8), short
+     *  enough that it re-evaluates promptly. Re-armed each grounded tick while the bot is
+     *  still below the next node beyond jump reach (see overJump). */
+    private static final int PILLAR_RECOVER_TICKS = 14;
     /** Anti-spin: consecutive in-water repaths with no goal-progress before the camera
      *  heading is FROZEN. A failed water climb-out makes every repath return a
      *  swim-back/circle best-effort; following each one U-turns the bot and the
@@ -146,6 +151,8 @@ public final class Walker {
     private int waterClimbStall;      // ticks bob-stalled (no NET height gain) climbing out of water
     private double waterClimbBestY = Double.NEGATIVE_INFINITY; // best Y this water-climb; a real rise resets the stall
     private int diveLatch;            // ticks left forcing a dive-under-cap (set on a blocked submerged descent; holds the dive through the sink so it doesn't flip-flop)
+    private int pillarRecoverLatch;   // ticks left driving an in-place pillar-up recovery (bot fell below the climb path beyond jump reach) — latched across the jump's airborne phase so a place can land
+    private BlockPos pillarRecoverCell; // the (grounded) feet cell the recovery is filling this rung
     private boolean descending;       // ending creative flight; wait to land before pathing
     private PathFinder.Search activeSearch;  // in-flight time-sliced A* (null = none)
     private double bestDistToGoal = Double.POSITIVE_INFINITY;
@@ -179,6 +186,7 @@ public final class Walker {
         this.pillarSinceJump = -1;
         this.waterClimbStall = 0;
         this.diveLatch = 0;
+        this.pillarRecoverLatch = 0;
         this.waterClimbBestY = Double.NEGATIVE_INFINITY;
         this.descending = false;
         this.activeSearch = null;
@@ -225,6 +233,7 @@ public final class Walker {
         // past threshold) or suppresses a legitimate stall (stale-high best-Y).
         this.waterClimbStall = 0;
         this.diveLatch = 0;
+        this.pillarRecoverLatch = 0;
         this.waterClimbBestY = Double.NEGATIVE_INFINITY;
         this.descending = false;
     }
@@ -1298,6 +1307,43 @@ public final class Walker {
         boolean overJump = needJumpForStep && upDy > maxJumpUp && p.onGround() && !p.isInWater()
                 && edge != null && !"pillarUp".equals(edge.move) && !parkourEdge;
         if (overJump) stuckTicks += 3;
+        // Vertical recovery (execution hardening): the bot is BELOW the next node by more
+        // than it can jump — it slid/fell below the committed climb path, and a plain stepUp
+        // here just RAMS the wall (jump is suppressed for an unreachable height) → the
+        // "被面前的高方块挡住不动" stall. If we carry blocks, PILLAR UP in place to regain
+        // the height instead of ramming: look down, jump off the ground, and place a support
+        // in the feet cell once risen clear of it — the same actuation as a planned pillarUp.
+        // Latched across the jump's airborne phase (overJump needs onGround, so one tick
+        // can't both jump and place) and re-armed each grounded tick while still too low;
+        // ends when back within jump reach (overJump clears) or blocks run out, after which
+        // the normal step logic resumes. Reuses ensureHolding + clientUseItemOn.
+        if (overJump && world.canPlace() && ensureHoldingPlaceableAny(mc)) {
+            pillarRecoverLatch = PILLAR_RECOVER_TICKS;
+            pillarRecoverCell = foot;                 // grounded feet cell = the rung we fill
+        }
+        if (pillarRecoverLatch > 0 && pillarRecoverCell != null) {
+            pillarRecoverLatch--;
+            mc.options.keyUp.setDown(false);
+            mc.options.keyDown.setDown(false);
+            mc.options.keyLeft.setDown(false);
+            mc.options.keyRight.setDown(false);
+            mc.options.keySprint.setDown(false);
+            p.setSprinting(false);
+            mc.options.keyShift.setDown(false);
+            p.setShiftKeyDown(false);
+            p.setXRot(89.5f);                         // look straight down to aim the support
+            if (p.onGround()) {
+                mc.options.keyJump.setDown(true);     // jump off the current rung
+            } else {
+                mc.options.keyJump.setDown(false);
+                // Place into the feet cell once risen clear of it (vanilla rejects the place
+                // while the player AABB still overlaps the target cell — gate on real height).
+                if (p.getY() >= pillarRecoverCell.getY() + 1.0) {
+                    clientUseItemOn(mc, p, pillarRecoverCell.offset(0, -1, 0), Direction.UP);
+                }
+            }
+            return Step.WALKING;
+        }
         // Baritone MovementAscend jump-timing applies whenever we actually JUMP a
         // cardinal step within reach (+1, or +2 for a horse/jump-boost) — align +
         // approach before the jump. A horse auto-walk-up needs no jump; water/parkour
@@ -1498,8 +1544,15 @@ public final class Walker {
         // with the dive pitch (above) + jump suppressed (cappedHead) it threads the
         // tunnel along the floor instead of bobbing into the cap. So force sprint here
         // even though it's a (downward) vertical node.
+        // A parkour ASCEND leap (parkourEdge rising) is the ONE jumped ascend that MUST
+        // sprint: a +2 (or gap) parkour clears only with the run-up momentum (Baritone's
+        // MovementParkour sprints). The blanket no-sprint-on-needJumpForStep below was tuned
+        // for a +1 CARDINAL stepUp (sprint rams the riser there), but it wrongly starved the
+        // parkour leap of momentum → it jumped +1 in place and bob-stalled against the step
+        // (live: parkourAscend2 frozen, hSpd=0, bobbing y82↔83). Let a parkour ascend sprint.
+        boolean parkourAscend = parkourEdge && wp.getY() > foot.getY();
         boolean sprint = !bridging && !steppingOffFall && !steppingOffWaterFall
-                && !descendBrake && !lethalNear && !needJumpForStep   // !lethalNear (not !edgeBrake): never sprint NEAR a lethal edge — incl. a planned descent past it — so no drift/overshoot momentum off the lip while sneak is released for the step-down. Baritone doesn't sprint a jumped ascend (overshoots/bonks); a horse auto-walk-up keeps sprint
+                && !descendBrake && (!lethalNear || parkourAscend) && (!needJumpForStep || parkourAscend)   // !lethalNear (not !edgeBrake): never sprint NEAR a lethal edge — incl. a planned descent past it — so no drift/overshoot momentum off the lip while sneak is released for the step-down. Baritone doesn't sprint a jumped CARDINAL ascend (overshoots/bonks) but DOES sprint a parkour leap; a horse auto-walk-up keeps sprint
                 // A/B-DISPROVEN (2026-06-06): re-enabling sprint on an aligned ascend (sprintableAscend)
                 // regressed hCol 13%→36% / mean hSpd .112→.082 — because the jump fires CLOSE to the riser
                 // (ascendJumpReady flatDist≤1.2), the sprint forward-boost rams the riser face HARDER instead
