@@ -77,6 +77,11 @@ RPC 和 MCP **都**在 client init 阶段就起来了 —— 你在 TitleScreen 
 没进世界也行。需要世界的工具会返回 `isError`，但 `mc.client.*` 和
 `mc.script.eval` 立刻可用。
 
+RPC 和 MCP 默认都绑定到 `127.0.0.1`。需要让其它主机连入时，设置
+`-Dagent.rpcHost=0.0.0.0` / `-Dagent.mcpHost=0.0.0.0`（也可用 IPv6 的 `::`
+或某个具体网卡地址）。绑定通配地址时日志仍打印 loopback URL，因为
+`0.0.0.0` / `::` 本身不是可连接的目标地址。
+
 把下面这段 `.mcp.json` 放到你启动 MCP 客户端的目录下，任何 spec-compliant
 客户端（Claude Code、Cursor、Continue、Codex、MCP Inspector）都会自动发现：
 

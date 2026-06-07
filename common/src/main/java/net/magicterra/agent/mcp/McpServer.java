@@ -88,8 +88,12 @@ public final class McpServer implements Closeable {
     private volatile int minLevelRank = 0;
 
     public McpServer(AgentApi api, int port) throws IOException {
+        this(api, "127.0.0.1", port);
+    }
+
+    public McpServer(AgentApi api, String bindHost, int port) throws IOException {
         this.api = api;
-        this.http = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
+        this.http = HttpServer.create(new InetSocketAddress(bindHost, port), 0);
         this.http.createContext("/mcp", this::handle);
         this.http.createContext("/", this::handleRoot);
         this.http.setExecutor(Executors.newCachedThreadPool(r -> {

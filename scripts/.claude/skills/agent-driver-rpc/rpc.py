@@ -43,6 +43,8 @@ Usage
 Options
 -------
     --port N        RPC port (default: $AGENT_RPC_PORT, else agent-rpc.port file, else 39801)
+    --host H        RPC host (default: $AGENT_RPC_HOST, else 127.0.0.1; the mod binds
+                    127.0.0.1 unless launched with -Dagent.rpcHost). IPv6 literals OK.
     --raw           print the full {id,result|error} envelope, not just result
     --compact       single-line JSON (default is indent=2)
     --jq EXPR       project the result with a dotted path, e.g. --jq blockPos.y
@@ -63,6 +65,16 @@ try:
 except ImportError:
     sys.exit("rpc.py needs the 'websockets' package (pip install websockets) — "
              "it's already used by into_world.py, so the test venv has it.")
+
+
+def resolve_host(explicit):
+    """--host > $AGENT_RPC_HOST > 127.0.0.1. The mod binds 127.0.0.1 by default
+    (override with -Dagent.rpcHost); only set this to reach a non-loopback bind."""
+    host = explicit or os.environ.get("AGENT_RPC_HOST") or "127.0.0.1"
+    # Bracket a bare IPv6 literal so it's valid in a ws:// URL ('::1' → '[::1]').
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    return host
 
 
 def resolve_port(explicit):
@@ -131,7 +143,8 @@ def parse_call_line(line):
 
 async def run(args):
     port = resolve_port(args.port)
-    uri = f"ws://127.0.0.1:{port}/rpc"
+    host = resolve_host(args.host)
+    uri = f"ws://{host}:{port}/rpc"
 
     # Build the call list: batch (file/stdin) or a single CLI call.
     calls = []
@@ -151,7 +164,8 @@ async def run(args):
     except Exception as e:  # noqa: BLE001 — surface a clear, actionable message
         sys.exit(f"could not connect to {uri}: {e}\n"
                  f"  • is the client/server up? probe with: python3 rpc.py mc.system.version\n"
-                 f"  • wrong port? pass --port or set AGENT_RPC_PORT (default 39801)")
+                 f"  • wrong port? pass --port or set AGENT_RPC_PORT (default 39801)\n"
+                 f"  • bound to a non-loopback host? pass --host or set AGENT_RPC_HOST")
 
     failed = False
     async with ws:
@@ -178,6 +192,7 @@ def main():
     ap.add_argument("params", nargs="?", help="JSON object of params (omit for none)")
     ap.add_argument("--batch", metavar="FILE", help="run '<method> [json]' lines from FILE ('-' = stdin)")
     ap.add_argument("--port", type=int, help="RPC port (default: env/port-file/39801)")
+    ap.add_argument("--host", help="RPC host (default: $AGENT_RPC_HOST, else 127.0.0.1)")
     ap.add_argument("--raw", action="store_true", help="print the full {id,result|error} envelope")
     ap.add_argument("--compact", action="store_true", help="single-line JSON output")
     ap.add_argument("--jq", metavar="PATH", help="project result with a dotted path, e.g. blockPos.y")

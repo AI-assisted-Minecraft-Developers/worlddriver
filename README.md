@@ -77,6 +77,11 @@ Both RPC **and** MCP come up at client init — you can connect at the title
 screen, before any world is loaded. World-dependent tools return `isError`
 until a save is open; `mc.client.*` and `mc.script.eval` work immediately.
 
+The RPC server binds to `127.0.0.1` by default. Set `-Dagent.rpcHost=0.0.0.0`
+(or an IPv6 `::`, or a specific interface address) to accept connections from
+other hosts. A wildcard bind still logs a loopback URL since `0.0.0.0` / `::`
+are not connectable targets.
+
 Drop the following `.mcp.json` into the directory you launch your MCP client
 from, and any spec-conformant client (Claude Code, Cursor, Continue, Codex,
 MCP Inspector) will discover the server automatically:

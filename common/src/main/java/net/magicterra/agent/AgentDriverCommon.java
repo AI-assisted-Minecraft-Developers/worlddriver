@@ -23,6 +23,9 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
@@ -134,9 +137,10 @@ public final class AgentDriverCommon {
             }
             if (rpcServer == null) {
                 int wantPort = Integer.getInteger("agent.rpcPort", 0);
-                rpcServer = new RpcServer(api, wantPort);
+                String bindHost = System.getProperty("agent.rpcHost", "127.0.0.1");
+                rpcServer = new RpcServer(api, bindHost, wantPort);
                 rpcPort = rpcServer.port();
-                LOG.info("[{}] RPC server listening on ws://127.0.0.1:{}/rpc", MOD_ID, rpcPort);
+                LOG.info("[{}] RPC server listening on ws://{}:{}/rpc", MOD_ID, urlHost(bindHost), rpcPort);
                 writePortFile("agent-rpc.port", rpcPort);
             }
         } catch (Exception e) {
@@ -156,12 +160,31 @@ public final class AgentDriverCommon {
         ensureRpcUp(); // also guarantees api is non-null
         try {
             int wantPort = Integer.getInteger("agent.mcpPort", 0);
-            mcpServer = new McpServer(api, wantPort);
+            String bindHost = System.getProperty("agent.mcpHost", "127.0.0.1");
+            mcpServer = new McpServer(api, bindHost, wantPort);
             mcpPort = mcpServer.port();
-            LOG.info("[{}] MCP server listening on http://127.0.0.1:{}/mcp", MOD_ID, mcpPort);
+            LOG.info("[{}] MCP server listening on http://{}:{}/mcp", MOD_ID, urlHost(bindHost), mcpPort);
             writePortFile("agent-mcp.port", mcpPort);
         } catch (IOException e) {
             LOG.error("[{}] failed to start MCP server", MOD_ID, e);
+        }
+    }
+
+    /**
+     * Host to print in a {@code scheme://HOST:port/...} log line (RPC and MCP). The
+     * wildcard bind addresses ({@code 0.0.0.0} / IPv6 {@code ::}) are not valid
+     * connection targets, so we advertise the same-family loopback instead. IPv6
+     * literals are bracketed for URL use.
+     */
+    private static String urlHost(String bindHost) {
+        try {
+            InetAddress addr = InetAddress.getByName(bindHost);
+            if (addr.isAnyLocalAddress()) {
+                return (addr instanceof Inet6Address) ? "[::1]" : "127.0.0.1";
+            }
+            return (addr instanceof Inet6Address) ? "[" + addr.getHostAddress() + "]" : bindHost;
+        } catch (UnknownHostException e) {
+            return "127.0.0.1";
         }
     }
 

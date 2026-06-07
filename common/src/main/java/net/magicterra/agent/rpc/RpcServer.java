@@ -80,6 +80,10 @@ public final class RpcServer implements Closeable {
     private static final AttributeKey<Set<String>> FILTER = AttributeKey.valueOf("agent.eventFilter");
 
     public RpcServer(AgentApi api, int requestedPort) {
+        this(api, "127.0.0.1", requestedPort);
+    }
+
+    public RpcServer(AgentApi api, String bindHost, int requestedPort) {
         ServerBootstrap b = new ServerBootstrap();
         final ChannelGroup subs = this.subscribers;
         b.group(boss, worker)
@@ -94,7 +98,7 @@ public final class RpcServer implements Closeable {
              }
          });
         try {
-            this.serverChannel = b.bind(requestedPort).sync().channel();
+            this.serverChannel = b.bind(bindHost, requestedPort).sync().channel();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             shutdown();
