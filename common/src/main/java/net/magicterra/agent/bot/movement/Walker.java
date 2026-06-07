@@ -11,7 +11,7 @@ import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.magicterra.agent.bot.world.SurvivalMath;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
@@ -247,37 +247,30 @@ public final class Walker {
     // AgentInput): tick() sets a default below, branches override. p.input is always
     // an AgentInput here (installed at the top of tick()); the guard keeps it safe if
     // a respawn swapped a fresh KeyboardInput in between.
-    private static void agentJump(LocalPlayer p, boolean v) {
-        if (p.input instanceof AgentInput ai) ai.commandJump(v);
-        else p.input.jumping = v;
-    }
-    private static void agentSneak(LocalPlayer p, boolean v) {
-        if (p.input instanceof AgentInput ai) ai.commandSneak(v);
-        else p.input.shiftKeyDown = v;
-    }
+    private static void agentJump(Avatar a, boolean v) { a.commandJump(v); }
+    private static void agentSneak(Avatar a, boolean v) { a.commandSneak(v); }
     /** Raw forward (keyUp equivalent) for the special branches that drive the impulse
      *  themselves (the main walk path uses commandMove). v=false also zeroes strafe. */
-    private static void agentForward(LocalPlayer p, boolean v) {
-        if (p.input instanceof AgentInput ai) ai.commandForward(v ? 1f : 0f);
+    private static void agentForward(Avatar a, boolean v) { a.commandForward(v ? 1f : 0f); }
+
+    /** Client bridge: existing callers pass {@link Minecraft}; wrap it in a
+     *  {@link ClientPlayerAvatar} (1:1 passthrough). The decoupled core is
+     *  {@link #tick(Avatar, WorldView)}, which the server path calls directly. */
+    public Step tick(Minecraft mc, WorldView world) {
+        return tick(new ClientPlayerAvatar(mc), world);
     }
 
-    public Step tick(Minecraft mc, WorldView world) {
-        LocalPlayer p = mc.player;
+    public Step tick(Avatar a, WorldView world) {
+        Player p = a.player();
         if (p == null) { lastError = "player vanished"; return terminal(Step.FAILED, PathTrace.Outcome.ERROR, lastError); }
-
-        // Drive locomotion at the impulse level, decoupled from the (cosmetically slewed)
-        // camera — see AgentInput. Installed lazily because a respawn / dimension change
-        // builds a fresh LocalPlayer with a vanilla KeyboardInput; re-installing here keeps
-        // the bot on the decoupled actuator without a separate lifecycle hook. AgentInput
-        // IS a KeyboardInput, so manual play is unaffected when the Walker isn't driving.
-        if (!(p.input instanceof AgentInput)) p.input = new AgentInput(mc.options);
+        // AgentInput install (client) is handled inside the Avatar implementation.
 
         // Per-tick baseline for the jump/sneak channel: default to "not jumping / not
         // sneaking" so any path that returns without setting them can't leak a stale
         // value — branches below override as needed. (jump only matters on the ground,
         // so a default-false on an airborne tick is a no-op; see AgentInput.)
-        agentJump(p, false);
-        agentSneak(p, false);
+        agentJump(a, false);
+        agentSneak(a, false);
 
         // Ground pathfinder: end creative flight so the player descends and
         // the walk/jump actuator (which relies on gravity + onGround) works.
@@ -300,8 +293,8 @@ public final class Walker {
         if (descending) {
             if (!p.onGround() && !world.isWater(new BlockPos(
                     (int) Math.floor(p.getX()), (int) Math.floor(p.getY()), (int) Math.floor(p.getZ())))) {
-                agentForward(p, false);
-                agentJump(p, false);
+                agentForward(a, false);
+                agentJump(a, false);
                 p.setSprinting(false);
                 if (BotConfig.walkerDebug)
                     LOG.info(
@@ -454,7 +447,7 @@ public final class Walker {
                 // planning this may be a STALE continuation (computed before we
                 // arrived & loaded the chunks beyond) — re-search fresh before giving
                 // up; otherwise we've gone as far as the best effort allows.
-                return frontierHoldOrArrive(mc, world, p);
+                return frontierHoldOrArrive(a, world, p);
             } else if (res.hasPath()) {
                 // ANTI-SPIN (water repath-churn): a failed water climb-out (bot can't
                 // mount the bank) makes every repath return a best-effort that swims
@@ -481,8 +474,8 @@ public final class Walker {
                     if (BotConfig.walkerDebug)
                         LOG.info("[walker] anti-spin: {} water repaths w/o progress (d={}) → end best-effort",
                                 repathsNoProgress, String.format(Locale.ROOT, "%.0f", d));
-                    agentForward(p, false);
-                    agentJump(p, false);
+                    agentForward(a, false);
+                    agentJump(a, false);
                     p.setSprinting(false);
                     return terminal(Step.ARRIVED, PathTrace.Outcome.SUCCESS, null);
                 }
@@ -517,7 +510,7 @@ public final class Walker {
                 // for real. (Bounded by the total-tick budget above, so a void
                 // fall with no clutch can't hang the goto forever.)
                 if (!p.onGround()) {
-                    agentForward(p, false);
+                    agentForward(a, false);
                     p.setSprinting(false);
                     return Step.WALKING;
                 }
@@ -528,8 +521,8 @@ public final class Walker {
         }
         // First path still computing (no path to follow yet) → hold, don't spin.
         if (path == null) {
-            agentForward(p, false);
-            agentJump(p, false);
+            agentForward(a, false);
+            agentJump(a, false);
             p.setSprinting(false);
             return Step.WALKING;
         }
@@ -704,15 +697,15 @@ public final class Walker {
                     // Stale eager continuation found nothing — at a chunk frontier the
                     // newly-loaded terrain may now reveal the next segment, so re-search
                     // fresh before giving up (bounded).
-                    return frontierHoldOrArrive(mc, world, p);
+                    return frontierHoldOrArrive(a, world, p);
                 }
             } else {
                 if (activeSearch == null && commitEnd != null) {
                     activeSearch = new PathFinder(world).newSearch(commitEnd, goal);
                     searchFromEnd = true;
                 }
-                agentForward(p, false);
-                agentJump(p, false);
+                agentForward(a, false);
+                agentJump(a, false);
                 p.setSprinting(false);
                 return Step.WALKING;
             }
@@ -777,7 +770,7 @@ public final class Walker {
                 waterClimbStall++;
             }
             if (waterClimbing && waterClimbStall > WATER_CLIMB_STALL
-                    && BotConfig.allowSwimEscapePlace && ensureHoldingPlaceableAny(mc)) {
+                    && BotConfig.allowSwimEscapePlace && a.holdPlaceable()) {
                 // Locate the top water cell in the bot's column (the foothold to
                 // fill) and the surface above it — independent of the bob phase.
                 BlockPos topWater = world.isWater(foot) ? foot : foot.below();
@@ -799,11 +792,11 @@ public final class Walker {
                         p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw;
                     }
                     p.setXRot(40f);
-                    agentForward(p, true);
+                    agentForward(a, true);
                     p.setSprinting(false);
-                    agentJump(p, true);
+                    agentJump(a, true);
                     if (p.getY() >= surfaceY) {                              // feet cleared the place cell
-                        walkerPlace(mc, p, world, topWater);                 // fill it → flush, grounded foothold
+                        a.place(world,topWater);                 // fill it → flush, grounded foothold
                         // Re-plan from the (now grounded) surface. Unconditional —
                         // the client place is same-tick, so next tick topWater reads
                         // solid and the outer isWater guard blocks any re-place; the
@@ -827,28 +820,28 @@ public final class Walker {
         // the generic place actuator because it owns the airborne timing
         // (you can't place a block in the cell you're standing in).
         if (edge != null && "pillarUp".equals(edge.move) && hasPendingEdge(world, edge)) {
-            agentForward(p, false);
+            agentForward(a, false);
             p.setSprinting(false);
             totalTicks = 0;
             stuckTicks = 0;   // pillaring stays on one cell while placing — not "stuck"
             if (step != pillarStep) { pillarStep = step; pillarSinceJump = -1; }
             if (++actionTicks > BotConfig.breakTimeoutTicks) {
-                mc.options.keyAttack.setDown(false);
-                agentJump(p, false);
+                a.breakHold(false);
+                agentJump(a, false);
                 lastError = "pillar stalled at " + path.get(step);
                 path = null;
                 return Step.WALKING;
             }
             for (BlockPos b : edge.toBreak) {
                 if (world.isSolid(b)) {
-                    agentJump(p, false);
-                    selectBestToolFor(mc, b);
-                    aimAtBlockSnap(p, b);
-                    mc.options.keyAttack.setDown(true);
+                    agentJump(a, false);
+                    a.selectTool(b);
+                    a.aimAtBlock(b);
+                    a.breakHold(true);
                     return Step.WALKING;
                 }
             }
-            mc.options.keyAttack.setDown(false);
+            a.breakHold(false);
             // Buoyant pillar — the bot is rising out of water. Two sub-cases:
             //   (a) FLOODED shaft (the destination cell is itself water): just hold
             //       jump and FLOAT up through it; water follows up so the next
@@ -863,17 +856,17 @@ public final class Walker {
             // which flickers false at the bob peak and would drop the jump.
             boolean shaftFlooded = world.isWater(path.get(step));
             if (shaftFlooded || p.isInWater() || world.isWater(path.get(step).offset(0, -1, 0))) {
-                agentJump(p, true);
-                if (!shaftFlooded && ensureHoldingPlaceableAny(mc)) {
+                agentJump(a, true);
+                if (!shaftFlooded && a.holdPlaceable()) {
                     BlockPos wp = edge.toPlace.get(0);
                     p.setXRot(89.5f);                       // look down to aim the support
                     if (p.getY() >= wp.getY() + 0.9) {      // bobbed clear of the place cell
-                        clientUseItemOn(mc, p, wp.offset(0, -1, 0), Direction.UP);
+                        a.placeOn(wp.offset(0, -1, 0), Direction.UP);
                     }
                 }
                 return Step.WALKING;
             }
-            if (!ensureHoldingPlaceableAny(mc)) {
+            if (!a.holdPlaceable()) {
                 lastError = "pillar: no placeable block in hotbar";
                 path = null;
                 return Step.WALKING;
@@ -882,10 +875,10 @@ public final class Walker {
             BlockPos support = place.offset(0, -1, 0);               // click its top face (block we stood on)
             p.setXRot(89.5f);                                        // look straight down (snap)
             if (p.onGround()) {
-                agentJump(p, true);
+                agentJump(a, true);
                 pillarSinceJump = 0;
             } else {
-                agentJump(p, false);
+                agentJump(a, false);
                 if (pillarSinceJump >= 0) pillarSinceJump++;
                 // Place only once the feet have actually risen clear of the cell
                 // being filled. The target IS the old feet cell, so vanilla's
@@ -896,7 +889,7 @@ public final class Walker {
                 // the old fixed 3-tick delay fired at ~+0.99 and the place
                 // no-op'd against the player's own body. Gate on real height.
                 if (pillarSinceJump >= PILLAR_PLACE_DELAY && p.getY() >= place.getY() + 1.0) {
-                    clientUseItemOn(mc, p, support, Direction.UP);
+                    a.placeOn(support, Direction.UP);
                 }
             }
             return Step.WALKING;
@@ -942,18 +935,18 @@ public final class Walker {
                 LookController.requestSnap();   // a parkour leap's heading is functional — exempt from the global slew
             }
             p.setXRot(0f);
-            agentForward(p, true);
-            agentJump(p, !placed && grounded);   // jump off the lip once
+            agentForward(a, true);
+            agentJump(a, !placed && grounded);   // jump off the lip once
             boolean sprint = !placed;                          // brake after the block is down
             p.setSprinting(sprint);
-            agentSneak(p, placed);               // sneak-brake / ledge-guard on landing
+            agentSneak(a, placed);               // sneak-brake / ledge-guard on landing
             p.setShiftKeyDown(placed);
-            if (!placed && !grounded && ensureHoldingPlaceableAny(mc)) {
+            if (!placed && !grounded && a.holdPlaceable()) {
                 Vec3 eye = p.getEyePosition();
                 double fdx = (floor.getX() + 0.5) - eye.x, fdy = (floor.getY() + 0.5) - eye.y, fdz = (floor.getZ() + 0.5) - eye.z;
                 boolean inReach = fdx * fdx + fdy * fdy + fdz * fdz < 16;   // ~4 blocks of the eye
                 if (inReach) {
-                    walkerPlace(mc, p, world, floor);
+                    a.place(world,floor);
                     if (BotConfig.walkerDebug)
                         LOG.info(
                                 "[walker] parkour-place floor={},{},{} y={} dy={} solid={}",
@@ -971,15 +964,15 @@ public final class Walker {
         // independent of smoothLook. Returns each tick until the edge is
         // clear, then falls through to the normal walk below.
         if (edge != null && hasPendingEdge(world, edge)) {
-            agentForward(p, false);
-            agentJump(p, false);
+            agentForward(a, false);
+            agentJump(a, false);
             p.setSprinting(false);
             totalTicks = 0;                       // breaking/placing IS progress
             stuckTicks = 0;                       // foot stays put while placing — don't trip the wiggle-jump (it'd leap off a 1-wide bridge)
             if (++actionTicks > BotConfig.breakTimeoutTicks) {
                 // Lag or an unexpected obstruction — drop the path and let
                 // the next tick repath from the current position.
-                mc.options.keyAttack.setDown(false);
+                a.breakHold(false);
                 lastError = "break/place stalled at " + path.get(step);
                 path = null;
                 return Step.WALKING;
@@ -997,18 +990,18 @@ public final class Walker {
                     && (edge.move.startsWith("swimAshore") || edge.move.startsWith("swimTraverseBreak"));
             for (BlockPos b : edge.toBreak) {
                 if (world.isSolid(b)) {
-                    selectBestToolFor(mc, b);
-                    aimAtBlockSnap(p, b);
-                    mc.options.keyAttack.setDown(true);
+                    a.selectTool(b);
+                    a.aimAtBlock(b);
+                    a.breakHold(true);
                     if (swimEscapeBreak && p.isInWater() && !p.isUnderWater()) {
-                        agentForward(p, true);     // press into the aimed bank (surface only)
+                        agentForward(a, true);     // press into the aimed bank (surface only)
                         if (edge.move.startsWith("swimAshore"))
-                            agentJump(p, true);   // rise to mount the +1
+                            agentJump(a, true);   // rise to mount the +1
                     }
                     return Step.WALKING;
                 }
             }
-            mc.options.keyAttack.setDown(false);
+            a.breakHold(false);
             for (BlockPos b : edge.toPlace) {
                 if (!world.isSolid(b)) {
                     if (BotConfig.walkerDebug)
@@ -1016,14 +1009,14 @@ public final class Walker {
                                 "[walker] place-act foot={},{},{} y={} step={} placing={},{},{} onGround={} edge={}",
                                 foot.getX(), foot.getY(), foot.getZ(), String.format(Locale.ROOT, "%.2f", p.getY()),
                                 step, b.getX(), b.getY(), b.getZ(), p.onGround(), edge.move);
-                    aimAtBlockSnap(p, b);
-                    walkerPlace(mc, p, world, b);
+                    a.aimAtBlock(b);
+                    a.place(world,b);
                     return Step.WALKING;
                 }
             }
             return Step.WALKING;                  // settle a tick before walking on
         }
-        mc.options.keyAttack.setDown(false);
+        a.breakHold(false);
         actionTicks = 0;
 
         // Pillar placed but the player is still rising onto it — hold (no
@@ -1031,8 +1024,8 @@ public final class Walker {
         // off the fresh block mid-jump.
         if (edge != null && "pillarUp".equals(edge.move)
                 && !(p.onGround() && p.getY() >= path.get(step).getY() - 0.1)) {
-            agentForward(p, false);
-            agentJump(p, false);
+            agentForward(a, false);
+            agentJump(a, false);
             p.setSprinting(false);
             return Step.WALKING;
         }
@@ -1068,9 +1061,9 @@ public final class Walker {
             }
             p.setXRot(smoothAngle(p.getXRot(), 0f));
             boolean climbUp = ahead.getY() >= foot.getY();   // path ahead up/level → climb; below → over-climbed, descend
-            agentForward(p, climbUp);               // forward INTO the vine = climb up (vanilla vine ascent)
-            agentJump(p, climbUp);             // jump also drives vine ascent; off → slide back down
-            agentSneak(p, false);              // sneak would HALT the vine climb
+            agentForward(a, climbUp);               // forward INTO the vine = climb up (vanilla vine ascent)
+            agentJump(a, climbUp);             // jump also drives vine ascent; off → slide back down
+            agentSneak(a, false);              // sneak would HALT the vine climb
             p.setShiftKeyDown(false);
             p.setSprinting(false);
             if (BotConfig.walkerDebug)
@@ -1314,25 +1307,25 @@ public final class Walker {
         // can't both jump and place) and re-armed each grounded tick while still too low;
         // ends when back within jump reach (overJump clears) or blocks run out, after which
         // the normal step logic resumes. Reuses ensureHolding + clientUseItemOn.
-        if (overJump && world.canPlace() && ensureHoldingPlaceableAny(mc)) {
+        if (overJump && world.canPlace() && a.holdPlaceable()) {
             pillarRecoverLatch = PILLAR_RECOVER_TICKS;
             pillarRecoverCell = foot;                 // grounded feet cell = the rung we fill
         }
         if (pillarRecoverLatch > 0 && pillarRecoverCell != null) {
             pillarRecoverLatch--;
-            agentForward(p, false);
+            agentForward(a, false);
             p.setSprinting(false);
-            agentSneak(p, false);
+            agentSneak(a, false);
             p.setShiftKeyDown(false);
             p.setXRot(89.5f);                         // look straight down to aim the support
             if (p.onGround()) {
-                agentJump(p, true);     // jump off the current rung
+                agentJump(a, true);     // jump off the current rung
             } else {
-                agentJump(p, false);
+                agentJump(a, false);
                 // Place into the feet cell once risen clear of it (vanilla rejects the place
                 // while the player AABB still overlaps the target cell — gate on real height).
                 if (p.getY() >= pillarRecoverCell.getY() + 1.0) {
-                    clientUseItemOn(mc, p, pillarRecoverCell.offset(0, -1, 0), Direction.UP);
+                    a.placeOn(pillarRecoverCell.offset(0, -1, 0), Direction.UP);
                 }
             }
             return Step.WALKING;
@@ -1408,11 +1401,9 @@ public final class Walker {
         double driveL = strafeL ? 1.0 : (strafeR ? -1.0 : 0.0);
         double driveDelta = Math.toRadians(spinFreeze ? 0.0 : angleDiff(p.getYRot(), aimYaw));
         double driveCos = Math.cos(driveDelta), driveSin = Math.sin(driveDelta);
-        if (p.input instanceof AgentInput ai) {
-            ai.commandMove(
-                    (float) (driveL * driveCos - driveF * driveSin),
-                    (float) (driveL * driveSin + driveF * driveCos));
-        }
+        a.commandMove(
+                (float) (driveL * driveCos - driveF * driveSin),
+                (float) (driveL * driveSin + driveF * driveCos));
         // Bridging a chasm one placed block at a time: sneak (so a sprint
         // overshoot can't carry the bot off the fresh 1-wide block into the
         // gap ahead) and don't sprint. Triggered when the edge we're walking
@@ -1439,7 +1430,7 @@ public final class Walker {
                 && lethalDropAdjacent(world, p, foot);
         boolean plannedDescent = wp.getY() < foot.getY();
         boolean edgeBrake = lethalNear && !plannedDescent;
-        agentSneak(p, bridging || descendBrake || edgeBrake);
+        agentSneak(a, bridging || descendBrake || edgeBrake);
         p.setShiftKeyDown(bridging || descendBrake || edgeBrake);
         // Jump for a real upward step, a parkour-leap edge (by move type, not
         // raw distance — string-pulling makes plain walk waypoints far apart
@@ -1515,7 +1506,7 @@ public final class Walker {
         boolean jump = !descendBrake
                 && (stepUpJump || parkourEdge
                     || ((swimUp || swimColumn) && !cappedHead) || wiggle);
-        agentJump(p, jump);
+        agentJump(a, jump);
         // Sprint in water ONLY on a FLAT crossing (flatWaterWalk: wp.y==foot.y). The
         // prone swim pose that sprint+forward forces is exactly what a wide open-ocean
         // crossing needs (vanilla's fast swim) — WITHOUT it the bot treads upright in
@@ -1562,14 +1553,14 @@ public final class Walker {
             LOG.info("[walker] walk-keys yaw={} wp={},{},{} up={} jump={} sprint={} sneak={} hCol={} minorCol={} hSpd={} pos={},{},{} onG={} attack={}",
                     String.format(Locale.ROOT, "%.0f", p.getYRot()),
                     wp.getX(), wp.getY(), wp.getZ(),
-                    p.input.forwardImpulse != 0, p.input.jumping, p.isSprinting(),
-                    p.input.shiftKeyDown,
+                    a.dbgForwardImpulse(), a.dbgJumping(), p.isSprinting(),
+                    a.dbgSneak(),
                     p.horizontalCollision, p.minorHorizontalCollision,
                     String.format(Locale.ROOT, "%.3f", hSpd),
                     String.format(Locale.ROOT, "%.2f", p.getX()),
                     String.format(Locale.ROOT, "%.2f", p.getY()),
                     String.format(Locale.ROOT, "%.2f", p.getZ()),
-                    p.onGround(), mc.options.keyAttack.isDown());
+                    p.onGround(), a.breakHeld());
         }
         return Step.WALKING;
     }
@@ -1593,7 +1584,7 @@ public final class Walker {
      *  (the bot is stationary while waiting, so retrying more can't load new chunks)
      *  so a genuine box-in still terminates. Holds (keys released) and returns
      *  WALKING while retrying; ARRIVED when out of retries or the feature is off. */
-    private Step frontierHoldOrArrive(Minecraft mc, WorldView world, LocalPlayer p) {
+    private Step frontierHoldOrArrive(Avatar a, WorldView world, Player p) {
         if (BotConfig.pathfinderFrontierCommit && commitEnd != null
                 && frontierWaitTicks < FRONTIER_WAIT_CAP) {
             frontierWaitTicks++;
@@ -1601,8 +1592,8 @@ public final class Walker {
                 activeSearch = new PathFinder(world).newSearch(commitEnd, goal);
                 searchFromEnd = true;
             }
-            agentForward(p, false);
-            agentJump(p, false);
+            agentForward(a, false);
+            agentJump(a, false);
             p.setSprinting(false);
             return Step.WALKING;
         }
@@ -1638,7 +1629,7 @@ public final class Walker {
     }
 
     /** Emit a per-tick execution sample. Pure reads; cheap; gated to NOOP in release. */
-    private void sampleTick(LocalPlayer p) {
+    private void sampleTick(Player p) {
         // Cheap gate: skip the per-tick WalkerSample allocation entirely unless capture is on.
         // Keeps the hot path free in normal play and in a stripped (NOOP) release build.
         if (!BotConfig.pathDebug) return;
@@ -1669,7 +1660,7 @@ public final class Walker {
      *  off a lip while walking ALONG it — the actual DEATH #8 mode. Vanilla sneak then
      *  pins the body to this block in every direction. Lethal-only, so it never blocks
      *  a legitimate planned step-down (those land within survivable, or in water). */
-    private static boolean lethalDropAdjacent(WorldView world, LocalPlayer p, BlockPos foot) {
+    private static boolean lethalDropAdjacent(WorldView world, Player p, BlockPos foot) {
         int survivable = SurvivalMath.survivableFall(p.getHealth());
         for (int[] o : EDGE_NEIGHBOURS) {
             BlockPos n = foot.offset(o[0], 0, o[1]);
