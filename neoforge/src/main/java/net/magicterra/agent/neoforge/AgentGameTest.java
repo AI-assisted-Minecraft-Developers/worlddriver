@@ -276,6 +276,73 @@ public final class AgentGameTest {
         helper.succeed();
     }
 
+    /**
+     * Execution-layer regression: the REAL {@link Walker} drives a
+     * {@link ServerPlayerAvatar} to climb a +5 SHEER (vertical, stepless) wall
+     * onto a plateau behind it. Long-standing live failure ("sheer +5 wall bobs
+     * the bot back"); never deterministically reproduced because the client only
+     * sees loaded chunks. Break is OFF (no tunnelling), place is ON (pillar /
+     * scaffold is the only way up). Asserts the FakePlayer reaches the plateau.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void sheerWallArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 8, cz = 8, floorY = 220, standY = 221;
+        final int wallH = 5;
+        buildFloor(level, cx, cz, floorY);
+
+        // Sheer wall along the x-line at cz+2, wallH tall; a plateau at the
+        // wall-top level fills cz+3..cz+5 (the goal sits just behind the wall).
+        int wallZ = cz + 2;
+        int topY = floorY + wallH;                 // wall-top block; plateau surface = topY (stand topY+1)
+        for (int dx = -5; dx <= 5; dx++) {
+            for (int y = floorY + 1; y <= topY; y++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, y, wallZ), Blocks.STONE.defaultBlockState());
+            for (int dz = 3; dz <= 5; dz++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, topY, cz + dz), Blocks.STONE.defaultBlockState());
+                for (int yy = topY + 1; yy <= topY + 4; yy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, yy, cz + dz), Blocks.AIR.defaultBlockState());
+            }
+        }
+        BlockPos goal = new BlockPos(cx, topY + 1, cz + 3);   // first plateau cell behind the wall
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        BotConfig.allowBreak = false;
+        BotConfig.allowPlace = true;
+        BotConfig.walkerDebug = true;
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, standY, cz + 0.5);
+            FakePlayer fp = av.fakePlayer();
+            fp.getInventory().clearContent();
+            fp.getInventory().add(new ItemStack(Items.DIRT, 64));
+            fp.getInventory().selected = 0;
+
+            LevelWorldView w = new LevelWorldView(level, fp);
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.Block(goal));
+
+            Walker.Step s = Walker.Step.WALKING;
+            double maxY = fp.getY();
+            for (int t = 0; t < 600 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+                maxY = Math.max(maxY, fp.getY());
+            }
+            boolean onPlateau = fp.getZ() > wallZ + 0.5 && fp.getY() >= topY + 1 - 0.4;
+            AgentDriverCommon.LOG.info("[sheerWallArena] step={} pos=({},{},{}) maxY={} onPlateau={}",
+                    s, fp.getX(), fp.getY(), fp.getZ(), maxY, onPlateau);
+            if (!onPlateau)
+                throw new GameTestAssertException("Walker failed to climb the +" + wallH
+                        + " sheer wall: pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ()
+                        + ") maxY=" + maxY + " step=" + s);
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+        }
+        helper.succeed();
+    }
+
     /** 11x11 solid floor at {@code floorY}, clear 5 above — a clean test slab. */
     private static void buildFloor(ServerLevel level, int cx, int cz, int floorY) {
         for (int dx = -5; dx <= 5; dx++)
