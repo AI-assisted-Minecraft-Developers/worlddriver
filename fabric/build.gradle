@@ -36,18 +36,25 @@ dependencies {
     common(project(path: ':common', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':common', configuration: 'transformProductionFabric')
 
-    shadowBundle "dev.latvian.mods:rhino:$rootProject.rhino_version"
+    // Rhino (KubeJS fork) — a full mod jar (ships fabric.mod.json), so we nest it
+    // via Jar-in-Jar instead of shadowing its classes. Fabric Loader discovers
+    // the nested mod and dedupes it by version against any other mod that
+    // includes the same Rhino (e.g. KubeJS) — only the highest version loads.
+    // `implementation` keeps it on the dev/compile classpath; `include` nests it.
     implementation "dev.latvian.mods:rhino:$rootProject.rhino_version"
+    include "dev.latvian.mods:rhino:$rootProject.rhino_version"
 
     // netty-codec-http for WebSocket support. Fabric loader doesn't isolate
     // libraries the way NeoForge does, so plain `implementation` is enough at
-    // runtime; `shadowBundle` ships it inside the prod jar.
-    shadowBundle("io.netty:netty-codec-http:$rootProject.netty_version") { transitive = false }
+    // runtime; `include` nests it (Jar-in-Jar) inside the prod jar.
+    // transitive=false so we ship only codec-http and reuse MC's netty core.
+    include("io.netty:netty-codec-http:$rootProject.netty_version") { transitive = false }
     implementation "io.netty:netty-codec-http:$rootProject.netty_version"
 
     // snakeyaml — YAML GameTest definitions. Plain `implementation` is enough at
-    // runtime on Fabric; `shadowBundle` ships it (relocated, see shadowJar).
-    shadowBundle("org.yaml:snakeyaml:$rootProject.snakeyaml_version") { transitive = false }
+    // runtime on Fabric; `include` nests it (Jar-in-Jar). The loader dedupes
+    // nested jars by version, so no relocation is needed anymore.
+    include("org.yaml:snakeyaml:$rootProject.snakeyaml_version") { transitive = false }
     implementation "org.yaml:snakeyaml:$rootProject.snakeyaml_version"
 }
 
@@ -60,10 +67,12 @@ processResources {
 }
 
 shadowJar {
+    // Shadow now only merges the multi-platform `common` sources into the
+    // platform jar (Architectury requires this). External libraries (Rhino,
+    // netty-codec-http, snakeyaml) are nested via Jar-in-Jar (`include`) instead
+    // of being shadowed/relocated, so there is no `relocate` rule here anymore.
     configurations = [project.configurations.shadowBundle]
     archiveClassifier = 'dev-shadow'
-    // Match neoforge: relocate snakeyaml in the prod jar. Transparent to source.
-    relocate 'org.yaml.snakeyaml', 'net.magicterra.agent.shaded.snakeyaml'
 }
 
 remapJar {

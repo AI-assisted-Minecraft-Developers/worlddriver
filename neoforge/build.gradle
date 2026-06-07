@@ -39,22 +39,30 @@ dependencies {
     common(project(path: ':common', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':common', configuration: 'transformProductionNeoForge')
 
-    // Bundle Rhino into the final NeoForge jar via shadow
-    shadowBundle "dev.latvian.mods:rhino:$rootProject.rhino_version"
+    // Rhino (KubeJS fork) — a full mod jar (ships neoforge.mods.toml), so we
+    // nest it via Jar-in-Jar instead of shadowing its classes. FML discovers the
+    // nested mod and DEDUPES it by version against any other mod that JiJ's the
+    // same Rhino (e.g. KubeJS) — only the highest version loads, shared by all.
+    // `implementation` keeps it on the dev/compile classpath (its mod metadata
+    // makes FML pick it up in dev runs); `include` performs the JiJ nesting.
     implementation "dev.latvian.mods:rhino:$rootProject.rhino_version"
+    include "dev.latvian.mods:rhino:$rootProject.rhino_version"
 
     // netty-codec-http for WebSocket support. NeoForge's ModuleClassLoader will
     // NOT see plain `implementation` jars at runtime (FML only discovers mods,
     // not arbitrary classpath libraries). `forgeRuntimeLibrary` adds the jar to
     // FML's bootstrap classpath so it joins the module graph in dev runs; the
-    // matching `shadowBundle` repackages it into the prod jar.
+    // matching `include` nests it (Jar-in-Jar) as a library jar in the prod jar.
+    // transitive=false so we ship only codec-http and reuse MC's netty core.
     // See https://docs.architectury.dev/loom/using_libraries
-    shadowBundle("io.netty:netty-codec-http:$rootProject.netty_version") { transitive = false }
+    include("io.netty:netty-codec-http:$rootProject.netty_version") { transitive = false }
     forgeRuntimeLibrary "io.netty:netty-codec-http:$rootProject.netty_version"
 
-    // snakeyaml — same FML runtime-visibility dance as netty. shadowJar below
-    // RELOCATES it (see relocate rule) so it can't clash with another mod's copy.
-    shadowBundle("org.yaml:snakeyaml:$rootProject.snakeyaml_version") { transitive = false }
+    // snakeyaml — same FML runtime-visibility dance as netty. JiJ'd as a library
+    // jar; both loaders dedupe nested jars by version, so no relocation is needed
+    // (the previous shadow-relocate to net.magicterra.agent.shaded.snakeyaml is
+    // dropped — JiJ avoids the class-collision it was guarding against).
+    include("org.yaml:snakeyaml:$rootProject.snakeyaml_version") { transitive = false }
     forgeRuntimeLibrary "org.yaml:snakeyaml:$rootProject.snakeyaml_version"
 }
 
@@ -73,14 +81,12 @@ processResources {
 }
 
 shadowJar {
+    // Shadow now only merges the multi-platform `common` sources into the
+    // platform jar (Architectury requires this). External libraries (Rhino,
+    // netty-codec-http, snakeyaml) are nested via Jar-in-Jar (`include`) instead
+    // of being shadowed/relocated, so there is no `relocate` rule here anymore.
     configurations = [project.configurations.shadowBundle]
     archiveClassifier = 'dev-shadow'
-    // Isolate our snakeyaml from any unrelocated copy a modpack mod might bundle.
-    // Transparent to source (we import org.yaml.snakeyaml as usual); shadow
-    // rewrites both the lib and our call sites in the prod jar. NOTE: dev runs
-    // (incl. runGameTestServer) use the un-shadowed forgeRuntimeLibrary, so this
-    // relocation is NOT exercised by the GameTest CI — only the remapped prod jar.
-    relocate 'org.yaml.snakeyaml', 'net.magicterra.agent.shaded.snakeyaml'
 }
 
 remapJar {
