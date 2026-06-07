@@ -135,11 +135,6 @@ public final class AgentDriverCommon {
                 // Phase H — persistent skill library (Voyager) under scripts/skills/.
                 SkillLibrary skillLibrary = new SkillLibrary(evaluator, userScriptsDir().resolve("skills"));
                 api.setSkillHandler(skillLibrary::dispatch);
-                // Convergence guard: every route must ship an MCP ToolSchema, or we
-                // refuse to start (see AgentApi.requireSchemasFor / ToolCatalog). Runs
-                // while only core routes exist; optional subsystems (e.g. path-debug)
-                // register their route + schema together, later.
-                api.requireSchemasFor(ToolCatalog.declaredMethodNames());
             }
             if (rpcServer == null) {
                 int wantPort = Integer.getInteger("agent.rpcPort", 0);
@@ -152,6 +147,12 @@ public final class AgentDriverCommon {
         } catch (Exception e) {
             LOG.error("[{}] failed to start RPC server", MOD_ID, e);
         }
+        // Convergence guard, OUTSIDE the catch so it hard-fails: a route with no MCP
+        // ToolSchema is a programming error (see AgentApi.requireSchemasFor / ToolCatalog),
+        // not a recoverable startup hiccup — let it abort mod init rather than limp on
+        // with a half-specified tool surface. Cheap + idempotent, so re-running across
+        // ensureRpcUp calls (incl. after optional subsystems register) is harmless.
+        if (api != null) api.requireSchemasFor(ToolCatalog.declaredMethodNames());
     }
 
     /**
