@@ -280,6 +280,19 @@ public final class BotConfig {
      *  pos/block goal and pays nothing. Set 0 to disable. */
     public static volatile double pathfinderDescendCost = 40;
 
+    /** TOTAL g-cost of one {@code bridgePlace} edge — placing a block into an air
+     *  gap and walking onto it. Aerial bridging is SLOW (sneak-place ~1 block/15
+     *  ticks), RISKY (overshoot off the fresh 1-wide block) and consumes inventory,
+     *  so it must be a LAST resort, not a casual default: when it is too cheap the
+     *  planner happily commits a ~30-block aerial bridge straight over a deep valley
+     *  instead of descending and crossing the floor — a route the Walker can barely
+     *  execute, so the bot freezes (the "速度陡降 / 被挡" stall on mountain terrain).
+     *  A high cost makes A* prefer any ground route (descend a valley, go around) and
+     *  bridge only a genuinely unavoidable short gap. Does NOT touch the depth penalty,
+     *  so basin-dive protection is unchanged. Old hard-coded value was 30 (walk 10 +
+     *  {@link net.magicterra.agent.bot.pathfinder.Move#PLACE_COST 20}). Default {@value}. */
+    public static volatile double pathfinderBridgeCost = 80;
+
     /** Max collision-box height (blocks) of a floor-resting obstacle the body
      *  STEPS or SWIMS over, so the pathfinder treats it as passable rather than a
      *  wall. Fixes "被浮萍/荷叶挡住": a lily pad (collision ≈0.094 high) — and other
