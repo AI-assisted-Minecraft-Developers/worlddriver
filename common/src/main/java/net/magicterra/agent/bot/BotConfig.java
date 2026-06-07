@@ -244,8 +244,41 @@ public final class BotConfig {
 
     /** Blocks of descent below the search start that are free before {@link
      *  #pathfinderDepthPenalty} kicks in (so a normal step-down / small dip isn't
-     *  charged). */
+     *  charged). Shared with {@link #pathfinderDescendCost}. */
     public static volatile int pathfinderDepthSlack = 4;
+
+    /** REAL g-cost (not heuristic) charged per block for descending IN WATER or by
+     *  BREAKING a block, below {@code searchStartY − {@link #pathfinderDepthSlack}}.
+     *  Unlike {@link #pathfinderDepthPenalty} (a heuristic bias that only reorders
+     *  the search and cannot change which reachable path is cheapest), this adds to
+     *  the edge cost, so it actually makes a path that dives down COST MORE than one
+     *  that climbs ashore. It fixes the deep-water-bowl "卡上岸" root cause: at a
+     *  sheer-walled water pit an XZ (Y-agnostic) goal let A* reach the target column
+     *  more cheaply by SwimDown-ing to the bottom and break-tunnelling DOWN into the
+     *  ground (end Y 50-53) than by break-climbing the +6 bank — so the bot drilled
+     *  underground (or, for a far goal, committed nothing and bobbed). Charging the
+     *  watery/breaking descent its true cost flips the balance so the climb-ashore
+     *  path wins (verified via mc.debug.plan: goal east-bank end Y 50→71).
+     *  <p>TRIPLE-GATED: (1) only for Y-agnostic XZ goals (see {@link Goal#ignoresY()})
+     *  — a Y-aware pos/block goal (seabed monument, shipwreck) is NEVER taxed, so deep
+     *  ocean diving is unaffected; (2) only a water-involved descent (in-water SwimDown
+     *  OR a fall/MLG into water) or a block-breaking descent — a dry STEPPED descent
+     *  over solid ground (StepDown/Fall/DiagonalDescend, no break, not water) is a
+     *  legitimate downhill walk and pays NOTHING, so normal terrain descent and
+     *  `mc.bot.mine` (its own process, not goto) are unaffected; (3) only the part
+     *  below the slack threshold. Both water-entry and in-water descent are charged
+     *  because at a water bowl the cheapest dive-and-tunnel uses fall-INTO-water rungs
+     *  — taxing only already-submerged steps left A* a tax-free back-door. Only
+     *  the part of a step that lies below the slack threshold is charged, and only
+     *  when going down (climbing is free), so shallow wading across a river isn't
+     *  penalised. Set 0 to disable. Default {@value} — tuned via the mc.debug.plan
+     *  water-pit A/B so the +6 climb-ashore beats the dive-and-tunnel. Default 40:
+     *  the value that flips the real spawn +6-bank water bowl from dive-and-tunnel
+     *  (end Y 50) to climb-ashore (end Y 71) in the mc.debug.plan A/B. The usual
+     *  over-charge worry (deep dives) does NOT apply because the tax is gated to
+     *  Y-agnostic XZ goals only — a seabed-monument/shipwreck dive uses a Y-aware
+     *  pos/block goal and pays nothing. Set 0 to disable. */
+    public static volatile double pathfinderDescendCost = 40;
 
     /** Segmented planning to the loaded-chunk frontier. The client only knows
      *  chunks within render distance, so a far goal lies beyond loaded space; the

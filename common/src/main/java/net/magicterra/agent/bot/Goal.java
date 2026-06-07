@@ -24,6 +24,19 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
     boolean reached(BlockPos pos);
     double estimate(BlockPos pos);
 
+    /**
+     * True when this goal's heuristic IGNORES Y — an XZ column goal. For such a
+     * goal descending reads as free progress (the estimate doesn't change with Y),
+     * so A* can be lured into diving/tunnelling DOWN through water and rock to reach
+     * the target column at a lower Y (the deep-water-bowl "卡上岸" root cause).
+     * {@link net.magicterra.agent.bot.pathfinder.PathFinder}'s descend-tax applies
+     * ONLY to these. A goal that knows its target Y (Block/Near/TwoBlocks/GetToBlock
+     * — a seabed monument, shipwreck, or any {@code pos:}/{@code block:} target)
+     * guides a genuine dive correctly via its 3D heuristic and must NOT be taxed, so
+     * deep-water exploration and ocean-monument runs are unaffected. Default false.
+     */
+    default boolean ignoresY() { return false; }
+
     // === Shared heuristic helpers (mod cost units) ===========================
 
     /** 3D lower bound: Chebyshev-dominant axis at walk cost + the diagonal
@@ -68,6 +81,7 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
     record XZ(int x, int z, int radius) implements Goal {
         /** Exact-column XZ goal (radius 0) — preserves the original 2-arg callers. */
         public XZ(int x, int z) { this(x, z, 0); }
+        @Override public boolean ignoresY() { return true; }
         public boolean reached(BlockPos p) {
             long dx = p.getX() - x, dz = p.getZ() - z;
             return dx * dx + dz * dz <= (long) radius * radius;

@@ -124,6 +124,12 @@ public final class PathFinder {
          *  to the loaded-chunk frontier (see {@link BotConfig#pathfinderFrontierCommit}). */
         private Node bestFrontier;
         private double bestFrontierH = Double.POSITIVE_INFINITY;
+        // Water-escape best-effort: when the search STARTS in water, track the
+        // reachable dry-ground (ashore) node nearest the goal, so an unreachable
+        // goal commits to climbing ASHORE rather than a fake in-water segment.
+        private Node bestAshore;
+        private double bestAshoreH = Double.POSITIVE_INFINITY;
+        private final boolean startInWater;
         private final Node startNode;
         /** Move-set pruned to the catalog entries that can fire under this search's
          *  world/config constants (see {@link Move#availableInSearch}). Built once
@@ -140,6 +146,7 @@ public final class PathFinder {
 
         private Search(BlockPos start, Goal goal) {
             this.start = start;
+            this.startInWater = world.isWater(start);
             this.goal = goal;
             world.beginSearch();       // snapshot per-search state (e.g. nearby mobs)
             // Prune the move catalog to this search's relevant subset (after
@@ -180,6 +187,41 @@ public final class PathFinder {
                 if (below > 0) h += BotConfig.pathfinderDepthPenalty * below;
             }
             return h;
+        }
+
+        /** REAL edge cost (added to g, not h) for descending IN WATER or by BREAKING
+         *  a block, below {@code startY − slack}. This is what actually makes a
+         *  dive-and-tunnel path cost more than a climb-ashore one — a heuristic bias
+         *  can only reorder the search, never change which reachable path is cheapest,
+         *  so an XZ goal at a sheer-walled water pit still drilled underground / bobbed
+         *  until the descent paid its true cost. GATED to watery-or-breaking descents:
+         *  a dry stepped descent over solid ground (StepDown/Fall/DiagonalDescend, no
+         *  block broken, not in water) is a legitimate downhill walk and pays nothing,
+         *  so normal terrain pathing is byte-for-byte unchanged. Only the portion of
+         *  the step below the slack threshold is charged, and only when going down. */
+        private double descendTax(BlockPos from, BlockPos to, Move.Edge edge) {
+            double per = BotConfig.pathfinderDescendCost;
+            if (per <= 0 || to.getY() >= from.getY()) return 0;        // off, or not descending
+            // ONLY for Y-agnostic (XZ) goals: those let descent read as free progress
+            // (the root cause). A goal that knows its target Y (pos/block — a seabed
+            // monument, shipwreck) guides a genuine dive correctly and must not be
+            // taxed, so deep-water exploration / ocean-monument runs are unaffected.
+            if (!goal.ignoresY()) return 0;
+            // Any water-involved descent (SwimDown into the depths OR a Fall/MLG INTO
+            // water) or a block-breaking descent. Including isWater(to) is needed: at a
+            // water bowl the cheapest dive uses fall-INTO-water rungs that an
+            // isWater(from)-only test misses, leaving A* a tax-free dive-and-tunnel
+            // back-door (verified: cost flat across descendCost 40→120, end stayed y50).
+            // This does NOT over-tax ocean diving: the whole method is gated above to
+            // Y-agnostic XZ goals, and a seabed dive uses a Y-aware pos/block goal.
+            boolean watery = world.isWater(from) || world.isWater(to);
+            boolean breaks = !edge.toBreak.isEmpty();
+            if (!watery && !breaks) return 0;                          // dry stepped descent over solid ground — free
+            int threshold = start.getY() - BotConfig.pathfinderDepthSlack;
+            int hiY = Math.min(from.getY(), threshold);
+            int loY = Math.min(to.getY(), threshold);
+            int belowDrop = hiY - loY;                                 // descent of THIS edge below threshold
+            return belowDrop > 0 ? per * belowDrop : 0;
         }
 
         /** Expand nodes until {@code sliceMs} of wall-clock elapses this call (or
@@ -230,6 +272,12 @@ public final class PathFinder {
                         bestFrontierH = cur.h;
                         bestFrontier = cur;
                     }
+                    // Water escape: track the reachable ASHORE node (dry ground) closest
+                    // to the goal, for the best-effort commit when the goal isn't reached.
+                    if (startInWater && cur.h < bestAshoreH && isAshore(cur.pos)) {
+                        bestAshoreH = cur.h;
+                        bestAshore = cur;
+                    }
 
                     if (expanded >= maxNodes) break;
                     if (totalMs(sliceStart) > maxMs) break;
@@ -243,7 +291,8 @@ public final class PathFinder {
                         // Soft danger penalty per entered cell (Baritone avoidance);
                         // ≥ 0 so the heuristic stays admissible.
                         double ng = cur.g + edge.cost + world.dangerCost(npos)
-                                + world.directionalCost(cur.pos, npos);
+                                + world.directionalCost(cur.pos, npos)
+                                + descendTax(cur.pos, npos, edge);
                         Node existing = nodes.get(npos);
                         if (existing != null && ng > existing.g - MIN_IMPROVEMENT) continue;
                         if (existing == null) {
@@ -286,12 +335,29 @@ public final class PathFinder {
          *  edge would pull the bot the wrong way). Otherwise fall back to Baritone's
          *  conservative best-effort backoff. */
         private Node chooseSegment() {
+            // Water escape (highest priority): a search that STARTED in water and
+            // didn't reach the goal may ONLY commit to a segment that climbs ASHORE
+            // (feet on dry ground). Priorities fall out of move cost: a FLUSH/step-up
+            // bank (Walk 10 / StepUp 15) beats a BREAK-climb (SwimBankClimbBreak 22 +
+            // dig), so the cheapest reachable shore is chosen first and break-climb is
+            // the fallback — and only when allowBreak is on (its moves are pruned
+            // otherwise). If NO ashore node is reachable (allowBreak off + a sheer-walled
+            // bowl, say), return null = "no path": the bot stays put rather than commit a
+            // fake in-water segment or dive. Land searches keep the conservative backoff.
+            if (startInWater) return bestAshore;
+
             if (BotConfig.pathfinderFrontierCommit && bestFrontier != null
                     && bestFrontier.h < startNode.h - MIN_FRONTIER_GAIN
                     && bestFrontier.pos.distSqr(start) > MIN_DIST_PATH * MIN_DIST_PATH) {
                 return bestFrontier;
             }
             return selectSegment(bestSoFar, start);
+        }
+
+        /** True if {@code p} is a dry standing cell — feet on solid dry ground, not
+         *  in water. The "climbed ashore" test for the water-escape best-effort. */
+        private boolean isAshore(BlockPos p) {
+            return !world.isWater(p) && world.canStandOn(p.offset(0, -1, 0));
         }
 
         private long totalMs(long sliceStart) {
