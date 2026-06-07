@@ -1,5 +1,7 @@
 package net.magicterra.agent.bot.process;
 
+import net.magicterra.agent.bot.movement.BotInput;
+
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
@@ -87,9 +89,8 @@ public final class FollowProcess implements BotProcess {
         if (target == null) {
             // No target visible — clear keys and idle. If maxIdleTicks set and
             // exceeded, finish gracefully so the LLM can poll and react.
-            mc.options.keyUp.setDown(false);
-            mc.options.keyJump.setDown(false);
-            mc.options.keySprint.setDown(false);
+            BotInput.forward(mc, false);
+            BotInput.jump(mc, false);
             p.setSprinting(false);
             if (maxIdleTicks > 0 && ++idleTicks > maxIdleTicks) {
                 st.follow.lastError = "target not seen for " + maxIdleTicks + " ticks";
@@ -127,9 +128,8 @@ public final class FollowProcess implements BotProcess {
             // camera tracks it (a tracking shot). The Walker owns yaw while
             // moving; here, idle, we point at the entity. smoothAngle pans
             // when smoothLook is on and snaps when off.
-            mc.options.keyUp.setDown(false);
-            mc.options.keyJump.setDown(false);
-            mc.options.keySprint.setDown(false);
+            BotInput.forward(mc, false);
+            BotInput.jump(mc, false);
             p.setSprinting(false);
             aimAtEntity(p, target);
             consecutiveFails = 0;

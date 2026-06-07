@@ -1,5 +1,7 @@
 package net.magicterra.agent.bot.process;
 
+import net.magicterra.agent.bot.movement.BotInput;
+
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
@@ -165,9 +167,9 @@ public final class ElytraProcess implements BotProcess {
                     releaseKeys(); st.elytra.reset(); return true;
                 }
                 if (p.onGround()) {
-                    mc.options.keyJump.setDown(true);          // jump to leave the ground
+                    BotInput.jump(mc, true);          // jump to leave the ground
                 } else {
-                    mc.options.keyJump.setDown(false);
+                    BotInput.jump(mc, false);
                     if (p.tryToStartFallFlying()) {
                         p.connection.send(new ServerboundPlayerCommandPacket(
                                 p, ServerboundPlayerCommandPacket.Action.START_FALL_FLYING));
@@ -185,7 +187,7 @@ public final class ElytraProcess implements BotProcess {
         }
 
         // --- FLYING ---
-        mc.options.keyJump.setDown(false);
+        BotInput.jump(mc, false);
         if (!p.isFallFlying()) {                               // wing closed / landed / no room
             // If this happened mid-air (wing broke, ran out of room) the
             // always-on water-bucket clutch — which deliberately stands down

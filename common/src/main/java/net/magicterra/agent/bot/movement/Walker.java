@@ -241,6 +241,26 @@ public final class Walker {
     public int pathLen() { return path == null ? 0 : path.size(); }
     public int pathStep() { return step; }
 
+    // Jump / sneak actuators — drive the player's OWN AgentInput (Input.jumping /
+    // Input.shiftKeyDown) instead of the SHARED global keybinds mc.options.keyJump /
+    // keyShift, so the Walker never fights a human's space/shift. Per-tick (see
+    // AgentInput): tick() sets a default below, branches override. p.input is always
+    // an AgentInput here (installed at the top of tick()); the guard keeps it safe if
+    // a respawn swapped a fresh KeyboardInput in between.
+    private static void agentJump(LocalPlayer p, boolean v) {
+        if (p.input instanceof AgentInput ai) ai.commandJump(v);
+        else p.input.jumping = v;
+    }
+    private static void agentSneak(LocalPlayer p, boolean v) {
+        if (p.input instanceof AgentInput ai) ai.commandSneak(v);
+        else p.input.shiftKeyDown = v;
+    }
+    /** Raw forward (keyUp equivalent) for the special branches that drive the impulse
+     *  themselves (the main walk path uses commandMove). v=false also zeroes strafe. */
+    private static void agentForward(LocalPlayer p, boolean v) {
+        if (p.input instanceof AgentInput ai) ai.commandForward(v ? 1f : 0f);
+    }
+
     public Step tick(Minecraft mc, WorldView world) {
         LocalPlayer p = mc.player;
         if (p == null) { lastError = "player vanished"; return terminal(Step.FAILED, PathTrace.Outcome.ERROR, lastError); }
@@ -251,6 +271,13 @@ public final class Walker {
         // the bot on the decoupled actuator without a separate lifecycle hook. AgentInput
         // IS a KeyboardInput, so manual play is unaffected when the Walker isn't driving.
         if (!(p.input instanceof AgentInput)) p.input = new AgentInput(mc.options);
+
+        // Per-tick baseline for the jump/sneak channel: default to "not jumping / not
+        // sneaking" so any path that returns without setting them can't leak a stale
+        // value — branches below override as needed. (jump only matters on the ground,
+        // so a default-false on an airborne tick is a no-op; see AgentInput.)
+        agentJump(p, false);
+        agentSneak(p, false);
 
         // Ground pathfinder: end creative flight so the player descends and
         // the walk/jump actuator (which relies on gravity + onGround) works.
@@ -273,12 +300,8 @@ public final class Walker {
         if (descending) {
             if (!p.onGround() && !world.isWater(new BlockPos(
                     (int) Math.floor(p.getX()), (int) Math.floor(p.getY()), (int) Math.floor(p.getZ())))) {
-                mc.options.keyUp.setDown(false);
-                mc.options.keyDown.setDown(false);
-                mc.options.keyLeft.setDown(false);
-                mc.options.keyRight.setDown(false);
-                mc.options.keyJump.setDown(false);
-                mc.options.keySprint.setDown(false);
+                agentForward(p, false);
+                agentJump(p, false);
                 p.setSprinting(false);
                 if (BotConfig.walkerDebug)
                     LOG.info(
@@ -354,6 +377,19 @@ public final class Walker {
         //     always starts where the bot will be — no backward yaw flip.
         boolean offPath = path != null && step < path.size() && path.get(step).distSqr(foot) > 9;
         boolean wedged = noStepProgressTicks > WEDGE_TICKS;   // jitter-immune: stuck on a node the Walker can't complete (e.g. a ground-blocked fallN)
+        // Fell off the committed climb path VERTICALLY (the current node is more than a jump
+        // above/below the feet — a fumbled pillar/parkour dropped the bot below the route, or
+        // it slid down). A CONTINUATION search (launched from commitEnd, not the foot) can
+        // only return a path from where the bot ISN'T, so letting it finish just wastes ~6s of
+        // bobbing toward a stale far carrot (the #3 far-climb-target stall). Preempt it so the
+        // foot-search below restarts from the actual position NOW. Only cancels a continuation;
+        // an in-flight foot-search is already from the right place and is left to finish.
+        boolean fellOffPath = path != null && step < path.size()
+                && Math.abs(path.get(step).getY() - foot.getY()) > world.maxJumpUpBlocks() + 2;
+        if (fellOffPath && activeSearch != null && searchFromEnd) {
+            activeSearch = null;
+            searchFromEnd = false;
+        }
         boolean safetyRepath = (path == null) || (stuckTicks > STUCK_TICKS) || offPath || wedged;
         boolean fullPeriodic = !pathBestEffort && path != null
                 && ticksSinceRepath > BotConfig.walkerRepathEveryTicks;
@@ -445,9 +481,8 @@ public final class Walker {
                     if (BotConfig.walkerDebug)
                         LOG.info("[walker] anti-spin: {} water repaths w/o progress (d={}) → end best-effort",
                                 repathsNoProgress, String.format(Locale.ROOT, "%.0f", d));
-                    mc.options.keyUp.setDown(false);
-                    mc.options.keyJump.setDown(false);
-                    mc.options.keySprint.setDown(false);
+                    agentForward(p, false);
+                    agentJump(p, false);
                     p.setSprinting(false);
                     return terminal(Step.ARRIVED, PathTrace.Outcome.SUCCESS, null);
                 }
@@ -482,11 +517,7 @@ public final class Walker {
                 // for real. (Bounded by the total-tick budget above, so a void
                 // fall with no clutch can't hang the goto forever.)
                 if (!p.onGround()) {
-                    mc.options.keyUp.setDown(false);
-                    mc.options.keyDown.setDown(false);
-                    mc.options.keyLeft.setDown(false);
-                    mc.options.keyRight.setDown(false);
-                    mc.options.keySprint.setDown(false);
+                    agentForward(p, false);
                     p.setSprinting(false);
                     return Step.WALKING;
                 }
@@ -497,12 +528,8 @@ public final class Walker {
         }
         // First path still computing (no path to follow yet) → hold, don't spin.
         if (path == null) {
-            mc.options.keyUp.setDown(false);
-            mc.options.keyDown.setDown(false);
-            mc.options.keyLeft.setDown(false);
-            mc.options.keyRight.setDown(false);
-            mc.options.keyJump.setDown(false);
-            mc.options.keySprint.setDown(false);
+            agentForward(p, false);
+            agentJump(p, false);
             p.setSprinting(false);
             return Step.WALKING;
         }
@@ -684,12 +711,8 @@ public final class Walker {
                     activeSearch = new PathFinder(world).newSearch(commitEnd, goal);
                     searchFromEnd = true;
                 }
-                mc.options.keyUp.setDown(false);
-                mc.options.keyDown.setDown(false);
-                mc.options.keyLeft.setDown(false);
-                mc.options.keyRight.setDown(false);
-                mc.options.keyJump.setDown(false);
-                mc.options.keySprint.setDown(false);
+                agentForward(p, false);
+                agentJump(p, false);
                 p.setSprinting(false);
                 return Step.WALKING;
             }
@@ -776,13 +799,9 @@ public final class Walker {
                         p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw;
                     }
                     p.setXRot(40f);
-                    mc.options.keyUp.setDown(true);
-                    mc.options.keyDown.setDown(false);
-                    mc.options.keyLeft.setDown(false);
-                    mc.options.keyRight.setDown(false);
-                    mc.options.keySprint.setDown(false);
+                    agentForward(p, true);
                     p.setSprinting(false);
-                    mc.options.keyJump.setDown(true);
+                    agentJump(p, true);
                     if (p.getY() >= surfaceY) {                              // feet cleared the place cell
                         walkerPlace(mc, p, world, topWater);                 // fill it → flush, grounded foothold
                         // Re-plan from the (now grounded) surface. Unconditional —
@@ -808,25 +827,21 @@ public final class Walker {
         // the generic place actuator because it owns the airborne timing
         // (you can't place a block in the cell you're standing in).
         if (edge != null && "pillarUp".equals(edge.move) && hasPendingEdge(world, edge)) {
-            mc.options.keyUp.setDown(false);
-            mc.options.keyDown.setDown(false);
-            mc.options.keyLeft.setDown(false);
-            mc.options.keyRight.setDown(false);
-            mc.options.keySprint.setDown(false);
+            agentForward(p, false);
             p.setSprinting(false);
             totalTicks = 0;
             stuckTicks = 0;   // pillaring stays on one cell while placing — not "stuck"
             if (step != pillarStep) { pillarStep = step; pillarSinceJump = -1; }
             if (++actionTicks > BotConfig.breakTimeoutTicks) {
                 mc.options.keyAttack.setDown(false);
-                mc.options.keyJump.setDown(false);
+                agentJump(p, false);
                 lastError = "pillar stalled at " + path.get(step);
                 path = null;
                 return Step.WALKING;
             }
             for (BlockPos b : edge.toBreak) {
                 if (world.isSolid(b)) {
-                    mc.options.keyJump.setDown(false);
+                    agentJump(p, false);
                     selectBestToolFor(mc, b);
                     aimAtBlockSnap(p, b);
                     mc.options.keyAttack.setDown(true);
@@ -848,7 +863,7 @@ public final class Walker {
             // which flickers false at the bob peak and would drop the jump.
             boolean shaftFlooded = world.isWater(path.get(step));
             if (shaftFlooded || p.isInWater() || world.isWater(path.get(step).offset(0, -1, 0))) {
-                mc.options.keyJump.setDown(true);
+                agentJump(p, true);
                 if (!shaftFlooded && ensureHoldingPlaceableAny(mc)) {
                     BlockPos wp = edge.toPlace.get(0);
                     p.setXRot(89.5f);                       // look down to aim the support
@@ -867,10 +882,10 @@ public final class Walker {
             BlockPos support = place.offset(0, -1, 0);               // click its top face (block we stood on)
             p.setXRot(89.5f);                                        // look straight down (snap)
             if (p.onGround()) {
-                mc.options.keyJump.setDown(true);
+                agentJump(p, true);
                 pillarSinceJump = 0;
             } else {
-                mc.options.keyJump.setDown(false);
+                agentJump(p, false);
                 if (pillarSinceJump >= 0) pillarSinceJump++;
                 // Place only once the feet have actually risen clear of the cell
                 // being filled. The target IS the old feet cell, so vanilla's
@@ -927,15 +942,11 @@ public final class Walker {
                 LookController.requestSnap();   // a parkour leap's heading is functional — exempt from the global slew
             }
             p.setXRot(0f);
-            mc.options.keyUp.setDown(true);
-            mc.options.keyDown.setDown(false);
-            mc.options.keyLeft.setDown(false);
-            mc.options.keyRight.setDown(false);
-            mc.options.keyJump.setDown(!placed && grounded);   // jump off the lip once
+            agentForward(p, true);
+            agentJump(p, !placed && grounded);   // jump off the lip once
             boolean sprint = !placed;                          // brake after the block is down
-            mc.options.keySprint.setDown(sprint);
             p.setSprinting(sprint);
-            mc.options.keyShift.setDown(placed);               // sneak-brake / ledge-guard on landing
+            agentSneak(p, placed);               // sneak-brake / ledge-guard on landing
             p.setShiftKeyDown(placed);
             if (!placed && !grounded && ensureHoldingPlaceableAny(mc)) {
                 Vec3 eye = p.getEyePosition();
@@ -960,12 +971,8 @@ public final class Walker {
         // independent of smoothLook. Returns each tick until the edge is
         // clear, then falls through to the normal walk below.
         if (edge != null && hasPendingEdge(world, edge)) {
-            mc.options.keyUp.setDown(false);
-            mc.options.keyDown.setDown(false);
-            mc.options.keyLeft.setDown(false);
-            mc.options.keyRight.setDown(false);
-            mc.options.keyJump.setDown(false);
-            mc.options.keySprint.setDown(false);
+            agentForward(p, false);
+            agentJump(p, false);
             p.setSprinting(false);
             totalTicks = 0;                       // breaking/placing IS progress
             stuckTicks = 0;                       // foot stays put while placing — don't trip the wiggle-jump (it'd leap off a 1-wide bridge)
@@ -994,9 +1001,9 @@ public final class Walker {
                     aimAtBlockSnap(p, b);
                     mc.options.keyAttack.setDown(true);
                     if (swimEscapeBreak && p.isInWater() && !p.isUnderWater()) {
-                        mc.options.keyUp.setDown(true);     // press into the aimed bank (surface only)
+                        agentForward(p, true);     // press into the aimed bank (surface only)
                         if (edge.move.startsWith("swimAshore"))
-                            mc.options.keyJump.setDown(true);   // rise to mount the +1
+                            agentJump(p, true);   // rise to mount the +1
                     }
                     return Step.WALKING;
                 }
@@ -1024,12 +1031,8 @@ public final class Walker {
         // off the fresh block mid-jump.
         if (edge != null && "pillarUp".equals(edge.move)
                 && !(p.onGround() && p.getY() >= path.get(step).getY() - 0.1)) {
-            mc.options.keyUp.setDown(false);
-            mc.options.keyDown.setDown(false);
-            mc.options.keyLeft.setDown(false);
-            mc.options.keyRight.setDown(false);
-            mc.options.keyJump.setDown(false);
-            mc.options.keySprint.setDown(false);
+            agentForward(p, false);
+            agentJump(p, false);
             p.setSprinting(false);
             return Step.WALKING;
         }
@@ -1065,14 +1068,10 @@ public final class Walker {
             }
             p.setXRot(smoothAngle(p.getXRot(), 0f));
             boolean climbUp = ahead.getY() >= foot.getY();   // path ahead up/level → climb; below → over-climbed, descend
-            mc.options.keyUp.setDown(climbUp);               // forward INTO the vine = climb up (vanilla vine ascent)
-            mc.options.keyJump.setDown(climbUp);             // jump also drives vine ascent; off → slide back down
-            mc.options.keyDown.setDown(false);
-            mc.options.keyLeft.setDown(false);
-            mc.options.keyRight.setDown(false);
-            mc.options.keyShift.setDown(false);              // sneak would HALT the vine climb
+            agentForward(p, climbUp);               // forward INTO the vine = climb up (vanilla vine ascent)
+            agentJump(p, climbUp);             // jump also drives vine ascent; off → slide back down
+            agentSneak(p, false);              // sneak would HALT the vine climb
             p.setShiftKeyDown(false);
-            mc.options.keySprint.setDown(false);
             p.setSprinting(false);
             if (BotConfig.walkerDebug)
                 LOG.info("[walker] vine-climb foot={},{},{} ahead={},{},{} climbUp={} yaw={}",
@@ -1271,8 +1270,6 @@ public final class Walker {
         double landDz = (wp.getZ() + 0.5) - p.getZ();
         boolean descendBrake = descendLeap && !p.onGround()
                 && (landDx * landDx + landDz * landDz) < 1.4;   // within ~1.2 block of landing center
-        mc.options.keyUp.setDown(!descendBrake && !pivotForStepUp);
-        mc.options.keyDown.setDown(false);
         // Lateral lane-keeping STRAFE: on a flat cardinal walk, hold the cross-axis
         // at the lane centre with a sideways strafe so the body clears a flush 1-wide
         // channel wall WITHOUT turning off the forward heading. Pure yaw steering
@@ -1323,19 +1320,15 @@ public final class Walker {
         }
         if (pillarRecoverLatch > 0 && pillarRecoverCell != null) {
             pillarRecoverLatch--;
-            mc.options.keyUp.setDown(false);
-            mc.options.keyDown.setDown(false);
-            mc.options.keyLeft.setDown(false);
-            mc.options.keyRight.setDown(false);
-            mc.options.keySprint.setDown(false);
+            agentForward(p, false);
             p.setSprinting(false);
-            mc.options.keyShift.setDown(false);
+            agentSneak(p, false);
             p.setShiftKeyDown(false);
             p.setXRot(89.5f);                         // look straight down to aim the support
             if (p.onGround()) {
-                mc.options.keyJump.setDown(true);     // jump off the current rung
+                agentJump(p, true);     // jump off the current rung
             } else {
-                mc.options.keyJump.setDown(false);
+                agentJump(p, false);
                 // Place into the feet cell once risen clear of it (vanilla rejects the place
                 // while the player AABB still overlaps the target cell — gate on real height).
                 if (p.getY() >= pillarRecoverCell.getY() + 1.0) {
@@ -1401,8 +1394,6 @@ public final class Walker {
                 else if (dotR < -0.04) strafeL = true;
             }
         }
-        mc.options.keyLeft.setDown(strafeL);
-        mc.options.keyRight.setDown(strafeR);
         // Camera-decoupled drive (see AgentInput). Rotate the body-frame movement intent
         // (forward + lane-keep strafe) from the desired travel heading (aimYaw) into the
         // camera frame by Δ = aimYaw − cameraYaw, so vanilla travel()'s rotate-by-yaw moves
@@ -1448,7 +1439,7 @@ public final class Walker {
                 && lethalDropAdjacent(world, p, foot);
         boolean plannedDescent = wp.getY() < foot.getY();
         boolean edgeBrake = lethalNear && !plannedDescent;
-        mc.options.keyShift.setDown(bridging || descendBrake || edgeBrake);
+        agentSneak(p, bridging || descendBrake || edgeBrake);
         p.setShiftKeyDown(bridging || descendBrake || edgeBrake);
         // Jump for a real upward step, a parkour-leap edge (by move type, not
         // raw distance — string-pulling makes plain walk waypoints far apart
@@ -1524,7 +1515,7 @@ public final class Walker {
         boolean jump = !descendBrake
                 && (stepUpJump || parkourEdge
                     || ((swimUp || swimColumn) && !cappedHead) || wiggle);
-        mc.options.keyJump.setDown(jump);
+        agentJump(p, jump);
         // Sprint in water ONLY on a FLAT crossing (flatWaterWalk: wp.y==foot.y). The
         // prone swim pose that sprint+forward forces is exactly what a wide open-ocean
         // crossing needs (vanilla's fast swim) — WITHOUT it the bot treads upright in
@@ -1559,7 +1550,6 @@ public final class Walker {
                 // of arcing over it. A sprint-jump only clears a step if launched EARLY (before the riser);
                 // closing that gap needs an early-jump-timing change, not just flipping sprint on. Kept no-sprint.
                 && (!p.isInWater() || flatWaterWalk || diveUnderCap);
-        mc.options.keySprint.setDown(sprint);
         p.setSprinting(sprint);
         if (BotConfig.walkerDebug) {
             // [dbgcollide] hard physics evidence for the hill speed-sawtooth: is the
@@ -1572,8 +1562,8 @@ public final class Walker {
             LOG.info("[walker] walk-keys yaw={} wp={},{},{} up={} jump={} sprint={} sneak={} hCol={} minorCol={} hSpd={} pos={},{},{} onG={} attack={}",
                     String.format(Locale.ROOT, "%.0f", p.getYRot()),
                     wp.getX(), wp.getY(), wp.getZ(),
-                    mc.options.keyUp.isDown(), mc.options.keyJump.isDown(), mc.options.keySprint.isDown(),
-                    mc.options.keyShift.isDown(),
+                    p.input.forwardImpulse != 0, p.input.jumping, p.isSprinting(),
+                    p.input.shiftKeyDown,
                     p.horizontalCollision, p.minorHorizontalCollision,
                     String.format(Locale.ROOT, "%.3f", hSpd),
                     String.format(Locale.ROOT, "%.2f", p.getX()),
@@ -1611,12 +1601,8 @@ public final class Walker {
                 activeSearch = new PathFinder(world).newSearch(commitEnd, goal);
                 searchFromEnd = true;
             }
-            mc.options.keyUp.setDown(false);
-            mc.options.keyDown.setDown(false);
-            mc.options.keyLeft.setDown(false);
-            mc.options.keyRight.setDown(false);
-            mc.options.keyJump.setDown(false);
-            mc.options.keySprint.setDown(false);
+            agentForward(p, false);
+            agentJump(p, false);
             p.setSprinting(false);
             return Step.WALKING;
         }

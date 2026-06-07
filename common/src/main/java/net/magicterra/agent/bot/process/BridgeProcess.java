@@ -1,5 +1,7 @@
 package net.magicterra.agent.bot.process;
 
+import net.magicterra.agent.bot.movement.BotInput;
+
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
@@ -113,7 +115,7 @@ public final class BridgeProcess implements BotProcess {
         }
 
         // Sneak always — prevents falling off the bridge edge.
-        mc.options.keyShift.setDown(true);
+        BotInput.sneak(mc, true);
         p.setShiftKeyDown(true);
 
         // Always face the travel direction.
@@ -133,14 +135,14 @@ public final class BridgeProcess implements BotProcess {
                 if (!aheadSupportSolid) {
                     // Reached an edge — switch to PLACING. Release walk
                     // input so we don't drift off while we turn around.
-                    mc.options.keyUp.setDown(false);
+                    BotInput.forward(mc, false);
                     phase = Phase.PLACING;
                     return false;
                 }
-                mc.options.keyUp.setDown(true);
+                BotInput.forward(mc, true);
             }
             case PLACING -> {
-                mc.options.keyUp.setDown(false);
+                BotInput.forward(mc, false);
                 if (aheadSupportSolid) {
                     // Either the previous place succeeded, or the world
                     // moved under us — resume walking.

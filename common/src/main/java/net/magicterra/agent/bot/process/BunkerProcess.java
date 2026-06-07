@@ -1,5 +1,7 @@
 package net.magicterra.agent.bot.process;
 
+import net.magicterra.agent.bot.movement.BotInput;
+
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.pathfinder.WorldView;
@@ -231,7 +233,7 @@ public final class BunkerProcess implements BotProcess {
         // Face the niche and walk in.
         p.setYRot(yawFor(nicheDir));
         p.setXRot(0f);
-        mc.options.keyUp.setDown(true);
+        BotInput.forward(mc, true);
         if (actTicks % 5 == 0)
             dbg("STEP_IN walking pos=({},{}) foot={} n0={} distFromShaft={} t={}",
                     fmt(p.getX()), fmt(p.getZ()), foot, n0, fmt(distFromShaft), actTicks);
@@ -246,7 +248,7 @@ public final class BunkerProcess implements BotProcess {
     private static String fmt(double v) { return String.format(Locale.ROOT, "%.2f", v); }
 
     private boolean plug(Minecraft mc, WorldView w, LocalPlayer p) {
-        mc.options.keyUp.setDown(false);
+        BotInput.forward(mc, false);
         // Plug the shaft column the bot vacated: bottom foot then the cell above.
         // Both gain support from below (floor / the foot-plug) so even sand holds.
         BlockPos p0 = bottom;             // old foot, has solid floor under it
@@ -259,12 +261,12 @@ public final class BunkerProcess implements BotProcess {
         // the niche instead of burning the timeout unsealed.
         if (p.getBoundingBox().intersects(new AABB(target))) {
             p.setYRot(yawFor(nicheDir));
-            mc.options.keyUp.setDown(true);
+            BotInput.forward(mc, true);
             dbg("PLUG body overlaps target={} pos=({},{}) → shuffle deeper", target, fmt(p.getX()), fmt(p.getZ()));
             if (++actTicks > BotConfig.breakTimeoutTicks * 2) { dbg("PLUG give up (still overlapping) → DONE UNSEALED"); phase = Phase.DONE; releaseKeys(); return true; }
             return false;
         }
-        mc.options.keyUp.setDown(false);
+        BotInput.forward(mc, false);
         aimAtBlockSnap(p, target);
         walkerPlace(mc, p, w, target);
         dbg("PLUG place target={} solidNow={} t={}", target, w.isSolid(target), actTicks);

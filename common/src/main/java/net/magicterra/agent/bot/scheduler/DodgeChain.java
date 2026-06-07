@@ -1,5 +1,7 @@
 package net.magicterra.agent.bot.scheduler;
 
+import net.magicterra.agent.bot.movement.BotInput;
+
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.combat.ThreatScanner;
@@ -37,8 +39,7 @@ public final class DodgeChain implements Chain {
             p.setYRot((float) (Math.toDegrees(Math.atan2(pz, px)) - 90.0));
             p.setXRot(0f);
         }
-        mc.options.keyUp.setDown(true);
-        mc.options.keySprint.setDown(true);
+        BotInput.forward(mc, true);
         p.setSprinting(true);
     }
 

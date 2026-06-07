@@ -1,5 +1,7 @@
 package net.magicterra.agent.bot.process;
 
+import net.magicterra.agent.bot.movement.BotInput;
+
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
@@ -140,9 +142,9 @@ public final class MineProcess implements BotProcess {
         if (p.isInLava()) {
             if (mc.options != null) {
                 mc.options.keyAttack.setDown(false);
-                mc.options.keyUp.setDown(false);
-                mc.options.keyJump.setDown(false);
-                mc.options.keySprint.setDown(false);
+                BotInput.forward(mc, false);
+                BotInput.jump(mc, false);
+                if (mc.player != null) mc.player.setSprinting(false);
             }
             st.mine.lastError = "aborted: entered lava";
             st.mine.reset();
@@ -236,9 +238,8 @@ public final class MineProcess implements BotProcess {
                 // gameMode methods directly causes client-side prediction to remove
                 // the block visually for a tick before server resyncs, which the
                 // naive "is the block air now?" check would mis-count as success.
-                mc.options.keyUp.setDown(false);
-                mc.options.keyJump.setDown(false);
-                mc.options.keySprint.setDown(false);
+                BotInput.forward(mc, false);
+                BotInput.jump(mc, false);
                 p.setSprinting(false);
                 faceBlock(p, currentTarget);
                 mc.options.keyAttack.setDown(true);

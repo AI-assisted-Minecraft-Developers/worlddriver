@@ -1,5 +1,7 @@
 package net.magicterra.agent.bot.process;
 
+import net.magicterra.agent.bot.movement.BotInput;
+
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
@@ -146,13 +148,12 @@ public final class BuildProcess implements BotProcess {
                 }
             }
             case PLACING -> {
-                mc.options.keyJump.setDown(false);
-                mc.options.keySprint.setDown(false);
+                BotInput.jump(mc, false);
                 p.setSprinting(false);
                 // Sneak before clicking — Baritone MovementPillar pattern:
                 // shrinks the player AABB so the new block doesn't intersect
                 // us, and prevents fall-off when standing on edges.
-                mc.options.keyShift.setDown(true);
+                BotInput.sneak(mc, true);
                 p.setShiftKeyDown(true);
                 faceSupportFor(p, currentBlock, currentFace);
                 // Walker.REACH_DIST_SQ=0.45 means the player can ARRIVE
@@ -172,10 +173,10 @@ public final class BuildProcess implements BotProcess {
                     p.setYRot(yaw);
                     p.yHeadRot = yaw;
                     p.yBodyRot = yaw;
-                    mc.options.keyUp.setDown(true);
+                    BotInput.forward(mc, true);
                     return false;
                 }
-                mc.options.keyUp.setDown(false);
+                BotInput.forward(mc, false);
                 faceSupportFor(p, currentBlock, currentFace);
                 String wantId = schematic.entries.get(idx).blockId;
                 // Sanity-check the id before invoking the simulation so a typo
@@ -241,14 +242,14 @@ public final class BuildProcess implements BotProcess {
                     placed++;
                     idx++;
                     phase = Phase.NEXT;
-                    mc.options.keyShift.setDown(false);
+                    BotInput.sneak(mc, false);
                     p.setShiftKeyDown(false);
                 } else if (placeTicks > PLACE_TIMEOUT_TICKS) {
                     failedIdx.add(idx);
                     skipped++;
                     idx++;
                     phase = Phase.NEXT;
-                    mc.options.keyShift.setDown(false);
+                    BotInput.sneak(mc, false);
                     p.setShiftKeyDown(false);
                 }
             }

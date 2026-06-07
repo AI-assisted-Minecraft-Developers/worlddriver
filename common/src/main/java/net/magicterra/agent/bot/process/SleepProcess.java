@@ -1,5 +1,7 @@
 package net.magicterra.agent.bot.process;
 
+import net.magicterra.agent.bot.movement.BotInput;
+
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
@@ -131,7 +133,7 @@ public final class SleepProcess implements BotProcess {
                 // sneak+right-click on a bed as "place item against bed"
                 // rather than "enter bed". clientUseItemOn no longer
                 // unsneaks unconditionally, so do it explicitly here.
-                mc.options.keyShift.setDown(false);
+                BotInput.sneak(mc, false);
                 p.setShiftKeyDown(false);
                 if (++sinceLastClick >= CLICK_INTERVAL_TICKS) {
                     sinceLastClick = 0;

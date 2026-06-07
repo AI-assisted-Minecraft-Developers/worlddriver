@@ -27,9 +27,49 @@ public final class AgentInput extends KeyboardInput {
     private boolean moveCommanded;
     private float cmdForward;
     private float cmdLeft;
+    private boolean rawMoveCommanded;
+    private float rawForward;
+    private boolean jumpCommanded;
+    private boolean cmdJump;
+    private boolean sneakCommanded;
+    private boolean cmdSneak;
 
     public AgentInput(Options options) {
         super(options);
+    }
+
+    /**
+     * Set this tick's RAW forward intent (camera-frame, no decoupling), replacing
+     * {@code mc.options.keyUp.setDown(v)} — {@code commandForward(1)} ≡ keyUp held,
+     * {@code commandForward(0)} ≡ keyUp released. Unlike {@link #commandMove} (which
+     * pre-rotates for camera-decoupled walking) this just drives the body along the
+     * camera, exactly as the keyboard's W key did, for the Walker's pillar/parkour/
+     * swim/vine branches and the processes' flee/approach loops. Per-tick; the sneak
+     * speed multiplier is applied in {@link #tick} just as super.tick() does for keys.
+     */
+    public void commandForward(float forward) {
+        this.rawForward = forward;
+        this.rawMoveCommanded = true;
+    }
+
+    /**
+     * Set this tick's jump intent, replacing {@code mc.options.keyJump.setDown(v)}.
+     * Drives {@code Input.jumping} (read by {@code LocalPlayer.aiStep}) DIRECTLY on the
+     * player's own input object — so the bot never touches the SHARED global keybind a
+     * human's keyboard maps to. Per-tick: consumed and cleared by the next {@link #tick};
+     * an uncommanded tick falls back to the real keyJump, so manual play is untouched the
+     * instant the Walker stops driving (no separate release needed).
+     */
+    public void commandJump(boolean v) {
+        this.cmdJump = v;
+        this.jumpCommanded = true;
+    }
+
+    /** Set this tick's sneak intent, replacing {@code mc.options.keyShift.setDown(v)}.
+     *  Drives {@code Input.shiftKeyDown} directly (see {@link #commandJump}). */
+    public void commandSneak(boolean v) {
+        this.cmdSneak = v;
+        this.sneakCommanded = true;
     }
 
     /**
@@ -64,6 +104,26 @@ public final class AgentInput extends KeyboardInput {
             this.forwardImpulse = f;
             this.leftImpulse = l;
             moveCommanded = false;
+        } else if (rawMoveCommanded) {
+            // Raw camera-frame forward (keyUp equivalent): straight along the body, no
+            // decoupling. leftImpulse forced to 0 — the bot never strafes, so this also
+            // subsumes the old keyLeft/keyRight clears.
+            float f = rawForward;
+            if (movingSlowly) f *= sneakSpeed;
+            this.forwardImpulse = f;
+            this.leftImpulse = 0f;
+        }
+        rawMoveCommanded = false;
+        // Jump / sneak overrides — set the Input fields aiStep reads, directly on the
+        // player's own input, never the shared global keybind. Per-tick: an uncommanded
+        // tick leaves super.tick()'s keyboard-derived value in place (manual play intact).
+        if (jumpCommanded) {
+            this.jumping = cmdJump;
+            jumpCommanded = false;
+        }
+        if (sneakCommanded) {
+            this.shiftKeyDown = cmdSneak;
+            sneakCommanded = false;
         }
     }
 }

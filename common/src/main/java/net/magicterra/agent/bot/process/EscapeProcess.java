@@ -1,5 +1,7 @@
 package net.magicterra.agent.bot.process;
 
+import net.magicterra.agent.bot.movement.BotInput;
+
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.pathfinder.WorldView;
@@ -194,8 +196,8 @@ public final class EscapeProcess implements BotProcess {
         // mount the 1-block tread (and to float up out of the start water cell).
         p.setYRot(yawFor(dir));
         p.setXRot(0f);
-        mc.options.keyUp.setDown(true);
-        mc.options.keyJump.setDown(p.getY() < nf.getY() + 0.4);   // jump only while still rising
+        BotInput.forward(mc, true);
+        BotInput.jump(mc, p.getY() < nf.getY() + 0.4);   // jump only while still rising
         if (++actTicks > 100) {                                   // ~5s; geometry may have shifted → re-pick
             releaseKeys();
             dbg("STEP_UP stall foot={} dest={} → re-PICK", foot, nf);
@@ -263,9 +265,9 @@ public final class EscapeProcess implements BotProcess {
         }
         p.setXRot(89.5f);   // look straight down to aim the support
         if (p.onGround()) {
-            mc.options.keyJump.setDown(true);
+            BotInput.jump(mc, true);
         } else {
-            mc.options.keyJump.setDown(false);
+            BotInput.jump(mc, false);
             // Place into the old feet cell once the body has risen clear of it —
             // vanilla's collision check silently rejects a block the AABB overlaps.
             if (p.getY() >= base.getY() + 1.0) {

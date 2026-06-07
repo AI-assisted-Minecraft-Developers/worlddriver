@@ -116,6 +116,12 @@ public final class BotApiImpl implements BotApi {
         scheduler.register(new DuskSecureChain(state, worldModel)); // 40 — idle dusk shelter
     }
     volatile boolean paused;
+    /** Gates the idle {@code releaseKeys()} so it only fires after the bot itself
+     *  pressed a movement keybind — never on the steady idle stream that used to
+     *  clobber a human player's held WASD/space when no agent was driving. See
+     *  {@link net.magicterra.agent.bot.movement.InputReleaseGate}. */
+    private final net.magicterra.agent.bot.movement.InputReleaseGate releaseGate =
+            new net.magicterra.agent.bot.movement.InputReleaseGate();
     /** Named positions persisted for the lifetime of the bot impl (no disk).
      *  Survives across goto/mine/etc. so a script can label home/farm/base
      *  and revisit by name. ConcurrentHashMap because list/get can race a
@@ -1012,8 +1018,8 @@ public final class BotApiImpl implements BotApi {
         // we want to skip past it ASAP. Done first so the rest of the tick sees
         // the post-respawn world state.
         if (BotConfig.autoRespawn) AutoRespawn.tick(mc);
-        if (mc.level == null || mc.player == null) { releaseKeys(); return; }
-        if (paused) { releaseKeys(); return; }
+        if (mc.level == null || mc.player == null) { if (releaseGate.consumeRelease()) releaseKeys(); return; }
+        if (paused) { if (releaseGate.consumeRelease()) releaseKeys(); return; }
         // Update the perception blackboard every tick so mc.client.scene always
         // serves the freshest client-authoritative snapshot.
         worldModel.update(mc, world, state);
@@ -1055,7 +1061,7 @@ public final class BotApiImpl implements BotApi {
         // planned fallBucket fall is armed by the Walker as it steps off the lip
         // and drives the same descent here. Both gated on allowWaterBucketFall.
         if (BotConfig.allowWaterBucketFall) CLUTCH.armReactive(mc, world);
-        if (CLUTCH.tick(mc, world)) return;
+        if (CLUTCH.tick(mc, world)) { releaseGate.markDirtied(); return; }
         // Refresh the shared threat picture once per tick — reflex chains
         // (panic/dodge) and the use-key arbiter (shield) all read it below.
         ThreatScanner.refresh(mc);
@@ -1138,8 +1144,15 @@ public final class BotApiImpl implements BotApi {
         // the scheduler) re-sets it true right before its A* search, so fleeSearch
         // snapshots true only for an active flee and is never stuck-true.
         BotConfig.fleeActive = false;
+        // Capture BEFORE the tick: a chain that runs this tick presses movement
+        // keys even if it finishes mid-tick (current() then nulls) — its trailing
+        // presses still need the one-shot cleanup below.
+        boolean schedulerDroveThisTick = scheduler.current() != null;
         scheduler.tick(mc, world, state);
-        if (scheduler.current() == null) releaseKeys();
+        if (schedulerDroveThisTick) releaseGate.markDirtied();
+        // Edge-clear: only release the bot's OWN trailing presses, never the
+        // human's keys on the steady idle stream (the manual-input clobber bug).
+        if (scheduler.current() == null && releaseGate.consumeRelease()) releaseKeys();
         // autoSwim LAST: drowning backstop. Must run after the idle releaseKeys()
         // above — otherwise that call clears the jump key and an idle underwater
         // bot never surfaces (GAP #7). But idle-only was still too narrow (GAP #9):
@@ -1158,6 +1171,9 @@ public final class BotApiImpl implements BotApi {
             // idle-gated inside AutoSwim so it never fights an active goto's own
             // water-escape moves.
             AutoSwim.tick(mc, mc.player, world, scheduler.current() == null);
+            // autoSwim holds keyJump while submerged; mark dirty so the gate clears
+            // that trailing jump once it surfaces (it self-clears keyUp but not jump).
+            releaseGate.markDirtied();
         }
         // Suffocation backstop: when sand caves into the bot's head while it digs a
         // disturbed pit (bunker/goto/escape all hit this), break the eye block so it

@@ -94,4 +94,49 @@ public final class AgentGameTest {
             throw new GameTestAssertException("vertical-escape failed to scale the cliff at every budget; see [pinchArena] log");
         helper.succeed();
     }
+
+    /**
+     * Pure-CPU regression guard for the manual-input clobber fix: the idle client
+     * tick must NOT clear the human's movement keybinds unless the bot itself
+     * dirtied them. {@link net.magicterra.agent.bot.movement.InputReleaseGate}
+     * encodes that decision (no client classes → runs synchronously on the dedi
+     * server). The bug was {@code clientTick} calling {@code releaseKeys()} on
+     * EVERY idle tick, fighting the player's WASD/space when no agent was driving.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void inputReleaseGate(GameTestHelper helper) {
+        net.magicterra.agent.bot.movement.InputReleaseGate g =
+                new net.magicterra.agent.bot.movement.InputReleaseGate();
+
+        // 1) Manual play: the bot never presses a key. No idle tick may ever ask
+        //    for a release — otherwise it clobbers the human's held WASD/space.
+        for (int t = 0; t < 100; t++) {
+            if (g.consumeRelease())
+                throw new GameTestAssertException("released with no bot input at idle tick " + t + " (clobbers manual keys)");
+        }
+
+        // 2) After the bot drives (dirties the keybinds), exactly ONE release
+        //    cleans up its trailing presses; subsequent idle ticks stay quiet.
+        g.markDirtied();
+        if (!g.consumeRelease())
+            throw new GameTestAssertException("no release after the bot dirtied the keybinds");
+        if (g.consumeRelease())
+            throw new GameTestAssertException("released twice for a single drive burst");
+
+        // 3) A sustained drive burst still collapses to ONE release on stop.
+        for (int t = 0; t < 20; t++) g.markDirtied();
+        if (!g.consumeRelease())
+            throw new GameTestAssertException("no release after a sustained drive burst");
+        for (int t = 0; t < 50; t++) {
+            if (g.consumeRelease())
+                throw new GameTestAssertException("released again while idle after the burst at tick " + t);
+        }
+
+        // 4) Re-arming works: drive again → one more release.
+        g.markDirtied();
+        if (!g.consumeRelease())
+            throw new GameTestAssertException("gate did not re-arm for a second drive burst");
+
+        helper.succeed();
+    }
 }

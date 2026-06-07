@@ -1,5 +1,7 @@
 package net.magicterra.agent.bot.process;
 
+import net.magicterra.agent.bot.movement.BotInput;
+
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
@@ -126,10 +128,9 @@ public final class BackfillProcess implements BotProcess {
                 }
             }
             case PLACING -> {
-                mc.options.keyJump.setDown(false);
-                mc.options.keySprint.setDown(false);
+                BotInput.jump(mc, false);
                 p.setSprinting(false);
-                mc.options.keyShift.setDown(true);
+                BotInput.sneak(mc, true);
                 p.setShiftKeyDown(true);
                 faceSupportFor(p, currentBlock, currentFace);
                 // Approach-center gate (mirror of BuildProcess fix):
@@ -143,10 +144,10 @@ public final class BackfillProcess implements BotProcess {
                     p.setYRot(yaw);
                     p.yHeadRot = yaw;
                     p.yBodyRot = yaw;
-                    mc.options.keyUp.setDown(true);
+                    BotInput.forward(mc, true);
                     return false;
                 }
-                mc.options.keyUp.setDown(false);
+                BotInput.forward(mc, false);
                 faceSupportFor(p, currentBlock, currentFace);
                 BlockPos support = new BlockPos(
                         currentBlock.getX() - currentFace.getStepX(),
@@ -167,14 +168,14 @@ public final class BackfillProcess implements BotProcess {
                     tracker.remove(currentBlock);
                     currentBlock = null;
                     phase = Phase.NEXT;
-                    mc.options.keyShift.setDown(false);
+                    BotInput.sneak(mc, false);
                     p.setShiftKeyDown(false);
                 } else if (placeTicks > PLACE_TIMEOUT_TICKS) {
                     failed.add(currentBlock);
                     tracker.remove(currentBlock);
                     currentBlock = null;
                     phase = Phase.NEXT;
-                    mc.options.keyShift.setDown(false);
+                    BotInput.sneak(mc, false);
                     p.setShiftKeyDown(false);
                 }
             }

@@ -1,5 +1,7 @@
 package net.magicterra.agent.bot.process;
 
+import net.magicterra.agent.bot.movement.BotInput;
+
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
@@ -124,7 +126,7 @@ public final class TowerProcess implements BotProcess {
             case READY -> {
                 if (!p.onGround()) return false;  // still falling / not landed
                 releaseKeys();
-                mc.options.keyJump.setDown(true);
+                BotInput.jump(mc, true);
                 sinceJump = 0;
                 jumpFromY = feetY;               // cell we'll fill = the one we jump from
                 phase = Phase.JUMPING;
@@ -133,7 +135,7 @@ public final class TowerProcess implements BotProcess {
                 // Hold jump for one tick, then release.
                 if (sinceJump == 0) {
                     // jump key was set last tick; release now.
-                    mc.options.keyJump.setDown(false);
+                    BotInput.jump(mc, false);
                 }
                 sinceJump++;
                 faceDown(p);

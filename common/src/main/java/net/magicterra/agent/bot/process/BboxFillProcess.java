@@ -1,5 +1,7 @@
 package net.magicterra.agent.bot.process;
 
+import net.magicterra.agent.bot.movement.BotInput;
+
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
@@ -145,9 +147,8 @@ public final class BboxFillProcess implements BotProcess {
                 }
             }
             case BREAKING -> {
-                mc.options.keyUp.setDown(false);
-                mc.options.keyJump.setDown(false);
-                mc.options.keySprint.setDown(false);
+                BotInput.forward(mc, false);
+                BotInput.jump(mc, false);
                 p.setSprinting(false);
                 faceBlock(p, currentTarget);
                 // Bbox safety: only attack while crosshair points at a block INSIDE
@@ -182,9 +183,8 @@ public final class BboxFillProcess implements BotProcess {
                 }
             }
             case PLACING -> {
-                mc.options.keyUp.setDown(false);
-                mc.options.keyJump.setDown(false);
-                mc.options.keySprint.setDown(false);
+                BotInput.forward(mc, false);
+                BotInput.jump(mc, false);
                 mc.options.keyAttack.setDown(false);
                 p.setSprinting(false);
                 // Already-correct cell shortcut (race: another tick saw the

@@ -1,5 +1,7 @@
 package net.magicterra.agent.bot.process;
 
+import net.magicterra.agent.bot.movement.BotInput;
+
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
@@ -142,9 +144,8 @@ public final class FarmProcess implements BotProcess {
                 }
             }
             case HARVEST -> {
-                mc.options.keyUp.setDown(false);
-                mc.options.keyJump.setDown(false);
-                mc.options.keySprint.setDown(false);
+                BotInput.forward(mc, false);
+                BotInput.jump(mc, false);
                 p.setSprinting(false);
                 faceBlock(p, currentTarget);
                 mc.options.keyAttack.setDown(true);
@@ -170,9 +171,9 @@ public final class FarmProcess implements BotProcess {
             }
             case REPLANT -> {
                 mc.options.keyAttack.setDown(false);
-                mc.options.keyUp.setDown(false);
-                mc.options.keyJump.setDown(false);
-                mc.options.keySprint.setDown(false);
+                BotInput.forward(mc, false);
+                BotInput.jump(mc, false);
+                if (mc.player != null) mc.player.setSprinting(false);
                 String seedId = SEED_FOR.get(currentCropId);
                 if (seedId == null || !ensureHoldingItem(mc, seedId)) {
                     // No seed in hand — skip this cell rather than spin.
