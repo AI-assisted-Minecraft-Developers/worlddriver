@@ -2,17 +2,20 @@
 name: agent-driver-rpc
 description: >-
   Live-control the agent-driver Minecraft mod over its JSON-RPC websocket
-  (port 39801) with the bundled rpc.py client and a complete 45-method reference.
+  (port 39801) with the bundled rpc.py client and a complete 71-method reference.
   CONSULT THIS SKILL before doing anything with the agent-driver mod's runtime
-  API: any mc.bot.* / mc.action.* / mc.observe.* / mc.client.* / mc.query /
-  mc.wait.* / mc.script.eval call, scripting a multi-step live setup
-  (give→tp→fill→setting→goto), sending a raw method+params to the websocket, or
-  when an mcp__agent-driver__* tool won't apply a newly-added param/setting (the
-  MCP tool schemas are frozen at session start, so new keys must be set over
-  RPC). Don't hand-roll a websocket client or guess the wire format, method
-  names, or params — they're all in this skill. This is for INVOKING the live
-  mod, NOT for editing its Java (BotConfig/ToolCatalog/Walker), writing
-  gametests, or standing up your own MCP server.
+  API: any mc.bot.* / mc.action.* / mc.observe.* / mc.world.* / mc.client.* /
+  mc.query / mc.events / mc.wait.* / mc.recipe.* / mc.plan.acquire /
+  mc.script.eval / mc.skill call, scripting a multi-step live setup
+  (give→tp→fill→setting→goto), sending a raw method+params to the websocket,
+  reaching an RPC-route-only method the MCP layer doesn't expose (e.g.
+  mc.bot.elytraFly / mc.test.yaml), or when an mcp__agent-driver__* tool won't
+  apply a newly-added param/setting (the MCP tool schemas are frozen at session
+  start, so new keys must be set over RPC). Don't hand-roll a websocket client or
+  guess the wire format, method names, or params — they're all in this skill.
+  This is for INVOKING the live mod, NOT for editing its Java
+  (BotConfig/ToolCatalog/Walker), writing gametests, or standing up your own MCP
+  server.
 ---
 
 # agent-driver RPC
@@ -67,26 +70,33 @@ Useful flags: `--jq <dotted.path>` projects the result (`--jq blockPos.y`),
 `--raw` prints the full envelope, `--compact` for one-line JSON, `--port N` /
 `$AGENT_RPC_PORT` override (default resolves the live `agent-rpc.port` file, else
 39801), `--keep-going` to continue a batch past errors. `python3 rpc.py -h` for
-the rest.
+the rest. The mod binds **`127.0.0.1`** by default; if it was launched with
+`-Dagent.rpcHost=0.0.0.0` (or an IPv6 `::`) to accept remote clients, reach it
+with `--host <addr>` / `$AGENT_RPC_HOST` (IPv6 literals are auto-bracketed). For
+a local bot you never need `--host` — loopback is included in a wildcard bind.
 
 ## Method surface (overview)
 
-45 methods / 11 namespaces. Full per-method params + returns are in
+71 methods across 14 namespaces. Full per-method params + returns are in
 **`references/methods.md`** — read it before composing an unfamiliar call.
 
 | namespace | what's there |
 |---|---|
 | `mc.system.*` | `version`, `testOrigin`, `waitTicks` |
-| `mc.observe.*` | `player`, `container`, `cursor`, `eventsSince` (state snapshots) |
+| `mc.observe.*` | `cursor`, `eventsSince`, `player`, `threats`, `boss`, `scene`, `map`, `container` (state snapshots) |
 | `mc.action.*` | `runCommand`, `fill`, `placeMany` (world mutations, `returnEvents?`) |
+| `mc.world.*` | `snapshot`, `restore` (in-memory block-box save/restore for clean A/B trials) |
 | `mc.query` | scan blocks / entities in a cube |
-| `mc.wait.*` | `event`, `worldReady`, `condition` (long-poll, server-side blocking) |
+| `mc.events` | `emit` / `watch` / `unwatch` / `list` (server-side event channel + watchers) |
+| `mc.wait.*` | `event`, `worldReady`, `condition`, `result` (long-poll, server-side blocking; `background?`) |
+| `mc.recipe.*` / `mc.plan.acquire` | recipe `lookup`/`resolve`, full mine/farm/smelt/craft acquisition plan |
 | `mc.client.screen.*` | `info`, `tree`, `close` (GUI introspection) |
 | `mc.client.chat.*` | `send`, `history` |
-| `mc.client.input.*` | `click`, `slotClick`, `mouseMove`, `typeText`, `key`, `setHotbarSlot` |
-| `mc.client.*` | `overlays`, `screenshot` |
-| `mc.bot.*` | `goto`, `mine`, `build`, `clearArea`, `farm`, `construct`, `sleep`, `follow`, `explore`, `runAway`, `lookAt`, `useItem`, `attackEntity`, `waypoint`, `status`, `cancel`, `setting` |
-| `mc.script.eval` | run a sandboxed JS snippet that chains many calls in one round-trip |
+| `mc.client.input.*` | `click`, `slotClick`, `mouseMove`, `typeText`, `replaceText`, `key`, `setHotbarSlot`, `slider` |
+| `mc.client.*` | `player`, `scene`, `blocks` (client-authoritative reads), `overlays`, `screenshot` |
+| `mc.bot.*` | `goto`, `mine`, `bunker`, `escape`, `craft`, `smelt`, `combat`, `equip`, `build`, `clearArea`, `farm`, `construct`, `sleep`, `follow`, `explore`, `runAway`, `lookAt`, `useItem`, `attackEntity`, `elytraFly`, `playbook`, `waypoint`, `status`, `cancel`, `setting` |
+| `mc.script.eval` / `mc.skill` | sandboxed JS snippet (one round-trip) + persistent skill library (`save`/`list`/`get`/`run`/`delete`) |
+| `mc.test.yaml` | run YAML gametests on demand (RPC-route-only) |
 
 ## Gotchas (learned live)
 
