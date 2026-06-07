@@ -288,6 +288,7 @@ public final class BotTools {
                 "  pathfinderDepthPenalty    number         dflt 6      — anti-basin-dive: cost/block for descending below the search start Y (XZ goals dive into dead-end valleys without it); biases routes higher/smoother. 0=off\n" +
                 "  pathfinderDepthSlack      int            dflt 4      — free descent blocks before pathfinderDepthPenalty/pathfinderDescendCost apply\n" +
                 "  pathfinderDescendCost     number         dflt 18     — REAL g-cost/block for descending IN WATER or by BREAKING below the slack threshold (fixes deep-water-bowl 卡上岸: makes dive-and-tunnel cost more than climb-ashore). Dry stepped descent pays nothing. 0=off\n" +
+                "  pathfinderThinObstacleHeight number      dflt 0.2    — collision-box height (blocks) a floor-resting obstacle is stepped/swum OVER and treated as passable (fixes 被浮萍/荷叶挡住: lily pad ≈0.094 over water no longer walls off the water cell below). Below 0.5 keeps slabs blocking. 0=off\n" +
                 "  pathfinderFrontierCommit  bool           dflt false  — segmented planning to the loaded-chunk frontier: commit toward the goal-ward edge of known terrain so far journeys chain across the render horizon instead of backtracking\n" +
                 "  pathfinder.axisHeight     [-64,320]      dflt 120    — Y plane for goto{axis:true} (GoalAxis)\n" +
                 "Returns {ok, settings, applied?, rejected?}.",
@@ -389,6 +390,7 @@ public final class BotTools {
                         put("pathfinderDepthPenalty",     Map.of("type", "number",  "minimum", 0,  "maximum", 100));
                         put("pathfinderDepthSlack",       Map.of("type", "integer", "minimum", 0,  "maximum", 64));
                         put("pathfinderDescendCost",      Map.of("type", "number",  "minimum", 0,  "maximum", 200));
+                        put("pathfinderThinObstacleHeight", Map.of("type", "number", "minimum", 0,  "maximum", 1));
                         put("pathfinderFrontierCommit",   Map.of("type", "boolean"));
                         put("pathfinder.axisHeight",      Map.of("type", "integer", "minimum", -64, "maximum", 320));
                     }}

@@ -268,9 +268,24 @@ public final class PathFinder {
                     // chunk is the edge of known terrain. Track the one nearest the
                     // goal (min raw h) so a horizon-truncated search can commit toward
                     // it (segmented planning, BotConfig.pathfinderFrontierCommit).
-                    if (BotConfig.pathfinderFrontierCommit && cur.h < bestFrontierH && bordersUnknown(cur.pos)) {
+                    if (BotConfig.pathfinderFrontierCommit && !startInWater
+                            && cur.h < bestFrontierH && bordersUnknown(cur.pos)) {
                         bestFrontierH = cur.h;
                         bestFrontier = cur;
+                        // EARLY STOP: A* pops nodes by f, so the first expanded frontier
+                        // node that makes real progress toward the goal IS the optimal path
+                        // to the loaded-chunk edge. Commit it now and stop the search —
+                        // "plan only as far as loaded chunks reach, walk there, load more,
+                        // replan" — instead of burning the whole budget grinding toward an
+                        // out-of-render goal it can never reach this search. Gated like the
+                        // chooseSegment frontier branch (real goal-ward gain + min distance)
+                        // so a sideways/backward chunk edge can't trigger it. (Water starts
+                        // are excluded above so the bestAshore climb-out wins there.)
+                        if (cur.h < startNode.h - MIN_FRONTIER_GAIN
+                                && cur.pos.distSqr(start) > (long) MIN_DIST_PATH * MIN_DIST_PATH) {
+                            result = build(cur, false, expanded, totalMs(sliceStart), cur.g);
+                            return true;
+                        }
                     }
                     // Water escape: track the reachable ASHORE node (dry ground) closest
                     // to the goal, for the best-effort commit when the goal isn't reached.

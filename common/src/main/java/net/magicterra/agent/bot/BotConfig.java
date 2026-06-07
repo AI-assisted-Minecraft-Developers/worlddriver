@@ -280,6 +280,21 @@ public final class BotConfig {
      *  pos/block goal and pays nothing. Set 0 to disable. */
     public static volatile double pathfinderDescendCost = 40;
 
+    /** Max collision-box height (blocks) of a floor-resting obstacle the body
+     *  STEPS or SWIMS over, so the pathfinder treats it as passable rather than a
+     *  wall. Fixes "被浮萍/荷叶挡住": a lily pad (collision ≈0.094 high) — and other
+     *  thin water-surface plants — sits as a low slab at the bottom of the surface
+     *  (head) cell over water; the collision-aware {@link
+     *  net.magicterra.agent.bot.ClientWorldView#isPassable} otherwise intersects it
+     *  with the full-height player column and walls off the swimmable water cell
+     *  below, so the bot can't path through lily-pad-covered water. A block is
+     *  passable when its collision shape STARTS at the cell floor (minY≈0) AND rises
+     *  no higher than this — vanilla auto-step (0.6) clears it on land and a
+     *  swimming body slides under it. Kept conservative (below a 0.5 slab / 0.875
+     *  soul sand) so genuine half-blocks still block; raise toward 0.6 to also walk
+     *  through slab cells. 0 = off (legacy strict column intersection). */
+    public static volatile double pathfinderThinObstacleHeight = 0.2;
+
     /** Segmented planning to the loaded-chunk frontier. The client only knows
      *  chunks within render distance, so a far goal lies beyond loaded space; the
      *  search can't path into unloaded chunks (no floor) and stops at the boundary.
@@ -293,8 +308,18 @@ public final class BotConfig {
      *  frontier isn't reachable (a real wall in loaded terrain) so it composes with
      *  go-around behaviour. Pairs with the Walker re-searching fresh on arrival at a
      *  frontier (a stale eager continuation computed before arrival can't see the
-     *  newly-loaded chunks). Default OFF until A/B-validated live. */
-    public static volatile boolean pathfinderFrontierCommit = false;
+     *  newly-loaded chunks).
+     *  <p>EARLY-STOP (the lever that makes this worthwhile): the search STOPS the
+     *  instant it pops the first goal-ward frontier node (A* pops by f, so that node
+     *  is the optimal path to the loaded-chunk edge) rather than burning the whole
+     *  budget grinding toward an out-of-render goal. This is the literal "plan only
+     *  as far as loaded chunks reach" — a far goal that used to expand the full
+     *  node/ms budget (~200k nodes / the maxMs timeout) now returns in a few thousand
+     *  nodes / tens of ms, committing the same goal-ward segment. Excluded for
+     *  in-water starts (the bestAshore climb-out takes priority there). Default ON:
+     *  with early-stop it is a pure latency win on far goals and a no-op on near ones
+     *  (goal reached before any frontier node is popped). */
+    public static volatile boolean pathfinderFrontierCommit = true;
 
     /** Y plane targeted by {@code mc.bot.goto{axis:true}} — Baritone's
      *  {@code axisHeight} setting (default 120, the classic "highway" Y). Read

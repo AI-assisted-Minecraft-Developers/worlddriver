@@ -163,6 +163,17 @@ public final class ClientWorldView implements WorldView {
         if (lvl == null) return false;
         VoxelShape shape = s.getCollisionShape(lvl, p);
         if (shape.isEmpty()) return true;
+        // Thin floor-resting obstacle (lily pad ≈0.094, thin snow, pressure plate):
+        // a low slab at the cell bottom that the body steps over (vanilla auto-step)
+        // on land and a swimming body slides under. Treat as passable so a lily pad
+        // in the surface cell over water stops walling off the swimmable water cell
+        // below it ("被浮萍/荷叶挡住"). Gated: the shape must START at the floor
+        // (minY≈0 — a block hanging at body height is a real obstacle) and rise no
+        // higher than the knob (default 0.2, below a 0.5 slab). See
+        // BotConfig.pathfinderThinObstacleHeight.
+        double thin = BotConfig.pathfinderThinObstacleHeight;
+        if (thin > 0 && shape.min(Direction.Axis.Y) <= 0.001
+                && shape.max(Direction.Axis.Y) <= thin) return true;
         return !Shapes.joinIsNotEmpty(PLAYER_COLUMN, shape, BooleanOp.AND);
     }
     @Override public boolean canStandOn(BlockPos p) {
