@@ -55,7 +55,7 @@ public final class BotInteract {
     /** Pick the face of {@code block} closest to the player's eye — the face the
      *  player would naturally hit if they ray-cast at the block. Used when the
      *  caller didn't specify a face. */
-    public static Direction pickFaceTowardsPlayer(BlockPos block, LocalPlayer p) {
+    public static Direction pickFaceTowardsPlayer(BlockPos block, net.minecraft.world.entity.player.Player p) {
         Vec3 eye = p.getEyePosition();
         Vec3 center = new Vec3(block.getX() + 0.5, block.getY() + 0.5, block.getZ() + 0.5);
         Vec3 delta = eye.subtract(center);

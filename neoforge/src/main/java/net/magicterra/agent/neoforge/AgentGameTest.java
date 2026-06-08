@@ -1493,6 +1493,100 @@ public final class AgentGameTest {
     }
 
     /**
+     * Migrated-process proof: the SERVER runs the REAL {@link CraftProcess} over a
+     * FakePlayer for the 2×2 INVENTORY-grid path — the container-interaction subset a
+     * FakePlayer supports (its inventoryMenu is always present; it cannot open a
+     * crafting-table/furnace menu — openMenu is a no-op — so 3×3/furnace stay
+     * client-only, the design's capability cliff). Exercises the Avatar container seam:
+     * recipeManager() (server's), placeRecipe() → RecipeBookMenu.handlePlacement on the
+     * inventory menu, containerClick() QUICK_MOVE → menu.clicked. Pre-stocks 1 oak_log,
+     * crafts oak_planks, asserts ≥4 planks appear and the process finishes.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverCraftArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 600, cz = 600, floorY = 220;
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+
+        boolean odbg = BotConfig.walkerDebug;
+        BotConfig.walkerDebug = false;
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            driver.fakePlayer().getInventory().clearContent();
+            driver.fakePlayer().getInventory().add(new ItemStack(Items.OAK_LOG, 1));
+            driver.runProcess(new net.magicterra.agent.bot.process.CraftProcess("minecraft:oak_planks", 4));
+            ServerAgentManager.register(driver);
+            for (int t = 0; t < 300 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            FakePlayer fp = driver.fakePlayer();
+            int planks = 0;
+            for (ItemStack stk : fp.getInventory().items)
+                if (stk.getItem() == Items.OAK_PLANKS) planks += stk.getCount();
+            AgentDriverCommon.LOG.info("[serverCraftArena] planks={} finished={} active={} err={}",
+                    planks, driver.finished(), ServerAgentManager.activeCount(), driver.botState().craft.lastError);
+            if (planks < 4)
+                throw new GameTestAssertException("server CraftProcess (2x2 inventory) did not craft planks: got " + planks);
+            if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                throw new GameTestAssertException("server CraftProcess did not finish+unregister: active="
+                        + ServerAgentManager.activeCount());
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Capability-cliff proof for the SERVER {@link SmeltProcess}: a FakePlayer CANNOT
+     * open a furnace menu ({@code openMenu} is a no-op and there's no always-present
+     * furnace menu like the inventory 2×2 grid), so smelting is real-Player-only. This
+     * asserts the migrated process degrades GRACEFULLY over a FakePlayer — it finds the
+     * pre-placed furnace, attempts to open, times out, and FINISHES (unregisters) with
+     * the expected "open furnace" error rather than crashing or wedging the tick. (The
+     * client path is preserved by the BotProcess bridge.)
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverSmeltCliffArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 620, cz = 620, floorY = 220;
+        for (int dx = -1; dx <= 2; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+        level.setBlockAndUpdate(new BlockPos(cx + 1, floorY + 1, cz), Blocks.FURNACE.defaultBlockState());  // within reach
+
+        boolean odbg = BotConfig.walkerDebug;
+        BotConfig.walkerDebug = false;
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            driver.fakePlayer().getInventory().clearContent();
+            driver.fakePlayer().getInventory().add(new ItemStack(Items.RAW_IRON, 4));
+            driver.fakePlayer().getInventory().add(new ItemStack(Items.COAL, 4));
+            driver.runProcess(new net.magicterra.agent.bot.process.SmeltProcess("minecraft:raw_iron", 4, "minecraft:coal"));
+            ServerAgentManager.register(driver);
+            for (int t = 0; t < 200 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            String err = driver.botState().smelt.lastError;
+            AgentDriverCommon.LOG.info("[serverSmeltCliffArena] finished={} active={} err={}",
+                    driver.finished(), ServerAgentManager.activeCount(), err);
+            if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                throw new GameTestAssertException("server SmeltProcess did not degrade gracefully (still active): "
+                        + ServerAgentManager.activeCount());
+            if (err == null || !err.contains("熔炉"))
+                throw new GameTestAssertException("server SmeltProcess ended with an unexpected error: " + err);
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
      * Phase 2 capability proof: a server-side FakePlayer (a ServerPlayer) has
      * full Player capability — it BREAKS and PLACES blocks with no client. The
      * {@link ServerPlayerAvatar} seam aims + breaks (level.destroyBlock via the

@@ -163,6 +163,62 @@ public final class ServerPlayerAvatar implements Avatar {
 
     @Override public boolean breakHeld() { return breakHeld; }
 
+    // --- container / recipe interaction ---
+    @Override public net.minecraft.world.item.crafting.RecipeManager recipeManager() {
+        return fp.getServer() != null ? fp.getServer().getRecipeManager() : null;
+    }
+
+    @Override public void useBlock(BlockPos cell, Direction face) {
+        // Raw useItemOn (no holdPlaceable gate): places a held block OR triggers the
+        // block's use. Opening a menu (table/furnace) is a no-op on a FakePlayer
+        // (openMenu disabled), so container processes time out gracefully server-side.
+        Vec3 hit = new Vec3(
+                cell.getX() + 0.5 + face.getStepX() * 0.5,
+                cell.getY() + 0.5 + face.getStepY() * 0.5,
+                cell.getZ() + 0.5 + face.getStepZ() * 0.5);
+        BlockHitResult brh = new BlockHitResult(hit, face, cell, false);
+        fp.gameMode.useItemOn(fp, fp.level(), fp.getMainHandItem(), InteractionHand.MAIN_HAND, brh);
+    }
+
+    @Override public void placeRecipe(int containerId, net.minecraft.world.item.crafting.RecipeHolder<?> recipe, boolean placeAll) {
+        // Mirror ServerGamePacketListenerImpl.handlePlaceRecipe: fill the open menu's
+        // grid from inventory. Works for the always-present 2×2 inventory grid even on a
+        // FakePlayer; table menus never open on a FakePlayer so this no-ops there.
+        if (fp.containerMenu instanceof net.minecraft.world.inventory.RecipeBookMenu<?, ?> rbm
+                && fp.containerMenu.containerId == containerId) {
+            // ServerPlaceRecipe.recipeClicked gates on getRecipeBook().contains(recipe);
+            // a FakePlayer's recipe book is empty (nothing unlocked), so without this the
+            // placement silently no-ops. Unlock the recipe first (a real player has it).
+            fp.getRecipeBook().add(recipe);
+            rbm.handlePlacement(placeAll, recipe, fp);
+        }
+    }
+
+    @Override public void containerClick(int containerId, int slot, int button, net.minecraft.world.inventory.ClickType type) {
+        if (fp.containerMenu != null && fp.containerMenu.containerId == containerId)
+            fp.containerMenu.clicked(slot, button, type, fp);
+    }
+
+    @Override public void closeContainer() { fp.closeContainer(); }
+
+    @Override public boolean holdItem(net.minecraft.world.item.Item item) {
+        var inv = fp.getInventory();
+        if (inv.getSelected().getItem() == item) return true;
+        for (int i = 0; i < 9; i++) {
+            if (inv.items.get(i).getItem() == item) { inv.selected = i; return true; }
+        }
+        // In the main inventory but not the hotbar — swap it into the selected slot.
+        for (int i = 9; i < inv.items.size(); i++) {
+            if (inv.items.get(i).getItem() == item) {
+                ItemStack held = inv.items.get(inv.selected);
+                inv.items.set(inv.selected, inv.items.get(i));
+                inv.items.set(i, held);
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override public void attackEntity(net.minecraft.world.entity.Entity target) {
         fp.attack(target);   // server-authoritative: applies damage/knockback/crit directly
     }

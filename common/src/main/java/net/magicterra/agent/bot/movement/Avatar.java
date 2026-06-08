@@ -77,6 +77,32 @@ public interface Avatar {
     /** Whether the break action is currently held (debug). */
     boolean breakHeld();
 
+    // --- container / recipe interaction (crafting, smelting) ---
+    /** The recipe registry — client: the connection's (works in multiplayer); server:
+     *  the running server's. Null if unavailable (no server/connection). */
+    net.minecraft.world.item.crafting.RecipeManager recipeManager();
+    /** Right-click a block face to USE it (open a crafting table / furnace) — the raw
+     *  {@code useItemOn} with no place-a-block gate. NOTE: a server FakePlayer cannot
+     *  open menus ({@code openMenu} is a no-op), so a container open succeeds only on the
+     *  client; the server path degrades to a graceful "open timeout". This same call also
+     *  PLACES a held block (after {@link #holdItem}) since vanilla useItemOn places when
+     *  the targeted block has no use action. */
+    void useBlock(BlockPos cell, Direction face);
+    /** Recipe-book placement into the open menu's grid — client:
+     *  {@code gameMode.handlePlaceRecipe} (→ packet); server:
+     *  {@code RecipeBookMenu.handlePlacement} directly (works for the always-present 2×2
+     *  inventory grid even on a FakePlayer). */
+    void placeRecipe(int containerId, net.minecraft.world.item.crafting.RecipeHolder<?> recipe, boolean placeAll);
+    /** A container-slot click — client: {@code gameMode.handleInventoryMouseClick}
+     *  (→ packet); server: {@code menu.clicked} directly. */
+    void containerClick(int containerId, int slot, int button, net.minecraft.world.inventory.ClickType type);
+    /** Close the open container back to the inventory menu. */
+    void closeContainer();
+    /** Ensure a SPECIFIC item occupies the main hand; false if none in the inventory.
+     *  (Unlike {@link #holdPlaceable()} which holds ANY support block, this holds the
+     *  exact item — used to hold a crafting table / furnace before placing it.) */
+    boolean holdItem(net.minecraft.world.item.Item item);
+
     BodyCapabilities capabilities();
 
     // --- debug snapshot of the commanded input (walker trace only) ---

@@ -1,10 +1,9 @@
 package net.magicterra.agent.bot.process;
 
 import net.magicterra.agent.bot.BotState;
+import net.magicterra.agent.bot.movement.Avatar;
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.bot.util.BotInteract;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -70,26 +69,26 @@ public final class SmeltProcess implements BotProcess {
         s.smelt.lastError = null;
     }
 
-    @Override public boolean tick(Minecraft mc, WorldView w, BotState s) {
-        LocalPlayer p = mc.player;
-        Level lvl = mc.level;
+    @Override public boolean tick(Avatar a, WorldView w, BotState s) {
+        Player p = a.player();
+        Level lvl = p == null ? null : p.level();
         if (p == null || lvl == null) { fail(s, "no player"); return true; }
 
         switch (st) {
-            case INIT -> init(mc, p, lvl, s);
-            case OPEN_WAIT -> awaitOpen(mc, s);
-            case LOAD -> load(mc, p, s);
-            case SMELT_WAIT -> smeltWait(mc, p, s);
-            case COLLECT -> collect(mc, p, s);
+            case INIT -> init(a, p, lvl, s);
+            case OPEN_WAIT -> awaitOpen(p, s);
+            case LOAD -> load(a, p, s);
+            case SMELT_WAIT -> smeltWait(p, s);
+            case COLLECT -> collect(a, p, s);
             default -> {}
         }
 
-        if (st == St.DONE) { BotInteract.closeContainer(mc); s.smelt.reset(); return true; }
-        if (st == St.FAIL) { BotInteract.closeContainer(mc); s.smelt.lastError = error; s.smelt.reset(); return true; }
+        if (st == St.DONE) { a.closeContainer(); s.smelt.reset(); return true; }
+        if (st == St.FAIL) { a.closeContainer(); s.smelt.lastError = error; s.smelt.reset(); return true; }
         return false;
     }
 
-    private void init(Minecraft mc, LocalPlayer p, Level lvl, BotState s) {
+    private void init(Avatar a, Player p, Level lvl, BotState s) {
         ResourceLocation rl = ResourceLocation.tryParse(input == null ? "" : input);
         if (rl == null || !BuiltInRegistries.ITEM.containsKey(rl)) { fail(s, "unknown item: " + input); return; }
         int have = countInInventory(p, input);
@@ -101,26 +100,27 @@ public final class SmeltProcess implements BotProcess {
         targetOut = Math.min(count, have);
 
         BlockPos fz = findFurnace(p, lvl);
-        if (fz == null) fz = placeFurnace(mc, p, lvl);
+        if (fz == null) fz = placeFurnace(a, p, lvl);
         if (fz == null) { fail(s, "需要熔炉（背包里没有可放置的熔炉）"); return; }
         furnacePos = fz;
-        BotInteract.aimAtBlockSnap(p, fz);
-        BotInteract.clientUseItemOn(mc, p, fz, BotInteract.pickFaceTowardsPlayer(fz, p));
+        // NOTE: a server FakePlayer can't open menus, so OPEN_WAIT times out there.
+        a.aimAtBlock(fz);
+        a.useBlock(fz, faceToward(fz, p));
         waited = 0;
         st = St.OPEN_WAIT;
     }
 
-    private void awaitOpen(Minecraft mc, BotState s) {
-        if (mc.player.containerMenu instanceof AbstractFurnaceMenu) { waited = 0; st = St.LOAD; return; }
+    private void awaitOpen(Player p, BotState s) {
+        if (p.containerMenu instanceof AbstractFurnaceMenu) { waited = 0; st = St.LOAD; return; }
         if (++waited > OPEN_TIMEOUT) fail(s, "打开熔炉超时");
     }
 
-    private void load(Minecraft mc, LocalPlayer p, BotState s) {
+    private void load(Avatar a, Player p, BotState s) {
         AbstractContainerMenu menu = p.containerMenu;
         // Shift-click the ingredient from the inventory → routes to the input slot.
         int inSlot = findInvMenuSlot(menu, st2 -> idOf(st2.getItem()).equals(input));
         if (inSlot < 0) { fail(s, "背包里找不到 " + shortId(input)); return; }
-        mc.gameMode.handleInventoryMouseClick(menu.containerId, inSlot, 0, ClickType.QUICK_MOVE, p);
+        a.containerClick(menu.containerId, inSlot, 0, ClickType.QUICK_MOVE);
 
         // Fuel: explicit id, else first inventory stack the furnace accepts as fuel.
         int fuelSlot = findInvMenuSlot(menu, slot -> {
@@ -129,14 +129,14 @@ public final class SmeltProcess implements BotProcess {
             return AbstractFurnaceBlockEntity.isFuel(stk);
         });
         if (fuelSlot < 0) { fail(s, fuelId != null ? "背包里找不到燃料 " + shortId(fuelId) : "背包里没有可用燃料"); return; }
-        mc.gameMode.handleInventoryMouseClick(menu.containerId, fuelSlot, 0, ClickType.QUICK_MOVE, p);
+        a.containerClick(menu.containerId, fuelSlot, 0, ClickType.QUICK_MOVE);
 
         smeltWaitBudget = PER_ITEM_TIMEOUT * targetOut + 100;
         waited = 0;
         st = St.SMELT_WAIT;
     }
 
-    private void smeltWait(Minecraft mc, LocalPlayer p, BotState s) {
+    private void smeltWait(Player p, BotState s) {
         AbstractContainerMenu menu = p.containerMenu;
         if (!(menu instanceof AbstractFurnaceMenu)) { fail(s, "熔炉界面意外关闭"); return; }
         ItemStack out = menu.getSlot(AbstractFurnaceMenu.RESULT_SLOT).getItem();
@@ -150,11 +150,11 @@ public final class SmeltProcess implements BotProcess {
         }
     }
 
-    private void collect(Minecraft mc, LocalPlayer p, BotState s) {
+    private void collect(Avatar a, Player p, BotState s) {
         AbstractContainerMenu menu = p.containerMenu;
         ItemStack out = menu.getSlot(AbstractFurnaceMenu.RESULT_SLOT).getItem();
         if (!out.isEmpty()) {
-            mc.gameMode.handleInventoryMouseClick(menu.containerId, AbstractFurnaceMenu.RESULT_SLOT, 0, ClickType.QUICK_MOVE, p);
+            a.containerClick(menu.containerId, AbstractFurnaceMenu.RESULT_SLOT, 0, ClickType.QUICK_MOVE);
         }
         if (error != null) s.smelt.lastError = error;   // surface partial-completion note
         st = St.DONE;
@@ -175,13 +175,13 @@ public final class SmeltProcess implements BotProcess {
         return -1;
     }
 
-    private static int countInInventory(LocalPlayer p, String itemId) {
+    private static int countInInventory(Player p, String itemId) {
         int n = 0;
         for (ItemStack s : p.getInventory().items) if (!s.isEmpty() && idOf(s).equals(itemId)) n += s.getCount();
         return n;
     }
 
-    private static BlockPos findFurnace(LocalPlayer p, Level lvl) {
+    private static BlockPos findFurnace(Player p, Level lvl) {
         BlockPos base = p.blockPosition();
         BlockPos best = null;
         double bestD = REACH * REACH;
@@ -198,8 +198,8 @@ public final class SmeltProcess implements BotProcess {
         return best;
     }
 
-    private BlockPos placeFurnace(Minecraft mc, LocalPlayer p, Level lvl) {
-        if (!BotInteract.ensureHolding(mc, Items.FURNACE)) return null;
+    private BlockPos placeFurnace(Avatar a, Player p, Level lvl) {
+        if (!a.holdItem(Items.FURNACE)) return null;
         BlockPos foot = p.blockPosition();
         for (Direction d : new Direction[]{Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST}) {
             BlockPos cell = foot.relative(d);
@@ -208,11 +208,23 @@ public final class SmeltProcess implements BotProcess {
             BlockState bs = lvl.getBlockState(below);
             if (!cs.canBeReplaced()) continue;
             if (!bs.isFaceSturdy(lvl, below, Direction.UP)) continue;
-            BotInteract.aimAtBlockSnap(p, cell);
-            BotInteract.clientUseItemOn(mc, p, below, Direction.UP);
+            a.aimAtBlock(cell);
+            a.useBlock(below, Direction.UP);
             if (lvl.getBlockState(cell).is(Blocks.FURNACE)) return cell;
         }
         return null;
+    }
+
+    /** The face of {@code block} toward the player's eye. Inlined (was
+     *  BotInteract.pickFaceTowardsPlayer) to keep this process off the client-only
+     *  BotInteract so it loads on a dedicated server. */
+    private static Direction faceToward(BlockPos block, Player p) {
+        var eye = p.getEyePosition();
+        double dx = eye.x - (block.getX() + 0.5), dy = eye.y - (block.getY() + 0.5), dz = eye.z - (block.getZ() + 0.5);
+        double ax = Math.abs(dx), ay = Math.abs(dy), az = Math.abs(dz);
+        if (ay >= ax && ay >= az) return dy >= 0 ? Direction.UP : Direction.DOWN;
+        if (ax >= az) return dx >= 0 ? Direction.EAST : Direction.WEST;
+        return dz >= 0 ? Direction.SOUTH : Direction.NORTH;
     }
 
     private static String idOf(ItemStack s) { return BuiltInRegistries.ITEM.getKey(s.getItem()).toString(); }

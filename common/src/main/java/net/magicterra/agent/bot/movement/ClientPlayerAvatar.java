@@ -57,6 +57,19 @@ public final class ClientPlayerAvatar implements Avatar {
     }
     @Override public boolean breakHeld() { return mc.options.keyAttack.isDown(); }
 
+    @Override public net.minecraft.world.item.crafting.RecipeManager recipeManager() {
+        return p != null && p.connection != null ? p.connection.getRecipeManager() : null;
+    }
+    @Override public void useBlock(BlockPos cell, Direction face) { BotInteract.clientUseItemOn(mc, p, cell, face); }
+    @Override public void placeRecipe(int containerId, net.minecraft.world.item.crafting.RecipeHolder<?> recipe, boolean placeAll) {
+        if (mc.gameMode != null) mc.gameMode.handlePlaceRecipe(containerId, recipe, placeAll);
+    }
+    @Override public void containerClick(int containerId, int slot, int button, net.minecraft.world.inventory.ClickType type) {
+        if (mc.gameMode != null && p != null) mc.gameMode.handleInventoryMouseClick(containerId, slot, button, type, p);
+    }
+    @Override public void closeContainer() { BotInteract.closeContainer(mc); }
+    @Override public boolean holdItem(net.minecraft.world.item.Item item) { return BotInteract.ensureHolding(mc, item); }
+
     @Override public BodyCapabilities capabilities() { return BodyCapabilities.PLAYER; }
 
     @Override public boolean dbgForwardImpulse() { return p.input.forwardImpulse != 0; }

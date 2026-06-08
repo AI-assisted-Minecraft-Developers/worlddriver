@@ -1,14 +1,13 @@
 package net.magicterra.agent.bot.process;
 
 import net.magicterra.agent.bot.BotState;
+import net.magicterra.agent.bot.movement.Avatar;
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.bot.util.BotInteract;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.CraftingMenu;
@@ -79,28 +78,28 @@ public final class CraftProcess implements BotProcess {
         s.craft.lastError = null;
     }
 
-    @Override public boolean tick(Minecraft mc, WorldView w, BotState s) {
-        LocalPlayer p = mc.player;
-        Level lvl = mc.level;
+    @Override public boolean tick(Avatar a, WorldView w, BotState s) {
+        Player p = a.player();
+        Level lvl = p == null ? null : p.level();
         if (p == null || lvl == null) { fail(s, "no player"); return true; }
 
         switch (st) {
-            case INIT -> plan(mc, s);
-            case STATION -> setupStation(mc, p, lvl, s);
-            case OPEN_WAIT -> awaitTableOpen(mc, s);
-            case PLACE -> place(mc, p, s);
-            case AWAIT_RESULT -> awaitResult(mc, p, s);
-            case AWAIT_TAKE -> awaitTake(mc, s);
+            case INIT -> plan(a, p, lvl, s);
+            case STATION -> setupStation(a, p, lvl, s);
+            case OPEN_WAIT -> awaitTableOpen(p, s);
+            case PLACE -> place(a, p, s);
+            case AWAIT_RESULT -> awaitResult(a, p, s);
+            case AWAIT_TAKE -> awaitTake(p, s);
             default -> {}
         }
 
         if (st == St.DONE) {
-            BotInteract.closeContainer(mc);
+            a.closeContainer();
             s.craft.reset();
             return true;
         }
         if (st == St.FAIL) {
-            BotInteract.closeContainer(mc);
+            a.closeContainer();
             s.craft.lastError = error;
             s.craft.reset();
             return true;
@@ -110,14 +109,15 @@ public final class CraftProcess implements BotProcess {
 
     // === planning ============================================================
 
-    private void plan(Minecraft mc, BotState s) {
-        RecipeManager rm = mc.player.connection.getRecipeManager();
-        HolderLookup.Provider ra = mc.level.registryAccess();
+    private void plan(Avatar a, Player p, Level lvl, BotState s) {
+        RecipeManager rm = a.recipeManager();
+        HolderLookup.Provider ra = lvl.registryAccess();
+        if (rm == null) { fail(s, "no recipe manager"); return; }
         if (!BuiltInRegistries.ITEM.containsKey(net.minecraft.resources.ResourceLocation.tryParse(target == null ? "" : target))) {
             fail(s, "unknown item: " + target);
             return;
         }
-        Map<String, Integer> have = inventorySnapshot(mc.player);
+        Map<String, Integer> have = inventorySnapshot(p);
         RecipeResolver.Plan plan = RecipeResolver.resolve(rm, ra, target, count, have);
         if (!plan.complete()) {
             // Give the client inventory a few ticks to catch up before giving up —
@@ -144,55 +144,56 @@ public final class CraftProcess implements BotProcess {
 
     // === station setup =======================================================
 
-    private void setupStation(Minecraft mc, LocalPlayer p, Level lvl, BotState s) {
+    private void setupStation(Avatar a, Player p, Level lvl, BotState s) {
         RecipeResolver.Job job = jobs.get(jobIdx);
         if ("inventory2x2".equals(job.station())) {
             // Use the player inventory's 2×2 grid (container id 0). Close any
             // table screen left open by a previous job so containerMenu is the
             // inventory menu the place packet targets.
-            if (mc.player.containerMenu != mc.player.inventoryMenu) BotInteract.closeContainer(mc);
+            if (p.containerMenu != p.inventoryMenu) a.closeContainer();
             waited = 0;
             st = St.PLACE;
             return;
         }
         // crafting_table: reuse an already-open table, else open one.
-        if (mc.player.containerMenu instanceof CraftingMenu) { waited = 0; st = St.PLACE; return; }
+        if (p.containerMenu instanceof CraftingMenu) { waited = 0; st = St.PLACE; return; }
 
         BlockPos table = (tablePos != null && isTable(lvl, tablePos)) ? tablePos : findTable(p, lvl);
-        if (table == null) table = placeTable(mc, p, lvl);
+        if (table == null) table = placeTable(a, p, lvl);
         if (table == null) { fail(s, "需要工作台（背包里没有可放置的工作台）"); return; }
         tablePos = table;
         // Right-click the table to open its menu (block.use takes priority over
-        // placing even while holding a crafting_table).
-        BotInteract.aimAtBlockSnap(p, table);
-        BotInteract.clientUseItemOn(mc, p, table, BotInteract.pickFaceTowardsPlayer(table, p));
+        // placing even while holding a crafting_table). NOTE: a server FakePlayer
+        // can't open menus, so OPEN_WAIT will time out there (capability cliff).
+        a.aimAtBlock(table);
+        a.useBlock(table, faceToward(table, p));
         waited = 0;
         st = St.OPEN_WAIT;
     }
 
-    private void awaitTableOpen(Minecraft mc, BotState s) {
-        if (mc.player.containerMenu instanceof CraftingMenu) { waited = 0; st = St.PLACE; return; }
+    private void awaitTableOpen(Player p, BotState s) {
+        if (p.containerMenu instanceof CraftingMenu) { waited = 0; st = St.PLACE; return; }
         if (++waited > STEP_TIMEOUT) fail(s, "打开工作台超时");
     }
 
     // === craft loop ==========================================================
 
-    private void place(Minecraft mc, LocalPlayer p, BotState s) {
+    private void place(Avatar a, Player p, BotState s) {
         AbstractContainerMenu menu = p.containerMenu;
         RecipeResolver.Job job = jobs.get(jobIdx);
         // Recipe-book single placement: server moves one ingredient set from the
         // inventory into the grid.
-        mc.gameMode.handlePlaceRecipe(menu.containerId, job.recipe(), false);
+        a.placeRecipe(menu.containerId, job.recipe(), false);
         waited = 0;
         st = St.AWAIT_RESULT;
     }
 
-    private void awaitResult(Minecraft mc, LocalPlayer p, BotState s) {
+    private void awaitResult(Avatar a, Player p, BotState s) {
         AbstractContainerMenu menu = p.containerMenu;
         ItemStack result = menu.slots.isEmpty() ? ItemStack.EMPTY : menu.getSlot(0).getItem();
         if (!result.isEmpty()) {
             // Shift-click the result → crafts once, output to inventory, grid empties.
-            mc.gameMode.handleInventoryMouseClick(menu.containerId, 0, 0, ClickType.QUICK_MOVE, p);
+            a.containerClick(menu.containerId, 0, 0, ClickType.QUICK_MOVE);
             crafted += result.getCount();
             waited = 0;
             st = St.AWAIT_TAKE;
@@ -201,7 +202,7 @@ public final class CraftProcess implements BotProcess {
         if (++waited > STEP_TIMEOUT) fail(s, "摆料失败（原料不足或未同步）: " + shortId(jobs.get(jobIdx).result()));
     }
 
-    private void awaitTake(Minecraft mc, BotState s) {
+    private void awaitTake(Player p, BotState s) {
         // Give the server a couple ticks to clear the grid and deliver the output.
         if (++waited < 2) return;
         craftsDone++;
@@ -220,7 +221,7 @@ public final class CraftProcess implements BotProcess {
     }
 
     /** Nearest crafting table within interaction reach of the eye. */
-    private static BlockPos findTable(LocalPlayer p, Level lvl) {
+    private static BlockPos findTable(Player p, Level lvl) {
         BlockPos base = p.blockPosition();
         BlockPos best = null;
         double bestD = REACH * REACH;
@@ -239,8 +240,8 @@ public final class CraftProcess implements BotProcess {
 
     /** Place a crafting table from the hotbar on a sturdy neighbour, return its
      *  position (or null if we can't). */
-    private BlockPos placeTable(Minecraft mc, LocalPlayer p, Level lvl) {
-        if (!BotInteract.ensureHolding(mc, Items.CRAFTING_TABLE)) return null;
+    private BlockPos placeTable(Avatar a, Player p, Level lvl) {
+        if (!a.holdItem(Items.CRAFTING_TABLE)) return null;
         BlockPos foot = p.blockPosition();
         // Candidate columns: 4 cardinals + 4 diagonals, tried at foot level and
         // one block below. The old version only tried the 4 cardinals at foot
@@ -259,9 +260,9 @@ public final class CraftProcess implements BotProcess {
                 // which fail isFaceSturdy yet still accept a block placed on them.
                 // The old isFaceSturdy gate wrongly rejected leaf/dirt-path ground.
                 if (bs.isAir() || bs.canBeReplaced()) continue;
-                BotInteract.aimAtBlockSnap(p, cell);
+                a.aimAtBlock(cell);
                 // Click the support's top face → block lands in `cell`.
-                BotInteract.clientUseItemOn(mc, p, below, Direction.UP);
+                a.useBlock(below, Direction.UP);
                 if (isTable(lvl, cell)) return cell;
             }
         }
@@ -270,7 +271,7 @@ public final class CraftProcess implements BotProcess {
 
     // === misc ================================================================
 
-    private static Map<String, Integer> inventorySnapshot(LocalPlayer p) {
+    private static Map<String, Integer> inventorySnapshot(Player p) {
         Map<String, Integer> have = new LinkedHashMap<>();
         for (ItemStack s : p.getInventory().items) {
             if (s.isEmpty()) continue;
@@ -279,6 +280,18 @@ public final class CraftProcess implements BotProcess {
         ItemStack off = p.getInventory().offhand.isEmpty() ? ItemStack.EMPTY : p.getInventory().offhand.get(0);
         if (!off.isEmpty()) have.merge(id(off.getItem()), off.getCount(), Integer::sum);
         return have;
+    }
+
+    /** The face of {@code block} pointing back toward the player's eye. Inlined (was
+     *  BotInteract.pickFaceTowardsPlayer) so this process stays free of the client-only
+     *  BotInteract and loads on a dedicated server. */
+    private static Direction faceToward(BlockPos block, Player p) {
+        var eye = p.getEyePosition();
+        double dx = eye.x - (block.getX() + 0.5), dy = eye.y - (block.getY() + 0.5), dz = eye.z - (block.getZ() + 0.5);
+        double ax = Math.abs(dx), ay = Math.abs(dy), az = Math.abs(dz);
+        if (ay >= ax && ay >= az) return dy >= 0 ? Direction.UP : Direction.DOWN;
+        if (ax >= az) return dx >= 0 ? Direction.EAST : Direction.WEST;
+        return dz >= 0 ? Direction.SOUTH : Direction.NORTH;
     }
 
     private static String id(Item item) { return BuiltInRegistries.ITEM.getKey(item).toString(); }

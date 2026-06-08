@@ -82,6 +82,7 @@ public final class ServerAgentDriver {
     public LevelWorldView world() { return world; }
     public Walker.Step lastStep() { return last; }
     public boolean finished() { return finished; }
+    public BotState botState() { return botState; }
 
     /** One server tick of agent driving: the Walker decides, then physics steps.
      *  For a mine task, once navigation arrives within reach the avatar breaks
