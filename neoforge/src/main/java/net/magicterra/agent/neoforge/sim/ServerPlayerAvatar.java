@@ -86,6 +86,23 @@ public final class ServerPlayerAvatar implements Avatar {
         fp.setXRot((float) (-Math.toDegrees(Math.atan2(dy, horiz))));
     }
 
+    @Override public BlockPos lookingAtBlock() {
+        Vec3 eye = fp.getEyePosition();
+        // Compute the view vector directly from yRot/xRot rather than
+        // getViewVector(1f): the latter lerps from yRotO, which is stale for a
+        // FakePlayer that aimAtBlock just rotated without an intervening tick
+        // (it returned a +z vector for a -90° yaw — the raycast then missed).
+        double yawR = Math.toRadians(fp.getYRot());
+        double pitchR = Math.toRadians(fp.getXRot());
+        double cp = Math.cos(pitchR);
+        Vec3 look = new Vec3(-Math.sin(yawR) * cp, -Math.sin(pitchR), Math.cos(yawR) * cp);
+        Vec3 end = eye.add(look.x * 4.5, look.y * 4.5, look.z * 4.5);
+        var hit = fp.level().clip(new net.minecraft.world.level.ClipContext(
+                eye, end, net.minecraft.world.level.ClipContext.Block.OUTLINE,
+                net.minecraft.world.level.ClipContext.Fluid.NONE, fp));
+        return hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK ? hit.getBlockPos() : null;
+    }
+
     @Override public void place(WorldView w, BlockPos cell) {
         for (Direction d : Direction.values()) {
             BlockPos against = cell.relative(d);

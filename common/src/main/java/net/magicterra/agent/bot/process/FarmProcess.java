@@ -6,6 +6,7 @@ import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.elytra.ElytraPhysics;
+import net.magicterra.agent.bot.movement.Avatar;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
@@ -96,15 +97,14 @@ public final class FarmProcess implements BotProcess {
         st.builder.lastError = null;
     }
 
-    public boolean tick(Minecraft mc, WorldView w, BotState st) {
-        LocalPlayer p = mc.player;
+    @Override public boolean tick(Avatar a, WorldView w, BotState st) {
+        Player p = a.player();
         if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
-        Level lvl = mc.level;
-        if (lvl == null) return false;
+        Level lvl = p.level();
 
         switch (phase) {
             case SEARCH -> {
-                BlockPos[] found = scanNextMature(lvl);
+                BlockPos[] found = scanNextMature(lvl, p);
                 if (found == null) {
                     st.builder.lastError = "done (harvested=" + harvested +
                             ", replanted=" + replanted + ", skipped=" + skipped + ")";
@@ -119,9 +119,7 @@ public final class FarmProcess implements BotProcess {
                 phase = Phase.GOING;
             }
             case GOING -> {
-                mc.options.keyAttack.setDown(false);
-                mc.options.keyUse.setDown(false);
-                Walker.Step s = walker.tick(mc, w);
+                Walker.Step s = walker.tick(a, w);
                 st.builder.pathLen = walker.pathLen();
                 st.builder.pathStep = walker.pathStep();
                 if (s == Walker.Step.FAILED) {
@@ -138,22 +136,22 @@ public final class FarmProcess implements BotProcess {
                         phase = Phase.SEARCH;
                         return false;
                     }
-                    faceBlock(p, currentTarget);
+                    a.aimAtBlock(currentTarget);
                     breakingTicks = 0;
                     phase = Phase.HARVEST;
                 }
             }
             case HARVEST -> {
-                BotInput.forward(mc, false);
-                BotInput.jump(mc, false);
+                a.commandForward(0f);
+                a.commandJump(false);
                 p.setSprinting(false);
-                faceBlock(p, currentTarget);
-                mc.options.keyAttack.setDown(true);
+                a.aimAtBlock(currentTarget);
+                a.breakHold(true);
                 breakingTicks++;
                 BlockState bs = lvl.getBlockState(currentTarget);
                 if (bs.isAir()) {
                     harvested++;
-                    mc.options.keyAttack.setDown(false);
+                    a.breakHold(false);
                     if (replant) {
                         placeTicks = 0;
                         phase = Phase.REPLANT;
@@ -164,18 +162,18 @@ public final class FarmProcess implements BotProcess {
                     }
                 } else if (breakingTicks > BREAK_TIMEOUT_TICKS) {
                     blacklist.add(currentTarget);
-                    mc.options.keyAttack.setDown(false);
+                    a.breakHold(false);
                     currentTarget = null;
                     phase = Phase.SEARCH;
                 }
             }
             case REPLANT -> {
-                mc.options.keyAttack.setDown(false);
-                BotInput.forward(mc, false);
-                BotInput.jump(mc, false);
-                if (mc.player != null) mc.player.setSprinting(false);
+                a.breakHold(false);
+                a.commandForward(0f);
+                a.commandJump(false);
+                p.setSprinting(false);
                 String seedId = SEED_FOR.get(currentCropId);
-                if (seedId == null || !ensureHoldingItem(mc, seedId)) {
+                if (seedId == null || !ensureHoldingItem(a, seedId)) {
                     // No seed in hand — skip this cell rather than spin.
                     skipped++;
                     blacklist.add(currentTarget);
@@ -189,7 +187,7 @@ public final class FarmProcess implements BotProcess {
                 BlockPos farmland = currentTarget.offset(0, -1, 0);
                 faceSupportFor(p, currentTarget, Direction.UP);
                 if (placeTicks == 0) {
-                    clientUseItemOn(mc, p, farmland, Direction.UP);
+                    a.placeOn(farmland, Direction.UP);
                 }
                 placeTicks++;
                 BlockState now = lvl.getBlockState(currentTarget);
@@ -211,8 +209,7 @@ public final class FarmProcess implements BotProcess {
     }
 
     /** Scan the bbox for the nearest mature, in-filter, reachable crop. */
-    private BlockPos[] scanNextMature(Level lvl) {
-        LocalPlayer p = Minecraft.getInstance().player;
+    private BlockPos[] scanNextMature(Level lvl, Player p) {
         if (p == null) return null;
         BlockPos foot = new BlockPos((int) Math.floor(p.getX()), (int) Math.floor(p.getY()), (int) Math.floor(p.getZ()));
         BlockPos bestCrop = null, bestStand = null;
@@ -246,17 +243,14 @@ public final class FarmProcess implements BotProcess {
 
     /** Swap hotbar to a stack matching itemId (or matching slot in main inv
      *  in creative); reuses the same logic as BboxFillProcess.ensureHoldingBlock. */
-    private boolean ensureHoldingItem(Minecraft mc, String itemId) {
-        LocalPlayer p = mc.player;
+    private boolean ensureHoldingItem(Avatar a, String itemId) {
+        Player p = a.player();
         if (p == null) return false;
         Inventory inv = p.getInventory();
         if (matchesItem(inv.getSelected(), itemId)) return true;
         for (int slot = 0; slot < 9; slot++) {
             if (matchesItem(inv.items.get(slot), itemId)) {
-                inv.selected = slot;
-                if (p.connection != null) {
-                    p.connection.send(new ServerboundSetCarriedItemPacket(slot));
-                }
+                a.setSelectedSlot(slot);
                 return true;
             }
         }
@@ -305,7 +299,7 @@ public final class FarmProcess implements BotProcess {
         return true;
     }
 
-    private void faceBlock(LocalPlayer p, BlockPos block) {
+    private void faceBlock(Player p, BlockPos block) {
         Vec3 eye = p.getEyePosition();
         double dx = block.getX() + 0.5 - eye.x, dy = block.getY() + 0.5 - eye.y, dz = block.getZ() + 0.5 - eye.z;
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
@@ -313,7 +307,7 @@ public final class FarmProcess implements BotProcess {
         p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw; p.setXRot(pitch);
     }
 
-    private void faceSupportFor(LocalPlayer p, BlockPos crop, Direction face) {
+    private void faceSupportFor(Player p, BlockPos crop, Direction face) {
         BlockPos support = crop.offset(-face.getStepX(), -face.getStepY(), -face.getStepZ());
         double tx = support.getX() + 0.5 + face.getStepX() * 0.5;
         double ty = support.getY() + 0.5 + face.getStepY() * 0.5;

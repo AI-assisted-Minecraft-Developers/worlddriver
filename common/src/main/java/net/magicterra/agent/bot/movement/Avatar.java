@@ -55,6 +55,11 @@ public interface Avatar {
     void setSelectedSlot(int slot);
     /** Snap the look (yaw+pitch) onto the block at {@code cell}. */
     void aimAtBlock(BlockPos cell);
+    /** The block the avatar's crosshair/look currently points at, or {@code null}.
+     *  Client reads {@code mc.hitResult}; server raycasts from the eye along the
+     *  view vector. Used by processes that gate an action on what they're aiming at
+     *  (e.g. bbox-fill only breaking cells inside its region). */
+    BlockPos lookingAtBlock();
     /** Place a support block into {@code cell} (finds a solid neighbour face). */
     void place(WorldView w, BlockPos cell);
     /** Place against the given face of {@code cell} directly. */

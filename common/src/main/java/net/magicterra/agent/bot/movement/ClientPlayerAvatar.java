@@ -45,6 +45,9 @@ public final class ClientPlayerAvatar implements Avatar {
             p.connection.send(new net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket(slot));
     }
     @Override public void aimAtBlock(BlockPos cell) { BotInteract.aimAtBlockSnap(p, cell); }
+    @Override public BlockPos lookingAtBlock() {
+        return mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult br ? br.getBlockPos() : null;
+    }
     @Override public void place(WorldView w, BlockPos cell) { BotInteract.walkerPlace(mc, p, w, cell); }
     @Override public void placeOn(BlockPos cell, Direction face) { BotInteract.clientUseItemOn(mc, p, cell, face); }
     @Override public void breakHold(boolean v) { mc.options.keyAttack.setDown(v); }

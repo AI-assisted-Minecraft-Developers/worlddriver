@@ -11,6 +11,7 @@ import net.magicterra.agent.neoforge.sim.ServerAgentDriver;
 import net.magicterra.agent.neoforge.sim.ServerAgentManager;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.process.GotoProcess;
+import net.magicterra.agent.bot.process.BboxFillProcess;
 import net.magicterra.agent.bot.process.BuildProcess;
 import net.magicterra.agent.bot.process.MineProcess;
 import net.magicterra.agent.bot.process.RunAwayProcess;
@@ -1113,6 +1114,51 @@ public final class AgentGameTest {
             BotConfig.walkerDebug = odbg;
             BotConfig.pathfinderSliceMs = osl;
             BotConfig.pathfinderMaxMs = omm;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Phase 2b primitive proof: the new {@code Avatar.lookingAtBlock()} — the
+     * server-side capability the BboxFill/Farm migration introduced — resolves the
+     * aimed block via an eye→view clip raycast (client reads mc.hitResult). Aim a
+     * FakePlayer at a stone two cells away and assert lookingAtBlock() returns
+     * exactly that cell. This isolates the raycast primitive (the BboxFill/Farm
+     * actuator swaps — keyAttack→breakHold, faceBlock→aimAtBlock, keyUse→placeOn —
+     * are already proven by serverMineProcessArena + serverBuildArena; BboxFill's
+     * end-to-end nav has pre-existing stand-selection quirks unrelated to the seam).
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverLookRaycastArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 760, cz = 760, floorY = 220;
+        // The GameTest world PERSISTS across runs and these are fixed absolute
+        // coords, so a prior iteration's blocks linger — CLEAR the arena volume to
+        // air first (same lesson as the 34_yaml flake), else a stale block in the
+        // ray's path makes the raycast resolve the wrong cell.
+        for (int dx = -3; dx <= 7; dx++)
+            for (int dy = -1; dy <= 7; dy++)
+                for (int dz = -3; dz <= 3; dz++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+        for (int dx = -1; dx <= 4; dx++)
+            level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz), Blocks.DIRT.defaultBlockState());
+        BlockPos target = new BlockPos(cx + 2, floorY + 1, cz);   // a stone 2 cells east at foot height
+        level.setBlockAndUpdate(target, Blocks.STONE.defaultBlockState());
+
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            ServerPlayerAvatar av = driver.avatar();
+            av.aimAtBlock(target);                       // sets yaw/pitch toward the cell
+            BlockPos look = av.lookingAtBlock();         // eye→view clip raycast
+            AgentDriverCommon.LOG.info("[serverLookRaycastArena] aim={} look={} match={}",
+                    target.toShortString(), look == null ? "null" : look.toShortString(),
+                    target.equals(look));
+            if (!target.equals(look))
+                throw new GameTestAssertException("server lookingAtBlock did not resolve the aimed cell: aim="
+                        + target.toShortString() + " look=" + (look == null ? "null" : look.toShortString()));
+        } finally {
             ServerAgentManager.clear();
         }
         helper.succeed();

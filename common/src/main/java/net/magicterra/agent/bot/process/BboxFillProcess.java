@@ -6,6 +6,7 @@ import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.elytra.ElytraPhysics;
+import net.magicterra.agent.bot.movement.Avatar;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
@@ -91,11 +92,10 @@ public final class BboxFillProcess implements BotProcess {
         st.builder.lastError = null;
     }
 
-    public boolean tick(Minecraft mc, WorldView w, BotState st) {
-        LocalPlayer p = mc.player;
+    @Override public boolean tick(Avatar a, WorldView w, BotState st) {
+        Player p = a.player();
         if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
-        Level lvl = mc.level;
-        if (lvl == null) return false;
+        Level lvl = p.level();
 
         switch (phase) {
             case SEARCH -> {
@@ -113,9 +113,7 @@ public final class BboxFillProcess implements BotProcess {
                 phase = Phase.GOING;
             }
             case GOING -> {
-                mc.options.keyAttack.setDown(false);
-                mc.options.keyUse.setDown(false);
-                Walker.Step s = walker.tick(mc, w);
+                Walker.Step s = walker.tick(a, w);
                 st.builder.pathLen = walker.pathLen();
                 st.builder.pathStep = walker.pathStep();
                 if (s == Walker.Step.FAILED) {
@@ -139,34 +137,34 @@ public final class BboxFillProcess implements BotProcess {
                             phase = Phase.SEARCH;
                         }
                     } else {
-                        faceBlock(p, currentTarget);
-                        breakStartId = currentBlockId(mc);
+                        a.aimAtBlock(currentTarget);
+                        breakStartId = currentBlockId(lvl);
                         breakingTicks = 0;
                         phase = Phase.BREAKING;
                     }
                 }
             }
             case BREAKING -> {
-                BotInput.forward(mc, false);
-                BotInput.jump(mc, false);
+                a.commandForward(0f);
+                a.commandJump(false);
                 p.setSprinting(false);
-                faceBlock(p, currentTarget);
+                a.aimAtBlock(currentTarget);
                 // Bbox safety: only attack while crosshair points at a block INSIDE
                 // the region. hitResult lags one frame behind our yaw write so a
                 // strict equality check skips most ticks; bbox check is permissive
                 // enough to make progress while still preventing dig-through.
                 boolean inBbox = false;
-                if (mc.hitResult instanceof BlockHitResult br) {
-                    BlockPos hp = br.getBlockPos();
+                BlockPos hp = a.lookingAtBlock();
+                if (hp != null) {
                     inBbox = hp.getX() >= minP.getX() && hp.getX() <= maxP.getX()
                           && hp.getY() >= minP.getY() && hp.getY() <= maxP.getY()
                           && hp.getZ() >= minP.getZ() && hp.getZ() <= maxP.getZ();
                 }
-                mc.options.keyAttack.setDown(inBbox);
+                a.breakHold(inBbox);
                 breakingTicks++;
-                if (cleared(mc) && !currentBlockId(mc).equals(breakStartId)) {
+                if (cleared(lvl) && !currentBlockId(lvl).equals(breakStartId)) {
                     broken++;
-                    mc.options.keyAttack.setDown(false);
+                    a.breakHold(false);
                     if (fillId != null) {
                         placeTicks = 0;
                         phase = Phase.PLACING;
@@ -177,15 +175,15 @@ public final class BboxFillProcess implements BotProcess {
                     }
                 } else if (breakingTicks > BotConfig.breakTimeoutTicks) {
                     blacklist.add(currentTarget);
-                    mc.options.keyAttack.setDown(false);
+                    a.breakHold(false);
                     currentTarget = null;
                     phase = Phase.SEARCH;
                 }
             }
             case PLACING -> {
-                BotInput.forward(mc, false);
-                BotInput.jump(mc, false);
-                mc.options.keyAttack.setDown(false);
+                a.commandForward(0f);
+                a.commandJump(false);
+                a.breakHold(false);
                 p.setSprinting(false);
                 // Already-correct cell shortcut (race: another tick saw the
                 // place complete before we measured).
@@ -198,7 +196,7 @@ public final class BboxFillProcess implements BotProcess {
                     phase = Phase.SEARCH;
                     return false;
                 }
-                if (!ensureHoldingBlock(mc, fillId)) {
+                if (!ensureHoldingBlock(a, fillId)) {
                     // No matching item in inventory — can't place this cell.
                     // Skip rather than loop forever.
                     skipped++;
@@ -223,7 +221,7 @@ public final class BboxFillProcess implements BotProcess {
                             currentTarget.getX() - pl.face.getStepX(),
                             currentTarget.getY() - pl.face.getStepY(),
                             currentTarget.getZ() - pl.face.getStepZ());
-                    clientUseItemOn(mc, p, support, pl.face);
+                    a.placeOn(support, pl.face);
                 }
                 placeTicks++;
                 if (nowId.equals(fillId)) {
@@ -331,7 +329,7 @@ public final class BboxFillProcess implements BotProcess {
         return true;
     }
 
-    private void faceBlock(LocalPlayer p, BlockPos block) {
+    private void faceBlock(Player p, BlockPos block) {
         Vec3 eye = p.getEyePosition();
         double dx = block.getX() + 0.5 - eye.x;
         double dy = block.getY() + 0.5 - eye.y;
@@ -341,7 +339,7 @@ public final class BboxFillProcess implements BotProcess {
         p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw; p.setXRot(pitch);
     }
 
-    private void faceSupportFor(LocalPlayer p, BlockPos block, Direction face) {
+    private void faceSupportFor(Player p, BlockPos block, Direction face) {
         BlockPos support = block.offset(-face.getStepX(), -face.getStepY(), -face.getStepZ());
         double tx = support.getX() + 0.5 + face.getStepX() * 0.5;
         double ty = support.getY() + 0.5 + face.getStepY() * 0.5;
@@ -353,31 +351,28 @@ public final class BboxFillProcess implements BotProcess {
         p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw; p.setXRot(pitch);
     }
 
-    private String currentBlockId(Minecraft mc) {
-        if (mc.level == null || currentTarget == null) return "";
-        return BuiltInRegistries.BLOCK.getKey(mc.level.getBlockState(currentTarget).getBlock()).toString();
+    private String currentBlockId(Level lvl) {
+        if (lvl == null || currentTarget == null) return "";
+        return BuiltInRegistries.BLOCK.getKey(lvl.getBlockState(currentTarget).getBlock()).toString();
     }
 
-    private boolean cleared(Minecraft mc) {
-        if (mc.level == null || currentTarget == null) return false;
-        BlockState bs = mc.level.getBlockState(currentTarget);
+    private boolean cleared(Level lvl) {
+        if (lvl == null || currentTarget == null) return false;
+        BlockState bs = lvl.getBlockState(currentTarget);
         return bs.isAir() || !bs.getFluidState().isEmpty();
     }
 
     /** Ensure the held slot carries a stack matching blockId — same logic
      *  as BuildProcess.ensureHoldingBlock (copy to keep that class minimal). */
-    private boolean ensureHoldingBlock(Minecraft mc, String blockId) {
-        LocalPlayer p = mc.player;
+    private boolean ensureHoldingBlock(Avatar a, String blockId) {
+        Player p = a.player();
         if (p == null) return false;
         Inventory inv = p.getInventory();
         ItemStack held = inv.getSelected();
         if (matchesItem(held, blockId)) return true;
         for (int slot = 0; slot < 9; slot++) {
             if (matchesItem(inv.items.get(slot), blockId)) {
-                inv.selected = slot;
-                if (p.connection != null) {
-                    p.connection.send(new ServerboundSetCarriedItemPacket(slot));
-                }
+                a.setSelectedSlot(slot);
                 return true;
             }
         }
