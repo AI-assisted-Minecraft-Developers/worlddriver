@@ -103,6 +103,17 @@ public interface Avatar {
      *  exact item — used to hold a crafting table / furnace before placing it.) */
     boolean holdItem(net.minecraft.world.item.Item item);
 
+    // --- elytra flight ---
+    /** Begin elytra fall-flying (must be airborne with a usable elytra). Client:
+     *  {@code tryToStartFallFlying} + the START_FALL_FLYING command packet so the server
+     *  agrees; server: {@code tryToStartFallFlying} (the flag is authoritative). Returns
+     *  whether flight started. */
+    boolean startFallFlying();
+    /** Use the held item in the air (no block target) — e.g. light a firework rocket.
+     *  Client: {@code gameMode.useItem}; server: {@code gameMode.useItem}. Returns the
+     *  vanilla result so callers can swing only on a consumed action. */
+    net.minecraft.world.InteractionResult useItemInHand();
+
     BodyCapabilities capabilities();
 
     // --- debug snapshot of the commanded input (walker trace only) ---

@@ -201,6 +201,15 @@ public final class ServerPlayerAvatar implements Avatar {
 
     @Override public void closeContainer() { fp.closeContainer(); }
 
+    @Override public boolean startFallFlying() {
+        // The FALL_FLYING flag is server-authoritative on a ServerPlayer — no packet.
+        return fp.tryToStartFallFlying();
+    }
+
+    @Override public net.minecraft.world.InteractionResult useItemInHand() {
+        return fp.gameMode.useItem(fp, fp.level(), fp.getMainHandItem(), InteractionHand.MAIN_HAND);
+    }
+
     @Override public boolean holdItem(net.minecraft.world.item.Item item) {
         var inv = fp.getInventory();
         if (inv.getSelected().getItem() == item) return true;

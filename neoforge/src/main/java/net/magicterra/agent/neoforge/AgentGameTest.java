@@ -1587,6 +1587,67 @@ public final class AgentGameTest {
     }
 
     /**
+     * Migrated-process proof for the SERVER {@link ElytraProcess} — takeoff over a
+     * FakePlayer. Elytra cruise PHYSICS fidelity is the design's explicitly-deferred top
+     * risk, so this does NOT assert on trajectory; it proves the migrated process LOADS
+     * and runs on a dedicated server (no client-class-load trap — the de-clienting that
+     * the Avatar seam buys) and that {@code startFallFlying()} works server-side: an
+     * airborne FakePlayer with a usable elytra actually enters fall-flying, and the
+     * process drives several ticks without crashing the tick (a crash would crash-remove
+     * the driver → finished=false & active=0). The client flight path is unchanged
+     * (BotProcess bridge).
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverElytraArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 700, cz = 700, floorY = 200;
+        // A small pad far BELOW so the bot is airborne (onGround=false → can fall-fly);
+        // the goal is high so it doesn't immediately flare/land.
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+
+        boolean odbg = BotConfig.walkerDebug, oed = BotConfig.elytraDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.walkerDebug = false;
+        BotConfig.elytraDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 40, cz + 0.5);
+            FakePlayer fp = driver.fakePlayer();
+            fp.getInventory().clearContent();
+            fp.setItemSlot(net.minecraft.world.entity.EquipmentSlot.CHEST, new ItemStack(Items.ELYTRA));   // fresh wing (full durability)
+            // No fireworks: pure glide takeoff (boost needs a ticked firework entity).
+            driver.runProcess(new net.magicterra.agent.bot.process.ElytraProcess(
+                    new BlockPos(cx + 400, floorY + 40, cz), null, 0f, false, 0, 2000, 3.0, true));
+            ServerAgentManager.register(driver);
+
+            boolean flewAtSomePoint = false;
+            for (int t = 0; t < 60 && ServerAgentManager.activeCount() > 0; t++) {
+                ServerAgentManager.tickAll();
+                if (fp.isFallFlying()) flewAtSomePoint = true;
+            }
+            boolean crashed = !driver.finished() && ServerAgentManager.activeCount() == 0;
+            AgentDriverCommon.LOG.info("[serverElytraArena] flew={} pos=({},{},{}) finished={} active={} crashed={}",
+                    flewAtSomePoint, fp.getX(), fp.getY(), fp.getZ(),
+                    driver.finished(), ServerAgentManager.activeCount(), crashed);
+            if (crashed)
+                throw new GameTestAssertException("server ElytraProcess crashed the tick (driver removed unfinished)");
+            if (!flewAtSomePoint)
+                throw new GameTestAssertException("server ElytraProcess never entered fall-flying (startFallFlying failed)");
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            BotConfig.elytraDebug = oed;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
      * Phase 2 capability proof: a server-side FakePlayer (a ServerPlayer) has
      * full Player capability — it BREAKS and PLACES blocks with no client. The
      * {@link ServerPlayerAvatar} seam aims + breaks (level.destroyBlock via the

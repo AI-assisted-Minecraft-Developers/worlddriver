@@ -1,6 +1,6 @@
 package net.magicterra.agent.bot.process;
 
-import net.magicterra.agent.bot.movement.BotInput;
+import net.magicterra.agent.bot.movement.Avatar;
 
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
@@ -11,9 +11,6 @@ import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
 import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
-import net.minecraft.client.KeyMapping;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.BlockTags;
@@ -46,13 +43,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static net.magicterra.agent.bot.movement.ClutchController.CLUTCH;
-import static net.magicterra.agent.bot.util.BotInteract.*;
 import static net.magicterra.agent.bot.util.BotUtil.*;
 import java.util.Locale;
 import static net.magicterra.agent.AgentDriverCommon.LOG;
 import net.minecraft.world.effect.MobEffects;
-import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket;
 import net.magicterra.agent.bot.elytra.ElytraPathfinder;
 
 public final class ElytraProcess implements BotProcess {
@@ -151,8 +145,8 @@ public final class ElytraProcess implements BotProcess {
         st.elytra.lastError = null;
     }
 
-    public boolean tick(Minecraft mc, WorldView w, BotState st) {
-        LocalPlayer p = mc.player;
+    public boolean tick(Avatar a, WorldView w, BotState st) {
+        Player p = a.player();
         if (p == null) { st.elytra.lastError = "player vanished"; st.elytra.reset(); return true; }
 
         if (phase == Phase.TAKEOFF) {
@@ -164,22 +158,20 @@ public final class ElytraProcess implements BotProcess {
                         && chest.getMaxDamage() > 0 && chest.getDamageValue() < chest.getMaxDamage() - 1;
                 if (!flyable) {
                     st.elytra.lastError = "no usable elytra in chest slot";
-                    releaseKeys(); st.elytra.reset(); return true;
+                    a.releaseInputs(); st.elytra.reset(); return true;
                 }
                 if (p.onGround()) {
-                    BotInput.jump(mc, true);          // jump to leave the ground
+                    a.commandJump(true);          // jump to leave the ground
                 } else {
-                    BotInput.jump(mc, false);
-                    if (p.tryToStartFallFlying()) {
-                        p.connection.send(new ServerboundPlayerCommandPacket(
-                                p, ServerboundPlayerCommandPacket.Action.START_FALL_FLYING));
+                    a.commandJump(false);
+                    if (a.startFallFlying()) {
                         phase = Phase.FLYING;
                     }
                 }
                 if (phase == Phase.TAKEOFF) {
                     if (++takeoffTicks > TAKEOFF_TIMEOUT) {
                         st.elytra.lastError = "takeoff failed (never started fall-flying)";
-                        releaseKeys(); st.elytra.reset(); return true;
+                        a.releaseInputs(); st.elytra.reset(); return true;
                     }
                     return false;                              // still arming
                 }
@@ -187,7 +179,7 @@ public final class ElytraProcess implements BotProcess {
         }
 
         // --- FLYING ---
-        BotInput.jump(mc, false);
+        a.commandJump(false);
         if (!p.isFallFlying()) {                               // wing closed / landed / no room
             // If this happened mid-air (wing broke, ran out of room) the
             // always-on water-bucket clutch — which deliberately stands down
@@ -201,7 +193,7 @@ public final class ElytraProcess implements BotProcess {
                             "[elytra] flight ended airborne at y={} — handing fall to the clutch",
                             f(p.getY()));
             }
-            releaseKeys(); st.elytra.reset(); return true;
+            a.releaseInputs(); st.elytra.reset(); return true;
         }
 
         Vec3 curVel = p.getDeltaMovement();
@@ -286,7 +278,7 @@ public final class ElytraProcess implements BotProcess {
                 boolean lowSlow = aboveGround <= 5.0 && hSpeed < 0.7;
                 boolean hoverNoGround = gGoal == Integer.MIN_VALUE && landDist <= LANDING_APPROACH && hSpeed < 0.3;
                 if (p.onGround() || lowSlow || hoverNoGround || landDist <= Math.max(stopXZDist, 2.5)) {
-                    releaseKeys(); st.elytra.reset(); return true;
+                    a.releaseInputs(); st.elytra.reset(); return true;
                 }
             } else {
                 // Plan-as-you-fly (E): aim at the real goal once it's loaded,
@@ -336,8 +328,8 @@ public final class ElytraProcess implements BotProcess {
                 float yaw = smoothAngle(prevYaw, rawYaw);
                 p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw;
                 p.setXRot(d.pitch());
-                if (d.fire() && ensureHolding(mc, Items.FIREWORK_ROCKET)) {
-                    InteractionResult r = mc.gameMode.useItem(p, InteractionHand.MAIN_HAND);
+                if (d.fire() && a.holdItem(Items.FIREWORK_ROCKET)) {
+                    InteractionResult r = a.useItemInHand();
                     if (r.consumesAction()) { p.swing(InteractionHand.MAIN_HAND); controller.onFired(); }
                 }
                 st.elytra.pathLen = (int) Math.round(goalDist);
@@ -351,7 +343,7 @@ public final class ElytraProcess implements BotProcess {
                             boostOk, f(knownFwd), frontierMode, f(curVel.length()),
                             f(p.getHealth()), p.horizontalCollision);
                 if (onFinal && goalDist <= Math.max(stopXZDist, 2.5)) {
-                    releaseKeys(); st.elytra.reset(); return true;
+                    a.releaseInputs(); st.elytra.reset(); return true;
                 }
             }
         } else {
@@ -367,8 +359,8 @@ public final class ElytraProcess implements BotProcess {
 
             // Firework boost policy.
             if (useFireworks && sinceFirework >= fireworkEveryTicks
-                    && ensureHolding(mc, Items.FIREWORK_ROCKET)) {
-                InteractionResult r = mc.gameMode.useItem(p, InteractionHand.MAIN_HAND);
+                    && a.holdItem(Items.FIREWORK_ROCKET)) {
+                InteractionResult r = a.useItemInHand();
                 if (r.consumesAction()) { p.swing(InteractionHand.MAIN_HAND); sinceFirework = 0; }
             } else if (sinceFirework < Integer.MAX_VALUE) {
                 sinceFirework++;
@@ -386,13 +378,13 @@ public final class ElytraProcess implements BotProcess {
                 double dx = (target.getX() + 0.5) - p.getX(), dz = (target.getZ() + 0.5) - p.getZ();
                 if (Math.sqrt(dx * dx + dz * dz) <= stopXZDist) {
                     if (BotConfig.elytraDebug) logSummary();
-                    releaseKeys(); st.elytra.reset(); return true;
+                    a.releaseInputs(); st.elytra.reset(); return true;
                 }
             }
         }
         if (++ticks > maxTicks) {
             if (BotConfig.elytraDebug) logSummary();
-            releaseKeys(); st.elytra.reset(); return true;
+            a.releaseInputs(); st.elytra.reset(); return true;
         }
         return false;
     }

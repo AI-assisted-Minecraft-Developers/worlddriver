@@ -89,7 +89,7 @@ public final class ElytraController {
 
     record Decision(float pitch, boolean fire) {}
 
-    Decision decide(WorldView w, LocalPlayer p, Vec3 vel, float yaw, Vec3 goal, boolean fireworksAllowed) {
+    Decision decide(WorldView w, Player p, Vec3 vel, float yaw, Vec3 goal, boolean fireworksAllowed) {
         return decide(w, p, vel, yaw, goal, fireworksAllowed, false);
     }
 
@@ -97,7 +97,7 @@ public final class ElytraController {
      *  prefer the slowest-ending one (bleed speed) while STILL avoiding
      *  terrain. The previous flare used a blind fixed pitch with no lookahead,
      *  which crashed into rising ground on the final approach. */
-    Decision decide(WorldView w, LocalPlayer p, Vec3 vel, float yaw, Vec3 goal,
+    Decision decide(WorldView w, Player p, Vec3 vel, float yaw, Vec3 goal,
                     boolean fireworksAllowed, boolean landing) {
         if (boostRemaining > 0) boostRemaining--;
         if (sinceFire < Integer.MAX_VALUE) sinceFire++;

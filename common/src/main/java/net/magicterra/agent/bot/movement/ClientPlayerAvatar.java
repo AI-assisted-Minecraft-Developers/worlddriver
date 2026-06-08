@@ -70,6 +70,22 @@ public final class ClientPlayerAvatar implements Avatar {
     @Override public void closeContainer() { BotInteract.closeContainer(mc); }
     @Override public boolean holdItem(net.minecraft.world.item.Item item) { return BotInteract.ensureHolding(mc, item); }
 
+    @Override public boolean startFallFlying() {
+        if (p == null) return false;
+        if (p.tryToStartFallFlying()) {
+            if (p.connection != null)
+                p.connection.send(new net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket(
+                        p, net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket.Action.START_FALL_FLYING));
+            return true;
+        }
+        return false;
+    }
+    @Override public net.minecraft.world.InteractionResult useItemInHand() {
+        return mc.gameMode != null && p != null
+                ? mc.gameMode.useItem(p, net.minecraft.world.InteractionHand.MAIN_HAND)
+                : net.minecraft.world.InteractionResult.PASS;
+    }
+
     @Override public BodyCapabilities capabilities() { return BodyCapabilities.PLAYER; }
 
     @Override public boolean dbgForwardImpulse() { return p.input.forwardImpulse != 0; }
