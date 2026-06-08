@@ -7,6 +7,8 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import net.magicterra.agent.neoforge.sim.ServerPlayerAvatar;
+import net.magicterra.agent.neoforge.sim.ServerAgentDriver;
+import net.magicterra.agent.neoforge.sim.ServerAgentManager;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.movement.Walker;
@@ -757,6 +759,67 @@ public final class AgentGameTest {
             BotConfig.walkerDebug = odbg;
             BotConfig.pathfinderSliceMs = osl;
             BotConfig.pathfinderMaxMs = omm;
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Phase 2 end-to-end: a fully SERVER-SIDE agent (no client) driven through
+     * the {@link ServerAgentManager} registry — the same {@link #tickAll} entry
+     * the live {@code ServerTickEvent} calls. A {@link ServerAgentDriver} steers
+     * a FakePlayer across a flat slab and UP a +1 ledge to a Block goal. Proves
+     * the headless driving loop + the registry lifecycle: register → ticked by
+     * the manager → reaches → auto-unregisters. (Movement is the Phase-2 slice;
+     * the FakePlayer already has full Player capability for later task processes.)
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverDriverArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 380, cz = 380, floorY = 220;
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dz = -1; dz <= 10; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+        // +1 ledge for the back half → exercises walk + stepUp via the server driver.
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dz = 6; dz <= 10; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 1, cz + dz), Blocks.STONE.defaultBlockState());
+        BlockPos goal = new BlockPos(cx, floorY + 2, cz + 9);   // foot on the ledge
+
+        boolean odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            driver.gotoGoal(new Goal.Block(goal));
+            ServerAgentManager.register(driver);
+            if (ServerAgentManager.activeCount() != 1)
+                throw new GameTestAssertException("driver failed to register");
+
+            // Drive via the SAME entry point the server tick uses.
+            for (int t = 0; t < 200 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            FakePlayer fp = driver.fakePlayer();
+            boolean reached = Math.abs(fp.getX() - (cx + 0.5)) < 1.5
+                    && Math.abs(fp.getZ() - (cz + 9 + 0.5)) < 1.5
+                    && fp.getY() >= floorY + 2 - 0.4;
+            AgentDriverCommon.LOG.info("[serverDriverArena] step={} pos=({},{},{}) finished={} active={} reached={}",
+                    driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(),
+                    driver.finished(), ServerAgentManager.activeCount(), reached);
+            if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                throw new GameTestAssertException("server driver did not finish + auto-unregister: finished="
+                        + driver.finished() + " active=" + ServerAgentManager.activeCount());
+            if (!reached)
+                throw new GameTestAssertException("server-driven agent did not reach the goal: pos=("
+                        + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + driver.lastStep());
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            ServerAgentManager.clear();
         }
         helper.succeed();
     }

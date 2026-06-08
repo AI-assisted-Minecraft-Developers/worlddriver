@@ -46,7 +46,10 @@ public final class AgentDriverNeoForge {
     public void onRegisterCommands(RegisterCommandsEvent event) { AgentDriverCommon.registerCommands(event.getDispatcher()); }
 
     @SubscribeEvent
-    public void onServerTick(ServerTickEvent.Post event) { AgentEvents.fireTick(); }
+    public void onServerTick(ServerTickEvent.Post event) {
+        AgentEvents.fireTick();
+        net.magicterra.agent.neoforge.sim.ServerAgentManager.tickAll();   // Phase 2: drive server-side FakePlayer agents
+    }
 
     // LOWEST priority: run after all other handlers so cancellations have settled
     // before we record the break. Cancellable event fires PRE-destruction, so this
