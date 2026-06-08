@@ -13,6 +13,7 @@ import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.process.GotoProcess;
 import net.magicterra.agent.bot.process.BboxFillProcess;
 import net.magicterra.agent.bot.process.BuildProcess;
+import net.magicterra.agent.bot.process.FollowProcess;
 import net.magicterra.agent.bot.process.MineProcess;
 import net.magicterra.agent.bot.process.RunAwayProcess;
 import net.magicterra.agent.bot.process.Schematic;
@@ -1160,6 +1161,62 @@ public final class AgentGameTest {
                         + target.toShortString() + " look=" + (look == null ? "null" : look.toShortString()));
         } finally {
             ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Phase 3 proof: the SERVER runs the REAL {@link FollowProcess} over a FakePlayer
+     * — the entity-sensing path. FollowProcess now scans via Level.getEntities (an
+     * EntityGetter API that works on ClientLevel AND ServerLevel) instead of the
+     * client-only entitiesForRendering(). Spawns a (static) armor stand 8 east and
+     * follows type=armor_stand; assert the bot closes to within the follow radius.
+     * (Follow runs until cancelled, so we tick a fixed window then check distance.)
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverFollowArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 800, cz = 800, floorY = 220;
+        for (int dx = -2; dx <= 12; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+        var stand = new net.minecraft.world.entity.decoration.ArmorStand(level, cx + 8 + 0.5, floorY + 1, cz + 0.5);
+        stand.setNoGravity(true);
+        level.addFreshEntity(stand);
+        // ServerAgentManager.tickAll() drives the bot but does NOT tick the level,
+        // so a freshly-added entity isn't indexed into the entity-section lookup
+        // (getEntities) until the level processes it. Tick the level a few times to
+        // index the stand (a live server does this every tick).
+        for (int i = 0; i < 3; i++) level.tick(() -> true);
+
+        boolean odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            driver.runProcess(new FollowProcess("minecraft:armor_stand", null, 2, 0));
+            ServerAgentManager.register(driver);
+
+            for (int t = 0; t < 200 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            FakePlayer fp = driver.fakePlayer();
+            double dx = fp.getX() - (cx + 8 + 0.5), dz = fp.getZ() - (cz + 0.5);
+            double dist = Math.sqrt(dx * dx + dz * dz);
+            boolean closed = dist <= 3.0;   // follow radius 2 + slack
+            AgentDriverCommon.LOG.info("[serverFollowArena] pos=({},{},{}) standDist={} closed={}",
+                    fp.getX(), fp.getY(), fp.getZ(), dist, closed);
+            if (!closed)
+                throw new GameTestAssertException("server FollowProcess did not close on the armor stand: dist=" + dist);
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            ServerAgentManager.clear();
+            stand.discard();
         }
         helper.succeed();
     }

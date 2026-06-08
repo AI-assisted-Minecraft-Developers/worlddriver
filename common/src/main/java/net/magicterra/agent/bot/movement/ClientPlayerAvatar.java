@@ -51,6 +51,9 @@ public final class ClientPlayerAvatar implements Avatar {
     @Override public void place(WorldView w, BlockPos cell) { BotInteract.walkerPlace(mc, p, w, cell); }
     @Override public void placeOn(BlockPos cell, Direction face) { BotInteract.clientUseItemOn(mc, p, cell, face); }
     @Override public void breakHold(boolean v) { mc.options.keyAttack.setDown(v); }
+    @Override public void attackEntity(net.minecraft.world.entity.Entity target) {
+        if (mc.gameMode != null && p != null) mc.gameMode.attack(p, target);
+    }
     @Override public boolean breakHeld() { return mc.options.keyAttack.isDown(); }
 
     @Override public BodyCapabilities capabilities() { return BodyCapabilities.PLAYER; }

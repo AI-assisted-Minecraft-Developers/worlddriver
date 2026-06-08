@@ -6,6 +6,7 @@ import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.elytra.ElytraPhysics;
+import net.magicterra.agent.bot.movement.Avatar;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
@@ -81,16 +82,16 @@ public final class FollowProcess implements BotProcess {
         st.follow.lastError = null;
     }
 
-    public boolean tick(Minecraft mc, WorldView w, BotState st) {
-        LocalPlayer p = mc.player;
-        Level lvl = mc.level;
-        if (p == null || lvl == null) { st.follow.reset(); return true; }
+    @Override public boolean tick(Avatar a, WorldView w, BotState st) {
+        Player p = a.player();
+        if (p == null) { st.follow.reset(); return true; }
+        Level lvl = p.level();
         Entity target = findTarget(lvl, p);
         if (target == null) {
             // No target visible — clear keys and idle. If maxIdleTicks set and
             // exceeded, finish gracefully so the LLM can poll and react.
-            BotInput.forward(mc, false);
-            BotInput.jump(mc, false);
+            a.commandForward(0f);
+            a.commandJump(false);
             p.setSprinting(false);
             if (maxIdleTicks > 0 && ++idleTicks > maxIdleTicks) {
                 st.follow.lastError = "target not seen for " + maxIdleTicks + " ticks";
@@ -111,7 +112,7 @@ public final class FollowProcess implements BotProcess {
         }
         ticksSinceReplan++;
         st.follow.target = tBlock;
-        Walker.Step s = walker.tick(mc, w);
+        Walker.Step s = walker.tick(a, w);
         st.follow.pathLen = walker.pathLen();
         st.follow.pathStep = walker.pathStep();
         if (s == Walker.Step.FAILED) {
@@ -128,8 +129,8 @@ public final class FollowProcess implements BotProcess {
             // camera tracks it (a tracking shot). The Walker owns yaw while
             // moving; here, idle, we point at the entity. smoothAngle pans
             // when smoothLook is on and snaps when off.
-            BotInput.forward(mc, false);
-            BotInput.jump(mc, false);
+            a.commandForward(0f);
+            a.commandJump(false);
             p.setSprinting(false);
             aimAtEntity(p, target);
             consecutiveFails = 0;
@@ -141,7 +142,7 @@ public final class FollowProcess implements BotProcess {
 
     /** Point head+body yaw and pitch at the entity's mid-height, via
      *  {@link #smoothAngle} so it honors the smoothLook toggle. */
-    private static void aimAtEntity(LocalPlayer p, Entity e) {
+    private static void aimAtEntity(Player p, Entity e) {
         Vec3 eye = p.getEyePosition();
         double dx = e.getX() - eye.x;
         double dy = (e.getY() + e.getBbHeight() * 0.5) - eye.y;
@@ -153,11 +154,14 @@ public final class FollowProcess implements BotProcess {
         p.setYRot(ny); p.yHeadRot = ny; p.yBodyRot = ny; p.setXRot(np);
     }
 
-    private Entity findTarget(Level lvl, LocalPlayer self) {
-        if (!(lvl instanceof ClientLevel cl)) return null;
+    private Entity findTarget(Level lvl, Player self) {
         double bestDist = Double.POSITIVE_INFINITY;
         Entity best = null;
-        for (Entity e : cl.entitiesForRendering()) {
+        // Level.getEntities (EntityGetter) works on BOTH ClientLevel and ServerLevel,
+        // unlike the client-only entitiesForRendering() — a generous AABB stands in
+        // for "all loaded entities near us".
+        AABB box = self.getBoundingBox().inflate(96.0);
+        for (Entity e : lvl.getEntities(self, box, x -> true)) {
             if (e == self) continue;
             if (name != null) {
                 String n = e.getName().getString();

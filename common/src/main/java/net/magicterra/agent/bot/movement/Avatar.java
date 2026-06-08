@@ -66,6 +66,10 @@ public interface Avatar {
     void placeOn(BlockPos cell, Direction face);
     /** Hold/release the break action. */
     void breakHold(boolean v);
+    /** Melee-attack {@code target} — the vanilla left-click-on-entity path that
+     *  applies weapon damage / sweep / knockback / crit. Client routes through
+     *  {@code gameMode.attack}; server calls {@code Player.attack} directly. */
+    void attackEntity(net.minecraft.world.entity.Entity target);
     /** Whether the break action is currently held (debug). */
     boolean breakHeld();
 

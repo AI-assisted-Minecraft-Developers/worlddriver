@@ -129,6 +129,10 @@ public final class ServerPlayerAvatar implements Avatar {
 
     @Override public boolean breakHeld() { return breakHeld; }
 
+    @Override public void attackEntity(net.minecraft.world.entity.Entity target) {
+        fp.attack(target);   // server-authoritative: applies damage/knockback/crit directly
+    }
+
     @Override public BodyCapabilities capabilities() { return BodyCapabilities.PLAYER; }
 
     @Override public boolean dbgForwardImpulse() { return pendingForward != 0; }
