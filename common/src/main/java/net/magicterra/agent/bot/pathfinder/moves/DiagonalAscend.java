@@ -18,6 +18,32 @@ import net.minecraft.core.BlockPos;
  */
 public final class DiagonalAscend extends Move {
     public DiagonalAscend(int dx, int dz) { super(dx, 1, dz, 19); }
+
+    /** Buoyant-wall bob fix (mini-project): a diagonal sprint-jump UP whose miss
+     *  would drop the bot into WATER lands imprecisely on the placed staircase
+     *  and bobs the bot back (the +5 buoyant-wall thrash). Penalise it heavily
+     *  when water sits below within a survivable-fall depth, so A* climbs OUT of
+     *  water with a stable vertical {@link PillarUp} (in-column — can't slide off
+     *  the side) instead of a diagonal staircase over the water. Dry diagonals
+     *  keep the base cost. */
+    @Override
+    public Move.Edge eval(WorldView w, BlockPos from) {
+        if (!valid(w, from)) return null;
+        double c = cost;
+        if (waterBelow(w, from, 6)) c += 200;
+        return new Move.Edge(apply(from), c, java.util.List.of(), java.util.List.of(), name());
+    }
+
+    private static boolean waterBelow(WorldView w, BlockPos from, int depth) {
+        // Scan THROUGH solids: a placed diagonal staircase has a solid support
+        // directly below each rung, but the water it bridges over sits a few
+        // cells further down — stopping at the first solid would read the
+        // over-water staircase as "dry" and never redirect it.
+        for (int dy = 1; dy <= depth; dy++)
+            if (w.isWater(from.offset(0, -dy, 0))) return true;
+        return false;
+    }
+
     public boolean valid(WorldView w, BlockPos from) {
         BlockPos to = apply(from);
         if (!w.canStandAt(to)) return false;

@@ -489,6 +489,13 @@ public final class AgentGameTest {
                 throw new GameTestAssertException("BUOYANT +5 wall: Walker failed to mount from water: pos=("
                         + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY
                         + " everDry=" + everDry + " step=" + s);
+            // Smoothness gate: the over-water diagUp-penalty makes A* climb out with
+            // a stable vertical pillar (DiagonalAscend.waterBelow), cutting the
+            // waterline bob from ~348 ticks to ~44. Lock that in — a regression to
+            // the diagonal-staircase thrash would blow past this ceiling.
+            if (bobTicks > 120)
+                throw new GameTestAssertException("buoyant climb bobbed " + bobTicks
+                        + " ticks at the waterline (expected ~44; >120 = diagonal-staircase thrash regressed)");
         } finally {
             BotConfig.allowBreak = ob;
             BotConfig.allowPlace = op;
