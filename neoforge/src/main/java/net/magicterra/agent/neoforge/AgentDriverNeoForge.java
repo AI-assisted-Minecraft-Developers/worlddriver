@@ -43,7 +43,10 @@ public final class AgentDriverNeoForge {
     public void onServerStopping(ServerStoppingEvent event) { AgentDriverCommon.onServerStopping(); }
 
     @SubscribeEvent
-    public void onRegisterCommands(RegisterCommandsEvent event) { AgentDriverCommon.registerCommands(event.getDispatcher()); }
+    public void onRegisterCommands(RegisterCommandsEvent event) {
+        AgentDriverCommon.registerCommands(event.getDispatcher());
+        net.magicterra.agent.neoforge.sim.ServerAgentCommand.register(event.getDispatcher());   // Phase 2: /agentserver
+    }
 
     @SubscribeEvent
     public void onServerTick(ServerTickEvent.Post event) {
