@@ -479,8 +479,16 @@ public final class AgentApi {
         onServerThread(() -> {
             BlockPos origin = ORIGIN;
             BlockState air = Blocks.AIR.defaultBlockState();
+            // Clear up to dy=12 (origin.y+12): the YAML-gametest validation cells
+            // live at origin.y+6..+10 (34_yaml_gametest.js inline @ +6/+7/+8,
+            // smoke_place_observe.yaml @ +10) — ABOVE the old +5 ceiling. Because
+            // the GameTest world PERSISTS across runs, any block left up there
+            // (a one-off restore hiccup, or world-gen residue) was never wiped by
+            // the seed and poisoned the next run's "cell is air before the run"
+            // precondition forever (the long-standing 34_yaml flake). Clearing the
+            // full vertical extent the suite uses makes every run self-healing.
             for (int dx = -4; dx <= 4; dx++)
-                for (int dy = -1; dy <= 5; dy++)
+                for (int dy = -1; dy <= 12; dy++)
                     for (int dz = -4; dz <= 4; dz++)
                         level.setBlockAndUpdate(origin.offset(dx, dy, dz), air);
             BlockState stone = Blocks.STONE.defaultBlockState();
