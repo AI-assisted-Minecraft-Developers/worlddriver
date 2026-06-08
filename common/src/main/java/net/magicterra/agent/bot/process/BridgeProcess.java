@@ -6,6 +6,7 @@ import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.elytra.ElytraPhysics;
+import net.magicterra.agent.bot.movement.Avatar;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
@@ -79,11 +80,10 @@ public final class BridgeProcess implements BotProcess {
         st.builder.lastError = null;
     }
 
-    public boolean tick(Minecraft mc, WorldView w, BotState st) {
-        LocalPlayer p = mc.player;
+    @Override public boolean tick(Avatar a, WorldView w, BotState st) {
+        Player p = a.player();
         if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
-        Level lvl = mc.level;
-        if (lvl == null) return false;
+        Level lvl = p.level();
         BlockPos foot = new BlockPos((int) Math.floor(p.getX()),
                                      (int) Math.floor(p.getY()),
                                      (int) Math.floor(p.getZ()));
@@ -96,26 +96,26 @@ public final class BridgeProcess implements BotProcess {
         if (progress >= distance) {
             st.builder.lastError = "done (placed=" + placed + ", progress=" + progress + ")";
             st.builder.reset();
-            releaseKeys();
+            a.releaseInputs();
             return true;
         }
         if (progress > lastProgress) { lastProgress = progress; stuckTicks = 0; }
         else if (++stuckTicks > STUCK_TICKS) {
             st.builder.lastError = "stuck (no XZ progress in " + STUCK_TICKS + "t — out of blocks or blocked)";
             st.builder.reset();
-            releaseKeys();
+            a.releaseInputs();
             return true;
         }
 
-        if (!TowerProcess.ensureHoldingPlaceable(mc, preferredBlockId)) {
+        if (!TowerProcess.ensureHoldingPlaceable(a, preferredBlockId)) {
             st.builder.lastError = "no placeable block in hotbar";
             st.builder.reset();
-            releaseKeys();
+            a.releaseInputs();
             return true;
         }
 
         // Sneak always — prevents falling off the bridge edge.
-        BotInput.sneak(mc, true);
+        a.commandSneak(true);
         p.setShiftKeyDown(true);
 
         // Always face the travel direction.
@@ -135,14 +135,14 @@ public final class BridgeProcess implements BotProcess {
                 if (!aheadSupportSolid) {
                     // Reached an edge — switch to PLACING. Release walk
                     // input so we don't drift off while we turn around.
-                    BotInput.forward(mc, false);
+                    a.commandForward(0f);
                     phase = Phase.PLACING;
                     return false;
                 }
-                BotInput.forward(mc, true);
+                a.commandForward(1f);
             }
             case PLACING -> {
-                BotInput.forward(mc, false);
+                a.commandForward(0f);
                 if (aheadSupportSolid) {
                     // Either the previous place succeeded, or the world
                     // moved under us — resume walking.
@@ -157,12 +157,12 @@ public final class BridgeProcess implements BotProcess {
                 if (!lvl.getBlockState(currentSupport).blocksMotion()) {
                     st.builder.lastError = "no support under feet (fell off?)";
                     st.builder.reset();
-                    releaseKeys();
+                    a.releaseInputs();
                     return true;
                 }
                 // Look slightly down and toward the forward face.
                 p.setXRot(45f);
-                clientUseItemOn(mc, p, currentSupport, face);
+                a.placeOn(currentSupport, face);
                 placed++;
                 // Stay in PLACING; next tick checks aheadSupportSolid again
                 // and either switches back to WALKING (success) or retries.

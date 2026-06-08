@@ -6,6 +6,7 @@ import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.elytra.ElytraPhysics;
+import net.magicterra.agent.bot.movement.Avatar;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
@@ -78,10 +79,10 @@ public final class BackfillProcess implements BotProcess {
         st.builder.lastError = null;
     }
 
-    public boolean tick(Minecraft mc, WorldView w, BotState st) {
-        LocalPlayer p = mc.player;
-        Level lvl = mc.level;
-        if (p == null || lvl == null) { st.builder.reset(); return true; }
+    @Override public boolean tick(Avatar a, WorldView w, BotState st) {
+        Player p = a.player();
+        if (p == null) { st.builder.reset(); return true; }
+        Level lvl = p.level();
         BlockPos playerFoot = new BlockPos((int) Math.floor(p.getX()), (int) Math.floor(p.getY()), (int) Math.floor(p.getZ()));
 
         switch (phase) {
@@ -93,7 +94,7 @@ public final class BackfillProcess implements BotProcess {
                     return true;
                 }
                 String blockId = BotConfig.autoBackfillBlock;
-                if (!ensureHoldingBlock(mc, blockId)) {
+                if (!ensureHoldingBlock(a, blockId)) {
                     failed.add(pick);
                     return false;
                 }
@@ -110,8 +111,7 @@ public final class BackfillProcess implements BotProcess {
                 phase = Phase.GOING;
             }
             case GOING -> {
-                mc.options.keyUse.setDown(false);
-                Walker.Step s = walker.tick(mc, w);
+                Walker.Step s = walker.tick(a, w);
                 st.builder.pathLen = walker.pathLen();
                 st.builder.pathStep = walker.pathStep();
                 if (s == Walker.Step.FAILED) {
@@ -128,9 +128,9 @@ public final class BackfillProcess implements BotProcess {
                 }
             }
             case PLACING -> {
-                BotInput.jump(mc, false);
+                a.commandJump(false);
                 p.setSprinting(false);
-                BotInput.sneak(mc, true);
+                a.commandSneak(true);
                 p.setShiftKeyDown(true);
                 faceSupportFor(p, currentBlock, currentFace);
                 // Approach-center gate (mirror of BuildProcess fix):
@@ -144,10 +144,10 @@ public final class BackfillProcess implements BotProcess {
                     p.setYRot(yaw);
                     p.yHeadRot = yaw;
                     p.yBodyRot = yaw;
-                    BotInput.forward(mc, true);
+                    a.commandForward(1f);
                     return false;
                 }
-                BotInput.forward(mc, false);
+                a.commandForward(0f);
                 faceSupportFor(p, currentBlock, currentFace);
                 BlockPos support = new BlockPos(
                         currentBlock.getX() - currentFace.getStepX(),
@@ -159,7 +159,7 @@ public final class BackfillProcess implements BotProcess {
                     else if (!p.isCrouching()) return false;
                 }
                 if (placeTicks == 2 || (placeTicks - 2) % 5 == 0) {
-                    clientUseItemOn(mc, p, support, currentFace);
+                    a.placeOn(support, currentFace);
                 }
                 placeTicks++;
                 BlockState now = lvl.getBlockState(currentBlock);
@@ -168,14 +168,14 @@ public final class BackfillProcess implements BotProcess {
                     tracker.remove(currentBlock);
                     currentBlock = null;
                     phase = Phase.NEXT;
-                    BotInput.sneak(mc, false);
+                    a.commandSneak(false);
                     p.setShiftKeyDown(false);
                 } else if (placeTicks > PLACE_TIMEOUT_TICKS) {
                     failed.add(currentBlock);
                     tracker.remove(currentBlock);
                     currentBlock = null;
                     phase = Phase.NEXT;
-                    BotInput.sneak(mc, false);
+                    a.commandSneak(false);
                     p.setShiftKeyDown(false);
                 }
             }
@@ -250,18 +250,15 @@ public final class BackfillProcess implements BotProcess {
         return true;
     }
 
-    private boolean ensureHoldingBlock(Minecraft mc, String blockId) {
-        LocalPlayer p = mc.player;
+    private boolean ensureHoldingBlock(Avatar a, String blockId) {
+        Player p = a.player();
         if (p == null) return false;
         Inventory inv = p.getInventory();
         ItemStack held = inv.getSelected();
         if (matchesItem(held, blockId)) return true;
         for (int slot = 0; slot < 9; slot++) {
             if (matchesItem(inv.items.get(slot), blockId)) {
-                inv.selected = slot;
-                if (p.connection != null) {
-                    p.connection.send(new ServerboundSetCarriedItemPacket(slot));
-                }
+                a.setSelectedSlot(slot);
                 return true;
             }
         }
@@ -284,7 +281,7 @@ public final class BackfillProcess implements BotProcess {
         return rl.toString().equals(blockId);
     }
 
-    private void faceSupportFor(LocalPlayer p, BlockPos block, Direction face) {
+    private void faceSupportFor(Player p, BlockPos block, Direction face) {
         BlockPos support = block.offset(-face.getStepX(), -face.getStepY(), -face.getStepZ());
         double tx = support.getX() + 0.5 + face.getStepX() * 0.5;
         double ty = support.getY() + 0.5 + face.getStepY() * 0.5;

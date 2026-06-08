@@ -32,6 +32,16 @@ public interface Avatar {
     void commandSneak(boolean v);
     /** Exempt this tick's heading from the cosmetic camera slew (no-op server-side). */
     void requestLookSnap();
+    /** Release all commanded locomotion (forward/sneak/jump) + the logical sneak
+     *  flag — the Avatar equivalent of the old client {@code releaseKeys()}, but it
+     *  drives only THIS player's own input (never the shared human keybinds), so a
+     *  process tearing down can't clobber a human's held keys. */
+    default void releaseInputs() {
+        commandForward(0);
+        commandSneak(false);
+        commandJump(false);
+        if (player() != null) player().setShiftKeyDown(false);
+    }
 
     // --- block interaction ---
     /** Ensure a solid-support BlockItem is in the main hand; false if none. */

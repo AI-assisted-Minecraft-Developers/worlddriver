@@ -6,6 +6,7 @@ import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.elytra.ElytraPhysics;
+import net.magicterra.agent.bot.movement.Avatar;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
@@ -87,8 +88,8 @@ public final class TowerProcess implements BotProcess {
         st.builder.lastError = null;
     }
 
-    public boolean tick(Minecraft mc, WorldView w, BotState st) {
-        LocalPlayer p = mc.player;
+    @Override public boolean tick(Avatar a, WorldView w, BotState st) {
+        Player p = a.player();
         if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
         int feetY = (int) Math.floor(p.getY());
         if (startFeetY == Integer.MIN_VALUE) { startFeetY = feetY; lastApexFloorY = feetY; }
@@ -103,30 +104,30 @@ public final class TowerProcess implements BotProcess {
         if (feetY >= targetY && p.onGround()) {
             st.builder.lastError = "done (placed=" + placed + ", feetY=" + feetY + ")";
             st.builder.reset();
-            releaseKeys();
+            a.releaseInputs();
             return true;
         }
         if (++stuckTicks > STUCK_TICKS && feetY <= lastApexFloorY) {
             st.builder.lastError = "stuck (no Y gain in " + STUCK_TICKS + "t — out of blocks?)";
             st.builder.reset();
-            releaseKeys();
+            a.releaseInputs();
             return true;
         }
         if (feetY > lastApexFloorY) { lastApexFloorY = feetY; stuckTicks = 0; }
 
         // Always hold the block; auto-pick a BlockItem from hotbar if none specified.
-        if (!ensureHoldingPlaceable(mc, preferredBlockId)) {
+        if (!ensureHoldingPlaceable(a, preferredBlockId)) {
             st.builder.lastError = "no placeable block in hotbar";
             st.builder.reset();
-            releaseKeys();
+            a.releaseInputs();
             return true;
         }
 
         switch (phase) {
             case READY -> {
                 if (!p.onGround()) return false;  // still falling / not landed
-                releaseKeys();
-                BotInput.jump(mc, true);
+                a.releaseInputs();
+                a.commandJump(true);
                 sinceJump = 0;
                 jumpFromY = feetY;               // cell we'll fill = the one we jump from
                 phase = Phase.JUMPING;
@@ -135,7 +136,7 @@ public final class TowerProcess implements BotProcess {
                 // Hold jump for one tick, then release.
                 if (sinceJump == 0) {
                     // jump key was set last tick; release now.
-                    BotInput.jump(mc, false);
+                    a.commandJump(false);
                 }
                 sinceJump++;
                 faceDown(p);
@@ -155,7 +156,7 @@ public final class TowerProcess implements BotProcess {
                 int sz = (int) Math.floor(p.getZ());
                 BlockPos support = new BlockPos(sx, jumpFromY - 1, sz);
                 faceDown(p);
-                clientUseItemOn(mc, p, support, Direction.UP);
+                a.placeOn(support, Direction.UP);
                 placed++;
                 phase = Phase.READY;
             }
@@ -164,13 +165,13 @@ public final class TowerProcess implements BotProcess {
         return false;
     }
 
-    private void faceDown(LocalPlayer p) {
+    private void faceDown(Player p) {
         p.setXRot(89.5f);
         // Keep yaw stable.
     }
 
-    public static boolean ensureHoldingPlaceable(Minecraft mc, String preferred) {
-        LocalPlayer p = mc.player;
+    public static boolean ensureHoldingPlaceable(Avatar a, String preferred) {
+        Player p = a.player();
         if (p == null) return false;
         Inventory inv = p.getInventory();
         ItemStack held = inv.getSelected();
@@ -178,9 +179,7 @@ public final class TowerProcess implements BotProcess {
             if (matchesItemId(held, preferred)) return true;
             for (int s = 0; s < 9; s++) {
                 if (matchesItemId(inv.items.get(s), preferred)) {
-                    inv.selected = s;
-                    if (p.connection != null) p.connection.send(
-                            new ServerboundSetCarriedItemPacket(s));
+                    a.setSelectedSlot(s);
                     return true;
                 }
             }
@@ -198,9 +197,7 @@ public final class TowerProcess implements BotProcess {
         if (isPlaceableBlockItem(held)) return true;
         for (int s = 0; s < 9; s++) {
             if (isPlaceableBlockItem(inv.items.get(s))) {
-                inv.selected = s;
-                if (p.connection != null) p.connection.send(
-                        new ServerboundSetCarriedItemPacket(s));
+                a.setSelectedSlot(s);
                 return true;
             }
         }
