@@ -1337,6 +1337,7 @@ public final class Walker {
         boolean dryStepUp = needJumpForStep && cardinalUp && upDy <= maxJumpUp
                 && !p.isInWater() && !parkourEdge;
         boolean ascendJumpReady = true;
+        boolean sprintAscend = false;
         if (dryStepUp) {
             int xA = wp.getX() != foot.getX() ? 1 : 0;
             int zA = wp.getZ() != foot.getZ() ? 1 : 0;
@@ -1344,11 +1345,23 @@ public final class Walker {
             double sideDist = zA * Math.abs((wp.getX() + 0.5) - p.getX()) + xA * Math.abs((wp.getZ() + 0.5) - p.getZ());
             Vec3 vel = p.getDeltaMovement();
             double lateralMotion = xA * vel.z + zA * vel.x;
-            // A/B-DISPROVEN (2026-06-06): jumping earlier (flatDist≤1.7) to clear the riser
-            // before contact regressed hCol 13-19%→24% / time 30s→37s vs the pivot-only fix —
-            // an early walk-jump lands SHORT of the step as often as it clears, re-approaching.
-            // Kept the close gate (1.2); the pivot-in-place fix is the validated stair win.
-            ascendJumpReady = Math.abs(lateralMotion) <= 0.1 && flatDist <= 1.2 && sideDist <= 0.2;
+            // SPRINT-BUNNY-HOP a cardinal +1 step (丝滑 stair climb). The deterministic
+            // ascentSpeedArena shows a gentle staircase costs ~40% speed: each step drops
+            // sprint + the in-place jump rams the riser + the body re-accelerates from ~0.
+            // Two levers were each A/B-disproven IN ISOLATION (2026-06-06): sprint + a LATE
+            // jump (flatDist≤1.2) rams the riser HARDER; an early jump (≤1.7) WITHOUT sprint
+            // lands short and re-approaches. TOGETHER they compose — the sprint forward-boost
+            // carries the EARLY launch up and OVER the riser onto the step with momentum
+            // intact, exactly how a vanilla player sprint-jumps stairs. Gate HARD on cross-
+            // axis alignment (square-up sideDist≤0.2, not drifting |lateralMotion|≤0.1) so the
+            // boosted launch flies straight at the step instead of bonking a corner; when
+            // aligned, jump EARLY (flatDist≤1.7) AND keep sprint (sprintAscend → sprint gate
+            // below). Misaligned → don't jump yet (the pivot/strafe centres first), matching
+            // the old square-up-before-jump discipline. The arena A/B (not noisy live terrain,
+            // which the prior disproofs used) is the gate for this.
+            boolean aligned = Math.abs(lateralMotion) <= 0.1 && sideDist <= 0.2;
+            sprintAscend = aligned;
+            ascendJumpReady = aligned && flatDist <= 1.7;
         }
         // Climbing a +1 ledge OUT OF a water film: buoyancy drifts the body off the
         // target column so the cardinal stepUp approach goes diagonal and forward
@@ -1534,7 +1547,7 @@ public final class Walker {
         // (live: parkourAscend2 frozen, hSpd=0, bobbing y82↔83). Let a parkour ascend sprint.
         boolean parkourAscend = parkourEdge && wp.getY() > foot.getY();
         boolean sprint = !bridging && !steppingOffFall && !steppingOffWaterFall
-                && !descendBrake && (!lethalNear || parkourAscend) && (!needJumpForStep || parkourAscend)   // !lethalNear (not !edgeBrake): never sprint NEAR a lethal edge — incl. a planned descent past it — so no drift/overshoot momentum off the lip while sneak is released for the step-down. Baritone doesn't sprint a jumped CARDINAL ascend (overshoots/bonks) but DOES sprint a parkour leap; a horse auto-walk-up keeps sprint
+                && !descendBrake && (!lethalNear || parkourAscend) && (!needJumpForStep || parkourAscend || sprintAscend)   // !lethalNear (not !edgeBrake): never sprint NEAR a lethal edge — incl. a planned descent past it — so no drift/overshoot momentum off the lip while sneak is released for the step-down. Baritone doesn't sprint a jumped CARDINAL ascend (overshoots/bonks) but DOES sprint a parkour leap; a horse auto-walk-up keeps sprint
                 // A/B-DISPROVEN (2026-06-06): re-enabling sprint on an aligned ascend (sprintableAscend)
                 // regressed hCol 13%→36% / mean hSpd .112→.082 — because the jump fires CLOSE to the riser
                 // (ascendJumpReady flatDist≤1.2), the sprint forward-boost rams the riser face HARDER instead

@@ -29,6 +29,7 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.neoforged.neoforge.common.util.FakePlayer;
 
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -760,6 +761,106 @@ public final class AgentGameTest {
             if (!atBottom)
                 throw new GameTestAssertException("descent crouch-deadlock: did not reach the bottom step: pos=("
                         + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + s);
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+        }
+        helper.succeed();
+    }
+
+    /**
+     * SMOOTHNESS gate (丝滑寻路): measures the real {@link Walker}'s average
+     * horizontal speed UP a gentle staircase vs across flat ground. Live client
+     * A/B (the fill-built course at z=-1245 in the Mountains world) localised the
+     * one remaining execution-layer deficit to ASCENDING stairs: flat ≈5.4 b/s
+     * (full sprint), but each +1 step cuts sprint, the non-sprint jump rams the
+     * riser (hCol), and the body re-accelerates from ~0 → ascent only ≈3.0 b/s.
+     * This arena mirrors that course server-side (6 steps, 2 blocks deep each,
+     * +1 y per step, flat run-up + flat top) so the deficit can be A/B-tuned
+     * headlessly. It LOGS ascent/flat b/s + sprint%/hCol% and asserts the bot
+     * reaches the top and keeps a minimum ascent speed (regression floor).
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void ascentSpeedArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 440, cz = 440, baseY = 210, stepCount = 6;
+        // Flat run-up (10 long), surface baseY → walk baseY+1.
+        for (int dx = -10; dx <= -1; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, baseY, cz + dz), Blocks.STONE.defaultBlockState());
+        // Ascending stairs: stepCount steps, each 2 blocks deep, +1 y per step.
+        // step i covers x = cx+2i .. cx+2i+1, surface = baseY+1+i.
+        for (int i = 0; i < stepCount; i++) {
+            int sy = baseY + 1 + i;
+            for (int dx = 2 * i; dx <= 2 * i + 1; dx++)
+                for (int dz = -2; dz <= 2; dz++)
+                    for (int y = baseY; y <= sy; y++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+        }
+        final int topSurf = baseY + stepCount;                 // = baseY+6
+        final int ascEndX = cx + 2 * stepCount - 1;            // last ascent block x = cx+11
+        // Flat top run-out, surface topSurf.
+        for (int dx = 2 * stepCount; dx <= 2 * stepCount + 12; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, topSurf, cz + dz), Blocks.STONE.defaultBlockState());
+        BlockPos goal = new BlockPos(cx + 2 * stepCount + 10, topSurf + 1, cz);  // stand on flat top
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = false;
+        BotConfig.allowPlace = false;
+        BotConfig.walkerDebug = false;                         // per-tick spam off; we sample pos ourselves
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx - 9 + 0.5, baseY + 1, cz + 0.5);
+            FakePlayer fp = av.fakePlayer();
+            grantWaterEffects(fp);
+            LevelWorldView w = new LevelWorldView(level, fp);
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.Block(goal));
+
+            // Per-tick samples: x, sprinting, horizontalCollision, in each zone.
+            int flatTicks = 0, ascTicks = 0;
+            double flatStartX = Double.NaN, flatEndX = 0, ascStartX = Double.NaN, ascEndXObs = 0;
+            int flatSprint = 0, ascSprint = 0, flatHcol = 0, ascHcol = 0;
+            Walker.Step s = Walker.Step.WALKING;
+            for (int t = 0; t < 500 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+                double x = fp.getX();
+                boolean spr = fp.isSprinting(), hc = fp.horizontalCollision;
+                if (x < cx) {                                   // flat run-up zone
+                    if (Double.isNaN(flatStartX)) flatStartX = x;
+                    flatEndX = x; flatTicks++;
+                    if (spr) flatSprint++; if (hc) flatHcol++;
+                } else if (x <= ascEndX + 1) {                  // ascending zone
+                    if (Double.isNaN(ascStartX)) ascStartX = x;
+                    ascEndXObs = x; ascTicks++;
+                    if (spr) ascSprint++; if (hc) ascHcol++;
+                }
+            }
+            double flatBps = flatTicks > 0 ? (flatEndX - flatStartX) / (flatTicks * 0.05) : 0;
+            double ascBps = ascTicks > 0 ? (ascEndXObs - ascStartX) / (ascTicks * 0.05) : 0;
+            int flatSprintPct = flatTicks > 0 ? 100 * flatSprint / flatTicks : 0;
+            int ascSprintPct = ascTicks > 0 ? 100 * ascSprint / ascTicks : 0;
+            int ascHcolPct = ascTicks > 0 ? 100 * ascHcol / ascTicks : 0;
+            boolean reachedTop = fp.getX() > ascEndX && fp.getY() >= topSurf + 1 - 0.4;
+            AgentDriverCommon.LOG.info(
+                    "[ascentSpeedArena] step={} pos=({},{},{}) reachedTop={} flatBps={} ascBps={} flatSprint%={} ascSprint%={} ascHcol%={} flatTicks={} ascTicks={}",
+                    s, String.format(Locale.ROOT, "%.1f", fp.getX()), String.format(Locale.ROOT, "%.1f", fp.getY()),
+                    String.format(Locale.ROOT, "%.1f", fp.getZ()), reachedTop,
+                    String.format(Locale.ROOT, "%.2f", flatBps), String.format(Locale.ROOT, "%.2f", ascBps),
+                    flatSprintPct, ascSprintPct, ascHcolPct, flatTicks, ascTicks);
+            if (!reachedTop)
+                throw new GameTestAssertException("ascentSpeedArena: did not reach the flat top: pos=("
+                        + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + s);
+            // Regression floor (set generously below the baseline; tightened after A/B).
+            if (ascBps < 1.5)
+                throw new GameTestAssertException("ascentSpeedArena: ascent speed collapsed to " + ascBps + " b/s");
         } finally {
             BotConfig.allowBreak = ob;
             BotConfig.allowPlace = op;
