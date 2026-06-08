@@ -531,6 +531,71 @@ public final class AgentGameTest {
         p.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, -1, 0, false, false));
     }
 
+    /**
+     * Regression guard for the descent crouch-deadlock fix (plannedDescent
+     * releases the lethal-edge sneak brake). A 1-wide staircase descends 12
+     * steps over a DEEP pit — every step has void (lethal drops) on both x
+     * sides, so {@code lethalDropAdjacent} fires the whole way down. Before the
+     * fix the edge-brake sneak pinned the bot in place (sneak-on, hCol=false,
+     * creeping ~0 b/s — the "速度陡降" stall); the fix releases sneak for the
+     * planned step-down so the bot descends. Asserts it reaches the bottom and
+     * never falls off the 1-wide stair into the pit.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void descentArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 100, cz = 100, pitFloorY = 180, topY = 220, steps = 12;
+        // Deep pit floor (a safety net far below — reaching it = fell off).
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= steps + 2; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, pitFloorY, cz + dz), Blocks.STONE.defaultBlockState());
+        // 1-wide descending staircase: one block per step, -1 y each +z, void on both sides.
+        for (int i = 0; i <= steps; i++)
+            level.setBlockAndUpdate(new BlockPos(cx, topY - i, cz + i), Blocks.STONE.defaultBlockState());
+        BlockPos goal = new BlockPos(cx, topY - steps + 1, cz + steps);   // stand on the last step
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = false;
+        BotConfig.allowPlace = false;
+        BotConfig.walkerDebug = true;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // deterministic (node-bounded) search
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, topY + 1, cz + 0.5);
+            FakePlayer fp = av.fakePlayer();
+            grantWaterEffects(fp);                          // resistance: a stray fall mustn't kill mid-test
+            LevelWorldView w = new LevelWorldView(level, fp);
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.Block(goal));
+
+            Walker.Step s = Walker.Step.WALKING;
+            double minY = fp.getY();
+            for (int t = 0; t < 400 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+                minY = Math.min(minY, fp.getY());
+            }
+            boolean fellInPit = minY <= pitFloorY + 2;
+            boolean atBottom = Math.abs(fp.getZ() - (cz + steps + 0.5)) < 1.5
+                    && Math.abs(fp.getY() - (topY - steps + 1)) < 1.5;
+            AgentDriverCommon.LOG.info("[descentArena] step={} pos=({},{},{}) minY={} fellInPit={} atBottom={}",
+                    s, fp.getX(), fp.getY(), fp.getZ(), minY, fellInPit, atBottom);
+            if (fellInPit)
+                throw new GameTestAssertException("descent fell off the 1-wide stair into the pit: minY=" + minY);
+            if (!atBottom)
+                throw new GameTestAssertException("descent crouch-deadlock: did not reach the bottom step: pos=("
+                        + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + s);
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+        }
+        helper.succeed();
+    }
+
     /** 11x11 solid floor at {@code floorY}, clear 5 above — a clean test slab. */
     private static void buildFloor(ServerLevel level, int cx, int cz, int floorY) {
         for (int dx = -5; dx <= 5; dx++)
