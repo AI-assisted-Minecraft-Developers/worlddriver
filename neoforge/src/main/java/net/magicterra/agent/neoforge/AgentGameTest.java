@@ -825,6 +825,59 @@ public final class AgentGameTest {
     }
 
     /**
+     * Phase 2 task proof: a server-side agent does a real task beyond movement —
+     * it navigates within reach of a target block and MINES it (no client). The
+     * {@link ServerAgentDriver#mine} mode reuses the Walker for navigation then
+     * the {@link ServerPlayerAvatar} break actuator. Driven through the
+     * {@link ServerAgentManager} (the live server-tick entry); asserts the block
+     * is gone and the task finishes + auto-unregisters.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverMineArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 460, cz = 460, floorY = 220;
+        buildFloor(level, cx, cz, floorY);
+        BlockPos target = new BlockPos(cx + 3, floorY + 1, cz);   // a block on the floor, away from the bot
+        level.setBlockAndUpdate(target, Blocks.STONE.defaultBlockState());
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = false;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx - 3 + 0.5, floorY + 1, cz + 0.5);
+            driver.mine(target);
+            ServerAgentManager.register(driver);
+            for (int t = 0; t < 200 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            boolean mined = level.getBlockState(target).isAir();
+            FakePlayer fp = driver.fakePlayer();
+            AgentDriverCommon.LOG.info("[serverMineArena] step={} pos=({},{},{}) finished={} active={} mined={}",
+                    driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(),
+                    driver.finished(), ServerAgentManager.activeCount(), mined);
+            if (!mined)
+                throw new GameTestAssertException("server agent did not mine the target (still "
+                        + level.getBlockState(target) + ")");
+            if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                throw new GameTestAssertException("mine task did not finish+unregister: finished="
+                        + driver.finished() + " active=" + ServerAgentManager.activeCount());
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
      * Phase 2 capability proof: a server-side FakePlayer (a ServerPlayer) has
      * full Player capability — it BREAKS and PLACES blocks with no client. The
      * {@link ServerPlayerAvatar} seam aims + breaks (level.destroyBlock via the

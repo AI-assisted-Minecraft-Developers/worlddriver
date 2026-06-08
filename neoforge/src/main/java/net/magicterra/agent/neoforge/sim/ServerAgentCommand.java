@@ -35,6 +35,9 @@ public final class ServerAgentCommand {
                 .then(Commands.literal("goto")
                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                 .executes(ServerAgentCommand::gotoPos)))
+                .then(Commands.literal("mine")
+                        .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                                .executes(ServerAgentCommand::minePos)))
                 .then(Commands.literal("status").executes(ServerAgentCommand::status))
                 .then(Commands.literal("clear").executes(ServerAgentCommand::clear)));
     }
@@ -60,6 +63,19 @@ public final class ServerAgentCommand {
         current.gotoGoal(new Goal.Block(target));
         ServerAgentManager.register(current);   // re-arm a finished driver
         src.sendSuccess(() -> Component.literal("agentserver: goto " + target.toShortString()), false);
+        return 1;
+    }
+
+    private static int minePos(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack src = ctx.getSource();
+        if (current == null) {
+            src.sendFailure(Component.literal("agentserver: no agent — run /agentserver spawn first"));
+            return 0;
+        }
+        BlockPos target = BlockPosArgument.getBlockPos(ctx, "pos");
+        current.mine(target);
+        ServerAgentManager.register(current);   // re-arm a finished driver
+        src.sendSuccess(() -> Component.literal("agentserver: mine " + target.toShortString()), false);
         return 1;
     }
 
