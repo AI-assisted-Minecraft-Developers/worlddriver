@@ -824,6 +824,56 @@ public final class AgentGameTest {
         helper.succeed();
     }
 
+    /**
+     * Phase 2 capability proof: a server-side FakePlayer (a ServerPlayer) has
+     * full Player capability — it BREAKS and PLACES blocks with no client. The
+     * {@link ServerPlayerAvatar} seam aims + breaks (level.destroyBlock via the
+     * gameMode) and places (gameMode.useItemOn against a solid face). Asserts the
+     * world actually mutates both ways, headless. This is the spec's central
+     * claim for ServerPlayer avatars, exercised directly (not just incidentally
+     * via a pillar).
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverCapabilityArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 420, cz = 420, floorY = 220;
+        buildFloor(level, cx, cz, floorY);
+        BlockPos breakTarget = new BlockPos(cx + 2, floorY, cz);     // a floor block to mine
+        BlockPos placeCell = new BlockPos(cx - 2, floorY + 1, cz);   // empty cell (its floor neighbour is solid)
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            FakePlayer fp = av.fakePlayer();
+            fp.getInventory().clearContent();
+            fp.getInventory().add(new ItemStack(Items.IRON_PICKAXE));
+            fp.getInventory().add(new ItemStack(Items.DIRT, 64));
+            LevelWorldView w = new LevelWorldView(level, fp);
+
+            // BREAK: aim + break the floor block → becomes air.
+            av.selectTool(breakTarget);
+            av.aimAtBlock(breakTarget);
+            av.breakHold(true);
+            boolean broke = level.getBlockState(breakTarget).isAir();
+
+            // PLACE: hold a placeable + fill the empty cell against the floor face.
+            av.holdPlaceable();
+            av.place(w, placeCell);
+            boolean placed = !level.getBlockState(placeCell).isAir();
+
+            AgentDriverCommon.LOG.info("[serverCapabilityArena] broke={} placed={}", broke, placed);
+            if (!broke) throw new GameTestAssertException("server agent failed to BREAK the block (still "
+                    + level.getBlockState(breakTarget) + ")");
+            if (!placed) throw new GameTestAssertException("server agent failed to PLACE a block at " + placeCell);
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+        }
+        helper.succeed();
+    }
+
     /** 11x11 solid floor at {@code floorY}, clear 5 above — a clean test slab. */
     private static void buildFloor(ServerLevel level, int cx, int cz, int floorY) {
         for (int dx = -5; dx <= 5; dx++)
