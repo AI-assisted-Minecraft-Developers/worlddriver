@@ -1,25 +1,19 @@
 package net.magicterra.agent.bot.process;
 
-import net.magicterra.agent.bot.movement.BotInput;
-
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
+import net.magicterra.agent.bot.movement.Avatar;
 import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.phys.AABB;
 
 import java.util.Locale;
 
 import static net.magicterra.agent.AgentDriverCommon.LOG;
-import static net.magicterra.agent.bot.util.BotInteract.aimAtBlockSnap;
-import static net.magicterra.agent.bot.util.BotInteract.ensureHoldingPlaceableAny;
-import static net.magicterra.agent.bot.util.BotInteract.releaseKeys;
-import static net.magicterra.agent.bot.util.BotInteract.selectBestToolFor;
-import static net.magicterra.agent.bot.util.BotInteract.walkerPlace;
 
 /**
  * Agent-invoked "挖三填一" bunker — a sand-SAFE emergency shelter. The Agent calls
@@ -36,7 +30,9 @@ import static net.magicterra.agent.bot.util.BotInteract.walkerPlace;
  *
  * <p>Result: a sealed 1×1 pocket offset from the shaft, no falling-block hazard.
  * Needs hand-droppable walls (sand/dirt/gravel — bare stone by hand drops nothing
- * to plug with, so it bails). Aborts on water/lava/bedrock.
+ * to plug with, so it bails). Aborts on water/lava/bedrock. Drives through the
+ * {@link Avatar} seam (break / place / tool / forward on the player's own input),
+ * so it runs over a client LocalPlayer or a server FakePlayer alike.
  */
 public final class BunkerProcess implements BotProcess {
 
@@ -66,8 +62,8 @@ public final class BunkerProcess implements BotProcess {
 
     /** A block that falls if unsupported (sand/red_sand/gravel/…) — unsafe as a
      *  niche roof, since carving the head leaves air beneath it and it drops in. */
-    private static boolean isFalling(Minecraft mc, BlockPos pos) {
-        return mc.level != null && mc.level.getBlockState(pos).getBlock() instanceof FallingBlock;
+    private static boolean isFalling(Level lvl, BlockPos pos) {
+        return lvl != null && lvl.getBlockState(pos).getBlock() instanceof FallingBlock;
     }
 
     private static void dbg(String msg, Object... a) {
@@ -84,8 +80,8 @@ public final class BunkerProcess implements BotProcess {
      *  plugged before trusting it). SEALED is the only "safe to walk away" state. */
     @Override public String statusDetail() { return phase.name(); }
 
-    @Override public boolean tick(Minecraft mc, WorldView w, BotState st) {
-        LocalPlayer p = mc.player;
+    @Override public boolean tick(Avatar a, WorldView w, BotState st) {
+        Player p = a.player();
         if (p == null) return true;
         BlockPos foot = p.blockPosition();
         if (startY == Integer.MIN_VALUE) {
@@ -117,7 +113,7 @@ public final class BunkerProcess implements BotProcess {
             }
             if (fit == 0) {
                 dbg("ABORT bunker: water at/around even the shallowest niche at {}", foot);
-                releaseKeys(); return true;
+                a.releaseInputs(); return true;
             }
             if (fit < effectiveDepth) dbg("bunker: water table → shrink depth {}→{}", effectiveDepth, fit);
             effectiveDepth = fit;
@@ -126,45 +122,45 @@ public final class BunkerProcess implements BotProcess {
         if (phase != Phase.STEP_IN) p.setDeltaMovement(0, p.getDeltaMovement().y, 0);
 
         switch (phase) {
-            case DIG_DOWN: return digDown(mc, w, p, foot);
-            case CARVE:    return carve(mc, w, p);
-            case STEP_IN:  return stepIn(mc, w, p, foot);
-            case PLUG:     return plug(mc, w, p);
+            case DIG_DOWN: return digDown(a, w, p, foot);
+            case CARVE:    return carve(a, w, p);
+            case STEP_IN:  return stepIn(a, w, p, foot);
+            case PLUG:     return plug(a, w, p);
             // Stay SEALED after a successful plug: keep holding the channel (this is
             // a BunkerProcess, so UserTaskChain reports BUNKER priority 300 > combat
             // 60 — see GAP #20) so autoFight/idle can't walk the bot out of its
             // pocket and get it killed at night (GAP #22). Released only when the
             // Agent calls mc.bot.cancel (typically at dawn, then it breaks out).
-            case SEALED:   releaseKeys(); return false;
-            default:       releaseKeys(); return true;
+            case SEALED:   a.releaseInputs(); return false;
+            default:       a.releaseInputs(); return true;
         }
     }
 
-    private boolean digDown(Minecraft mc, WorldView w, LocalPlayer p, BlockPos foot) {
+    private boolean digDown(Avatar a, WorldView w, Player p, BlockPos foot) {
         int d = startY - foot.getY();
         if (d != lastDepth) { lastDepth = d; digTicks = 0; }
         if (d >= effectiveDepth) {
             bottom = foot.immutable();
             phase = Phase.CARVE;
             actTicks = 0;
-            mc.options.keyAttack.setDown(false);
+            a.breakHold(false);
             dbg("DIG_DOWN done bottom={} (dug {} down from y={})", bottom, effectiveDepth, startY);
             return false;
         }
         BlockPos below = foot.below();
         if (w.isWater(foot) || w.isWater(foot.offset(0, 1, 0))
                 || w.isWater(below) || w.isHazard(below) || w.isHazard(foot.offset(0, 1, 0))) {
-            mc.options.keyAttack.setDown(false); releaseKeys(); return true;   // unsafe
+            a.breakHold(false); a.releaseInputs(); return true;   // unsafe
         }
         if (!w.isSolid(below)) return false;                                   // mid-fall, settle
-        selectBestToolFor(mc, below);
-        aimAtBlockSnap(p, below);
-        mc.options.keyAttack.setDown(true);
-        if (++digTicks > BotConfig.breakTimeoutTicks) { mc.options.keyAttack.setDown(false); releaseKeys(); return true; }
+        a.selectTool(below);
+        a.aimAtBlock(below);
+        a.breakHold(true);
+        if (++digTicks > BotConfig.breakTimeoutTicks) { a.breakHold(false); a.releaseInputs(); return true; }
         return false;
     }
 
-    private boolean carve(Minecraft mc, WorldView w, LocalPlayer p) {
+    private boolean carve(Avatar a, WorldView w, Player p) {
         if (nicheDir == null) {
             // Pick a cardinal whose 2-tall niche is a solid (diggable) wall with a
             // solid floor (so we can stand), a SOLID NON-FALLING ROOF (n1.above() —
@@ -175,7 +171,7 @@ public final class BunkerProcess implements BotProcess {
                 BlockPos n1 = n0.above();
                 BlockPos roof = n1.above();
                 if (w.isSolid(n0) && w.isSolid(n1) && w.isSolid(n0.below())
-                        && w.isSolid(roof) && !isFalling(mc, roof)
+                        && w.isSolid(roof) && !isFalling(p.level(), roof)
                         && !w.isWater(n0) && !w.isWater(n1) && !w.isHazard(n0) && !w.isHazard(n1)
                         && !w.isWater(n0.relative(d))) {     // not opening straight into water
                     nicheDir = d; break;
@@ -194,7 +190,7 @@ public final class BunkerProcess implements BotProcess {
                     return false;
                 }
                 dbg("CARVE no solid non-falling roof within depth budget → BAIL (would be open-air)");
-                releaseKeys(); return true;
+                a.releaseInputs(); return true;
             }
             dbg("CARVE niche dir={} roof={} (n0={})", nicheDir,
                     bottom.relative(nicheDir).above().above(), bottom.relative(nicheDir));
@@ -202,16 +198,16 @@ public final class BunkerProcess implements BotProcess {
         BlockPos n0 = bottom.relative(nicheDir);
         BlockPos n1 = n0.above();
         BlockPos target = w.isSolid(n1) ? n1 : (w.isSolid(n0) ? n0 : null);   // clear head first, then foot
-        if (target == null) { dbg("CARVE done dir={} → STEP_IN", nicheDir); phase = Phase.STEP_IN; actTicks = 0; mc.options.keyAttack.setDown(false); return false; }
-        selectBestToolFor(mc, target);
-        aimAtBlockSnap(p, target);
-        mc.options.keyAttack.setDown(true);
-        if (++actTicks > BotConfig.breakTimeoutTicks * 2) { mc.options.keyAttack.setDown(false); releaseKeys(); return true; }
+        if (target == null) { dbg("CARVE done dir={} → STEP_IN", nicheDir); phase = Phase.STEP_IN; actTicks = 0; a.breakHold(false); return false; }
+        a.selectTool(target);
+        a.aimAtBlock(target);
+        a.breakHold(true);
+        if (++actTicks > BotConfig.breakTimeoutTicks * 2) { a.breakHold(false); a.releaseInputs(); return true; }
         return false;
     }
 
-    private boolean stepIn(Minecraft mc, WorldView w, LocalPlayer p, BlockPos foot) {
-        mc.options.keyAttack.setDown(false);
+    private boolean stepIn(Avatar a, WorldView w, Player p, BlockPos foot) {
+        a.breakHold(false);
         BlockPos n0 = bottom.relative(nicheDir);
         // Must enter the niche FULLY — pressed against its back wall — before
         // plugging. A blockPos-only match (foot.z == n0.z) fires while the bot
@@ -225,7 +221,7 @@ public final class BunkerProcess implements BotProcess {
         boolean inNiche = foot.getX() == n0.getX() && foot.getZ() == n0.getZ()
                 && distFromShaft >= 0.85;
         if (inNiche) {
-            releaseKeys();
+            a.releaseInputs();
             dbg("STEP_IN done foot={} distFromShaft={} → PLUG", foot, fmt(distFromShaft));
             phase = Phase.PLUG; actTicks = 0; plugTicks = 0;
             return false;
@@ -233,12 +229,12 @@ public final class BunkerProcess implements BotProcess {
         // Face the niche and walk in.
         p.setYRot(yawFor(nicheDir));
         p.setXRot(0f);
-        BotInput.forward(mc, true);
+        a.commandForward(1f);
         if (actTicks % 5 == 0)
             dbg("STEP_IN walking pos=({},{}) foot={} n0={} distFromShaft={} t={}",
                     fmt(p.getX()), fmt(p.getZ()), foot, n0, fmt(distFromShaft), actTicks);
         if (++actTicks > 80) {            // ~4s to shuffle one block; give up if stuck
-            releaseKeys();
+            a.releaseInputs();
             dbg("STEP_IN TIMEOUT distFromShaft={} → PLUG (may be blocked)", fmt(distFromShaft));
             phase = Phase.PLUG; actTicks = 0; plugTicks = 0;
         }
@@ -247,30 +243,30 @@ public final class BunkerProcess implements BotProcess {
 
     private static String fmt(double v) { return String.format(Locale.ROOT, "%.2f", v); }
 
-    private boolean plug(Minecraft mc, WorldView w, LocalPlayer p) {
-        BotInput.forward(mc, false);
+    private boolean plug(Avatar a, WorldView w, Player p) {
+        a.commandForward(0f);
         // Plug the shaft column the bot vacated: bottom foot then the cell above.
         // Both gain support from below (floor / the foot-plug) so even sand holds.
         BlockPos p0 = bottom;             // old foot, has solid floor under it
         BlockPos p1 = bottom.above();     // old head, supported by p0 once placed
         BlockPos target = !w.isSolid(p0) ? p0 : (!w.isSolid(p1) ? p1 : null);
-        if (target == null) { dbg("PLUG sealed (p0={},p1={} both solid) → SEALED-hold", p0, p1); phase = Phase.SEALED; releaseKeys(); return false; }   // sealed → hold the pocket (GAP #22)
-        if (!ensureHoldingPlaceableAny(mc)) { dbg("PLUG no placeable block in hand → DONE UNSEALED target={}", target); phase = Phase.DONE; releaseKeys(); return true; } // nothing to plug with
+        if (target == null) { dbg("PLUG sealed (p0={},p1={} both solid) → SEALED-hold", p0, p1); phase = Phase.SEALED; a.releaseInputs(); return false; }   // sealed → hold the pocket (GAP #22)
+        if (!a.holdPlaceable()) { dbg("PLUG no placeable block in hand → DONE UNSEALED target={}", target); phase = Phase.DONE; a.releaseInputs(); return true; } // nothing to plug with
         // Guard: if the bot's own hitbox still overlaps the cell we're filling,
         // placement silently fails forever. Detect it and keep shuffling into
         // the niche instead of burning the timeout unsealed.
         if (p.getBoundingBox().intersects(new AABB(target))) {
             p.setYRot(yawFor(nicheDir));
-            BotInput.forward(mc, true);
+            a.commandForward(1f);
             dbg("PLUG body overlaps target={} pos=({},{}) → shuffle deeper", target, fmt(p.getX()), fmt(p.getZ()));
-            if (++actTicks > BotConfig.breakTimeoutTicks * 2) { dbg("PLUG give up (still overlapping) → DONE UNSEALED"); phase = Phase.DONE; releaseKeys(); return true; }
+            if (++actTicks > BotConfig.breakTimeoutTicks * 2) { dbg("PLUG give up (still overlapping) → DONE UNSEALED"); phase = Phase.DONE; a.releaseInputs(); return true; }
             return false;
         }
-        BotInput.forward(mc, false);
-        aimAtBlockSnap(p, target);
-        walkerPlace(mc, p, w, target);
+        a.commandForward(0f);
+        a.aimAtBlock(target);
+        a.place(w, target);
         dbg("PLUG place target={} solidNow={} t={}", target, w.isSolid(target), actTicks);
-        if (++plugTicks > BotConfig.breakTimeoutTicks) { dbg("PLUG TIMEOUT target={} solid={} → DONE", target, w.isSolid(target)); phase = Phase.DONE; releaseKeys(); return true; }
+        if (++plugTicks > BotConfig.breakTimeoutTicks) { dbg("PLUG TIMEOUT target={} solid={} → DONE", target, w.isSolid(target)); phase = Phase.DONE; a.releaseInputs(); return true; }
         return false;
     }
 

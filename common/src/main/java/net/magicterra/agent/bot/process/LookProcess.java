@@ -4,6 +4,7 @@ import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.elytra.ElytraPhysics;
+import net.magicterra.agent.bot.movement.Avatar;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
@@ -78,8 +79,8 @@ public final class LookProcess implements BotProcess {
                     st.look.goal, BotConfig.smoothLook, BotConfig.smoothLookDegPerTick);
     }
 
-    public boolean tick(Minecraft mc, WorldView w, BotState st) {
-        LocalPlayer p = mc.player;
+    public boolean tick(Avatar a, WorldView w, BotState st) {
+        Player p = a.player();
         if (p == null) { st.look.lastError = "player vanished"; st.look.reset(); return true; }
         float ty = fixedYaw, tp = fixedPitch;
         if (track != null) {

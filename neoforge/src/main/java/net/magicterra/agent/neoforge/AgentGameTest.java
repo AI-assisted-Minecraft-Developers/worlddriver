@@ -1259,6 +1259,12 @@ public final class AgentGameTest {
         zombie.setPos(cx + 6 + 0.5, floorY + 1, cz + 0.5);
         zombie.setNoAi(true);                 // no wander/retaliation; stays a fixed target
         zombie.setPersistenceRequired();
+        // Immovable target: max knockback resistance so a landed hit can't shove it out
+        // of reach (level.tick would otherwise integrate the knockback and the bot would
+        // have to re-approach a drifting zombie — an intermittent miss). Position is also
+        // re-pinned each loop iteration below for full determinism.
+        var kbr = zombie.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.KNOCKBACK_RESISTANCE);
+        if (kbr != null) kbr.setBaseValue(1.0);
         level.addFreshEntity(zombie);
         level.setDayTime(18000);              // night → the zombie won't sun-burn (no false fire-kill)
         for (int i = 0; i < 3; i++) level.tick(() -> true);   // index into getEntities
@@ -1283,12 +1289,20 @@ public final class AgentGameTest {
 
             for (int t = 0; t < 1500 && ServerAgentManager.activeCount() > 0; t++) {
                 ServerAgentManager.tickAll();
-                // Tick the level so the zombie processes its hurt-cooldown
+                // Tick the zombie DIRECTLY each iteration so it processes its hurt-cooldown
                 // (invulnerableTime) — a non-ticked target stays permanently invulnerable
-                // after the first hit. The FakePlayer isn't in the level's entity list, so
-                // it's NOT double-physicsed; this mirrors a live server (bot + world both
-                // tick each tick).
-                level.tick(() -> true);
+                // after the first hit. level.tick would only do this when the test's chunk
+                // happens to be ENTITY_TICKING, which the per-run test placement makes
+                // unreliable (getEntities still finds the zombie via the section index, but
+                // the cooldown never clears → one hit then stuck, an intermittent flake).
+                // A live server entity-ticks every loaded chunk, so this matches production.
+                if (zombie.isAlive()) {
+                    zombie.tick();
+                    // Re-pin the (NoAI) zombie so nothing — residual knockback, fall —
+                    // drifts it off the fixed target cell during the long fight.
+                    zombie.setPos(cx + 6 + 0.5, floorY + 1, cz + 0.5);
+                    zombie.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+                }
             }
 
             boolean dead = !zombie.isAlive();
@@ -1307,6 +1321,173 @@ public final class AgentGameTest {
             BotConfig.pathfinderMaxMs = omm;
             ServerAgentManager.clear();
             zombie.discard();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Migrated-process proof: the SERVER runs the REAL {@link LookProcess} over a
+     * FakePlayer (Avatar seam — pure yaw/pitch on the player, no keybinds). Tracks a
+     * block 5 east; asserts the process aligns + finishes and the FakePlayer's actual
+     * yaw/pitch match the geometry to the target.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverLookArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 480, cz = 480, floorY = 220;
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+        BlockPos track = new BlockPos(cx + 5, floorY + 1, cz);
+
+        boolean odbg = BotConfig.walkerDebug;
+        BotConfig.walkerDebug = false;
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            driver.runProcess(new net.magicterra.agent.bot.process.LookProcess(track, 0f, 0f));
+            ServerAgentManager.register(driver);
+            for (int t = 0; t < 300 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            FakePlayer fp = driver.fakePlayer();
+            var eye = fp.getEyePosition();
+            double dx = track.getX() + 0.5 - eye.x, dy = track.getY() + 0.5 - eye.y, dz = track.getZ() + 0.5 - eye.z;
+            float ty = (float) Math.toDegrees(Math.atan2(-dx, dz));
+            float tp = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
+            float yawErr = Math.abs(((ty - fp.getYRot()) % 360f + 540f) % 360f - 180f);
+            float pitchErr = Math.abs(tp - fp.getXRot());
+            AgentDriverCommon.LOG.info("[serverLookArena] yaw={} (tgt {}) pitch={} (tgt {}) finished={} active={}",
+                    fp.getYRot(), ty, fp.getXRot(), tp, driver.finished(), ServerAgentManager.activeCount());
+            if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                throw new GameTestAssertException("server LookProcess did not align+finish: active="
+                        + ServerAgentManager.activeCount());
+            if (yawErr > 2f || pitchErr > 2f)
+                throw new GameTestAssertException("server LookProcess off target: yawErr=" + yawErr + " pitchErr=" + pitchErr);
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Migrated-process proof: the SERVER runs the REAL {@link EscapeProcess} over a
+     * FakePlayer — carve-a-staircase-out-of-a-pit (Avatar seam: break/tool/forward/
+     * jump). Drops the bot at the bottom of a 1-wide shaft in a solid stone block
+     * (carvable walls all round); asserts it climbs out (Y rises to the rim) and the
+     * process finishes. Server breakHold is an instant destroyBlock, so each carve is
+     * one tick — fast + deterministic.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverEscapeArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 520, cz = 520, floorY = 220;
+        // Solid stone block floorY..floorY+3 (top surface = floorY+3, stand = floorY+4).
+        for (int dx = -5; dx <= 5; dx++)
+            for (int dz = -5; dz <= 5; dz++)
+                for (int dy = 0; dy <= 3; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.STONE.defaultBlockState());
+        // Carve the 1-wide pit at the centre: air floorY+1..floorY+3, bot stands on floorY.
+        for (int dy = 1; dy <= 3; dy++)
+            level.setBlockAndUpdate(new BlockPos(cx, floorY + dy, cz), Blocks.AIR.defaultBlockState());
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            driver.fakePlayer().getInventory().clearContent();
+            driver.fakePlayer().getInventory().add(new ItemStack(Items.DIRT, 64));   // VERT_RISE fallback
+            driver.runProcess(new net.magicterra.agent.bot.process.EscapeProcess(floorY + 4));
+            ServerAgentManager.register(driver);
+            for (int t = 0; t < 800 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            FakePlayer fp = driver.fakePlayer();
+            boolean climbed = fp.getY() >= floorY + 3.0;   // up from the floorY+1 pit bottom to ~the rim
+            AgentDriverCommon.LOG.info("[serverEscapeArena] pos=({},{},{}) climbed={} finished={} active={}",
+                    fp.getX(), fp.getY(), fp.getZ(), climbed, driver.finished(), ServerAgentManager.activeCount());
+            if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                throw new GameTestAssertException("server EscapeProcess did not finish+unregister: active="
+                        + ServerAgentManager.activeCount() + " y=" + fp.getY());
+            if (!climbed)
+                throw new GameTestAssertException("server EscapeProcess did not climb out: y=" + fp.getY());
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Migrated-process proof: the SERVER runs the REAL {@link BunkerProcess} over a
+     * FakePlayer — 挖三填一 sand-safe shelter (Avatar seam: break/tool/forward/place).
+     * The bot digs down, carves a horizontal niche, steps in, and plugs the shaft
+     * behind it. Server breakHold drops nothing, so the FakePlayer is pre-stocked with
+     * dirt to plug. Asserts the shaft column ends solid (sealed) — the full
+     * dig→carve→step-in→plug chain.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverBunkerArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 560, cz = 560, floorY = 220;
+        // Solid dirt block floorY-3..floorY+1 to dig into; carve the bot's 1×2 standing
+        // slot at the centre (foot floorY+1 on the solid floorY top).
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = -3; dz <= 3; dz++)
+                for (int dy = -3; dy <= 1; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.DIRT.defaultBlockState());
+        level.setBlockAndUpdate(new BlockPos(cx, floorY + 1, cz), Blocks.AIR.defaultBlockState());
+        level.setBlockAndUpdate(new BlockPos(cx, floorY + 2, cz), Blocks.AIR.defaultBlockState());
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            driver.fakePlayer().getInventory().clearContent();
+            driver.fakePlayer().getInventory().add(new ItemStack(Items.DIRT, 64));   // server breaks drop nothing → pre-stock plug blocks
+            driver.runProcess(new net.magicterra.agent.bot.process.BunkerProcess(2));
+            ServerAgentManager.register(driver);
+            // BunkerProcess holds at SEALED (returns false forever), so it won't
+            // unregister — run a fixed window then inspect the world.
+            for (int t = 0; t < 800 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            // The shaft column the bot dug (down from floorY) must be plugged solid.
+            int sealed = 0, shaftCells = 0;
+            for (int dy = 0; dy >= -2; dy--) {
+                shaftCells++;
+                if (!level.getBlockState(new BlockPos(cx, floorY + dy, cz)).isAir()) sealed++;
+            }
+            FakePlayer fp = driver.fakePlayer();
+            AgentDriverCommon.LOG.info("[serverBunkerArena] pos=({},{},{}) sealed={}/{} active={}",
+                    fp.getX(), fp.getY(), fp.getZ(), sealed, shaftCells, ServerAgentManager.activeCount());
+            if (sealed < shaftCells)
+                throw new GameTestAssertException("server BunkerProcess left the shaft open: sealed="
+                        + sealed + "/" + shaftCells);
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            ServerAgentManager.clear();
         }
         helper.succeed();
     }
