@@ -1,7 +1,9 @@
 package net.magicterra.agent.neoforge.sim;
 
+import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.movement.Walker;
+import net.magicterra.agent.bot.process.BotProcess;
 import net.magicterra.agent.bot.world.LevelWorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -25,9 +27,11 @@ public final class ServerAgentDriver {
     private final ServerPlayerAvatar avatar;
     private final LevelWorldView world;
     private final Walker walker = new Walker();
+    private final BotState botState = new BotState();
     private volatile Walker.Step last = Walker.Step.WALKING;
     private volatile boolean finished;
     private volatile BlockPos mineTarget;   // non-null = mine task: navigate near, then break
+    private volatile BotProcess process;    // non-null = run a real (Avatar-migrated) BotProcess
 
     public ServerAgentDriver(ServerPlayerAvatar avatar) {
         this.avatar = avatar;
@@ -59,6 +63,20 @@ public final class ServerAgentDriver {
         return this;
     }
 
+    /** Run a real (Avatar-migrated) {@link BotProcess} headless on the server tick.
+     *  This is the Phase-2b process-layer seam: the SAME process the client
+     *  scheduler runs (e.g. {@link net.magicterra.agent.bot.process.GotoProcess})
+     *  drives the FakePlayer through its {@code tick(Avatar,...)} path — no
+     *  bespoke driver logic, no client {@code mc}. */
+    public ServerAgentDriver runProcess(BotProcess p) {
+        p.attach(botState);
+        this.process = p;
+        this.mineTarget = null;
+        finished = false;
+        last = Walker.Step.WALKING;
+        return this;
+    }
+
     public ServerPlayerAvatar avatar() { return avatar; }
     public FakePlayer fakePlayer() { return avatar.fakePlayer(); }
     public LevelWorldView world() { return world; }
@@ -70,6 +88,13 @@ public final class ServerAgentDriver {
      *  the target (level.destroyBlock — no reach gate) and the task completes. */
     public Walker.Step tick() {
         if (finished) return last;
+        if (process != null) {                       // real BotProcess over the avatar
+            boolean done = process.tick(avatar, world, botState);
+            avatar.step();
+            if (done) { finished = true; last = Walker.Step.ARRIVED; }
+            else last = Walker.Step.WALKING;
+            return last;
+        }
         Walker.Step s = walker.tick(avatar, world);
         avatar.step();
         if (mineTarget != null) {

@@ -4,6 +4,7 @@ import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.elytra.ElytraPhysics;
+import net.magicterra.agent.bot.movement.Avatar;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
@@ -63,8 +64,11 @@ public final class GotoProcess implements BotProcess {
         st.mc_goto.startedAtMs = System.currentTimeMillis();
         st.mc_goto.lastError = null;
     }
-    public boolean tick(Minecraft mc, WorldView w, BotState st) {
-        Walker.Step s = walker.tick(mc, w);
+    /** Avatar-migrated: drives the client LocalPlayer (via the BotProcess bridge)
+     *  or a server FakePlayer (ServerAgentDriver) identically — GotoProcess is
+     *  pure movement, so it just hands the Walker the same Avatar. */
+    @Override public boolean tick(Avatar a, WorldView w, BotState st) {
+        Walker.Step s = walker.tick(a, w);
         st.mc_goto.pathLen = walker.pathLen();
         st.mc_goto.pathStep = walker.pathStep();
         if (s == Walker.Step.WALKING) return false;

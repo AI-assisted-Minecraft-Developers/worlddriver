@@ -10,6 +10,7 @@ import net.magicterra.agent.neoforge.sim.ServerPlayerAvatar;
 import net.magicterra.agent.neoforge.sim.ServerAgentDriver;
 import net.magicterra.agent.neoforge.sim.ServerAgentManager;
 import net.magicterra.agent.bot.Goal;
+import net.magicterra.agent.bot.process.GotoProcess;
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.world.LevelWorldView;
@@ -869,6 +870,59 @@ public final class AgentGameTest {
         } finally {
             BotConfig.allowBreak = ob;
             BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Phase 2b process-layer proof: the SERVER runs a REAL {@link GotoProcess} —
+     * the exact same process the client scheduler runs — over a FakePlayer, with
+     * no client {@code mc}. {@link GotoProcess} is Avatar-migrated (overrides
+     * {@code tick(Avatar,...)}), and {@link ServerAgentDriver#runProcess} drives
+     * it through the {@link ServerAgentManager} (the live server-tick entry). This
+     * exercises the {@code BotProcess} migration seam end-to-end: a process, not
+     * bespoke driver code, steers the FakePlayer to a Block goal headless.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverProcessArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 540, cz = 540, floorY = 220;
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dz = -1; dz <= 10; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+        BlockPos goal = new BlockPos(cx, floorY + 1, cz + 9);
+
+        boolean odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            driver.runProcess(new GotoProcess(new Goal.Block(goal)));   // the REAL client process, server-side
+            ServerAgentManager.register(driver);
+
+            for (int t = 0; t < 200 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            FakePlayer fp = driver.fakePlayer();
+            boolean reached = Math.abs(fp.getX() - (cx + 0.5)) < 1.5
+                    && Math.abs(fp.getZ() - (cz + 9 + 0.5)) < 1.5;
+            AgentDriverCommon.LOG.info("[serverProcessArena] step={} pos=({},{},{}) finished={} active={} reached={}",
+                    driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(),
+                    driver.finished(), ServerAgentManager.activeCount(), reached);
+            if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                throw new GameTestAssertException("server GotoProcess did not finish+unregister: finished="
+                        + driver.finished() + " active=" + ServerAgentManager.activeCount());
+            if (!reached)
+                throw new GameTestAssertException("server-run GotoProcess did not reach the goal: pos=("
+                        + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ")");
+        } finally {
             BotConfig.walkerDebug = odbg;
             BotConfig.pathfinderSliceMs = osl;
             BotConfig.pathfinderMaxMs = omm;
