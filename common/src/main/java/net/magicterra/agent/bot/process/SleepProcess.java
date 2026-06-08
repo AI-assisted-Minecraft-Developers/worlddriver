@@ -6,6 +6,7 @@ import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.elytra.ElytraPhysics;
+import net.magicterra.agent.bot.movement.Avatar;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
@@ -80,11 +81,10 @@ public final class SleepProcess implements BotProcess {
         st.mc_goto.lastError = null;
     }
 
-    public boolean tick(Minecraft mc, WorldView w, BotState st) {
-        LocalPlayer p = mc.player;
+    @Override public boolean tick(Avatar a, WorldView w, BotState st) {
+        Player p = a.player();
         if (p == null) { st.mc_goto.lastError = "player vanished"; st.mc_goto.reset(); return true; }
-        Level lvl = mc.level;
-        if (lvl == null) return false;
+        Level lvl = p.level();
 
         switch (phase) {
             case SEARCH -> {
@@ -100,7 +100,7 @@ public final class SleepProcess implements BotProcess {
                 phase = Phase.GOING;
             }
             case GOING -> {
-                Walker.Step s = walker.tick(mc, w);
+                Walker.Step s = walker.tick(a, w);
                 st.mc_goto.pathLen = walker.pathLen();
                 st.mc_goto.pathStep = walker.pathStep();
                 if (s == Walker.Step.FAILED) {
@@ -109,7 +109,7 @@ public final class SleepProcess implements BotProcess {
                     return true;
                 }
                 if (s == Walker.Step.ARRIVED) {
-                    releaseKeys();
+                    a.releaseInputs();
                     useTicks = 0;
                     sinceLastClick = CLICK_INTERVAL_TICKS;  // click immediately on first USE tick
                     phase = Phase.USE;
@@ -133,11 +133,11 @@ public final class SleepProcess implements BotProcess {
                 // sneak+right-click on a bed as "place item against bed"
                 // rather than "enter bed". clientUseItemOn no longer
                 // unsneaks unconditionally, so do it explicitly here.
-                BotInput.sneak(mc, false);
+                a.commandSneak(false);
                 p.setShiftKeyDown(false);
                 if (++sinceLastClick >= CLICK_INTERVAL_TICKS) {
                     sinceLastClick = 0;
-                    clientUseItemOn(mc, p, bedPos, Direction.UP);
+                    a.placeOn(bedPos, Direction.UP);
                 }
                 if (++useTicks > USE_TIMEOUT_TICKS) {
                     st.mc_goto.lastError = "bed click did not start sleep (wrong time / monsters / occupied)";
@@ -150,7 +150,7 @@ public final class SleepProcess implements BotProcess {
         return false;
     }
 
-    private BlockPos scanNearestBed(Level lvl, LocalPlayer p) {
+    private BlockPos scanNearestBed(Level lvl, Player p) {
         BlockPos foot = new BlockPos((int) Math.floor(p.getX()),
                                      (int) Math.floor(p.getY()),
                                      (int) Math.floor(p.getZ()));
@@ -170,7 +170,7 @@ public final class SleepProcess implements BotProcess {
         return best;
     }
 
-    private void faceBlock(LocalPlayer p, BlockPos block) {
+    private void faceBlock(Player p, BlockPos block) {
         Vec3 eye = p.getEyePosition();
         double dx = block.getX() + 0.5 - eye.x, dy = block.getY() + 0.5 - eye.y, dz = block.getZ() + 0.5 - eye.z;
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
