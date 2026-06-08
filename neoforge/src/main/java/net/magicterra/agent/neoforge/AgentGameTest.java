@@ -11,6 +11,7 @@ import net.magicterra.agent.neoforge.sim.ServerAgentDriver;
 import net.magicterra.agent.neoforge.sim.ServerAgentManager;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.process.GotoProcess;
+import net.magicterra.agent.bot.process.RunAwayProcess;
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.world.LevelWorldView;
@@ -924,6 +925,61 @@ public final class AgentGameTest {
                         + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ")");
         } finally {
             BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Phase 2b process-layer proof #2: the SERVER runs a real {@link RunAwayProcess}
+     * — a process with extra per-tick state (it sets {@code BotConfig.fleeActive}
+     * each tick so the search boosts hazard cost) — over a FakePlayer headless.
+     * Confirms the Avatar seam carries stateful processes, not just the trivial
+     * GotoProcess. Bot starts on top of the flee origin; assert it walked away to
+     * at least the requested min distance and the process finished+unregistered.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverFleeArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 600, cz = 600, floorY = 220, R = 10;
+        for (int dx = -R; dx <= R; dx++)
+            for (int dz = -R; dz <= R; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+        BlockPos from = new BlockPos(cx, floorY + 1, cz);
+        final int minDist = 6;
+
+        boolean odbg = BotConfig.walkerDebug, oflee = BotConfig.fleeActive;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            driver.runProcess(new RunAwayProcess(from, minDist));
+            ServerAgentManager.register(driver);
+
+            for (int t = 0; t < 200 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            FakePlayer fp = driver.fakePlayer();
+            double dx = fp.getX() - (cx + 0.5), dz = fp.getZ() - (cz + 0.5);
+            double dist = Math.sqrt(dx * dx + dz * dz);
+            boolean fled = dist >= minDist - 0.5;
+            AgentDriverCommon.LOG.info("[serverFleeArena] step={} pos=({},{},{}) dist={} finished={} active={} fled={}",
+                    driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(), dist,
+                    driver.finished(), ServerAgentManager.activeCount(), fled);
+            if (!fled)
+                throw new GameTestAssertException("server RunAwayProcess did not reach min flee distance: dist="
+                        + dist + " (need " + minDist + ")");
+            if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                throw new GameTestAssertException("flee process did not finish+unregister: finished="
+                        + driver.finished() + " active=" + ServerAgentManager.activeCount());
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            BotConfig.fleeActive = oflee;
             BotConfig.pathfinderSliceMs = osl;
             BotConfig.pathfinderMaxMs = omm;
             ServerAgentManager.clear();

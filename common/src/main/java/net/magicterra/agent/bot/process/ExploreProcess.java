@@ -4,6 +4,7 @@ import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.elytra.ElytraPhysics;
+import net.magicterra.agent.bot.movement.Avatar;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
@@ -71,8 +72,8 @@ public final class ExploreProcess implements BotProcess {
         st.explore.lastError = null;
     }
 
-    public boolean tick(Minecraft mc, WorldView w, BotState st) {
-        LocalPlayer p = mc.player;
+    @Override public boolean tick(Avatar a, WorldView w, BotState st) {
+        Player p = a.player();
         if (p == null) { st.explore.reset(); return true; }
         if (visitedCount >= maxChunks) {
             st.explore.lastError = "done (visited=" + visitedCount + ")";
@@ -92,7 +93,7 @@ public final class ExploreProcess implements BotProcess {
             walker.setGoal(new Goal.XZ(currentChunkCenter.getX(), currentChunkCenter.getZ()));
             st.explore.target = currentChunkCenter;
         }
-        Walker.Step s = walker.tick(mc, w);
+        Walker.Step s = walker.tick(a, w);
         st.explore.pathLen = walker.pathLen();
         st.explore.pathStep = walker.pathStep();
         if (s != Walker.Step.WALKING) {

@@ -4,6 +4,7 @@ import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.elytra.ElytraPhysics;
+import net.magicterra.agent.bot.movement.Avatar;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
@@ -83,7 +84,7 @@ public final class RunAwayProcess implements BotProcess {
         s.lastError = null;
     }
 
-    public boolean tick(Minecraft mc, WorldView w, BotState st) {
+    @Override public boolean tick(Avatar a, WorldView w, BotState st) {
         // Flee-context: mark this frame as an active flee BEFORE the Walker runs
         // its A* search, so ClientWorldView.beginSearch snapshots fleeSearch=true
         // and boosts water/ledge danger (no diving into water / off a cliff while
@@ -91,7 +92,7 @@ public final class RunAwayProcess implements BotProcess {
         // both drive this process. Reset to false each clientTick (BotApiImpl).
         BotConfig.fleeActive = true;
         BotState.ProcessSlot s = slot(st);
-        Walker.Step step = walker.tick(mc, w);
+        Walker.Step step = walker.tick(a, w);
         s.pathLen = walker.pathLen();
         s.pathStep = walker.pathStep();
         if (step == Walker.Step.WALKING) return false;
