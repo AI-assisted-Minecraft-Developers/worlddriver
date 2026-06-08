@@ -6,6 +6,7 @@ import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.elytra.ElytraPhysics;
+import net.magicterra.agent.bot.movement.Avatar;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
@@ -83,10 +84,10 @@ public final class BuildProcess implements BotProcess {
         st.builder.lastError = null;
     }
 
-    public boolean tick(Minecraft mc, WorldView w, BotState st) {
-        LocalPlayer p = mc.player;
-        Level lvl = mc.level;
-        if (p == null || lvl == null) { st.builder.reset(); return true; }
+    @Override public boolean tick(Avatar a, WorldView w, BotState st) {
+        Player p = a.player();
+        if (p == null) { st.builder.reset(); return true; }
+        Level lvl = p.level();
 
         switch (phase) {
             case NEXT -> {
@@ -123,8 +124,7 @@ public final class BuildProcess implements BotProcess {
                 phase = Phase.GOING;
             }
             case GOING -> {
-                mc.options.keyUse.setDown(false);
-                Walker.Step s = walker.tick(mc, w);
+                Walker.Step s = walker.tick(a, w);
                 st.builder.pathLen = walker.pathLen();
                 st.builder.pathStep = walker.pathStep();
                 if (s == Walker.Step.FAILED) {
@@ -135,7 +135,7 @@ public final class BuildProcess implements BotProcess {
                     return false;
                 }
                 if (s == Walker.Step.ARRIVED) {
-                    if (!ensureHoldingBlock(mc, schematic.entries.get(idx).blockId)) {
+                    if (!ensureHoldingBlock(a, schematic.entries.get(idx).blockId)) {
                         failedIdx.add(idx);
                         skipped++;
                         idx++;
@@ -148,12 +148,12 @@ public final class BuildProcess implements BotProcess {
                 }
             }
             case PLACING -> {
-                BotInput.jump(mc, false);
+                a.commandJump(false);
                 p.setSprinting(false);
                 // Sneak before clicking — Baritone MovementPillar pattern:
                 // shrinks the player AABB so the new block doesn't intersect
                 // us, and prevents fall-off when standing on edges.
-                BotInput.sneak(mc, true);
+                a.commandSneak(true);
                 p.setShiftKeyDown(true);
                 faceSupportFor(p, currentBlock, currentFace);
                 // Walker.REACH_DIST_SQ=0.45 means the player can ARRIVE
@@ -173,10 +173,10 @@ public final class BuildProcess implements BotProcess {
                     p.setYRot(yaw);
                     p.yHeadRot = yaw;
                     p.yBodyRot = yaw;
-                    BotInput.forward(mc, true);
+                    a.commandForward(1f);
                     return false;
                 }
-                BotInput.forward(mc, false);
+                a.commandForward(0f);
                 faceSupportFor(p, currentBlock, currentFace);
                 String wantId = schematic.entries.get(idx).blockId;
                 // Sanity-check the id before invoking the simulation so a typo
@@ -228,7 +228,7 @@ public final class BuildProcess implements BotProcess {
                 // clicks miss when the server drops the packet (e.g. mid-tick
                 // re-pathing puts the player slightly out of reach).
                 if (placeTicks == 2 || (placeTicks - 2) % 5 == 0) {
-                    clientUseItemOn(mc, p, support, currentFace);
+                    a.placeOn(support, currentFace);
                 }
                 placeTicks++;
                 // Read the block back through the level: BlockStatePredictionHandler
@@ -242,14 +242,14 @@ public final class BuildProcess implements BotProcess {
                     placed++;
                     idx++;
                     phase = Phase.NEXT;
-                    BotInput.sneak(mc, false);
+                    a.commandSneak(false);
                     p.setShiftKeyDown(false);
                 } else if (placeTicks > PLACE_TIMEOUT_TICKS) {
                     failedIdx.add(idx);
                     skipped++;
                     idx++;
                     phase = Phase.NEXT;
-                    BotInput.sneak(mc, false);
+                    a.commandSneak(false);
                     p.setShiftKeyDown(false);
                 }
             }
@@ -307,8 +307,8 @@ public final class BuildProcess implements BotProcess {
     }
 
     /** Ensure the desired blockId is in the held slot — switch hotbar or pickItem from inventory. */
-    private boolean ensureHoldingBlock(Minecraft mc, String blockId) {
-        LocalPlayer p = mc.player;
+    private boolean ensureHoldingBlock(Avatar a, String blockId) {
+        Player p = a.player();
         if (p == null) return false;
         Inventory inv = p.getInventory();
         ItemStack held = inv.getSelected();
@@ -316,10 +316,7 @@ public final class BuildProcess implements BotProcess {
         // Scan hotbar
         for (int slot = 0; slot < 9; slot++) {
             if (matchesItem(inv.items.get(slot), blockId)) {
-                inv.selected = slot;
-                if (p.connection != null) {
-                    p.connection.send(new ServerboundSetCarriedItemPacket(slot));
-                }
+                a.setSelectedSlot(slot);   // client syncs carried-slot; server sets directly
                 return true;
             }
         }
@@ -344,7 +341,7 @@ public final class BuildProcess implements BotProcess {
     }
 
     /** Look at the face of the supporting neighbor that points at `block`. */
-    private void faceSupportFor(LocalPlayer p, BlockPos block, Direction face) {
+    private void faceSupportFor(Player p, BlockPos block, Direction face) {
         // The supporting block sits opposite to `face`. We want to click `face` of support
         // which points at block; aim at the center of that face.
         BlockPos support = block.offset(-face.getStepX(), -face.getStepY(), -face.getStepZ());

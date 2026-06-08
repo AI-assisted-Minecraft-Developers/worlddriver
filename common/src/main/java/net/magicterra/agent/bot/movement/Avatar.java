@@ -38,6 +38,11 @@ public interface Avatar {
     boolean holdPlaceable();
     /** Swap to the best tool for breaking the block at {@code cell}. */
     void selectTool(BlockPos cell);
+    /** Select hotbar {@code slot} (0..8) as the held item. Client syncs the
+     *  carried-slot to the server; server sets it directly. Used by builders to
+     *  hold a SPECIFIC block (vs {@link #holdPlaceable()} which holds ANY support
+     *  block, and {@link #selectTool(BlockPos)} which holds the best break tool). */
+    void setSelectedSlot(int slot);
     /** Snap the look (yaw+pitch) onto the block at {@code cell}. */
     void aimAtBlock(BlockPos cell);
     /** Place a support block into {@code cell} (finds a solid neighbour face). */

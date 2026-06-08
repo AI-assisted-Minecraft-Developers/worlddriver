@@ -72,6 +72,9 @@ public final class ServerPlayerAvatar implements Avatar {
     }
 
     @Override public void selectTool(BlockPos cell) { /* arena breaks with hand/held; best-tool optional */ }
+    @Override public void setSelectedSlot(int slot) {
+        if (slot >= 0 && slot <= 8) fp.getInventory().selected = slot;   // server-authoritative; no packet
+    }
 
     @Override public void aimAtBlock(BlockPos cell) {
         aimTarget = cell.immutable();

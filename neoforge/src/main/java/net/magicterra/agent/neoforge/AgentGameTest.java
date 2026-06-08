@@ -11,8 +11,10 @@ import net.magicterra.agent.neoforge.sim.ServerAgentDriver;
 import net.magicterra.agent.neoforge.sim.ServerAgentManager;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.process.GotoProcess;
+import net.magicterra.agent.bot.process.BuildProcess;
 import net.magicterra.agent.bot.process.MineProcess;
 import net.magicterra.agent.bot.process.RunAwayProcess;
+import net.magicterra.agent.bot.process.Schematic;
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.world.LevelWorldView;
@@ -1039,6 +1041,71 @@ public final class AgentGameTest {
                 throw new GameTestAssertException("server MineProcess left " + remaining + "/3 target stone unmined");
             if (!driver.finished() || ServerAgentManager.activeCount() != 0)
                 throw new GameTestAssertException("server MineProcess did not finish+unregister: finished="
+                        + driver.finished() + " active=" + ServerAgentManager.activeCount());
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Phase 2b process-layer proof #4: the SERVER runs the REAL {@link BuildProcess}
+     * (NEXT→GOING→PLACING, find-support, hold-block, sneak-place) over a FakePlayer
+     * headless. BuildProcess is Avatar-migrated: place is {@code a.placeOn(support,
+     * face)} (client = clientUseItemOn; server = gameMode.useItemOn), hold is
+     * {@code a.setSelectedSlot} (client syncs the carried slot; server sets it). The
+     * FakePlayer is given a cobblestone stack; the schematic asks for two cobble on
+     * a dirt floor; assert both land and the process finishes + unregisters.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverBuildArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 720, cz = 720, floorY = 220;
+        for (int dx = -1; dx <= 6; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.DIRT.defaultBlockState());
+        BlockPos origin = new BlockPos(cx, floorY, cz);
+        BlockPos t1 = new BlockPos(cx + 2, floorY + 1, cz);
+        BlockPos t2 = new BlockPos(cx + 3, floorY + 1, cz);
+        java.util.List<Schematic.Entry> es = new java.util.ArrayList<>();
+        es.add(new Schematic.Entry(2, 1, 0, "minecraft:cobblestone"));
+        es.add(new Schematic.Entry(3, 1, 0, "minecraft:cobblestone"));
+        Schematic schem = new Schematic(4, 2, 1, es);
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = false;
+        BotConfig.allowPlace = true;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            driver.fakePlayer().getInventory().items.set(0, new ItemStack(Blocks.COBBLESTONE, 64));
+            driver.fakePlayer().getInventory().selected = 0;
+            driver.runProcess(new BuildProcess(origin, schem));
+            ServerAgentManager.register(driver);
+
+            for (int t = 0; t < 400 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            boolean p1 = level.getBlockState(t1).is(Blocks.COBBLESTONE);
+            boolean p2 = level.getBlockState(t2).is(Blocks.COBBLESTONE);
+            FakePlayer fp = driver.fakePlayer();
+            AgentDriverCommon.LOG.info("[serverBuildArena] step={} pos=({},{},{}) finished={} active={} placed1={} placed2={}",
+                    driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(),
+                    driver.finished(), ServerAgentManager.activeCount(), p1, p2);
+            if (!p1 || !p2)
+                throw new GameTestAssertException("server BuildProcess failed to place both cobble: t1="
+                        + level.getBlockState(t1) + " t2=" + level.getBlockState(t2));
+            if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                throw new GameTestAssertException("build process did not finish+unregister: finished="
                         + driver.finished() + " active=" + ServerAgentManager.activeCount());
         } finally {
             BotConfig.allowBreak = ob;

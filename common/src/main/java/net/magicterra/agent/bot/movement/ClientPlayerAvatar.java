@@ -38,6 +38,12 @@ public final class ClientPlayerAvatar implements Avatar {
 
     @Override public boolean holdPlaceable() { return BotInteract.ensureHoldingPlaceableAny(mc); }
     @Override public void selectTool(BlockPos cell) { BotInteract.selectBestToolFor(mc, cell); }
+    @Override public void setSelectedSlot(int slot) {
+        if (p == null || slot < 0 || slot > 8) return;
+        p.getInventory().selected = slot;
+        if (p.connection != null)
+            p.connection.send(new net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket(slot));
+    }
     @Override public void aimAtBlock(BlockPos cell) { BotInteract.aimAtBlockSnap(p, cell); }
     @Override public void place(WorldView w, BlockPos cell) { BotInteract.walkerPlace(mc, p, w, cell); }
     @Override public void placeOn(BlockPos cell, Direction face) { BotInteract.clientUseItemOn(mc, p, cell, face); }
