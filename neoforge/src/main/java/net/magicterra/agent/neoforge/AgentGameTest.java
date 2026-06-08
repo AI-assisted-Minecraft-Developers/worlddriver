@@ -402,6 +402,103 @@ public final class AgentGameTest {
         helper.succeed();
     }
 
+    /**
+     * THE long-standing execution gap, finally reproducible headless: the REAL
+     * {@link Walker} must mount a +5 SHEER wall that rises from DEEP water (all
+     * buoyant — no dry ledge to recover on). Bot floats in a contained pool at
+     * the wall base; goal is on the dry plateau behind the wall. Break + place
+     * both ON (the full toolkit the live bot had). Memory says the Walker breaks
+     * the face + places dirt but bobs off before it can mount.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void buoyantWallArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 60, cz = 60, floorY = 200, depth = 6;
+        int surface = floorY + depth;            // y206 water surface
+        int plateauTop = surface + 5;            // y211 — wall top +5 above water (sheer, buoyant)
+
+        // Basin floor.
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = -3; dz <= 2; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+        // Containing walls (−z, ±x) up to surface+1 to hold the water.
+        for (int dz = -3; dz <= 2; dz++)
+            for (int y = floorY + 1; y <= surface + 1; y++) {
+                level.setBlockAndUpdate(new BlockPos(cx - 3, y, cz + dz), Blocks.STONE.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + 3, y, cz + dz), Blocks.STONE.defaultBlockState());
+            }
+        for (int dx = -3; dx <= 3; dx++)
+            for (int y = floorY + 1; y <= surface + 1; y++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz - 3), Blocks.STONE.defaultBlockState());
+        // Water fill (interior).
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= 1; dz++)
+                for (int y = floorY + 1; y <= surface; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
+        // The +5 sheer climb wall at cz+2, floor → plateau top.
+        for (int dx = -3; dx <= 3; dx++)
+            for (int y = floorY + 1; y <= plateauTop; y++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + 2), Blocks.STONE.defaultBlockState());
+        // Dry plateau behind the wall.
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = 3; dz <= 6; dz++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, plateauTop, cz + dz), Blocks.STONE.defaultBlockState());
+                for (int y = plateauTop + 1; y <= plateauTop + 4; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
+            }
+        BlockPos goal = new BlockPos(cx, plateauTop + 1, cz + 3);
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;
+        BotConfig.walkerDebug = true;
+        // Determinism: run A* unbounded by wall-clock (PathFinder treats sliceMs
+        // >= Long.MAX_VALUE/2 as "never pause") so each repath completes in one
+        // go, bounded only by the deterministic node count — eliminates the
+        // cross-run jitter that makes the live buoyant climb intermittent.
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, surface - 1, cz + 1.5);
+            FakePlayer fp = av.fakePlayer();
+            grantWaterEffects(fp);
+            fp.getInventory().clearContent();
+            fp.getInventory().add(new ItemStack(Items.DIRT, 64));
+            fp.getInventory().selected = 0;
+
+            LevelWorldView w = new LevelWorldView(level, fp);
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.Block(goal));
+
+            Walker.Step s = Walker.Step.WALKING;
+            double maxY = fp.getY();
+            boolean everDry = false;
+            int bobTicks = 0;                 // ticks stuck in-water below the wall top
+            for (int t = 0; t < 800 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+                maxY = Math.max(maxY, fp.getY());
+                if (fp.onGround() && !fp.isInWater()) everDry = true;
+                if (fp.isInWater() && fp.getY() < plateauTop) bobTicks++;
+            }
+            boolean onPlateau = fp.getZ() > (cz + 2) + 0.5 && fp.getY() >= plateauTop + 1 - 0.4;
+            AgentDriverCommon.LOG.info("[buoyantWallArena] step={} pos=({},{},{}) maxY={} everDry={} onPlateau={} bobTicks={}",
+                    s, fp.getX(), fp.getY(), fp.getZ(), maxY, everDry, onPlateau, bobTicks);
+            if (!onPlateau)
+                throw new GameTestAssertException("BUOYANT +5 wall: Walker failed to mount from water: pos=("
+                        + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY
+                        + " everDry=" + everDry + " step=" + s);
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+        }
+        helper.succeed();
+    }
+
     /** 5x5 stone-walled tank, 3x3 water core {@code depth} tall, air above. */
     private static void buildWaterColumn(ServerLevel level, int cx, int cz, int floorY, int depth) {
         for (int dx = -2; dx <= 2; dx++)
