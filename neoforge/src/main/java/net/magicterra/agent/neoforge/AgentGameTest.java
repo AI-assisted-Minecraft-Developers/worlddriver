@@ -16,6 +16,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.neoforged.neoforge.common.util.FakePlayer;
 
 import java.util.concurrent.atomic.AtomicReference;
@@ -341,6 +343,88 @@ public final class AgentGameTest {
             BotConfig.walkerDebug = odbg;
         }
         helper.succeed();
+    }
+
+    /**
+     * Water-physics-parity gate for {@link ServerPlayerAvatar}: a FakePlayer
+     * driven by manual step() in a deep water column must reproduce vanilla
+     * fluid movement — (1) submerged with no input it SINKS SLOWLY (water drag,
+     * gravity/16), not free-fall; (2) holding jump while floating BOBS UP
+     * (jumpInLiquid +0.04/tick); (3) forward swims (slow). Without water state
+     * (isInWater()), travel() takes the land branch and the bot free-falls to
+     * the floor — so this is the gate that unlocks the buoyant-wall arena.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void waterPhysicsParity(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 40, cz = 40, floorY = 200, depth = 14;
+        buildWaterColumn(level, cx, cz, floorY, depth);
+        double surface = floorY + depth;            // water surface Y
+
+        // (1) Submerged, no input → slow sink (NOT free-fall to the floor).
+        ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, floorY + depth - 4, cz + 0.5);
+        FakePlayer fp = av.fakePlayer();
+        grantWaterEffects(fp);
+        for (int i = 0; i < 2; i++) { av.commandMove(0, 0); av.step(); }   // warm up water state
+        if (!fp.isInWater())
+            throw new GameTestAssertException("avatar not in water after baseTick (water state not wired)");
+        double y0 = fp.getY();
+        for (int i = 0; i < 20; i++) { av.commandMove(0, 0); av.step(); }
+        double sinkDy = fp.getY() - y0;
+        if (sinkDy < -1.5 || sinkDy > 0.2)
+            throw new GameTestAssertException("submerged sink not vanilla-slow: dy=" + sinkDy
+                    + " (expected slow water drift, free-fall would be much more negative)");
+
+        // (2) Submerged, hold jump → buoyant rise.
+        av = ServerPlayerAvatar.create(level, cx + 0.5, floorY + depth - 6, cz + 0.5);
+        fp = av.fakePlayer();
+        grantWaterEffects(fp);
+        for (int i = 0; i < 2; i++) { av.commandMove(0, 0); av.step(); }
+        double jy0 = fp.getY();
+        for (int i = 0; i < 25; i++) { av.commandJump(true); av.commandMove(0, 0); av.step(); }
+        double riseDy = fp.getY() - jy0;
+        if (riseDy < 0.8)
+            throw new GameTestAssertException("buoyant jump did not lift the avatar: dy=" + riseDy);
+
+        // (3) Submerged, forward → swims forward (slow), stays in water.
+        av = ServerPlayerAvatar.create(level, cx + 0.5, floorY + depth - 5, cz + 0.5);
+        fp = av.fakePlayer();
+        grantWaterEffects(fp);
+        for (int i = 0; i < 2; i++) { av.commandMove(0, 0); av.step(); }
+        double z0 = fp.getZ();
+        for (int i = 0; i < 20; i++) { fp.setYRot(0f); av.commandForward(1f); av.step(); }
+        double swimDz = fp.getZ() - z0;
+        if (swimDz < 0.3 || swimDz > 5.0)
+            throw new GameTestAssertException("water swim displacement off: dz=" + swimDz);
+
+        AgentDriverCommon.LOG.info("[waterPhysicsParity] sinkDy={} riseDy={} swimDz={} surface={}",
+                sinkDy, riseDy, swimDz, surface);
+        helper.succeed();
+    }
+
+    /** 5x5 stone-walled tank, 3x3 water core {@code depth} tall, air above. */
+    private static void buildWaterColumn(ServerLevel level, int cx, int cz, int floorY, int depth) {
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= 2; dz++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+                boolean wall = Math.abs(dx) == 2 || Math.abs(dz) == 2;
+                for (int dy = 1; dy <= depth; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                            wall ? Blocks.STONE.defaultBlockState() : Blocks.WATER.defaultBlockState());
+                for (int dy = depth + 1; dy <= depth + 4; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                            wall ? Blocks.STONE.defaultBlockState() : Blocks.AIR.defaultBlockState());
+            }
+    }
+
+    /** Infinite non-locomotion protective effects (matches the harness eval player):
+     *  water-breathing/resistance/regen/fire-resistance keep baseTick survival
+     *  mechanics from skewing the physics — none of these alter movement. */
+    private static void grantWaterEffects(net.minecraft.world.entity.player.Player p) {
+        p.addEffect(new MobEffectInstance(MobEffects.WATER_BREATHING, -1, 0, false, false));
+        p.addEffect(new MobEffectInstance(MobEffects.DAMAGE_RESISTANCE, -1, 4, false, false));
+        p.addEffect(new MobEffectInstance(MobEffects.REGENERATION, -1, 4, false, false));
+        p.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, -1, 0, false, false));
     }
 
     /** 11x11 solid floor at {@code floorY}, clear 5 above — a clean test slab. */

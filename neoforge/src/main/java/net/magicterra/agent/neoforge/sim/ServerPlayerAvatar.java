@@ -121,21 +121,43 @@ public final class ServerPlayerAvatar implements Avatar {
      * {@code walker.tick(avatar, world)}.
      */
     public void step() {
-        // Jump: replicate LivingEntity.jumpFromGround (y = 0.42*blockJumpFactor,
-        // plus a sprint forward boost), only when grounded.
-        if (pendingJump && fp.onGround()) {
-            double jp = 0.42; // base jump velocity (blockJumpFactor=1 on normal blocks)
-            Vec3 dm = fp.getDeltaMovement();
-            fp.setDeltaMovement(dm.x, jp, dm.z);
-            if (fp.isSprinting()) {
-                float yawRad = fp.getYRot() * ((float) Math.PI / 180f);
-                fp.setDeltaMovement(fp.getDeltaMovement().add(-Math.sin(yawRad) * 0.2, 0.0, Math.cos(yawRad) * 0.2));
+        // Faithful per-tick STATE: vanilla Entity.tick() runs baseTick() FIRST,
+        // which (via updateInWaterStateAndDoFluidPushing) sets isInWater()/
+        // isUnderWater()/the swimming pose and applies the water-current push.
+        // We integrate locomotion manually below (validated on land by
+        // physicsParity), but travel() takes its land branch in a water cell
+        // unless isInWater() is live — so baseTick() must run each tick. It does
+        // NOT call move()/travel(), so there is no double-integration. (Survival
+        // noise it introduces — drowning, inWall damage — is neutralised by the
+        // protective effects the harness grants the avatar in water arenas; none
+        // of those effects alter locomotion.)
+        fp.baseTick();
+        boolean inWater = fp.isInWater();
+
+        if (pendingJump) {
+            if (fp.onGround()) {
+                // Ground / shallow-water jump: vanilla jumpFromGround (y=0.42 on
+                // normal blocks + a sprint forward boost). One-shot edge.
+                double jp = 0.42;
+                Vec3 dm = fp.getDeltaMovement();
+                fp.setDeltaMovement(dm.x, jp, dm.z);
+                if (fp.isSprinting()) {
+                    float yawRad = fp.getYRot() * ((float) Math.PI / 180f);
+                    fp.setDeltaMovement(fp.getDeltaMovement().add(-Math.sin(yawRad) * 0.2, 0.0, Math.cos(yawRad) * 0.2));
+                }
+                fp.hasImpulse = true;
+            } else if (inWater) {
+                // Buoyant bob: vanilla aiStep calls jumpInLiquid every tick the
+                // jump is held while FLOATING (not a one-shot) — adds 0.04*swimSpeed
+                // upward (swim_speed attr = 1.0 for a vanilla player). This is the
+                // weak rise that famously can't mount a sheer wall from water.
+                Vec3 dm = fp.getDeltaMovement();
+                fp.setDeltaMovement(dm.x, dm.y + 0.04, dm.z);
             }
-            fp.hasImpulse = true;
         }
-        // Ground movement speed: on the client LocalPlayer.aiStep sets `speed`
-        // (and the sprint attribute modifier) each tick; without aiStep we must
-        // seed it from the MOVEMENT_SPEED attribute, approximating sprint ×1.3.
+        // Movement speed: LocalPlayer.aiStep seeds `speed` each tick; without
+        // aiStep we seed it from MOVEMENT_SPEED (sprint ×1.3). travel()'s water
+        // branch also reads getSpeed(), so this feeds both land and water.
         double ms = fp.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED);
         fp.setSpeed((float) (fp.isSprinting() ? ms * 1.3 : ms));
         fp.setShiftKeyDown(pendingSneak);
@@ -143,13 +165,12 @@ public final class ServerPlayerAvatar implements Avatar {
         fp.xxa = pendingLeft * mult;
         fp.yya = 0f;
         fp.zza = pendingForward * mult;
-        // travel() rotates the impulse by getYRot(), applies friction + gravity,
-        // and calls move(MoverType.SELF, deltaMovement) for collision — the same
-        // pipeline LocalPlayer.aiStep runs on the client.
+        // travel() rotates the impulse by getYRot(), applies friction + gravity
+        // (or water drag + the wall auto-climb-out), and calls move() for
+        // collision — the same pipeline LocalPlayer.aiStep runs on the client.
         fp.travel(new Vec3(fp.xxa, fp.yya, fp.zza));
-        // travel()'s internal move() updates position, onGround and applies gravity
-        // for next tick; no base entity tick needed (FakePlayer.tick may assume a
-        // connection, and the arena is dry so fluid state stays false).
-        pendingJump = false;       // jump is a one-shot edge, like AgentInput
+        // Ground jump is a one-shot edge (like AgentInput); the buoyant bob must
+        // repeat each tick underwater, so only clear when NOT floating in water.
+        if (!inWater) pendingJump = false;
     }
 }
