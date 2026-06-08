@@ -6,6 +6,7 @@ import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.elytra.ElytraPhysics;
+import net.magicterra.agent.bot.movement.Avatar;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
@@ -118,18 +119,19 @@ public final class MineProcess implements BotProcess {
         st.mine.lastError = null;
     }
 
-    public boolean tick(Minecraft mc, WorldView w, BotState st) {
+    @Override public boolean tick(Avatar a, WorldView w, BotState st) {
+        Player p = a.player();
+        if (p == null) { st.mine.lastError = "player vanished"; st.mine.reset(); return true; }
+        Level lvl = p.level();
         // Quota reached → switch to COLLECT instead of declaring done. The
         // old behaviour left the player wherever the last break completed,
         // so items that fell 2-3 blocks away (typical for trees: trunk
         // breaks at head height, items at foot height) just despawned.
         if (broken >= desiredQty && phase != Phase.COLLECT) {
-            if (mc.options != null) mc.options.keyAttack.setDown(false);
+            a.breakHold(false);
             phase = Phase.COLLECT;
             collectTicks = 0;
         }
-        LocalPlayer p = mc.player;
-        if (p == null) { st.mine.lastError = "player vanished"; st.mine.reset(); return true; }
         // Anchor the command to where it began (first tick with a live player).
         if (startAnchor == null) startAnchor = p.blockPosition();
 
@@ -140,12 +142,10 @@ public final class MineProcess implements BotProcess {
         // (This is exactly what killed a naked run: a stone dig opened a hidden
         // pocket and the next-target approach stepped into it.)
         if (p.isInLava()) {
-            if (mc.options != null) {
-                mc.options.keyAttack.setDown(false);
-                BotInput.forward(mc, false);
-                BotInput.jump(mc, false);
-                if (mc.player != null) mc.player.setSprinting(false);
-            }
+            a.breakHold(false);
+            a.commandForward(0);
+            a.commandJump(false);
+            p.setSprinting(false);
             st.mine.lastError = "aborted: entered lava";
             st.mine.reset();
             return true;
@@ -153,7 +153,7 @@ public final class MineProcess implements BotProcess {
 
         switch (phase) {
             case SEARCH -> {
-                Target t = scanForTarget(mc, p);
+                Target t = scanForTarget(lvl, p);
                 if (t == null) {
                     st.mine.lastError = "no reachable target (broken=" + broken + "/" + desiredQty + ")";
                     st.mine.reset();
@@ -169,7 +169,7 @@ public final class MineProcess implements BotProcess {
             }
             case GOING -> {
                 // Make sure attack isn't lingering from the previous block.
-                mc.options.keyAttack.setDown(false);
+                a.breakHold(false);
                 // Already standing on the target's stand cell? Then there is nothing
                 // to walk — go straight to breaking. This is the straight-up "mine
                 // the overhead block from directly below" case (stand == our own
@@ -178,14 +178,14 @@ public final class MineProcess implements BotProcess {
                 // side/reach-across stand is a DIFFERENT cell, so this never short-
                 // circuits a real walk.)
                 if (currentStand != null && p.blockPosition().equals(currentStand)) {
-                    selectBestTool(mc, currentTarget);
-                    faceBlock(p, currentTarget);
+                    a.selectTool(currentTarget);
+                    a.aimAtBlock(currentTarget);
                     breakingTicks = 0;
-                    breakStartId = currentBlockId(mc);
+                    breakStartId = currentBlockId(lvl);
                     phase = Phase.BREAKING;
                     return false;
                 }
-                Walker.Step s = walker.tick(mc, w);
+                Walker.Step s = walker.tick(a, w);
                 st.mine.pathLen = walker.pathLen();
                 st.mine.pathStep = walker.pathStep();
                 if (s == Walker.Step.FAILED) {
@@ -201,7 +201,7 @@ public final class MineProcess implements BotProcess {
                     if (!currentTargetClearing) {
                         BlockPos foot = new BlockPos((int) Math.floor(p.getX()),
                                 (int) Math.floor(p.getY()), (int) Math.floor(p.getZ()));
-                        Target clear = findClearingTarget(mc.level, foot, currentTarget);
+                        Target clear = findClearingTarget(lvl, foot, currentTarget);
                         if (clear != null) {
                             if (BotConfig.walkerDebug)
                                 LOG.info("[mine] stand unreachable for {} -> clear leaf {} (stand {})",
@@ -222,33 +222,37 @@ public final class MineProcess implements BotProcess {
                     return false;
                 }
                 if (s == Walker.Step.ARRIVED) {
-                    selectBestTool(mc, currentTarget);
-                    faceBlock(p, currentTarget);
+                    a.selectTool(currentTarget);
+                    a.aimAtBlock(currentTarget);
                     breakingTicks = 0;
                     // Block id observed at the moment we arrived — used to detect
                     // both successful breaks (id changes) and resyncs (id flickers
                     // to air then back, indicating a rejected predicted destroy).
-                    breakStartId = currentBlockId(mc);
+                    breakStartId = currentBlockId(lvl);
                     phase = Phase.BREAKING;
                 }
             }
             case BREAKING -> {
-                // Release walking keys; let vanilla's tick → continueAttack →
-                // gameMode.continueDestroyBlock pipeline drive the break. Calling
-                // gameMode methods directly causes client-side prediction to remove
-                // the block visually for a tick before server resyncs, which the
-                // naive "is the block air now?" check would mis-count as success.
-                BotInput.forward(mc, false);
-                BotInput.jump(mc, false);
+                // Release walking keys, hold the break action via the Avatar:
+                //  - CLIENT: a.breakHold(true) = keyAttack.setDown(true), so vanilla's
+                //    tick → continueAttack → gameMode.continueDestroyBlock pipeline
+                //    drives a PROGRESSIVE break (calling gameMode directly would let
+                //    client prediction remove the block for a tick, mis-counted as a
+                //    success by the id check).
+                //  - SERVER: a.breakHold(true) = level.destroyBlock(aimTarget) (instant).
+                // Either way the SAME completion check below (block id changed away
+                // from the original) detects the break — progressive or instant.
+                a.commandForward(0);
+                a.commandJump(false);
                 p.setSprinting(false);
-                faceBlock(p, currentTarget);
-                mc.options.keyAttack.setDown(true);
+                a.aimAtBlock(currentTarget);
+                a.breakHold(true);
 
                 breakingTicks++;
-                String now = currentBlockId(mc);
+                String now = currentBlockId(lvl);
                 // Robust completion: id changed away from the original block AND
                 // is no longer the same kind. Avoids the 1-tick flicker false-positive.
-                if (!now.equals(breakStartId) && !isTarget(mc.level.getBlockState(currentTarget))) {
+                if (!now.equals(breakStartId) && !isTarget(lvl.getBlockState(currentTarget))) {
                     // A "clearing" break is an occluding leaf removed only to open
                     // reach/LOS to a real target — it must NOT count toward the quota
                     // nor seed COLLECT (leaves rarely drop, and we want COLLECT to
@@ -261,12 +265,12 @@ public final class MineProcess implements BotProcess {
                         // the trail is long enough that the drops have likely
                         // despawned anyway. Skip a cell that flooded with lava the
                         // moment we broke it — COLLECT must never path back into it.
-                        if (!lavaTouching(mc.level, currentTarget)) {
+                        if (!lavaTouching(lvl, currentTarget)) {
                             recentBreaks.addLast(currentTarget);
                             while (recentBreaks.size() > 8) recentBreaks.removeFirst();
                         }
                     }
-                    mc.options.keyAttack.setDown(false);
+                    a.breakHold(false);
                     currentTarget = null;
                     if (broken >= desiredQty) {
                         phase = Phase.COLLECT;
@@ -276,7 +280,7 @@ public final class MineProcess implements BotProcess {
                     }
                 } else if (breakingTicks > BotConfig.breakTimeoutTicks) {
                     blacklist.add(currentTarget);
-                    mc.options.keyAttack.setDown(false);
+                    a.breakHold(false);
                     currentTarget = null;
                     phase = Phase.SEARCH;
                 }
@@ -287,9 +291,9 @@ public final class MineProcess implements BotProcess {
                 // walking through remembered break positions when no items
                 // are visible — handles the chunk-not-loaded case where
                 // ClientLevel hasn't received the SpawnEntity packet yet.
-                mc.options.keyAttack.setDown(false);
+                a.breakHold(false);
                 collectTicks++;
-                BlockPos goal = findCollectGoal(mc, p);
+                BlockPos goal = findCollectGoal(lvl, p);
                 if (goal == null || collectTicks > MAX_COLLECT_TICKS) {
                     st.mine.reset();
                     return true;
@@ -298,7 +302,7 @@ public final class MineProcess implements BotProcess {
                     currentCollectGoal = goal;
                     collectWalker.setGoal(new Goal.Block(goal));
                 }
-                collectWalker.tick(mc, w);
+                collectWalker.tick(a, w);
                 st.mine.target = goal;
                 st.mine.pathLen = collectWalker.pathLen();
                 st.mine.pathStep = collectWalker.pathStep();
@@ -315,8 +319,7 @@ public final class MineProcess implements BotProcess {
      * instead of camping the nearest one. Returns null when there's nothing
      * left to chase — that's COLLECT's natural completion.
      */
-    private BlockPos findCollectGoal(Minecraft mc, LocalPlayer p) {
-        Level lvl = mc.level;
+    private BlockPos findCollectGoal(Level lvl, Player p) {
         if (lvl != null) {
             AABB box = p.getBoundingBox().inflate(COLLECT_SCAN_RADIUS);
             var items = lvl.getEntitiesOfClass(ItemEntity.class, box,
@@ -352,8 +355,7 @@ public final class MineProcess implements BotProcess {
     }
 
     /** Scan candidates within radius, filter by target id + blacklist + stand reachability, pick nearest. */
-    private Target scanForTarget(Minecraft mc, LocalPlayer p) {
-        Level lvl = mc.level;
+    private Target scanForTarget(Level lvl, Player p) {
         if (lvl == null) return null;
         BlockPos foot = new BlockPos((int) Math.floor(p.getX()), (int) Math.floor(p.getY()), (int) Math.floor(p.getZ()));
         int r = searchRadius;
@@ -652,75 +654,7 @@ public final class MineProcess implements BotProcess {
         return Direction.UP;
     }
 
-    private void faceBlock(LocalPlayer p, BlockPos block) {
-        Vec3 eye = p.getEyePosition();
-        double tx = block.getX() + 0.5, ty = block.getY() + 0.5, tz = block.getZ() + 0.5;
-        double dx = tx - eye.x, dy = ty - eye.y, dz = tz - eye.z;
-        double horiz = Math.sqrt(dx * dx + dz * dz);
-        float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
-        float pitch = (float) -Math.toDegrees(Math.atan2(dy, horiz));
-        p.setYRot(yaw);
-        p.yHeadRot = yaw;
-        p.yBodyRot = yaw;
-        p.setXRot(pitch);
-    }
-
-    /** Scan inventory for the best correct tool for the block; swap to selected hotbar slot. */
-    private void selectBestTool(Minecraft mc, BlockPos pos) {
-        LocalPlayer p = mc.player;
-        Level lvl = mc.level;
-        if (p == null || lvl == null) return;
-        BlockState bs = lvl.getBlockState(pos);
-        Inventory inv = p.getInventory();
-        int bestSlot = -1;
-        float bestSpeed = inv.getSelected().getDestroySpeed(bs);
-        boolean bestCorrect = inv.getSelected().isCorrectToolForDrops(bs);
-        // Scan hotbar first (cheaper switch).
-        for (int slot = 0; slot < 9; slot++) {
-            ItemStack stk = inv.items.get(slot);
-            if (stk.isEmpty()) continue;
-            float sp = stk.getDestroySpeed(bs);
-            boolean cor = stk.isCorrectToolForDrops(bs);
-            if ((cor && !bestCorrect) || (cor == bestCorrect && sp > bestSpeed)) {
-                bestSlot = slot;
-                bestSpeed = sp;
-                bestCorrect = cor;
-            }
-        }
-        if (bestSlot >= 0 && bestSlot != inv.selected) {
-            inv.selected = bestSlot;
-            // Sync to server so attack packets use the new item; client-side
-            // ItemStack interactions (destroy speed) already reflect inv.selected.
-            if (p.connection != null) {
-                p.connection.send(new ServerboundSetCarriedItemPacket(bestSlot));
-            }
-        }
-        // Inventory swap (creative-friendly): if no hotbar slot was good but main inventory has one.
-        int mainBest = -1;
-        float mainBestSpeed = bestSpeed;
-        boolean mainBestCorrect = bestCorrect;
-        for (int slot = 9; slot < inv.items.size(); slot++) {
-            ItemStack stk = inv.items.get(slot);
-            if (stk.isEmpty()) continue;
-            float sp = stk.getDestroySpeed(bs);
-            boolean cor = stk.isCorrectToolForDrops(bs);
-            if ((cor && !mainBestCorrect) || (cor == mainBestCorrect && sp > mainBestSpeed)) {
-                mainBest = slot;
-                mainBestSpeed = sp;
-                mainBestCorrect = cor;
-            }
-        }
-        if (mainBest > 0 && mc.gameMode != null) {
-            // Swap to selected hotbar slot via creative pickItem path; harmless no-op in survival.
-            int target = inv.selected;
-            inv.pickSlot(mainBest);
-            // pickSlot moves into hotbar slot (selected) when in creative; survival has no equivalent fast-path,
-            // so survival agents should pre-stage tools.
-        }
-    }
-
-    private String currentBlockId(Minecraft mc) {
-        Level lvl = mc.level;
+    private String currentBlockId(Level lvl) {
         if (lvl == null || currentTarget == null) return "";
         return BuiltInRegistries.BLOCK.getKey(lvl.getBlockState(currentTarget).getBlock()).toString();
     }

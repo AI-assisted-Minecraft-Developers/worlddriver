@@ -11,6 +11,7 @@ import net.magicterra.agent.neoforge.sim.ServerAgentDriver;
 import net.magicterra.agent.neoforge.sim.ServerAgentManager;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.process.GotoProcess;
+import net.magicterra.agent.bot.process.MineProcess;
 import net.magicterra.agent.bot.process.RunAwayProcess;
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.movement.Walker;
@@ -980,6 +981,69 @@ public final class AgentGameTest {
         } finally {
             BotConfig.walkerDebug = odbg;
             BotConfig.fleeActive = oflee;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Phase 2b process-layer proof #3 — the headline one: the SERVER runs the REAL
+     * {@link MineProcess} (the heavily-tuned live mine behaviour: SEARCH → GOING →
+     * BREAKING → COLLECT, tool-select, leaf-clear, lava-safety) over a FakePlayer
+     * with no client. MineProcess is Avatar-migrated: break is {@code a.breakHold}
+     * (client = keyAttack/continueDestroyBlock; server = instant destroyBlock of
+     * the aimed cell), aim is {@code a.aimAtBlock}, tool is {@code a.selectTool}.
+     * Lays a row of 3 stone targets on a non-target (dirt) floor; asserts the bot
+     * mines the whole quota (all 3 gone) and the process finishes + unregisters.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverMineProcessArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 660, cz = 660, floorY = 220;
+        // DIRT floor (NOT a target) so the scan only finds the placed stone.
+        for (int dx = -1; dx <= 9; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.DIRT.defaultBlockState());
+        BlockPos[] targets = {
+                new BlockPos(cx + 2, floorY + 1, cz),
+                new BlockPos(cx + 4, floorY + 1, cz),
+                new BlockPos(cx + 6, floorY + 1, cz),
+        };
+        for (BlockPos t : targets) level.setBlockAndUpdate(t, Blocks.STONE.defaultBlockState());
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = false;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            driver.runProcess(new MineProcess(java.util.List.of("minecraft:stone"), 3, 8));
+            ServerAgentManager.register(driver);
+
+            for (int t = 0; t < 400 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            int remaining = 0;
+            for (BlockPos t : targets) if (!level.getBlockState(t).isAir()) remaining++;
+            FakePlayer fp = driver.fakePlayer();
+            AgentDriverCommon.LOG.info("[serverMineProcessArena] step={} pos=({},{},{}) finished={} active={} remaining={}/3",
+                    driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(),
+                    driver.finished(), ServerAgentManager.activeCount(), remaining);
+            if (remaining != 0)
+                throw new GameTestAssertException("server MineProcess left " + remaining + "/3 target stone unmined");
+            if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                throw new GameTestAssertException("server MineProcess did not finish+unregister: finished="
+                        + driver.finished() + " active=" + ServerAgentManager.activeCount());
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
             BotConfig.pathfinderSliceMs = osl;
             BotConfig.pathfinderMaxMs = omm;
             ServerAgentManager.clear();
