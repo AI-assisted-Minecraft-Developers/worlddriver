@@ -5,6 +5,7 @@ import net.magicterra.agent.bot.movement.BotInput;
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.combat.ThreatScanner;
+import net.magicterra.agent.bot.combat.ClientThreatScanner;
 import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
@@ -48,7 +49,7 @@ public final class DodgeChain implements Chain {
 
     /** The soonest projectile predicted to hit, within the dodge radius. */
     private ThreatScanner.Incoming imminent(Minecraft mc) {
-        ThreatScanner.Scan scan = ThreatScanner.current(mc);
+        ThreatScanner.Scan scan = ClientThreatScanner.current(mc);
         if (mc.player == null) return null;
         Vec3 me = mc.player.position();
         ThreatScanner.Incoming best = null;

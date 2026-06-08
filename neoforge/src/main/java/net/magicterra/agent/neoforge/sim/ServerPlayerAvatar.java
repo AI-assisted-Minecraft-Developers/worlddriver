@@ -29,10 +29,36 @@ public final class ServerPlayerAvatar implements Avatar {
 
     private final FakePlayer fp;
 
+    /** {@code Player.attackStrengthTicker} (protected). {@link Player#tick()} — which we
+     *  deliberately do NOT run (only {@link Player#baseTick()}, to avoid double physics)
+     *  — increments it once per tick; {@link Player#getAttackStrengthScale} reads it.
+     *  Without the increment the scale stays pinned at 0 after {@code attack()} resets it,
+     *  so a server-driven CombatProcess could only ever land its FIRST swing. We mirror
+     *  the single increment in {@link #step()}. Resolved once (mojmapped at neoforge
+     *  runtime); null if the field name ever changes, in which case combat falls back to
+     *  one-shot (no crash). */
+    private static final java.lang.reflect.Field ATTACK_TICKER = resolveAttackTicker();
+
+    private static java.lang.reflect.Field resolveAttackTicker() {
+        try {
+            // Declared in LivingEntity (a protected field), not Player — resolve from
+            // the declaring class (mojmapped at neoforge runtime).
+            java.lang.reflect.Field f = net.minecraft.world.entity.LivingEntity.class
+                    .getDeclaredField("attackStrengthTicker");
+            f.setAccessible(true);
+            return f;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            net.magicterra.agent.AgentDriverCommon.LOG.warn(
+                    "[ServerPlayerAvatar] attackStrengthTicker not resolvable; server melee falls back to one-shot", e);
+            return null;
+        }
+    }
+
     private float pendingLeft, pendingForward;
     private boolean pendingJump, pendingSneak;
     private BlockPos aimTarget;
     private boolean breakHeld;
+    private boolean useHeld;
 
     public ServerPlayerAvatar(FakePlayer fp) { this.fp = fp; }
 
@@ -54,6 +80,14 @@ public final class ServerPlayerAvatar implements Avatar {
     @Override public void commandForward(float forward) { pendingForward = forward; pendingLeft = 0; }
     @Override public void commandJump(boolean v) { pendingJump = v; }
     @Override public void commandSneak(boolean v) { pendingSneak = v; }
+    @Override public void commandUseItem(boolean hold) {
+        // Edge-trigger: start using on the rising edge, stop (firing a bow) on the
+        // falling edge. stopUsingItem() routes through Item.releaseUsing, the same
+        // path a client up-edge takes.
+        if (hold && !useHeld) fp.startUsingItem(InteractionHand.MAIN_HAND);
+        else if (!hold && useHeld) fp.stopUsingItem();
+        useHeld = hold;
+    }
     @Override public void requestLookSnap() { /* no camera slew server-side */ }
 
     @Override public boolean holdPlaceable() {
@@ -156,6 +190,12 @@ public final class ServerPlayerAvatar implements Avatar {
         // protective effects the harness grants the avatar in water arenas; none
         // of those effects alter locomotion.)
         fp.baseTick();
+        // Advance the melee attack-strength cooldown (see ATTACK_TICKER): baseTick()
+        // doesn't, and a non-level-ticked FakePlayer is never tick()'d by the server.
+        if (ATTACK_TICKER != null) {
+            try { ATTACK_TICKER.setInt(fp, ATTACK_TICKER.getInt(fp) + 1); }
+            catch (ReflectiveOperationException ignored) { /* fall back to one-shot */ }
+        }
         boolean inWater = fp.isInWater();
 
         if (pendingJump) {

@@ -1176,7 +1176,12 @@ public final class AgentGameTest {
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverFollowArena(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        final int cx = 800, cz = 800, floorY = 220;
+        // Anchor to this test's own (entity-ticking) chunk column — a hardcoded far
+        // coord lands in a tracked chunk only by luck of the per-run test placement,
+        // so a freshly-spawned entity intermittently never promotes into getEntities.
+        // See serverCombatArena for the full rationale.
+        BlockPos anchor = helper.absolutePos(BlockPos.ZERO);
+        final int cx = anchor.getX(), cz = anchor.getZ(), floorY = 220;
         for (int dx = -2; dx <= 12; dx++)
             for (int dz = -2; dz <= 2; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
@@ -1217,6 +1222,91 @@ public final class AgentGameTest {
             BotConfig.pathfinderMaxMs = omm;
             ServerAgentManager.clear();
             stand.discard();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Phase 3 proof: the SERVER runs the REAL {@link CombatProcess} over a FakePlayer
+     * — the active melee loop. Combat now drives through the Avatar seam: locomotion
+     * via {@code commandMove}/{@code commandJump} (the player's own input), the hit via
+     * {@link ServerPlayerAvatar#attackEntity} (vanilla {@code Player.attack}), and the
+     * cooldown rhythm via {@code getAttackStrengthScale} — which only ramps because
+     * {@link ServerPlayerAvatar#step()} advances {@code attackStrengthTicker} (the
+     * Player.tick increment we otherwise skip; without it combat could land only one
+     * swing). A NoAI zombie is a static, deterministic target: the combat loop never
+     * ticks the level, so the zombie can't move, retaliate, or burn during the fight.
+     * The bot (iron sword) approaches and KILLs it by id; assert the zombie dies and
+     * the process finishes + unregisters.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverCombatArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        // Anchor the arena to THIS test's own region (the structure's chunk column),
+        // not a hardcoded absolute spot: the GameTest framework places each test
+        // instance at a different absolute position per run and only entity-ticks the
+        // chunks around it, so a fixed far coord lands in an entity-ticking chunk only
+        // by luck (fresh entities there never promote → getEntities/getEntity null,
+        // an intermittent flake). The structure's chunk IS entity-ticking, so building
+        // high above it (same X/Z column, y=220, clear of the structure) gives a
+        // reliably-tracked target the same way a live server tracks all loaded chunks.
+        BlockPos anchor = helper.absolutePos(BlockPos.ZERO);
+        final int cx = anchor.getX(), cz = anchor.getZ(), floorY = 220;
+        for (int dx = -2; dx <= 10; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+        var zombie = new net.minecraft.world.entity.monster.Zombie(level);
+        zombie.setPos(cx + 6 + 0.5, floorY + 1, cz + 0.5);
+        zombie.setNoAi(true);                 // no wander/retaliation; stays a fixed target
+        zombie.setPersistenceRequired();
+        level.addFreshEntity(zombie);
+        level.setDayTime(18000);              // night → the zombie won't sun-burn (no false fire-kill)
+        for (int i = 0; i < 3; i++) level.tick(() -> true);   // index into getEntities
+
+        boolean odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            driver.fakePlayer().getInventory().clearContent();
+            driver.fakePlayer().getInventory().add(new ItemStack(Items.IRON_SWORD));
+            // KILL by TYPE (scans Level.getEntities, the section index the GameTest
+            // harness promotes) rather than by id: level.tick(()->true) here doesn't
+            // populate the by-id lookup getEntity(int) uses, though a live server (full
+            // tick each tick) does. Type-mode exercises the same melee loop.
+            driver.runProcess(new net.magicterra.agent.bot.process.CombatProcess(
+                    net.magicterra.agent.bot.process.CombatProcess.Mode.KILL, null, "minecraft:zombie"));
+            ServerAgentManager.register(driver);
+
+            for (int t = 0; t < 1500 && ServerAgentManager.activeCount() > 0; t++) {
+                ServerAgentManager.tickAll();
+                // Tick the level so the zombie processes its hurt-cooldown
+                // (invulnerableTime) — a non-ticked target stays permanently invulnerable
+                // after the first hit. The FakePlayer isn't in the level's entity list, so
+                // it's NOT double-physicsed; this mirrors a live server (bot + world both
+                // tick each tick).
+                level.tick(() -> true);
+            }
+
+            boolean dead = !zombie.isAlive();
+            FakePlayer fp = driver.fakePlayer();
+            AgentDriverCommon.LOG.info("[serverCombatArena] step={} pos=({},{},{}) zHp={} dead={} finished={} active={}",
+                    driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(),
+                    zombie.getHealth(), dead, driver.finished(), ServerAgentManager.activeCount());
+            if (!dead)
+                throw new GameTestAssertException("server CombatProcess did not kill the zombie: hp=" + zombie.getHealth());
+            if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                throw new GameTestAssertException("server CombatProcess did not finish+unregister: finished="
+                        + driver.finished() + " active=" + ServerAgentManager.activeCount());
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            ServerAgentManager.clear();
+            zombie.discard();
         }
         helper.succeed();
     }

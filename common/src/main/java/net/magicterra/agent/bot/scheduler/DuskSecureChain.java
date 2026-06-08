@@ -5,6 +5,7 @@ import net.magicterra.agent.api.AgentApi;
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.combat.ThreatScanner;
+import net.magicterra.agent.bot.combat.ClientThreatScanner;
 import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.magicterra.agent.bot.process.BunkerProcess;
 import net.magicterra.agent.bot.world.WorldModel;
@@ -45,7 +46,7 @@ public final class DuskSecureChain implements Chain {
         if (process != null) return Priorities.IDLE_SECURE;
         WorldModel.Snapshot s = worldModel.snapshot();
         if (!s.present() || !s.exposedAtNight() || s.cornered()) { idleTicks = 0; return 0f; }
-        for (ThreatScanner.Threat t : ThreatScanner.current(mc).threats()) {
+        for (ThreatScanner.Threat t : ClientThreatScanner.current(mc).threats()) {
             if (t.distance() <= THREAT_RADIUS) { idleTicks = 0; return 0f; } // never dig in under attack
         }
         idleTicks++;

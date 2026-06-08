@@ -30,6 +30,10 @@ public interface Avatar {
     void commandForward(float forward);
     void commandJump(boolean v);
     void commandSneak(boolean v);
+    /** Hold/release item use (right-click) — drawing a bow, eating, etc. Client routes
+     *  to the use keybind; server starts/stops item use on the FakePlayer (an up-edge,
+     *  hold→release, fires a bow). */
+    void commandUseItem(boolean hold);
     /** Exempt this tick's heading from the cosmetic camera slew (no-op server-side). */
     void requestLookSnap();
     /** Release all commanded locomotion (forward/sneak/jump) + the logical sneak

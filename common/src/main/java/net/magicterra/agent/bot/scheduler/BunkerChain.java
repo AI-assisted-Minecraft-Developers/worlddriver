@@ -3,6 +3,7 @@ package net.magicterra.agent.bot.scheduler;
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.combat.ThreatScanner;
+import net.magicterra.agent.bot.combat.ClientThreatScanner;
 import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -122,7 +123,7 @@ public final class BunkerChain implements Chain {
 
     /** Hostiles within the trigger radius — the "surrounded" gauge. */
     private int surroundCount(Minecraft mc) {
-        ThreatScanner.Scan scan = ThreatScanner.current(mc);
+        ThreatScanner.Scan scan = ClientThreatScanner.current(mc);
         int n = 0;
         for (ThreatScanner.Threat t : scan.threats()) {
             if (t.distance() <= BotConfig.bunkerTriggerRadius) n++;

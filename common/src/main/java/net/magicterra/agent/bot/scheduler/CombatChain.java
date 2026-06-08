@@ -3,6 +3,7 @@ package net.magicterra.agent.bot.scheduler;
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.combat.ThreatScanner;
+import net.magicterra.agent.bot.combat.ClientThreatScanner;
 import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.magicterra.agent.bot.process.CombatProcess;
 import net.minecraft.client.Minecraft;
@@ -92,7 +93,7 @@ public final class CombatChain implements Chain {
         if (mc.player == null) return 0f;
         if (intentMode != null) return Priorities.COMBAT;
         if (BotConfig.autoFight) {
-            ThreatScanner.Threat top = ThreatScanner.current(mc).top();
+            ThreatScanner.Threat top = ClientThreatScanner.current(mc).top();
             if (top != null && top.score() >= BotConfig.autoFightThreatThreshold) return Priorities.COMBAT;
         }
         return 0f;

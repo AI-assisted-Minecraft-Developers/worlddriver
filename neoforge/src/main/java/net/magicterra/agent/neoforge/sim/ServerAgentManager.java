@@ -30,6 +30,7 @@ public final class ServerAgentManager {
                 d.tick();
                 if (d.finished()) ACTIVE.remove(d);
             } catch (Throwable t) {
+                net.magicterra.agent.AgentDriverCommon.LOG.error("[ServerAgentManager] driver crashed, removing", t);
                 ACTIVE.remove(d);   // a crashed driver must not wedge the server tick
             }
         }

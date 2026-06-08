@@ -3,6 +3,7 @@ package net.magicterra.agent.bot.scheduler;
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.combat.ThreatScanner;
+import net.magicterra.agent.bot.combat.ClientThreatScanner;
 import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.magicterra.agent.bot.process.RunAwayProcess;
 import net.minecraft.client.Minecraft;
@@ -98,7 +99,7 @@ public final class RetreatChain implements Chain {
 
     /** Any scanned hostile within {@code r} blocks (the scan holds hostiles only). */
     private static boolean hostileWithin(Minecraft mc, double r) {
-        for (ThreatScanner.Threat t : ThreatScanner.current(mc).threats()) {
+        for (ThreatScanner.Threat t : ClientThreatScanner.current(mc).threats()) {
             if (t.distance() <= r) return true;
         }
         return false;
@@ -111,7 +112,7 @@ public final class RetreatChain implements Chain {
      *  (rather than HP) is what makes the flee PROACTIVE: the bot bolts on the aim,
      *  before the first arrow connects. {@link #CLEAR_RADIUS} (12) ~ skeleton range. */
     private static boolean rangedThreatAiming(Minecraft mc) {
-        for (ThreatScanner.Threat t : ThreatScanner.current(mc).threats()) {
+        for (ThreatScanner.Threat t : ClientThreatScanner.current(mc).threats()) {
             if (t.charging() && t.distance() <= CLEAR_RADIUS) return true;
         }
         return false;
@@ -142,7 +143,7 @@ public final class RetreatChain implements Chain {
      *  own foot if none are currently scanned (so the flee still has a valid goal). */
     private static BlockPos fleeFrom(Minecraft mc) {
         double sx = 0, sy = 0, sz = 0; int n = 0;
-        for (ThreatScanner.Threat t : ThreatScanner.current(mc).threats()) {
+        for (ThreatScanner.Threat t : ClientThreatScanner.current(mc).threats()) {
             if (t.distance() > CLEAR_RADIUS + 6) continue;   // only nearby mobs steer the flee
             Entity e = t.entity();
             sx += e.getX(); sy += e.getY(); sz += e.getZ(); n++;

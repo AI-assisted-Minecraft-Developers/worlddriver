@@ -34,6 +34,7 @@ public final class ClientPlayerAvatar implements Avatar {
     @Override public void commandForward(float forward) { AgentInput a = ai(); if (a != null) a.commandForward(forward); }
     @Override public void commandJump(boolean v) { AgentInput a = ai(); if (a != null) a.commandJump(v); else p.input.jumping = v; }
     @Override public void commandSneak(boolean v) { AgentInput a = ai(); if (a != null) a.commandSneak(v); else p.input.shiftKeyDown = v; }
+    @Override public void commandUseItem(boolean hold) { mc.options.keyUse.setDown(hold); }
     @Override public void requestLookSnap() { LookController.requestSnap(); }
 
     @Override public boolean holdPlaceable() { return BotInteract.ensureHoldingPlaceableAny(mc); }

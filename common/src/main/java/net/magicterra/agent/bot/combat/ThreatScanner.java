@@ -1,9 +1,10 @@
 package net.magicterra.agent.bot.combat;
 
-import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.monster.RangedAttackMob;
@@ -16,7 +17,6 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,12 +25,15 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Phase B/C shared sensing: one per-tick scan of nearby hostiles + incoming
  * projectiles, scored so the reflex chains (panic/dodge) and the combat loop
- * (Phase C) read the same picture instead of each re-scanning. Purely client-side
- * (reads {@code entitiesForRendering} + client creeper-swell), so it self-skips
- * with an empty scan when there's no client level.
+ * (Phase C) read the same picture instead of each re-scanning.
  *
- * <p>Results are cached by the player's tick count: many readers in one tick
- * (panic + dodge + shield + combat) share a single scan.
+ * <p><b>Dist-neutral.</b> The sensing core ({@link #compute(Level, Player, int)})
+ * scans via {@code Level.getEntities} + {@code Level.clip} — an EntityGetter API that
+ * works on a {@code ClientLevel} AND a {@code ServerLevel} — so it loads and runs on a
+ * dedicated server (a server-driven {@code CombatProcess} over a FakePlayer reads the
+ * same scored picture). The client-only refresh loop + {@code Minecraft} convenience
+ * overloads + the shared per-tick cache live in {@code ClientThreatScanner}, which
+ * publishes its result here via {@link #publish}; {@link #current()} reads it.
  */
 public final class ThreatScanner {
     private ThreatScanner() {}
@@ -49,56 +52,48 @@ public final class ThreatScanner {
         public Threat top() { return threats.isEmpty() ? null : threats.get(0); }
     }
 
-    private static final Scan EMPTY = new Scan(List.of(), List.of());
-    private static final int DEFAULT_RADIUS = 24;
+    static final Scan EMPTY = new Scan(List.of(), List.of());
+    static final int DEFAULT_RADIUS = 24;
     private static final int PROJECTILE_LOOKAHEAD = 30;
 
     private static volatile Scan latest = EMPTY;
 
-    /** Last-tick projectile positions, keyed by entity id. */
-    private static final Map<Integer, Vec3> lastProjPos = new ConcurrentHashMap<>();
-    /** This tick's estimated projectile velocities (blocks/tick) from the position
-     *  delta — client projectiles report {@code getDeltaMovement()}≈0 (the client
-     *  interpolates their position, doesn't simulate physics). Computed once per
-     *  {@link #refresh} so every {@link #compute} caller (the reflex scan and the
-     *  observe verb, which may run mid-tick) shares one full-tick value instead of
-     *  re-deriving a near-zero delta against the just-rolled-forward position. */
+    /** This tick's estimated projectile velocities (blocks/tick), keyed by entity id —
+     *  derived by {@code ClientThreatScanner} from the position delta (client
+     *  projectiles report {@code getDeltaMovement()}≈0). Read by {@link #assessProjectile}
+     *  so the reflex scan and the observe verb share one full-tick value. Empty on a
+     *  server (no refresh loop), where {@code assessProjectile} falls back to the live
+     *  {@code getDeltaMovement()}. */
     private static final Map<Integer, Vec3> projVel = new ConcurrentHashMap<>();
 
-    /** Recompute the shared scan — called once per client tick by the bot host so
-     *  every reflex reader ({@link #current}) sees the same fresh picture. Driven
-     *  explicitly by the tick loop rather than memoised on a tick counter (the
-     *  latter went stale in headless runs and starved PanicChain). */
-    public static void refresh(Minecraft mc) {
-        if (mc.player == null || mc.level == null) {
-            latest = EMPTY; lastProjPos.clear(); projVel.clear(); return;
-        }
-        // Derive per-projectile velocities (this tick's position vs last tick's) and
-        // roll the history forward BEFORE computing the scan, so the scan and any
-        // same-tick observe read a full-tick velocity rather than a ~0 delta.
-        Map<Integer, Vec3> pos = new HashMap<>();
-        Map<Integer, Vec3> vel = new HashMap<>();
-        for (Entity e : mc.level.entitiesForRendering()) {
-            if (!(e instanceof Projectile)) continue;
-            Vec3 cur = e.position();
-            Vec3 prev = lastProjPos.get(e.getId());
-            pos.put(e.getId(), cur);
-            vel.put(e.getId(), prev != null ? cur.subtract(prev) : e.getDeltaMovement());
-        }
-        lastProjPos.clear(); lastProjPos.putAll(pos);
-        projVel.clear();     projVel.putAll(vel);
-        latest = compute(mc, DEFAULT_RADIUS);
+    /** Publish the shared per-tick scan ({@code ClientThreatScanner.refresh} → here →
+     *  {@link #current()}). Decouples the client refresh from the dist-neutral core. */
+    public static void publish(Scan s) { latest = s; }
+
+    /** Replace this tick's projectile-velocity table (called by the client refresh). */
+    public static void publishProjectileVel(Map<Integer, Vec3> vel) {
+        projVel.clear();
+        if (vel != null) projVel.putAll(vel);
     }
 
-    /** The shared scan from the most recent {@link #refresh} this tick. */
-    public static Scan current(Minecraft mc) {
+    /** The shared scan most recently {@link #publish}ed (by the client refresh). The
+     *  server has no refresh loop, so server callers use {@link #compute(Level, Player,
+     *  int)} directly instead of this. */
+    public static Scan current() {
         return latest;
     }
 
-    /** Fresh scan at an explicit radius (for the {@code mc.observe.threats} verb). */
-    public static Scan compute(Minecraft mc, int radius) {
-        if (mc.player == null || mc.level == null) return EMPTY;
-        var player = mc.player;
+    /** Convenience overload at the default radius — the server combat loop path. */
+    public static Scan compute(Level lvl, Player player) {
+        return compute(lvl, player, DEFAULT_RADIUS);
+    }
+
+    /** Level+Player core: works on BOTH client and server. Scans hostiles +
+     *  projectiles via {@code Level.getEntities} (EntityGetter, polymorphic over
+     *  ClientLevel/ServerLevel) — no client {@code Minecraft} dependency, so the
+     *  server combat loop (over a FakePlayer) reads the same scored picture. */
+    public static Scan compute(Level lvl, Player player, int radius) {
+        if (lvl == null || player == null) return EMPTY;
         double px = player.getX(), py = player.getY(), pz = player.getZ();
         AABB box = new AABB(px - radius, py - radius, pz - radius, px + radius, py + radius, pz + radius);
         Vec3 myEye = player.getEyePosition();
@@ -106,23 +101,22 @@ public final class ThreatScanner {
 
         List<Threat> threats = new ArrayList<>();
         List<Incoming> incoming = new ArrayList<>();
-        for (Entity e : mc.level.entitiesForRendering()) {
+        for (Entity e : lvl.getEntities(player, box, x -> true)) {
             if (e == player) continue;
-            if (!box.intersects(e.getBoundingBox())) continue;
 
             if (e instanceof Projectile pr) {
                 Incoming in = assessProjectile(pr, myBody);
                 if (in != null) incoming.add(in);
                 continue;
             }
-            // Skip corpses: a just-killed mob lingers in the client entity list for
-            // its ~20-tick death animation (isAlive()=false, still instanceof Zombie),
+            // Skip corpses: a just-killed mob lingers in the entity list for its
+            // ~20-tick death animation (isAlive()=false, still instanceof Zombie),
             // and a dead mob is no threat — exclude it so reflexes and the combat
             // loop (and mc.observe.threats) see a cleared field the moment it dies.
             if (!(e instanceof Enemy) || !(e instanceof LivingEntity) || !e.isAlive()) continue;
 
             double dist = Math.sqrt(e.distanceToSqr(px, py, pz));
-            boolean canSee = lineOfSight(mc, e, myEye);
+            boolean canSee = lineOfSight(lvl, e, myEye);
             boolean facing = facingPlayer(e, player.position());
             boolean charging = (e instanceof RangedAttackMob) && facing && canSee;
             float swell = (e instanceof Creeper c) ? c.getSwelling(1f) : 0f;
@@ -153,9 +147,9 @@ public final class ThreatScanner {
         return new Incoming(pr, pr.getId(), typeId(pr), pos, vel, hitT > 0, hitT > 0 ? hitT : -1);
     }
 
-    private static boolean lineOfSight(Minecraft mc, Entity from, Vec3 toEye) {
+    private static boolean lineOfSight(Level lvl, Entity from, Vec3 toEye) {
         try {
-            BlockHitResult hit = mc.level.clip(new ClipContext(
+            BlockHitResult hit = lvl.clip(new ClipContext(
                     from.getEyePosition(), toEye,
                     ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, from));
             return hit.getType() == HitResult.Type.MISS;

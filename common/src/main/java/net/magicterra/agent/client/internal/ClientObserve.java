@@ -15,6 +15,7 @@ import java.util.Map;
 
 import static net.magicterra.agent.client.internal.ClientThread.runOnClient;
 import net.magicterra.agent.bot.combat.ThreatScanner;
+import net.magicterra.agent.bot.combat.ClientThreatScanner;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.EntityHitResult;
@@ -279,7 +280,7 @@ public final class ClientObserve {
             if (mc.level == null || mc.player == null) {
                 return Map.of("threats", List.of(), "incomingProjectiles", List.of());
             }
-            return ThreatScanner.toMap(ThreatScanner.compute(mc, radius));
+            return ThreatScanner.toMap(ClientThreatScanner.compute(mc, radius));
         });
     }
 

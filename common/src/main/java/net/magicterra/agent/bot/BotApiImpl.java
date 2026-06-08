@@ -56,6 +56,7 @@ import net.magicterra.agent.bot.auto.AutoShield;
 import net.magicterra.agent.bot.auto.AutoHeal;
 import net.magicterra.agent.bot.auto.AutoTotem;
 import net.magicterra.agent.bot.combat.ThreatScanner;
+import net.magicterra.agent.bot.combat.ClientThreatScanner;
 import net.magicterra.agent.bot.auto.AutoTool;
 import net.magicterra.agent.bot.auto.AutoSwim;
 import net.magicterra.agent.bot.auto.AntiSuffocate;
@@ -1064,7 +1065,7 @@ public final class BotApiImpl implements BotApi {
         if (CLUTCH.tick(mc, world)) { releaseGate.markDirtied(); return; }
         // Refresh the shared threat picture once per tick — reflex chains
         // (panic/dodge) and the use-key arbiter (shield) all read it below.
-        ThreatScanner.refresh(mc);
+        ClientThreatScanner.refresh(mc);
         // Driver→agent push: emit one-shot events on threat-appeared / player-hurt
         // / player-death transitions (client-sensed; no server-side equivalent for
         // threats, and this is the player the agent actually controls).
@@ -1084,7 +1085,7 @@ public final class BotApiImpl implements BotApi {
         if (processOwnsUseKey) {
             autoShield.release(mc); autoHeal.release(mc); autoEat.releaseIfActive(mc);
         } else {
-            ThreatScanner.Scan scan = ThreatScanner.current(mc);
+            ThreatScanner.Scan scan = ClientThreatScanner.current(mc);
             if (BotConfig.autoShield && autoShield.wants(mc, mc.player, scan)) {
                 autoHeal.release(mc); autoEat.releaseIfActive(mc);
                 autoShield.engage(mc, mc.player, scan);
@@ -1239,7 +1240,7 @@ public final class BotApiImpl implements BotApi {
         }
         evtLastHealth = hp;
 
-        ThreatScanner.Threat top = ThreatScanner.current(mc).top();
+        ThreatScanner.Threat top = ClientThreatScanner.current(mc).top();
         int topId = (top != null) ? top.id() : -1;
         if (topId != -1 && topId != evtLastThreatId) {
             net.minecraft.core.BlockPos tp = top.entity().blockPosition();

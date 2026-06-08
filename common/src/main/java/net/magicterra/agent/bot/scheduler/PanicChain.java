@@ -5,6 +5,7 @@ import net.magicterra.agent.bot.movement.BotInput;
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.combat.ThreatScanner;
+import net.magicterra.agent.bot.combat.ClientThreatScanner;
 import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.magicterra.agent.bot.world.HazardField;
 import net.magicterra.agent.bot.world.SurvivalMath;
@@ -94,7 +95,7 @@ public final class PanicChain implements Chain {
     /** The closest creeper within the keep-distance (or one already swelling a bit
      *  further out), else null. */
     private Entity nearestCreeper(Minecraft mc) {
-        ThreatScanner.Scan scan = ThreatScanner.current(mc);
+        ThreatScanner.Scan scan = ClientThreatScanner.current(mc);
         Entity best = null;
         double bestDist = Double.MAX_VALUE;
         for (ThreatScanner.Threat t : scan.threats()) {
