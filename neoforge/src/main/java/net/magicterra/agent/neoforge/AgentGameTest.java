@@ -532,6 +532,102 @@ public final class AgentGameTest {
     }
 
     /**
+     * Failure-case validation for the anti-basin-dive {@code pathfinderDepthPenalty}
+     * (memory long wanted a fully-loaded fixed-world arena). An XZ (Y-agnostic)
+     * goal sits across a plateau; the DIRECT corridor is a wide valley with a
+     * walkable −1/step down-ramp into a deep floor whose far + side walls are +12
+     * SHEER (place OFF → a dead-end trap pocket). The only route that REACHES is
+     * the flat go-around on either side. With the penalty OFF the Y-agnostic
+     * heuristic reads the downhill ramp as free progress and the search dives the
+     * whole trap pocket before backtracking, burning far more nodes; with the
+     * penalty ON it charges the descent and takes the rim. Both reach (unbounded);
+     * the penalty's value is the node-count cut, AND under a node budget BETWEEN
+     * the two counts penalty=0 fails while penalty=6 reaches. Pure planner A/B.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void basinArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 300, cz = 300, plY = 240;
+        // Flat plateau (the go-around) across the whole arena.
+        for (int dx = -12; dx <= 12; dx++)
+            for (int dz = 0; dz <= 44; dz++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, plY, cz + dz), Blocks.STONE.defaultBlockState());
+                for (int y = plY + 1; y <= plY + 3; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
+            }
+        // Carve the valley corridor (cx-3..cx+3, cz8..cz30): clear it, then lay a
+        // −1/step down-ramp (cz8→plY-1 … cz19→plY-12) and a deep floor (cz20..30 at
+        // plY-12). The plateau resumes flat at cz31 → a +12 sheer far wall; the
+        // intact plateau at cx±4 forms +12 sheer side walls. A dead-end pocket.
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = 8; dz <= 30; dz++)
+                for (int y = plY - 13; y <= plY + 3; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int dz = 8; dz <= 19; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, plY - (dz - 7), cz + dz), Blocks.STONE.defaultBlockState());
+            for (int dz = 20; dz <= 30; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, plY - 12, cz + dz), Blocks.STONE.defaultBlockState());
+        }
+        BlockPos start = new BlockPos(cx, plY + 1, cz + 2);
+        Goal goal = new Goal.XZ(cx, cz + 40);            // ignoresY → the dive-prone case
+
+        boolean odbg = BotConfig.walkerDebug;
+        double odp = BotConfig.pathfinderDepthPenalty;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        int omn = BotConfig.pathfinderMaxNodes;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // each search runs to completion (deterministic)
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxNodes = 1_000_000;
+        LevelWorldView w = new LevelWorldView(level,
+                ServerPlayerAvatar.create(level, cx + 0.5, plY + 1, cz + 2).fakePlayer());
+        try {
+            BotConfig.pathfinderDepthPenalty = 0;
+            var r0 = runSearch(w, start, goal);
+            BotConfig.pathfinderDepthPenalty = 6;
+            var r6 = runSearch(w, start, goal);
+            AgentDriverCommon.LOG.info("[basinArena] penalty0: reached={} expanded={} | penalty6: reached={} expanded={}",
+                    r0.goalReached(), r0.expanded(), r6.goalReached(), r6.expanded());
+            if (!r6.goalReached())
+                throw new GameTestAssertException("depthPenalty=6 failed to reach via the rim go-around");
+            if (r6.expanded() >= r0.expanded())
+                throw new GameTestAssertException("depthPenalty did not cut basin-dive exploration: "
+                        + "penalty0 expanded=" + r0.expanded() + " penalty6 expanded=" + r6.expanded());
+
+            // Failure-case: a node budget BETWEEN the two counts — penalty=0 burns it
+            // in the trap and FAILS; penalty=6 reaches via the rim within it.
+            int budget = (r0.expanded() + r6.expanded()) / 2;
+            BotConfig.pathfinderMaxNodes = budget;
+            BotConfig.pathfinderDepthPenalty = 0;
+            var b0 = runSearch(w, start, goal);
+            BotConfig.pathfinderDepthPenalty = 6;
+            var b6 = runSearch(w, start, goal);
+            AgentDriverCommon.LOG.info("[basinArena] budget={}: penalty0 reached={} | penalty6 reached={}",
+                    budget, b0.goalReached(), b6.goalReached());
+            if (b0.goalReached() || !b6.goalReached())
+                throw new GameTestAssertException("budget A/B not decisive: budget=" + budget
+                        + " penalty0.reached=" + b0.goalReached() + " penalty6.reached=" + b6.goalReached());
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderDepthPenalty = odp;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            BotConfig.pathfinderMaxNodes = omn;
+        }
+        helper.succeed();
+    }
+
+    /** Run one A* to completion (caller sets the budget knobs) and return its result. */
+    private static net.magicterra.agent.bot.pathfinder.PathFinder.Result runSearch(
+            LevelWorldView w, BlockPos start, Goal goal) {
+        net.magicterra.agent.bot.pathfinder.PathFinder.Search s =
+                new net.magicterra.agent.bot.pathfinder.PathFinder(w).newSearch(start, goal);
+        s.advance(Long.MAX_VALUE / 2);
+        return s.result();
+    }
+
+    /**
      * Regression guard for the descent crouch-deadlock fix (plannedDescent
      * releases the lethal-edge sneak brake). A 1-wide staircase descends 12
      * steps over a DEEP pit — every step has void (lethal drops) on both x
