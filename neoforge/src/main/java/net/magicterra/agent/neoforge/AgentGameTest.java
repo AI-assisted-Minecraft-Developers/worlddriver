@@ -628,6 +628,75 @@ public final class AgentGameTest {
     }
 
     /**
+     * Regression guard for the parkour-ascend sprint fix (ebd37f9): a parkourAscend2
+     * is a 2-block cardinal gap landing +1 higher — only a SPRINT-jump clears it
+     * (a standing jump reaches ~1 block). The bug had {@code needJumpForStep}
+     * wrongly disabling sprint on this ascend, so the leap fell short into the gap.
+     * A run-up runway leads to the lip; the gap has a deep pit (a short leap falls
+     * far). Asserts the real Walker sprint-jumps across+up onto the +1 landing.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void parkourAscendArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 340, cz = 340, launchY = 230, pitY = 200;
+        // Deep catch-floor (a failed leap falls far → detectable).
+        for (int dx = -6; dx <= 7; dx++)
+            for (int dz = -3; dz <= 3; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, pitY, cz + dz), Blocks.STONE.defaultBlockState());
+        // Launch slab (block @launchY → foot launchY+1), a ~5-block run-up to the lip at cx.
+        for (int dx = -5; dx <= 0; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, launchY, cz + dz), Blocks.STONE.defaultBlockState());
+        // Landing slab one block HIGHER (block @launchY+1 → foot launchY+2), 2 away.
+        for (int dx = 2; dx <= 6; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, launchY + 1, cz + dz), Blocks.STONE.defaultBlockState());
+        // cx+1 stays a gap (no floor at launch level) → forces the parkour leap.
+        BlockPos start = new BlockPos(cx - 5, launchY + 1, cz);
+        BlockPos goal = new BlockPos(cx + 4, launchY + 2, cz);
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = false;
+        BotConfig.allowPlace = false;
+        BotConfig.walkerDebug = true;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx - 5 + 0.5, launchY + 1, cz + 0.5);
+            FakePlayer fp = av.fakePlayer();
+            grantWaterEffects(fp);
+            LevelWorldView w = new LevelWorldView(level, fp);
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.Block(goal));
+
+            Walker.Step s = Walker.Step.WALKING;
+            double minY = fp.getY();
+            for (int t = 0; t < 300 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+                minY = Math.min(minY, fp.getY());
+            }
+            boolean fellInPit = minY <= pitY + 3;
+            boolean onLanding = fp.getX() > cx + 1.5 && fp.getY() >= launchY + 2 - 0.4;
+            AgentDriverCommon.LOG.info("[parkourAscendArena] step={} pos=({},{},{}) minY={} fellInPit={} onLanding={}",
+                    s, fp.getX(), fp.getY(), fp.getZ(), minY, fellInPit, onLanding);
+            if (fellInPit)
+                throw new GameTestAssertException("parkour ascend fell into the gap (sprint disabled?): minY=" + minY);
+            if (!onLanding)
+                throw new GameTestAssertException("parkour ascend did not reach the +1 landing: pos=("
+                        + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + s);
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+        }
+        helper.succeed();
+    }
+
+    /**
      * Regression guard for the descent crouch-deadlock fix (plannedDescent
      * releases the lethal-edge sneak brake). A 1-wide staircase descends 12
      * steps over a DEEP pit — every step has void (lethal drops) on both x
