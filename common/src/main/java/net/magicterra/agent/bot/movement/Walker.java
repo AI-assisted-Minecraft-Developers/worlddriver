@@ -1443,8 +1443,19 @@ public final class Walker {
                 && lethalDropAdjacent(world, p, foot);
         boolean plannedDescent = wp.getY() < foot.getY();
         boolean edgeBrake = lethalNear && !plannedDescent;
-        agentSneak(a, bridging || descendBrake || edgeBrake);
-        p.setShiftKeyDown(bridging || descendBrake || edgeBrake);
+        // Bridging sneak must ALSO release for a planned step-DOWN, for the SAME
+        // reason edgeBrake does: vanilla's sneak ledge-guard refuses to let the body
+        // leave the current block's top edge, so a descending bridge (bot at y+1,
+        // the placed bridge block one DOWN-and-ahead) DEADLOCKS — sneak on, forward
+        // on, hCol=false, hSpd≈0, placing blocks but never stepping onto them (caught
+        // live: a 27 s freeze at a strip→lowland descent, recovered only by a late
+        // safety-repath). The bridge block is solid floor (already placed) so the
+        // step-down is safe; sprint is OFF during bridging anyway, so dropping sneak
+        // can't carry an overshoot off the far edge. Same-level / ascending bridges
+        // keep the full anti-overshoot pin.
+        boolean bridgeSneak = bridging && !plannedDescent;
+        agentSneak(a, bridgeSneak || descendBrake || edgeBrake);
+        p.setShiftKeyDown(bridgeSneak || descendBrake || edgeBrake);
         // Jump for a real upward step, a parkour-leap edge (by move type, not
         // raw distance — string-pulling makes plain walk waypoints far apart
         // too), or a brief stuck-wiggle.

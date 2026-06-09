@@ -872,6 +872,75 @@ public final class AgentGameTest {
     }
 
     /**
+     * General coverage: a DESCENDING bridge — the bot bridgePlaces across a wide gap
+     * onto a far side ONE BLOCK LOWER than its start, and must reach it. Related to a
+     * live-caught wedge (2026-06-08): the Walker held the bridging sneak
+     * unconditionally, and vanilla's sneak ledge-guard refuses to step DOWN off the
+     * current block onto a freshly-placed lower bridge block → a ~27 s freeze until a
+     * late safety-repath. Fix: release bridge-sneak for a planned step-down (mirrors
+     * the descentArena edgeBrake fix), validated LIVE at the catch site. NOTE: this
+     * clean arena does NOT isolate that wedge — the live trigger needed execution
+     * DRIFT (the body 1 block above the bridge path); here the planner bridges flat
+     * then steps down normally, so it passes with OR without the fix. Kept as
+     * descending-bridge smoke coverage; the fix's gate is the live A/B.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void bridgeDescendArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 640, cz = 640, baseY = 210;
+        // Start platform, one block HIGHER than the far side (foot baseY+2).
+        for (int dx = -8; dx <= -1; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, baseY + 1, cz + dz), Blocks.STONE.defaultBlockState());
+        // Far platform, 1 lower (foot baseY+1), beyond a 5-wide gap (x cx..cx+4 void →
+        // too wide to parkour with allowParkour4 off → forces a placed bridge that
+        // descends onto the lower far side).
+        for (int dx = 5; dx <= 14; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, baseY, cz + dz), Blocks.STONE.defaultBlockState());
+        BlockPos goal = new BlockPos(cx + 12, baseY + 1, cz);
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = false;
+        BotConfig.allowPlace = true;                 // bridging needs placement
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx - 7 + 0.5, baseY + 2, cz + 0.5);
+            FakePlayer fp = av.fakePlayer();
+            grantWaterEffects(fp);
+            fp.getInventory().add(new ItemStack(Items.DIRT, 64));
+            LevelWorldView w = new LevelWorldView(level, fp);
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.Block(goal));
+
+            Walker.Step s = Walker.Step.WALKING;
+            int crossTick = -1;
+            for (int t = 0; t < 400 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+                if (crossTick < 0 && fp.getX() > cx + 5 && fp.getY() <= baseY + 1.4) crossTick = t;
+            }
+            boolean crossed = fp.getX() > cx + 5 && fp.getY() <= baseY + 1.4;
+            AgentDriverCommon.LOG.info("[bridgeDescendArena] step={} pos=({},{},{}) crossed={} crossTick={}",
+                    s, String.format(Locale.ROOT, "%.1f", fp.getX()), String.format(Locale.ROOT, "%.1f", fp.getY()),
+                    String.format(Locale.ROOT, "%.1f", fp.getZ()), crossed, crossTick);
+            if (!crossed)
+                throw new GameTestAssertException("descending bridge wedged (sneak ledge-guard?): pos=("
+                        + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + s);
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+        }
+        helper.succeed();
+    }
+
+    /**
      * Phase 2 end-to-end: a fully SERVER-SIDE agent (no client) driven through
      * the {@link ServerAgentManager} registry — the same {@link #tickAll} entry
      * the live {@code ServerTickEvent} calls. A {@link ServerAgentDriver} steers
