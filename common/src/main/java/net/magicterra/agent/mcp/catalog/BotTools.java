@@ -238,6 +238,7 @@ public final class BotTools {
                 "  pathDebugMaxNodes         [100,200000] dflt 4000 — cap on stored A* candidate nodes per search\n" +
                 "  pathDebugMaxSamples       [100,200000] dflt 6000 — cap on stored per-tick trajectory samples (ring buffer)\n" +
                 "  blocksToAvoid             [id,...]  — extra hazards pathfinder treats as impassable\n" +
+                "  buildBlockWhitelist       [id,...]  — block ids the bot may PLACE as build/support footing (pillar/bridge/parkour). EMPTY (default) = any non-falling FULL cube; non-empty PINS placement to exactly these ids (use to stop the bot grabbing bamboo/thin blocks it can't stand on). Whole-list replace; [] clears\n" +
                 "  mutedEvents               [type,...] — event types to SUPPRESS from the live push channel (e.g. [\"item.pickup\",\"chat.message\"]). ALL events push by default; muted ones still record + are pullable via mc.wait.event. Whole-list replace; [] un-mutes everything\n" +
                 "  avoidPoints               [{x,y,z,radius?},...] — AGENT-marked danger zones to route AROUND (radius default 8); the planner adds avoidZonePenalty ramping to 0 at the radius so it DETOURS. Use it to make a poorly-equipped/fresh-spawn bot take the long way around a mob-filled tunnel you spotted via mc.observe.threats. Whole-list replace; [] clears. Set right before a goto\n" +
                 "  pathfinder.avoidZonePenalty [0,5000] dflt 250 — peak cost at an avoidPoints zone centre (raise for a harder detour when unarmed)\n" +
@@ -332,6 +333,7 @@ public final class BotTools {
                     .prop("pathDebugMaxNodes",          integer(100, 200000))
                     .prop("pathDebugMaxSamples",        integer(100, 200000))
                     .prop("blocksToAvoid",              array(string()))
+                    .prop("buildBlockWhitelist",        array(string()))
                     .prop("mutedEvents",                array(string()))
                     .prop("pathfinder.avoidZonePenalty", number(0, 5000))
                     .prop("avoidPoints", array(object()

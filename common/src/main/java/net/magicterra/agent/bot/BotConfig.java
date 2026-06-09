@@ -379,6 +379,36 @@ public final class BotConfig {
      *  replace the whole reference. */
     public static volatile Set<String> extraHazardBlocks = Set.of();
 
+    /** Block ids the bot is ALLOWED to place as build/support blocks (pillar, bridge,
+     *  parkour-place footing). When EMPTY (default) the {@link #isUsableBuildBlock}
+     *  heuristic applies: any non-falling FULL collision cube. When non-empty it
+     *  OVERRIDES the heuristic — only these exact ids may be placed, so the Agent can
+     *  pin building to known-good blocks via {@code mc.bot.setting{buildBlockWhitelist:[id,...]}}.
+     *  Whole-list replace; pass [] to clear. */
+    public static volatile Set<String> buildBlockWhitelist = Set.of();
+
+    /** Whether {@code block} may be used as a PLACED build block (pillar/bridge/parkour
+     *  footing). Default heuristic: a non-{@link net.minecraft.world.level.block.FallingBlock}
+     *  whose default state is a FULL collision cube — this rejects thin/partial blocks
+     *  (bamboo, slabs, fences, saplings) the bot would otherwise grab from its inventory
+     *  and "搭路卡死" on because they form no walkable surface. When
+     *  {@link #buildBlockWhitelist} is non-empty it overrides the heuristic: only its ids
+     *  pass (still requiring a non-falling, motion-blocking block for safety). Dist-neutral:
+     *  callable from both client and dedicated-server WorldViews. */
+    public static boolean isUsableBuildBlock(net.minecraft.world.level.block.Block block) {
+        if (block instanceof net.minecraft.world.level.block.FallingBlock) return false;
+        net.minecraft.world.level.block.state.BlockState st = block.defaultBlockState();
+        if (!st.blocksMotion()) return false;
+        Set<String> wl = buildBlockWhitelist;
+        if (!wl.isEmpty()) {
+            net.minecraft.resources.ResourceLocation id =
+                    net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(block);
+            return id != null && wl.contains(id.toString());
+        }
+        return st.isCollisionShapeFullBlock(
+                net.minecraft.world.level.EmptyBlockGetter.INSTANCE, net.minecraft.core.BlockPos.ZERO);
+    }
+
     /** Event types muted from the live PUSH channel via
      *  {@code mc.bot.setting{mutedEvents:[type,...]}}. By default EVERY driver event
      *  pushes to the MCP/WS channel; listing a type here suppresses ONLY its push — the

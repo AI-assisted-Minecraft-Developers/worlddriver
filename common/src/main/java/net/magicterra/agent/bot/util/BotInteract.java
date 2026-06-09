@@ -216,8 +216,7 @@ public final class BotInteract {
      *  actuator's block-selection agree on what counts as buildable. */
     public static boolean isSupportBlock(ItemStack stk) {
         if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) return false;
-        if (bi.getBlock() instanceof FallingBlock) return false;
-        return bi.getBlock().defaultBlockState().blocksMotion();
+        return net.magicterra.agent.bot.BotConfig.isUsableBuildBlock(bi.getBlock());
     }
 
     /** Hold (or swap to) a SOLID-support BlockItem in the hotbar (see {@link #isSupportBlock}).

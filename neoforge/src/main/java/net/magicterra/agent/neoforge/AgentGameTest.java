@@ -30,6 +30,7 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.neoforged.neoforge.common.util.FakePlayer;
 
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -1863,6 +1864,57 @@ public final class AgentGameTest {
         } finally {
             BotConfig.allowBreak = ob;
             BotConfig.allowPlace = op;
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Gates {@link BotConfig#isUsableBuildBlock} + the LevelWorldView placement-count
+     * delegation: the bot must NOT treat bamboo (a thin, non-full-cube block it can't
+     * stand on) as a build/support block, even though bamboo {@code blocksMotion()} —
+     * the old predicate accepted it and the bot "搭路卡死" placing bamboo it couldn't
+     * climb. Also gates the Agent-settable whitelist override.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void buildBlockWhitelistArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 460, cz = 460, floorY = 220;
+        buildFloor(level, cx, cz, floorY);
+
+        Set<String> savedWl = BotConfig.buildBlockWhitelist;
+        try {
+            // Default heuristic: full cube → usable; bamboo (thin column) → NOT usable.
+            if (!BotConfig.isUsableBuildBlock(Blocks.DIRT))
+                throw new GameTestAssertException("dirt must be a usable build block");
+            if (!BotConfig.isUsableBuildBlock(Blocks.COBBLESTONE))
+                throw new GameTestAssertException("cobblestone must be a usable build block");
+            if (BotConfig.isUsableBuildBlock(Blocks.BAMBOO))
+                throw new GameTestAssertException("bamboo must NOT be a usable build block (thin, no footing)");
+            if (BotConfig.isUsableBuildBlock(Blocks.SAND))
+                throw new GameTestAssertException("sand must NOT be usable (FallingBlock drops over gaps)");
+
+            // LevelWorldView count delegates to the predicate: dirt+bamboo inventory → only dirt counts.
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            FakePlayer fp = av.fakePlayer();
+            fp.getInventory().clearContent();
+            fp.getInventory().add(new ItemStack(Items.DIRT, 10));
+            fp.getInventory().add(new ItemStack(Items.BAMBOO, 20));
+            LevelWorldView w = new LevelWorldView(level, fp);
+            if (w.placeableBlockCount() != 10)
+                throw new GameTestAssertException("placeableBlockCount should ignore bamboo, expected 10 got "
+                        + w.placeableBlockCount());
+
+            // Whitelist override: pin to cobblestone only → dirt now rejected, bamboo allowed by explicit id.
+            BotConfig.buildBlockWhitelist = Set.of("minecraft:bamboo");
+            if (!BotConfig.isUsableBuildBlock(Blocks.BAMBOO))
+                throw new GameTestAssertException("whitelisted bamboo must be usable when explicitly listed");
+            if (BotConfig.isUsableBuildBlock(Blocks.DIRT))
+                throw new GameTestAssertException("dirt must be rejected when whitelist excludes it");
+            if (w.placeableBlockCount() != 20)
+                throw new GameTestAssertException("whitelist=[bamboo] → count should be the 20 bamboo, got "
+                        + w.placeableBlockCount());
+        } finally {
+            BotConfig.buildBlockWhitelist = savedWl;
         }
         helper.succeed();
     }

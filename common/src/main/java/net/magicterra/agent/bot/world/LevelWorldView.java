@@ -90,8 +90,7 @@ public final class LevelWorldView implements WorldView {
         for (int slot = 0; slot < 9; slot++) {
             ItemStack stk = controller.getInventory().items.get(slot);
             if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) continue;
-            if (bi.getBlock() instanceof FallingBlock) continue;
-            if (!bi.getBlock().defaultBlockState().blocksMotion()) continue;
+            if (!BotConfig.isUsableBuildBlock(bi.getBlock())) continue;   // falling/thin/non-cube → no footing
             n += stk.getCount();
         }
         return n;

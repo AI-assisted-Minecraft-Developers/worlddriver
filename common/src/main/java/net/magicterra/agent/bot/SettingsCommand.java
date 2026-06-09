@@ -378,6 +378,28 @@ public final class SettingsCommand {
                     rejected.add("blocksToAvoid: invalid ids " + bad);
                 }
             }
+            // buildBlockWhitelist is a list of block ids the bot may PLACE as build/support
+            // blocks (pillar/bridge/parkour footing). Same ResourceLocation validation as
+            // blocksToAvoid; whole-list replacement, pass [] to clear (→ falls back to the
+            // full-cube heuristic). Invalid ids reject the entire write.
+            if (params.get("buildBlockWhitelist") instanceof List<?> wl) {
+                List<String> bad = new ArrayList<>();
+                Set<String> nextSet = new LinkedHashSet<>();
+                for (Object o : wl) {
+                    if (!(o instanceof String s) || s.isBlank()) { bad.add(String.valueOf(o)); continue; }
+                    try {
+                        ResourceLocation rl = ResourceLocation.parse(s);
+                        if (!BuiltInRegistries.BLOCK.containsKey(rl)) { bad.add(s); continue; }
+                        nextSet.add(rl.toString());
+                    } catch (Exception e) { bad.add(s); }
+                }
+                if (bad.isEmpty()) {
+                    BotConfig.buildBlockWhitelist = Set.copyOf(nextSet);
+                    applied.add("buildBlockWhitelist");
+                } else {
+                    rejected.add("buildBlockWhitelist: invalid ids " + bad);
+                }
+            }
             // mutedEvents: event types suppressed from the live PUSH channel (the event
             // is still recorded + retrievable via mc.wait.event / replay). Free-form
             // strings — any event type. Whole-list replace; pass [] to un-mute everything.
@@ -640,6 +662,7 @@ public final class SettingsCommand {
         snap.put("pathfinderFrontierCommit", BotConfig.pathfinderFrontierCommit);
         snap.put("pathfinder.axisHeight", BotConfig.axisHeight);
         snap.put("blocksToAvoid", new ArrayList<>(BotConfig.extraHazardBlocks));
+        snap.put("buildBlockWhitelist", new ArrayList<>(BotConfig.buildBlockWhitelist));
         snap.put("mutedEvents", new ArrayList<>(BotConfig.mutedEvents));
         snap.put("pathfinder.avoidZonePenalty", BotConfig.avoidZonePenalty);
         {
