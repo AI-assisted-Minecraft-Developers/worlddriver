@@ -315,6 +315,26 @@ public final class PathFinder {
                             return true;
                         }
                     }
+                    // Receding-horizon early-stop (BotConfig.pathfinderHorizonBlocks):
+                    // generalises the loaded-chunk frontier commit above to ANY terrain.
+                    // The frontier branch only fires at an UNLOADED-chunk edge, so a far
+                    // goal in fully-loaded terrain grinds the whole node budget for a tiny
+                    // best-effort segment (the long-haul freeze). Here, the instant A* pops
+                    // a node that has advanced >= horizon blocks toward the goal (h dropped
+                    // by horizon*10 cost units; A* pops by f so this node is ~optimal to the
+                    // horizon), commit it and STOP — an unbounded far grind becomes a cheap
+                    // fixed-length forward hop the bot walks while the next search runs.
+                    // Self-disables near the goal (h can't drop that far → search reaches the
+                    // real goal). Only real goal-ward progress, so a pinch/wall (no forward
+                    // node) falls through to the unchanged best-effort backoff. Water starts
+                    // excluded (bestAshore climb-out wins).
+                    int horizonBlocks = BotConfig.pathfinderHorizonBlocks;
+                    if (horizonBlocks > 0 && !startInWater
+                            && cur.h < startNode.h - 10.0 * horizonBlocks
+                            && cur.pos.distSqr(start) > (long) MIN_DIST_PATH * MIN_DIST_PATH) {
+                        result = build(cur, false, expanded, totalMs(sliceStart), cur.g);
+                        return true;
+                    }
                     // Water escape: track the reachable ASHORE node (dry ground) closest
                     // to the goal, for the best-effort commit when the goal isn't reached.
                     if (startInWater && cur.h < bestAshoreH && isAshore(cur.pos)) {
@@ -340,6 +360,18 @@ public final class PathFinder {
 
                     if (expanded >= maxNodes) break;
                     if (totalMs(sliceStart) > maxMs) break;
+                    // Soft commit (BotConfig.pathfinderSoftCommitNodes): the horizon
+                    // early-stop above only fires on real forward progress; when the bot is
+                    // BOXED at an obstacle no such node appears and the search would grind the
+                    // whole hard maxNodes budget (~3.4 s) for a short best-effort segment — a
+                    // multi-second freeze at every cliff/wall. Once the soft budget is spent
+                    // AND a committable best-effort segment already exists, stop and commit it
+                    // now. The hard maxNodes still governs the "no segment yet" case (a deep
+                    // pinch still hunting its first viable move / vertical escape), so hard
+                    // reachability is unchanged.
+                    if (BotConfig.pathfinderSoftCommitNodes > 0
+                            && expanded >= BotConfig.pathfinderSoftCommitNodes
+                            && hasCommittableSegment()) break;
 
                     for (Move m : activeMoves) {
                         // eval() → null for an inadmissible move, else a concrete
@@ -423,6 +455,20 @@ public final class PathFinder {
                 return bestClimb;
             }
             return null;
+        }
+
+        /** Cheap check: does a committable best-effort segment already exist? Mirrors the
+         *  branches of {@link #chooseSegment} (ashore climb-out in water; else a bestSoFar
+         *  node past MIN_DIST_PATH, or a vertical-escape climb above the start) without
+         *  building the path. Drives the soft-commit early-stop
+         *  ({@link BotConfig#pathfinderSoftCommitNodes}). */
+        private boolean hasCommittableSegment() {
+            if (startInWater) return bestAshore != null;
+            double minSq = MIN_DIST_PATH * MIN_DIST_PATH;
+            for (Node n : bestSoFar) {
+                if (n != null && n.pos.distSqr(start) > minSq) return true;
+            }
+            return bestClimb != null && bestClimb.pos.getY() - start.getY() >= MIN_CLIMB_ESCAPE;
         }
 
         /** True if {@code p} is a dry standing cell — feet on solid dry ground, not

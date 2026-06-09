@@ -334,6 +334,41 @@ public final class BotConfig {
      *  (goal reached before any frontier node is popped). */
     public static volatile boolean pathfinderFrontierCommit = true;
 
+    /** Receding-horizon early-stop distance, in BLOCKS of goal-ward progress (0 =
+     *  OFF). Generalises {@link #pathfinderFrontierCommit}: that one only truncates a
+     *  far search at an UNLOADED-chunk edge, so in fully-loaded terrain (e.g. the
+     *  spawn mountains) a far XZ goal grinds the entire {@link #pathfinderMaxNodes}
+     *  budget (~60k nodes / ~3.6 s CPU) only to commit a tiny ~5-block best-effort
+     *  segment — then re-searches at the next boundary, so the bot walks ~5 blocks and
+     *  FREEZES ~seconds, over and over ("行动→冻住→重算→冻住"). With a horizon set, the
+     *  search STOPS the instant A* pops a node that has reduced the goal heuristic by
+     *  ≥ this many blocks (A* pops by f, so that node is ~optimal to the horizon),
+     *  committing a long forward segment cheaply (a few hundred–thousand nodes) and
+     *  leaving plenty of walk-time to hide the next search → no freeze. Self-disables
+     *  when the real goal is within the horizon (then h can't drop that far → the
+     *  search runs to the actual goal). Only fires on genuine goal-ward progress, so a
+     *  pinch/wall (no forward node) falls through to the unchanged best-effort backoff
+     *  — same go-around/vertical-escape behaviour. Excluded for in-water starts
+     *  (bestAshore climb-out wins). Converted to cost units at ~10/block (matching
+     *  {@code MIN_FRONTIER_GAIN}=50≈5 blocks). */
+    public static volatile int pathfinderHorizonBlocks = 48;
+
+    /** Soft node-budget early-commit (0 = OFF). The {@link #pathfinderHorizonBlocks}
+     *  early-stop only fires when the search can make {@code horizon} blocks of forward
+     *  progress; when the bot is BOXED at an obstacle (cliff/wall/canopy) no such node
+     *  appears, so the search grinds the entire hard {@link #pathfinderMaxNodes} budget
+     *  (~60k nodes / ~3.4 s CPU) before committing a short best-effort segment — the
+     *  bot still FREEZES ~seconds at every obstacle. This caps that: once a search has
+     *  expanded this many nodes AND already has a committable best-effort segment (a
+     *  bestSoFar node past MIN_DIST_PATH, an ashore climb-out, or a vertical-escape
+     *  climb), it STOPS and commits instead of grinding to the hard cap — trading a
+     *  slightly shorter segment for a far shorter freeze (~0.3 s vs ~3.4 s of compute).
+     *  The hard {@link #pathfinderMaxNodes} still applies when NO segment exists yet
+     *  (a deep pinch still hunting its first viable move / vertical escape), so hard
+     *  reachability is unchanged. Pairs with horizon: open terrain commits fast via
+     *  horizon, obstacles commit fast via this. */
+    public static volatile int pathfinderSoftCommitNodes = 6000;
+
     /** Y plane targeted by {@code mc.bot.goto{axis:true}} — Baritone's
      *  {@code axisHeight} setting (default 120, the classic "highway" Y). Read
      *  when an Axis goal is constructed. */

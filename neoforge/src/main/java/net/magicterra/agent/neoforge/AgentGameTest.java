@@ -120,6 +120,61 @@ public final class AgentGameTest {
     }
 
     /**
+     * Deterministic gate for the receding-horizon early-stop
+     * ({@link BotConfig#pathfinderHorizonBlocks}) that fixes the long-haul freeze:
+     * a far XZ goal in FULLY-LOADED terrain used to grind the whole node budget per
+     * search (→ ~30 s wall-clock freeze between tiny segments). On a flat corridor
+     * (GridWorldView, isKnown always true so the chunk-frontier commit can't fire),
+     * horizon=48 must expand FAR fewer nodes on the first search than horizon=0 and
+     * commit a ~48-block forward hop — yet the re-plan chain must still cover the whole
+     * corridor (no loss of forward reach).
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void horizonArena(GameTestHelper helper) {
+        net.magicterra.agent.bot.debug.HorizonArena.Result off =
+                net.magicterra.agent.bot.debug.HorizonArena.run(0);
+        net.magicterra.agent.bot.debug.HorizonArena.Result on =
+                net.magicterra.agent.bot.debug.HorizonArena.run(48);
+        AgentDriverCommon.LOG.info("[horizonArena] off={} on={}", off, on);
+
+        // 1) Horizon truncates the search → far cheaper first search (this IS the freeze fix).
+        if (!(on.firstExpanded < off.firstExpanded))
+            throw new GameTestAssertException("horizon=48 should expand fewer nodes than horizon=0; off="
+                    + off + " on=" + on);
+        // 2) Horizon commits a bounded ~48-block forward hop; horizon=0 commits a much longer segment.
+        if (on.firstEndX < 40 || on.firstEndX > 90)
+            throw new GameTestAssertException("horizon=48 first segment should end ~48 blocks out, got x=" + on.firstEndX);
+        if (!(off.firstEndX > on.firstEndX))
+            throw new GameTestAssertException("horizon=0 should commit a longer segment than horizon=48; off="
+                    + off + " on=" + on);
+        // 3) The chain still covers the whole corridor — horizon doesn't lose forward reach.
+        if (on.chainEndX < HorizonArenaMinReach())
+            throw new GameTestAssertException("horizon=48 chain should reach the corridor end (~"
+                    + net.magicterra.agent.bot.debug.HorizonArena.CORRIDOR_LEN + "), got x=" + on.chainEndX);
+
+        // 4) Soft-commit early-stop (BOXED case): with the horizon OFF (so it can't
+        //    truncate) but a small soft node budget, the search must commit a best-effort
+        //    segment after ~softCommitNodes nodes instead of grinding the whole corridor —
+        //    yet still chain forward to the corridor end. This is the freeze fix for
+        //    obstacles where horizon can't fire.
+        net.magicterra.agent.bot.debug.HorizonArena.Result soft =
+                net.magicterra.agent.bot.debug.HorizonArena.run(0, 150);
+        AgentDriverCommon.LOG.info("[horizonArena] soft={}", soft);
+        if (!(soft.firstExpanded < off.firstExpanded))
+            throw new GameTestAssertException("softCommit=150 should expand fewer nodes than the full grind; off="
+                    + off + " soft=" + soft);
+        if (soft.firstExpanded > 400)
+            throw new GameTestAssertException("softCommit=150 first search should stop near the soft budget, expanded=" + soft.firstExpanded);
+        if (soft.chainEndX < HorizonArenaMinReach())
+            throw new GameTestAssertException("softCommit chain should still reach the corridor end, got x=" + soft.chainEndX);
+        helper.succeed();
+    }
+
+    private static int HorizonArenaMinReach() {
+        return net.magicterra.agent.bot.debug.HorizonArena.CORRIDOR_LEN - 20;
+    }
+
+    /**
      * Pure-CPU regression guard for the manual-input clobber fix: the idle client
      * tick must NOT clear the human's movement keybinds unless the bot itself
      * dirtied them. {@link net.magicterra.agent.bot.movement.InputReleaseGate}

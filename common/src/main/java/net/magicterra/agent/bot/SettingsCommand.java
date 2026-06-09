@@ -261,6 +261,16 @@ public final class SettingsCommand {
                 BotConfig.pathfinderFrontierCommit = fc;
                 applied.add("pathfinderFrontierCommit");
             }
+            if (params.get("pathfinderHorizonBlocks") instanceof Number phb) {
+                int v = phb.intValue();
+                if (v >= 0 && v <= 512) { BotConfig.pathfinderHorizonBlocks = v; applied.add("pathfinderHorizonBlocks"); }
+                else rejected.add("pathfinderHorizonBlocks out of range [0,512]");
+            }
+            if (params.get("pathfinderSoftCommitNodes") instanceof Number pscn) {
+                int v = pscn.intValue();
+                if (v >= 0 && v <= 1_000_000) { BotConfig.pathfinderSoftCommitNodes = v; applied.add("pathfinderSoftCommitNodes"); }
+                else rejected.add("pathfinderSoftCommitNodes out of range [0,1000000]");
+            }
             if (params.get("pathChartAutoDump") instanceof Boolean pcad) {
                 BotConfig.pathChartAutoDump = pcad;
                 applied.add("pathChartAutoDump");
@@ -660,6 +670,8 @@ public final class SettingsCommand {
         snap.put("pathfinderBridgeCost", BotConfig.pathfinderBridgeCost);
         snap.put("pathfinderThinObstacleHeight", BotConfig.pathfinderThinObstacleHeight);
         snap.put("pathfinderFrontierCommit", BotConfig.pathfinderFrontierCommit);
+        snap.put("pathfinderHorizonBlocks", BotConfig.pathfinderHorizonBlocks);
+        snap.put("pathfinderSoftCommitNodes", BotConfig.pathfinderSoftCommitNodes);
         snap.put("pathfinder.axisHeight", BotConfig.axisHeight);
         snap.put("blocksToAvoid", new ArrayList<>(BotConfig.extraHazardBlocks));
         snap.put("buildBlockWhitelist", new ArrayList<>(BotConfig.buildBlockWhitelist));
