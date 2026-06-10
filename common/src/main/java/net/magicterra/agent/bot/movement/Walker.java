@@ -170,6 +170,7 @@ public final class Walker {
     private int waterClimbStall;      // ticks bob-stalled (no NET height gain) climbing out of water
     private double waterClimbBestY = Double.NEGATIVE_INFINITY; // best Y this water-climb; a real rise resets the stall
     private int diveLatch;            // ticks left forcing a dive-under-cap (set on a blocked submerged descent; holds the dive through the sink so it doesn't flip-flop)
+    private int diveHold;             // ticks left holding an ACTIVE descent (diving) across repaths — a mid-sink repath re-plans from the buoyancy point with a dy=1 first hop, which alone never re-arms diving, so the bot pops back up (round45 water-well live)
     private int pillarRecoverLatch;   // ticks left driving an in-place pillar-up recovery (bot fell below the climb path beyond jump reach) — latched across the jump's airborne phase so a place can land
     private BlockPos pillarRecoverCell; // the (grounded) feet cell the recovery is filling this rung
     private boolean descending;       // ending creative flight; wait to land before pathing
@@ -215,6 +216,7 @@ public final class Walker {
         this.pillarSinceJump = -1;
         this.waterClimbStall = 0;
         this.diveLatch = 0;
+        this.diveHold = 0;
         this.pillarRecoverLatch = 0;
         this.waterClimbBestY = Double.NEGATIVE_INFINITY;
         this.descending = false;
@@ -269,6 +271,7 @@ public final class Walker {
         // past threshold) or suppresses a legitimate stall (stale-high best-Y).
         this.waterClimbStall = 0;
         this.diveLatch = 0;
+        this.diveHold = 0;
         this.pillarRecoverLatch = 0;
         this.waterClimbBestY = Double.NEGATIVE_INFINITY;
         this.descending = false;
@@ -1555,8 +1558,19 @@ public final class Walker {
         // route y62→54 because the surface columns are walled by roots; the bot rode
         // y62 forever, offPath kept safetyRepath true every tick → 6 s burst storm).
         // A real descent needs sneak (vanilla water-sink) + a downward pitch.
-        boolean diving = (edge != null && edge.move != null && edge.move.startsWith("swimDown"))
+        boolean diveTarget = (edge != null && edge.move != null && edge.move.startsWith("swimDown"))
                 || (p.isInWater() && wp.getY() <= foot.getY() - 2 && world.isWater(wp));
+        // LATCH the dive across repaths (round45 water-well live): the sink takes
+        // many ticks, and a mid-sink repath/quick-start re-plans from the bot's
+        // buoyancy point — its first hop is then dy=1, which alone never re-arms
+        // the dy≥2 trigger above, so jump/swimUp popped the bot straight back to
+        // the surface and the well column looped forever (20 anti-stuck bursts).
+        // Once armed, hold the dive while the bot is still in water with the
+        // waypoint below its feet; surfacing routes (wp at/above foot) clear it.
+        if (diveTarget) diveHold = 30;
+        else if (diveHold > 0 && p.isInWater() && wp.getY() < foot.getY()) diveHold--;
+        else diveHold = 0;
+        boolean diving = diveTarget || (diveHold > 0 && p.isInWater());
         // CAMERA-THRASH fix (bridge "镜头上下剧烈跳变"): while bridging, each place tick
         // does aimAtBlockSnap → requestSnap, instantly pitching the camera DOWN onto the
         // block being placed; pulling pitch back to the horizon (0) on every non-place
