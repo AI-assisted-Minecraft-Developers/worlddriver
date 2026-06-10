@@ -382,7 +382,20 @@ public final class ClientWorldView implements WorldView {
         float damage = bestSpeed / hardness / (bestCorrect ? 30f : 100f);
         if (damage <= 0) return Double.POSITIVE_INFINITY;
         int ticks = Math.max(1, (int) Math.ceil(1.0 / damage));
-        return COST_PER_TICK * ticks;
+        double cost = COST_PER_TICK * ticks;
+        // Wrong-tool aversion: the per-block tick estimate is accurate, but a
+        // wrong-tool dig (no pickaxe vs stone) drags hidden costs the planner
+        // can't see — per-block approach/aim/anti-stuck retries, and a repath
+        // burning the relaxed node ceiling every few blocks because the bot is
+        // now entombed with no committable surface segment. Round44 live: A*
+        // tunneled a toolless bot INTO a jungle-ridge massif at 0.07 blk/s
+        // (5 min → 6 blocks, 24k-node searches every 10s) when any detour
+        // would have won. ×3 reprices bare-hand stone to ~97 walk-blocks per
+        // dig, so a visible detour always wins; blocks that need no tool
+        // (logs/dirt/leaves: isCorrectToolForDrops=true bare-handed) and digs
+        // with the proper tool keep their true price.
+        if (!bestCorrect) cost *= 3;
+        return cost;
     }
     @Override public boolean canPlace() {
         return BotConfig.allowPlace && hasPlaceableBlock();
