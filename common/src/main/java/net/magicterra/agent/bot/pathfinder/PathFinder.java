@@ -354,9 +354,22 @@ public final class PathFinder {
                     // node) falls through to the unchanged best-effort backoff. Water starts
                     // excluded (bestAshore climb-out wins).
                     int horizonBlocks = BotConfig.pathfinderHorizonBlocks;
-                    if (horizonBlocks > 0 && !startInWater
+                    if (horizonBlocks > 0
                             && cur.h < startNode.h - 10.0 * horizonBlocks
-                            && cur.pos.distSqr(start) > (long) MIN_DIST_PATH * MIN_DIST_PATH) {
+                            && cur.pos.distSqr(start) > (long) MIN_DIST_PATH * MIN_DIST_PATH
+                            // A water start may ALSO horizon-commit, but only onto dry
+                            // land or a SURFACE cell (water foot, air head) — never a
+                            // submerged node, so the climb-out triage below still owns
+                            // those. Without this, an open-sea leg burned the full 60k
+                            // nodes / ~22 s per repath for pathLen=0 (the shore lies
+                            // beyond any budget, so bestAshore stays null) while 600-node
+                            // quick-start micro-segments carried the actual swimming
+                            // (round43: three consecutive 60k/22s/pathLen=0 repaths
+                            // during a perfectly healthy 2 b/s surface cruise).
+                            && (!startInWater
+                                || isAshore(cur.pos)
+                                || (world.isWater(cur.pos)
+                                    && !world.isWater(cur.pos.offset(0, 1, 0))))) {
                         result = build(cur, false, expanded, totalMs(sliceStart), cur.g);
                         return true;
                     }
