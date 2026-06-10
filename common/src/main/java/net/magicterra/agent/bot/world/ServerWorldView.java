@@ -7,9 +7,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.material.Fluids;
 
 /**
  * Server-side {@link WorldView} over a {@link ServerLevel}. Reads block states
@@ -40,13 +40,15 @@ public final class ServerWorldView implements WorldView {
     @Override
     public boolean isPassable(BlockPos pos) {
         BlockState s = level.getBlockState(pos);
-        return !s.blocksMotion() || s.getFluidState().is(Fluids.WATER);
+        return !s.blocksMotion() || s.getFluidState().is(FluidTags.WATER);
     }
 
     @Override
     public boolean isHazard(BlockPos pos) {
         BlockState s = level.getBlockState(pos);
-        if (s.getFluidState().is(Fluids.LAVA)) return true;
+        // FluidTags, not Fluids: the type compare misses FLOWING lava/water
+        // (lake edges, falls) — see ClientWorldView.isHazard.
+        if (s.getFluidState().is(FluidTags.LAVA)) return true;
         if (s.is(BlockTags.FIRE)) return true;
         if (BotUtil.HAZARD_BLOCKS.contains(s.getBlock())) return true;
         // User-configurable extras (Baritone-style blocksToAvoid). Map is
@@ -61,7 +63,7 @@ public final class ServerWorldView implements WorldView {
 
     @Override
     public boolean isWater(BlockPos pos) {
-        return level.getBlockState(pos).getFluidState().is(Fluids.WATER);
+        return level.getBlockState(pos).getFluidState().is(FluidTags.WATER);
     }
 
     @Override

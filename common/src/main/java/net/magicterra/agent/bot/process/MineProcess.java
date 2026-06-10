@@ -18,6 +18,7 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
@@ -629,7 +630,7 @@ public final class MineProcess implements BotProcess {
     }
 
     private static boolean isLava(Level lvl, BlockPos p) {
-        return lvl.getBlockState(p).getFluidState().is(Fluids.LAVA);
+        return lvl.getBlockState(p).getFluidState().is(FluidTags.LAVA);   // tag: source AND flowing
     }
 
     /** True if {@code pos} itself or any of its 6 face-neighbours holds lava.

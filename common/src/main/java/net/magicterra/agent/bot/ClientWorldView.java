@@ -219,7 +219,13 @@ public final class ClientWorldView implements WorldView {
     }
     public boolean isHazard(BlockPos p) {
         BlockState s = state(p);
-        if (s.getFluidState().is(Fluids.LAVA)) return true;
+        // FluidTags.LAVA, NOT Fluids.LAVA: FluidState.is(Fluid) compares the exact
+        // fluid type, and a lava lake's EDGE/falls are FLOWING_LAVA — with the type
+        // compare every flowing cell read as "not hazard", so canStandAt admitted
+        // feet-in-lava nodes, dangerCost charged nothing, and the Walker's
+        // hazardAhead brake stayed blind (round54: bot waded 6s through a lava
+        // shore at full sprint, enteredLava ×2).
+        if (s.getFluidState().is(FluidTags.LAVA)) return true;
         if (s.is(BlockTags.FIRE)) return true;
         if (HAZARD_BLOCKS.contains(s.getBlock())) return true;
         // User-configurable extras (Baritone-style blocksToAvoid). Map is
@@ -678,7 +684,7 @@ public final class ClientWorldView implements WorldView {
                 // and ignored the contact blocks entirely.
                 for (int[] o : DANGER_OFFSETS) {
                     BlockState s = state(foot.offset(o[0], o[1], o[2]));
-                    if (s.getFluidState().is(Fluids.LAVA)) {
+                    if (s.getFluidState().is(FluidTags.LAVA)) {   // tag: source AND flowing (lake edges)
                         penalty += BotConfig.lavaDangerPenalty;
                     } else if (s.is(BlockTags.FIRE)) {
                         penalty += BotConfig.dangerPenaltyPerCell;

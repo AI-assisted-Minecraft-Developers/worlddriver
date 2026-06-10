@@ -6,13 +6,13 @@ import net.magicterra.agent.bot.util.BotUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.material.Fluids;
 
 /**
  * Live, mutable server {@link WorldView} over a {@link Level} (server-side),
@@ -46,12 +46,14 @@ public final class LevelWorldView implements WorldView {
 
     @Override public boolean isPassable(BlockPos p) {
         BlockState s = state(p);
-        return !s.blocksMotion() || s.getFluidState().is(Fluids.WATER);
+        return !s.blocksMotion() || s.getFluidState().is(FluidTags.WATER);
     }
 
     @Override public boolean isHazard(BlockPos p) {
         BlockState s = state(p);
-        if (s.getFluidState().is(Fluids.LAVA)) return true;
+        // FluidTags, not Fluids: the type compare misses FLOWING lava/water
+        // (lake edges, falls) — see ClientWorldView.isHazard.
+        if (s.getFluidState().is(FluidTags.LAVA)) return true;
         if (s.is(BlockTags.FIRE)) return true;
         if (BotUtil.HAZARD_BLOCKS.contains(s.getBlock())) return true;
         var extras = BotConfig.extraHazardBlocks;
@@ -60,7 +62,7 @@ public final class LevelWorldView implements WorldView {
         return false;
     }
 
-    @Override public boolean isWater(BlockPos p) { return state(p).getFluidState().is(Fluids.WATER); }
+    @Override public boolean isWater(BlockPos p) { return state(p).getFluidState().is(FluidTags.WATER); }
 
     @Override public boolean isFallingBlock(BlockPos p) { return state(p).getBlock() instanceof FallingBlock; }
 
