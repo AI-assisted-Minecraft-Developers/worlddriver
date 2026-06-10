@@ -266,10 +266,20 @@ public final class SettingsCommand {
                 if (v >= 0 && v <= 512) { BotConfig.pathfinderHorizonBlocks = v; applied.add("pathfinderHorizonBlocks"); }
                 else rejected.add("pathfinderHorizonBlocks out of range [0,512]");
             }
+            if (params.get("pathfinderMaxDryFall") instanceof Number pmdf) {
+                int v = pmdf.intValue();
+                if (v >= 3 && v <= 5) { BotConfig.pathfinderMaxDryFall = v; applied.add("pathfinderMaxDryFall"); }
+                else rejected.add("pathfinderMaxDryFall out of range [3,5]");
+            }
             if (params.get("pathfinderSoftCommitNodes") instanceof Number pscn) {
                 int v = pscn.intValue();
                 if (v >= 0 && v <= 1_000_000) { BotConfig.pathfinderSoftCommitNodes = v; applied.add("pathfinderSoftCommitNodes"); }
                 else rejected.add("pathfinderSoftCommitNodes out of range [0,1000000]");
+            }
+            if (params.get("pathfinderQuickNodes") instanceof Number pqn) {
+                int v = pqn.intValue();
+                if (v >= 0 && v <= 10_000) { BotConfig.pathfinderQuickNodes = v; applied.add("pathfinderQuickNodes"); }
+                else rejected.add("pathfinderQuickNodes out of range [0,10000]");
             }
             if (params.get("pathChartAutoDump") instanceof Boolean pcad) {
                 BotConfig.pathChartAutoDump = pcad;
@@ -531,6 +541,10 @@ public final class SettingsCommand {
                         if (n.longValue() >= 1 && n.longValue() <= 50) { BotConfig.pathfinderSliceMs = n.longValue(); applied.add(k); }
                         else rejected.add(k + " out of range [1,50]");
                         break;
+                    case "pathfinder.idleSliceMs":
+                        if (n.longValue() >= 1 && n.longValue() <= 50) { BotConfig.pathfinderIdleSliceMs = n.longValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [1,50]");
+                        break;
                     case "pathfinder.heuristicWeight":
                         if (n.doubleValue() >= 1.0 && n.doubleValue() <= 3.0) { BotConfig.pathfinderHeuristicWeight = n.doubleValue(); applied.add(k); }
                         else rejected.add(k + " out of range [1.0,3.0]");
@@ -657,6 +671,7 @@ public final class SettingsCommand {
         snap.put("pathfinder.maxNodes", BotConfig.pathfinderMaxNodes);
         snap.put("pathfinder.maxMs", BotConfig.pathfinderMaxMs);
         snap.put("pathfinder.sliceMs", BotConfig.pathfinderSliceMs);
+        snap.put("pathfinder.idleSliceMs", BotConfig.pathfinderIdleSliceMs);
         snap.put("pathfinder.heuristicWeight", BotConfig.pathfinderHeuristicWeight);
         snap.put("pathfinderCacheEnabled", BotConfig.pathfinderCacheEnabled);
         snap.put("collisionAwarePathing", BotConfig.collisionAwarePathing);
@@ -671,7 +686,9 @@ public final class SettingsCommand {
         snap.put("pathfinderThinObstacleHeight", BotConfig.pathfinderThinObstacleHeight);
         snap.put("pathfinderFrontierCommit", BotConfig.pathfinderFrontierCommit);
         snap.put("pathfinderHorizonBlocks", BotConfig.pathfinderHorizonBlocks);
+        snap.put("pathfinderMaxDryFall", BotConfig.pathfinderMaxDryFall);
         snap.put("pathfinderSoftCommitNodes", BotConfig.pathfinderSoftCommitNodes);
+        snap.put("pathfinderQuickNodes", BotConfig.pathfinderQuickNodes);
         snap.put("pathfinder.axisHeight", BotConfig.axisHeight);
         snap.put("blocksToAvoid", new ArrayList<>(BotConfig.extraHazardBlocks));
         snap.put("buildBlockWhitelist", new ArrayList<>(BotConfig.buildBlockWhitelist));

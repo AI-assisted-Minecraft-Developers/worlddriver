@@ -160,6 +160,18 @@ public final class BotConfig {
      *  well under one 16 ms frame. */
     public static volatile long pathfinderSliceMs = 6;
 
+    /** Per-tick compute slice (ms) used ONLY while the bot is IDLE waiting for a
+     *  path — it has consumed its committed best-effort segment (or has no path yet)
+     *  and is standing still until the next search lands. The normal {@link
+     *  #pathfinderSliceMs} (~6 ms) protects the frame-rate WHILE WALKING, but at a
+     *  far-goal segment boundary that thin slice means a 3 s CPU search drags out to
+     *  ~27 s of wall-clock (6 ms of 50 ms per tick) — and the bot is FROZEN that whole
+     *  time ("行动→冻住→重算→行动" long-haul stutter). When there's no movement to keep
+     *  smooth, a few frame hitches are far cheaper than the wait, so spend much more of
+     *  each idle tick on the search to finish it ~5× sooner. Kept responsive (the
+     *  client still renders between slices). */
+    public static volatile long pathfinderIdleSliceMs = 30;
+
     /** A* wall-clock cap, ms. Default mirrors {@code PathFinder.DEFAULT_MAX_MS}. */
     public static volatile long pathfinderMaxMs =
             PathFinder.DEFAULT_MAX_MS;
@@ -293,6 +305,25 @@ public final class BotConfig {
      *  {@link net.magicterra.agent.bot.pathfinder.Move#PLACE_COST 20}). Default {@value}. */
     public static volatile double pathfinderBridgeCost = 80;
 
+    /** Max DRY (no-water) fall the planner will take as a plain {@code Fall} move,
+     *  in blocks. Default 3 = Baritone's no-fall-damage cap (current behaviour;
+     *  {@code Fall(4)/Fall(5)} are catalogued but inert). Raising it (≤5) lets the
+     *  search descend a steep dry slope by taking a small-damage drop (4 blocks ≈
+     *  1.5 hearts, 5 ≈ 2) instead of building a dirt "天梯" staircase with
+     *  {@code BridgePlace} — the smooth-jungle-descent lever. A higher fall is
+     *  cheaper than a place-bridge (Fall(5)=35 vs BridgePlace≈80), so once enabled
+     *  A* prefers the natural drop. Survival-sensitive (the bot takes the damage),
+     *  so it ships OFF (3) and is opt-in via mc.bot.setting. Capped at 5 (≈2 hearts);
+     *  taller no-bucket descents stay {@link net.magicterra.agent.bot.pathfinder.moves.FallIntoWater}
+     *  (into water) or place-bridges.
+     *  <p>Default raised 3→4 (2026-06-09): a 4-block fall is the MINIMUM non-zero
+     *  fall (0.5♥, what a vanilla player takes constantly) and an A/B over a vine
+     *  jungle canopy HALVED place-bridges (23→11) and cleared a descent the cap-3
+     *  bot wedged on for 90 s — the dirt "天梯" was the long-haul start wedge. fall5
+     *  (1♥) stays catalogued-but-inert at 4 (raise to 5 to enable). autoEat/regen
+     *  absorb the small drip; survival can lower it back to 3 via mc.bot.setting. */
+    public static volatile int pathfinderMaxDryFall = 4;
+
     /** Max collision-box height (blocks) of a floor-resting obstacle the body
      *  STEPS or SWIMS over, so the pathfinder treats it as passable rather than a
      *  wall. Fixes "被浮萍/荷叶挡住": a lily pad (collision ≈0.094 high) — and other
@@ -368,6 +399,17 @@ public final class BotConfig {
      *  reachability is unchanged. Pairs with horizon: open terrain commits fast via
      *  horizon, obstacles commit fast via this. */
     public static volatile int pathfinderSoftCommitNodes = 6000;
+
+    /** PROGRESSIVE quick-start stub (0 = OFF). While a full re-plan is still
+     *  time-slicing in the background (a hard obstacle search can take seconds),
+     *  the bot has no path and stands frozen — the visible "inter-segment gap"
+     *  stall. When that gap opens, the Walker spends this many nodes on a tiny
+     *  SYNCHRONOUS best-effort search and starts walking the resulting short
+     *  segment toward the goal immediately; the big search's result replaces
+     *  the stub when it lands (adoptPath fast-forwards past the overlap, so no
+     *  walking backward). Sized to finish within roughly one frame — the frame
+     *  is frozen anyway while the bot has nothing to walk. */
+    public static volatile int pathfinderQuickNodes = 600;
 
     /** Y plane targeted by {@code mc.bot.goto{axis:true}} — Baritone's
      *  {@code axisHeight} setting (default 120, the classic "highway" Y). Read
@@ -622,8 +664,15 @@ public final class BotConfig {
      *  after you step off), so it weighs far more than fire — the planner will
      *  pay a long detour rather than skim one block from open lava, while still
      *  threading a lava-lined corridor that is the only route. Baritone likewise
-     *  treats lava as near-impassable rather than a mild nudge. */
-    public static volatile double lavaDangerPenalty = 80;
+     *  treats lava as near-impassable rather than a mild nudge.
+     *  <p>Default raised 80 → 300 (live A/B 2026-06-09, mountains lava-falls
+     *  terrain): at 80 a ~680-block journey skimmed lava-adjacent cells and the
+     *  body's physical drift brushed INTO lava ≥6 times across three lava arms
+     *  (survivable only with fire resistance — a naked survival bot dies); the
+     *  reverse run at 300 crossed the same arms with ZERO lava contacts. 300 ≈
+     *  a 30-block detour per lava neighbour, which the journey absorbed without
+     *  losing reachability (still arrived, ~same pace). */
+    public static volatile double lavaDangerPenalty = 300;
 
     /** Cost added per <em>contact-damage</em> block (cactus, sweet-berry bush,
      *  wither rose, magma block, powder snow) adjacent to a candidate stand

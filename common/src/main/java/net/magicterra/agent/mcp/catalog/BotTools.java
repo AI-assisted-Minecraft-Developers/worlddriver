@@ -264,6 +264,8 @@ public final class BotTools {
                 "  pathfinderFrontierCommit  bool           dflt false  — segmented planning to the loaded-chunk frontier: commit toward the goal-ward edge of known terrain so far journeys chain across the render horizon instead of backtracking\n" +
                 "  pathfinderHorizonBlocks   [0,512]        dflt 48     — receding-horizon early-stop: commit a forward segment the instant A* advances this many blocks toward the goal, instead of grinding the full node budget on a far goal in loaded terrain (fixes 长途段末冻结 walk-5→freeze→repeat). 0=off; self-disables near the goal; a pinch falls through to normal best-effort\n" +
                 "  pathfinderSoftCommitNodes [0,1000000]    dflt 6000   — soft node-budget commit: when BOXED at an obstacle (horizon can't fire), stop after this many expanded nodes IF a best-effort segment already exists, instead of grinding the full maxNodes (~60k) and freezing seconds. 0=off; hard maxNodes still governs deep pinches with no segment yet\n" +
+                "  pathfinderQuickNodes      [0,10000]      dflt 600    — progressive quick-start stub: while a big re-plan is still slicing in the background, spend this many nodes SYNCHRONOUSLY on a short toward-goal segment and walk it immediately instead of standing through the search gap (fixes 段间空窗停顿). 0=off\n" +
+                "  pathfinderMaxDryFall      [3,5]           dflt 3      — max DRY (no-water) fall the planner takes as a plain Fall move. 3=Baritone no-damage cap (current). Raise (4-5) to descend a steep jungle slope by a small-damage drop instead of building a dirt 天梯 with BridgePlace (the 丝滑-descent lever). Survival-sensitive: the bot takes the fall damage (4≈1.5♥, 5≈2♥)\n" +
                 "  pathfinder.axisHeight     [-64,320]      dflt 120    — Y plane for goto{axis:true} (GoalAxis)\n" +
                 "Returns {ok, settings, applied?, rejected?}.",
                 object()
@@ -364,7 +366,9 @@ public final class BotTools {
                     .prop("pathfinderThinObstacleHeight", number(0, 1))
                     .prop("pathfinderFrontierCommit",   bool())
                     .prop("pathfinderHorizonBlocks",    integer(0, 512))
+                    .prop("pathfinderMaxDryFall",       integer(3, 5))
                     .prop("pathfinderSoftCommitNodes",  integer(0, 1000000))
+                    .prop("pathfinderQuickNodes",       integer(0, 10000))
                     .prop("pathfinder.axisHeight",      integer(-64, 320))
                 ),
 
