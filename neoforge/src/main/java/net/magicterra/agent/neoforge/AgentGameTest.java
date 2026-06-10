@@ -412,6 +412,68 @@ public final class AgentGameTest {
     }
 
     /**
+     * Execution-layer gate for the cliff-edge BRIDGE wedge (live video: "悬崖边反复横跳
+     * +频繁放块未推进"). The REAL {@link Walker} drives a {@link ServerPlayerAvatar}
+     * across a 3-cell void gap (full x-width, so the ONLY crossing is to bridge in z;
+     * break OFF = no dig-around, place ON). Reproduces the forward-bridge-over-void case
+     * deterministically (headless, no measurement ceiling). Asserts the FakePlayer
+     * reaches the far platform.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void bridgeGapArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 8, cz = 8, floorY = 220, standY = 221;
+        // Start platform (dz -5..-1) and far platform (dz 3..5), full x-width; a 3-cell
+        // gap (dz 0..2) with VOID below so the bot must bridge across it in +z.
+        for (int dx = -5; dx <= 5; dx++) {
+            for (int dz = -5; dz <= 5; dz++) {
+                boolean platform = dz <= -1 || dz >= 3;
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz),
+                        platform ? Blocks.STONE.defaultBlockState() : Blocks.AIR.defaultBlockState());
+                for (int yy = 1; yy <= 5; yy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + yy, cz + dz), Blocks.AIR.defaultBlockState());
+                if (!platform)
+                    for (int yy = 1; yy <= 4; yy++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY - yy, cz + dz), Blocks.AIR.defaultBlockState());
+            }
+        }
+        BlockPos goal = new BlockPos(cx, standY, cz + 4);
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        BotConfig.allowBreak = false;   // force the bridge — no dig-around
+        BotConfig.allowPlace = true;
+        BotConfig.walkerDebug = true;
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, standY, cz - 4 + 0.5);
+            FakePlayer fp = av.fakePlayer();
+            fp.getInventory().clearContent();
+            fp.getInventory().add(new ItemStack(Items.DIRT, 64));
+            fp.getInventory().selected = 0;
+
+            LevelWorldView w = new LevelWorldView(level, fp);
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.Block(goal));
+
+            Walker.Step s = Walker.Step.WALKING;
+            for (int t = 0; t < 600 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+            }
+            boolean crossed = fp.getZ() > cz + 3 - 0.5 && fp.getY() >= standY - 0.4;
+            AgentDriverCommon.LOG.info("[bridgeGapArena] step={} pos=({},{},{}) crossed={}",
+                    s, fp.getX(), fp.getY(), fp.getZ(), crossed);
+            if (!crossed)
+                throw new GameTestAssertException("Walker failed to bridge the 3-cell gap: pos=("
+                        + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + s);
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+        }
+        helper.succeed();
+    }
+
+    /**
      * Water-physics-parity gate for {@link ServerPlayerAvatar}: a FakePlayer
      * driven by manual step() in a deep water column must reproduce vanilla
      * fluid movement — (1) submerged with no input it SINKS SLOWLY (water drag,
@@ -562,6 +624,119 @@ public final class AgentGameTest {
             if (bobTicks > 120)
                 throw new GameTestAssertException("buoyant climb bobbed " + bobTicks
                         + " ticks at the waterline (expected ~44; >120 = diagonal-staircase thrash regressed)");
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Live-faithful OPEN-WATER variant of the sheer-bank wedge (2026-06-09 long-haul
+     * acceptance run at (278,62,-1346)): the bot floats in an open river whose SOUTH
+     * bank is a uniform +5 SHEER stone wall for ~25 blocks; the only climb-out is a
+     * LOW (+1) bank far EAST, and the goal lies diagonally SE behind the wall line.
+     * debug.plan proved the PLANNER routes east to that low bank (first segment
+     * +38E, all-forward), but the live Walker pressed dead into the south wall
+     * (z frozen at the face, bobbing + futile dirt placement, never slid east).
+     * Unlike {@link #buoyantWallArena} there are NO flanking walls pinning the body
+     * onto a pillar column — the buoyant drift is free, as on the real river.
+     * Asserts the bot gets OUT of the water onto the south-east land.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void riverSheerBankArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 160, cz = 60, floorY = 200, depth = 6;
+        final int surface = floorY + depth;            // y206 water surface
+        final int wallTop = surface + 5;               // y211 sheer south wall top
+        final int riverLen = 28;                       // east run of the channel
+        final int lowBankX = riverLen - 4;             // dx where the south bank turns low
+
+        // Basin floor under everything (river + south land).
+        for (int dx = -3; dx <= riverLen + 3; dx++)
+            for (int dz = -4; dz <= 20; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+        // Containment: north wall (cz-4), west (cx-3) and east (cx+riverLen+1) caps.
+        for (int dx = -3; dx <= riverLen + 3; dx++)
+            for (int y = floorY + 1; y <= surface + 1; y++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz - 4), Blocks.STONE.defaultBlockState());
+        for (int dz = -4; dz <= 1; dz++)
+            for (int y = floorY + 1; y <= surface + 1; y++) {
+                level.setBlockAndUpdate(new BlockPos(cx - 3, y, cz + dz), Blocks.STONE.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + riverLen + 1, y, cz + dz), Blocks.STONE.defaultBlockState());
+            }
+        // River water: z cz-3..cz+1, x cx-2..cx+riverLen, depth blocks deep.
+        for (int dx = -2; dx <= riverLen; dx++)
+            for (int dz = -3; dz <= 1; dz++)
+                for (int y = floorY + 1; y <= surface; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
+        // South bank line at cz+2: sheer +5 wall for the west run, LOW (+0) bank east.
+        for (int dx = -2; dx <= riverLen; dx++) {
+            int top = dx < lowBankX ? wallTop : surface;
+            for (int y = floorY + 1; y <= top; y++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + 2), Blocks.STONE.defaultBlockState());
+        }
+        // South land behind the bank line (cz+3..cz+20): tall plateau behind the sheer
+        // section, low ground behind the low bank — both walkable, joined by a cliff
+        // (so the ONLY water exit is the low bank, like the live river).
+        for (int dx = -2; dx <= riverLen; dx++)
+            for (int dz = 3; dz <= 20; dz++) {
+                int top = dx < lowBankX ? wallTop : surface;
+                for (int y = floorY + 1; y <= top; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+                for (int y = top + 1; y <= wallTop + 4; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
+            }
+        // Air above the river so nothing caps the swim.
+        for (int dx = -2; dx <= riverLen; dx++)
+            for (int dz = -3; dz <= 1; dz++)
+                for (int y = surface + 1; y <= wallTop + 4; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
+
+        // Goal diagonally SE on the low land (live bearing ≈ 40°SE): the straight
+        // line from the start rams the sheer wall; the route must slide EAST first.
+        BlockPos goal = new BlockPos(cx + riverLen - 2, surface + 1, cz + 16);
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;
+        BotConfig.walkerDebug = true;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, surface - 1, cz + 0.5);
+            FakePlayer fp = av.fakePlayer();
+            grantWaterEffects(fp);
+            fp.getInventory().clearContent();
+            fp.getInventory().add(new ItemStack(Items.DIRT, 64));
+            fp.getInventory().selected = 0;
+
+            LevelWorldView w = new LevelWorldView(level, fp);
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.Block(goal));
+
+            Walker.Step s = Walker.Step.WALKING;
+            double maxX = fp.getX();
+            int wallPressTicks = 0;     // in-water ticks spent pressed against the SHEER face
+            for (int t = 0; t < 1500 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+                maxX = Math.max(maxX, fp.getX());
+                if (fp.isInWater() && fp.getZ() > cz + 1.2 && fp.getX() < cx + lowBankX - 1)
+                    wallPressTicks++;
+            }
+            boolean ashore = !fp.isInWater() && fp.onGround()
+                    && fp.getZ() > cz + 1.5 && fp.getY() >= surface + 1 - 0.4;
+            AgentDriverCommon.LOG.info("[riverSheerBankArena] step={} pos=({},{},{}) maxX={} wallPressTicks={} ashore={}",
+                    s, fp.getX(), fp.getY(), fp.getZ(), maxX, wallPressTicks, ashore);
+            if (!ashore)
+                throw new GameTestAssertException("open-river sheer bank: Walker never climbed out: pos=("
+                        + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxX=" + maxX
+                        + " wallPressTicks=" + wallPressTicks + " step=" + s);
         } finally {
             BotConfig.allowBreak = ob;
             BotConfig.allowPlace = op;

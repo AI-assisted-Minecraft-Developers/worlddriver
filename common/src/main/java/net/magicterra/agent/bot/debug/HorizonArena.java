@@ -96,6 +96,11 @@ public final class HorizonArena {
                 }
                 if (r.goalReached()) { from = end; segments++; break; }
                 if (end.equals(from)) break;   // no progress
+                // A segment ending FARTHER from the goal is the last-resort ESCAPE
+                // (boxed search, budget burned): the corridor is over. The Walker
+                // penalizes the dead pocket and breaks out; this read-only probe
+                // has no penalty model, so chaining on would just bounce 0↔210.
+                if (goal.estimate(end) > goal.estimate(from)) break;
                 from = end;
             }
             return new Result(firstExpanded, firstEndX, from.getX(), segments, firstGoalReached);
