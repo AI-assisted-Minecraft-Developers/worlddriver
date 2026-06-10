@@ -2213,7 +2213,17 @@ public final class Walker {
                 // cliff-top bot aims the walk at the column past the lip and it
                 // just rams the wall (live: wp walk@y57 vs feet y62, hCol,
                 // hSpd=0). ±1 keeps the rejoin on the bot's own walking layer.
-                if (Math.abs(path.get(i).getY() - foot.getY()) > 1) continue;
+                int ffDy = path.get(i).getY() - foot.getY();
+                // A V-shaped underwater path (dive → ride the bed → climb out)
+                // overlaps itself in XZ, so the climb-out branch ranks "nearest"
+                // and skipping flattens the V: the bot anchors onto the node
+                // ABOVE its head, the dive trigger never arms (wp not below),
+                // and it pins against the well wall (live round46: wp=(3156,64)
+                // vs feet y62, hCol, hSpd=0, 17 bursts in 2 min). A submerged
+                // valley node is a hard rejoin barrier — stop the scan there:
+                // everything beyond is only reachable THROUGH the dive.
+                if (ffDy < -1 && world.isWater(path.get(i))) break;
+                if (Math.abs(ffDy) > 1) continue;
                 double d2 = path.get(i).distSqr(foot);
                 if (d2 < nearestD) { nearestD = d2; nearest = i; }
             }
