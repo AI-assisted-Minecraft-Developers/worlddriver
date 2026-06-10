@@ -104,10 +104,29 @@ public final class Walker {
      *  {@link #CHURN_REPATH_CAP} so the freeze gets a fair chance to let the bot grind
      *  through a hard climb-out before we conclude it's truly walled. */
     private static final int CHURN_GIVEUP_CAP = 12;
+    /** Fresh anti-spin baselines granted after a water stall before truly giving up —
+     *  a legitimate go-around (e.g. rounding a lava arm via the river) raises the
+     *  goal-distance for a dozen repaths and must not end the journey; only a churn
+     *  that stalls through ALL fresh baselines is the unwinnable spin. */
+    private static final int CHURN_MAX_RESETS = 3;
     /** Bounded fresh re-searches at a loaded-chunk frontier before giving up (the
      *  bot is stationary while waiting, so a couple of tries is plenty — see
      *  {@link #frontierHoldOrArrive}). */
     private static final int FRONTIER_WAIT_CAP = 3;
+    /** Ticks between quick-start stub attempts after one finds nothing useful —
+     *  a boxed-in micro-search keeps finding nothing until the terrain context
+     *  changes, so retrying every tick would just burn frames. */
+    private static final int QUICK_RETRY_TICKS = 10;
+    /** Hard wall-clock cap for one synchronous quick-start stub search; the node
+     *  cap ({@link BotConfig#pathfinderQuickNodes}) normally lands well under it. */
+    private static final long QUICK_MAX_MS = 80;
+    /** Max ticks to hold a "no path" verdict while self-inflicted stuck-penalties
+     *  decay (15 s window) before genuinely failing — three full decay windows. */
+    private static final int NO_PATH_WAIT_CAP = 900;
+    /** Max blocks BELOW a still-valid route from which the fall-below recovery
+     *  pillars back up instead of re-searching (a deeper fall is a real
+     *  divergence — the route above is likely stale). */
+    private static final int PILLAR_RECOVER_MAX_DY = 8;
     /** Min reduction in distance² (blocks²) to the current node that counts as real
      *  forward progress for the {@link #stuckTicks} no-progress timer. Set above the
      *  sub-0.1 b/tick position jitter of a treading / water-creeping bot but below a
@@ -158,10 +177,12 @@ public final class Walker {
     private double bestDistToGoal = Double.POSITIVE_INFINITY;
     private double bestGoalDist = Double.POSITIVE_INFINITY;  // anti-spin: best goal-estimate across repaths (5-block margin ignores micro-lunges)
     private int repathsNoProgress;                           // anti-spin: consecutive in-water repaths that didn't improve bestGoalDist
+    private int churnResets;                                 // anti-spin: fresh baselines granted after a stall (tolerates water go-arounds; real progress clears it)
     private double bestStepDist = Double.POSITIVE_INFINITY; // closest approach² to the current node (drives the progress-based stuckTicks)
     private int stuckStep = -1;                             // path index bestStepDist tracks; a step change starts a fresh progress window
     private int noStepProgressTicks;                        // jitter-immune ticks on the SAME step (resets only when step advances/path changes) → wedge detector
     private int noProgressStep = -1;                        // path index noStepProgressTicks tracks (independent of bridge/progress resets)
+    private double noProgressBestD2 = Double.POSITIVE_INFINITY; // closest-ever approach² to the tracked step; monotonic, so a bob can't reset the wedge timer but a slow water cruise along a long string-pulled edge does
     private boolean searchSuppressedPlace;                  // the in-flight search dropped placing moves (block-budget reroute) → adopt its result without re-checking
     private float smoothTargetYaw = Float.NaN;              // EMA-low-passed target heading (NaN = uninitialised; resync on launch/new goal)
     private boolean pathBestEffort;                         // current path is a best-effort partial (goal NOT reached) → commit to it before re-searching
@@ -169,6 +190,13 @@ public final class Walker {
     private boolean searchFromEnd;                          // activeSearch is a continuation launched from commitEnd (deferred splice) vs a foot-search (splice immediately)
     private int frontierWaitTicks;                          // bounded retries re-searching at a loaded-chunk frontier before giving up (pathfinderFrontierCommit)
     private PathFinder.Result pendingSegment;              // a finished continuation segment awaiting splice at the current segment's end
+    private int quickCooldown;                              // ticks before the next quick-start stub attempt (a useless stub backs off)
+    private int noPathWaitTicks;                            // ticks spent holding a "no path" verdict while self-inflicted stuck-penalties decay
+    private BlockPos lastWedgeFoot;                         // anti-stuck: where the last wedge/stuck repath fired
+    private int wedgeRepathsHere;                           // anti-stuck: consecutive wedge repaths from (about) the same foot
+    private int unstuckCountCooldown;                       // anti-stuck: min ticks between counted repath events (debounce)
+    private int unstuckTicks;                               // anti-stuck: ticks left driving the forced displacement
+    private float unstuckYaw;                               // anti-stuck: fixed heading for the displacement burst
     private int dbgPrevStep = -1;     // walkerDebug: detect step changes for per-step timing
     private int dbgTicksOnStep = 0;   // walkerDebug: ticks spent on the current step
     public String lastError;
@@ -201,6 +229,12 @@ public final class Walker {
         this.commitEnd = null;
         this.searchFromEnd = false;
         this.pendingSegment = null;
+        this.quickCooldown = 0;
+        this.noPathWaitTicks = 0;
+        this.lastWedgeFoot = null;
+        this.wedgeRepathsHere = 0;
+        this.unstuckCountCooldown = 0;
+        this.unstuckTicks = 0;
         this.lastError = null;
     }
 
@@ -227,6 +261,7 @@ public final class Walker {
         this.commitEnd = null;
         this.searchFromEnd = false;
         this.pendingSegment = null;
+        this.quickCooldown = 0;
         // Clear the water-climb-out / descent state too (setGoal resets these): a
         // resume mid water-climb otherwise carries a stale waterClimbBestY/Stall, so
         // the next tick either fires a spurious foothold-place takeover (stall already
@@ -369,7 +404,26 @@ public final class Walker {
         //     Adoption is DEFERRED to the segment end (see below) so the new path
         //     always starts where the bot will be — no backward yaw flip.
         boolean offPath = path != null && step < path.size() && path.get(step).distSqr(foot) > 9;
-        boolean wedged = noStepProgressTicks > WEDGE_TICKS;   // jitter-immune: stuck on a node the Walker can't complete (e.g. a ground-blocked fallN)
+        // Jitter-immune wedge: stuck on a node the Walker can't complete (e.g. a
+        // ground-blocked fallN). An edge that's legitimately BREAKING blocks gets a
+        // far longer leash: bare-handed stone takes ~150 ticks/block — well past
+        // WEDGE_TICKS — so the plain threshold interrupted every mid-dig, penalized
+        // the dig node (the only exit), and after a few cycles the accumulating
+        // stuck-penalties walled off a small cave pocket entirely → 60k-node
+        // pathLen=0 → goto FAILED (live 2026-06-09, mountain cave). The break
+        // actuator has its own breakTimeoutTicks watchdog, so a dig that's truly
+        // stuck (no line of sight, unreachable cell) still escapes after the sum.
+        Move.Edge wedgeEdge = (path != null && step < path.size()) ? edgeAt(step) : null;
+        // "Actively mining" = the break-edge leash/exemption applies ONLY while the
+        // pick is actually swinging (breakHold set by last tick's actuator). A
+        // breaking edge whose APPROACH is wedged — hCol-pinned short of the dig
+        // stance, attack never starts (round37: stairUpBreak under a lake, bot
+        // buoyed 0.8 blocks off the within-gate for minutes) — must fall through
+        // to the normal wedge timer + anti-stuck, or the exemption turns a
+        // mis-positioned dig into a silent permanent deadlock.
+        boolean breakingEdge = wedgeEdge != null && !wedgeEdge.toBreak.isEmpty() && a.breakHeld();
+        int wedgeLimit = breakingEdge ? WEDGE_TICKS + BotConfig.breakTimeoutTicks : WEDGE_TICKS;
+        boolean wedged = noStepProgressTicks > wedgeLimit;
         // Fell off the committed climb path VERTICALLY (the current node is more than a jump
         // above/below the feet — a fumbled pillar/parkour dropped the bot below the route, or
         // it slid down). A CONTINUATION search (launched from commitEnd, not the foot) can
@@ -383,9 +437,90 @@ public final class Walker {
             activeSearch = null;
             searchFromEnd = false;
         }
-        boolean safetyRepath = (path == null) || (stuckTicks > STUCK_TICKS) || offPath || wedged;
+        // Fell BELOW a still-valid route with blocks in hand → PILLAR BACK UP to
+        // it instead of re-searching. A fresh foot-search from down here (a cave
+        // corridor under a mountain high route) only finds the free goal-ward
+        // funnel back into the dead pocket — the deterministic relapse loop
+        // (live 2026-06-10: escape→high route→fall y104→96→re-search→cave→pocket,
+        // ~80 s/lap, every lap byte-identical). Climbing the few blocks back
+        // re-joins the committed route; the pillar-recover actuator below drives
+        // it (latch re-armed each grounded tick while still low, overJump takes
+        // over inside jump reach). Re-search only for a real divergence.
+        boolean fellBelowRoute = fellOffPath
+                && path.get(step).getY() > foot.getY()
+                && path.get(step).getY() - foot.getY() <= PILLAR_RECOVER_MAX_DY
+                && world.canPlace() && a.holdPlaceable();
+        if (fellBelowRoute && p.onGround()) {
+            pillarRecoverLatch = PILLAR_RECOVER_TICKS;
+            pillarRecoverCell = foot;
+        }
+        // fellOffPath (when NOT recoverable) forces a fresh foot-search: with only
+        // the continuation cancelled, the stale path's far carrot kept driving the
+        // bot against the wall until the wedge timer fired — up to 15 s with the
+        // breaking-edge leash. offPath is folded in: a 4-block fall puts the 3D
+        // distSqr over its gate too, and that re-search would steal the recovery.
+        if (unstuckCountCooldown > 0) unstuckCountCooldown--;
+        boolean safetyRepath = (path == null) || (stuckTicks > STUCK_TICKS) || wedged
+                || ((offPath || fellOffPath) && !fellBelowRoute);
         boolean fullPeriodic = !pathBestEffort && path != null
                 && ticksSinceRepath > BotConfig.walkerRepathEveryTicks;
+        // ANTI-STUCK (forced displacement, Baritone-UnstuckChain-style): a
+        // re-search from the SAME foot is deterministic — when the blocker is
+        // a gap the executor can't thread but the planner prices passable
+        // (a sole route, so the soft penalty never reroutes it), every repath
+        // returns the same segment and the bot stands forever (live
+        // 2026-06-10: 155 s frozen at a flooded bank corner against a diagDown
+        // it couldn't enter). Counted on EVERY safety-repath tick (cooldown-
+        // debounced), NOT inside the search-kickoff branch: at a hard pocket
+        // the big escape/continuation searches monopolise activeSearch for
+        // 9+ s each, so kickoff ticks are minutes apart and a counter gated
+        // there never reaches three (live: 110 s wedged in a waterfall-pool
+        // corner, counter stuck at 1-2). Three counted events from (about)
+        // the same spot → physically MOVE so the next search starts elsewhere.
+        // breakingEdge exempt: hand-mining a stairUpBreak holds the bot in
+        // place 5-10 s per block — stuckTicks sails past its gate and the
+        // burst YANKS the half-mined block's miner away (live: 17 bursts up
+        // one staircase, each restarting the dig). The break watchdog
+        // (breakTimeoutTicks) already covers a dig that's truly stuck.
+        // Waiting on an in-flight search is PLANNER latency, not an execution wedge:
+        // path==null alone makes safetyRepath true every hold tick, so over water —
+        // where big searches run 1-1.7 s back-to-back and the current drifts the bot
+        // slowly (foot stays within the 4-blk cell) — the event counter filled in
+        // exactly 3 cooldowns (6 s) and burst the bot away from the search origin,
+        // chaining rejects (round29 swamp: bursts every 6 s while cruising at 1.5 b/s).
+        if (safetyRepath && !breakingEdge && !(path == null && activeSearch != null)) {
+            if (lastWedgeFoot != null && foot.distSqr(lastWedgeFoot) <= 4) {
+                // Count EVENTS, not ticks (40-tick cooldown): a trivial search
+                // completing same-tick makes every tick a safety repath while
+                // the bot is still accelerating from standstill — three such
+                // ticks (150 ms, 0.2 blocks of motion) are NOT three stuck
+                // loops. A genuinely wedged bot stays put well past 6 s.
+                if (unstuckCountCooldown <= 0) {
+                    unstuckCountCooldown = 40;
+                    if (++wedgeRepathsHere >= 3) {
+                        unstuckTicks = 14;
+                        // Burst AWAY from the waypoint, not yaw+150°: in a concave
+                        // pocket (three walls + water) a fixed rotation just grinds
+                        // the next wall — live: yaw wound 11 full turns at a mud-
+                        // cliff notch, every burst re-entering the same seam.
+                        // Backing straight off the wp is the one heading that's
+                        // guaranteed open (the bot came from there).
+                        BlockPos bwp = (path != null && step < path.size()) ? path.get(step) : null;
+                        double bdx = bwp != null ? p.getX() - (bwp.getX() + 0.5) : 0;
+                        double bdz = bwp != null ? p.getZ() - (bwp.getZ() + 0.5) : 0;
+                        unstuckYaw = (bdx * bdx + bdz * bdz) > 0.01
+                                ? (float) Math.toDegrees(Math.atan2(-bdx, bdz))
+                                : p.getYRot() + 150f;
+                        wedgeRepathsHere = 0;
+                        if (BotConfig.walkerDebug)
+                            LOG.info("[walker] anti-stuck: repeated safety repaths at {} → forced displacement burst", foot);
+                    }
+                }
+            } else {
+                wedgeRepathsHere = 0;
+            }
+            lastWedgeFoot = foot;
+        }
         if ((safetyRepath || fullPeriodic) && activeSearch == null) {
             // Stuck too long on a move the Walker can't execute (a steep stepUp it
             // slides off, a pillar it can't ground)? Blacklist that node so this
@@ -394,8 +529,23 @@ public final class Walker {
             // bobs there until an unrelated repath happens to diverge (a 600+-tick
             // stall observed on a steep mountain). Soft + decaying, so a sole route
             // is still taken eventually.
-            if ((stuckTicks > STUCK_TICKS || wedged) && path != null && step < path.size()) {
+            if ((stuckTicks > STUCK_TICKS || wedged || fellOffPath) && path != null && step < path.size()) {
+                // fellOffPath included: the step node the bot FELL AWAY from is a
+                // demonstrably fragile traverse (mountain high route) — charge it
+                // so the immediate re-search doesn't commit the same brittle line.
                 world.penalizeStuckNode(path.get(step));
+                // Also penalize the cells at the bot's NOSE. After string-pulling
+                // the current step node can sit many blocks past the actual
+                // obstruction (live 2026-06-09: afloat in a 1-wide flooded crevice,
+                // carrot 10 blocks south, zero displacement for ~50 s) — punishing
+                // only that far carrot leaves the choke point itself cheap, so
+                // every re-search threads the same impassable gap from the same
+                // foot and returns the same segment. Charging the blocks directly
+                // ahead makes the next search route AROUND the choke (other bank /
+                // over the top) instead of back into it.
+                BlockPos nose = foot.relative(p.getDirection());
+                world.penalizeStuckNode(nose);
+                world.penalizeStuckNode(nose.above());
             }
             activeSearch = new PathFinder(world).newSearch(foot, goal);
             searchFromEnd = false;
@@ -410,12 +560,41 @@ public final class Walker {
             searchSuppressedPlace = false;
             ticksSinceRepath = 0;
         }
+        // ANTI-STUCK displacement burst: drive a fixed turned heading + jump for a
+        // few ticks so the body physically leaves the wedge cell. Path/edges stay
+        // as-is; once the burst ends the normal logic sees a NEW foot (offPath or
+        // the in-flight re-search lands) and plans from genuinely new ground.
+        if (unstuckTicks > 0) {
+            unstuckTicks--;
+            // Drive the displacement in the CAMERA frame instead of slamming yaw:
+            // p.setYRot here wound the camera 8+ full turns in a water-cave wedge
+            // cluster (bursts every ~6 s, each with a different escape bearing,
+            // every one yanking the view — raw yaw hit -3109°). commandMove pushes
+            // the body along the escape bearing with ZERO camera motion: AgentInput
+            // pre-rotates the impulse by Δ = bearing − cameraYaw and vanilla
+            // travel() rotates it back, so the net push is along unstuckYaw exactly
+            // as before — the same decoupling the main walk branch already uses.
+            double bd = Math.toRadians(angleDiff(p.getYRot(), unstuckYaw));
+            a.commandMove((float) -Math.sin(bd), (float) Math.cos(bd));
+            agentJump(a, true);
+            p.setSprinting(false);
+            return Step.WALKING;
+        }
         // Advance any in-flight search by one tick-slice so a big search never
         // blocks the render thread in a single tick (fixes the stutter).
         boolean searchDone = false;
         if (activeSearch != null) {
             long sb = System.nanoTime();
-            searchDone = activeSearch.advance(BotConfig.pathfinderSliceMs);
+            // IDLE-SLICE: if there's no walkable path this tick (segment consumed or
+            // none yet), the bot is FROZEN until the search lands — so frame-smoothness
+            // is moot and a thin 6 ms slice just stretches a 3 s search to ~27 s of
+            // standing still. Spend a much bigger slice to finish it ~5× sooner; while
+            // walking, keep the thin slice so frames stay smooth.
+            boolean idleNoPath = path == null || step >= path.size();
+            long slice = idleNoPath
+                    ? Math.max(BotConfig.pathfinderSliceMs, BotConfig.pathfinderIdleSliceMs)
+                    : BotConfig.pathfinderSliceMs;
+            searchDone = activeSearch.advance(slice);
             if (BotConfig.walkerDebug && !searchDone)
                 LOG.info(
                         "[walker] search slice {}ms expanded={} (still running)",
@@ -467,17 +646,40 @@ public final class Walker {
                 // CHURN_REPATH_CAP) so the churn stops winding the camera while the bot
                 // keeps pressing toward the climb-out; only after a long stall with no
                 // progress at all do we give up best-effort instead of pressing forever.
-                if (d < bestGoalDist - 5.0) { bestGoalDist = d; repathsNoProgress = 0; }
+                if (d < bestGoalDist - 5.0) { bestGoalDist = d; repathsNoProgress = 0; churnResets = 0; }
                 else repathsNoProgress++;
-                boolean overWaterRepath = p.isInWater() || world.isWater(foot.offset(0, -1, 0));
+                // Only a body actually AFLOAT counts as a water repath: the old
+                // `|| isWater(foot.below())` arm also matched a bot standing on dry
+                // ground beside a waterfall, so a canyon pacing loop was misread as
+                // water churn and the goto ended in a FAKE ARRIVED at (420,-349)
+                // (live 2026-06-09, "anti-spin: 13/15 water repaths" on dry land).
+                boolean overWaterRepath = p.isInWater() && !p.onGround();
                 if (overWaterRepath && !res.goalReached() && repathsNoProgress > CHURN_GIVEUP_CAP) {
-                    if (BotConfig.walkerDebug)
-                        LOG.info("[walker] anti-spin: {} water repaths w/o progress (d={}) → end best-effort",
-                                repathsNoProgress, String.format(Locale.ROOT, "%.0f", d));
-                    agentForward(a, false);
-                    agentJump(a, false);
-                    p.setSprinting(false);
-                    return terminal(Step.ARRIVED, PathTrace.Outcome.SUCCESS, null);
+                    // A LEGITIMATE go-around also reads as "no progress" here: rounding a
+                    // lava arm via the river pushed d above the pre-detour best for 13+
+                    // repaths and the give-up fired mid-journey with 440 blocks to go
+                    // (live 2026-06-09 — the land exemption in the note above was right,
+                    // it just didn't cover WATER detours). So don't give up on the first
+                    // stall: RE-BASELINE at the current distance and watch again — a real
+                    // detour soon improves on the new baseline (and any true progress
+                    // resets churnResets); only a churn that stalls through several fresh
+                    // baselines is the genuine unwinnable spin.
+                    if (churnResets < CHURN_MAX_RESETS) {
+                        churnResets++;
+                        bestGoalDist = d;
+                        repathsNoProgress = 0;
+                        if (BotConfig.walkerDebug)
+                            LOG.info("[walker] anti-spin: stalled in water (d={}) → re-baseline {}/{}",
+                                    String.format(Locale.ROOT, "%.0f", d), churnResets, CHURN_MAX_RESETS);
+                    } else {
+                        if (BotConfig.walkerDebug)
+                            LOG.info("[walker] anti-spin: {} water repaths w/o progress after {} re-baselines (d={}) → end best-effort",
+                                    repathsNoProgress, churnResets, String.format(Locale.ROOT, "%.0f", d));
+                        agentForward(a, false);
+                        agentJump(a, false);
+                        p.setSprinting(false);
+                        return terminal(Step.ARRIVED, PathTrace.Outcome.SUCCESS, null);
+                    }
                 }
                 // BLOCK-BUDGET ("搭桥前算够不够，否则就挖"): if this path would place
                 // more blocks (bridge/pillar/parkour-place) than the bot carries, it
@@ -498,7 +700,7 @@ public final class Walker {
                         return Step.WALKING;
                     }
                 }
-                adoptPath(res, world);
+                adoptPath(res, world, foot);
             } else if (path == null) {
                 // No route and nothing to fall back on. But if we're airborne
                 // — plummeting from an unplanned fall (knockback, the ground
@@ -514,17 +716,43 @@ public final class Walker {
                     p.setSprinting(false);
                     return Step.WALKING;
                 }
+                // SELF-INFLICTED no-path: repeated wedge penalties can wall the
+                // bot into a small pocket (every exit charged 600-3600 within a
+                // 2.5-block bump) so the search legitimately finds nothing — but
+                // the blindness is OURS, not the terrain's (live 2026-06-09 cave
+                // pocket: debug.plan with a clean view reached the goal in 12
+                // segments from the same foot). Penalties decay in 15 s; hold and
+                // let the regular path==null kickoff retry instead of failing the
+                // whole goto. Bounded so a genuinely walled-in bot still fails.
+                if (world.hasStuckPenalties() && noPathWaitTicks < NO_PATH_WAIT_CAP) {
+                    noPathWaitTicks++;
+                    if (BotConfig.walkerDebug && noPathWaitTicks % 100 == 1)
+                        LOG.info("[walker] no path but stuck-penalties still live → waiting out decay ({}/{})",
+                                noPathWaitTicks, NO_PATH_WAIT_CAP);
+                    agentForward(a, false);
+                    agentJump(a, false);
+                    p.setSprinting(false);
+                    return Step.WALKING;
+                }
                 lastError = "no path (expanded=" + res.expanded() + ")";
                 return terminal(Step.FAILED, PathTrace.Outcome.NO_PATH, lastError);
             }
             // else: search failed but we still have the previous path — keep it.
         }
-        // First path still computing (no path to follow yet) → hold, don't spin.
+        // First path still computing (no path to follow yet). PROGRESSIVE
+        // QUICK-START: instead of holding frozen for the whole background
+        // search (the visible inter-segment stall), grab a tiny synchronous
+        // stub segment toward the goal and start walking it this very tick;
+        // the big result supersedes it on landing. Only hold if no useful
+        // stub exists (boxed in — moving blind would jitter).
         if (path == null) {
-            agentForward(a, false);
-            agentJump(a, false);
-            p.setSprinting(false);
-            return Step.WALKING;
+            if (activeSearch == null || !tryQuickStart(world, foot, goal)) {
+                agentForward(a, false);
+                agentJump(a, false);
+                p.setSprinting(false);
+                return Step.WALKING;
+            }
+            // stub adopted → fall through and walk it
         }
         ticksSinceRepath++;
         // "Stuck" = no PROGRESS toward the current node — NOT a foot block that has
@@ -552,8 +780,26 @@ public final class Walker {
         if (path == null || step >= path.size() || step != noProgressStep) {
             noProgressStep = step;
             noStepProgressTicks = 0;
+            noProgressBestD2 = Double.POSITIVE_INFINITY;
         } else {
-            noStepProgressTicks++;
+            // Genuinely closing in on the current node is progress, not a wedge: a
+            // water cruise crosses 20+-block string-pulled edges at ~1.5 b/s (260
+            // ticks on ONE step — far over WEDGE_TICKS) and used to trip safety
+            // repaths + anti-stuck bursts mid-lake. Track the closest-EVER approach
+            // (monotonic, so a bob against a wall can't keep resetting) and only
+            // count wedge ticks while that stops improving — a fall2 that can't
+            // drop or a blocked bridgePlace never closes in and still trips.
+            BlockPos wn = path.get(step);
+            double wdx = (wn.getX() + 0.5) - p.getX();
+            double wdy = wn.getY() - p.getY();
+            double wdz = (wn.getZ() + 0.5) - p.getZ();
+            double wd2 = wdx * wdx + wdy * wdy + wdz * wdz;
+            if (wd2 < noProgressBestD2 - 0.05) {   // any real new-low counts; 0.05 is float-noise margin (1.0 starved a 1.5 b/s approach inside ~7 blocks: 2·d·v < 1)
+                noProgressBestD2 = wd2;
+                noStepProgressTicks = 0;
+            } else {
+                noStepProgressTicks++;
+            }
         }
         if (onBridge) {
             stuckTicks = 0;
@@ -670,9 +916,14 @@ public final class Walker {
                 // mining an offset trunk, bot jumped at x=16.7 chasing a pillar at
                 // x=15, never placing). A real overshoot makes next STRICTLY closer,
                 // so '<' still resyncs those. The 1.2 gate matches a jump's climb.
+                // Same in-water climb gate as `within` above: the buoyant body bobs
+                // y±0.9, so at the bob's crest |nx.y−p.y| can dip under 1.2 for a
+                // node it never actually climbed to — passing skips the climb base
+                // and leaves an impossible +2 target (stuck at y62 vs node y64).
                 passed = (ndx * ndx + ndz * ndz) < cur2
                         && Math.abs(w.getY() - p.getY()) < 1.5
-                        && Math.abs(nx.getY() - p.getY()) < 1.2;
+                        && Math.abs(nx.getY() - p.getY()) < 1.2
+                        && !(p.isInWater() && nx.getY() - p.getY() > 0.5);
             }
             if (within || passed) step++;
             else break;
@@ -692,7 +943,21 @@ public final class Walker {
                 PathFinder.Result next = pendingSegment;
                 pendingSegment = null;
                 if (next.hasPath() && next.path().size() > 1) {
-                    adoptPath(next, world);     // step→1 on the new segment; fall through to walk it
+                    if (!adoptPath(next, world, foot)) {
+                        // Mis-anchored continuation (the bot never made it to the
+                        // commitEnd it was computed from) — drop it and force a
+                        // fresh foot-search next tick instead of hanging on an
+                        // unreachable step 1.
+                        path = null;
+                        edges = null;
+                        step = 0;
+                        commitEnd = null;
+                        agentForward(a, false);
+                        agentJump(a, false);
+                        p.setSprinting(false);
+                        return Step.WALKING;
+                    }
+                    // adopted: step→1 on the new segment; fall through to walk it
                 } else {
                     // Stale eager continuation found nothing — at a chunk frontier the
                     // newly-loaded terrain may now reveal the next segment, so re-search
@@ -704,10 +969,17 @@ public final class Walker {
                     activeSearch = new PathFinder(world).newSearch(commitEnd, goal);
                     searchFromEnd = true;
                 }
-                agentForward(a, false);
-                agentJump(a, false);
-                p.setSprinting(false);
-                return Step.WALKING;
+                // PROGRESSIVE QUICK-START at the splice gap: the continuation
+                // search hasn't landed yet (eager precompute missed this one) —
+                // walk a synchronous stub toward the goal instead of holding
+                // at the segment end until it does.
+                if (activeSearch == null || !tryQuickStart(world, foot, goal)) {
+                    agentForward(a, false);
+                    agentJump(a, false);
+                    p.setSprinting(false);
+                    return Step.WALKING;
+                }
+                // stub adopted (path replaced, step=1) → fall through and walk it
             }
         }
 
@@ -797,6 +1069,14 @@ public final class Walker {
                     agentJump(a, true);
                     if (p.getY() >= surfaceY) {                              // feet cleared the place cell
                         a.place(world,topWater);                 // fill it → flush, grounded foothold
+                        // The climb node we bob-stalled under is one the executor
+                        // demonstrably CAN'T mount — penalize it so the re-plan
+                        // routes to a different bank cell instead of returning the
+                        // byte-identical segment forever (live 2026-06-09: 3×
+                        // repath expanded=4292 → same west bank → foothold → back
+                        // into the water, a 29 s shore↔water loop). Soft+decaying,
+                        // so a sole climb-out is still taken eventually.
+                        world.penalizeStuckNode(cwp);
                         // Re-plan from the (now grounded) surface. Unconditional —
                         // the client place is same-tick, so next tick topWater reads
                         // solid and the outer isWater guard blocks any re-place; the
@@ -963,7 +1243,11 @@ public final class Walker {
         // before walking into the cell. Functional aim SNAPS (same-tick),
         // independent of smoothLook. Returns each tick until the edge is
         // clear, then falls through to the normal walk below.
-        if (edge != null && hasPendingEdge(world, edge)) {
+        if (edge != null && pillarRecoverLatch <= 0 && hasPendingEdge(world, edge)) {
+            // pillarRecoverLatch gate: while a fall-below-route recovery is active,
+            // this actuator would otherwise grab the edge's HIGH toBreak cell
+            // (unreachable from down here) and hold a futile dig until its own
+            // timeout — starving the recovery block below that actually climbs.
             agentForward(a, false);
             agentJump(a, false);
             p.setSprinting(false);
@@ -1033,6 +1317,19 @@ public final class Walker {
         BlockPos wp = path.get(step);
         Move.Edge nextEdge = edgeAt(step + 1);
         boolean parkourEdge = edge != null && edge.move != null && edge.move.startsWith("parkour");
+        // Bridging-over-a-gap detection (place-bridge on the current OR next edge),
+        // hoisted up here so the travel-aim pitch (below) can keep the camera trained on
+        // the bridge frontier instead of being yanked back to the horizon between place
+        // ticks. The sneak/sprint gating that also reads this lives further down.
+        boolean bridging = (edge != null && "bridgePlace".equals(edge.move))
+                || (nextEdge != null && "bridgePlace".equals(nextEdge.move));
+        // ANY block-placing edge (pillarUp / parkourPlace / stair scaffolds), current or
+        // next: the place-tick aimAtBlockSnap pitches the camera down exactly like a
+        // bridge place does, so the pitch-hold below must cover these too — a steep
+        // dirt-ladder ascent showed the same down-snap ↔ horizon-pull sawtooth the
+        // bridge fix (#30) solved, just via pillarUp edges instead of bridgePlace.
+        boolean placingEdge = (edge != null && !edge.toPlace.isEmpty())
+                || (nextEdge != null && !nextEdge.toPlace.isEmpty());
         // VINE traversal (user insight 2026-06-06): vines are CLIMBABLE, so when the
         // walker fights a stale waypoint while the body is clinging to a vine it wedges
         // for seconds (the jungle cling-freeze: suspended off-ground, hCol, hSpd≈0, while
@@ -1217,6 +1514,18 @@ public final class Walker {
                 float want = smoothAngle(p.getYRot(), aimYaw);
                 float dyaw = angleDiff(p.getYRot(), want);
                 if (Math.abs(dyaw) > WALKER_MAX_YAW_SLEW_DEG) dyaw = Math.copySign(WALKER_MAX_YAW_SLEW_DEG, dyaw);
+                // PIVOT FAST-TURN (stop-go sawtooth): a step-up pivot cuts forward
+                // drive entirely until the heading is inside the 40° gate, so every
+                // zigzag staircase corner stalls ~0.5 s at the 8°/tick cruise slew —
+                // the speed square-wave the path charts show. While pivoting the body
+                // is STATIONARY (drive already zero), so a faster pan is a quick
+                // turn-in-place, not a moving-view jerk: turn at 24°/tick and the
+                // stall drops to ~0.2 s. Cruise turns keep the gentle cruise slew.
+                float pivotErr = angleDiff(p.getYRot(), aimYaw);
+                if (wp.getY() > foot.getY() && !parkourEdge && !p.isInWater()
+                        && Math.abs(pivotErr) > STEPUP_AIM_TOLERANCE_DEG) {
+                    dyaw = Math.abs(pivotErr) > 24f ? Math.copySign(24f, pivotErr) : pivotErr;
+                }
                 ny = p.getYRot() + dyaw;
             }
             p.setYRot(ny);
@@ -1238,7 +1547,24 @@ public final class Walker {
         if (p.isInWater() && wp.getY() < foot.getY() && p.horizontalCollision) diveLatch = 12;
         else if (diveLatch > 0) diveLatch--;
         boolean diveUnderCap = p.isInWater() && wp.getY() < foot.getY() && diveLatch > 0;
-        p.setXRot(smoothAngle(p.getXRot(), diveUnderCap ? 50f : 0f));
+        // ACTIVE dive for a submerged target ≥2 below a floating body (computed here,
+        // before the pitch/sneak actuators that need it). Merely releasing the float
+        // (the old "diving" = no jump) NEVER sinks a surface swimmer — buoyancy +
+        // forward stroke hold y constant (mangrove swamp live: A* commits a riverbed
+        // route y62→54 because the surface columns are walled by roots; the bot rode
+        // y62 forever, offPath kept safetyRepath true every tick → 6 s burst storm).
+        // A real descent needs sneak (vanilla water-sink) + a downward pitch.
+        boolean diving = (edge != null && edge.move != null && edge.move.startsWith("swimDown"))
+                || (p.isInWater() && wp.getY() <= foot.getY() - 2 && world.isWater(wp));
+        // CAMERA-THRASH fix (bridge "镜头上下剧烈跳变"): while bridging, each place tick
+        // does aimAtBlockSnap → requestSnap, instantly pitching the camera DOWN onto the
+        // block being placed; pulling pitch back to the horizon (0) on every non-place
+        // tick made the view saw violently between "look down at feet" and "look at sky".
+        // Hold pitch where the place-snap left it across the whole bridge so the camera
+        // sits in a steady downward gaze (one entry dip, no per-block sawtooth). Pitch
+        // does not affect movement, so freezing it here is motion-neutral.
+        if (!bridging && !placingEdge)
+            p.setXRot(smoothAngle(p.getXRot(), (diveUnderCap || diving) ? 50f : 0f));
         // STEP-UP HEADING GATE (卡碰撞箱 fix): if a +1 step is still badly mis-aimed,
         // pivot in place instead of ramming the riser. The jump gate (ascendJumpReady
         // below) already checks POSITION alignment, but neither it nor the forward key
@@ -1317,6 +1643,21 @@ public final class Walker {
             p.setSprinting(false);
             agentSneak(a, false);
             p.setShiftKeyDown(false);
+            // Clear the ceiling FIRST: a block where the head rises (tree-canopy leaves at
+            // rung+2, a dirt overhang) makes the recovery jump RAM it — the bot can't gain
+            // height, can't place, and wedges ("树下 pillar-up 撞树叶卡死", bug#1). The planned
+            // pillarUp actuator clears its toBreak the same way; this recovery path had none.
+            // Only with allowBreak, and only the single head cell, so it digs no more than the
+            // one block needed to rise this rung (re-checked each rung as pillarRecoverCell rises).
+            BlockPos recCeiling = pillarRecoverCell.offset(0, 2, 0);
+            if (BotConfig.allowBreak && world.isSolid(recCeiling)) {
+                agentJump(a, false);
+                a.selectTool(recCeiling);
+                a.aimAtBlock(recCeiling);
+                a.breakHold(true);
+                return Step.WALKING;
+            }
+            a.breakHold(false);
             p.setXRot(89.5f);                         // look straight down to aim the support
             if (p.onGround()) {
                 agentJump(a, true);     // jump off the current rung
@@ -1422,8 +1763,7 @@ public final class Walker {
         // gap ahead) and don't sprint. Triggered when the edge we're walking
         // onto OR the next one is a place-bridge — Baritone sneaks for the
         // same reason. Released the moment we're back on real ground.
-        boolean bridging = (edge != null && "bridgePlace".equals(edge.move))
-                || (nextEdge != null && "bridgePlace".equals(nextEdge.move));
+        // (`bridging` is computed once, hoisted up near the travel-aim pitch.)
         // Lethal-edge sneak-brake (DEATH #8 fix): if a fatal drop is one step ahead
         // in the heading, hold sneak so vanilla's ledge-guard pins the body at the
         // block edge — the controller can no longer drift off a cliff while fleeing
@@ -1443,19 +1783,68 @@ public final class Walker {
                 && lethalDropAdjacent(world, p, foot);
         boolean plannedDescent = wp.getY() < foot.getY();
         boolean edgeBrake = lethalNear && !plannedDescent;
-        // Bridging sneak must ALSO release for a planned step-DOWN, for the SAME
-        // reason edgeBrake does: vanilla's sneak ledge-guard refuses to let the body
-        // leave the current block's top edge, so a descending bridge (bot at y+1,
-        // the placed bridge block one DOWN-and-ahead) DEADLOCKS — sneak on, forward
-        // on, hCol=false, hSpd≈0, placing blocks but never stepping onto them (caught
-        // live: a 27 s freeze at a strip→lowland descent, recovered only by a late
-        // safety-repath). The bridge block is solid floor (already placed) so the
-        // step-down is safe; sprint is OFF during bridging anyway, so dropping sneak
-        // can't carry an overshoot off the far edge. Same-level / ascending bridges
-        // keep the full anti-overshoot pin.
-        boolean bridgeSneak = bridging && !plannedDescent;
-        agentSneak(a, bridgeSneak || descendBrake || edgeBrake);
-        p.setShiftKeyDown(bridgeSneak || descendBrake || edgeBrake);
+        // DYNAMIC fall-correction while bridging (user: 动态纠偏防止跌落,而不是一直蹲着牺
+        // 牲速度). A 1-wide place-bridge has void on BOTH sides, so the lethal-edge pin
+        // (edgeBrake) AND the old blanket bridge-sneak BOTH held shift for the ENTIRE
+        // span — crouch-walking the whole bridge at a ~0.9 b/s crawl. Instead, walk the
+        // already-placed blocks at full speed and brake (sneak — its ledge-guard pins the
+        // body so it can't step off) ONLY on the ticks with an ACTUAL fall risk:
+        //   • gapAhead — no solid footing ~0.6 blocks ahead toward wp (about to overshoot
+        //     off the front edge into the not-yet-placed frontier), or
+        //   • offCentre — drifted >0.3 off the foot→wp centreline (side fall on the 1-wide
+        //     span; the camera-decoupled impulse already re-aims at wp's centre, so this
+        //     only fires on real drift).
+        // Planned step-downs still release entirely (a descending bridge deadlocks under
+        // any pin — see the long edgeBrake note above). Sprint is OFF during bridging
+        // (below), so a non-braked tick can't build enough momentum to overshoot a whole
+        // block before the next look-ahead check brakes it.
+        // Generalised beyond bridging (出桥 2 格 crawl): right after a bridge — or on
+        // any cliff-lip walk — `edgeBrake` re-pinned the body the moment `bridging`
+        // dropped, crouch-crawling until the void left the 8-neighbourhood. The SAME
+        // dynamic gate is the cert'd fix for the same risk on a 1-wide span (the
+        // strictly harder case), so apply it to every lethal-edge walk: full speed on
+        // safe ticks, brake only on gapAhead/off-centre drift. Sprint stays OFF near
+        // a lethal edge (below), bounding per-tick travel just like on the bridge.
+        // HAZARD-AHEAD brake (lava ×4 live in two rounds): the danger ring only
+        // PRICES a lava-hugging route — when no detour exists A* still commits
+        // one, and the 0.6-wide body drifts into the neighbouring lava cell
+        // mid-stroke (fire res masked what kills a naked bot). Hard guard at the
+        // actuator: if the cell ~0.8 ahead along the heading is a hazard at foot
+        // or head level, sneak-brake this tick (ledge-guard semantics keep the
+        // body out of the cell; sneak still creeps ~0.9 b/s so a mandatory
+        // lava-side passage stays passable, just slow — exactly right there).
+        boolean hazardAhead = false;
+        {
+            double hax = (wp.getX() + 0.5) - p.getX();
+            double haz = (wp.getZ() + 0.5) - p.getZ();
+            double hal = Math.sqrt(hax * hax + haz * haz);
+            if (hal > 1e-3) {
+                BlockPos aheadCell = BlockPos.containing(
+                        p.getX() + hax / hal * 0.8, p.getY(), p.getZ() + haz / hal * 0.8);
+                hazardAhead = world.isHazard(aheadCell) || world.isHazard(aheadCell.above());
+            }
+        }
+        boolean bridgeBrake = false;
+        if ((bridging || edgeBrake) && !plannedDescent) {
+            double bdx = (wp.getX() + 0.5) - p.getX();
+            double bdz = (wp.getZ() + 0.5) - p.getZ();
+            double blen = Math.sqrt(bdx * bdx + bdz * bdz);
+            if (blen > 1e-3) {
+                double ax = p.getX() + bdx / blen * 0.6;
+                double az = p.getZ() + bdz / blen * 0.6;
+                BlockPos aheadFoot = new BlockPos((int) Math.floor(ax), foot.getY(), (int) Math.floor(az));
+                boolean gapAhead = !world.isSolid(aheadFoot.below()) && !world.isSolid(aheadFoot);
+                double fx = foot.getX() + 0.5, fz = foot.getZ() + 0.5;
+                double offCentre = Math.abs((p.getX() - fx) * bdz - (p.getZ() - fz) * bdx) / blen;
+                bridgeBrake = gapAhead || offCentre > 0.30;
+            }
+        }
+        // The dynamic brake REPLACES the constant lethal-edge pin everywhere (bridge
+        // AND cliff-lip): the pin's job — don't drift off a lethal edge — is done by
+        // the per-tick gapAhead/offCentre gate at full walking speed.
+        boolean lavaBrake = hazardAhead && !p.isInWater();   // land-only: a surface swimmer sneaking beside lava would DIVE (active sink), not stop
+        agentSneak(a, bridgeBrake || descendBrake || diving || lavaBrake);   // sneak in water = vanilla active sink (buoyancy never sinks a surface swimmer on its own)
+        p.setShiftKeyDown(bridgeBrake || descendBrake || lavaBrake);
         // Jump for a real upward step, a parkour-leap edge (by move type, not
         // raw distance — string-pulling makes plain walk waypoints far apart
         // too), or a brief stuck-wiggle.
@@ -1469,13 +1858,25 @@ public final class Walker {
         // drowns mid-path (the "swam into the ocean and died" failure). Hold jump
         // whenever the eyes are submerged, unless we're deliberately diving a
         // swimDown edge (then let it descend).
-        boolean diving = edge != null && edge.move != null && edge.move.startsWith("swimDown");
+        // (diving is computed earlier, beside diveUnderCap, so the pitch/sneak
+        // actuators can drive the ACTIVE sink — see that block for the rationale.)
         boolean swimUp = p.isInWater() && p.isUnderWater() && !diving;
         // The stuck-wiggle hop unsticks a corner on DRY land, but in shallow water
         // on a flat walk it just bobs the bot off the floor into the buoyant drift
         // (it floats off its cell and slides — the very stall it's meant to break).
         // Suppress it there; treading + steady forward threads the channel instead.
-        boolean flatWaterWalk = wp.getY() == foot.getY() && p.isInWater();
+        // A floating body rides ONE block above the in-water path nodes (A* places
+        // water nodes at the cell whose head breaks the surface; the buoyant foot
+        // is in the cell above), so a same-level open-water crossing shows up as
+        // wp.y == foot.y − 1 with a WATER wp — treat that as flat too, or the
+        // whole crossing loses the prone sprint-swim and treads at ~1.5 blk/s
+        // (live 2026-06-09: sprint=false across a lake, hSpd 0.077, each 200-tick
+        // repath advanced only ~8 blocks → zig-zag + stall feel). A real swimDown
+        // edge keeps its own handling (diving), and climb-outs (wp above foot)
+        // stay non-sprint as before.
+        boolean flatWaterWalk = p.isInWater() && !diving
+                && (wp.getY() == foot.getY()
+                    || (foot.getY() - wp.getY() == 1 && world.isWater(wp)));
         boolean wiggle = !bridging && !flatWaterWalk && !pivotForStepUp && stuckTicks > 10 && stuckTicks < 18;
         // Climbing a +1 ledge out of a SHALLOW water film needs a BALLISTIC,
         // GROUNDED jump: |Δy|=0.8 exceeds the 0.6 auto-step, and a *held* jump in
@@ -1529,7 +1930,11 @@ public final class Walker {
         boolean cappedHead = p.isInWater() && world.isSolid(foot.offset(0, 2, 0));
         boolean jump = !descendBrake
                 && (stepUpJump || parkourEdge
-                    || ((swimUp || swimColumn) && !cappedHead) || wiggle);
+                    // !diving: swimColumn is true for any submerged body, so during an
+                    // ACTIVE dive the held jump cancelled the sneak-sink exactly —
+                    // the bot hovered at constant depth (hSpd 0.02, jump+sneak both
+                    // down) while the burst storm wound yaw 4.5 turns (mangrove live).
+                    || ((swimUp || swimColumn) && !cappedHead && !diving) || wiggle);
         agentJump(a, jump);
         // Sprint in water ONLY on a FLAT crossing (flatWaterWalk: wp.y==foot.y). The
         // prone swim pose that sprint+forward forces is exactly what a wide open-ocean
@@ -1558,6 +1963,7 @@ public final class Walker {
         // (live: parkourAscend2 frozen, hSpd=0, bobbing y82↔83). Let a parkour ascend sprint.
         boolean parkourAscend = parkourEdge && wp.getY() > foot.getY();
         boolean sprint = !bridging && !steppingOffFall && !steppingOffWaterFall
+                && !hazardAhead   // never carry sprint momentum INTO a lava/hazard cell — in water too (no sneak there, but dropping sprint kills the drift that pushed the swimmer in)
                 && !descendBrake && (!lethalNear || parkourAscend) && (!needJumpForStep || parkourAscend || sprintAscend)   // !lethalNear (not !edgeBrake): never sprint NEAR a lethal edge — incl. a planned descent past it — so no drift/overshoot momentum off the lip while sneak is released for the step-down. Baritone doesn't sprint a jumped CARDINAL ascend (overshoots/bonks) but DOES sprint a parkour leap; a horse auto-walk-up keeps sprint
                 // A/B-DISPROVEN (2026-06-06): re-enabling sprint on an aligned ascend (sprintableAscend)
                 // regressed hCol 13%→36% / mean hSpd .112→.082 — because the jump fires CLOSE to the riser
@@ -1566,6 +1972,26 @@ public final class Walker {
                 // closing that gap needs an early-jump-timing change, not just flipping sprint on. Kept no-sprint.
                 && (!p.isInWater() || flatWaterWalk || diveUnderCap);
         p.setSprinting(sprint);
+        // Lily pads sit ON the water plane with a real collision box; the planner
+        // deliberately treats the thin shape as passable (a fast prone swim slides
+        // under), but the moment the swim slows, the upright treading body rams the
+        // pad — hCol=true, hSpd→0 — and the swamp current + anti-stuck bursts spin
+        // the bot in place (round28: 7×7 of open water + pads, yaw wound to -994°).
+        // Pads are instabreak: punch the one ahead (or overhead) and keep swimming.
+        if (p.isInWater() && p.horizontalCollision) {
+            double bdx = (wp.getX() + 0.5) - p.getX(), bdz = (wp.getZ() + 0.5) - p.getZ();
+            double bl = Math.sqrt(bdx * bdx + bdz * bdz);
+            BlockPos surf = BlockPos.containing(p.getX(), p.getY() + 1.0, p.getZ());
+            BlockPos aheadPad = bl > 1e-3
+                    ? BlockPos.containing(p.getX() + bdx / bl, p.getY() + 1.0, p.getZ() + bdz / bl)
+                    : surf;
+            BlockPos pad = world.isBreakableObstruction(aheadPad) ? aheadPad
+                    : world.isBreakableObstruction(surf) ? surf : null;
+            if (pad != null) {
+                a.aimAtBlock(pad);
+                a.breakHold(true);
+            }
+        }
         if (BotConfig.walkerDebug) {
             // [dbgcollide] hard physics evidence for the hill speed-sawtooth: is the
             // bot actually COLLIDING (hitbox snagging a trunk/step face) or just
@@ -1624,7 +2050,87 @@ public final class Walker {
         return terminal(Step.ARRIVED, PathTrace.Outcome.SUCCESS, null);
     }
 
-    private void adoptPath(PathFinder.Result res, WorldView world) {
+    /** PROGRESSIVE QUICK-START (渐进式寻路): the big re-plan is still slicing in
+     *  the background and the bot has nothing to walk — that gap is the visible
+     *  inter-segment freeze (several seconds standing still at every hard
+     *  obstacle). Spend a tiny SYNCHRONOUS node budget on a short best-effort
+     *  segment toward the goal and start walking it right now; the big result
+     *  supersedes the stub when it lands through the normal adoption path.
+     *  Frame cost is irrelevant here: with no path the bot is frozen anyway
+     *  (same argument as the idle-slice). Only a stub that actually nears the
+     *  goal is adopted — a boxed-in micro-search returns pacing scraps that
+     *  would jitter, so those back off for {@link #QUICK_RETRY_TICKS}.
+     *  @return true if a stub segment was adopted (path != null, step = 1). */
+    private boolean tryQuickStart(WorldView world, BlockPos foot, Goal goal) {
+        if (BotConfig.pathfinderQuickNodes <= 0) return false;
+        if (quickCooldown > 0) { quickCooldown--; return false; }
+        PathFinder.Search q = new PathFinder(world, BotConfig.pathfinderQuickNodes, QUICK_MAX_MS)
+                .newSearch(foot, goal);
+        while (!q.advance(QUICK_MAX_MS)) { /* bounded by the node cap / QUICK_MAX_MS */ }
+        PathFinder.Result res = q.result();
+        boolean useful = res.hasPath() && res.path().size() > 1
+                && goal.estimate(foot)
+                   - goal.estimate(res.path().get(res.path().size() - 1)) >= 2.0;
+        if (!useful) {
+            quickCooldown = QUICK_RETRY_TICKS;
+            return false;
+        }
+        if (BotConfig.walkerDebug)
+            LOG.info("[walker] quick-start stub adopted: len={} expanded={} ms={} (big search still running)",
+                    res.path().size(), res.expanded(), res.ms());
+        adoptPath(res, world, null);    // stub starts at the foot — no fast-forward needed
+        return true;
+    }
+
+    /** @return false if the segment was REJECTED because its start is nowhere
+     *  near the feet. A continuation is computed from the previous segment's
+     *  commitEnd; when the bot never actually made it there (fumbled the climb,
+     *  fell off the route) the spliced path STARTS in mid-air several blocks
+     *  away — step 1 is unreachable, fast-forward finds nothing near, and the
+     *  bot just hangs against the wall until the wedge timer fires (live
+     *  2026-06-09: cave pocket, step1 4 blocks up / 4.5 away, 15 s freeze).
+     *  Rejecting here lets the caller drop the stale segment and re-search
+     *  from where the bot really is. */
+    private boolean adoptPath(PathFinder.Result res, WorldView world, BlockPos foot) {
+        if (foot != null && !res.path().isEmpty()) {
+            // Anchor on the nearest node of the PREFIX, not just path[0]. While a
+            // search runs (0.4-1.7 s) a SWIMMING bot keeps drifting 5-12 blocks
+            // along its old segment — both routes head for the same goal, so the
+            // fresh path's prefix IS the corridor the bot just swam. Judging only
+            // path[0] turns that drift into a reject→re-search→drift-again
+            // oscillation (live 2026-06-10: 6 rejects in 18 s, 35 min circling a
+            // water-shore pocket, the 75-node highland exit killed twice). A
+            // truly mis-anchored continuation (computed from a commitEnd the bot
+            // never reached) has its WHOLE prefix far/high, so it still rejects.
+            List<BlockPos> raw = res.path();
+            int anchor = 0;
+            double anchorD = raw.get(0).distSqr(foot);
+            int lim = Math.min(raw.size() - 1, 16);
+            for (int i = 1; i <= lim && anchorD > 1.0; i++) {
+                Move.Edge e = i < res.edges().size() ? res.edges().get(i) : null;
+                if (e != null && (!e.toBreak.isEmpty() || !e.toPlace.isEmpty())) break;
+                double d2 = raw.get(i).distSqr(foot);
+                if (d2 < anchorD) { anchorD = d2; anchor = i; }
+            }
+            // In WATER the gate must absorb CURRENT drift: a river pushes the
+            // bot ~1.5 b/s downstream while it holds path-less, so by the time
+            // a 0.4-1.7 s search lands the feet are 5-7 blocks away — with the
+            // dry 4-block gate every fresh segment got rejected, the hold let
+            // the river push further, and the loop swept the bot 50 blocks
+            // downstream (live 2026-06-10: 10 rejects in 30 s straight down
+            // z=-561, each segment's nearest prefix node = the previous foot).
+            // Swimming 8 blocks back onto the route is always executable; the
+            // tight gate only exists for dry falls/jumps that aren't.
+            double rejectGate = world.isWater(foot) ? 64 : 16;
+            if (anchorD > rejectGate
+                    || Math.abs(raw.get(anchor).getY() - foot.getY()) > world.maxJumpUpBlocks() + 2) {
+                if (BotConfig.walkerDebug)
+                    LOG.info("[walker] reject mis-anchored segment: nearest prefix node {},{},{} (d2={}) vs foot {},{},{}",
+                            raw.get(anchor).getX(), raw.get(anchor).getY(), raw.get(anchor).getZ(),
+                            (int) anchorD, foot.getX(), foot.getY(), foot.getZ());
+                return false;
+            }
+        }
         // String-pull flat walk runs so the heading stays steady over the
         // staircase (no left-right camera wobble) and the bot walks straight;
         // action/vertical/parkour nodes are preserved.
@@ -1634,6 +2140,62 @@ public final class Walker {
         pathBestEffort = !res.goalReached();
         commitEnd = (pathBestEffort && !path.isEmpty()) ? path.get(path.size() - 1) : null;
         step = 1;
+        noPathWaitTicks = 0;            // a segment was found → the no-path wait starts over
+        // A segment that ends FARTHER from the goal than it starts can only be
+        // the last-resort ESCAPE (every other selector is strictly goal-ward):
+        // its start is a PROVEN dead pocket. Charge it now so subsequent searches
+        // stop folding back into it — without this the cave-funnel relapse loop
+        // is fully deterministic (live 2026-06-09: escape→high route→fall→free
+        // h-improving corridors all funnel back to the same pocket, ~3 min/lap,
+        // and nothing on the lap ever calls penalizeStuckNode).
+        if (goal != null && path.size() > 1
+                && goal.estimate(path.get(path.size() - 1)) > goal.estimate(path.get(0))) {
+            world.penalizeStuckNode(path.get(0));
+            world.penalizeStuckNode(path.get(0).above());
+            if (BotConfig.walkerDebug)
+                LOG.info("[walker] escape segment adopted → penalize dead pocket at {}", path.get(0));
+        }
+        // Fast-forward past a prefix the bot has already covered. A quick-start
+        // stub (progressive pathfinding) carries the bot a few blocks ahead of
+        // where the superseding big search was LAUNCHED, so the fresh path can
+        // start behind the feet — without this the bot visibly walks BACKWARD
+        // to rejoin at path[0]. Skip to the nearest on-path node in the first
+        // few steps, but never across an edge that still needs to break/place
+        // blocks (skipping its action would desync the build state). Only jump
+        // when a node is genuinely at the feet; a normal foot-search has
+        // path[0] == foot and is untouched.
+        if (foot != null && path.size() > 2) {
+            // Loose rejoin ONLY when path[0] is already off the feet (the bot
+            // drifted while the search ran — open water, quick-start carry).
+            // A normally-anchored path keeps the strict gate: skipping to a
+            // node 2-3 blocks out also skips the stair base / bridge lip
+            // between here and there.
+            boolean drifted = path.get(0).distSqr(foot) > 2.0;
+            int window = drifted ? 16 : 8;
+            // In water, accept a rejoin node as far as the reject gate lets a
+            // segment in (river drift, see adopt-gate above): swimming back a
+            // few blocks is always executable, and refusing leaves step=1
+            // pointing far UPSTREAM of a drifted bot.
+            double accept = drifted ? (world.isWater(foot) ? 64.0 : 9.0) : 2.0;
+            int nearest = step;
+            double nearestD = path.get(step).distSqr(foot);
+            for (int i = step + 1; i < Math.min(path.size() - 1, step + window); i++) {
+                Move.Edge e = i < edges.size() ? edges.get(i) : null;
+                if (e != null && (!e.toBreak.isEmpty() || !e.toPlace.isEmpty())) break;
+                // Never anchor onto a node beyond ±1 of the feet: a drifted bot
+                // in water sits 2 below the bank nodes (3D distSqr still ranks
+                // them "near", dy=2 → +4) — starting there is an impossible +2
+                // climb (live: wedged at y62 vs a y64 diagUp for 100 ticks).
+                // DOWN must be capped too: anchoring onto a node 5 BELOW a
+                // cliff-top bot aims the walk at the column past the lip and it
+                // just rams the wall (live: wp walk@y57 vs feet y62, hCol,
+                // hSpd=0). ±1 keeps the rejoin on the bot's own walking layer.
+                if (Math.abs(path.get(i).getY() - foot.getY()) > 1) continue;
+                double d2 = path.get(i).distSqr(foot);
+                if (d2 < nearestD) { nearestD = d2; nearest = i; }
+            }
+            if (nearest > step && nearestD <= accept) step = nearest;
+        }
         stuckTicks = 0;
         frontierWaitTicks = 0;          // progress made → reset the frontier re-search budget
         stuckStep = -1;                 // new path geometry → restart the progress window
@@ -1650,6 +2212,7 @@ public final class Walker {
             }
             LOG.info("[walker] path = {}", sbp);
         }
+        return true;
     }
 
     /** Emit a per-tick execution sample. Pure reads; cheap; gated to NOOP in release. */
