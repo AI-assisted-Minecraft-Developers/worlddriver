@@ -68,6 +68,15 @@ public final class PathFinder {
      *  height is monotone across the re-plan chain. */
     private static final int MIN_CLIMB_ESCAPE = 2;
 
+    /** g-cost ceiling for a water-start climb-out to count as CHEAP (dig-free):
+     *  swimming runs ~10-30 cost/block so 3000 covers a ~100-block swim-and-walk
+     *  to shore, while one submerged hard-stone dig alone prices ~7500 (5×
+     *  underwater multiplier). Cheap ashore commits immediately; an expensive one
+     *  defers to the surfacing bestClimb / relaxed tier (see chooseSegment). A
+     *  couple of soft submerged digs (dirt ≈750 each) still pass as cheap — mud
+     *  banks are common and fast to punch through. */
+    private static final double ASHORE_CHEAP_G = 3000;
+
     /** A repropagated route must beat the incumbent g by more than this to be
      *  accepted — Baritone's minimum-improvement repropagation (0.01 ticks ≈
      *  0.1 cost units here). Re-opening a closed node to save a sliver of cost
@@ -151,6 +160,14 @@ public final class PathFinder {
         // so the bot scales the obstacle instead of deadlocking — see MIN_CLIMB_ESCAPE.
         private Node bestClimb;
         private double bestClimbScore = Double.POSITIVE_INFINITY;
+        // Last-resort escape: the expanded node FARTHEST from the start, regardless
+        // of goal direction. Committed only when every other selector is null at the
+        // hard cap — a pocket whose free exits all head AWAY from the goal (cave
+        // network behind the bot, goal walled off) otherwise returns "no path"
+        // even though the terrain is escapable (live 2026-06-09: 60k nodes spread
+        // across a NE cave web, goal SW, hDelta=0 → goto FAILED in a cave pocket).
+        private Node bestEscape;
+        private double bestEscapeD2;
         private final boolean startInWater;
         private final Node startNode;
         /** Move-set pruned to the catalog entries that can fire under this search's
@@ -245,7 +262,15 @@ public final class PathFinder {
             boolean watery = world.isWater(from) || world.isWater(to);
             boolean breaks = !edge.toBreak.isEmpty();
             if (!watery && !breaks) return 0;                          // dry stepped descent over solid ground — free
-            int threshold = start.getY() - BotConfig.pathfinderDepthSlack;
+            // A search that STARTS in water gets NO slack: the bot floats at the
+            // surface, so ANY planned descent fights buoyancy the executor cannot
+            // deliver (live wedge 2026-06-09: from a river surface A* committed
+            // fallWater4→seabed-walk under a sheer bank — slack let the first 4-block
+            // dive go untaxed, the floating bot could never follow the path down, and
+            // every wedge-repath recommitted the same dive → permanent pin). A DRY
+            // start keeps the slack so a normal downhill into a stream stays free.
+            int slack = world.isWater(start) ? 0 : BotConfig.pathfinderDepthSlack;
+            int threshold = start.getY() - slack;
             int hiY = Math.min(from.getY(), threshold);
             int loY = Math.min(to.getY(), threshold);
             int belowDrop = hiY - loY;                                 // descent of THIS edge below threshold
@@ -357,6 +382,13 @@ public final class PathFinder {
                             bestClimb = cur;
                         }
                     }
+                    // Track the farthest reachable node for the last-resort escape
+                    // commit (see chooseSegment) — direction-agnostic on purpose.
+                    double escD2 = cur.pos.distSqr(start);
+                    if (escD2 > bestEscapeD2) {
+                        bestEscapeD2 = escD2;
+                        bestEscape = cur;
+                    }
 
                     if (expanded >= maxNodes) break;
                     if (totalMs(sliceStart) > maxMs) break;
@@ -435,7 +467,22 @@ public final class PathFinder {
             // otherwise). If NO ashore node is reachable (allowBreak off + a sheer-walled
             // bowl, say), return null = "no path": the bot stays put rather than commit a
             // fake in-water segment or dive. Land searches keep the conservative backoff.
-            if (startInWater) return bestAshore;
+            if (startInWater) {
+                // A CHEAP climb-out (pure swim+walk, no submerged dig priced in)
+                // commits as before. An EXPENSIVE one means the only dry cell the
+                // budget reached sits behind a 5×-priced underwater dig (round37b:
+                // lake-bed cave — the sole 6k-node "ashore" was a deepslate tunnel
+                // while an open water column to the surface stood ONE CELL east,
+                // ignored because surfacing isn't ashore). Prefer SURFACING: commit
+                // the monotone-up bestClimb through open water and re-plan from the
+                // surface vantage where the real shore is reachable. The dig-ashore
+                // stays as the genuine last resort (a fully roofed water pocket).
+                if (bestAshore != null && bestAshore.g <= ASHORE_CHEAP_G) return bestAshore;
+                if (bestClimb != null && bestClimb.pos.getY() - start.getY() >= MIN_CLIMB_ESCAPE) {
+                    return bestClimb;
+                }
+                return bestAshore;
+            }
 
             if (BotConfig.pathfinderFrontierCommit && bestFrontier != null
                     && bestFrontier.h < startNode.h - MIN_FRONTIER_GAIN
@@ -454,6 +501,20 @@ public final class PathFinder {
             if (bestClimb != null && bestClimb.pos.getY() - start.getY() >= MIN_CLIMB_ESCAPE) {
                 return bestClimb;
             }
+            // LAST RESORT — boxed with no goal-ward, frontier or upward escape at
+            // the hard cap: every reachable cell lies BEHIND the start (e.g. a cave
+            // network whose only free exits head away from a walled-off goal — the
+            // detour REQUIRES backtracking, which the conservative selector above
+            // refuses by design). Returning null here fails the goto even though
+            // the terrain is escapable; instead commit the farthest reachable node
+            // so the bot physically leaves the dead pocket — the next search runs
+            // from a new vantage (outside the cave / fresh chunks) and can find the
+            // way around. Oscillation is bounded by the stuck-penalties + anti-spin.
+            // Unreachable only via hard-cap exhaustion: hasCommittableSegment()
+            // deliberately ignores bestEscape, so soft-commit can never fire on it.
+            if (bestEscape != null && bestEscapeD2 > (long) MIN_DIST_PATH * MIN_DIST_PATH) {
+                return bestEscape;
+            }
             return null;
         }
 
@@ -463,12 +524,63 @@ public final class PathFinder {
          *  building the path. Drives the soft-commit early-stop
          *  ({@link BotConfig#pathfinderSoftCommitNodes}). */
         private boolean hasCommittableSegment() {
-            if (startInWater) return bestAshore != null;
-            double minSq = MIN_DIST_PATH * MIN_DIST_PATH;
-            for (Node n : bestSoFar) {
-                if (n != null && n.pos.distSqr(start) > minSq) return true;
+            // Water start mirrors chooseSegment's tiering: a cheap (dig-free)
+            // ashore or a surfacing climb may early-stop; an expensive dig-ashore
+            // alone keeps the search burning toward the relaxed tier — stopping at
+            // 6k nodes on a 5×-priced underwater tunnel is exactly the round37b
+            // lake-bed trap.
+            if (startInWater) {
+                boolean relaxedW = BotConfig.pathfinderSoftCommitNodes > 0
+                        && expanded >= BotConfig.pathfinderSoftCommitNodes * 4L;
+                return (bestAshore != null && (relaxedW || bestAshore.g <= ASHORE_CHEAP_G))
+                        || (bestClimb != null && bestClimb.pos.getY() - start.getY() >= MIN_CLIMB_ESCAPE);
             }
-            return bestClimb != null && bestClimb.pos.getY() - start.getY() >= MIN_CLIMB_ESCAPE;
+            double minSq = MIN_DIST_PATH * MIN_DIST_PATH;
+            // TIERED soft-commit: past 4× the soft budget (~24k nodes — the measured
+            // canyon-exit cost), stop demanding the quality gain and take the best
+            // segment/climb on offer. Without this tier the quality gate rode all the
+            // way to the hard 60k cap on the nastiest cliff descents — a ~12 s
+            // stand-still the video flagged ("悬崖边缘原地停顿约14秒"). Tiers: open
+            // terrain commits at the soft budget (gain clears instantly); boxed
+            // terrain burns up to 4× hunting a worthwhile segment (canyon exits fit
+            // here); only a truly walled-in search degrades to best-available at 4×,
+            // capping the planning stall at ~a third of the hard budget.
+            boolean relaxed = BotConfig.pathfinderSoftCommitNodes > 0
+                    && expanded >= BotConfig.pathfinderSoftCommitNodes * 4L;
+            for (Node n : bestSoFar) {
+                // Distance alone is NOT committable: boxed in a canyon every repath
+                // found SOME 5-block sideways scrap at the 6000-node soft budget and
+                // committed it, each pointing a different way — the bot paced a
+                // ~15-block box for minutes (live 2026-06-09, canyon at (415,-362):
+                // the real exit was a +30 climb the probe only found at ~24k nodes).
+                // Demand a real heuristic gain (≥ SOFT_MIN_GAIN ≈ 6 blocks toward an
+                // XZ goal) before the soft early-stop may fire; open terrain clears
+                // that instantly, while a boxed search keeps burning toward the hard
+                // maxNodes cap until a worthwhile segment (or vertical escape) shows.
+                if (n != null && n.pos.distSqr(start) > minSq
+                        && (relaxed || startNode.h - n.h >= softMinGain())) return true;
+            }
+            // bestClimb does NOT soft-stop at the base tier. Letting a 3-5-block climb
+            // scrap satisfy the soft budget recommitted pillar shreds in every direction
+            // at a canyon whose real exit was +30 (live: pathLen 4-8 dirt-ladder
+            // segments, bot burned 13 dirt pacing). At the RELAXED tier (4× burned,
+            // nothing better found) a climb escape is accepted — by then it is the best
+            // escape a substantial search produced, not a 6k-node shred.
+            return relaxed && bestClimb != null
+                    && bestClimb.pos.getY() - start.getY() >= MIN_CLIMB_ESCAPE;
+        }
+
+        /** Minimum heuristic improvement a best-effort segment must show before the
+         *  soft-commit early-stop fires: HALF the horizon distance (~blocks×10 toward
+         *  an XZ goal; horizon 48 → gain 240 ≈ 24 blocks). 60 (6 blocks) proved too
+         *  low live: a boxed canyon offered 8-block pseudo-forward scraps in every
+         *  direction at the 6000-node budget, so each repath committed a different
+         *  scrap and the bot paced a 15-block box — while the true exit (a +30 climb)
+         *  needed ~24k nodes. Open terrain clears 24 blocks within the soft budget
+         *  easily, keeping the early-stop (and its no-freeze feel) intact there. */
+        private static double softMinGain() {
+            int hb = BotConfig.pathfinderHorizonBlocks;
+            return hb > 0 ? hb * 10 / 2.0 : 240;
         }
 
         /** True if {@code p} is a dry standing cell — feet on solid dry ground, not
