@@ -176,6 +176,14 @@ public final class ClientWorldView implements WorldView {
                 && shape.max(Direction.Axis.Y) <= thin) return true;
         return !Shapes.joinIsNotEmpty(PLAYER_COLUMN, shape, BooleanOp.AND);
     }
+    @Override public boolean isBreakableObstruction(BlockPos p) {
+        BlockState s = state(p);
+        if (s.isAir() || !s.getFluidState().isEmpty()) return false;
+        Level lvl = Minecraft.getInstance().level;
+        if (lvl == null) return false;
+        if (s.getCollisionShape(lvl, p).isEmpty()) return false;
+        return s.getDestroySpeed(lvl, p) == 0f;   // instabreak by hand (lily pad…)
+    }
     @Override public boolean canStandOn(BlockPos p) {
         if (!BotConfig.collisionAwarePathing) return isSolid(p);
         BlockState s = state(p);
@@ -247,6 +255,19 @@ public final class ClientWorldView implements WorldView {
             return Double.POSITIVE_INFINITY;
         }
         return rawBreakCost(p);
+    }
+    /** Vanilla's underwater mining multiplier (no Aqua Affinity): eyes in water
+     *  while digging = ÷5 destroy speed. Applied when the move's from-node has
+     *  its EYE cell (from+1) in water — then the dig genuinely happens submerged
+     *  and the stance-free estimate is 5× too cheap, which is exactly how A*
+     *  chose a lake-bed deepslate tunnel over a surface swim (round37). The
+     *  extra ×5 for not-on-ground is left out: from-nodes are standable cells,
+     *  the swimming-while-floating case is rarer and the single ×5 already
+     *  reprices a 7.5s dig to 37.5s — far past any swim detour. */
+    @Override public double breakCost(BlockPos p, BlockPos from) {
+        double c = breakCost(p);
+        if (c > 0 && Double.isFinite(c) && isWater(from.offset(0, 1, 0))) return c * 5;
+        return c;
     }
     /** Search origin (the bot's block pos when this findPath began), snapshotted
      *  in {@link #beginSearch}. Water-escape breaks are only priced finite within
@@ -417,6 +438,16 @@ public final class ClientWorldView implements WorldView {
             { 1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1},   // foot ring
             { 1, 1, 0}, {-1, 1, 0}, {0, 1, 1}, {0, 1, -1},   // head ring
             { 1,-1, 0}, {-1,-1, 0}, {0,-1, 1}, {0,-1, -1},   // below-feet ring
+            // Diagonals + straight-up: a swim route hugging a lava shore kept its
+            // nodes legal (canStandAt rejects lava-in-head) yet the 0.6-wide body
+            // drifted into the DIAGONALLY adjacent lava cell mid-stroke — live ×3
+            // (round31: enteredLava at (-689,63,566) and (-804/-805,63,478), fire
+            // res masked what would kill a naked bot). Charging the diagonal and
+            // overhead cells makes A* keep a 1-cell margin whenever any detour
+            // exists; a true single-file lava channel still prices in, not out.
+            { 0, 1, 0},
+            { 1, 0, 1}, { 1, 0,-1}, {-1, 0, 1}, {-1, 0,-1},  // foot diagonals
+            { 1, 1, 1}, { 1, 1,-1}, {-1, 1, 1}, {-1, 1,-1},  // head diagonals
     };
     // The 4 cardinal horizontal neighbours, for the cliff-edge probe below.
     private static final int[][] HORIZONTAL_4 = {
@@ -459,8 +490,19 @@ public final class ClientWorldView implements WorldView {
         BlockPos key = pos.immutable();
         Long exp = stuckAvoid.get(key);
         int strength = (exp != null && exp > now) ? stuckStrength.getOrDefault(key, 1) + 1 : 1;
-        stuckAvoid.put(key, now + STUCK_AVOID_MS);
-        stuckStrength.put(key, Math.min(strength, STUCK_AVOID_MAX_STRENGTH));
+        strength = Math.min(strength, STUCK_AVOID_MAX_STRENGTH);
+        // Decay scales with strength: one stray wedge still clears in 15 s, but a
+        // node that keeps failing (or a proven dead pocket re-marked every lap)
+        // stays charged up to 90 s — long enough to outlive a multi-minute
+        // relapse loop that re-enters only after the flat window expired.
+        stuckAvoid.put(key, now + STUCK_AVOID_MS * strength);
+        stuckStrength.put(key, strength);
+    }
+
+    @Override public boolean hasStuckPenalties() {
+        long now = System.currentTimeMillis();
+        for (Long exp : stuckAvoid.values()) if (exp > now) return true;
+        return false;
     }
 
     // Controlled-entity movement attributes, snapshotted once per search so the
@@ -670,6 +712,17 @@ public final class ClientWorldView implements WorldView {
                 // is the fix for "寻路太蠢/走进海里淹死".
                 if (BotConfig.waterDangerPenalty > 0 && isWater(foot)) {
                     penalty += BotConfig.waterDangerPenalty * (fleeSearch ? BotConfig.fleeDangerBoost : 1.0);
+                    // SUBMERGED layer extra: a fully-underwater cell (water at head
+                    // height too — eyes below the surface) moves at ~2 b/s vs ~5.6 b/s
+                    // surface sprint-swim, yet Walk prices both 10, so A* hugs the lake
+                    // bed whenever the floor undulates and the executor see-saws
+                    // jump/sneak chasing waypoints that alternate bed/surface (round41
+                    // kelp field: 6 blocks in 95 s, the jump↔sneak "piston"). Tax the
+                    // submerged layer ≈ the real speed ratio so surface cruising wins;
+                    // additive, so a genuine dive (cave entry, swim-under) still prices.
+                    if (isWater(foot.offset(0, 2, 0))) {
+                        penalty += BotConfig.waterDangerPenalty * 4;
+                    }
                 }
                 // FLOWING water (a current) costs extra on top of the still-water
                 // penalty: a current drifts the body off the planned line, so A*

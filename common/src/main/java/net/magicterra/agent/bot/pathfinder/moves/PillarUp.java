@@ -41,7 +41,7 @@ public final class PillarUp extends Move {
         // or breakable (then mined first so there's room to rise).
         if (w.isSolid(ceiling)) {
             if (!BotConfig.allowBreak) return null;
-            double c = w.breakCost(ceiling);
+            double c = w.breakCost(ceiling, from);
             if (Double.isInfinite(c)) return null;
             toBreak.add(ceiling);
             cost += c;
@@ -67,7 +67,7 @@ public final class PillarUp extends Move {
             };
             for (BlockPos n : sides) {
                 if (!w.isSolid(n)) continue;                  // open / plant-with-no-collision → no clip
-                double c = w.breakCost(n);
+                double c = w.breakCost(n, from);
                 if (Double.isInfinite(c)) continue;           // solid wall we can't break → centred body clears it
                 toBreak.add(n);
                 cost += c;

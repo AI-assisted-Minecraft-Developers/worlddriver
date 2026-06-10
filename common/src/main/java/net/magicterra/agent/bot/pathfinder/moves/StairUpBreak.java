@@ -52,7 +52,7 @@ public final class StairUpBreak extends Move {
         // hazard/fluid (then A* routes around instead of grinding the wall).
         BlockPos srcUp2 = from.offset(0, 2, 0);
         if (w.isSolid(srcUp2)) {
-            double c = w.breakCost(srcUp2);
+            double c = w.breakCost(srcUp2, from);
             if (Double.isInfinite(c)) return null;
             bc += c; br.add(srcUp2);
         } else if (!w.isPassable(srcUp2) || w.isHazard(srcUp2)) {
@@ -60,7 +60,7 @@ public final class StairUpBreak extends Move {
         }
         // Destination foot cell — break it if it's a solid wall block.
         if (w.isSolid(to)) {
-            double c = w.breakCost(to);
+            double c = w.breakCost(to, from);
             if (Double.isInfinite(c)) return null;
             bc += c; br.add(to);
         } else if (!w.isPassable(to) || w.isHazard(to)) {
@@ -68,7 +68,7 @@ public final class StairUpBreak extends Move {
         }
         // Destination head cell — clearance for the 2-tall hitbox at the new level.
         if (w.isSolid(head)) {
-            double c = w.breakCost(head);
+            double c = w.breakCost(head, from);
             if (Double.isInfinite(c)) return null;
             bc += c; br.add(head);
         } else if (!w.isPassable(head) || w.isHazard(head)) {

@@ -50,6 +50,13 @@ public interface WorldView {
     /** True if the block lets you climb (ladder, vine, scaffolding). */
     boolean isClimbable(BlockPos pos);
 
+    /** True for a NON-solid block that still has a collision box and breaks
+     *  instantly by hand (lily pad is the canonical case). A surface swimmer
+     *  rams these (they sit at head level on the water plane) while A* treats
+     *  the column as passable — the executor punches them through instead of
+     *  bobbing against them forever. Default false (headless/grid views). */
+    default boolean isBreakableObstruction(BlockPos pos) { return false; }
+
     /**
      * Expected cost (in 1/10-tick units, same scale as {@link Move#cost}) to
      * break the block at {@code pos} with the best tool the bot currently has,
@@ -64,6 +71,19 @@ public interface WorldView {
      * GameTest view inherits the default, so CI never mines.
      */
     default double breakCost(BlockPos pos) { return Double.POSITIVE_INFINITY; }
+
+    /**
+     * {@link #breakCost} priced for mining <em>from</em> a specific foot cell.
+     * The plain overload deliberately ignores vanilla's situational ÷5 underwater
+     * mining penalty (the miner's stance is unknown at cost time) — but when the
+     * move itself knows its {@code from} node is submerged, the stance IS known:
+     * eyes underwater while digging is a real 5× tick multiplier the search must
+     * see, or A* prices "tunnel through the lake floor" at dry-land rates and
+     * commits a 40s-per-block deepslate dig over a 2s surface swim (round37:
+     * bot dove 13 blocks into a lake-bed cave and ground stairUpBreak forever).
+     * Default: delegate to the stance-free cost.
+     */
+    default double breakCost(BlockPos pos, BlockPos from) { return breakCost(pos); }
 
     /**
      * Like {@link #breakCost}, but gated on {@code BotConfig.allowSwimEscapeBreak}
@@ -183,6 +203,13 @@ public interface WorldView {
      * execution is weaker; once it's hardened this can be reduced/removed.
      */
     default void penalizeStuckNode(BlockPos pos) {}
+
+    /** True while any {@link #penalizeStuckNode} entries are still live (not yet
+     *  decayed). A "no path" with live penalties may be SELF-INFLICTED — the
+     *  Walker can wall itself into a small pocket by penalizing every exit after
+     *  repeated wedges — so the caller should wait out the decay and retry
+     *  instead of failing the goto outright. */
+    default boolean hasStuckPenalties() { return false; }
 
     /**
      * Max full blocks the controlled entity can rise WITHOUT jumping — its

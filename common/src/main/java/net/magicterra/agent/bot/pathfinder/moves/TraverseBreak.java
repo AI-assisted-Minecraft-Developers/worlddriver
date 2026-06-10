@@ -30,7 +30,7 @@ public final class TraverseBreak extends Move {
         BlockPos head = to.offset(0, 1, 0);
         // Destination foot cell.
         if (w.isSolid(to)) {
-            double c = w.breakCost(to);
+            double c = w.breakCost(to, from);
             if (Double.isInfinite(c)) return null;
             bc += c; br.add(to);
         } else if (!w.isPassable(to) || w.isHazard(to)) {
@@ -38,7 +38,7 @@ public final class TraverseBreak extends Move {
         }
         // Destination head cell.
         if (w.isSolid(head)) {
-            double c = w.breakCost(head);
+            double c = w.breakCost(head, from);
             if (Double.isInfinite(c)) return null;
             bc += c; br.add(head);
         } else if (!w.isPassable(head) || w.isHazard(head)) {

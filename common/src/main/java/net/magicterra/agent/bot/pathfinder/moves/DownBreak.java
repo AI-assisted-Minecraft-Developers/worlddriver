@@ -22,7 +22,7 @@ public final class DownBreak extends Move {
         if (!BotConfig.allowBreak) return null;
         BlockPos below = apply(from);                              // the cell we dig + drop into
         if (!w.isSolid(below)) return null;                        // air → Fall / StepDown handle it
-        double c = w.breakCost(below);
+        double c = w.breakCost(below, from);
         if (Double.isInfinite(c)) return null;
         BlockPos landFloor = below.offset(0, -1, 0);
         if (!w.isSolid(landFloor) || w.isHazard(landFloor) || w.isHazard(below)) return null;
