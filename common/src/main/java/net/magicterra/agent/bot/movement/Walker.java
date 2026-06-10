@@ -181,6 +181,7 @@ public final class Walker {
     private double bestStepDist = Double.POSITIVE_INFINITY; // closest approach² to the current node (drives the progress-based stuckTicks)
     private int stuckStep = -1;                             // path index bestStepDist tracks; a step change starts a fresh progress window
     private int noStepProgressTicks;                        // jitter-immune ticks on the SAME step (resets only when step advances/path changes) → wedge detector
+    private int underwaterTicks;                            // consecutive eyes-under ticks → debounces the swim-up jump (surface bob ≠ sinking)
     private int noProgressStep = -1;                        // path index noStepProgressTicks tracks (independent of bridge/progress resets)
     private double noProgressBestD2 = Double.POSITIVE_INFINITY; // closest-ever approach² to the tracked step; monotonic, so a bob can't reset the wedge timer but a slow water cruise along a long string-pulled edge does
     private boolean searchSuppressedPlace;                  // the in-flight search dropped placing moves (block-budget reroute) → adopt its result without re-checking
@@ -1860,7 +1861,15 @@ public final class Walker {
         // swimDown edge (then let it descend).
         // (diving is computed earlier, beside diveUnderCap, so the pitch/sneak
         // actuators can drive the ACTIVE sink — see that block for the rationale.)
-        boolean swimUp = p.isInWater() && p.isUnderWater() && !diving;
+        // DEBOUNCED (≥3 ticks submerged): on a surface cruise the eye line bobs in
+        // and out of the waterline every few strokes, and each 1-2-tick dip pulsed
+        // the swim-up jump — a +1y overshoot tooth every ~2-3 s with a synchronized
+        // speed dip (round43b pathChart: regular sawtooth across the whole sea leg).
+        // A genuine sink keeps the eyes under for many consecutive ticks, so a
+        // 3-tick (150 ms) gate costs real buoyancy nothing; swimColumn (water at
+        // head height) still rises a true column un-debounced.
+        underwaterTicks = (p.isInWater() && p.isUnderWater()) ? underwaterTicks + 1 : 0;
+        boolean swimUp = underwaterTicks >= 3 && !diving;
         // The stuck-wiggle hop unsticks a corner on DRY land, but in shallow water
         // on a flat walk it just bobs the bot off the floor into the buoyant drift
         // (it floats off its cell and slides — the very stall it's meant to break).
