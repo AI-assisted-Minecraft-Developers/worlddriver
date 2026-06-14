@@ -1113,12 +1113,25 @@ public final class Walker {
             // (live round71). Make "in a water climb-out" STICKY: any water contact in the
             // last WATER_TOUCH_STICKY ticks keeps it latched through the bob peaks, so the
             // monotonic bestY/stall accounting accumulates and fires the takeover in ~1.5 s.
-            boolean climbEdge = edge != null && cwp.getY() > foot.getY() && !p.onGround();
+            boolean wantClimb = edge != null && cwp.getY() > foot.getY();
             boolean touchingWater = p.isInWater() || world.isWater(foot) || world.isWater(foot.below());
             if (touchingWater) waterTouchRecent = WATER_TOUCH_STICKY;
             else if (waterTouchRecent > 0) waterTouchRecent--;
-            boolean waterClimbing = climbEdge && (touchingWater || waterTouchRecent > 0);
-            if (!waterClimbing) {
+            boolean nearWater = touchingWater || waterTouchRecent > 0;
+            boolean waterClimbing = wantClimb && nearWater && !p.onGround();
+            // STALL accounting must tolerate the onGround flicker. A bob-climb against a
+            // +2 bank briefly TOUCHES DOWN on a placed rung / the bank lip (onGround=true)
+            // at the bottom of each bob; the old reset gated on `waterClimbing` (which
+            // carries `!onGround`), so EVERY bob reset the stall to 0 → it never reached
+            // WATER_CLIMB_STALL → the takeover never latched and the bot rode the A*
+            // pillarUp actuator forever (its buoyant place has no solid support straight
+            // down in deep water, so it can't lift — live round75 #5: every water-exit
+            // bank stalled 15-60 s). Accumulate while we still WANT to climb AND are near
+            // water (dry shore-walk drains waterTouchRecent → resets); only a REAL net
+            // rise or leaving the water/climb clears it. The takeover trigger below still
+            // uses `waterClimbing` so it fires at a bob peak, but the COUNTER survives the
+            // touchdowns in between.
+            if (!wantClimb || !nearWater) {
                 waterClimbStall = 0;
                 waterClimbBestY = p.getY();
             } else if (p.getY() > waterClimbBestY + 0.3) {
