@@ -520,6 +520,26 @@ public final class PathFinder {
             }
             Node seg = selectSegment(bestSoFar, start);
             if (seg != null) return seg;
+            // Walled-to-frontier exploration (progressive planning): no goal-WARD segment
+            // (the direct line is walled) but the search reached the edge of KNOWN terrain.
+            // The detour around the wall lies in UNLOADED chunks, so grinding the hard
+            // maxNodes budget can't find it — it isn't in the graph yet. Commit the frontier
+            // node CLOSEST to the goal (min raw h) so the bot heads toward the goal-tangent,
+            // loads new chunks, and the NEXT search sees around the wall: the bot WALL-FOLLOWS
+            // smoothly instead of pillaring blindly up the wall (bestClimb below) or grinding
+            // to the hard cap for a bestEscape (a ~3.4 s freeze per segment). Prefer this over
+            // bestClimb: walking around a far mountain beats a blind +30 pillar that tops out
+            // under a canopy (live boxed-pocket pillar storm). Guard out a strongly-BACKWARD
+            // frontier (h much worse than start → would walk away from the goal); leave that
+            // pathological concave pocket to bestClimb / bestEscape. The min-h selection makes
+            // the committed edge the known point nearest the goal — the tangent, not a detour
+            // away. INERT wherever every chunk is loaded (GameTest/arena): no node borders
+            // unknown terrain, so bestFrontier stays null and this branch never fires.
+            if (BotConfig.pathfinderFrontierCommit && bestFrontier != null
+                    && bestFrontier.pos.distSqr(start) > MIN_DIST_PATH * MIN_DIST_PATH
+                    && bestFrontier.h < startNode.h + MIN_FRONTIER_GAIN) {
+                return bestFrontier;
+            }
             // Boxed: no horizontal segment made real progress (conservative selector
             // refuses a backward/lateral hop). Escape VERTICALLY over the obstacle if we
             // climbed meaningfully above the start — pillar-up / dig-up, pure up + forward,
@@ -576,6 +596,14 @@ public final class PathFinder {
             // capping the planning stall at ~a third of the hard budget.
             boolean relaxed = BotConfig.pathfinderSoftCommitNodes > 0
                     && expanded >= BotConfig.pathfinderSoftCommitNodes * 4L;
+            // Walled-to-frontier (progressive): reaching the edge of KNOWN terrain with no
+            // goal-ward gain is committable NOW — the detour around the wall is beyond loaded
+            // chunks, so grinding the hard budget can't find it (~3.4 s freeze for nothing).
+            // Mirrors chooseSegment's walled-frontier branch so the soft early-stop fires on
+            // it and the bot wall-follows at speed. Inert when fully loaded (bestFrontier null).
+            if (BotConfig.pathfinderFrontierCommit && bestFrontier != null
+                    && bestFrontier.pos.distSqr(start) > minSq
+                    && bestFrontier.h < startNode.h + MIN_FRONTIER_GAIN) return true;
             for (Node n : bestSoFar) {
                 // Distance alone is NOT committable: boxed in a canyon every repath
                 // found SOME 5-block sideways scrap at the 6000-node soft budget and
