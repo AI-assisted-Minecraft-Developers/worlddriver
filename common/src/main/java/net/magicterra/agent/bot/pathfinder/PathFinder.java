@@ -288,8 +288,16 @@ public final class PathFinder {
          *  is still taken; Y-aware pos/block goals are exempt exactly like descendTax. */
         private double waterCellTax(BlockPos to) {
             double tax = BotConfig.pathfinderWaterCellCost;
-            if (tax <= 0 || !goal.ignoresY()) return 0;
-            return world.isWater(to) ? tax : 0;
+            if (tax <= 0 || !goal.ignoresY() || !world.isWater(to)) return 0;
+            // A SUBMERGED cell (water directly above → a surface bot must dive under to
+            // thread it) costs extra, so A* keeps the route ON THE SURFACE instead of
+            // dropping onto the seabed / a seagrass corridor it can't climb out of
+            // (live round75 80 s "未能上浮" death-lock). A surface cell (air overhead)
+            // pays only the base tax — an ordinary surface crossing is unchanged.
+            double submergedExtra = (BotConfig.pathfinderSubmergedWaterCost > 0
+                    && world.isWater(to.offset(0, 1, 0)))
+                    ? BotConfig.pathfinderSubmergedWaterCost : 0;
+            return tax + submergedExtra;
         }
 
         /** Expand nodes until {@code sliceMs} of wall-clock elapses this call (or

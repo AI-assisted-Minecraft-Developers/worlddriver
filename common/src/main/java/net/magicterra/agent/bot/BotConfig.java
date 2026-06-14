@@ -308,6 +308,21 @@ public final class BotConfig {
      *  Goal.Block GameTest water arenas are unaffected. Default 35. Set 0 to disable. */
     public static volatile double pathfinderWaterCellCost = 35;
 
+    /** EXTRA per-cell g-cost charged (on top of {@link #pathfinderWaterCellCost}) when
+     *  the entered water cell is SUBMERGED — i.e. it has water directly above it, so a
+     *  surface-cruising bot would have to DIVE UNDER to thread it. Surface water cells
+     *  (air/non-water overhead, where the bot swims at the top) pay only the base tax,
+     *  so an ordinary surface crossing is unchanged. This biases A* to keep a water
+     *  route ON THE SURFACE instead of dropping onto the seafloor / a seagrass corridor
+     *  it then can't climb out of (live round75: an XZ goal routed the bot along the
+     *  seabed through tall seagrass and it churned ~80 s "未能上浮" — the per-cell water
+     *  tax alone is uniform with depth, so once submerged there was no incentive to
+     *  surface). Same TRIPLE-GATE as {@link #pathfinderWaterCellCost}: Y-agnostic XZ
+     *  goals only (a seabed dive uses a Y-aware goal and pays nothing), water cells
+     *  only, so dry terrain and Goal.Block GameTest arenas are unaffected. Default 40
+     *  ≈ doubles the cost of a submerged cell vs a surface cell. Set 0 to disable. */
+    public static volatile double pathfinderSubmergedWaterCost = 40;
+
     /** TOTAL g-cost of one {@code bridgePlace} edge — placing a block into an air
      *  gap and walking onto it. Aerial bridging is SLOW (sneak-place ~1 block/15
      *  ticks), RISKY (overshoot off the fresh 1-wide block) and consumes inventory,
