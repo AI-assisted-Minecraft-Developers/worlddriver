@@ -60,7 +60,15 @@ public final class ClientTools {
                 "filter.type restricts to one block id (or a '#tag' selector). Unlike mc.query " +
                 "(which prefers the SERVER when attached) this always returns what the CLIENT has " +
                 "loaded, so you can diff client vs server block state. Returns " +
-                "{blocks:[{pos,type}], center, radius}.",
+                "{blocks:[{pos,type}], center, radius}.\n" +
+                "NOT for terrain/geometry inspection: it dumps EVERY cell as verbose JSON, so a " +
+                "radius>=5 overflows the tool-result token budget (a 13^3 box is ~2000 cells). " +
+                "To READ TERRAIN SHAPE (banks, walls, pits, water depth, a wedge cross-section) " +
+                "use mc.observe.map with plane='xy'/'zy' for a compact ASCII vertical slice, or " +
+                "plane='xz' for a top-down heightmap — one glanceable grid instead of a cell dump, " +
+                "and it works headless. Reach for mc.client.blocks ONLY to confirm a FEW specific " +
+                "cells' exact ids or to diff client-vs-server state, always with a SPECIFIC " +
+                "filter.type and the smallest radius that covers the cells you need.",
                 object()
                     .prop("center", object()
                         .prop("x", integer())
