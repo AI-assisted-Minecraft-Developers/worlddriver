@@ -169,6 +169,8 @@ public final class Walker {
     private int pillarSinceJump = -1; // ticks since the pillar jump press (-1 = grounded)
     private int waterClimbStall;      // ticks bob-stalled (no NET height gain) climbing out of water
     private double waterClimbBestY = Double.NEGATIVE_INFINITY; // best Y this water-climb; a real rise resets the stall
+    private boolean waterClimbPillaring;   // latched: pillaring up the bot's column to bank stand level
+    private int waterClimbTargetY;         // stand Y to pillar up to before handing back to a flush walk
     private int diveLatch;            // ticks left forcing a dive-under-cap (set on a blocked submerged descent; holds the dive through the sink so it doesn't flip-flop)
     private int diveHold;             // ticks left holding an ACTIVE descent (diving) across repaths — a mid-sink repath re-plans from the buoyancy point with a dy=1 first hop, which alone never re-arms diving, so the bot pops back up (round45 water-well live)
     private int pillarRecoverLatch;   // ticks left driving an in-place pillar-up recovery (bot fell below the climb path beyond jump reach) — latched across the jump's airborne phase so a place can land
@@ -215,6 +217,7 @@ public final class Walker {
         this.pillarStep = -1;
         this.pillarSinceJump = -1;
         this.waterClimbStall = 0;
+        this.waterClimbPillaring = false;
         this.diveLatch = 0;
         this.diveHold = 0;
         this.pillarRecoverLatch = 0;
@@ -270,6 +273,7 @@ public final class Walker {
         // the next tick either fires a spurious foothold-place takeover (stall already
         // past threshold) or suppresses a legitimate stall (stale-high best-Y).
         this.waterClimbStall = 0;
+        this.waterClimbPillaring = false;
         this.diveLatch = 0;
         this.diveHold = 0;
         this.pillarRecoverLatch = 0;
@@ -1045,22 +1049,43 @@ public final class Walker {
             } else {
                 waterClimbStall++;
             }
+            // Trigger once bob-stalled below a bank we can't mount, with a placeable in
+            // hand — then LATCH a pillar-up that runs to completion.
             if (waterClimbing && waterClimbStall > WATER_CLIMB_STALL
                     && BotConfig.allowSwimEscapePlace && a.holdPlaceable()) {
-                // Locate the top water cell in the bot's column (the foothold to
-                // fill) and the surface above it — independent of the bob phase.
-                BlockPos topWater = world.isWater(foot) ? foot : foot.below();
-                while (world.isWater(topWater.above())) topWater = topWater.above();
-                int surfaceY = topWater.getY() + 1;                          // first air above the column
-                if (world.isWater(topWater) && Move.hasPlaceSupport(world, topWater)) {
-                    if (BotConfig.walkerDebug && waterClimbStall == WATER_CLIMB_STALL + 1)
-                        LOG.info("[walker] water climb-out: takeover engaged (bob-stalled), swimming up to foothold {},{},{} surfaceY={}",
-                                topWater.getX(), topWater.getY(), topWater.getZ(), surfaceY);
-                    // TAKE OVER the keys: a clean swim straight up toward the bank.
-                    // The break / walk actuators below otherwise pin the bot low
-                    // against the wall (aiming at the break) so it never clears the
-                    // place cell. Face the climb node so 'forward' holds the body
-                    // against the bank, hold jump to surface, look down to aim.
+                if (!waterClimbPillaring && BotConfig.walkerDebug)
+                    LOG.info("[walker] water climb-out: pillar takeover engaged (bob-stalled) toward bank node {},{},{}",
+                            cwp.getX(), cwp.getY(), cwp.getZ());
+                waterClimbPillaring = true;
+                waterClimbTargetY = cwp.getY();      // pillar until our feet reach the bank stand level
+            }
+            // PILLAR-UP climb-out: place support blocks in the bot's OWN column up to the
+            // bank stand level, so the final move onto the bank is a flush WALK — not a
+            // fragile in-place +1 jump. A single surface foothold only lifts +1; a +2
+            // bank then left an un-runnable +1 step (no running room, water behind) the
+            // bot pogo-bobbed forever (live round69: jumped to bank height but z frozen,
+            // never translated across). Reading-only — the pathfinder is unchanged.
+            if (waterClimbPillaring) {
+                boolean haveBlock = BotConfig.allowSwimEscapePlace && a.holdPlaceable();
+                boolean reached = foot.getY() >= waterClimbTargetY;   // pillared to bank stand level
+                if (reached || !haveBlock) {
+                    waterClimbPillaring = false;
+                    if (reached) {
+                        // Grounded at bank level → re-plan; the bank is now a flush walk.
+                        path = null;
+                        stuckTicks = 0;
+                        totalTicks = 0;
+                        waterClimbStall = 0;
+                        waterClimbBestY = p.getY();
+                        if (BotConfig.walkerDebug)
+                            LOG.info("[walker] water climb-out: pillared to bank level y={} → flush walk, repath", foot.getY());
+                        return Step.WALKING;
+                    }
+                    if (BotConfig.walkerDebug)
+                        LOG.info("[walker] water climb-out: no usable block to pillar — bailing to fallback");
+                    // fall through to the normal actuators
+                } else {
+                    // Face the bank node, hold forward+jump, look down to aim the place.
                     double ax = (cwp.getX() + 0.5) - p.getX();
                     double az = (cwp.getZ() + 0.5) - p.getZ();
                     if (ax * ax + az * az > 1e-4) {
@@ -1071,28 +1096,14 @@ public final class Walker {
                     agentForward(a, true);
                     p.setSprinting(false);
                     agentJump(a, true);
-                    if (p.getY() >= surfaceY) {                              // feet cleared the place cell
-                        a.place(world,topWater);                 // fill it → flush, grounded foothold
-                        // The climb node we bob-stalled under is one the executor
-                        // demonstrably CAN'T mount — penalize it so the re-plan
-                        // routes to a different bank cell instead of returning the
-                        // byte-identical segment forever (live 2026-06-09: 3×
-                        // repath expanded=4292 → same west bank → foothold → back
-                        // into the water, a 29 s shore↔water loop). Soft+decaying,
-                        // so a sole climb-out is still taken eventually.
-                        world.penalizeStuckNode(cwp);
-                        // Re-plan from the (now grounded) surface. Unconditional —
-                        // the client place is same-tick, so next tick topWater reads
-                        // solid and the outer isWater guard blocks any re-place; the
-                        // bot then climbs the bank from solid ground.
-                        path = null;
-                        stuckTicks = 0;
-                        totalTicks = 0;
-                        waterClimbStall = 0;
-                        waterClimbBestY = p.getY();
-                        if (BotConfig.walkerDebug)
-                            LOG.info("[walker] water climb-out: foothold placed at {},{},{} → repath from grounded",
-                                    topWater.getX(), topWater.getY(), topWater.getZ());
+                    // Cell to fill this rung: floating → the top water cell of the column;
+                    // grounded on the fresh pillar → the air cell at the feet (pillar +1).
+                    BlockPos fillCell = foot;
+                    if (world.isWater(foot))
+                        while (world.isWater(fillCell.above())) fillCell = fillCell.above();
+                    if (!world.isSolid(fillCell) && Move.hasPlaceSupport(world, fillCell)
+                            && p.getY() >= fillCell.getY() + 0.9) {     // feet cleared the cell
+                        a.place(world, fillCell);
                     }
                     return Step.WALKING;
                 }

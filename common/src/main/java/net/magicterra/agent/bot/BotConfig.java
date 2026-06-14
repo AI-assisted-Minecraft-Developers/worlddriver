@@ -482,8 +482,17 @@ public final class BotConfig {
                     net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(block);
             return id != null && wl.contains(id.toString());
         }
-        return st.isCollisionShapeFullBlock(
-                net.minecraft.world.level.EmptyBlockGetter.INSTANCE, net.minecraft.core.BlockPos.ZERO);
+        // Accept any non-falling, motion-blocking block with a STURDY top face the bot
+        // can place against and STAND on — not only geometric full cubes. The old
+        // isCollisionShapeFullBlock rejected mud / soul_sand / soul_soil (collision box
+        // 14/16 tall) though they are perfectly standable, leaving a bot carrying ONLY
+        // those (live round69: 17 mud + 9 sand + 37 gravel, all rejected — sand/gravel
+        // FallingBlocks above, mud here) with NO usable foothold, so the water +2
+        // climb-out place never engaged and it hard-deadlocked at the bank. isFaceSturdy
+        // (UP) still rejects bottom-slabs / fences / carpets / non-standable shapes.
+        return st.isFaceSturdy(
+                net.minecraft.world.level.EmptyBlockGetter.INSTANCE, net.minecraft.core.BlockPos.ZERO,
+                net.minecraft.core.Direction.UP);
     }
 
     /** Event types muted from the live PUSH channel via

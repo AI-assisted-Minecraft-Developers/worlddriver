@@ -635,6 +635,120 @@ public final class AgentGameTest {
     }
 
     /**
+     * Live round69 (2026-06-14 long-haul acceptance) repro: a floating bot wedged at a
+     * LOW (+2) bank with NO pickaxe — the climb-out the water-foothold mechanic
+     * (Walker {@code === Water climb-out foothold ===}) exists for. Distinct from
+     * {@link #buoyantWallArena}/{@link #riverSheerBankArena} (both +5 SHEER with break
+     * ON, so the Walker carves the face): here break is OFF and the bank is only +2, so
+     * swim-up tops out ~0.6 short of the grab and the ONLY way up is to place ONE
+     * throwaway block in the top water cell → a flush foothold → step onto the bank.
+     * Live trace: bot floated at (1633,62) against a +2 dirt/grass west bank, A* gave a
+     * stepUp to the (1632,64) bank cell, |dY|=1.98 > the 1.2 stepUp gate, 0 "water
+     * climb-out" log lines fired, stuck=446/totStuck=2595, zero displacement → hard
+     * deadlock. Asserts the bot gets OUT onto the bank.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void waterLowBankArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 100, cz = 100, floorY = 200, depth = 6;
+        final int surface = floorY + depth;        // y206 water surface (floating foot ~206)
+        final int bankTop = surface + 1;           // y207 — bank rises ONE block above the water top
+        // → stand on the bank at bankTop+1 = surface+2 = a +2 climb-out from the floating foot.
+
+        // Basin floor.
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = -3; dz <= 6; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+        // Containing walls (−z, ±x) up to the bank top to hold the water in.
+        for (int dz = -3; dz <= 1; dz++)
+            for (int y = floorY + 1; y <= bankTop; y++) {
+                level.setBlockAndUpdate(new BlockPos(cx - 3, y, cz + dz), Blocks.STONE.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + 3, y, cz + dz), Blocks.STONE.defaultBlockState());
+            }
+        for (int dx = -3; dx <= 3; dx++)
+            for (int y = floorY + 1; y <= bankTop; y++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz - 3), Blocks.STONE.defaultBlockState());
+        // Water fill (interior columns, floorY+1 .. surface).
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= 1; dz++)
+                for (int y = floorY + 1; y <= surface; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
+        // The +2 low bank at cz+2: dirt up to surface, grass cap at bankTop (live geometry).
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int y = floorY + 1; y <= surface; y++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + 2), Blocks.DIRT.defaultBlockState());
+            level.setBlockAndUpdate(new BlockPos(cx + dx, bankTop, cz + 2), Blocks.GRASS_BLOCK.defaultBlockState());
+        }
+        // Dry land behind the bank (the bank top is the walkable surface; stand bankTop+1).
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = 3; dz <= 6; dz++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, bankTop, cz + dz), Blocks.GRASS_BLOCK.defaultBlockState());
+                for (int y = bankTop + 1; y <= bankTop + 4; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
+            }
+        BlockPos goal = new BlockPos(cx, bankTop + 1, cz + 4);   // on the dry land behind the +2 bank
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = false;          // live: bot had NO pickaxe → cannot carve the bank
+        BotConfig.allowPlace = true;           // foothold-place is the only climb-out
+        BotConfig.walkerDebug = true;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // deterministic: each repath completes in one go
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        // Predicate-level guard for the root-cause fix: the live bot carried ONLY
+        // sand+gravel (FallingBlocks) and mud (14/16-tall collision box). Falling
+        // blocks must stay rejected (a sand foothold drops through the water); mud must
+        // be ACCEPTED (it is standable — the old isCollisionShapeFullBlock wrongly
+        // rejected it, so holdPlaceable()=false and the foothold-place never engaged).
+        if (BotConfig.isUsableBuildBlock(Blocks.SAND))
+            throw new GameTestAssertException("isUsableBuildBlock: SAND (FallingBlock) must NOT be a usable foothold");
+        if (BotConfig.isUsableBuildBlock(Blocks.GRAVEL))
+            throw new GameTestAssertException("isUsableBuildBlock: GRAVEL (FallingBlock) must NOT be a usable foothold");
+        if (!BotConfig.isUsableBuildBlock(Blocks.MUD))
+            throw new GameTestAssertException("isUsableBuildBlock: MUD must be a usable foothold (standable, non-falling)");
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, surface - 1, cz + 1.5);
+            FakePlayer fp = av.fakePlayer();
+            grantWaterEffects(fp);
+            fp.getInventory().clearContent();
+            // Live round69 inventory: sand+gravel (falling, useless as a foothold) and
+            // mud (the only usable support, once the fix accepts it), holding sand.
+            fp.getInventory().add(new ItemStack(Items.SAND, 9));
+            fp.getInventory().add(new ItemStack(Items.GRAVEL, 37));
+            fp.getInventory().add(new ItemStack(Items.MUD, 17));
+            fp.getInventory().selected = 0;     // holding sand (non-usable) like live
+
+            LevelWorldView w = new LevelWorldView(level, fp);
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.Block(goal));
+
+            Walker.Step s = Walker.Step.WALKING;
+            double maxY = fp.getY();
+            int bobTicks = 0;                  // ticks floating below the bank top
+            for (int t = 0; t < 800 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+                maxY = Math.max(maxY, fp.getY());
+                if (fp.isInWater() && fp.getY() < bankTop) bobTicks++;
+            }
+            boolean onBank = fp.getZ() > (cz + 2) + 0.5 && fp.getY() >= bankTop + 1 - 0.4;
+            AgentDriverCommon.LOG.info("[waterLowBankArena] step={} pos=({},{},{}) maxY={} onBank={} bobTicks={}",
+                    s, fp.getX(), fp.getY(), fp.getZ(), maxY, onBank, bobTicks);
+            if (!onBank)
+                throw new GameTestAssertException("LOW +2 bank: floating Walker failed to climb out (foothold-place "
+                        + "never lifted it): pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ()
+                        + ") maxY=" + maxY + " bobTicks=" + bobTicks + " step=" + s);
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+        }
+        helper.succeed();
+    }
+
+    /**
      * Live-faithful OPEN-WATER variant of the sheer-bank wedge (2026-06-09 long-haul
      * acceptance run at (278,62,-1346)): the bot floats in an open river whose SOUTH
      * bank is a uniform +5 SHEER stone wall for ~25 blocks; the only climb-out is a
