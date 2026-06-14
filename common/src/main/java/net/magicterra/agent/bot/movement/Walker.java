@@ -109,6 +109,16 @@ public final class Walker {
      *  goal-distance for a dozen repaths and must not end the journey; only a churn
      *  that stalls through ALL fresh baselines is the unwinnable spin. */
     private static final int CHURN_MAX_RESETS = 3;
+    /** DRY-LAND boxed-pocket churn detector — a fixed time window over which NET XZ
+     *  displacement is measured. A per-repath "no goal-progress" counter is defeated
+     *  by the pocket's limit-cycle: the bot pillars up a wall to an XZ-closer column
+     *  (which RESETS a goal-distance counter), then falls back, looping 1416↔1454
+     *  forever with net-zero ground travel (live round73). Net displacement over a
+     *  window is immune to that oscillation. CHURN_WINDOW≈20 s, CHURN_MIN_MOVE_SQ =
+     *  (8 blocks)²: a real journey clears 8 blocks/20 s even on hard terrain; a pocket
+     *  churn does not. */
+    private static final int CHURN_WINDOW = 400;
+    private static final int CHURN_MIN_MOVE_SQ = 64;
     /** Bounded fresh re-searches at a loaded-chunk frontier before giving up (the
      *  bot is stationary while waiting, so a couple of tries is plenty — see
      *  {@link #frontierHoldOrArrive}). */
@@ -190,6 +200,9 @@ public final class Walker {
     private double bestGoalDist = Double.POSITIVE_INFINITY;  // anti-spin: best goal-estimate across repaths (5-block margin ignores micro-lunges)
     private int repathsNoProgress;                           // anti-spin: consecutive in-water repaths that didn't improve bestGoalDist
     private int churnResets;                                 // anti-spin: fresh baselines granted after a stall (tolerates water go-arounds; real progress clears it)
+    private BlockPos churnBase;                              // land boxed-pocket: foot at the start of the current net-displacement window
+    private int churnWindowTicks;                            // land boxed-pocket: ticks elapsed in the current window
+    private int churnEscapes;                                // land boxed-pocket: consecutive windows that detected churn (escalates the charge radius)
     private double bestStepDist = Double.POSITIVE_INFINITY; // closest approach² to the current node (drives the progress-based stuckTicks)
     private int stuckStep = -1;                             // path index bestStepDist tracks; a step change starts a fresh progress window
     private int noStepProgressTicks;                        // jitter-immune ticks on the SAME step (resets only when step advances/path changes) → wedge detector
@@ -237,6 +250,9 @@ public final class Walker {
         this.bestDistToGoal = Double.POSITIVE_INFINITY;
         this.bestGoalDist = Double.POSITIVE_INFINITY;
         this.repathsNoProgress = 0;
+        this.churnBase = null;
+        this.churnWindowTicks = 0;
+        this.churnEscapes = 0;
         this.bestStepDist = Double.POSITIVE_INFINITY;
         this.stuckStep = -1;
         this.noStepProgressTicks = 0;
@@ -479,6 +495,46 @@ public final class Walker {
         // breaking-edge leash. offPath is folded in: a 4-block fall puts the 3D
         // distSqr over its gate too, and that re-search would steal the recovery.
         if (unstuckCountCooldown > 0) unstuckCountCooldown--;
+        // LAND boxed-pocket churn escape (time-windowed net displacement). The water
+        // anti-spin handles afloat churn; THIS catches a DRY pocket where the bot
+        // pillars a goal-ward dead-end wall and limit-cycles (round73: 1416↔1454,
+        // pillaring to XZ-closer columns that RESET a goal-distance counter, then
+        // falling back — net-zero ground travel for minutes; the existing wedge BURST
+        // backs it off but it returns because the best-effort re-routes straight back
+        // in). Measured over a fixed window so the oscillation can't mask it. On a
+        // churned window, CHARGE the pocket with the executor's accumulating blacklist
+        // (escalating radius) so the next search prices the dead-end out and routes
+        // OUT / backtracks — the charge is the missing ingredient the plain back-off
+        // burst lacks. Gated to best-effort (a goal-reaching path is real progress)
+        // and dry land (water owns its anti-spin).
+        if (churnBase == null) { churnBase = foot; churnWindowTicks = 0; }
+        else if (++churnWindowTicks >= CHURN_WINDOW) {
+            int cdx = foot.getX() - churnBase.getX(), cdz = foot.getZ() - churnBase.getZ();
+            if ((cdx * cdx + cdz * cdz) < CHURN_MIN_MOVE_SQ && !p.isInWater() && pathBestEffort) {
+                churnEscapes++;
+                int r = Math.min(1 + churnEscapes, 4);     // widen the priced-out zone each repeat
+                for (int dx = -r; dx <= r; dx++)
+                    for (int dz = -r; dz <= r; dz++) {
+                        BlockPos c = foot.offset(dx, 0, dz);
+                        world.penalizeStuckNode(c);
+                        world.penalizeStuckNode(c.above());
+                    }
+                BlockPos wp = (path != null && step < path.size()) ? path.get(step) : null;
+                if (wp != null) {
+                    double bdx = p.getX() - (wp.getX() + 0.5), bdz = p.getZ() - (wp.getZ() + 0.5);
+                    if (bdx * bdx + bdz * bdz > 0.01)
+                        unstuckYaw = (float) Math.toDegrees(Math.atan2(-bdx, bdz));   // away from the goal-ward wp
+                    unstuckTicks = 16;
+                }
+                if (BotConfig.walkerDebug)
+                    LOG.info("[walker] anti-churn(land): net XZ move <{} blocks in {} ticks at {} (escapes={}) → charge r={} pocket + back off",
+                            (int) Math.sqrt(CHURN_MIN_MOVE_SQ), CHURN_WINDOW, foot, churnEscapes, r);
+            } else {
+                churnEscapes = 0;
+            }
+            churnBase = foot;
+            churnWindowTicks = 0;
+        }
         boolean safetyRepath = (path == null) || (stuckTicks > STUCK_TICKS) || wedged
                 || ((offPath || fellOffPath) && !fellBelowRoute);
         boolean fullPeriodic = !pathBestEffort && path != null
