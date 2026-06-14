@@ -259,6 +259,7 @@ public final class BotTools {
                 "  pathfinderDepthPenalty    number         dflt 6      — anti-basin-dive: cost/block for descending below the search start Y (XZ goals dive into dead-end valleys without it); biases routes higher/smoother. 0=off\n" +
                 "  pathfinderDepthSlack      int            dflt 4      — free descent blocks before pathfinderDepthPenalty/pathfinderDescendCost apply\n" +
                 "  pathfinderDescendCost     number         dflt 18     — REAL g-cost/block for descending IN WATER or by BREAKING below the slack threshold (fixes deep-water-bowl 卡上岸: makes dive-and-tunnel cost more than climb-ashore). Dry stepped descent pays nothing. 0=off\n" +
+                "  pathfinderWaterCellCost   number         dflt 35     — PER-WATER-CELL g-cost on every move into water (XZ goals only), on top of waterDangerPenalty; makes a long water route cost ∝ length so A* prefers an available LAND route even from a submerged start (fixes deep-water diving preference / climb-out↔dive loop). A sole/shorter crossing still taken; Goal.Block GameTest water arenas unaffected. 0=off\n" +
                 "  pathfinderThinObstacleHeight number      dflt 0.2    — collision-box height (blocks) a floor-resting obstacle is stepped/swum OVER and treated as passable (fixes 被浮萍/荷叶挡住: lily pad ≈0.094 over water no longer walls off the water cell below). Below 0.5 keeps slabs blocking. 0=off\n" +
                 "  pathfinderBridgeCost      number         dflt 80     — TOTAL g-cost of one aerial bridgePlace edge. High = prefer ground routes (descend a valley / go around) over an unexecutable ~30-block aerial bridge (fixes 深谷凌空架桥 freeze). Doesn't touch depthPenalty (basin-dive still guarded). Old hardcoded 30\n" +
                 "  pathfinderFrontierCommit  bool           dflt false  — segmented planning to the loaded-chunk frontier: commit toward the goal-ward edge of known terrain so far journeys chain across the render horizon instead of backtracking\n" +
@@ -362,6 +363,7 @@ public final class BotTools {
                     .prop("pathfinderDepthPenalty",     number(0, 100))
                     .prop("pathfinderDepthSlack",       integer(0, 64))
                     .prop("pathfinderDescendCost",      number(0, 200))
+                    .prop("pathfinderWaterCellCost",    number(0, 1000))
                     .prop("pathfinderBridgeCost",       number(0, 1000))
                     .prop("pathfinderThinObstacleHeight", number(0, 1))
                     .prop("pathfinderFrontierCommit",   bool())

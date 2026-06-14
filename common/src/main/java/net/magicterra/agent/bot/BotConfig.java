@@ -292,6 +292,22 @@ public final class BotConfig {
      *  pos/block goal and pays nothing. Set 0 to disable. */
     public static volatile double pathfinderDescendCost = 40;
 
+    /** Per-water-cell g-cost added to EVERY move that enters a water cell, for
+     *  Y-agnostic (XZ) goals only — on top of the base {@code waterDangerPenalty}.
+     *  An XZ goal makes swimming at depth read as free progress (each stroke shrinks
+     *  the XZ distance for ~one edge.cost), so A* threads long underwater corridors /
+     *  dives back into the water it just climbed out of, oscillating against the
+     *  executor's climb-out (live round70/71: from a +2 bank A* committed a y58-61
+     *  water route the bot bob-stalled / pillared / re-dove forever). A PER-CELL tax
+     *  (unlike a one-time entry tax, which a bot ALREADY in the water never pays)
+     *  makes a long water route cost ∝ its length, so A* takes an available LAND route
+     *  even when starting submerged (verified via mc.debug.plan: from an in-water cave
+     *  start it routes UP to the y84 land and stays dry). A genuinely shorter / sole
+     *  water crossing is still taken (cost beats the land detour or there is none);
+     *  Y-aware pos/block goals (a seabed dive) are exempt exactly like descendTax, and
+     *  Goal.Block GameTest water arenas are unaffected. Default 35. Set 0 to disable. */
+    public static volatile double pathfinderWaterCellCost = 35;
+
     /** TOTAL g-cost of one {@code bridgePlace} edge — placing a block into an air
      *  gap and walking onto it. Aerial bridging is SLOW (sneak-place ~1 block/15
      *  ticks), RISKY (overshoot off the fresh 1-wide block) and consumes inventory,

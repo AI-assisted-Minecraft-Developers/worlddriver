@@ -277,6 +277,21 @@ public final class PathFinder {
             return belowDrop > 0 ? per * belowDrop : 0;
         }
 
+        /** Per-water-cell tax for EVERY move entering a water cell, Y-agnostic (XZ)
+         *  goals only. An XZ goal makes swimming at depth read as free progress, so A*
+         *  threads long underwater corridors / dives back into water it just climbed
+         *  out of, oscillating against the executor's climb-out (live round70/71). A
+         *  PER-CELL tax (a one-time entry tax a bot already in the water never pays)
+         *  makes a long water route cost ∝ its length, tipping A* onto an available
+         *  LAND route even from a submerged start (verified via mc.debug.plan: from an
+         *  in-water cave it routes UP to dry y84 land). A shorter / sole water crossing
+         *  is still taken; Y-aware pos/block goals are exempt exactly like descendTax. */
+        private double waterCellTax(BlockPos to) {
+            double tax = BotConfig.pathfinderWaterCellCost;
+            if (tax <= 0 || !goal.ignoresY()) return 0;
+            return world.isWater(to) ? tax : 0;
+        }
+
         /** Expand nodes until {@code sliceMs} of wall-clock elapses this call (or
          *  the search finishes / hits its total budget). Returns true once done;
          *  the {@link Result} is then available from {@link #result()}. */
@@ -428,7 +443,8 @@ public final class PathFinder {
                         // ≥ 0 so the heuristic stays admissible.
                         double ng = cur.g + edge.cost + world.dangerCost(npos)
                                 + world.directionalCost(cur.pos, npos)
-                                + descendTax(cur.pos, npos, edge);
+                                + descendTax(cur.pos, npos, edge)
+                                + waterCellTax(npos);
                         Node existing = nodes.get(npos);
                         if (existing != null && ng > existing.g - MIN_IMPROVEMENT) continue;
                         if (existing == null) {
