@@ -140,6 +140,14 @@ public final class Walker {
      *  Well under {@code walkerTotalTickBudget}, comfortably past a normal flush /
      *  staircase climb-out (grounds in <10 ticks, never stalls). */
     private static final int WATER_CLIMB_STALL = 30;
+    /** Grace ticks the "in a water climb-out" state stays LATCHED after the last
+     *  water contact. A bob-cycling climb-out breaches the surface every cycle (head
+     *  clears water, feet top a just-placed foothold), so the per-tick water test
+     *  FLICKERS false at each bob peak; without this grace the stall counter reset on
+     *  every flicker and the pillar takeover engaged only after 1-2 MINUTES of bobbing
+     *  (live round71). 12 ticks (0.6 s) spans a bob peak without masking a genuine
+     *  walk-away onto dry land. */
+    private static final int WATER_TOUCH_STICKY = 12;
     /** Ticks after the jump press before placing the pillar block beneath —
      *  by then the player has cleared the old feet cell (matches TowerProcess). */
     private static final int PILLAR_PLACE_DELAY = 3;
@@ -168,6 +176,7 @@ public final class Walker {
     private int pillarStep = -1;      // path index of the pillar edge in progress
     private int pillarSinceJump = -1; // ticks since the pillar jump press (-1 = grounded)
     private int waterClimbStall;      // ticks bob-stalled (no NET height gain) climbing out of water
+    private int waterTouchRecent;     // sticky countdown: >0 while in a water climb-out, kept latched through bob-peak surface breaches (see WATER_TOUCH_STICKY)
     private double waterClimbBestY = Double.NEGATIVE_INFINITY; // best Y this water-climb; a real rise resets the stall
     private boolean waterClimbPillaring;   // latched: pillaring up the bot's column to bank stand level
     private int waterClimbTargetY;         // stand Y to pillar up to before handing back to a flush walk
@@ -217,6 +226,7 @@ public final class Walker {
         this.pillarStep = -1;
         this.pillarSinceJump = -1;
         this.waterClimbStall = 0;
+        this.waterTouchRecent = 0;
         this.waterClimbPillaring = false;
         this.diveLatch = 0;
         this.diveHold = 0;
@@ -273,6 +283,7 @@ public final class Walker {
         // the next tick either fires a spurious foothold-place takeover (stall already
         // past threshold) or suppresses a legitimate stall (stale-high best-Y).
         this.waterClimbStall = 0;
+        this.waterTouchRecent = 0;
         this.waterClimbPillaring = false;
         this.diveLatch = 0;
         this.diveHold = 0;
@@ -1038,8 +1049,19 @@ public final class Walker {
         // only here, so the pathfinder is byte-for-byte unchanged.
         {
             BlockPos cwp = path.get(step);
-            boolean waterClimbing = edge != null && cwp.getY() > foot.getY() && !p.onGround()
-                    && (p.isInWater() || world.isWater(foot) || world.isWater(foot.below()));
+            // A bob-cycling climb-out repeatedly breaches the surface (head clears water,
+            // feet top a just-placed foothold) so the per-tick "touching water" test
+            // FLICKERS false at every bob peak. The old code reset waterClimbStall on that
+            // flicker (treating it as "no longer climbing"), so the counter never reached
+            // the trigger and the pillar takeover engaged only after 1-2 MINUTES of bobbing
+            // (live round71). Make "in a water climb-out" STICKY: any water contact in the
+            // last WATER_TOUCH_STICKY ticks keeps it latched through the bob peaks, so the
+            // monotonic bestY/stall accounting accumulates and fires the takeover in ~1.5 s.
+            boolean climbEdge = edge != null && cwp.getY() > foot.getY() && !p.onGround();
+            boolean touchingWater = p.isInWater() || world.isWater(foot) || world.isWater(foot.below());
+            if (touchingWater) waterTouchRecent = WATER_TOUCH_STICKY;
+            else if (waterTouchRecent > 0) waterTouchRecent--;
+            boolean waterClimbing = climbEdge && (touchingWater || waterTouchRecent > 0);
             if (!waterClimbing) {
                 waterClimbStall = 0;
                 waterClimbBestY = p.getY();
