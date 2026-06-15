@@ -37,7 +37,15 @@ public final class DebugTools {
                     .req("goal", xz().desc("XZ goal column {x,z}."))
                     .prop("from", pos().desc("Optional fixed start foot {x,y,z}. Omit to use the bot's current block position."))
                     .prop("chain", bool().desc("Simulate the full segment-commitment chain read-only: feed each committed endpoint back in as the next start until the goal is reached or no progress. Returns {reached, segments, backwardSegments, maxRegression (worst overshoot back past best progress; /10≈blocks), trail[]}. The headline backtrack metric."))
-                    .prop("maxSegments", integer(1, 200).desc("Chain cap (default 40).")))
+                    .prop("maxSegments", integer(1, 200).desc("Chain cap (default 40)."))),
+            roTool("mc.debug.replay",
+                "Replay a recorded goto archive: restore its block envelope, teleport the bot to the " +
+                "recorded start, and re-execute the stored plan through the Walker (no re-planning) so " +
+                "wedges reproduce. Writes a replay-run-*.json with the actual trajectory + per-step deviation.",
+                object()
+                    .prop("file", string().desc("Archive filename under config/agent_driver/replays/. Default: newest plan archive."))
+                    .prop("restoreBlocks", bool().desc("Restore the recorded block envelope before replay. Default true."))
+                    .prop("fromStep", integer(0, 100000).desc("Start at this plan step. Default 0 (MVP: accepted but ignored).")))
         );
     }
 }

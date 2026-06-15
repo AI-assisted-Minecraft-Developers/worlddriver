@@ -404,6 +404,20 @@ public final class AgentApi {
         this.server = s;
     }
 
+    /**
+     * Write a list of cells into the attached server's overworld on the server
+     * thread. Public seam for the path-replay debug tool ({@code mc.debug.replay}),
+     * which restores a recorded block envelope before re-executing a plan. Returns
+     * the number of cells written. Throws if no server is attached.
+     */
+    public int restoreCellsOnServer(java.util.List<WorldApi.Cell> cells) {
+        ServerLevel level = level();
+        return onServerThread(() -> {
+            WorldApi.restoreCells(level, cells);
+            return cells.size();
+        });
+    }
+
     public void detachServer() {
         this.server = null;
         eventsApi.clear(); // stop condition watchers — their routes need the server

@@ -41,7 +41,8 @@ public final class PathDebugBootstrap {
         if (api != null) {
             api.addRoute("mc.debug.pathChart", PathChartTool::render);
             api.addRoute("mc.debug.plan", PlanProbeTool::plan);
-            LOG.info("[pathdebug] initialised — mc.debug.pathChart + mc.debug.plan ready (set pathDebug:true to capture)");
+            api.addRoute("mc.debug.replay", ReplayTool::replay);
+            LOG.info("[pathdebug] initialised — mc.debug.pathChart + mc.debug.plan + mc.debug.replay ready (set pathDebug:true to capture)");
         } else {
             // Unreachable on the real client path (ensureRpcUp builds the api before init runs).
             LOG.warn("[pathdebug] AgentApi not ready; route not registered");

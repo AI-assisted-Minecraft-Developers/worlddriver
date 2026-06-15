@@ -67,6 +67,17 @@ public final class PathArchiveRecorder implements PathTrace {
             = new Long2ObjectOpenHashMap<>();
     private final List<PathArchive.Tick>        ticks       = new ArrayList<>();
 
+    // ---- replay-capture state (mc.debug.replay) ----------------------------
+
+    /** True while the open session is a replay run (armed by {@link #armReplay}),
+     *  so {@link #onSearchBegin} can't clobber it and {@link #onTerminal} writes a
+     *  {@code replay-run-*.json} (kind="replay") instead of a plan archive. */
+    private boolean replayArmed;
+    /** Plan nodes the replay executes — used to compute per-tick deviation. */
+    private List<BlockPos> replayPlan = List.of();
+    /** Archive file the replay plan came from (header/segments live there). */
+    private String replayPlanRef;
+
     /** Path of the last file written; readable via {@link #lastWrittenPath()}. */
     private volatile String lastWritten;
 
@@ -79,10 +90,49 @@ public final class PathArchiveRecorder implements PathTrace {
     // PathTrace callbacks
     // -----------------------------------------------------------------------
 
+    /**
+     * Open a replay-capture session for {@code mc.debug.replay}. Replay execution
+     * disables A*, so {@link #onSearchBegin}/{@link #onSearchResult} never fire and
+     * the normal session would never start — this is the explicit entry point.
+     *
+     * <p>The session is flagged {@code kind="replay"}: it stores the plan nodes (for
+     * per-tick deviation) and a reference to the plan archive the run replays.
+     * Subsequent {@link #onWalkerTick} ticks accumulate into this session and
+     * {@link #onTerminal} writes a {@code replay-run-*.json}. Ignores
+     * {@link BotConfig#pathArchive} (the replay tool always wants the run captured).</p>
+     */
+    public void armReplay(List<BlockPos> planNodes, String planRefFile) {
+        sessionOpen = true;
+        replayArmed = true;
+        replayPlan = (planNodes == null) ? List.of() : List.copyOf(planNodes);
+        replayPlanRef = planRefFile;
+
+        startMs = System.currentTimeMillis();
+        repathIndex = 0;
+        segments.clear();
+        envelopeMap.clear();
+        ticks.clear();
+
+        BlockPos start = replayPlan.isEmpty() ? BlockPos.ZERO : replayPlan.get(0);
+        startCoords = new int[]{ start.getX(), start.getY(), start.getZ() };
+        BlockPos goalPos = replayPlan.isEmpty() ? start : replayPlan.get(replayPlan.size() - 1);
+        goalCoords = new int[]{ goalPos.getX(), goalPos.getY(), goalPos.getZ() };
+        goalDesc = "replay:" + planRefFile;
+
+        Level level = BotLevelHolder.current;
+        if (level != null) {
+            dimension = level.dimension().location().toString();
+            seed = (level instanceof ServerLevel sl) ? sl.getSeed() : null;
+        } else {
+            dimension = "minecraft:overworld";
+            seed = null;
+        }
+    }
+
     @Override
     public void onSearchBegin(BlockPos start, Goal goal) {
         if (!BotConfig.pathArchive) return;
-        if (sessionOpen) return;   // repath into same session — do NOT reset
+        if (sessionOpen) return;   // repath into same session OR replay armed — do NOT reset
 
         sessionOpen = true;
         startMs = System.currentTimeMillis();
@@ -195,19 +245,43 @@ public final class PathArchiveRecorder implements PathTrace {
 
     @Override
     public void onWalkerTick(WalkerSample s) {
-        if (!BotConfig.pathArchive || !sessionOpen) return;
+        // A replay run always captures (it ignores pathArchive); a plan archive only
+        // when pathArchive is on. Either way a session must be open.
+        if (!sessionOpen) return;
+        if (!replayArmed && !BotConfig.pathArchive) return;
+
+        // deviation: NaN for plan archives (no reference trajectory); for replay it is
+        // the min distance from this tick's position to the nearest plan node center.
+        double deviation = replayArmed ? minDeviation(s.x(), s.y(), s.z()) : Double.NaN;
+
         ticks.add(new PathArchive.Tick(
                 s.tick(), s.x(), s.y(), s.z(), s.yawActual(),
                 s.stepIndex(), s.moveType(),
                 s.onGround(), s.inWater(),
                 s.pose(), s.aabbOverlap(),
-                Double.NaN));  // deviation = NaN for plan archive (no reference trajectory)
+                deviation));
+    }
+
+    /** Smallest 3D distance from {@code (x,y,z)} to any plan node's block center. */
+    private double minDeviation(double x, double y, double z) {
+        double best = Double.NaN;
+        for (BlockPos n : replayPlan) {
+            double dx = (n.getX() + 0.5) - x;
+            double dy = (n.getY() + 0.5) - y;
+            double dz = (n.getZ() + 0.5) - z;
+            double d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (Double.isNaN(best) || d < best) best = d;
+        }
+        return best;
     }
 
     @Override
     public void onTerminal(Outcome outcome, String reason) {
-        if (!BotConfig.pathArchive || !sessionOpen) return;
+        if (!sessionOpen) return;
+        boolean replay = replayArmed;
+        if (!replay && !BotConfig.pathArchive) return;
         sessionOpen = false;
+        replayArmed = false;
 
         // Snapshot all mutable state before handing off to the background thread.
         PathArchive.Header header = new PathArchive.Header(
@@ -215,21 +289,29 @@ public final class PathArchiveRecorder implements PathTrace {
                 startCoords, goalCoords,
                 outcome.name(), reason == null ? "" : reason);
 
-        List<PathArchive.Segment>      segSnap     = List.copyOf(segments);
-        List<PathArchive.EnvelopeCell> envSnap     = List.copyOf(envelopeMap.values());
-        List<PathArchive.Tick>         tickSnap    = List.copyOf(ticks);
+        // A replay-run carries only trajectory+deviation (with a planRef pointing at
+        // the plan archive that holds the per-step facts); a plan archive carries the
+        // full segments + envelope. Snapshot accordingly.
+        List<PathArchive.Segment>      segSnap = replay ? List.of() : List.copyOf(segments);
+        List<PathArchive.EnvelopeCell> envSnap = replay ? List.of() : List.copyOf(envelopeMap.values());
+        List<PathArchive.Tick>         tickSnap = List.copyOf(ticks);
+        String planRef = replay ? replayPlanRef : null;
+        String kind    = replay ? "replay" : "plan";
 
         segments.clear();
         envelopeMap.clear();
         ticks.clear();
+        replayPlan = List.of();
+        replayPlanRef = null;
 
         PathArchive archive = new PathArchive(
-                PathArchive.SCHEMA_VERSION, "plan", header,
-                segSnap, envSnap, tickSnap, null);
+                PathArchive.SCHEMA_VERSION, kind, header,
+                segSnap, envSnap, tickSnap, planRef);
 
         // Write off the client thread so onTerminal never stalls a game tick.
-        String fileName = String.format("replay-%04d-%d",
-                SEQ.incrementAndGet(), System.currentTimeMillis());
+        String prefix = replay ? "replay-run" : "replay";
+        String fileName = String.format("%s-%04d-%d",
+                prefix, SEQ.incrementAndGet(), System.currentTimeMillis());
         Thread t = new Thread(() -> {
             try {
                 Files.createDirectories(REPLAY_DIR);

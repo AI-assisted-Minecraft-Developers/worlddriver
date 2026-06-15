@@ -165,6 +165,68 @@ public final class BotApiImpl implements BotApi {
         });
     }
 
+    /**
+     * Install a replay run: the caller ({@code mc.debug.replay} / ReplayTool) has
+     * already parsed the archive and built the cell list + concatenated plan/edges.
+     * On the client thread this (1) restores the block envelope via the server
+     * thread, (2) teleports the bot to the recorded start, (3) arms the path-archive
+     * recorder for replay capture, and (4) installs a {@link ReplayProcess} that
+     * drives {@link Walker#beginReplay} so the wedge reproduces with no re-planning.
+     */
+    public Map<String, Object> startReplay(java.util.List<net.magicterra.agent.api.WorldApi.Cell> cells,
+                                            List<BlockPos> plan, List<Move.Edge> edges,
+                                            BlockPos start, Goal endGoal, BlockPos startFoot,
+                                            String archiveName, boolean restoreBlocks) {
+        return onClient(() -> {
+            LocalPlayer player = Minecraft.getInstance().player;
+            if (player == null) return Map.of("ok", false, "error", "no player");
+
+            int restored = 0;
+            if (restoreBlocks && cells != null && !cells.isEmpty()) {
+                net.magicterra.agent.api.AgentApi api =
+                        net.magicterra.agent.AgentDriverCommon.api();
+                if (api == null) return Map.of("ok", false, "error", "AgentApi not ready");
+                try {
+                    restored = api.restoreCellsOnServer(cells);
+                } catch (RuntimeException e) {
+                    return Map.of("ok", false, "error", "block restore failed: " + e.getMessage());
+                }
+            }
+
+            // Teleport the bot to the recorded start (block center). Use the server
+            // /tp command (authoritative in single-player) and also sync the client
+            // position so beginReplay anchors on the start foot immediately.
+            double tx = start.getX() + 0.5, ty = start.getY(), tz = start.getZ() + 0.5;
+            net.magicterra.agent.api.AgentApi api =
+                    net.magicterra.agent.AgentDriverCommon.api();
+            if (api != null) {
+                try {
+                    api.route("mc.action.runCommand",
+                            Map.of("cmd", String.format(Locale.ROOT, "tp %.1f %d %.1f", tx, start.getY(), tz)));
+                } catch (RuntimeException ignored) {
+                    // /tp unavailable (no server) — the client moveTo below still positions the bot.
+                }
+            }
+            player.moveTo(tx, ty, tz, player.getYRot(), player.getXRot());
+
+            // Arm replay capture BEFORE installing the process so the very first tick
+            // (which calls beginReplay) is captured against this session.
+            net.magicterra.agent.bot.debug.PathArchiveRecorder rec =
+                    net.magicterra.agent.bot.debug.PathDebugBootstrap.archiveRecorder();
+            if (rec != null) rec.armReplay(plan, archiveName);
+
+            startProcess(new ReplayProcess(plan, edges, endGoal, startFoot));
+
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("ok", true);
+            out.put("file", archiveName);
+            out.put("plannedNodes", plan.size());
+            out.put("restoredBlocks", restored);
+            out.put("replayRun", "pending");
+            return out;
+        });
+    }
+
     @Override
     public Map<String, Object> elytraFly(Map<String, Object> params) {
         final Params p = Params.of(params);
