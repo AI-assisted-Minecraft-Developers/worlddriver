@@ -1241,10 +1241,11 @@ public final class Walker {
             double dY = nd.getY() - p.getY();
             boolean within = cur2 < REACH_DIST_SQ && Math.abs(dY) < 1.2;
             BlockPos br0 = (edge != null && !edge.toBreak.isEmpty()) ? edge.toBreak.get(0) : null;
-            LOG.info("[walker] t={} step={}/{} move={} node={},{},{} p=({},{},{}) cur2={} (gate {}) |dY|={} (gate 1.2) within={} onG={} inW={} undW={} stuck={} totStuck={} pend={} break0={}{}",
+            LOG.info("[walker] t={} step={}/{} move={} node={},{},{} p=({},{},{}) pitch={} cur2={} (gate {}) |dY|={} (gate 1.2) within={} onG={} inW={} undW={} stuck={} totStuck={} pend={} break0={}{}",
                     dbgTicksOnStep, step, path.size(), edge != null ? edge.move : "-",
                     nd.getX(), nd.getY(), nd.getZ(),
                     String.format(Locale.ROOT, "%.2f", p.getX()), String.format(Locale.ROOT, "%.2f", p.getY()), String.format(Locale.ROOT, "%.2f", p.getZ()),
+                    String.format(Locale.ROOT, "%.0f", p.getXRot()),
                     String.format(Locale.ROOT, "%.3f", cur2), REACH_DIST_SQ,
                     String.format(Locale.ROOT, "%.2f", Math.abs(dY)), within,
                     p.onGround(), p.isInWater(), p.isUnderWater(),
