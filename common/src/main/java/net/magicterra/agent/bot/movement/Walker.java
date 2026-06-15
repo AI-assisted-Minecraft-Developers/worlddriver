@@ -1906,7 +1906,17 @@ public final class Walker {
         // dist² < 1.6) keeps it from firing on a far / mis-routed node.
         double stepColDx = (wp.getX() + 0.5) - p.getX();
         double stepColDz = (wp.getZ() + 0.5) - p.getZ();
-        boolean stepUpFreeze = wp.getY() > foot.getY() && !parkourEdge && !p.isInWater()
+        // Shallow-water bank variant: a bot GROUNDED on a submerged ledge (onGround
+        // AND in water — never the deep-water float, which stays !onGround) bobbing
+        // against a +1/+2 bank never advances the lateral step. cappedHead (the bank
+        // top caps foot+2) suppresses the swim-up jump and the dry !isInWater gate
+        // locks it out of this freeze-breaker, so only the anti-stuck burst (~12 s)
+        // frees it (live 2026-06-15 (2366,62,1875): x frozen at the bank, y bobbing
+        // 62↔64, 212 ticks onG=true inW=true). Grounded-in-water IS the shallow bank
+        // case — admit it so the grounded jump + forward mounts the step, like dry.
+        boolean shallowBankStep = p.onGround() && p.isInWater();
+        boolean stepUpFreeze = wp.getY() > foot.getY() && !parkourEdge
+                && (!p.isInWater() || shallowBankStep)
                 && noStepProgressTicks > STEPUP_FREEZE_TICKS
                 && (stepColDx * stepColDx + stepColDz * stepColDz) < 1.6;
         boolean pivotForStepUp = wp.getY() > foot.getY() && !parkourEdge && !p.isInWater()
