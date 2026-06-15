@@ -1089,6 +1089,109 @@ public final class AgentGameTest {
         helper.succeed();
     }
 
+    /**
+     * DRIFT-ENTRY climb-out repro — the live z1973 case the clean
+     * {@link #deepWaterClimboutNoBlockArena} does NOT reproduce. There the bot spawns
+     * centred + stationary facing the bank and swim-jumps out in ~22 ticks. Live, the bot
+     * arrives at the bank moving DIAGONALLY (lateral momentum from the previous segment),
+     * so the block-less bank dig's riser ({@code foot + signum(goal-foot)}) jumps cell-to-cell
+     * as the buoyant bot drifts along the bank face, the camera-ray break keeps resetting on
+     * a fresh block, and the climb-out takes ~5 s. This arena forces that: a WIDE +2 bank with
+     * the goal offset along the face (+Z) so the approach is diagonal, plus an initial lateral
+     * shove. Diagnostic for now (lenient budget, logs ashoreTick) — the oracle for a future
+     * drift-stable dig fix; tighten the bound once the fix lands.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void deepWaterClimboutDriftArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 420, cz = 420, floorY = 200, depth = 8;
+        final int surface = floorY + depth;        // y208 water surface
+        final int span = 3;                        // deep-water run up to the bank
+        final int bankTop = surface + 1;           // +2 bank (one above the surface)
+        final int zLo = -2, zHi = 8;               // WIDE in Z so the bot can drift along the face
+
+        // Basin floor.
+        for (int dx = -2; dx <= span + 4; dx++)
+            for (int dz = zLo - 1; dz <= zHi + 1; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+        // N/S walls + west cap hold the water in.
+        for (int dx = -2; dx <= span; dx++)
+            for (int y = floorY + 1; y <= surface + 1; y++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + zLo - 1), Blocks.STONE.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + zHi + 1), Blocks.STONE.defaultBlockState());
+            }
+        for (int dz = zLo - 1; dz <= zHi + 1; dz++)
+            for (int y = floorY + 1; y <= surface + 1; y++)
+                level.setBlockAndUpdate(new BlockPos(cx - 2, y, cz + dz), Blocks.STONE.defaultBlockState());
+        // Deep water column.
+        for (int dx = -1; dx < span; dx++)
+            for (int dz = zLo; dz <= zHi; dz++)
+                for (int y = floorY + 1; y <= surface; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
+        // Far bank: DIRT up to bankTop (+2 climb-out), dry land beyond, wide in Z.
+        for (int dx = span; dx <= span + 4; dx++)
+            for (int dz = zLo; dz <= zHi; dz++) {
+                for (int y = floorY + 1; y <= bankTop; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.DIRT.defaultBlockState());
+                for (int y = bankTop + 1; y <= bankTop + 4; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
+            }
+        // Air above the open water.
+        for (int dx = -1; dx < span; dx++)
+            for (int dz = zLo; dz <= zHi; dz++)
+                for (int y = surface + 1; y <= surface + 4; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
+
+        BlockPos goal = new BlockPos(cx + span + 2, bankTop + 1, cz + 6);   // OFFSET along the face → diagonal approach
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug,
+                osb = BotConfig.allowSwimEscapeBreak;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;
+        BotConfig.allowSwimEscapeBreak = true;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, surface - 1, cz + 0.5);
+            FakePlayer fp = av.fakePlayer();
+            grantWaterEffects(fp);
+            fp.getInventory().clearContent();
+            fp.getInventory().add(new ItemStack(Items.SAND, 64));   // FallingBlock → holdPlaceable() false
+            fp.getInventory().selected = 0;
+            fp.setDeltaMovement(0, 0, 0.45);                        // lateral shove → drift along the face
+
+            LevelWorldView w = new LevelWorldView(level, fp);
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.Block(goal));
+            Walker.Step s = Walker.Step.WALKING;
+            int ashoreTick = -1;
+            for (int t = 0; t < 400 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+                if (ashoreTick < 0 && !fp.isInWater() && fp.onGround() && fp.getY() >= bankTop + 1 - 0.4
+                        && fp.getX() >= cx + span - 0.5) {
+                    ashoreTick = t;
+                    break;
+                }
+            }
+            AgentDriverCommon.LOG.info("[deepWaterClimboutDriftArena] step={} pos=({},{},{}) ashoreTick={} (clean baseline ~22)",
+                    s, fp.getX(), fp.getY(), fp.getZ(), ashoreTick);
+            if (ashoreTick < 0)
+                throw new GameTestAssertException("driftClimbout: drifting bot failed to climb the +2 bank within budget:"
+                        + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + s);
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.allowSwimEscapeBreak = osb;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+        }
+        helper.succeed();
+    }
+
     /** 5x5 stone-walled tank, 3x3 water core {@code depth} tall, air above. */
     private static void buildWaterColumn(ServerLevel level, int cx, int cz, int floorY, int depth) {
         for (int dx = -2; dx <= 2; dx++)
