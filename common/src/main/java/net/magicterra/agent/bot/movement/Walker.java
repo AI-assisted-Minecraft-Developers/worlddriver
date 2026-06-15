@@ -1192,8 +1192,15 @@ public final class Walker {
                     BlockPos fillCell = foot;
                     if (world.isWater(foot))
                         while (world.isWater(fillCell.above())) fillCell = fillCell.above();
-                    if (!world.isSolid(fillCell) && Move.hasPlaceSupport(world, fillCell)
-                            && p.getY() >= fillCell.getY() + 0.9) {     // feet cleared the cell
+                    boolean fcSolid = world.isSolid(fillCell);
+                    boolean fcSupport = Move.hasPlaceSupport(world, fillCell);
+                    boolean fcCleared = p.getY() >= fillCell.getY() + 0.9;
+                    if (BotConfig.walkerDebug)
+                        LOG.info("[walker] climbout-place foot={} fill={} fcSolid={} support={} cleared={}(p.y={} need={}) lipAbove={} reached={} tgt={}",
+                                foot.getY(), fillCell.getY(), fcSolid, fcSupport, fcCleared,
+                                String.format("%.2f", p.getY()), fillCell.getY() + 0.9,
+                                world.isSolid(foot.offset(0, 1, 0)), reached, waterClimbTargetY);
+                    if (!fcSolid && fcSupport && fcCleared) {     // feet cleared the cell
                         a.place(world, fillCell);
                     }
                     return Step.WALKING;
