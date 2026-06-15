@@ -1172,6 +1172,107 @@ public final class AgentGameTest {
      * planned step-down so the bot descends. Asserts it reaches the bottom and
      * never falls off the 1-wide stair into the pit.
      */
+    /**
+     * FALL-OVERSHOOT re-sync dead-zone (live 2026-06-15 reverse journey (2410,2247),
+     * a steep hill SHOULDER at (2426,99,2153)): A* emits a {@code fall3} descend node
+     * on a crest; the bot crosses with forward momentum and free-falls 3 blocks PAST
+     * the node, landing on the next terrace ~3 BELOW it and ~2 forward of it. None of
+     * the step-advance gates then fire — {@code within} fails (|Δy|=3), the pure-pursuit
+     * {@code passed} re-sync is blocked by its {@code |w.y - p.y| < 1.5} guard (the
+     * overshot descend node is 3 above the foot), and {@code fellOffPath} (>maxJump+2)
+     * is one block short — so {@code step} freezes on the node the bot already dropped
+     * past and the aim points BACK-UP at it. Live: stuck 1341 (~67 s) before an
+     * anti-stuck burst nudged it loose, then it relapsed onto the same terrace.
+     *
+     * This arena is a steep foothold cliff: a flat top platform, a single floating
+     * foothold 3 below the rim, then a bottom plain 6 below carrying the goal — the
+     * fall3 → fall3 descent shape of the live wedge. The executor's landing brake keeps
+     * a synthetic descent clean (the live wedge needed a 3-D shoulder + un-braked slope
+     * momentum that doesn't synthesize), so this is a SMOOTHNESS guard: it asserts the
+     * bot descends the steep foothold cliff to the goal WITHOUT stalling (max
+     * consecutive no-horizontal-progress ticks under a tight budget). The dead-zone
+     * fix itself is verified live on the real reverse-journey terrain.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void ridgeOvershootArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 220, cz = 220, plainY = 180, topY = 186;
+        // These arenas write to ABSOLUTE coords (not the per-test structure region),
+        // so a neighbouring arena that shares an origin can leave stray blocks that
+        // trap the spawn. Clear a generous air box first for a clean slate.
+        for (int dx = -4; dx <= 4; dx++)
+            for (int dz = -10; dz <= 20; dz++)
+                for (int y = plainY - 1; y <= topY + 6; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
+        // Solid top platform + flat run-up (x: cx-2..cx+2 for lateral safety) so the
+        // bot reaches the edge at FULL forward speed.
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -7; dz <= 0; dz++)
+                for (int y = plainY; y <= topY; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+        // A single FLOATING foothold ledge 3 below the rim (z=cz+1), with open air
+        // below+beyond it. A* steps the descent THROUGH this node (fall3 rim→ledge,
+        // fall3 ledge→plain), but the bot leaves the rim with forward momentum and
+        // sails PAST the 1-wide ledge, grounding on the plain 3 below it — landing
+        // below an unreached descend node = the dead-zone this arena guards.
+        for (int dx = -2; dx <= 2; dx++)
+            level.setBlockAndUpdate(new BlockPos(cx + dx, topY - 3, cz + 1), Blocks.STONE.defaultBlockState());
+        // Bottom plain (6 below the rim) carries the goal.
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = 2; dz <= 16; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, plainY, cz + dz), Blocks.STONE.defaultBlockState());
+        BlockPos goal = new BlockPos(cx, plainY + 1, cz + 12);
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = false;
+        BotConfig.allowPlace = false;
+        BotConfig.walkerDebug = true;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // deterministic (node-bounded) search
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, topY + 1, cz - 3.5);
+            FakePlayer fp = av.fakePlayer();
+            grantWaterEffects(fp);                          // resistance: the stacked falls mustn't kill mid-test
+            LevelWorldView w = new LevelWorldView(level, fp);
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.Block(goal));
+
+            Walker.Step s = Walker.Step.WALKING;
+            double px = fp.getX(), pz = fp.getZ();
+            int noProgress = 0, maxNoProgress = 0;
+            for (int t = 0; t < 700 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+                double dx = fp.getX() - px, dz = fp.getZ() - pz;
+                if (dx * dx + dz * dz < 0.0025) noProgress++;   // <0.05 b/tick horizontally
+                else noProgress = 0;
+                maxNoProgress = Math.max(maxNoProgress, noProgress);
+                px = fp.getX();
+                pz = fp.getZ();
+            }
+            boolean atGoal = Math.abs(fp.getX() - (cx + 0.5)) < 1.5
+                    && Math.abs(fp.getZ() - (cz + 12 + 0.5)) < 2.0
+                    && Math.abs(fp.getY() - (plainY + 1)) < 1.5;
+            AgentDriverCommon.LOG.info("[ridgeOvershootArena] step={} pos=({},{},{}) atGoal={} maxNoProgress={}",
+                    s, fp.getX(), fp.getY(), fp.getZ(), atGoal, maxNoProgress);
+            if (!atGoal)
+                throw new GameTestAssertException("ridge overshoot: did not reach the plain goal: pos=("
+                        + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + s
+                        + " maxNoProgress=" + maxNoProgress);
+            if (maxNoProgress > 80)
+                throw new GameTestAssertException("ridge overshoot: fall-overshoot wedge — stalled "
+                        + maxNoProgress + " ticks at a node the bot dropped past (budget 80)");
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+        }
+        helper.succeed();
+    }
+
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void descentArena(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();

@@ -1153,8 +1153,29 @@ public final class Walker {
                 // cases, so the re-sync still can't lock onto an impossible +2 climb.
                 boolean overshot = cur2 > OVERSHOOT_RESYNC_SQ;
                 double nd2 = ndx * ndx + ndz * ndz;
+                // Fell BELOW a descend node the bot has gone PAST: a steep crest /
+                // shoulder where the bot crosses with forward momentum and free-falls
+                // 2-3 blocks past the fall node, grounding on the terrace below it
+                // (live 2026-06-15 reverse (2426,99,2153): foot y96, node y99, 1.8 b
+                // past it in z, pinned against the far face → stuck 1341 / ~67 s). The
+                // |w.y - p.y| < 1.5 guard — there to refuse "passing" a node we haven't
+                // risen TO — also refuses this dropped-past node, freezing `step` on a
+                // node 3 ABOVE the foot with the aim pointing back-UP at it (none of
+                // within / fellOffPath catch it: |Δy|=3 misses within, and 3 ≤ maxJump+2
+                // misses the re-search). Relax it when w is clearly ABOVE the foot AND
+                // the route keeps DESCENDING through it (nx no higher than w): then w is
+                // behind+above, a dropped-past descend node, not a climb target — and the
+                // nx reachability gate below (|nx.y - p.y| < 1.2) still bars locking onto
+                // an impossible climb.
+                // Dry land only: a buoyant body in water legitimately rides above/below
+                // its nodes (floatOverSubmerged / dive own that), so "foot below the node"
+                // is normal there and must NOT skip a climb/parkour node — the live wedge
+                // is a grounded terrace landing (inW=false, onG=true throughout).
+                boolean droppedPastDescend = !p.isInWater()
+                        && w.getY() - p.getY() >= 1.5
+                        && nx.getY() <= w.getY();
                 passed = (overshot ? nd2 <= cur2 : nd2 < cur2)
-                        && Math.abs(w.getY() - p.getY()) < 1.5
+                        && (Math.abs(w.getY() - p.getY()) < 1.5 || droppedPastDescend)
                         && Math.abs(nx.getY() - p.getY()) < 1.2
                         && !(!overshot && p.isInWater() && nx.getY() - p.getY() > 0.5);
             }
