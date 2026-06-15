@@ -37,6 +37,17 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
      */
     default boolean ignoresY() { return false; }
 
+    /**
+     * The concrete block this goal converges on, or {@code null} for "open" /
+     * column / direction goals that have no single target cell (XZ, YLevel,
+     * RunAway, Axis, Inverted, StrictDirection, Composite). The pathfinder uses it
+     * to tell a SURFACE/LAND navigation goal (target on dry land — water is a
+     * transient obstacle to cross, so the buoyancy water-taxes apply) from a
+     * DELIBERATE DIVE (target itself underwater — a seabed monument / shipwreck,
+     * where taxing the descent would fight the intended route). Default null.
+     */
+    default BlockPos targetPos() { return null; }
+
     // === Shared heuristic helpers (mod cost units) ===========================
 
     /** 3D lower bound: Chebyshev-dominant axis at walk cost + the diagonal
@@ -59,6 +70,7 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
 
     /** Reach the exact block. Admissible 3D lower bound. */
     record Block(BlockPos target) implements Goal {
+        @Override public BlockPos targetPos() { return target; }
         public boolean reached(BlockPos p) { return p.equals(target); }
         public double estimate(BlockPos p) {
             return blockHeuristic(p.getX() - target.getX(), p.getY() - target.getY(), p.getZ() - target.getZ());
@@ -67,6 +79,7 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
 
     /** Get within {@code radius} blocks (Euclidean) of {@code target}. */
     record Near(BlockPos target, int radius) implements Goal {
+        @Override public BlockPos targetPos() { return target; }
         public boolean reached(BlockPos p) { return p.distSqr(target) <= radius * radius; }
         public double estimate(BlockPos p) {
             double d = Math.sqrt(p.distSqr(target)) - radius;
@@ -134,6 +147,7 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
      * the target (head level adjacent) without inflating the distance.
      */
     record GetToBlock(BlockPos target) implements Goal {
+        @Override public BlockPos targetPos() { return target; }
         public boolean reached(BlockPos p) {
             int dy = p.getY() - target.getY();
             return Math.abs(p.getX() - target.getX()) + Math.abs(dy < 0 ? dy + 1 : dy)
@@ -151,6 +165,7 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
      * below it (so the body occupies the target cell).
      */
     record TwoBlocks(BlockPos target) implements Goal {
+        @Override public BlockPos targetPos() { return target; }
         public boolean reached(BlockPos p) {
             return p.getX() == target.getX() && (p.getY() == target.getY() || p.getY() == target.getY() - 1) && p.getZ() == target.getZ();
         }

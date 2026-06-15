@@ -244,6 +244,21 @@ public final class PathFinder {
          *  block broken, not in water) is a legitimate downhill walk and pays nothing,
          *  so normal terrain pathing is byte-for-byte unchanged. Only the portion of
          *  the step below the slack threshold is charged, and only when going down. */
+        /** True when the goal converges on an UNDERWATER target — a deliberate dive
+         *  (seabed monument / shipwreck). The buoyancy water-taxes (descend / per-cell /
+         *  submerged / climb-out) are suppressed for such a goal so the intended descent
+         *  isn't fought. For EVERY other goal — XZ columns AND land-target Block/Near
+         *  (a {@code goto pos} to dry land, where rivers/lakes are transient obstacles) —
+         *  the taxes apply. The old {@code !ignoresY()} gate wrongly disabled them for
+         *  ALL Y-aware goals, so a normal {@code goto pos} land journey got NO water
+         *  modelling: A* freely routed the buoyant bot to walk/stepDown onto submerged
+         *  riverbed cells it floats above and can't follow → the live deep-water churn
+         *  (replay: 100% inWater stepDown stalls, 6-10 s each, 57 repaths). */
+        private boolean diveGoal() {
+            BlockPos t = goal.targetPos();
+            return t != null && world.isWater(t);
+        }
+
         private double descendTax(BlockPos from, BlockPos to, Move.Edge edge) {
             double per = BotConfig.pathfinderDescendCost;
             if (per <= 0 || to.getY() >= from.getY()) return 0;        // off, or not descending
@@ -251,6 +266,8 @@ public final class PathFinder {
             // (the root cause). A goal that knows its target Y (pos/block — a seabed
             // monument, shipwreck) guides a genuine dive correctly and must not be
             // taxed, so deep-water exploration / ocean-monument runs are unaffected.
+            // (Land-target submerged routing is handled by submergedTax, not here, to
+            // keep the deep-water climb-out arenas' descent behaviour unchanged.)
             if (!goal.ignoresY()) return 0;
             // Any water-involved descent (SwimDown into the depths OR a Fall/MLG INTO
             // water) or a block-breaking descent. Including isWater(to) is needed: at a
@@ -328,6 +345,26 @@ public final class PathFinder {
             if (!world.isWater(from) || world.isWater(to)) return 0;   // only water → dry
             int rise = to.getY() - from.getY();
             return rise > 0 ? per * rise : 0;                          // surface-level/down exits free
+        }
+
+        /** Penalty for DESCENDING into a SUBMERGED water cell (water directly above) on the
+         *  way to a LAND-target goal. A buoyant bot floats at ~surface+0.4 and can't follow
+         *  a plan DOWN into deep water, but {@link WorldView#canStandAt} treats ANY water
+         *  cell as a floor, so A* otherwise routes stepDown/diagDown nodes onto the
+         *  submerged riverbed the floating bot can't reach → the live deep-water churn
+         *  (replay of a single river crossing: 100% inWater, stepDown 173/221 ticks +
+         *  diagDown, 6-10 s stalls, 57 repaths). Taxing the DESCENT into submerged water
+         *  keeps the route ON THE SURFACE where the bot can swim. Restricted to a DESCENT
+         *  ({@code to.y < from.y}) so a bot rising/traversing OUT of a deep pocket — e.g.
+         *  the pillar/dig climb-out arenas, which start submerged and ascend — is untouched.
+         *  Scoped to land-target Y-aware goals: XZ goals already price submerged cells via
+         *  {@link #waterCellTax}; a deliberate dive to an UNDERWATER target ({@link #diveGoal})
+         *  is exempt. Reuses {@link BotConfig#pathfinderSubmergedWaterCost}. */
+        private double submergedTax(BlockPos from, BlockPos to) {
+            double tax = BotConfig.pathfinderSubmergedWaterCost;
+            if (tax <= 0 || goal.ignoresY() || diveGoal()) return 0;
+            if (to.getY() >= from.getY() || !world.isWater(to)) return 0;   // only DESCENDING into water
+            return world.isWater(to.offset(0, 1, 0)) ? tax : 0;            // ...that is SUBMERGED
         }
 
         /** Expand nodes until {@code sliceMs} of wall-clock elapses this call (or
@@ -483,7 +520,8 @@ public final class PathFinder {
                                 + world.directionalCost(cur.pos, npos)
                                 + descendTax(cur.pos, npos, edge)
                                 + waterCellTax(npos)
-                                + climbOutTax(cur.pos, npos);
+                                + climbOutTax(cur.pos, npos)
+                                + submergedTax(cur.pos, npos);
                         Node existing = nodes.get(npos);
                         if (existing != null && ng > existing.g - MIN_IMPROVEMENT) continue;
                         if (existing == null) {
