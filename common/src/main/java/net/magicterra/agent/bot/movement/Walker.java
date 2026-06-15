@@ -2543,6 +2543,22 @@ public final class Walker {
         stuckStep = -1;                 // new path geometry → restart the progress window
         noStepProgressTicks = 0;        // new path → restart the wedge timer (else a same-index step re-triggers instantly)
         noProgressStep = -1;
+        // A freshly adopted PROGRESSIVE stub (quick-start / open-water bee-line —
+        // the only adopts with foot==null) is a brand-new runway in a NEW
+        // direction, so the wedge-burst counter accrued against the stale segment
+        // is no longer valid: leaving it set fires a forced-displacement burst
+        // ~1 s after adoption (the 40-tick count cooldown was already armed),
+        // which yanks the bot BACKWARD off the runway it just got — live
+        // 2026-06-15 wide-water run: bee-line adopted then burst 1 s later, on
+        // repeat, crabbing the bot the WRONG way along the shore. Clear it so the
+        // stub gets a clean ~6 s trial; if the bot genuinely can't follow it the
+        // counter simply re-arms and bursts as before. The big-search continuation
+        // (foot != null) keeps its burst intact — that's the deterministic
+        // same-segment deadlock breaker and must not be reset away.
+        if (foot == null) {
+            wedgeRepathsHere = 0;
+            lastWedgeFoot = null;
+        }
         bestStepDist = Double.POSITIVE_INFINITY;
         actionTicks = 0;
         if (BotConfig.walkerDebug) {
