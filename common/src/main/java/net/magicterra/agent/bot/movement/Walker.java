@@ -1884,8 +1884,21 @@ public final class Walker {
         // route y62→54 because the surface columns are walled by roots; the bot rode
         // y62 forever, offPath kept safetyRepath true every tick → 6 s burst storm).
         // A real descent needs sneak (vanilla water-sink) + a downward pitch.
+        // Stuck submerged descend: the ≥2-water-target clause misses an UNDERWATER bot
+        // routed to a descend node whose cell isn't water (seabed-stand / dry pocket
+        // bottom → isWater(wp)=false) or only 1 below — it bobs in place, buoyancy +
+        // forward stroke holding y while noStepProgress climbs, then escapes only via
+        // the anti-stuck burst ~8 s later (live 2026-06-15 (2410,2182): undW, wp.y =
+        // foot.y-2 but isWater=false, stuck 171). Force the sink once genuinely stuck.
+        // Gated on isUnderWater (head submerged) so a SURFACE flat crossing / open-pool
+        // bob — where the foot rides one above a water node but the bot is never truly
+        // submerged — can't false-trigger (preserves db518fb / the boxed-pocket fix,
+        // whose bot sits AT the surface, never underwater).
+        boolean stuckSink = p.isUnderWater() && wp.getY() < foot.getY()
+                && noStepProgressTicks > STEPUP_FREEZE_TICKS;
         boolean diveTarget = (edge != null && edge.move != null && edge.move.startsWith("swimDown"))
-                || (p.isInWater() && wp.getY() <= foot.getY() - 2 && world.isWater(wp));
+                || (p.isInWater() && wp.getY() <= foot.getY() - 2 && world.isWater(wp))
+                || stuckSink;
         // LATCH the dive across repaths (round45 water-well live): the sink takes
         // many ticks, and a mid-sink repath/quick-start re-plans from the bot's
         // buoyancy point — its first hop is then dy=1, which alone never re-arms
