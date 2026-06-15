@@ -20,6 +20,8 @@ import net.magicterra.agent.bot.process.Schematic;
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.world.LevelWorldView;
+import net.magicterra.agent.bot.pathfinder.moves.Fall;
+import net.magicterra.agent.bot.pathfinder.moves.FallIntoWater;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
@@ -851,6 +853,115 @@ public final class AgentGameTest {
                 throw new GameTestAssertException("open-river sheer bank: Walker never climbed out: pos=("
                         + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxX=" + maxX
                         + " wallPressTicks=" + wallPressTicks + " step=" + s);
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Deep-water (8-block) open crossing: a floating bot must swim a long straight
+     * channel at the SURFACE and climb out a low far bank — it must NOT dive to the
+     * riverbed. Regression guard for the fall-to-surface fix (2026-06-15): canStandAt
+     * accepts ANY water cell as a floor, so before the fix A* routed a Fall/FallIntoWater
+     * DOWN to a submerged bed node the buoyant body could never reach, hard-wedging the
+     * crossing (live wide-water run: fall3 to a y59 bed cell, totStuck 1488, minutes of
+     * anti-stuck burst-crab). Asserts (a) predicate-level: a fall to a submerged bed cell
+     * is now invalid, a fall to the surface cell stays valid; (b) integration: the Walker
+     * crosses the deep channel and climbs out the far bank.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void deepWaterCrossArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 100, cz = 160, floorY = 200, depth = 8;
+        final int surface = floorY + depth;        // y208 water surface (floating foot ~y208)
+        final int span = 16;                       // E-W deep-water crossing length
+
+        // Basin floor under the channel + the far land.
+        for (int dx = -2; dx <= span + 4; dx++)
+            for (int dz = -3; dz <= 3; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+        // Containing walls (N/S sides + west cap) up past the surface to hold the water.
+        for (int dx = -2; dx <= span; dx++)
+            for (int y = floorY + 1; y <= surface + 1; y++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz - 3), Blocks.STONE.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + 3), Blocks.STONE.defaultBlockState());
+            }
+        for (int dz = -3; dz <= 3; dz++)
+            for (int y = floorY + 1; y <= surface + 1; y++)
+                level.setBlockAndUpdate(new BlockPos(cx - 2, y, cz + dz), Blocks.STONE.defaultBlockState());
+        // Deep water: x cx-1 .. cx+span-1, z cz-2..cz+2, `depth` blocks deep.
+        for (int dx = -1; dx < span; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                for (int y = floorY + 1; y <= surface; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
+        // Far EAST low bank (x cx+span..): solid to the surface (top = surface plane →
+        // a +1 climb-out from the floating foot), grass cap, dry land carrying the goal.
+        for (int dx = span; dx <= span + 4; dx++)
+            for (int dz = -2; dz <= 2; dz++) {
+                for (int y = floorY + 1; y < surface; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + dx, surface, cz + dz), Blocks.GRASS_BLOCK.defaultBlockState());
+                for (int y = surface + 1; y <= surface + 4; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
+            }
+        // Air above the open water so nothing caps the swim.
+        for (int dx = -1; dx < span; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                for (int y = surface + 1; y <= surface + 4; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
+
+        BlockPos goal = new BlockPos(cx + span + 2, surface + 1, cz);   // dry land beyond the far bank
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;
+        BotConfig.walkerDebug = true;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // deterministic: each repath completes in one go
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, surface - 1, cz + 0.5);
+            FakePlayer fp = av.fakePlayer();
+            grantWaterEffects(fp);
+            fp.getInventory().clearContent();
+            fp.getInventory().add(new ItemStack(Items.DIRT, 64));
+            fp.getInventory().selected = 0;
+
+            LevelWorldView w = new LevelWorldView(level, fp);
+
+            // (a) Predicate guard for the fall-to-surface fix. From a SURFACE water cell
+            // (air above), a fall that plunges to the SUBMERGED riverbed must be rejected,
+            // while the move into the same-level surface cell stays available.
+            BlockPos surfaceCell = new BlockPos(cx + 4, surface, cz);   // top water cell, air above
+            if (new FallIntoWater(1, 0, depth - 1).valid(w, surfaceCell))
+                throw new GameTestAssertException("deepWaterCross: FallIntoWater to a SUBMERGED bed cell must be invalid"
+                        + " (buoyancy floats the body back to the surface)");
+            if (new Fall(1, 0, 2).valid(w, surfaceCell))
+                throw new GameTestAssertException("deepWaterCross: Fall to a SUBMERGED bed cell must be invalid");
+
+            // (b) Integration: the floating Walker crosses the deep channel and climbs out.
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.Block(goal));
+            Walker.Step s = Walker.Step.WALKING;
+            double maxX = fp.getX();
+            for (int t = 0; t < 2000 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+                maxX = Math.max(maxX, fp.getX());
+            }
+            boolean ashore = !fp.isInWater() && fp.onGround()
+                    && fp.getX() >= cx + span - 0.5 && fp.getY() >= surface + 1 - 0.4;
+            AgentDriverCommon.LOG.info("[deepWaterCrossArena] step={} pos=({},{},{}) maxX={} ashore={}",
+                    s, fp.getX(), fp.getY(), fp.getZ(), maxX, ashore);
+            if (!ashore)
+                throw new GameTestAssertException("deepWaterCross: floating Walker failed to cross the deep channel"
+                        + " and climb out: pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ()
+                        + ") maxX=" + maxX + " step=" + s);
         } finally {
             BotConfig.allowBreak = ob;
             BotConfig.allowPlace = op;
