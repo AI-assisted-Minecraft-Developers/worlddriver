@@ -27,6 +27,7 @@ import net.magicterra.agent.bot.pathfinder.MultiTrace;
 import net.magicterra.agent.bot.pathfinder.PathTrace;
 import net.magicterra.agent.bot.pathfinder.PathTraceHolder;
 import net.magicterra.agent.bot.movement.Walker;
+import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.world.LevelWorldView;
 import net.magicterra.agent.bot.pathfinder.moves.Fall;
 import net.magicterra.agent.bot.pathfinder.moves.FallIntoWater;
@@ -41,6 +42,7 @@ import net.neoforged.neoforge.common.util.FakePlayer;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -2662,6 +2664,198 @@ public final class AgentGameTest {
                 "pathArchiveCapture: header.dimension is null or empty");
 
         helper.succeed();
+    }
+
+    /**
+     * End-to-end PROOF of the path archive/replay feature: record a goto archive,
+     * then replay that archive and assert the bot reaches the same goal with bounded
+     * per-step deviation. This is the behavioural certificate that record → replay
+     * round-trips faithfully.
+     *
+     * <p><b>Replay-trigger approach:</b> the test drives the replay DIRECTLY via
+     * {@link Walker#beginReplay} on a fresh Walker (mirroring what {@code ReplayProcess}
+     * does) rather than the {@code mc.debug.replay} route / {@code BotApiImpl.startReplay}.
+     * The latter run through {@code onClient(...)} and require
+     * {@code Minecraft.getInstance().player}, which does not exist on the dedicated
+     * GameTest server — so the in-test route is structurally unavailable here. The
+     * replay-run capture path is identical either way: we {@link PathArchiveRecorder#armReplay}
+     * exactly as {@code BotApiImpl.startReplay} does, so the {@code replay-run-*.json}
+     * with per-tick deviation is produced by the same machinery the live tool uses.</p>
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void replayRoundTripArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 380, cz = 380, floorY = 220;
+
+        // Flat 20x7 stone runway; bot stands at floorY+1.
+        for (int dx = -2; dx <= 20; dx++)
+            for (int dz = -3; dz <= 3; dz++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+                for (int dy = 1; dy <= 5; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+            }
+
+        // Install a fresh archive recorder as the active sink.
+        PathArchiveRecorder archive = new PathArchiveRecorder();
+        PathTrace previousSink = PathTraceHolder.SINK;
+        PathTraceHolder.SINK = new MultiTrace(archive, PathTrace.NOOP);
+
+        boolean opa = BotConfig.pathArchive;
+        boolean ob  = BotConfig.allowBreak, op = BotConfig.allowPlace;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.pathArchive = true;     // gates sampleTick for BOTH record + replay capture
+        BotConfig.allowBreak  = false;
+        BotConfig.allowPlace  = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs   = Long.MAX_VALUE / 2;
+
+        final BlockPos goal = new BlockPos(cx + 8, floorY + 1, cz);
+        BlockPos recordedArrival;
+
+        try {
+            BotLevelHolder.current = level;
+
+            // ---- Phase 1: RECORD a real goto from A to B (== pathArchiveCaptureArena). ----
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            LevelWorldView w = new LevelWorldView(level, av.fakePlayer());
+
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.Block(goal));
+            Walker.Step s = Walker.Step.WALKING;
+            for (int t = 0; t < 1000 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+            }
+            recordedArrival = av.fakePlayer().blockPosition();
+            AgentDriverCommon.LOG.info("[replayRoundTrip] record terminal step={} arrival={}", s, recordedArrival);
+
+            // Give the background plan-archive write up to 2 s.
+            long deadline = System.currentTimeMillis() + 2000;
+            while (archive.lastWrittenPath() == null && System.currentTimeMillis() < deadline) {
+                try { Thread.sleep(20); } catch (InterruptedException ignored) {}
+            }
+            String planPath = archive.lastWrittenPath();
+            if (planPath == null)
+                throw new GameTestAssertException("replayRoundTrip: no plan archive written within 2 s");
+
+            String planJson;
+            try {
+                planJson = Files.readString(Path.of(planPath));
+            } catch (Exception e) {
+                throw new GameTestAssertException("replayRoundTrip: failed to read plan archive: " + e);
+            }
+            PathArchive planArchive = PathArchive.fromJson(planJson);
+            helper.assertTrue(planArchive.segments().size() >= 1,
+                    "replayRoundTrip: plan archive has no segments");
+
+            // ---- Phase 2: REBUILD the concatenated plan + edges (mirrors ReplayTool). ----
+            List<BlockPos> plan = new ArrayList<>();
+            List<Move.Edge> edges = new ArrayList<>();
+            for (PathArchive.Segment seg : planArchive.segments()) {
+                List<int[]> segPath = seg.path();
+                if (segPath.isEmpty()) continue;
+                List<Move.Edge> segEdges = new ArrayList<>(segPath.size());
+                segEdges.add(null);   // re-insert the leading start-node sentinel
+                for (PathArchive.EdgeRec er : seg.edges()) {
+                    List<BlockPos> toBreak = new ArrayList<>();
+                    for (int[] c : er.breakCells()) toBreak.add(new BlockPos(c[0], c[1], c[2]));
+                    List<BlockPos> toPlace = new ArrayList<>();
+                    for (int[] c : er.placeCells()) toPlace.add(new BlockPos(c[0], c[1], c[2]));
+                    segEdges.add(new Move.Edge(null, er.cost(), toBreak, toPlace, er.move()));
+                }
+                while (segEdges.size() < segPath.size()) segEdges.add(null);
+
+                int from = 0;
+                if (!plan.isEmpty()) {
+                    int[] first = segPath.get(0);
+                    BlockPos last = plan.get(plan.size() - 1);
+                    if (last.getX() == first[0] && last.getY() == first[1] && last.getZ() == first[2]) from = 1;
+                }
+                for (int i = from; i < segPath.size(); i++) {
+                    int[] n = segPath.get(i);
+                    plan.add(new BlockPos(n[0], n[1], n[2]));
+                    edges.add(i < segEdges.size() ? segEdges.get(i) : null);
+                }
+            }
+            helper.assertTrue(plan.size() >= 2,
+                    "replayRoundTrip: concatenated plan too short: " + plan.size());
+
+            BlockPos startFoot = plan.get(0);
+            BlockPos lastNode  = plan.get(plan.size() - 1);
+
+            // ---- Phase 3: REPLAY via a fresh Walker.beginReplay + armed capture. ----
+            // Arm the replay recorder BEFORE the first replay tick, exactly as
+            // BotApiImpl.startReplay does, so the replay-run + per-tick deviation is captured.
+            archive.armReplay(plan, Path.of(planPath).getFileName().toString());
+
+            ServerPlayerAvatar rav = ServerPlayerAvatar.create(
+                    level, startFoot.getX() + 0.5, startFoot.getY(), startFoot.getZ() + 0.5);
+            LevelWorldView rw = new LevelWorldView(level, rav.fakePlayer());
+
+            Walker replay = new Walker();
+            replay.beginReplay(rw, plan, edges, new Goal.Block(lastNode), startFoot);
+            Walker.Step rs = Walker.Step.WALKING;
+            int maxTicks = 1500;   // guard: a hang FAILS the test rather than spins forever
+            int t = 0;
+            for (; t < maxTicks && rs == Walker.Step.WALKING; t++) {
+                rs = replay.tick(rav, rw);
+                rav.step();
+            }
+            BlockPos replayArrival = rav.fakePlayer().blockPosition();
+            AgentDriverCommon.LOG.info("[replayRoundTrip] replay terminal step={} ticks={} arrival={}",
+                    rs, t, replayArrival);
+            helper.assertTrue(t < maxTicks,
+                    "replayRoundTrip: replay did not terminate within " + maxTicks + " ticks");
+
+            // ---- Assert: replay reproduced the route to the same goal (±2 XZ). ----
+            int dgx = Math.abs(replayArrival.getX() - goal.getX());
+            int dgz = Math.abs(replayArrival.getZ() - goal.getZ());
+            helper.assertTrue(dgx <= 2 && dgz <= 2,
+                    "replayRoundTrip: replay arrival " + replayArrival + " not within +/-2 XZ of goal " + goal
+                            + " (dx=" + dgx + ", dz=" + dgz + ")");
+
+            // ---- Assert: a replay-run-*.json was written with bounded deviation. ----
+            long rdeadline = System.currentTimeMillis() + 2000;
+            while (archive.lastReplayRunPath() == null && System.currentTimeMillis() < rdeadline) {
+                try { Thread.sleep(20); } catch (InterruptedException ignored) {}
+            }
+            String runPath = archive.lastReplayRunPath();
+            if (runPath == null)
+                throw new GameTestAssertException("replayRoundTrip: no replay-run file written within 2 s");
+            if (!Files.exists(Path.of(runPath)))
+                throw new GameTestAssertException("replayRoundTrip: replay-run file missing on disk: " + runPath);
+
+            String runJson;
+            try {
+                runJson = Files.readString(Path.of(runPath));
+            } catch (Exception e) {
+                throw new GameTestAssertException("replayRoundTrip: failed to read replay-run file: " + e);
+            }
+            PathArchive run = PathArchive.fromJson(runJson);
+            helper.assertTrue("replay".equals(run.kind()),
+                    "replayRoundTrip: expected kind=replay, got " + run.kind());
+            helper.assertTrue(!run.trajectory().isEmpty(),
+                    "replayRoundTrip: replay-run trajectory is empty");
+
+            double maxDev = 0.0;
+            for (PathArchive.Tick tk : run.trajectory()) {
+                double d = tk.deviation();
+                if (!Double.isNaN(d) && d > maxDev) maxDev = d;
+            }
+            AgentDriverCommon.LOG.info("[replayRoundTrip] trajectory ticks={} maxDeviation={}",
+                    run.trajectory().size(), maxDev);
+            helper.assertTrue(maxDev <= 4.0,
+                    "replayRoundTrip: max per-tick deviation " + maxDev + " exceeds bound 4.0");
+
+            helper.succeed();
+        } finally {
+            BotConfig.pathArchive       = opa;
+            BotConfig.allowBreak        = ob;
+            BotConfig.allowPlace        = op;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs   = omm;
+            PathTraceHolder.SINK = previousSink;
+        }
     }
 
     /** 11x11 solid floor at {@code floorY}, clear 5 above — a clean test slab. */

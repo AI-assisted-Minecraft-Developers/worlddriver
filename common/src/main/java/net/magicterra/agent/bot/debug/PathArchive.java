@@ -475,7 +475,7 @@ public final class PathArchive {
                 asDouble(m.get("z")),
                 (float) asDouble(m.get("yaw")),
                 asInt(m.get("step")),
-                asStr(m.get("move")),
+                asStrNullable(m.get("move")),   // null when the tick is at/past the terminal node (no entering edge)
                 asBool(m.get("onGround")),
                 asBool(m.get("inWater")),
                 asStr(m.get("pose")),

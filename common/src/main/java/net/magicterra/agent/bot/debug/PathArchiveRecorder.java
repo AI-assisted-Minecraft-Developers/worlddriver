@@ -80,6 +80,12 @@ public final class PathArchiveRecorder implements PathTrace {
 
     /** Path of the last file written; readable via {@link #lastWrittenPath()}. */
     private volatile String lastWritten;
+    /** Path of the last {@code replay-run-*.json} written (kind="replay"); readable
+     *  via {@link #lastReplayRunPath()}. Distinct from {@link #lastWritten} so a test
+     *  that records a plan archive THEN a replay run can find the replay file
+     *  unambiguously. Set by the background write thread shortly after a replay
+     *  {@link #onTerminal}. */
+    private volatile String lastReplayRun;
 
     // -----------------------------------------------------------------------
     // Public no-arg constructor required by the task spec
@@ -319,6 +325,7 @@ public final class PathArchiveRecorder implements PathTrace {
                 String json = archive.toJson();
                 Files.writeString(out, json);
                 lastWritten = out.toAbsolutePath().toString();
+                if (replay) lastReplayRun = lastWritten;
                 LOG.info("[patharchive] wrote {} ({} segs, {} ticks, {} envelope cells, outcome={})",
                         lastWritten, segSnap.size(), tickSnap.size(), envSnap.size(), outcome);
             } catch (Exception e) {
@@ -340,6 +347,17 @@ public final class PathArchiveRecorder implements PathTrace {
      */
     public String lastWrittenPath() {
         return lastWritten;
+    }
+
+    /**
+     * Returns the absolute path of the last {@code replay-run-*.json} (kind="replay")
+     * written, or {@code null} if none has been written yet. Distinct from
+     * {@link #lastWrittenPath()} so a caller that records a plan archive and then
+     * replays it can locate the replay-run file unambiguously. Set by the background
+     * write thread shortly after a replay {@link #onTerminal} returns.
+     */
+    public String lastReplayRunPath() {
+        return lastReplayRun;
     }
 
     // -----------------------------------------------------------------------
