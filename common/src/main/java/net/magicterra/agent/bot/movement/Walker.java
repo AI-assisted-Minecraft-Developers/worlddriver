@@ -154,6 +154,20 @@ public final class Walker {
     /** Hard wall-clock cap for one synchronous quick-start stub search; the node
      *  cap ({@link BotConfig#pathfinderQuickNodes}) normally lands well under it. */
     private static final long QUICK_MAX_MS = 80;
+    /** Open-water bee-line stub length: how many surface cells to march toward the
+     *  goal when the sliced A* can't keep up over deep water. Long enough that the
+     *  bot (sprint-swim ≈5.6 b/s) has multiple seconds of runway before consuming it,
+     *  so it never outruns its own pathfinding and burst-crabs. */
+    private static final int BEELINE_MAX_STEPS = 24;
+    /** Don't bother adopting a bee-line shorter than this (a 1-3 cell run is just the
+     *  bot already at a bank — let the normal search/climb-out own it). */
+    private static final int BEELINE_MIN_STEPS = 4;
+    /** Foot-to-current-node dist² (blocks²) past which a WATER-wedged bot is treated as
+     *  having sprint-swum PAST its committed segment (vs pinned AT a node it can't
+     *  reach) — the trigger to drop the stale segment and adopt an open-water bee-line.
+     *  16 = 4 blocks: well past the 0.45 reach gate, comfortably short of the 30-block
+     *  overshoot the burst-crab leaves. */
+    private static final double BEELINE_OVERSHOOT_SQ = 16.0;
     /** Max ticks to hold a "no path" verdict while self-inflicted stuck-penalties
      *  decay (15 s window) before genuinely failing — three full decay windows. */
     private static final int NO_PATH_WAIT_CAP = 900;
@@ -574,6 +588,24 @@ public final class Walker {
             churnBase = foot;
             churnWindowTicks = 0;
         }
+        // OPEN-WATER bee-line preempt: a wide deep-water crossing wedges MID-segment.
+        // The bot sprint-swims PAST its short committed segment faster than the
+        // expensive sliced search (the whole 3-D water volume expands) can re-commit,
+        // so `step` lags 30+ blocks behind, the wedge timer fires, and anti-stuck
+        // bursts crab it across in jerky 13-block shoves (live 2026-06-15: ~9 bursts /
+        // crossing, max step-stuck 100+). When WEDGED over water with the foot well
+        // past its current node and a search already in flight, drop the stale segment
+        // so the no-path branch below adopts a fresh straight SURFACE bee-line toward
+        // the goal — smooth runway that the big search supersedes on landing — and the
+        // path==null burst guard skips the shove. Near a bank the bee-line march is
+        // short (< MIN, not adopted) so this can't strand a real climb-out.
+        if (wedged && path != null && step < path.size() && !breakingEdge
+                && activeSearch != null && world.isWater(foot)
+                && foot.distSqr(path.get(step)) > BEELINE_OVERSHOOT_SQ) {
+            path = null;
+            edges = null;
+            step = 0;
+        }
         boolean safetyRepath = (path == null) || (stuckTicks > STUCK_TICKS) || wedged
                 || ((offPath || fellOffPath) && !fellBelowRoute);
         boolean fullPeriodic = !pathBestEffort && path != null
@@ -879,7 +911,7 @@ public final class Walker {
         // the big result supersedes it on landing. Only hold if no useful
         // stub exists (boxed in — moving blind would jitter).
         if (path == null) {
-            if (activeSearch == null || !tryQuickStart(world, foot, goal)) {
+            if (activeSearch == null || (!tryQuickStart(world, foot, goal) && !tryWaterBeeline(world, foot, goal))) {
                 agentForward(a, false);
                 agentJump(a, false);
                 p.setSprinting(false);
@@ -1155,7 +1187,7 @@ public final class Walker {
                 // search hasn't landed yet (eager precompute missed this one) —
                 // walk a synchronous stub toward the goal instead of holding
                 // at the segment end until it does.
-                if (activeSearch == null || !tryQuickStart(world, foot, goal)) {
+                if (activeSearch == null || (!tryQuickStart(world, foot, goal) && !tryWaterBeeline(world, foot, goal))) {
                     agentForward(a, false);
                     agentJump(a, false);
                     p.setSprinting(false);
@@ -2325,6 +2357,61 @@ public final class Walker {
                     res.path().size(), res.expanded(), res.ms());
         adoptPath(res, world, null);    // stub starts at the foot — no fast-forward needed
         return true;
+    }
+
+    /** PROGRESSIVE OPEN-WATER BEE-LINE (渐进式水面直线 stub): over a wide deep-water
+     *  crossing the sliced A* re-plan is expensive — it expands the whole 3-D water
+     *  volume (canStandAt accepts every depth), thousands of nodes over several
+     *  seconds, and even a bounded {@link #tryQuickStart} can't progress 2 blocks. So
+     *  the bot consumes its short committed segment, has no fresh forward path, wedges,
+     *  and anti-stuck bursts crab it across jerkily (live 2026-06-15 wide-water run:
+     *  burst every ~6 s, the bot 30+ blocks past a stale segment, max step-stuck 106).
+     *  A flat open-water crossing needs no search: greedily march toward the goal along
+     *  the SURFACE — at each cell take the 8-neighbour that most reduces goal.estimate
+     *  and is open surface water — and adopt that straight run as a long stub so the bot
+     *  keeps swimming smoothly while the big search lands and supersedes it. A greedy
+     *  local minimum is harmless: the stub is a stopgap, replaced the instant the real
+     *  path arrives; it only ever drives the bot over open water it could swim anyway.
+     *  Gated to a body of water under the feet. @return true if a bee-line was adopted. */
+    private boolean tryWaterBeeline(WorldView world, BlockPos foot, Goal goal) {
+        if (!world.isWater(foot)) return false;
+        List<BlockPos> path = new ArrayList<>();
+        List<Move.Edge> edges = new ArrayList<>();
+        path.add(foot);
+        edges.add(null);                       // start node carries no inbound edge
+        BlockPos cur = foot;
+        double curEst = goal.estimate(foot);
+        for (int i = 0; i < BEELINE_MAX_STEPS; i++) {
+            BlockPos best = null;
+            double bestEst = curEst;
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (dx == 0 && dz == 0) continue;
+                    BlockPos n = cur.offset(dx, 0, dz);
+                    if (!isOpenSurfaceWater(world, n)) continue;
+                    double e = goal.estimate(n);
+                    if (e < bestEst) { bestEst = e; best = n; }
+                }
+            if (best == null) break;            // no goal-ward open-water step (boxed / reached a bank)
+            path.add(best);
+            edges.add(new Move.Edge(best, 10, List.of(), List.of(), "walk"));
+            cur = best;
+            curEst = bestEst;
+        }
+        if (path.size() <= BEELINE_MIN_STEPS) return false;   // too short to be worth a stub
+        if (BotConfig.walkerDebug)
+            LOG.info("[walker] open-water bee-line stub adopted: len={} toward goal (big search still running)",
+                    path.size());
+        adoptPath(new PathFinder.Result(path, edges, false, 0, 0L, 0.0), world, null);
+        return true;
+    }
+
+    /** A cell a buoyant body can swim across at the surface: water at the foot, a CLEAR
+     *  non-water head (the surface — not a submerged mid-column cell), neither a hazard. */
+    private static boolean isOpenSurfaceWater(WorldView w, BlockPos foot) {
+        BlockPos head = foot.offset(0, 1, 0);
+        return w.isWater(foot) && !w.isWater(head) && w.isPassable(head)
+                && !w.isHazard(foot) && !w.isHazard(head);
     }
 
     /** @return false if the segment was REJECTED because its start is nowhere
