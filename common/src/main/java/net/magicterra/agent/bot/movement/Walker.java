@@ -287,6 +287,7 @@ public final class Walker {
     private float unstuckYaw;                               // anti-stuck: fixed heading for the displacement burst
     private int dbgPrevStep = -1;     // walkerDebug: detect step changes for per-step timing
     private int dbgTicksOnStep = 0;   // walkerDebug: ticks spent on the current step
+    private boolean replayMode;   // executing a fixed archived plan: no repath/quick-start/splice/anti-stuck repath
     public String lastError;
 
     public void setGoal(Goal g) {
@@ -329,6 +330,7 @@ public final class Walker {
         this.wedgeRepathsHere = 0;
         this.unstuckCountCooldown = 0;
         this.unstuckTicks = 0;
+        this.replayMode = false;
         this.lastError = null;
     }
 
@@ -368,6 +370,15 @@ public final class Walker {
         this.pillarRecoverLatch = 0;
         this.wantClimbRecent = 0;
         this.descending = false;
+    }
+
+    /** Replay a fixed archived plan. Caller has already teleported the bot to the plan
+     *  start and restored the block envelope. Disables A* entirely — the plan executes
+     *  with real physics; a wedge is recorded, not re-planned. */
+    public void beginReplay(WorldView world, List<BlockPos> plan, List<Move.Edge> planEdges, Goal endGoal, BlockPos startFoot) {
+        setGoal(endGoal);
+        this.replayMode = true;
+        adoptPath(new PathFinder.Result(plan, planEdges, true, 0, 0L, 0.0), world, startFoot);
     }
 
     public int pathLen() { return path == null ? 0 : path.size(); }
@@ -616,7 +627,7 @@ public final class Walker {
         // the goal — smooth runway that the big search supersedes on landing — and the
         // path==null burst guard skips the shove. Near a bank the bee-line march is
         // short (< MIN, not adopted) so this can't strand a real climb-out.
-        if (wedged && path != null && step < path.size() && !breakingEdge
+        if (!replayMode && wedged && path != null && step < path.size() && !breakingEdge
                 && activeSearch != null && world.isWater(foot)
                 && foot.distSqr(path.get(step)) > BEELINE_OVERSHOOT_SQ) {
             path = null;
@@ -701,7 +712,7 @@ public final class Walker {
                 lastWedgeFoot = foot;
             }
         }
-        if ((safetyRepath || fullPeriodic) && activeSearch == null) {
+        if (!replayMode && (safetyRepath || fullPeriodic) && activeSearch == null) {
             // Stuck too long on a move the Walker can't execute (a steep stepUp it
             // slides off, a pillar it can't ground)? Blacklist that node so this
             // re-search routes AROUND the wedge instead of re-planning into it —
@@ -751,7 +762,7 @@ public final class Walker {
             searchSuppressedPlace = false;    // normal search: placing allowed; budget re-checked on result
             pendingSegment = null;            // a foot-search supersedes any stashed continuation
             ticksSinceRepath = 0;
-        } else if (pathBestEffort && commitEnd != null
+        } else if (!replayMode && pathBestEffort && commitEnd != null
                 && activeSearch == null && pendingSegment == null) {
             // Eagerly precompute the next best-effort segment from the committed end.
             activeSearch = new PathFinder(world).newSearch(commitEnd, goal);
@@ -886,7 +897,7 @@ public final class Walker {
                 // placing OFF so A* digs through / routes around (break moves need no
                 // blocks). Guard with searchSuppressedPlace so the place-off result is
                 // adopted as-is (no second reroute / loop).
-                if (!searchSuppressedPlace) {
+                if (!replayMode && !searchSuppressedPlace) {
                     int placesNeeded = countPlaceEdges(res.edges());
                     if (placesNeeded > world.placeableBlockCount()) {
                         if (BotConfig.walkerDebug)
@@ -945,7 +956,11 @@ public final class Walker {
         // the big result supersedes it on landing. Only hold if no useful
         // stub exists (boxed in — moving blind would jitter).
         if (path == null) {
-            if (activeSearch == null || (!tryQuickStart(world, foot, goal) && !tryWaterBeeline(world, foot, goal))) {
+            if (replayMode || activeSearch == null
+                    || (!tryQuickStart(world, foot, goal) && !tryWaterBeeline(world, foot, goal))) {
+                // replayMode: a fixed plan was adopted at beginReplay, so path is
+                // never null here in practice; if it somehow is, just hold (no
+                // quick-start/beeline) — replay never re-plans.
                 agentForward(a, false);
                 agentJump(a, false);
                 p.setSprinting(false);
@@ -1248,7 +1263,7 @@ public final class Walker {
                     return frontierHoldOrArrive(a, world, p);
                 }
             } else {
-                if (activeSearch == null && commitEnd != null) {
+                if (!replayMode && activeSearch == null && commitEnd != null) {
                     activeSearch = new PathFinder(world).newSearch(commitEnd, goal);
                     searchFromEnd = true;
                 }
@@ -1256,7 +1271,8 @@ public final class Walker {
                 // search hasn't landed yet (eager precompute missed this one) —
                 // walk a synchronous stub toward the goal instead of holding
                 // at the segment end until it does.
-                if (activeSearch == null || (!tryQuickStart(world, foot, goal) && !tryWaterBeeline(world, foot, goal))) {
+                if (replayMode || activeSearch == null
+                        || (!tryQuickStart(world, foot, goal) && !tryWaterBeeline(world, foot, goal))) {
                     agentForward(a, false);
                     agentJump(a, false);
                     p.setSprinting(false);
@@ -2465,7 +2481,7 @@ public final class Walker {
      *  so a genuine box-in still terminates. Holds (keys released) and returns
      *  WALKING while retrying; ARRIVED when out of retries or the feature is off. */
     private Step frontierHoldOrArrive(Avatar a, WorldView world, Player p) {
-        if (BotConfig.pathfinderFrontierCommit && commitEnd != null
+        if (!replayMode && BotConfig.pathfinderFrontierCommit && commitEnd != null
                 && frontierWaitTicks < FRONTIER_WAIT_CAP) {
             frontierWaitTicks++;
             if (activeSearch == null) {
