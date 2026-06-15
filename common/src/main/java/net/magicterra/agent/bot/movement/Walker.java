@@ -2729,7 +2729,7 @@ public final class Walker {
     private void sampleTick(Player p) {
         // Cheap gate: skip the per-tick WalkerSample allocation entirely unless capture is on.
         // Keeps the hot path free in normal play and in a stripped (NOOP) release build.
-        if (!BotConfig.pathDebug) return;
+        if (!BotConfig.pathDebug && !BotConfig.pathArchive) return;
         double tx = Double.NaN, tz = Double.NaN;
         String mv = null;
         if (path != null && step >= 0 && step < path.size()) {
@@ -2739,9 +2739,11 @@ public final class Walker {
             Move.Edge e = edgeAt(step);
             mv = (e != null) ? e.move : null;
         }
+        boolean overlap = !p.level().noCollision(p, p.getBoundingBox().deflate(1.0E-7));
         PathTraceHolder.SINK.onWalkerTick(new PathTrace.WalkerSample(
                 p.tickCount, p.getX(), p.getY(), p.getZ(), p.getYRot(),
-                tx, tz, step, mv, p.onGround(), p.isInWater()));
+                tx, tz, step, mv, p.onGround(), p.isInWater(),
+                p.getPose().name(), overlap));
     }
 
     private static float angleDiff(float a, float b) { return ((b - a) % 360f + 540f) % 360f - 180f; }

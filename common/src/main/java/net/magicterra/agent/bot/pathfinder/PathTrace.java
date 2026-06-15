@@ -30,7 +30,8 @@ public interface PathTrace {
      */
     record WalkerSample(long tick, double x, double y, double z, float yawActual,
                         double targetX, double targetZ, int stepIndex, String moveType,
-                        boolean onGround, boolean inWater) {}
+                        boolean onGround, boolean inWater,
+                        String pose, boolean aabbOverlap) {}
 
     /** Fired in {@code PathFinder.Search}'s constructor — one per (re)path search. */
     void onSearchBegin(BlockPos start, Goal goal);

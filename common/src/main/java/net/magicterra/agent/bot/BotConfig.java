@@ -870,6 +870,9 @@ public final class BotConfig {
     public static volatile int pathDebugMaxSamples = 6000;
     /** When true, auto-write a chart on every goto terminal outcome (success and failure). */
     public static volatile boolean pathChartAutoDump = false;
+    /** Master gate for path-archive recording (trajectory export/replay). When true the
+     *  per-tick WalkerSample is captured even if pathDebug is off. Default off. */
+    public static volatile boolean pathArchive = false;
 
     // --- WorldModel / HazardField (perception slice) ---
     /** Chebyshev radius (blocks) of the HazardField grid recomputed each
