@@ -1,0 +1,146 @@
+{
+  "version": 1,
+  "kind": "plan",
+  "header": {
+    "seed": 123456789,
+    "dimension": "minecraft:overworld",
+    "startMs": 1718400000000,
+    "goalDesc": "goto(10,64,20)",
+    "start": [8, 64, 20],
+    "goal": [10, 64, 20],
+    "outcome": "ARRIVED",
+    "reason": ""
+  },
+  "segments": [
+    {
+      "repathIndex": 0,
+      "goalReached": true,
+      "expanded": 37,
+      "ms": 12,
+      "finalCost": 30.0,
+      "path": [
+        [8, 64, 20],
+        [9, 64, 20],
+        [10, 64, 20]
+      ],
+      "edges": [
+        {
+          "move": "walk",
+          "cost": 10,
+          "break": [[8, 65, 20]],
+          "place": []
+        },
+        {
+          "move": "walk",
+          "cost": 10,
+          "break": [],
+          "place": [[9, 63, 20]]
+        },
+        {
+          "move": "walk",
+          "cost": 10,
+          "break": [],
+          "place": []
+        }
+      ],
+      "nodes": [
+        {
+          "fitStand": false,
+          "fitCrouch": true,
+          "fitCrawl": true,
+          "collidesStanding": true,
+          "ceilingForces": "suffocate",
+          "inWaterFoot": false,
+          "submergedEye": false,
+          "underfootSolid": true,
+          "footHazard": null,
+          "fall": 0.0,
+          "fallSurvivable": true,
+          "jumpToNext": {"needed": false, "feasible": true}
+        },
+        {
+          "fitStand": true,
+          "fitCrouch": true,
+          "fitCrawl": true,
+          "collidesStanding": false,
+          "ceilingForces": "none",
+          "inWaterFoot": false,
+          "submergedEye": false,
+          "underfootSolid": true,
+          "footHazard": "lava",
+          "fall": 0.0,
+          "fallSurvivable": true,
+          "jumpToNext": {"needed": false, "feasible": true}
+        },
+        {
+          "fitStand": true,
+          "fitCrouch": true,
+          "fitCrawl": true,
+          "collidesStanding": false,
+          "ceilingForces": "none",
+          "inWaterFoot": false,
+          "submergedEye": false,
+          "underfootSolid": true,
+          "footHazard": null,
+          "fall": 0.0,
+          "fallSurvivable": true,
+          "jumpToNext": {"needed": true, "feasible": false}
+        }
+      ]
+    }
+  ],
+  "envelope": [
+    {
+      "pos": [8, 63, 20],
+      "block": "minecraft:stone",
+      "solid": true,
+      "shape": [[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]],
+      "fluid": null
+    }
+  ],
+  "trajectory": [
+    {
+      "tick": 0,
+      "x": 8.5,
+      "y": 64.0,
+      "z": 20.5,
+      "yaw": 0.0,
+      "step": 0,
+      "move": "walk",
+      "onGround": true,
+      "inWater": false,
+      "pose": "STANDING",
+      "aabbOverlap": false,
+      "deviation": null
+    },
+    {
+      "tick": 1,
+      "x": 9.1,
+      "y": 64.0,
+      "z": 20.5,
+      "yaw": 0.0,
+      "step": 1,
+      "move": "walk",
+      "onGround": true,
+      "inWater": false,
+      "pose": "CROUCHING",
+      "aabbOverlap": false,
+      "deviation": null
+    },
+    {
+      "tick": 2,
+      "x": 9.8,
+      "y": 64.0,
+      "z": 20.5,
+      "yaw": 0.0,
+      "step": 2,
+      "move": "walk",
+      "onGround": true,
+      "inWater": false,
+      "pose": "STANDING",
+      "aabbOverlap": false,
+      "deviation": null
+    }
+  ],
+  "planRef": null
+}
