@@ -334,6 +334,7 @@ public final class BotTools {
                     .prop("walkerDebug",                bool())
                     .prop("elytraDebug",                bool())
                     .prop("pathDebug",                  bool())
+                    .prop("pathArchive",                bool())
                     .prop("pathChartAutoDump",          bool())
                     .prop("pathDebugMaxNodes",          integer(100, 200000))
                     .prop("pathDebugMaxSamples",        integer(100, 200000))

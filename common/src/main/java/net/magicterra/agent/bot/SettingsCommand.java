@@ -213,6 +213,10 @@ public final class SettingsCommand {
                 BotConfig.pathDebug = pd;
                 applied.add("pathDebug");
             }
+            if (params.get("pathArchive") instanceof Boolean pa) {
+                BotConfig.pathArchive = pa;
+                applied.add("pathArchive");
+            }
             if (params.get("pathfinderCacheEnabled") instanceof Boolean pce) {
                 BotConfig.pathfinderCacheEnabled = pce;
                 applied.add("pathfinderCacheEnabled");
@@ -666,6 +670,7 @@ public final class SettingsCommand {
         snap.put("fleeDangerBoost", BotConfig.fleeDangerBoost);
         snap.put("walkerDebug", BotConfig.walkerDebug);
         snap.put("pathDebug", BotConfig.pathDebug);
+        snap.put("pathArchive", BotConfig.pathArchive);
         snap.put("pathDebugMaxNodes", BotConfig.pathDebugMaxNodes);
         snap.put("pathDebugMaxSamples", BotConfig.pathDebugMaxSamples);
         snap.put("pathChartAutoDump", BotConfig.pathChartAutoDump);
