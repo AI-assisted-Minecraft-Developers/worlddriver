@@ -7,7 +7,9 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -54,6 +56,29 @@ public final class WorldApi {
         }
 
         int idx(int dx, int dy, int dz) { return (dx * sy + dy) * sz + dz; }
+    }
+
+    /** One block to (re)write: its state and optional block-entity NBT. */
+    public record Cell(BlockPos pos, BlockState state, CompoundTag beTag) {}
+
+    /** Write a list of blocks into the level on the calling (server) thread, restoring
+     *  block-entity NBT where present. Shared by mc.world.restore and the path replayer. */
+    public static void restoreCells(ServerLevel level, List<Cell> cells) {
+        for (Cell c : cells) {
+            level.setBlockAndUpdate(c.pos(), c.state());
+            if (c.beTag() != null) {
+                BlockEntity be = level.getBlockEntity(c.pos());
+                if (be != null) {
+                    try {
+                        be.loadWithComponents(c.beTag(), level.registryAccess());
+                        be.setChanged();
+                    } catch (RuntimeException ignored) {
+                        // Malformed/foreign BE data — block state is still
+                        // restored; skip the contents rather than abort.
+                    }
+                }
+            }
+        }
     }
 
     /** Drop all retained snapshots — called when the server detaches. */
@@ -144,33 +169,21 @@ public final class WorldApi {
 
         ServerLevel level = api.level();
         Map<String, Object> result = api.onServerThread(() -> {
-            int restored = 0, beRestored = 0;
-            BlockPos.MutableBlockPos cur = new BlockPos.MutableBlockPos();
+            // Build the cell list while counting, then delegate the actual block
+            // writes to the shared restoreCells helper.
+            List<Cell> cells = new ArrayList<>(snap.sx * snap.sy * snap.sz);
+            int beRestored = 0;
             for (int dx = 0; dx < snap.sx; dx++)
                 for (int dy = 0; dy < snap.sy; dy++)
                     for (int dz = 0; dz < snap.sz; dz++) {
                         int i = snap.idx(dx, dy, dz);
                         BlockPos pos = new BlockPos(snap.minX + dx, snap.minY + dy, snap.minZ + dz);
-                        cur.set(pos);
-                        level.setBlockAndUpdate(cur, snap.states[i]);
-                        restored++;
                         CompoundTag tag = snap.beTags[i];
-                        if (tag != null) {
-                            // setBlock just (re)created the BE for this state; load
-                            // the captured NBT into it so contents/components match.
-                            BlockEntity be = level.getBlockEntity(cur);
-                            if (be != null) {
-                                try {
-                                    be.loadWithComponents(tag, level.registryAccess());
-                                    be.setChanged();
-                                    beRestored++;
-                                } catch (RuntimeException ignored) {
-                                    // Malformed/foreign BE data — block state is still
-                                    // restored; skip the contents rather than abort.
-                                }
-                            }
-                        }
+                        cells.add(new Cell(pos, snap.states[i], tag));
+                        if (tag != null) beRestored++;
                     }
+            restoreCells(level, cells);
+            int restored = cells.size();
             api.emit("world.restore", new BlockPos(snap.minX, snap.minY, snap.minZ),
                     id + "@" + restored + " blocks");
             Map<String, Object> out = new LinkedHashMap<>();
