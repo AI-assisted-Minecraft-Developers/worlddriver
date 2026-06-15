@@ -2,6 +2,7 @@ package net.magicterra.agent.bot.movement;
 
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.Goal;
+import net.magicterra.agent.bot.debug.BotLevelHolder;
 import net.magicterra.agent.bot.movement.PathSmoothing.SmoothResult;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
@@ -2730,6 +2731,11 @@ public final class Walker {
         // Cheap gate: skip the per-tick WalkerSample allocation entirely unless capture is on.
         // Keeps the hot path free in normal play and in a stripped (NOOP) release build.
         if (!BotConfig.pathDebug && !BotConfig.pathArchive) return;
+        // Expose the bot's level to PathArchiveRecorder (and other PathTrace sinks) without
+        // referencing the client-only Minecraft class.  Set here — before onSearchResult or
+        // onSearchBegin can fire within the same tick (both sites are below line 451) — so
+        // the first segment's NodePhysics and envelope sampling always see a non-null level.
+        BotLevelHolder.current = p.level();
         double tx = Double.NaN, tz = Double.NaN;
         String mv = null;
         if (path != null && step >= 0 && step < path.size()) {

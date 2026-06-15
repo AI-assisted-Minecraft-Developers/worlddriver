@@ -5,10 +5,8 @@ import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathTrace;
-import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.Level;
@@ -36,10 +34,11 @@ import java.util.concurrent.atomic.AtomicInteger;
  * the same session without resetting it. The archive is finalised and flushed on
  * {@code onTerminal}.</p>
  *
- * <p>All callbacks fire on the client thread (Walker tick). Block reads via
- * {@code Minecraft.getInstance().level} are therefore safe — same thread as the
- * Walker's {@code ClientWorldView}. The only off-thread work is the final disk
- * write, which is dispatched to a daemon thread exactly like
+ * <p>All callbacks fire on the Walker's tick thread. Block reads use
+ * {@link BotLevelHolder#current} (set by Walker each tick), which works on both
+ * the client and the dedicated/GameTest server without referencing the
+ * client-only {@code Minecraft} class. The only off-thread work is the final
+ * disk write, which is dispatched to a daemon thread exactly like
  * {@link PathDebugRecorder}'s auto-dump.</p>
  */
 public final class PathArchiveRecorder implements PathTrace {
@@ -103,25 +102,15 @@ public final class PathArchiveRecorder implements PathTrace {
             goalCoords = startCoords;   // open goal — use start as placeholder
         }
 
-        // Resolve dimension + seed from the client level.
-        Minecraft mc = Minecraft.getInstance();
-        Level level = mc.level;
+        // Resolve dimension + seed from the bot's own level (dist-neutral: works on
+        // both the client and the dedicated/GameTest server).
+        Level level = BotLevelHolder.current;
         if (level != null) {
             dimension = level.dimension().location().toString();
+            // Seed is only accessible on the server side.
+            seed = (level instanceof ServerLevel sl) ? sl.getSeed() : null;
         } else {
             dimension = "minecraft:overworld";
-        }
-
-        // Seed only available for integrated (singleplayer) server.
-        MinecraftServer sp = mc.getSingleplayerServer();
-        if (sp != null) {
-            try {
-                long s = sp.getWorldData().worldGenOptions().seed();
-                seed = s;
-            } catch (Exception e) {
-                seed = null;   // multiplayer or inaccessible
-            }
-        } else {
             seed = null;
         }
     }
@@ -137,8 +126,7 @@ public final class PathArchiveRecorder implements PathTrace {
                                int expanded, long ms, double finalCost) {
         if (!BotConfig.pathArchive || !sessionOpen) return;
 
-        Minecraft mc = Minecraft.getInstance();
-        Level level = mc.level;
+        Level level = BotLevelHolder.current;
 
         // Build node list (int[3] per node).
         List<int[]> pathCoords = new ArrayList<>(path.size());
