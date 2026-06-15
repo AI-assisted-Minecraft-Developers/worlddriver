@@ -1555,15 +1555,31 @@ public final class Walker {
             // long enough to finish the dig. (#9 autoSwim still surfaces it each tick.)
             boolean swimEscapeBreak = edge.move != null
                     && (edge.move.startsWith("swimAshore") || edge.move.startsWith("swimTraverseBreak"));
+            // Generic floating-pocket climb-break: the planner can route a *dry*
+            // move (stairUpBreak / stepUp) through a flooded canyon pocket. Executed
+            // while the bot floats (isInWater && !onGround) with the break cell at or
+            // above the feet, the buoyant bot drifts off its foot cell and the edge
+            // invalidates before the block breaks → it bobs forever hand-mining the
+            // bank without escaping (live canyon water-pocket dig-loop at
+            // (2358,62,1863), break0=(2358,63,1862); the break-exempt stuck counter
+            // means neither the freeze-breaker nor the anti-stuck burst engages).
+            // Anchor it like swimAshore: press INTO the aimed bank at the surface
+            // (gated !isUnderWater so forward never triggers the prone-swim drown)
+            // and jump to mount the freed cell. swimEscape moves keep their own
+            // handling (excluded), descending/diving breaks (cell below the feet)
+            // are excluded so this never fights a swimDown.
+            boolean floatingPocket = !swimEscapeBreak && p.isInWater()
+                    && !p.onGround() && !p.isUnderWater();
             for (BlockPos b : edge.toBreak) {
                 if (world.isSolid(b)) {
                     a.selectTool(b);
                     a.aimAtBlock(b);
                     a.breakHold(true);
-                    if (swimEscapeBreak && p.isInWater() && !p.isUnderWater()) {
+                    boolean climbBreak = floatingPocket && b.getY() >= foot.getY();
+                    if ((swimEscapeBreak && p.isInWater() && !p.isUnderWater()) || climbBreak) {
                         agentForward(a, true);     // press into the aimed bank (surface only)
-                        if (edge.move.startsWith("swimAshore"))
-                            agentJump(a, true);   // rise to mount the +1
+                        if (climbBreak || edge.move.startsWith("swimAshore"))
+                            agentJump(a, true);   // rise to mount the +1 / out of the pocket
                     }
                     return Step.WALKING;
                 }
