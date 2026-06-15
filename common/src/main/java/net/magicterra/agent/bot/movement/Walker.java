@@ -207,6 +207,15 @@ public final class Walker {
      *  alone would have crossed many of those banks. Only a bank still un-mounted
      *  after ~4 s (bob + burst both failed) is a real wedge worth digging. */
     private static final int WATER_CLIMB_DIG_STALL = 80;
+    /** Fast dig-engage threshold when the bot is FLOATING over deep water (water directly
+     *  below the foot). There a buoyant bot physically cannot swim-jump a +1 bank — the
+     *  dig is the ONLY exit — so there is no point bob-stalling the full {@link
+     *  #WATER_CLIMB_DIG_STALL} (~4 s) first; engage in ~1 s. Still requires a solid riser
+     *  being rammed in a climb-out context, so open-water cruise (no adjacent solid bank)
+     *  never trips it. Shallow water keeps the slow threshold (a swim-jump may still mount
+     *  a low bank, so give it the benefit first). Cuts the dominant per-bank stall: the
+     *  deep-water climb-out arena dropped its 80-tick wait, ashoreTick 98→~40. */
+    private static final int WATER_CLIMB_DIG_DEEP_STALL = 20;
     /** Ticks the pillar takeover may bob WITHOUT a successful place before it's judged
      *  futile here (a buoyant bot can't lift its feet above a surface fill cell) and the
      *  bank-DIG takes over. ~50 ticks past the WATER_CLIMB_STALL engage ≈ the same ~4 s
@@ -1529,7 +1538,8 @@ public final class Walker {
             // holdPlaceable false → 12.6s bob-stall, move=diagUp with empty toBreak so
             // neither swimAshore nor the floating-pocket break engaged; bob peak y63.56
             // sat 0.44 below the y64 ledge, hCol ramming the riser every tick.)
-            if (!waterClimbPillaring && waterClimbing && waterClimbStall > WATER_CLIMB_DIG_STALL
+            int digStall = world.isWater(foot.below()) ? WATER_CLIMB_DIG_DEEP_STALL : WATER_CLIMB_DIG_STALL;
+            if (!waterClimbPillaring && waterClimbing && waterClimbStall > digStall
                     && BotConfig.allowBreak && BotConfig.allowSwimEscapeBreak
                     && (!a.holdPlaceable() || climbPillarGaveUp)) {
                 int dx = Integer.signum(cwp.getX() - foot.getX());
