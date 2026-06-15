@@ -625,7 +625,16 @@ public final class Walker {
             int cdx = foot.getX() - churnBase.getX(), cdz = foot.getZ() - churnBase.getZ();
             if ((cdx * cdx + cdz * cdz) < CHURN_MIN_MOVE_SQ && pathBestEffort) {
                 churnEscapes++;
-                int r = Math.min(1 + churnEscapes, 4);     // widen the priced-out zone each repeat
+                // Widen the priced-out zone each repeat. In WATER a boxed pocket is far
+                // costlier to sit in — a buoyant bot can't even hold position, it bob-
+                // churns and burns minutes (live z1864: the slow r=2→3→4 land ramp took
+                // ~3 min to finally route A* out). Detection already requires a CONFIRMED
+                // churn (net <8 blocks / 20 s, which a healthy swim never trips), so it's
+                // safe to jump straight to a wide blacklist there: grow by 2 per window
+                // (cap 5) so one or two 20 s windows price the pocket out.
+                int r = p.isInWater()
+                        ? Math.min(2 + 2 * churnEscapes, 5)
+                        : Math.min(1 + churnEscapes, 4);     // widen the priced-out zone each repeat
                 for (int dx = -r; dx <= r; dx++)
                     for (int dz = -r; dz <= r; dz++) {
                         BlockPos c = foot.offset(dx, 0, dz);
