@@ -1855,7 +1855,18 @@ public final class Walker {
         // few ticks so the dive holds through the sink even as the collision flickers
         // off mid-descent (else it flip-flops upright and bobs back into the lip). An
         // OPEN descent (no collision) never triggers, so it keeps a level camera there.
-        if (p.isInWater() && wp.getY() < foot.getY() && p.horizontalCollision) diveLatch = 12;
+        // Only a CAPPED submerged descent — a real overhang LIP, solid at the bot's
+        // head+1 OR (as the comment above notes) the DESTINATION cell's foot+1 — needs
+        // this dive. An OPEN pool surface where wp.y==foot.y-1 over water is just a
+        // buoyant FLAT crossing (the foot rides one above the water node) with AIR
+        // above: pitching down there sabotages the flat swim and sinks the bot to the
+        // pool floor instead of crossing to the node. Without the cap test, a bot that
+        // bumps a pocket wall while reversing toward a 1-SW surface node arms diveLatch
+        // → pitch 50 → dives → bobs forever (live 2026-06-15 (2358,1863) canyon-pocket
+        // north tip: N/E walls, exit SW over open water, totStuck 1400+, ~3 min hard
+        // deadlock). wp.offset(0,1,0) is exactly the lip the original tunnel fix targets.
+        boolean cappedDescent = world.isSolid(foot.offset(0, 2, 0)) || world.isSolid(wp.offset(0, 1, 0));
+        if (p.isInWater() && wp.getY() < foot.getY() && p.horizontalCollision && cappedDescent) diveLatch = 12;
         else if (diveLatch > 0) diveLatch--;
         boolean diveUnderCap = p.isInWater() && wp.getY() < foot.getY() && diveLatch > 0;
         // ACTIVE dive for a submerged target ≥2 below a floating body (computed here,
