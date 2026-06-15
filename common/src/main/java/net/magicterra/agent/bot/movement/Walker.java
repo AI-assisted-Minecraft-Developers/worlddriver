@@ -197,6 +197,16 @@ public final class Walker {
      *  Well under {@code walkerTotalTickBudget}, comfortably past a normal flush /
      *  staircase climb-out (grounds in <10 ticks, never stalls). */
     private static final int WATER_CLIMB_STALL = 30;
+    /** Stall threshold for the LAST-RESORT block-less bank DIG (vs the with-block
+     *  pillar takeover at {@link #WATER_CLIMB_STALL}). Much higher so the dig is a
+     *  genuine deadlock-breaker, not a first response: a buoyant climb-out that the
+     *  bob or an anti-stuck burst resolves within a few seconds must NOT trip it, or
+     *  in a long water canyon (every far bank a climb-out) the no-block bot turns
+     *  into a compulsive digger — live journey fired it 1520× across ~6 min, gouging
+     *  terrain + thrashing the climb/dig aim into camera judder, while burst-crab
+     *  alone would have crossed many of those banks. Only a bank still un-mounted
+     *  after ~4 s (bob + burst both failed) is a real wedge worth digging. */
+    private static final int WATER_CLIMB_DIG_STALL = 80;
     /** Grace ticks the "in a water climb-out" state stays LATCHED after the last
      *  water contact. A bob-cycling climb-out breaches the surface every cycle (head
      *  clears water, feet top a just-placed foothold), so the per-tick water test
@@ -1451,7 +1461,7 @@ public final class Walker {
             // false → 12.6s bob-stall, move=diagUp with empty toBreak so neither
             // swimAshore nor the floating-pocket break engaged; bob peak y63.56 sat
             // 0.44 below the y64 ledge, hCol ramming the riser every tick.)
-            if (!waterClimbPillaring && waterClimbing && waterClimbStall > WATER_CLIMB_STALL
+            if (!waterClimbPillaring && waterClimbing && waterClimbStall > WATER_CLIMB_DIG_STALL
                     && BotConfig.allowBreak && BotConfig.allowSwimEscapeBreak && !a.holdPlaceable()) {
                 int dx = Integer.signum(cwp.getX() - foot.getX());
                 int dz = Integer.signum(cwp.getZ() - foot.getZ());
