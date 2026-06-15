@@ -319,9 +319,15 @@ public final class BotConfig {
      *  tax alone is uniform with depth, so once submerged there was no incentive to
      *  surface). Same TRIPLE-GATE as {@link #pathfinderWaterCellCost}: Y-agnostic XZ
      *  goals only (a seabed dive uses a Y-aware goal and pays nothing), water cells
-     *  only, so dry terrain and Goal.Block GameTest arenas are unaffected. Default 40
-     *  ≈ doubles the cost of a submerged cell vs a surface cell. Set 0 to disable. */
-    public static volatile double pathfinderSubmergedWaterCost = 40;
+     *  only, so dry terrain is unaffected. ALSO reused by {@code PathFinder.submergedTax}
+     *  for LAND-target (Y-aware) goals — there it prices DESCENDING into a submerged cell
+     *  so a {@code goto pos} keeps the buoyant bot on the surface instead of routing it
+     *  onto the riverbed it can't follow (the deep-water churn root cause); only descents,
+     *  so the ascending climb-out arenas are unaffected. Default 80 — live A/B on a
+     *  166-block water-valley journey: 40→80 cut total stall 14 s→7 s (cleared a forced
+     *  submerged-descent stall) with no new churn; a higher penalty is directionally safe
+     *  because it taxes only DIVING, which a buoyant bot can't do anyway. Set 0 to disable. */
+    public static volatile double pathfinderSubmergedWaterCost = 80;
 
     /** PER-RISE g-cost charged when an edge CLIMBS OUT of water onto a higher bank —
      *  i.e. {@code from} is a water cell, {@code to} is a non-water cell ABOVE it
