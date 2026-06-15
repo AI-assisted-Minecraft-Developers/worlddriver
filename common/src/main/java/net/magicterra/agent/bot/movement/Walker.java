@@ -85,6 +85,20 @@ public final class Walker {
      *  ticks at step 1). Short (≈1.2 s) so a legitimate in-progress dive — which
      *  keeps closing the Y gap and advancing — never trips it. */
     private static final int WATER_DESCEND_GIVEUP = 25;
+    /** Horizontal cur2 (blocks²) beyond which the foot has clearly gone PAST a node
+     *  rather than approaching its climb base. The pure-pursuit re-sync's two
+     *  climb-base guards — the strict '<' that refuses to skip a pillarUp/swimUp node
+     *  stacked directly above the current one (ndx²+ndz² ties cur2), and the in-water
+     *  "don't skip a buoyant +1 climb" gate — exist to stop a NEAR bot jumping a
+     *  stacked climb node. When the foot has drifted this far beyond the node (force-
+     *  displacement, or a slow far-goal repath that lands a stale path tail behind the
+     *  bot), those guards instead FROZE `step` for 1000+ ticks while anti-stuck crabbed
+     *  the bot on — minutes of camera thrash (live 2026-06-15 wide-water crossing:
+     *  drifted 5.5 blk past an in-water walk node whose next node was a swimUp directly
+     *  above → tie rejected the skip). Past this margin the guards relax so the re-sync
+     *  fast-forwards to the node nearest the drifted foot. 4.0 = 2 blocks: comfortably
+     *  past the ≈1.7-block pillarUp-base approach the strict '<' must still protect. */
+    private static final double OVERSHOOT_RESYNC_SQ = 4.0;
     /** Jitter-immune wedge timer: max ticks the bot may dwell on the SAME path step
      *  before forcing a re-path (and blacklisting that node). Unlike {@link #stuckTicks}
      *  (progress-based — a bob/creep that finds a fractionally-closer approach each tick
@@ -1063,12 +1077,37 @@ public final class Walker {
                 // y±0.9, so at the bob's crest |nx.y−p.y| can dip under 1.2 for a
                 // node it never actually climbed to — passing skips the climb base
                 // and leaves an impossible +2 target (stuck at y62 vs node y64).
-                passed = (ndx * ndx + ndz * ndz) < cur2
+                // OVERSHOOT relaxation: once the foot is clearly PAST node w
+                // horizontally (cur2 > OVERSHOOT_RESYNC_SQ) the bot is no longer
+                // approaching a climb base, so the two near-base guards must not
+                // freeze the pointer. (a) The strict '<' tie-break — which protects
+                // a pillarUp/swimUp node stacked directly above w (ndx²+ndz² == cur2)
+                // — relaxes to '<=' so a stacked climb node can't pin a node the bot
+                // has overshot. (b) The in-water "don't skip a buoyant +1 climb" gate
+                // is dropped. The |Δy|<1.2 reachability gate on nx STAYS in both
+                // cases, so the re-sync still can't lock onto an impossible +2 climb.
+                boolean overshot = cur2 > OVERSHOOT_RESYNC_SQ;
+                double nd2 = ndx * ndx + ndz * ndz;
+                passed = (overshot ? nd2 <= cur2 : nd2 < cur2)
                         && Math.abs(w.getY() - p.getY()) < 1.5
                         && Math.abs(nx.getY() - p.getY()) < 1.2
-                        && !(p.isInWater() && nx.getY() - p.getY() > 0.5);
+                        && !(!overshot && p.isInWater() && nx.getY() - p.getY() > 0.5);
             }
-            if (within || passed) step++;
+            // TAIL overshoot: the foot blew past the FINAL node of a best-effort
+            // (sliced / progressive quick-start-stub) segment. There is no next
+            // node to re-sync onto, so the block above never runs and neither
+            // `within` nor `passed` can fire — `step` froze on the tail while the
+            // bot crabbed 100 blocks past it on anti-stuck bursts, waiting out the
+            // slow superseding search (live 2026-06-15 wide-water crossing: step
+            // 6/7, p 100 blk past a 6-node stub's last node, stuck 745, minutes of
+            // burst-crab). A best-effort tail is a splice point, never the goal, so
+            // a gross HORIZONTAL overshoot (cur2 gate, so a straight pillar-up to
+            // the tail — same XZ, small cur2 — is excluded) means the segment is
+            // spent: advance so the segment-end block below adopts the continuation
+            // / repaths from HERE instead of pinning on the stale tail.
+            boolean tailConsumed = !within && step + 1 == path.size()
+                    && pathBestEffort && cur2 > OVERSHOOT_RESYNC_SQ;
+            if (within || passed || tailConsumed) step++;
             else break;
         }
         if (step >= path.size()) {
