@@ -75,6 +75,16 @@ public final class Walker {
     public enum Step { WALKING, ARRIVED, FAILED }
     private static final double REACH_DIST_SQ = 0.45;
     private static final int STUCK_TICKS = 60;
+    /** Ticks a buoyant body may stay pinned ABOVE an in-water below-node before the
+     *  step-advance gate surface-crosses past it. A* routes a deep-water crossing
+     *  along the riverbed (nodes 1-2 below the floating foot); the executor can't
+     *  sink onto them — a swimDown dive's buoyancy refuses the sink and a non-dive
+     *  below-node has its float-over disabled the instant the eyes bob under the
+     *  waterline (isUnderWater flickers true) — so without this the bot pins at the
+     *  node's XZ forever (live 2026-06-15 deep-water arena: node 1.4 below, 2600+
+     *  ticks at step 1). Short (≈1.2 s) so a legitimate in-progress dive — which
+     *  keeps closing the Y gap and advancing — never trips it. */
+    private static final int WATER_DESCEND_GIVEUP = 25;
     /** Jitter-immune wedge timer: max ticks the bot may dwell on the SAME path step
      *  before forcing a re-path (and blacklisting that node). Unlike {@link #stuckTicks}
      *  (progress-based — a bob/creep that finds a fractionally-closer approach each tick
@@ -996,8 +1006,22 @@ public final class Walker {
             // descent); a climb-up node (dyNode>0) stays gated by the clause below
             // so a buoyant bob can't skip an intermediate +1 climb node.
             boolean diveEdge = se != null && se.move != null && se.move.startsWith("swimDown");
-            boolean floatOverSubmerged = p.isInWater() && !p.isUnderWater()
-                    && dyNode < -0.5 && !diveEdge;
+            // A buoyant body rides 1-2 blocks ABOVE the in-water below-nodes of a
+            // riverbed crossing and can never close the Y gap — the flatWaterWalk
+            // actuator already sprint-swims it flat at the surface, so horizontal
+            // alignment ALONE must advance the step. The old gate also required
+            // !p.isUnderWater(), which DISABLED the whole crossing the instant the
+            // eyes bobbed under the waterline (isUnderWater flickers true on a
+            // surface swimmer) — the bot then pinned at the node's XZ forever (live
+            // 2026-06-15 deep-water arena: open-water cross, node 1.4 below,
+            // undW=true bobbing, 2600+ ticks at step 1). Bounded to ≤2.5 below so a
+            // genuine deep descent isn't skipped (A* places crossing nodes ~1 below
+            // the floating foot, not at the riverbed). A deliberate swimDown dive is
+            // still allowed to descend — UNLESS buoyancy has refused the sink past
+            // WATER_DESCEND_GIVEUP (the same surface-pin failure for a dive edge),
+            // in which case surface-cross past it too rather than deadlock.
+            boolean floatOverSubmerged = p.isInWater() && dyNode < -0.5 && dyNode > -2.5
+                    && (!diveEdge || noStepProgressTicks > WATER_DESCEND_GIVEUP);
             boolean within = cur2 < REACH_DIST_SQ
                     && (Math.abs(dyNode) < 1.2 || floatOverSubmerged)
                     && !(p.isInWater() && dyNode > 0.5);
