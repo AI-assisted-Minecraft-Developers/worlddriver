@@ -134,9 +134,11 @@ public final class PathArchiveRecorder implements PathTrace {
             pathCoords.add(new int[]{ bp.getX(), bp.getY(), bp.getZ() });
         }
 
-        // Build edge records.
+        // Build edge records.  edges[0] is always null (start node has no entering edge);
+        // null sentinels are skipped so the serialiser never receives a null EdgeRec.
         List<PathArchive.EdgeRec> edgeRecs = new ArrayList<>(edges.size());
         for (Move.Edge e : edges) {
+            if (e == null) continue;   // start-node sentinel — no entering edge
             List<int[]> breakCells = new ArrayList<>();
             for (BlockPos bp : e.toBreak) breakCells.add(new int[]{ bp.getX(), bp.getY(), bp.getZ() });
             List<int[]> placeCells = new ArrayList<>();

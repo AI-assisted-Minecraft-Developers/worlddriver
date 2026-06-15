@@ -2,6 +2,7 @@ package net.magicterra.agent.bot.debug;
 
 import net.magicterra.agent.AgentDriverCommon;
 import net.magicterra.agent.api.AgentApi;
+import net.magicterra.agent.bot.pathfinder.MultiTrace;
 import net.magicterra.agent.bot.pathfinder.PathTraceHolder;
 import net.magicterra.agent.mcp.ToolCatalog;
 import org.slf4j.Logger;
@@ -19,13 +20,21 @@ public final class PathDebugBootstrap {
     private static final Logger LOG = LoggerFactory.getLogger("agent-pathdebug");
     private static volatile boolean done;
 
+    /** The archive recorder, reachable for tests via {@link #archiveRecorder()}. */
+    private static volatile PathArchiveRecorder archiveRecorder;
+
     private PathDebugBootstrap() {}
+
+    /** Returns the active {@link PathArchiveRecorder}, or {@code null} before {@link #init()} runs. */
+    public static PathArchiveRecorder archiveRecorder() { return archiveRecorder; }
 
     public static synchronized void init() {
         if (done) return;
         done = true;   // set once up-front so SINK/bind/registerExtra can never double-register
         PathDebugRecorder recorder = new PathDebugRecorder();
-        PathTraceHolder.SINK = recorder;
+        PathArchiveRecorder archive = new PathArchiveRecorder();
+        archiveRecorder = archive;
+        PathTraceHolder.SINK = new MultiTrace(recorder, archive);
         PathChartTool.bind(recorder);
         ToolCatalog.registerExtra(DebugTools::tools);
         AgentApi api = AgentDriverCommon.api();

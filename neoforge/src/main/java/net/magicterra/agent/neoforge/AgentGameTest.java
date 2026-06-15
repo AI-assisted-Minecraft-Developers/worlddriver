@@ -18,8 +18,14 @@ import net.magicterra.agent.bot.process.MineProcess;
 import net.magicterra.agent.bot.process.RunAwayProcess;
 import net.magicterra.agent.bot.process.Schematic;
 import net.magicterra.agent.bot.BotConfig;
+import net.magicterra.agent.bot.debug.BotLevelHolder;
 import net.magicterra.agent.bot.debug.NodePhysics;
 import net.magicterra.agent.bot.debug.PathArchive;
+import net.magicterra.agent.bot.debug.PathArchiveRecorder;
+import net.magicterra.agent.bot.debug.PathDebugBootstrap;
+import net.magicterra.agent.bot.pathfinder.MultiTrace;
+import net.magicterra.agent.bot.pathfinder.PathTrace;
+import net.magicterra.agent.bot.pathfinder.PathTraceHolder;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.world.LevelWorldView;
 import net.magicterra.agent.bot.pathfinder.moves.Fall;
@@ -33,6 +39,9 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.neoforged.neoforge.common.util.FakePlayer;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -2551,6 +2560,106 @@ public final class AgentGameTest {
         NodePhysics.Facts h = NodePhysics.compute(level, lavaFoot, null, null);
         helper.assertTrue("lava".equals(h.footHazard()),
                 "lava underfoot should be footHazard=lava; got=" + h.footHazard());
+
+        helper.succeed();
+    }
+
+    /**
+     * End-to-end capture round-trip for {@link PathArchiveRecorder}.
+     *
+     * <p>Installs a fresh {@link PathArchiveRecorder} as a {@link MultiTrace} alongside a
+     * no-op second sink, then drives a real 8-block Walker goto on flat stone, waits for
+     * {@link PathTrace.Outcome#SUCCESS} (or any terminal), and asserts that a JSON archive
+     * was written to disk with at least one segment, at least one trajectory tick, and a
+     * non-null dimension in the header.</p>
+     *
+     * <p>Uses the direct-sink approach: the recorder is inserted into
+     * {@link PathTraceHolder#SINK} for the duration of this test and restored afterward,
+     * so this arena does not depend on {@link PathDebugBootstrap#init()} having run.
+     * The file is located via {@link PathArchiveRecorder#lastWrittenPath()}, which avoids
+     * any CWD ambiguity.</p>
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void pathArchiveCaptureArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 350, cz = 350, floorY = 220;
+
+        // Build a flat 20x5 stone runway at floorY; bot stands at floorY+1.
+        for (int dx = -2; dx <= 20; dx++)
+            for (int dz = -3; dz <= 3; dz++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+                for (int dy = 1; dy <= 5; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+            }
+
+        // Install a fresh archive recorder alongside a NOOP second sink.
+        PathArchiveRecorder archive = new PathArchiveRecorder();
+        PathTrace previousSink = PathTraceHolder.SINK;
+        PathTraceHolder.SINK = new MultiTrace(archive, PathTrace.NOOP);
+
+        // Save & patch BotConfig: enable archive capture, deterministic planner budget.
+        boolean opa = BotConfig.pathArchive;
+        boolean ob  = BotConfig.allowBreak, op = BotConfig.allowPlace;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.pathArchive = true;
+        BotConfig.allowBreak  = false;
+        BotConfig.allowPlace  = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs   = Long.MAX_VALUE / 2;
+
+        try {
+            BlockPos goal = new BlockPos(cx + 8, floorY + 1, cz);
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            // Set BotLevelHolder so the recorder can read dimension/seed from the level.
+            BotLevelHolder.current = level;
+            LevelWorldView w = new LevelWorldView(level, av.fakePlayer());
+
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.Block(goal));
+            Walker.Step s = Walker.Step.WALKING;
+            for (int t = 0; t < 1000 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+            }
+            AgentDriverCommon.LOG.info("[pathArchiveCaptureArena] terminal step={} pos=({},{},{})",
+                    s, av.fakePlayer().getX(), av.fakePlayer().getY(), av.fakePlayer().getZ());
+        } finally {
+            BotConfig.pathArchive       = opa;
+            BotConfig.allowBreak        = ob;
+            BotConfig.allowPlace        = op;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs   = omm;
+            PathTraceHolder.SINK = previousSink;
+        }
+
+        // The write is dispatched to a daemon thread; give it up to 2 s.
+        long deadline = System.currentTimeMillis() + 2000;
+        while (archive.lastWrittenPath() == null && System.currentTimeMillis() < deadline) {
+            try { Thread.sleep(20); } catch (InterruptedException ignored) {}
+        }
+
+        String writtenPath = archive.lastWrittenPath();
+        if (writtenPath == null)
+            throw new GameTestAssertException("pathArchiveCapture: no replay file was written within 2 s");
+
+        Path replayPath = Path.of(writtenPath);
+        if (!Files.exists(replayPath))
+            throw new GameTestAssertException("pathArchiveCapture: replay file does not exist on disk: " + writtenPath);
+
+        String json;
+        try {
+            json = Files.readString(replayPath);
+        } catch (Exception e) {
+            throw new GameTestAssertException("pathArchiveCapture: failed to read replay file: " + e);
+        }
+
+        PathArchive a = PathArchive.fromJson(json);
+        helper.assertTrue(a.segments().size() >= 1,
+                "pathArchiveCapture: expected >= 1 segment, got " + a.segments().size());
+        helper.assertTrue(a.trajectory().size() >= 1,
+                "pathArchiveCapture: expected >= 1 trajectory tick, got " + a.trajectory().size());
+        helper.assertTrue(a.header().dimension() != null && !a.header().dimension().isEmpty(),
+                "pathArchiveCapture: header.dimension is null or empty");
 
         helper.succeed();
     }
