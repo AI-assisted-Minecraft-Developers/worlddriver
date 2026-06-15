@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Path archive / replay / analysis toolchain — deterministic wedge reproduction.**
+  Three pieces: (1) `mc.bot.setting{pathArchive:true}` enables per-session recording
+  (default **OFF** — heavyweight); on `goto` completion a self-contained JSON archive
+  lands in `config/agent_driver/replays/replay-<n>-<epochMs>.json` containing the
+  world seed, dimension, each progressive segment's planned path + edges + per-node
+  physics facts (pose fit, collision, hazard, fall height, jump feasibility), a sparse
+  block envelope (±2 XZ, −1..+2 Y around every node), and the per-tick executed
+  trajectory. (2) `mc.debug.replay {file?:<latest>, restoreBlocks?:true,
+  fromStep?:0}` — restores the envelope into the world (block type faithful;
+  blockstate properties reset to `defaultBlockState`), teleports the bot to
+  `header.start`, and re-executes the stored plan through the real Walker with no
+  re-planning, recording actual trajectory + per-step deviation in a
+  `replay-run-*.json`. (3) `path-replay/analyze.py <archive.json> [--all] [--step N]
+  [--replay <run.json>] [--deviation-threshold FLOAT]` — a standalone Python script
+  that prints an aligned per-step table (columns: step, pos, move, pose, fit,
+  underfoot, fall, jump, break, place, dev, flags) and anomaly tokens: `SUFFOCATE`,
+  `CEILING:CROUCH/CRAWL`, `COLLIDE`, `HAZARD(<name>)`, `FALL!`, `JUMP✗`, `DRIFT`.
+  See `path-replay/README.md` for usage, column reference, and example output.
 - **Claude Code channel bridge (`scripts/agent_channel_bridge.py`) — makes the mod
   consumable as a native Claude Code "channel".** Claude Code's push protocol is
   `notifications/claude/channel` over **stdio** (it spawns the channel server as a
