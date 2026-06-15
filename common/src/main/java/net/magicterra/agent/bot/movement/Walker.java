@@ -158,6 +158,19 @@ public final class Walker {
      *  (live round71). 12 ticks (0.6 s) spans a bob peak without masking a genuine
      *  walk-away onto dry land. */
     private static final int WATER_TOUCH_STICKY = 12;
+    /** Grace ticks the "needs to climb out" intent stays LATCHED after the last
+     *  tick a higher node sat ahead — spans the bob-peak {@code wantClimb} flicker
+     *  (at a bob peak the foot BLOCK rises to the stepUp target Y, so
+     *  {@code cwp.y > foot.y} briefly goes false) and the brief {@code edge==null}
+     *  gap mid-repath. Both otherwise reset the in-context stall count and kept the
+     *  pillar takeover from ever arming (live round76: 461 stairUpBreak/245 stepUp
+     *  thrash, 0 takeovers, bob-stalled 5+ min). A HEIGHT-based "made progress" reset
+     *  can't substitute: the buoyant deep-water bob (~1.5 blocks) exceeds any sane
+     *  net-rise threshold, so the bob itself trips it (round76b: a 1-block net window
+     *  still armed 0 takeovers). Pure in-context tick-count is the robust signal —
+     *  a real climb-out LEAVES the context within ~10 ticks (grounds on the bank →
+     *  no higher node ahead → wantClimb false), so only a true bob-stall accumulates. */
+    private static final int WANT_CLIMB_STICKY = 12;
     /** Ticks after the jump press before placing the pillar block beneath —
      *  by then the player has cleared the old feet cell (matches TowerProcess). */
     private static final int PILLAR_PLACE_DELAY = 3;
@@ -185,11 +198,13 @@ public final class Walker {
     private int actionTicks;          // ticks spent on the current break/place edge
     private int pillarStep = -1;      // path index of the pillar edge in progress
     private int pillarSinceJump = -1; // ticks since the pillar jump press (-1 = grounded)
-    private int waterClimbStall;      // ticks bob-stalled (no NET height gain) climbing out of water
+    private int waterClimbStall;      // armed flag (>WATER_CLIMB_STALL) once net-displacement window shows a bob-stall climbing out of water
     private int waterTouchRecent;     // sticky countdown: >0 while in a water climb-out, kept latched through bob-peak surface breaches (see WATER_TOUCH_STICKY)
-    private double waterClimbBestY = Double.NEGATIVE_INFINITY; // best Y this water-climb; a real rise resets the stall
+    private int wantClimbRecent;      // sticky countdown: >0 while a higher node sits ahead, latched through bob-peak/repath flicker (see WANT_CLIMB_STICKY)
     private boolean waterClimbPillaring;   // latched: pillaring up the bot's column to bank stand level
-    private int waterClimbTargetY;         // stand Y to pillar up to before handing back to a flush walk
+    private int waterClimbTargetY;         // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
+    private int waterClimbColX, waterClimbColZ; // LOCKED column the takeover pillars in (don't chase repathing nodes)
+    private float waterClimbYaw;           // LOCKED heading toward the bank at engage (no horizontal chase → no wander)
     private int diveLatch;            // ticks left forcing a dive-under-cap (set on a blocked submerged descent; holds the dive through the sink so it doesn't flip-flop)
     private int diveHold;             // ticks left holding an ACTIVE descent (diving) across repaths — a mid-sink repath re-plans from the buoyancy point with a dy=1 first hop, which alone never re-arms diving, so the bot pops back up (round45 water-well live)
     private int pillarRecoverLatch;   // ticks left driving an in-place pillar-up recovery (bot fell below the climb path beyond jump reach) — latched across the jump's airborne phase so a place can land
@@ -244,7 +259,7 @@ public final class Walker {
         this.diveLatch = 0;
         this.diveHold = 0;
         this.pillarRecoverLatch = 0;
-        this.waterClimbBestY = Double.NEGATIVE_INFINITY;
+        this.wantClimbRecent = 0;
         this.descending = false;
         this.activeSearch = null;
         this.bestDistToGoal = Double.POSITIVE_INFINITY;
@@ -295,16 +310,16 @@ public final class Walker {
         this.pendingSegment = null;
         this.quickCooldown = 0;
         // Clear the water-climb-out / descent state too (setGoal resets these): a
-        // resume mid water-climb otherwise carries a stale waterClimbBestY/Stall, so
-        // the next tick either fires a spurious foothold-place takeover (stall already
-        // past threshold) or suppresses a legitimate stall (stale-high best-Y).
+        // resume mid water-climb otherwise carries a stale window base-Y / armed
+        // stall, so the next tick either fires a spurious foothold-place takeover
+        // (stall already past threshold) or suppresses a legitimate stall.
         this.waterClimbStall = 0;
         this.waterTouchRecent = 0;
         this.waterClimbPillaring = false;
         this.diveLatch = 0;
         this.diveHold = 0;
         this.pillarRecoverLatch = 0;
-        this.waterClimbBestY = Double.NEGATIVE_INFINITY;
+        this.wantClimbRecent = 0;
         this.descending = false;
     }
 
@@ -1105,41 +1120,30 @@ public final class Walker {
         // only here, so the pathfinder is byte-for-byte unchanged.
         {
             BlockPos cwp = path.get(step);
-            // A bob-cycling climb-out repeatedly breaches the surface (head clears water,
-            // feet top a just-placed foothold) so the per-tick "touching water" test
-            // FLICKERS false at every bob peak. The old code reset waterClimbStall on that
-            // flicker (treating it as "no longer climbing"), so the counter never reached
-            // the trigger and the pillar takeover engaged only after 1-2 MINUTES of bobbing
-            // (live round71). Make "in a water climb-out" STICKY: any water contact in the
-            // last WATER_TOUCH_STICKY ticks keeps it latched through the bob peaks, so the
-            // monotonic bestY/stall accounting accumulates and fires the takeover in ~1.5 s.
-            boolean wantClimb = edge != null && cwp.getY() > foot.getY();
+            // Detecting a stalled climb-out must survive confounders that reset the old
+            // accounting before it armed: (1) the bob peak breaches the surface so
+            // `touchingWater` flickers false; (2) at that same peak the foot BLOCK rises
+            // to the stepUp target Y, so `cwp.y > foot.y` (the climb intent) flickers
+            // false; (3) A* repaths every ~13 ticks while it can't execute the climb,
+            // nulling `edge`; (4) the peak-vs-high-water-mark "real rise" reset — and any
+            // height-based substitute — is itself tripped by the ~1.5-block buoyant bob.
+            // Fix: keep water-contact AND climb-intent STICKY across (1)-(3), then count
+            // pure ticks-in-context with NO height reset (4). A genuine climb-out leaves
+            // the context within ~10 ticks (grounds on the bank → no higher node ahead →
+            // wantClimb false), so it never reaches WATER_CLIMB_STALL; only a real
+            // bob-stall sits in-context long enough to arm. (live round76b: net-window
+            // armed 0 takeovers; pure tick-count arms reliably.)
+            boolean wantClimbNow = edge != null && cwp.getY() > foot.getY();
             boolean touchingWater = p.isInWater() || world.isWater(foot) || world.isWater(foot.below());
             if (touchingWater) waterTouchRecent = WATER_TOUCH_STICKY;
             else if (waterTouchRecent > 0) waterTouchRecent--;
             boolean nearWater = touchingWater || waterTouchRecent > 0;
+            if (wantClimbNow) wantClimbRecent = WANT_CLIMB_STICKY;
+            else if (wantClimbRecent > 0) wantClimbRecent--;
+            boolean wantClimb = wantClimbNow || wantClimbRecent > 0;
             boolean waterClimbing = wantClimb && nearWater && !p.onGround();
-            // STALL accounting must tolerate the onGround flicker. A bob-climb against a
-            // +2 bank briefly TOUCHES DOWN on a placed rung / the bank lip (onGround=true)
-            // at the bottom of each bob; the old reset gated on `waterClimbing` (which
-            // carries `!onGround`), so EVERY bob reset the stall to 0 → it never reached
-            // WATER_CLIMB_STALL → the takeover never latched and the bot rode the A*
-            // pillarUp actuator forever (its buoyant place has no solid support straight
-            // down in deep water, so it can't lift — live round75 #5: every water-exit
-            // bank stalled 15-60 s). Accumulate while we still WANT to climb AND are near
-            // water (dry shore-walk drains waterTouchRecent → resets); only a REAL net
-            // rise or leaving the water/climb clears it. The takeover trigger below still
-            // uses `waterClimbing` so it fires at a bob peak, but the COUNTER survives the
-            // touchdowns in between.
-            if (!wantClimb || !nearWater) {
-                waterClimbStall = 0;
-                waterClimbBestY = p.getY();
-            } else if (p.getY() > waterClimbBestY + 0.3) {
-                waterClimbBestY = p.getY();        // real rise → reset the stall (don't fight a working climb)
-                waterClimbStall = 0;
-            } else {
-                waterClimbStall++;
-            }
+            if (!wantClimb || !nearWater) waterClimbStall = 0;
+            else waterClimbStall++;
             // Trigger once bob-stalled below a bank we can't mount, with a placeable in
             // hand — then LATCH a pillar-up that runs to completion.
             if (waterClimbing && waterClimbStall > WATER_CLIMB_STALL
@@ -1148,7 +1152,22 @@ public final class Walker {
                     LOG.info("[walker] water climb-out: pillar takeover engaged (bob-stalled) toward bank node {},{},{}",
                             cwp.getX(), cwp.getY(), cwp.getZ());
                 waterClimbPillaring = true;
-                waterClimbTargetY = cwp.getY();      // pillar until our feet reach the bank stand level
+                // LOCK the column + heading at engage. The takeover pillars the bot's
+                // own column STRAIGHT UP, pinned to this one bank, until it tops out of
+                // the water onto dry ground. Following the live (repathing) node instead
+                // made the bot wander between columns — chasing dive-to-floor and
+                // other-column pillar nodes A* kept replanning — and lose the
+                // wall-supported foothold (live round76c: engaged toward y145 pool
+                // floor + x2438→2441 drift, never climbed out).
+                waterClimbColX = foot.getX();
+                waterClimbColZ = foot.getZ();
+                double ex = (cwp.getX() + 0.5) - p.getX();
+                double ez = (cwp.getZ() + 0.5) - p.getZ();
+                waterClimbYaw = (ex * ex + ez * ez > 1e-4)
+                        ? (float) Math.toDegrees(Math.atan2(-ex, ez)) : p.getYRot();
+                // Safety ceiling: a sane bank is +1..+3; never pillar more than +5 above
+                // the engage foot, then bail to the fallback actuators.
+                waterClimbTargetY = foot.getY() + 5;
             }
             // PILLAR-UP climb-out: place support blocks in the bot's OWN column up to the
             // bank stand level, so the final move onto the bank is a flush WALK — not a
@@ -1158,48 +1177,50 @@ public final class Walker {
             // never translated across). Reading-only — the pathfinder is unchanged.
             if (waterClimbPillaring) {
                 boolean haveBlock = BotConfig.allowSwimEscapePlace && a.holdPlaceable();
-                boolean reached = foot.getY() >= waterClimbTargetY;   // pillared to bank stand level
-                if (reached || !haveBlock) {
+                // Done when we've topped out onto DRY solid ground (grounded, clear of
+                // water). The old `foot.y >= targetY` test fired the instant targetY was
+                // a path node BELOW us (A* dives to the pool floor), declaring success at
+                // the water surface before any real climb — round76c. A terrain test is
+                // robust to whatever A* planned and to the exact bank height.
+                boolean dryGrounded = p.onGround() && !p.isInWater()
+                        && !world.isWater(foot) && !world.isWater(foot.below());
+                boolean tooHigh = foot.getY() > waterClimbTargetY;
+                if (dryGrounded || tooHigh || !haveBlock) {
                     waterClimbPillaring = false;
-                    if (reached) {
-                        // Grounded at bank level → re-plan; the bank is now a flush walk.
+                    if (dryGrounded) {
+                        // Out of the water on solid ground → re-plan; a flush walk now.
                         path = null;
                         stuckTicks = 0;
                         totalTicks = 0;
                         waterClimbStall = 0;
-                        waterClimbBestY = p.getY();
                         if (BotConfig.walkerDebug)
-                            LOG.info("[walker] water climb-out: pillared to bank level y={} → flush walk, repath", foot.getY());
+                            LOG.info("[walker] water climb-out: topped out dry at y={} → flush walk, repath", foot.getY());
                         return Step.WALKING;
                     }
                     if (BotConfig.walkerDebug)
-                        LOG.info("[walker] water climb-out: no usable block to pillar — bailing to fallback");
+                        LOG.info("[walker] water climb-out: bail ({}) → fallback", !haveBlock ? "no block" : "over ceiling");
                     // fall through to the normal actuators
                 } else {
-                    // Face the bank node, hold forward+jump, look down to aim the place.
-                    double ax = (cwp.getX() + 0.5) - p.getX();
-                    double az = (cwp.getZ() + 0.5) - p.getZ();
-                    if (ax * ax + az * az > 1e-4) {
-                        float yaw = (float) Math.toDegrees(Math.atan2(-ax, az));
-                        p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw;
-                    }
+                    // Pin to the LOCKED bank heading + column; look down to aim the place.
+                    p.setYRot(waterClimbYaw); p.yHeadRot = waterClimbYaw; p.yBodyRot = waterClimbYaw;
                     p.setXRot(40f);
                     agentForward(a, true);
                     p.setSprinting(false);
                     agentJump(a, true);
-                    // Cell to fill this rung: floating → the top water cell of the column;
-                    // grounded on the fresh pillar → the air cell at the feet (pillar +1).
-                    BlockPos fillCell = foot;
-                    if (world.isWater(foot))
-                        while (world.isWater(fillCell.above())) fillCell = fillCell.above();
+                    // Fill the top water cell of the LOCKED column (floating) or the feet
+                    // cell (grounded on the fresh rung) — not the live foot column, which
+                    // drifts off the wall-supported pillar.
+                    BlockPos colFoot = new BlockPos(waterClimbColX, foot.getY(), waterClimbColZ);
+                    BlockPos fillCell = world.isWater(colFoot) ? colFoot : foot;
+                    while (world.isWater(fillCell.above())) fillCell = fillCell.above();
                     boolean fcSolid = world.isSolid(fillCell);
                     boolean fcSupport = Move.hasPlaceSupport(world, fillCell);
                     boolean fcCleared = p.getY() >= fillCell.getY() + 0.9;
                     if (BotConfig.walkerDebug)
-                        LOG.info("[walker] climbout-place foot={} fill={} fcSolid={} support={} cleared={}(p.y={} need={}) lipAbove={} reached={} tgt={}",
-                                foot.getY(), fillCell.getY(), fcSolid, fcSupport, fcCleared,
+                        LOG.info("[walker] climbout-place col={},{} fill={} fcSolid={} support={} cleared={}(p.y={} need={}) dryG={} foot.y={} ceil={}",
+                                waterClimbColX, waterClimbColZ, fillCell.getY(), fcSolid, fcSupport, fcCleared,
                                 String.format("%.2f", p.getY()), fillCell.getY() + 0.9,
-                                world.isSolid(foot.offset(0, 1, 0)), reached, waterClimbTargetY);
+                                dryGrounded, foot.getY(), waterClimbTargetY);
                     if (!fcSolid && fcSupport && fcCleared) {     // feet cleared the cell
                         a.place(world, fillCell);
                     }
