@@ -294,10 +294,23 @@ public final class PathFinder {
             // dropping onto the seabed / a seagrass corridor it can't climb out of
             // (live round75 80 s "未能上浮" death-lock). A surface cell (air overhead)
             // pays only the base tax — an ordinary surface crossing is unchanged.
-            double submergedExtra = (BotConfig.pathfinderSubmergedWaterCost > 0
-                    && world.isWater(to.offset(0, 1, 0)))
+            // ...and so is a CAPPED cell: a surface water cell under a SOLID overhang
+            // (rock/dirt ceiling at head+1, i.e. foot+2) is a submerged CHAMBER / tunnel
+            // the bot can't cruise at an open top — it must thread under the shelf. With
+            // only the water-above test, an under-shelf surface cell read as cheap open
+            // water (base tax), so A* routed an XZ goal straight THROUGH the canyon
+            // pocket (2358,1863) (water y58-62 under a y64 rock shelf) and the buoyant
+            // bot churned / swam-ashore for minutes instead of routing AROUND it — the
+            // one clean arrival went around the overhang via the NE bank. Price a capped
+            // cell like submerged so A* prefers open water / a land detour. Open surface
+            // water (sky above) and the Goal.Block water arenas (foot+2 clear) are
+            // unchanged.
+            boolean submerged = world.isWater(to.offset(0, 1, 0));
+            boolean cappedChamber = !submerged && world.isSolid(to.offset(0, 2, 0));
+            double overheadExtra = (BotConfig.pathfinderSubmergedWaterCost > 0
+                    && (submerged || cappedChamber))
                     ? BotConfig.pathfinderSubmergedWaterCost : 0;
-            return tax + submergedExtra;
+            return tax + overheadExtra;
         }
 
         /** Expand nodes until {@code sliceMs} of wall-clock elapses this call (or
