@@ -79,4 +79,8 @@ public final class GotoProcess implements BotProcess {
     /** Resumed after preemption — discard the stale path and repath from where
      *  the bot ended up (it may have been knocked back while suspended). */
     @Override public void onResume() { walker.forceRepath(); }
+    /** Cancelled before arriving (mc.bot.cancel / superseded): fire the Walker's
+     *  pathfinder terminal so an in-progress path archive is flushed for the
+     *  partial run (otherwise a wedge you cancel out of is never recorded). */
+    @Override public void onCancelled(String reason) { walker.abort(reason); }
 }

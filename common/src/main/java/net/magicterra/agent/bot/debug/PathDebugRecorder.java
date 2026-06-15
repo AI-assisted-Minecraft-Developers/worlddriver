@@ -82,8 +82,10 @@ public final class PathDebugRecorder implements PathTrace {
                                int expanded, long ms, double finalCost) {
         if (!BotConfig.pathDebug) return;
         synchronized (lock) {
+            // edges carries a null sentinel for the start node (no entering edge);
+            // List.copyOf rejects nulls (NPE), so use a null-tolerant ArrayList copy.
             plannedRoutes.add(new PathSession.PlannedRoute(
-                    List.copyOf(path), List.copyOf(edges), goalReached, repathCount++, expanded, ms, finalCost));
+                    new ArrayList<>(path), new ArrayList<>(edges), goalReached, repathCount++, expanded, ms, finalCost));
         }
     }
 

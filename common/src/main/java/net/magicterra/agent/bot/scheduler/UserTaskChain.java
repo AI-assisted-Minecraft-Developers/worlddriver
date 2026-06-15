@@ -41,6 +41,7 @@ public final class UserTaskChain implements Chain {
     public void cancel(String reason) {
         BotProcess c = process;
         if (c == null) return;
+        c.onCancelled(reason);   // let the process finalize per-session observers (e.g. flush a path archive)
         BotState.ProcessSlot slot = slotFor(c.kind());
         if (slot != null) {
             slot.lastError = reason;
@@ -80,6 +81,7 @@ public final class UserTaskChain implements Chain {
             }
         } catch (RuntimeException e) {
             String err = e.getClass().getSimpleName() + ": " + e.getMessage();
+            try { c.onCancelled(err); } catch (RuntimeException ignored) { /* finalize must not mask the original */ }
             BotState.ProcessSlot slot = slotFor(c.kind());
             if (slot != null) {
                 slot.lastError = err;

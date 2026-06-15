@@ -53,6 +53,13 @@ public interface BotProcess {
      *  position rather than reuse a path that went stale during suspension. */
     default void onResume() {}
 
+    /** Called when this process is cancelled/superseded before finishing
+     *  naturally (e.g. {@code mc.bot.cancel}, or a new goto replacing this one).
+     *  Default no-op; movement processes override to finalize per-session
+     *  observers (e.g. fire the pathfinder's terminal so a path archive is
+     *  flushed for the partial run) before the channel is released. */
+    default void onCancelled(String reason) {}
+
     /** Optional sub-state string for {@code mc.bot.status} (key
      *  {@code activeProcessDetail}). Default {@code null} = no detail. Multi-phase
      *  processes override this so the agent can tell e.g. a bunker that is still

@@ -2468,6 +2468,16 @@ public final class Walker {
         return s;
     }
 
+    /** Externally cancelled (mc.bot.cancel / superseded by a new goto) before a
+     *  natural terminal. Fire onTerminal(CANCELLED) so per-session trace observers
+     *  finalize the partial run (e.g. a path archive is flushed for a wedge the
+     *  agent cancelled out of). A no-op for the recorders if no session is open
+     *  (they guard on sessionOpen), so a double-fire after a natural terminal is
+     *  harmless. */
+    public void abort(String reason) {
+        PathTraceHolder.SINK.onTerminal(PathTrace.Outcome.CANCELLED, reason);
+    }
+
     /** Splice in a freshly-searched route: string-pull it, reset the per-path
      *  follow state, and record whether it's a best-effort partial (so the next
      *  segment is precomputed from its end — see the kickoff/splice logic in
