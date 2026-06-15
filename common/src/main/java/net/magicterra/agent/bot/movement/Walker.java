@@ -634,8 +634,27 @@ public final class Walker {
                 // ahead makes the next search route AROUND the choke (other bank /
                 // over the top) instead of back into it.
                 BlockPos nose = foot.relative(p.getDirection());
-                world.penalizeStuckNode(nose);
-                world.penalizeStuckNode(nose.above());
+                // In a deep-water bowl pocket a single-cell nose charge barely
+                // shifts A*'s cost — an adjacent equally-cheap water cell funnels
+                // the next search straight back in, so the pocket only prices out
+                // after a dozen slow over-water repaths (~27 s observed live,
+                // round76 NE leg at 2307,62,2579). The land-churn escape already
+                // ESCALATES its priced-out radius each repeat; the safety-repath
+                // nose charge did not, the asymmetry IS the deep-water latency.
+                // When the SAME foot wedges repeatedly IN WATER, widen the charge
+                // with the existing same-foot repath counter so the bowl is priced
+                // out in a few cycles, not a dozen. Land/first-wedge keep radius 0
+                // (loop runs once at the nose) — behaviour there is unchanged.
+                // Soft+decaying → a sole route is still taken; gated to repeated
+                // water wedges so it can't misfire on legitimate slow progress
+                // (the foot must stay put across repaths to grow the counter).
+                int chargeR = world.isWater(foot) ? Math.min(wedgeRepathsHere, 2) : 0;
+                for (int dx = -chargeR; dx <= chargeR; dx++)
+                    for (int dz = -chargeR; dz <= chargeR; dz++) {
+                        BlockPos c = nose.offset(dx, 0, dz);
+                        world.penalizeStuckNode(c);
+                        world.penalizeStuckNode(c.above());
+                    }
             }
             activeSearch = new PathFinder(world).newSearch(foot, goal);
             searchFromEnd = false;
