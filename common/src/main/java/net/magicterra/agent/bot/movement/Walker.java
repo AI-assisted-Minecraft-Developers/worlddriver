@@ -982,8 +982,18 @@ public final class Walker {
             // Same for a parkour-descend leap: don't advance off it until we've
             // actually landed, so the descend landing-brake keeps owning the arc
             // (otherwise the next edge fires mid-air and the bot sails past).
+            // EXEMPT in water: a buoyant body never grounds on a water-side landing
+            // (A* exits a shore DOWN into water with a parkourDescend, or a leap
+            // falls short into a water gap), so the !onGround hold would pin the
+            // step on the parkour node forever while the bot bobs at the surface —
+            // the parkour jump just bobs it, pure-pursuit can't advance past the
+            // node it drifted beyond, and it deadlocks until a safety repath (live
+            // 2026-06-15: shoreline parkourDescend2d1 over water, bot bobbed y62.5
+            // <-> 63 ~19 s, stuck 385). When in water let the normal water step-
+            // advance (within / floatOverSubmerged / pure-pursuit) carry it past
+            // the node so flatWaterWalk swims it on to the next node.
             if (se != null && se.move != null && se.move.startsWith("parkourDescend")
-                    && !p.onGround()) break;
+                    && !p.onGround() && !p.isInWater()) break;
             BlockPos w = path.get(step);
             double dx = (w.getX() + 0.5) - p.getX();
             double dz = (w.getZ() + 0.5) - p.getZ();
