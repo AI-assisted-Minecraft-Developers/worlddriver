@@ -9,6 +9,7 @@ entry whose label contains WORLD_NAME. If found, we SELECT+OPEN (play) it so we
 reuse the same world every run. Only if it is absent do we create it ONCE — as a
 superflat, creative, cheats-enabled world named WORLD_NAME."""
 import asyncio
+import os
 import time
 
 import websockets
@@ -16,7 +17,7 @@ import react_smoke as rs
 
 # Fixed, reusable world. Every run plays THIS world instead of piling up a new
 # one in the saves list. Created once (superflat/creative/cheats), reused after.
-WORLD_NAME = "AgentTest"
+WORLD_NAME = os.environ.get("AGENT_WORLD", "AgentTest")
 
 
 async def goto_singleplayer(rpc):
