@@ -18,6 +18,7 @@ import net.magicterra.agent.bot.process.MineProcess;
 import net.magicterra.agent.bot.process.RunAwayProcess;
 import net.magicterra.agent.bot.process.Schematic;
 import net.magicterra.agent.bot.BotConfig;
+import net.magicterra.agent.bot.debug.NodePhysics;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.world.LevelWorldView;
 import net.magicterra.agent.bot.pathfinder.moves.Fall;
@@ -2472,6 +2473,65 @@ public final class AgentGameTest {
         } finally {
             BotConfig.buildBlockWhitelist = savedWl;
         }
+        helper.succeed();
+    }
+
+    /**
+     * Verifies {@link NodePhysics#compute} returns accurate pose-fit and hazard facts
+     * for three representative cells:
+     * <ol>
+     *   <li>An open 2-high cell — bot can stand, ceiling forces "none".</li>
+     *   <li>A 1-high capped pocket — bot cannot stand (ceiling forces crouch/crawl/suffocate).</li>
+     *   <li>A cell with lava underfoot — footHazard = "lava".</li>
+     * </ol>
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void nodePhysicsArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        // cx=240, cz=240, floorY=179; stand cells at y=180.
+        final int cx = 240, cz = 240, floorY = 179;
+
+        // Clear a wide air box first to avoid leftover block collisions.
+        for (int dx = -5; dx <= 10; dx++)
+            for (int dz = -5; dz <= 5; dz++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.AIR.defaultBlockState());
+                for (int dy = 1; dy <= 5; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+            }
+
+        // --- Cell 1: open 2-high stand cell at (240,180,240) ---
+        // floor at y=179, air at y=180 and y=181
+        level.setBlockAndUpdate(new BlockPos(240, floorY, 240), Blocks.STONE.defaultBlockState());
+        // y=180 and y=181 are already air from the clear above.
+
+        // --- Cell 2: 1-high capped pocket at (242,180,240) ---
+        // floor at y=179, air at y=180, solid cap at y=181
+        level.setBlockAndUpdate(new BlockPos(242, floorY, 240), Blocks.STONE.defaultBlockState());
+        level.setBlockAndUpdate(new BlockPos(242, floorY + 2, 240), Blocks.STONE.defaultBlockState());
+
+        // --- Cell 3: lava underfoot at (244,179,240), foot=(244,180,240) ---
+        level.setBlockAndUpdate(new BlockPos(244, floorY, 240), Blocks.LAVA.defaultBlockState());
+
+        // Assert cell 1: open cell — can stand, ceiling forces "none"
+        BlockPos stand = new BlockPos(240, 180, 240);
+        NodePhysics.Facts f = NodePhysics.compute(level, stand, null, null);
+        helper.assertTrue(f.fitStand() && "none".equals(f.ceilingForces()),
+                "open cell should stand; fitStand=" + f.fitStand() + " ceilingForces=" + f.ceilingForces());
+
+        // Assert cell 2: 1-cap pocket — cannot stand
+        BlockPos pocket = new BlockPos(242, 180, 240);
+        NodePhysics.Facts g = NodePhysics.compute(level, pocket, stand, null);
+        helper.assertTrue(!g.fitStand()
+                        && ("crouch".equals(g.ceilingForces()) || "crawl".equals(g.ceilingForces())
+                            || "suffocate".equals(g.ceilingForces())),
+                "1-cap pocket should not stand; fitStand=" + g.fitStand() + " ceilingForces=" + g.ceilingForces());
+
+        // Assert cell 3: lava underfoot is a hazard
+        BlockPos lavaFoot = new BlockPos(244, 180, 240);
+        NodePhysics.Facts h = NodePhysics.compute(level, lavaFoot, null, null);
+        helper.assertTrue("lava".equals(h.footHazard()),
+                "lava underfoot should be footHazard=lava; got=" + h.footHazard());
+
         helper.succeed();
     }
 
