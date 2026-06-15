@@ -1437,6 +1437,49 @@ public final class Walker {
                     return Step.WALKING;
                 }
             }
+            // Block-less climb-out fallback: a buoyant bot bob-stalled below a +1
+            // bank with NO usable (non-falling) support block can't pillar — but it
+            // can DIG. Break the single bank riser toward the climb node at foot
+            // level so the +1 mount becomes a flat swim into the notch: the bot
+            // enters the freed cell, grounds on whatever's below, and the next step
+            // is a normal grounded climb (or a clean repath from the lower cell).
+            // Gated identically to the pillar takeover (waterClimbing + bob-stalled)
+            // so a grounded land step never triggers it, and only when there's truly
+            // no place block — a buoyant +1 climb-out is exactly the wedge where the
+            // burst re-enters the same seam and never tops out. (live 2026-06-15:
+            // deep-water +1 dirt bank, sand/gravel-only inventory → holdPlaceable
+            // false → 12.6s bob-stall, move=diagUp with empty toBreak so neither
+            // swimAshore nor the floating-pocket break engaged; bob peak y63.56 sat
+            // 0.44 below the y64 ledge, hCol ramming the riser every tick.)
+            if (!waterClimbPillaring && waterClimbing && waterClimbStall > WATER_CLIMB_STALL
+                    && BotConfig.allowBreak && BotConfig.allowSwimEscapeBreak && !a.holdPlaceable()) {
+                int dx = Integer.signum(cwp.getX() - foot.getX());
+                int dz = Integer.signum(cwp.getZ() - foot.getZ());
+                // Prefer the diagonal cell, then each cardinal component — whichever
+                // solid cell at foot level is the hCol obstruction blocking the mount.
+                BlockPos riser = null;
+                BlockPos[] cands = {
+                        (dx != 0 || dz != 0) ? new BlockPos(foot.getX() + dx, foot.getY(), foot.getZ() + dz) : null,
+                        dx != 0 ? new BlockPos(foot.getX() + dx, foot.getY(), foot.getZ()) : null,
+                        dz != 0 ? new BlockPos(foot.getX(), foot.getY(), foot.getZ() + dz) : null};
+                for (BlockPos cand : cands) {
+                    if (cand != null && world.isSolid(cand)) { riser = cand; break; }
+                }
+                if (riser != null) {
+                    if (BotConfig.walkerDebug)
+                        LOG.info("[walker] water climb-out: block-less bank dig (bob-stalled, no place block) riser={},{},{}",
+                                riser.getX(), riser.getY(), riser.getZ());
+                    a.selectTool(riser);
+                    a.aimAtBlock(riser);
+                    a.breakHold(true);
+                    // Press into the bank to anchor the aim ONLY at the surface
+                    // (forward while submerged drops the bot into the prone-swim pose
+                    // and it sinks); autoSwim keeps it floating at the surface so it
+                    // can't drown while the dig finishes.
+                    if (!p.isUnderWater()) agentForward(a, true);
+                    return Step.WALKING;
+                }
+            }
         }
 
         // Pillar-up actuator: clear the ceiling if one blocks the rise, then
