@@ -28,10 +28,15 @@ public final class FallIntoWater extends Move {
         // drop safe and free. Cheapest possible gate, so the ~17 enumerated
         // heights cost a single block read each over a dry column.
         if (!w.isWater(to)) return false;
-        // The cell above the landing must be clear (air or more water) so the
-        // plunging body isn't wedged under a solid lip at the surface.
+        // Buoyancy: the plunging body floats back up to the water SURFACE, so the
+        // landing must BE the surface cell — water at the foot, AIR (not more
+        // water) directly above. A deeper, submerged landing is only where the
+        // plunge momentarily bottoms out, not where the bot rests; routing to it
+        // sends the floating bot to an unreachable riverbed node and wedges (live
+        // 2026-06-15 deep-water crossing). Requiring an air head makes the catalog
+        // pick exactly the drop that reaches the surface (the bot's real resting Y).
         BlockPos head = to.offset(0, 1, 0);
-        if ((!w.isPassable(head) && !w.isWater(head)) || w.isHazard(head)) return false;
+        if (!w.isPassable(head) || w.isWater(head) || w.isHazard(head)) return false;
         // Clear falling column (foot AND head) from the launch lip down to the
         // cell just above the water — an overhang anywhere catches the body.
         for (int dyOff = 0; dyOff > -drop; dyOff--) {

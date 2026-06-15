@@ -27,6 +27,16 @@ public final class Fall extends Move {
         if (drop > BotConfig.pathfinderMaxDryFall) return false;
         BlockPos to = apply(from);
         if (!w.canStandAt(to)) return false;
+        // Buoyancy: a fall into SUBMERGED water (more water directly above the
+        // landing) doesn't rest there — autoSwim floats the body up to the
+        // surface cell. canStandAt accepts ANY water cell as a floor, so without
+        // this A* routes the floating bot DOWN to a riverbed node it can never
+        // reach and wedges (live 2026-06-15 deep-water crossing: fall3 to a y59
+        // bed cell under a 4-deep column, bot floating at y62 pinned 1000+ ticks
+        // on anti-stuck bursts). Only a fall that lands ON the water SURFACE
+        // (air above) — or on solid ground (handled by canStandAt's floor) — is
+        // a real resting node the buoyant executor can actually hold.
+        if (w.isWater(to) && w.isWater(to.offset(0, 1, 0))) return false;
         // Verify both foot AND head clearance through the falling column. Foot
         // checks at dyOff, head one block above (dyOff+1) — an overhang above
         // the launch lip or any intermediate level would wedge the player even
