@@ -261,6 +261,10 @@ public final class SettingsCommand {
                 BotConfig.pathfinderWaterClimbOutCost = Math.max(0, pwco.doubleValue());
                 applied.add("pathfinderWaterClimbOutCost");
             }
+            if (params.get("pathfinderSubmergedWaterCost") instanceof Number pswc) {
+                BotConfig.pathfinderSubmergedWaterCost = Math.max(0, pswc.doubleValue());
+                applied.add("pathfinderSubmergedWaterCost");
+            }
             if (params.get("pathfinderBridgeCost") instanceof Number pbc) {
                 BotConfig.pathfinderBridgeCost = Math.max(0, pbc.doubleValue());
                 applied.add("pathfinderBridgeCost");
@@ -697,6 +701,7 @@ public final class SettingsCommand {
         snap.put("pathfinderDescendCost", BotConfig.pathfinderDescendCost);
         snap.put("pathfinderWaterCellCost", BotConfig.pathfinderWaterCellCost);
         snap.put("pathfinderWaterClimbOutCost", BotConfig.pathfinderWaterClimbOutCost);
+        snap.put("pathfinderSubmergedWaterCost", BotConfig.pathfinderSubmergedWaterCost);
         snap.put("pathfinderBridgeCost", BotConfig.pathfinderBridgeCost);
         snap.put("pathfinderThinObstacleHeight", BotConfig.pathfinderThinObstacleHeight);
         snap.put("pathfinderFrontierCommit", BotConfig.pathfinderFrontierCommit);
