@@ -556,22 +556,29 @@ public final class Walker {
         // breaking-edge leash. offPath is folded in: a 4-block fall puts the 3D
         // distSqr over its gate too, and that re-search would steal the recovery.
         if (unstuckCountCooldown > 0) unstuckCountCooldown--;
-        // LAND boxed-pocket churn escape (time-windowed net displacement). The water
-        // anti-spin handles afloat churn; THIS catches a DRY pocket where the bot
-        // pillars a goal-ward dead-end wall and limit-cycles (round73: 1416↔1454,
-        // pillaring to XZ-closer columns that RESET a goal-distance counter, then
-        // falling back — net-zero ground travel for minutes; the existing wedge BURST
-        // backs it off but it returns because the best-effort re-routes straight back
-        // in). Measured over a fixed window so the oscillation can't mask it. On a
+        // BOXED-POCKET churn escape (time-windowed net displacement). Catches a pocket
+        // where the bot pillars a goal-ward dead-end wall and limit-cycles (round73:
+        // 1416↔1454, pillaring to XZ-closer columns that RESET a goal-distance counter,
+        // then falling back — net-zero ground travel for minutes; the existing wedge
+        // BURST backs it off but it returns because the best-effort re-routes straight
+        // back in). Measured over a fixed window so the oscillation can't mask it. On a
         // churned window, CHARGE the pocket with the executor's accumulating blacklist
         // (escalating radius) so the next search prices the dead-end out and routes
         // OUT / backtracks — the charge is the missing ingredient the plain back-off
-        // burst lacks. Gated to best-effort (a goal-reaching path is real progress)
-        // and dry land (water owns its anti-spin).
+        // burst lacks. Gated to best-effort (a goal-reaching path is real progress).
+        // ALSO fires IN WATER (2026-06-15): a boxed submerged chamber under a rock
+        // overhang (canyon pocket (2358,1863): water y58-62 under a y64+ shelf, walls
+        // N/E/W) churns identically — carrots flip-flop into the E/W chamber walls,
+        // yaw spins, totStuck 1800+ for minutes — but the open-water anti-spin only
+        // damps the spin, it never PRICES THE POCKET OUT, so every best-effort repath
+        // routes straight back in (the SW goal pulls through the chamber; run-1 only
+        // arrived because it happened to route AROUND via the NE bank). The old
+        // !isInWater gate excluded exactly this case. The penalty decays (~90 s) and a
+        // healthy crossing nets ≫8 blocks / 20 s, so legit swims never trip it.
         if (churnBase == null) { churnBase = foot; churnWindowTicks = 0; }
         else if (++churnWindowTicks >= CHURN_WINDOW) {
             int cdx = foot.getX() - churnBase.getX(), cdz = foot.getZ() - churnBase.getZ();
-            if ((cdx * cdx + cdz * cdz) < CHURN_MIN_MOVE_SQ && !p.isInWater() && pathBestEffort) {
+            if ((cdx * cdx + cdz * cdz) < CHURN_MIN_MOVE_SQ && pathBestEffort) {
                 churnEscapes++;
                 int r = Math.min(1 + churnEscapes, 4);     // widen the priced-out zone each repeat
                 for (int dx = -r; dx <= r; dx++)
@@ -588,7 +595,8 @@ public final class Walker {
                     unstuckTicks = 16;
                 }
                 if (BotConfig.walkerDebug)
-                    LOG.info("[walker] anti-churn(land): net XZ move <{} blocks in {} ticks at {} (escapes={}) → charge r={} pocket + back off",
+                    LOG.info("[walker] anti-churn({}): net XZ move <{} blocks in {} ticks at {} (escapes={}) → charge r={} pocket + back off",
+                            p.isInWater() ? "water" : "land",
                             (int) Math.sqrt(CHURN_MIN_MOVE_SQ), CHURN_WINDOW, foot, churnEscapes, r);
             } else {
                 churnEscapes = 0;
