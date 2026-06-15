@@ -193,6 +193,10 @@ prints an aligned per-step table with anomaly highlights:
 - `collidesStanding` (the "bounding box overlaps a neighbour collision box" answer).
 - `fallFromPrev` + `fallSurvivable`.
 - `jumpToNext.needed` + `.feasible`.
+- **planned block ops**: the edge's `break[]` / `place[]` cells are **marked** per step
+  (e.g. `BREAK x,y,z` / `PLACE x,y,z (n)`), so a step that digs or bridges is visible
+  in the report alongside the pose/jump/fall facts. The data is already in
+  `segments[].edges[]`; the script surfaces it as dedicated columns/flags.
 - replay: per-step `deviation`, with a summary (max/mean, count over threshold).
 
 ### 5.4 Per-node physics facts (mod-computed, §4 `nodes[]`)
