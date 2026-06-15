@@ -738,8 +738,20 @@ public final class BotConfig {
      *  Applied once per cell regardless of how many sides are open, so it nudges
      *  toward an equal-length interior route without blocking a narrow bridge
      *  that is the only way through. Set 0 only for flat/open worlds with no
-     *  ravines. */
-    public static volatile double ledgeDangerPenalty = 15;
+     *  ravines.
+     *
+     *  Raised 15 → 200 (2026-06-15): a LETHAL cliff lip is also where the executor
+     *  WEDGES — A* routes a descent/climb across a sheer multi-block face, the bot
+     *  overshoots and free-falls far off the route, and every re-search returns the
+     *  SAME unclimbable cliff (deterministic relapse: live reverse leg2 diagDown
+     *  (2431,97,2165) / step (2435,97,2177), foot slid 16-23 below the route, stuck
+     *  1277-1491 / ~64-74 s). Executor-side charges chase the wedge along a
+     *  contiguous cliff (wrong granularity) — the fix is to make A* AVOID the lethal
+     *  face up front. At 200 (≈ a 20-block detour budget per lip cell) the planner
+     *  routes around the cliff via gentler terrain: live leg2 max stuck 1491 → 144,
+     *  >300-tick stalls 0. Still additive (a sole cliff route is taken), and only
+     *  LETHAL lips count, so survivable hillside descents are unaffected. */
+    public static volatile double ledgeDangerPenalty = 200;
 
     /** Minimum empty blocks below an open neighbour for it to count as a real
      *  cliff for {@link #ledgeDangerPenalty} (so a harmless 1–2 block step-down
