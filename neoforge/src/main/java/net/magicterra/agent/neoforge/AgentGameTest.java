@@ -19,6 +19,7 @@ import net.magicterra.agent.bot.process.RunAwayProcess;
 import net.magicterra.agent.bot.process.Schematic;
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.debug.NodePhysics;
+import net.magicterra.agent.bot.debug.PathArchive;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.world.LevelWorldView;
 import net.magicterra.agent.bot.pathfinder.moves.Fall;
@@ -2473,6 +2474,25 @@ public final class AgentGameTest {
         } finally {
             BotConfig.buildBlockWhitelist = savedWl;
         }
+        helper.succeed();
+    }
+
+    /**
+     * JSON round-trip gate for {@link PathArchive}: {@link PathArchive#demo()} →
+     * {@link PathArchive#toJson()} → {@link PathArchive#fromJson(String)} must
+     * reproduce identical structural sizes for every top-level collection.
+     * Pure CPU; no world interaction needed.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void pathArchiveJsonArena(GameTestHelper helper) {
+        PathArchive a = PathArchive.demo();
+        String json = a.toJson();
+        PathArchive b = PathArchive.fromJson(json);
+        helper.assertTrue(b.header().seed() == a.header().seed(), "seed round-trips");
+        helper.assertTrue(b.segments().size() == a.segments().size(), "segments round-trip");
+        helper.assertTrue(b.trajectory().size() == a.trajectory().size(), "trajectory round-trips");
+        helper.assertTrue(b.segments().get(0).nodes().size() == a.segments().get(0).nodes().size(), "nodes round-trip");
+        helper.assertTrue(b.envelope().size() == a.envelope().size(), "envelope round-trips");
         helper.succeed();
     }
 
