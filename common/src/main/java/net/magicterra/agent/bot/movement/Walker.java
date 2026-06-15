@@ -110,6 +110,14 @@ public final class Walker {
      *  repath. Generous (5 s) so genuinely slow legit moves (water creep, pillar climb)
      *  finish well within it; bridge edges are excluded (they hard-zero progress timers). */
     private static final int WEDGE_TICKS = 100;
+    /** A dry stepUp / diagUp that has dwelt this many ticks WITHOUT closing on its node
+     *  while grounded and laterally close to the step column is ramming the riser (the
+     *  cur2≈0.64 freeze: pivotForStepUp keeps cutting forward on the noisy close-node
+     *  bearing and the jump never clears). After this many stalled ticks, STOP pivoting
+     *  and force a grounded jump straight at the column. ~1.2 s: a normal stepUp closes
+     *  in <12 ticks so it never trips, yet this breaks a freeze far sooner than the ~6 s
+     *  anti-stuck burst (which yanks the bot BACKWARD off the very step it needs). */
+    private static final int STEPUP_FREEZE_TICKS = 24;
     /** Ticks an in-place pillar-up recovery is latched once armed — long enough for a
      *  jump's airborne arc to crest and place a support (vanilla peak ~tick 6-8), short
      *  enough that it re-evaluates promptly. Re-armed each grounded tick while the bot is
@@ -1869,8 +1877,24 @@ public final class Walker {
         // step. Gate both forward (keyUp) and the step jump on this. Excludes parkour
         // and water (own handling; launches snap heading so the error is ≈0 anyway).
         float stepHeadingErr = Math.abs(angleDiff(p.getYRot(), aimYaw));
+        // STEP-UP FREEZE BREAKER (cur2≈0.64 ram): a dry stepUp/diagUp that has dwelt
+        // past STEPUP_FREEZE_TICKS without closing on its node, while laterally CLOSE to
+        // the step column, is ramming the riser — the close-node bearing swings on every
+        // sub-block bob so stepHeadingErr never clears, pivotForStepUp cuts forward
+        // forever, and the jump (gated on that pivot) never clears the riser (live
+        // 2026-06-15: a river-bank diagUp AND a dirt/stone-notch cardinal stepUp each
+        // held cur2=0.640 constant 300+ ticks ≈ 19 s until an anti-stuck burst yanked
+        // the bot BACKWARD off the step). When that happens, STOP pivoting (so forward
+        // drives at the column) and force a grounded jump below — pushing up-and-over
+        // mounts the step instead of bobbing against it. Lateral-close gate (column
+        // dist² < 1.6) keeps it from firing on a far / mis-routed node.
+        double stepColDx = (wp.getX() + 0.5) - p.getX();
+        double stepColDz = (wp.getZ() + 0.5) - p.getZ();
+        boolean stepUpFreeze = wp.getY() > foot.getY() && !parkourEdge && !p.isInWater()
+                && noStepProgressTicks > STEPUP_FREEZE_TICKS
+                && (stepColDx * stepColDx + stepColDz * stepColDz) < 1.6;
         boolean pivotForStepUp = wp.getY() > foot.getY() && !parkourEdge && !p.isInWater()
-                && stepHeadingErr > STEPUP_AIM_TOLERANCE_DEG;
+                && stepHeadingErr > STEPUP_AIM_TOLERANCE_DEG && !stepUpFreeze;
         // Parkour DESCEND landing brake: a leap onto a LOWER 1-wide block
         // touches down with more horizontal momentum than a flat leap (extra
         // airtime accelerating forward), so a sprint launch slides the bot off
@@ -2249,6 +2273,11 @@ public final class Walker {
         boolean cappedHead = p.isInWater() && world.isSolid(foot.offset(0, 2, 0));
         boolean jump = !descendBrake
                 && (stepUpJump || parkourEdge
+                    // Freeze-breaker: force a GROUNDED jump straight up the step once a
+                    // stepUp/diagUp has rammed the riser past STEPUP_FREEZE_TICKS — the
+                    // normal stepUpJump gate (ascendJumpReady) can stay false there (the
+                    // bot is a touch off the cross-axis), so without this it bobs forever.
+                    || (stepUpFreeze && p.onGround())
                     // !diving: swimColumn is true for any submerged body, so during an
                     // ACTIVE dive the held jump cancelled the sneak-sink exactly —
                     // the bot hovered at constant depth (hSpd 0.02, jump+sneak both
