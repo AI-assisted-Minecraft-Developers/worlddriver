@@ -1911,6 +1911,19 @@ public final class Walker {
         int maxStepUp = world.maxStepUpBlocks();
         int maxJumpUp = world.maxJumpUpBlocks();
         boolean cardinalUp = upDy >= 1 && ((wp.getX() == foot.getX()) ^ (wp.getZ() == foot.getZ()));
+        // A DIAGONAL +1 step (BOTH axes change AND rising). The lane-keep strafe below
+        // only centres cardinal lanes / waterClimb, so a diagUp got NO lateral
+        // correction: the bot drifts off the diagonal, ends aligned on one axis but
+        // ~0.8 off on the other, rams the perpendicular riser — and because the dry-land
+        // aim points at the CLOSE waypoint (whose bearing swings on any sub-block drift)
+        // stepHeadingErr never clears, so pivotForStepUp cuts forward FOREVER and the bot
+        // FREEZES at the riser (live 2026-06-15: cur2=0.640 constant 300+ ticks ≈ 19 s,
+        // hCol=true, until an anti-stuck burst routed around). Centre it on the target
+        // column on BOTH axes (the strafe still runs while pivot cuts forward), so its
+        // cross-axis component pulls the body back onto the diagonal line, the bearing
+        // steadies, pivotForStepUp releases, and forward + stepUpJump mounts the corner.
+        boolean diagUp = upDy >= 1 && wp.getX() != foot.getX() && wp.getZ() != foot.getZ()
+                && !parkourEdge && !p.isInWater();
         // A jump is needed only to rise BEYOND the auto-step height.
         boolean needJumpForStep = upDy >= 1 && upDy > maxStepUp;
         // A step taller than we could clear even WITH a jump — we slid back below a
@@ -2011,11 +2024,12 @@ public final class Walker {
         // column so the body sits under the ledge; the existing forward+jump then
         // mounts it (the aligned cardinal climb that already works on dry land).
         boolean waterClimb = p.isInWater() && wp.getY() > foot.getY();
-        if (!descendBrake && !parkourEdge && !steppingOffFall && (wp.getY() == foot.getY() || waterClimb || cardinalUp)) {
+        if (!descendBrake && !parkourEdge && !steppingOffFall && (wp.getY() == foot.getY() || waterClimb || cardinalUp || diagUp)) {
             int ddx = wp.getX() - foot.getX();
             int ddz = wp.getZ() - foot.getZ();
             double latX = 0, latZ = 0;
             if (waterClimb) { latX = (wp.getX() + 0.5) - p.getX(); latZ = (wp.getZ() + 0.5) - p.getZ(); } // centre on the target column
+            else if (diagUp) { latX = (wp.getX() + 0.5) - p.getX(); latZ = (wp.getZ() + 0.5) - p.getZ(); } // centre on the diagonal toward the step corner
             else if (ddx == 0 && ddz != 0) latX = (wp.getX() + 0.5) - p.getX();        // N/S lane → hold X
             else if (ddz == 0 && ddx != 0) latZ = (wp.getZ() + 0.5) - p.getZ();   // E/W lane → hold Z
             // Anti-drift in a current: a flowing-water cell pushes the body
