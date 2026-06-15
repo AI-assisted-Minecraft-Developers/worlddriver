@@ -999,9 +999,10 @@ public final class AgentGameTest {
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void deepWaterClimboutNoBlockArena(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        final int cx = 140, cz = 160, floorY = 200, depth = 6;
+        final int cx = 140, cz = 160, floorY = 200, depth = 8;   // PROBE: deeper, matches live canyon
         final int surface = floorY + depth;        // water surface plane
         final int span = 3;                        // short deep-water run up to the bank
+        final int bankTop = surface + 1;           // PROBE: +2 bank (one above the water surface)
 
         // Basin floor + far land floor.
         for (int dx = -2; dx <= span + 4; dx++)
@@ -1021,12 +1022,12 @@ public final class AgentGameTest {
             for (int dz = -2; dz <= 2; dz++)
                 for (int y = floorY + 1; y <= surface; y++)
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
-        // Far bank: DIRT to the surface plane (a +1 climb-out), breakable by hand, dry land beyond.
+        // Far bank: DIRT up to bankTop (PROBE: +2 climb-out), breakable by hand, dry land beyond.
         for (int dx = span; dx <= span + 4; dx++)
             for (int dz = -2; dz <= 2; dz++) {
-                for (int y = floorY + 1; y <= surface; y++)
+                for (int y = floorY + 1; y <= bankTop; y++)
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.DIRT.defaultBlockState());
-                for (int y = surface + 1; y <= surface + 4; y++)
+                for (int y = bankTop + 1; y <= bankTop + 4; y++)
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
             }
         // Air above the open water.
@@ -1035,7 +1036,7 @@ public final class AgentGameTest {
                 for (int y = surface + 1; y <= surface + 4; y++)
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
 
-        BlockPos goal = new BlockPos(cx + span + 2, surface + 1, cz);   // dry land beyond the bank
+        BlockPos goal = new BlockPos(cx + span + 2, bankTop + 1, cz);   // dry land atop the bank
 
         boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug,
                 osb = BotConfig.allowSwimEscapeBreak;
@@ -1066,7 +1067,7 @@ public final class AgentGameTest {
                 s = walker.tick(av, w);
                 av.step();
                 if (ashoreTick < 0 && !fp.isInWater() && fp.onGround()
-                        && fp.getX() >= cx + span - 0.5 && fp.getY() >= surface + 1 - 0.4) {
+                        && fp.getX() >= cx + span - 0.5 && fp.getY() >= bankTop + 1 - 0.4) {
                     ashoreTick = t;
                     break;
                 }
