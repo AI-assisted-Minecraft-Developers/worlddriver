@@ -83,7 +83,7 @@ public final class PathDebugRecorder implements PathTrace {
         if (!BotConfig.pathDebug) return;
         synchronized (lock) {
             plannedRoutes.add(new PathSession.PlannedRoute(
-                    List.copyOf(path), goalReached, repathCount++, expanded, ms, finalCost));
+                    List.copyOf(path), List.copyOf(edges), goalReached, repathCount++, expanded, ms, finalCost));
         }
     }
 

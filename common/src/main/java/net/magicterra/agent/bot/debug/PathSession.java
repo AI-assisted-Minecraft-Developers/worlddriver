@@ -1,5 +1,6 @@
 package net.magicterra.agent.bot.debug;
 
+import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathTrace;
 import net.minecraft.core.BlockPos;
 
@@ -24,6 +25,6 @@ public record PathSession(
     public record Candidate(int x, int y, int z, double g) {}
 
     /** One adopted search result. {@code repathIndex} 0 = first plan of the session. */
-    public record PlannedRoute(List<BlockPos> path, boolean goalReached, int repathIndex,
-                               int expanded, long ms, double finalCost) {}
+    public record PlannedRoute(List<BlockPos> path, List<Move.Edge> edges, boolean goalReached,
+                               int repathIndex, int expanded, long ms, double finalCost) {}
 }
