@@ -1403,6 +1403,15 @@ public final class Walker {
             else if (wantClimbRecent > 0) wantClimbRecent--;
             boolean wantClimb = wantClimbNow || wantClimbRecent > 0;
             boolean waterClimbing = wantClimb && nearWater && !p.onGround();
+            // Floating over DEEP water (water directly below the foot) with the dig
+            // available: a buoyant bot can't swim-jump a +1 bank AND can't clear a surface
+            // fill cell to pillar, so the pillar is ALWAYS futile here — pure wasted bob.
+            // Skip it and engage the fast dig directly (the live journey's banks are all
+            // this case, and it was eating ~50 ticks of futile pillaring per bank before
+            // climbPillarGaveUp fell through to the dig). When break is OFF (place-only
+            // arena) this is false → the pillar is kept as the only exit.
+            boolean deepDig = world.isWater(foot.below())
+                    && BotConfig.allowBreak && BotConfig.allowSwimEscapeBreak;
             if (!wantClimb || !nearWater) {
                 // Left the climb context (grounded on the bank, or A* now routes
                 // down/along) → clear the per-attempt accounting AND the "pillar
@@ -1416,7 +1425,7 @@ public final class Walker {
             // pillar has proven futile here (climbPillarGaveUp): a buoyant bob can't lift
             // its feet above a surface fill cell, so re-engaging just bobs again — the
             // bank-DIG below takes over instead.
-            if (waterClimbing && waterClimbStall > WATER_CLIMB_STALL && !climbPillarGaveUp
+            if (waterClimbing && waterClimbStall > WATER_CLIMB_STALL && !climbPillarGaveUp && !deepDig
                     && BotConfig.allowSwimEscapePlace && a.holdPlaceable()) {
                 if (!waterClimbPillaring && BotConfig.walkerDebug)
                     LOG.info("[walker] water climb-out: pillar takeover engaged (bob-stalled) toward bank node {},{},{}",
@@ -1538,10 +1547,10 @@ public final class Walker {
             // holdPlaceable false → 12.6s bob-stall, move=diagUp with empty toBreak so
             // neither swimAshore nor the floating-pocket break engaged; bob peak y63.56
             // sat 0.44 below the y64 ledge, hCol ramming the riser every tick.)
-            int digStall = world.isWater(foot.below()) ? WATER_CLIMB_DIG_DEEP_STALL : WATER_CLIMB_DIG_STALL;
+            int digStall = deepDig ? WATER_CLIMB_DIG_DEEP_STALL : WATER_CLIMB_DIG_STALL;
             if (!waterClimbPillaring && waterClimbing && waterClimbStall > digStall
                     && BotConfig.allowBreak && BotConfig.allowSwimEscapeBreak
-                    && (!a.holdPlaceable() || climbPillarGaveUp)) {
+                    && (!a.holdPlaceable() || climbPillarGaveUp || deepDig)) {
                 int dx = Integer.signum(cwp.getX() - foot.getX());
                 int dz = Integer.signum(cwp.getZ() - foot.getZ());
                 // Prefer the diagonal cell, then each cardinal component — whichever
