@@ -578,19 +578,7 @@ public final class Walker {
         if (churnBase == null) { churnBase = foot; churnWindowTicks = 0; }
         else if (++churnWindowTicks >= CHURN_WINDOW) {
             int cdx = foot.getX() - churnBase.getX(), cdz = foot.getZ() - churnBase.getZ();
-            boolean lowNet = (cdx * cdx + cdz * cdz) < CHURN_MIN_MOVE_SQ;
-            // fellOffPath RELAPSE: a COMPLETE (non-best-effort) path also pins the bot
-            // when the planner routes it down/up a sheer cliff the executor can't
-            // follow — it overshoots/slides far off the route, every re-search returns
-            // the SAME unclimbable cliff, and it limit-cycles there (live 2026-06-15
-            // leg2 diagDown (2431,97,2165): step frozen 1/12, foot slid y94→74, 23
-            // below the route node, stuck 1277 / ~64 s). The pathBestEffort gate
-            // excluded this; fellOffPath (foot > maxJump+2 off the route node) STILL
-            // true at the window boundary is the relapse signature (a transient mid-fall
-            // resolves long before CHURN_WINDOW). Charge the stale route node's column
-            // too so the next search prices the unreachable cliff out and routes around.
-            boolean relapse = lowNet && fellOffPath;
-            if (lowNet && (pathBestEffort || relapse)) {
+            if ((cdx * cdx + cdz * cdz) < CHURN_MIN_MOVE_SQ && pathBestEffort) {
                 churnEscapes++;
                 int r = Math.min(1 + churnEscapes, 4);     // widen the priced-out zone each repeat
                 for (int dx = -r; dx <= r; dx++)
@@ -600,14 +588,6 @@ public final class Walker {
                         world.penalizeStuckNode(c.above());
                     }
                 BlockPos wp = (path != null && step < path.size()) ? path.get(step) : null;
-                if (relapse && wp != null) {
-                    // price out the unreachable cliff node (and the column the bot keeps
-                    // being routed back up/down) so A* threads a different way to the goal
-                    for (int dy = -1; dy <= 2; dy++)
-                        for (int dx = -r; dx <= r; dx++)
-                            for (int dz = -r; dz <= r; dz++)
-                                world.penalizeStuckNode(wp.offset(dx, dy, dz));
-                }
                 if (wp != null) {
                     double bdx = p.getX() - (wp.getX() + 0.5), bdz = p.getZ() - (wp.getZ() + 0.5);
                     if (bdx * bdx + bdz * bdz > 0.01)
@@ -615,8 +595,8 @@ public final class Walker {
                     unstuckTicks = 16;
                 }
                 if (BotConfig.walkerDebug)
-                    LOG.info("[walker] anti-churn({}{}): net XZ move <{} blocks in {} ticks at {} (escapes={}) → charge r={} pocket + back off",
-                            p.isInWater() ? "water" : "land", relapse ? ",relapse" : "",
+                    LOG.info("[walker] anti-churn({}): net XZ move <{} blocks in {} ticks at {} (escapes={}) → charge r={} pocket + back off",
+                            p.isInWater() ? "water" : "land",
                             (int) Math.sqrt(CHURN_MIN_MOVE_SQ), CHURN_WINDOW, foot, churnEscapes, r);
             } else {
                 churnEscapes = 0;
