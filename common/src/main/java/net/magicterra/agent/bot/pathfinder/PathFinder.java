@@ -337,8 +337,12 @@ public final class PathFinder {
          *  — every such exit forces the Walker's bob-stuttery bank-dig climb-out (live
          *  "卡在土墙 / 反复挖同一土块 / 横跳" windows). Pricing the exit ∝ its rise tips A* onto the
          *  LOWEST available exit (a surface-level bank = rise 0 = free Walk), without
-         *  forbidding a tall one when that's all the shoreline offers. Same XZ-goal gate
-         *  as {@link #waterCellTax}/{@link #descendTax} → Y-aware Goal.Block arenas exempt. */
+         *  forbidding a tall one when that's all the shoreline offers. XZ goals ONLY: for a
+         *  Y-aware land goal it BACKFIRED live (replay A/B) — pricing the climb-OUT makes A*
+         *  keep the bot IN the water to dodge the tax, which REVIVES the submerged-descent
+         *  churn {@link #submergedTax} just removed (z1957 cluster 0→303 ticks, total stall
+         *  14s→37s). So land-goal water exits are governed by submergedTax (stay on the
+         *  surface), not by taxing the exit. */
         private double climbOutTax(BlockPos from, BlockPos to) {
             double per = BotConfig.pathfinderWaterClimbOutCost;
             if (per <= 0 || !goal.ignoresY()) return 0;
