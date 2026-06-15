@@ -323,6 +323,27 @@ public final class BotConfig {
      *  ≈ doubles the cost of a submerged cell vs a surface cell. Set 0 to disable. */
     public static volatile double pathfinderSubmergedWaterCost = 40;
 
+    /** PER-RISE g-cost charged when an edge CLIMBS OUT of water onto a higher bank —
+     *  i.e. {@code from} is a water cell, {@code to} is a non-water cell ABOVE it
+     *  ({@code to.y > from.y}). The other water taxes price ENTERING water
+     *  ({@link #pathfinderWaterCellCost}) and DESCENDING into it ({@link #pathfinderDescendCost}),
+     *  but the climb-OUT edge pays neither (its {@code to} is dry, so no water tax; it
+     *  rises, so no descend tax). That left A* free to pick a TALL near-bank exit over a
+     *  smoother one: a buoyant bot at the surface caps its swim-up at ~surface+0.2 and
+     *  CANNOT step onto a +1/+2 ledge without a foothold, so every such exit forces the
+     *  Walker's bank-dig climb-out (functional but bob-stuttery, ~1-2 s of mining + the
+     *  occasional anti-stuck burst — the live "卡在土墙 / 反复挖同一土块 / 横跳" windows). Pricing
+     *  the climb-out ∝ its RISE biases A* toward the LOWEST available exit: a surface-level
+     *  bank (rise 0, a plain Walk/StepDown — taxed nothing) is preferred over a +1, which is
+     *  preferred over a +2. It does NOT forbid tall exits (a shoreline with only +2 banks
+     *  still climbs out — the Walker handles it), it just stops A* choosing one when a
+     *  gentler exit lies a few cells along the shore. Same TRIPLE-GATE as the other water
+     *  taxes: Y-agnostic XZ goals only (a Y-aware pos/block dive-and-surface guides its own
+     *  exit and pays nothing → Goal.Block GameTest water arenas are unaffected), and only
+     *  when {@code from} is water. Default 40 ≈ one water cell per block of rise. Set 0 to
+     *  disable. */
+    public static volatile double pathfinderWaterClimbOutCost = 40;
+
     /** TOTAL g-cost of one {@code bridgePlace} edge — placing a block into an air
      *  gap and walking onto it. Aerial bridging is SLOW (sneak-place ~1 block/15
      *  ticks), RISKY (overshoot off the fresh 1-wide block) and consumes inventory,

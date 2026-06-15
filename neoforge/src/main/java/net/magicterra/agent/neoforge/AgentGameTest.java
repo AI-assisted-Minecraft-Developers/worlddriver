@@ -1201,6 +1201,107 @@ public final class AgentGameTest {
         helper.succeed();
     }
 
+    /**
+     * Pure-planner A/B for the water CLIMB-OUT tax ({@code pathfinderWaterClimbOutCost}).
+     * A buoyant bot floats at the water surface; the north shore of the pool offers TWO
+     * exits at the same water-crossing distance: straight ahead (dx 0) a TALL +2 bank,
+     * and one cell to either side (dx ±1) a SURFACE-LEVEL (+0) bank that a floating bot
+     * just walks onto. An XZ (Y-agnostic) goal sits due north past flat y=220 land that
+     * both exits reach. With the tax OFF the straight +2 exit is cheapest (no lateral
+     * shift) and A* climbs the tall bank (path maxY = 222). With the tax ON the +2 climb
+     * costs {@code 2×per}, dwarfing the one-cell lateral shift to a low exit, so A* takes
+     * the surface exit and never rises above the water line (path maxY = 220). This is the
+     * planning root of the live "卡在土墙 / 反复挖同一土块 / 横跳" climb-out windows — A* was free to
+     * aim a buoyant bot at a tall bank it can only surmount via the Walker's bob-stuttery
+     * dig. Y-aware Goal.Block arenas are exempt (same gate as the other water taxes), so
+     * the execution climb-out arenas above are unaffected. Pure planner A/B, unbounded.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void waterClimbOutRouteArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 440, cz = 440, wsurf = 220;       // water surface y; air at wsurf+1
+        // Two-column pool, dx 0 and dx 1, dz 0..6: solid floor wsurf-2, water at wsurf-1 & wsurf.
+        for (int dx = 0; dx <= 1; dx++)
+            for (int dz = 0; dz <= 6; dz++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, wsurf - 2, cz + dz), Blocks.STONE.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + dx, wsurf - 1, cz + dz), Blocks.WATER.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + dx, wsurf, cz + dz), Blocks.WATER.defaultBlockState());
+                for (int y = wsurf + 1; y <= wsurf + 4; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
+            }
+        // dx 0 STRAIGHT exit: a +1 bank at dz=7 (solid top wsurf → stand foot wsurf+1). The
+        // shortest exit (fewest water cells) but a buoyant bot can't step onto it cleanly.
+        for (int y = wsurf - 2; y <= wsurf; y++)
+            level.setBlockAndUpdate(new BlockPos(cx, y, cz + 7), Blocks.STONE.defaultBlockState());
+        for (int y = wsurf + 1; y <= wsurf + 4; y++)
+            level.setBlockAndUpdate(new BlockPos(cx, y, cz + 7), Blocks.AIR.defaultBlockState());
+        // dx 1 GENTLE exit: the pool fingers ONE cell farther north (dz=7 stays water), then a
+        // SURFACE-level bank at dz=8 (solid top wsurf-1 → stand foot wsurf, rise 0). One extra
+        // water cell buys a step-free exit.
+        level.setBlockAndUpdate(new BlockPos(cx + 1, wsurf - 2, cz + 7), Blocks.STONE.defaultBlockState());
+        level.setBlockAndUpdate(new BlockPos(cx + 1, wsurf - 1, cz + 7), Blocks.WATER.defaultBlockState());
+        level.setBlockAndUpdate(new BlockPos(cx + 1, wsurf, cz + 7), Blocks.WATER.defaultBlockState());
+        for (int y = wsurf + 1; y <= wsurf + 4; y++)
+            level.setBlockAndUpdate(new BlockPos(cx + 1, y, cz + 7), Blocks.AIR.defaultBlockState());
+        // Flat land dz 8..18 at stand-foot wsurf (solid top wsurf-1), dx -1..2 — both exits
+        // converge here and reach the goal. (dx 0 +1 bank steps DOWN onto it.)
+        for (int dx = -1; dx <= 2; dx++)
+            for (int dz = 8; dz <= 18; dz++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, wsurf - 1, cz + dz), Blocks.STONE.defaultBlockState());
+                for (int y = wsurf; y <= wsurf + 4; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
+            }
+        BlockPos start = new BlockPos(cx, wsurf, cz);       // floating at the pool's south end
+        Goal goal = new Goal.XZ(cx, cz + 15);               // ignoresY → buoyant climb-out case
+
+        boolean odbg = BotConfig.walkerDebug;
+        double oco = BotConfig.pathfinderWaterClimbOutCost;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        int omn = BotConfig.pathfinderMaxNodes;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxNodes = 1_000_000;
+        LevelWorldView w = new LevelWorldView(level,
+                ServerPlayerAvatar.create(level, cx + 0.5, wsurf, cz).fakePlayer());
+        try {
+            // tax OFF: the +1 exit is the fewest-water route → A* climbs the tall bank (maxY
+            // = wsurf+1). tax ON (default): the +1 climb is priced above the one-extra-water
+            // detour to the surface exit → A* stays at the water line (maxY = wsurf).
+            BotConfig.pathfinderWaterClimbOutCost = 0;
+            var rOff = runSearch(w, start, goal);
+            int maxYOff = maxPathY(rOff);
+            BotConfig.pathfinderWaterClimbOutCost = oco;        // the configured default
+            var rOn = runSearch(w, start, goal);
+            int maxYOn = maxPathY(rOn);
+            AgentDriverCommon.LOG.info("[waterClimbOutRouteArena] taxOff: reached={} maxY={} | taxDefault({}): reached={} maxY={}",
+                    rOff.goalReached(), maxYOff, oco, rOn.goalReached(), maxYOn);
+            if (!rOff.goalReached() || !rOn.goalReached())
+                throw new GameTestAssertException("a climb-out route failed to reach: off=" + rOff.goalReached()
+                        + " on=" + rOn.goalReached());
+            if (maxYOff < wsurf + 1)
+                throw new GameTestAssertException("tax OFF did not take the straight +1 exit (maxY=" + maxYOff
+                        + ", expected " + (wsurf + 1) + ") — geometry no longer exercises the tax");
+            if (maxYOn > wsurf)
+                throw new GameTestAssertException("climb-out tax did NOT reroute to the surface exit: maxY="
+                        + maxYOn + " (expected ≤" + wsurf + ", i.e. no tall climb) — default too low?");
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderWaterClimbOutCost = oco;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            BotConfig.pathfinderMaxNodes = omn;
+        }
+        helper.succeed();
+    }
+
+    /** Highest Y of any cell on the planned path (−1 for an empty path). */
+    private static int maxPathY(net.magicterra.agent.bot.pathfinder.PathFinder.Result r) {
+        int max = Integer.MIN_VALUE;
+        for (BlockPos p : r.path()) max = Math.max(max, p.getY());
+        return r.path().isEmpty() ? -1 : max;
+    }
+
     /** Run one A* to completion (caller sets the budget knobs) and return its result. */
     private static net.magicterra.agent.bot.pathfinder.PathFinder.Result runSearch(
             LevelWorldView w, BlockPos start, Goal goal) {

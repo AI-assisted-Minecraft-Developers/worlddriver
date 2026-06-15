@@ -313,6 +313,23 @@ public final class PathFinder {
             return tax + overheadExtra;
         }
 
+        /** Per-RISE tax on an edge that CLIMBS OUT of water onto a higher bank
+         *  ({@code from} in water, {@code to} dry and above). The entry/descend water
+         *  taxes never see this edge (its {@code to} is dry and the move rises), so
+         *  without it A* freely picks a TALL near-bank exit a buoyant bot can't step onto
+         *  — every such exit forces the Walker's bob-stuttery bank-dig climb-out (live
+         *  "卡在土墙 / 反复挖同一土块 / 横跳" windows). Pricing the exit ∝ its rise tips A* onto the
+         *  LOWEST available exit (a surface-level bank = rise 0 = free Walk), without
+         *  forbidding a tall one when that's all the shoreline offers. Same XZ-goal gate
+         *  as {@link #waterCellTax}/{@link #descendTax} → Y-aware Goal.Block arenas exempt. */
+        private double climbOutTax(BlockPos from, BlockPos to) {
+            double per = BotConfig.pathfinderWaterClimbOutCost;
+            if (per <= 0 || !goal.ignoresY()) return 0;
+            if (!world.isWater(from) || world.isWater(to)) return 0;   // only water → dry
+            int rise = to.getY() - from.getY();
+            return rise > 0 ? per * rise : 0;                          // surface-level/down exits free
+        }
+
         /** Expand nodes until {@code sliceMs} of wall-clock elapses this call (or
          *  the search finishes / hits its total budget). Returns true once done;
          *  the {@link Result} is then available from {@link #result()}. */
@@ -465,7 +482,8 @@ public final class PathFinder {
                         double ng = cur.g + edge.cost + world.dangerCost(npos)
                                 + world.directionalCost(cur.pos, npos)
                                 + descendTax(cur.pos, npos, edge)
-                                + waterCellTax(npos);
+                                + waterCellTax(npos)
+                                + climbOutTax(cur.pos, npos);
                         Node existing = nodes.get(npos);
                         if (existing != null && ng > existing.g - MIN_IMPROVEMENT) continue;
                         if (existing == null) {
