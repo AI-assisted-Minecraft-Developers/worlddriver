@@ -1681,7 +1681,18 @@ public final class Walker {
         // path so the heading stays steady — no left-right wobble. For a
         // vertical move or a real parkour leap, face the actual waypoint so
         // the jump goes the right way.
-        boolean aimAtWaypoint = wp.getY() != foot.getY() || parkourEdge;
+        // A buoyant bot BOBS ±0.5 around its swim level, so foot.getY()=floor(p.getY())
+        // flickers between the node's Y and Y-1 even on a dead-flat swim. With the raw
+        // `wp.getY() != foot.getY()` test that toggled aimAtWaypoint every bob tick,
+        // snapping the aim between the stable look-ahead carrot and the CLOSE waypoint
+        // and swinging the yaw left-right (live 2026-06-15 deep-water crossing: camera
+        // "高频左右摆", pathChart maxYawErr 172°). In water, judge the vertical maneuver
+        // by the CONTINUOUS Y gap to the waypoint with a bob-proof threshold (a flat or
+        // gently-graded swim stays on the carrot; only a genuine dive / bank-climb ≥~1.5
+        // aims at the block). On land the integer test is exact and unchanged.
+        double wpAimDy = (wp.getY() + 0.5) - p.getY();
+        boolean aimAtWaypoint = (p.isInWater() ? Math.abs(wpAimDy) > 1.5 : wp.getY() != foot.getY())
+                || parkourEdge;
         // Re-centre recovery on a stuck flat walk: a 1-wide channel needs the
         // body centred on the lane axis or the off-centre hitbox snags a corner
         // and wedges (the look-ahead carrot aims diagonally, so it never centres
