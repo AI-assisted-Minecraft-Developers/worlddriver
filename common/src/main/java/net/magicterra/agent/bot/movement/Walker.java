@@ -1191,8 +1191,22 @@ public final class Walker {
             // the tail — same XZ, small cur2 — is excluded) means the segment is
             // spent: advance so the segment-end block below adopts the continuation
             // / repaths from HERE instead of pinning on the stale tail.
-            boolean tailConsumed = !within && step + 1 == path.size()
-                    && pathBestEffort && cur2 > OVERSHOOT_RESYNC_SQ;
+            // VERTICAL tail overshoot: the bot blew past the tail DOWNWARD (a fall
+            // node on a cliff lip — it free-fell well below the tail and is grounding
+            // at the bottom, horizontally still on the tail's XZ so the cur2 gate above
+            // never trips). Same dead-zone as droppedPastDescend but with no next node
+            // to re-sync onto (live 2026-06-15 reverse fall2 (2436,92,2180): foot fell
+            // to y82, 10 below, |dy|=9.9, cur2 0.6 → stuck 128 / ~6.4 s waiting on the
+            // fellOffPath re-search). Consume the spent descend tail so the segment-end
+            // block repaths from HERE at once. Gated to a DESCEND incoming edge so a
+            // pillarUp/climb tail (bot legitimately below it) is never aborted.
+            boolean descendTail = se != null && se.move != null
+                    && (se.move.startsWith("fall") || se.move.startsWith("diagDown")
+                        || se.move.equals("stepDown"));
+            boolean tailDroppedPast = !p.isInWater() && descendTail
+                    && p.getY() < w.getY() - 2.0;
+            boolean tailConsumed = !within && step + 1 == path.size() && pathBestEffort
+                    && (cur2 > OVERSHOOT_RESYNC_SQ || tailDroppedPast);
             if (within || passed || tailConsumed) step++;
             else break;
         }
