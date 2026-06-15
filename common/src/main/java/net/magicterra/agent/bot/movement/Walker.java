@@ -275,6 +275,7 @@ public final class Walker {
     private int wantClimbRecent;      // sticky countdown: >0 while a higher node sits ahead, latched through bob-peak/repath flicker (see WANT_CLIMB_STICKY)
     private boolean waterClimbPillaring;   // latched: pillaring up the bot's column to bank stand level
     private boolean waterClimbDigging;     // set the tick the block-less bank-dig actuator swings; OR'd into breakingEdge next tick so the anti-stuck burst can't yank the bot off the riser mid-dig (it has no planned toBreak edge of its own)
+    private BlockPos lastDigRiser;         // the riser the dig last aimed at; re-snap the look ONLY when it changes (not every tick) so the camera holds steady instead of juddering off the bobbing eye — the bob keeps the crosshair on the 1-tall block between re-aims
     private boolean climbPillarGaveUp;     // latched once the pillar takeover proves futile (drifted off its locked column, or bob peak never clears the surface fill cell) → block pillar re-engage + let the bank-DIG take over even with a place block in hand; cleared when the climb context ends
     private int pillarNoPlaceTicks;        // ticks the pillar takeover has been engaged without a successful place / height gain — buoyant bob can't lift feet above a surface fill cell, so beyond PILLAR_FUTILE_TICKS the place is hopeless and we fall to the dig
     private int waterClimbTargetY;         // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
@@ -335,6 +336,7 @@ public final class Walker {
         this.waterClimbDigging = false;
         this.climbPillarGaveUp = false;
         this.pillarNoPlaceTicks = 0;
+        this.lastDigRiser = null;
         this.diveLatch = 0;
         this.diveHold = 0;
         this.pillarRecoverLatch = 0;
@@ -399,6 +401,7 @@ public final class Walker {
         this.waterClimbDigging = false;
         this.climbPillarGaveUp = false;
         this.pillarNoPlaceTicks = 0;
+        this.lastDigRiser = null;
         this.diveLatch = 0;
         this.diveHold = 0;
         this.pillarRecoverLatch = 0;
@@ -1419,6 +1422,7 @@ public final class Walker {
                 waterClimbStall = 0;
                 climbPillarGaveUp = false;
                 pillarNoPlaceTicks = 0;
+                lastDigRiser = null;
             } else waterClimbStall++;
             // Trigger once bob-stalled below a bank we can't mount, with a placeable in
             // hand — then LATCH a pillar-up that runs to completion. Suppressed once the
@@ -1568,7 +1572,16 @@ public final class Walker {
                         LOG.info("[walker] water climb-out: block-less bank dig (bob-stalled, no place block) riser={},{},{}",
                                 riser.getX(), riser.getY(), riser.getZ());
                     a.selectTool(riser);
-                    a.aimAtBlock(riser);
+                    // Re-snap the look onto the riser ONLY when it changes, not every
+                    // tick: aimAtBlock SNAPS yaw+pitch from the LIVE (bobbing) eye, so a
+                    // per-tick call judders the camera ~25°/cycle — the "镜头剧烈抖动" the
+                    // video flags during digs. The first snap aims dead-on; the ±0.5 bob
+                    // then keeps the crosshair on the 1-tall riser face while the camera
+                    // holds steady, and we only re-aim when the dig moves to a new riser.
+                    if (!riser.equals(lastDigRiser)) {
+                        a.aimAtBlock(riser);
+                        lastDigRiser = riser;
+                    }
                     a.breakHold(true);
                     // Mark the dig active: next tick's breakingEdge holds the leash and
                     // exempts the burst so the dig can finish (see the breakingEdge note).
