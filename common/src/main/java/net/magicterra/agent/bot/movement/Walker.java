@@ -635,6 +635,19 @@ public final class Walker {
         // exactly 3 cooldowns (6 s) and burst the bot away from the search origin,
         // chaining rejects (round29 swamp: bursts every 6 s while cruising at 1.5 b/s).
         if (safetyRepath && !breakingEdge && !(path == null && activeSearch != null)) {
+            // lastWedgeFoot ANCHORS the spot where this wedge began — it must NOT be
+            // re-stamped to `foot` every tick. A buoyant bot CRUISING across open
+            // water bobs ±0.04 vertically and so keeps failing the tight node-reach
+            // gate; noStepProgressTicks climbs, `wedged` (hence safetyRepath) goes
+            // true, and the bot enters this block every tick WHILE still swimming
+            // ~1.2 b/s toward the goal. If the anchor followed the foot tick-by-tick
+            // the "<=4 of the anchor" test would compare against LAST tick's foot
+            // (0.06 b away) → always true → the event counter filled every cooldown
+            // and burst the cruising bot every ~6 s (live 2026-06-15: forward bursts
+            // at x=2526,2534,2542,2596,2604 mid-ocean while net-progressing). Anchor
+            // ONLY when (re)starting the count; a bot that travels >2 blocks off the
+            // anchor lands in the else branch, resets, and re-anchors — so only a bot
+            // that genuinely stays within 2 blocks for 3 cooldowns (6 s) ever bursts.
             if (lastWedgeFoot != null && foot.distSqr(lastWedgeFoot) <= 4) {
                 // Count EVENTS, not ticks (40-tick cooldown): a trivial search
                 // completing same-tick makes every tick a safety repath while
@@ -658,14 +671,18 @@ public final class Walker {
                                 ? (float) Math.toDegrees(Math.atan2(-bdx, bdz))
                                 : p.getYRot() + 150f;
                         wedgeRepathsHere = 0;
+                        lastWedgeFoot = null;   // displaced → drop the anchor; next wedge re-anchors fresh
                         if (BotConfig.walkerDebug)
                             LOG.info("[walker] anti-stuck: repeated safety repaths at {} → forced displacement burst", foot);
                     }
                 }
             } else {
+                // First wedge here, or the bot has TRAVELLED >2 blocks off the old
+                // anchor (genuine progress) — (re)anchor at the current foot and
+                // restart the count. This is the ONLY place lastWedgeFoot is set.
                 wedgeRepathsHere = 0;
+                lastWedgeFoot = foot;
             }
-            lastWedgeFoot = foot;
         }
         if ((safetyRepath || fullPeriodic) && activeSearch == null) {
             // Stuck too long on a move the Walker can't execute (a steep stepUp it
