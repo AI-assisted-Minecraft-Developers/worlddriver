@@ -4,11 +4,20 @@ import net.magicterra.agent.bot.world.SurvivalMath;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.shapes.BooleanOp;
+import net.minecraft.world.phys.shapes.Shapes;
+import net.minecraft.world.phys.shapes.VoxelShape;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Pure per-node physics facts for the path archive/replay/analysis.
@@ -78,10 +87,30 @@ public final class NodePhysics {
      * @return an immutable {@link Facts} snapshot.
      */
     public static Facts compute(Level level, BlockPos foot, BlockPos prev, BlockPos next) {
+        return compute(level, foot, prev, next, Collections.emptyList(), Collections.emptyList());
+    }
+
+    /**
+     * Edit-aware overload: the pose-fit and jump-clearance collision checks treat the
+     * cells in {@code toBreak} as AIR and the cells in {@code toPlace} as a full solid
+     * cube — i.e. the world AS IT WILL BE once the entering edge's planned dig/place
+     * has run. Without this a {@code stairUpBreak} node (which breaks the head cell it
+     * then climbs through) is wrongly flagged SUFFOCATE/COLLIDE against the un-broken
+     * terrain, swamping the analysis with false positives. Pass the entering edge's
+     * {@code toBreak}/{@code toPlace}; empty collections reproduce the raw-terrain
+     * behaviour exactly (and take the fast {@code noCollision} path).
+     *
+     * @param toBreak cells the entering edge breaks before standing here (treated as air).
+     * @param toPlace cells the entering edge places (treated as a full solid cube).
+     */
+    public static Facts compute(Level level, BlockPos foot, BlockPos prev, BlockPos next,
+                                Collection<BlockPos> toBreak, Collection<BlockPos> toPlace) {
+        Set<Long> brk = toLongKeys(toBreak);
+        Set<Long> plc = toLongKeys(toPlace);
         // ---- Pose-fit ----
-        boolean fitStand  = fits(level, STAND,  foot);
-        boolean fitCrouch = fits(level, CROUCH, foot);
-        boolean fitCrawl  = fits(level, CRAWL,  foot);
+        boolean fitStand  = fits(level, STAND,  foot, brk, plc);
+        boolean fitCrouch = fits(level, CROUCH, foot, brk, plc);
+        boolean fitCrawl  = fits(level, CRAWL,  foot, brk, plc);
         String forces = fitStand ? "none"
                       : fitCrouch ? "crouch"
                       : fitCrawl  ? "crawl"
@@ -115,8 +144,8 @@ public final class NodePhysics {
                 // Feasible when the apex fits, we have overhead clearance, and the target cell
                 // can be occupied in some pose.
                 jumpFeasible = dy <= JUMP_APEX
-                        && fits(level, CRAWL, foot.above())
-                        && (fits(level, STAND, next) || fits(level, CROUCH, next) || fits(level, CRAWL, next));
+                        && fits(level, CRAWL, foot.above(), brk, plc)
+                        && (fits(level, STAND, next, brk, plc) || fits(level, CROUCH, next, brk, plc) || fits(level, CRAWL, next, brk, plc));
             }
         }
 
@@ -132,14 +161,45 @@ public final class NodePhysics {
 
     // ---- private helpers ----
 
+    /** Pack a cell collection into a {@code Set<Long>} of {@link BlockPos#asLong} keys
+     *  for O(1) membership tests during the edit-aware collision scan. */
+    private static Set<Long> toLongKeys(Collection<BlockPos> cells) {
+        if (cells == null || cells.isEmpty()) return Collections.emptySet();
+        Set<Long> s = new HashSet<>(cells.size() * 2);
+        for (BlockPos p : cells) s.add(p.asLong());
+        return s;
+    }
+
     /**
      * Returns true when the pose bounding box centred on {@code foot} (bottom of box)
-     * has no block collisions in the level.
+     * has no block collisions — with {@code brk} cells treated as AIR and {@code plc}
+     * cells as a full solid cube. When both edit sets are empty this is exactly
+     * {@link Level#noCollision(AABB)} (fast path); otherwise it scans the cells the box
+     * overlaps and tests each post-edit collision shape against the box.
      */
-    private static boolean fits(Level level, EntityDimensions dim, BlockPos foot) {
+    private static boolean fits(Level level, EntityDimensions dim, BlockPos foot,
+                                Set<Long> brk, Set<Long> plc) {
         AABB box = dim.makeBoundingBox(foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5)
                       .deflate(1.0E-7);
-        return level.noCollision(box);
+        if (brk.isEmpty() && plc.isEmpty()) return level.noCollision(box);
+        VoxelShape boxShape = Shapes.create(box);
+        BlockPos.MutableBlockPos mp = new BlockPos.MutableBlockPos();
+        for (int x = Mth.floor(box.minX); x <= Mth.floor(box.maxX); x++) {
+            for (int y = Mth.floor(box.minY); y <= Mth.floor(box.maxY); y++) {
+                for (int z = Mth.floor(box.minZ); z <= Mth.floor(box.maxZ); z++) {
+                    mp.set(x, y, z);
+                    long key = mp.asLong();
+                    if (brk.contains(key)) continue;            // planned break → air
+                    VoxelShape shape = plc.contains(key)
+                            ? Shapes.block()                    // planned place → full cube
+                            : level.getBlockState(mp).getCollisionShape(level, mp);
+                    if (shape.isEmpty()) continue;
+                    if (Shapes.joinIsNotEmpty(boxShape, shape.move(x, y, z), BooleanOp.AND))
+                        return false;
+                }
+            }
+        }
+        return true;
     }
 
     /**

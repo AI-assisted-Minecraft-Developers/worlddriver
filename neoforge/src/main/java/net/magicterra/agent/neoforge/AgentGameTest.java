@@ -2563,6 +2563,24 @@ public final class AgentGameTest {
         helper.assertTrue("lava".equals(h.footHazard()),
                 "lava underfoot should be footHazard=lava; got=" + h.footHazard());
 
+        // --- Edit-aware: the planned toBreak/toPlace change the pose-fit verdict ---
+        // The 1-cap pocket (242) cannot stand raw, but if the entering edge BREAKS the
+        // y181 cap (as a stairUpBreak does) the standing box fits → no false SUFFOCATE.
+        BlockPos cap = new BlockPos(242, floorY + 2, 240);   // (242,181,240)
+        NodePhysics.Facts gBroke = NodePhysics.compute(level, pocket, stand, null,
+                java.util.List.of(cap), java.util.List.of());
+        helper.assertTrue(gBroke.fitStand() && "none".equals(gBroke.ceilingForces()),
+                "pocket with toBreak{cap} should stand; fitStand=" + gBroke.fitStand()
+                        + " ceilingForces=" + gBroke.ceilingForces());
+
+        // Conversely the open stand cell (240) fits raw, but a planned toPlace into its
+        // head cell makes it collide → the place is correctly reflected.
+        BlockPos standHead = new BlockPos(240, 181, 240);
+        NodePhysics.Facts fPlaced = NodePhysics.compute(level, stand, null, null,
+                java.util.List.of(), java.util.List.of(standHead));
+        helper.assertTrue(!fPlaced.fitStand(),
+                "open cell with toPlace{head} should not stand; fitStand=" + fPlaced.fitStand());
+
         helper.succeed();
     }
 

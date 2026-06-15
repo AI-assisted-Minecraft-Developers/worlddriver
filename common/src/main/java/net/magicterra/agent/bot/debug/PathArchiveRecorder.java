@@ -209,10 +209,16 @@ public final class PathArchiveRecorder implements PathTrace {
             BlockPos prev = (i > 0) ? path.get(i - 1) : null;
             BlockPos next = (i + 1 < path.size()) ? path.get(i + 1) : null;
 
-            // NodePhysics uses the Level for noCollision / block queries.
+            // NodePhysics uses the Level for noCollision / block queries. Pass the
+            // edge ENTERING this node (edges[i], null sentinel at i==0) so its planned
+            // toBreak/toPlace are reflected in the pose-fit / collision facts — a
+            // stairUpBreak node that clears its head cell must not read SUFFOCATE.
+            Move.Edge entering = (i < edges.size()) ? edges.get(i) : null;
             PathArchive.NodeRec nr;
             if (level != null) {
-                NodePhysics.Facts f = NodePhysics.compute(level, foot, prev, next);
+                NodePhysics.Facts f = (entering != null)
+                        ? NodePhysics.compute(level, foot, prev, next, entering.toBreak, entering.toPlace)
+                        : NodePhysics.compute(level, foot, prev, next);
                 nr = new PathArchive.NodeRec(
                         f.fitStand(), f.fitCrouch(), f.fitCrawl(),
                         f.collidesStanding(), f.ceilingForces(),
