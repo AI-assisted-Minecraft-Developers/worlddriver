@@ -36,6 +36,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.neoforged.neoforge.common.util.FakePlayer;
@@ -1192,6 +1193,95 @@ public final class AgentGameTest {
             BotConfig.allowBreak = ob;
             BotConfig.allowPlace = op;
             BotConfig.allowSwimEscapeBreak = osb;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Water-divider detour navigation smoke test: a buoyant bot shoved straight at a solid
+     * wall between it and the goal must round the wall through a side GAP rather than ram the
+     * wall forever. A deep-water pool is split by a solid DIVIDER (west bot, east goal, same
+     * Z), the only opening a south-edge gap; break/place are OFF so the ONLY way through is to
+     * round it. Guards the in-water heading/aim path that the anti-spin freeze and far-aim
+     * override sit on. NOTE: this does NOT deterministically reproduce the live badlands-basin
+     * heading-freeze deadlock (2026-06-16 journey #3 — anti-spin {@code spinFreeze} pinned a
+     * stable-but-wrong heading for 500+ ticks pressing a bank); that needs the basin's slow
+     * back-to-back searches + repathsNoProgress churn, which a small fast-search arena can't
+     * recreate. The spinFreeze target-stability fix is verified LIVE on the saved-world basin;
+     * this arena is the regression smoke test for the surrounding water-navigation path.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void waterFarAimBankCornerArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 560, cz = 560, floorY = 200, depth = 5;
+        final int surface = floorY + depth;            // y205 water surface
+        final int top = surface + 3;                   // wall crest (unclimbable for a buoyant bot)
+        // Floor.
+        for (int x = cx - 2; x <= cx + 12; x++)
+            for (int z = cz - 5; z <= cz + 5; z++)
+                level.setBlockAndUpdate(new BlockPos(x, floorY, z), Blocks.STONE.defaultBlockState());
+        // Pool: water floorY+1..surface, air above; perimeter ring solid.
+        for (int x = cx - 2; x <= cx + 12; x++)
+            for (int z = cz - 5; z <= cz + 5; z++) {
+                boolean ring = x == cx - 2 || x == cx + 12 || z == cz - 5 || z == cz + 5;
+                for (int y = floorY + 1; y <= top; y++) {
+                    BlockState bs = ring ? Blocks.STONE.defaultBlockState()
+                            : (y <= surface ? Blocks.WATER.defaultBlockState() : Blocks.AIR.defaultBlockState());
+                    level.setBlockAndUpdate(new BlockPos(x, y, z), bs);
+                }
+            }
+        // DIVIDER wall at x=cx+6 spanning z=cz-4..cz+2 up to the crest; GAP at z=cz+3..cz+4.
+        for (int z = cz - 4; z <= cz + 2; z++)
+            for (int y = floorY + 1; y <= top; y++)
+                level.setBlockAndUpdate(new BlockPos(cx + 6, y, z), Blocks.STONE.defaultBlockState());
+
+        Goal.XZ goal = new Goal.XZ(cx + 11, cz);       // east of the wall, SAME Z as the bot
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace,
+                osb = BotConfig.allowSwimEscapeBreak, osp = BotConfig.allowSwimEscapePlace,
+                odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = false;
+        BotConfig.allowPlace = false;
+        BotConfig.allowSwimEscapeBreak = false;
+        BotConfig.allowSwimEscapePlace = false;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, surface, cz + 0.5);
+            FakePlayer fp = av.fakePlayer();
+            grantWaterEffects(fp);
+            fp.getInventory().clearContent();
+            fp.setDeltaMovement(0.45, 0, 0);           // shove +X straight into the divider
+
+            LevelWorldView w = new LevelWorldView(level, fp);
+            Walker walker = new Walker();
+            walker.setGoal(goal);
+            Walker.Step s = Walker.Step.WALKING;
+            int reachedTick = -1;
+            for (int t = 0; t < 500 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+                if (Math.floor(fp.getX()) == cx + 11 && Math.floor(fp.getZ()) == cz) { reachedTick = t; break; }
+            }
+            double dGoal = Math.hypot(fp.getX() - (cx + 11 + 0.5), fp.getZ() - (cz + 0.5));
+            AgentDriverCommon.LOG.info("[waterFarAimBankCornerArena] step={} pos=({},{},{}) reachedTick={} dGoal={}",
+                    s, fp.getX(), fp.getY(), fp.getZ(), reachedTick, String.format("%.1f", dGoal));
+            // Round the wall via the gap → reach the east goal column. PRE-fix: far-aim rams
+            // the divider (dGoal frozen ~5-6, never east of x=cx+6), runs to the 500-tick budget.
+            if (reachedTick < 0 && s != Walker.Step.ARRIVED)
+                throw new GameTestAssertException("waterFarAim: bot failed to round the divider to the goal"
+                        + " (far-aim rammed the wall through-LOS?): dGoal=" + dGoal + " pos=(" + fp.getX() + ","
+                        + fp.getY() + "," + fp.getZ() + ") step=" + s);
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.allowSwimEscapeBreak = osb;
+            BotConfig.allowSwimEscapePlace = osp;
             BotConfig.walkerDebug = odbg;
             BotConfig.pathfinderSliceMs = osl;
             BotConfig.pathfinderMaxMs = omm;

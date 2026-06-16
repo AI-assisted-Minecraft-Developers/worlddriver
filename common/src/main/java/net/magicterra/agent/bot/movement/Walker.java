@@ -88,6 +88,16 @@ public final class Walker {
      *  steady bearing (a 20°/50° square wave settles to ~35° ±5° at 0.5) while still
      *  converging on a genuine turn in a few ticks. Launches bypass it (must snap). */
     private static final float YAW_SMOOTH_ALPHA = 0.5f;
+    /** Per-tick smoothed-target change (deg) below which the aim target counts as STABLE.
+     *  The anti-spin freeze ({@link #spinFreeze}) must only fire on a FLIPPING target (a
+     *  ~180° swing each repath winds the camera). A stable target the capped slew converges
+     *  to once cannot wind, so freezing it just pins a wrong heading. */
+    private static final float AIM_STABLE_DEG = 8f;
+    /** Consecutive STABLE ticks (≈0.5 s) after which the anti-spin freeze releases — long
+     *  enough to ignore one transient flip, short enough to break the badlands-basin
+     *  heading-freeze deadlock (live 2026-06-16: heldYaw frozen 500+ ticks pressing a bank
+     *  while a stable bearing pointed ~150° away). */
+    private static final int AIM_STABLE_TICKS = 10;
     /** Heading tolerance for committing to a +1 step climb. A step is climbed by
      *  walking INTO the riser then jumping ONTO it, so the body must already FACE
      *  the step — if it arrived off the climb column or after a sharp path turn the
@@ -340,6 +350,8 @@ public final class Walker {
     private float lastCarrotBearing = Float.NaN;            // previous tick's raw carrot bearing — feeds the in-water yaw-thrash detector
     private int lastCarrotBearingSign = 0;                  // sign of the last meaningful carrot-bearing turn (for reversal detection)
     private int yawThrashTicks = 0;                         // decaying score: +4 per carrot-bearing reversal in water (cap 12), −1/tick → steady turn winds to 0, oscillation holds high
+    private float lastAimYaw = Float.NaN;                   // previous tick's smoothed aim heading — feeds the anti-spin target-stability gate (a flipping target winds; a stable one converges)
+    private int aimStableTicks = 0;                         // consecutive ticks the smoothed aim target barely moved; once past AIM_STABLE_TICKS the anti-spin freeze releases (a stable target can't wind the camera)
     private boolean pathBestEffort;                         // current path is a best-effort partial (goal NOT reached) → commit to it before re-searching
     private BlockPos commitEnd;                             // last node of the current best-effort segment (null for a full path) → where continuation searches launch from
     private boolean searchFromEnd;                          // activeSearch is a continuation launched from commitEnd (deferred splice) vs a foot-search (splice immediately)
@@ -2238,7 +2250,20 @@ public final class Walker {
         // is still a water stall — gate on water UNDER the foot as well so the freeze
         // catches the surface/bank spin, not only the fully-submerged one.
         boolean overWater = p.isInWater() || world.isWater(foot.offset(0, -1, 0));
-        boolean spinFreeze = !launch && overWater && repathsNoProgress > CHURN_REPATH_CAP;
+        // Target-stability gate: the freeze must catch a FLIPPING target (chasing a ~180°
+        // per-repath swing winds the camera) but NOT a STABLE one (the capped slew converges
+        // to it once and stops — no wind). Freezing a stable-but-wrong heading is the
+        // badlands-basin deadlock: heldYaw frozen pressing a bank for 500+ ticks while a
+        // steady bearing pointed ~150° off and the foot never moved. Count ticks the smoothed
+        // aim barely moved; a flip resets it, so the freeze re-arms instantly on the next
+        // swing yet releases once the target has been steady ~0.5 s, letting the bot turn.
+        if (!Float.isNaN(lastAimYaw) && Math.abs(angleDiff(aimYaw, lastAimYaw)) < AIM_STABLE_DEG)
+            aimStableTicks = Math.min(aimStableTicks + 1, AIM_STABLE_TICKS + 1);
+        else
+            aimStableTicks = 0;
+        lastAimYaw = aimYaw;
+        boolean targetFlipping = aimStableTicks < AIM_STABLE_TICKS;
+        boolean spinFreeze = !launch && overWater && repathsNoProgress > CHURN_REPATH_CAP && targetFlipping;
         if (!spinFreeze && Math.abs(angleDiff(p.getYRot(), aimYaw)) > BotConfig.walkerYawHysteresisDeg) {
             float ny;
             if (launch) {
@@ -2545,13 +2570,22 @@ public final class Walker {
         // the body ALONG the heading even while the camera is still slewing toward it — the
         // body no longer rams a wall waiting for the look to catch up (动态纠偏). At Δ=0
         // (camera caught up) the impulse equals the old keyed (dL,dF), so steady-state walking
-        // is byte-identical; only the slew transient changes. spinFreeze deliberately holds
-        // the heading (water anti-wind), so drive along the frozen camera there (Δ=0) to keep
-        // its press-one-way climb-out behaviour. Special branches above return before here, so
-        // they keep their own key-based actuation (AgentInput falls back to keys uncommanded).
+        // is byte-identical; only the slew transient changes. Special branches above return
+        // before here, so they keep their own key-based actuation (AgentInput falls back to
+        // keys uncommanded).
+        //
+        // The DRIVE always targets aimYaw — even while the camera is frozen by the anti-wind
+        // spinFreeze. The freeze exists ONLY to stop the visual 转圈 (camera chasing a ~180°-
+        // flipping target winds one way); it must NOT also freeze the body's travel. The old
+        // `spinFreeze ? 0` here drove the body along the STALE frozen camera heading — in a
+        // badlands water basin that heading pointed straight at the bank, so the body rammed it
+        // for 500+ ticks while a steady bearing pointed ~150° off (the 18-min near-deadlock).
+        // Decoupling them lets the body crab toward the waypoint (Δ = aimYaw − cameraYaw) and
+        // make net progress, which resets repathsNoProgress and releases the freeze on its own,
+        // so the vicious cycle (frozen drive → no progress → freeze stays frozen) can't form.
         double driveF = (!descendBrake && !pivotForStepUp) ? 1.0 : 0.0;
         double driveL = strafeL ? 1.0 : (strafeR ? -1.0 : 0.0);
-        double driveDelta = Math.toRadians(spinFreeze ? 0.0 : angleDiff(p.getYRot(), aimYaw));
+        double driveDelta = Math.toRadians(angleDiff(p.getYRot(), aimYaw));
         double driveCos = Math.cos(driveDelta), driveSin = Math.sin(driveDelta);
         a.commandMove(
                 (float) (driveL * driveCos - driveF * driveSin),
