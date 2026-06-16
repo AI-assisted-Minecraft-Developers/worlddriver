@@ -268,4 +268,21 @@ public interface WorldView {
         BlockPos head = foot.offset(0, 1, 0);
         return isPassable(head) && !isHazard(head);
     }
+
+    /**
+     * A buoyant bot occupying this cell FLOATS at the surface and cannot push off a
+     * floor: the cell is water AND the cell directly below is also water, so the
+     * feet never reach a solid bottom within jump range. Such a bot physically
+     * cannot jump/step UP onto a higher bank — from water you only walk onto a FLUSH
+     * (same-level) exit, or dig the bank down to flush. The ascending moves
+     * ({@code stepUp}/{@code stepUp2}/{@code diagUp}) therefore gate themselves off a
+     * floating-water source, otherwise A* plans a +1/+2 climb-out that the floating
+     * bot can only bob-stall against (it never mounts the bank). A 1-deep cell
+     * (solid floor below) is a GROUNDED shallow step and keeps normal step-up — the
+     * bot stands on the bottom and can push off. Mirrors the executor's own buoyant
+     * climb-out handling at the source so the path is executable by construction.
+     */
+    default boolean isFloatingWater(BlockPos foot) {
+        return isWater(foot) && isWater(foot.offset(0, -1, 0));
+    }
 }

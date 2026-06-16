@@ -45,6 +45,11 @@ public final class DiagonalAscend extends Move {
     }
 
     public boolean valid(WorldView w, BlockPos from) {
+        // A floating bot can't diagonally jump up out of deep water onto a +1 bank
+        // (no floor to push off) — only a flush walk-out or a dig-to-flush climb
+        // works. Forbid the ascending diagonal from a floating-water source so A*
+        // never plans the unexecutable +1 climb the bot would only bob-stall against.
+        if (w.isFloatingWater(from)) return false;
         BlockPos to = apply(from);
         if (!w.canStandAt(to)) return false;
         // Jump clearance over the launch head (foot.y + 2).

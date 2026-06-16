@@ -16,6 +16,7 @@ public final class StepUp2 extends Move {
     public StepUp2(int dx, int dz) { super(dx, 2, dz, 24); }
     public boolean valid(WorldView w, BlockPos from) {
         if (w.maxJumpUpBlocks() < 2) return false;            // can't jump this high → not a legal move
+        if (w.isFloatingWater(from)) return false;            // a floating bot can't jump up out of deep water
         BlockPos to = apply(from);
         if (!w.canStandAt(to)) return false;
         // Head clearance for a +2 jump: feet reach from+2, head reaches from+3.

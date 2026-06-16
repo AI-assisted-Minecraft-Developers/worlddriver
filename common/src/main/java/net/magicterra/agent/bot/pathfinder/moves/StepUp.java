@@ -8,6 +8,11 @@ import net.minecraft.core.BlockPos;
 public final class StepUp extends Move {
     public StepUp(int dx, int dz) { super(dx, 1, dz, 15); }
     public boolean valid(WorldView w, BlockPos from) {
+        // A floating bot can't jump up out of deep water onto a +1 bank (no floor to
+        // push off) — only a flush walk-out or a dig-to-flush climb works. Forbid the
+        // ascending step from a floating-water source so A* never plans the
+        // unexecutable +1 climb the bot would only bob-stall against.
+        if (w.isFloatingWater(from)) return false;
         BlockPos to = apply(from);
         if (!w.canStandAt(to)) return false;
         // Need air above current head (jump clearance, foot.y + 2).

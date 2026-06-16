@@ -1467,19 +1467,20 @@ public final class AgentGameTest {
     }
 
     /**
-     * Pure-planner A/B for the water CLIMB-OUT tax ({@code pathfinderWaterClimbOutCost}).
-     * A buoyant bot floats at the water surface; the north shore of the pool offers TWO
-     * exits at the same water-crossing distance: straight ahead (dx 0) a TALL +2 bank,
-     * and one cell to either side (dx ±1) a SURFACE-LEVEL (+0) bank that a floating bot
-     * just walks onto. An XZ (Y-agnostic) goal sits due north past flat y=220 land that
-     * both exits reach. With the tax OFF the straight +2 exit is cheapest (no lateral
-     * shift) and A* climbs the tall bank (path maxY = 222). With the tax ON the +2 climb
-     * costs {@code 2×per}, dwarfing the one-cell lateral shift to a low exit, so A* takes
-     * the surface exit and never rises above the water line (path maxY = 220). This is the
-     * planning root of the live "卡在土墙 / 反复挖同一土块 / 横跳" climb-out windows — A* was free to
-     * aim a buoyant bot at a tall bank it can only surmount via the Walker's bob-stuttery
-     * dig. Y-aware Goal.Block arenas are exempt (same gate as the other water taxes), so
-     * the execution climb-out arenas above are unaffected. Pure planner A/B, unbounded.
+     * Pure-planner check that a buoyant bot is never routed to JUMP out of deep water
+     * onto a higher bank — the structural floating-water gate (the source-level root of
+     * the live "卡在土墙 / 反复挖同一土块 / 横跳 / 一直试跳1格岸" climb-out windows). A floating bot
+     * (water below its feet) physically cannot mount a +1 bank; only a FLUSH walk-out or
+     * a dig-to-flush climb works. The north shore offers two exits at equal crossing
+     * distance: straight ahead (dx 0) a higher bank that needs a jump, and one cell over
+     * (dx ±1) a SURFACE-LEVEL (+0) bank the floating bot just walks onto. The ascending
+     * moves (stepUp/stepUp2/diagUp) now gate themselves off a floating-water source, so
+     * the +1 bank exit is STRUCTURALLY unavailable and A* must take the flush exit,
+     * never rising above the water line (maxY ≤ wsurf) — INDEPENDENT of the climb-out
+     * tax. The A/B (tax off vs default) confirms the GATE, not merely the cost, enforces
+     * this: both must stay flush. The {@code pathfinderWaterClimbOutCost} now backstops
+     * GROUNDED shallow-water climbs (solid floor below → not floating → step-up allowed).
+     * Pure planner, unbounded.
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void waterClimbOutRouteArena(GameTestHelper helper) {
@@ -1530,9 +1531,12 @@ public final class AgentGameTest {
         LevelWorldView w = new LevelWorldView(level,
                 ServerPlayerAvatar.create(level, cx + 0.5, wsurf, cz).fakePlayer());
         try {
-            // tax OFF: the +1 exit is the fewest-water route → A* climbs the tall bank (maxY
-            // = wsurf+1). tax ON (default): the +1 climb is priced above the one-extra-water
-            // detour to the surface exit → A* stays at the water line (maxY = wsurf).
+            // The south start FLOATS (water directly below), so the floating-water gate
+            // STRUCTURALLY forbids the straight +1 bank exit — a buoyant bot can't jump
+            // out onto a +1 bank. A* must take the one-cell-over FLUSH exit and never
+            // rise above the water line, INDEPENDENT of the climb-out tax. Verify the gate
+            // (not just the cost) keeps it flush: with the tax both OFF and at its default,
+            // neither route may climb the +1 bank (maxY ≤ wsurf).
             BotConfig.pathfinderWaterClimbOutCost = 0;
             var rOff = runSearch(w, start, goal);
             int maxYOff = maxPathY(rOff);
@@ -1544,12 +1548,12 @@ public final class AgentGameTest {
             if (!rOff.goalReached() || !rOn.goalReached())
                 throw new GameTestAssertException("a climb-out route failed to reach: off=" + rOff.goalReached()
                         + " on=" + rOn.goalReached());
-            if (maxYOff < wsurf + 1)
-                throw new GameTestAssertException("tax OFF did not take the straight +1 exit (maxY=" + maxYOff
-                        + ", expected " + (wsurf + 1) + ") — geometry no longer exercises the tax");
+            if (maxYOff > wsurf)
+                throw new GameTestAssertException("floating-water +1 climb-out was NOT forbidden (tax off): maxY="
+                        + maxYOff + " (expected ≤" + wsurf + " — buoyant bot must take the flush exit, not jump the +1 bank)");
             if (maxYOn > wsurf)
-                throw new GameTestAssertException("climb-out tax did NOT reroute to the surface exit: maxY="
-                        + maxYOn + " (expected ≤" + wsurf + ", i.e. no tall climb) — default too low?");
+                throw new GameTestAssertException("floating-water +1 climb-out was NOT forbidden (tax default): maxY="
+                        + maxYOn + " (expected ≤" + wsurf + ")");
         } finally {
             BotConfig.walkerDebug = odbg;
             BotConfig.pathfinderWaterClimbOutCost = oco;
