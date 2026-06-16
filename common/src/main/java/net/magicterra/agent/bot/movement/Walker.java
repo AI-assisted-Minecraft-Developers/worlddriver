@@ -2119,6 +2119,22 @@ public final class Walker {
         if (aimAtWaypoint) {
             adx = (wp.getX() + 0.5) - p.getX();
             adz = (wp.getZ() + 0.5) - p.getZ();
+            // Dry +1 staircase camera-spin fix: once the bob carries the body
+            // horizontally ON TOP of the close +1 step node, that node's bearing flips
+            // ±180° each tick (it's now beside/behind the foot) and a multi-step stair
+            // accumulates a full 360°+ camera swing (live 2026-06-15 z1864 yawRange 405°)
+            // even though the climb keeps progressing. When within ~1 block of the step
+            // node horizontally AND a further node exists, aim at the NEXT node instead —
+            // a genuine forward-up heading (no freeze, so it can't pin a wrong direction
+            // like a held yaw does, and the buoyant water-exit mount whose next node is a
+            // forward ledge walk only steadies). Land + gentle +1 only; parkour leaps
+            // (precise launch aim) and steeper jumps keep the exact-waypoint aim.
+            if (!p.isInWater() && !parkourEdge && (wp.getY() - foot.getY()) == 1
+                    && (adx * adx + adz * adz) < 1.0 && step + 1 < path.size()) {
+                BlockPos nx = path.get(step + 1);
+                adx = (nx.getX() + 0.5) - p.getX();
+                adz = (nx.getZ() + 0.5) - p.getZ();
+            }
         } else if (reCentre) {
             adx = recX; adz = recZ;
         } else {
