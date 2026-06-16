@@ -561,7 +561,15 @@ public final class Walker {
         // uses, so planning AND arrival agree and the bot settles at the closest standable
         // spot. Only affects exact-cell Goal.Block whose target is genuinely unstandable;
         // standable targets (every mine/farm/combat stand cell) are left untouched.
-        if (!goalSnapChecked) { goalSnapChecked = true; snapGoalToStandable(world, foot); }
+        if (!goalSnapChecked && goal instanceof Goal.Block gb && world.isKnown(gb.target())) {
+            // Gate on isKnown: at journey start a far goal sits in an UNLOADED chunk, where
+            // canStandAt reads void (false) with nothing standable nearby — a one-shot check
+            // there would no-op and, with the flag set, never retry once the chunk loads. So
+            // defer the single snap until the goal cell's chunk is actually loaded (the bot
+            // has come within render range), then evaluate it for real.
+            goalSnapChecked = true;
+            snapGoalToStandable(world, foot);
+        }
         if (goal.reached(foot)) {
             // While mid-pillar-jump the floored feet-Y can tick into the goal
             // cell at the apex before we've placed the block to stand on —
