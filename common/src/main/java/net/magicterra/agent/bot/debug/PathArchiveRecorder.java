@@ -7,9 +7,12 @@ import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathTrace;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtUtils;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.AABB;
@@ -235,10 +238,15 @@ public final class PathArchiveRecorder implements PathTrace {
             }
             nodeRecs.add(nr);
 
-            // Sample spatial envelope around each path node.
+            // Sample spatial envelope around each path node. dy reaches -3 so every
+            // node carries a 3-block-thick solid floor beneath it: a self-contained
+            // restore (e.g. into a flat/void test world) then gives the bot a contiguous
+            // floor to stand on instead of a 1-block shell it falls through to bedrock
+            // (the old dy=-1 "floating island" failure). dx/dz ±2 spans the bob/drift
+            // corridor so off-plan wobble still lands on restored ground.
             if (level != null) {
                 for (int dx = -2; dx <= 2; dx++) {
-                    for (int dy = -1; dy <= 2; dy++) {
+                    for (int dy = -3; dy <= 2; dy++) {
                         for (int dz = -2; dz <= 2; dz++) {
                             BlockPos ep = foot.offset(dx, dy, dz);
                             long key = ep.asLong();
@@ -407,6 +415,25 @@ public final class PathArchiveRecorder implements PathTrace {
             fluid = BuiltInRegistries.FLUID.getKey(fs.getType()).toString();
         }
 
-        return new PathArchive.EnvelopeCell(posArr, block, solid, shape, fluid);
+        // Full block state as SNBT (Name + Properties) so a faithful replay restores
+        // stair facing / slab half / snow layers / water level / waterlogged, not just
+        // the block type. NbtUtils.writeBlockState is the canonical round-trippable form.
+        String state = NbtUtils.writeBlockState(st).toString();
+
+        // Block-entity contents (chest items, sign text, ...) as SNBT, when present.
+        // saveWithFullMetadata mirrors mc.world.snapshot's NBT capture so the same
+        // restoreCells() path rehydrates it.
+        String nbt = null;
+        BlockEntity be = level.getBlockEntity(pos);
+        if (be != null) {
+            try {
+                CompoundTag beTag = be.saveWithFullMetadata(level.registryAccess());
+                if (beTag != null && !beTag.isEmpty()) nbt = beTag.toString();
+            } catch (RuntimeException ignored) {
+                // Foreign/un-saveable BE — block state alone is still faithful.
+            }
+        }
+
+        return new PathArchive.EnvelopeCell(posArr, block, solid, shape, fluid, state, nbt);
     }
 }

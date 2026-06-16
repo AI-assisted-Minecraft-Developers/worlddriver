@@ -2974,6 +2974,13 @@ public final class AgentGameTest {
         helper.assertTrue(b.trajectory().size() == a.trajectory().size(), "trajectory round-trips");
         helper.assertTrue(b.segments().get(0).nodes().size() == a.segments().get(0).nodes().size(), "nodes round-trip");
         helper.assertTrue(b.envelope().size() == a.envelope().size(), "envelope round-trips");
+        // v2: full block-state SNBT + block-entity NBT must survive the round-trip.
+        PathArchive.EnvelopeCell ea = a.envelope().get(0);
+        PathArchive.EnvelopeCell eb = b.envelope().get(0);
+        helper.assertTrue(java.util.Objects.equals(ea.state(), eb.state()),
+                "envelope state round-trips: " + ea.state() + " vs " + eb.state());
+        helper.assertTrue(java.util.Objects.equals(ea.nbt(), eb.nbt()),
+                "envelope nbt round-trips: " + ea.nbt() + " vs " + eb.nbt());
         helper.succeed();
     }
 

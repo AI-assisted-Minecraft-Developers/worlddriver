@@ -1,5 +1,6 @@
 package net.magicterra.agent.bot.debug;
 
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.magicterra.agent.api.WorldApi;
 import net.magicterra.agent.bot.BotApiImpl;
 import net.magicterra.agent.bot.BotHooks;
@@ -8,6 +9,9 @@ import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtUtils;
+import net.minecraft.nbt.TagParser;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
@@ -44,6 +48,13 @@ public final class ReplayTool {
         // Walker's anchor logic does not yet support cleanly. The whole plan replays
         // from node 0. Reported back as fromStepHonored:false.
         int fromStep = p.getInt("fromStep", 0);
+        // replan (default): FAITHFUL re-run. Restore the recorded terrain, teleport to
+        // the recorded start, and re-issue the ORIGINAL goal with normal planning — A*
+        // is deterministic in identical terrain, so the live run (including its repaths
+        // and any emergent execution wedge) reproduces exactly. replan:false keeps the
+        // legacy RIGID mode: walk the recorded plan nodes with no re-planning (good for
+        // isolating a pure pathing wedge, but diverges where the live run repathed).
+        boolean replan = p.getBool("replan", true);
 
         // 1. Resolve the archive file.
         Path archivePath;
@@ -66,20 +77,56 @@ public final class ReplayTool {
             return Map.of("ok", false, "error", "unreadable archive: " + e.getMessage());
         }
 
-        // 2. Build the cell list from the envelope.
-        // NOTE/LIMITATION: the envelope stores only the block id, so restore uses
-        // defaultBlockState() — the block TYPE is faithful, but blockstate PROPERTIES
-        // (stair facing, water level, slab half, ...) are NOT restored. Acceptable for
-        // the MVP; surfaced as a return-value caveat below.
+        // 2. Build the cell list from the envelope. Schema-v2 cells carry the FULL
+        //    block state as SNBT + block-entity NBT, so restore is faithful (stair
+        //    facing, slab half, water level, waterlogged, chest contents, ...). v1
+        //    cells (state==null) fall back to defaultBlockState() from the block id.
         List<WorldApi.Cell> cells = new ArrayList<>();
+        int defaultedCells = 0;
         if (restoreBlocks) {
             for (PathArchive.EnvelopeCell ec : a.envelope()) {
                 int[] pos = ec.pos();
-                ResourceLocation rl = ResourceLocation.parse(ec.block());
-                Block b = BuiltInRegistries.BLOCK.get(rl);
-                BlockState st = b.defaultBlockState();
-                cells.add(new WorldApi.Cell(new BlockPos(pos[0], pos[1], pos[2]), st, null));
+                BlockState st = parseState(ec.state());
+                if (st == null) {
+                    ResourceLocation rl = ResourceLocation.parse(ec.block());
+                    Block b = BuiltInRegistries.BLOCK.get(rl);
+                    st = b.defaultBlockState();
+                    defaultedCells++;
+                }
+                CompoundTag beTag = parseNbt(ec.nbt());
+                cells.add(new WorldApi.Cell(new BlockPos(pos[0], pos[1], pos[2]), st, beTag));
             }
+        }
+
+        // 2b. FAITHFUL re-run (default): restore the recorded terrain, teleport to the
+        //     recorded start, and re-issue the ORIGINAL goal with normal planning. The
+        //     recorded plan/edges are NOT used — A* re-derives them deterministically.
+        if (replan) {
+            int[] hs = a.header().start();
+            if (hs == null) {
+                return Map.of("ok", false, "error", "archive has no recorded start to replay from");
+            }
+            Goal goal = reconstructGoal(a.header());
+            if (goal == null) {
+                return Map.of("ok", false, "error",
+                        "could not reconstruct goal from header (goalDesc=" + a.header().goalDesc()
+                                + "); pass replan:false for rigid plan replay");
+            }
+            if (!(BotHooks.impl() instanceof BotApiImpl bot)) {
+                return Map.of("ok", false, "error", "mc.bot.* not available (bot impl not registered)");
+            }
+            Map<String, Object> res = bot.startReplayReplan(
+                    cells, new BlockPos(hs[0], hs[1], hs[2]), goal,
+                    archivePath.getFileName().toString(), restoreBlocks);
+            if (Boolean.FALSE.equals(res.get("ok"))) return res;
+            java.util.LinkedHashMap<String, Object> out = new java.util.LinkedHashMap<>(res);
+            out.put("file", archivePath.getFileName().toString());
+            out.put("mode", "replan");
+            out.put("envelopeCells", a.envelope().size());
+            out.put("blockStateFidelity", defaultedCells == 0
+                    ? "full (block state SNBT + block-entity NBT)"
+                    : "mixed (" + defaultedCells + " v1 cells defaulted; rest full)");
+            return out;
         }
 
         // 3. Concatenate the plan across all segments, deduping the shared boundary
@@ -140,8 +187,56 @@ public final class ReplayTool {
         out.put("segments", a.segments().size());
         out.put("fromStepRequested", fromStep);
         out.put("fromStepHonored", false);
-        out.put("blockStateFidelity", "defaultBlockState (block type only; properties not restored)");
+        out.put("blockStateFidelity", defaultedCells == 0
+                ? "full (block state SNBT + block-entity NBT)"
+                : "mixed (" + defaultedCells + " v1 cells defaulted; rest full)");
         return out;
+    }
+
+    /** Parse a schema-v2 block-state SNBT back to a {@link BlockState}, or null when
+     *  absent (v1 archive) / unparseable (caller falls back to defaultBlockState). */
+    private static BlockState parseState(String snbt) {
+        if (snbt == null) return null;
+        try {
+            CompoundTag tag = TagParser.parseTag(snbt);
+            return NbtUtils.readBlockState(BuiltInRegistries.BLOCK.asLookup(), tag);
+        } catch (CommandSyntaxException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** Parse a block-entity SNBT back to a {@link CompoundTag}, or null when absent. */
+    private static CompoundTag parseNbt(String snbt) {
+        if (snbt == null) return null;
+        try {
+            return TagParser.parseTag(snbt);
+        } catch (CommandSyntaxException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** Rebuild the live goal from the archive header for a faithful re-run. The header
+     *  records {@code goalDesc} (the goal's record toString, e.g. {@code XZ[x=1600, z=2680,
+     *  radius=2]}) and {@code goal} (its marker coords). The record-name prefix selects the
+     *  Goal type; the coords + a parsed {@code radius=N} reconstruct it. Y-agnostic XZ goals
+     *  reproduce the original buoyant climb-out routing; block goals target the cell. Returns
+     *  null when the header carries no goal coords. */
+    private static Goal reconstructGoal(PathArchive.Header h) {
+        int[] g = h.goal();
+        if (g == null) return null;
+        String desc = h.goalDesc() == null ? "" : h.goalDesc();
+        int radius = parseRadius(desc);
+        if (desc.startsWith("XZ"))     return new Goal.XZ(g[0], g[2], radius);
+        if (desc.startsWith("Near"))   return new Goal.Near(new BlockPos(g[0], g[1], g[2]), radius);
+        if (desc.startsWith("YLevel")) return new Goal.YLevel(g[1]);
+        // Block / GetToBlock / TwoBlocks / Axis / ... → aim at the recorded target cell.
+        return new Goal.Block(new BlockPos(g[0], g[1], g[2]));
+    }
+
+    /** Extract {@code radius=N} from a goal's toString, or 0 when absent. */
+    private static int parseRadius(String desc) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("radius=(\\d+)").matcher(desc);
+        return m.find() ? Integer.parseInt(m.group(1)) : 0;
     }
 
     /** Newest {@code replay-*.json} under the replays dir that is NOT a replay-run. */

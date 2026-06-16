@@ -227,6 +227,54 @@ public final class BotApiImpl implements BotApi {
         });
     }
 
+    /** Faithful re-run replay (mc.debug.replay replan mode): restore the recorded
+     *  terrain, teleport to the recorded start, and re-issue the ORIGINAL goal through
+     *  the normal {@link GotoProcess} (full planning). Unlike {@link #startReplay}, the
+     *  recorded plan is not consulted — A* re-derives it deterministically in the
+     *  restored terrain, so emergent live behaviour (repaths, execution wedges)
+     *  reproduces. A normal path archive of the re-run is captured when pathArchive is on. */
+    public Map<String, Object> startReplayReplan(java.util.List<net.magicterra.agent.api.WorldApi.Cell> cells,
+                                                 BlockPos start, Goal goal,
+                                                 String archiveName, boolean restoreBlocks) {
+        return onClient(() -> {
+            LocalPlayer player = Minecraft.getInstance().player;
+            if (player == null) return Map.of("ok", false, "error", "no player");
+
+            int restored = 0;
+            net.magicterra.agent.api.AgentApi api =
+                    net.magicterra.agent.AgentDriverCommon.api();
+            if (restoreBlocks && cells != null && !cells.isEmpty()) {
+                if (api == null) return Map.of("ok", false, "error", "AgentApi not ready");
+                try {
+                    restored = api.restoreCellsOnServer(cells);
+                } catch (RuntimeException e) {
+                    return Map.of("ok", false, "error", "block restore failed: " + e.getMessage());
+                }
+            }
+
+            double tx = start.getX() + 0.5, ty = start.getY(), tz = start.getZ() + 0.5;
+            if (api != null) {
+                try {
+                    api.route("mc.action.runCommand",
+                            Map.of("cmd", String.format(Locale.ROOT, "tp %.1f %d %.1f", tx, start.getY(), tz)));
+                } catch (RuntimeException ignored) {
+                    // /tp unavailable (no server) — the client moveTo below still positions the bot.
+                }
+            }
+            player.moveTo(tx, ty, tz, player.getYRot(), player.getXRot());
+
+            // Normal planning goto — this is what makes the re-run faithful to the live run.
+            startProcess(new GotoProcess(goal));
+
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("ok", true);
+            out.put("file", archiveName);
+            out.put("goal", goal.toString());
+            out.put("restoredBlocks", restored);
+            return out;
+        });
+    }
+
     @Override
     public Map<String, Object> elytraFly(Map<String, Object> params) {
         final Params p = Params.of(params);

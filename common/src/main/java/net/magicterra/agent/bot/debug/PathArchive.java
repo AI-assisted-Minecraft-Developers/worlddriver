@@ -24,7 +24,10 @@ public final class PathArchive {
     // -----------------------------------------------------------------------
     // Schema version
     // -----------------------------------------------------------------------
-    public static final int SCHEMA_VERSION = 1;
+    // v2: EnvelopeCell carries full block state SNBT + block-entity NBT (faithful
+    // replay restore). v1 archives (block id only) still decode — the new fields
+    // read back as null and the replayer falls back to defaultBlockState().
+    public static final int SCHEMA_VERSION = 2;
 
     // -----------------------------------------------------------------------
     // Nested record types
@@ -92,13 +95,23 @@ public final class PathArchive {
      * One block in the spatial envelope sampled around the path.
      * {@code shape} is nullable (e.g. non-solid blocks have no collision shape);
      * {@code fluid} is nullable for non-fluid blocks.
+     *
+     * <p>{@code state} is the FULL block state as SNBT ({@code NbtUtils.writeBlockState}
+     * → {@code {Name,Properties}}) so a faithful replay restores stair facing, slab
+     * half, snow layers, water level, waterlogged, ... — not just the block type.
+     * {@code nbt} is the block-entity contents as SNBT ({@code saveWithFullMetadata}),
+     * null for cells without a block entity. Both are nullable: schema-v1 archives
+     * (block id only) decode them as null and the replayer falls back to
+     * {@code defaultBlockState()}.</p>
      */
     public record EnvelopeCell(
             int[]           pos,
             String          block,
             boolean         solid,
             List<double[]>  shape,   // nullable
-            String          fluid    // nullable
+            String          fluid,   // nullable
+            String          state,   // nullable — full block state SNBT (NbtUtils.writeBlockState)
+            String          nbt      // nullable — block-entity SNBT (saveWithFullMetadata)
     ) {}
 
     /**
@@ -287,6 +300,8 @@ public final class PathArchive {
             m.put("shape", null);
         }
         m.put("fluid", c.fluid());   // null → "null"
+        m.put("state", c.state());   // null for v1-style cells
+        m.put("nbt",   c.nbt());     // null when no block entity
         return m;
     }
 
@@ -452,7 +467,9 @@ public final class PathArchive {
                 asStr(m.get("block")),
                 asBool(m.get("solid")),
                 shape,
-                asStrNullable(m.get("fluid"))
+                asStrNullable(m.get("fluid")),
+                asStrNullable(m.get("state")),   // null for v1 archives
+                asStrNullable(m.get("nbt"))
         );
     }
 
@@ -612,7 +629,9 @@ public final class PathArchive {
                 "minecraft:stone",
                 true,
                 List.of(new double[]{0.0, 0.0, 0.0, 1.0, 1.0, 1.0}),
-                null
+                null,
+                "{Name:\"minecraft:oak_stairs\",Properties:{facing:\"east\",half:\"bottom\",shape:\"straight\",waterlogged:\"true\"}}",
+                "{id:\"minecraft:chest\",Items:[{Slot:0b,id:\"minecraft:stone\",Count:1b}]}"
         );
 
         // Two Ticks (plan archive: deviation=NaN)
