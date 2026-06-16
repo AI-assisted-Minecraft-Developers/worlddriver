@@ -276,6 +276,7 @@ public final class Walker {
     private boolean waterClimbPillaring;   // latched: pillaring up the bot's column to bank stand level
     private boolean waterClimbDigging;     // set the tick the block-less bank-dig actuator swings; OR'd into breakingEdge next tick so the anti-stuck burst can't yank the bot off the riser mid-dig (it has no planned toBreak edge of its own)
     private BlockPos lastDigRiser;         // the riser the dig last aimed at; re-snap the look ONLY when it changes (not every tick) so the camera holds steady instead of juddering off the bobbing eye — the bob keeps the crosshair on the 1-tall block between re-aims
+    private BlockPos waterClimbDigRiser;   // LATCHED bank-dig riser cell — held while still solid so a buoyant bob (foot.y flickering ±1) or lateral drift (foot.z wandering) can't re-target a LOWER block of the same column or a neighbouring column mid-dig; cleared once the block breaks so the next +1 step is chosen fresh (drift-arena over-dig fix)
     private boolean climbPillarGaveUp;     // latched once the pillar takeover proves futile (drifted off its locked column, or bob peak never clears the surface fill cell) → block pillar re-engage + let the bank-DIG take over even with a place block in hand; cleared when the climb context ends
     private int pillarNoPlaceTicks;        // ticks the pillar takeover has been engaged without a successful place / height gain — buoyant bob can't lift feet above a surface fill cell, so beyond PILLAR_FUTILE_TICKS the place is hopeless and we fall to the dig
     private int waterClimbTargetY;         // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
@@ -337,6 +338,7 @@ public final class Walker {
         this.climbPillarGaveUp = false;
         this.pillarNoPlaceTicks = 0;
         this.lastDigRiser = null;
+        this.waterClimbDigRiser = null;
         this.diveLatch = 0;
         this.diveHold = 0;
         this.pillarRecoverLatch = 0;
@@ -402,6 +404,7 @@ public final class Walker {
         this.climbPillarGaveUp = false;
         this.pillarNoPlaceTicks = 0;
         this.lastDigRiser = null;
+        this.waterClimbDigRiser = null;
         this.diveLatch = 0;
         this.diveHold = 0;
         this.pillarRecoverLatch = 0;
@@ -1423,6 +1426,7 @@ public final class Walker {
                 climbPillarGaveUp = false;
                 pillarNoPlaceTicks = 0;
                 lastDigRiser = null;
+                waterClimbDigRiser = null;
             } else waterClimbStall++;
             // Trigger once bob-stalled below a bank we can't mount, with a placeable in
             // hand — then LATCH a pillar-up that runs to completion. Suppressed once the
@@ -1555,17 +1559,37 @@ public final class Walker {
             if (!waterClimbPillaring && waterClimbing && waterClimbStall > digStall
                     && BotConfig.allowBreak && BotConfig.allowSwimEscapeBreak
                     && (!a.holdPlaceable() || climbPillarGaveUp || deepDig)) {
-                int dx = Integer.signum(cwp.getX() - foot.getX());
-                int dz = Integer.signum(cwp.getZ() - foot.getZ());
-                // Prefer the diagonal cell, then each cardinal component — whichever
-                // solid cell at foot level is the hCol obstruction blocking the mount.
-                BlockPos riser = null;
-                BlockPos[] cands = {
-                        (dx != 0 || dz != 0) ? new BlockPos(foot.getX() + dx, foot.getY(), foot.getZ() + dz) : null,
-                        dx != 0 ? new BlockPos(foot.getX() + dx, foot.getY(), foot.getZ()) : null,
-                        dz != 0 ? new BlockPos(foot.getX(), foot.getY(), foot.getZ() + dz) : null};
-                for (BlockPos cand : cands) {
-                    if (cand != null && world.isSolid(cand)) { riser = cand; break; }
+                // Keep digging the LATCHED riser while it's still solid — a buoyant bob
+                // (foot.y flickering ±1) or lateral drift (foot.z wandering) must NOT
+                // re-target a lower block of the same column or a neighbouring column
+                // mid-dig. Choose a fresh riser only once the latched one breaks.
+                // The fix the drift arena exposed: the old code dug `foot.y` directly, so
+                // a low bob dug the foot-level block AND a high bob dug the step block of
+                // the SAME column → the bank surface tunnelled DOWN to the water line and
+                // the next column stayed a fresh +2 wall (infinite pogo, ashoreTick 162).
+                BlockPos riser = waterClimbDigRiser;
+                if (riser == null || !world.isSolid(riser)) {
+                    riser = null;
+                    int dx = Integer.signum(cwp.getX() - foot.getX());
+                    int dz = Integer.signum(cwp.getZ() - foot.getZ());
+                    BlockPos[] cands = {
+                            (dx != 0 || dz != 0) ? new BlockPos(foot.getX() + dx, foot.getY(), foot.getZ() + dz) : null,
+                            dx != 0 ? new BlockPos(foot.getX() + dx, foot.getY(), foot.getZ()) : null,
+                            dz != 0 ? new BlockPos(foot.getX(), foot.getY(), foot.getZ() + dz) : null};
+                    for (BlockPos cand : cands) {
+                        if (cand == null || !world.isSolid(cand)) continue;
+                        // Dig the TOP solid block of this forward column (the step block),
+                        // not the foot-level block: removing the top lowers the bank
+                        // surface by exactly one → a clean +1 step the bot then mounts.
+                        // Walking up to the top makes the choice bob-INVARIANT (always the
+                        // wall crest, whatever the live foot bob). Only engage when it's
+                        // MORE than a +1 step (top.y > foot.y); a +1 step is already
+                        // mountable, and digging it would tunnel the bank below the water.
+                        BlockPos top = cand;
+                        while (world.isSolid(top.above())) top = top.above();
+                        if (top.getY() > foot.getY()) { riser = top; break; }
+                    }
+                    waterClimbDigRiser = riser;
                 }
                 if (riser != null) {
                     if (BotConfig.walkerDebug)

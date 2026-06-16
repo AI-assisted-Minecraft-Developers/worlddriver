@@ -1178,9 +1178,16 @@ public final class AgentGameTest {
             }
             AgentDriverCommon.LOG.info("[deepWaterClimboutDriftArena] step={} pos=({},{},{}) ashoreTick={} (clean baseline ~22)",
                     s, fp.getX(), fp.getY(), fp.getZ(), ashoreTick);
-            if (ashoreTick < 0)
-                throw new GameTestAssertException("driftClimbout: drifting bot failed to climb the +2 bank within budget:"
-                        + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + s);
+            // Pre-fix this drifting bot over-dug the bank to the water line and pogo-bobbed
+            // forever (ashoreTick 162). The drift-stable latched bank-dig (Walker
+            // waterClimbDigRiser: latch the riser to the column's TOP solid block, one +1
+            // step per episode) makes it a clean two-step climb (~74t: swim → dig one
+            // block → mount +1 → mount +1). Bound at 120 catches a pogo regression (which
+            // runs to the 400-tick budget) while leaving headroom for physics drift.
+            if (ashoreTick < 0 || ashoreTick > 120)
+                throw new GameTestAssertException("driftClimbout: drifting bot failed a smooth +2 bank climb"
+                        + " (ashoreTick=" + ashoreTick + ", want 0..120): pos=(" + fp.getX() + "," + fp.getY()
+                        + "," + fp.getZ() + ") step=" + s);
         } finally {
             BotConfig.allowBreak = ob;
             BotConfig.allowPlace = op;
