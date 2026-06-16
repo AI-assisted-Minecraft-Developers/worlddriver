@@ -1199,6 +1199,71 @@ public final class AgentGameTest {
         helper.succeed();
     }
 
+    /**
+     * Goal-snap robustness: a {@code goto} whose exact target block is UNSTANDABLE (buried
+     * in terrain) must NOT make the bot oscillate forever — the Walker snaps the goal to the
+     * nearest standable cell so the search terminates and the bot arrives there. Reproduces
+     * the live failure (random goal (2350,64,1820) was solid stone → A* goalReached never
+     * fired → 5 s searches + churn into water). Here the goal column is a solid stone pillar
+     * (no standable cell in it); flat floor all around. PRE-fix the Walker would run to the
+     * 300-tick budget still WALKING; POST-fix it snaps to an adjacent floor cell and ARRIVEs.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void goalSnapBuriedArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 300, cz = 300, floorY = 64;
+        // Flat stone floor the bot walks on; air above.
+        for (int dx = -2; dx <= 14; dx++)
+            for (int dz = -4; dz <= 4; dz++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+                for (int y = floorY + 1; y <= floorY + 4; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
+            }
+        // The goal column is a SOLID stone pillar → its foot cell (cx+10, floorY+1) is not
+        // standable (solid), and there is no 1.8-tall pocket anywhere in it.
+        for (int y = floorY; y <= floorY + 5; y++)
+            level.setBlockAndUpdate(new BlockPos(cx + 10, y, cz), Blocks.STONE.defaultBlockState());
+
+        BlockPos buried = new BlockPos(cx + 10, floorY + 1, cz);   // solid → unstandable
+
+        boolean odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            FakePlayer fp = av.fakePlayer();
+            LevelWorldView w = new LevelWorldView(level, fp);
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.Block(buried));
+            Walker.Step s = Walker.Step.WALKING;
+            int arrivedTick = -1;
+            for (int t = 0; t < 300 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+                if (s == Walker.Step.ARRIVED) { arrivedTick = t; break; }
+            }
+            double dGoal = Math.hypot(fp.getX() - (cx + 10 + 0.5), fp.getZ() - (cz + 0.5));
+            AgentDriverCommon.LOG.info("[goalSnapBuriedArena] step={} pos=({},{},{}) arrivedTick={} dToBuried={}",
+                    s, fp.getX(), fp.getY(), fp.getZ(), arrivedTick, String.format("%.1f", dGoal));
+            // Snap → ARRIVED at a standable cell adjacent to the buried pillar (within the
+            // snap radius). Pre-fix: never ARRIVES (goal unstandable) → still WALKING at 300t.
+            // Snapped arrival must sit within the snap radius (6) + a half-block of
+            // foot-centre slack of the buried goal column.
+            if (s != Walker.Step.ARRIVED)
+                throw new GameTestAssertException("goalSnap: bot never arrived at a buried/unstandable goal"
+                        + " (snap failed): step=" + s + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ")");
+            if (dGoal > 7.0)
+                throw new GameTestAssertException("goalSnap: arrived too far from the buried goal (d=" + dGoal + ")");
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+        }
+        helper.succeed();
+    }
+
     /** 5x5 stone-walled tank, 3x3 water core {@code depth} tall, air above. */
     private static void buildWaterColumn(ServerLevel level, int cx, int cz, int floorY, int depth) {
         for (int dx = -2; dx <= 2; dx++)

@@ -207,6 +207,13 @@ public final class Walker {
      *  alone would have crossed many of those banks. Only a bank still un-mounted
      *  after ~4 s (bob + burst both failed) is a real wedge worth digging. */
     private static final int WATER_CLIMB_DIG_STALL = 80;
+    /** Chebyshev radius searched around an UNSTANDABLE Goal.Block target for the nearest
+     *  standable cell to snap to (see {@link #snapGoalToStandable}). 6 covers a goal a few
+     *  blocks inside a hill / under a thin ceiling while staying cheap (one (2R+1)^3 scan
+     *  per goal). Too small misses deeper burials; too large risks snapping past a wall to
+     *  an unrelated pocket — A* still has to reach it, so an unreachable snap just fails as
+     *  before, no worse than no snap. */
+    private static final int GOAL_SNAP_RADIUS = 6;
     /** Fast dig-engage threshold when the bot is FLOATING over deep water (water directly
      *  below the foot). There a buoyant bot physically cannot swim-jump a +1 bank — the
      *  dig is the ONLY exit — so there is no point bob-stalling the full {@link
@@ -261,6 +268,7 @@ public final class Walker {
     public static volatile PathStats lastStats;
 
     private Goal goal;
+    private boolean goalSnapChecked;   // one-shot per goal: snap an unstandable Goal.Block target to the nearest standable cell (see snapGoalToStandable) — needs a live WorldView so it runs on the first tick, not at setGoal
     private List<BlockPos> path;
     private List<Move.Edge> edges;   // aligned with path; edges.get(i) enters path.get(i)
     private int step;
@@ -322,6 +330,7 @@ public final class Walker {
 
     public void setGoal(Goal g) {
         this.goal = g;
+        this.goalSnapChecked = false;
         this.path = null;
         this.edges = null;
         this.step = 0;
@@ -367,6 +376,47 @@ public final class Walker {
         this.unstuckTicks = 0;
         this.replayMode = false;
         this.lastError = null;
+    }
+
+    /**
+     * If the goal is an exact-cell {@link Goal.Block} whose target is NOT standable per
+     * {@code world.canStandAt}, replace it with a Goal.Block on the nearest standable cell
+     * within {@link #GOAL_SNAP_RADIUS}. This is the fix for a random/long-distance goto
+     * landing its target inside terrain or a sub-stand pocket: A* can never accept the
+     * unstandable cell as the goal, so it burns its whole node budget every repath (~5 s
+     * freeze) while the bot oscillates at the cell and drifts into nearby water. Snapping
+     * to a cell the pathfinder itself considers standable lets the search terminate and the
+     * bot settle at the closest reachable spot. Uses the SAME predicate the planner uses, so
+     * planning and arrival ({@code goal.reached}) stay consistent. No-op for standable
+     * targets, non-Block goals (Near/XZ already tolerate it), or when nothing standable is
+     * near (then the goal is unchanged — fails as before, never worse).
+     */
+    private void snapGoalToStandable(WorldView world, BlockPos foot) {
+        if (!(goal instanceof Goal.Block b)) return;
+        BlockPos t = b.target();
+        if (world.canStandAt(t)) return;                 // already fine — leave it
+        BlockPos best = null;
+        long bestToTarget = Long.MAX_VALUE, bestToFoot = Long.MAX_VALUE;
+        for (int dy = -GOAL_SNAP_RADIUS; dy <= GOAL_SNAP_RADIUS; dy++)
+            for (int dx = -GOAL_SNAP_RADIUS; dx <= GOAL_SNAP_RADIUS; dx++)
+                for (int dz = -GOAL_SNAP_RADIUS; dz <= GOAL_SNAP_RADIUS; dz++) {
+                    BlockPos c = t.offset(dx, dy, dz);
+                    if (!world.canStandAt(c)) continue;
+                    long dT = (long) c.distSqr(t);
+                    if (dT > bestToTarget) continue;
+                    long dF = (long) c.distSqr(foot);
+                    // Nearest to the target wins; ties broken toward the bot so the snap
+                    // doesn't pick a standable cell on the far side of the obstruction.
+                    if (dT < bestToTarget || dF < bestToFoot) {
+                        bestToTarget = dT; bestToFoot = dF; best = c;
+                    }
+                }
+        if (best != null && !best.equals(t)) {
+            if (BotConfig.walkerDebug)
+                LOG.info("[walker] goal snap: unstandable target {} → nearest standable {} (d={})",
+                        t, best, String.format(Locale.ROOT, "%.1f", Math.sqrt(bestToTarget)));
+            this.goal = new Goal.Block(best);
+        }
     }
 
     /** Drop the cached path (keep the goal) so the next {@link #tick} recomputes
@@ -501,6 +551,17 @@ public final class Walker {
 
         BlockPos foot = new BlockPos((int) Math.floor(p.getX()), (int) Math.floor(p.getY()), (int) Math.floor(p.getZ()));
         sampleTick(p);
+        // One-shot goal snap (needs a live WorldView, so here not in setGoal): a random
+        // long-distance goto whose exact target block is UNSTANDABLE — buried in terrain,
+        // a sub-stand 1-tall pocket, or under a ceiling — makes A* never accept any node
+        // as the goal (goalReached stays false), so it exhausts its whole node budget every
+        // repath (~5 s freeze) while the bot oscillates at the unreachable cell and drifts
+        // into nearby water (live 2026-06-15: goal (2350,64,1820) was solid stone). Snap the
+        // target to the nearest cell that passes the SAME world.canStandAt the pathfinder
+        // uses, so planning AND arrival agree and the bot settles at the closest standable
+        // spot. Only affects exact-cell Goal.Block whose target is genuinely unstandable;
+        // standable targets (every mine/farm/combat stand cell) are left untouched.
+        if (!goalSnapChecked) { goalSnapChecked = true; snapGoalToStandable(world, foot); }
         if (goal.reached(foot)) {
             // While mid-pillar-jump the floored feet-Y can tick into the goal
             // cell at the apex before we've placed the block to stand on —
