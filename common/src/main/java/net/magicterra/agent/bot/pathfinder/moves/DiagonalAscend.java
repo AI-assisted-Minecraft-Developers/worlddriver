@@ -51,6 +51,7 @@ public final class DiagonalAscend extends Move {
         // never plans the unexecutable +1 climb the bot would only bob-stall against.
         if (w.isFloatingWater(from)) return false;
         BlockPos to = apply(from);
+        if (w.isSubmergedAscent(from, to)) return false;   // submerged-face climb is a buoyant fiction (WorldView#isSubmergedAscent)
         if (!w.canStandAt(to)) return false;
         // Jump clearance over the launch head (foot.y + 2).
         if (!w.isPassable(from.offset(0, 2, 0)) || w.isHazard(from.offset(0, 2, 0))) return false;

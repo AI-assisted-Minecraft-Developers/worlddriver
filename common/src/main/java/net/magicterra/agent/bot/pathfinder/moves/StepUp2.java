@@ -18,6 +18,7 @@ public final class StepUp2 extends Move {
         if (w.maxJumpUpBlocks() < 2) return false;            // can't jump this high → not a legal move
         if (w.isFloatingWater(from)) return false;            // a floating bot can't jump up out of deep water
         BlockPos to = apply(from);
+        if (w.isSubmergedAscent(from, to)) return false;      // submerged-face climb is a buoyant fiction (WorldView#isSubmergedAscent)
         if (!w.canStandAt(to)) return false;
         // Head clearance for a +2 jump: feet reach from+2, head reaches from+3.
         return w.isPassable(from.offset(0, 2, 0)) && w.isPassable(from.offset(0, 3, 0));

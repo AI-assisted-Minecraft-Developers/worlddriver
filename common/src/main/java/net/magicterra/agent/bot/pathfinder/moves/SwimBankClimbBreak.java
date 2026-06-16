@@ -41,6 +41,7 @@ public final class SwimBankClimbBreak extends Move {
 
     @Override public Edge eval(WorldView w, BlockPos from) {
         if (!bankClimbContext(w, from, BotConfig.swimBankClimbMaxHeight)) return null;
+        if (w.isSubmergedFoot(from)) return null;               // must start within 1 of the surface to jump-mount (WorldView#isSubmergedFoot)
         BlockPos to = apply(from);                              // from + (dx, 1, dz)
         BlockPos floor = to.offset(0, -1, 0);                   // = from + (dx, 0, dz): the bank we land on
         if (!w.isSolid(floor) || w.isHazard(floor)) return null;// need a solid bank to stand on (we don't place)

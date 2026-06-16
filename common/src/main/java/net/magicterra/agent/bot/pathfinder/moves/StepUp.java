@@ -14,6 +14,10 @@ public final class StepUp extends Move {
         // unexecutable +1 climb the bot would only bob-stall against.
         if (w.isFloatingWater(from)) return false;
         BlockPos to = apply(from);
+        // A submerged ascending step (destination still fully under water) is a buoyant
+        // fiction the bot can only sink-churn against — forbid so A* can't dive to the
+        // pool floor and climb a submerged bank face. See WorldView#isSubmergedAscent.
+        if (w.isSubmergedAscent(from, to)) return false;
         if (!w.canStandAt(to)) return false;
         // Need air above current head (jump clearance, foot.y + 2).
         return w.isPassable(from.offset(0, 2, 0));

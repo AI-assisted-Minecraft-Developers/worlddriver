@@ -31,6 +31,7 @@ public final class SwimAshoreBreak extends Move {
 
     @Override public Edge eval(WorldView w, BlockPos from) {
         if (!waterEscapeContext(w, from)) return null;          // only as a water escape
+        if (w.isSubmergedFoot(from)) return null;               // must start within 1 of the surface to jump-mount (WorldView#isSubmergedFoot)
         BlockPos to = apply(from);                              // from + (dx, 1, dz)
         BlockPos floor = to.offset(0, -1, 0);                   // = from + (dx, 0, dz): the bank we land on
         if (!w.isSolid(floor) || w.isHazard(floor)) return null;// need a solid bank to stand on (we don't place)

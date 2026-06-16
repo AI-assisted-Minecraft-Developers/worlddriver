@@ -285,4 +285,47 @@ public interface WorldView {
     default boolean isFloatingWater(BlockPos foot) {
         return isWater(foot) && isWater(foot.offset(0, -1, 0));
     }
+
+    /**
+     * A buoyant ascending climb ({@code stepUp}/{@code stepUp2}/{@code diagUp}) whose
+     * destination is still FULLY submerged — water at both the destination foot and its
+     * head — while the bot is already in water. The bot would FLOAT at the destination
+     * and never had a floor to jump-step off, so the climb is physically unexecutable.
+     *
+     * <p>Why this matters beyond {@link #isFloatingWater}: at a deep pool against a tall
+     * bank whose crest sits ABOVE the water surface, the floating-water gate forbids the
+     * +1 climb-out at the surface, so A* instead dives the bot to the pool FLOOR (foot
+     * grounded, {@code isFloatingWater} false) and climbs the SUBMERGED bank face with a
+     * chain of grounded-looking step-ups. That "path" is a fiction — a buoyant bot can't
+     * jump-step underwater (buoyancy lifts its feet off the floor) — and the executor
+     * only sink-churns against it (live 2026-06-16 z3022: ~30 s, peak totStuck 329).
+     * Forbidding the fully-submerged ascent removes the dive-to-floor route, so A* must
+     * break out ({@link net.magicterra.agent.bot.pathfinder.moves.SwimBankClimbBreak})
+     * or detour to a real flush/ramp exit it can actually walk. A near-surface step
+     * (destination head in air) and a dry step (source not in water) are unaffected.
+     */
+    default boolean isSubmergedAscent(BlockPos from, BlockPos to) {
+        return isWater(from) && isWater(to) && isWater(to.offset(0, 1, 0));
+    }
+
+    /**
+     * The foot sits ≥2 cells below the water surface (water still fills the cell TWO
+     * above the foot), so the bot floats fully submerged with its head under water and
+     * cannot jump-mount a bank — a break-climb out ({@code swimAshore}/{@code
+     * swimAshoreClimb}) started from here only sink-churns, because the buoyant body
+     * can't lift its feet onto the bank from below the surface.
+     *
+     * <p>Sibling of {@link #isFloatingWater}/{@link #isSubmergedAscent}: those gate the
+     * non-breaking ascents; this one gates the BREAK-climbs. Without it, A* prefers a
+     * break-climb at a DEEP node where the bank blocks are cheap (e.g. dirt at the pool
+     * bottom) over the same climb at the surface where they are dear (stone crest), and
+     * routes the bot to dive and dig the submerged bank face — the live z3022 churn
+     * (2026-06-16): 212 ticks of {@code swimAshore} at a y59 node, 3 below the y62
+     * surface, "swims up then dives back to dig dirt under the bank". Requiring the
+     * climb-out to start within one cell of the surface makes it executable by
+     * construction; A* then breaks the surface crest in place or detours to a ramp.
+     */
+    default boolean isSubmergedFoot(BlockPos foot) {
+        return isWater(foot.offset(0, 2, 0));
+    }
 }
