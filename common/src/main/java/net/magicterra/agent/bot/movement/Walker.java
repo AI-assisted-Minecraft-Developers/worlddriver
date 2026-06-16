@@ -63,6 +63,13 @@ public final class Walker {
      *  multi-second oscillation stall, so a precisely-progressing approach keeps the tight
      *  dead-zone (climb-out mount accuracy) and only a real thrash widens. */
     private static final int WATER_YAW_HOLD_STALL = 15;
+    /** Decaying yaw-thrash score at which a buoyant bot on the (LOS-collapsed) near carrot
+     *  switches to aiming at a stable FAR path node. +4 per raw-carrot-bearing reversal
+     *  (cap 12), −1/tick, so 6 ≈ two reversals recently = genuine oscillation. */
+    private static final int WATER_YAW_THRASH_SCORE = 6;
+    /** Path nodes ahead the far-aim override targets, and the climb look-ahead that suppresses
+     *  it (a precise mount within this many nodes keeps the normal carrot). */
+    private static final int WATER_FAR_AIM_LOOKAHEAD = 3;
     /** Hard per-tick cap (degrees) on how far the commanded body yaw may turn during
      *  normal ground walking — independent of the cosmetic {@code smoothLook}. A single
      *  degenerate aim vector (reCentre pointing back at the previous node, atan2 on a
@@ -330,6 +337,9 @@ public final class Walker {
     private double noProgressBestD2 = Double.POSITIVE_INFINITY; // closest-ever approach² to the tracked step; monotonic, so a bob can't reset the wedge timer but a slow water cruise along a long string-pulled edge does
     private boolean searchSuppressedPlace;                  // the in-flight search dropped placing moves (block-budget reroute) → adopt its result without re-checking
     private float smoothTargetYaw = Float.NaN;              // EMA-low-passed target heading (NaN = uninitialised; resync on launch/new goal)
+    private float lastCarrotBearing = Float.NaN;            // previous tick's raw carrot bearing — feeds the in-water yaw-thrash detector
+    private int lastCarrotBearingSign = 0;                  // sign of the last meaningful carrot-bearing turn (for reversal detection)
+    private int yawThrashTicks = 0;                         // decaying score: +4 per carrot-bearing reversal in water (cap 12), −1/tick → steady turn winds to 0, oscillation holds high
     private boolean pathBestEffort;                         // current path is a best-effort partial (goal NOT reached) → commit to it before re-searching
     private BlockPos commitEnd;                             // last node of the current best-effort segment (null for a full path) → where continuation searches launch from
     private boolean searchFromEnd;                          // activeSearch is a continuation launched from commitEnd (deferred splice) vs a foot-search (splice immediately)
@@ -384,6 +394,9 @@ public final class Walker {
         this.noStepProgressTicks = 0;
         this.noProgressStep = -1;
         this.smoothTargetYaw = Float.NaN;
+        this.lastCarrotBearing = Float.NaN;
+        this.lastCarrotBearingSign = 0;
+        this.yawThrashTicks = 0;
         this.commitEnd = null;
         this.searchFromEnd = false;
         this.pendingSegment = null;
@@ -458,6 +471,9 @@ public final class Walker {
         this.noStepProgressTicks = 0;
         this.noProgressStep = -1;
         this.smoothTargetYaw = Float.NaN;
+        this.lastCarrotBearing = Float.NaN;
+        this.lastCarrotBearingSign = 0;
+        this.yawThrashTicks = 0;
         this.commitEnd = null;
         this.searchFromEnd = false;
         this.pendingSegment = null;
@@ -2109,6 +2125,39 @@ public final class Walker {
             double[] c = carrotPoint(world, foot, p.getX(), p.getZ());
             adx = c[0] - p.getX();
             adz = c[1] - p.getZ();
+            // Carrot-swing thrash fix (the residual deep-water stall cluster). When a bank
+            // blocks LOS to the next node, carrotPoint collapses the carrot to a CLOSE node
+            // (~1 block); a buoyant bot drifting ±0.5 then makes that short aim vector rotate
+            // fast and the bearing sweeps 96-176° — thrust cancels (0.4-0.9 b/s) and the
+            // camera swings (maxYawErr≈180°). The dead-zone can't catch it (it fires only when
+            // aim2 is small, but here aim2 > the wide dead-zone). Detect the oscillation
+            // behaviourally (raw carrot bearing reversing repeatedly), and when it's genuine
+            // AND no precise mount is imminent, aim at a STABLE far path node instead — a long
+            // aim vector whose bearing barely moves as the bot drifts. A climb approach turns
+            // monotonically (no reversals) AND is suppressed by the look-ahead, so the +1-exit
+            // mount keeps its exact carrot (waterClimbOutRouteArena).
+            float carrotBearing = (float) Math.toDegrees(Math.atan2(-adx, adz));
+            if (p.isInWater() && !Float.isNaN(lastCarrotBearing)) {
+                float db = angleDiff(lastCarrotBearing, carrotBearing);
+                if (Math.abs(db) > 10f) {
+                    int sign = db > 0 ? 1 : -1;
+                    if (lastCarrotBearingSign != 0 && sign != lastCarrotBearingSign)
+                        yawThrashTicks = Math.min(yawThrashTicks + 4, 12);
+                    lastCarrotBearingSign = sign;
+                }
+            } else {
+                lastCarrotBearingSign = 0;
+            }
+            lastCarrotBearing = carrotBearing;
+            if (yawThrashTicks > 0) yawThrashTicks--;
+            boolean climbAhead = false;
+            for (int q = step; q < Math.min(path.size(), step + WATER_FAR_AIM_LOOKAHEAD + 1); q++)
+                if (path.get(q).getY() > foot.getY()) { climbAhead = true; break; }
+            if (p.isInWater() && yawThrashTicks >= WATER_YAW_THRASH_SCORE && !climbAhead) {
+                BlockPos far = path.get(Math.min(step + WATER_FAR_AIM_LOOKAHEAD, path.size() - 1));
+                adx = (far.getX() + 0.5) - p.getX();
+                adz = (far.getZ() + 0.5) - p.getZ();
+            }
         }
         // Hold heading when the horizontal aim vector is tiny (within the dead-zone) so
         // atan2 on sub-block noise can't snap the yaw each tick — see YAW_DEADZONE_SQ. Two
