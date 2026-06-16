@@ -44,6 +44,16 @@ public final class Walker {
      *  enough from the column for the bearing to be meaningful again. Far larger than
      *  the old 1e-4 epsilon (which only caught standing-exactly-on-the-point). */
     private static final double YAW_DEADZONE_SQ = 0.25;
+    /** WIDER aim dead-zone (blocks²) used only when aiming at a water bank-climb node that
+     *  sits OVERHEAD (+1/+2 above the floating foot). The buoyant bot can't translate ONTO
+     *  such a node, so once within ~a block of its XZ it orbits the column and atan2 sweeps
+     *  the full 360° as it circles — the deep-water "spin in place" stall (step frozen on the
+     *  climb node, pathChart maxYawErr ~179°, camera judder; archive replay-0002 tick3537 =
+     *  5.3 s). A 2-block dead-zone HOLDS the approach heading there so the body keeps pressing
+     *  the bank face and the climb-out dig/pillar can anchor and lift it out, instead of
+     *  chasing the node round in a circle. Only for an ABOVE node; flat swims / dives keep the
+     *  tight {@link #YAW_DEADZONE_SQ}. */
+    private static final double CLIMB_AIM_DEADZONE_SQ = 4.0;
     /** Hard per-tick cap (degrees) on how far the commanded body yaw may turn during
      *  normal ground walking — independent of the cosmetic {@code smoothLook}. A single
      *  degenerate aim vector (reCentre pointing back at the previous node, atan2 on a
@@ -2091,10 +2101,16 @@ public final class Walker {
             adx = c[0] - p.getX();
             adz = c[1] - p.getZ();
         }
-        // Hold heading when the horizontal aim vector is tiny (within the dead-zone)
-        // so atan2 on sub-block noise can't snap the yaw ±90/±180 each tick — see
-        // YAW_DEADZONE_SQ. Above the dead-zone the bearing is well-defined.
-        float targetYaw = (adx * adx + adz * adz < YAW_DEADZONE_SQ)
+        // Hold heading when the horizontal aim vector is tiny (within the dead-zone) so
+        // atan2 on sub-block noise can't snap the yaw each tick — see YAW_DEADZONE_SQ. A
+        // water bank-climb node OVERHEAD gets a WIDER dead-zone (CLIMB_AIM_DEADZONE_SQ): the
+        // floating bot can't translate onto it, so without this it orbits the column and the
+        // bearing sweeps 360° (the deep-water spin-in-place stall). Holding the approach
+        // heading keeps the body pressing the bank so the climb-out actuator can lift it out.
+        double aim2 = adx * adx + adz * adz;
+        double aimDeadzone = (aimAtWaypoint && p.isInWater() && wpAimDy > 0.5)
+                ? CLIMB_AIM_DEADZONE_SQ : YAW_DEADZONE_SQ;
+        float targetYaw = (aim2 < aimDeadzone)
                 ? p.getYRot()   // essentially on the aim column — hold heading, don't thrash atan2
                 : (float) Math.toDegrees(Math.atan2(-adx, adz));
         // A launch into a leap (parkour or MLG fall) must SNAP the heading even when
