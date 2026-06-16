@@ -54,6 +54,15 @@ public final class Walker {
      *  chasing the node round in a circle. Only for an ABOVE node; flat swims / dives keep the
      *  tight {@link #YAW_DEADZONE_SQ}. */
     private static final double CLIMB_AIM_DEADZONE_SQ = 4.0;
+    /** No-step-progress ticks before a FLAT in-water aim also widens to {@link
+     *  #CLIMB_AIM_DEADZONE_SQ}. A buoyant bot can't stop precisely on a water carrot/node, so
+     *  within ~1 block the aim vector rotates fast as it drifts and the bearing sweeps —
+     *  measured 96-176° yaw swings that collapse forward thrust to 0.4-0.9 b/s (vs 4.6 b/s
+     *  with a steady heading) + the maxYawErr≈180° camera-swing. ~0.75 s is well past any
+     *  normal arrival (which advances the step and resets the timer) yet early in the
+     *  multi-second oscillation stall, so a precisely-progressing approach keeps the tight
+     *  dead-zone (climb-out mount accuracy) and only a real thrash widens. */
+    private static final int WATER_YAW_HOLD_STALL = 15;
     /** Hard per-tick cap (degrees) on how far the commanded body yaw may turn during
      *  normal ground walking — independent of the cosmetic {@code smoothLook}. A single
      *  degenerate aim vector (reCentre pointing back at the previous node, atan2 on a
@@ -2102,14 +2111,24 @@ public final class Walker {
             adz = c[1] - p.getZ();
         }
         // Hold heading when the horizontal aim vector is tiny (within the dead-zone) so
-        // atan2 on sub-block noise can't snap the yaw each tick — see YAW_DEADZONE_SQ. A
-        // water bank-climb node OVERHEAD gets a WIDER dead-zone (CLIMB_AIM_DEADZONE_SQ): the
-        // floating bot can't translate onto it, so without this it orbits the column and the
-        // bearing sweeps 360° (the deep-water spin-in-place stall). Holding the approach
-        // heading keeps the body pressing the bank so the climb-out actuator can lift it out.
+        // atan2 on sub-block noise can't snap the yaw each tick — see YAW_DEADZONE_SQ. Two
+        // cases get the WIDER dead-zone (CLIMB_AIM_DEADZONE_SQ, ~2 blocks):
+        //  (a) a water bank-climb node OVERHEAD — the floating bot can't translate onto it, so
+        //      without this it orbits the column and the bearing sweeps 360° (the deep-water
+        //      spin-in-place stall); holding the approach heading presses the bank for the
+        //      climb-out actuator. (Original f4da16f behaviour — kept verbatim.)
+        //  (b) any in-water aim once the bot is WEDGED/oscillating (noStepProgressTicks past a
+        //      threshold). A buoyant bot can't stop precisely on a water carrot/node; within
+        //      ~1 block the aim vector rotates fast as it drifts and the bearing sweeps —
+        //      measured 96-176° yaw swings that collapse forward thrust to 0.4-0.9 b/s (vs
+        //      4.6 b/s on the same path with a steady heading) AND drive the maxYawErr≈180°
+        //      camera-swing anomaly. Gating on no-progress keeps a precisely-advancing
+        //      approach on the TIGHT dead-zone, so the climb-out mount stays accurate
+        //      (deepWaterClimboutNoBlockArena regressed when this widened unconditionally).
         double aim2 = adx * adx + adz * adz;
-        double aimDeadzone = (aimAtWaypoint && p.isInWater() && wpAimDy > 0.5)
-                ? CLIMB_AIM_DEADZONE_SQ : YAW_DEADZONE_SQ;
+        boolean climbAim = aimAtWaypoint && p.isInWater() && wpAimDy > 0.5;
+        boolean waterThrash = p.isInWater() && noStepProgressTicks > WATER_YAW_HOLD_STALL;
+        double aimDeadzone = (climbAim || waterThrash) ? CLIMB_AIM_DEADZONE_SQ : YAW_DEADZONE_SQ;
         float targetYaw = (aim2 < aimDeadzone)
                 ? p.getYRot()   // essentially on the aim column — hold heading, don't thrash atan2
                 : (float) Math.toDegrees(Math.atan2(-adx, adz));
