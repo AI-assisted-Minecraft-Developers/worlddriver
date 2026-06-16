@@ -1168,7 +1168,19 @@ public final class Walker {
             double wdx = (wn.getX() + 0.5) - p.getX();
             double wdy = wn.getY() - p.getY();
             double wdz = (wn.getZ() + 0.5) - p.getZ();
-            double wd2 = wdx * wdx + wdy * wdy + wdz * wdz;
+            // A buoyant body bobs ±1.5 vertically; folding wdy² into the closest-approach
+            // progress test makes wd2 oscillate even while the bot creeps FORWARD toward a
+            // water goal, so noStepProgressTicks falsely climbs → wedged → safetyRepath churn:
+            // every bob tick a cheap goal-reaching search resets path+step and the aim chases
+            // the fresh node-1 (live J5 z1743: 3 repaths/s, yaw 96-131° while still closing on
+            // the goal). In water, measure progress HORIZONTALLY only — the bob can't fake a
+            // forward creep, while a truly stuck bot (circling, or pinned in the water below an
+            // unmountable bank without gaining XZ) still fails to close XZ and trips the wedge
+            // exactly as before (so deep-water climb-out detection is unchanged). Dry land keeps
+            // the full 3D test (a stepUp/pillar that gains height IS progress there).
+            double wd2 = p.isInWater()
+                    ? wdx * wdx + wdz * wdz
+                    : wdx * wdx + wdy * wdy + wdz * wdz;
             if (wd2 < noProgressBestD2 - 0.05) {   // any real new-low counts; 0.05 is float-noise margin (1.0 starved a 1.5 b/s approach inside ~7 blocks: 2·d·v < 1)
                 noProgressBestD2 = wd2;
                 noStepProgressTicks = 0;
