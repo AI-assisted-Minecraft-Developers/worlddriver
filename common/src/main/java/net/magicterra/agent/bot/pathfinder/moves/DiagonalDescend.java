@@ -19,6 +19,12 @@ public final class DiagonalDescend extends Move {
     public DiagonalDescend(int dx, int dz) { super(dx, -1, dz, 14); }
     public boolean valid(WorldView w, BlockPos from) {
         BlockPos to = apply(from);
+        // A buoyant bot can't follow a descend INTO submerged water (water at the
+        // destination foot AND head): it floats over the below-node and oscillates
+        // swimUp↔descend instead of sinking. Mirror Fall/FallIntoWater's submerged-
+        // landing gate so A* never routes the unexecutable dive (live z2744 slot
+        // canyon). A descend to the water SURFACE (head air) stays valid.
+        if (w.isWater(to) && w.isWater(to.offset(0, 1, 0))) return false;
         if (!w.canStandAt(to)) return false;
         // Launch head clearance.
         if (!w.isPassable(from.offset(0, 1, 0)) || w.isHazard(from.offset(0, 1, 0))) return false;
