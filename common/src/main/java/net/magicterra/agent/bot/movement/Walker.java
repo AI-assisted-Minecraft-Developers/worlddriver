@@ -795,7 +795,12 @@ public final class Walker {
                 // planner suppresses its receding horizon and grinds deeper so it can find a
                 // climb-OVER route instead of re-committing the cheap shallow/cave segment
                 // this churn is stuck on. Sticky window tolerates a few net-progress blips.
-                boxedEscalateUntilTick = pfTickCounter + BOXED_ESCALATE_STICKY_TICKS;
+                // LAND ONLY: it is a climb-over-a-solid-barrier mechanism — its climb-tuned
+                // params (suppressed horizon, raised depth penalty, deep search) are wrong for
+                // a deepwater crossing (they slow the whole-water-volume search and push the
+                // bot to dive), which has its own handling; the charge below still fires in water.
+                if (!p.isInWater())
+                    boxedEscalateUntilTick = pfTickCounter + BOXED_ESCALATE_STICKY_TICKS;
                 // Widen the priced-out zone each repeat. In WATER a boxed pocket is far
                 // costlier to sit in — a buoyant bot can't even hold position, it bob-
                 // churns and burns minutes (live z1864: the slow r=2→3→4 land ramp took
