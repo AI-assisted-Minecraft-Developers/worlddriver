@@ -196,6 +196,10 @@ public final class Walker {
      *  net XZ is tiny AND the bot gained ≤ this much altitude catches that base-oscillation
      *  / cave-descent without ever penalising a genuine upward climb (which gains ≫ this). */
     private static final int CHURN_MIN_Y = 4;
+    /** How long (ticks ≈ 60 s) a single detected boxed churn keeps the steep-barrier
+     *  planner escalation armed. Sticky so a couple of wandering windows that briefly
+     *  show net progress mid-climb don't drop the escalation before the climb completes. */
+    private static final long BOXED_ESCALATE_STICKY_TICKS = 1200;
     /** Bounded fresh re-searches at a loaded-chunk frontier before giving up (the
      *  bot is stationary while waiting, so a couple of tries is plenty — see
      *  {@link #frontierHoldOrArrive}). */
@@ -347,6 +351,8 @@ public final class Walker {
     private BlockPos churnBase;                              // land boxed-pocket: foot at the start of the current net-displacement window
     private int churnWindowTicks;                            // land boxed-pocket: ticks elapsed in the current window
     private int churnEscapes;                                // land boxed-pocket: consecutive windows that detected churn (escalates the charge radius)
+    private long pfTickCounter;                               // monotonic per-tick counter (drives the sticky boxed-escalation timer)
+    private long boxedEscalateUntilTick;                     // steep-barrier escalation armed until this tick (sticky so a few net-progress windows mid-climb don't drop it)
     private double bestStepDist = Double.POSITIVE_INFINITY; // closest approach² to the current node (drives the progress-based stuckTicks)
     private int stuckStep = -1;                             // path index bestStepDist tracks; a step change starts a fresh progress window
     private int noStepProgressTicks;                        // jitter-immune ticks on the SAME step (resets only when step advances/path changes) → wedge detector
@@ -409,6 +415,8 @@ public final class Walker {
         this.churnBase = null;
         this.churnWindowTicks = 0;
         this.churnEscapes = 0;
+        this.boxedEscalateUntilTick = 0;
+        BotConfig.pathfinderBoxedEscalate = false;          // never leak the steep-barrier escalation into the next goto
         this.bestStepDist = Double.POSITIVE_INFINITY;
         this.stuckStep = -1;
         this.noStepProgressTicks = 0;
@@ -515,6 +523,8 @@ public final class Walker {
         this.pillarRecoverLatch = 0;
         this.wantClimbRecent = 0;
         this.descending = false;
+        this.boxedEscalateUntilTick = 0;
+        BotConfig.pathfinderBoxedEscalate = false;          // never leak the steep-barrier escalation across a forced repath
     }
 
     /** Replay a fixed archived plan. Caller has already teleported the bot to the plan
@@ -552,6 +562,19 @@ public final class Walker {
         Player p = a.player();
         if (p == null) { lastError = "player vanished"; return terminal(Step.FAILED, PathTrace.Outcome.ERROR, lastError); }
         // AgentInput install (client) is handled inside the Avatar implementation.
+
+        // Steep-barrier planner escalation: a confirmed boxed churn (below) arms a sticky
+        // timer; while it's live, route the planner's horizon/soft-commit/depth-penalty
+        // reads through their escalated values so A* commits a climb-OVER route instead of
+        // re-committing a cheap shallow/cave segment. Off (back to configured defaults)
+        // once the timer lapses, so easy-terrain searches are never slowed.
+        pfTickCounter++;
+        boolean wasEscalating = BotConfig.pathfinderBoxedEscalate;
+        boolean escalating = pfTickCounter < boxedEscalateUntilTick;
+        BotConfig.pathfinderBoxedEscalate = escalating;
+        if (escalating && !wasEscalating && BotConfig.walkerDebug)
+            LOG.info("[walker] steep-barrier escalation ARMED (boxed churn) → horizon=0 depthPenalty>=25 softCommit>=35000 for {} ticks",
+                    boxedEscalateUntilTick - pfTickCounter);
 
         // Per-tick baseline for the jump/sneak channel: default to "not jumping / not
         // sneaking" so any path that returns without setting them can't leak a stale
@@ -768,6 +791,11 @@ public final class Walker {
             // never on a genuine upward climb (cdy > CHURN_MIN_Y is real vertical progress).
             if ((cdx * cdx + cdz * cdz) < CHURN_MIN_MOVE_SQ && (pathBestEffort || cdy <= CHURN_MIN_Y)) {
                 churnEscapes++;
+                // Arm the sticky steep-barrier planner escalation (see top of tick()): the
+                // planner suppresses its receding horizon and grinds deeper so it can find a
+                // climb-OVER route instead of re-committing the cheap shallow/cave segment
+                // this churn is stuck on. Sticky window tolerates a few net-progress blips.
+                boxedEscalateUntilTick = pfTickCounter + BOXED_ESCALATE_STICKY_TICKS;
                 // Widen the priced-out zone each repeat. In WATER a boxed pocket is far
                 // costlier to sit in — a buoyant bot can't even hold position, it bob-
                 // churns and burns minutes (live z1864: the slow r=2→3→4 land ramp took

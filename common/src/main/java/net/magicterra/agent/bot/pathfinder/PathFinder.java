@@ -227,9 +227,9 @@ public final class PathFinder {
             // Anti-basin-dive: an XZ goal's estimate ignores Y, so descending reads
             // as free progress and the search dives into a dead-end low valley. Charge
             // descent below this search's start (asymmetric — climbing stays free).
-            if (BotConfig.pathfinderDepthPenalty > 0) {
+            if (BotConfig.pfDepthPenalty() > 0) {
                 int below = start.getY() - BotConfig.pathfinderDepthSlack - p.getY();
-                if (below > 0) h += BotConfig.pathfinderDepthPenalty * below;
+                if (below > 0) h += BotConfig.pfDepthPenalty() * below;
             }
             return h;
         }
@@ -447,7 +447,7 @@ public final class PathFinder {
                     // real goal). Only real goal-ward progress, so a pinch/wall (no forward
                     // node) falls through to the unchanged best-effort backoff. Water starts
                     // excluded (bestAshore climb-out wins).
-                    int horizonBlocks = BotConfig.pathfinderHorizonBlocks;
+                    int horizonBlocks = BotConfig.pfHorizonBlocks();
                     if (horizonBlocks > 0
                             && cur.h < startNode.h - 10.0 * horizonBlocks
                             && cur.pos.distSqr(start) > (long) MIN_DIST_PATH * MIN_DIST_PATH
@@ -508,8 +508,8 @@ public final class PathFinder {
                     // now. The hard maxNodes still governs the "no segment yet" case (a deep
                     // pinch still hunting its first viable move / vertical escape), so hard
                     // reachability is unchanged.
-                    if (BotConfig.pathfinderSoftCommitNodes > 0
-                            && expanded >= BotConfig.pathfinderSoftCommitNodes
+                    if (BotConfig.pfSoftCommitNodes() > 0
+                            && expanded >= BotConfig.pfSoftCommitNodes()
                             && hasCommittableSegment()) break;
 
                     for (Move m : activeMoves) {
@@ -660,8 +660,8 @@ public final class PathFinder {
             // 6k nodes on a 5×-priced underwater tunnel is exactly the round37b
             // lake-bed trap.
             if (startInWater) {
-                boolean relaxedW = BotConfig.pathfinderSoftCommitNodes > 0
-                        && expanded >= BotConfig.pathfinderSoftCommitNodes * 4L;
+                boolean relaxedW = BotConfig.pfSoftCommitNodes() > 0
+                        && expanded >= BotConfig.pfSoftCommitNodes() * 4L;
                 return (bestAshore != null && (relaxedW || bestAshore.g <= ASHORE_CHEAP_G))
                         || (bestClimb != null && bestClimb.pos.getY() - start.getY() >= MIN_CLIMB_ESCAPE);
             }
@@ -675,8 +675,8 @@ public final class PathFinder {
             // terrain burns up to 4× hunting a worthwhile segment (canyon exits fit
             // here); only a truly walled-in search degrades to best-available at 4×,
             // capping the planning stall at ~a third of the hard budget.
-            boolean relaxed = BotConfig.pathfinderSoftCommitNodes > 0
-                    && expanded >= BotConfig.pathfinderSoftCommitNodes * 4L;
+            boolean relaxed = BotConfig.pfSoftCommitNodes() > 0
+                    && expanded >= BotConfig.pfSoftCommitNodes() * 4L;
             // Walled-to-frontier (progressive): reaching the edge of KNOWN terrain with no
             // goal-ward gain is committable NOW — the detour around the wall is beyond loaded
             // chunks, so grinding the hard budget can't find it (~3.4 s freeze for nothing).
@@ -717,7 +717,7 @@ public final class PathFinder {
          *  needed ~24k nodes. Open terrain clears 24 blocks within the soft budget
          *  easily, keeping the early-stop (and its no-freeze feel) intact there. */
         private static double softMinGain() {
-            int hb = BotConfig.pathfinderHorizonBlocks;
+            int hb = BotConfig.pfHorizonBlocks();
             return hb > 0 ? hb * 10 / 2.0 : 240;
         }
 

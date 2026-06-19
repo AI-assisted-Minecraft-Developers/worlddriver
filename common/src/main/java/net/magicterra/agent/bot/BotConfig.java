@@ -458,6 +458,16 @@ public final class BotConfig {
      *  horizon, obstacles commit fast via this. */
     public static volatile int pathfinderSoftCommitNodes = 6000;
 
+    /** Steep-barrier escalation: armed by Walker when a boxed goal-reaching churn is
+     *  detected, so the planner suppresses the receding horizon, deepens the soft-commit,
+     *  and raises the depth penalty to find a climb-OVER route instead of re-committing a
+     *  cheap shallow/cave segment. Off by default → all searches behave exactly as before.
+     *  PURE RUNTIME STATE — must NOT be persisted (not in any config save/load list). */
+    public static volatile boolean pathfinderBoxedEscalate = false;
+    public static int    pfHorizonBlocks()   { return pathfinderBoxedEscalate ? 0 : pathfinderHorizonBlocks; }
+    public static int    pfSoftCommitNodes() { return pathfinderBoxedEscalate ? Math.max(pathfinderSoftCommitNodes, 35000) : pathfinderSoftCommitNodes; }
+    public static double pfDepthPenalty()    { return pathfinderBoxedEscalate ? Math.max(pathfinderDepthPenalty, 25) : pathfinderDepthPenalty; }
+
     /** PROGRESSIVE quick-start stub (0 = OFF). While a full re-plan is still
      *  time-slicing in the background (a hard obstacle search can take seconds),
      *  the bot has no path and stands frozen — the visible "inter-segment gap"
@@ -1009,7 +1019,7 @@ public final class BotConfig {
      *  a per-frame flee-context flag (set true by RunAwayProcess.tick, reset each
      *  clientTick) — if saved it would reload {@code true} and wrongly boost every
      *  goto's terrain cost. Keep this in sync with any other transient scalar. */
-    private static final Set<String> NON_PERSISTED = Set.of("fleeActive");
+    private static final Set<String> NON_PERSISTED = Set.of("fleeActive", "pathfinderBoxedEscalate");
 
     /** A static, non-final field of a scalar type (or the hazard-block Set) — the
      *  set we round-trip. Arrays (avoidZones), runtime-only flags ({@link
