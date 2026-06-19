@@ -26,6 +26,14 @@ public final class SwimTraverseBreak extends Move {
 
     @Override public Edge eval(WorldView w, BlockPos from) {
         if (!waterEscapeContext(w, from)) return null;
+        // SURFACE ONLY: this move is for a bot AT water level punching through a lip
+        // (see class doc). A SUBMERGED dig — head underwater (from+1 is water) — is a
+        // buoyant bot diving to a sandbar/seabed and mining it, which the executor
+        // can't deliver: it floats up off the block mid-break and stalls, then re-routes
+        // and dives again, churning (live coastal crossing: swimDown→swimTraverseBreak at
+        // y60, pos frozen on the break for tens of ticks, then oscillation). Rejecting a
+        // submerged dig forces A* onto the surface route around/over the lip instead.
+        if (w.isWater(from.offset(0, 1, 0))) return null;
         BlockPos to = apply(from);
         BlockPos floor = to.offset(0, -1, 0);
         // Destination must have a sound floor: solid bank to walk onto, or water
