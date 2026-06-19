@@ -1730,7 +1730,17 @@ public final class Walker {
                     // video flags during digs. The first snap aims dead-on; the ±0.5 bob
                     // then keeps the crosshair on the 1-tall riser face while the camera
                     // holds steady, and we only re-aim when the dig moves to a new riser.
-                    if (!riser.equals(lastDigRiser)) {
+                    // A TALL riser (>=2 above the floating foot) sits far enough above the
+                    // bobbing eye that the once-only snap lets the mining ray drift OFF the
+                    // block face as the bot bobs +-0.5 — the break never completes and the
+                    // dig re-fires forever (live z2744 confined deep shaft: riser y64 vs foot
+                    // y61, 1000+ swimUp/stairUpBreak ticks, full-shaft bob y62<->y47, no exit).
+                    // Re-aim EVERY tick for a tall riser to hold the look ray on the block face
+                    // (a little camera judder is the lesser evil vs a hard deadlock; tall
+                    // confined digs are rare). A +1 riser keeps the steady once-only snap so
+                    // the common shallow bank-dig camera stays smooth.
+                    boolean tallRiser = riser.getY() - foot.getY() >= 2;
+                    if (tallRiser || !riser.equals(lastDigRiser)) {
                         a.aimAtBlock(riser);
                         lastDigRiser = riser;
                     }
