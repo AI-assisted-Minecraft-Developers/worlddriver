@@ -188,6 +188,14 @@ public final class Walker {
      *  churn does not. */
     private static final int CHURN_WINDOW = 400;
     private static final int CHURN_MIN_MOVE_SQ = 64;
+    /** Net altitude gain (blocks) over a CHURN_WINDOW that still counts as a real climb.
+     *  The churn charge normally needs a best-effort path, but a GOAL-REACHING path can
+     *  ALSO limit-cycle: at a steep mountain base the XZ heuristic baits A* into cheap
+     *  goal-ward canyon/cave floor-walks (live z3160: bob y62-68, net ground travel ≈0,
+     *  never ascends toward an XZ goal high on the far side). Firing the charge whenever
+     *  net XZ is tiny AND the bot gained ≤ this much altitude catches that base-oscillation
+     *  / cave-descent without ever penalising a genuine upward climb (which gains ≫ this). */
+    private static final int CHURN_MIN_Y = 4;
     /** Bounded fresh re-searches at a loaded-chunk frontier before giving up (the
      *  bot is stationary while waiting, so a couple of tries is plenty — see
      *  {@link #frontierHoldOrArrive}). */
@@ -754,7 +762,11 @@ public final class Walker {
         if (churnBase == null) { churnBase = foot; churnWindowTicks = 0; }
         else if (++churnWindowTicks >= CHURN_WINDOW) {
             int cdx = foot.getX() - churnBase.getX(), cdz = foot.getZ() - churnBase.getZ();
-            if ((cdx * cdx + cdz * cdz) < CHURN_MIN_MOVE_SQ && pathBestEffort) {
+            int cdy = foot.getY() - churnBase.getY();
+            // Fire on a best-effort churn (existing cases — all net ≈0 Y, unchanged) OR on a
+            // GOAL-REACHING limit-cycle that gained no altitude (steep-mountain base / cave),
+            // never on a genuine upward climb (cdy > CHURN_MIN_Y is real vertical progress).
+            if ((cdx * cdx + cdz * cdz) < CHURN_MIN_MOVE_SQ && (pathBestEffort || cdy <= CHURN_MIN_Y)) {
                 churnEscapes++;
                 // Widen the priced-out zone each repeat. In WATER a boxed pocket is far
                 // costlier to sit in — a buoyant bot can't even hold position, it bob-
