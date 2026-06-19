@@ -1,3 +1,5 @@
+> ⚠️ **SUPERSEDED 2026-06-19**:决定性 live 诊断推翻本 spec 的「A* 路由 submerged」前提。残留 churn 异质且主在执行器层(z2744 受限深水井浮力爬出、waterLowBank 耦合),z2847=planner boxed-pinch,z3034 A* 本就干净。D1/C2 打错层,已放弃。见 memory `reference_water_churn_is_executor_not_planner` + plan 顶部。本文档仅留作设计推理存档。
+
 # 浮力 bot 水域导航统一模型 — 设计 (Surface-First Routing)
 
 **状态**:设计待评审

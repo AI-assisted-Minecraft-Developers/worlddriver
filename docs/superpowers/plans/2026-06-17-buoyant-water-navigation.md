@@ -1,3 +1,5 @@
+> ⚠️ **SUPERSEDED 2026-06-19**:本计划基于已被推翻的 Surface-First/D1 前提(见 spec 顶部 banner)。新方向 = 按实际故障逐个修、执行器优先(z2744 受限深水井 + waterLowBank +2 岸的浮力爬出),再 planner boxed-pinch(z2847)。见 memory `reference_water_churn_is_executor_not_planner`。Phase 0 findings 一节仍有效(是推翻 D1 的证据)。
+
 # 浮力 bot 水域导航统一模型 Implementation Plan (Surface-First Routing)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
