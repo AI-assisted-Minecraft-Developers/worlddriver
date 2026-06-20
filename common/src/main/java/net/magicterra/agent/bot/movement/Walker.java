@@ -1698,7 +1698,17 @@ public final class Walker {
                             LOG.info("[walker] water climb-out: topped out dry at y={} → flush walk, repath", foot.getY());
                         return Step.WALKING;
                     }
-                    if (drifted || placeFutile || tooHigh) climbPillarGaveUp = true;
+                    // Only "give up" the pillar (block re-engage, hand off to the bank-DIG)
+                    // when that DIG can actually fire — i.e. breaking is allowed. With break
+                    // OFF (no pickaxe: the live +2 mud-bank case) there is NO fallback, so
+                    // latching climbPillarGaveUp would strand the bot bobbing forever. Leaving
+                    // it false lets the pillar RE-ENGAGE next tick, re-locking the column to the
+                    // bot's current foot — which the locked-heading forward press has nudged
+                    // toward the bank — so the column RATCHETS to the supported bank-adjacent
+                    // cell and the foothold-place finally lands (the pre-3160836 behavior the
+                    // self-correcting latch regressed: waterLowBankArena went red for ~5 days).
+                    boolean digFallbackHere = BotConfig.allowBreak && BotConfig.allowSwimEscapeBreak;
+                    if ((drifted || placeFutile || tooHigh) && digFallbackHere) climbPillarGaveUp = true;
                     if (BotConfig.walkerDebug)
                         LOG.info("[walker] water climb-out: bail ({}) → fallback",
                                 !haveBlock ? "no block" : tooHigh ? "over ceiling"
