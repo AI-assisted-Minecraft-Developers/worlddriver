@@ -265,6 +265,7 @@ public final class BotTools {
                 "  pathfinderThinObstacleHeight number      dflt 0.2    — collision-box height (blocks) a floor-resting obstacle is stepped/swum OVER and treated as passable (fixes 被浮萍/荷叶挡住: lily pad ≈0.094 over water no longer walls off the water cell below). Below 0.5 keeps slabs blocking. 0=off\n" +
                 "  pathfinderBridgeCost      number         dflt 80     — TOTAL g-cost of one aerial bridgePlace edge. High = prefer ground routes (descend a valley / go around) over an unexecutable ~30-block aerial bridge (fixes 深谷凌空架桥 freeze). Doesn't touch depthPenalty (basin-dive still guarded). Old hardcoded 30\n" +
                 "  pathfinderFrontierCommit  bool           dflt false  — segmented planning to the loaded-chunk frontier: commit toward the goal-ward edge of known terrain so far journeys chain across the render horizon instead of backtracking\n" +
+                "  pathfinderProgressive     bool           dflt false  — 渐进式寻路: overlap search with movement — greedily march a safe coarse-direction stub (dry land + open water) toward the goal so the bot starts moving instantly instead of freezing while the big sliced A* runs\n" +
                 "  pathfinderHorizonBlocks   [0,512]        dflt 48     — receding-horizon early-stop: commit a forward segment the instant A* advances this many blocks toward the goal, instead of grinding the full node budget on a far goal in loaded terrain (fixes 长途段末冻结 walk-5→freeze→repeat). 0=off; self-disables near the goal; a pinch falls through to normal best-effort\n" +
                 "  pathfinderSoftCommitNodes [0,1000000]    dflt 6000   — soft node-budget commit: when BOXED at an obstacle (horizon can't fire), stop after this many expanded nodes IF a best-effort segment already exists, instead of grinding the full maxNodes (~60k) and freezing seconds. 0=off; hard maxNodes still governs deep pinches with no segment yet\n" +
                 "  pathfinderQuickNodes      [0,10000]      dflt 600    — progressive quick-start stub: while a big re-plan is still slicing in the background, spend this many nodes SYNCHRONOUSLY on a short toward-goal segment and walk it immediately instead of standing through the search gap (fixes 段间空窗停顿). 0=off\n" +
@@ -372,6 +373,7 @@ public final class BotTools {
                     .prop("pathfinderBridgeCost",       number(0, 1000))
                     .prop("pathfinderThinObstacleHeight", number(0, 1))
                     .prop("pathfinderFrontierCommit",   bool())
+                    .prop("pathfinderProgressive",      bool())
                     .prop("pathfinderHorizonBlocks",    integer(0, 512))
                     .prop("pathfinderMaxDryFall",       integer(3, 5))
                     .prop("pathfinderSoftCommitNodes",  integer(0, 1000000))

@@ -1180,7 +1180,8 @@ public final class Walker {
         // stub exists (boxed in — moving blind would jitter).
         if (path == null) {
             if (replayMode || activeSearch == null
-                    || (!tryQuickStart(world, foot, goal) && !tryWaterBeeline(world, foot, goal))) {
+                    || (!tryLandBeeline(world, foot, goal)
+                        && !tryQuickStart(world, foot, goal) && !tryWaterBeeline(world, foot, goal))) {
                 // replayMode: a fixed plan was adopted at beginReplay, so path is
                 // never null here in practice; if it somehow is, just hold (no
                 // quick-start/beeline) — replay never re-plans.
@@ -1507,7 +1508,8 @@ public final class Walker {
                 // walk a synchronous stub toward the goal instead of holding
                 // at the segment end until it does.
                 if (replayMode || activeSearch == null
-                        || (!tryQuickStart(world, foot, goal) && !tryWaterBeeline(world, foot, goal))) {
+                        || (!tryLandBeeline(world, foot, goal)
+                            && !tryQuickStart(world, foot, goal) && !tryWaterBeeline(world, foot, goal))) {
                     agentForward(a, false);
                     agentJump(a, false);
                     p.setSprinting(false);
@@ -3042,6 +3044,61 @@ public final class Walker {
                     path.size());
         adoptPath(new PathFinder.Result(path, edges, false, 0, 0L, 0.0), world, null);
         return true;
+    }
+
+    /** PROGRESSIVE LAND COARSE-DIRECTION stub (渐进式陆地直行 stub): the dry-land twin of
+     *  {@link #tryWaterBeeline}. Over open / gently-sloped land the big sliced A* re-plan
+     *  can burn thousands of nodes before it commits, leaving the bot frozen at the
+     *  start-of-segment gap (the visible startup / inter-segment churn). No search is
+     *  needed to START moving the right way: greedily march toward the goal — at each
+     *  cell take the 8-neighbour, at the SAME Y, that most reduces {@code goal.estimate}
+     *  and is safely STANDABLE on dry ground — and adopt that run as a coarse stub the
+     *  bot walks immediately while the big search runs and supersedes it. A greedy local
+     *  minimum (a wall, a slope, a cliff, water) is harmless: the march simply stops
+     *  there and the real path replaces the stub the instant it lands; the stub only ever
+     *  drives the bot over flat ground it could walk anyway. Same-Y only (like the water
+     *  bee-line) so it never steps off a ledge or rams a riser — slopes hand back to A*.
+     *  Gated to {@link BotConfig#pathfinderProgressive} + dry land under the feet (water
+     *  is {@link #tryWaterBeeline}'s job). @return true if a land run was adopted. */
+    private boolean tryLandBeeline(WorldView world, BlockPos foot, Goal goal) {
+        if (!BotConfig.pathfinderProgressive) return false;
+        if (world.isWater(foot)) return false;          // water is tryWaterBeeline's job
+        List<BlockPos> path = new ArrayList<>();
+        List<Move.Edge> edges = new ArrayList<>();
+        path.add(foot);
+        edges.add(null);                                // start node carries no inbound edge
+        BlockPos cur = foot;
+        double curEst = goal.estimate(foot);
+        for (int i = 0; i < BEELINE_MAX_STEPS; i++) {
+            BlockPos best = null;
+            double bestEst = curEst;
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (dx == 0 && dz == 0) continue;
+                    BlockPos n = cur.offset(dx, 0, dz);
+                    if (!isDryWalkable(world, n)) continue;
+                    double e = goal.estimate(n);
+                    if (e < bestEst) { bestEst = e; best = n; }
+                }
+            if (best == null) break;            // no goal-ward dry step (slope / wall / water / cliff)
+            path.add(best);
+            edges.add(new Move.Edge(best, 10, List.of(), List.of(), "walk"));
+            cur = best;
+            curEst = bestEst;
+        }
+        if (path.size() <= BEELINE_MIN_STEPS) return false;   // too short to be worth a stub
+        if (BotConfig.walkerDebug)
+            LOG.info("[walker] land coarse-direction stub adopted: len={} toward goal (big search still running)",
+                    path.size());
+        adoptPath(new PathFinder.Result(path, edges, false, 0, 0L, 0.0), world, null);
+        return true;
+    }
+
+    /** A cell a walking bot can stand in on DRY ground — the land analogue of
+     *  {@link #isOpenSurfaceWater}: standable (solid floor, clear body, no hazard) and
+     *  not water (a water cell is the bee-line's domain, and a buoyant exit differs). */
+    private static boolean isDryWalkable(WorldView w, BlockPos foot) {
+        return w.canStandAt(foot) && !w.isWater(foot);
     }
 
     /** A cell a buoyant body can swim across at the surface: water at the foot, a CLEAR

@@ -277,6 +277,10 @@ public final class SettingsCommand {
                 BotConfig.pathfinderFrontierCommit = fc;
                 applied.add("pathfinderFrontierCommit");
             }
+            if (params.get("pathfinderProgressive") instanceof Boolean pp) {
+                BotConfig.pathfinderProgressive = pp;
+                applied.add("pathfinderProgressive");
+            }
             if (params.get("pathfinderHorizonBlocks") instanceof Number phb) {
                 int v = phb.intValue();
                 if (v >= 0 && v <= 512) { BotConfig.pathfinderHorizonBlocks = v; applied.add("pathfinderHorizonBlocks"); }

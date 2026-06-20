@@ -479,6 +479,17 @@ public final class BotConfig {
      *  is frozen anyway while the bot has nothing to walk. */
     public static volatile int pathfinderQuickNodes = 600;
 
+    /** PROGRESSIVE PATHFINDING (渐进式寻路): when ON, the Walker overlaps search with
+     *  movement more aggressively at the start-of-segment gap — in addition to the
+     *  water bee-line stub it greedily marches over safe STANDABLE land toward the
+     *  goal as a zero-search coarse-direction stub, so the bot starts moving almost
+     *  instantly instead of holding frozen while the big sliced A* runs (the visible
+     *  startup / inter-segment churn). The big search supersedes the stub when it
+     *  lands (adoptPath fast-forwards past the overlap). Default OFF — gated so the
+     *  GameTest suite (which exercises the non-progressive commit modes) is byte-for-
+     *  byte unchanged until explicitly enabled; flipped ON after live A/B. */
+    public static volatile boolean pathfinderProgressive = false;
+
     /** Y plane targeted by {@code mc.bot.goto{axis:true}} — Baritone's
      *  {@code axisHeight} setting (default 120, the classic "highway" Y). Read
      *  when an Axis goal is constructed. */
