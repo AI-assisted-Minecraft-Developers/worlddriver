@@ -279,6 +279,13 @@ public final class Walker {
      *  a low bank, so give it the benefit first). Cuts the dominant per-bank stall: the
      *  deep-water climb-out arena dropped its 80-tick wait, ashoreTick 98→~40. */
     private static final int WATER_CLIMB_DIG_DEEP_STALL = 20;
+    /** Eye-Y bob (blocks) past which the block-less bank dig RE-AIMS its once-snapped look
+     *  at the riser. The dig only runs while FLOATING, where buoyancy + a jump bob the eye
+     *  ±0.9..1.5; the once-only snap then points the fixed ray OFF the 1-tall riser face
+     *  (eye rises → ray passes above it) so the break never lands and the bot bobs ~30 s.
+     *  ~0.4 ≈ the drift that walks the ray off a 1-block face → re-snap to hold it on, while
+     *  staying far above the per-tick re-aim that judders the camera (不跳变视角). */
+    private static final double DIG_REAIM_EYE_DY = 0.4;
     /** Ticks the pillar takeover may bob WITHOUT a successful place before it's judged
      *  futile here (a buoyant bot can't lift its feet above a surface fill cell) and the
      *  bank-DIG takes over. ~50 ticks past the WATER_CLIMB_STALL engage ≈ the same ~4 s
@@ -340,6 +347,7 @@ public final class Walker {
     private boolean waterClimbPillaring;   // latched: pillaring up the bot's column to bank stand level
     private boolean waterClimbDigging;     // set the tick the block-less bank-dig actuator swings; OR'd into breakingEdge next tick so the anti-stuck burst can't yank the bot off the riser mid-dig (it has no planned toBreak edge of its own)
     private BlockPos lastDigRiser;         // the riser the dig last aimed at; re-snap the look ONLY when it changes (not every tick) so the camera holds steady instead of juddering off the bobbing eye — the bob keeps the crosshair on the 1-tall block between re-aims
+    private double lastDigAimEyeY = Double.NaN;   // eye-Y at the last dig aim-snap; re-snap once the buoyant bob has moved the eye far enough (DIG_REAIM_EYE_DY) that the fixed ray would drift OFF the 1-tall riser face (the ±0.5 once-only assumption fails for a ±1.5 deep-water bob → break never lands, 30s bob-stall)
     private BlockPos waterClimbDigRiser;   // LATCHED bank-dig riser cell — held while still solid so a buoyant bob (foot.y flickering ±1) or lateral drift (foot.z wandering) can't re-target a LOWER block of the same column or a neighbouring column mid-dig; cleared once the block breaks so the next +1 step is chosen fresh (drift-arena over-dig fix)
     private boolean climbPillarGaveUp;     // latched once the pillar takeover proves futile (drifted off its locked column, or bob peak never clears the surface fill cell) → block pillar re-engage + let the bank-DIG take over even with a place block in hand; cleared when the climb context ends
     private int pillarNoPlaceTicks;        // ticks the pillar takeover has been engaged without a successful place / height gain — buoyant bob can't lift feet above a surface fill cell, so beyond PILLAR_FUTILE_TICKS the place is hopeless and we fall to the dig
@@ -1801,9 +1809,18 @@ public final class Walker {
                     // confined digs are rare). A +1 riser keeps the steady once-only snap so
                     // the common shallow bank-dig camera stays smooth.
                     boolean tallRiser = riser.getY() - foot.getY() >= 2;
-                    if (tallRiser || !riser.equals(lastDigRiser)) {
+                    // Re-aim when the riser changes, when it's tall (sits far above the
+                    // bobbing eye), OR when the buoyant bob has moved the eye past
+                    // DIG_REAIM_EYE_DY since the last snap — otherwise the fixed ray walks
+                    // off the 1-tall face on a ±1.5 deep-water bob and the break never lands
+                    // (live 2026-06-20 sand-wall: same riser 1799,63,3571 re-logged 53× with
+                    // 0 breaks, eye bobbing 62.9↔64.6, 30 s bob then retreat+reroute).
+                    boolean eyeBobbedOff = !Double.isNaN(lastDigAimEyeY)
+                            && Math.abs(p.getEyeY() - lastDigAimEyeY) > DIG_REAIM_EYE_DY;
+                    if (tallRiser || eyeBobbedOff || !riser.equals(lastDigRiser)) {
                         a.aimAtBlock(riser);
                         lastDigRiser = riser;
+                        lastDigAimEyeY = p.getEyeY();
                     }
                     a.breakHold(true);
                     // Mark the dig active: next tick's breakingEdge holds the leash and
