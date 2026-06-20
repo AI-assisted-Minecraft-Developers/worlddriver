@@ -2316,16 +2316,11 @@ public final class Walker {
         // follows body yaw, steadies the bot pressing one direction toward the climb-
         // out rather than U-turning. Launches still snap. Cleared as soon as progress
         // resumes (repathsNoProgress resets). */
-        // NO water gate: the first 转圈 was a water-basin climb-out, but the SAME wind
-        // happens on LAND at a bank-CREST pinch — the escalated deep search (horizon=0,
-        // deep softCommit) routes around for ~14 s while the bot follows stale crest/dive
-        // commits that flip the committed route (crest y67 / dive y59 / flat y62) every
-        // repath, winding the walk-branch aim (raw yaw past -450 in the trace). The old
-        // `overWater` gate left that land wind unfrozen. It's safe to drop: the
-        // targetFlipping + repathsNoProgress gates below already restrict the freeze to a
-        // SUSTAINED FLIPPING-target churn (a legit land go-around keeps a STABLE aim →
-        // targetFlipping false → not frozen), and the decoupled body drive keeps pressing
-        // aimYaw (resets repathsNoProgress on progress), so no stable-heading deadlock.
+        // "Over water" covers the bob-at-a-bank case too: bobbing into a climb-out
+        // ledge the body pops to y+0.x above the surface (isInWater flickers false) yet
+        // is still a water stall — gate on water UNDER the foot as well so the freeze
+        // catches the surface/bank spin, not only the fully-submerged one.
+        boolean overWater = p.isInWater() || world.isWater(foot.offset(0, -1, 0));
         // Target-stability gate: the freeze must catch a FLIPPING target (chasing a ~180°
         // per-repath swing winds the camera) but NOT a STABLE one (the capped slew converges
         // to it once and stops — no wind). Freezing a stable-but-wrong heading is the
@@ -2339,7 +2334,7 @@ public final class Walker {
             aimStableTicks = 0;
         lastAimYaw = aimYaw;
         boolean targetFlipping = aimStableTicks < AIM_STABLE_TICKS;
-        boolean spinFreeze = !launch && repathsNoProgress > CHURN_REPATH_CAP && targetFlipping;
+        boolean spinFreeze = !launch && overWater && repathsNoProgress > CHURN_REPATH_CAP && targetFlipping;
         if (!spinFreeze && Math.abs(angleDiff(p.getYRot(), aimYaw)) > BotConfig.walkerYawHysteresisDeg) {
             float ny;
             if (launch) {
