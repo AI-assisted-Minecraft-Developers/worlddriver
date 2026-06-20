@@ -2673,7 +2673,28 @@ public final class Walker {
         // so the vicious cycle (frozen drive → no progress → freeze stays frozen) can't form.
         double driveF = (!descendBrake && !pivotForStepUp) ? 1.0 : 0.0;
         double driveL = strafeL ? 1.0 : (strafeR ? -1.0 : 0.0);
-        double driveDelta = Math.toRadians(angleDiff(p.getYRot(), aimYaw));
+        // Drive heading: normally aimYaw (decoupled from the slewing camera). EXCEPTION —
+        // a BUOYANT slope-mount. A floating bot at a +1/+2 bank top bobs UP to the bank
+        // height but, with forward zeroed by pivotForStepUp (aim not yet aligned) and the
+        // drive pointed at a CHURNING aimYaw, never translates ONTO the ledge — it falls
+        // back and bob-stalls (live 2026-06-20 sand slope: py peaked 64.17 at the y64 bank
+        // with z frozen at 3572.30, then the dig/anti-stuck burst kicked in, ~30 s + 镜头甩).
+        // The whole shoreline is a deep-water-base slope (planner can't route around it), so
+        // the mount MUST be actuated: press forward HARD and STEADILY straight at the target
+        // column (not the oscillating aimYaw), so vanilla's swim-step carries the bob peak up
+        // the +1. Gated tight — floating, climbing (wp above foot), laterally ON the column —
+        // so flat water travel and dry steps are byte-unchanged. (Special climb-out takeovers
+        // — pillar / dig — return before here, so this only drives the plain-stepUp bob.)
+        float driveTargetYaw = aimYaw;
+        boolean buoyantClimbPress = p.isInWater() && !p.onGround() && !parkourEdge
+                && wp.getY() > foot.getY()
+                && (stepColDx * stepColDx + stepColDz * stepColDz) < 2.5;
+        if (buoyantClimbPress) {
+            driveF = 1.0;
+            driveL = 0.0;
+            driveTargetYaw = (float) Math.toDegrees(Math.atan2(-stepColDx, stepColDz));
+        }
+        double driveDelta = Math.toRadians(angleDiff(p.getYRot(), driveTargetYaw));
         double driveCos = Math.cos(driveDelta), driveSin = Math.sin(driveDelta);
         a.commandMove(
                 (float) (driveL * driveCos - driveF * driveSin),
