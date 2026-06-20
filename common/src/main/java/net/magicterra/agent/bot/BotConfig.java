@@ -487,8 +487,13 @@ public final class BotConfig {
      *  startup / inter-segment churn). The big search supersedes the stub when it
      *  lands (adoptPath fast-forwards past the overlap). Default OFF — gated so the
      *  GameTest suite (which exercises the non-progressive commit modes) is byte-for-
-     *  byte unchanged until explicitly enabled; flipped ON after live A/B. */
-    public static volatile boolean pathfinderProgressive = false;
+     *  byte unchanged until explicitly enabled; flipped ON after live A/B.
+     *  2026-06-19: flipped ON by default after the proactive-pinch-escalation A/B at the
+     *  deepwater bay (start edge-churn eliminated, crossing ~54 s vs ~162 s reactive) —
+     *  the proactive arm only fires on a genuinely struggling best-effort commit and the
+     *  land bee-line only on a clear flat run, so a healthy journey is untouched; GameTest
+     *  re-verified 109/109 with it ON. */
+    public static volatile boolean pathfinderProgressive = true;
 
     /** Y plane targeted by {@code mc.bot.goto{axis:true}} — Baritone's
      *  {@code axisHeight} setting (default 120, the classic "highway" Y). Read
