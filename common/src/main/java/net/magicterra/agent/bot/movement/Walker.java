@@ -200,6 +200,14 @@ public final class Walker {
      *  planner escalation armed. Sticky so a couple of wandering windows that briefly
      *  show net progress mid-climb don't drop the escalation before the climb completes. */
     private static final long BOXED_ESCALATE_STICKY_TICKS = 1200;
+    /** PROACTIVE PINCH escalation (渐进式 pinch 预判, gated by {@link BotConfig#pathfinderProgressive}):
+     *  if a BIG search comes back best-effort having closed less than this many blocks of
+     *  goal distance, the planner is wedged at a pinch and a low budget will keep
+     *  re-committing the shallow scrap the bot churns on. Arm the deep-search escalation
+     *  on that FIRST struggling commit — instead of waiting ~20 s for the reactive
+     *  churn-window. A healthy segment clears far more than this (horizon commits ≈48
+     *  blocks), so an open cruise never trips it. Matches the churn move threshold (8). */
+    private static final double PINCH_MIN_PROGRESS = 8.0;
     /** Bounded fresh re-searches at a loaded-chunk frontier before giving up (the
      *  bot is stationary while waiting, so a couple of tries is plenty — see
      *  {@link #frontierHoldOrArrive}). */
@@ -1134,6 +1142,7 @@ public final class Walker {
                     }
                 }
                 adoptPath(res, world, foot);
+                maybeArmPinchEscalation(foot, res);
             } else if (path == null) {
                 // No route and nothing to fall back on. But if we're airborne
                 // — plummeting from an unplanned fall (knockback, the ground
@@ -2965,6 +2974,26 @@ public final class Walker {
             return Step.WALKING;
         }
         return terminal(Step.ARRIVED, PathTrace.Outcome.SUCCESS, null);
+    }
+
+    /** PROACTIVE PINCH escalation — see {@link #PINCH_MIN_PROGRESS}. When the big search
+     *  commits a best-effort segment that barely closed the goal distance, the planner is
+     *  wedged at a pinch (deepwater→bank, boxed canyon, steep barrier); arm the deep-search
+     *  escalation on that FIRST struggling commit so the NEXT search suppresses its horizon,
+     *  raises the depth penalty and routes AROUND the obstacle — instead of waiting for the
+     *  executor to churn ~20 s until the reactive churn-window fires. Re-arms (extends) on
+     *  each struggling commit while the pinch persists; logs only on the transition. Gated
+     *  to {@link BotConfig#pathfinderProgressive} (default OFF → behaviour unchanged). */
+    private void maybeArmPinchEscalation(BlockPos foot, PathFinder.Result res) {
+        if (!BotConfig.pathfinderProgressive) return;
+        if (res.goalReached() || commitEnd == null) return;      // healthy full route → no escalation
+        double progress = goal.estimate(foot) - goal.estimate(commitEnd);
+        if (progress >= PINCH_MIN_PROGRESS) return;              // real headway → not a pinch
+        boolean wasArmed = pfTickCounter < boxedEscalateUntilTick;
+        boxedEscalateUntilTick = pfTickCounter + BOXED_ESCALATE_STICKY_TICKS;
+        if (BotConfig.walkerDebug && !wasArmed)
+            LOG.info("[walker] proactive pinch escalation ARMED: best-effort commit gained only {} blocks toward goal → deepen next search",
+                    String.format("%.1f", progress));
     }
 
     /** PROGRESSIVE QUICK-START (渐进式寻路): the big re-plan is still slicing in
