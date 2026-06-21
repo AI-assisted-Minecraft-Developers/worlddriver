@@ -340,4 +340,174 @@ public final class PathChartRenderer {
         double t = Math.max(0, Math.min(1, bps / 6.0)); // 0=red(slow) → 1=green(fast)
         return new Color((int) (230 * (1 - t)) + 20, (int) (210 * t) + 20, 40);
     }
+
+    // ==== Three-view (orthographic projections) ===============================
+    /**
+     * Engineering-style three-view of the path: FRONT (X/Y), SIDE (Z/Y) and TOP (X/Z)
+     * orthographic projections, each overlaying the PLANNED route(s) (blue) and the ACTUAL
+     * executed trajectory (speed-coloured). The horizontal world axes (X, Z) share a scale
+     * across the views that use them, as does the vertical Y axis, so the panels align like a
+     * real third-angle drawing — FRONT sits above TOP (shared X) and left of SIDE (shared Y).
+     * X/Z and Y may use different scales (a path is long but shallow, so Y is magnified for
+     * legibility — each panel labels its own axes). Headless-safe (AWT, like {@link #render}).
+     */
+    public static BufferedImage renderThreeView(PathSession s, Opts opts) {
+        int W = opts.width(), H = opts.height();
+        BufferedImage img = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = img.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g.setColor(BG); g.fillRect(0, 0, W, H);
+
+        int header = 64;
+        drawHeader(g, s, W, header);
+
+        double[] b = bounds3(s);   // {minX,maxX,minY,maxY,minZ,maxZ}
+        if (b == null) {
+            g.setColor(TEXT); g.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
+            g.drawString("(no path data captured — enable pathDebug then run a goto)", 16, header + 30);
+            g.dispose(); return img;
+        }
+        double pad = 2;
+        double minX = b[0] - pad, minY = b[2] - pad, minZ = b[4] - pad;
+        double spanX = Math.max(1, (b[1] + pad) - minX);
+        double spanY = Math.max(1, (b[3] + pad) - minY);
+        double spanZ = Math.max(1, (b[5] + pad) - minZ);
+
+        int gap = 10, m = 26;          // m = inner panel margin for axis labels
+        int contentY = header + gap;
+        int colW = (W - 3 * gap) / 2;
+        int rowH = (H - header - 3 * gap) / 2;
+        int frontX = gap,          frontY = contentY;                // X/Y  top-left
+        int sideX  = gap * 2 + colW, sideY = contentY;               // Z/Y  top-right (shares Y with FRONT)
+        int topX   = gap,          topY  = contentY + rowH + gap;    // X/Z  bottom-left (shares X with FRONT)
+        int legX   = gap * 2 + colW, legY = contentY + rowH + gap;   // legend/stats bottom-right
+
+        // Shared anisotropic scales (px per block): X & Z horizontal, Y magnified.
+        double scaleX = (colW - 2 * m) / spanX;
+        double scaleY = (rowH - 2 * m) / spanY;
+        double scaleZ = Math.min((colW - 2 * m) / spanZ, (rowH - 2 * m) / spanZ);
+
+        drawProjection(g, s, frontX, frontY, colW, rowH, m, "FRONT  X→ / Y↑  (looking +Z)",
+                0, minX, scaleX, 1, minY, scaleY, true);
+        drawProjection(g, s, sideX, sideY, colW, rowH, m, "SIDE  Z→ / Y↑  (looking +X)",
+                2, minZ, scaleZ, 1, minY, scaleY, true);
+        drawProjection(g, s, topX, topY, colW, rowH, m, "TOP  X→ / Z↓  (looking -Y)",
+                0, minX, scaleX, 2, minZ, scaleZ, false);
+        drawThreeViewLegend(g, s, legX, legY, colW, rowH);
+
+        g.dispose();
+        return img;
+    }
+
+    /** One orthographic projection panel. hAxis/vAxis: 0=X,1=Y,2=Z; vUp=true → larger value higher. */
+    private static void drawProjection(Graphics2D g, PathSession s, int px, int py, int pw, int ph, int m,
+            String label, int hAxis, double hMin, double hScale, int vAxis, double vMin, double vScale, boolean vUp) {
+        g.setColor(PANEL); g.fillRect(px, py, pw, ph);
+        g.setColor(GRID); g.setStroke(new BasicStroke(1f)); g.drawRect(px, py, pw - 1, ph - 1);
+        final int fpx = px, fpy = py, fph = ph, fm = m;
+        final double fhMin = hMin, fhScale = hScale, fvMin = vMin, fvScale = vScale; final boolean fvUp = vUp;
+        java.util.function.DoubleUnaryOperator hx = wh -> fpx + fm + (wh - fhMin) * fhScale;
+        java.util.function.DoubleUnaryOperator vy = wv -> fvUp
+                ? fpy + fph - fm - (wv - fvMin) * fvScale
+                : fpy + fm + (wv - fvMin) * fvScale;
+
+        // PLANNED routes (blue / orange), oldest faint → latest solid.
+        List<PathSession.PlannedRoute> plans = s.plannedRoutes();
+        for (int i = 0; i < plans.size(); i++) {
+            PathSession.PlannedRoute r = plans.get(i);
+            boolean latest = (i == plans.size() - 1);
+            g.setColor(!r.goalReached() ? PLAN_FAILED : latest ? PLAN_LATEST : PLAN_OLD);
+            g.setStroke(latest ? new BasicStroke(2.2f)
+                    : !r.goalReached() ? new BasicStroke(1.5f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_ROUND, 1f, new float[]{5f, 5f}, 0f)
+                    : new BasicStroke(1.0f));
+            List<BlockPos> path = r.path();
+            for (int k = 1; k < path.size(); k++) {
+                BlockPos a = path.get(k - 1), c = path.get(k);
+                g.draw(new Line2D.Double(
+                        hx.applyAsDouble(coord(a.getX() + 0.5, a.getY() + 0.5, a.getZ() + 0.5, hAxis)),
+                        vy.applyAsDouble(coord(a.getX() + 0.5, a.getY() + 0.5, a.getZ() + 0.5, vAxis)),
+                        hx.applyAsDouble(coord(c.getX() + 0.5, c.getY() + 0.5, c.getZ() + 0.5, hAxis)),
+                        vy.applyAsDouble(coord(c.getX() + 0.5, c.getY() + 0.5, c.getZ() + 0.5, vAxis))));
+            }
+        }
+        // ACTUAL trajectory, speed-coloured.
+        List<PathTrace.WalkerSample> tr = s.trajectory();
+        g.setStroke(new BasicStroke(2.0f));
+        for (int k = 1; k < tr.size(); k++) {
+            PathTrace.WalkerSample a = tr.get(k - 1), c = tr.get(k);
+            g.setColor(speedColor(speedBetween(a, c)));
+            g.draw(new Line2D.Double(
+                    hx.applyAsDouble(coord(a.x(), a.y(), a.z(), hAxis)), vy.applyAsDouble(coord(a.x(), a.y(), a.z(), vAxis)),
+                    hx.applyAsDouble(coord(c.x(), c.y(), c.z(), hAxis)), vy.applyAsDouble(coord(c.x(), c.y(), c.z(), vAxis))));
+        }
+        // markers
+        if (s.start() != null) marker(g, START,
+                hx.applyAsDouble(coord(s.start().getX() + 0.5, s.start().getY() + 0.5, s.start().getZ() + 0.5, hAxis)),
+                vy.applyAsDouble(coord(s.start().getX() + 0.5, s.start().getY() + 0.5, s.start().getZ() + 0.5, vAxis)), 5);
+        if (s.goalMarker() != null) marker(g, GOAL,
+                hx.applyAsDouble(coord(s.goalMarker().getX() + 0.5, s.goalMarker().getY() + 0.5, s.goalMarker().getZ() + 0.5, hAxis)),
+                vy.applyAsDouble(coord(s.goalMarker().getX() + 0.5, s.goalMarker().getY() + 0.5, s.goalMarker().getZ() + 0.5, vAxis)), 5);
+        if (!tr.isEmpty()) {
+            PathTrace.WalkerSample cur = tr.get(tr.size() - 1);
+            marker(g, CUR, hx.applyAsDouble(coord(cur.x(), cur.y(), cur.z(), hAxis)),
+                    vy.applyAsDouble(coord(cur.x(), cur.y(), cur.z(), vAxis)), 4);
+        }
+        g.setColor(TEXT); g.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        g.drawString(label, px + 8, py + 16);
+    }
+
+    private static void drawThreeViewLegend(Graphics2D g, PathSession s, int px, int py, int pw, int ph) {
+        g.setColor(PANEL); g.fillRect(px, py, pw, ph);
+        g.setColor(GRID); g.setStroke(new BasicStroke(1f)); g.drawRect(px, py, pw - 1, ph - 1);
+        g.setColor(TEXT); g.setFont(new Font(Font.MONOSPACED, Font.BOLD, 13));
+        g.drawString("PLAN  vs  ACTUAL", px + 14, py + 24);
+        g.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        int lx = px + 18, yy = py + 50;
+        Object[][] rows = {
+            {PLAN_LATEST, "plan — latest route"},
+            {PLAN_OLD,    "plan — earlier replans"},
+            {PLAN_FAILED, "plan — best-effort / not reached"},
+            {START,       "start"},
+            {GOAL,        "goal"},
+            {CUR,         "current position"},
+        };
+        for (Object[] r : rows) {
+            g.setColor((Color) r[0]);
+            if (r[0] == START || r[0] == GOAL || r[0] == CUR) g.fillOval(lx, yy - 9, 10, 10);
+            else g.fillRect(lx, yy - 8, 24, 6);
+            g.setColor(TEXT); g.drawString((String) r[1], lx + 32, yy);
+            yy += 24;
+        }
+        yy += 10;
+        g.setColor(TEXT); g.drawString("actual path colour = speed", lx, yy);
+        yy += 10;
+        for (int i = 0; i < 120; i++) { g.setColor(speedColor(i / 120.0 * 6.0)); g.fillRect(lx + i, yy, 1, 10); }
+        g.setColor(TEXT); g.drawString("slow", lx, yy + 24); g.drawString("fast", lx + 96, yy + 24);
+        yy += 48;
+        PathSession.PlannedRoute last = lastPlan(s);
+        g.drawString(String.format("plans=%d   samples=%d", s.plannedRoutes().size(), s.trajectory().size()), lx, yy);
+        if (last != null) g.drawString(String.format("planLen=%d   reached=%s", last.path().size(), last.goalReached()), lx, yy + 20);
+        g.drawString(String.format("outcome=%s", s.outcome() == null ? "RUNNING" : s.outcome()), lx, yy + 40);
+    }
+
+    private static double coord(double x, double y, double z, int axis) { return axis == 0 ? x : axis == 1 ? y : z; }
+
+    private static double[] bounds3(PathSession s) {
+        double minX = Double.POSITIVE_INFINITY, maxX = Double.NEGATIVE_INFINITY;
+        double minY = Double.POSITIVE_INFINITY, maxY = Double.NEGATIVE_INFINITY;
+        double minZ = Double.POSITIVE_INFINITY, maxZ = Double.NEGATIVE_INFINITY;
+        for (PathSession.PlannedRoute r : s.plannedRoutes()) for (BlockPos p : r.path()) {
+            minX = Math.min(minX, p.getX()); maxX = Math.max(maxX, p.getX());
+            minY = Math.min(minY, p.getY()); maxY = Math.max(maxY, p.getY());
+            minZ = Math.min(minZ, p.getZ()); maxZ = Math.max(maxZ, p.getZ());
+        }
+        for (PathTrace.WalkerSample t : s.trajectory()) {
+            minX = Math.min(minX, t.x()); maxX = Math.max(maxX, t.x());
+            minY = Math.min(minY, t.y()); maxY = Math.max(maxY, t.y());
+            minZ = Math.min(minZ, t.z()); maxZ = Math.max(maxZ, t.z());
+        }
+        if (!Double.isFinite(minX)) return null;
+        return new double[]{minX, maxX, minY, maxY, minZ, maxZ};
+    }
 }

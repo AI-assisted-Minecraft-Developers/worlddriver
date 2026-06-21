@@ -23,10 +23,16 @@ public final class PathChartTool {
         int h = Math.max(256, Math.min(4096, intOpt(p, "height", 960)));
         boolean cands = !(p != null && Boolean.FALSE.equals(p.get("includeCandidates")));
         boolean save = !(p != null && Boolean.FALSE.equals(p.get("save")));
+        // view="threeview" (aka 3view/three) → orthographic FRONT/SIDE/TOP projections, plan vs
+        // actual; anything else → the default time-series dashboard.
+        String view = (p != null && p.get("view") instanceof String v) ? v.toLowerCase() : "dashboard";
+        boolean threeView = view.contains("three") || view.contains("3view") || view.equals("3");
         PathSession s = r.snapshot();
-        var img = PathChartRenderer.render(s, new PathChartRenderer.Opts(w, h, 0, cands));
+        PathChartRenderer.Opts opts = new PathChartRenderer.Opts(w, h, 0, cands);
+        var img = threeView ? PathChartRenderer.renderThreeView(s, opts) : PathChartRenderer.render(s, opts);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("ok", true);
+        out.put("view", threeView ? "threeview" : "dashboard");
         out.put("outcome", s.outcome() == null ? "RUNNING" : s.outcome().toString());
         out.put("plans", s.plannedRoutes().size());
         out.put("candidates", s.candidates().size());

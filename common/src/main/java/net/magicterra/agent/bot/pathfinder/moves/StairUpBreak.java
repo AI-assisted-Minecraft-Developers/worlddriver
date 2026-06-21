@@ -37,6 +37,18 @@ public final class StairUpBreak extends Move {
 
     @Override public Edge eval(WorldView w, BlockPos from) {
         if (!BotConfig.allowBreak) return null;
+        // A buoyant bot floating in deep water has no floor to push off, so it
+        // CANNOT jump-step-up to break a +1 riser — exactly {@link StepUp}'s
+        // {@link WorldView#isFloatingWater} bar. Without this guard A* freely
+        // plans a water-start stairUpBreak (cheaper than the proper water-escape
+        // climb), and the executor only bob-stalls and churn-digs the riser
+        // forever (live 2026-06-20 deep-water stone bank: a `2325,63[stairUpBreak]`
+        // step → 75 s+ block-less bank dig that never breaks). Forbidding it forces
+        // A* onto {@link SwimBankClimbBreak}/{@link SwimAshoreBreak} (surface
+        // press-into-bank + jump-to-mount), the climb-out the buoyant bot can
+        // actually execute. Dry pit-escape stairs (the move's purpose) read
+        // isFloatingWater=false and are untouched.
+        if (w.isFloatingWater(from)) return null;
         BlockPos to = apply(from);                              // from + (dx, 1, dz)
         BlockPos floor = to.offset(0, -1, 0);                   // = from + (dx, 0, dz): the wall we step onto
         if (!w.isSolid(floor) || w.isHazard(floor)) return null;// need a solid step to stand on (we don't place)

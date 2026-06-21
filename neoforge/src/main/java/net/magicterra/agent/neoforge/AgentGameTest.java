@@ -651,6 +651,118 @@ public final class AgentGameTest {
     }
 
     /**
+     * TOOLLESS tall-bank climb-out — the live 2026-06-20 deep-water stone-bank case made
+     * FAST and deterministic. Same +5 sheer geometry as {@link #buoyantWallArena}, but the
+     * climb wall is DIRT (hand-breakable, so A* plans a dig-climb and the bot must DIG a
+     * staircase; GameTest instant-break isolates the dig-TARGETING + the buoyant MOUNT from
+     * the live stone mining-speed wall) and the bot holds only SAND (a FallingBlock →
+     * holdPlaceable() false → it CANNOT pillar, forcing the toolless dig path). 兜底 gate:
+     * just reach the dry plateau within the tick budget — get the climb-out RELIABLE first,
+     * optimise smoothness later. Fails today (the buoyant bot bob-stalls at the waterline);
+     * fixing the dig+mount is the goal this arena exists to iterate.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void tallBankDigClimbArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 60, cz = 60, floorY = 200, depth = 6;
+        int surface = floorY + depth;            // water surface
+        // +3 bank (matches the live 2026-06-20 bank). NOTE: a 1-block-thick SHEER wall is
+        // toolless-UNSOLVABLE — a buoyant bot (or a human/Baritone) with no placeable blocks
+        // can't climb onto a dry sheer face from water. A real bank is a SOLID HILL: the bot
+        // bob-jumps onto a +1 dry notch (floor stays solid below it), grounds, then digs a
+        // DIAGONAL staircase up THROUGH the solid stone to the top.
+        int plateauTop = surface + 3;            // y209 — solid hill top
+
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = -3; dz <= 8; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+        // Back wall behind the hill top (cz+8) up over the plateau, so a bot that tops out and
+        // overshoots the goal can't walk off the far edge into the void (last run: climbed to
+        // y208 then walked to z76 = cz+16 and fell to y−60).
+        for (int dx = -3; dx <= 3; dx++)
+            for (int y = floorY + 1; y <= plateauTop + 2; y++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + 8), Blocks.STONE.defaultBlockState());
+        // FULL bathtub containment: x±3 side walls and the −z end wall rise to plateauTop+2 over
+        // the whole span (dz −3..8), so a bot that climbs/bobs ABOVE the waterline can't drift off
+        // any unwalled edge into the void (earlier runs fell off the +z back AND the −x side once
+        // above y207). Live banks are continuous terrain, so this is faithful, not a crutch.
+        for (int dz = -3; dz <= 8; dz++)
+            for (int y = floorY + 1; y <= plateauTop + 2; y++) {
+                level.setBlockAndUpdate(new BlockPos(cx - 3, y, cz + dz), Blocks.STONE.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + 3, y, cz + dz), Blocks.STONE.defaultBlockState());
+            }
+        for (int dx = -3; dx <= 3; dx++)
+            for (int y = floorY + 1; y <= plateauTop + 2; y++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz - 3), Blocks.STONE.defaultBlockState());
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= 1; dz++)
+                for (int y = floorY + 1; y <= surface; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
+        // SOLID stone hill (dz 2..7, full width) the bot digs a staircase up THROUGH, DIRT-capped
+        // at the top. With faithfulBreak ON each stone block is the live ~750 ticks/block
+        // hand-mine, so the durable dig-commit + give-up exemption are what let the climb finish
+        // instead of being abandoned mid-break (live: one block dug 517× then dropped → wander).
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = 2; dz <= 7; dz++)
+                for (int y = floorY + 1; y <= plateauTop; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz),
+                            (y >= plateauTop ? Blocks.DIRT : Blocks.STONE).defaultBlockState());
+        BlockPos goal = new BlockPos(cx, plateauTop + 1, cz + 5);
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;
+        BotConfig.walkerDebug = true;
+        // Bound the A* budget (live-realistic). Unlike the instant-break arenas, with
+        // faithfulBreak ON the plateau goal stays UNREACHABLE for hundreds of ticks (stone
+        // not yet broken), so an unbounded MAX/2 budget makes every repath exhaust the full
+        // search (goalReached=false) → seconds per tick → the suite never finishes. A small
+        // cap gives up fast on the not-yet-reachable goal, exactly as the live client does.
+        BotConfig.pathfinderSliceMs = 20;
+        BotConfig.pathfinderMaxMs = 250;
+        boolean ofb = ServerPlayerAvatar.faithfulBreak;
+        ServerPlayerAvatar.faithfulBreak = true;   // model the live ~750-tick/block slow stone-mine
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, surface - 1, cz + 1.5);
+            FakePlayer fp = av.fakePlayer();
+            grantWaterEffects(fp);
+            fp.getInventory().clearContent();
+            fp.getInventory().add(new ItemStack(Items.SAND, 64));   // FallingBlock → holdPlaceable() false → no pillar, must dig
+            fp.getInventory().selected = 0;
+
+            LevelWorldView w = new LevelWorldView(level, fp);
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.Block(goal));
+
+            // Budget covers ~5 stone risers × ~750 ticks/block + mount/bob slack: the durable
+            // dig-commit must break through, not abandon. (Instant-break would top out in <300.)
+            Walker.Step s = Walker.Step.WALKING;
+            double maxY = fp.getY();
+            int t = 0;
+            for (; t < 9000 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+                maxY = Math.max(maxY, fp.getY());
+            }
+            boolean onPlateau = fp.getZ() > (cz + 2) + 0.5 && fp.getY() >= plateauTop + 1 - 0.4;
+            AgentDriverCommon.LOG.info("[tallBankDigClimbArena] step={} ticks={} pos=({},{},{}) maxY={} onPlateau={}",
+                    s, t, fp.getX(), fp.getY(), fp.getZ(), maxY, onPlateau);
+            if (!onPlateau)
+                throw new GameTestAssertException("TOOLLESS +5 STONE wall (slow-mine): Walker failed to dig+mount from water: pos=("
+                        + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY + " ticks=" + t + " step=" + s);
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            ServerPlayerAvatar.faithfulBreak = ofb;
+        }
+        helper.succeed();
+    }
+
+    /**
      * Live round69 (2026-06-14 long-haul acceptance) repro: a floating bot wedged at a
      * LOW (+2) bank with NO pickaxe — the climb-out the water-foothold mechanic
      * (Walker {@code === Water climb-out foothold ===}) exists for. Distinct from
@@ -1911,6 +2023,252 @@ public final class AgentGameTest {
             BotConfig.walkerDebug = odbg;
             BotConfig.pathfinderSliceMs = osl;
             BotConfig.pathfinderMaxMs = omm;
+        }
+        helper.succeed();
+    }
+
+    /**
+     * DIAGONAL ascent speed — the cardinal ascentSpeedArena can't reproduce the live
+     * "干地对角爬山" case (a ~45° goal up a slope). A diagonal slope rises +1 every 2 blocks of
+     * NE progress; A* routes a 45° climb whose step-ups are DIAGONAL, so the cardinalUp-gated
+     * sprint-bunny-hop never fires → the per-step sawtooth (live pathChart avgSpd 2.70 vs walk
+     * 4.3). Measures the diagonal b/s + sprint% and asserts the bot tops out.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void diagonalAscentSpeedArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 440, cz = 520, baseY = 210, steps = 8;
+        final int span = 2 * steps;                 // dx,dz 0..16
+        // Flat NE run-up SW of the slope (surface baseY → walk baseY+1).
+        for (int dx = -8; dx <= -1; dx++)
+            for (int dz = -8; dz <= 8; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, baseY, cz + dz), Blocks.STONE.defaultBlockState());
+        // Diagonal slope: surface = baseY+1 + (dx+dz)/2 — rises +1 every 2 NE blocks.
+        for (int dx = 0; dx <= span; dx++)
+            for (int dz = 0; dz <= span; dz++) {
+                int surf = baseY + 1 + (dx + dz) / 2;
+                for (int y = baseY; y <= surf; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+            }
+        final int topSurf = baseY + 1 + span;       // NE corner surface
+        BlockPos goal = new BlockPos(cx + span, topSurf + 1, cz + span);
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = false;
+        BotConfig.allowPlace = false;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx - 7 + 0.5, baseY + 1, cz + 0.5);
+            FakePlayer fp = av.fakePlayer();
+            grantWaterEffects(fp);
+            LevelWorldView w = new LevelWorldView(level, fp);
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.Block(goal));
+
+            // Measure horizontal (diagonal) progress + sprint% while ON the slope (x >= cx).
+            double startX = Double.NaN, startZ = 0, endX = 0, endZ = 0;
+            int ascTicks = 0, ascSprint = 0, ascHcol = 0;
+            Walker.Step s = Walker.Step.WALKING;
+            for (int t = 0; t < 900 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+                if (fp.getX() >= cx) {
+                    if (Double.isNaN(startX)) { startX = fp.getX(); startZ = fp.getZ(); }
+                    endX = fp.getX(); endZ = fp.getZ();
+                    ascTicks++;
+                    if (fp.isSprinting()) ascSprint++;
+                    if (fp.horizontalCollision) ascHcol++;
+                }
+            }
+            double dist = Double.isNaN(startX) ? 0 : Math.sqrt((endX - startX) * (endX - startX) + (endZ - startZ) * (endZ - startZ));
+            double ascBps = ascTicks > 0 ? dist / (ascTicks * 0.05) : 0;
+            int ascSprintPct = ascTicks > 0 ? 100 * ascSprint / ascTicks : 0;
+            int ascHcolPct = ascTicks > 0 ? 100 * ascHcol / ascTicks : 0;
+            boolean reachedTop = fp.getY() >= topSurf + 1 - 0.6
+                    && fp.getX() > cx + span - 2.5 && fp.getZ() > cz + span - 2.5;
+            AgentDriverCommon.LOG.info(
+                    "[diagonalAscentSpeedArena] step={} pos=({},{},{}) reachedTop={} diagBps={} ascSprint%={} ascHcol%={} ascTicks={}",
+                    s, String.format(Locale.ROOT, "%.1f", fp.getX()), String.format(Locale.ROOT, "%.1f", fp.getY()),
+                    String.format(Locale.ROOT, "%.1f", fp.getZ()), reachedTop,
+                    String.format(Locale.ROOT, "%.2f", ascBps), ascSprintPct, ascHcolPct, ascTicks);
+            if (!reachedTop)
+                throw new GameTestAssertException("diagonalAscentSpeedArena: did not top out: pos=("
+                        + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + s);
+            // Baseline 3.04 b/s (partial-sprint; forcing more sprint rams the diagonal corner —
+            // A/B-disproven 2026-06-20). Floor guards against a real collapse below it.
+            if (ascBps < 2.5)
+                throw new GameTestAssertException("diagonalAscentSpeedArena: diagonal ascent collapsed to " + ascBps + " b/s");
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+        }
+        helper.succeed();
+    }
+
+    /**
+     * DIAGONAL DESCENT yaw-thrash — deterministic A/B for the live "下山转圈" (2026-06-21 山地:
+     * descending a slope the aim is the EXACT immediate node, which on a dense down-path is forever
+     * <1.5 blocks away so its bearing sweeps and smoothLook chases it AROUND — logged yaw wound to
+     * 671° over one descent). A 45° staircase descends -1 every 2 NE blocks; the bot walks down it.
+     * Metric = total |Δyaw| accumulated over the descent (a clean spin gauge: a steady heading
+     * sums to ~the one initial turn; a carrot-chase winds up hundreds of degrees). Logs it + asserts
+     * the bot reaches the bottom and the thrash stays under a regression ceiling.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void descentYawArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 440, cz = 600, topY = 240, steps = 9;
+        final int span = 2 * steps;                 // dx,dz 0..18
+        // Flat start pad at the SW (high) corner.
+        for (int dx = -6; dx <= 0; dx++)
+            for (int dz = -3; dz <= 3; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, topY, cz + dz), Blocks.STONE.defaultBlockState());
+        // Diagonal slope DESCENDING NE, STEEP: surface = topY - (dx+dz) (-2 every diagonal step) so
+        // the bot drops fast — that speed is what makes the close-node bearing sweep (the carrot
+        // chase). A gentle slope walks down controlled and never reproduces it.
+        for (int dx = 0; dx <= span; dx++)
+            for (int dz = 0; dz <= span; dz++) {
+                int surf = topY - (dx + dz);
+                for (int y = surf - 3; y <= surf; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+            }
+        final int goalSurf = topY - 2 * span;       // NE corner surface (surf = topY-(dx+dz))
+        BlockPos goal = new BlockPos(cx + span, goalSurf + 1, cz + span);
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = false;
+        BotConfig.allowPlace = false;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, topY + 1, cz + 0.5);
+            FakePlayer fp = av.fakePlayer();
+            grantWaterEffects(fp);
+            LevelWorldView w = new LevelWorldView(level, fp);
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.Block(goal));
+
+            double prevYaw = Double.NaN, sumAbsDyaw = 0, maxDyaw = 0;
+            int onSlope = 0, reversals = 0;
+            double lastSign = 0;
+            // Backward-hop (原地后跳) metric: the goal is the NE corner, so EVERY tick's net horizontal
+            // motion should project >=0 onto the NE direction. A tick that projects NEGATIVE = the bot
+            // drove AWAY from the goal (the overshoot-node drive flip). Count those backward steps + the
+            // worst single backward projection (≈ blocks). Raw-drive baseline on this slope = 42 steps,
+            // worst ≈ -0.25 (mild carrot jitter; the drive-EMA "fix" made it WORSE → 54, A/B-disproven).
+            final double gdx = 1.0 / Math.sqrt(2.0), gdz = 1.0 / Math.sqrt(2.0);
+            double prevX = fp.getX(), prevZ = fp.getZ();
+            int backSteps = 0;
+            double worstBack = 0;
+            Walker.Step s = Walker.Step.WALKING;
+            for (int t = 0; t < 700 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+                double ddx = fp.getX() - prevX, ddz = fp.getZ() - prevZ;
+                if (fp.getX() >= cx && ddx * ddx + ddz * ddz > 1e-4) {   // moved, on the slope
+                    double proj = ddx * gdx + ddz * gdz;
+                    if (proj < -0.02) { backSteps++; worstBack = Math.min(worstBack, proj); }
+                }
+                prevX = fp.getX();
+                prevZ = fp.getZ();
+                if (fp.getX() >= cx) {                          // on the descending slope
+                    double yaw = fp.getYRot();
+                    if (!Double.isNaN(prevYaw)) {
+                        double d = ((yaw - prevYaw + 540) % 360) - 180;
+                        sumAbsDyaw += Math.abs(d);
+                        if (Math.abs(d) > maxDyaw) maxDyaw = Math.abs(d);
+                        if (Math.abs(d) > 2) {
+                            double sg = Math.signum(d);
+                            if (lastSign != 0 && sg != lastSign) reversals++;
+                            lastSign = sg;
+                        }
+                    }
+                    prevYaw = yaw;
+                    onSlope++;
+                }
+            }
+            boolean reached = fp.getX() > cx + span - 3 && fp.getZ() > cz + span - 3
+                    && fp.getY() <= goalSurf + 2;
+            double thrashPerTick = onSlope > 0 ? sumAbsDyaw / onSlope : 0;
+            AgentDriverCommon.LOG.info(
+                    "[descentYawArena] step={} pos=({},{},{}) reached={} sumAbsDyaw={}° maxDyaw={}° reversals={} onSlope={} thrash/tick={} backSteps={} worstBack={}",
+                    s, String.format(Locale.ROOT, "%.1f", fp.getX()), String.format(Locale.ROOT, "%.1f", fp.getY()),
+                    String.format(Locale.ROOT, "%.1f", fp.getZ()), reached,
+                    String.format(Locale.ROOT, "%.0f", sumAbsDyaw), String.format(Locale.ROOT, "%.0f", maxDyaw),
+                    reversals, onSlope, String.format(Locale.ROOT, "%.1f", thrashPerTick),
+                    backSteps, String.format(Locale.ROOT, "%.2f", worstBack));
+            if (!reached)
+                throw new GameTestAssertException("descentYawArena: did not reach the bottom: pos=("
+                        + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + s);
+            // ⚠ ~1050° here is the UNSOLVED carrot-swing baseline, NOT a smoothness pass: a steep
+            // dry descent still winds the yaw badly (the live "下山转圈"). This ceiling only guards
+            // against a GROSS regression while the real fix is pending (damp the swinging target
+            // bearing / cut switchback density — the trend-average swap was A/B-disproven, see
+            // Walker descent note). Tighten it down toward a smooth value once that fix lands.
+            if (sumAbsDyaw > 1200)
+                throw new GameTestAssertException("descentYawArena: yaw thrash blew up to " + sumAbsDyaw + "°");
+            // Backward-hop guard: raw baseline is 42; flag a GROSS regression (any change that drives the
+            // body backward far more often). Generous ceiling — tighten once a real back-hop fix lands.
+            if (backSteps > 70)
+                throw new GameTestAssertException("descentYawArena: backward-hops regressed to " + backSteps
+                        + " (baseline 42)");
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+        }
+        helper.succeed();
+    }
+
+    /**
+     * TOOLING PROBE: does the sim avatar collide with a 2-tall vertical wall? The descentYawArena only
+     * ever auto-STEPS risers (≤0.6), so tall-wall collision was never exercised — and uTurnHopArena saw
+     * the avatar cross a 3-thick divider. Drive the avatar straight (+z) into a 2-tall wall and assert
+     * it does NOT pass through. If it does, move()/travel() collision is the tooling gap to fix.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void wallCollisionProbe(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 560, cz = 700, H = 240;
+        for (int x = cx - 1; x <= cx + 1; x++)            // floor pad
+            for (int z = cz - 1; z <= cz + 4; z++)
+                level.setBlockAndUpdate(new BlockPos(x, H - 1, z), Blocks.STONE.defaultBlockState());
+        for (int x = cx - 1; x <= cx + 1; x++)            // 2-tall wall at z = cz+2
+            for (int y = H; y <= H + 1; y++)
+                level.setBlockAndUpdate(new BlockPos(x, y, cz + 2), Blocks.STONE.defaultBlockState());
+        boolean ob = BotConfig.allowBreak;
+        BotConfig.allowBreak = false;
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, H, cz + 0.5);
+            FakePlayer fp = av.fakePlayer();
+            boolean wallSolid = !level.getBlockState(new BlockPos(cx, H, cz + 2)).isAir();
+            double maxZ = fp.getZ();
+            for (int t = 0; t < 80; t++) {
+                fp.setYRot(0f);                          // face +z, straight at the wall
+                fp.setSprinting(true);
+                av.commandForward(1f);
+                av.step();
+                if (fp.getZ() > maxZ) maxZ = fp.getZ();
+            }
+            AgentDriverCommon.LOG.info("[wallCollisionProbe] wallSolid={} startZ={} finalZ={} maxZ={} (wall front at z={})",
+                    wallSolid, cz + 0.5, String.format(Locale.ROOT, "%.2f", fp.getZ()),
+                    String.format(Locale.ROOT, "%.2f", maxZ), cz + 2);
+            // Wall front face at z=cz+2; avatar half-depth 0.3 → its centre must stop by ~cz+1.7.
+            if (maxZ > cz + 1.8)
+                throw new GameTestAssertException("wallCollisionProbe: avatar PASSED THROUGH a 2-tall wall: maxZ="
+                        + maxZ + " (wall front z=" + (cz + 2) + ", wallSolid=" + wallSolid + ")");
+        } finally {
+            BotConfig.allowBreak = ob;
         }
         helper.succeed();
     }

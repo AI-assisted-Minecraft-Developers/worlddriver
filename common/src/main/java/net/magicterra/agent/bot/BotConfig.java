@@ -30,6 +30,19 @@ public final class BotConfig {
     /** Yaw delta below this is not written each tick — reduces jitter when already aligned. */
     public static volatile float walkerYawHysteresisDeg = 5f;
 
+    /** Decouple camera from movement on a dry descent: aim the CAMERA at a stable far-ahead
+     *  path heading (kills the 下山转圈 yaw-wind) while the body keeps driving the immediate node.
+     *  See {@code Walker.DESCENT_CAM_FAR_DIST}. Toggle for A/B. */
+    public static volatile boolean descentCameraDecouple = true;
+
+    /** Extend {@link #descentCameraDecouple} to ALL dry launches (parkourDescend / parkour / fall):
+     *  the camera SLEWS smoothly through the turn instead of snapping ~180° to the landing node
+     *  (the 下落/起跳转圈). Safe because main-block leaps drive via commandMove (camera-decoupled),
+     *  so the slewing camera never misses the landing — parkourPlace (commandForward) keeps its snap.
+     *  Ground-truth replay A/B on the RENDERED camera (LookController): render-snaps≥30° 13→0,
+     *  ≥90° 7→0; both runs reach the goal + all parkour/fall GameTest arenas pass. */
+    public static volatile boolean descentDecoupleLaunches = true;
+
     /** Vertical band (+/-) of mine scans around the player's foot Y. */
     public static volatile int mineSearchVerticalRadius = 8;
 

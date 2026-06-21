@@ -60,6 +60,15 @@ public final class ServerPlayerAvatar implements Avatar {
     private boolean breakHeld;
     private boolean useHeld;
 
+    /** Opt-in: model REAL destroy-progress (hardness × tool × the ÷5 not-on-ground and ÷5
+     *  underwater penalties) instead of the default instant {@link Level#destroyBlock}. Default
+     *  OFF so every existing arena keeps its 1-tick break. A climb-out arena that must reproduce
+     *  the live slow stone-mine (~750 ticks/block by hand afloat) sets this true, giving a 30s
+     *  GameTest loop for slow-mining bugs instead of a 10-min live rebuild. */
+    public static boolean faithfulBreak = false;
+    private BlockPos breakProgPos;
+    private float breakProg;
+
     public ServerPlayerAvatar(FakePlayer fp) { this.fp = fp; }
 
     /** Build a FakePlayer at {@code pos} in {@code level}, ready to drive. */
@@ -156,8 +165,27 @@ public final class ServerPlayerAvatar implements Avatar {
 
     @Override public void breakHold(boolean v) {
         breakHeld = v;
-        if (v && aimTarget != null && !fp.level().getBlockState(aimTarget).isAir()) {
+        if (!v || aimTarget == null || fp.level().getBlockState(aimTarget).isAir()) {
+            breakProgPos = null;
+            breakProg = 0f;
+            return;
+        }
+        if (!faithfulBreak) {
             fp.level().destroyBlock(aimTarget, false, fp);
+            return;
+        }
+        // Faithful slow-mine: accumulate the SAME per-tick destroy fraction the live client
+        // does. getDestroyProgress folds in block hardness, the held tool/enchants, AND the
+        // player-state penalties (÷5 not-on-ground, ÷5 underwater) via Player.getDigSpeed — so
+        // a hand-mined stone afloat ticks at ~1/750. breakHold is called once per tick during a
+        // dig, so one call == one tick of progress; reset when the aim moves to a new block.
+        net.minecraft.world.level.block.state.BlockState st = fp.level().getBlockState(aimTarget);
+        if (!aimTarget.equals(breakProgPos)) { breakProgPos = aimTarget; breakProg = 0f; }
+        breakProg += st.getDestroyProgress(fp, fp.level(), aimTarget);
+        if (breakProg >= 1.0f) {
+            fp.level().destroyBlock(aimTarget, false, fp);
+            breakProgPos = null;
+            breakProg = 0f;
         }
     }
 

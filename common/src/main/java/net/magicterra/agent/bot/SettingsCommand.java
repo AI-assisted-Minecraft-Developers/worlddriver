@@ -143,6 +143,14 @@ public final class SettingsCommand {
                 BotConfig.lethalEdgeBrake = leb;
                 applied.add("lethalEdgeBrake");
             }
+            if (params.get("descentCameraDecouple") instanceof Boolean dcd) {
+                BotConfig.descentCameraDecouple = dcd;
+                applied.add("descentCameraDecouple");
+            }
+            if (params.get("descentDecoupleLaunches") instanceof Boolean ddl) {
+                BotConfig.descentDecoupleLaunches = ddl;
+                applied.add("descentDecoupleLaunches");
+            }
             if (params.get("autoSecureAtDusk") instanceof Boolean asad) {
                 BotConfig.autoSecureAtDusk = asad;
                 applied.add("autoSecureAtDusk");

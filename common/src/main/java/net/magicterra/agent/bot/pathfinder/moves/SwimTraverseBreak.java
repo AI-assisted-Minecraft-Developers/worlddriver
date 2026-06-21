@@ -41,6 +41,18 @@ public final class SwimTraverseBreak extends Move {
         boolean floorOk = (w.isSolid(floor) && !w.isHazard(floor)) || w.isWater(floor);
         if (!floorOk) return null;
         BlockPos head = to.offset(0, 1, 0);
+        // NOT a burrow: this move punches through a THIN lip to a LEVEL shore or open
+        // water (see class doc) — it must NOT tunnel INTO a massif. If the cell above the
+        // head is solid, the destination sits under a ceiling, so chaining this move mines a
+        // horizontal shaft THROUGH a hill at the waterline instead of climbing OUT onto it.
+        // (Live 2026-06-20: from a deep-water float at the foot of a +3 stone bank, A* chained
+        // swimTraverseBreak ~45 blocks at y63 straight through the bank — mc.debug.plan end y63,
+        // never surfacing to the y65 land — because each horizontal dig drops the goal heuristic
+        // while a climb-out does not, and the horizon committed the greedy tunnel.) Rejecting a
+        // ceiling-capped destination forces A* onto the climb-out chain (SwimAshore /
+        // SwimBankClimbBreak → StairUpBreak) up to the surface. A genuine level-shore / open-water
+        // punch-through has air or water above the head, so it is unaffected.
+        if (w.isSolid(to.offset(0, 2, 0))) return null;
         double bc = 0;
         List<BlockPos> br = new ArrayList<>(2);
         if (w.isSolid(to)) {

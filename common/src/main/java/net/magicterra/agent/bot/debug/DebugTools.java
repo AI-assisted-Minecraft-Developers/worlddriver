@@ -12,17 +12,21 @@ public final class DebugTools {
     public static List<Map<String, Object>> tools() {
         return List.of(
             roTool("mc.debug.pathChart",
-                "Render the current goto session's pathfinding debug dashboard to a PNG on disk " +
-                "(config/agent_driver/debug/) and return its absolute path. Overlays A* candidates, " +
-                "every planned route (latest bold, failed dashed), and the actual walked trajectory " +
-                "(speed-coloured) on a top-down X/Z map, plus an elevation profile and speed / heading " +
-                "time-series. Requires mc.bot.setting{pathDebug:true} BEFORE the goto so data is captured. " +
-                "Callable any time — mid-walk or after success/failure. Returns {ok, path, width, height, " +
-                "bytes, outcome, plans, candidates, samples}.",
+                "Render the current goto session's pathfinding debug chart to a PNG on disk " +
+                "(config/agent_driver/debug/) and return its absolute path. view=\"dashboard\" (default): " +
+                "A* candidates, every planned route (latest bold, failed dashed) and the actual walked " +
+                "trajectory (speed-coloured) on a top-down X/Z map, plus an elevation profile and speed / " +
+                "heading time-series. view=\"threeview\": an engineering-style three-view of the PATH — FRONT " +
+                "(X/Y), SIDE (Z/Y) and TOP (X/Z) orthographic projections with shared aligned axes, each " +
+                "overlaying the PLANNED route(s) (blue) vs the ACTUAL trajectory (speed-coloured), to read the " +
+                "3D geometry of plan-vs-executed. Requires mc.bot.setting{pathDebug:true} BEFORE the goto so " +
+                "data is captured. Callable any time — mid-walk or after success/failure. Returns {ok, path, " +
+                "width, height, bytes, outcome, plans, candidates, samples}.",
                 object()
+                    .prop("view", string().desc("\"dashboard\" (default) or \"threeview\" (FRONT/SIDE/TOP plan-vs-actual projections)."))
                     .prop("width", integer(256, 4096).desc("Image width px. Default 1280."))
                     .prop("height", integer(256, 4096).desc("Image height px. Default 960."))
-                    .prop("includeCandidates", bool().desc("Draw A* expanded-node heat. Default true."))
+                    .prop("includeCandidates", bool().desc("Draw A* expanded-node heat (dashboard only). Default true."))
                     .prop("save", bool().desc("Write to disk. Default true; false returns dims only."))
                     .prop("name", string().desc("Optional file name (no extension). Default pathchart-NNNN-<ms>."))),
             roTool("mc.debug.plan",

@@ -54,6 +54,24 @@ public final class Walker {
      *  chasing the node round in a circle. Only for an ABOVE node; flat swims / dives keep the
      *  tight {@link #YAW_DEADZONE_SQ}. */
     private static final double CLIMB_AIM_DEADZONE_SQ = 4.0;
+    /** Descent camera/movement decouple: how far ahead (blocks) the CAMERA looks on a dry
+     *  descent. On a steep grid descent the immediate-waypoint bearing sweeps ~180° as the bot
+     *  passes each close node, and chasing it winds the camera (the 下山转圈 — live yaw to 671°,
+     *  replay 2953°). Fix: aim the CAMERA at the first path node ≥ this many blocks away (a far
+     *  point's bearing is stable → no spin) while the MOVEMENT impulse keeps driving at the
+     *  immediate node (precise foot-placement → still reaches). The two run on independent
+     *  channels (camera = aimYaw, movement = driveTargetYaw, decoupled by AgentInput's impulse
+     *  pre-rotation), so neither damps the other — every prior single-channel fix (trend, EMA
+     *  low-pass) failed precisely because damping the aim also damped the navigation. */
+    private static final double DESCENT_CAM_FAR_DIST = 5.0;
+    /** Descent camera trend window: the CAMERA aims at the CENTROID of the next this-many path
+     *  nodes, spatially averaging a switchback staircase's alternating cardinal legs into the
+     *  steady down-slope bearing. A single far node (DESCENT_CAM_FAR_DIST) SAMPLES the zigzag and
+     *  itself swings ±50° as the bot descends — winding the camera ~9.7 turns on a steep slope
+     *  (the live 下山/下落转圈, ground-truthed via LookController WIND telemetry 2026-06-21). A
+     *  centroid does not swing. Wide enough to span ≥1 zigzag period (~2-3 nodes); the decoupled
+     *  drive (driveTargetYaw=node) keeps the body on every step so trend-aiming is nav-safe. */
+    private static final int DESCENT_CAM_LOOKAHEAD = 12;
     /** No-step-progress ticks before a FLAT in-water aim also widens to {@link
      *  #CLIMB_AIM_DEADZONE_SQ}. A buoyant bot can't stop precisely on a water carrot/node, so
      *  within ~1 block the aim vector rotates fast as it drifts and the bearing sweeps —
@@ -88,6 +106,13 @@ public final class Walker {
      *  steady bearing (a 20°/50° square wave settles to ~35° ±5° at 0.5) while still
      *  converging on a genuine turn in a few ticks. Launches bypass it (must snap). */
     private static final float YAW_SMOOTH_ALPHA = 0.5f;
+    /** Stronger low-pass for the DRY-DESCENT camera (~6-tick time constant vs the cruise 2-tick).
+     *  Smooths the residual centroid-quantisation jitter (nodes shifting in/out of the look-ahead
+     *  window nudge the trend bearing ~3°/tick) into a near-still heading. Safe to lag this hard
+     *  ONLY because the descent drive is camera-decoupled (driveTargetYaw=node) — the body keeps
+     *  taking every step while the camera eases onto the trend. See DESCENT_CAM_LOOKAHEAD. */
+    private static final float YAW_SMOOTH_ALPHA_DESCENT = 0.08f;
+    private static final float WATER_DRIVE_ALPHA = 0.3f;   // EMA on the water drive heading (damps ±180° node flip)
     /** Per-tick smoothed-target change (deg) below which the aim target counts as STABLE.
      *  The anti-spin freeze ({@link #spinFreeze}) must only fire on a FLIPPING target (a
      *  ~180° swing each repath winds the camera). A stable target the capped slew converges
@@ -109,6 +134,15 @@ public final class Walker {
      *  While the step is still mis-aimed beyond this tolerance we PIVOT in place
      *  (cut forward + jump) so the body turns cleanly to face the step, then climbs. */
     private static final float STEPUP_AIM_TOLERANCE_DEG = 40f;
+    /** Path-trend averaging window (nodes) for the dry +1 staircase aim. A ~45° goal makes A*
+     *  emit a grid STAIRCASE whose immediate-node bearing alternates ±~30° around the true
+     *  diagonal every step; aiming at it swings the heading past {@link #STEPUP_AIM_TOLERANCE_DEG}
+     *  each step → the pivot gate cuts forward drive → the speed sawtooth + camera zigzag the path
+     *  charts show. Averaging the next few SEGMENT unit-vectors (stopping at a real >60° bend so it
+     *  never aims across a corner — the single-far-node aim that did was reverted) recovers the
+     *  steady diagonal, holding the heading inside the gate so the climb keeps full drive. On a
+     *  straight staircase the trend equals the immediate bearing, so cardinal climbs are unchanged. */
+    private static final int STAIR_TREND_LOOKAHEAD = 5;
     public enum Step { WALKING, ARRIVED, FAILED }
     private static final double REACH_DIST_SQ = 0.45;
     private static final int STUCK_TICKS = 60;
@@ -263,6 +297,15 @@ public final class Walker {
      *  alone would have crossed many of those banks. Only a bank still un-mounted
      *  after ~4 s (bob + burst both failed) is a real wedge worth digging. */
     private static final int WATER_CLIMB_DIG_STALL = 80;
+    /** Per-riser tick budget the toolless climb-out STAYS committed to breaking ONE latched
+     *  riser, even while A* transiently repaths the climb away (wantClimb flicker). A buoyant
+     *  bot mining a STONE bank by hand takes ~750 ticks/block (×5 not-on-ground penalty); any
+     *  mid-break disengage drops the half-broken riser, so before this the bot abandoned each
+     *  block partway, wandered 10+ columns, and drifted into a deep hole and sank (live
+     *  2026-06-20: one stone block dug 517× then dropped; y62→y27). 1000 covers stone + margin;
+     *  past it a genuinely stuck dig releases to repath. Reset per riser so a multi-block climb
+     *  gets a fresh budget for each step. */
+    private static final int WATER_CLIMB_DIG_COMMIT_CAP = 1000;
     /** Chebyshev radius searched around an UNSTANDABLE Goal.Block target for the nearest
      *  standable cell to snap to (see {@link #snapGoalToStandable}). 6 covers a goal a few
      *  blocks inside a hill / under a thin ceiling while staying cheap (one (2R+1)^3 scan
@@ -349,6 +392,7 @@ public final class Walker {
     private BlockPos lastDigRiser;         // the riser the dig last aimed at; re-snap the look ONLY when it changes (not every tick) so the camera holds steady instead of juddering off the bobbing eye — the bob keeps the crosshair on the 1-tall block between re-aims
     private double lastDigAimEyeY = Double.NaN;   // eye-Y at the last dig aim-snap; re-snap once the buoyant bob has moved the eye far enough (DIG_REAIM_EYE_DY) that the fixed ray would drift OFF the 1-tall riser face (the ±0.5 once-only assumption fails for a ±1.5 deep-water bob → break never lands, 30s bob-stall)
     private BlockPos waterClimbDigRiser;   // LATCHED bank-dig riser cell — held while still solid so a buoyant bob (foot.y flickering ±1) or lateral drift (foot.z wandering) can't re-target a LOWER block of the same column or a neighbouring column mid-dig; cleared once the block breaks so the next +1 step is chosen fresh (drift-arena over-dig fix)
+    private int waterClimbDigCommitTicks;  // ticks spent committed to the CURRENT latched riser; while >0 and <CAP the climb-out won't disengage on a transient wantClimb flicker, so a slow stone-bank break (~750 ticks by hand) finishes instead of being abandoned mid-dig → wander/sink; reset per riser
     private boolean climbPillarGaveUp;     // latched once the pillar takeover proves futile (drifted off its locked column, or bob peak never clears the surface fill cell) → block pillar re-engage + let the bank-DIG take over even with a place block in hand; cleared when the climb context ends
     private int pillarNoPlaceTicks;        // ticks the pillar takeover has been engaged without a successful place / height gain — buoyant bob can't lift feet above a surface fill cell, so beyond PILLAR_FUTILE_TICKS the place is hopeless and we fall to the dig
     private int waterClimbTargetY;         // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
@@ -377,6 +421,7 @@ public final class Walker {
     private double noProgressBestD2 = Double.POSITIVE_INFINITY; // closest-ever approach² to the tracked step; monotonic, so a bob can't reset the wedge timer but a slow water cruise along a long string-pulled edge does
     private boolean searchSuppressedPlace;                  // the in-flight search dropped placing moves (block-budget reroute) → adopt its result without re-checking
     private float smoothTargetYaw = Float.NaN;              // EMA-low-passed target heading (NaN = uninitialised; resync on launch/new goal)
+    private float smoothWaterDriveYaw = Float.NaN;          // EMA-low-passed water DRIVE heading (separate from the camera trend)
     private float lastCarrotBearing = Float.NaN;            // previous tick's raw carrot bearing — feeds the in-water yaw-thrash detector
     private int lastCarrotBearingSign = 0;                  // sign of the last meaningful carrot-bearing turn (for reversal detection)
     private int yawThrashTicks = 0;                         // decaying score: +4 per carrot-bearing reversal in water (cap 12), −1/tick → steady turn winds to 0, oscillation holds high
@@ -419,6 +464,7 @@ public final class Walker {
         this.pillarNoPlaceTicks = 0;
         this.lastDigRiser = null;
         this.waterClimbDigRiser = null;
+        this.waterClimbDigCommitTicks = 0;
         this.diveLatch = 0;
         this.diveHold = 0;
         this.pillarRecoverLatch = 0;
@@ -534,6 +580,7 @@ public final class Walker {
         this.pillarNoPlaceTicks = 0;
         this.lastDigRiser = null;
         this.waterClimbDigRiser = null;
+        this.waterClimbDigCommitTicks = 0;
         this.diveLatch = 0;
         this.diveHold = 0;
         this.pillarRecoverLatch = 0;
@@ -693,6 +740,17 @@ public final class Walker {
         if (d < bestDistToGoal - 0.5) {
             bestDistToGoal = d;
             totalTicks = 0;
+        } else if (a.breakHeld() || waterClimbDigging) {
+            // Actively mining a block — a planned break edge swinging (breakHeld) OR the
+            // block-less climb-out dig from last tick (waterClimbDigging, still set; reset
+            // below at line ~755). The bot IS progressing: slowly breaking a riser, not
+            // translating, so goal-distance stays flat for the whole ~750-tick hand-mine of
+            // a stone block. HOLD the no-progress give-up here, or it aborts a legitimate
+            // slow climb-out mid-break (faithful-stone arena: committed 843 ticks to break
+            // one stone, reached y207.85, then FAILED at tick 1221 = walkerTotalTickBudget).
+            // True deadlocks are still caught by the per-riser dig-commit cap, the
+            // breakTimeoutTicks wedge watchdog, and the fact that each completed break lifts
+            // Y toward the goal → bestDistToGoal drops → totalTicks resets on the next step.
         } else if (++totalTicks > BotConfig.walkerTotalTickBudget) {
             lastError = "no progress for " + BotConfig.walkerTotalTickBudget + " ticks (best dist=" + Math.round(bestDistToGoal) + ")";
             return terminal(Step.FAILED, PathTrace.Outcome.STUCK, lastError);
@@ -805,7 +863,16 @@ public final class Walker {
             // Fire on a best-effort churn (existing cases — all net ≈0 Y, unchanged) OR on a
             // GOAL-REACHING limit-cycle that gained no altitude (steep-mountain base / cave),
             // never on a genuine upward climb (cdy > CHURN_MIN_Y is real vertical progress).
-            if ((cdx * cdx + cdz * cdz) < CHURN_MIN_MOVE_SQ && (pathBestEffort || cdy <= CHURN_MIN_Y)) {
+            // ...but NEVER while actively MINING (breakingEdge): a slow climb-out stone dig makes
+            // zero XZ progress for ~750 ticks BY DESIGN, tripping this window — and the burst
+            // below turns the camera (unstuckYaw) + shoves the bot OFF the riser, RESETTING the
+            // vanilla break progress. That is the live climb-out's core failure the user watched:
+            // "almost broke it, then suddenly gave up, turned the view, moved 2 steps, progress
+            // reset, all wasted" — and the shove toward deep water is what then sank the bot. A
+            // dig in progress IS progress; let it finish (the per-riser commit cap bounds a truly
+            // stuck dig).
+            if ((cdx * cdx + cdz * cdz) < CHURN_MIN_MOVE_SQ && (pathBestEffort || cdy <= CHURN_MIN_Y)
+                    && !breakingEdge) {
                 churnEscapes++;
                 // Arm the sticky steep-barrier planner escalation (see top of tick()): the
                 // planner suppresses its receding horizon and grinds deeper so it can find a
@@ -1605,7 +1672,22 @@ public final class Walker {
             if (wantClimbNow) wantClimbRecent = WANT_CLIMB_STICKY;
             else if (wantClimbRecent > 0) wantClimbRecent--;
             boolean wantClimb = wantClimbNow || wantClimbRecent > 0;
-            boolean waterClimbing = wantClimb && nearWater && !p.onGround();
+            // Durable dig-commit: while we're still mid-breaking a LATCHED riser that is
+            // solid and right beside the bot, STAY committed even if A* transiently repaths
+            // the climb away (wantClimb flicker). A buoyant bot mines a STONE bank by hand at
+            // ~750 ticks/block (×5 not-on-ground); the old code dropped the half-broken riser
+            // the instant wantClimb fell for WANT_CLIMB_STICKY ticks, so the bot abandoned
+            // each block partway, wandered 10+ columns, and drifted into a deep hole and SANK
+            // (live 2026-06-20: one stone block dug 517× then dropped; y62→y27). The commit is
+            // capped per-riser (WATER_CLIMB_DIG_COMMIT_CAP, reset on each fresh riser) so a
+            // genuinely stuck dig still releases to repath. Held only while afloat and still
+            // beside the riser — grounding out (climbed) or drifting >2 off it ends it.
+            boolean digCommitted = waterClimbDigRiser != null
+                    && world.isSolid(waterClimbDigRiser) && !p.onGround()
+                    && Math.abs(foot.getX() - waterClimbDigRiser.getX()) <= 2
+                    && Math.abs(foot.getZ() - waterClimbDigRiser.getZ()) <= 2
+                    && waterClimbDigCommitTicks < WATER_CLIMB_DIG_COMMIT_CAP;
+            boolean waterClimbing = (wantClimb && nearWater && !p.onGround()) || digCommitted;
             // Floating over DEEP water (water directly below the foot) with the dig
             // available: a buoyant bot can't swim-jump a +1 bank AND can't clear a surface
             // fill cell to pillar, so the pillar is ALWAYS futile here — pure wasted bob.
@@ -1615,7 +1697,7 @@ public final class Walker {
             // arena) this is false → the pillar is kept as the only exit.
             boolean deepDig = world.isWater(foot.below())
                     && BotConfig.allowBreak && BotConfig.allowSwimEscapeBreak;
-            if (!wantClimb || !nearWater) {
+            if ((!wantClimb || !nearWater) && !digCommitted) {
                 // Left the climb context (grounded on the bank, or A* now routes
                 // down/along) → clear the per-attempt accounting AND the "pillar
                 // gave up" latch, so the NEXT genuine climb-out starts fresh.
@@ -1624,7 +1706,11 @@ public final class Walker {
                 pillarNoPlaceTicks = 0;
                 lastDigRiser = null;
                 waterClimbDigRiser = null;
-            } else waterClimbStall++;
+                waterClimbDigCommitTicks = 0;
+            } else {
+                waterClimbStall++;
+                if (digCommitted) waterClimbDigCommitTicks++;
+            }
             // Trigger once bob-stalled below a bank we can't mount, with a placeable in
             // hand — then LATCH a pillar-up that runs to completion. Suppressed once the
             // pillar has proven futile here (climbPillarGaveUp): a buoyant bob can't lift
@@ -1774,29 +1860,66 @@ public final class Walker {
                 // a low bob dug the foot-level block AND a high bob dug the step block of
                 // the SAME column → the bank surface tunnelled DOWN to the water line and
                 // the next column stayed a fresh +2 wall (infinite pogo, ashoreTick 162).
+                // 兜底 anti-wander column LOCK: lock ONE chimney column at engage and dig
+                // it straight up. Without it the dig re-derives the target from the live
+                // (repathing) cwp every time a riser breaks, so the buoyant bot drifts along
+                // the bank digging a fresh column each time and never tops out (live
+                // 2026-06-20: 4545 digs across 10+ columns x2320-2342, never grounded). The
+                // pillar takeover locks its column the same way; the toolless dig now does too.
                 BlockPos riser = waterClimbDigRiser;
                 if (riser == null || !world.isSolid(riser)) {
                     riser = null;
-                    int dx = Integer.signum(cwp.getX() - foot.getX());
+                    // Climb toward the NEAREST dry-standable EXIT (a cell the bot can stand on:
+                    // solid floor, 2 air above, no water), NOT the far lateral goal (cwp). The
+                    // old cwp direction made the bot trench the waterline layer SIDEWAYS toward a
+                    // far goal — tunnelling INTO the bank at one Y and never stepping up onto the
+                    // land 1-2 blocks above (live 2026-06-20: buried in the hill at y63 for 5 min
+                    // digging +x toward the 2600 goal instead of the +2 to the y65 land). Aim at
+                    // the closest way OUT; the onward path resumes once grounded on dry land.
+                    int dx = Integer.signum(cwp.getX() - foot.getX());   // fallback: goal direction
                     int dz = Integer.signum(cwp.getZ() - foot.getZ());
+                    int bestExitD2 = Integer.MAX_VALUE;
+                    for (int sx = -4; sx <= 4; sx++)
+                        for (int sz = -4; sz <= 4; sz++) {
+                            if (sx == 0 && sz == 0) continue;
+                            for (int sy = 1; sy <= 4; sy++) {
+                                BlockPos land = new BlockPos(foot.getX() + sx, foot.getY() + sy, foot.getZ() + sz);
+                                if (world.isSolid(land.below()) && !world.isSolid(land)
+                                        && !world.isSolid(land.above()) && !world.isWater(land)
+                                        && !world.isWater(land.below())) {
+                                    int d2 = sx * sx + sz * sz;
+                                    if (d2 < bestExitD2) {
+                                        bestExitD2 = d2;
+                                        dx = Integer.signum(sx);
+                                        dz = Integer.signum(sz);
+                                    }
+                                    break;   // nearest (lowest) exit in this column
+                                }
+                            }
+                        }
                     BlockPos[] cands = {
                             (dx != 0 || dz != 0) ? new BlockPos(foot.getX() + dx, foot.getY(), foot.getZ() + dz) : null,
                             dx != 0 ? new BlockPos(foot.getX() + dx, foot.getY(), foot.getZ()) : null,
                             dz != 0 ? new BlockPos(foot.getX(), foot.getY(), foot.getZ() + dz) : null};
+                    // Dig the forward column's LOWEST solid cell ABOVE the waterline — a DRY notch
+                    // whose floor (the cell below it) stays solid, so the bob-jump can ground on
+                    // it (the +1 climb-out). Anchored on the bot's water-column surface Y (steady),
+                    // not the bobbing foot/eye (an eye anchor broke buoyantWallArena). The cands
+                    // follow the path's cwp, so as the bot climbs they advance +z+y → a DIAGONAL
+                    // staircase up into the solid hill (a vertical column-lock chimney can't be
+                    // ascended — the bot digs out its own floor; a real bank is a solid massif the
+                    // staircase climbs THROUGH).
+                    int surfY = foot.getY();
+                    while (world.isWater(new BlockPos(foot.getX(), surfY + 1, foot.getZ()))) surfY++;
                     for (BlockPos cand : cands) {
-                        if (cand == null || !world.isSolid(cand)) continue;
-                        // Dig the TOP solid block of this forward column (the step block),
-                        // not the foot-level block: removing the top lowers the bank
-                        // surface by exactly one → a clean +1 step the bot then mounts.
-                        // Walking up to the top makes the choice bob-INVARIANT (always the
-                        // wall crest, whatever the live foot bob). Only engage when it's
-                        // MORE than a +1 step (top.y > foot.y); a +1 step is already
-                        // mountable, and digging it would tunnel the bank below the water.
-                        BlockPos top = cand;
-                        while (world.isSolid(top.above())) top = top.above();
-                        if (top.getY() > foot.getY()) { riser = top; break; }
+                        if (cand == null) continue;
+                        int ry = surfY + 1;
+                        while (ry <= surfY + 5 && !world.isSolid(new BlockPos(cand.getX(), ry, cand.getZ()))) ry++;
+                        BlockPos step = new BlockPos(cand.getX(), ry, cand.getZ());
+                        if (ry <= surfY + 5 && world.isSolid(step)) { riser = step; break; }
                     }
                     waterClimbDigRiser = riser;
+                    waterClimbDigCommitTicks = 0;   // fresh riser → fresh per-block commit budget
                 }
                 if (riser != null) {
                     if (BotConfig.walkerDebug)
@@ -1818,20 +1941,20 @@ public final class Walker {
                     // (a little camera judder is the lesser evil vs a hard deadlock; tall
                     // confined digs are rare). A +1 riser keeps the steady once-only snap so
                     // the common shallow bank-dig camera stays smooth.
-                    boolean tallRiser = riser.getY() - foot.getY() >= 2;
-                    // Re-aim when the riser changes, when it's tall (sits far above the
-                    // bobbing eye), OR when the buoyant bob has moved the eye past
-                    // DIG_REAIM_EYE_DY since the last snap — otherwise the fixed ray walks
-                    // off the 1-tall face on a ±1.5 deep-water bob and the break never lands
-                    // (live 2026-06-20 sand-wall: same riser 1799,63,3571 re-logged 53× with
-                    // 0 breaks, eye bobbing 62.9↔64.6, 30 s bob then retreat+reroute).
-                    boolean eyeBobbedOff = !Double.isNaN(lastDigAimEyeY)
-                            && Math.abs(p.getEyeY() - lastDigAimEyeY) > DIG_REAIM_EYE_DY;
-                    if (tallRiser || eyeBobbedOff || !riser.equals(lastDigRiser)) {
-                        a.aimAtBlock(riser);
-                        lastDigRiser = riser;
-                        lastDigAimEyeY = p.getEyeY();
-                    }
+                    // Aim-stabilisation, dynamic-correction half: re-aim at the riser
+                    // EVERY tick. The buoyant bot bobs at a bank (and dips underwater), so
+                    // any tick we SKIP the re-aim the mining ray slips off the riser face
+                    // and vanilla continueDestroyBlock resets the break — and on the 25×
+                    // underwater+afloat mining penalty (dirt ≈375 ticks/block) it then NEVER
+                    // completes (live 2026-06-20: same riser dug 1118 ticks, 0 breaks; the
+                    // old CONDITIONAL re-aim left exactly those gaps). A per-tick re-aim pins
+                    // the crosshair to the block face through the bob so the break
+                    // accumulates to completion. Paired with the bob-tame jump below (holds
+                    // the eye near the riser → near-horizontal ray), the residual camera
+                    // motion stays small. Reliable digging is the priority at a climb-out.
+                    a.aimAtBlock(riser);
+                    lastDigRiser = riser;
+                    lastDigAimEyeY = p.getEyeY();
                     a.breakHold(true);
                     // Mark the dig active: next tick's breakingEdge holds the leash and
                     // exempts the burst so the dig can finish (see the breakingEdge note).
@@ -1839,11 +1962,40 @@ public final class Walker {
                     // very first dig tick can't fire a stale burst before the exemption.
                     waterClimbDigging = true;
                     wedgeRepathsHere = 0;
-                    // Press into the bank to anchor the aim ONLY at the surface
-                    // (forward while submerged drops the bot into the prone-swim pose
-                    // and it sinks); autoSwim keeps it floating at the surface so it
-                    // can't drown while the dig finishes.
-                    if (!p.isUnderWater()) agentForward(a, true);
+                    // Aim-stabilisation, BALANCE half — the jump (space) is corrected, not
+                    // held flat-out and not bang-banged to the riser. Both extremes bob:
+                    // holding jump CONTINUOUSLY over-swims the bot up; bang-banging to the
+                    // riser centre overshoots on the jump impulse into a 2-block limit cycle
+                    // (y61↔63 live) that slings the ray off the face. The minimal-bob hold a
+                    // human uses to tread water: swim up ONLY when the head goes underwater —
+                    // just enough to STAY AT THE SURFACE. Head out → no jump → it settles
+                    // with a tiny natural bob; the instant it dips under → one correction
+                    // pops it back up. The waterline riser then sits just below the steady
+                    // surface eye → a near-horizontal, bob-tolerant mining ray. (Covers
+                    // "松手空格就会沉下去": it still swims up the moment it submerges.)
+                    // ...PLUS a controlled climb term: rise when the eye is clearly BELOW
+                    // the current riser (more than 0.3 under its base). For a riser at eye
+                    // level this is false → pure tread-water (the stable cycle-4 hold); once
+                    // a cell breaks and the next riser sits a block higher, the eye drops
+                    // below it → the bot swims UP to it and re-anchors there → it ascends the
+                    // staircase instead of treading in place. The 0.3 deadband + no-sprint
+                    // keep the rise from overshooting back into a bob.
+                    boolean needRise = p.isUnderWater() || p.getEyeY() < riser.getY() - 0.3;
+                    agentJump(a, needRise);
+                    // No sprinting: a sprinting bot swim-DIVES into the prone pose and dunks
+                    // its head underwater (the live "潜入水底/仰头空挖" thrash + the 25× mining
+                    // penalty). Upright tread keeps the head out and the dig fast.
+                    p.setSprinting(false);
+                    // Press INTO the bank to enter the broken notch — but ONLY once the foot has
+                    // risen to the notch floor (foot.y ≳ riser.y − 0.6). In DEEP water the bot
+                    // floats with its foot ~2 below the surface, so pressing forward while still
+                    // low RAMS the riser's solid floor-cell (riser.below()) and pins the bot below
+                    // the +1 step — it breaks the block but never steps onto it and slides back
+                    // into the water (live 2026-06-20: stuck at y61 ramming the y62 bank, "挖穿后
+                    // 掉回水里"). Below the notch, suppress forward and just SWIM UP (the jump
+                    // above); once the foot reaches the ledge, press in and ground on it. (Forward
+                    // while submerged also drops the bot into the prone-swim pose and it sinks.)
+                    if (!p.isUnderWater() && p.getY() >= riser.getY() - 0.6) agentForward(a, true);
                     return Step.WALKING;
                 }
             }
@@ -2251,11 +2403,44 @@ public final class Walker {
             // like a held yaw does, and the buoyant water-exit mount whose next node is a
             // forward ledge walk only steadies). Land + gentle +1 only; parkour leaps
             // (precise launch aim) and steeper jumps keep the exact-waypoint aim.
+            // NOTE: extending this trend-average to DESCENTS (the live 2026-06-21 "下山转圈":
+            // close-node carrot-swing winds the yaw 600°+ down a steep slope) was A/B-DISPROVEN on
+            // the deterministic descentYawArena — every variant was WORSE than no fix (off=1050°
+            // thrash/242tk; descent-trend=1559°/569tk i.e. 2.3× SLOWER; parkour-inclusive=1529° @
+            // 6.4°/tick). A steep descent routes through fall/parkour-descend nodes the trend
+            // excludes, and where it engages it flickers between trend- and exact-aim, ADDING
+            // thrash. The descent spin needs a different mechanism (damp the swinging target
+            // bearing itself / cut switchback node density), not this aim swap. Up-steps only.
             if (!p.isInWater() && !parkourEdge && (wp.getY() - foot.getY()) == 1
-                    && (adx * adx + adz * adz) < 1.0 && step + 1 < path.size()) {
-                BlockPos nx = path.get(step + 1);
-                adx = (nx.getX() + 0.5) - p.getX();
-                adz = (nx.getZ() + 0.5) - p.getZ();
+                    && step + 1 < path.size()) {
+                // Path-trend averaging (the "路径趋势平均" true fix). Sum the UNIT direction of
+                // each upcoming segment while they stay consistent (<60° turn), so a diagonal
+                // staircase's ±30° per-step alternation collapses to the steady diagonal and the
+                // heading holds inside the pivot tolerance (no per-step drive cut → no sawtooth).
+                // Stopping at a real bend keeps it from aiming across a corner (the single-far-node
+                // aim that did was reverted). Also subsumes the old close-node camera-spin swap:
+                // once the bob carries the body onto the close +1 node, the trend still points up
+                // the stair instead of flipping ±180°. Forward-only (dot>0) never reverses.
+                double tx = 0, tz = 0;
+                BlockPos prev = foot;
+                int last = Math.min(step + STAIR_TREND_LOOKAHEAD, path.size() - 1);
+                for (int k = step; k <= last; k++) {
+                    BlockPos nd = path.get(k);
+                    double sx = nd.getX() - prev.getX(), sz = nd.getZ() - prev.getZ();
+                    double sl = Math.sqrt(sx * sx + sz * sz);
+                    if (sl < 1e-6) { prev = nd; continue; }
+                    sx /= sl; sz /= sl;
+                    if ((tx != 0 || tz != 0) && (sx * tx + sz * tz) / Math.sqrt(tx * tx + tz * tz) < 0.5)
+                        break;                                  // segment turns >60° from the trend → stop
+                    tx += sx; tz += sz;
+                    prev = nd;
+                }
+                // Only a GENUINE diagonal run (≥2 consistent horizontal nodes accumulated) may
+                // override the aim — a near-vertical climb (pillar-up / a tight dig-staircase
+                // mount) sums to ~0 horizontal, so its noisy trend is rejected and the precise
+                // immediate-node aim is kept (else the summit pillar + bank-dig plateau mount
+                // mis-aim). Forward-only (dot>0) never reverses.
+                if (Math.sqrt(tx * tx + tz * tz) >= 2.0 && (tx * adx + tz * adz) > 0) { adx = tx; adz = tz; }
             }
         } else if (reCentre) {
             adx = recX; adz = recZ;
@@ -2297,6 +2482,7 @@ public final class Walker {
                 adz = (far.getZ() + 0.5) - p.getZ();
             }
         }
+
         // Hold heading when the horizontal aim vector is tiny (within the dead-zone) so
         // atan2 on sub-block noise can't snap the yaw each tick — see YAW_DEADZONE_SQ. Two
         // cases get the WIDER dead-zone (CLIMB_AIM_DEADZONE_SQ, ~2 blocks):
@@ -2324,16 +2510,108 @@ public final class Walker {
         // the bot off at an angle (drifts off a narrow landing). Launches bypass both the
         // EMA and the slew cap; everything else is smoothed + capped.
         boolean launch = parkourEdge || steppingOffFall || steppingOffWaterFall;
+        // ── Overland camera/movement decouple (anti-spin) — see DESCENT_CAM_FAR_DIST ─────────
+        // Point the CAMERA at a stable trend heading (no spin) while the MOVEMENT keeps driving the
+        // immediate node (driveTargetYaw, below). Capture the immediate-node heading (the carrot/node
+        // bearing) BEFORE re-aiming the camera at the trend — that captured heading drives the body.
+        float descentNodeYaw = targetYaw;
+        // GENERALISED from descents to FLAT + descending dry overland travel: a live 2026-06-21
+        // winding-by-bucket diagnosis showed the trend camera had ALREADY smoothed descending nodes
+        // (dryDesc=true: 2.5 turns over the journey) but 90% of the residual spin sat in the dry
+        // NON-descending nodes (flat + ascending steps on the same hill, 7.8 turns) where the decouple
+        // wasn't engaging — a switchback's flat legs swing the per-node bearing exactly like its down
+        // legs. Driving the body off the captured node heading keeps navigation byte-identical; only
+        // the camera is trend-averaged. ASCENDING (wp.y > foot.y) is EXCLUDED: a dig+climb-mount or
+        // pillar-up needs the exact target heading, and trend-aiming it regressed tallbankdigclimb
+        // (the bot couldn't mount the bank).
+        // Launches ride descentDecoupleLaunches (ascending leaps slew safely via commandMove).
+        boolean dryDescent = BotConfig.descentCameraDecouple && !p.isInWater() && !steppingOffWaterFall
+                && ( (!launch && wp.getY() <= foot.getY())                 // flat or descending walk
+                   || (launch && BotConfig.descentDecoupleLaunches) );     // any dry launch
+        // Water 摇头 (head-shake) fix: extend the trend camera to FLAT water swimming. A buoyant bot
+        // crossing open water swims slowly (~1.4 b/s); near a waypoint the immediate-node bearing flips
+        // ±170°/tick and the camera — coupled to it in water — swings, the visible head-shake (live
+        // 2026-06-21 crossing: camera mean|dyaw|=3°/tick with ±170° driveYaw flips in the slow bursts).
+        // Averaging the look-ahead window into a steady trend kills it, exactly as on dry land. EXCLUDED:
+        // climb-out (wp above foot — the bank mount needs the exact column heading) and swimDown dives
+        // (they aim precisely), so the water-climb / dive arenas stay byte-unchanged. Unlike dry land the
+        // body stays COUPLED to the camera trend (driveTargetYaw=aimYaw in water, below): on an open
+        // crossing swimming toward the trend is correct, whereas driving the raw flipping node would
+        // re-introduce a swim-back-and-forth.
+        // The Y gate is bob-tolerant (+1): a buoyant body bobs foot y±1 against a surface node, so a
+        // strict wp.y <= foot.y FLICKERS the trend on/off each bob and the camera still snaps to the
+        // flipping node on the off-ticks (live: yaw==driveYaw on alternating ticks). +1 keeps the trend
+        // latched across the bob while still excluding a real climb-OUT (+2 bank); a +1 node it might
+        // include is harmless — buoyantClimbPress (below) drives that mount off the column regardless.
+        boolean flatWaterTrend = BotConfig.descentCameraDecouple && p.isInWater() && !launch
+                && wp.getY() <= foot.getY() + 1
+                && !(edge != null && edge.move != null && edge.move.startsWith("swimDown"));
+        boolean trendCam = dryDescent || flatWaterTrend;
+        // Smoothed water DRIVE: the raw immediate-node bearing flips ±180° when the slow buoyant body
+        // overshoots a node, so driving it raw makes the body swim-wobble (live: 52% path efficiency,
+        // "突然转身背离目标"). A light EMA damps the per-tick flip while still tracking the node. WATER
+        // ONLY: extending this EMA to dry descent was A/B-DISPROVEN in descentYawArena (raw backSteps=42
+        // winding=211° → ema backSteps=54 winding=370° — the dry body has traction and needs the precise
+        // node bearing; lagging it makes it overshoot/correct MORE). Dry back-hop's real fix is a
+        // step-pointer advance, not drive-smoothing (override was also disproven — both wedge/worsen).
+        if (flatWaterTrend) {
+            smoothWaterDriveYaw = Float.isNaN(smoothWaterDriveYaw) ? descentNodeYaw
+                    : angleDiff(0f, smoothWaterDriveYaw + WATER_DRIVE_ALPHA * angleDiff(smoothWaterDriveYaw, descentNodeYaw));
+        } else {
+            smoothWaterDriveYaw = Float.NaN;
+        }
+        if (trendCam) {
+            // Aim the CAMERA at the CENTROID of the lookahead window (see DESCENT_CAM_LOOKAHEAD):
+            // a switchback staircase's alternating cardinal legs average to the steady down-slope
+            // trend, so the heading holds instead of chasing the ±50° per-step zigzag (the spin).
+            // MOVEMENT stays on the immediate node via driveTargetYaw=descentNodeYaw below.
+            // CENTROID of the look-ahead window: averaging EVERY node in the window cancels a
+            // switchback's alternating legs into the steady down-slope trend. (A chord/far-node
+            // samples only an endpoint, which itself lands on alternating legs and swings; the
+            // full average does not.) MOVEMENT stays on the immediate node via driveTargetYaw below.
+            double sumX = 0, sumZ = 0; int cnt = 0;
+            int lastNode = Math.min(step + DESCENT_CAM_LOOKAHEAD, path.size() - 1);
+            int firstNode = (lastNode - step >= 4) ? step + 2 : step;   // skip the at-foot nodes
+            for (int k = firstNode; k <= lastNode; k++) { sumX += path.get(k).getX() + 0.5; sumZ += path.get(k).getZ() + 0.5; cnt++; }
+            if (cnt > 0) {
+                double mdx = sumX / cnt - p.getX(), mdz = sumZ / cnt - p.getZ();
+                if (mdx * mdx + mdz * mdz > 1.0)
+                    targetYaw = (float) Math.toDegrees(Math.atan2(-mdx, mdz));
+            }
+        }
         // Low-pass the TARGET heading (EMA on the shortest angle, kept in [-180,180]) so a
         // grid staircase on a diagonal — whose immediate-waypoint bearing alternates ±~30°
         // around the true diagonal each step — averages to a steady bearing instead of a
-        // bounded sawtooth (see YAW_SMOOTH_ALPHA). Resync on launch / first use.
-        if (Float.isNaN(smoothTargetYaw) || launch) {
+        // bounded sawtooth (see YAW_SMOOTH_ALPHA). Resync on launch / first use — EXCEPT a
+        // decoupled descending launch (dryDescent), which must NOT resync/snap: the leap is
+        // drive-decoupled (driveTargetYaw=node), so the camera can keep its continuous EMA and
+        // SLEW smoothly through the turn over the airborne ticks instead of snapping ~180° (the
+        // 下落转圈). Snapping stays for ascending leaps / water-falls where the leap aims via yaw.
+        boolean snapLaunch = launch && !dryDescent;
+        if (Float.isNaN(smoothTargetYaw) || snapLaunch) {
             smoothTargetYaw = targetYaw;
         } else {
-            smoothTargetYaw = angleDiff(0f, smoothTargetYaw + YAW_SMOOTH_ALPHA * angleDiff(smoothTargetYaw, targetYaw));
+            float alpha = trendCam ? YAW_SMOOTH_ALPHA_DESCENT : YAW_SMOOTH_ALPHA;
+            smoothTargetYaw = angleDiff(0f, smoothTargetYaw + alpha * angleDiff(smoothTargetYaw, targetYaw));
         }
-        float aimYaw = launch ? targetYaw : smoothTargetYaw;
+        float aimYaw = snapLaunch ? targetYaw : smoothTargetYaw;
+        // ── 原地后跳 (in-place backward hop) fix ───────────────────────────────────────────────
+        // The decoupled descent drive rides the IMMEDIATE node (descentNodeYaw). When the bot
+        // OVERSHOOTS that node on a fall landing or a step (lands a hair past it), the node is now
+        // BEHIND the body, so its bearing flips ~180° and the drive reverses — the body hops
+        // backward INTO the node, overshoots again, and oscillates. (Live 2026-06-21 telemetry: at a
+        // fall2 landing descentNodeYaw flipped 177°↔-5° while the camera held steady at -5°, so the
+        // body hopped back/forth in place — the spin used to MASK this, but the now-steady trend
+        // camera exposes it as a visible backward jump.) When the captured node lies sharply behind
+        // the steady trend heading (aimYaw = the look-ahead centroid, which already points along the
+        // path), drive ALONG the trend instead of reversing: the body keeps moving forward through
+        // the overshot node, and the step pointer advances via the normal overshoot re-sync. Only
+        // a >120° gap counts as an overshoot — a switchback's legs sit ~±50° off the trend, so
+        // (A drive-override here — descentNodeYaw = aimYaw on a behind+close node — was tried and
+        // REVERTED: overriding the heading breaks node-following and self-amplifies into a descent
+        // wedge (descentYawArena onSlope 226→700, reached=false, under every gate incl. a stall gate,
+        // because firing increases noStepProgressTicks which keeps it firing). The correct fix is a
+        // step-pointer OVERSHOOT-ADVANCE in the re-sync block, which keeps the drive on REAL nodes.)
         // ANTI-SPIN camera freeze: while churning in water (consecutive repaths with no
         // goal-progress — a failed climb-out whose best-effort segments keep flipping
         // the waypoint behind the bot), HOLD the heading instead of chasing the
@@ -2343,11 +2621,6 @@ public final class Walker {
         // follows body yaw, steadies the bot pressing one direction toward the climb-
         // out rather than U-turning. Launches still snap. Cleared as soon as progress
         // resumes (repathsNoProgress resets). */
-        // "Over water" covers the bob-at-a-bank case too: bobbing into a climb-out
-        // ledge the body pops to y+0.x above the surface (isInWater flickers false) yet
-        // is still a water stall — gate on water UNDER the foot as well so the freeze
-        // catches the surface/bank spin, not only the fully-submerged one.
-        boolean overWater = p.isInWater() || world.isWater(foot.offset(0, -1, 0));
         // Target-stability gate: the freeze must catch a FLIPPING target (chasing a ~180°
         // per-repath swing winds the camera) but NOT a STABLE one (the capped slew converges
         // to it once and stops — no wind). Freezing a stable-but-wrong heading is the
@@ -2361,12 +2634,19 @@ public final class Walker {
             aimStableTicks = 0;
         lastAimYaw = aimYaw;
         boolean targetFlipping = aimStableTicks < AIM_STABLE_TICKS;
+        // The anti-spin freeze stays WATER-gated: a dry-land extension (to catch the dry-churn
+        // cliff-stall spin) spuriously engaged during a slow dry pillar-up — the goal-XZ barely
+        // moves while pillaring, so repathsNoProgress climbs and the placement aim flips, tripping
+        // the freeze and pinning the heading off the column (regressed summitarena). The dry-churn
+        // spin is rarer (only on an actual nav stall) and better fixed at the stall itself than by
+        // freezing the camera here, so keep the overWater scope.
+        boolean overWater = p.isInWater() || world.isWater(foot.offset(0, -1, 0));
         boolean spinFreeze = !launch && overWater && repathsNoProgress > CHURN_REPATH_CAP && targetFlipping;
         if (!spinFreeze && Math.abs(angleDiff(p.getYRot(), aimYaw)) > BotConfig.walkerYawHysteresisDeg) {
             float ny;
-            if (launch) {
-                ny = aimYaw;   // launches must snap — no mid-air course correction
-                LookController.requestSnap();   // exempt this leap's takeoff heading from the global camera slew
+            if (snapLaunch) {
+                ny = aimYaw;   // launches must snap — no mid-air course correction (decoupled
+                LookController.requestSnap();   // descending leaps slew instead — see snapLaunch)
             } else {
                 // Cap the per-tick turn (see WALKER_MAX_YAW_SLEW_DEG) so even a transient
                 // bad aim vector can only nudge the heading, never reverse it in one tick.
@@ -2624,6 +2904,14 @@ public final class Walker {
             sprintAscend = aligned;
             ascendJumpReady = aligned && flatDist <= 1.7;
         }
+        // NOTE: extending the cardinal sprint-bunny-hop to DIAGONAL step-ups was tried + A/B-
+        // DISPROVEN here (2026-06-20) via diagonalAscentSpeedArena: forcing sprint on a diagonal
+        // climb RAMS the riser CORNER (two perpendicular faces) — sprint% 48→94 dropped diagBps
+        // 3.04→2.71 and raised hcol 7→12; jumping √2-earlier was worse still (2.95, hcol 22, and
+        // it broke tallBankDigClimb's diagonal dig-staircase). The partial-sprint 3.04 b/s (≈71%
+        // of walk) baseline is the achievable limit under the corner-ram constraint; the camera
+        // (yaw) is already steadied by the STAIR_TREND_LOOKAHEAD path-trend aim. Left cardinalUp-
+        // only on purpose. The diagonalAscentSpeedArena guards that 3.04 baseline from regressing.
         // Climbing a +1 ledge OUT OF a water film: buoyancy drifts the body off the
         // target column so the cardinal stepUp approach goes diagonal and forward
         // just grinds the ledge side (trace: inW, foot drifted to a diagonal of the
@@ -2695,7 +2983,14 @@ public final class Walker {
         // the +1. Gated tight — floating, climbing (wp above foot), laterally ON the column —
         // so flat water travel and dry steps are byte-unchanged. (Special climb-out takeovers
         // — pillar / dig — return before here, so this only drives the plain-stepUp bob.)
-        float driveTargetYaw = aimYaw;
+        // Trend camera (dry descent OR flat water swim): the camera faces the far trend heading
+        // (above) but the body must still drive the IMMEDIATE node so it follows the path step by
+        // step — keep movement on the captured node heading. In WATER this decouple is essential, not
+        // just polish: coupling the drive to the far trend made the body swim straight at the centroid
+        // THROUGH a divider and ram it (waterFarAimBankCorner regressed); driving the immediate node
+        // rounds the corner while the camera trend still kills the head-shake.
+        float driveTargetYaw = flatWaterTrend ? smoothWaterDriveYaw
+                : trendCam ? descentNodeYaw : aimYaw;
         boolean buoyantClimbPress = p.isInWater() && !p.onGround() && !parkourEdge
                 && wp.getY() > foot.getY()
                 && (stepColDx * stepColDx + stepColDz * stepColDz) < 2.5;
@@ -2964,7 +3259,7 @@ public final class Walker {
             // dwell (pos frozen while wp/yaw change = stuck, not moving).
             Vec3 dm = p.getDeltaMovement();
             double hSpd = Math.sqrt(dm.x * dm.x + dm.z * dm.z);
-            LOG.info("[walker] walk-keys yaw={} wp={},{},{} up={} jump={} sprint={} sneak={} hCol={} minorCol={} hSpd={} pos={},{},{} onG={} attack={}",
+            LOG.info("[walker] walk-keys yaw={} wp={},{},{} up={} jump={} sprint={} sneak={} hCol={} minorCol={} hSpd={} pos={},{},{} onG={} attack={} dryDesc={} driveYaw={}",
                     String.format(Locale.ROOT, "%.0f", p.getYRot()),
                     wp.getX(), wp.getY(), wp.getZ(),
                     a.dbgForwardImpulse(), a.dbgJumping(), p.isSprinting(),
@@ -2974,7 +3269,8 @@ public final class Walker {
                     String.format(Locale.ROOT, "%.2f", p.getX()),
                     String.format(Locale.ROOT, "%.2f", p.getY()),
                     String.format(Locale.ROOT, "%.2f", p.getZ()),
-                    p.onGround(), a.breakHeld());
+                    p.onGround(), a.breakHeld(),
+                    dryDescent, String.format(Locale.ROOT, "%.0f", driveTargetYaw));
         }
         return Step.WALKING;
     }
