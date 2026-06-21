@@ -2231,6 +2231,90 @@ public final class AgentGameTest {
     }
 
     /**
+     * BACKWARD-HOP (原地后跳) reproduction — a SPRINT-OVERSHOOT off a ledge. The live -1.88 hop is not a
+     * cornering bug (a walled U-turn rounds clean) nor a continuous-slope jitter (descentYawArena = 0.25);
+     * it is the bot sprinting off a sudden drop, free-falling while carrying momentum, and landing several
+     * blocks PAST the fall node so the step pointer lags and the drive bears back at the overshot node for
+     * a few ticks. A long flat runway → sheer 3-block drop → terrace forces exactly that. Metric = motion
+     * AWAY from the due-east goal (−x) after the lip + the worst single backward step (≈ blocks).
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void ledgeOvershootArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 460, cz = 560, H = 240, RUN = 26, DROP = 3;
+        for (int x = cx; x <= cx + RUN; x++)              // runway, top surface at y=H
+            for (int z = cz - 2; z <= cz + 2; z++)
+                for (int y = H - 4; y <= H - 1; y++)
+                    level.setBlockAndUpdate(new BlockPos(x, y, z), Blocks.STONE.defaultBlockState());
+        for (int x = cx + RUN + 1; x <= cx + RUN + 18; x++)   // terrace, DROP lower
+            for (int z = cz - 2; z <= cz + 2; z++)
+                for (int y = H - 4 - DROP; y <= H - 1 - DROP; y++)
+                    level.setBlockAndUpdate(new BlockPos(x, y, z), Blocks.STONE.defaultBlockState());
+        BlockPos goal = new BlockPos(cx + RUN + 16, H - DROP, cz);
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = false;
+        BotConfig.allowPlace = false;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 1.5, H, cz + 0.5);
+            FakePlayer fp = av.fakePlayer();
+            grantWaterEffects(fp);
+            LevelWorldView w = new LevelWorldView(level, fp);
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.Block(goal));
+
+            double prevX = fp.getX(), prevZ = fp.getZ();
+            int backSteps = 0, moved = 0;
+            double worstBack = 0, landX = 0;
+            boolean pastLip = false;
+            Walker.Step s = Walker.Step.WALKING;
+            for (int t = 0; t < 400 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+                double ddx = fp.getX() - prevX, ddz = fp.getZ() - prevZ;
+                if (!pastLip && fp.getX() > cx + RUN && fp.getY() < H - 1.5) {  // first grounded on the terrace
+                    pastLip = true;
+                    landX = fp.getX();
+                }
+                if (pastLip && ddx * ddx + ddz * ddz > 1e-4) {       // measure only the post-landing zone
+                    moved++;
+                    if (ddx < -0.02) { backSteps++; worstBack = Math.min(worstBack, ddx); }
+                }
+                prevX = fp.getX();
+                prevZ = fp.getZ();
+            }
+            double dGoal = Math.hypot(fp.getX() - (goal.getX() + 0.5), fp.getZ() - (goal.getZ() + 0.5));
+            boolean reached = dGoal < 2.5;
+            double overshoot = landX - (cx + RUN);     // how far past the lip the bot first grounded
+            AgentDriverCommon.LOG.info(
+                    "[ledgeOvershootArena] step={} pos=({},{},{}) reached={} dGoal={} landX-overshoot={} backSteps={}/{} worstBack={}",
+                    s, String.format(Locale.ROOT, "%.1f", fp.getX()), String.format(Locale.ROOT, "%.1f", fp.getY()),
+                    String.format(Locale.ROOT, "%.1f", fp.getZ()), reached, String.format(Locale.ROOT, "%.1f", dGoal),
+                    String.format(Locale.ROOT, "%.1f", overshoot), backSteps, moved, String.format(Locale.ROOT, "%.2f", worstBack));
+            if (!reached)
+                throw new GameTestAssertException("ledgeOvershootArena: did not reach the terrace goal: pos=("
+                        + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") dGoal=" + dGoal + " step=" + s);
+            // Baseline: overshoot ~2.4 blocks, backSteps ~2, worstBack ~-0.12 — the executor's
+            // droppedPastDescend + overshoot-relaxation keep the post-landing back-drive small. Guard
+            // a GROSS regression (a change that makes the bot hop back hard after a ledge overshoot).
+            if (worstBack < -0.6)
+                throw new GameTestAssertException("ledgeOvershootArena: backward-hop regressed to " + worstBack
+                        + " blocks/tick (baseline ~-0.12)");
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+        }
+        helper.succeed();
+    }
+
+    /**
      * TOOLING PROBE: does the sim avatar collide with a 2-tall vertical wall? The descentYawArena only
      * ever auto-STEPS risers (≤0.6), so tall-wall collision was never exercised — and uTurnHopArena saw
      * the avatar cross a 3-thick divider. Drive the avatar straight (+z) into a 2-tall wall and assert
