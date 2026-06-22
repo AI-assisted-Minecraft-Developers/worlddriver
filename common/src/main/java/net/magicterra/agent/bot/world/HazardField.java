@@ -71,6 +71,16 @@ public final class HazardField {
         for (int dy = 1; dy >= -DROP_PROBE; dy--) {
             BlockPos f = new BlockPos(cx, center.getY() + dy, cz);
             if (!w.isKnown(f)) break;
+            // A hazard cell (lava/fire) in the fall path BEFORE any standable ground means the
+            // bot falls into it → lethal contact, regardless of how far the drop is. Without
+            // this, a lava-FILLED pit reads as foot==null ("blocked column", not lethal): when
+            // the pit's lava has flowed up to cover the only standable floor, canStandAt rejects
+            // every cell and the lethal pit is silently dropped. (A single un-flowed lava block
+            // still leaves the stone floor standable → lethal via drop — hence the flaky split.)
+            if (w.isHazard(f)) {
+                int d = Math.max(0, center.getY() - f.getY());
+                return new HazardCell(d, 0, true, false, true);
+            }
             if (w.canStandAt(f)) { foot = f; break; }
         }
         if (foot == null) {
