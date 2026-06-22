@@ -1543,7 +1543,34 @@ public final class Walker {
                     && p.getY() < w.getY() - 2.0;
             boolean tailConsumed = !within && step + 1 == path.size() && pathBestEffort
                     && (cur2 > OVERSHOOT_RESYNC_SQ || tailDroppedPast);
-            if (within || passed || tailConsumed) step++;
+            // DESCENT OVERSHOOT-ADVANCE (the 原地后跳 back-hop fix the in-place-hop comment
+            // points to): on a dry descent step the body drives the IMMEDIATE node
+            // (driveTargetYaw = descentNodeYaw). The instant the foot crosses PAST that node
+            // toward the next one, the node sits behind the body and the decoupled drive
+            // reverses — the ~0.1-0.25/tick backward hop seen on every slope / stepDown
+            // (descentYawArena backSteps=42, worstBack=-0.25). `passed` only advances at the
+            // w→nx MIDPOINT (nd2<cur2), leaving a 2-3 tick window where the drive rides the
+            // overshot node and hops back. Advance one tick earlier — the moment the foot is on
+            // the FORWARD side of node w along the w→nx segment (projection of w→foot onto w→nx
+            // positive) — so the drive never rides a node behind it. Dry + descend-edge gated
+            // (water/climb keep their own gates); the |Δy|<1.2 bar keeps it off an impossible
+            // climb, and the forward-projection test means a switchback leg (foot past w but NOT
+            // toward nx) never trips it.
+            // DISCRETE descents only (fall off a lip / a single stepDown): a continuous diagDown
+            // SLOPE legitimately rides the immediate node for trend-camera smoothing, and advancing
+            // eagerly there over-leans the descent into MORE back-correction (descentYawArena
+            // backSteps 42→71). A discrete drop has one clean overshoot to consume.
+            boolean discreteDescend = se != null && se.move != null
+                    && (se.move.startsWith("fall") || se.move.equals("stepDown"));
+            boolean crossedDescendNode = false;
+            if (!within && !passed && discreteDescend && !p.isInWater() && step + 1 < path.size()) {
+                BlockPos nxd = path.get(step + 1);
+                double segx = nxd.getX() - w.getX(), segz = nxd.getZ() - w.getZ();
+                double offx = p.getX() - (w.getX() + 0.5), offz = p.getZ() - (w.getZ() + 0.5);
+                crossedDescendNode = (offx * segx + offz * segz) > 0
+                        && Math.abs(nxd.getY() - p.getY()) < 1.2;
+            }
+            if (within || passed || tailConsumed || crossedDescendNode) step++;
             else break;
         }
         if (step >= path.size()) {
