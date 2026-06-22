@@ -561,6 +561,17 @@ public final class AgentGameTest {
         int surface = floorY + depth;            // y206 water surface
         int plateauTop = surface + 5;            // y211 — wall top +5 above water (sheer, buoyant)
 
+        // Determinism: wipe any residue a prior test left in this region. Arenas build at
+        // absolute coords in a SHARED ServerLevel with no per-test isolation, so an earlier
+        // test's blocks survive in whatever cells THIS arena does not explicitly set — and a
+        // buoyant A* climb-out is exquisitely sensitive to a stray solid in its explored
+        // column → order-dependent paths → flaky bobTicks. Clearing the full build+explore
+        // box to AIR first makes the start state independent of test order.
+        for (int dx = -8; dx <= 8; dx++)
+            for (int dz = -8; dz <= 11; dz++)
+                for (int y = floorY - 1; y <= plateauTop + 6; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
+
         // Basin floor.
         for (int dx = -3; dx <= 3; dx++)
             for (int dz = -3; dz <= 2; dz++)
