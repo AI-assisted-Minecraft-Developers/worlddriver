@@ -303,7 +303,10 @@ public final class AgentGameTest {
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void summitArena(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        final int cx = 8, cz = 8, floorY = 220, standY = 221;
+        // cz=440 (NOT the shared 8,8): concurrent tick-stepped tests stomp each other at shared
+        // absolute coords, and this arena's buildFloor clear also reached agentRpcSmoke's (3,3)
+        // corner → that test's intermittent failures. Disjoint region per arena.
+        final int cx = 8, cz = 440, floorY = 220, standY = 221;
         buildFloor(level, cx, cz, floorY);
         // Canopy: oak leaves on the -x cardinal neighbour at the rung ceilings.
         for (int y = standY + 1; y <= standY + 4; y++)
@@ -371,7 +374,11 @@ public final class AgentGameTest {
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void sheerWallArena(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        final int cx = 8, cz = 8, floorY = 220, standY = 221;
+        // cz=380 (NOT the shared 8,8): GameTest tick-steps tests CONCURRENTLY, and arenas build
+        // at absolute coords (ignoring GameTest's per-test spatial spacing), so two tests at the
+        // same (cx,cz) physically stomp each other's bot+blocks mid-run → non-deterministic
+        // failures. Each arena must own a disjoint absolute region.
+        final int cx = 8, cz = 380, floorY = 220, standY = 221;
         final int wallH = 5;
         buildFloor(level, cx, cz, floorY);
 
@@ -438,7 +445,9 @@ public final class AgentGameTest {
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void bridgeGapArena(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        final int cx = 8, cz = 8, floorY = 220, standY = 221;
+        // cz=320 (NOT the shared 8,8): concurrent tick-stepped tests at the same absolute coords
+        // stomp each other (see sheerWallArena) — disjoint region per arena.
+        final int cx = 8, cz = 320, floorY = 220, standY = 221;
         // Start platform (dz -5..-1) and far platform (dz 3..5), full x-width; a 3-cell
         // gap (dz 0..2) with VOID below so the bot must bridge across it in +z.
         for (int dx = -5; dx <= 5; dx++) {
@@ -446,7 +455,10 @@ public final class AgentGameTest {
                 boolean platform = dz <= -1 || dz >= 3;
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz),
                         platform ? Blocks.STONE.defaultBlockState() : Blocks.AIR.defaultBlockState());
-                for (int yy = 1; yy <= 5; yy++)
+                // Clear deep (+18, not +5): this (8,8) coord is shared with summit/sheerWall,
+                // whose bots place rungs well above +5 — a shallow clear inherits them as a
+                // phantom ceiling over the gap and the bot fails to bridge (falls into the void).
+                for (int yy = 1; yy <= 18; yy++)
                     level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + yy, cz + dz), Blocks.AIR.defaultBlockState());
                 if (!platform)
                     for (int yy = 1; yy <= 4; yy++)
@@ -3817,11 +3829,18 @@ public final class AgentGameTest {
 
     /** 11x11 solid floor at {@code floorY}, clear 5 above — a clean test slab. */
     private static void buildFloor(ServerLevel level, int cx, int cz, int floorY) {
+        // Determinism: wipe residue from prior tests across the full explore box BEFORE the
+        // arena lays its own structure (shared ServerLevel, absolute coords, no per-test
+        // isolation — see buoyantWallArena). The old dy≤5 clear was too shallow: a pillar /
+        // canopy arena (summitArena, the (8,8) collision cluster) climbs ABOVE +5, both
+        // building and placing rungs there, so a SHORTER later test at the same coords inherits
+        // those high blocks → order-dependent paths. Clear up to +18 (taller than any single
+        // arena's build); the arena rebuilds whatever it needs afterwards.
         for (int dx = -5; dx <= 5; dx++)
             for (int dz = -5; dz <= 5; dz++) {
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-                for (int dy = 1; dy <= 5; dy++)
+                for (int dy = 1; dy <= 18; dy++)
                     level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
             }
     }
 }
