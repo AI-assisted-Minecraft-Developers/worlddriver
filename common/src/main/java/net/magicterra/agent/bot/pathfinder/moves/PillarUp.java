@@ -21,6 +21,16 @@ public final class PillarUp extends Move {
     @Override public boolean valid(WorldView w, BlockPos from) { return eval(w, from) != null; }
     @Override public Edge eval(WorldView w, BlockPos from) {
         if (!w.canPlace()) return null;
+        // Buoyant open-water guard: canStandAt treats ANY water cell as a floor, so A*
+        // otherwise routes a pillar base into deep OPEN water (no solid below). A floating
+        // bot there can't place the first rung — placement needs a solid face to click, and
+        // hasPlaceSupport requires a solid below OR a cardinal-adjacent solid (a wall/bank).
+        // Without one the pillar is physically unexecutable: the bot bobs at the waterline
+        // forever (buoyantWallArena: A* picked the open-water column z=60 over the wall-
+        // adjacent z=61, support=false → 585-tick thrash). Forbidding the support-less
+        // floating pillar steers A* to climb AGAINST the wall, where rungs can be placed.
+        // Wall/bank-adjacent pillars (the live climb-out cases) keep support → unaffected.
+        if (w.isFloatingWater(from) && !Move.hasPlaceSupport(w, from)) return null;
         // No world-solidity check on the support below: every standing node
         // A* reaches already has a real-or-placed solid block beneath it
         // (canStandAt guarantees it for walked nodes; a preceding PillarUp

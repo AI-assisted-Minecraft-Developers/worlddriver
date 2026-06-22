@@ -1753,7 +1753,15 @@ public final class Walker {
                 // the water surface before any real climb — round76c. A terrain test is
                 // robust to whatever A* planned and to the exact bank height.
                 boolean dryGrounded = p.onGround() && !p.isInWater()
-                        && !world.isWater(foot) && !world.isWater(foot.below());
+                        && !world.isWater(foot) && !world.isWater(foot.below())
+                        // ...AND actually topped out — not a MID-WALL rung. On a tall sheer
+                        // climb the takeover places a rung, grounds on it dry, and this fired
+                        // "topped out" at every +1 → flush-walk → repath → re-engage; without
+                        // this the climb-out sometimes never completes (buoyantWallArena run
+                        // reached only y-mid-wall, onPlateau=false). While the climb node is
+                        // still ≥2 above the foot the wall continues up; only a node at ~foot
+                        // level is the real bank top.
+                        && !(wantClimbNow && cwp.getY() - foot.getY() >= 2);
                 boolean tooHigh = foot.getY() > waterClimbTargetY;
                 // Self-correction: the latch pins the bot to ONE locked column +
                 // heading, which goes stale two ways in a live crossing — (a) the bot
