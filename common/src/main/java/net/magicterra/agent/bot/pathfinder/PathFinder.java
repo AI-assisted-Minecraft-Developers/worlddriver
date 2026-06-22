@@ -141,7 +141,19 @@ public final class PathFinder {
         private final BlockPos start;
         private final Goal goal;
         private final Map<BlockPos, Node> nodes = new HashMap<>();
-        private final PriorityQueue<Node> open = new PriorityQueue<>((a, b) -> Double.compare(a.f, b.f));
+        // Total-order comparator: equal-f ties broken by a STABLE key (packed block
+        // position). Open water (and any flat region) produces vast plateaus of
+        // equal-f nodes; comparing on f alone leaves their pop order to PriorityQueue
+        // heap internals — perturbed by the lazy in-place f-mutation re-add below — so
+        // the same start explored a different node count and committed a different
+        // equal-cost path run-to-run (buoyantWallArena: expanded 175 vs 85, swimUp@z61
+        // vs walk@z60 from an identical start → the flaky bobTicks). A deterministic
+        // tie-break makes the whole search reproducible; the chosen path is identical
+        // in cost, just canonical.
+        private final PriorityQueue<Node> open = new PriorityQueue<>((a, b) -> {
+            int c = Double.compare(a.f, b.f);
+            return c != 0 ? c : Long.compare(a.pos.asLong(), b.pos.asLong());
+        });
         private final double[] bestHeuristic = new double[COEFFICIENTS.length];
         private final Node[] bestSoFar = new Node[COEFFICIENTS.length];
         /** Reachable node nearest the goal (min raw h) that borders an unloaded

@@ -664,7 +664,12 @@ public final class AgentGameTest {
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void tallBankDigClimbArena(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        final int cx = 60, cz = 60, floorY = 200, depth = 6;
+        // Unique coords: these arenas build at HARDCODED level positions in the shared
+        // GameTest level (ignoring the structure region), so a coord shared with another
+        // arena lets test-order-dependent residual blocks bleed into the other's A*-
+        // explored region — the source of buoyantWallArena's flaky bobTicks (it also
+        // hardcoded (60,60,200)). Keep every arena's (cx,cz,floorY) footprint disjoint.
+        final int cx = 60, cz = 260, floorY = 200, depth = 6;
         int surface = floorY + depth;            // water surface
         // +3 bank (matches the live 2026-06-20 bank). NOTE: a 1-block-thick SHEER wall is
         // toolless-UNSOLVABLE — a buoyant bot (or a human/Baritone) with no placeable blocks
