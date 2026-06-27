@@ -2209,15 +2209,20 @@ public final class Walker {
                         String.format("%.2f", doffx * dsegx + doffz * dsegz),
                         Math.abs(dN.getY() - p.getY()) < 1.2);
             }
-            // Phase-1 (walkerArcLengthAdvance): the bob-immune path projection is the step driver — advance
-            // when the foot's forward projection has reached a later segment (arcProj.segIdx > step), bypassing
-            // the seven bob-compensating gates (passed/tailConsumed/crossedDescend/crossedWalk/waterStepDownFloat/
-            // stepUpCrestReach/waterWalkReach) that only ever patched a bob-defeated within/passed. `within` is
-            // kept for the legitimate close-node arrival (final goal cell). The edge-execution holds above still
-            // gate advancement. Legacy gate set retained verbatim when the flag is OFF.
-            boolean doAdvance = BotConfig.walkerArcLengthAdvance
-                    ? (arcProj.segIdx > step || within)
-                    : (within || passed || tailConsumed || crossedDescendNode || crossedWalkNode || waterStepDownFloat || stepUpCrestReach || waterWalkReach);
+            // Phase-1 (walkerArcLengthAdvance): the bob-immune path projection ADDS a step-advance the legacy
+            // gates miss — advance when the foot's forward projection has reached a later segment
+            // (arcProj.segIdx > step). It is a SUPPLEMENT, not a replacement: the seven legacy gates
+            // (passed/tailConsumed/crossedDescend/crossedWalk/waterStepDownFloat/stepUpCrestReach/waterWalkReach)
+            // still fire because they advance in NEAR-reach cases the projection is too strict for — e.g. the bot
+            // orbiting just below a crest stepUp (cur2~0.55, the foot hasn't projected past the node so segIdx is
+            // pinned, but stepUpCrestReach legitimately advances it over the crest; stepUpCrestOrbitArena /
+            // waterStepDownFloatArena assert exactly this). The union (legacy || projection) is strictly more
+            // advancing than either alone, so it both kills the bob-defeated step-freeze (projection drives) AND
+            // keeps the reach helpers (legacy drives). Edge-execution holds above still gate advancement.
+            boolean legacyAdvance = within || passed || tailConsumed || crossedDescendNode || crossedWalkNode
+                    || waterStepDownFloat || stepUpCrestReach || waterWalkReach;
+            boolean doAdvance = legacyAdvance
+                    || (BotConfig.walkerArcLengthAdvance && arcProj.segIdx > step);
             if (doAdvance) {
                 // Don't CONSUME the final node of a disk goal while it sits inside the goal
                 // radius but the bot's FOOT cell is still one block short of it. The node-reach
