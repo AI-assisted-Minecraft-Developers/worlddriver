@@ -41,9 +41,23 @@ public final class ParkourDescend extends Move {
         // ride the allowParkour4 "marginal physics" tier -- same contract as the
         // dist-3 ascend, which also needs a boost to land.
         if ((dist >= 3 || drop >= 2) && !BotConfig.allowParkour4) return false;
+        // Buoyancy TAKEOFF gate: a floating bot can't sprint-jump out of deep water (no floor to push off).
+        // Mirrors StepUp/DiagUp/PillarUp; complements pathfinderForbidParkourIntoDeepWater. See BotConfig doc.
+        if (BotConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) return false;
         if (!Move.hasRunway(w, from)) return false;
         BlockPos to = apply(from);                 // (sx*dist, -drop, sz*dist)
         if (!w.canStandAt(to)) return false;
+        // Buoyancy: no parkour LANDING in submerged water — the bot sinks/stalls there
+        // instead of leaping (mirrors Fall/StepDown's submerged gate; surface/solid OK).
+        if (w.isWater(to) && w.isWater(to.offset(0, 1, 0))) return false;
+        // Buoyancy (#47 -870): also refuse a leap onto the SURFACE of a DEEP pocket
+        // (≥2 of water below the feet, head air). The submerged gate above only bars a
+        // head-underwater landing; a leap onto a deep-pocket surface passes it, but the
+        // buoyant bot floats there and can't climb back out (grounded climb-outs gate
+        // off floating water → ~25× underwater bank-dig / long shore-swim, the dive a
+        // probe shows A* immediately reverses). Opt-in; a shallow 1-deep splash (floor
+        // below) and a leap onto a dry far bank are unaffected.
+        if (BotConfig.pathfinderForbidParkourIntoDeepWater && w.isDeepWaterSurfaceLanding(to)) return false;
         // Launch jump clearance (head+1 at the lip).
         if (!w.isPassable(from.offset(0, 2, 0)) || w.isHazard(from.offset(0, 2, 0))) return false;
         int sx = Integer.signum(dx), sz = Integer.signum(dz);

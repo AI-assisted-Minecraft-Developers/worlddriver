@@ -10,6 +10,8 @@ import net.minecraft.network.protocol.game.ServerboundContainerClosePacket;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
@@ -219,6 +221,13 @@ public final class BotInteract {
         return net.magicterra.agent.bot.BotConfig.isUsableBuildBlock(bi.getBlock());
     }
 
+    /** Like {@link #isSupportBlock} but accepts supported FallingBlocks (sand/gravel) — for a
+     *  strictly vertical pillar-up only (see {@link net.magicterra.agent.bot.BotConfig#isUsablePillarBlock}). */
+    public static boolean isPillarBlock(ItemStack stk) {
+        if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) return false;
+        return net.magicterra.agent.bot.BotConfig.isUsablePillarBlock(bi.getBlock());
+    }
+
     /** Hold (or swap to) a SOLID-support BlockItem in the hotbar (see {@link #isSupportBlock}).
      *  Creative can pull from main inventory. Returns false when none is available. */
     public static boolean ensureHoldingPlaceableAny(Minecraft mc) {
@@ -241,6 +250,52 @@ public final class BotInteract {
                     return isSupportBlock(inv.getSelected());
                 }
             }
+        }
+        return false;
+    }
+
+    /** Hold (or swap to) a pillar-safe BlockItem (support block OR supported sand/gravel; see
+     *  {@link #isPillarBlock}). Mirror of {@link #ensureHoldingPlaceableAny}; use ONLY for an
+     *  in-place vertical pillar-up where the placement is supported below. */
+    public static boolean ensureHoldingPillarBlock(Minecraft mc) {
+        LocalPlayer p = mc.player;
+        if (p == null) return false;
+        Inventory inv = p.getInventory();
+        if (isPillarBlock(inv.getSelected())) return true;
+        for (int s = 0; s < 9; s++) {
+            if (isPillarBlock(inv.items.get(s))) {
+                inv.selected = s;
+                if (p.connection != null) p.connection.send(
+                        new ServerboundSetCarriedItemPacket(s));
+                return true;
+            }
+        }
+        if (p.isCreative()) {
+            for (int s = 9; s < inv.items.size(); s++) {
+                if (isPillarBlock(inv.items.get(s))) {
+                    inv.pickSlot(s);
+                    return isPillarBlock(inv.getSelected());
+                }
+            }
+        }
+        // Survival: a pillar block may sit in the MAIN INVENTORY (menu slots 9-35) while the hotbar
+        // holds only non-pillar items — the creative pickSlot above is creative-only, so without this
+        // a survival bot that mined cobble into the inventory could NEVER pillar-recover off a steep
+        // slide-back. THAT is the dominant steep-climb "上坡跳不上/贴墙" churn: the fellBelowRoute pillar
+        // gate (holdPillarBlock) silently no-op'd, so the bot foot-search-looped after sliding off the
+        // climb (live replay 2026-06-24: ~28 drift-stalls/climb with the cobble stranded in slot 9 → 2
+        // once it was reachable). Pull it to the hotbar via a SWAP click (mirrors AutoEquip's inv→hotbar
+        // swap). InventoryMenu slots: 9-35 = main inventory, 36-44 = hotbar.
+        AbstractContainerMenu menu = p.inventoryMenu;
+        for (int ms = 9; ms <= 35; ms++) {
+            if (!isPillarBlock(menu.getSlot(ms).getItem())) continue;
+            int hb = inv.selected;                                       // default: swap into the held slot
+            for (int h = 0; h < 9; h++) if (inv.items.get(h).isEmpty()) { hb = h; break; }  // prefer empty (keep tools)
+            if (mc.gameMode != null)
+                mc.gameMode.handleInventoryMouseClick(menu.containerId, ms, hb, ClickType.SWAP, p);
+            inv.selected = hb;
+            if (p.connection != null) p.connection.send(new ServerboundSetCarriedItemPacket(hb));
+            return isPillarBlock(inv.getSelected());
         }
         return false;
     }

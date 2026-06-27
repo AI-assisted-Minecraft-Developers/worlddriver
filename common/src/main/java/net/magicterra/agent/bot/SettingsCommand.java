@@ -217,6 +217,118 @@ public final class SettingsCommand {
                 BotConfig.walkerDebug = wd;
                 applied.add("walkerDebug");
             }
+            if (params.get("walkerVerticalResync") instanceof Boolean wvr) {
+                BotConfig.walkerVerticalResync = wvr;
+                applied.add("walkerVerticalResync");
+            }
+            if (params.get("walkerLevelRiserJump") instanceof Boolean wlrj) {
+                BotConfig.walkerLevelRiserJump = wlrj;
+                applied.add("walkerLevelRiserJump");
+            }
+            if (params.get("walkerPadRamBreak") instanceof Boolean wprb) {
+                BotConfig.walkerPadRamBreak = wprb;
+                applied.add("walkerPadRamBreak");
+            }
+            if (params.get("walkerParkourAscendHold") instanceof Boolean wpah) {
+                BotConfig.walkerParkourAscendHold = wpah;
+                applied.add("walkerParkourAscendHold");
+            }
+            if (params.get("walkerDeepWaterDriftBrake") instanceof Boolean wdwd) {
+                BotConfig.walkerDeepWaterDriftBrake = wdwd;
+                applied.add("walkerDeepWaterDriftBrake");
+            }
+            if (params.get("walkerDescentFlipHold") instanceof Boolean wdfh) {
+                BotConfig.walkerDescentFlipHold = wdfh;
+                applied.add("walkerDescentFlipHold");
+            }
+            if (params.get("walkerWaterStepDownFloat") instanceof Boolean wwsf) {
+                BotConfig.walkerWaterStepDownFloat = wwsf;
+                applied.add("walkerWaterStepDownFloat");
+            }
+            if (params.get("walkerStepUpCrestReach") instanceof Boolean wscr) {
+                BotConfig.walkerStepUpCrestReach = wscr;
+                applied.add("walkerStepUpCrestReach");
+            }
+            if (params.get("walkerWaterWalkReach") instanceof Boolean wwwr) {
+                BotConfig.walkerWaterWalkReach = wwwr;
+                applied.add("walkerWaterWalkReach");
+            }
+            if (params.get("walkerAscentRamJitterImmune") instanceof Boolean warji) {
+                BotConfig.walkerAscentRamJitterImmune = warji;
+                applied.add("walkerAscentRamJitterImmune");
+            }
+            if (params.get("walkerArcLengthShadow") instanceof Boolean wals) {
+                BotConfig.walkerArcLengthShadow = wals;
+                applied.add("walkerArcLengthShadow");
+            }
+            if (params.get("walkerArcLengthAdvance") instanceof Boolean wala) {
+                BotConfig.walkerArcLengthAdvance = wala;
+                applied.add("walkerArcLengthAdvance");
+            }
+            if (params.get("walkerTangentAim") instanceof Boolean wta) {
+                BotConfig.walkerTangentAim = wta;
+                applied.add("walkerTangentAim");
+            }
+            if (params.get("walkerArcLengthWedge") instanceof Boolean walw) {
+                BotConfig.walkerArcLengthWedge = walw;
+                applied.add("walkerArcLengthWedge");
+            }
+            if (params.get("walkerAscentRamBobBreak") instanceof Boolean warb) {
+                BotConfig.walkerAscentRamBobBreak = warb;
+                applied.add("walkerAscentRamBobBreak");
+            }
+            if (params.get("walkerFutileBankDigRelease") instanceof Boolean wfbd) {
+                BotConfig.walkerFutileBankDigRelease = wfbd;
+                applied.add("walkerFutileBankDigRelease");
+            }
+            if (params.get("walkerDeepWaterFloatBeeline") instanceof Boolean wdfb) {
+                BotConfig.walkerDeepWaterFloatBeeline = wdfb;
+                applied.add("walkerDeepWaterFloatBeeline");
+            }
+            if (params.get("pathfinderForbidParkourIntoDeepWater") instanceof Boolean fpdw) {
+                BotConfig.pathfinderForbidParkourIntoDeepWater = fpdw;
+                applied.add("pathfinderForbidParkourIntoDeepWater");
+            }
+            if (params.get("pathfinderForbidParkourFromFloatingWater") instanceof Boolean fpfw) {
+                BotConfig.pathfinderForbidParkourFromFloatingWater = fpfw;
+                applied.add("pathfinderForbidParkourFromFloatingWater");
+            }
+            if (params.get("pathfinderForbidParkourOverWaterGap") instanceof Boolean fpowg) {
+                BotConfig.pathfinderForbidParkourOverWaterGap = fpowg;
+                applied.add("pathfinderForbidParkourOverWaterGap");
+            }
+            if (params.get("pathfinderParkourAscendNeedRunway") instanceof Boolean ppanr) {
+                BotConfig.pathfinderParkourAscendNeedRunway = ppanr;
+                applied.add("pathfinderParkourAscendNeedRunway");
+            }
+            if (params.get("pathfinderFloatingSurfaceCross") instanceof Boolean pfsc) {
+                BotConfig.pathfinderFloatingSurfaceCross = pfsc;
+                applied.add("pathfinderFloatingSurfaceCross");
+            }
+            if (params.get("pathfinderVineOverWaterTax") instanceof Boolean pvow) {
+                BotConfig.pathfinderVineOverWaterTax = pvow;
+                applied.add("pathfinderVineOverWaterTax");
+            }
+            if (params.get("pathfinderPadOverWaterTax") instanceof Boolean ppow) {
+                BotConfig.pathfinderPadOverWaterTax = ppow;
+                applied.add("pathfinderPadOverWaterTax");
+            }
+            if (params.get("pathfinderPadClusterTax") instanceof Boolean ppct) {
+                BotConfig.pathfinderPadClusterTax = ppct;
+                applied.add("pathfinderPadClusterTax");
+            }
+            if (params.get("walkerVineFreeHangClimb") instanceof Boolean vfh) {
+                BotConfig.walkerVineFreeHangClimb = vfh;
+                applied.add("walkerVineFreeHangClimb");
+            }
+            if (params.get("walkerVineLandGrab") instanceof Boolean vlg) {
+                BotConfig.walkerVineLandGrab = vlg;
+                applied.add("walkerVineLandGrab");
+            }
+            if (params.get("walkerVineDescentDrop") instanceof Boolean vdd) {
+                BotConfig.walkerVineDescentDrop = vdd;
+                applied.add("walkerVineDescentDrop");
+            }
             if (params.get("pathDebug") instanceof Boolean pd) {
                 BotConfig.pathDebug = pd;
                 applied.add("pathDebug");
@@ -689,6 +801,34 @@ public final class SettingsCommand {
         snap.put("rangedAvoidRadius", BotConfig.rangedAvoidRadius);
         snap.put("fleeDangerBoost", BotConfig.fleeDangerBoost);
         snap.put("walkerDebug", BotConfig.walkerDebug);
+        snap.put("walkerVerticalResync", BotConfig.walkerVerticalResync);
+        snap.put("walkerLevelRiserJump", BotConfig.walkerLevelRiserJump);
+        snap.put("walkerPadRamBreak", BotConfig.walkerPadRamBreak);
+        snap.put("walkerParkourAscendHold", BotConfig.walkerParkourAscendHold);
+        snap.put("walkerDeepWaterDriftBrake", BotConfig.walkerDeepWaterDriftBrake);
+        snap.put("walkerDescentFlipHold", BotConfig.walkerDescentFlipHold);
+        snap.put("walkerWaterStepDownFloat", BotConfig.walkerWaterStepDownFloat);
+        snap.put("walkerStepUpCrestReach", BotConfig.walkerStepUpCrestReach);
+        snap.put("walkerWaterWalkReach", BotConfig.walkerWaterWalkReach);
+        snap.put("walkerAscentRamJitterImmune", BotConfig.walkerAscentRamJitterImmune);
+        snap.put("walkerArcLengthShadow", BotConfig.walkerArcLengthShadow);
+        snap.put("walkerArcLengthAdvance", BotConfig.walkerArcLengthAdvance);
+        snap.put("walkerTangentAim", BotConfig.walkerTangentAim);
+        snap.put("walkerArcLengthWedge", BotConfig.walkerArcLengthWedge);
+        snap.put("walkerAscentRamBobBreak", BotConfig.walkerAscentRamBobBreak);
+        snap.put("walkerFutileBankDigRelease", BotConfig.walkerFutileBankDigRelease);
+        snap.put("walkerDeepWaterFloatBeeline", BotConfig.walkerDeepWaterFloatBeeline);
+        snap.put("pathfinderForbidParkourIntoDeepWater", BotConfig.pathfinderForbidParkourIntoDeepWater);
+        snap.put("pathfinderForbidParkourFromFloatingWater", BotConfig.pathfinderForbidParkourFromFloatingWater);
+        snap.put("pathfinderForbidParkourOverWaterGap", BotConfig.pathfinderForbidParkourOverWaterGap);
+        snap.put("pathfinderParkourAscendNeedRunway", BotConfig.pathfinderParkourAscendNeedRunway);
+        snap.put("pathfinderFloatingSurfaceCross", BotConfig.pathfinderFloatingSurfaceCross);
+        snap.put("pathfinderVineOverWaterTax", BotConfig.pathfinderVineOverWaterTax);
+        snap.put("pathfinderPadOverWaterTax", BotConfig.pathfinderPadOverWaterTax);
+        snap.put("pathfinderPadClusterTax", BotConfig.pathfinderPadClusterTax);
+        snap.put("walkerVineFreeHangClimb", BotConfig.walkerVineFreeHangClimb);
+        snap.put("walkerVineLandGrab", BotConfig.walkerVineLandGrab);
+        snap.put("walkerVineDescentDrop", BotConfig.walkerVineDescentDrop);
         snap.put("pathDebug", BotConfig.pathDebug);
         snap.put("pathArchive", BotConfig.pathArchive);
         snap.put("pathDebugMaxNodes", BotConfig.pathDebugMaxNodes);

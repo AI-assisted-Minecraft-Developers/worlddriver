@@ -57,6 +57,14 @@ public interface WorldView {
      *  bobbing against them forever. Default false (headless/grid views). */
     default boolean isBreakableObstruction(BlockPos pos) { return false; }
 
+    /** True for a leaf block (the #minecraft:leaves tag). Leaves are full-collision, so the
+     *  planner treats a leaf top as ordinary standable ground and will route the bot UP onto a
+     *  tree canopy as a climb shortcut — where it bobs/slides on the irregular leaf surfaces and
+     *  rams the dense head-height leaves (the "树下撞树叶" canopy-climb jank). Used by
+     *  {@code PathFinder.leafCellTax} to softly price canopy cells so A* prefers the ground route
+     *  around/under the tree. Default false (headless/grid views have no leaves). */
+    default boolean isLeaves(BlockPos pos) { return false; }
+
     /**
      * Expected cost (in 1/10-tick units, same scale as {@link Move#cost}) to
      * break the block at {@code pos} with the best tool the bot currently has,
@@ -284,6 +292,24 @@ public interface WorldView {
      */
     default boolean isFloatingWater(BlockPos foot) {
         return isWater(foot) && isWater(foot.offset(0, -1, 0));
+    }
+
+    /**
+     * A descending/leaping move would LAND on the SURFACE of a deep floating-water
+     * pocket — the landing foot is water with no floor under the surface (≥2 deep,
+     * {@link #isFloatingWater}) and its HEAD is air (so the existing fully-submerged
+     * gate {@code isWater(to) && isWater(to+1)} does NOT catch it). A buoyant body that
+     * drops here floats at the surface and cannot climb back out (every grounded
+     * climb-out gates itself off floating water), so the landing is a dead-end trap
+     * that costs tens of seconds of bank-dig / shore-swim. Distinct from a SHALLOW
+     * 1-deep splash (solid floor below → not floating-water) which the bot stands in
+     * and steps out of, and from a fully-submerged landing (head water) already barred.
+     * Used by the PARKOUR leaps (gated by {@link net.magicterra.agent.bot.BotConfig#pathfinderForbidParkourIntoDeepWater})
+     * to refuse leaping INTO such a pocket; plain step/fall water entries are left to
+     * cross real water bodies.
+     */
+    default boolean isDeepWaterSurfaceLanding(BlockPos to) {
+        return isFloatingWater(to) && !isWater(to.offset(0, 1, 0));
     }
 
     /**

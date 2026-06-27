@@ -21,16 +21,21 @@ public final class PillarUp extends Move {
     @Override public boolean valid(WorldView w, BlockPos from) { return eval(w, from) != null; }
     @Override public Edge eval(WorldView w, BlockPos from) {
         if (!w.canPlace()) return null;
-        // Buoyant open-water guard: canStandAt treats ANY water cell as a floor, so A*
-        // otherwise routes a pillar base into deep OPEN water (no solid below). A floating
-        // bot there can't place the first rung — placement needs a solid face to click, and
-        // hasPlaceSupport requires a solid below OR a cardinal-adjacent solid (a wall/bank).
-        // Without one the pillar is physically unexecutable: the bot bobs at the waterline
-        // forever (buoyantWallArena: A* picked the open-water column z=60 over the wall-
-        // adjacent z=61, support=false → 585-tick thrash). Forbidding the support-less
-        // floating pillar steers A* to climb AGAINST the wall, where rungs can be placed.
-        // Wall/bank-adjacent pillars (the live climb-out cases) keep support → unaffected.
-        if (w.isFloatingWater(from) && !Move.hasPlaceSupport(w, from)) return null;
+        // Buoyant-water guard: canStandAt treats ANY water cell as a floor, so A* otherwise
+        // routes a pillar base into floating water. A bot floating at the SURFACE bobs at
+        // ~from.y+0.1, but the place actuator needs feet clear of the fill cell (p.y >=
+        // from.y+0.9 — a vanilla place constraint), so the FIRST rung can never be placed and
+        // the bot bob-stalls at the waterline. This holds WITH or WITHOUT an adjacent solid:
+        // a side wall doesn't let the buoyant body rise above its own float line, so forbid
+        // ALL floating-water pillars (mirrors the stepUp/diagUp floating-water gate + the
+        // isSubmergedAscent fiction guard). A* then climbs out via SwimBankClimbBreak / a
+        // grounded-shallow pillar / a detour ramp it can actually execute. Live 2026-06-24 pit
+        // -678,64,610: `climbout-place cleared=false (p.y=64.07 need=64.9) support=true`, then
+        // a ~4-min pillar<->dig<->repath thrash. (Earlier this gated only the support-LESS
+        // case, on the belief that a wall-adjacent floating pillar is placeable; the live
+        // evidence refutes that — buoyantWallArena's +5 climb-out comes from the break-out
+        // move, not a placeable floating pillar.)
+        if (w.isFloatingWater(from)) return null;
         // No world-solidity check on the support below: every standing node
         // A* reaches already has a real-or-placed solid block beneath it
         // (canStandAt guarantees it for walked nodes; a preceding PillarUp

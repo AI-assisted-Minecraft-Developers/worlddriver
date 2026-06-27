@@ -342,6 +342,122 @@ public final class PathFinder {
             return tax + overheadExtra;
         }
 
+        /** Per-cell tax for a move that stands ON a leaf canopy or pushes the head INTO leaves
+         *  (see BotConfig.pathfinderLeafCellCost). Leaves read as standable ground, so A* climbs the
+         *  bot onto a tree canopy where it bobs/rams the dense head-height leaves; this softly prices
+         *  canopy cells so a ground route around/under the tree wins. A sole canopy route is still
+         *  taken. Y-agnostic and goal-type-neutral — leaves jank a buoy-free climb regardless. */
+        private double leafCellTax(BlockPos to) {
+            double tax = BotConfig.pathfinderLeafCellCost;
+            if (tax <= 0) return 0;
+            return (world.isLeaves(to.below()) || world.isLeaves(to.above())) ? tax : 0;
+        }
+
+        /** Per-cell tax on a SURFACE-WATER cell whose cell-above is a thin breakable obstruction —
+         *  canonically a lily pad (see BotConfig.pathfinderLilyPadCellCost). The planner treats the pad's
+         *  thin shape as passable, but a slowed surface swimmer rams the pad's head-height collision box
+         *  (hCol, hSpd→0) and the break-actuator can't reliably punch the overhead pad → a multi-second
+         *  bob-freeze. This softly prices pad-over-water cells so A* threads the adjacent clear water and
+         *  swims around the pad. Gated like waterCellTax (XZ/swim goal + real water cell) so dry-land
+         *  grass overhead is never taxed; a pad implies water below, so the water gate is exact. */
+        private double padCellTax(BlockPos to) {
+            double tax = BotConfig.pathfinderLilyPadCellCost;
+            if (tax <= 0 || !goal.ignoresY() || !world.isWater(to)) return 0;
+            return world.isBreakableObstruction(to.above()) ? tax : 0;
+        }
+
+        /** Per-cell tax on a SURFACE-WATER traversal cell whose BODY/HEAD column carries a hanging-VINE
+         *  or LEAF obstruction over the water — a tree-canopy (oak_leaves + draped vines, often with lily
+         *  pads) growing IN/over a lake/river (see BotConfig.pathfinderVineOverWaterTax). The planner
+         *  reads the foot cell as ordinary surface water and threads a horizontal crossing node STRAIGHT
+         *  THROUGH it, because none of the sibling taxes price this geometry: {@link #waterCellTax} /
+         *  {@link #submergedTax} inspect only the water cell + its directly above/below (the body vine is
+         *  neither); {@link #leafCellTax} checks {@code isLeaves(above)} but the body cell over water is a
+         *  VINE (not in #minecraft:leaves) and the leaf canopy sits TWO up; {@link #padCellTax} needs a
+         *  COLLIDING instabreak block (a vine has no collision shape, so it isn't an
+         *  {@code isBreakableObstruction}). A floating bot pushed onto such a node rams the vine/leaf wall
+         *  at body height (hCol, hSpd→0, X pins / Z creeps) — the live #47 ~-780,339 bob-jam. This softly
+         *  prices the cell so A* threads the adjacent clear water and swims AROUND the tree.
+         *  <p>Scoped TIGHT, mirroring padCellTax's exactness: the FOOT must be a real water cell (no
+         *  dry-canopy / open-water false positives — dry leaf canopy is already {@link #leafCellTax}'d on
+         *  land) AND the obstruction is in the BODY/HEAD cells ABOVE the foot ({@code foot+1} / {@code
+         *  foot+2}). The foot cell itself is deliberately NOT tested, so a legitimate vine-CLIMB up out of
+         *  the water — whose climbable vine starts AT the foot — is never penalised. A leaf cap at
+         *  {@code foot+1} or {@code foot+2}, or a hanging vine (climbable) draping into the body column,
+         *  trips it. Y-agnostic and goal-type-neutral — a vine/leaf wall janks a buoyant crossing
+         *  regardless of goal Y (same neutrality as {@link #leafCellTax}). A TAX, never a forbid: a fully
+         *  canopied channel with no clear alternative still threads through (the price decays into the
+         *  move cost). Inert when the flag is OFF (byte-identical no-op) and on the headless/grid views
+         *  (no leaves/climbable over water). */
+        private double vineOverWaterTax(BlockPos to) {
+            double tax = BotConfig.pathfinderLeafCellCost;
+            if (!BotConfig.pathfinderVineOverWaterTax || tax <= 0 || !world.isWater(to)) return 0;
+            BlockPos head = to.above();          // foot+1 — the body cell a hanging vine drapes into
+            BlockPos over = to.offset(0, 2, 0);  // foot+2 — the head cell / low leaf canopy
+            boolean obstructed = world.isLeaves(head) || world.isClimbable(head)
+                    || world.isLeaves(over) || world.isClimbable(over);
+            return obstructed ? tax : 0;
+        }
+
+        /** Per-cell tax on a SURFACE-WATER traversal cell whose FOOT+1 (body) cell holds a thin breakable
+         *  obstruction — canonically a SINGLE SPARSE lily pad over deep OPEN water (see
+         *  BotConfig.pathfinderPadOverWaterTax). This is the goal-type-NEUTRAL sibling of {@link #padCellTax}:
+         *  that method prices the identical pad geometry but is gated to XZ goals ({@code goal.ignoresY()},
+         *  mirroring {@link #waterCellTax}'s triple-gate — the dense-pool A/B that validated it crossed on a
+         *  bare-column XZ swim goal). A real {@code mc.bot.goto x,y,z} is a Y-AWARE goal ({@code Goal.Block}/
+         *  {@code Goal.Near}), for which {@code padCellTax} returns 0 — so an OPEN-water corridor dotted with
+         *  SPARSE single pads is left unpriced and A* threads a crossing node STRAIGHT THROUGH each pad (a
+         *  1-pad instabreak dig is cheaper than a 1-block detour). A floating bot then rams + hand-digs the
+         *  pad in its body cell (hCol, hSpd→0, attack=true) — the live #47 ~-830,363 / -817,298 multi-second
+         *  bob-jams. This is the SAME structural gap {@link #vineOverWaterTax} closes for vines/leaves (also
+         *  goal-neutral), but a lily pad is neither {@code isLeaves} nor {@code isClimbable} (it has a thin
+         *  floor collision shape → it IS an {@code isBreakableObstruction}), so the vine tax misses it.
+         *  <p>Reuses {@code padCellTax}'s EXACT predicate ({@code isWater(foot) && isBreakableObstruction(
+         *  foot+1)}) WITHOUT the {@code goal.ignoresY()} gate, so a sparse pad over a Y-aware-goal crossing is
+         *  priced too. No cluster/pool requirement — a lone isolated pad trips it. The foot cell is never
+         *  tested (a pad implies water below), and the obstruction is the BODY cell ({@code foot+1}) where a
+         *  floating bot's collision lives. Y-agnostic and goal-type-neutral. A TAX, never a forbid: a fully
+         *  pad-covered field with no clear lane still threads through (the price decays into the move cost,
+         *  the break-actuator stays the fallback) — nothing becomes unreachable, so no stranding. Inert when
+         *  the flag is OFF (byte-identical no-op) and on the headless/grid views (no pads over water). */
+        private double padOverWaterTax(BlockPos to) {
+            double tax = BotConfig.pathfinderLilyPadCellCost;
+            if (!BotConfig.pathfinderPadOverWaterTax || tax <= 0 || !world.isWater(to)) return 0;
+            if (!isPadOverWater(to)) return 0;
+            // CLUSTER surcharge (BotConfig.pathfinderPadClusterTax). The flat per-pad tax above tips A*
+            // around a LONE pad: a 1-block side-deflection (Diagonal +4 in, +4 out = +8) is cheaper than
+            // the +20 dig, so the cheapest plan swims around it. But for an ADJACENT pad PAIR / cluster
+            // the cheapest CLEAR lane sits ≥2 cells off the crossing line — the natural 1-cell deflection
+            // lands on the sibling pad (which also costs +20) — so the wider full detour costs MORE than
+            // digging ONE pad of the pair, and the flat tax lets A* pick the lesser evil: it threads (and
+            // the floating bot rams+hand-digs) one pad of the pair (~4 s, attack=true; live #47 adjacent
+            // pads -850/-851,323 / -750/-751,334 in the 23-pad scatter). Scaling the tax by the count of
+            // pad-over-water cells in foot+1's 4-neighbourhood makes a clustered pad cost 20·(1+N) — so a
+            // 2-cell-wider detour around the whole cluster beats digging through it, while a LONE pad
+            // (N=0) stays at the flat 20 (single-pad routing is byte-identical). Still a TAX, never a
+            // forbid: a fully pad-covered field with no clear lane has the same scaled tax on EVERY cell,
+            // so A* still threads the shortest line through (no stranding — the break-actuator stays the
+            // fallback). Inert when the cluster flag is OFF (the flat tax above is unchanged).
+            if (BotConfig.pathfinderPadClusterTax) {
+                int adj = 0;
+                if (isPadOverWater(to.offset( 1, 0, 0))) adj++;
+                if (isPadOverWater(to.offset(-1, 0, 0))) adj++;
+                if (isPadOverWater(to.offset( 0, 0, 1))) adj++;
+                if (isPadOverWater(to.offset( 0, 0, -1))) adj++;
+                if (adj > 0) tax += adj * BotConfig.pathfinderLilyPadCellCost;
+            }
+            return tax;
+        }
+
+        /** True when {@code foot} is a real water cell whose BODY cell ({@code foot+1}) carries a thin
+         *  breakable obstruction — the canonical lily-pad-over-water signature shared by {@link #padCellTax}
+         *  and {@link #padOverWaterTax}. Used by the cluster surcharge to count adjacent pads in the
+         *  4-neighbourhood. (A pad implies water below, so the foot-water test is exact — dry grass overhead
+         *  is never counted.) */
+        private boolean isPadOverWater(BlockPos foot) {
+            return world.isWater(foot) && world.isBreakableObstruction(foot.above());
+        }
+
         /** Per-RISE tax on an edge that CLIMBS OUT of water onto a higher bank
          *  ({@code from} in water, {@code to} dry and above). The entry/descend water
          *  taxes never see this edge (its {@code to} is dry and the move rises), so
@@ -360,7 +476,28 @@ public final class PathFinder {
             if (per <= 0 || !goal.ignoresY()) return 0;
             if (!world.isWater(from) || world.isWater(to)) return 0;   // only water → dry
             int rise = to.getY() - from.getY();
-            return rise > 0 ? per * rise : 0;                          // surface-level/down exits free
+            if (rise <= 0) return 0;                                   // surface-level/down exits free
+            double tax = per * rise;
+            // Floating-SOURCE climb-out (water directly below the foot → buoyant bot, no solid
+            // floor to push off): even a LOW +1..+3 exit can't be swim-jumped or sand-pillared —
+            // it forces the slow bob-stutter underwater bank-DIG (live -705,67 bay exit rise-2 =
+            // 299 dig ticks ≈15s; -711,67 pocket sink). The rise>3 surcharge below catches only
+            // TALL exits and misses these low FLOATING ones, so price them up here so A* tips onto
+            // a GROUNDED/shallow exit (solid floor under the foot → fast flush stepUp/walk) where
+            // the shoreline offers one. isFloatingWater = water at foot AND foot.below().
+            if (BotConfig.pathfinderFloatingClimbOutMult > 0 && world.isFloatingWater(from))
+                tax += per * rise * BotConfig.pathfinderFloatingClimbOutMult;
+            // Steep surcharge ABOVE a buoyant bot's smooth-mount reach (~+3). A tall exit
+            // (+4..) can't be swim-jumped or sand-pillared from deep water (the column sinks
+            // the falling block); it forces the bob-stuttery toolless bank-DIG — 25× underwater
+            // mining ≈ 3-5 s per riser, the live "卡在土墙 / 反复挖同一土块 / 横跳" windows. Pricing
+            // the tall exit well above a gentle multi-step one tips A* onto a LOW bank + a dry
+            // walk-up where the shoreline offers it, WITHOUT forbidding the tall exit when it's
+            // the only way out (single-exit climb-out arenas still find their path, just dearer).
+            // Verified clean: R2J3 replay dig 301→80 ticks (+6 dig eliminated), drift arena's
+            // ashoreTick=105 is PRE-EXISTING (identical with/without this surcharge).
+            if (rise > 3) tax += per * (rise - 3) * 3.0;
+            return tax;
         }
 
         /** Penalty for DESCENDING into a SUBMERGED water cell (water directly above) on the
@@ -375,12 +512,38 @@ public final class PathFinder {
          *  the pillar/dig climb-out arenas, which start submerged and ascend — is untouched.
          *  Scoped to land-target Y-aware goals: XZ goals already price submerged cells via
          *  {@link #waterCellTax}; a deliberate dive to an UNDERWATER target ({@link #diveGoal})
-         *  is exempt. Reuses {@link BotConfig#pathfinderSubmergedWaterCost}. */
+         *  is exempt. Reuses {@link BotConfig#pathfinderSubmergedWaterCost}.
+         *  <p>{@link BotConfig#pathfinderFloatingSurfaceCross} (default OFF) extends this to also price
+         *  a HORIZONTAL/rising entry into a deep FLOATING-submerged cell for a Y-aware goal — the case
+         *  where a bot ENTERS deep water already submerged and the descent clause never fires, so A*
+         *  threads the whole crossing one below the surface (the live #47 deep-water bob-jam). */
         private double submergedTax(BlockPos from, BlockPos to) {
             double tax = BotConfig.pathfinderSubmergedWaterCost;
-            if (tax <= 0 || goal.ignoresY() || diveGoal()) return 0;
-            if (to.getY() >= from.getY() || !world.isWater(to)) return 0;   // only DESCENDING into water
-            return world.isWater(to.offset(0, 1, 0)) ? tax : 0;            // ...that is SUBMERGED
+            // Applies to XZ goals TOO (not just Y-aware land goals): waterCellTax's flat per-cell
+            // entry tax doesn't specifically price the DESCENT, so over a short underwater slope A*
+            // still walked the buoyant bot DOWN to a submerged riverbed node (live 2026-06-23: a
+            // mountain-edge entry into 9-deep water routed walk/step nodes down to y58, 4 below the
+            // surface → dive-stall). Taxing the descent-into-submerged edge keeps the surface
+            // crossing on top. A deliberate dive to an UNDERWATER target (diveGoal) stays exempt.
+            if (tax <= 0 || diveGoal()) return 0;
+            if (!world.isWater(to)) return 0;
+            // DESCENT into a submerged cell (the original case): keeps the surface crossing on top.
+            if (to.getY() < from.getY() && world.isWater(to.offset(0, 1, 0))) return tax;
+            // HORIZONTAL / rising entry into a DEEP floating-submerged cell, for Y-AWARE goals only
+            // ({@link BotConfig#pathfinderFloatingSurfaceCross}). Once a buoyant bot enters deep water
+            // already submerged, the rest of the crossing is horizontal (never a fresh descent), so the
+            // descent clause above never fires and A* threads the whole crossing one cell below the
+            // surface — where the floating body can't follow (it bobs at the surface above the y-1
+            // path, jams until a repath re-routes on top: live #47 R3 seg0 y61 run). Pricing every such
+            // floating-submerged cell tips A* to swim ON THE SURFACE instead. FLOATING water only
+            // (water below → no foothold; a shallow grounded splash is exempt) and submerged (water
+            // above → a surface swimmer would have to dive under). XZ goals are excluded — they already
+            // pay this via waterCellTax's submerged overhead, so taxing here would double-charge. A tax,
+            // not a forbid: a roofed submerged tunnel with no surface route is still threaded (it stays
+            // the cheapest available path). Inert when the flag is OFF (byte-identical no-op).
+            if (BotConfig.pathfinderFloatingSurfaceCross && !goal.ignoresY()
+                    && world.isFloatingWater(to) && world.isWater(to.offset(0, 1, 0))) return tax;
+            return 0;
         }
 
         /** Expand nodes until {@code sliceMs} of wall-clock elapses this call (or
@@ -536,6 +699,10 @@ public final class PathFinder {
                                 + world.directionalCost(cur.pos, npos)
                                 + descendTax(cur.pos, npos, edge)
                                 + waterCellTax(npos)
+                                + leafCellTax(npos)
+                                + padCellTax(npos)
+                                + vineOverWaterTax(npos)
+                                + padOverWaterTax(npos)
                                 + climbOutTax(cur.pos, npos)
                                 + submergedTax(cur.pos, npos);
                         Node existing = nodes.get(npos);

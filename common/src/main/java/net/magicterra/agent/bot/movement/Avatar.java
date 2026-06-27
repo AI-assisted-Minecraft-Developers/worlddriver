@@ -50,6 +50,11 @@ public interface Avatar {
     // --- block interaction ---
     /** Ensure a solid-support BlockItem is in the main hand; false if none. */
     boolean holdPlaceable();
+    /** Like {@link #holdPlaceable()} but also accepts supported FallingBlocks (sand/gravel)
+     *  for a strictly VERTICAL pillar-up (the placed block rests on the rung below, so it
+     *  never falls). Defaults to {@link #holdPlaceable()} so non-client avatars are unchanged;
+     *  the client overrides it. Use ONLY where the placement is supported below. */
+    default boolean holdPillarBlock() { return holdPlaceable(); }
     /** Swap to the best tool for breaking the block at {@code cell}. */
     void selectTool(BlockPos cell);
     /** Select hotbar {@code slot} (0..8) as the held item. Client syncs the

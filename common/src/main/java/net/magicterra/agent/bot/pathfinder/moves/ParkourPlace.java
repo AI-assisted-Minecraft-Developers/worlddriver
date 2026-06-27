@@ -2,6 +2,7 @@ package net.magicterra.agent.bot.pathfinder.moves;
 
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.WorldView;
+import net.magicterra.agent.bot.BotConfig;
 import net.minecraft.core.BlockPos;
 
 import java.util.List;
@@ -30,6 +31,9 @@ public final class ParkourPlace extends Move {
     @Override public boolean valid(WorldView w, BlockPos from) { return eval(w, from) != null; }
     @Override public Edge eval(WorldView w, BlockPos from) {
         if (!w.canParkourPlace()) return null;
+        // Buoyancy TAKEOFF gate: a floating bot can't sprint-jump out of deep water (no floor to push off).
+        // Mirrors StepUp/DiagUp/PillarUp; complements pathfinderForbidParkourIntoDeepWater. See BotConfig doc.
+        if (BotConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) return null;
         if (!Move.hasRunway(w, from)) return null;                  // need solid ground to push off
         if (!w.isPassable(from.offset(0, 2, 0))) return null;       // jump clearance over launch head
         BlockPos to = apply(from);

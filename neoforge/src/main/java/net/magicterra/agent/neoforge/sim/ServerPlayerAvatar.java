@@ -54,6 +54,32 @@ public final class ServerPlayerAvatar implements Avatar {
         }
     }
 
+    /** {@code LivingEntity.jumping} (protected). On a CLIMBABLE, vanilla
+     *  {@code handleRelativeFrictionAndCalculateMovement} forces {@code vy=+0.2} while
+     *  {@code (horizontalCollision || jumping)} — the ONLY upward drive on a WALL-LESS vine (no
+     *  wall → no horizontalCollision). A LocalPlayer gets {@code jumping} set by {@code aiStep} from
+     *  {@code input.jumping}; this avatar bypasses {@code aiStep} (it integrates physics manually in
+     *  {@link #step()}), so without this the FakePlayer can NEVER climb a free-hanging vine and a
+     *  wall-less vine arena couldn't faithfully reproduce the live -711 climb. We mirror the bit each
+     *  tick so {@code travel()}'s climbable branch sees it. Only the climbable {@code vy=+0.2} reads
+     *  {@code jumping} inside {@code travel()} (the ground/fluid jump in {@code aiStep} is not run
+     *  here, so this can't double-jump). Null if the field name ever changes (climb falls back to the
+     *  wall-press path; wall-less climbs degrade, no crash). */
+    private static final java.lang.reflect.Field JUMPING_FIELD = resolveJumpingField();
+
+    private static java.lang.reflect.Field resolveJumpingField() {
+        try {
+            java.lang.reflect.Field f = net.minecraft.world.entity.LivingEntity.class
+                    .getDeclaredField("jumping");
+            f.setAccessible(true);
+            return f;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            net.magicterra.agent.AgentDriverCommon.LOG.warn(
+                    "[ServerPlayerAvatar] LivingEntity.jumping not resolvable; wall-less vine climbs unsupported in sim", e);
+            return null;
+        }
+    }
+
     private float pendingLeft, pendingForward;
     private boolean pendingJump, pendingSneak;
     private BlockPos aimTarget;
@@ -322,6 +348,12 @@ public final class ServerPlayerAvatar implements Avatar {
         fp.xxa = pendingLeft * mult;
         fp.yya = 0f;
         fp.zza = pendingForward * mult;
+        // Mirror the real LivingEntity.jumping bit so travel()'s climbable branch can drive the
+        // wall-less vine vy=+0.2 (see JUMPING_FIELD). Cleared/re-set every tick from pendingJump.
+        if (JUMPING_FIELD != null) {
+            try { JUMPING_FIELD.setBoolean(fp, pendingJump); }
+            catch (ReflectiveOperationException ignored) { /* wall-less climb degrades, no crash */ }
+        }
         // travel() rotates the impulse by getYRot(), applies friction + gravity
         // (or water drag + the wall auto-climb-out), and calls move() for
         // collision — the same pipeline LocalPlayer.aiStep runs on the client.

@@ -68,6 +68,22 @@ public final class LevelWorldView implements WorldView {
 
     @Override public boolean isClimbable(BlockPos p) { return state(p).is(BlockTags.CLIMBABLE); }
 
+    @Override public boolean isLeaves(BlockPos p) { return state(p).is(BlockTags.LEAVES); }
+
+    /** Mirrors {@link net.magicterra.agent.bot.ClientWorldView#isBreakableObstruction}: a non-air, non-fluid
+     *  block with a real collision shape that hand-breaks instantly (destroy-speed 0 — a lily pad, thin snow,
+     *  a pressure plate). The base {@link WorldView} default returns {@code false}, leaving {@code padCellTax}
+     *  / {@code padOverWaterTax} inert on the SERVER planner path (a FakePlayer/ServerPlayer avatar and every
+     *  GameTest run on {@code LevelWorldView}); without this override the lily-pad taxes only worked on the
+     *  CLIENT view, so they couldn't be exercised deterministically in a headless arena. Reads the live level,
+     *  so it stays consistent with the break/place pathfinding this view already supports. */
+    @Override public boolean isBreakableObstruction(BlockPos p) {
+        BlockState s = state(p);
+        if (s.isAir() || !s.getFluidState().isEmpty()) return false;
+        if (s.getCollisionShape(level, p).isEmpty()) return false;
+        return s.getDestroySpeed(level, p) == 0f;   // instabreak by hand (lily pad…)
+    }
+
     // ---- break / place (live) ----
 
     @Override public double breakCost(BlockPos p) {

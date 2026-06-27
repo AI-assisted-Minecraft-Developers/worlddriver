@@ -31,12 +31,30 @@ public final class ParkourAscend extends Move {
     @Override public boolean availableInSearch(WorldView w) { return dist < 3 || BotConfig.allowParkour4; }
     public boolean valid(WorldView w, BlockPos from) {
         if (dist >= 3 && !BotConfig.allowParkour4) return false;
+        // Buoyancy TAKEOFF gate: a floating bot can't sprint-jump out of deep water (no floor to push off) —
+        // the dominant live #47 J2 stall (parkourAscend2-from-water, totStuck 409). Mirrors StepUp/DiagUp/
+        // PillarUp; complements pathfinderForbidParkourIntoDeepWater (landing side). See BotConfig doc.
+        if (BotConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) return false;
         if (!Move.hasRunway(w, from)) return false;
         BlockPos to = apply(from);                 // (sx*dist, +1, sz*dist)
         if (!w.canStandAt(to)) return false;
+        // Buoyancy: no parkour LANDING in submerged water — the bot sinks/stalls there
+        // instead of leaping (mirrors Fall/StepDown's submerged gate; surface/solid OK).
+        if (w.isWater(to) && w.isWater(to.offset(0, 1, 0))) return false;
+        // ...and (opt-in) refuse a leap onto a DEEP pocket SURFACE (≥2 water below, head
+        // air): buoyant bot floats there and can't climb out (#47 dead-end-pocket dive).
+        // A rising leap rarely lands on a pocket surface, but mirror the family for parity.
+        if (BotConfig.pathfinderForbidParkourIntoDeepWater && w.isDeepWaterSurfaceLanding(to)) return false;
         // Launch jump clearance (head+1 at the lip).
         if (!w.isPassable(from.offset(0, 2, 0)) || w.isHazard(from.offset(0, 2, 0))) return false;
         int sx = Integer.signum(dx), sz = Integer.signum(dz);
+        // APPROACH-RUNWAY gate (pathfinderParkourAscendNeedRunway): a +1-up parkour needs sprint MOMENTUM at
+        // launch, but a bot climbing OUT of a bank reaches the crest via a stepUp/diagUp that decelerates it
+        // to ~0 b/s, then fires the leap from a standstill → it lands short and falls back down the staircase
+        // (live #47 J2 -682,69,310: no runway behind the lip, 49/82/14 fall-back ticks, totStuck 579). Require
+        // the cell directly BEHIND the launch (opposite the leap, same Y) to be standable — a flat run-up; a
+        // thin-lip crest (staircase drops away behind) is forbidden so A* substitutes a makeable stepUp climb.
+        if (BotConfig.pathfinderParkourAscendNeedRunway && !w.canStandAt(from.offset(-sx, 0, -sz))) return false;
         for (int i = 1; i < dist; i++) {
             // 3-tall clear corridor: the body rises from y to y+1 across the
             // gap, so foot/head/head+1 must all be open.
@@ -46,6 +64,17 @@ public final class ParkourAscend extends Move {
             }
             // Real gap at launch level (a mid floor -> cheaper Walk/StepUp).
             if (w.canStandAt(from.offset(sx * i, 0, sz * i))) return false;
+            // Water-bottomed gap DROP-ZONE (pathfinderForbidParkourOverWaterGap): an UNDERSHOT rising leap
+            // drops ~1 below the launch into the gap column; if that drop-zone is DEEP water (>=2) the buoyant
+            // body can't climb out and bob-stalls against the far wall (live -665,64: parkourAscend2 from a
+            // y63 launch over an air gap with water below falls to y62 water, hCol, ~3.7 s repath-bounce — a
+            // route-variance stall the executor layer structurally can't A/B-recover). A buoyant bot should
+            // SWIM a water crossing, not sprint-jump it, so forbid the leap and let A* route around / swim.
+            // Mirrors the forbid-parkour-from/into-water family (takeoff / landing); this guards the GAP DROP.
+            if (BotConfig.pathfinderForbidParkourOverWaterGap) {
+                BlockPos drop = from.offset(sx * i, -1, sz * i);
+                if (w.isWater(drop) && w.isWater(drop.offset(0, -1, 0))) return false;
+            }
         }
         return w.isPassable(to.offset(0, 1, 0));
     }

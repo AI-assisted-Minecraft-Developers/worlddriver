@@ -246,6 +246,7 @@ public final class ClientWorldView implements WorldView {
     public boolean isClimbable(BlockPos p) {
         return state(p).is(BlockTags.CLIMBABLE);
     }
+    @Override public boolean isLeaves(BlockPos p) { return state(p).is(BlockTags.LEAVES); }
     @Override public double breakCost(BlockPos p) {
         if (!BotConfig.allowBreak) {
             // Flee-escape exception: a fleeing bot enclosed by LEAVES must be able to

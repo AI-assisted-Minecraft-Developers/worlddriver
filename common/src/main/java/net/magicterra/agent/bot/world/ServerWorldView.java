@@ -76,6 +76,11 @@ public final class ServerWorldView implements WorldView {
         return level.getBlockState(pos).is(BlockTags.CLIMBABLE);
     }
 
+    @Override
+    public boolean isLeaves(BlockPos pos) {
+        return level.getBlockState(pos).is(BlockTags.LEAVES);
+    }
+
     // ---- break / place stubs (not needed for hazard analysis) ----
 
     @Override
