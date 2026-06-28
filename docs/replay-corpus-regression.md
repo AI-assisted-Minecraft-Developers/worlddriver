@@ -79,5 +79,23 @@ walkerVine{FreeHangClimb,LandGrab,DescentDrop} / pathfinder{ForbidParkourIntoDee
 | apw-stack | 1935 冻 | 649 | 829 | **REJECT**(0004 灾难回归,over-fit) |
 | horizon=128 | 822 | 1438 | 1664 | REJECT(净负) |
 
+## 7. ⚠️ 重大发现:steep churn 是**双稳态混沌**,单跑 maxStuck 无法 gate(2026-06-28)
+FBA(walkerFellBelowAlign)首跑 gate:全集 7288→3398(砍半!4 硬 blocker 全大降)**但 REJECT**(dry-627
+194→280 回归)——门当场抓 over-fit。我加 depth-gate(只压 node≥2-above 的真 fell-below)再 gate,结果**自相矛盾**
+(diag-856 59→330、long-540 238→799,更保守却更差)→ 触发 determinism 调查:
+
+**diag-856 同 flag 连跑 3 次 = 2974 / 364 / 371**(8× 摆动!);另一批 = 1353 / 119 / 129。
+- 根因:① pathfinder `sliceMs=6` **逐 tick 时间切片** + `maxMs=30000` → 搜索跨多少 tick 随 CPU 负载变 = 执行时序非确定;
+  ② **warmup**:每批 run1 冷启动(JIT/chunk/GC)= 巨高离群;③ churn 本身是**双稳态**(逃脱 vs 永久 wedge 在边缘翻转)。
+- **`pathfinder.sliceMs` 点号嵌套 key 经 mc.bot.setting 设不进**(仍 6)——需另查 setter。
+
+**后果**:单跑 peak-maxStuck gate **会在噪声上 over-fit**(正是"绿了又破"的根源)。机制已硬化:`sweep --repeat K`
+取**中位数**(对 1 个 warmup 离群鲁棒,commit)。但实测中位数 batch 间仍 ~3× 摆动(371 vs 129)→ 双稳态需
+**多跑统计**(P(永久wedge) over K runs),不是单点。
+
+**领域级洞察**:这类 steep churn 跨多 session 难修,正因它**不是确定性 bug 而是混沌边缘稳定性**——flag-tuning 只能
+移动逃脱**概率**,要彻底 silky 可能需消除 bistability 的**执行器结构性改动**(recovery 重基),非调参。
+FBA 仍是强候选(确实大幅降 churn),但须在**硬化(多跑中位数)gate** 下重新认证。
+
 → 没有单一 flag 组合全赢;apw 在 0004 灾难回归。这正是"全集净正零回归"门要挡的(已编码进
 `scripts/pmcs/gate.py` + `test_gate.py` 用这组真实数据做 fixture)。
