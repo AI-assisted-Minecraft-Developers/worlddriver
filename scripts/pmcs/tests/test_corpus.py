@@ -7,10 +7,16 @@ from scripts.pmcs.corpus import load_corpus
 def test_load_seed_corpus():
     entries = load_corpus("config/agent_driver/replays/corpus.json")
     archives = {e.archive for e in entries}
-    assert "replay-0004.json" in archives
-    e4 = next(e for e in entries if e.archive == "replay-0004.json")
-    assert e4.cmp == "le" and e4.arrive_x == -520
-    assert e4.failure_class == "water-corridor"
+    # 至少 8 个多样归档,覆盖 steep/water/dry/long 等故障类
+    assert len(entries) >= 8
+    assert "corpus-water-757.json" in archives
+    classes = {e.failure_class for e in entries}
+    assert "steep-diagUp" in classes and "water-corridor" in classes
+    # eastbound 用 ge,westbound 用 le
+    e_water = next(e for e in entries if e.archive == "corpus-water-757.json")
+    assert e_water.cmp == "ge" and e_water.arrive_x == -525
+    e_long = next(e for e in entries if e.archive == "corpus-long-540.json")
+    assert e_long.cmp == "le"
 
 
 def test_cmp_validation():
