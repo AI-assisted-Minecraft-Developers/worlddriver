@@ -8,6 +8,8 @@ live 链路(spec §7 工作流第1步):
 RPC 调用复用 scripts/journey_runner.py 的 call() 模式(websockets, JSON-RPC, port 39801)。
 """
 import asyncio
+import os
+import shutil
 import time
 from dataclasses import dataclass
 
@@ -16,6 +18,17 @@ from scripts.pmcs.conformance import conformance_table
 
 LOG = "fabric/run/logs/latest.log"
 RPC_URL = "ws://127.0.0.1:39801/rpc"
+# ReplayTool 从 RUNTIME config 目录读归档(cwd=fabric/run);repo 的 corpus 必须先 copy 过去。
+REPO_REPLAY_DIR = "config/agent_driver/replays"
+RUNTIME_REPLAY_DIR = "fabric/run/config/agent_driver/replays"
+
+
+def _ensure_archive_in_runtime(archive: str):
+    src = os.path.join(REPO_REPLAY_DIR, archive)
+    dst = os.path.join(RUNTIME_REPLAY_DIR, archive)
+    if os.path.exists(src) and not os.path.exists(dst):
+        os.makedirs(RUNTIME_REPLAY_DIR, exist_ok=True)
+        shutil.copy(src, dst)
 
 
 def log_slice_since(text: str, marker_line: int) -> str:
@@ -52,8 +65,10 @@ class CaseResult:
 
 
 def run_case(archive: str, flags: dict, arrive_x: int, cmp: str, timeout: int = 220) -> CaseResult:
+    _ensure_archive_in_runtime(archive)
     base = len(_read_log().splitlines())
-    asyncio.run(_rpc("mc.bot.setting", flags))
+    # walkerDebug 是 telemetry 观测开关,必须 ON 才能测 maxStuck/conformance——独立于被测候选 flags。
+    asyncio.run(_rpc("mc.bot.setting", {"walkerDebug": True, **flags}))
     asyncio.run(_rpc("mc.debug.replay", {"file": archive, "restoreBlocks": True}))
     arrived = False
     deadline = time.time() + timeout
