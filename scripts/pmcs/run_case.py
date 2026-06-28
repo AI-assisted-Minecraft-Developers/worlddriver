@@ -15,7 +15,7 @@ from scripts.pmcs.telemetry import parse_log, peak_totstuck, parse_walker_line
 from scripts.pmcs.conformance import conformance_table
 
 LOG = "fabric/run/logs/latest.log"
-RPC_URL = "ws://127.0.0.1:39801"
+RPC_URL = "ws://127.0.0.1:39801/rpc"
 
 
 def log_slice_since(text: str, marker_line: int) -> str:
@@ -31,7 +31,7 @@ def _read_log() -> str:
 async def _rpc(method: str, params: dict):
     import json
     import websockets
-    async with websockets.connect(RPC_URL, max_size=None) as ws:
+    async with websockets.connect(RPC_URL, max_size=16 * 1024 * 1024, ping_interval=None) as ws:
         await ws.send(json.dumps({"id": 1, "method": method, "params": params}))
         while True:
             msg = json.loads(await ws.recv())
