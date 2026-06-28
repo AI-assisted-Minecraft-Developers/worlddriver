@@ -38,11 +38,21 @@ walkerWaterStepDownFloat / walkerDescentFlipHold / walkerFutileBankDigRelease / 
 walkerVine{FreeHangClimb,LandGrab,DescentDrop} / pathfinder{ForbidParkourIntoDeepWater,FloatingSurfaceCross,VineOverWaterTax,PadOverWaterTax,PadClusterTax} 等。
 所以下表是**这套 stack 之上**的残留 churn(候选新 fix 是它们的 delta;门对比同此 base)。
 
-首次采集(2026-06-28,机制端到端验证):
-| 归档 | maxStuck | 备注 |
+全 8-corpus baseline(2026-06-28,`baseline.json`,timeout=150s;**maxStuck 是判据**,arrived=0 是 300格旅途超时假象):
+| 归档 | maxStuck | 主 churn moves |
 |---|---|---|
-| corpus-steep-822 | 403 | validated-stack 之上仍 churn;video ANOMALY"土坡反复转向抖动" = 真残留 |
-| (其余 7 待全 corpus sweep) | — | |
+| corpus-steep-822 | 1940 | walk/diagUp/stepUp/diagDown/fall4/parkour2d |
+| corpus-steep-878 | 1949 | diag/diagUp/stepUp/walk |
+| corpus-crest-815 | 1273 | diagUp/stepUp/walk/fall3 |
+| corpus-water-757 | 1281 | swim+walk+diag+parkour(最杂) |
+| corpus-dry-627 | 194 | walk |
+| corpus-rev-897 | 354 | pillarUp/stepUp/walk |
+| corpus-long-540 | 238 | stepDown/stepUp/walk |
+| corpus-diag-856 | **59** | (clean) |
+| **sum** | **7288** | |
+
+**头号发散**:`walk` 在 7/8 churn(+diagUp/stepUp)= steep diagUp limit-cycle 跨 corpus 主导。telemetry 实见
+`move=diagUp node=-810,88,189 |dY|=15.25` = 节点在脚上方 15 格的极端 fell-below(bot 滑下崖底够不到高节点)。
 
 ## 5. 发散清单(per-Move conformance)
 首张发散表 from corpus-steep-822(validated-stack baseline;churned = 某 step 段 totStuck 峰值 ≥120):
