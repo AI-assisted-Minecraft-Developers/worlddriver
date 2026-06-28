@@ -32,11 +32,27 @@
 (空 —— 机制刚建好;任何 flip 由接受门 + 用户决定。)
 
 ## 4. Baseline 矩阵(all default-OFF)
-(待首次 `run_corpus --flags '{}'` 采集后填入,存 `baseline.json`。)
+首次采集(2026-06-28,机制端到端验证):
+| 归档 | maxStuck | 备注 |
+|---|---|---|
+| corpus-steep-822 | 403 | replay 复现 churn;video ANOMALY"土坡反复转向抖动" |
+| (其余 7 待全 corpus sweep) | — | |
 
 ## 5. 发散清单(per-Move conformance)
-(待首次发现运行 `divergent_moves` 产出后填。预期复现:steep 段 stepUp2/diagUp churn、water 段
-swimAshoreBreak/swimBankClimb churn ——即用户举的 +2坡/+1岸/悬空藤类。)
+首张发散表 from corpus-steep-822(all-OFF;churned = 某 step 段 totStuck 峰值 ≥120):
+| Move | exec | churned | worst_totStuck |
+|---|---|---|---|
+| walk | 35 | **15** | **403** |
+| stepUp | 21 | 2 | 286 |
+| stepDown | 11 | 1 | 257 |
+| fall4/fall3/fall2 | 各1-2 | 各1 | 228-256 |
+| parkour2 | 2 | 1 | 153 |
+| diagDown/diagUp/parkourAscend2/swimUp/bridgePlace | — | 0 | <75 (clean) |
+
+**解读**:主导 stall 在 **walk 节点**(worst 403≈20s)——不是 stepUp2/diagUp(我原先猜的),而是 limit-cycle
+里 bot 腾空够不到 walk waypoint,与已知 fellBelow diagUp 根因(`reference_steep_mountain_limit_cycle_revisit_detection`)
+吻合。机制**自动定位**了它,推翻了我的先验猜测——这正是评估机制的价值(spec §1)。
+下一步:全 corpus sweep 补齐发散表 → 按频率×严重度排序 → 三件套定 class A/B → 修复过接受门。
 
 ## 6. Lever 历史(候选 flag 组合 × archive · 历史数据 from -815 sub-corpus)
 本 session 早期在 -815 sub-corpus(旧 runtime 归档 replay-0004/0005/0006)实测,**证明接受门必要**:
