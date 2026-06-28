@@ -31,15 +31,21 @@
 ## 3. 当前已接受 flag stack(default-ON)
 (空 —— 机制刚建好;任何 flip 由接受门 + 用户决定。)
 
-## 4. Baseline 矩阵(all default-OFF)
+## 4. Baseline 矩阵(= 当前 validated fix-stack,**非** all-OFF)
+**重要**:runtime 有 ~20 个往期 validated walker/pathfinder fix 是 ON(快照 = `baseline-flags.json`):
+walkerParkourAscendHold / walkerArcLength{Advance,Wedge} / walkerTangentAim / walkerDeepWater{DriftBrake,FloatBeeline} /
+walkerWaterStepDownFloat / walkerDescentFlipHold / walkerFutileBankDigRelease / walkerBankDigSkipOverhang /
+walkerVine{FreeHangClimb,LandGrab,DescentDrop} / pathfinder{ForbidParkourIntoDeepWater,FloatingSurfaceCross,VineOverWaterTax,PadOverWaterTax,PadClusterTax} 等。
+所以下表是**这套 stack 之上**的残留 churn(候选新 fix 是它们的 delta;门对比同此 base)。
+
 首次采集(2026-06-28,机制端到端验证):
 | 归档 | maxStuck | 备注 |
 |---|---|---|
-| corpus-steep-822 | 403 | replay 复现 churn;video ANOMALY"土坡反复转向抖动" |
+| corpus-steep-822 | 403 | validated-stack 之上仍 churn;video ANOMALY"土坡反复转向抖动" = 真残留 |
 | (其余 7 待全 corpus sweep) | — | |
 
 ## 5. 发散清单(per-Move conformance)
-首张发散表 from corpus-steep-822(all-OFF;churned = 某 step 段 totStuck 峰值 ≥120):
+首张发散表 from corpus-steep-822(validated-stack baseline;churned = 某 step 段 totStuck 峰值 ≥120):
 | Move | exec | churned | worst_totStuck |
 |---|---|---|---|
 | walk | 35 | **15** | **403** |
