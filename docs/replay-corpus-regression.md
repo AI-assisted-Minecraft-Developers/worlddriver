@@ -186,3 +186,15 @@ flag-tuning / 点修在此系统上系统性失败。这不是"还没找对 fix"
   task #55/56,多 session);② 规划器层惩罚执行器做不可靠的几何(Class A,治本但需 planner 改造);
   ③ **重新校准 #47 目标**——混沌双稳态系统上"每次随机旅途都丝滑"可能不可达,改为"P(卡死)大幅下降 + 绝大多数丝滑"。
 - **keeper**:telemetry yaw/bear/yawErr/hCol 增强(诊断价值)+ pathfinder budget setters。rejected flag 全 default-OFF dormant。
+
+## 14. 真实随机长途 characterization(2026-06-29,#47 协议 + 视频+telemetry 交叉)
+当前 build(validated stack,无新 fix)跑 -629,218 → -350,480(~370格),视频 live-screen-watch + yawErr telemetry:
+- **推进 ~230 格到 -399,480(近终点),6191 tick**。巡航大部分地形 OK(长段 totStuck<45)。
+- **峰值 totStuck=502(≈25s)在陡崖爬升 stepUp -550,y92**(y62→92 ~30格上升);churn>120 集中在该崖 -550~-580。
+- **沼泽水段**:视频报"停滞/横跳"但 walker 800 tick 在移动、totStuck 仅 0-3 = **水中游泳 yaw-thrash**(yawErr 100+°,inW),
+  **totStuck 完全没捕捉到** → ⚠️ **gate 的 totStuck 判据对水中横跳失明**(水中 horizontal-only/bob-免疫)。
+- yawErr>60 占 24%(水)/37%(干),但 yaw≈lastAim≠node-bearing = **tangent-aim 设计(body 跟趋势非节点)**,
+  故 yawErr-vs-node 被 tangent-aim 混淆、非干净 jank 指标;真 jank = 复合硬点。
+- **结论印证**:#47"每次随机旅途都丝滑"失败点 = 每条 journey ~1-2 个复合硬点(陡崖爬升 + 水沼泽 thrash)。
+  典型地形之间顺畅。两类 keystone jank:① 陡崖长爬升(totStuck 高,gate 可见);② 水中 yaw-thrash(totStuck 失明,需 yawErr/视频)。
+- **gate 增强 TODO**:加水中 yaw-thrash 指标(inW & |Δaim| 或 yawErr-vs-lastAim),否则水域 fix 无判据(正是"绿了又破"水域版根源)。
