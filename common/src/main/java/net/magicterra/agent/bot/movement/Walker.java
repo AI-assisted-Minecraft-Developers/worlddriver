@@ -3601,6 +3601,10 @@ public final class Walker {
         // hCol / cur2 6.28 / 260 ticks; even safetyRepath at stuck>60 re-commits the same path). When wedged
         // there, aim BACK at the overshot node so the body walks onto it (the 略微后退 it should do) and
         // relaunches the climb from the aligned base. Dry + grounded + next-too-high + long stuck only.
+        // hCol-gate refinement REVERTED 2026-06-29: requiring horizontalCollision made it WORSE (rev-897, a
+        // STABLE archive, regressed 161→380 — the hCol subset is where backing up HURTS, i.e. ram-and-push-
+        // through, not ram-and-retreat; gating to it dropped the beneficial non-ram firings). Keep the
+        // unconditional grounded-overshoot trigger that was NET-POSITIVE (corpus 4811→4104, long-540 −81%).
         if (BotConfig.walkerOvershootReaim && path != null && step < path.size()
                 && step + 1 < path.size() && !p.isInWater() && p.onGround()
                 && stuckTicks > OVERSHOOT_REAIM_STUCK) {

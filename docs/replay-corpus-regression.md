@@ -207,3 +207,12 @@ flag-tuning / 点修在此系统上系统性失败。这不是"还没找对 fix"
 - **修复语义清晰**:撞墙(hCol)且 body 偏离节点 bearing(yawErr>60)时,aim 应转向节点解墙。但两次此类 aim-override
   (WallCornerNodeAim REJECT +39% / OvershootReaim 验证中)证明:**朝向错的成因是 aim 驱动器本身(tangent/carrot/冻结
   heading 在拐角/过冲/近节点给出偏向),改一处触发新振荡**——即纠缠的 aim 驱动,与纠缠的 recovery 同构 = 需 aim 驱动重基,非点 override。
+
+## 16. walkerOvershootReaim = 首个 NET-POSITIVE fix + hCol 细化 backfire + bistability 限制门(2026-06-29)
+**非-hCol 版全 8-corpus 硬化 gate**:net_positive=**TRUE**(sum 4811→4104,**-15%**),`long-540 1212→231(-81%)`、822 -11%、897/856 也降;但 dry-627/878/757 回归 >10% → **零回归门 REJECT**。**首个 net-positive fix**。
+**hCol 细化 REVERTED**:要求 horizontalCollision 反而更差——rev-897(稳定档,样本紧 [306,380,380])161→380(比 baseline 204 还差)。hCol 子集=撞墙该推过去而非后退,收窄移除了有益的非撞墙 firing。
+**⚠️ bistability 限制 gate**:822/878/815/540 四硬档样本双峰(如 822=[629,1225,1229]=escape~600 vs wedge~1200),
+**K=3 median 被双峰主导、gate-run 间剧烈摆动** → 这 4 档信号不可信;可信信号只在稳定档(627/897/856/部分757)。
+连续两次全 gate 还在第 3/6 档"死"(nohup 进程中断,疑 client replay 偶发断)——measurement infra 也受 bistability+flakiness 拖累。
+**结论/决策点**:walkerOvershootReaim(非-hCol)是迄今唯一 net-positive fix(-15%,540 大胜),但**严格零回归在双峰 bistable 档上可能根本不可达**——
+这把球踢回**门标准**:是否接受"净正 + 不在稳定档回归"(放宽对 bistable 档的零回归),还是坚持严格零回归(则该 fix 及大概率任何 fix 都过不了)。是用户最初"全集净正+零回归"标准的现实性再校准。
