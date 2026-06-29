@@ -120,3 +120,12 @@ FBA(walkerFellBelowAlign)首跑 gate:全集 7288→3398(砍半!4 硬 blocker 全
 
 → 没有单一 flag 组合全赢;apw 在 0004 灾难回归。这正是"全集净正零回归"门要挡的(已编码进
 `scripts/pmcs/gate.py` + `test_gate.py` 用这组真实数据做 fixture)。
+
+## 9. churn 定位诊断(corpus-steep-822,2026-06-28)
+totStuck>250 的 churn 点频次:stepUp -812,66(227)+ swimUp -814,63(178)+ stairUpBreak -814,61(168)+
+walk -817/-816,60(187)+ stepUp -811,65(46)。**760+ 次全挤在起点 -811~-817 / y60→66**,峰值 1459 的
+step40 walk -573 仅 7 次(罕见远端 wedge)。
+- **重新定性**:swimUp@y63 = 起点紧邻水 → corpus-steep-822 是**水边陡岸 climb-out churn**(出水+stairUpBreak+stepUp
+  叠在 waterline),非纯干地陡坡。模式 = "卡在节点前 ~0.8 格(0.45<cur2<1.0)+ onG + arcProgStall + 原地 bob/镜头摆"。
+- **含义**:validated-stack 的水岸 fix(walkerBankDigSkip*/buoyant*/swimEscape* 等)全 ON,此 climb-out **仍 churn 1224**
+  → 那些 fix 要么噪声验证(不鲁棒)要么不覆盖此几何。需在硬化 gate 下重审水岸 fix 族。
