@@ -379,3 +379,19 @@ K=6(+DryReanchor):
 steep-822(最差档=run6 diagDown 角块 §21)**-4 wedge**,crest-815 零回归。
 **结构上优于 diagPen(§32)**:diagDownCenter 是只在 diagDown move 触发的 **executor strafe,不 reroute** → 无法把 wedge 搬到别档(diagPen 致命点),要么帮要么 no-op。
 **待:全 8 档同 session 配对聚合定案**(§32 铁律;steep-822 OFF baseline session 间漂 3→6 双峰,须同 build 配对)。若聚合净正=第二个验证有效 fix。
+
+## 34. ❌ walkerDiagDownCenter 净负 REJECT + ⭐⭐⭐ 噪声地板 meta-发现(2026-06-29)
+全 8 档同 session 配对 K=6(+DryReanchor),ddc OFF vs ON:
+| archive | OFF | ON | Δ |
+|---|---|---|---|
+| long-540 | 0/6(全<510 铁稳) | **5/6** | **+5** |
+| steep-822 | 0/6 | 6/6 | +6(噪声) |
+| dry-627 | 2/6 | 4/6 | +2 |
+| crest-815 | 2/6 | 0/6 | -2 |
+| steep-878/rev-897/diag-856/water-757 | — | — | ~0 |
+| **聚合** | **4/48** | **15/48** | **+11 净负** |
+**REJECT**(第 7 个):diagDown 强制 cross-axis 居中**干扰下降动力学**(与 back-hop damping/descentDriveReject 打架),long-540(OFF 铁稳)确定性引入 wedge。§33"6→2"=steep-822 噪声高抽样。**close diagDown-ram 对 aim(§26 anchor 振荡)+strafe(§34 干扰下降)两 executor 介入全免疫**。flag 留 code default OFF=no-op。
+
+### ⭐⭐⭐ 噪声地板 meta-发现(本 effort 最深方法论结论)
+**steep-822 OFF baseline 同 config 跨 3 批抽到 0/6、3/6、6/6**(diagPen pen=0=3、ddc 批1 OFF=6、ddc 批2 OFF=0)= 近均匀随机。**bistable 档的 K=6 P(wedge) 方差极大,小 executor 效应(±2-6)完全埋在噪声地板下,无法验证**。只有大到撼动聚合 >~8 的 fix(DryReanchor 16→6=-10)才浮出噪声。
+推论:① 这解释了为何这么多点修"测不出稳定信号"——不是没效果,是效果在噪声地板内不可测。② **DryReanchor 结论稳**(定案靠聚合 -10 远超噪声,非 per-archive)。③ K=6 corpus 对增量 executor fix 是钝器;要验证小 fix 需 K≥20-30/档(巨贵)或更稳指标。④ **#47"丝滑"被内生随机双稳态(§19)阻挡**:wedge 是随机放大产物,增量 fix 既难修也难验;只有大结构改动(DryReanchor 量级,或更深的 executor recovery 重基/planner partial-path 重选)能实质撼动。
