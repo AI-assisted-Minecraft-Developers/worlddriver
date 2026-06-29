@@ -95,7 +95,28 @@ FBA(walkerFellBelowAlign)首跑 gate:全集 7288→3398(砍半!4 硬 blocker 全
 
 **领域级洞察**:这类 steep churn 跨多 session 难修,正因它**不是确定性 bug 而是混沌边缘稳定性**——flag-tuning 只能
 移动逃脱**概率**,要彻底 silky 可能需消除 bistability 的**执行器结构性改动**(recovery 重基),非调参。
-FBA 仍是强候选(确实大幅降 churn),但须在**硬化(多跑中位数)gate** 下重新认证。
+
+## 8. ⚠️⚠️ 最重大发现:FBA 硬化 gate REJECT + 验证方法论假阳性(2026-06-28)
+鲁棒 K=3-median gate(`baseline_robust.json` vs `fba_robust.json`):
+| 归档 | baseline median | FBA median | |
+|---|---|---|---|
+| steep-822 | 1224 | 651 | ✓ 唯一真赢 |
+| steep-878 | 421 | 707 | ✗ |
+| crest-815 | 1048 | 1413 | ✗ |
+| water-757 | 287 | 441 | ✗ |
+| dry-627 | 267 | 367 | ✗ |
+| rev-897 | 204 | 222 | ✗ |
+| long-540 | 1212 | 2455 | ✗ 翻倍 |
+| diag-856 | 148 | 172 | ✗ |
+| **sum** | **4811** | **6428** | **net-NEGATIVE +33%** |
+**GATE: net_positive=False, 6/8 回归 → REJECT。**
+
+**单跑 gate 曾说 FBA "7288→3398 砍半"(§7),鲁棒中位数说 "4811→6428 恶化 33%"。** FBA 只帮 steep-822,伤其余全部。
+
+**方法论级结论**:此前全项目"validated fix"都用**单跑 live A/B** 验——单跑是 8× 噪声 → 相当一部分"已验证 fix"
+可能是**噪声假阳性,实则不鲁棒**。这是用户最初"缺乏评估机制无法快速发现问题"的**根**:不是缺 fix,是**验证方法
+量产假阳性**(= "绿了又破"真因)。**纠正**:今后只信硬化(K≥3 median + 全 corpus + 净正零回归)gate;
+现有 40-flag stack 本身需在硬化 gate 下 vs all-OFF 重新审计。FBA 已关。
 
 → 没有单一 flag 组合全赢;apw 在 0004 灾难回归。这正是"全集净正零回归"门要挡的(已编码进
 `scripts/pmcs/gate.py` + `test_gate.py` 用这组真实数据做 fixture)。
