@@ -368,3 +368,14 @@ K=6(+DryReanchor ON)penalty 扫描:
 | **聚合** | **11/48** | **11/48** | **0** |
 **精确净中性**=纯 wedge-reshuffle(crest/long -2 被 steep-822/dry-627 +3/+1 抵消)。与 DryReanchor(16→6 真降)本质不同。**REJECT 为默认**(flag 留 code,default 0=no-op,无害 situational knob)。§17 铁律再兑现:crest-815 单档(2→0)伪 win,聚合揭穿。
 **下一靶精确化**:全局 diagUp 惩罚分不清"该惩罚的不可 mount 陡 diagUp"(crest/long 受益)vs"本就 OK 的 diagUp"(steep-822 reroute 落更糟几何)。需**条件惩罚**=只惩罚几何上真不可 mount 的陡 diagUp riser(检测 riser 列 +1-clear vs blocked/no-runway),非所有 dry diagUp。这是 §30 diagUp-mount 残留的精确下一单元。
+
+## 33. ⭐⭐ walkerDiagDownCenter 强信号:steep-822 diagDown-corner 6/6→2/6(2026-06-29)
+§26 close diagDown-ram 的 **lateral-strafe 解**(非 anchor-back re-aim,后者振荡更糟):strafe lane-keep(Walker:4261-64)覆盖 waterClimb/diagUp/cardinal 唯独漏 diagDown→对角下降零 cross-axis 修正→drift 撞 perpendicular 角块。fix=镜像 diagUp 居中(4262)给 diagDown,gate=walkerDiagDownCenter(default OFF)。
+K=6(+DryReanchor):
+| archive | OFF | ON |
+|---|---|---|
+| steep-822 | 6/6 mean1038 | **2/6 mean827** |
+| crest-815 | 0/6 mean390 | 0/6 mean362 |
+steep-822(最差档=run6 diagDown 角块 §21)**-4 wedge**,crest-815 零回归。
+**结构上优于 diagPen(§32)**:diagDownCenter 是只在 diagDown move 触发的 **executor strafe,不 reroute** → 无法把 wedge 搬到别档(diagPen 致命点),要么帮要么 no-op。
+**待:全 8 档同 session 配对聚合定案**(§32 铁律;steep-822 OFF baseline session 间漂 3→6 双峰,须同 build 配对)。若聚合净正=第二个验证有效 fix。
