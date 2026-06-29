@@ -342,3 +342,13 @@ gate=9 build live 长途(DryReanchor=ON,-599→-700,150):起步即 wedge @-671 d
 - early-jump **cardinal-only**;**L4198 明载"扩展 cardinal sprint-bunny-hop 到 DIAGONAL step-ups 已 A/B-disproven"**
 → **"上坡跳不上方块"残留 = 对角 diagUp(+1)mount**:两个对 cardinal 有效的技术(sprint / early-jump)**对对角都已被证伪**,只剩慢 late-jump grind(bistable:有时 mount 有时卡)。
 **三机制全诊断到基岩**:① repath-churn→DryReanchor 修 ✓ ② 近 diagDown-ram→anchor 振荡(开放)③ diagUp-mount→cardinal 技术证伪的已知硬核(开放)。残留 ②③ 需**对对角几何的新方法**(非 cardinal 移植,已证不行)——是真正的深水区,prior+本 session 多次撞壁。
+
+## 31. ⭐⭐⭐✅ 第二个结构 fix:pathfinderDiagAscendPenalty 消 crest diagUp-mount wedge(2026-06-29)
+§30 基岩残留(对角 diagUp-mount,executor 对角技术全证伪)的 **planner 侧新解**:惩罚 dry diagUp → A* 改走 cardinal stepUp+walk(执行器 sprint-bunny-hop 可靠 mount)。
+K=6(+DryReanchor ON)penalty 扫描:
+| archive | pen=0 | pen=15 | pen=40 |
+|---|---|---|---|
+| crest-815 | 2/6 mean552 | **0/6 mean343** | 0/6 mean345 |
+| steep-878 | 0/6 mean181 | 0/6 mean242 | 0/6 mean242 |
+**crest-815 wedge 2/6→0/6(mean-38%)** = diagUp-mount 的可行解,绕过 executor 死结。pen=15≈40(15 足,少绕路)。steep-878 本就 0/6,mean 略增(penalty 略长路)。
+→ **第二个验证有效结构 fix**,攻 §30 第二机制(diagUp-mount)。待:其余 6 档确认无广泛回归(penalty 只影响 diagUp move,无 diagUp 的档应不受影响)。
