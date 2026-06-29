@@ -160,3 +160,29 @@ median 1483 vs baseline 1224 → 更差 +21% → REJECT**(快测 8min 抓到,省
      绕到可 mount 的岸。需先查 -815 局部几何(是否存在更缓出口)才能定可行性。
 - **flag-tuning 在此纠缠系统上已证无效(3/3)。下一步必须是 scoped 结构性项目**(writing-plans + 硬化 gate 逐步验证),
   非 ad-hoc flag。机制的价值:用 3 个 8min 快测 + 鲁棒 gate 把"该往哪使劲"从猜测变成了实证排除。
+
+## 12. telemetry 增强 + "贴墙卡住" root-cause 确认(2026-06-29)
+给 [walker] telemetry 加 **yaw / bear(到节点) / yawErr / hCol / lastAim**(此前只有 pitch,"为何不闭合"全靠猜)。
+立即在 corpus-dry-627 起点定位"贴墙卡住"真机制(totStuck 351-364≈18s):
+```
+yaw=91(死锁) bear=122→88 yawErr=31 hCol=true lastAim=92 cur2=0.89 |dY|=0
+```
+- bot body yaw 死锁正西(91°),节点 bearing 122°(偏北 31°),**hCol=true 撞西墙**,lastAim=92≈body yaw≠节点 bearing。
+- **根因**:`walkerTangentAim` 让 aim 跟 path TANGENT(趋势),拐角处节点偏离趋势 + 趋势方向有墙时,body 撞墙不转弯朝节点
+  → 350 tick 慢蹭 = "贴墙卡住"。(讽刺:tangent-aim 本为修 node-bearing 180°-flip 的 facing-wall 加的,却在拐角制造新撞墙。)
+- **Fix**:`walkerWallCornerNodeAim`(default-OFF)——tangent-aim 时若 hCol + 节点偏离 tangent >20° → 让位给直接节点 bearing
+  转离墙朝节点。gated on hCol(无墙趋势巡航 byte-identical)。验证:dry-627 K=3 快测 → 硬化 gate。
+- **注**:churn 位置 bistable(同档跑1在 -722 巡航、跑2在 -628 起点 churn),但**撞墙 aim 机制跨位置同源**,故按机制而非位置修。
+
+## 13. walkerWallCornerNodeAim REJECT + 4/4 局部 fix 全否的压倒性结论(2026-06-29)
+**同 build 公平 A/B**(隔离 telemetry confound):dry-627 K=3 OFF median **265**(=robust 267,telemetry 无 confound)
+vs ON **369**(+39%)→ **REJECT**。即便 telemetry 实锤了 root-cause("贴墙卡住"= tangent-aim 拐角撞墙),
+针对性 aim-handoff fix 仍回归(强制 node-bearing 引入新振荡,正是 tangent-aim 当初要消的)。
+
+**4/4 局部 executor fix 全被硬化 gate 否决**(FBA net-NEG / DryWedgeFootY +21% / arcProgressWedge 中性 /
+WallCornerNodeAim +39%)。**压倒性结论**:执行器调得极精 + churn 双稳态 → **任何局部改动的交互效应压过本意**,
+flag-tuning / 点修在此系统上系统性失败。这不是"还没找对 fix",是**架构层结论**:点修范式已死。
+- **真正前路(需用户 greenlight,都是大工程)**:① 执行器 recovery/aim **整体重基**(解耦纠缠的消费者/aim 驱动,
+  task #55/56,多 session);② 规划器层惩罚执行器做不可靠的几何(Class A,治本但需 planner 改造);
+  ③ **重新校准 #47 目标**——混沌双稳态系统上"每次随机旅途都丝滑"可能不可达,改为"P(卡死)大幅下降 + 绝大多数丝滑"。
+- **keeper**:telemetry yaw/bear/yawErr/hCol 增强(诊断价值)+ pathfinder budget setters。rejected flag 全 default-OFF dormant。

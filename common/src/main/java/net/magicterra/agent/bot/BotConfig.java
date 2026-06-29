@@ -1442,6 +1442,16 @@ public final class BotConfig {
      *  K=3-median replay-corpus gate (baseline_robust.json). */
     public static volatile boolean walkerDryWedgeFootY = false;
 
+    /** Wall-corner node-aim handoff. With walkerTangentAim the body steers along the bob-immune path TANGENT,
+     *  which is right for a clean trend-cruise but wrong at a CORNER: when the immediate node sits well off the
+     *  tangent AND a wall is on the tangent heading, the body rams the wall (horizontalCollision) and only
+     *  creeps across as drift sweeps the geometry — the "贴墙卡住" stall (replay-diagnosed 2026-06-29 on
+     *  corpus-dry-627 start: body yaw frozen 91° while the node bearing was 122°, hCol=true, ~350-tick churn).
+     *  When ON, a ram with the node > WALL_CORNER_AIM_DEG off the tangent yields the aim back to the direct
+     *  node bearing so the body turns off the wall onto the node. Gated on hCol, so a no-wall trend-cruise keeps
+     *  the tangent byte-identical. Default OFF; validate via the hardened K=3-median replay-corpus gate. */
+    public static volatile boolean walkerWallCornerNodeAim = false;
+
     /** Bob-immune ascent-ram freeze-breaker trigger: on a steep tall bank (live W→E -861→-632, ~50-70s jank,
      *  reproducible), a +1 {@code diagUp}/{@code stepUp} mount jumps off the diagonal corner, slides back to
      *  the riser foot, and repeats — foot pinned ~0.78 BELOW the node, cur2 orbiting 0.64-0.88 just over the

@@ -44,6 +44,10 @@ public final class Walker {
      *  enough from the column for the bearing to be meaningful again. Far larger than
      *  the old 1e-4 epsilon (which only caught standing-exactly-on-the-point). */
     private static final double YAW_DEADZONE_SQ = 0.25;
+    /** walkerWallCornerNodeAim: how far (degrees) the immediate node must sit off the path tangent before a
+     *  RAM (horizontalCollision) hands the aim back from the tangent to the direct node bearing — turn the
+     *  corner off the wall instead of grinding along the trend into it. 20° = a real corner, not jitter. */
+    private static final float WALL_CORNER_AIM_DEG = 20f;
     /** WIDER aim dead-zone (blocks²) used only when aiming at a water bank-climb node that
      *  sits OVERHEAD (+1/+2 above the floating foot). The buoyant bot can't translate ONTO
      *  such a node, so once within ~a block of its XZ it orbits the column and atan2 sweeps
@@ -2393,11 +2397,22 @@ public final class Walker {
             double dY = nd.getY() - p.getY();
             boolean within = cur2 < REACH_DIST_SQ && Math.abs(dY) < 1.2;
             BlockPos br0 = (edge != null && !edge.toBreak.isEmpty()) ? edge.toBreak.get(0) : null;
-            LOG.info("[walker] t={} step={}/{} move={} node={},{},{} p=({},{},{}) pitch={} cur2={} (gate {}) |dY|={} (gate 1.2) within={} onG={} inW={} undW={} stuck={} totStuck={} pend={} break0={}{}",
+            // bearing TO the node (MC yaw: 0=+z south, atan2(-dx,dz)); yawErr = how far the bot's body
+            // faces OFF that bearing. With hCol this separates "rammed a wall, facing right" (贴墙卡住) from
+            // "facing the wrong way, not driving toward the node" (aim/drive bug) — the missing axis that
+            // forced guessing on every "won't close" stall.
+            double bearing = Math.toDegrees(Math.atan2(-ddx, ddz));
+            double yawErr = angleDiff(p.getYRot(), (float) bearing);
+            LOG.info("[walker] t={} step={}/{} move={} node={},{},{} p=({},{},{}) pitch={} yaw={} bear={} yawErr={} hCol={} lastAim={} cur2={} (gate {}) |dY|={} (gate 1.2) within={} onG={} inW={} undW={} stuck={} totStuck={} pend={} break0={}{}",
                     dbgTicksOnStep, step, path.size(), edge != null ? edge.move : "-",
                     nd.getX(), nd.getY(), nd.getZ(),
                     String.format(Locale.ROOT, "%.2f", p.getX()), String.format(Locale.ROOT, "%.2f", p.getY()), String.format(Locale.ROOT, "%.2f", p.getZ()),
                     String.format(Locale.ROOT, "%.0f", p.getXRot()),
+                    String.format(Locale.ROOT, "%.0f", p.getYRot()),
+                    String.format(Locale.ROOT, "%.0f", bearing),
+                    String.format(Locale.ROOT, "%.0f", yawErr),
+                    p.horizontalCollision,
+                    String.format(Locale.ROOT, "%.0f", lastAimYaw),
                     String.format(Locale.ROOT, "%.3f", cur2), REACH_DIST_SQ,
                     String.format(Locale.ROOT, "%.2f", Math.abs(dY)), within,
                     p.onGround(), p.isInWater(), p.isUnderWater(),
@@ -3604,6 +3619,20 @@ public final class Walker {
                 && path != null && step < path.size()
                 && path.get(step).getY() <= foot.getY()) {
             targetYaw = arcProj.tangentYaw;
+            // walkerWallCornerNodeAim: the tangent steers along the path TREND, but at a CORNER where the
+            // immediate node sits well off the tangent AND a wall is on the tangent heading, the body RAMS
+            // the wall (horizontalCollision) instead of turning the corner toward the node — it then only
+            // creeps across as drift sweeps the geometry (live dry-627 start: yaw frozen 91° / node bearing
+            // 122° / hCol=true / 350-tick churn, the "贴墙卡住" signature). When ramming with the node well
+            // off the tangent, yield back to the DIRECT node bearing so the body turns off the wall onto the
+            // node. Gated on hCol so a clean trend-cruise (no wall) keeps the bob-immune tangent unchanged.
+            if (BotConfig.walkerWallCornerNodeAim && p.horizontalCollision) {
+                BlockPos wn3 = path.get(step);
+                float nodeBear = (float) Math.toDegrees(Math.atan2(
+                        -((wn3.getX() + 0.5) - p.getX()), (wn3.getZ() + 0.5) - p.getZ()));
+                if (Math.abs(angleDiff(arcProj.tangentYaw, nodeBear)) > WALL_CORNER_AIM_DEG)
+                    targetYaw = nodeBear;
+            }
         }
         // ── Overland camera/movement decouple (anti-spin) — see DESCENT_CAM_FAR_DIST ─────────
         // Point the CAMERA at a stable trend heading (no spin) while the MOVEMENT keeps driving the

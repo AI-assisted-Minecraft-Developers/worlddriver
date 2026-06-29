@@ -232,6 +232,10 @@ public final class SettingsCommand {
                 BotConfig.walkerDryWedgeFootY = dwfy;
                 applied.add("walkerDryWedgeFootY");
             }
+            if (params.get("walkerWallCornerNodeAim") instanceof Boolean wcna) {
+                BotConfig.walkerWallCornerNodeAim = wcna;
+                applied.add("walkerWallCornerNodeAim");
+            }
             if (params.get("avoidMobs") instanceof Boolean avm) {
                 BotConfig.avoidMobs = avm;
                 applied.add("avoidMobs");
