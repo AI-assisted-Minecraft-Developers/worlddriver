@@ -144,3 +144,19 @@ median 1483 vs baseline 1224 → 更差 +21% → REJECT**(快测 8min 抓到,省
 - **结论**:此 blocker 的真解是**结构性 recovery 重基**(解耦消费者:让有益 force-jump 能触发而不放出有害 repath),
   非调 flag。需用 writing-plans 严谨规划 + 硬化 gate 逐步验证。两次 disciplined fix(FBA/DryWedgeFootY)均被门正确
   拦截 = 机制兑现价值,但也证明 flag-tuning 在此纠缠系统上无效。
+
+## 11. 三连 recovery-trigger fix 全失败 → 确定性结论(2026-06-29)
+| 候选 | 机制 | steep-822 K=3 median | vs 1224 |
+|---|---|---|---|
+| FBA (walkerFellBelowAlign) | settle 落地 | (全集 net-NEG +33%) | REJECT |
+| walkerDryWedgeFootY | bob-免疫 wedge timer | 1483 | +21% REJECT |
+| walkerArcProgressWedge | 振荡 limit-cycle repath | 1280 | +5% 中性无效 |
+
+**确定性结论**:三个独立的 recovery-trigger 改动全部无效/更糟。根因已锁死:**触发 recovery(repath)更多 → repath re-commit 同一够不到的 +1 爬升 → 更糟**。
+- **真杠杆只有两个,都是结构性、深、需 greenlight**:
+  1. **执行器 mount 重基**:让 +1 stepUp/stairUpBreak 在水边可靠 MOUNT(已极度工程化,多 recovery 消费者共用 bob-defeated
+     timer 纠缠;需解耦 = task #55/56 "recovery 重基/拆 Walker 巨兽")。
+  2. **规划器 routing**(对应用户架构关切 Class A):若存在更缓出口,让 A* cost model 惩罚执行器做不可靠的水边 +1 mount →
+     绕到可 mount 的岸。需先查 -815 局部几何(是否存在更缓出口)才能定可行性。
+- **flag-tuning 在此纠缠系统上已证无效(3/3)。下一步必须是 scoped 结构性项目**(writing-plans + 硬化 gate 逐步验证),
+  非 ad-hoc flag。机制的价值:用 3 个 8min 快测 + 鲁棒 gate 把"该往哪使劲"从猜测变成了实证排除。
