@@ -395,3 +395,14 @@ steep-822(最差档=run6 diagDown 角块 §21)**-4 wedge**,crest-815 零回归�
 ### ⭐⭐⭐ 噪声地板 meta-发现(本 effort 最深方法论结论)
 **steep-822 OFF baseline 同 config 跨 3 批抽到 0/6、3/6、6/6**(diagPen pen=0=3、ddc 批1 OFF=6、ddc 批2 OFF=0)= 近均匀随机。**bistable 档的 K=6 P(wedge) 方差极大,小 executor 效应(±2-6)完全埋在噪声地板下,无法验证**。只有大到撼动聚合 >~8 的 fix(DryReanchor 16→6=-10)才浮出噪声。
 推论:① 这解释了为何这么多点修"测不出稳定信号"——不是没效果,是效果在噪声地板内不可测。② **DryReanchor 结论稳**(定案靠聚合 -10 远超噪声,非 per-archive)。③ K=6 corpus 对增量 executor fix 是钝器;要验证小 fix 需 K≥20-30/档(巨贵)或更稳指标。④ **#47"丝滑"被内生随机双稳态(§19)阻挡**:wedge 是随机放大产物,增量 fix 既难修也难验;只有大结构改动(DryReanchor 量级,或更深的 executor recovery 重基/planner partial-path 重选)能实质撼动。
+
+## 35. ✅ live 代表性 journey 特征化(DryReanchor build):基本丝滑,主导残留=水岸 dig(2026-06-29)
+噪声地板(§34)→ 转向 live(唯一真裁判)。-520,180→-360,245(~165 格 ESE,Mountains 山地),DryReanchor ON。
+**结果:ARRIVED dist=3,peakStuck=188**。遥测 ground-truth:
+- 起步 planner 大搜索延迟(已知 progressive 域)
+- 巡航 totStuck 0-7 平滑,**陡坡 y63→84→63 totStuck 仅 2-5 干净爬过**
+- **唯一真 stall:水边土坡 dig totStuck 188(~9s,已恢复)@ -450,223 inW=True**
+**画面 ANOMALY vs 遥测交叉(用户铁律 telemetry 是判据)**:
+- 画面报"陡坡攀爬失败/贴墙横跳"→ 遥测 totStuck 2-5 advancing = **误读 stepUp 爬升动画**(推翻)
+- 到达后画面报"彻底静止/死锁"→ 遥测 ARRIVED idle = **idle 假阳性**(bot 正确 passive,推翻)
+**关键结论**:① DryReanchor build 在**代表性 tractable 地形基本丝滑**(陡坡爬得干净,corpus 陡山 wedge 非主导)② **主导真残留=水岸 bank-dig(~9s)**,非陡山——与早期 memory 一致 ③ corpus steep 档不代表典型 journey jank。下一步真靶=水岸 dig(有大量 prior 验证 fix,多 default-OFF)。
