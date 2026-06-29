@@ -314,3 +314,11 @@ gate=9 build live 长途(DryReanchor=ON,-599→-700,150):起步即 wedge @-671 d
 扩展触发 `||(hCol&&|yawErr|>90)` live 重测 -671:**远比 far-off-only 差**——bot 在 -673..-683 震荡、totStuck 508→**6009(~5min)**(far-off-only 那次是 509 慢恢复)。anchor-back 在**近 ram** 上制造振荡极限环(回 step-1→再逼近→再 ram→再 anchor)= §13/§16 同一教训。**REVERTED**。
 **DryReanchor 净结论**:`far-off-path only`(cur2>9 + dry + stuck>50 → anchor step-1)= **corpus 验证净正**(聚合 P(wedge) 16/48→6/48,§22-24),是 session 首个真降 P(wedge) 的结构 fix,**保留 default-OFF**。
 **仍开放(live -671 实锤)**:近距离 diagDown-ram(hCol+yawErr-145 背对+cur2~2)——身体卡墙朝向错,**aim-back 振荡、aim-node(§13)回归、距离门(§22)漏**。需非-aim 解(lateral strafe 滑离墙 / 黑名单该对角 repath 绕行)。这是 #47 的下一个 live blocker。
+
+## 27. live 陡山路线=多异质机制叠加(DryReanchor 只覆盖一部分)(2026-06-29)
+-599→-700,150 live 路线实为**纯陡山爬升**(bot y69→y94+),DryReanchor=ON 仍不丝滑,逐 tick 暴露**三个不同机制**:
+1. **远 off-path repath-churn** — DryReanchor 覆盖(corpus 验证 16→6)✓
+2. **近 diagDown-ram**(-671:hCol+yawErr-145 背对+cur2~2)— anchor-back 振荡(§26)✗
+3. **stepUp/diagUp mount 失败**(-711/-654:`jump=true sprint=true up=true hCol=true hSpd~0.05 不上升` = "上坡跳不上方块")— bot 在陡山爬不动甚至倒退(-711→-654)✗
+→ **#47"丝滑"在陡山路线 = 须同时治多个异质 mount/ram 机制**(stepUp-mount-fail 是代码里一堆 default-OFF fix 的老大难)。DryReanchor 是其中 repath-churn 分量的真解,非全部。
+**注**:此路线(-700,150 SW 进 cliff/陡山)是最难类之一;DryReanchor 的有效性验证应以 corpus(用户铁律 replay=真相,聚合 16→6 已达)+ 中等 tractable journey 为准,而非最难陡山。下一攻坚单元:steep-ascent mount(stepUp/diagUp)live 实锤 + diagDown-ram(非 anchor 解)。
