@@ -198,3 +198,12 @@ flag-tuning / 点修在此系统上系统性失败。这不是"还没找对 fix"
 - **结论印证**:#47"每次随机旅途都丝滑"失败点 = 每条 journey ~1-2 个复合硬点(陡崖爬升 + 水沼泽 thrash)。
   典型地形之间顺畅。两类 keystone jank:① 陡崖长爬升(totStuck 高,gate 可见);② 水中 yaw-thrash(totStuck 失明,需 yawErr/视频)。
 - **gate 增强 TODO**:加水中 yaw-thrash 指标(inW & |Δaim| 或 yawErr-vs-lastAim),否则水域 fix 无判据(正是"绿了又破"水域版根源)。
+
+## 15. ⭐ dominant jank 画像实锤:撞墙+朝向错(2026-06-29,journey.log 全 stall 分析)
+真实 370 格 journey 全 stall-tick(totStuck>120)签名分布:**hCol=84%、|yawErr|>60=81%、inW=43%**。
+两个最长 stall(walk -580 水中 274t / walk -558 干地 216t)均 hCol=100%+yawErr>60=100%。
+→ **#47 的 dominant jank 实锤 = "撞墙时 body 朝向错"(ram-while-facing-wrong)= "贴墙卡住"**,占 stall 时间 84%。
+干地+水中都有(43% 水)。stepUp/diagUp 崖爬升 hCol/yawErr 较低(更像慢爬非死锁)。
+- **修复语义清晰**:撞墙(hCol)且 body 偏离节点 bearing(yawErr>60)时,aim 应转向节点解墙。但两次此类 aim-override
+  (WallCornerNodeAim REJECT +39% / OvershootReaim 验证中)证明:**朝向错的成因是 aim 驱动器本身(tangent/carrot/冻结
+  heading 在拐角/过冲/近节点给出偏向),改一处触发新振荡**——即纠缠的 aim 驱动,与纠缠的 recovery 同构 = 需 aim 驱动重基,非点 override。

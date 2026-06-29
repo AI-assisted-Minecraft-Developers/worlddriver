@@ -48,6 +48,9 @@ public final class Walker {
      *  RAM (horizontalCollision) hands the aim back from the tangent to the direct node bearing — turn the
      *  corner off the wall instead of grinding along the trend into it. 20° = a real corner, not jitter. */
     private static final float WALL_CORNER_AIM_DEG = 20f;
+    /** walkerOvershootReaim: ticks wedged (stuckTicks) before a dry overshoot at a cliff base re-aims BACK
+     *  onto the overshot node. ~40 = 2s, well past a clean approach but before the multi-second churn. */
+    private static final int OVERSHOOT_REAIM_STUCK = 40;
     /** WIDER aim dead-zone (blocks²) used only when aiming at a water bank-climb node that
      *  sits OVERHEAD (+1/+2 above the floating foot). The buoyant bot can't translate ONTO
      *  such a node, so once within ~a block of its XZ it orbits the column and atan2 sweeps
@@ -3591,6 +3594,24 @@ public final class Walker {
         //      camera-swing anomaly. Gating on no-progress keeps a precisely-advancing
         //      approach on the TIGHT dead-zone, so the climb-out mount stays accurate
         //      (deepWaterClimboutNoBlockArena regressed when this widened unconditionally).
+        // walkerOvershootReaim: a dry walk-node OVERSHOOT at a cliff base wedges hard — the foot blew PAST
+        // the node (cur2 > OVERSHOOT_RESYNC_SQ) but the NEXT node is the climb (>1 up) so `passed` can't
+        // advance onto it, and the carrot/tangent aim points the body the wrong way (backward into a wall)
+        // so it never re-centres — a ram-frozen wedge (journey 2026-06-29 -558,82: yaw -179 / yawErr -120 /
+        // hCol / cur2 6.28 / 260 ticks; even safetyRepath at stuck>60 re-commits the same path). When wedged
+        // there, aim BACK at the overshot node so the body walks onto it (the 略微后退 it should do) and
+        // relaunches the climb from the aligned base. Dry + grounded + next-too-high + long stuck only.
+        if (BotConfig.walkerOvershootReaim && path != null && step < path.size()
+                && step + 1 < path.size() && !p.isInWater() && p.onGround()
+                && stuckTicks > OVERSHOOT_REAIM_STUCK) {
+            BlockPos ow = path.get(step);
+            double ocx = (ow.getX() + 0.5) - p.getX(), ocz = (ow.getZ() + 0.5) - p.getZ();
+            if (ocx * ocx + ocz * ocz > OVERSHOOT_RESYNC_SQ
+                    && path.get(step + 1).getY() - foot.getY() > 1) {
+                adx = ocx;
+                adz = ocz;   // walk BACK onto the overshot cliff-base node, then climb cleanly
+            }
+        }
         double aim2 = adx * adx + adz * adz;
         boolean climbAim = aimAtWaypoint && p.isInWater() && wpAimDy > 0.5;
         boolean waterThrash = p.isInWater() && noStepProgressTicks > WATER_YAW_HOLD_STALL;

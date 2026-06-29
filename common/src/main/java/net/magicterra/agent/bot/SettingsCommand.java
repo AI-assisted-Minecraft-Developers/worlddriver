@@ -236,6 +236,10 @@ public final class SettingsCommand {
                 BotConfig.walkerWallCornerNodeAim = wcna;
                 applied.add("walkerWallCornerNodeAim");
             }
+            if (params.get("walkerOvershootReaim") instanceof Boolean ora) {
+                BotConfig.walkerOvershootReaim = ora;
+                applied.add("walkerOvershootReaim");
+            }
             if (params.get("avoidMobs") instanceof Boolean avm) {
                 BotConfig.avoidMobs = avm;
                 applied.add("avoidMobs");

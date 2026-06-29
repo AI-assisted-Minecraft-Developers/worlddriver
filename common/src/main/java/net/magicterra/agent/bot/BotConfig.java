@@ -1452,6 +1452,15 @@ public final class BotConfig {
      *  the tangent byte-identical. Default OFF; validate via the hardened K=3-median replay-corpus gate. */
     public static volatile boolean walkerWallCornerNodeAim = false;
 
+    /** Overshoot re-aim at a cliff base. A dry walk node OVERSHOOT (foot blew PAST it, cur2 > 4) whose NEXT
+     *  node is the climb (>1 up, so the overshoot-resync `passed` reachability gate can't advance onto it)
+     *  leaves the body aimed the wrong way (backward into a wall) and ram-frozen — even safetyRepath at
+     *  stuck>60 re-commits the same path (journey 2026-06-29 -558,82: yaw -179, yawErr -120, hCol, cur2 6.28,
+     *  260-tick wedge = the "略微后退/贴墙卡住" signature). When ON, after OVERSHOOT_REAIM_STUCK wedged ticks
+     *  the aim points BACK at the overshot node so the body walks onto it and relaunches the climb from the
+     *  aligned base. Dry + grounded + next-too-high + long-stuck only. Default OFF; validate via hardened gate. */
+    public static volatile boolean walkerOvershootReaim = false;
+
     /** Bob-immune ascent-ram freeze-breaker trigger: on a steep tall bank (live W→E -861→-632, ~50-70s jank,
      *  reproducible), a +1 {@code diagUp}/{@code stepUp} mount jumps off the diagonal corner, slides back to
      *  the riser foot, and repeats — foot pinned ~0.78 BELOW the node, cur2 orbiting 0.64-0.88 just over the
