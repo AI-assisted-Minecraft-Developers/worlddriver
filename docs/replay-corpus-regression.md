@@ -240,3 +240,11 @@ flag-tuning / 点修在此系统上系统性失败。这不是"还没找对 fix"
 **#47"丝滑"的唯一路径 = 消除双稳态来源本身**(用户最初方向"结构性消除 bistability / recovery 重基"被定量证实),
 而非再加 flag。评估侧:K=3 中位作废,bistable 判定一律 **K≥6 + P(catastrophic wedge)**。
 **下一步(需用户拍板的结构选项,已问多次未答)**:① 执行器 aim+recovery 统一重基消双稳态 ② planner 路由惩罚绕开触发 wedge 的地形类(steep-diagUp/high-crest)③ #47 rescope 为"P(wedge)↓ + 大体丝滑"+ 把 P(wedge) 设为正式验收度量。
+
+## 19. ⭐⭐ 分岔诊断:wedge 是非局域的随机放大,不是坏节点(2026-06-29,long-540 多 run telemetry)
+同 archive/path 多次 escape run,stuck 累积在**完全不同节点**:run1(max386)卡 `walk -675,64,339`;run3(max94)卡 `parkour3 -570,78,283`。
+**stall 位置 run-to-run 非确定;stall 深度(94/386/…/1900)是随机变量**——偶尔小 stall 自我强化放大成灾难 wedge。
+→ **wedge 非局域**(可在任意节点涌现)= 为何针对特定节点/条件的点-flag 必败(§18 已定量证伪,这里给机制)。
+→ **结构性根因假说 = stall-recovery 反馈环偶尔非耗散(自我强化)**。结构性解方向 = 让 recovery 严格耗散:
+   每个 anti-stuck/recovery 动作必须**单调减小 stall 度量**(沿 path 的弧长进展),绝不增大;瞬态 stall 则总衰减、永不放大成极限环。
+   (验证需 wedge 标本看放大环逐 tick——捕获中。)
