@@ -261,3 +261,10 @@ flag-tuning / 点修在此系统上系统性失败。这不是"还没找对 fix"
 → **planner-budget 在实用范围被证伪为廉价 fix**;唯一启示=committed **partial-path 质量**(紧预算下提交 wedge-prone 部分段)才是关键,属 best-effort 段选择改进(planner 层选项②,非调参)。
 **本 session 严格排除清单**:① 5/5 执行器点修(§8/10/13/16/18)② planner 实用 maxMs 预算(本节)。
 **剩余唯一方向**(需用户结构性拍板):陡对角爬升 wedge 是**执行器内生双稳态**(§18/19)——要么深度重构陡爬 mount/climb 执行动力学(选项①执行器重基),要么改进紧预算下的 best-effort partial-path 选择避开 wedge-prone 段(选项②planner)。
+
+## 21. ⭐⭐⭐ wedge 异质但共同放大器=repath-rechurn 环(2026-06-29,steep-822 wedge 标本逐 tick)
+捕获 2 个 steep-822 wedge(2088/1226)逐 tick:dominant move=**parkour2d(148t)**+diagDown,cur2 median 12(巨大 off-path),onG/airborne 混。
+峰值窗口=**失败 parkour 跳**(t148 parkour2d:离 node 7 格+低 2 格、airborne、stuck135)→ **path 长度 60→85 反复变(repath)**→ walk 节点间 yaw 狂摆(-196→-247)+cur2 swing+hCol 断续 → 慢振荡收敛才逃。
+**各 archive 的 dominant wedge 机制不同**:steep-822=失败 parkour 跳+repath churn;crest-815=腾空 diagUp dead-zone(§前);run6=起步 diagDown 角块。**无单一 recovery 空洞**=为何 5/5 单机制点修动不了聚合 P(wedge)(§18)。
+**但共同放大器 = repath-rechurn 环**:任一 move 失败→bot off-path(cur2 大)→safetyRepath(stuck>60)重提交一条从当前 off-path 态仍执行不了的路径→yaw-thrash 振荡收敛→常再失败→repath→累积。
+→ **真正全局结构靶(addresses 异质性,高杠杆)= 打破 repath-rechurn 环**:move 失败+off-path 时,确定性恢复到上个干净到达节点(on-path 锚)再续,而非 repath 进 churn。这是 §19 耗散原则在 repath 层的应用。属选项①(用户标准方向)的 sharpened 靶。
