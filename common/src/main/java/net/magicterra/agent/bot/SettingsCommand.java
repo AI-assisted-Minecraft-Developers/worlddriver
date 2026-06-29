@@ -244,6 +244,10 @@ public final class SettingsCommand {
                 BotConfig.walkerDryReanchor = dra;
                 applied.add("walkerDryReanchor");
             }
+            if (params.get("pathfinderDiagAscendPenalty") instanceof Number dap) {
+                BotConfig.pathfinderDiagAscendPenalty = dap.doubleValue();
+                applied.add("pathfinderDiagAscendPenalty");
+            }
             if (params.get("avoidMobs") instanceof Boolean avm) {
                 BotConfig.avoidMobs = avm;
                 applied.add("avoidMobs");

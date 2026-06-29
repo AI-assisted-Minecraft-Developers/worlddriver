@@ -31,6 +31,7 @@ public final class DiagonalAscend extends Move {
         if (!valid(w, from)) return null;
         double c = cost;
         if (waterBelow(w, from, 6)) c += 200;
+        else c += net.magicterra.agent.bot.BotConfig.pathfinderDiagAscendPenalty;  // dry diagUp is unmountable on steep terrain (§30) — route around via cardinal stepUp when penalised
         return new Move.Edge(apply(from), c, java.util.List.of(), java.util.List.of(), name());
     }
 

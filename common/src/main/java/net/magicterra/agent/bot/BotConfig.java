@@ -359,6 +359,17 @@ public final class BotConfig {
      *  pos/block goal and pays nothing. Set 0 to disable. */
     public static volatile double pathfinderDescendCost = 40;
 
+    /** Extra g-cost charged on a DRY {@link net.magicterra.agent.bot.pathfinder.moves.DiagonalAscend}
+     *  (diagUp, a diagonal +1 step). Default 0 = base cost (19) unchanged. The executor CANNOT reliably
+     *  mount a diagonal +1 riser: the cardinal sprint-bunny-hop (early-jump ≤1.7 + sprint, Walker:4194) was
+     *  A/B-DISPROVEN for diagonals (Walker:4198), and diagAscent drops sprint (Walker:4810), so a diagUp
+     *  mounts only by a slow late-jump grind that bistably WEDGES on steep terrain (live -711, REGRESSION.md
+     *  §30 — the "上坡跳不上方块" residual). A cardinal stepUp+walk L-shape covers the same ascent and the
+     *  executor mounts it reliably (the proven sprint-bunny-hop). When >0, this penalty makes A* prefer that
+     *  L-shape on dry land, routing AROUND the unmountable diagUp instead of committing it. Validate on the
+     *  steep corpus (878/815) with the hardened K≥6 P(wedge) gate; too high over-charges + lengthens paths. */
+    public static volatile double pathfinderDiagAscendPenalty = 0;
+
     /** Per-water-cell g-cost added to EVERY move that enters a water cell, for
      *  Y-agnostic (XZ) goals only — on top of the base {@code waterDangerPenalty}.
      *  An XZ goal makes swimming at depth read as free progress (each stroke shrinks
