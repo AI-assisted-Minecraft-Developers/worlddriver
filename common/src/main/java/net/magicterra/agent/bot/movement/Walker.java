@@ -3637,7 +3637,16 @@ public final class Walker {
                 && stuckTicks > DRY_REANCHOR_STUCK) {
             BlockPos cn = path.get(step);
             double cnx = (cn.getX() + 0.5) - p.getX(), cnz = (cn.getZ() + 0.5) - p.getZ();
-            if (cnx * cnx + cnz * cnz > DRY_REANCHOR_OFFPATH_SQ) {
+            // Two distinct stall signatures share the SAME anchor cure (REGRESSION.md §21/§25):
+            //  (a) FAR off-path (dist² > DRY_REANCHOR_OFFPATH_SQ) — the failed-parkour / overshoot repath-churn.
+            //  (b) RAM-while-facing-wrong (live -671 diagDown: hCol + body bearing >90° off the node, cur2~2 so
+            //      the distance gate alone misses it) — the §15 dominant jank (hCol 84% + |yawErr|>60 81%). The
+            //      body is jammed against a wall pointed the wrong way; aiming at the fixed previous node turns it
+            //      off the wall onto a stable bearing. Gated on the SAME sustained stall so a transient graze
+            //      (momentary hCol on a clean diagonal) can't trip it.
+            float nodeBear = (float) Math.toDegrees(Math.atan2(-cnx, cnz));
+            boolean ramWrong = p.horizontalCollision && Math.abs(angleDiff(p.getYRot(), nodeBear)) > 90f;
+            if (cnx * cnx + cnz * cnz > DRY_REANCHOR_OFFPATH_SQ || ramWrong) {
                 BlockPos anchor = path.get(step - 1);
                 adx = (anchor.getX() + 0.5) - p.getX();
                 adz = (anchor.getZ() + 0.5) - p.getZ();

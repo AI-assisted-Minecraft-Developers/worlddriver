@@ -304,3 +304,8 @@ off-path 门 4→9(只让真失败 move 触发)K=6 同 build A/B(4 关键档):
 **关键**:diag-856 OFF 此批=2/6(门=4 那批=0/6)→ **§23 的"856 0→2/6 回归"实为 856 自身双峰噪声**(OFF 本就 0-2/6),非 flag。**坐实:K=6 per-archive P(wedge)噪声±2/6 太大不能归因,可信的是 8 档聚合**(门=4 聚合 16→6 远超噪声=真实)。
 门=9 净正(7/24→4/24)+**零回归**,比门=4 温和但更干净;822 win 减弱(部分噪声,mean 仍-17%)。
 → 停止对噪声 corpus 微调(用户铁律 live=真相 corpus 派生)。用 gate=9 build 转 **live 长途验收**(#47 真判据)。门值 live 后再定(若 steep 仍卡可降门)。
+
+## 25. live 验收揭示 DryReanchor 漏近距离 ram → 扩触发(hCol+yawErr>90)(2026-06-29)
+gate=9 build live 长途(DryReanchor=ON,-599→-700,150):起步即 wedge @-671 diagDown(telemetry: hCol=true、**yawErr -145(背对节点)、cur2~1.5-2.5、totStuck 509**)+反复挖同块。画面 ANOMALY(原地横跳+视角抖+dig-loop)与 telemetry 一致。
+**根因**:cur2~2 **远低于 off-path 门(9,甚至 4)→ DryReanchor 不触发**。这是 §15 的**近距离 ram-while-facing-wrong**(hCol+大 yawErr+cur2 小),与 DryReanchor 原针对的远 off-path repath-churn 是**不同机制**——证 corpus 聚合改善≠live 丝滑(异质机制须全覆盖)。
+→ 扩 DryReanchor 触发:`(cur2>门) || (hCol && |yawErr到当前节点|>90)`,两签名同一 anchor 解(走回上一节点=稳定 bearing 转离墙)。同 stuck>50 门防瞬时 graze 误触。重测 corpus 防回归 + live 重跑看 -671 是否过。
