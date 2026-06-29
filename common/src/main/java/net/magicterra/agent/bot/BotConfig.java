@@ -1487,6 +1487,16 @@ public final class BotConfig {
      *  the hardened K≥6 same-build P(wedge>800) gate (K=3 median is bistable-noise-corrupted, §17). */
     public static volatile boolean walkerDryReanchor = false;
 
+    /** Lateral lane-keep centering for a dry DIAGONAL DESCEND (diagDown), mirroring the diagUp centering that
+     *  already exists (Walker:4262). The strafe lane-keep covers waterClimb/diagUp/cardinal lanes but NOT
+     *  diagDown — a diagonal step-down (both axes change) falls into no branch, gets ZERO cross-axis
+     *  correction, drifts off the descend diagonal, and RAMS the perpendicular corner (hCol, large yawErr):
+     *  the close diagDown-ram wedge (live -671, REGRESSION.md §26). Unlike the DryReanchor anchor-back
+     *  re-aim that OSCILLATED this case worse (totStuck 6009, §26 reverted), this is a LATERAL strafe (not an
+     *  aim change) that pulls the body onto the diagonal line so the corner clears. Default OFF; validate via
+     *  the hardened K≥6 P(wedge>800) gate on the diagDown-bearing archives (steep-822 run6 corner-block). */
+    public static volatile boolean walkerDiagDownCenter = false;
+
     /** Bob-immune ascent-ram freeze-breaker trigger: on a steep tall bank (live W→E -861→-632, ~50-70s jank,
      *  reproducible), a +1 {@code diagUp}/{@code stepUp} mount jumps off the diagonal corner, slides back to
      *  the riser foot, and repeats — foot pinned ~0.78 BELOW the node, cur2 orbiting 0.64-0.88 just over the

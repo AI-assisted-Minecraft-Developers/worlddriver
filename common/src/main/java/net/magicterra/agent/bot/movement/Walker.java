@@ -4094,6 +4094,16 @@ public final class Walker {
         // steadies, pivotForStepUp releases, and forward + stepUpJump mounts the corner.
         boolean diagUp = upDy >= 1 && wp.getX() != foot.getX() && wp.getZ() != foot.getZ()
                 && !parkourEdge && !p.isInWater();
+        // The DESCENDING mirror of diagUp: a diagonal step DOWN (both axes change AND falling).
+        // The lane-keep strafe below centres waterClimb/diagUp/cardinal lanes but NOT diagDown,
+        // so a diagDown got NO lateral correction — the bot drifts off the diagonal descend line,
+        // ends ~0.8 off on one axis, and RAMS the perpendicular corner block (hCol=true, |yawErr|
+        // large because descentNodeYaw points at the close node whose bearing swings on drift):
+        // the close diagDown-ram wedge (live -671, REGRESSION.md §26 — anchor-back re-aim made it
+        // OSCILLATE worse, totStuck 6009). A lateral centre (NOT an aim change) pulls the body back
+        // onto the diagonal line so the corner clears and forward drives through. Mirror of 4262.
+        boolean diagDown = upDy <= -1 && wp.getX() != foot.getX() && wp.getZ() != foot.getZ()
+                && !parkourEdge && !p.isInWater();
         // A jump is needed only to rise BEYOND the auto-step height.
         boolean needJumpForStep = upDy >= 1 && upDy > maxStepUp;
         // A step taller than we could clear even WITH a jump — we slid back below a
@@ -4260,6 +4270,7 @@ public final class Walker {
             }
             else if (waterClimb) { latX = (wp.getX() + 0.5) - p.getX(); latZ = (wp.getZ() + 0.5) - p.getZ(); } // centre on the target column
             else if (diagUp) { latX = (wp.getX() + 0.5) - p.getX(); latZ = (wp.getZ() + 0.5) - p.getZ(); } // centre on the diagonal toward the step corner
+            else if (BotConfig.walkerDiagDownCenter && diagDown) { latX = (wp.getX() + 0.5) - p.getX(); latZ = (wp.getZ() + 0.5) - p.getZ(); } // §26: mirror diagUp — centre on the diagonal descend line so the body doesn't ram the perpendicular corner
             else if (ddx == 0 && ddz != 0) latX = (wp.getX() + 0.5) - p.getX();        // N/S lane → hold X
             else if (ddz == 0 && ddx != 0) latZ = (wp.getZ() + 0.5) - p.getZ();   // E/W lane → hold Z
             // Anti-drift in a current: a flowing-water cell pushes the body

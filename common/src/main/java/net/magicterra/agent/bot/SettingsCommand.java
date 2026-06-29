@@ -248,6 +248,10 @@ public final class SettingsCommand {
                 BotConfig.pathfinderDiagAscendPenalty = dap.doubleValue();
                 applied.add("pathfinderDiagAscendPenalty");
             }
+            if (params.get("walkerDiagDownCenter") instanceof Boolean ddc) {
+                BotConfig.walkerDiagDownCenter = ddc;
+                applied.add("walkerDiagDownCenter");
+            }
             if (params.get("avoidMobs") instanceof Boolean avm) {
                 BotConfig.avoidMobs = avm;
                 applied.add("avoidMobs");
