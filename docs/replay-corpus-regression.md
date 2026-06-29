@@ -352,3 +352,19 @@ K=6(+DryReanchor ON)penalty 扫描:
 | steep-878 | 0/6 mean181 | 0/6 mean242 | 0/6 mean242 |
 **crest-815 wedge 2/6→0/6(mean-38%)** = diagUp-mount 的可行解,绕过 executor 死结。pen=15≈40(15 足,少绕路)。steep-878 本就 0/6,mean 略增(penalty 略长路)。
 → **第二个验证有效结构 fix**,攻 §30 第二机制(diagUp-mount)。待:其余 6 档确认无广泛回归(penalty 只影响 diagUp move,无 diagUp 的档应不受影响)。
+
+## 32. 裁决:pathfinderDiagAscendPenalty 净中性 REJECT(全 8 档聚合)(2026-06-29)
+§31 续完全 8 档 K=6(+DryReanchor,pen=0 vs 15):
+| archive | pen=0 | pen=15 | Δ |
+|---|---|---|---|
+| crest-815 | 2/6 | 0/6 | **-2** |
+| long-540 | 3/6 | 1/6 | **-2** |
+| steep-878 | 0/6 | 0/6 | 0 |
+| rev-897 | 0/6 | 0/6 | 0 |
+| diag-856 | 0/6 | 0/6 | 0 |
+| water-757 | 1/6 | 1/6 | 0 |
+| dry-627 | 2/6 | 3/6 | **+1** |
+| steep-822 | 3/6 | 6/6 | **+3** |
+| **聚合** | **11/48** | **11/48** | **0** |
+**精确净中性**=纯 wedge-reshuffle(crest/long -2 被 steep-822/dry-627 +3/+1 抵消)。与 DryReanchor(16→6 真降)本质不同。**REJECT 为默认**(flag 留 code,default 0=no-op,无害 situational knob)。§17 铁律再兑现:crest-815 单档(2→0)伪 win,聚合揭穿。
+**下一靶精确化**:全局 diagUp 惩罚分不清"该惩罚的不可 mount 陡 diagUp"(crest/long 受益)vs"本就 OK 的 diagUp"(steep-822 reroute 落更糟几何)。需**条件惩罚**=只惩罚几何上真不可 mount 的陡 diagUp riser(检测 riser 列 +1-clear vs blocked/no-runway),非所有 dry diagUp。这是 §30 diagUp-mount 残留的精确下一单元。
