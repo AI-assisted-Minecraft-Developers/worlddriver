@@ -226,3 +226,17 @@ flag-tuning / 点修在此系统上系统性失败。这不是"还没找对 fix"
 → **walkerOvershootReaim 实为第 5 次 REJECT**(引入 wedge,非 net-positive)。
 **方法论铁律升级**:bistable 档**任何**判定必须 **K≥6 同 build OFF-vs-ON + 主看 P(catastrophic wedge)**;
 单 median(哪怕 K=3)会因双峰把噪声当信号——这是"绿了又破"的更深一层根。baseline_robust.json 作废待 K≥6 重建。
+
+## 18. ⭐⭐⭐ 决定性结论:灾难 wedge 是执行器固有双稳态、flag-无关 → 点修范式彻底证伪(2026-06-29)
+完整 K=6 同 build A/B:
+| archive | OFF mean/med/P(wedge) | ON mean/med/P(wedge) | 判定 |
+|---|---|---|---|
+| long-540 | 150/141/**0/6** | 547/165/**2/6** | ON 有害(引入 wedge) |
+| dry-627  | 606/314/**1/6** | 550/314/**1/6** | 中性(中位 314=314) |
+**dry-627 OFF 自带 1/6 wedge**([104,259,261,367,369,2280])——此前信的"OFF≈265"单跑是幸运抽样。
+**整个 corpus 皆 bistable**:每 ~6 run 偶发 1-2 次灾难 wedge,**P(wedge) 大体与 flag 无关**——点-flag 改不动它(甚至 540 被 overshootReaim 搞 worse)。
+**∴ 灾难性卡死=执行器极限环/双稳态的固有行为,不是某条 aim/recovery 分支的局部 bug**;
+5/5 点修(FBA/DryWedgeFootY/arcProgressWedge/WallCornerNodeAim/OvershootReaim)无一降 P(wedge)=**点修范式定量证伪**。
+**#47"丝滑"的唯一路径 = 消除双稳态来源本身**(用户最初方向"结构性消除 bistability / recovery 重基"被定量证实),
+而非再加 flag。评估侧:K=3 中位作废,bistable 判定一律 **K≥6 + P(catastrophic wedge)**。
+**下一步(需用户拍板的结构选项,已问多次未答)**:① 执行器 aim+recovery 统一重基消双稳态 ② planner 路由惩罚绕开触发 wedge 的地形类(steep-diagUp/high-crest)③ #47 rescope 为"P(wedge)↓ + 大体丝滑"+ 把 P(wedge) 设为正式验收度量。
