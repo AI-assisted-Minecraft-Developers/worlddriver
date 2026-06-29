@@ -209,6 +209,25 @@ public final class SettingsCommand {
                     applied.add("pathfinder.waterDangerPenalty");
                 }
             }
+            // Pathfinder budget setters (were read-only; needed to make replay measurement
+            // DETERMINISTIC — a large sliceMs runs each A* search atomically so segment-commit
+            // timing no longer varies with CPU load, killing the run-to-run churn variance).
+            if (params.get("pathfinder.sliceMs") instanceof Number psm) {
+                BotConfig.pathfinderSliceMs = psm.longValue();
+                applied.add("pathfinder.sliceMs");
+            }
+            if (params.get("pathfinder.idleSliceMs") instanceof Number pism) {
+                BotConfig.pathfinderIdleSliceMs = pism.longValue();
+                applied.add("pathfinder.idleSliceMs");
+            }
+            if (params.get("pathfinder.maxMs") instanceof Number pmm) {
+                BotConfig.pathfinderMaxMs = pmm.longValue();
+                applied.add("pathfinder.maxMs");
+            }
+            if (params.get("pathfinder.maxNodes") instanceof Number pmn) {
+                BotConfig.pathfinderMaxNodes = pmn.intValue();
+                applied.add("pathfinder.maxNodes");
+            }
             if (params.get("avoidMobs") instanceof Boolean avm) {
                 BotConfig.avoidMobs = avm;
                 applied.add("avoidMobs");
@@ -273,6 +292,14 @@ public final class SettingsCommand {
                 BotConfig.walkerArcLengthWedge = walw;
                 applied.add("walkerArcLengthWedge");
             }
+            if (params.get("walkerArcProgressWedge") instanceof Boolean wapw) {
+                BotConfig.walkerArcProgressWedge = wapw;
+                applied.add("walkerArcProgressWedge");
+            }
+            if (params.get("walkerFellBelowAlign") instanceof Boolean wfba) {
+                BotConfig.walkerFellBelowAlign = wfba;
+                applied.add("walkerFellBelowAlign");
+            }
             if (params.get("walkerAscentRamBobBreak") instanceof Boolean warb) {
                 BotConfig.walkerAscentRamBobBreak = warb;
                 applied.add("walkerAscentRamBobBreak");
@@ -280,6 +307,46 @@ public final class SettingsCommand {
             if (params.get("walkerFutileBankDigRelease") instanceof Boolean wfbd) {
                 BotConfig.walkerFutileBankDigRelease = wfbd;
                 applied.add("walkerFutileBankDigRelease");
+            }
+            if (params.get("walkerBankDigSkipOverhang") instanceof Boolean wbdso) {
+                BotConfig.walkerBankDigSkipOverhang = wbdso;
+                applied.add("walkerBankDigSkipOverhang");
+            }
+            if (params.get("walkerBuoyantSearchFromSurface") instanceof Boolean wbsfs) {
+                BotConfig.walkerBuoyantSearchFromSurface = wbsfs;
+                applied.add("walkerBuoyantSearchFromSurface");
+            }
+            if (params.get("walkerBankDigForwardExit") instanceof Boolean wbdfe) {
+                BotConfig.walkerBankDigForwardExit = wbdfe;
+                applied.add("walkerBankDigForwardExit");
+            }
+            if (params.get("walkerPillarReachGoalNoSnap") instanceof Boolean wprgns) {
+                BotConfig.walkerPillarReachGoalNoSnap = wprgns;
+                applied.add("walkerPillarReachGoalNoSnap");
+            }
+            if (params.get("walkerBankDigSkipWhenCwpSwims") instanceof Boolean wbdscs) {
+                BotConfig.walkerBankDigSkipWhenCwpSwims = wbdscs;
+                applied.add("walkerBankDigSkipWhenCwpSwims");
+            }
+            if (params.get("walkerTraverseBreakOvershootResync") instanceof Boolean wtbor) {
+                BotConfig.walkerTraverseBreakOvershootResync = wtbor;
+                applied.add("walkerTraverseBreakOvershootResync");
+            }
+            if (params.get("walkerSwimAshorePillarDespiteDeepDig") instanceof Boolean wsapddd) {
+                BotConfig.walkerSwimAshorePillarDespiteDeepDig = wsapddd;
+                applied.add("walkerSwimAshorePillarDespiteDeepDig");
+            }
+            if (params.get("walkerFloatingBankBobFreeze") instanceof Boolean wfbbf) {
+                BotConfig.walkerFloatingBankBobFreeze = wfbbf;
+                applied.add("walkerFloatingBankBobFreeze");
+            }
+            if (params.get("walkerFloatingBankFollow") instanceof Boolean wfbf) {
+                BotConfig.walkerFloatingBankFollow = wfbf;
+                applied.add("walkerFloatingBankFollow");
+            }
+            if (params.get("walkerFasterChurnRepath") instanceof Boolean wfcr) {
+                BotConfig.walkerFasterChurnRepath = wfcr;
+                applied.add("walkerFasterChurnRepath");
             }
             if (params.get("walkerDeepWaterFloatBeeline") instanceof Boolean wdfb) {
                 BotConfig.walkerDeepWaterFloatBeeline = wdfb;
@@ -815,8 +882,20 @@ public final class SettingsCommand {
         snap.put("walkerArcLengthAdvance", BotConfig.walkerArcLengthAdvance);
         snap.put("walkerTangentAim", BotConfig.walkerTangentAim);
         snap.put("walkerArcLengthWedge", BotConfig.walkerArcLengthWedge);
+        snap.put("walkerArcProgressWedge", BotConfig.walkerArcProgressWedge);
+        snap.put("walkerFellBelowAlign", BotConfig.walkerFellBelowAlign);
         snap.put("walkerAscentRamBobBreak", BotConfig.walkerAscentRamBobBreak);
         snap.put("walkerFutileBankDigRelease", BotConfig.walkerFutileBankDigRelease);
+        snap.put("walkerBankDigSkipOverhang", BotConfig.walkerBankDigSkipOverhang);
+        snap.put("walkerBuoyantSearchFromSurface", BotConfig.walkerBuoyantSearchFromSurface);
+        snap.put("walkerBankDigForwardExit", BotConfig.walkerBankDigForwardExit);
+        snap.put("walkerPillarReachGoalNoSnap", BotConfig.walkerPillarReachGoalNoSnap);
+        snap.put("walkerBankDigSkipWhenCwpSwims", BotConfig.walkerBankDigSkipWhenCwpSwims);
+        snap.put("walkerTraverseBreakOvershootResync", BotConfig.walkerTraverseBreakOvershootResync);
+        snap.put("walkerSwimAshorePillarDespiteDeepDig", BotConfig.walkerSwimAshorePillarDespiteDeepDig);
+        snap.put("walkerFloatingBankBobFreeze", BotConfig.walkerFloatingBankBobFreeze);
+        snap.put("walkerFloatingBankFollow", BotConfig.walkerFloatingBankFollow);
+        snap.put("walkerFasterChurnRepath", BotConfig.walkerFasterChurnRepath);
         snap.put("walkerDeepWaterFloatBeeline", BotConfig.walkerDeepWaterFloatBeeline);
         snap.put("pathfinderForbidParkourIntoDeepWater", BotConfig.pathfinderForbidParkourIntoDeepWater);
         snap.put("pathfinderForbidParkourFromFloatingWater", BotConfig.pathfinderForbidParkourFromFloatingWater);
