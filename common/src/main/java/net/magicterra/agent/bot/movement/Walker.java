@@ -58,7 +58,7 @@ public final class Walker {
     /** walkerDryReanchor: foot-to-current-node dist² (blocks²) above which the bot is "far off-path" and the
      *  anchor engages. 4 = OVERSHOOT_RESYNC_SQ (2 blocks) — a genuinely-approaching node stays under it, so
      *  a legit slow climb/creep that hugs its node never triggers; only a real off-path churn does. */
-    private static final double DRY_REANCHOR_OFFPATH_SQ = 4.0;
+    private static final double DRY_REANCHOR_OFFPATH_SQ = 9.0;
     /** WIDER aim dead-zone (blocks²) used only when aiming at a water bank-climb node that
      *  sits OVERHEAD (+1/+2 above the floating foot). The buoyant bot can't translate ONTO
      *  such a node, so once within ~a block of its XZ it orbits the column and atan2 sweeps
