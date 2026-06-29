@@ -329,3 +329,8 @@ gate=9 build live 长途(DryReanchor=ON,-599→-700,150):起步即 wedge @-671 d
 - crest-815: mean **504→1225** P(wedge) **2/6→3/6**(大幅更差!)
 → 这些 situational flag 不治通用 mount-failure,**交互效应搞坏 crest-815**(又一组合 backfire,同 session 主题)。REJECTED,重置 OFF。
 **stepUp-mount-failure 现有 flag 解不了** = 需新针对性诊断(精确 riser 几何:+1 clear vs +2 vs overhang vs no-runway)+ 新 fix。与 diagDown-ram(§26)一样是 #47 陡山剩余的独立攻坚单元。
+
+## 29. stepUp-mount 诊断收窄:sprint 已处理,真 lever=early-jump-timing(2026-06-29)
+攻 §27 stepUp-mount-failure。假说"sprint-jump 撞 riser 弹开→no-sprint 修"——**诊断发现已被现有代码处理**:Walker:4810-4820 `diagAscent`/`needJumpForStep` 近 riser 已 DROP sprint。且 2026-06-06 A/B-DISPROVEN 注释明载:re-enabling sprint on ascend 回归 hCol 13%→36%(jump 贴 riser 发→sprint 前冲撞更狠);**"sprint-jump 只在 EARLY launch(riser 前)才越台阶;需 early-jump-timing 改动,非翻 sprint"**。
+→ no-sprint 假说**冗余**(代码已做),不实现避免 no-op/干扰。**stepUp-mount 真 lever = early-jump-timing**(到 riser 前提早起跳让弧线越过)——2026-06-06 已识别但因 delicate/高回归风险未实现。当前 jump 在 ascendJumpReady flatDist≤1.2(贴近)发。
+**stepUp-mount 攻坚单元的精确靶**:early-jump 时机(flatDist 阈值放宽 + 对齐门),需在 steep corpus(878/815)+ summitArena 做 K≥6 A/B,且极易回归(jump 太早 miss/太晚 ram),是独立精调工程。这是 #47"上坡跳不上方块"的真正剩余工作。
