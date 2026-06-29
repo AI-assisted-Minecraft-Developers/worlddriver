@@ -129,3 +129,18 @@ step40 walk -573 仅 7 次(罕见远端 wedge)。
   叠在 waterline),非纯干地陡坡。模式 = "卡在节点前 ~0.8 格(0.45<cur2<1.0)+ onG + arcProgStall + 原地 bob/镜头摆"。
 - **含义**:validated-stack 的水岸 fix(walkerBankDigSkip*/buoyant*/swimEscape* 等)全 ON,此 climb-out **仍 churn 1224**
   → 那些 fix 要么噪声验证(不鲁棒)要么不覆盖此几何。需在硬化 gate 下重审水岸 fix 族。
+
+## 10. walkerDryWedgeFootY REJECT + 纠缠恢复结构发现(2026-06-29)
+假设:干地 wedge timer 被 +1 节点的 bob 打败(3D wd2 用连续 p.getY())→ recovery 永不触发 → churn。
+Fix:above-node 时 wd2 垂直项用量化 foot.getY()(只算真实爬升)。**steep-822 K=3 快测 = 495/1483/1513
+median 1483 vs baseline 1224 → 更差 +21% → REJECT**(快测 8min 抓到,省 50min 全 gate)。
+- **为何更糟**:bob-免疫 timer 让 recovery 触发**更多**,但 recovery=repath **re-commit 同一够不到的爬升** → 更多 churn。
+  **证实:recovery 不是杠杆,越触发越糟。** 真卡点 = **+1 stepUp MOUNT 执行不了**(ram riser 不起跳)。
+- **深层结构根因**:stepUp mount 已极度工程化(mis-aim ram→cut+jump 转身、stalled 后 force 接地 jump ~1.2s、
+  lateral-bank-follow)。但"force-jump"门**也 gate 在 noStepProgressTicks**(同一 bob-defeated timer)。
+  DryWedgeFootY 同时放出**有益 force-jump + 有害 repath-recommit**,有害占上风。**多个 recovery 消费者
+  (force-jump/ramSlide/repath/pitch-pivot)共用同一被 bob 打败的 timer,有益与有害纠缠** = "绿了又破 + 跨 session
+  难修"的结构本质 = task #55/56 的"recovery 重基/拆 Walker 巨兽"。surgical 单 flag 必然顾此失彼。
+- **结论**:此 blocker 的真解是**结构性 recovery 重基**(解耦消费者:让有益 force-jump 能触发而不放出有害 repath),
+  非调 flag。需用 writing-plans 严谨规划 + 硬化 gate 逐步验证。两次 disciplined fix(FBA/DryWedgeFootY)均被门正确
+  拦截 = 机制兑现价值,但也证明 flag-tuning 在此纠缠系统上无效。

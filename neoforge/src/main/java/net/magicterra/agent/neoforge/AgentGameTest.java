@@ -317,8 +317,13 @@ public final class AgentGameTest {
         BlockPos goal = new BlockPos(cx, standY + 3, cz);   // 3 pillars up
 
         boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace;
+        boolean opr = BotConfig.walkerPillarReachGoalNoSnap;
         BotConfig.allowBreak = true;
         BotConfig.allowPlace = true;
+        // The elevated air goal (standY+3, floor air until pillared) is "unstandable" → the goal
+        // snap would drag it down to the highest standable cell and the bot stops 1+ blocks short
+        // (live 2026-06-27 root cause). This flag keeps the real pillar-reachable goal.
+        BotConfig.walkerPillarReachGoalNoSnap = true;
         try {
             // start slightly off-centre toward -x, mimicking the live drift that
             // makes the head clip the -x neighbour leaf.
@@ -362,6 +367,7 @@ public final class AgentGameTest {
         } finally {
             BotConfig.allowBreak = ob;
             BotConfig.allowPlace = op;
+            BotConfig.walkerPillarReachGoalNoSnap = opr;
         }
         helper.succeed();
     }
@@ -1883,7 +1889,15 @@ public final class AgentGameTest {
         double odp = BotConfig.pathfinderDepthPenalty;
         long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
         int omn = BotConfig.pathfinderMaxNodes;
+        boolean obe = BotConfig.pathfinderBoxedEscalate;
         BotConfig.walkerDebug = false;
+        // pfDepthPenalty() returns max(penalty, 25) when boxed-escalation is ON, which would
+        // clamp BOTH our penalty=0 and penalty=6 searches to an identical 25 (→ same node count
+        // → false failure). Other tick-stepped arena tests in this batch drive the real Walker,
+        // which writes this global flag (Walker L947) and can leave it true when basinArena's
+        // tick runs. Force it OFF so pfDepthPenalty() returns the raw penalty we set. (2026-06-27:
+        // this is why basinArena was a masked required failure — the test never isolated it.)
+        BotConfig.pathfinderBoxedEscalate = false;
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // each search runs to completion (deterministic)
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxNodes = 1_000_000;
@@ -1921,6 +1935,7 @@ public final class AgentGameTest {
             BotConfig.pathfinderSliceMs = osl;
             BotConfig.pathfinderMaxMs = omm;
             BotConfig.pathfinderMaxNodes = omn;
+            BotConfig.pathfinderBoxedEscalate = obe;
         }
         helper.succeed();
     }

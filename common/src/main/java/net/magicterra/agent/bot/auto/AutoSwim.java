@@ -57,18 +57,26 @@ public final class AutoSwim {
      * tick (only then do we steer, to avoid fighting an active pathing process).
      */
     public static void tick(Minecraft mc, LocalPlayer p, WorldView world, boolean idle) {
+        // DRIVER POSITIONING: the driver only EXECUTES agent commands. With NO command (idle = no
+        // movement process owns the bot this tick), it must not move the bot at all. A bot left in
+        // water with no goal may be deliberately waiting, or holding a submerged position to reach
+        // an underwater target — beaching it, or force-surfacing it with a held jump, is the driver
+        // acting on its own (a survival reflex), which is exactly what must NOT happen with no
+        // command. So when idle: drive nothing and let the idle key-release settle the bot per
+        // physics. The lift + shore-steer below run ONLY under an active process (the command's own
+        // executor), as an in-process drowning backstop — never as an unprompted idle behavior.
+        if (idle) return;
         boolean inWater = p.isInWater();
         if (inWater && p.isUnderWater()) {
             mc.options.keyJump.setDown(true);
         } else if (!inWater) {
             mc.options.keyJump.setDown(false);
         }
-        // Steer to shore when idle, OR — as an emergency — WHENEVER the head is
-        // submerged, even during an active process. A goto/runAway that gets the
-        // bot stuck underwater (the lake death-loop: drowned at y61 mid-path)
-        // gives no steering of its own; surfacing/beaching always beats drowning,
-        // and the process resumes the moment the bot is back at the surface.
-        boolean steer = (idle || p.isUnderWater()) && inWater && world != null;
+        // (idle already returned above.) In-process drowning backstop: a goto/runAway that gets the
+        // bot stuck submerged (the lake death-loop: drowned at y61 mid-path) gives no steering of its
+        // own; surfacing/beaching beats drowning, and the process resumes once back at the surface.
+        // Only the SUBMERGED head triggers this — a process crossing AT the surface keeps its own steer.
+        boolean steer = p.isUnderWater() && inWater && world != null;
         if (!steer) return;
         // Fully out on dry land (on ground AND head clear of water) — done; let the
         // idle releaseKeys() take over. While still IN water, keep steering even if

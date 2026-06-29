@@ -1404,6 +1404,44 @@ public final class BotConfig {
      *  projector (auto-computed when this or another arc-length flag is on). Default OFF. */
     public static volatile boolean walkerArcLengthWedge = true;
 
+    /** Phase-3b: NET arc-length progress over a WINDOW (catches an OSCILLATING limit cycle the per-tick ram wedge
+     *  {@link #walkerArcLengthWedge} and the anti-churn net-XZ both miss). A steep-face diagUp churn (live 2026-06-28
+     *  -815, deterministically reproduced via replay-0006) bob-jumps AIRBORNE (no hCol → ram wedge resets) making
+     *  small per-tick FORWARD ds then sliding back: net arc-s ≈ 0 over the cycle, yet per-tick |ds| > 0.05 (ram wedge
+     *  resets) and net-XZ swings ~35 blocks laterally (anti-churn fooled). arc-s is the projection ONTO the path,
+     *  immune to both the lateral swing and the vertical bob, so requiring ≥ ARC_PROG_MIN net arc-s over ARC_PROG_WINDOW
+     *  cleanly flags "no path progress despite motion" and folds into the SAME fellOffPath recovery (fresh foot-search
+     *  blacklists the un-advanceable node + re-routes). No hCol/onGround gate; excludes water + a legit barrierHit hold.
+     *  A healthy walk clears ~8 blocks of arc / 2 s so legit travel never trips it. Default OFF (byte-identical).
+     *  Validate via the deterministic replay-0006 A/B. */
+    public static volatile boolean walkerArcProgressWedge = false;
+
+    /** Fell-below align breaker: the diagUp limit-cycle ROOT (deeper than {@link #walkerArcProgressWedge}'s repath
+     *  recovery). When the bot drifts below the route onto a +1 node, the freeze-breaker's LOOSE stepCol2&lt;1.6 gate
+     *  fires a forced grounded jump from a lateral offset (~1.0-1.6) that lands BACK below the node, relaunches the
+     *  bob, and repeats — a futile-jump cycle (live replay-0006 -809: onG 39:1 false, ~97% airborne, mount machinery
+     *  starved). This SUPPRESSES the jump while {@link Walker} arcProgStall is set AND the lateral offset is in the
+     *  loose-but-not-tight band (&gt; FELL_BELOW_TIGHT_SQ), letting the bot SETTLE to ground so the forward-drive pulls
+     *  it to tight alignment; the jump re-engages once in close and mounts cleanly (mirrors the pillarUp off-column
+     *  align). Unlike apw (repath = re-commit the same staircase) this fixes the MOUNT in place. Default OFF
+     *  (byte-identical: arcProgStall resets in water → dry-only; INERT unless the futile-jump signature is present).
+     *  Validate via the deterministic replay-0006 A/B (and the replay-corpus regression). */
+    public static volatile boolean walkerFellBelowAlign = false;
+
+    /** Bob-immune DRY wedge timer at +1 climb nodes. The {@code noStepProgressTicks} wedge timer counts ticks
+     *  where the closest-approach distance² ({@code wd2}) stops improving; on dry land wd2 uses the CONTINUOUS
+     *  {@code p.getY()} vertical term, so the jump/buoyant bob at a node ABOVE the foot (p.y oscillates ~0.1
+     *  TOWARD the node every tick) manufactures a wd2 new-low each tick → the timer resets → a STALLED +1 climb
+     *  (a stepUp ramming the riser without mounting, or a stairUpBreak whose break never completes because the
+     *  aim wanders off the target block) never trips recovery and churns indefinitely (corpus-steep-822
+     *  water-edge climb-out: 760+ churn ticks clustered at -812..-817 / y60-66, replay-diagnosed 2026-06-29).
+     *  When ON, at an above-node ({@code node.y > foot.y}) the vertical term uses the QUANTIZED {@code foot.getY()}
+     *  so only a REAL climb (the foot rising a whole block) counts as vertical progress — an in-place bob does
+     *  not, so the wedge timer accumulates and the existing recovery fires. Default OFF (byte-identical unless
+     *  the bob-defeated-timer signature is present: dry, above-node, non-mounting). Validate via the hardened
+     *  K=3-median replay-corpus gate (baseline_robust.json). */
+    public static volatile boolean walkerDryWedgeFootY = false;
+
     /** Bob-immune ascent-ram freeze-breaker trigger: on a steep tall bank (live W→E -861→-632, ~50-70s jank,
      *  reproducible), a +1 {@code diagUp}/{@code stepUp} mount jumps off the diagonal corner, slides back to
      *  the riser foot, and repeats — foot pinned ~0.78 BELOW the node, cur2 orbiting 0.64-0.88 just over the
@@ -1445,6 +1483,139 @@ public final class BotConfig {
      *  GameTest cannot faithfully reproduce the buoyant-dig dynamics (instant-break masks them), so this
      *  MUST be live-A/B'd, not accepted on GT-green. */
     public static volatile boolean walkerFutileBankDigRelease = false;
+
+    /** Block-less bank-dig OVERHANG rejection: when picking a riser to break, require the cell
+     *  directly BELOW the chosen riser to be solid — i.e. the riser is a genuine bank-face step
+     *  the bob-jump can ground beside, NOT an air-gapped CEILING/overhang.
+     *  <p><b>The bug</b> (live -628→-790, 2026-06-27): a buoyant bot floating at a sheer 10-block
+     *  cliff base has no climbable +1 step in the forward column; the riser search (which already
+     *  finds "lowest solid above the waterline") then latches the column's OVERHANG roof (e.g. a
+     *  +4 cell whose floor is air), digs it forever (the floor never appears), yaw-locks into the
+     *  cliff and bob-stalls ~10-40 s per spot. A* meanwhile planned a perfectly good pillarUp exit
+     *  ~8 blocks along the water — the bot should just swim there, not dig the overhang.
+     *  <p><b>The fix</b> restores the invariant the selection comment already states ("a DRY notch
+     *  whose floor stays solid") but the code omitted: reject a riser with an air floor. With no
+     *  valid +1 riser the dig simply doesn't engage, so the bot swims the committed path to the
+     *  real climb-out. A legit staircase-dig tunnels through a SOLID massif (floor always solid),
+     *  so it is unaffected.
+     *  <p><b>Default OFF</b> — byte-identical no-op until validated. MUST be live-A/B'd on the
+     *  -628→-790 water-pocket repro (GT instant-break masks buoyant-dig dynamics), and GT-regressed
+     *  for the deep-water-cross staircase-dig before any default flip. */
+    public static volatile boolean walkerBankDigSkipOverhang = false;
+
+    /** Buoyant A* search start anchored to the WATER SURFACE instead of the bob-dipping foot.
+     *  <p><b>The bug</b> (live -733→-540 deadlock, replay+live evidence 2026-06-27): a bot floating
+     *  at a water surface bobs its Y ±0.4 (p.y 61.64↔62.02). The search start is
+     *  {@code foot = floor(p.y)}, so a repath fired during a DOWN-bob starts A* one cell UNDER the
+     *  surface (y61). A* then prefixes the plan with submerged nodes the buoyant bot can't descend
+     *  to; those prefix cells sit BEHIND/below the bot, the current-waypoint never leaves them, and
+     *  the climb-out bank-dig follows the waypoint and aims BACKWARD (live: yaw-locked west digging a
+     *  stone wall while the goal is east) → the bot bob-stalls and every repath re-derives the same
+     *  underwater prefix from the same dipped foot → a permanent churn (replay: 20 repaths, all the
+     *  same y61-prefix path).
+     *  <p><b>The fix</b>: for a bot floating AT the surface (inWater, !onGround, eye above water),
+     *  raise ONLY the search-start cell to the surface (top water cell) so the plan extends FORWARD
+     *  from where the body actually floats, never behind/below it. The global {@code foot} used by
+     *  actuators/sampling is untouched — only {@code newSearch(foot,…)} sees the lifted cell.
+     *  <p><b>Default OFF</b> — must be live-A/B'd on the deterministic repro
+     *  (tp -733 63 230 + goto -540,320 → bob-stall) before any default flip. */
+    public static volatile boolean walkerBuoyantSearchFromSurface = false;
+
+    /** Forward-hemisphere guard for the water climb-out block-less bank-dig riser selection. The
+     *  omnidirectional nearest-dry-exit scan (Walker, the {@code sx,sz in -4..4} loop) can pick an
+     *  exit BEHIND the bot (opposite the path's current waypoint) and then dig the backward riser —
+     *  the live -733/-710 "dig the west wall behind me while the goal is east" deadlock (1000+ digs
+     *  at one backward riser, ~48 s frozen, bot reverses tens of blocks). When ON, the exit scan
+     *  only considers offsets in the cwp-direction hemisphere (dot(offset, cwp-dir) {@code >= 0}); if
+     *  no forward exit exists the cwp-direction fallback still drives a forward dig, so the climb-out
+     *  never trenches backward. Independent of (and composable with) {@link #walkerBuoyantSearchFromSurface}
+     *  which fixes the search START — a correctly-forward path can still have its exit scan pick a
+     *  closer backward exit. Default OFF (committed-safe); validate on the deterministic -733 repro. */
+    public static volatile boolean walkerBankDigForwardExit = false;
+
+    /** Don't snap an elevated AIR goal DOWN in {@link Walker#snapGoalToStandable} when it is
+     *  reachable by PILLARING up (goal cell + head passable, a solid base within a few blocks
+     *  below to pillar from, and {@code allowPlace}). The snap was added to settle random goals
+     *  that land inside terrain, but it also defeats "pillar up to an elevated goal": the goal
+     *  is "unstandable" only because its floor is air, which pillaring creates. Snapping it to
+     *  the highest currently-standable cell makes the bot stop 1+ blocks short (live summitArena:
+     *  goal y233 snapped to y232, bot arrives at y232, never pillars the last block = "上坡跳不上
+     *  高空目标"). When ON, a pillar-reachable elevated goal keeps its real target so A* finds the
+     *  pillarUp path; a truly floating void goal (no base below) still snaps. Default OFF
+     *  (committed-safe); validate on the deterministic summitArena geometry. */
+    public static volatile boolean walkerPillarReachGoalNoSnap = false;
+
+    /** Skip the block-less water climb-out bank-dig when the committed path's NEXT node (cwp)
+     *  is a WATER cell — the bot should SWIM into it and reach the real climb-out (a stepUp onto
+     *  land) further along the path, not dig where it floats. The dig's omnidirectional exit scan
+     *  picks the NEAREST dry exit, which on a tall sheer goal-side bank is the perpendicular wall
+     *  face (dot≈0, slips past the forward-hemisphere guard {@link #walkerBankDigForwardExit}); the
+     *  bot then trenches the goal-side wall, yaw-locks at it, rams it, and bob-stalls forever while
+     *  A*'s path swims around to a lower exit (live 2026-06-27 water-bank deadlock @ -646,62,351,
+     *  stuck 1181 ticks, cwp=-648 WATER). A genuine climb-out HERE routes cwp to a LAND/stepUp node
+     *  (not water) so the dig still fires for it. Default OFF (committed-safe); validate via replay
+     *  A/B on the archived deadlock before flipping. */
+    public static volatile boolean walkerBankDigSkipWhenCwpSwims = false;
+
+    /** Extend the WALK overshoot-advance (crossedWalkNode) to also rescue an overshot
+     *  traverseBreak node. A dry traverseBreak (break a block + walk through) is a FLAT
+     *  horizontal move just like walk, but the crossedWalkNode nudge is gated move.equals("walk")
+     *  only, so when the bot breaks the block and drifts PAST the node centre, cur2 climbs out of
+     *  the within-gate (0.45) and neither within nor passed fires → the step freezes and the bot
+     *  orbits/creeps until the wedge-repath rescues it (live 2026-06-27 journey -540,300→-700,400
+     *  @ -678,68,388: move=traverseBreak, break0 already CLEAR, cur2=2.4 INCREASING, overshoot
+     *  1.78b past the node, totStuck ~120-166 ≈ 5-8 s). Fix: let traverseBreak share the same
+     *  CONFIRMED-stall overshoot-advance (dot(off,seg)>0 && |Δy|<1.2 && !inWater). Default OFF
+     *  (committed-safe; OFF → byte-identical, only "walk" matches as before); validate via live
+     *  A/B on the dry mountain crossing before flipping. */
+    public static volatile boolean walkerTraverseBreakOvershootResync = false;
+
+    /** Pillar-place FALLBACK for a swimAshore +2 bank that the block-less bank-DIG never engages.
+     *  The pillar-takeover (Walker ~L2501) is gated {@code !deepDig}, deferring to the bank-DIG for
+     *  buoyant climb-outs. But a swimAshore +2 edge with NO toBreak block never commits a dig
+     *  (waterClimbDigging stays false): the swimAshore jump only fires inside the break-loop, so
+     *  jump=false and the floating bot bobs against the bank at cur2≈0.64 while neither the pillar
+     *  (deepDig-suppressed), the dig (no riser), nor the futile-dig-release (only fires for committed
+     *  digs) engages — an 8-45 s churn that occasionally hard-deadlocks (live 2026-06-27 replay-0012
+     *  @ -612,420: move=swimAshore node +2, jump=false, hCol, ~4 min frozen in 1/5 runs). When ON,
+     *  if the bot HAS a placeable, the dig is NOT engaging (!waterClimbDigging — exactly the
+     *  no-toBreak case), and the stall has run PAST the ~4 s dig window (WATER_CLIMB_DIG_STALL), let
+     *  the pillar engage DESPITE deepDig so the dirt foothold lifts it onto the +2 bank. Default OFF
+     *  (byte-identical; the dig still owns every case where it actually swings). Validate via
+     *  replay-0012 ×N OFF/ON measuring the -612 churn before flipping. */
+    public static volatile boolean walkerSwimAshorePillarDespiteDeepDig = false;
+
+    /** FLOATING +1 water-bank climb-out freeze (live #47 2026-06-28, journey#1 replay-0023 dominant
+     *  residual: -646,63 bank ~23.5s churn). A buoyant bot floating at a +1 water bank (node y64) bobs
+     *  y62.7(water)↔63.65(air) every 2-3 t, onGround NEVER true, doing stepUp but XZ frozen. ALL three
+     *  stepUpFreeze counters miss it: stepRamStuckTicks needs onGround (floating has none), ascentRamBob
+     *  needs !isInWater (the bob dips into water and zeroes it every 2-3 t), shallowBankStep needs onGround.
+     *  So stepUpFreeze never engages → 23.5 s churn. When ON, a dedicated floatingBankBobTicks counter
+     *  accrues on the floating +1 bank (wp.y-foot.y in (0,1.5], !onGround, foot below node, laterally
+     *  ramming) IGNORING the in/out-of-water bob, and ORs into stepUpFreeze past a conservative bar
+     *  (2×STEPUP_FREEZE_TICKS) so the climb-out repath/pillar engages. Limited to +1 banks (NOT +2, to
+     *  avoid the unwinnable-mount over-pin that reverted the bob-immune ascentRam v2). Default OFF
+     *  (byte-identical). Validate via replay-0023 ×N OFF/ON measuring the -646 jank before flipping. */
+    public static volatile boolean walkerFloatingBankBobFreeze = false;
+
+    /** Lateral-bank-follow: when a FLOATING bot rams a water bank (ANY node-Y, including the walk-ram
+     *  facet the ascending freeze counters miss) and the ram is sustained past 2×STEPUP_FREEZE_TICKS,
+     *  drive a PERPENDICULAR slide ALONG the bank — sign alternating every ~40 ticks — so the body
+     *  sweeps to the nearest mountable exit instead of grinding/digging the dead spot. Targets the
+     *  NON-DETERMINISTIC dominant residual (replay-proven: same route 0s/0s/33s — buoyant approach
+     *  randomly lands on a mountable vs dig-required spot). Forward drive is untouched, so the sweep
+     *  mounts the moment it lines up with a climbable lip; self-terminating (climb progress resets the
+     *  counter). Default OFF (byte-identical). Validate via the -638,418 reproducible case + journeys. */
+    public static volatile boolean walkerFloatingBankFollow = false;
+
+    /** Faster anti-churn repath: shorten the net-displacement churn-detection window from 400 ticks
+     *  (≈20 s) to 240 (≈12 s) so a path-state churn (planner committed a suboptimal segment the
+     *  executor grinds on — dry steep-ascent backtrack, boxed-pinch) arms its escalation/charge sooner,
+     *  halving the per-cycle stall. SAFE because the trigger still requires <8 blocks NET XZ in the
+     *  window (a healthy walk/swim nets ≫8 blocks even in 12 s) AND the !breakingEdge guard still
+     *  protects a legitimate ~750-tick underwater dig from tripping. Default OFF (byte-identical).
+     *  Validate via journeys (path-state churns only reproduce in continuous nav, not via tp). */
+    public static volatile boolean walkerFasterChurnRepath = false;
 
     /** Segment anchor-gate exemption for a DEEP-WATER-FLOAT start: accept an otherwise-rejected
      *  continuation whose first node is a FAR node reachable by a straight clear-LOS swim over open water.

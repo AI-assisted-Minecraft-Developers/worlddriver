@@ -10,3 +10,4 @@ scripts/__pycache__/
 
 # path-debug chart output (runtime, never commit)
 **/config/agent_driver/debug/
+/.venv/

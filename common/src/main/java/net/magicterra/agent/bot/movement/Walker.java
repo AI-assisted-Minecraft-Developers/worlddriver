@@ -237,6 +237,10 @@ public final class Walker {
      *  in <12 ticks so it never trips, yet this breaks a freeze far sooner than the ~6 s
      *  anti-stuck burst (which yanks the bot BACKWARD off the very step it needs). */
     private static final int STEPUP_FREEZE_TICKS = 24;
+    /** Lateral-bank-follow: how many cells to scan along the bank (each way) for a mountable exit lip.
+     *  Widened 6→10 (2026-06-28): tall +2 walls (e.g. -722 boxed-pinch) have their nearest steppable
+     *  +1/flat exit further along the bank; a 6-cell reach missed it → 3-min floating deadlock. */
+    private static final int BANK_FOLLOW_SCAN = 10;
     /** No-step-progress ticks before the ≥2 ascentRamSlide desync recovers — DELIBERATELY well
      *  below STEPUP_FREEZE_TICKS. A node ≥2 above a GROUNDED foot is never a planned move (steps/
      *  parkour/pillar all rise +1), so it is ALWAYS an execution slide-back the bot can never
@@ -597,6 +601,8 @@ public final class Walker {
     private int pillarRecoverStallTicks; // consecutive recovery ticks with no height gain → PILLAR_NORISE_GIVEUP re-routes
     private int stepRamStuckTicks;       // GROUNDED ticks ramming an above-node riser (bob-immune; dry OR shallow water) → STEPUP_FREEZE_TICKS engages stepUpFreeze
     private int ascentRamBobTicks;       // foot-below-node + lateral-close ticks IGNORING onGround (bob-resettable; steep-bank +1 mount) → ORs into stepUpFreeze (gated walkerAscentRamBobBreak)
+    private int floatingBankBobTicks;    // FLOATING +1 water-bank: !onGround + foot-below-node + lateral-ram, IGNORING the in/out-water bob → ORs into stepUpFreeze (gated walkerFloatingBankBobFreeze)
+    private int bankFollowRamTicks;      // FLOATING water-bank lateral ram (ANY node-Y) → drives a slide ALONG the bank toward a mountable exit (gated walkerFloatingBankFollow)
     private boolean descending;       // ending creative flight; wait to land before pathing
     private PathFinder.Search activeSearch;  // in-flight time-sliced A* (null = none)
     private double bestDistToGoal = Double.POSITIVE_INFINITY;
@@ -626,6 +632,12 @@ public final class Walker {
      *  30 ticks (1.5 s) cuts the legacy ~100-tick (5 s) wedge wait by 70% while sitting well past a legit
      *  stepUp/diagUp jump-mount (which presses the riser only ~5-10 t before it tops out and ds jumps). */
     private static final int ARC_WEDGE_TICKS = 30;
+    /** Phase-3b net-arc-progress window (walkerArcProgressWedge). 40 ticks (2 s): a healthy walk advances ~8 blocks
+     *  of arc-length, the slowest legit climb still clears several, so requiring ≥ ARC_PROG_MIN net progress over the
+     *  window flags an oscillating/frozen limit cycle (net ≈ 0) without misfiring on slow-but-moving travel. Shorter
+     *  than the legacy 100-tick wedge so it recovers ~2.5× sooner. */
+    private static final int ARC_PROG_WINDOW = 40;
+    private static final double ARC_PROG_MIN = 2.0;
     // ===== Phase-0 SHADOW arc-length pursuit (walkerArcLengthShadow) — DRIVES NOTHING, logged only =====
     private List<BlockPos> arcShadowPath;                   // path identity the shadow s tracks (reset s/ds when the path object changes)
     private double arcShadowS = Double.NaN;                 // last tick's cumulative arc-length (XZ, from path[0] to the foot's polyline projection); for ds/dt + monotonic-violation detection
@@ -638,6 +650,17 @@ public final class Walker {
     // is immune to that vertical/jitter noise (a wall-ram makes no forward arc progress regardless of bob), so
     // ticks of |ds|<ARC_WEDGE_DS while horizontalCollision accumulate reliably → fold into fellOffPath far sooner.
     private int arcWedgeTicks;                              // consecutive ticks of ~zero arc-progress while ramming (bob/jitter-immune); reset on any real ds or path change
+    // Phase-3b (walkerArcProgressWedge): NET arc-length progress over a WINDOW — catches an OSCILLATING limit cycle
+    // the per-tick ram wedge (arcWedgeTicks, needs hCol + per-tick |ds|<0.05) and the anti-churn net-XZ both miss.
+    // A steep-face diagUp churn (live 2026-06-28 -815, replay-0006) has the bot bob-jumping airborne (no hCol), making
+    // small per-tick FORWARD ds then sliding back — net arc-s ≈ 0 over the cycle yet per-tick |ds| > 0.05 (so the ram
+    // wedge resets) and net-XZ swings 35 blocks laterally (so the anti-churn is fooled). arc-s is the projection ONTO
+    // the path, immune to the lateral swing AND the vertical bob, so net arc-s over a window cleanly flags "no path
+    // progress despite motion". Folds into the SAME fellOffPath recovery (fresh foot-search blacklists the
+    // un-advanceable node + re-routes). Window-based so it does NOT need hCol or onGround.
+    private double arcProgBaseS = Double.NaN;               // arcProj.s at the start of the current progress window
+    private int arcProgWindowTicks;                         // ticks elapsed in the current arc-progress window
+    private boolean arcProgStall;                           // last completed window made < ARC_PROG_MIN net arc-s progress → stuck (consumed by fellOffPath)
     private boolean searchSuppressedPlace;                  // the in-flight search dropped placing moves (block-budget reroute) → adopt its result without re-checking
     private float smoothTargetYaw = Float.NaN;              // EMA-low-passed target heading (NaN = uninitialised; resync on launch/new goal)
     private float smoothWaterDriveYaw = Float.NaN;          // EMA-low-passed water DRIVE heading (separate from the camera trend)
@@ -745,6 +768,21 @@ public final class Walker {
         if (!(goal instanceof Goal.Block b)) return;
         BlockPos t = b.target();
         if (world.canStandAt(t)) return;                 // already fine — leave it
+        // walkerPillarReachGoalNoSnap: don't snap an elevated AIR goal DOWN when it's reachable
+        // by PILLARING up. canStandAt(t) here fails only because t's floor is air — but pillaring
+        // creates that floor, so the goal IS reachable. Snapping it to the highest currently-
+        // standable cell makes the bot stop 1+ blocks short (live 2026-06-27 summitArena: goal
+        // y233 → snapped to standable y232, bot pillars 2 then arrives at y232, never pillars the
+        // last block; "上坡跳不上高空目标"). Skip the snap so A* keeps the real goal and finds the
+        // pillarUp path. Guard against a truly FLOATING void goal (no base to pillar from): require
+        // the goal cell + head to be passable AND a solid base within a few blocks below.
+        if (BotConfig.walkerPillarReachGoalNoSnap && BotConfig.allowPlace
+                && !world.isSolid(t) && !world.isSolid(t.above())) {
+            boolean baseBelow = false;
+            for (int d = 1; d <= 5; d++)
+                if (world.isSolid(t.offset(0, -d, 0))) { baseBelow = true; break; }
+            if (baseBelow) return;   // pillar-reachable elevated goal — let A* pillar up to it
+        }
         BlockPos best = null;
         long bestToTarget = Long.MAX_VALUE, bestToFoot = Long.MAX_VALUE;
         for (int dy = -GOAL_SNAP_RADIUS; dy <= GOAL_SNAP_RADIUS; dy++)
@@ -986,6 +1024,24 @@ public final class Walker {
         // ARMS the planned case and biases the step-off keys.
 
         BlockPos foot = new BlockPos((int) Math.floor(p.getX()), (int) Math.floor(p.getY()), (int) Math.floor(p.getZ()));
+        // Search start for a bot floating AT the water surface. foot=floor(p.y) DIPS underwater on a
+        // down-bob (p.y 61.64↔62.02 → foot.y 61↔62), so a repath fired mid-down-bob starts A* one
+        // cell UNDER the surface; A* prefixes the plan with submerged nodes the buoyant bot can't
+        // descend to, those cells sit behind/below the bot, the waypoint never leaves them and the
+        // climb-out dig aims BACKWARD (live -733→-540: yaw-locked west digging a wall while the goal
+        // is east) → permanent churn (replay: 20 repaths, identical y61-prefix path). Anchor ONLY the
+        // search start to the surface cell so the plan extends FORWARD from where the body floats.
+        // Global `foot` (actuators/sampling) is untouched. Gated to surface-floating (eye above water)
+        // so deep underwater navigation is unaffected.
+        BlockPos searchFoot = foot;
+        if (BotConfig.walkerBuoyantSearchFromSurface
+                && p.isInWater() && !p.onGround() && !p.isUnderWater()) {
+            int sy = foot.getY();
+            while (world.isWater(new BlockPos(foot.getX(), sy, foot.getZ()))) sy++;
+            // sy = first non-water cell above the column; the top water cell (sy-1) is where the body
+            // floats. Clamp >= foot.y so this only ever LIFTS the start, never sinks it.
+            searchFoot = new BlockPos(foot.getX(), Math.max(foot.getY(), sy - 1), foot.getZ());
+        }
         sampleTick(p);
         // One-shot goal snap (needs a live WorldView, so here not in setGoal): a random
         // long-distance goto whose exact target block is UNSTANDABLE — buried in terrain,
@@ -1212,7 +1268,11 @@ public final class Walker {
         // routes from here) at ~1.5 s instead of the 5 s wedge burst. Default-OFF behind walkerArcLengthWedge.
         boolean arcWedge = BotConfig.walkerArcLengthWedge && arcWedgeTicks > ARC_WEDGE_TICKS
                 && path != null && step < path.size();
-        boolean fellOffPath = arcWedge || ascentRamSlide || ascentRamSlideJitterImmune || descentRamStuck || verticalResync || (path != null && step < path.size()
+        // Phase-3b: an OSCILLATING limit cycle (net arc-s ≈ 0 over a window) the per-tick ram wedge + anti-churn miss.
+        boolean arcProgWedge = BotConfig.walkerArcProgressWedge && arcProgStall
+                && path != null && step < path.size();
+        if (arcProgWedge) arcProgStall = false;   // consume once so the recovery isn't re-fired before the next window
+        boolean fellOffPath = arcWedge || arcProgWedge || ascentRamSlide || ascentRamSlideJitterImmune || descentRamStuck || verticalResync || (path != null && step < path.size()
                 && Math.abs(path.get(step).getY() - foot.getY()) > world.maxJumpUpBlocks() + 2);
         if (arcWedge && BotConfig.walkerDebug)
             LOG.info("[walker] arc-wedge RECOVER step={}/{} node={} nodeDy={} wedgeT={} (bob-immune ram → fellOffPath)",
@@ -1287,8 +1347,9 @@ public final class Walker {
         // arrived because it happened to route AROUND via the NE bank). The old
         // !isInWater gate excluded exactly this case. The penalty decays (~90 s) and a
         // healthy crossing nets ≫8 blocks / 20 s, so legit swims never trip it.
+        int effChurnWindow = BotConfig.walkerFasterChurnRepath ? 240 : CHURN_WINDOW;
         if (churnBase == null) { churnBase = foot; churnWindowTicks = 0; }
-        else if (++churnWindowTicks >= CHURN_WINDOW) {
+        else if (++churnWindowTicks >= effChurnWindow) {
             int cdx = foot.getX() - churnBase.getX(), cdz = foot.getZ() - churnBase.getZ();
             int cdy = foot.getY() - churnBase.getY();
             // Fire on a best-effort churn (existing cases — all net ≈0 Y, unchanged) OR on a
@@ -1494,7 +1555,7 @@ public final class Walker {
                         world.penalizeStuckNode(c.above());
                     }
             }
-            activeSearch = new PathFinder(world).newSearch(foot, goal);
+            activeSearch = new PathFinder(world).newSearch(searchFoot, goal);
             searchFromEnd = false;
             searchSuppressedPlace = false;    // normal search: placing allowed; budget re-checked on result
             pendingSegment = null;            // a foot-search supersedes any stashed continuation
@@ -1766,9 +1827,17 @@ public final class Walker {
             // unmountable bank without gaining XZ) still fails to close XZ and trips the wedge
             // exactly as before (so deep-water climb-out detection is unchanged). Dry land keeps
             // the full 3D test (a stepUp/pillar that gains height IS progress there).
+            // walkerDryWedgeFootY: at an ABOVE node on dry land, the continuous p.getY() vertical term lets the
+            // jump/buoyant bob (p.y oscillates ~0.1 toward the node) manufacture a wd2 new-low every tick →
+            // resets the wedge timer → a stalled +1 climb (stepUp ram / stairUpBreak whose break never completes)
+            // never trips recovery and churns. Quantize the vertical term to foot.getY() so only a REAL climb
+            // (foot rises a whole block) counts; an in-place bob does not. See BotConfig.walkerDryWedgeFootY.
+            double wdyEff = (BotConfig.walkerDryWedgeFootY && !p.isInWater() && wn.getY() > foot.getY())
+                    ? (wn.getY() - foot.getY())
+                    : wdy;
             double wd2 = p.isInWater()
                     ? wdx * wdx + wdz * wdz
-                    : wdx * wdx + wdy * wdy + wdz * wdz;
+                    : wdx * wdx + wdyEff * wdyEff + wdz * wdz;
             if (wd2 < noProgressBestD2 - 0.05) {   // any real new-low counts; 0.05 is float-noise margin (1.0 starved a 1.5 b/s approach inside ~7 blocks: 2·d·v < 1)
                 noProgressBestD2 = wd2;
                 noStepProgressTicks = 0;
@@ -1808,11 +1877,12 @@ public final class Walker {
         // the per-tick cur2<0.45 / |dyNode|<1.2 gates. Logged only, so a replay can confirm s is monotonic
         // and the projected segment tracks the live `step` on clean runs BEFORE Phase 1 drives off it.
         if ((BotConfig.walkerArcLengthShadow || BotConfig.walkerArcLengthAdvance || BotConfig.walkerTangentAim
-                || BotConfig.walkerArcLengthWedge)
+                || BotConfig.walkerArcLengthWedge || BotConfig.walkerArcProgressWedge || BotConfig.walkerFellBelowAlign)
                 && path != null && step < path.size() && foot != null) {
             arcShadowTick(world, foot, p.getX(), p.getZ(), p.getYRot(), p.isInWater(), p.horizontalCollision);
         } else {
             arcWedgeTicks = 0;   // no projection this tick → don't carry a stale ram count into the next path
+            arcProgBaseS = Double.NaN; arcProgWindowTicks = 0; arcProgStall = false;   // reset the net-progress window too
         }
 
         while (step < path.size()) {
@@ -2078,7 +2148,9 @@ public final class Walker {
             // are deliberately excluded there; climbs/water keep their bases); |Δy|<1.2 bars a climb.
             boolean crossedWalkNode = false;
             if (!within && !passed && !crossedDescendNode
-                    && se != null && se.move != null && se.move.equals("walk")
+                    && se != null && se.move != null
+                    && (se.move.equals("walk")
+                        || (BotConfig.walkerTraverseBreakOvershootResync && se.move.equals("traverseBreak")))
                     && !p.isInWater() && noStepProgressTicks > WALK_OVERSHOOT_STUCK_TICKS
                     && step + 1 < path.size()) {
                 BlockPos nxw = path.get(step + 1);
@@ -2363,7 +2435,16 @@ public final class Walker {
             // wantClimb false), so it never reaches WATER_CLIMB_STALL; only a real
             // bob-stall sits in-context long enough to arm. (live round76b: net-window
             // armed 0 takeovers; pure tick-count arms reliably.)
-            boolean wantClimbNow = edge != null && cwp.getY() > foot.getY();
+            // wantClimbNow normally needs the waypoint ABOVE the foot. But a FLOATING bot ramming a
+            // water-bank LIP (walkerFloatingBankBobFreeze, live #47 repro -638,418→-652): the next wp can
+            // be at the SAME Y across a 1-block lip, so cwp.y>foot.y is false and waterClimbing never arms
+            // — the bot just jumps+rams the lip (hCol, hSpd~0) for 20+ s with no bank-dig/pillar recovery.
+            // Treat "afloat + horizontally colliding while touching water" as wanting to climb so the
+            // existing climb-out recovery (bank-dig / foothold-pillar) engages over the lip.
+            boolean floatingBankRam = BotConfig.walkerFloatingBankBobFreeze
+                    && !p.onGround() && p.horizontalCollision
+                    && (world.isWater(foot) || world.isWater(foot.below()));
+            boolean wantClimbNow = edge != null && (cwp.getY() > foot.getY() || floatingBankRam);
             boolean touchingWater = p.isInWater() || world.isWater(foot) || world.isWater(foot.below());
             if (touchingWater) waterTouchRecent = WATER_TOUCH_STICKY;
             else if (waterTouchRecent > 0) waterTouchRecent--;
@@ -2463,7 +2544,14 @@ public final class Walker {
             // pillar has proven futile here (climbPillarGaveUp): a buoyant bob can't lift
             // its feet above a surface fill cell, so re-engaging just bobs again — the
             // bank-DIG below takes over instead.
-            if (waterClimbing && waterClimbStall > WATER_CLIMB_STALL && !climbPillarGaveUp && !deepDig
+            // swimAshore +2 with no toBreak block never commits a dig (waterClimbDigging stays
+            // false), so deepDig suppresses the pillar yet the dig never runs → bob-churn. After the
+            // ~4 s dig window with NO dig swinging, fall back to the pillar despite deepDig so the
+            // placeable lifts the bot onto the bank. Flag-gated; default OFF keeps this byte-identical.
+            boolean swimAshorePillarFallback = BotConfig.walkerSwimAshorePillarDespiteDeepDig
+                    && deepDig && !waterClimbDigging && waterClimbStall > WATER_CLIMB_DIG_STALL;
+            if (waterClimbing && waterClimbStall > WATER_CLIMB_STALL && !climbPillarGaveUp
+                    && (!deepDig || swimAshorePillarFallback)
                     && BotConfig.allowSwimEscapePlace && a.holdPlaceable()) {
                 if (!waterClimbPillaring && BotConfig.walkerDebug)
                     LOG.info("[walker] water climb-out: pillar takeover engaged (bob-stalled) toward bank node {},{},{}",
@@ -2605,8 +2693,21 @@ public final class Walker {
             // sat 0.44 below the y64 ledge, hCol ramming the riser every tick.)
             int digStall = deepDig ? WATER_CLIMB_DIG_DEEP_STALL : WATER_CLIMB_DIG_STALL;
             if (futileBankDigCooldown > 0) futileBankDigCooldown--;   // post-release dig lockout (walkerFutileBankDigRelease)
+            // walkerBankDigSkipWhenCwpSwims: the committed path's NEXT node (cwp) being a WATER cell
+            // means the bot should SWIM into it, not dig — the real climb-out (a stepUp onto land)
+            // sits FURTHER along the path, not here. Digging at a water-routed waypoint is premature:
+            // the omnidirectional exit scan below picks the NEAREST dry exit, which on a tall sheer
+            // bank (goal-side wall ~9 blocks) is the perpendicular wall face (dot≈0, passes the
+            // forward-hemisphere guard) — so the bot trenches the goal-side wall, aimAtBlock locks the
+            // yaw at it, the forward drive rams it, and it bob-stalls forever while A*'s actual path
+            // swims west around to a lower climb-out (live 2026-06-27 deadlock @ -646,62,351, stuck
+            // 1181 ticks: cwp=-648,62,352 WATER, dug east wall instead of swimming the path). Skipping
+            // the dig when cwp is water lets the normal swim-drive follow the path to the real exit.
+            // A genuine climb-out HERE routes cwp to a LAND/stepUp node (not water) so the dig still
+            // fires for it. Default OFF; validate via replay A/B on the archived deadlock.
+            boolean cwpSwims = BotConfig.walkerBankDigSkipWhenCwpSwims && world.isWater(cwp);
             if (!waterClimbPillaring && waterClimbing && waterClimbStall > digStall
-                    && futileBankDigCooldown <= 0
+                    && futileBankDigCooldown <= 0 && !cwpSwims
                     && BotConfig.allowBreak && BotConfig.allowSwimEscapeBreak
                     && (!a.holdPlaceable() || climbPillarGaveUp || deepDig)) {
                 // Keep digging the LATCHED riser while it's still solid — a buoyant bob
@@ -2624,6 +2725,22 @@ public final class Walker {
                 // 2026-06-20: 4545 digs across 10+ columns x2320-2342, never grounded). The
                 // pillar takeover locks its column the same way; the toolless dig now does too.
                 BlockPos riser = waterClimbDigRiser;
+                // walkerBankDigForwardExit, latch re-validation: a LATCHED riser is only re-chosen
+                // when it goes null/non-solid (below), but the 25× underwater mining penalty means a
+                // backward riser can NEVER break — so it stays latched and the forward-hemisphere
+                // guard in the re-scan branch never re-applies (live isolation 2026-06-27: 1024 digs
+                // all at the backward riser even with the guard ON). Drop a latched riser that now
+                // points BACKWARD of cwp so the scan re-runs and re-picks a forward exit (or null →
+                // no dig → swim the path). cwp follows the planned path, so this respects a path that
+                // legitimately routes backward (its cwp points backward too).
+                if (riser != null && BotConfig.walkerBankDigForwardExit
+                        && (cwp.getX() != foot.getX() || cwp.getZ() != foot.getZ())) {
+                    int rdx = riser.getX() - foot.getX();
+                    int rdz = riser.getZ() - foot.getZ();
+                    int gdx0 = Integer.signum(cwp.getX() - foot.getX());
+                    int gdz0 = Integer.signum(cwp.getZ() - foot.getZ());
+                    if (rdx * gdx0 + rdz * gdz0 < 0) riser = null;   // latched backward → force re-scan
+                }
                 if (riser == null || !world.isSolid(riser)) {
                     riser = null;
                     // Climb toward the NEAREST dry-standable EXIT (a cell the bot can stand on:
@@ -2636,9 +2753,26 @@ public final class Walker {
                     int dx = Integer.signum(cwp.getX() - foot.getX());   // fallback: goal direction
                     int dz = Integer.signum(cwp.getZ() - foot.getZ());
                     int bestExitD2 = Integer.MAX_VALUE;
+                    // walkerBankDigForwardExit: the omnidirectional exit scan below picks the NEAREST
+                    // dry exit in ANY direction — including BEHIND the bot. When the nearest exit is
+                    // backward (opposite the path's cwp) the climb-out digs AWAY from the goal into a
+                    // churn — the live -733/-710 "dig the west wall behind me while the goal is east"
+                    // deadlock (1000+ digs at the backward riser, ~48 s frozen, bot reverses 46 blocks).
+                    // Bias the scan to the FORWARD hemisphere (dot(offset, cwp-dir) >= 0) so it only
+                    // digs toward where the planned path actually leads. If NO forward exit exists the
+                    // dx/dz fallback above (= cwp direction = forward) still drives a forward dig, so
+                    // the bot never trenches backward. A genuinely backward path routes cwp backward
+                    // too, so "forward" follows the PATH (the immediate waypoint), not the absolute goal.
+                    // Independent of walkerBuoyantSearchFromSurface (which fixes the search START): even
+                    // a correctly forward path can have its exit scan pick a closer backward exit.
+                    boolean fwdExitGuard = BotConfig.walkerBankDigForwardExit
+                            && (cwp.getX() != foot.getX() || cwp.getZ() != foot.getZ());
+                    int gdx = Integer.signum(cwp.getX() - foot.getX());
+                    int gdz = Integer.signum(cwp.getZ() - foot.getZ());
                     for (int sx = -4; sx <= 4; sx++)
                         for (int sz = -4; sz <= 4; sz++) {
                             if (sx == 0 && sz == 0) continue;
+                            if (fwdExitGuard && (sx * gdx + sz * gdz) < 0) continue;   // skip backward-hemisphere exits
                             for (int sy = 1; sy <= 4; sy++) {
                                 BlockPos land = new BlockPos(foot.getX() + sx, foot.getY() + sy, foot.getZ() + sz);
                                 if (world.isSolid(land.below()) && !world.isSolid(land)
@@ -2673,7 +2807,17 @@ public final class Walker {
                         int ry = surfY + 1;
                         while (ry <= surfY + 5 && !world.isSolid(new BlockPos(cand.getX(), ry, cand.getZ()))) ry++;
                         BlockPos step = new BlockPos(cand.getX(), ry, cand.getZ());
-                        if (ry <= surfY + 5 && world.isSolid(step)) { riser = step; break; }
+                        // Overhang rejection (walkerBankDigSkipOverhang): the riser must be a genuine
+                        // bank-face step whose FLOOR (cell below) is solid — the invariant this comment
+                        // already states ("a DRY notch whose floor stays solid") but the lowest-solid
+                        // scan above omits. An air-floored riser is a CEILING/overhang the buoyant bob
+                        // can never ground beside: digging it does nothing, the bot yaw-locks into it
+                        // and bob-stalls while A*'s real climb-out (a pillarUp ~8 blocks along the
+                        // water) goes unfollowed. Rejecting it leaves riser null → no dig → the bot
+                        // swims the committed path to the real exit. The legit staircase-dig tunnels a
+                        // SOLID massif (floor always solid) so it is unaffected.
+                        boolean overhang = BotConfig.walkerBankDigSkipOverhang && !world.isSolid(step.below());
+                        if (ry <= surfY + 5 && world.isSolid(step) && !overhang) { riser = step; break; }
                     }
                     waterClimbDigRiser = riser;
                     waterClimbDigCommitTicks = 0;   // fresh riser → fresh per-block commit budget
@@ -3775,10 +3919,38 @@ public final class Walker {
                 && (stepColDx * stepColDx + stepColDz * stepColDz) < 1.6;
         if (BotConfig.walkerAscentRamBobBreak && ascentNotTopped) ascentRamBobTicks++;
         else ascentRamBobTicks = 0;
+        // FLOATING water-bank bob (walkerFloatingBankBobFreeze): a buoyant bot at a +1..+3 water bank bobs
+        // y(water)↔(air) every 2-3 t with onGround NEVER true, alternating stepUp/climbUp at the riser but
+        // frozen in XZ. All other freeze counters miss it: stepRamStuck/shallowBank need onGround (floating
+        // has none), ascentRamBob's !isInWater zeroes on each water-dip, and noStepProgress is zeroed by the
+        // 3D bob. Use a STABLE water-bank indicator (water at the foot or just below — true through the WHOLE
+        // bob so the down-phase does NOT reset the counter) + !onGround + a lateral riser-ram + node-above
+        // (cap +3). Restricted to a WATER bank (isWater) so a DRY unwinnable +2 mount is never pinned (the
+        // ascentRam-v2 over-pin regression); an unwinnable water bank simply repaths. Fed into stepUpFreeze
+        // past a 2× bar below.
+        boolean atWaterBank = world.isWater(foot) || world.isWater(foot.below());
+        boolean floatingBankNotTopped = atWaterBank && !p.onGround()
+                && wp.getY() > foot.getY() && (wp.getY() - foot.getY()) <= 3
+                && (stepColDx * stepColDx + stepColDz * stepColDz) < 1.6;
+        if (BotConfig.walkerFloatingBankBobFreeze && floatingBankNotTopped) floatingBankBobTicks++;
+        else floatingBankBobTicks = 0;
+        // Lateral-bank-follow (walkerFloatingBankFollow): a FLOATING bot ramming a water bank at
+        // ANY node-Y — including the walk-ram facet the ascending freeze counter above misses (node
+        // AT/BELOW the foot across a 1-block lip). The dominant residual is NON-DETERMINISTIC: the
+        // same route lands the buoyant approach on a mountable spot (~0s, steps up) OR a dig-required
+        // spot (~30s underwater dig, replay-proven 0s/0s/33s). Count sustained floating-water-rams to
+        // drive a SLIDE ALONG the bank (perpendicular strafe, see the lane-keep block) so the body
+        // sweeps to the nearest mountable exit instead of grinding/digging the dead spot. Self-
+        // terminating: any climb-out progress drops onGround/hCol → counter resets → normal mount.
+        boolean bankFollowRam = atWaterBank && !p.onGround() && p.horizontalCollision;
+        if (BotConfig.walkerFloatingBankFollow && bankFollowRam) bankFollowRamTicks++;
+        else bankFollowRamTicks = 0;
         boolean stepUpFreeze = wp.getY() > foot.getY() && !parkourEdge
-                && (!p.isInWater() || shallowBankStep)
+                && (!p.isInWater() || shallowBankStep
+                    || (BotConfig.walkerFloatingBankBobFreeze && floatingBankBobTicks > 2 * STEPUP_FREEZE_TICKS))
                 && (noStepProgressTicks > STEPUP_FREEZE_TICKS || stepRamStuckTicks > STEPUP_FREEZE_TICKS
-                    || ascentRamBobTicks > STEPUP_FREEZE_TICKS)
+                    || ascentRamBobTicks > STEPUP_FREEZE_TICKS
+                    || floatingBankBobTicks > 2 * STEPUP_FREEZE_TICKS)
                 && (stepColDx * stepColDx + stepColDz * stepColDz) < 1.6;
         boolean pivotForStepUp = wp.getY() > foot.getY() && !parkourEdge && !p.isInWater()
                 && stepHeadingErr > STEPUP_AIM_TOLERANCE_DEG && !stepUpFreeze;
@@ -3954,11 +4126,52 @@ public final class Walker {
         // column so the body sits under the ledge; the existing forward+jump then
         // mounts it (the aligned cardinal climb that already works on dry land).
         boolean waterClimb = p.isInWater() && wp.getY() > foot.getY();
-        if (!descendBrake && !parkourEdge && !steppingOffFall && (wp.getY() == foot.getY() || waterClimb || cardinalUp || diagUp)) {
+        // Lateral-bank-follow active once the floating-water-ram has been sustained past the freeze
+        // bar (2× STEPUP_FREEZE_TICKS, same threshold as the ascending freeze). Drives a perpendicular
+        // slide along the bank regardless of node-Y (catches the walk-ram facet too).
+        // YIELD to apw: a DRY diagUp limit cycle (live replay-0006 -818) is a large vertical oscillation that dips into
+        // a water cell at its bottom, transiently tripping atWaterBank → bankFollow HIJACKS the apw/FBA recovery and
+        // drags the bot down a non-existent "bank exit" (FBA+apw 1530 → +FloatingBankFollow 2198). When apw is the
+        // active stall owner (its arcProgStall has fired), defer to it — apw's repath resolves the cycle, and a GENUINE
+        // water bank with apw OFF is unaffected (the && walkerArcProgressWedge guard).
+        boolean bankFollow = BotConfig.walkerFloatingBankFollow && bankFollowRamTicks > 2 * STEPUP_FREEZE_TICKS
+                && !(BotConfig.walkerArcProgressWedge && arcProgStall);
+        if (!descendBrake && !parkourEdge && !steppingOffFall && (wp.getY() == foot.getY() || waterClimb || cardinalUp || diagUp || bankFollow)) {
             int ddx = wp.getX() - foot.getX();
             int ddz = wp.getZ() - foot.getZ();
             double latX = 0, latZ = 0;
-            if (waterClimb) { latX = (wp.getX() + 0.5) - p.getX(); latZ = (wp.getZ() + 0.5) - p.getZ(); } // centre on the target column
+            if (bankFollow) {
+                // Geometry-aware CONVERGENT slide (v2): the chaotic alternating sweep (v1) sometimes slid
+                // PAST the goal and churned (live A/B: ON#2 ran to -654, worse than OFF). Instead, SCAN
+                // along the bank for the nearest cell the bot can actually mount — a canStandAt lip at
+                // foot.y (flat exit) or foot.y+1 (a +1 step) — and steer deterministically toward it. The
+                // bank NORMAL ≈ the dominant cardinal toward the node (the face being rammed); the bank
+                // runs perpendicular, so probe ±BANK_FOLLOW_SCAN cells along that perpendicular. Nearest
+                // mountable lip wins; forward drive (untouched) mounts it the moment the body lines up.
+                // No mountable lip in range → leave lat 0 so the existing bank-dig/repath recovery runs.
+                int ndx = wp.getX() - foot.getX(), ndz = wp.getZ() - foot.getZ();
+                if (Math.abs(ndx) >= Math.abs(ndz)) { ndx = Integer.signum(ndx); ndz = 0; }
+                else { ndz = Integer.signum(ndz); ndx = 0; }
+                int pdx = -ndz, pdz = ndx;                 // along-bank perpendicular unit
+                int bestK = 0;
+                for (int k = 1; k <= BANK_FOLLOW_SCAN && bestK == 0; k++) {
+                    for (int s = -1; s <= 1 && bestK == 0; s += 2) {
+                        int kk = k * s;
+                        BlockPos flat = foot.offset(ndx + pdx * kk, 0, ndz + pdz * kk);  // same-level exit
+                        BlockPos lip = foot.offset(ndx + pdx * kk, 1, ndz + pdz * kk);   // +1 step lip
+                        if (world.canStandAt(flat) || world.canStandAt(lip)) bestK = kk;
+                    }
+                }
+                if (bestK != 0) {
+                    int dir = Integer.signum(bestK);
+                    latX = pdx * dir; latZ = pdz * dir;    // steer along the bank toward the mountable lip
+                }
+                if (BotConfig.walkerDebug && bankFollowRamTicks % 20 == 0)
+                    LOG.info("[walker] bank-follow scan foot={} normal=({},{}) bestK={} ramT={} → {}",
+                            foot, ndx, ndz, bestK, bankFollowRamTicks,
+                            bestK != 0 ? "STEER to lip" : "NO LIP in range (dig/repath)");
+            }
+            else if (waterClimb) { latX = (wp.getX() + 0.5) - p.getX(); latZ = (wp.getZ() + 0.5) - p.getZ(); } // centre on the target column
             else if (diagUp) { latX = (wp.getX() + 0.5) - p.getX(); latZ = (wp.getZ() + 0.5) - p.getZ(); } // centre on the diagonal toward the step corner
             else if (ddx == 0 && ddz != 0) latX = (wp.getX() + 0.5) - p.getX();        // N/S lane → hold X
             else if (ddz == 0 && ddx != 0) latZ = (wp.getZ() + 0.5) - p.getZ();   // E/W lane → hold Z
@@ -4404,7 +4617,35 @@ public final class Walker {
         // still threads a stone-lipped submerged tunnel low.
         boolean deepWaterRise = p.isInWater() && !diving && world.isWater(foot.below())
                 && wp.getY() >= foot.getY() && world.isWater(wp);
-        boolean jump = !descendBrake
+        // FELL-BELOW ALIGN BREAKER (walkerFellBelowAlign) — the diagUp limit-cycle ROOT, one layer below apw's repath.
+        // The -815/-809 churn (live replay-0006) is a LARGE vertical limit cycle (y64-84) where the bot oscillates
+        // ACROSS the path nodes; it is AIRBORNE ~97% (bob), so EVERY grounded/hCol-gated jump suppression is defeated
+        // and the bot re-launches a futile jump every grounded tick, never settling. When arcProgStall (bob-immune:
+        // <2.0 net arc-s over 40t) confirms the no-progress oscillation, SUPPRESS the jump at any VERTICAL node
+        // (wp.y != foot.y, where a jump would otherwise relaunch the bob) so the bot SETTLES to ground and the existing
+        // fellOffPath repath fires from a stable grounded pose (mirrors the pillarUp off-column align). Validated
+        // isolated: replay-0006 apw-alone 657 → FBA+apw 515 (the -809 spot drops to ~ts17); replay-0005 escapes the
+        // -818 cycle apw-alone gets stuck on (1485 → 627). EXCLUDE a water-edge / shallow climb-out (replay-0005 -890
+        // lakeside start, bot at y62): there the bot is legitimately climbing out and suppressing the jump only blocks
+        // it (regressed the start 790 → 1176); the diagUp cycle is a DRY steep oscillation, so require dry ground under
+        // the foot. Level walks (wp.y==foot.y) keep their jump (none fires there anyway). Default OFF (byte-identical).
+        // NOTE: end-to-end maxStuck is still dominated by OTHER domains (downstream water stalls) and the movement
+        // flags INTERACT badly (FBA+apw+water-stack froze the -818 cycle at 3577) — a silky combination needs the
+        // systematic replay-corpus flag search, not hand-tuning. This fix is validated for the diagUp domain only.
+        boolean fellBelowNearWater = world.isWater(foot) || world.isWater(foot.below())
+                || world.isWater(foot.offset(0, -2, 0));
+        // DEPTH GATE (corpus gate caught this, 2026-06-28): the original `wp.y != foot.y` fired at ANY vertical
+        // node, so a NORMAL +1 diagUp/stepUp the bot could simply jump up (transiently arcProgStall) got its jump
+        // suppressed too → regressed corpus-dry-627 (194 → 280; added a diagUp churn). A single jump clears ~1.25,
+        // so only a node ≥2 ABOVE the foot is genuinely UNreachable by one jump = a real fell-below worth settling
+        // for. Require that depth; a +1 climb keeps its jump. (wp-below-foot descents are handled by below-node-ram.)
+        boolean fellBelowMisaligned = BotConfig.walkerFellBelowAlign && arcProgStall
+                && (wp.getY() - foot.getY()) >= 2 && !fellBelowNearWater;
+        if (BotConfig.walkerDebug && fellBelowMisaligned) {
+            LOG.info("[walker] FELL-BELOW-ALIGN wp={},{},{} foot={},{},{} dY={} arcProgStall=true → suppress jump, settle to ground",
+                    wp.getX(), wp.getY(), wp.getZ(), foot.getX(), foot.getY(), foot.getZ(), wp.getY() - foot.getY());
+        }
+        boolean jump = !descendBrake && !fellBelowMisaligned
                 // Below-node ram (the +1 desync-ram wedge, see descentRamStuck): the bot drifted 1 above the
                 // route and rams an overhang at a node BELOW it. Every jump term here is futile going DOWN (no
                 // riser to mount), and the bob-jump (y+1.25) just bonks the overhang AND lifts the foot off the
@@ -5189,6 +5430,20 @@ public final class Walker {
         // wall-ram. Bob/jitter-immune: vertical motion doesn't move the XZ projection.
         if (reset || inW || arcProj.barrierHit || !hCol || Math.abs(ds) > ARC_WEDGE_DS) arcWedgeTicks = 0;
         else arcWedgeTicks++;
+        // Phase-3b NET arc-progress window: an oscillating limit cycle makes per-tick |ds| > ARC_WEDGE_DS (so the ram
+        // counter above resets) yet zero NET path progress. Measure s over a whole window instead. Excludes water
+        // (own recovery) and a legit pending-vertical-edge hold (barrierHit = expected zero ds). No hCol/onGround gate
+        // — a bob-jumping airborne churn has neither.
+        if (reset || inW) { arcProgBaseS = arcProj.s; arcProgWindowTicks = 0; arcProgStall = false; }
+        else if (++arcProgWindowTicks >= ARC_PROG_WINDOW) {
+            arcProgStall = !arcProj.barrierHit && (arcProj.s - arcProgBaseS) < ARC_PROG_MIN;
+            if (arcProgStall && BotConfig.walkerDebug)
+                LOG.info("[walker] arc-progress-wedge: net s={} < {} over {} ticks at step={} node={} → fellOffPath",
+                        String.format("%.2f", arcProj.s - arcProgBaseS), ARC_PROG_MIN, ARC_PROG_WINDOW, step,
+                        (step < path.size() ? path.get(step) : null));
+            arcProgBaseS = arcProj.s;
+            arcProgWindowTicks = 0;
+        }
         arcShadowPath = path;
         arcShadowS = arcProj.s;
         float dYaw = liveYaw - arcProj.tangentYaw;    // wrap to [-180,180] for the camera-vs-tangent gap

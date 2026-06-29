@@ -228,6 +228,10 @@ public final class SettingsCommand {
                 BotConfig.pathfinderMaxNodes = pmn.intValue();
                 applied.add("pathfinder.maxNodes");
             }
+            if (params.get("walkerDryWedgeFootY") instanceof Boolean dwfy) {
+                BotConfig.walkerDryWedgeFootY = dwfy;
+                applied.add("walkerDryWedgeFootY");
+            }
             if (params.get("avoidMobs") instanceof Boolean avm) {
                 BotConfig.avoidMobs = avm;
                 applied.add("avoidMobs");
