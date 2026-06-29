@@ -248,3 +248,16 @@ flag-tuning / 点修在此系统上系统性失败。这不是"还没找对 fix"
 → **结构性根因假说 = stall-recovery 反馈环偶尔非耗散(自我强化)**。结构性解方向 = 让 recovery 严格耗散:
    每个 anti-stuck/recovery 动作必须**单调减小 stall 度量**(沿 path 的弧长进展),绝不增大;瞬态 stall 则总衰减、永不放大成极限环。
    (验证需 wedge 标本看放大环逐 tick——捕获中。)
+
+## 20. ⭐⭐ planner-budget(maxMs)实用范围内不是 lever + partial-path 质量才是(2026-06-29,steep-822 maxMs 扫描 K=6)
+真默认 DEFAULT_MAX_MS=**1500**ms(+ maxNodes 100k)。steep-822 maxMs 扫描 P(wedge>800)/mean:
+| maxMs | P(wedge) | mean |
+|---|---|---|
+| 1500(默认) | 3/6 | 1125 |
+| 30000 | 4/6 | 1377 |
+| 60000 | 5/6 | 986 |
+| 120000(80×) | 1/6 | 590 |
+**非单调**:1500/30000/60000 全 3-5/6(噪声同档)——**调高 maxMs 20-40× 无用**。仅 120000 降到 1/6(可能 K=6 幸运抽样;mean 清楚降=极端预算下搜索完整找到 goal 才有效);120s 搜索不实用。
+→ **planner-budget 在实用范围被证伪为廉价 fix**;唯一启示=committed **partial-path 质量**(紧预算下提交 wedge-prone 部分段)才是关键,属 best-effort 段选择改进(planner 层选项②,非调参)。
+**本 session 严格排除清单**:① 5/5 执行器点修(§8/10/13/16/18)② planner 实用 maxMs 预算(本节)。
+**剩余唯一方向**(需用户结构性拍板):陡对角爬升 wedge 是**执行器内生双稳态**(§18/19)——要么深度重构陡爬 mount/climb 执行动力学(选项①执行器重基),要么改进紧预算下的 best-effort partial-path 选择避开 wedge-prone 段(选项②planner)。
