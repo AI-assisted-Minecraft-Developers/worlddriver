@@ -334,3 +334,11 @@ gate=9 build live 长途(DryReanchor=ON,-599→-700,150):起步即 wedge @-671 d
 攻 §27 stepUp-mount-failure。假说"sprint-jump 撞 riser 弹开→no-sprint 修"——**诊断发现已被现有代码处理**:Walker:4810-4820 `diagAscent`/`needJumpForStep` 近 riser 已 DROP sprint。且 2026-06-06 A/B-DISPROVEN 注释明载:re-enabling sprint on ascend 回归 hCol 13%→36%(jump 贴 riser 发→sprint 前冲撞更狠);**"sprint-jump 只在 EARLY launch(riser 前)才越台阶;需 early-jump-timing 改动,非翻 sprint"**。
 → no-sprint 假说**冗余**(代码已做),不实现避免 no-op/干扰。**stepUp-mount 真 lever = early-jump-timing**(到 riser 前提早起跳让弧线越过)——2026-06-06 已识别但因 delicate/高回归风险未实现。当前 jump 在 ascendJumpReady flatDist≤1.2(贴近)发。
 **stepUp-mount 攻坚单元的精确靶**:early-jump 时机(flatDist 阈值放宽 + 对齐门),需在 steep corpus(878/815)+ summitArena 做 K≥6 A/B,且极易回归(jump 太早 miss/太晚 ram),是独立精调工程。这是 #47"上坡跳不上方块"的真正剩余工作。
+
+## 30. ⭐ stepUp-mount 诊断到基岩:残留=对角 diagUp mount(cardinal 技术对它已证伪)(2026-06-29)
+续 §29:early-jump(flatDist≤1.7)+sprint(sprintAscend)**对 cardinal +1 step 已实现**(Walker:4194-96,门=对齐 sideDist≤0.2 lateralMotion≤0.1 = "sprint-bunny-hop"丝滑梯)。
+但 live stepUp-mount 失败实为**对角 diagUp**(-711:wp.x≠foot.x AND wp.z≠foot.z, +1 up):
+- diagAscent **drop sprint**(L4810,A/B 证 sprint 撞 riser)
+- early-jump **cardinal-only**;**L4198 明载"扩展 cardinal sprint-bunny-hop 到 DIAGONAL step-ups 已 A/B-disproven"**
+→ **"上坡跳不上方块"残留 = 对角 diagUp(+1)mount**:两个对 cardinal 有效的技术(sprint / early-jump)**对对角都已被证伪**,只剩慢 late-jump grind(bistable:有时 mount 有时卡)。
+**三机制全诊断到基岩**:① repath-churn→DryReanchor 修 ✓ ② 近 diagDown-ram→anchor 振荡(开放)③ diagUp-mount→cardinal 技术证伪的已知硬核(开放)。残留 ②③ 需**对对角几何的新方法**(非 cardinal 移植,已证不行)——是真正的深水区,prior+本 session 多次撞壁。
