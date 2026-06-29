@@ -309,3 +309,8 @@ off-path 门 4→9(只让真失败 move 触发)K=6 同 build A/B(4 关键档):
 gate=9 build live 长途(DryReanchor=ON,-599→-700,150):起步即 wedge @-671 diagDown(telemetry: hCol=true、**yawErr -145(背对节点)、cur2~1.5-2.5、totStuck 509**)+反复挖同块。画面 ANOMALY(原地横跳+视角抖+dig-loop)与 telemetry 一致。
 **根因**:cur2~2 **远低于 off-path 门(9,甚至 4)→ DryReanchor 不触发**。这是 §15 的**近距离 ram-while-facing-wrong**(hCol+大 yawErr+cur2 小),与 DryReanchor 原针对的远 off-path repath-churn 是**不同机制**——证 corpus 聚合改善≠live 丝滑(异质机制须全覆盖)。
 → 扩 DryReanchor 触发:`(cur2>门) || (hCol && |yawErr到当前节点|>90)`,两签名同一 anchor 解(走回上一节点=稳定 bearing 转离墙)。同 stuck>50 门防瞬时 graze 误触。重测 corpus 防回归 + live 重跑看 -671 是否过。
+
+## 26. ram-extension REVERTED(振荡)+ DryReanchor 净结论 + 近 diagDown-ram 仍开放(2026-06-29)
+扩展触发 `||(hCol&&|yawErr|>90)` live 重测 -671:**远比 far-off-only 差**——bot 在 -673..-683 震荡、totStuck 508→**6009(~5min)**(far-off-only 那次是 509 慢恢复)。anchor-back 在**近 ram** 上制造振荡极限环(回 step-1→再逼近→再 ram→再 anchor)= §13/§16 同一教训。**REVERTED**。
+**DryReanchor 净结论**:`far-off-path only`(cur2>9 + dry + stuck>50 → anchor step-1)= **corpus 验证净正**(聚合 P(wedge) 16/48→6/48,§22-24),是 session 首个真降 P(wedge) 的结构 fix,**保留 default-OFF**。
+**仍开放(live -671 实锤)**:近距离 diagDown-ram(hCol+yawErr-145 背对+cur2~2)——身体卡墙朝向错,**aim-back 振荡、aim-node(§13)回归、距离门(§22)漏**。需非-aim 解(lateral strafe 滑离墙 / 黑名单该对角 repath 绕行)。这是 #47 的下一个 live blocker。
