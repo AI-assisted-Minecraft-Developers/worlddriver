@@ -322,3 +322,10 @@ gate=9 build live 长途(DryReanchor=ON,-599→-700,150):起步即 wedge @-671 d
 3. **stepUp/diagUp mount 失败**(-711/-654:`jump=true sprint=true up=true hCol=true hSpd~0.05 不上升` = "上坡跳不上方块")— bot 在陡山爬不动甚至倒退(-711→-654)✗
 → **#47"丝滑"在陡山路线 = 须同时治多个异质 mount/ram 机制**(stepUp-mount-fail 是代码里一堆 default-OFF fix 的老大难)。DryReanchor 是其中 repath-churn 分量的真解,非全部。
 **注**:此路线(-700,150 SW 进 cliff/陡山)是最难类之一;DryReanchor 的有效性验证应以 corpus(用户铁律 replay=真相,聚合 16→6 已达)+ 中等 tractable journey 为准,而非最难陡山。下一攻坚单元:steep-ascent mount(stepUp/diagUp)live 实锤 + diagDown-ram(非 anchor 解)。
+
+## 28. stepUp dormant-flag 组合 REJECTED(攻 mount-failure 失败)(2026-06-29)
+攻 §27 的 stepUp/diagUp mount-failure:复用 4 个针对性 dormant fix(walkerStepUpCrestReach+AscentRamBobBreak+AscentRamJitterImmune+LevelRiserJump)叠 DryReanchor,K=6 vs DryReanchor-only:
+- steep-878: mean 305→267 P(wedge) 0/6→1/6(中性/噪声)
+- crest-815: mean **504→1225** P(wedge) **2/6→3/6**(大幅更差!)
+→ 这些 situational flag 不治通用 mount-failure,**交互效应搞坏 crest-815**(又一组合 backfire,同 session 主题)。REJECTED,重置 OFF。
+**stepUp-mount-failure 现有 flag 解不了** = 需新针对性诊断(精确 riser 几何:+1 clear vs +2 vs overhang vs no-runway)+ 新 fix。与 diagDown-ram(§26)一样是 #47 陡山剩余的独立攻坚单元。
