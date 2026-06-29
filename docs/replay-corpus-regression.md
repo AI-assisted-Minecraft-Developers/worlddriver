@@ -216,3 +216,13 @@ flag-tuning / 点修在此系统上系统性失败。这不是"还没找对 fix"
 连续两次全 gate 还在第 3/6 档"死"(nohup 进程中断,疑 client replay 偶发断)——measurement infra 也受 bistability+flakiness 拖累。
 **结论/决策点**:walkerOvershootReaim(非-hCol)是迄今唯一 net-positive fix(-15%,540 大胜),但**严格零回归在双峰 bistable 档上可能根本不可达**——
 这把球踢回**门标准**:是否接受"净正 + 不在稳定档回归"(放宽对 bistable 档的零回归),还是坚持严格零回归(则该 fix 及大概率任何 fix 都过不了)。是用户最初"全集净正+零回归"标准的现实性再校准。
+
+## 17. ⭐⭐ 关键方法论反转:K=3 baseline 本身被双峰噪声污染 + overshootReaim 实为 HARMFUL(2026-06-29)
+同 build K=6 OFF-vs-ON A/B(对 bistable 用 P(wedge>800)+mean,非单 median):
+- **long-540 OFF**: [45,125,141,141,158,295] mean=150 median=141 **P(wedge)=0/6**(真实 baseline 干净!)
+- **long-540 ON** : [45,117,140,191,826,1964] mean=547 median=165 **P(wedge)=2/6**(fix **引入** wedge!)
+→ **§16 的"540 -81% win"是假象**:baseline_robust 的 540=1212 是 **K=3 坏 bistable 抽样**;真实 OFF median 141/0 wedge。
+→ **连 K=3"robust"baseline 都不可信**——bistable 档(822/878/815/540)样本双峰,K=3 中位被一次坏抽样支配。
+→ **walkerOvershootReaim 实为第 5 次 REJECT**(引入 wedge,非 net-positive)。
+**方法论铁律升级**:bistable 档**任何**判定必须 **K≥6 同 build OFF-vs-ON + 主看 P(catastrophic wedge)**;
+单 median(哪怕 K=3)会因双峰把噪声当信号——这是"绿了又破"的更深一层根。baseline_robust.json 作废待 K≥6 重建。
