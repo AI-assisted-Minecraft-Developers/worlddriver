@@ -1461,6 +1461,21 @@ public final class BotConfig {
      *  aligned base. Dry + grounded + next-too-high + long-stuck only. Default OFF; validate via hardened gate. */
     public static volatile boolean walkerOvershootReaim = false;
 
+    /** Dry repath-rechurn breaker (the COMMON wedge amplifier, REGRESSION.md §21). The 5 single-mechanism
+     *  executor point-fixes all failed because the catastrophic wedges are HETEROGENEOUS per terrain
+     *  (failed-parkour on steep-822, airborne-diagUp on crest-815, corner-block at a path start) yet share
+     *  ONE amplifier: a move fails → the foot is far OFF-PATH → safetyRepath (stuck>60) re-commits a path that
+     *  is ALSO unexecutable from the off-path spot → the body oscillates toward it (node-orbit yaw-thrash) →
+     *  re-fails → repath, and totStuck ratchets to 800-3000+. The existing anti-spin/anchor machinery
+     *  (CHURN_REPATH_CAP, repathsNoProgress, reCentre) is IN-WATER gated or fires only when the foot is off
+     *  the spine cell with the previous node not behind — none of it catches the dry far-off-path churn.
+     *  When ON: dry + a sustained stall (stuckTicks > DRY_REANCHOR_STUCK) + the foot well off the current
+     *  node (dist² > DRY_REANCHOR_OFFPATH_SQ) deterministically aims at the last cleanly-passed node centre
+     *  (path[step-1]) — a FIXED point whose bearing doesn't thrash as the bot closes — walking the body back
+     *  ONTO the path before it resumes, instead of letting the repath loop re-churn. Default OFF; validate via
+     *  the hardened K≥6 same-build P(wedge>800) gate (K=3 median is bistable-noise-corrupted, §17). */
+    public static volatile boolean walkerDryReanchor = false;
+
     /** Bob-immune ascent-ram freeze-breaker trigger: on a steep tall bank (live W→E -861→-632, ~50-70s jank,
      *  reproducible), a +1 {@code diagUp}/{@code stepUp} mount jumps off the diagonal corner, slides back to
      *  the riser foot, and repeats — foot pinned ~0.78 BELOW the node, cur2 orbiting 0.64-0.88 just over the

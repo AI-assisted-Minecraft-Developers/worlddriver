@@ -240,6 +240,10 @@ public final class SettingsCommand {
                 BotConfig.walkerOvershootReaim = ora;
                 applied.add("walkerOvershootReaim");
             }
+            if (params.get("walkerDryReanchor") instanceof Boolean dra) {
+                BotConfig.walkerDryReanchor = dra;
+                applied.add("walkerDryReanchor");
+            }
             if (params.get("avoidMobs") instanceof Boolean avm) {
                 BotConfig.avoidMobs = avm;
                 applied.add("avoidMobs");

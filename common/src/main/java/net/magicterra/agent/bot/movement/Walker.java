@@ -51,6 +51,14 @@ public final class Walker {
     /** walkerOvershootReaim: ticks wedged (stuckTicks) before a dry overshoot at a cliff base re-aims BACK
      *  onto the overshot node. ~40 = 2s, well past a clean approach but before the multi-second churn. */
     private static final int OVERSHOOT_REAIM_STUCK = 40;
+    /** walkerDryReanchor: sustained stuck ticks before the dry repath-rechurn breaker anchors back to the
+     *  last cleanly-passed node. ~50 = 2.5s, past safetyRepath's stuck>60? no — fire BEFORE the repath
+     *  churn deepens, but well past any clean slow move (water creep is in-water-excluded). */
+    private static final int DRY_REANCHOR_STUCK = 50;
+    /** walkerDryReanchor: foot-to-current-node dist² (blocks²) above which the bot is "far off-path" and the
+     *  anchor engages. 4 = OVERSHOOT_RESYNC_SQ (2 blocks) — a genuinely-approaching node stays under it, so
+     *  a legit slow climb/creep that hugs its node never triggers; only a real off-path churn does. */
+    private static final double DRY_REANCHOR_OFFPATH_SQ = 4.0;
     /** WIDER aim dead-zone (blocks²) used only when aiming at a water bank-climb node that
      *  sits OVERHEAD (+1/+2 above the floating foot). The buoyant bot can't translate ONTO
      *  such a node, so once within ~a block of its XZ it orbits the column and atan2 sweeps
@@ -3614,6 +3622,25 @@ public final class Walker {
                     && path.get(step + 1).getY() - foot.getY() > 1) {
                 adx = ocx;
                 adz = ocz;   // walk BACK onto the overshot cliff-base node, then climb cleanly
+            }
+        }
+        // walkerDryReanchor: the dry repath-rechurn breaker (REGRESSION.md §21). When a move has failed and
+        // the foot is FAR off the current node (dist² > DRY_REANCHOR_OFFPATH_SQ) with a sustained stall
+        // (stuckTicks > DRY_REANCHOR_STUCK) on dry land, override the carrot/tangent/node aim with a FIXED
+        // aim at the last cleanly-passed node centre (path[step-1]). That fixed point's bearing barely moves
+        // as the body closes, so the node-orbit yaw-thrash that paces the repath churn collapses and the bot
+        // walks deterministically back ONTO the path before resuming — breaking the amplifier common to every
+        // heterogeneous wedge. Excludes water (the in-water anti-spin machinery owns that) and the very first
+        // node (no prior anchor). Independent of walkerOvershootReaim (this is the general off-path case; that
+        // is the specific cliff-base-overshoot case) — both may compute, the later assignment wins.
+        if (BotConfig.walkerDryReanchor && !p.isInWater() && step > 0 && step < path.size()
+                && stuckTicks > DRY_REANCHOR_STUCK) {
+            BlockPos cn = path.get(step);
+            double cnx = (cn.getX() + 0.5) - p.getX(), cnz = (cn.getZ() + 0.5) - p.getZ();
+            if (cnx * cnx + cnz * cnz > DRY_REANCHOR_OFFPATH_SQ) {
+                BlockPos anchor = path.get(step - 1);
+                adx = (anchor.getX() + 0.5) - p.getX();
+                adz = (anchor.getZ() + 0.5) - p.getZ();
             }
         }
         double aim2 = adx * adx + adz * adz;

@@ -268,3 +268,12 @@ flag-tuning / 点修在此系统上系统性失败。这不是"还没找对 fix"
 **各 archive 的 dominant wedge 机制不同**:steep-822=失败 parkour 跳+repath churn;crest-815=腾空 diagUp dead-zone(§前);run6=起步 diagDown 角块。**无单一 recovery 空洞**=为何 5/5 单机制点修动不了聚合 P(wedge)(§18)。
 **但共同放大器 = repath-rechurn 环**:任一 move 失败→bot off-path(cur2 大)→safetyRepath(stuck>60)重提交一条从当前 off-path 态仍执行不了的路径→yaw-thrash 振荡收敛→常再失败→repath→累积。
 → **真正全局结构靶(addresses 异质性,高杠杆)= 打破 repath-rechurn 环**:move 失败+off-path 时,确定性恢复到上个干净到达节点(on-path 锚)再续,而非 repath 进 churn。这是 §19 耗散原则在 repath 层的应用。属选项①(用户标准方向)的 sharpened 靶。
+
+## 22. ⭐⭐⭐✅ 结构性突破:walkerDryReanchor(repath-rechurn 断路器)首个真降 P(wedge) 的 fix(2026-06-29)
+§21 诊断的"共同 repath-rechurn 放大器"对症 fix:干地+持续 stall(stuckTicks>50)+foot 远离当前节点(dist²>4)时,确定性瞄准上一干净节点 path[step-1](固定点,bearing 不 thrash),把 body 走回 path 再续,而非任 repath 重 churn。default-OFF,5 处 wiring。
+**同 build K=6 OFF-vs-ON(看 P(wedge>800)):**
+| archive | OFF mean / P(wedge) | ON mean / P(wedge) |
+|---|---|---|
+| steep-822 | 1430 / **5/6** | 738 / **2/6** (-48%) |
+| dry-627 | 783 / **3/6** | 573 / **1/6** (-27%) |
+**两档 mean+P(wedge) 双降、零回归** = session 首个真正有效的 fix。与 5/5 被否点修本质不同(它们 P(wedge) flag-无关 §18;这个降 P(wedge))——印证**对症的是共同 repath-rechurn 放大器,不是单机制**。待:其余 6 档 K=6 确认全局无回归 → 若成立=首个可接受结构性 fix,再 live 长途+replay 验收。
