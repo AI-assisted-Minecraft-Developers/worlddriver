@@ -277,3 +277,18 @@ flag-tuning / 点修在此系统上系统性失败。这不是"还没找对 fix"
 | steep-822 | 1430 / **5/6** | 738 / **2/6** (-48%) |
 | dry-627 | 783 / **3/6** | 573 / **1/6** (-27%) |
 **两档 mean+P(wedge) 双降、零回归** = session 首个真正有效的 fix。与 5/5 被否点修本质不同(它们 P(wedge) flag-无关 §18;这个降 P(wedge))——印证**对症的是共同 repath-rechurn 放大器,不是单机制**。待:其余 6 档 K=6 确认全局无回归 → 若成立=首个可接受结构性 fix,再 live 长途+replay 验收。
+
+## 23. walkerDryReanchor 全 8 档 K=6:聚合 P(wedge) 16→6(-62%)但 diag-856 引入 wedge → 抬门细化(2026-06-29)
+| archive | OFF P(wedge)/mean | ON P(wedge)/mean |
+|---|---|---|
+| steep-822 | 5/6 1430 | 2/6 738 ✓ |
+| crest-815 | 3/6 887 | 0/6 268 ✓ |
+| long-540 | 5/6 1436 | 1/6 605 ✓ |
+| dry-627 | 3/6 783 | 1/6 573 ✓ |
+| water-757 | 0/6 170 | 0/6 143 |
+| rev-897 | 0/6 251 | 0/6 197 |
+| steep-878 | 0/6 177 | 0/6 396 ✗mean |
+| diag-856 | 0/6 452 | 2/6 641 ✗✗引入wedge |
+聚合 P(wedge) **16/48→6/48(-62%)**=强烈净正、真有效(对比 5/5 点修 flag-无关)。但 diag-856 0→2/6=零回归违规。
+根因:wins=真失败 move(bot 远 off-path,822 cur2=47);regressions(878/856)=正常对角/爬升 drift(~1.4格)在 cur2>4(2格)门误触发 anchor→回拉 churn。
+→ 细化:DRY_REANCHOR_OFFPATH_SQ 4→9(3格),只让真失败(远 off-path)触发,正常 drift 不碰。重测 822/540(保 win)+878/856(消回归)。
