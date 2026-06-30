@@ -461,3 +461,9 @@ dist 81→52→37→24(z308 原churn区)→10→1 ARRIVED,35s 连续净进展,TO
 - **-516,224(20s)= `downBreak`/`traverseBreak`/`stairUpBreak`** 半身在水挖石岸 climb-out
 根因:PillarUp 已有守卫 `if(isFloatingWater(from))return null`(L38),但 `isFloatingWater=isWater(foot)&&isWater(foot-1)`(只判 ≥2 深浮水)。planner 从**浅水/岸格(isFloatingWater=false→守卫不挡)**提交 pillarUp,**浮力 executor 漂/沉离那格进更深水→pillar 不起来** = buoyancy-vs-planner 错配 = **task #63 swimAshore +2-3 climb-out 已知深开放问题**。
 **这是 11-flag 集闭环后 #47 的最后单一深残留**:不是泛 pinch,是精确的 #63 族(浮力 bot 在水边 +2-3 岸 pillar/dig climb-out)。深解需 buoyancy-aware climb-out 执行器 OR planner 浮力模型(从可能漂离的浅水格不提交 +2-3 pillar)——多 session 级,prior 也未全解(#63 仍 pending)。bot 现在水中(relaunch-unsafe),精确诊断已成,fix 需 fresh focus + dry 起点 + 严格 live(水域 stochastic)。
+
+## 42. #63 族 flag 部分有效:巡航/浮起丝滑,tall-stone-bank climb-out 仍深残留(2026-06-29)
+启用 4 个 swimAshore/bank-dig climb-out flag(SwimAshorePillarDespiteDeepDig/FutileBankDigRelease/BankDigForwardExit/FloatingBankBobFreeze,共 17-flag)西去 -428,330→-520,180(穿大水体+爬岩岸):
+- **-428→-486 巡航 90 格丝滑(worst 10s)**,含从 y50 深水浮起(undW→false)干净 = #63 族帮了
+- **-486,240 CHURN 60s**:path=`swimUp→stepUp→swimAshoreClimb→stairUpBreak→traverseBreak×3→bridgePlace` = **挖穿 +4 高石岸爬出水**。反复 replan(20:45:02-48 五次)全返回同路径=确定性 re-search deadlock(L1457)。"pillar takeover engaged"触发(SwimAshorePillarDespiteDeepDig)但**石岸 pillar 不过(需挖石),浮力水中挖石慢/卡**。
+**结论**:#63 族 flag 解 dirt/mud 浅岸 climb-out + 深水浮起,但**不解 tall-stone-bank(+4 石岸需挖穿)从浮水 climb-out** = #63 最硬子情形。这是 11+#63 flag 集闭环后 #47 的真·最后深残留:**浮力 bot 挖穿高石岸爬出水**(石头要挖、浮力够不着、水中挖慢三重)。可能也是 goal -520,180 在水体对岸高地、planner 只此一路穿石岸=部分地形必然。深解=buoyancy-aware 高石岸 dig-climb 执行器 OR planner 给 tall-stone-water-bank 加 cost 绕行。
