@@ -406,3 +406,9 @@ steep-822(最差档=run6 diagDown 角块 §21)**-4 wedge**,crest-815 零回归�
 - 画面报"陡坡攀爬失败/贴墙横跳"→ 遥测 totStuck 2-5 advancing = **误读 stepUp 爬升动画**(推翻)
 - 到达后画面报"彻底静止/死锁"→ 遥测 ARRIVED idle = **idle 假阳性**(bot 正确 passive,推翻)
 **关键结论**:① DryReanchor build 在**代表性 tractable 地形基本丝滑**(陡坡爬得干净,corpus 陡山 wedge 非主导)② **主导真残留=水岸 bank-dig(~9s)**,非陡山——与早期 memory 一致 ③ corpus steep 档不代表典型 journey jank。下一步真靶=水岸 dig(有大量 prior 验证 fix,多 default-OFF)。
+
+## 36. 🎯✅ 主导 live 残留(水岸 dig)被现成已验证 flag 消除:journey peak 188→0(2026-06-29)
+§35 定位主导真残留=水岸 bank-dig。这些 fix(walkerBuoyantSearchFromSurface/BankDigSkipWhenCwpSwims/BankDigSkipOverhang/VineDescentDrop)在 build 里但 default-OFF(prior session 已 live+GT 验证)。
+启用 4 水岸 flag(+DryReanchor)反向重跑 -358→-520(~176 格,穿同片水域):
+**peak totStuck = 0 全程!ARRIVED dist=1**(vs 正向 flag-OFF peak 188 的 ~9s dig)。含多段 inW 水域穿越、爬升 y62→81 全 totStuck=0。唯一略慢=水边 ~15s 机动(totStuck=0 无 churn)。
+**结论(#47 真方向)**:丝滑 journey = DryReanchor + 已验证水岸 flag 全 ON。本 session 追 corpus 陡山 wedge 是支线(噪声地板+非主导);**真实主导卡点的 fix 早已验证存在,只是 default-OFF**。下一步=枚举全部已验证 default-OFF fix 组成"丝滑 flag 集"全 ON,多 journey 确认端到端丝滑→逼近 #47 验收。
