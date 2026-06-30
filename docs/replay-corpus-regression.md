@@ -448,3 +448,9 @@ dist 81→52→37→24(z308 原churn区)→10→1 ARRIVED,35s 连续净进展,TO
 **结论:11-flag 集闭环了主导残留(水岸 dig/陡爬/开阔水 churn),但岩/土/水交界 wall-corner stall("贴墙卡住"=用户问题③)仍未解** = §26/§15 族(hCol+facing-wrong+几何墙/角块挡 direct line,**对 aim anchor §26 + strafe diagDownCenter §34 两 executor 介入全免疫**)。
 **这是 #47 丝滑的精确剩余 blocker**:rocky/dirt 水岸的连续 wall-corner stall(20-45s each,可恢复非死锁但远非丝滑)。totStuck 全程 0(对 net-progress 停滞失明,§37 铁律再现)。journey-A 给了确定 repro 区(-480~-515,z220-256 岩石水岸迷宫)。
 **注**:-510,200 goal 可能落 rocky 水岸迷宫(部分盲选);但 wall-corner stall 本身是真残留。#47 验收未过:wall-corner 族需新颖解(非 aim/非 strafe,可能 = 黑名单该 corner-edge repath 绕行 / planner 避 rocky-water-edge 节点)。
+
+## 40. ⚠️ walkerWallCornerFastChurn:机制生效但温和(worst 45→35s),岩石水岸迷宫是深残留(2026-06-29)
+§39 wall-corner fix 的 live 验证。13-flag(11+WallCornerFastChurn+debug)反向重跑 journey-A repro(-506→-429,330,穿同片岩石水岸):
+**ARRIVED dist=2,worst net-progress 停滞 35s**(vs journey-A OFF 45s)。anti-churn 日志 **escapes 间隔 8s**(20:33:33→33:41)= WALL_CHURN_WINDOW 160t fast 窗**确实触发**(日志串硬编码"400 ticks"是 L1425 用 CHURN_WINDOW 常量的误导,实际窗=effChurnWindow 160t)。
+**结论**:① fix 机制生效(sustained-hCol→8s escape vs 20s,确认)② 但**温和改善非银弹**:-516,224(20s)/-516,230(15s)/-499,251 水袋(**35s**)仍 churn。35s 处 ~4 次 escape 都 blacklist+back-off 但 bot 仍返回 = "sole route 执行器穿不过 + blacklist 邻格也堵"的深层 deadlock(L1457 老问题),提速 escape 不够。
+**honest #47 现状**:11-flag 使多数地形丝滑(开阔/水/陡);**岩石水岸多-wall-corner+水袋迷宫(-516~-499)仍 15-35s 停**,WallCornerFastChurn 只温和缓解。这片可能也是 goal(-429,330 swamp / -510,200 rocky-edge)盲选导致路由穿恶劣 pinch。深层解需 planner 层避开此类 rocky-water-edge pinch 节点(非执行器恢复提速)。A/B 非完全受控(forward vs reverse 路径不同),35<45 仅启发。
