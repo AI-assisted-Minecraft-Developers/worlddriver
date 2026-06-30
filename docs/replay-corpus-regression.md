@@ -438,3 +438,13 @@ dist 81→52→37→24(z308 原churn区)→10→1 ARRIVED,35s 连续净进展,TO
 10-11. **WaterWalkReach / WaterStepDownFloat(开阔水 orbit,§37→§38 缺失的最后一块)**
 **三大 live 残留全闭环**:① 水岸 dig→水岸 flag(J2 peak0)② 陡爬→ascent+DryReanchor(J1/J2 clean)③ 开阔水/swamp churn→WaterWalkReach(本测 dist81→1 平滑)。
 **#47 真答案 = 这 11 个 prior 已验证 default-OFF flag 全 flip ON**(用户决定)。本 session 追 corpus 陡山 wedge 是支线(噪声地板+非主导+totStuck 对 churn 失明)。下一步=11-flag 全 ON 跑多条随机长 journey + replay 验收(net-progress 判据,非 totStuck)。
+
+## 39. ⚠️ 验收 journey-A:11-flag 集仍非全丝滑 = wall-corner stall 族残留(2026-06-29)
+27-run 验收第一条:-429,330→-510,200(~150 格),11-flag 全 ON + pathArchive。net-progress 追踪(totStuck 对此失明):
+- t5-20 dist 97→56 良好(TOT=0)
+- **t25-40 岩岸 climb-out ~20s 停**(-481,247 y62→69 爬出水,恢复)
+- **t60-100 土墙/水交界 ~45s 停**(-513,233,画面"贴墙横跳抖动循环")
+- **t105-130 土/石壁交界死胡同 25s+ 停**(-514,222,画面"贴墙打转无法脱困")→ 取消(worstNoProg 45s,非丝滑)
+**结论:11-flag 集闭环了主导残留(水岸 dig/陡爬/开阔水 churn),但岩/土/水交界 wall-corner stall("贴墙卡住"=用户问题③)仍未解** = §26/§15 族(hCol+facing-wrong+几何墙/角块挡 direct line,**对 aim anchor §26 + strafe diagDownCenter §34 两 executor 介入全免疫**)。
+**这是 #47 丝滑的精确剩余 blocker**:rocky/dirt 水岸的连续 wall-corner stall(20-45s each,可恢复非死锁但远非丝滑)。totStuck 全程 0(对 net-progress 停滞失明,§37 铁律再现)。journey-A 给了确定 repro 区(-480~-515,z220-256 岩石水岸迷宫)。
+**注**:-510,200 goal 可能落 rocky 水岸迷宫(部分盲选);但 wall-corner stall 本身是真残留。#47 验收未过:wall-corner 族需新颖解(非 aim/非 strafe,可能 = 黑名单该 corner-edge repath 绕行 / planner 避 rocky-water-edge 节点)。
