@@ -422,3 +422,19 @@ steep-822(最差档=run6 diagDown 角块 §21)**-4 wedge**,crest-815 零回归�
 1. **已验证 default-OFF flag 集(DryReanchor+4水岸+2ascent+parkour-water)使典型地形(水/陡/巡航)丝滑**——J2 全程 peak0。**#47 真方向 = 把这些 flag flip ON**(本 session 追 corpus 陡山是支线)。
 2. **⭐ totStuck 对 net-progress loop 完全失明**:J3 churn 140s 但 totStuck=0(执行器每 node"进展"而路径在水面绕圈)。→ **整个 corpus P(wedge)=totStuck>800 方法漏测开阔水/swamp churn 这类真残留**!jank 判据须补 net-progress(dist 窗口不缩)。
 **真残留 = 开阔水/沼泽 surface-swim near-goal churn**([[project_openwater_surfaceswim_nodeclose_churn]],需 net-progress 度量 + within 门放宽 / openOceanArena 专修)。这是 #47 末段丝滑的下一精确靶,且 corpus 测不到它(必须 live + dist-trace)。
+
+## 38. 🎯🎯✅ walkerWaterWalkReach 消除开阔水/swamp churn → 完整 11-flag 丝滑集闭环(2026-06-29)
+§37 真残留(开阔水/swamp surface-swim near-goal churn)的现成 fix:**walkerWaterWalkReach**(Walker:2270,default-OFF)——专治"水面 walk 节点浮力 body orbit/freeze 的水里卡住 jank"(cur2 floor ~0.455 just over REACH_DIST_SQ=0.45 → within 永不 fire,turn/corner 节点 passed 也不 fire → 绕圈/冻结)。我 9-flag 集漏了它。
+**决定性 live 验证**:启用 walkerWaterWalkReach + walkerWaterStepDownFloat,从北重逼近 J3 churn 过的 swamp goal -430,330(原场景):
+```
+dist 81→52→37→24(z308 原churn区)→10→1 ARRIVED,35s 连续净进展,TOT=0,零 churn
+```
+**直穿 z300-316(此前 churn 140s 未过的区)平滑到达**。screen"卡死/水下停滞"全是误报(net-progress 连续)/到达后 idle(goal 在水里)。
+**完整 11-flag 丝滑集闭环**(全 prior 已验证 default-OFF,本 session live 确认):
+1. walkerDryReanchor(repath-churn,§22-24 聚合 16→6)
+2-5. 水岸:BuoyantSearchFromSurface / BankDigSkipWhenCwpSwims / BankDigSkipOverhang / VineDescentDrop
+6-7. ascent:AscentRamBobBreak / PillarReachGoalNoSnap
+8. ForbidParkourFromFloatingWater  9. DeepWaterFloatBeeline
+10-11. **WaterWalkReach / WaterStepDownFloat(开阔水 orbit,§37→§38 缺失的最后一块)**
+**三大 live 残留全闭环**:① 水岸 dig→水岸 flag(J2 peak0)② 陡爬→ascent+DryReanchor(J1/J2 clean)③ 开阔水/swamp churn→WaterWalkReach(本测 dist81→1 平滑)。
+**#47 真答案 = 这 11 个 prior 已验证 default-OFF flag 全 flip ON**(用户决定)。本 session 追 corpus 陡山 wedge 是支线(噪声地板+非主导+totStuck 对 churn 失明)。下一步=11-flag 全 ON 跑多条随机长 journey + replay 验收(net-progress 判据,非 totStuck)。
