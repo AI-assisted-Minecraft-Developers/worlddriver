@@ -1497,6 +1497,19 @@ public final class BotConfig {
      *  the hardened K≥6 P(wedge>800) gate on the diagDown-bearing archives (steep-822 run6 corner-block). */
     public static volatile boolean walkerDiagDownCenter = false;
 
+    /** Wall-corner fast-churn recovery. The dry boxed-pocket churn detector (net XZ displacement < 8 blocks
+     *  over a 20s window → blacklist the stuck nodes + escalate the planner + back off) is the ONLY recovery
+     *  that catches a §39 wall-corner stall (rocky/dirt/water-boundary 贴墙卡住), because the node-relative
+     *  counters (totStuck, noStepProgressTicks) get RESET by the orbit's node-churn so safetyRepath/UnstuckChain
+     *  never fire. But the 20s window is too slow — live journey-A ground through 20-45s wall-stalls. When ON,
+     *  a SUSTAINED horizontalCollision (≥4s continuous, the unambiguous wall-ram signature) shortens that window
+     *  to ~8s so the same blacklist+escalate fires ~2.5× sooner. Gated HARD on sustained collision so legitimate
+     *  slow-but-moving terrain (hCol=false, still net-progressing) keeps the full 20s window — that targeting is
+     *  why this can succeed where the unconditional walkerFasterChurnRepath (reverted, false-fired on slow climbs)
+     *  could not. Default OFF; validate LIVE on the journey-A repro (corpus totStuck-based gate is BLIND to this
+     *  net-progress stall, REGRESSION.md §37). */
+    public static volatile boolean walkerWallCornerFastChurn = false;
+
     /** Bob-immune ascent-ram freeze-breaker trigger: on a steep tall bank (live W→E -861→-632, ~50-70s jank,
      *  reproducible), a +1 {@code diagUp}/{@code stepUp} mount jumps off the diagonal corner, slides back to
      *  the riser foot, and repeats — foot pinned ~0.78 BELOW the node, cur2 orbiting 0.64-0.88 just over the

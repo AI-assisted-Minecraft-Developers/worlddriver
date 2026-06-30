@@ -252,6 +252,10 @@ public final class SettingsCommand {
                 BotConfig.walkerDiagDownCenter = ddc;
                 applied.add("walkerDiagDownCenter");
             }
+            if (params.get("walkerWallCornerFastChurn") instanceof Boolean wcfc) {
+                BotConfig.walkerWallCornerFastChurn = wcfc;
+                applied.add("walkerWallCornerFastChurn");
+            }
             if (params.get("avoidMobs") instanceof Boolean avm) {
                 BotConfig.avoidMobs = avm;
                 applied.add("avoidMobs");

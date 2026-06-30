@@ -412,6 +412,17 @@ public final class Walker {
      *  churn does not. */
     private static final int CHURN_WINDOW = 400;
     private static final int CHURN_MIN_MOVE_SQ = 64;
+    /** Wall-corner fast-churn (walkerWallCornerFastChurn): consecutive sustained-hCol ticks before the
+     *  net-displacement churn window is SHORTENED to {@link #WALL_CHURN_WINDOW}. The §39 贴墙卡住 stall
+     *  (rocky/dirt/water-boundary wall-corner) makes NO net XZ progress with hCol pinned true, but the
+     *  node-relative stuck counters (totStuck, noStepProgressTicks) get RESET by the orbit's node-churn so
+     *  the 20s window is the only thing that catches it — too slow (live journey-A: 20-45s per stall). A
+     *  SUSTAINED ram (hCol true ≥4s continuous) is the unambiguous wall-corner signature; gating the
+     *  short window on it fires the existing blacklist+escalate in ~8s WITHOUT touching the legitimate
+     *  slow-but-moving case (hCol=false → full 20s window), which is exactly why the unconditional
+     *  walkerFasterChurnRepath was reverted. */
+    private static final int HCOL_RAM_TICKS = 80;
+    private static final int WALL_CHURN_WINDOW = 160;
     /** Net altitude gain (blocks) over a CHURN_WINDOW that still counts as a real climb.
      *  The churn charge normally needs a best-effort path, but a GOAL-REACHING path can
      *  ALSO limit-cycle: at a steep mountain base the XZ heuristic baits A* into cheap
@@ -627,6 +638,7 @@ public final class Walker {
     private BlockPos churnBase;                              // land boxed-pocket: foot at the start of the current net-displacement window
     private int churnWindowTicks;                            // land boxed-pocket: ticks elapsed in the current window
     private int churnEscapes;                                // land boxed-pocket: consecutive windows that detected churn (escalates the charge radius)
+    private int hColRamTicks;                                // wall-corner: consecutive ticks of sustained horizontalCollision (the §39 贴墙卡住 ram signature)
     private long pfTickCounter;                               // monotonic per-tick counter (drives the sticky boxed-escalation timer)
     private long boxedEscalateUntilTick;                     // steep-barrier escalation armed until this tick (sticky so a few net-progress windows mid-climb don't drop it)
     private double bestStepDist = Double.POSITIVE_INFINITY; // closest approach² to the current node (drives the progress-based stuckTicks)
@@ -1362,7 +1374,15 @@ public final class Walker {
         // arrived because it happened to route AROUND via the NE bank). The old
         // !isInWater gate excluded exactly this case. The penalty decays (~90 s) and a
         // healthy crossing nets ≫8 blocks / 20 s, so legit swims never trip it.
+        // Wall-corner ram signature: count consecutive sustained-hCol ticks (§39). A clean walk brushes
+        // a wall for a tick or two; only a genuine wall-corner stall pins hCol true for seconds.
+        if (p.horizontalCollision) hColRamTicks++; else hColRamTicks = 0;
         int effChurnWindow = BotConfig.walkerFasterChurnRepath ? 240 : CHURN_WINDOW;
+        // A sustained ram shortens the net-displacement window so the existing blacklist+escalate
+        // (below) fires in ~8s instead of 20s — but ONLY while genuinely wall-pinned, so legitimate
+        // slow-but-moving terrain keeps the full window (no false-fire). Default OFF.
+        if (BotConfig.walkerWallCornerFastChurn && hColRamTicks >= HCOL_RAM_TICKS)
+            effChurnWindow = Math.min(effChurnWindow, WALL_CHURN_WINDOW);
         if (churnBase == null) { churnBase = foot; churnWindowTicks = 0; }
         else if (++churnWindowTicks >= effChurnWindow) {
             int cdx = foot.getX() - churnBase.getX(), cdz = foot.getZ() - churnBase.getZ();
