@@ -454,3 +454,10 @@ dist 81→52→37→24(z308 原churn区)→10→1 ARRIVED,35s 连续净进展,TO
 **ARRIVED dist=2,worst net-progress 停滞 35s**(vs journey-A OFF 45s)。anti-churn 日志 **escapes 间隔 8s**(20:33:33→33:41)= WALL_CHURN_WINDOW 160t fast 窗**确实触发**(日志串硬编码"400 ticks"是 L1425 用 CHURN_WINDOW 常量的误导,实际窗=effChurnWindow 160t)。
 **结论**:① fix 机制生效(sustained-hCol→8s escape vs 20s,确认)② 但**温和改善非银弹**:-516,224(20s)/-516,230(15s)/-499,251 水袋(**35s**)仍 churn。35s 处 ~4 次 escape 都 blacklist+back-off 但 bot 仍返回 = "sole route 执行器穿不过 + blacklist 邻格也堵"的深层 deadlock(L1457 老问题),提速 escape 不够。
 **honest #47 现状**:11-flag 使多数地形丝滑(开阔/水/陡);**岩石水岸多-wall-corner+水袋迷宫(-516~-499)仍 15-35s 停**,WallCornerFastChurn 只温和缓解。这片可能也是 goal(-429,330 swamp / -510,200 rocky-edge)盲选导致路由穿恶劣 pinch。深层解需 planner 层避开此类 rocky-water-edge pinch 节点(非执行器恢复提速)。A/B 非完全受控(forward vs reverse 路径不同),35<45 仅启发。
+
+## 41. ⭐ 岩石水岸残留精确诊断:swimAshore/pillarUp +2-3 climb-out(buoyancy 错配,#63 族)(2026-06-29)
+§40 rocky-water-edge stall 的确切 stuck move(反向 journey telemetry):
+- **-499,251(35s)= `pillarUp` node=-500,64,250,bot -499,61-62 inW/undW=true,|dY|1.8-2.8** = 浮力 bot 从水里 pillar +2-3 到 y64 岸,pitch90 looking-down 想放支撑但放不了(浮力+水下)
+- **-516,224(20s)= `downBreak`/`traverseBreak`/`stairUpBreak`** 半身在水挖石岸 climb-out
+根因:PillarUp 已有守卫 `if(isFloatingWater(from))return null`(L38),但 `isFloatingWater=isWater(foot)&&isWater(foot-1)`(只判 ≥2 深浮水)。planner 从**浅水/岸格(isFloatingWater=false→守卫不挡)**提交 pillarUp,**浮力 executor 漂/沉离那格进更深水→pillar 不起来** = buoyancy-vs-planner 错配 = **task #63 swimAshore +2-3 climb-out 已知深开放问题**。
+**这是 11-flag 集闭环后 #47 的最后单一深残留**:不是泛 pinch,是精确的 #63 族(浮力 bot 在水边 +2-3 岸 pillar/dig climb-out)。深解需 buoyancy-aware climb-out 执行器 OR planner 浮力模型(从可能漂离的浅水格不提交 +2-3 pillar)——多 session 级,prior 也未全解(#63 仍 pending)。bot 现在水中(relaunch-unsafe),精确诊断已成,fix 需 fresh focus + dry 起点 + 严格 live(水域 stochastic)。
