@@ -412,3 +412,13 @@ steep-822(最差档=run6 diagDown 角块 §21)**-4 wedge**,crest-815 零回归�
 启用 4 水岸 flag(+DryReanchor)反向重跑 -358→-520(~176 格,穿同片水域):
 **peak totStuck = 0 全程!ARRIVED dist=1**(vs 正向 flag-OFF peak 188 的 ~9s dig)。含多段 inW 水域穿越、爬升 y62→81 全 totStuck=0。唯一略慢=水边 ~15s 机动(totStuck=0 无 churn)。
 **结论(#47 真方向)**:丝滑 journey = DryReanchor + 已验证水岸 flag 全 ON。本 session 追 corpus 陡山 wedge 是支线(噪声地板+非主导);**真实主导卡点的 fix 早已验证存在,只是 default-OFF**。下一步=枚举全部已验证 default-OFF fix 组成"丝滑 flag 集"全 ON,多 journey 确认端到端丝滑→逼近 #47 验收。
+
+## 37. ⭐⭐⭐ live 多 journey 特征化:验证 flag 集使典型地形丝滑 + 真残留=开阔水 churn(totStuck 失明)(2026-06-29)
+三条 live journey(DryReanchor + 渐增 flag):
+- **J1 正向 -520→-360(水岸 flag OFF)**:ARRIVED,1× 水岸 dig totStuck 188(~9s)
+- **J2 反向 -358→-520(5 水岸 flag ON)**:**peak totStuck 0 全程丝滑** ✓(同片水域 dig 消失)
+- **J3 -519→-430,330(9-flag 集 ON)**:平滑巡航 peak0,但**末段开阔水/沼泽 near-goal churn ~140s**(dist 卡 9-40 振荡,bot 水面游泳绕 node 不进门)→ 取消。goal 落 water-swamp 水体(blocks 证 water+clay+seagrass)。
+**两个决定性发现**:
+1. **已验证 default-OFF flag 集(DryReanchor+4水岸+2ascent+parkour-water)使典型地形(水/陡/巡航)丝滑**——J2 全程 peak0。**#47 真方向 = 把这些 flag flip ON**(本 session 追 corpus 陡山是支线)。
+2. **⭐ totStuck 对 net-progress loop 完全失明**:J3 churn 140s 但 totStuck=0(执行器每 node"进展"而路径在水面绕圈)。→ **整个 corpus P(wedge)=totStuck>800 方法漏测开阔水/swamp churn 这类真残留**!jank 判据须补 net-progress(dist 窗口不缩)。
+**真残留 = 开阔水/沼泽 surface-swim near-goal churn**([[project_openwater_surfaceswim_nodeclose_churn]],需 net-progress 度量 + within 门放宽 / openOceanArena 专修)。这是 #47 末段丝滑的下一精确靶,且 corpus 测不到它(必须 live + dist-trace)。
