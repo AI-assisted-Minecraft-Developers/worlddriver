@@ -467,3 +467,12 @@ dist 81→52→37→24(z308 原churn区)→10→1 ARRIVED,35s 连续净进展,TO
 - **-428→-486 巡航 90 格丝滑(worst 10s)**,含从 y50 深水浮起(undW→false)干净 = #63 族帮了
 - **-486,240 CHURN 60s**:path=`swimUp→stepUp→swimAshoreClimb→stairUpBreak→traverseBreak×3→bridgePlace` = **挖穿 +4 高石岸爬出水**。反复 replan(20:45:02-48 五次)全返回同路径=确定性 re-search deadlock(L1457)。"pillar takeover engaged"触发(SwimAshorePillarDespiteDeepDig)但**石岸 pillar 不过(需挖石),浮力水中挖石慢/卡**。
 **结论**:#63 族 flag 解 dirt/mud 浅岸 climb-out + 深水浮起,但**不解 tall-stone-bank(+4 石岸需挖穿)从浮水 climb-out** = #63 最硬子情形。这是 11+#63 flag 集闭环后 #47 的真·最后深残留:**浮力 bot 挖穿高石岸爬出水**(石头要挖、浮力够不着、水中挖慢三重)。可能也是 goal -520,180 在水体对岸高地、planner 只此一路穿石岸=部分地形必然。深解=buoyancy-aware 高石岸 dig-climb 执行器 OR planner 给 tall-stone-water-bank 加 cost 绕行。
+
+## 43. ✅ 东向公平 journey 实证 17-flag 广泛丝滑:126 格 worst 10s(2026-06-29)
+§42 后做公平测试:bot 在 -486 石岸,改 goto 东向已穿越干地 -360,245(126 格,背离石岸,17-flag)。
+**ARRIVED dist=5,worst net-progress 停滞 = 10s**(唯一 -465,247 水中 10s 机动,其余 dist 126→5 全程连续)。
+**确认**:① 17-flag 集**在可穿越地形完成全 journey 丝滑(worst 10s)** = tall-stone-bank 60s churn 是**特定必经石岸 exit 的地形残留,非通用失败**。② 第 4 条实证 flag 集广泛有效(J2 反向 peak0、swamp dist81→1、东向 126 格 worst10s)。
+**残留分层(诚实)**:
+- 频繁**小水域 surface-swim 机动 ~10s**(如 -465,247、journey 各处水段)= 非完美丝滑(用户"零 >3s 停"bar 未达)但远小于卡死,可恢复
+- 特定 **tall-stone-bank water climb-out 60s**(§42)= 必经石岸的深执行器残留
+**#47 现状收敛**:17-flag 使可穿越地形 worst≤10s(vs 修前 35-60s),大幅趋丝滑;完美丝滑剩两类——小水域机动(~10s,需 surface-swim 顺滑度精调)+ tall-stone-bank(60s,需 buoyancy dig-climb 执行器)。两者都需聚焦工程,但**flag-flip 已把 #47 从"普遍卡死"带到"worst≤10s + 两类特定残留"**。
