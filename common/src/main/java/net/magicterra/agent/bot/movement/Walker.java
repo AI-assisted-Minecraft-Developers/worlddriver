@@ -621,6 +621,9 @@ public final class Walker {
     private int stepUpBackoffTicks;        // walkerStepUpBackoffRetry: ticks left driving straight BACK from a grind-locked stepUp riser to open sprint runway
     private float stepUpBackoffYaw;        // heading of that back-off drive (bearing away from the riser), camera-frame decoupled
     private int stepUpBackoffCooldown;     // ticks before the back-off may trigger again (prevents oscillating retreat at a genuinely unmountable riser)
+    private int drowningEscapeTurnTicks;   // walkerDrowningEscape pocket probe: ticks left holding the current escape heading
+    private float drowningEscapeHeading;   // current pocket-escape heading (deg)
+    private int drowningEscapeProbe;       // rotating probe start index so a falsely-open direction is not re-picked forever
     private int pillarNoPlaceTicks;        // ticks the pillar takeover has been engaged without a successful place / height gain — buoyant bob can't lift feet above a surface fill cell, so beyond PILLAR_FUTILE_TICKS the place is hopeless and we fall to the dig
     private int waterClimbTargetY;         // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
     private int waterClimbColX, waterClimbColZ; // LOCKED column the takeover pillars in (don't chase repathing nodes)
@@ -747,6 +750,7 @@ public final class Walker {
         this.drowningEscapeLatch = false;
         this.stepUpBackoffTicks = 0;
         this.stepUpBackoffCooldown = 0;
+        this.drowningEscapeTurnTicks = 0;
         this.pillarNoPlaceTicks = 0;
         this.lastDigRiser = null;
         this.waterClimbDigRiser = null;
@@ -886,6 +890,7 @@ public final class Walker {
         this.drowningEscapeLatch = false;
         this.stepUpBackoffTicks = 0;
         this.stepUpBackoffCooldown = 0;
+        this.drowningEscapeTurnTicks = 0;
         this.pillarNoPlaceTicks = 0;
         this.lastDigRiser = null;
         this.waterClimbDigRiser = null;
@@ -2530,10 +2535,34 @@ public final class Walker {
                     p.setSprinting(false);
                     boolean riseBlocked = world.isSolid(foot.offset(0, 2, 0)) || p.horizontalCollision;
                     if (riseBlocked) {
-                        // Back straight off the lip/wall: reverse the current body yaw and swim
-                        // away — one or two cells of open water is all the buoyant rise needs.
-                        float backYaw = p.getYRot() + 180f;
-                        p.setYRot(backYaw); p.yHeadRot = backYaw; p.yBodyRot = backYaw;
+                        // Swim toward open surface. A single fixed "reverse" heading dies in a
+                        // POCKET (live 2026-06-29 (-254,61,-219): capped head + the reverse
+                        // heading also walled → the bot spun in place a full minute and drowned
+                        // at hp 5→0). Probe the 8 horizontal directions for one whose column two
+                        // cells out is water at head height with NO solid lid two above (a
+                        // buoyant rise is possible there); rotate the probe start each pick so a
+                        // falsely-open direction can't be re-picked forever. Re-pick every 25
+                        // ticks (or first tick); between picks hold the heading so the body
+                        // actually crosses cells instead of jittering.
+                        if (drowningEscapeTurnTicks <= 0) {
+                            drowningEscapeTurnTicks = 25;
+                            float pick = p.getYRot() + 180f;   // fallback: straight back
+                            for (int i = 0; i < 8; i++) {
+                                float cand = ((drowningEscapeProbe + i) % 8) * 45f;
+                                int dx = (int) Math.round(-Math.sin(Math.toRadians(cand)));
+                                int dz = (int) Math.round(Math.cos(Math.toRadians(cand)));
+                                BlockPos out = foot.offset(dx * 2, 0, dz * 2);
+                                if (world.isWater(out.above()) && !world.isSolid(out.offset(0, 2, 0))) {
+                                    pick = cand;
+                                    drowningEscapeProbe = (drowningEscapeProbe + i + 1) % 8;
+                                    break;
+                                }
+                            }
+                            drowningEscapeHeading = pick;
+                        }
+                        drowningEscapeTurnTicks--;
+                        p.setYRot(drowningEscapeHeading);
+                        p.yHeadRot = drowningEscapeHeading; p.yBodyRot = drowningEscapeHeading;
                         p.setXRot(0f);
                         agentForward(a, true);
                     } else {
