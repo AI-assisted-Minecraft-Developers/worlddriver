@@ -48,11 +48,16 @@ def main():
     pend = None   # the t= half waiting for its walk-keys twin (adjacent lines, same tick)
     with open(args.log, errors='ignore') as fh:
         for line in fh:
+            # Only timestamped lines participate in the window filter — a banner or
+            # stack-trace line would win the string comparison and false-trigger the
+            # early break (the bug that made the first windowed run return 0 rows).
+            if len(line) < 10 or line[0] != '[' or line[3] != ':' or line[9] != ']':
+                continue
             ts = line[1:9]
             if args.t_from and ts < args.t_from:
                 continue
             if args.t_to and ts > args.t_to:
-                break
+                continue
             m = P_E.search(line)
             if m:
                 rows.append(('EXPECT', m.group('ts'), m.group('line').rstrip()))
