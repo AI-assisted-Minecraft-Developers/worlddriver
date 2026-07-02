@@ -584,5 +584,5 @@ BodyLos 加入后三周期:**9/9 live ARRIVED、零 CHURN、零死亡**(C5-C7 �
 
 ## 61. aimSrc遥测破案:开阔水step抖动饿死全部recovery + walkerStuckStepMonotonic 初步正向(2026-07-02)
 **观测器(aimSrc+stuckT 入 walk-keys)一轮即破 A-4 44s 段**:开阔水直线 path 上浮力横漂让 within/投影把 step 指针来回甩(wp 375↔387↔374),旧判定 `step != stuckStep` 把每次抖动当"新节点"清零 stuckTicks——**实测 stuckT 钉死 0-6,nodeAim fallback(12)从未触发**,所有 stuck-gated recovery(nodeAim/reanchor/overshoot/wedge)集体饿死,yaw 扫 660°,推力抵消 44s 原地漂。这就是「水中反复横跳/打转」的一个闭环真机制(bob 清计数器家族的 step 指针版)。
-**fix `walkerStuckStepMonotonic`(default OFF)**:仅 step 前进开新窗;回退换距离基准但停表继续走。**A/B(K6,同 rig)**:ON worstStall=5/9/24/32/58/76 vs OFF 合并基线(T+A 12 轮)尾部 82/105/181(>60s 3/12 vs 1/6)。**初步正向,升级 K≥12 后定 KEEP**。
+**fix `walkerStuckStepMonotonic`(default OFF)**:仅 step 前进开新窗;回退换距离基准但停表继续走。**A/B(K6,同 rig)**:ON worstStall=5/9/24/32/58/76 vs OFF 合并基线(T+A 12 轮)尾部 82/105/181(>60s 3/12 vs 1/6)。**K12 判定 KEEP**:ON 12 轮 worstStall=2/2/5/5/9/24/26/30/32/42/58/76(12/12 ARRIVED,>60s 1/12,中位 25s,零 HARD-CHURN)vs OFF 基线 12 轮 2/5/5/11/29/38/46/50/57/82/105/181(>60s 3/12,中位 42s,1 次 181s HARD-CHURN)——最坏尾延砍 58%。今日首个净正向修复,由 aimSrc 遥测直接归因一发命中(观测优先方法论完整兑现)。已入验收 FLAGS。
 **新形态入账(SP 副作用族,画面+trace)**:①塔顶滞留(y68 24-26s,pillar 成功后塔顶不在 path 上,自解但费时)②放块自弹射/嵌块。SP 的 journey 收益要和这些副作用一起算总账。
