@@ -276,6 +276,18 @@ public final class SettingsCommand {
                 BotConfig.walkerCarrotBodyLos = wcbl;
                 applied.add("walkerCarrotBodyLos");
             }
+            if (params.get("walkerRouteHysteresis") instanceof Boolean wrhy) {
+                BotConfig.walkerRouteHysteresis = wrhy;
+                applied.add("walkerRouteHysteresis");
+            }
+            if (params.get("walkerBankDigGroundBlip") instanceof Boolean wbgb) {
+                BotConfig.walkerBankDigGroundBlip = wbgb;
+                applied.add("walkerBankDigGroundBlip");
+            }
+            if (params.get("walkerExpectAlarm") instanceof Boolean wea) {
+                BotConfig.walkerExpectAlarm = wea;
+                applied.add("walkerExpectAlarm");
+            }
             if (params.get("avoidMobs") instanceof Boolean avm) {
                 BotConfig.avoidMobs = avm;
                 applied.add("avoidMobs");

@@ -624,6 +624,18 @@ public final class Walker {
     private int drowningEscapeTurnTicks;   // walkerDrowningEscape pocket probe: ticks left holding the current escape heading
     private float drowningEscapeHeading;   // current pocket-escape heading (deg)
     private int drowningEscapeProbe;       // rotating probe start index so a falsely-open direction is not re-picked forever
+    private int digGroundedStreak;         // consecutive grounded ticks during a committed bank dig — a bob bottom-blip (<=5) must not break the dig commit (walkerBankDigGroundBlip)
+    // --- expectation alarms (walkerExpectAlarm): live actual-vs-expected divergence detectors ---
+    private boolean exPrevBreakHeld;   // was the break action held last tick (DIG-dropped edge)
+    private BlockPos exPrevAimBlock;   // block the crosshair pointed at last tick
+    private int exDigHoldTicks;        // consecutive held ticks on the SAME aim block (DIG-slow)
+    private int exJumpTicksLeft;       // ticks left watching a jump's arc (JUMP-noRise)
+    private double exJumpBaseY;        // Y at the launch tick
+    private double exJumpPeakY;        // highest Y seen during the watched arc
+    private boolean exPrevOnGround;    // grounded last tick (jump launch edge)
+    private int exFwdNoMoveTicks;      // consecutive grounded forward-pressed ticks with ~zero displacement (MOVE-noMove)
+    private double exPrevX, exPrevZ;   // last tick's position for the displacement check
+    private int exThrottle;            // global alarm throttle (one line per 40t)
     private int pillarNoPlaceTicks;        // ticks the pillar takeover has been engaged without a successful place / height gain — buoyant bob can't lift feet above a surface fill cell, so beyond PILLAR_FUTILE_TICKS the place is hopeless and we fall to the dig
     private int waterClimbTargetY;         // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
     private int waterClimbColX, waterClimbColZ; // LOCKED column the takeover pillars in (don't chase repathing nodes)
@@ -1019,6 +1031,10 @@ public final class Walker {
         if (escalating && !wasEscalating && BotConfig.walkerDebug)
             LOG.info("[walker] steep-barrier escalation ARMED (boxed churn) → horizon=0 depthPenalty>=25 softCommit>=35000 for {} ticks",
                     boxedEscalateUntilTick - pfTickCounter);
+
+        // Expectation alarms read LAST tick's pressed state vs THIS tick's world response —
+        // run before the per-tick input baseline below clears anything.
+        if (BotConfig.walkerExpectAlarm) expectTick(a, world, p);
 
         // Per-tick baseline for the jump/sneak channel: default to "not jumping / not
         // sneaking" so any path that returns without setting them can't leak a stale
@@ -1778,8 +1794,25 @@ public final class Walker {
                         return Step.WALKING;
                     }
                 }
-                adoptPath(res, world, foot);
-                maybeArmPinchEscalation(foot, res);
+                // Route hysteresis (walkerRouteHysteresis): don't let a periodic repath
+                // U-turn a healthy walk onto the alternate near-equal route (§55 oscillation).
+                boolean keepCurrent = false;
+                if (BotConfig.walkerRouteHysteresis && path != null && step < path.size()
+                        && noStepProgressTicks < 20
+                        && res.path().size() > 3 && path.size() - step > 3) {
+                    BlockPos curAhead = path.get(Math.min(step + 3, path.size() - 1));
+                    BlockPos newAhead = res.path().get(3);
+                    double cax = curAhead.getX() + 0.5 - p.getX(), caz = curAhead.getZ() + 0.5 - p.getZ();
+                    double nax = newAhead.getX() + 0.5 - p.getX(), naz = newAhead.getZ() + 0.5 - p.getZ();
+                    keepCurrent = (cax * nax + caz * naz) < 0;
+                    if (keepCurrent && BotConfig.walkerDebug)
+                        LOG.info("[walker] route-hysteresis: KEEP current path (new route U-turns behind a healthy walk, noStepProg={})",
+                                noStepProgressTicks);
+                }
+                if (!keepCurrent) {
+                    adoptPath(res, world, foot);
+                    maybeArmPinchEscalation(foot, res);
+                }
             } else if (path == null) {
                 // No route and nothing to fall back on. But if we're airborne
                 // — plummeting from an unplanned fall (knockback, the ground
@@ -2622,8 +2655,11 @@ public final class Walker {
             // capped per-riser (WATER_CLIMB_DIG_COMMIT_CAP, reset on each fresh riser) so a
             // genuinely stuck dig still releases to repath. Held only while afloat and still
             // beside the riser — grounding out (climbed) or drifting >2 off it ends it.
+            if (p.onGround()) digGroundedStreak++; else digGroundedStreak = 0;
+            boolean digGroundBlipOk = !p.onGround()
+                    || (BotConfig.walkerBankDigGroundBlip && digGroundedStreak <= 5);
             boolean digCommitted = waterClimbDigRiser != null
-                    && world.isSolid(waterClimbDigRiser) && !p.onGround()
+                    && world.isSolid(waterClimbDigRiser) && digGroundBlipOk
                     && Math.abs(foot.getX() - waterClimbDigRiser.getX()) <= 2
                     && Math.abs(foot.getZ() - waterClimbDigRiser.getZ()) <= 2
                     && waterClimbDigCommitTicks < WATER_CLIMB_DIG_COMMIT_CAP;
@@ -5741,6 +5777,70 @@ public final class Walker {
         int n = 0;
         for (Move.Edge e : edges) if (e != null && e.toPlace != null) n += e.toPlace.size();
         return n;
+    }
+
+    /** Expectation alarms (walkerExpectAlarm): compare the world's actual response against
+     *  what the pressed actions should produce, and WARN with cause the tick they diverge.
+     *  Purely observational — reads avatar/player state at the top of tick, never drives. */
+    private void expectTick(Avatar a, WorldView world, Player p) {
+        if (exThrottle > 0) exThrottle--;
+        // DIG-dropped / DIG-slow: vanilla resets break progress on ANY released tick, so a
+        // committed dig must hold continuously until the block breaks. Dropping the hold
+        // while the target is still solid = wasted progress (the GroundBlip bug class).
+        boolean held = a.breakHeld();
+        BlockPos aim = a.lookingAtBlock();
+        if (exPrevBreakHeld && !held && exPrevAimBlock != null && world.isSolid(exPrevAimBlock)) {
+            if (exThrottle == 0 && exDigHoldTicks >= 5) {
+                LOG.warn("[expect] DIG-dropped: breakHold released after {}t while {},{},{} still solid — progress reset",
+                        exDigHoldTicks, exPrevAimBlock.getX(), exPrevAimBlock.getY(), exPrevAimBlock.getZ());
+                exThrottle = 40;
+            }
+            exDigHoldTicks = 0;
+        } else if (held && aim != null && aim.equals(exPrevAimBlock)) {
+            exDigHoldTicks++;
+            if (exDigHoldTicks == 200 && exThrottle == 0) {
+                LOG.warn("[expect] DIG-slow: {},{},{} held 200t and still solid (tool? water 25x? aim drift?)",
+                        aim.getX(), aim.getY(), aim.getZ());
+                exThrottle = 40;
+            }
+        } else {
+            exDigHoldTicks = held ? 1 : 0;
+        }
+        exPrevBreakHeld = held;
+        exPrevAimBlock = aim;
+        // JUMP-noRise: a grounded launch (vy jumped to ~+0.42) should lift the body ~+1 block
+        // within 8 ticks; a peak under +0.9 is an in-place/blocked jump (§48 mount grind).
+        double vy = p.getDeltaMovement().y;
+        if (exJumpTicksLeft > 0) {
+            exJumpPeakY = Math.max(exJumpPeakY, p.getY());
+            if (--exJumpTicksLeft == 0 && exJumpPeakY < exJumpBaseY + 0.9 && !p.isInWater() && exThrottle == 0) {
+                LOG.warn("[expect] JUMP-noRise: launched at y={} peaked {} (<+0.9) hCol={} — blocked/in-place jump",
+                        String.format(Locale.ROOT, "%.2f", exJumpBaseY),
+                        String.format(Locale.ROOT, "%.2f", exJumpPeakY), p.horizontalCollision);
+                exThrottle = 40;
+            }
+        } else if (exPrevOnGround && !p.onGround() && vy > 0.3 && !p.isInWater()) {
+            exJumpTicksLeft = 8;
+            exJumpBaseY = p.getY();
+            exJumpPeakY = p.getY();
+        }
+        exPrevOnGround = p.onGround();
+        // MOVE-noMove: forward impulse pressed (zza) on the ground for 10 straight ticks with
+        // under 0.3 blocks of total displacement = pressing into a wall/trunk.
+        double moved = Math.hypot(p.getX() - exPrevX, p.getZ() - exPrevZ);
+        boolean fwdPressed = Math.abs(p.zza) > 0.4;
+        if (fwdPressed && p.onGround() && moved < 0.03) {
+            if (++exFwdNoMoveTicks == 10 && exThrottle == 0) {
+                LOG.warn("[expect] MOVE-noMove: forward held 10t, displacement<0.3 at {},{},{} hCol={}",
+                        String.format(Locale.ROOT, "%.1f", p.getX()),
+                        String.format(Locale.ROOT, "%.1f", p.getY()),
+                        String.format(Locale.ROOT, "%.1f", p.getZ()), p.horizontalCollision);
+                exThrottle = 40;
+            }
+        } else if (moved >= 0.03 || !fwdPressed) {
+            exFwdNoMoveTicks = 0;
+        }
+        exPrevX = p.getX(); exPrevZ = p.getZ();
     }
 
     /** A continuously-sliding aim point {@code CARROT_DIST} blocks ahead

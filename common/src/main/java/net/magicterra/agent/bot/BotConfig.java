@@ -1565,6 +1565,44 @@ public final class BotConfig {
      *  hitbox into a slit only the ray fits. Path smoothing keeps the cheap ray. Default OFF. */
     public static volatile boolean walkerCarrotBodyLos = false;
 
+    /** Repath route-oscillation damper (the C16 dry-land churn, REGRESSION §55 final autopsy):
+     *  two near-equal-cost A* routes (a dig-through and a detour) alternate across periodic
+     *  repaths — each adoption U-TURNS the bot onto the other route, and it runs both at full
+     *  speed in a net-progress loop that totStuck cannot see (live (-252,70,209): y66
+     *  traverseBreak route vs y63 walk route, 90s churn, two journeys back-to-back). When ON:
+     *  a fresh search result is REJECTED (current path kept) iff the bot is walking its current
+     *  path healthily (noStepProgressTicks < 20) and the new route's near-term direction
+     *  (3rd node vs the current path's step+3 node, dot < 0) points BEHIND — i.e. adopting it
+     *  would U-turn a working walk. A genuinely stuck bot (noStepProg >= 20) always adopts, so
+     *  real reroutes (danger, dead end) are never starved; the next periodic repath re-offers
+     *  the alternative anyway. Default OFF. */
+    public static volatile boolean walkerRouteHysteresis = false;
+
+    /** Bank-dig ground-blip immunity (the underground-pool climb-out grind, live 2026-07-02
+     *  (-275,49,-38): the committed bank dig requires {@code !onGround}, but the buoyant bob
+     *  touches bottom ~4 ticks/second — each blip drops {@code digCommitted}, the tick falls
+     *  through to the normal drive with attack=false, and vanilla RESETS the block's break
+     *  progress (17 dig + 4 drive ticks per second, 25x underwater mining => the riser NEVER
+     *  breaks; observed as "反复挖同一处方块无效"). When ON: a grounded streak of <=5 ticks
+     *  keeps the commit alive (a real climb-out grounds for good, ending it after the streak
+     *  passes 5). Default OFF. */
+    public static volatile boolean walkerBankDigGroundBlip = false;
+
+    /** Actuator EXPECTATION alarms (预期-实际实时检测): every tick, compare what the pressed
+     *  inputs SHOULD produce against what the world actually did, and log a [expect] WARN the
+     *  moment they diverge — turning post-mortem log archaeology into live, causal alarms.
+     *  Three observers (zero intrusion into actuator branches; they read the player's real
+     *  input state at the top of tick):
+     *  JUMP-noRise  — jump pressed while grounded, yet 8 ticks later the peak Y never rose
+     *                 +0.9 (an in-place/blocked jump: the §48 mount grind signature).
+     *  MOVE-noMove  — forward held on the ground for 10 straight ticks with <0.3 blocks of
+     *                 displacement (wall press / trunk snag), hCol attached for cause.
+     *  DIG-dropped  — breakHold released while the targeted block is still solid (vanilla
+     *                 RESETS break progress on any released tick: the GroundBlip bug class),
+     *                 plus DIG-slow when one block stays held 200+ ticks unbroken.
+     *  Each alarm is throttled to one line per 40 ticks per class. Default OFF. */
+    public static volatile boolean walkerExpectAlarm = false;
+
     /** Bob-immune ascent-ram freeze-breaker trigger: on a steep tall bank (live W→E -861→-632, ~50-70s jank,
      *  reproducible), a +1 {@code diagUp}/{@code stepUp} mount jumps off the diagonal corner, slides back to
      *  the riser foot, and repeats — foot pinned ~0.78 BELOW the node, cur2 orbiting 0.64-0.88 just over the
