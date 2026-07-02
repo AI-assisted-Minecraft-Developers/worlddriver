@@ -130,6 +130,37 @@ public final class PathSmoothing {
         return true;
     }
 
+    /** Body-width-aware variant of {@link #losWalkable}: samples the interpolated
+     *  CONTINUOUS line and requires foot+head passability for every cell the 0.6-wide
+     *  hitbox overlaps (4-corner AABB probe, half-width 0.3), plus the centre cell's
+     *  floor support. Catches the "ray threads a slit the body can't" case (jungle
+     *  trunks: the centre line stays in passable cells while the body radius clips a
+     *  trunk column — the walkerCarrotHColShrink A/B showed the far carrot bearing is
+     *  the right detour, so the cure is to make the carrot's LOS honest about body
+     *  width instead of shrinking pursuit). Used by the Walker's carrotPoint behind
+     *  {@code walkerCarrotBodyLos}; path smoothing keeps the cheaper ray test. */
+    public static boolean losWalkableBody(WorldView w, BlockPos a, BlockPos b) {
+        int steps = 2 * Math.max(Math.abs(b.getX() - a.getX()), Math.abs(b.getZ() - a.getZ()));
+        if (steps == 0) return true;
+        double ax = a.getX() + 0.5, az = a.getZ() + 0.5;
+        double bx = b.getX() + 0.5, bz = b.getZ() + 0.5;
+        for (int s = 1; s <= steps; s++) {
+            double t = (double) s / steps;
+            double fx = ax + (bx - ax) * t;
+            double fz = az + (bz - az) * t;
+            int y = (int) Math.round(a.getY() + (b.getY() - a.getY()) * t);
+            for (int cx = -1; cx <= 1; cx += 2)
+                for (int cz = -1; cz <= 1; cz += 2) {
+                    BlockPos c = new BlockPos((int) Math.floor(fx + cx * 0.3), y, (int) Math.floor(fz + cz * 0.3));
+                    if (!w.isPassable(c) || w.isHazard(c)) return false;
+                    if (!w.isPassable(c.offset(0, 1, 0)) || w.isHazard(c.offset(0, 1, 0))) return false;
+                }
+            BlockPos mid = new BlockPos((int) Math.floor(fx), y, (int) Math.floor(fz));
+            if (!w.isSolid(mid.offset(0, -1, 0)) && !w.isWater(mid) && !w.isClimbable(mid)) return false;
+        }
+        return true;
+    }
+
     /** A corner column the diagonal straight-line skims: blocked if either the
      *  foot or head cell is non-passable or a hazard. */
     private static boolean cornerBlocked(WorldView w, BlockPos c) {

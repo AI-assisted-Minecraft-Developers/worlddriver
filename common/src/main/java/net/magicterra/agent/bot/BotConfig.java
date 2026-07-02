@@ -1557,6 +1557,14 @@ public final class BotConfig {
      *  test), not pursuit shrink. */
     public static volatile boolean walkerCarrotHColShrink = false;
 
+    /** Carrot LOS body-width honesty (the §52-identified true fix lane for the jungle-trunk
+     *  friction): carrotPoint's line-of-sight gate switches from the centre-line RAY test to
+     *  {@code PathSmoothing.losWalkableBody} — a 0.6-wide corridor probe (4-corner AABB per
+     *  interpolated sample). The far carrot then refuses bearings whose corridor clips a trunk
+     *  column, stopping the pursuit at the last body-walkable node instead of steering the
+     *  hitbox into a slit only the ray fits. Path smoothing keeps the cheap ray. Default OFF. */
+    public static volatile boolean walkerCarrotBodyLos = false;
+
     /** Bob-immune ascent-ram freeze-breaker trigger: on a steep tall bank (live W→E -861→-632, ~50-70s jank,
      *  reproducible), a +1 {@code diagUp}/{@code stepUp} mount jumps off the diagonal corner, slides back to
      *  the riser foot, and repeats — foot pinned ~0.78 BELOW the node, cur2 orbiting 0.64-0.88 just over the

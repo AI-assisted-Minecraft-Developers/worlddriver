@@ -5761,7 +5761,10 @@ public final class Walker {
             BlockPos node = path.get(i);
             double nx = node.getX() + 0.5, nz = node.getZ() + 0.5;
             if (hasPendingEdge(world, edgeAt(i))) return new double[]{nx, nz}; // face the action cell
-            if (!losWalkable(world, foot, node)) break;                        // don't aim past a wall
+            boolean losOk = BotConfig.walkerCarrotBodyLos
+                    ? PathSmoothing.losWalkableBody(world, foot, node)
+                    : losWalkable(world, foot, node);
+            if (!losOk) break;                                                 // don't aim past a wall
             double seg = Math.hypot(nx - cx, nz - cz);
             if (seg < 1e-6) { tx = nx; tz = nz; continue; }
             if (remaining <= seg) {

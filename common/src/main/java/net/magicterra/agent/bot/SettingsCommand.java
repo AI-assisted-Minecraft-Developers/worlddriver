@@ -272,6 +272,10 @@ public final class SettingsCommand {
                 BotConfig.walkerCarrotHColShrink = wchs;
                 applied.add("walkerCarrotHColShrink");
             }
+            if (params.get("walkerCarrotBodyLos") instanceof Boolean wcbl) {
+                BotConfig.walkerCarrotBodyLos = wcbl;
+                applied.add("walkerCarrotBodyLos");
+            }
             if (params.get("avoidMobs") instanceof Boolean avm) {
                 BotConfig.avoidMobs = avm;
                 applied.add("avoidMobs");

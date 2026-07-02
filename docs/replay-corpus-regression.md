@@ -535,3 +535,7 @@ dist 81→52→37→24(z308 原churn区)→10→1 ARRIVED,35s 连续净进展,TO
 
 ## 52. walkerCarrotHColShrink A/B-REJECT(第 8 个 aim 介入证伪)+ 真修方向(2026-07-02)
 猜想"树干摩擦=carrot 瞄 LOS 斜缝身体过不去→hCol 时收缩 pursuit 到 cur node"被 replay-0018 K=3v3 证伪:OFF 382/236/236 vs ON **179/513/516(中位更差)**。反转认识:far carrot 的偏离 bearing 本身就是 string-pull 的绕树 detour,收缩到 node = 正面撞树干。**树干摩擦不是 aim 层 bug,真修 lane = body-width-aware LOS**(losWalkable 从射线测试升级为 0.6 宽走廊测试,让 carrot 不吃身体过不去的斜缝)——属 pathfinder/几何工程,非点修。flag 保留 default OFF + DISPROVEN 注释。附注:新 build 下 replay-0018 maxStuck 发散(236-516)提示树干区本身 bistable,后续 A/B 须 K≥6。
+
+## 53. ⭐⭐ walkerCarrotBodyLos 强效验证(树干摩擦真修 + 藤蔓摔死诱因一并消灭)(2026-07-02)
+§52 定的 lane 实现:`PathSmoothing.losWalkableBody`(连续插值 4 角 AABB 走廊测试,半宽 0.3,foot+head 通行+中心地板支撑),carrotPoint 的 LOS 门在 flag ON 时用它替代中心射线;path smoothing 保持廉价射线不动。
+**A/B(replay-0018 丛林档,ON/OFF 交替 K=6)**:**ON 到达 3/3**(maxStuck 305/423/196)vs **OFF 到达 0/3**(177-229 干净却全程死亡:server 日志 "fell from a high place"+"fell off some vines")。机制:far carrot 沿"射线通/身体不通"的树冠斜缝把 hitbox 拉出枝叶边缘 = 藤蔓摔死的直接诱因;走廊测试让 carrot 停在最后一个身体可走节点。**一个 fix 同时闭环两个残留:丛林树干摩擦 lane + climbUp/树冠摔死**。default OFF committed,验收 flag 集 +1(共 26)。附注:OFF 轮 MLG 未接住(落点树叶非 MLG floor?),BodyLos 让摔根本不发生。
