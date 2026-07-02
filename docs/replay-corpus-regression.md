@@ -595,3 +595,8 @@ monotonic 打底后 recovery 不再饿死,复测 digCommitHoldRepath 组合(mono
 **C25(平原/丛林/湖 spread)**:J1/J3 全绿(live worst=0s + replay 6/6 atGoal),J2 FAIL(live 33s 段+replay 1/3,maxStuck 221-258)。J2 的 33s 段暴露 **monotonic 第二站点**:wedge 时钟(noStepProgressTicks)同样被 step 抖动清零(ADVANCE-deadzone 流里 noStepProg 恒=61=阈值+1,数到门口就被抖走重数)→ 已修(retreat 换基准不清表,同 flag)。J2 replay 散度(live 绿 replay 劣化)=replan 出 envelope 的固有问题,待专项。
 **C26(陡山 spread,y89-112)**:0/3 全 CHURN——**干地陡爬域**(pmcs 2026-06-29"陡爬 wedge 内生双稳态,点修证伪,只剩结构性两选项"的那个域)。指纹:JUMP-noRise 12-13/journey(**全部 +0.78 边缘误报**,launch y 递增=真在爬,阈值 0.8→0.75 已校准)+ MOVE-noMove 7 + ADVANCE-deadzone 5-21。
 **结论**:湖区战役收效(worstStall 尾 -58%),**陡山域是 #47 剩余最大 blocker**,需下一战役(pmcs 结论:①执行器陡爬耗散 recovery 重基 ②planner partial-path,用户拍板项)。协议改进:preflight repair 成功现在打行(C26 的 FAIL 行实为 repair 前噪声);J2 GEAR×52=桶被 MLG 消耗未回收(scoop 生命周期,待查)。
+
+## 64. 山地A/B无判别:live churn不被replay复现——验收判定台的边界(2026-07-02)
+C26-J3 山地档 replay A/B(aboveNodeStallRecover OFF4/ON4):**两侧全 ARRIVED(worst 4-18s)**——live 的 3/3 churn(90s+)在 replay 中完全不复现。flag 机制正确(爬过头 3.00 格恢复盲区,forensic 铁证)但此 rig 无判别力,保持 default OFF 待 live 验证。
+**live-replay 散度的成因候选**(重要度序):①**装备劣化**——replay 每轮 give 全套,live 的 journey 内消耗不补(C26-J1 GEAR-degraded 后 J2 churn 时 GEAR×52:桶丢+可能镐被挤出=挖掘 5× 慢);②连续 journey 的世界状态累积(J1 的破坏影响 J2/J3 路线);③live spread 起点/chunk 加载时序 → A* 选路不同。
+**协议启示**:山地类 live churn 需要 **live 复现手段**(装备状态存档进 replay 档头/journey 内 GEAR-degraded 时自动补给)。短平快改进:live_journey 中场监测 GEAR-degraded 报警即时 re-give(把装备排除出变量),下周期生效。
