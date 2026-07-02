@@ -65,7 +65,19 @@ public final class AutoSwim {
         // command. So when idle: drive nothing and let the idle key-release settle the bot per
         // physics. The lift + shore-steer below run ONLY under an active process (the command's own
         // executor), as an in-process drowning backstop — never as an unprompted idle behavior.
-        if (idle) return;
+        if (idle) {
+            // ALARM-only (never drives — the passive contract holds): an idle bot left
+            // submerged after a cancelled goto has NO walker and NO DrowningEscape, and
+            // it drowned silently (live 2026-07-02: churn verdict cancelled the goto at
+            // an underwater stall, hp 20→0 during idle). One WARN per ~5 s while air is
+            // critical so the operator/harness can intervene; still zero inputs driven.
+            if (BotConfig.walkerExpectAlarm && p.isUnderWater() && p.getAirSupply() <= 100
+                    && p.getHealth() > 0 && (DBG++ % 100 == 0)) {
+                LOG.warn("[expect] IDLE-drowning: no process owns the bot, underwater with air={} at {},{},{} — passive contract forbids self-rescue",
+                        p.getAirSupply(), (int) p.getX(), (int) p.getY(), (int) p.getZ());
+            }
+            return;
+        }
         boolean inWater = p.isInWater();
         if (inWater && p.isUnderWater()) {
             mc.options.keyJump.setDown(true);
