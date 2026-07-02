@@ -1602,6 +1602,16 @@ public final class BotConfig {
      *  jump and place the support at the bob peak. Default OFF. */
     public static volatile boolean walkerPillarSurfacePlace = false;
 
+    /** Monotonic stuck-window (the open-water step-jitter starvation, A-4 44s stall
+     *  2026-07-02): buoyant drift on a straight water path jitters the step pointer back
+     *  and forth (wp 375↔387↔374), and the old `step != stuckStep` test treated every
+     *  jitter as a fresh node — stuckTicks observed pinned at 0-6 (aimSrc telemetry),
+     *  never reaching the nodeAim fallback at 12, so every stuck-gated recovery starved
+     *  while the yaw swept 660° and thrust cancelled. When ON: only a step ADVANCE opens
+     *  a fresh progress window; a retreat re-bases the distance reference but keeps the
+     *  stall clock running. Default OFF. */
+    public static volatile boolean walkerStuckStepMonotonic = false;
+
     /** Bank-dig ground-blip immunity (the underground-pool climb-out grind, live 2026-07-02
      *  (-275,49,-38): the committed bank dig requires {@code !onGround}, but the buoyant bob
      *  touches bottom ~4 ticks/second — each blip drops {@code digCommitted}, the tick falls

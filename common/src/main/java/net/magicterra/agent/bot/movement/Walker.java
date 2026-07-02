@@ -1997,7 +1997,23 @@ public final class Walker {
             double sdy = sn.getY() - p.getY();
             double sdz = (sn.getZ() + 0.5) - p.getZ();
             double sd2 = sdx * sdx + sdy * sdy + sdz * sdz;
-            if (step != stuckStep) {                       // new node → fresh progress window
+            // walkerStuckStepMonotonic: only a step ADVANCE opens a fresh progress window.
+            // On an open-water straight path the buoyant drift makes the projection/within
+            // machinery jitter the step pointer back and forth (wp 375↔387↔374 in one 44s
+            // stall, A-4 2026-07-02); with the old `step != stuckStep` test every jitter
+            // reset stuckTicks (observed pinned at 0-6, never reaching the nodeAim
+            // fallback's 12), so ALL stuck-gated recovery starved while the yaw swept 660°
+            // and thrust cancelled. A step RETREAT keeps the current window instead.
+            boolean stepWindowFresh = BotConfig.walkerStuckStepMonotonic
+                    ? step > stuckStep : step != stuckStep;
+            if (BotConfig.walkerStuckStepMonotonic && step < stuckStep) {
+                // Step RETREAT: keep the stall clock running but re-base the progress
+                // reference on the new (closer) node, else its naturally-smaller sd2
+                // would fake "real progress" and clear the clock through the side door.
+                stuckStep = step;
+                bestStepDist = sd2;
+            }
+            if (stepWindowFresh) {                         // new node → fresh progress window
                 stuckStep = step;
                 bestStepDist = sd2;
                 stuckTicks = 0;
