@@ -539,3 +539,6 @@ dist 81→52→37→24(z308 原churn区)→10→1 ARRIVED,35s 连续净进展,TO
 ## 53. ⭐⭐ walkerCarrotBodyLos 强效验证(树干摩擦真修 + 藤蔓摔死诱因一并消灭)(2026-07-02)
 §52 定的 lane 实现:`PathSmoothing.losWalkableBody`(连续插值 4 角 AABB 走廊测试,半宽 0.3,foot+head 通行+中心地板支撑),carrotPoint 的 LOS 门在 flag ON 时用它替代中心射线;path smoothing 保持廉价射线不动。
 **A/B(replay-0018 丛林档,ON/OFF 交替 K=6)**:**ON 到达 3/3**(maxStuck 305/423/196)vs **OFF 到达 0/3**(177-229 干净却全程死亡:server 日志 "fell from a high place"+"fell off some vines")。机制:far carrot 沿"射线通/身体不通"的树冠斜缝把 hitbox 拉出枝叶边缘 = 藤蔓摔死的直接诱因;走廊测试让 carrot 停在最后一个身体可走节点。**一个 fix 同时闭环两个残留:丛林树干摩擦 lane + climbUp/树冠摔死**。default OFF committed,验收 flag 集 +1(共 26)。附注:OFF 轮 MLG 未接住(落点树叶非 MLG floor?),BodyLos 让摔根本不发生。
+
+## 54. C8-C10(26-flag 含 BodyLos):live 9/9 全到达 + 零死亡(2026-07-02)
+BodyLos 加入后三周期:**9/9 live ARRIVED、零 CHURN、零死亡**(C5-C7 为 7/9+2 replay 死)——历次协议最佳。worst 分布:4/9 ≤3s(达丝滑 bar)、5/9 6-67s(尾部=水岸慢通道/mount 残留:C8-J1 31s、C8-J3 67s、C10-J2 31s)。replay 大量 arrived=False 但 maxStuck 极低(21/16/17 等)=**arrive_x 单轴判据缺陷实锤**(XZ-near 圆上到达点 x 未跨阈值;C10-J2 全 True 426/432/395、C9-J3 2/3 True 是真实混合)。判据已修:replay 后查终点距 goal XZ<10 且存活(atGoal)。4 条 journey"NO matching archive"(pathArchive 恢复时机/起点匹配容差)待查但不阻塞。C11-C13 带修正判据重跑中。
