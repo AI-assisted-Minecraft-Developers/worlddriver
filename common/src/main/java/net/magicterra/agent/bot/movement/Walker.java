@@ -1933,7 +1933,25 @@ public final class Walker {
         // that can't place, or a fallN that can't drop, dwells on one step indefinitely
         // and IS a wedge; the progress-based stuckTicks (which a bob/creep keeps zeroing,
         // and which onBridge hard-zeroes) misses both, so without this the bot deadlocks.
-        if (path == null || step >= path.size() || step != noProgressStep) {
+        // walkerStuckStepMonotonic (2nd site): a step RETREAT (projection jitter, repath
+        // oscillation) must not reset the wedge clock either — C25-J2's ADVANCE-deadzone
+        // stream showed noStepProg pinned at exactly 61 (threshold+1): the counter reached
+        // the gate and was immediately re-zeroed by the next flip, so every wedge-gated
+        // recovery re-armed forever. Only an ADVANCE opens a fresh window; a retreat
+        // re-bases the closest-approach reference on the CURRENT distance (not +INF, which
+        // would fake a new-low next tick and zero the clock through the progress branch).
+        boolean npStepFresh = (path == null || step >= path.size()
+                || (BotConfig.walkerStuckStepMonotonic ? step > noProgressStep : step != noProgressStep));
+        if (!npStepFresh && BotConfig.walkerStuckStepMonotonic
+                && path != null && step < path.size() && step < noProgressStep) {
+            noProgressStep = step;
+            BlockPos rn = path.get(step);
+            double rdx = (rn.getX() + 0.5) - p.getX();
+            double rdy = rn.getY() - p.getY();
+            double rdz = (rn.getZ() + 0.5) - p.getZ();
+            noProgressBestD2 = rdx * rdx + rdy * rdy + rdz * rdz;
+        }
+        if (npStepFresh) {
             noProgressStep = step;
             noStepProgressTicks = 0;
             noProgressBestD2 = Double.POSITIVE_INFINITY;
