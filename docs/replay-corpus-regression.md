@@ -600,3 +600,10 @@ monotonic 打底后 recovery 不再饿死,复测 digCommitHoldRepath 组合(mono
 C26-J3 山地档 replay A/B(aboveNodeStallRecover OFF4/ON4):**两侧全 ARRIVED(worst 4-18s)**——live 的 3/3 churn(90s+)在 replay 中完全不复现。flag 机制正确(爬过头 3.00 格恢复盲区,forensic 铁证)但此 rig 无判别力,保持 default OFF 待 live 验证。
 **live-replay 散度的成因候选**(重要度序):①**装备劣化**——replay 每轮 give 全套,live 的 journey 内消耗不补(C26-J1 GEAR-degraded 后 J2 churn 时 GEAR×52:桶丢+可能镐被挤出=挖掘 5× 慢);②连续 journey 的世界状态累积(J1 的破坏影响 J2/J3 路线);③live spread 起点/chunk 加载时序 → A* 选路不同。
 **协议启示**:山地类 live churn 需要 **live 复现手段**(装备状态存档进 replay 档头/journey 内 GEAR-degraded 时自动补给)。短平快改进:live_journey 中场监测 GEAR-degraded 报警即时 re-give(把装备排除出变量),下周期生效。
+
+## 65. 四周期验收图景(C25-C28)+ DIG-slow 归因 + 结构性实证(2026-07-02 终)
+**12 journey 总账**:7 ARRIVED(4 个 clean worst≤6s:C25-J1/J3、C27-J2、C28-J3)、4 CHURN(**全部山地 y89-116**)、1 慢到达(42s)。全绿 journey 全在平原/丛林/低地;churn 全在陡山。
+**结构性实证(非推测)**:C28-J2 churn 窗 1015/1477 tick stuckT>20——monotonic 双站点修复后时钟正确累积、recovery 反复触发,**bot 仍贴墙 90s**(MOVE-noMove hCol=true ×15):recovery 动作本身在山地贴墙场景无效(safetyRepath→A*同路线→再撞循环)。pmcs 两选项(执行器 recovery 重基/planner partial-path)从"点修证伪推断"升级为"telemetry 直接观测"。
+**DIG-slow 归因✅(Task#5)**:C28-J1 @(-258,81,338) 200t 不破,窗内 aim=carrot×28/wp×14——**挖掘期间 look 通道仍被行进 aim 掌舵**,准星不在被挖块=vanilla 进度清零。修法明确:breakHold 期间 aim 独占(镜像 waterClimbYaw 锁),未实现。
+**协议台修复链(本日)**:180s/90s churn 判据、snapshot/restore、gear top-up、preflight repair 日志、**主位移轴 arrive 判据**(C27-J3 假失败根除,C28-J3 replay 3/3 验证生效)。判定台本身已可靠。
+**#47 状态**:未达三连绿。blocker 单一且明确=**陡山执行器 recovery 无效**,结构性修复方向需用户拍板;次目标=dig aim 独占(已归因待实现)。
