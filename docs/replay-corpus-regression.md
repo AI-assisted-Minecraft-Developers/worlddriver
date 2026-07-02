@@ -553,3 +553,6 @@ BodyLos 加入后三周期:**9/9 live ARRIVED、零 CHURN、零死亡**(C5-C7 �
 
 ### §55 修正:break-stall 真相 = break 后 within 死区 + drive 反向(非 break 链断)
 再验尸推翻"链断"猜想:walk-keys 在打印 = `hasPendingEdge=false` = **toBreak 块已不 solid(挖掘早完成)**。真 stall 在 break 完成后的推进段:①bot 停在 node 旁 cur2=0.68(> within 门 0.45,永不 advance;passed 也不触发)= `walkerStepUpCrestReach` 注释描述的 orbit 死区的 **traverseBreak 平地变体**;②walk-keys `driveYaw=-123` vs t= 行 `bear=76` **反向 160°**(drive 朝反方向,dryDesc=true 参与)。两条线索:死区 advance(CrestReach 思路推广到 break-move)+ dryDesc/driveYaw 反向根因。下轮:先试开 `walkerStepUpCrestReach`(现成 flag,default OFF,同族机制)看是否覆盖,再查 driveYaw 反向来源。
+
+### §55 二次修正:真相 = repath 路线震荡环(planner 层),死区/反向皆误判
+完整 walk-keys 行推翻前两个猜想:churn 期间 bot **全速行走**(hSpd 0.28、yaw≡driveYaw 一致,"反向"是把不同 tick 的行拼接的误读);且 walk-keys `wp=(-253,63,203)` 与 t= 行 `node=(-254,66,207)` **属不同路线** —— A* 在"y66 traverseBreak 挖穿路线"与"y63 绕行路线"间反复切换,bot 沿两条路线来回跑 = **net-progress 环**(totStuck 失明族的 planner 变体;DryReanchor 开着仍循环)。攻击方向:pathDebug 抓两条交替 plan 对比成本(等价 tie 震荡?挖穿路线执行后失效触发 repath?),root 修 = repath 路线粘滞(hysteresis:新路线须显著优于当前才切换)或 break 成本校准打破 tie。C16 wedge (-252,70,209) 可 tp 复现。
