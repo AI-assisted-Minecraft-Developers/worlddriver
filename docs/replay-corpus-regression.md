@@ -505,3 +505,9 @@ dist 81→52→37→24(z308 原churn区)→10→1 ARRIVED,35s 连续净进展,TO
 - **C2-J1 摔死**:从 R3 终点丛林山顶(160,82,172)起步,plan 含 `climbUp` node=(158,80,170)(藤蔓攀爬);bot 在藤列正下方**自由坠落 30+ 格摔死**(y82→42 每 tick 直落,cur2=0.075 XZ 已对准 = 没抓住藤/藤不在)。= **vine/climbUp 执行器脱落致死**(与 §44 溺死同级的安全缺口;fell-protection/MLG 未起效——bot 无水桶)。
 - **C2-J2 CHURN 91s @(35,82,87)**、**C2-J3 CHURN 92s @(11,67,66)**:后者日志实锤 (6,61,64) `arc-wedge RECOVER nodeDy=-1 ram` 反复 80+ 次不脱(下降节点 ram wedge,"贴墙卡住"族);且 tracker 停止时 bot 又在正常走(net-progress 判据下它最终会脱但 >90s)。
 **诚实结论**:周期 1(§45)12/12 PASS 是**较友好地形抽样**;公平连续抽样下 #47 残留=①vine/climbUp 脱落致死 ②nodeDy=-1 下降 ram wedge(>90s)③山地 churn。**#47 未达,验收协议须周期 2/3 全绿才算**。改进:验收装备加 water_bucket(MLG 反射自救坠落)。
+
+## 47. 三周期验收判定 FAIL + 残留收敛到两核心机制(2026-06-29)
+**三周期总分**:C1 12/12 PASS(§45)/ C2 0/3(§46)/ C3 混合(J1 churn 91s;J2 到达 worst=31s 但 replay maxStuck 811/**1200**/734 一次不到;J3 到达 worst=6s 但 replay×3 全不到 480-527)。**验收协议判定:FAIL**(需连续周期全绿)。
+**⭐ 残留大收敛(跨 C2/C3 失败样本)**:churn/wedge 几乎全部落在**同一机制** = `stepUp` mount 失败 grind:node(14,58,102) 累计 1400+907+673 tick、(6,61,64)/(8,65,66) 族同型;C3-J2 replay wedge 位置同点。**= #47 问题⑥"上坡跳不上方块"的 stepUp/diagUp mount 双稳态**(§27-32 已诊断到基岩:对角技术全 A/B-disproven、planner 全局惩罚净中性,executor+planner 双撞墙),新世界丘陵台阶地形高频触发。现场特征:bot 悬空(onG=false)y 已到节点层(58.17)无碰撞(hCol/minorCol=false)但 hSpd 仅 0.05,跳起-XZ 进展乏力-滑回循环;**cardinal Z 向 stepUp 也 grind**(§32"cardinal 有效"的反例)。**replay-0016-1782989368760.json 可确定性复现此 wedge = 现成 A/B 台**。
+**第二核心**:climbUp 藤蔓脱落致死(C2-J1,§46)。C3-J3 replay 全不到待判(可能 arrive 判据缺陷:忠实 replay 里 XZ goal 的 x 终点可变)。
+**下一攻坚(优先序)**:① stepUp mount 双稳态(用 replay-0016 A/B;方向:mount 期 XZ 空中推进增强 / 起跳前 approach 对齐重基——注意 §26/§34 两次 REJECT 教训,任何介入须 K≥6 replay-0016 + 8 档聚合验证)② climbUp 攀爬保持(脱落检测+重抓/下撤)③ 验收协议重跑三周期。
