@@ -1342,7 +1342,24 @@ public final class Walker {
         boolean arcProgWedge = BotConfig.walkerArcProgressWedge && arcProgStall
                 && path != null && step < path.size();
         if (arcProgWedge) arcProgStall = false;   // consume once so the recovery isn't re-fired before the next window
-        boolean fellOffPath = arcWedge || arcProgWedge || ascentRamSlide || ascentRamSlideJitterImmune || descentRamStuck || verticalResync || (path != null && step < path.size()
+        // walkerAboveNodeStallRecover: the CLIMBED-PAST-THE-NODE blind spot (C26-J3
+        // 2026-07-02, the steep-mountain churn's core): the bot grinds UP a slope past
+        // its committed stepUp node and ends grounded 2-3 blocks ABOVE it (dY exactly
+        // 3.00 sits just outside the `> maxJumpUp+2` fell-off test — the mirror image of
+        // the 2026-06-24 ascent-ram slide-back gap), pinned against a wall with the node
+        // unreachable below (within/passed both starved, noStepProg 300+, yaw locked
+        // 173° off). A plain FALL edge legitimately has nodes 3+ below while airborne,
+        // so gate on GROUNDED + dry + sustained no-progress: only the stuck form folds
+        // into fellOffPath (foot-search re-route from the real, higher position).
+        boolean aboveNodeStall = BotConfig.walkerAboveNodeStallRecover
+                && path != null && step < path.size() && p.onGround() && !p.isInWater()
+                && (foot.getY() - path.get(step).getY()) >= 2
+                && (foot.getY() - path.get(step).getY()) <= world.maxJumpUpBlocks() + 2
+                && noStepProgressTicks > 90;
+        if (aboveNodeStall && BotConfig.walkerDebug)
+            LOG.info("[walker] above-node-stall RECOVER step={}/{} node={} dyAbove={} noStepProg={}",
+                    step, path.size(), path.get(step), foot.getY() - path.get(step).getY(), noStepProgressTicks);
+        boolean fellOffPath = arcWedge || arcProgWedge || ascentRamSlide || ascentRamSlideJitterImmune || descentRamStuck || verticalResync || aboveNodeStall || (path != null && step < path.size()
                 && Math.abs(path.get(step).getY() - foot.getY()) > world.maxJumpUpBlocks() + 2);
         if (arcWedge && BotConfig.walkerDebug)
             LOG.info("[walker] arc-wedge RECOVER step={}/{} node={} nodeDy={} wedgeT={} (bob-immune ram → fellOffPath)",

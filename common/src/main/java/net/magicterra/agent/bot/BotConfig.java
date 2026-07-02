@@ -1612,6 +1612,16 @@ public final class BotConfig {
      *  stall clock running. Default OFF. */
     public static volatile boolean walkerStuckStepMonotonic = false;
 
+    /** Climbed-past-the-node stall recovery (the steep-mountain churn core, C26-J3
+     *  2026-07-02): grinding up a slope carries the bot GROUNDED 2-3 blocks ABOVE its
+     *  committed stepUp node — dY exactly 3.00 sits just outside the `> maxJumpUp+2`
+     *  fell-off test (mirror of the 2026-06-24 slide-back gap), within/passed both
+     *  starve (node below), and the bot pins against the wall for 300+ ticks with the
+     *  yaw locked reverse. Airborne FALL edges legitimately have nodes 3+ below, so
+     *  this gates on grounded + dry + noStepProgress > 90 before folding into
+     *  fellOffPath (foot-search re-routes from the real, higher position). Default OFF. */
+    public static volatile boolean walkerAboveNodeStallRecover = false;
+
     /** Bank-dig ground-blip immunity (the underground-pool climb-out grind, live 2026-07-02
      *  (-275,49,-38): the committed bank dig requires {@code !onGround}, but the buoyant bob
      *  touches bottom ~4 ticks/second — each blip drops {@code digCommitted}, the tick falls
