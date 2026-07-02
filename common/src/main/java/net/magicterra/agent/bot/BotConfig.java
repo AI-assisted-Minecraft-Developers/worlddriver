@@ -1590,6 +1590,18 @@ public final class BotConfig {
      *  lets the next repath adopt normally — so this cannot starve real reroutes. Default OFF. */
     public static volatile boolean walkerDigCommitHoldRepath = false;
 
+    /** Water-surface pillar crest-place (the deterministic water-bank pillarUp deadlock,
+     *  rig tp(371.5,62,348.5)→goto(378,65,347) 2026-07-02): a pillarUp whose destination
+     *  cell is SURFACE water (air above) hit the flooded-shaft float-only branch, but a
+     *  buoyant body cannot float above the waterline (bob ceiling +0.08 vs the +0.9 the
+     *  next rung needs) — while the crest ticks that COULD place (feet ≥ fill.y+1.0,
+     *  ~1-2 ticks/bob) were spent in that branch not placing, and the separate climbout-
+     *  place takeover clicked only below +1.0 where vanilla silently rejects the
+     *  overlapping AABB. The two place paths missed each other's height windows forever.
+     *  When ON: a water shaft cell with air above is treated as the dry-crest case —
+     *  jump and place the support at the bob peak. Default OFF. */
+    public static volatile boolean walkerPillarSurfacePlace = false;
+
     /** Bank-dig ground-blip immunity (the underground-pool climb-out grind, live 2026-07-02
      *  (-275,49,-38): the committed bank dig requires {@code !onGround}, but the buoyant bob
      *  touches bottom ~4 ticks/second — each blip drops {@code digCommitted}, the tick falls

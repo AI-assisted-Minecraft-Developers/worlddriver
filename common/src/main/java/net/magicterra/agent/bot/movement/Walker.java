@@ -3220,6 +3220,22 @@ public final class Walker {
             // Detect water from the world (cell below is water), not p.isInWater(),
             // which flickers false at the bob peak and would drop the jump.
             boolean shaftFlooded = world.isWater(path.get(step));
+            // Water-SURFACE shaft (walkerPillarSurfacePlace): the destination cell is
+            // water but the cell ABOVE it is air — this is the water-bank climb-out,
+            // not a flooded chimney. Floating higher is physically impossible (rig
+            // 371.5,62,348.5: jump+buoyancy bob ceiling 63.08 vs the 63.9 the flooded-
+            // shaft float path would need), so case (a) float-through starves forever
+            // while the ONLY ticks that could truly place (bob crest ≥ fill.y+1.0,
+            // 63.0-63.08 ≈ 1-2 ticks/bob) are spent in this branch NOT placing — and
+            // the lower-gated climbout-place takeover (0.9 threshold) clicks only in
+            // the 62.9-63.0 band where vanilla silently rejects the still-overlapping
+            // AABB. The two place paths miss each other's windows = the deterministic
+            // water-bank pillarUp deadlock. Treat the surface cell as case (b): jump
+            // and crest-place the support.
+            if (shaftFlooded && BotConfig.walkerPillarSurfacePlace
+                    && !world.isWater(path.get(step).above())) {
+                shaftFlooded = false;
+            }
             if (shaftFlooded || p.isInWater() || world.isWater(path.get(step).offset(0, -1, 0))) {
                 agentJump(a, true);
                 if (!shaftFlooded && a.holdPlaceable()) {
