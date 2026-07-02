@@ -1542,6 +1542,21 @@ public final class BotConfig {
      *  A/B on replay-0016 (deterministic reproduction of the grind). */
     public static volatile boolean walkerStepUpBackoffRetry = false;
 
+    /** Carrot pursuit shrink under sustained wall collision (the jungle-trunk friction, C5-J1 live
+     *  + replay-0018 maxStuck ~284: the interpolated look-ahead carrot steers the BODY at a diagonal
+     *  slit between two trunks that only the LOS RAY threads — losWalkable is a ray test, the 0.6-wide
+     *  hitbox snags, bear-to-node 34 vs carrot aim -80, hCol pinned ~15 s until slow recoveries fire).
+     *  When ON and horizontalCollision has been sustained HCOL_RAM_TICKS-ish (>=8t), carrotPoint
+     *  collapses the pursuit distance to the immediate committed node: the A* node CHAIN is
+     *  body-walkable by construction, the interpolated shortcut is not. Releases the tick the
+     *  collision clears (hColRamTicks resets), restoring the smooth far carrot.
+     *  <p><b>A/B-DISPROVEN 2026-07-02</b> (replay-0018 K=3v3: OFF 382/236/236 vs ON 179/513/516,
+     *  ON median WORSE): the far carrot's off-node bearing IS the string-pulled detour around the
+     *  trunk; collapsing to the node aims the body at the trunk FACE. The trunk friction is not an
+     *  aim bug — keep OFF permanently; the fix lane is a body-width-aware LOS (losWalkable corridor
+     *  test), not pursuit shrink. */
+    public static volatile boolean walkerCarrotHColShrink = false;
+
     /** Bob-immune ascent-ram freeze-breaker trigger: on a steep tall bank (live W→E -861→-632, ~50-70s jank,
      *  reproducible), a +1 {@code diagUp}/{@code stepUp} mount jumps off the diagonal corner, slides back to
      *  the riser foot, and repeats — foot pinned ~0.78 BELOW the node, cur2 orbiting 0.64-0.88 just over the

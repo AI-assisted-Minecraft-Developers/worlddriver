@@ -5752,6 +5752,10 @@ public final class Walker {
      *  Returns {x, z} world coords. */
     private double[] carrotPoint(WorldView world, BlockPos foot, double px, double pz) {
         double remaining = CARROT_DIST;
+        // Sustained wall collision → the far carrot is steering the body at a gap only
+        // the LOS ray fits (jungle trunks). Collapse pursuit to the immediate node —
+        // the A* chain is body-walkable by construction (walkerCarrotHColShrink).
+        if (BotConfig.walkerCarrotHColShrink && hColRamTicks >= 8) remaining = 0.01;
         double cx = px, cz = pz, tx = px, tz = pz;
         for (int i = step; i < path.size() && i - step <= CARROT_MAX_NODES; i++) {
             BlockPos node = path.get(i);

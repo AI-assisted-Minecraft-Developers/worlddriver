@@ -532,3 +532,6 @@ dist 81→52→37→24(z308 原churn区)→10→1 ARRIVED,35s 连续净进展,TO
 **新根因+fix**:①**DrowningEscape pocket 盲区实锤**(-254,61,-219 深坑:头顶 solid+reverse 也堵→打转 1 分钟溺死 hp5.3→0,DROWNING-ESCAPE engaged 但直线逃逸不够)→ **升级 8 方向轮询探测**(2 格外 eye 水+无顶盖=可浮方向,25t/换向,probe 轮转防伪开放方向死锁;已编译待重启生效)。②C5-J3 洞穴 wedge:arc-wedge RECOVER(JitterImmune)确实触发(wedgeT75+)但 repath 反复提交同一 +2 节点 = **sole-route recovery 空转**(mount 双稳态最深形态)。③丛林树干摩擦 15s(bear/lastAim 差 114°,aim 瞄远 carrot 身体撞近树干,replay-0018 稳定 284)。
 **画面通道结论**:滞后 ~20s+把 dig 慢通道/replay 重演/起步间隙全报 ANOMALY,须逐条 telemetry 交叉(误报率高但真事件——溺死、藤蔓摔死、放块脱困成功——都抓到了)。
 **判定:仍 FAIL 但结构清晰**——去掉两死亡(反射已修:MLG 开+pocket 逃逸)后,阻塞丝滑的只剩:mount 双稳态(sole-route 变体)、水岸 dig/pillar 慢通道(>90s,功能正确速度不达)、丛林树干 15s 摩擦。
+
+## 52. walkerCarrotHColShrink A/B-REJECT(第 8 个 aim 介入证伪)+ 真修方向(2026-07-02)
+猜想"树干摩擦=carrot 瞄 LOS 斜缝身体过不去→hCol 时收缩 pursuit 到 cur node"被 replay-0018 K=3v3 证伪:OFF 382/236/236 vs ON **179/513/516(中位更差)**。反转认识:far carrot 的偏离 bearing 本身就是 string-pull 的绕树 detour,收缩到 node = 正面撞树干。**树干摩擦不是 aim 层 bug,真修 lane = body-width-aware LOS**(losWalkable 从射线测试升级为 0.6 宽走廊测试,让 carrot 不吃身体过不去的斜缝)——属 pathfinder/几何工程,非点修。flag 保留 default OFF + DISPROVEN 注释。附注:新 build 下 replay-0018 maxStuck 发散(236-516)提示树干区本身 bistable,后续 A/B 须 K≥6。

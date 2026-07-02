@@ -268,6 +268,10 @@ public final class SettingsCommand {
                 BotConfig.walkerStepUpBackoffRetry = subr;
                 applied.add("walkerStepUpBackoffRetry");
             }
+            if (params.get("walkerCarrotHColShrink") instanceof Boolean wchs) {
+                BotConfig.walkerCarrotHColShrink = wchs;
+                applied.add("walkerCarrotHColShrink");
+            }
             if (params.get("avoidMobs") instanceof Boolean avm) {
                 BotConfig.avoidMobs = avm;
                 applied.add("avoidMobs");
