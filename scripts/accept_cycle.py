@@ -186,15 +186,18 @@ for j in range(1, 4):
         if arc: break
     if arc is None:
         print(f'[{label}] NO matching archive — skip replays', flush=True); continue
-    # arrive 判据: 用 journey 实际终点 x 方向近似(向东 ge / 向西 le), 容差 6
-    d = json.load(open(os.path.join(RP_DIR, arc)))
-    startx = d.get('header', {}).get('start', [0])[0]
-    cmp = 'ge' if endx >= startx else 'le'
-    ax = round(endx - 6) if cmp == 'ge' else round(endx + 6)
-    print(f'[{label}] archive={arc} arrive_x={ax}({cmp})', flush=True)
+    # arrive 判据: 单轴触线取 journey 的主位移轴(§64续: C27-J3 南北向 journey 用 x 轴
+    # 在启程早期就触线,replay 被提前掐死 → maxStuck 9-10 + atGoal=False 的假失败)。
+    if abs(gx - jsx) >= abs(gz - jsz):
+        axis, end_v, start_v = 'x', endx, jsx
+    else:
+        axis, end_v, start_v = 'z', gz, jsz     # live 终点 z 未记录,用 goal z 近似(radius 3 内)
+    cmp = 'ge' if end_v >= start_v else 'le'
+    ax = round(end_v - 6) if cmp == 'ge' else round(end_v + 6)
+    print(f'[{label}] archive={arc} arrive_{axis}={ax}({cmp})', flush=True)
     for i in range(3):
         ensure_alive()
-        r = run_case(arc, FLAGS, arrive_x=ax, cmp=cmp, timeout=240)
+        r = run_case(arc, FLAGS, arrive_x=ax, cmp=cmp, timeout=240, axis=axis)
         # arrive_x is a single-axis proxy that misjudges XZ-near-circle arrivals (§49);
         # the real criterion is the end position inside the goal circle.
         ep = rpc('mc.client.player', {})['pos']

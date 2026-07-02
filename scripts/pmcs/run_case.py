@@ -52,8 +52,8 @@ async def _rpc(method: str, params: dict):
                 return msg.get("result")
 
 
-def _arrived(x: float, arrive_x: int, cmp: str) -> bool:
-    return (x >= arrive_x) if cmp == "ge" else (x <= arrive_x)
+def _arrived(v: float, arrive_x: int, cmp: str) -> bool:
+    return (v >= arrive_x) if cmp == "ge" else (v <= arrive_x)
 
 
 @dataclass
@@ -64,7 +64,7 @@ class CaseResult:
     conformance: dict
 
 
-def run_case(archive: str, flags: dict, arrive_x: int, cmp: str, timeout: int = 220) -> CaseResult:
+def run_case(archive: str, flags: dict, arrive_x: int, cmp: str, timeout: int = 220, axis: str = "x") -> CaseResult:
     _ensure_archive_in_runtime(archive)
     base = len(_read_log().splitlines())
     # walkerDebug 是 telemetry 观测开关,必须 ON 才能测 maxStuck/conformance——独立于被测候选 flags。
@@ -80,7 +80,7 @@ def run_case(archive: str, flags: dict, arrive_x: int, cmp: str, timeout: int = 
             tk = parse_walker_line(ln)
             if tk:
                 last = tk
-        if last and _arrived(last.x, arrive_x, cmp):
+        if last and _arrived(last.x if axis == "x" else last.z, arrive_x, cmp):
             arrived = True
             break
     sl = log_slice_since(_read_log(), base)
