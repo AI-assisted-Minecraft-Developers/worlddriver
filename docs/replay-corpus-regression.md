@@ -542,3 +542,8 @@ dist 81→52→37→24(z308 原churn区)→10→1 ARRIVED,35s 连续净进展,TO
 
 ## 54. C8-C10(26-flag 含 BodyLos):live 9/9 全到达 + 零死亡(2026-07-02)
 BodyLos 加入后三周期:**9/9 live ARRIVED、零 CHURN、零死亡**(C5-C7 为 7/9+2 replay 死)——历次协议最佳。worst 分布:4/9 ≤3s(达丝滑 bar)、5/9 6-67s(尾部=水岸慢通道/mount 残留:C8-J1 31s、C8-J3 67s、C10-J2 31s)。replay 大量 arrived=False 但 maxStuck 极低(21/16/17 等)=**arrive_x 单轴判据缺陷实锤**(XZ-near 圆上到达点 x 未跨阈值;C10-J2 全 True 426/432/395、C9-J3 2/3 True 是真实混合)。判据已修:replay 后查终点距 goal XZ<10 且存活(atGoal)。4 条 journey"NO matching archive"(pathArchive 恢复时机/起点匹配容差)待查但不阻塞。C11-C13 带修正判据重跑中。
+
+## 55. C11-C16 六周期 + 协议工具链定稿 + allowBreak 副作用发现(2026-07-02)
+**协议工具链三修**(atGoal 圆判据替代 arrive_x / archive_for 按 header.start 匹配 / flush 竞态重试 18s)后 C14-C16 数据干净:**每周期 J1 全绿 4/4**(C14-J1 28s/0s+14/27/16、C15-J1 39s/3s+27/18/27、C16-J1 148s/6s+19/29/34 —— **live+replay×3 全绿已 6 条累计**),live 到达率 BodyLos 后 17/18,零死亡维持。
+**新 wedge 类(⭐下轮首攻)**:C16-J2/J3 双 journey 同点 (-252,70,209) churn = **干地 traverseBreak/downBreak 挖掘 stall**(yawErr=0 对准、onG、pitch 朝下、800+ tick 无进展)。**根因假设 = allowBreak 全局开启的副作用**:break 权限开→A* 开始提交 break-heavy 路径(成本模型 27.5/block?)而执行端挖掘慢/无效(工具选择/硬度/aim 射线),产生干地版"慢通道"——C4 前从未见此类。修复 lane:①pathfinder break 成本校准(挖掘时长真实化,让 A* 少选 break 路径)②执行器 break 有效性验证(为何 25s+ 不破块:工具?aim?)。C14-J3 (155,62,-172) 待定性。
+**16 周期累计判定**:live 到达率 34/36(94%),零死亡(BodyLos 后),全绿 journey 6 条;三周期全绿闸门未过(每周期仍有 1-2 条撞慢通道/break-stall)。残留清单更新:①break-stall(干地新类,double-journey 复现档可取)②水岸 dig/pillar 慢通道③mount sole-route。
