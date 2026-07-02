@@ -476,3 +476,13 @@ dist 81→52→37→24(z308 原churn区)→10→1 ARRIVED,35s 连续净进展,TO
 - 频繁**小水域 surface-swim 机动 ~10s**(如 -465,247、journey 各处水段)= 非完美丝滑(用户"零 >3s 停"bar 未达)但远小于卡死,可恢复
 - 特定 **tall-stone-bank water climb-out 60s**(§42)= 必经石岸的深执行器残留
 **#47 现状收敛**:17-flag 使可穿越地形 worst≤10s(vs 修前 35-60s),大幅趋丝滑;完美丝滑剩两类——小水域机动(~10s,需 surface-swim 顺滑度精调)+ tall-stone-bank(60s,需 buoyancy dig-climb 执行器)。两者都需聚焦工程,但**flag-flip 已把 #47 从"普遍卡死"带到"worst≤10s + 两类特定残留"**。
+
+## 44. ⭐⭐ 致命水岸 climb-out 死锁根因+双 fix live 验证(环境重建后新世界)(2026-06-29)
+**背景**:系统重启(全环境丢失),`/root/source/minecraft` 新路径重建(JDK/图形栈/venv-uv/MCP路径修复),新随机世界(Peaceful+AllowCommands,种子新)。恢复后基准:干地 45 格 worst=0s、穿水 65 格 worst=0s(17-flag,零 stall)。
+**致命 bug 发现(R1 随机 journey)**:bot 从水底起步爬岸,在 (-21,60,-42) 水岸 climb-out **溺死**(Peaceful 不免溺水)。
+**根因链(日志决定性,26 循环实锤)**:`pillar takeover engage → 50t place-futile(浮力顶点 60.2 < fill 格 need 61.9,bob 永远顶不过水面 fill cell)→ bail 设 climbPillarGaveUp → repath 交替换 climb node(-20,61,-43 ↔ -21,61,-42)→ climb-context 重置在 L2589 清掉 latch → pillar re-engage` ×26(~2.5s/循环)直到空气耗尽溺死;bank-dig fallback 从未获得完整接管。**totStuck 系判据对此完全失明**(pend=true 期间计数被 actuator 分支绕过),且 walker 深水等待期(idle)不 tick。
+**双 fix(committed,default OFF)**:
+- `walkerDrowningEscape`:undW 且 air≤60(~3s)→ LATCH 抢占一切 climb/dig/pillar actuator:hold swim-up jump;顶头被 cap 或 hCol 时反向 yaw 倒退离岸找开水面;air≥240 或出水才释放。**把任何未知水下死锁从致死降级为呼吸-重试**。
+- `walkerClimbGaveUpSticky`:bail 时把 climbPillarGaveUp 锚定 foot±3/TTL 300t,climb-context 重置不再清 latch → dig/recovery 真正接管。
+**live A/B(同场景确定性复现:沉底 y54 → 同 goal goto)**:`DROWNING-ESCAPE engaged: air=-16`(已在扣血临界)→ 3s 后 `released: air=44` = **bot 存活(hp 20 全程)**,随后完成穿水+爬岸 y54→y76、dist 136→26。**致死→存活+通过,双 fix 验证成立**。
+**附带教训**:①随机验收 goal 必须 XZ(Y-agnostic)goal——y 盲猜 65 把 goal 埋进山体(A* goalReached=false 正确,bot best-effort 绕圈是 goal 无效非执行器 bug);accept_run.py 已改 `xz`+near。②pgrep/pkill -f 会自匹配 wrapper(exit 144),杀 client 用 /proc cmdline 过滤。③新环境三坑:.mcp.json 老路径、venv shebang 老路径(uv 重建)、runCommand RPC 无效须 chat.send。

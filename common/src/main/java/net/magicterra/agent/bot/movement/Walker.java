@@ -615,6 +615,9 @@ public final class Walker {
     private int waterClimbDigFloatTicks;   // consecutive ticks committed to the current latched riser while the bot stayed AFLOAT (onGround=false); reset to 0 on any ground contact. Feeds the futile-overhang early-release (walkerFutileBankDigRelease): a high count + a >=2-above-foot riser that breaks NOTHING = an unreachable overhang, not a legit grounded climb-out (which touches ground and resets this)
     private int futileBankDigCooldown;      // ticks left during which the bank-DIG must NOT re-engage after a futile-overhang early-release (walkerFutileBankDigRelease) — gives the reactive back-off burst time to physically move the bot off the unreachable riser before any dig can re-latch it; decremented per tick
     private boolean climbPillarGaveUp;     // latched once the pillar takeover proves futile (drifted off its locked column, or bob peak never clears the surface fill cell) → block pillar re-engage + let the bank-DIG take over even with a place block in hand; cleared when the climb context ends
+    private BlockPos climbGaveUpPos;       // where the pillar proved futile (walkerClimbGaveUpSticky) — while the foot stays within 3 blocks and the TTL runs, the gave-up latch survives climb-context resets (repath node swaps) so the proven-futile pillar can't re-engage in a loop
+    private int climbGaveUpTtl;            // ticks left on the sticky gave-up latch (walkerClimbGaveUpSticky); decremented per tick, 0 = expired
+    private boolean drowningEscapeLatch;   // walkerDrowningEscape: air critically low while submerged → surface-for-air override active until air recovers
     private int pillarNoPlaceTicks;        // ticks the pillar takeover has been engaged without a successful place / height gain — buoyant bob can't lift feet above a surface fill cell, so beyond PILLAR_FUTILE_TICKS the place is hopeless and we fall to the dig
     private int waterClimbTargetY;         // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
     private int waterClimbColX, waterClimbColZ; // LOCKED column the takeover pillars in (don't chase repathing nodes)
@@ -736,6 +739,9 @@ public final class Walker {
         this.waterClimbPillaring = false;
         this.waterClimbDigging = false;
         this.climbPillarGaveUp = false;
+        this.climbGaveUpPos = null;
+        this.climbGaveUpTtl = 0;
+        this.drowningEscapeLatch = false;
         this.pillarNoPlaceTicks = 0;
         this.lastDigRiser = null;
         this.waterClimbDigRiser = null;
@@ -870,6 +876,9 @@ public final class Walker {
         this.waterClimbPillaring = false;
         this.waterClimbDigging = false;
         this.climbPillarGaveUp = false;
+        this.climbGaveUpPos = null;
+        this.climbGaveUpTtl = 0;
+        this.drowningEscapeLatch = false;
         this.pillarNoPlaceTicks = 0;
         this.lastDigRiser = null;
         this.waterClimbDigRiser = null;
@@ -2468,6 +2477,54 @@ public final class Walker {
         // only here, so the pathfinder is byte-for-byte unchanged.
         {
             BlockPos cwp = path.get(step);
+            // DROWNING-ESCAPE reflex (walkerDrowningEscape, default OFF): a submerged climb-out
+            // deadlock (e.g. the pillar↔repath loop below) can pin the bot under a bank lip until
+            // its air runs out — Peaceful does not prevent drowning (live 2026-06-29: died at
+            // (-21,60,-42) while climbout-place spun 26 engage/bail cycles). Air below ~3s while
+            // underwater → LATCH a surface-for-air override that preempts every climb/dig/pillar
+            // actuator this tick: hold the swim-up jump, and if a solid lip caps the head (or a
+            // wall blocks the rise) drive BACKWARD off the bank so buoyancy finds open surface.
+            // Released once air recovers (or out of water); the interrupted climb resumes fresh.
+            if (BotConfig.walkerDrowningEscape) {
+                if (p.isUnderWater() && p.getAirSupply() <= 60) {
+                    if (!drowningEscapeLatch && BotConfig.walkerDebug)
+                        LOG.info("[walker] DROWNING-ESCAPE engaged: air={} foot={},{},{} → surface for air",
+                                p.getAirSupply(), foot.getX(), foot.getY(), foot.getZ());
+                    drowningEscapeLatch = true;
+                } else if (!p.isInWater() || p.getAirSupply() >= 240) {
+                    if (drowningEscapeLatch && BotConfig.walkerDebug)
+                        LOG.info("[walker] DROWNING-ESCAPE released: air={} → resume", p.getAirSupply());
+                    drowningEscapeLatch = false;
+                }
+                if (drowningEscapeLatch && p.isInWater()) {
+                    agentJump(a, true);
+                    a.breakHold(false);
+                    p.setSprinting(false);
+                    boolean riseBlocked = world.isSolid(foot.offset(0, 2, 0)) || p.horizontalCollision;
+                    if (riseBlocked) {
+                        // Back straight off the lip/wall: reverse the current body yaw and swim
+                        // away — one or two cells of open water is all the buoyant rise needs.
+                        float backYaw = p.getYRot() + 180f;
+                        p.setYRot(backYaw); p.yHeadRot = backYaw; p.yBodyRot = backYaw;
+                        p.setXRot(0f);
+                        agentForward(a, true);
+                    } else {
+                        agentForward(a, false);
+                    }
+                    return Step.WALKING;
+                }
+            }
+            // walkerClimbGaveUpSticky: run down the sticky gave-up TTL; expire the anchor once
+            // the foot leaves the futile bank (>3 blocks) or the TTL runs out.
+            if (climbGaveUpTtl > 0) {
+                climbGaveUpTtl--;
+                if (climbGaveUpTtl == 0 || climbGaveUpPos == null
+                        || Math.abs(foot.getX() - climbGaveUpPos.getX()) > 3
+                        || Math.abs(foot.getZ() - climbGaveUpPos.getZ()) > 3) {
+                    climbGaveUpTtl = 0;
+                    climbGaveUpPos = null;
+                }
+            }
             // Detecting a stalled climb-out must survive confounders that reset the old
             // accounting before it armed: (1) the bob peak breaches the surface so
             // `touchingWater` flickers false; (2) at that same peak the foot BLOCK rises
@@ -2534,8 +2591,12 @@ public final class Walker {
                 // Left the climb context (grounded on the bank, or A* now routes
                 // down/along) → clear the per-attempt accounting AND the "pillar
                 // gave up" latch, so the NEXT genuine climb-out starts fresh.
+                // walkerClimbGaveUpSticky: EXCEPT while the sticky anchor is live — a repath
+                // that swaps the climb node resets this context every ~2.5s, and clearing the
+                // latch here is what let the proven-futile pillar re-engage 26× until the bot
+                // drowned (live 2026-06-29). While the foot is still at the futile bank, keep it.
                 waterClimbStall = 0;
-                climbPillarGaveUp = false;
+                if (!(BotConfig.walkerClimbGaveUpSticky && climbGaveUpTtl > 0)) climbPillarGaveUp = false;
                 pillarNoPlaceTicks = 0;
                 lastDigRiser = null;
                 waterClimbDigRiser = null;
@@ -2683,7 +2744,15 @@ public final class Walker {
                     // cell and the foothold-place finally lands (the pre-3160836 behavior the
                     // self-correcting latch regressed: waterLowBankArena went red for ~5 days).
                     boolean digFallbackHere = BotConfig.allowBreak && BotConfig.allowSwimEscapeBreak;
-                    if ((drifted || placeFutile || tooHigh) && digFallbackHere) climbPillarGaveUp = true;
+                    if ((drifted || placeFutile || tooHigh) && digFallbackHere) {
+                        climbPillarGaveUp = true;
+                        // walkerClimbGaveUpSticky: anchor the latch to THIS bank so repath-driven
+                        // context resets can't clear it while the bot is still here (15s TTL).
+                        if (BotConfig.walkerClimbGaveUpSticky) {
+                            climbGaveUpPos = foot;
+                            climbGaveUpTtl = 300;
+                        }
+                    }
                     if (BotConfig.walkerDebug)
                         LOG.info("[walker] water climb-out: bail ({}) → fallback",
                                 !haveBlock ? "no block" : tooHigh ? "over ceiling"
@@ -4790,6 +4859,13 @@ public final class Walker {
                     // the bot hovered at constant depth (hSpd 0.02, jump+sneak both
                     // down) while the burst storm wound yaw 4.5 turns (mangrove live).
                     || ((swimUp || swimColumn || deepWaterRise) && !cappedHead && !diving) || wiggle);
+        // TEMP-DIAG (sunken-start deadlock): dump every jump term while submerged & stuck
+        if (BotConfig.walkerDebug && p.isInWater() && p.isUnderWater() && stuckTicks > 20 && stuckTicks % 20 == 1) {
+            LOG.info("[walker] JUMP-DIAG jump={} swimUp={} swimCol={} dwRise={} capped={} diving={} descBrake={} fbMis={} belowRam={} stepUpJump={} wiggle={} uwT={} wp={},{},{} foot={},{},{}",
+                    jump, swimUp, swimColumn, deepWaterRise, cappedHead, diving, descendBrake, fellBelowMisaligned,
+                    (p.horizontalCollision && p.onGround() && wp.getY() < foot.getY()), stepUpJump, wiggle, underwaterTicks,
+                    wp.getX(), wp.getY(), wp.getZ(), foot.getX(), foot.getY(), foot.getZ());
+        }
         agentJump(a, jump);
         // Sprint in water ONLY on a FLAT crossing (flatWaterWalk: wp.y==foot.y). The
         // prone swim pose that sprint+forward forces is exactly what a wide open-ocean

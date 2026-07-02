@@ -256,6 +256,14 @@ public final class SettingsCommand {
                 BotConfig.walkerWallCornerFastChurn = wcfc;
                 applied.add("walkerWallCornerFastChurn");
             }
+            if (params.get("walkerDrowningEscape") instanceof Boolean wde) {
+                BotConfig.walkerDrowningEscape = wde;
+                applied.add("walkerDrowningEscape");
+            }
+            if (params.get("walkerClimbGaveUpSticky") instanceof Boolean wcgs) {
+                BotConfig.walkerClimbGaveUpSticky = wcgs;
+                applied.add("walkerClimbGaveUpSticky");
+            }
             if (params.get("avoidMobs") instanceof Boolean avm) {
                 BotConfig.avoidMobs = avm;
                 applied.add("avoidMobs");

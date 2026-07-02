@@ -1510,6 +1510,26 @@ public final class BotConfig {
      *  net-progress stall, REGRESSION.md §37). */
     public static volatile boolean walkerWallCornerFastChurn = false;
 
+    /** Drowning-escape reflex (LETHAL water climb-out deadlock, live 2026-06-29 New World (-21,60,-42)):
+     *  the pillar↔repath deadlock below can pin a submerged bot under a bank lip until its air runs out —
+     *  Peaceful does NOT prevent drowning (bot died at hp 3→0 while climbout-place spun). When ON: once the
+     *  bot is underwater with air below ~3s (getAirSupply ≤ 60), LATCH a surface-for-air override that
+     *  preempts every climb/dig/pillar actuator — hold the swim-up jump and, if a solid lip caps the head
+     *  (or a wall blocks the rise), drive BACKWARD off the bank so buoyancy finds open surface. Released
+     *  once air recovers (≥ 240) or the bot leaves water; the interrupted climb then resumes fresh. A
+     *  survival reflex, not a pathfinding fix: it turns any unknown submerged deadlock from a death into a
+     *  breathe-retry loop. Default OFF. */
+    public static volatile boolean walkerDrowningEscape = false;
+
+    /** Make the water climb-out "pillar gave up" latch STICKY across repaths (the 2026-06-29 lethal loop):
+     *  climbPillarGaveUp latches when the buoyant place proves futile (bob can't clear the surface fill
+     *  cell, PILLAR_FUTILE_TICKS=50), but every repath swaps the climb node (-20,61,-43 ↔ -21,61,-42) which
+     *  RESETS the climb context and clears the latch → the proven-futile pillar re-engaged 26× (~2.5s each)
+     *  until the bot drowned, and the bank-dig fallback never got a full turn. When ON, the latch survives
+     *  context resets while the foot stays within 3 blocks of where the pillar proved futile (15s TTL), so
+     *  the dig/recovery actually takes over. Default OFF. */
+    public static volatile boolean walkerClimbGaveUpSticky = false;
+
     /** Bob-immune ascent-ram freeze-breaker trigger: on a steep tall bank (live W→E -861→-632, ~50-70s jank,
      *  reproducible), a +1 {@code diagUp}/{@code stepUp} mount jumps off the diagonal corner, slides back to
      *  the riser foot, and repeats — foot pinned ~0.78 BELOW the node, cur2 orbiting 0.64-0.88 just over the
