@@ -99,12 +99,27 @@ def live_journey(label):
     gx, gz = round(sx + dist * math.cos(ang)), round(sz + dist * math.sin(ang))
     print(f'[{label}] start=({sx:.0f},{sz:.0f}) goal=XZ({gx},{gz}) dist={dist:.0f}', flush=True)
     rpc('mc.bot.goto', {'xz': {'x': gx, 'z': gz}, 'near': 3})
-    mind = 1e9; lastprog = 0.0; worst = 0.0
+    mind = 1e9; lastprog = 0.0; worst = 0.0; gearCheck = 0.0
     t0 = time.time()
     while time.time() - t0 < 420:
         try: r = rpc('mc.client.player', {})
         except Exception: time.sleep(3); continue
         x, z = r['pos']['x'], r['pos']['z']; el = time.time() - t0
+        # Mid-journey gear re-supply (§64): live journeys CONSUME gear (MLG spends the
+        # bucket; pickups crowd the pickaxe out) while replays re-give every round —
+        # the prime suspect for live-only mountain churn (GEAR-degraded x52 before the
+        # C26-J2 churn). Top up in place (no /clear — don't disturb the run) every ~20s.
+        if el - gearCheck > 20:
+            gearCheck = el
+            try:
+                inv = r.get('inventory') or []
+                hot = {i.get('id') for i in inv if isinstance(i, dict) and i.get('slot', 99) < 9}
+                if 'minecraft:water_bucket' not in hot:
+                    rpc('mc.client.chat.send', {'text': '/give @p water_bucket'})
+                if 'minecraft:diamond_pickaxe' not in hot:
+                    rpc('mc.client.chat.send', {'text': '/give @p diamond_pickaxe'})
+            except Exception:
+                pass
         d = math.dist((x, z), (gx, gz))
         if d < mind - 1.5: mind = d; lastprog = el
         noProg = el - lastprog; worst = max(worst, noProg)
