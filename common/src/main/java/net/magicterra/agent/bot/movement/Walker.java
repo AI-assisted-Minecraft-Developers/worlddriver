@@ -3723,7 +3723,13 @@ public final class Walker {
             }
         }
         double adx, adz;
+        // aimSrc: which branch of the aim decision tree owns the heading this tick —
+        // printed in walk-keys so a pinned-heading autopsy (yaw refusing to turn toward
+        // the bearing, the T-1 54s dry tear) reads the controlling channel directly
+        // instead of re-deriving it from the tree's inputs.
+        String aimSrc;
         if (aimAtWaypoint) {
+            aimSrc = "wp";
             adx = (wp.getX() + 0.5) - p.getX();
             adz = (wp.getZ() + 0.5) - p.getZ();
             // Dry +1 staircase camera-spin fix: once the bob carries the body
@@ -3773,11 +3779,13 @@ public final class Walker {
                 // mount) sums to ~0 horizontal, so its noisy trend is rejected and the precise
                 // immediate-node aim is kept (else the summit pillar + bank-dig plateau mount
                 // mis-aim). Forward-only (dot>0) never reverses.
-                if (Math.sqrt(tx * tx + tz * tz) >= 2.0 && (tx * adx + tz * adz) > 0) { adx = tx; adz = tz; }
+                if (Math.sqrt(tx * tx + tz * tz) >= 2.0 && (tx * adx + tz * adz) > 0) { adx = tx; adz = tz; aimSrc = "trend"; }
             }
         } else if (reCentre) {
+            aimSrc = "recentre";
             adx = recX; adz = recZ;
         } else if (stuckTicks > APPROACH_NODE_AIM_TICKS) {
+            aimSrc = "nodeAim";
             // FLAT-node carrot-orbit fallback (see APPROACH_NODE_AIM_TICKS). On a flat walk the body
             // follows the look-ahead carrot; at a turn/corner node the carrot points ~60° off the close
             // node and the body orbits it at ~0.75 b without ever closing the within-gate (live FREEZE-
@@ -3788,6 +3796,7 @@ public final class Walker {
             adx = (wp.getX() + 0.5) - p.getX();
             adz = (wp.getZ() + 0.5) - p.getZ();
         } else {
+            aimSrc = "carrot";
             double[] c = carrotPoint(world, foot, p.getX(), p.getZ());
             adx = c[0] - p.getX();
             adz = c[1] - p.getZ();
@@ -3823,6 +3832,7 @@ public final class Walker {
                 BlockPos far = path.get(Math.min(step + WATER_FAR_AIM_LOOKAHEAD, path.size() - 1));
                 adx = (far.getX() + 0.5) - p.getX();
                 adz = (far.getZ() + 0.5) - p.getZ();
+                aimSrc = "farNode";
             }
         }
 
@@ -3861,6 +3871,7 @@ public final class Walker {
                     && path.get(step + 1).getY() - foot.getY() > 1) {
                 adx = ocx;
                 adz = ocz;   // walk BACK onto the overshot cliff-base node, then climb cleanly
+                aimSrc = "overshoot";
             }
         }
         // walkerDryReanchor: the dry repath-rechurn breaker (REGRESSION.md §21). When a move has failed and
@@ -5153,7 +5164,7 @@ public final class Walker {
             // dwell (pos frozen while wp/yaw change = stuck, not moving).
             Vec3 dm = p.getDeltaMovement();
             double hSpd = Math.sqrt(dm.x * dm.x + dm.z * dm.z);
-            LOG.info("[walker] walk-keys yaw={} wp={},{},{} up={} jump={} sprint={} sneak={} hCol={} minorCol={} hSpd={} pos={},{},{} onG={} attack={} dryDesc={} driveYaw={}",
+            LOG.info("[walker] walk-keys yaw={} wp={},{},{} up={} jump={} sprint={} sneak={} hCol={} minorCol={} hSpd={} pos={},{},{} onG={} attack={} dryDesc={} driveYaw={} aim={} stuckT={}",
                     String.format(Locale.ROOT, "%.0f", p.getYRot()),
                     wp.getX(), wp.getY(), wp.getZ(),
                     a.dbgForwardImpulse(), a.dbgJumping(), p.isSprinting(),
@@ -5164,7 +5175,8 @@ public final class Walker {
                     String.format(Locale.ROOT, "%.2f", p.getY()),
                     String.format(Locale.ROOT, "%.2f", p.getZ()),
                     p.onGround(), a.breakHeld(),
-                    dryDescent, String.format(Locale.ROOT, "%.0f", driveTargetYaw));
+                    dryDescent, String.format(Locale.ROOT, "%.0f", driveTargetYaw),
+                    aimSrc, stuckTicks);
         }
         return Step.WALKING;
     }
