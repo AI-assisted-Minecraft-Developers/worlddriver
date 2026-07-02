@@ -559,3 +559,8 @@ BodyLos 加入后三周期:**9/9 live ARRIVED、零 CHURN、零死亡**(C5-C7 �
 
 ## 56. 用户目击纠偏:carrot-node 撕裂钉死实锤(§55 二次修正过度)(2026-07-02)
 用户人工看画面判"卡墙没在挖"为真,同 tick 铁证(连续两 tick 同刻):`move=traverseBreak node=(69,22,377) p=(69.30,23,382.07)` 离 node 5 格钉死、`attack=false`、`hCol=true`、**driveYaw=77(东,=lastAim carrot 方向)vs bear=-177(node 在南)差 106°**。真形态=**carrot-node 撕裂**:break 完成后 carrot 沿 string-pull 拉向被石墙挡死的方向,身体 hCol 钉死,node 在反侧 5 格,within/passed 全不触发。§55 二次修正把此类全归"拼接伪象"是过度修正——repath 震荡环与撕裂钉死两形态并存。⭐被 REJECT 的 CarrotHColShrink 在此场景方向是对的(丛林绕树场景才错):精细化判据=carrot 方向被实际挡(hCol 持续+驱动朝墙)才回落 node。行动:ExpectAlarm(MOVE-noMove 自动取证)重启生效后抓完整因果再定点修。教训:画面(用户人眼)>我的转写解读;"同 tick 对齐"验尸纪律再次立功。
+
+## 57. 观测优先批次落地 + C24 实战答卷(2026-07-02,用户优先级指令)
+**批次内容**:①Walker 7 类 [expect] 实时报警(DIG-dropped/DIG-slow/JUMP-noRise/MOVE-noMove/REPATH-flip/DRIVE-tear/ADVANCE-deadzone/GEAR-degraded)②设置快照反射补全(新 flag 从"可设但不可见"到全可见;setter 也已反射化,加 flag 只需 BotConfig 一处)③验收协议 preflight(flag 快照核对+hotbar 装备验证,带病拒跑+一次自动修复)④判定行携带 expect 因果计数 ⑤scripts/forensic.py 同 tick 配对验尸(反拼接伪象;支持 early-return 的 unpaired tick)。
+**C24 实战**:J1/J2 完美全绿 8/8(24s/25s worst=0s,replay 全 atGoal);J3 churn 判定行自带五类病理组合。**报警流 10 分钟内完成两项精确归因**(过去要几小时验尸):①DIG-dropped 新中断源=**DrowningEscape 抢占**(水下挖岸 air 低→反射断 dig 上浮→回来进度已清,保命与干活的调度冲突)②DIG-slow 200t 连续 hold 不破=**aim 漂移类**(hold 未断 crosshair 滑走每次 reset)。校准:JUMP-noRise 阈值 0.9→0.8(+0.83 是标准台阶跳峰值,C24 的 JUMP 报警全为此类误报)。
+**残留工程 lane(第三优先级,带自动取证)**:水下 climb-out 的 escape-vs-dig 调度、dig aim 漂移稳定、mount 双稳态、repath 震荡。

@@ -64,6 +64,12 @@ def main():
                 continue
             m = P_T.search(line)
             if m:
+                if pend is not None:
+                    # previous t= line never got a walk-keys twin (an early-return tick:
+                    # dig/pillar/recovery branches skip walk-keys) — emit it unpaired
+                    rows.append(('TICK', pend['ts'], {**pend, 'yaw': '?', 'wp': '?', 'up': '?',
+                                 'jump': '?', 'sprint': '?', 'hcol': '?', 'hspd': '?', 'kpos': '?',
+                                 'ong': '?', 'attack': 'DIG?', 'dyaw': '?'}))
                 pend = m.groupdict()
                 continue
             m = P_K.search(line)

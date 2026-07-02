@@ -5835,8 +5835,8 @@ public final class Walker {
         double vy = p.getDeltaMovement().y;
         if (exJumpTicksLeft > 0) {
             exJumpPeakY = Math.max(exJumpPeakY, p.getY());
-            if (--exJumpTicksLeft == 0 && exJumpPeakY < exJumpBaseY + 0.9 && !p.isInWater() && exThrottle == 0) {
-                LOG.warn("[expect] JUMP-noRise: launched at y={} peaked {} (<+0.9) hCol={} — blocked/in-place jump",
+            if (--exJumpTicksLeft == 0 && exJumpPeakY < exJumpBaseY + 0.8 && !p.isInWater() && exThrottle == 0) {
+                LOG.warn("[expect] JUMP-noRise: launched at y={} peaked {} (<+0.8) hCol={} — blocked/in-place jump",
                         String.format(Locale.ROOT, "%.2f", exJumpBaseY),
                         String.format(Locale.ROOT, "%.2f", exJumpPeakY), p.horizontalCollision);
                 exThrottle = 40;
