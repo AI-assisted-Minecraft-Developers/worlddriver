@@ -1821,6 +1821,21 @@ public final class Walker {
                         LOG.info("[walker] route-hysteresis: KEEP current path (new route U-turns behind a healthy walk, noStepProg={})",
                                 noStepProgressTicks);
                 }
+                // Dig-commit hold (walkerDigCommitHoldRepath): an underwater bank dig takes
+                // 100-200t (25x mining penalty) but the periodic repath re-routes faster than
+                // that, and each adoption discards the held break — vanilla resets the block's
+                // progress to zero, so the dig NEVER completes and the water-bank churn loops
+                // (CLEAN-K5: dig 368,63,351 dropped at 19t by a route adoption, then DIG-slow
+                // 200t grinding the re-chosen riser). While a committed bank dig's break is
+                // actually held, keep the current path; the futile-dig release still abandons
+                // a hopeless dig, which drops the hold and lets the next repath adopt normally.
+                if (!keepCurrent && BotConfig.walkerDigCommitHoldRepath
+                        && waterClimbDigRiser != null && a.breakHeld()) {
+                    keepCurrent = true;
+                    if (BotConfig.walkerDebug)
+                        LOG.info("[walker] dig-commit-hold: KEEP current path (committed bank dig at {},{},{} in progress)",
+                                waterClimbDigRiser.getX(), waterClimbDigRiser.getY(), waterClimbDigRiser.getZ());
+                }
                 if (!keepCurrent) {
                     if (BotConfig.walkerExpectAlarm && uTurnLeg) {
                         if (pfTickCounter - exRepathFlipTick < 200) {

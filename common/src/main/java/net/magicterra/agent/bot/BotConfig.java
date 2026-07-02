@@ -1578,6 +1578,18 @@ public final class BotConfig {
      *  the alternative anyway. Default OFF. */
     public static volatile boolean walkerRouteHysteresis = false;
 
+    /** Dig-commit repath hold (the water-bank dig-vs-repath starvation, replay-0004 CLEAN-K5
+     *  2026-07-02): an underwater bank dig takes 100-200t (25x mining penalty) but the periodic
+     *  repath re-routes faster than that, and each route adoption discards the held break —
+     *  vanilla resets the block's progress to zero, so the dig NEVER completes ([expect]
+     *  DIG-dropped at 11-19t by adoption + DIG-slow 200t regrinding the re-chosen riser, then
+     *  ADVANCE-deadzone starvation = the water-bank churn loop). When ON: while a committed
+     *  bank dig's break is actually held (waterClimbDigRiser latched + breakHeld), a fresh
+     *  search result is rejected and the current path kept. The futile-dig release
+     *  (walkerFutileBankDigRelease) still abandons a hopeless dig, which drops the hold and
+     *  lets the next repath adopt normally — so this cannot starve real reroutes. Default OFF. */
+    public static volatile boolean walkerDigCommitHoldRepath = false;
+
     /** Bank-dig ground-blip immunity (the underground-pool climb-out grind, live 2026-07-02
      *  (-275,49,-38): the committed bank dig requires {@code !onGround}, but the buoyant bob
      *  touches bottom ~4 ticks/second — each blip drops {@code digCommitted}, the tick falls
