@@ -52,6 +52,7 @@ public final class ClutchController {
     private boolean airborne;     // have actually left the launch ground this fall
     private int scoopTicks;       // ticks spent scooping the placed source
     private int lipTicks;         // grounded ticks since a planned arm, before going airborne
+    private int noArmThrottle;    // CLUTCH-noArm alarm throttle (one line per fall, not per tick)
     private int landingX = Integer.MIN_VALUE;  // target landing column X (MIN_VALUE = current column)
     private int landingZ = Integer.MIN_VALUE;  // target landing column Z
 
@@ -87,20 +88,38 @@ public final class ClutchController {
      *  hijacking a FallIntoWater landing). Holds the current column as target. */
     public void armReactive(Minecraft mc, WorldView world) {
         LocalPlayer p = mc.player;
-        if (p == null || armed || !BotConfig.allowWaterBucketFall) return;
+        if (noArmThrottle > 0) noArmThrottle--;
+        if (p == null || armed) return;
         // While the elytra is open the bot is gliding, not falling to its
         // death — never hijack that descent with a water clutch (the elytra
         // process / milestone-D failsafe owns recovery if the wing closes).
         if (p.isFallFlying()) return;
         if (p.onGround() || p.getDeltaMovement().y >= -0.4) return;
-        if (hotbarSlotOf(p, Items.WATER_BUCKET) < 0) return;
+        // Establish "this fall is dangerous" FIRST, then check the arm gates —
+        // so a gate failure can be alarmed with its reason instead of silently
+        // swallowed (the C21 class: bucket crowded out of the hotbar / the
+        // permission flag left off after an env rebuild → MLG dead with zero
+        // trace until the death screen).
         int cx = (int) Math.floor(p.getX()), cz = (int) Math.floor(p.getZ());
         BlockPos floor = floorBelow(world, cx, (int) Math.floor(p.getY()) - 1, cz, 64);
-        if (floor == null || !world.isMlgFloor(floor) || world.isHazard(floor)) return;
+        if (floor == null) return;
         double remaining = p.getY() - (floor.getY() + 1);
         if (remaining <= EMERGENCY_CLUTCH_MIN_DROP) return;
         for (int y = (int) Math.floor(p.getY()); y >= floor.getY() + 1; y--)
             if (world.isWater(new BlockPos(cx, y, cz))) return;   // water already breaks it
+        String why = null;
+        if (!BotConfig.allowWaterBucketFall) why = "allowWaterBucketFall=false";
+        else if (hotbarSlotOf(p, Items.WATER_BUCKET) < 0) why = "water_bucket not in hotbar";
+        else if (!world.isMlgFloor(floor) || world.isHazard(floor)) why = "landing floor not MLG-able (hazard/non-solid)";
+        if (why != null) {
+            if (BotConfig.walkerExpectAlarm && noArmThrottle == 0) {
+                LOG.warn("[expect] CLUTCH-noArm: dangerous fall (remaining={} floor={},{},{}) but clutch cannot arm — {}",
+                        String.format(Locale.ROOT, "%.1f", remaining),
+                        floor.getX(), floor.getY(), floor.getZ(), why);
+                noArmThrottle = 60;
+            }
+            return;
+        }
         armed = true;
         landingX = cx;
         landingZ = cz;

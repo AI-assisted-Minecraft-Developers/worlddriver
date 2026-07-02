@@ -1170,8 +1170,10 @@ public final class BotApiImpl implements BotApi {
         // water) it holds the keys and we return early, so an active goto/mine/
         // build is suspended for those airborne ticks instead of fighting it. A
         // planned fallBucket fall is armed by the Walker as it steps off the lip
-        // and drives the same descent here. Both gated on allowWaterBucketFall.
-        if (BotConfig.allowWaterBucketFall) CLUTCH.armReactive(mc, world);
+        // and drives the same descent here. armReactive gates on
+        // allowWaterBucketFall INTERNALLY (not here) so a dangerous fall with the
+        // flag off can still raise the CLUTCH-noArm alarm instead of vanishing.
+        CLUTCH.armReactive(mc, world);
         if (CLUTCH.tick(mc, world)) { releaseGate.markDirtied(); return; }
         // Refresh the shared threat picture once per tick — reflex chains
         // (panic/dodge) and the use-key arbiter (shield) all read it below.

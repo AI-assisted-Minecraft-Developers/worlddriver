@@ -640,6 +640,8 @@ public final class Walker {
     private int exRepathFlipCount;     // consecutive U-turn adoptions inside the window — the oscillation depth
     private int exDriveTearTicks;      // consecutive pinned ticks with the heading >90° off the committed node (DRIVE-tear)
     private int exGearCheckTicks;      // sampling countdown for the hotbar gear sentinel (GEAR-degraded)
+    private BlockPos exPlacePos;       // cell a placement expects to fill (PLACE-noBlock)
+    private int exPlaceTicksLeft;      // ticks left for the placed block to appear
     private int pillarNoPlaceTicks;        // ticks the pillar takeover has been engaged without a successful place / height gain — buoyant bob can't lift feet above a surface fill cell, so beyond PILLAR_FUTILE_TICKS the place is hopeless and we fall to the dig
     private int waterClimbTargetY;         // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
     private int waterClimbColX, waterClimbColZ; // LOCKED column the takeover pillars in (don't chase repathing nodes)
@@ -3210,6 +3212,7 @@ public final class Walker {
                     p.setXRot(89.5f);                       // look down to aim the support
                     if (p.getY() >= wp.getY() + 0.9) {      // bobbed clear of the place cell
                         a.placeOn(wp.offset(0, -1, 0), Direction.UP);
+                        exNotePlace(wp);
                     }
                 }
                 return Step.WALKING;
@@ -3238,6 +3241,7 @@ public final class Walker {
                 // no-op'd against the player's own body. Gate on real height.
                 if (pillarSinceJump >= PILLAR_PLACE_DELAY && p.getY() >= place.getY() + 1.0) {
                     a.placeOn(support, Direction.UP);
+                    exNotePlace(place);
                 }
             }
             return Step.WALKING;
@@ -4372,6 +4376,7 @@ public final class Walker {
                 // while the player AABB still overlaps the target cell — gate on real height).
                 if (p.getY() >= pillarRecoverCell.getY() + 1.0) {
                     a.placeOn(pillarRecoverCell.offset(0, -1, 0), Direction.UP);
+                    exNotePlace(pillarRecoverCell);
                 }
             }
             return Step.WALKING;
@@ -5804,6 +5809,14 @@ public final class Walker {
     /** Expectation alarms (walkerExpectAlarm): compare the world's actual response against
      *  what the pressed actions should produce, and WARN with cause the tick they diverge.
      *  Purely observational — reads avatar/player state at the top of tick, never drives. */
+    /** Note a placement's expected cell for the PLACE-noBlock observer (call right
+     *  after {@code a.placeOn(clicked, UP)} with {@code clicked.above()}). */
+    private void exNotePlace(BlockPos cell) {
+        if (!BotConfig.walkerExpectAlarm) return;
+        exPlacePos = cell;
+        exPlaceTicksLeft = 8;
+    }
+
     private void expectTick(Avatar a, WorldView world, Player p) {
         if (exThrottle > 0) exThrottle--;
         // DIG-dropped / DIG-slow: vanilla resets break progress on ANY released tick, so a
@@ -5900,6 +5913,19 @@ public final class Walker {
             }
         } else {
             exDriveTearTicks = 0;
+        }
+        // PLACE-noBlock: a placement (pillar/bridge support) expects its target cell to
+        // turn solid within a few ticks; still passable = the click never landed (allowPlace
+        // off? no build block held? out of reach? falling block dropped through water?).
+        if (exPlaceTicksLeft > 0) {
+            if (world.isSolid(exPlacePos)) {
+                exPlaceTicksLeft = 0;
+            } else if (--exPlaceTicksLeft == 0 && exThrottle == 0) {
+                LOG.warn("[expect] PLACE-noBlock: cell {},{},{} still passable 8t after the place click "
+                        + "(allowPlace? build block held? reach? falling block in water?)",
+                        exPlacePos.getX(), exPlacePos.getY(), exPlacePos.getZ());
+                exThrottle = 40;
+            }
         }
         // GEAR-degraded: mined-drop pickups crowd the pickaxe / water bucket out of the
         // hotbar mid-journey (observed live: 9/9 slots junk → hand-mining + dead MLG).
