@@ -636,6 +636,8 @@ public final class Walker {
     private int exFwdNoMoveTicks;      // consecutive grounded forward-pressed ticks with ~zero displacement (MOVE-noMove)
     private double exPrevX, exPrevZ;   // last tick's position for the displacement check
     private int exThrottle;            // global alarm throttle (one line per 40t)
+    private long exRepathFlipTick;     // pfTickCounter of the last U-turn route adoption (REPATH-flip window)
+    private int exRepathFlipCount;     // consecutive U-turn adoptions inside the window — the oscillation depth
     private int pillarNoPlaceTicks;        // ticks the pillar takeover has been engaged without a successful place / height gain — buoyant bob can't lift feet above a surface fill cell, so beyond PILLAR_FUTILE_TICKS the place is hopeless and we fall to the dig
     private int waterClimbTargetY;         // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
     private int waterClimbColX, waterClimbColZ; // LOCKED column the takeover pillars in (don't chase repathing nodes)
@@ -1796,20 +1798,38 @@ public final class Walker {
                 }
                 // Route hysteresis (walkerRouteHysteresis): don't let a periodic repath
                 // U-turn a healthy walk onto the alternate near-equal route (§55 oscillation).
+                // The direction dot doubles as the REPATH-flip expectation alarm: adopting a
+                // route whose near-term direction REVERSES the current one is exactly one leg
+                // of the planner oscillation loop — two adoptions with reversed legs inside
+                // 200 ticks is the live signature of "A* alternates two near-equal routes"
+                // (the C16 dry-land churn that took three autopsies to see from raw logs).
                 boolean keepCurrent = false;
-                if (BotConfig.walkerRouteHysteresis && path != null && step < path.size()
-                        && noStepProgressTicks < 20
+                boolean uTurnLeg = false;
+                if (path != null && step < path.size()
                         && res.path().size() > 3 && path.size() - step > 3) {
                     BlockPos curAhead = path.get(Math.min(step + 3, path.size() - 1));
                     BlockPos newAhead = res.path().get(3);
                     double cax = curAhead.getX() + 0.5 - p.getX(), caz = curAhead.getZ() + 0.5 - p.getZ();
                     double nax = newAhead.getX() + 0.5 - p.getX(), naz = newAhead.getZ() + 0.5 - p.getZ();
-                    keepCurrent = (cax * nax + caz * naz) < 0;
+                    uTurnLeg = (cax * nax + caz * naz) < 0;
+                    keepCurrent = BotConfig.walkerRouteHysteresis && uTurnLeg && noStepProgressTicks < 20;
                     if (keepCurrent && BotConfig.walkerDebug)
                         LOG.info("[walker] route-hysteresis: KEEP current path (new route U-turns behind a healthy walk, noStepProg={})",
                                 noStepProgressTicks);
                 }
                 if (!keepCurrent) {
+                    if (BotConfig.walkerExpectAlarm && uTurnLeg) {
+                        if (pfTickCounter - exRepathFlipTick < 200) {
+                            exRepathFlipCount++;
+                            LOG.warn("[expect] REPATH-flip #{}: adopted a route whose near-term direction reverses the current one "
+                                    + "({}t since last flip) — planner oscillating between near-equal routes at {},{},{}",
+                                    exRepathFlipCount, pfTickCounter - exRepathFlipTick,
+                                    foot.getX(), foot.getY(), foot.getZ());
+                        } else {
+                            exRepathFlipCount = 0;
+                        }
+                        exRepathFlipTick = pfTickCounter;
+                    }
                     adoptPath(res, world, foot);
                     maybeArmPinchEscalation(foot, res);
                 }
