@@ -499,3 +499,9 @@ dist 81→52→37→24(z308 原churn区)→10→1 ARRIVED,35s 连续净进展,TO
 **全 12 runs:live 零 >3s 停顿;replay 全 ARRIVED、maxStuck 峰 174(远低 wedge 阈)、hp 全程 20 零死亡**。地形覆盖:草原巡航、穿水域(R1 前段)、45 格爬山、山顶下坡——"略微后退/向后跳/水中横跳/贴墙/上坡跳不上/下坡回看"在三条随机路线上均未出现。
 **修复过程中的 replay 基建 bug(§44 后续)**:①replay tp 后 client isUnderWater/air 残留旧值 → DrowningEscape 误 engage 冻结 drive(已修:WorldView 真相门+活体门,committed)②replay#1 把 bot tp 回水底 air=0 起点致溺死,后续 replay 全在驱动尸体(1199 恒定假象)→ 验收流程加 per-run hp 检查。③totStuck 跨 goto 不清零(residual 基线),run_case 判读须注意。
 **限定(诚实)**:①视频通道(live-screen-watch)因 litellm 端点在环境重建后 NXDOMAIN 不可用,本轮验收以 telemetry(净进展+maxStuck+ARRIVED)为判据——协议的视频验证手段缺失,恢复端点后可补拍。②三条路线未覆盖 §42 tall-stone-bank 必经挖穿场景与 §41 深水岩岸(该类地形此世界此区域未抽中;§44 双 fix 已单独 A/B 验证该场景由致死→存活通过)。③21 flag 均 runtime-ON / code default-OFF,commit+flip-default 待用户决定。
+
+## 46. ⚠️ 周期 2 全败:周期 1 的 12/12 有抽样运气成分,三个真实残留浮出(2026-06-29)
+周期 2(C2,同 21-flag 同协议)3 条随机 journey **全失败**:
+- **C2-J1 摔死**:从 R3 终点丛林山顶(160,82,172)起步,plan 含 `climbUp` node=(158,80,170)(藤蔓攀爬);bot 在藤列正下方**自由坠落 30+ 格摔死**(y82→42 每 tick 直落,cur2=0.075 XZ 已对准 = 没抓住藤/藤不在)。= **vine/climbUp 执行器脱落致死**(与 §44 溺死同级的安全缺口;fell-protection/MLG 未起效——bot 无水桶)。
+- **C2-J2 CHURN 91s @(35,82,87)**、**C2-J3 CHURN 92s @(11,67,66)**:后者日志实锤 (6,61,64) `arc-wedge RECOVER nodeDy=-1 ram` 反复 80+ 次不脱(下降节点 ram wedge,"贴墙卡住"族);且 tracker 停止时 bot 又在正常走(net-progress 判据下它最终会脱但 >90s)。
+**诚实结论**:周期 1(§45)12/12 PASS 是**较友好地形抽样**;公平连续抽样下 #47 残留=①vine/climbUp 脱落致死 ②nodeDy=-1 下降 ram wedge(>90s)③山地 churn。**#47 未达,验收协议须周期 2/3 全绿才算**。改进:验收装备加 water_bucket(MLG 反射自救坠落)。
