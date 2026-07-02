@@ -618,6 +618,9 @@ public final class Walker {
     private BlockPos climbGaveUpPos;       // where the pillar proved futile (walkerClimbGaveUpSticky) — while the foot stays within 3 blocks and the TTL runs, the gave-up latch survives climb-context resets (repath node swaps) so the proven-futile pillar can't re-engage in a loop
     private int climbGaveUpTtl;            // ticks left on the sticky gave-up latch (walkerClimbGaveUpSticky); decremented per tick, 0 = expired
     private boolean drowningEscapeLatch;   // walkerDrowningEscape: air critically low while submerged → surface-for-air override active until air recovers
+    private int stepUpBackoffTicks;        // walkerStepUpBackoffRetry: ticks left driving straight BACK from a grind-locked stepUp riser to open sprint runway
+    private float stepUpBackoffYaw;        // heading of that back-off drive (bearing away from the riser), camera-frame decoupled
+    private int stepUpBackoffCooldown;     // ticks before the back-off may trigger again (prevents oscillating retreat at a genuinely unmountable riser)
     private int pillarNoPlaceTicks;        // ticks the pillar takeover has been engaged without a successful place / height gain — buoyant bob can't lift feet above a surface fill cell, so beyond PILLAR_FUTILE_TICKS the place is hopeless and we fall to the dig
     private int waterClimbTargetY;         // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
     private int waterClimbColX, waterClimbColZ; // LOCKED column the takeover pillars in (don't chase repathing nodes)
@@ -742,6 +745,8 @@ public final class Walker {
         this.climbGaveUpPos = null;
         this.climbGaveUpTtl = 0;
         this.drowningEscapeLatch = false;
+        this.stepUpBackoffTicks = 0;
+        this.stepUpBackoffCooldown = 0;
         this.pillarNoPlaceTicks = 0;
         this.lastDigRiser = null;
         this.waterClimbDigRiser = null;
@@ -879,6 +884,8 @@ public final class Walker {
         this.climbGaveUpPos = null;
         this.climbGaveUpTtl = 0;
         this.drowningEscapeLatch = false;
+        this.stepUpBackoffTicks = 0;
+        this.stepUpBackoffCooldown = 0;
         this.pillarNoPlaceTicks = 0;
         this.lastDigRiser = null;
         this.waterClimbDigRiser = null;
@@ -1616,6 +1623,20 @@ public final class Walker {
         // few ticks so the body physically leaves the wedge cell. Path/edges stay
         // as-is; once the burst ends the normal logic sees a NEW foot (offPath or
         // the in-flight re-search lands) and plans from genuinely new ground.
+        // STEPUP BACKOFF-RETRY drive (walkerStepUpBackoffRetry): armed by the dryStepUp
+        // grind detector below — drive straight BACK from the riser (camera-frame, no yaw
+        // slam, no jump) for a few ticks to open sprint runway, then let the normal
+        // approach re-launch the early jump WITH momentum. Mirrors the anti-stuck burst's
+        // commandMove decoupling one block above.
+        if (stepUpBackoffTicks > 0) {
+            stepUpBackoffTicks--;
+            double sbd = Math.toRadians(angleDiff(p.getYRot(), stepUpBackoffYaw));
+            a.commandMove((float) -Math.sin(sbd), (float) Math.cos(sbd));
+            agentJump(a, false);
+            p.setSprinting(false);
+            return Step.WALKING;
+        }
+        if (stepUpBackoffCooldown > 0) stepUpBackoffCooldown--;
         if (unstuckTicks > 0) {
             unstuckTicks--;
             // Drive the displacement in the CAMERA frame instead of slamming yaw:
@@ -4300,6 +4321,32 @@ public final class Walker {
             boolean aligned = Math.abs(lateralMotion) <= 0.1 && sideDist <= 0.2;
             sprintAscend = aligned;
             ascendJumpReady = aligned && flatDist <= 1.7;
+            // STEPUP BACKOFF-RETRY trigger (walkerStepUpBackoffRetry, default OFF): the early
+            // jump above assumes sprint momentum from the approach, but a slid-back mount
+            // retries from a STANDING start pressed against the riser — a near-vertical hop
+            // that grazes the lip and slides back forever (live node(14,58,102): ~1400 grind
+            // ticks, hSpd 0.05, hCol=false). Grounded + stuck + pressed-close + momentum-less
+            // → arm an 8-tick straight-back drive (executed early in tick()) to open runway,
+            // then the normal approach re-launches WITH momentum. Cooldown guards a genuinely
+            // unmountable riser from oscillating retreat (other recoveries take over).
+            // Two grind signatures qualify: (a) GROUNDED standing-start press (onGround +
+            // momentum-less), (b) the airborne RIM-GRAZE bob — the bot hangs against the
+            // riser face (hCol=true every tick, onGround NEVER true, y bobbing ~0.5 wide;
+            // replay-0016: p=(14.50,57.0-57.25,103.30) for 500+ ticks). Both need the same
+            // cure: back off the face, ground, and re-approach with momentum.
+            boolean grindPress = p.onGround() && Math.sqrt(vel.x * vel.x + vel.z * vel.z) < 0.1;
+            boolean grindGraze = p.horizontalCollision && stuckTicks > 30;
+            if (BotConfig.walkerStepUpBackoffRetry && stepUpBackoffCooldown == 0
+                    && stuckTicks > 15 && flatDist < 1.1 && (grindPress || grindGraze)) {
+                stepUpBackoffYaw = (float) (Math.toDegrees(Math.atan2(
+                        -((wp.getX() + 0.5) - p.getX()), (wp.getZ() + 0.5) - p.getZ())) + 180.0);
+                stepUpBackoffTicks = 12;
+                stepUpBackoffCooldown = 60;
+                if (BotConfig.walkerDebug)
+                    LOG.info("[walker] STEPUP-BACKOFF armed ({}): wp={},{},{} flatDist={} → back off 12t for runway",
+                            grindPress ? "press" : "graze", wp.getX(), wp.getY(), wp.getZ(),
+                            String.format(Locale.ROOT, "%.2f", flatDist));
+            }
         }
         // NOTE: extending the cardinal sprint-bunny-hop to DIAGONAL step-ups was tried + A/B-
         // DISPROVEN here (2026-06-20) via diagonalAscentSpeedArena: forcing sprint on a diagonal

@@ -511,3 +511,8 @@ dist 81→52→37→24(z308 原churn区)→10→1 ARRIVED,35s 连续净进展,TO
 **⭐ 残留大收敛(跨 C2/C3 失败样本)**:churn/wedge 几乎全部落在**同一机制** = `stepUp` mount 失败 grind:node(14,58,102) 累计 1400+907+673 tick、(6,61,64)/(8,65,66) 族同型;C3-J2 replay wedge 位置同点。**= #47 问题⑥"上坡跳不上方块"的 stepUp/diagUp mount 双稳态**(§27-32 已诊断到基岩:对角技术全 A/B-disproven、planner 全局惩罚净中性,executor+planner 双撞墙),新世界丘陵台阶地形高频触发。现场特征:bot 悬空(onG=false)y 已到节点层(58.17)无碰撞(hCol/minorCol=false)但 hSpd 仅 0.05,跳起-XZ 进展乏力-滑回循环;**cardinal Z 向 stepUp 也 grind**(§32"cardinal 有效"的反例)。**replay-0016-1782989368760.json 可确定性复现此 wedge = 现成 A/B 台**。
 **第二核心**:climbUp 藤蔓脱落致死(C2-J1,§46)。C3-J3 replay 全不到待判(可能 arrive 判据缺陷:忠实 replay 里 XZ goal 的 x 终点可变)。
 **下一攻坚(优先序)**:① stepUp mount 双稳态(用 replay-0016 A/B;方向:mount 期 XZ 空中推进增强 / 起跳前 approach 对齐重基——注意 §26/§34 两次 REJECT 教训,任何介入须 K≥6 replay-0016 + 8 档聚合验证)② climbUp 攀爬保持(脱落检测+重抓/下撤)③ 验收协议重跑三周期。
+
+## 48. walkerStepUpBackoffRetry:部分有效 + wedge 真几何诊断(2026-06-29)
+**fix 设计**:mount grind 的两个签名(a)grounded 贴脸静止起跳(press)(b)悬空 rim-graze bob(hCol 每 tick、onG 永假、y 窄幅弹;replay-0016 实测 500+ tick)→ 触发 12t 直线后退(camera-frame commandMove 零镜头动)开出助跑距离,60t cooldown。
+**A/B(replay-0016,K=3)**:OFF 811/1200(不到)/734;ONv2 528/**1188(不到)**/622,BACKOFF 触发 5 次。触发→成功后退 1.4 格落地→重逼近,**部分实例数次 retry 后通过**(replay#1/#3 到达),但 1188 一次仍 wedge。到达率 2/3 持平,中位 811→622 轻降。**部分有效非根治**(K=3 且 bistable,按 §17 铁律不可归因强效)。
+**⭐ wedge 真几何(触发后数据揭示)**:node(14,58,102) 不是简单 +1——地板 y56 → **窄台阶 y57**(bot bob 56.8-57.25 = 在窄台阶边缘蹭,身体截面卡 riser 面,onG 永假的根源)→ 目标 y58。执行假设"从 y57 面起跳 +1"但 bot 站不稳窄台阶。后退落 y56 后变 +2(单跳不可达)→ 必须两段连跳,retry 成功率随机。**mount 双稳态的难点实例 = 窄台阶(1格深)approach**;根治方向:窄台阶两段连跳节奏 / approach 落点精确到台阶中心(非 riser 贴脸),需 K≥6 replay-0016 校验轮专门攻(§17:小样本 bistable 不可调参归因)。default OFF committed。

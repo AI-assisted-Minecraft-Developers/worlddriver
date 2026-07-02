@@ -264,6 +264,10 @@ public final class SettingsCommand {
                 BotConfig.walkerClimbGaveUpSticky = wcgs;
                 applied.add("walkerClimbGaveUpSticky");
             }
+            if (params.get("walkerStepUpBackoffRetry") instanceof Boolean subr) {
+                BotConfig.walkerStepUpBackoffRetry = subr;
+                applied.add("walkerStepUpBackoffRetry");
+            }
             if (params.get("avoidMobs") instanceof Boolean avm) {
                 BotConfig.avoidMobs = avm;
                 applied.add("avoidMobs");

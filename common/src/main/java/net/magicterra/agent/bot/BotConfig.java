@@ -1530,6 +1530,18 @@ public final class BotConfig {
      *  the dig/recovery actually takes over. Default OFF. */
     public static volatile boolean walkerClimbGaveUpSticky = false;
 
+    /** StepUp mount BACKOFF-RETRY (the #47 problem-6 grind, live 2026-06-29 node(14,58,102) ~1400 ticks):
+     *  the cardinal early-jump gate (ascendJumpReady: aligned && flatDist<=1.7) assumes the launch carries
+     *  sprint momentum from the approach — but once a mount attempt slides back, the bot re-jumps from a
+     *  STANDING start pressed against the riser (flatDist~0.8, hSpd~0.05): a near-vertical hop that clips
+     *  the riser lip and slides back again, a self-sustaining limit cycle (jump-graze-slide loop; even
+     *  cardinal Z step-ups grind). When ON: a GROUNDED, stuck (>15t), pressed-close (flatDist<0.9),
+     *  momentum-less (hSpd<0.1) dry stepUp triggers an 8-tick straight-BACK drive (camera-frame commandMove,
+     *  no yaw slam, no jump) that opens ~1.5 blocks of runway, then the normal approach re-accelerates and
+     *  the early jump launches WITH momentum over the riser. 40t cooldown between triggers. Default OFF;
+     *  A/B on replay-0016 (deterministic reproduction of the grind). */
+    public static volatile boolean walkerStepUpBackoffRetry = false;
+
     /** Bob-immune ascent-ram freeze-breaker trigger: on a steep tall bank (live W→E -861→-632, ~50-70s jank,
      *  reproducible), a +1 {@code diagUp}/{@code stepUp} mount jumps off the diagonal corner, slides back to
      *  the riser foot, and repeats — foot pinned ~0.78 BELOW the node, cur2 orbiting 0.64-0.88 just over the
