@@ -556,3 +556,6 @@ BodyLos 加入后三周期:**9/9 live ARRIVED、零 CHURN、零死亡**(C5-C7 �
 
 ### §55 二次修正:真相 = repath 路线震荡环(planner 层),死区/反向皆误判
 完整 walk-keys 行推翻前两个猜想:churn 期间 bot **全速行走**(hSpd 0.28、yaw≡driveYaw 一致,"反向"是把不同 tick 的行拼接的误读);且 walk-keys `wp=(-253,63,203)` 与 t= 行 `node=(-254,66,207)` **属不同路线** —— A* 在"y66 traverseBreak 挖穿路线"与"y63 绕行路线"间反复切换,bot 沿两条路线来回跑 = **net-progress 环**(totStuck 失明族的 planner 变体;DryReanchor 开着仍循环)。攻击方向:pathDebug 抓两条交替 plan 对比成本(等价 tie 震荡?挖穿路线执行后失效触发 repath?),root 修 = repath 路线粘滞(hysteresis:新路线须显著优于当前才切换)或 break 成本校准打破 tie。C16 wedge (-252,70,209) 可 tp 复现。
+
+## 56. 用户目击纠偏:carrot-node 撕裂钉死实锤(§55 二次修正过度)(2026-07-02)
+用户人工看画面判"卡墙没在挖"为真,同 tick 铁证(连续两 tick 同刻):`move=traverseBreak node=(69,22,377) p=(69.30,23,382.07)` 离 node 5 格钉死、`attack=false`、`hCol=true`、**driveYaw=77(东,=lastAim carrot 方向)vs bear=-177(node 在南)差 106°**。真形态=**carrot-node 撕裂**:break 完成后 carrot 沿 string-pull 拉向被石墙挡死的方向,身体 hCol 钉死,node 在反侧 5 格,within/passed 全不触发。§55 二次修正把此类全归"拼接伪象"是过度修正——repath 震荡环与撕裂钉死两形态并存。⭐被 REJECT 的 CarrotHColShrink 在此场景方向是对的(丛林绕树场景才错):精细化判据=carrot 方向被实际挡(hCol 持续+驱动朝墙)才回落 node。行动:ExpectAlarm(MOVE-noMove 自动取证)重启生效后抓完整因果再定点修。教训:画面(用户人眼)>我的转写解读;"同 tick 对齐"验尸纪律再次立功。
