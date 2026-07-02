@@ -547,3 +547,6 @@ BodyLos 加入后三周期:**9/9 live ARRIVED、零 CHURN、零死亡**(C5-C7 �
 **协议工具链三修**(atGoal 圆判据替代 arrive_x / archive_for 按 header.start 匹配 / flush 竞态重试 18s)后 C14-C16 数据干净:**每周期 J1 全绿 4/4**(C14-J1 28s/0s+14/27/16、C15-J1 39s/3s+27/18/27、C16-J1 148s/6s+19/29/34 —— **live+replay×3 全绿已 6 条累计**),live 到达率 BodyLos 后 17/18,零死亡维持。
 **新 wedge 类(⭐下轮首攻)**:C16-J2/J3 双 journey 同点 (-252,70,209) churn = **干地 traverseBreak/downBreak 挖掘 stall**(yawErr=0 对准、onG、pitch 朝下、800+ tick 无进展)。**根因假设 = allowBreak 全局开启的副作用**:break 权限开→A* 开始提交 break-heavy 路径(成本模型 27.5/block?)而执行端挖掘慢/无效(工具选择/硬度/aim 射线),产生干地版"慢通道"——C4 前从未见此类。修复 lane:①pathfinder break 成本校准(挖掘时长真实化,让 A* 少选 break 路径)②执行器 break 有效性验证(为何 25s+ 不破块:工具?aim?)。C14-J3 (155,62,-172) 待定性。
 **16 周期累计判定**:live 到达率 34/36(94%),零死亡(BodyLos 后),全绿 journey 6 条;三周期全绿闸门未过(每周期仍有 1-2 条撞慢通道/break-stall)。残留清单更新:①break-stall(干地新类,double-journey 复现档可取)②水岸 dig/pillar 慢通道③mount sole-route。
+
+### §55 补:break-stall 验尸 = 根本没挖(非挖得慢)
+现场 walk-keys:**attack=false 全程**且 walk-keys 在打印(主流程走到尾,未进 dig early-return)= traverseBreak/downBreak 的 pending-edge 挖掘执行链**在某个门前断掉**(breakHold 从未按下),bot 站在 node 上对准朝下永远等待。非硬度/工具问题。下轮直攻:trace hasPendingEdge→breakHold 链上的 gate(嫌疑:allowBreak 在该路径读的是启动时快照?edge.toBreak 为空?或 break 分支被别的 flag 短路)。这解释了为何"25s+ 不破块"——从未开始破。
