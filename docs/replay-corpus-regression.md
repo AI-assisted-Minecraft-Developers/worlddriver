@@ -486,3 +486,16 @@ dist 81→52→37→24(z308 原churn区)→10→1 ARRIVED,35s 连续净进展,TO
 - `walkerClimbGaveUpSticky`:bail 时把 climbPillarGaveUp 锚定 foot±3/TTL 300t,climb-context 重置不再清 latch → dig/recovery 真正接管。
 **live A/B(同场景确定性复现:沉底 y54 → 同 goal goto)**:`DROWNING-ESCAPE engaged: air=-16`(已在扣血临界)→ 3s 后 `released: air=44` = **bot 存活(hp 20 全程)**,随后完成穿水+爬岸 y54→y76、dist 136→26。**致死→存活+通过,双 fix 验证成立**。
 **附带教训**:①随机验收 goal 必须 XZ(Y-agnostic)goal——y 盲猜 65 把 goal 埋进山体(A* goalReached=false 正确,bot best-effort 绕圈是 goal 无效非执行器 bug);accept_run.py 已改 `xz`+near。②pgrep/pkill -f 会自匹配 wrapper(exit 144),杀 client 用 /proc cmdline 过滤。③新环境三坑:.mcp.json 老路径、venv shebang 老路径(uv 重建)、runCommand RPC 无效须 chat.send。
+
+## 45. ✅✅ #47 验收协议完成:3 轮 ×(随机 journey + replay×3)= 12 runs 全 PASS(2026-06-29)
+新世界(Peaceful/AllowCommands),21-flag 全 ON(17 验证集 + DrowningEscape/ClimbGaveUpSticky + debug/archive)。随机 goal 用 XZ(Y-agnostic)+ near=3(§44 教训)。判据:live = ARRIVED + 3s 采样下 net-progress 停顿 ≤3s;replay = mc.debug.replay(replan 忠实重跑)ARRIVED + maxStuck < 800 wedge 阈 + 零死亡。
+
+| 轮 | Live journey | Replay×3 maxStuck |
+|----|--------------|-------------------|
+| R1 | (-116,76,77)→XZ(-5,-33) 156格 34s **worst=0s** | 77 / 26 / 35 全 arrived |
+| R2 | (-6,60,-31)→XZ(62,100) 148格 55s **worst=3s**(y60→105 爬山45格) | 22 / 26 / 174 全 arrived |
+| R3 | (64,105,99)→XZ(157,170) 117格 37s **worst=0s**(y105→82 下山) | 48 / 20 / 37 全 arrived |
+
+**全 12 runs:live 零 >3s 停顿;replay 全 ARRIVED、maxStuck 峰 174(远低 wedge 阈)、hp 全程 20 零死亡**。地形覆盖:草原巡航、穿水域(R1 前段)、45 格爬山、山顶下坡——"略微后退/向后跳/水中横跳/贴墙/上坡跳不上/下坡回看"在三条随机路线上均未出现。
+**修复过程中的 replay 基建 bug(§44 后续)**:①replay tp 后 client isUnderWater/air 残留旧值 → DrowningEscape 误 engage 冻结 drive(已修:WorldView 真相门+活体门,committed)②replay#1 把 bot tp 回水底 air=0 起点致溺死,后续 replay 全在驱动尸体(1199 恒定假象)→ 验收流程加 per-run hp 检查。③totStuck 跨 goto 不清零(residual 基线),run_case 判读须注意。
+**限定(诚实)**:①视频通道(live-screen-watch)因 litellm 端点在环境重建后 NXDOMAIN 不可用,本轮验收以 telemetry(净进展+maxStuck+ARRIVED)为判据——协议的视频验证手段缺失,恢复端点后可补拍。②三条路线未覆盖 §42 tall-stone-bank 必经挖穿场景与 §41 深水岩岸(该类地形此世界此区域未抽中;§44 双 fix 已单独 A/B 验证该场景由致死→存活通过)。③21 flag 均 runtime-ON / code default-OFF,commit+flip-default 待用户决定。
