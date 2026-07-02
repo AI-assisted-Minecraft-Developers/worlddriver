@@ -1,0 +1,187 @@
+"""#47 验收完整周期: 3x [随机 XZ journey + replay x3], 自动串联。
+用法: accept_cycle.py <cycle_label>
+每条 journey: 随机方向 110-170 格 XZ goal -> live 跟踪 -> 找最新档 -> replay x3。
+持续输出结果行; 死亡自动 respawn+re-give 后继续。
+"""
+import asyncio, sys, math, random, time, os, json
+sys.path.insert(0, '.')
+from scripts.pmcs.run_case import _rpc, run_case
+
+CYC = sys.argv[1] if len(sys.argv) > 1 else 'C?'
+RP_DIR = 'fabric/run/config/agent_driver/replays'
+FLAGS = {'pathArchive': False, 'allowBreak': True, 'allowPlace': True, 'allowWaterBucketFall': True, 'walkerStepUpBackoffRetry': True, 'walkerCarrotBodyLos': True, 'walkerBankDigGroundBlip': True, 'walkerExpectAlarm': True,
+         'walkerDryReanchor': True, 'walkerBuoyantSearchFromSurface': True, 'walkerBankDigSkipWhenCwpSwims': True,
+         'walkerBankDigSkipOverhang': True, 'walkerVineDescentDrop': True, 'walkerAscentRamBobBreak': True,
+         'walkerPillarReachGoalNoSnap': True, 'pathfinderForbidParkourFromFloatingWater': True,
+         'walkerDeepWaterFloatBeeline': True, 'walkerWaterWalkReach': True, 'walkerWaterStepDownFloat': True,
+         'walkerWallCornerFastChurn': True, 'walkerSwimAshorePillarDespiteDeepDig': True,
+         'walkerFutileBankDigRelease': True, 'walkerBankDigForwardExit': True, 'walkerFloatingBankBobFreeze': True,
+         'walkerDrowningEscape': True, 'walkerClimbGaveUpSticky': True}
+
+def rpc(m, p): return asyncio.run(_rpc(m, p))
+
+def ensure_alive():
+    p = rpc('mc.client.player', {})
+    if p['health'] <= 0:
+        r = rpc('mc.client.screen.info', {})
+        if r.get('type') == 'DeathScreen':
+            rpc('mc.client.input.click', {'x': 318, 'y': 169}); time.sleep(3)
+        rpc('mc.client.chat.send', {'text': '/clear'}); time.sleep(0.3)   # full inventory silently drops gives AND buries the water bucket out of the hotbar (MLG scans hotbar only)
+        for c in ['/give @p water_bucket', '/give @p diamond_pickaxe', '/give @p diamond_shovel', '/give @p cobblestone 192']:
+            rpc('mc.client.chat.send', {'text': c}); time.sleep(0.3)
+        print(f'[{CYC}] (respawned + re-equipped)', flush=True)
+        return False
+    return True
+
+
+LOG_PATH = 'fabric/run/logs/latest.log'
+def expect_counts(since_epoch):
+    """Tally [expect] alarm classes logged since the journey started — the causal
+    fingerprint attached to every journey verdict (observability-first directive)."""
+    import re, collections, datetime
+    since = datetime.datetime.fromtimestamp(since_epoch).strftime('%H:%M:%S')
+    counts = collections.Counter()
+    try:
+        with open(LOG_PATH, errors='ignore') as fh:
+            for line in fh:
+                if '[expect]' not in line: continue
+                ts = line[1:9]
+                if ts >= since:
+                    m = re.search(r'\[expect\] (\S+?):', line)
+                    if m: counts[m.group(1)] += 1
+    except OSError: pass
+    return dict(counts) if counts else 'clean'
+
+
+def preflight(label):
+    """Refuse to run a journey in a degraded state — flags actually ON (snapshot check),
+    gear actually in the hotbar. Every past silent failure mode, checked up front."""
+    snap = rpc('mc.bot.setting', {}).get('settings', {})
+    missing = [k for k, v in FLAGS.items() if k != 'pathArchive' and snap.get(k) != v]
+    if missing:
+        print(f'[{label}] PREFLIGHT FAIL: flags not live: {missing}', flush=True)
+        return False
+    # hotbar gear check via script_eval-free player snapshot (client inventory list)
+    inv = rpc('mc.client.player', {}).get('inventory') or []
+    hot = {i.get('id') for i in inv if isinstance(i, dict) and i.get('slot', 99) < 9}
+    need = {'minecraft:water_bucket', 'minecraft:diamond_pickaxe'}
+    lack = need - hot
+    if lack:
+        print(f'[{label}] PREFLIGHT FAIL: hotbar missing {lack}', flush=True)
+        return False
+    return True
+
+def live_journey(label):
+    ensure_alive()
+    # Set the FULL flag set every journey: a fresh client boots with all-default flags,
+    # and run_case (replay) is the only other setter — the first journey of a chain ran
+    # flag-naked otherwise (C21-J1). pathArchive back ON for recording.
+    rpc('mc.bot.setting', {**FLAGS, 'pathArchive': True, 'walkerDebug': True})
+    if not preflight(label):
+        # one repair attempt: re-clear + re-give + re-set, then re-check
+        rpc('mc.client.chat.send', {'text': '/clear'}); time.sleep(0.3)
+        for c in ['/give @p water_bucket', '/give @p diamond_pickaxe', '/give @p diamond_shovel', '/give @p cobblestone 192']:
+            rpc('mc.client.chat.send', {'text': c}); time.sleep(0.3)
+        rpc('mc.bot.setting', {**FLAGS, 'pathArchive': True, 'walkerDebug': True})
+        if not preflight(label):
+            print(f'[{label}] ABORT journey (preflight failed twice)', flush=True)
+            return None
+    # Mined-drop pickups crowd the hotbar mid-journey and push the pickaxe/bucket out
+    # (observed live: 9/9 hotbar slots junk, no pickaxe -> hand-mining, no bucket -> MLG dead).
+    rpc('mc.client.chat.send', {'text': '/clear'}); time.sleep(0.3)
+    for c in ['/give @p water_bucket', '/give @p diamond_pickaxe', '/give @p diamond_shovel', '/give @p cobblestone 192']:
+        rpc('mc.client.chat.send', {'text': c}); time.sleep(0.3)
+    p = rpc('mc.client.player', {})['pos']
+    sx, sz = p['x'], p['z']
+    ang = random.uniform(0, 2 * math.pi)
+    dist = random.uniform(110, 170)
+    gx, gz = round(sx + dist * math.cos(ang)), round(sz + dist * math.sin(ang))
+    print(f'[{label}] start=({sx:.0f},{sz:.0f}) goal=XZ({gx},{gz}) dist={dist:.0f}', flush=True)
+    rpc('mc.bot.goto', {'xz': {'x': gx, 'z': gz}, 'near': 3})
+    mind = 1e9; lastprog = 0.0; worst = 0.0
+    t0 = time.time()
+    while time.time() - t0 < 420:
+        try: r = rpc('mc.client.player', {})
+        except Exception: time.sleep(3); continue
+        x, z = r['pos']['x'], r['pos']['z']; el = time.time() - t0
+        d = math.dist((x, z), (gx, gz))
+        if d < mind - 1.5: mind = d; lastprog = el
+        noProg = el - lastprog; worst = max(worst, noProg)
+        if r['health'] <= 0:
+            print(f'[{label}] LIVE DIED @({x:.0f},{z:.0f})', flush=True); return None
+        if d < 8:
+            print(f'[{label}] LIVE ARRIVED {el:.0f}s worst={worst:.0f}s expect={expect_counts(t0)}', flush=True)
+            return (gx, gz, x, sx, sz)
+        if noProg >= 90:
+            print(f'[{label}] LIVE CHURN @({x:.0f},{r["pos"]["y"]:.0f},{z:.0f}) worst={worst:.0f}s expect={expect_counts(t0)}', flush=True)
+            # A churn verdict cancels the goto and idles the bot WHERE IT STUCK — with the
+            # walker (and its DrowningEscape) stopped, an underwater stall drowns the idle
+            # bot before the next journey's ensure_alive (observed live: hp0 post-C24-J3).
+            rpc('mc.bot.cancel', {})
+            if r.get('underWater') or r.get('inWater'):
+                rpc('mc.client.chat.send', {'text': f'/tp @p {x:.0f} {r["pos"]["y"]+12:.0f} {z:.0f}'})
+                time.sleep(2)
+                rpc('mc.client.chat.send', {'text': '/tp @p ~ ~ ~'})
+            return None
+        time.sleep(3)
+    print(f'[{label}] LIVE TIMEOUT mind={mind:.0f}', flush=True); return None
+
+def archive_for(sx, sz):
+    """Newest archive whose header.start matches the journey start (mtime alone
+    races with late-flushed prior-goto archives and replay-recorded ones)."""
+    fs = [f for f in os.listdir(RP_DIR) if f.startswith('replay-') and f.endswith('.json')]
+    for f in sorted(fs, key=lambda f: os.path.getmtime(os.path.join(RP_DIR, f)), reverse=True):
+        try: st = json.load(open(os.path.join(RP_DIR, f))).get('header', {}).get('start', [9e9, 0, 9e9])
+        except Exception: continue
+        if abs(st[0] - sx) <= 6 and abs(st[2] - sz) <= 6: return f
+    return None
+
+# Cycle start: spread to a FRESH area (escape any replay-restored corridor from
+# the previous cycle — restoreBlocks snapshots can desync planned climb blocks
+# from the live world, the suspected C2-J1 vine-detach cause).
+# spreadplayers can drop the bot INSIDE a cave/ravine opening (C18: y37 start,
+# journey churned at y8 in the cave network) — retry until surfaced (y>=60).
+for _try in range(4):
+    cx, cz = random.randint(-400, 400), random.randint(-400, 400)
+    rpc('mc.client.chat.send', {'text': f'/spreadplayers {cx} {cz} 0 60 false @p'})
+    time.sleep(5)
+    py = rpc('mc.client.player', {})['pos']['y']
+    if py >= 60: break
+    print(f'[{CYC}] spread landed underground (y={py:.0f}) — retry', flush=True)
+ensure_alive()
+rpc('mc.client.chat.send', {'text': '/clear'}); time.sleep(0.3)
+for c in ['/give @p water_bucket', '/give @p diamond_pickaxe', '/give @p diamond_shovel', '/give @p cobblestone 192']:
+    rpc('mc.client.chat.send', {'text': c}); time.sleep(0.3)
+p0 = rpc('mc.client.player', {})['pos']
+print(f'[{CYC}] spread to ({p0["x"]:.0f},{p0["y"]:.0f},{p0["z"]:.0f})', flush=True)
+
+for j in range(1, 4):
+    label = f'{CYC}-J{j}'
+    res = live_journey(label)
+    if res is None:
+        ensure_alive()
+        print(f'[{label}] SKIP replays (live not clean)', flush=True)
+        continue
+    gx, gz, endx, jsx, jsz = res
+    arc = None
+    for wait in range(6):          # the archive flushes a few seconds AFTER ARRIVED — retry up to ~18s
+        time.sleep(3)
+        arc = archive_for(jsx, jsz)
+        if arc: break
+    if arc is None:
+        print(f'[{label}] NO matching archive — skip replays', flush=True); continue
+    # arrive 判据: 用 journey 实际终点 x 方向近似(向东 ge / 向西 le), 容差 6
+    d = json.load(open(os.path.join(RP_DIR, arc)))
+    startx = d.get('header', {}).get('start', [0])[0]
+    cmp = 'ge' if endx >= startx else 'le'
+    ax = round(endx - 6) if cmp == 'ge' else round(endx + 6)
+    print(f'[{label}] archive={arc} arrive_x={ax}({cmp})', flush=True)
+    for i in range(3):
+        ensure_alive()
+        r = run_case(arc, FLAGS, arrive_x=ax, cmp=cmp, timeout=240)
+        # arrive_x is a single-axis proxy that misjudges XZ-near-circle arrivals (§49);
+        # the real criterion is the end position inside the goal circle.
+        ep = rpc('mc.client.player', {})['pos']
+        at_goal = math.dist((ep['x'], ep['z']), (gx, gz)) < 10 and rpc('mc.client.player', {})['health'] > 0
+        print(f'[{label}] replay#{i+1}: maxStuck={r.max_stuck} atGoal={at_goal}', flush=True)
+print(f'[{CYC}] CYCLE_DONE', flush=True)
