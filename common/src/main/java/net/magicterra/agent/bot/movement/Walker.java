@@ -638,6 +638,8 @@ public final class Walker {
     private int exThrottle;            // global alarm throttle (one line per 40t)
     private long exRepathFlipTick;     // pfTickCounter of the last U-turn route adoption (REPATH-flip window)
     private int exRepathFlipCount;     // consecutive U-turn adoptions inside the window — the oscillation depth
+    private int exDriveTearTicks;      // consecutive pinned ticks with the heading >90° off the committed node (DRIVE-tear)
+    private int exGearCheckTicks;      // sampling countdown for the hotbar gear sentinel (GEAR-degraded)
     private int pillarNoPlaceTicks;        // ticks the pillar takeover has been engaged without a successful place / height gain — buoyant bob can't lift feet above a surface fill cell, so beyond PILLAR_FUTILE_TICKS the place is hopeless and we fall to the dig
     private int waterClimbTargetY;         // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
     private int waterClimbColX, waterClimbColZ; // LOCKED column the takeover pillars in (don't chase repathing nodes)
@@ -5861,6 +5863,59 @@ public final class Walker {
             exFwdNoMoveTicks = 0;
         }
         exPrevX = p.getX(); exPrevZ = p.getZ();
+        // DRIVE-tear: the driven heading (body yaw under commandMove decoupling ≈ the
+        // carrot bearing) points >90° away from the committed node for 40 straight ticks
+        // while the body is pinned — the carrot-vs-node tear (§56, user-witnessed: carrot
+        // east into a wall, node 5 blocks south, attack=false, pinned indefinitely).
+        if (path != null && step < path.size()) {
+            BlockPos node = path.get(step);
+            double ndx = (node.getX() + 0.5) - p.getX(), ndz = (node.getZ() + 0.5) - p.getZ();
+            float bearNode = (float) Math.toDegrees(Math.atan2(-ndx, ndz));
+            float tear = Math.abs(angleDiff(p.getYRot(), bearNode));
+            if (tear > 90 && moved < 0.03) {
+                if (++exDriveTearTicks == 40 && exThrottle == 0) {
+                    LOG.warn("[expect] DRIVE-tear: heading {}° off the committed node for 40t while pinned "
+                            + "(yaw={} bearNode={} node={},{},{} hCol={}) — carrot/recovery steering away from the path",
+                            String.format(Locale.ROOT, "%.0f", tear),
+                            String.format(Locale.ROOT, "%.0f", p.getYRot()),
+                            String.format(Locale.ROOT, "%.0f", bearNode),
+                            node.getX(), node.getY(), node.getZ(), p.horizontalCollision);
+                    exThrottle = 40;
+                }
+            } else {
+                exDriveTearTicks = 0;
+            }
+            // ADVANCE-deadzone: parked in the within/overshoot dead band (0.45 < cur2 < 4)
+            // at the node's Y with no step progress for 60t — the step pointer is starved
+            // (the crest-orbit family, now alarmed instead of silently grinding).
+            double cur2 = ndx * ndx + ndz * ndz;
+            if (cur2 > 0.45 && cur2 < 4.0 && Math.abs(node.getY() - p.getY()) < 1.0
+                    && noStepProgressTicks > 60) {
+                if (exThrottle == 0) {
+                    LOG.warn("[expect] ADVANCE-deadzone: cur2={} at node {},{},{} noStepProg={} — within/passed both starved",
+                            String.format(Locale.ROOT, "%.2f", cur2),
+                            node.getX(), node.getY(), node.getZ(), noStepProgressTicks);
+                    exThrottle = 40;
+                }
+            }
+        } else {
+            exDriveTearTicks = 0;
+        }
+        // GEAR-degraded: mined-drop pickups crowd the pickaxe / water bucket out of the
+        // hotbar mid-journey (observed live: 9/9 slots junk → hand-mining + dead MLG).
+        // Sampled every 100t; only meaningful for a LocalPlayer with an Items-based check.
+        if (++exGearCheckTicks >= 100) {
+            exGearCheckTicks = 0;
+            if (p instanceof net.minecraft.client.player.LocalPlayer lp) {
+                boolean bucket = net.magicterra.agent.bot.util.BotInteract.hotbarSlotOf(lp, net.minecraft.world.item.Items.WATER_BUCKET) >= 0;
+                boolean pick = net.magicterra.agent.bot.util.BotInteract.hotbarSlotOf(lp, net.minecraft.world.item.Items.DIAMOND_PICKAXE) >= 0
+                        || net.magicterra.agent.bot.util.BotInteract.hotbarSlotOf(lp, net.minecraft.world.item.Items.IRON_PICKAXE) >= 0;
+                if (!bucket || !pick) {
+                    LOG.warn("[expect] GEAR-degraded: hotbar missing {}{} — pickups crowded the gear out (MLG dead / hand-mining)",
+                            bucket ? "" : "water_bucket ", pick ? "" : "pickaxe");
+                }
+            }
+        }
     }
 
     /** A continuously-sliding aim point {@code CARROT_DIST} blocks ahead

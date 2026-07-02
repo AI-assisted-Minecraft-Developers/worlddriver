@@ -1041,6 +1041,19 @@ public final class SettingsCommand {
             }
             snap.put("avoidPoints", zs);
         }
+        // Reflective completion: every public static volatile PRIMITIVE BotConfig field not
+        // already in the hand-written snapshot above. Without this, newly-declared flags are
+        // settable (reflective setter) but INVISIBLE to the snapshot — an observability blind
+        // spot that let a preflight check read `null` for live flags (walkerCarrotBodyLos).
+        // The snapshot must never lag the config surface again.
+        for (java.lang.reflect.Field f : BotConfig.class.getFields()) {
+            int mods = f.getModifiers();
+            if (!java.lang.reflect.Modifier.isStatic(mods) || !java.lang.reflect.Modifier.isVolatile(mods)) continue;
+            if (!f.getType().isPrimitive() || snap.containsKey(f.getName())) continue;
+            try {
+                snap.put(f.getName(), f.get(null));
+            } catch (IllegalAccessException ignore) { }
+        }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("ok", true);
         out.put("settings", snap);
