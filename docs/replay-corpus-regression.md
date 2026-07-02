@@ -550,3 +550,6 @@ BodyLos 加入后三周期:**9/9 live ARRIVED、零 CHURN、零死亡**(C5-C7 �
 
 ### §55 补:break-stall 验尸 = 根本没挖(非挖得慢)
 现场 walk-keys:**attack=false 全程**且 walk-keys 在打印(主流程走到尾,未进 dig early-return)= traverseBreak/downBreak 的 pending-edge 挖掘执行链**在某个门前断掉**(breakHold 从未按下),bot 站在 node 上对准朝下永远等待。非硬度/工具问题。下轮直攻:trace hasPendingEdge→breakHold 链上的 gate(嫌疑:allowBreak 在该路径读的是启动时快照?edge.toBreak 为空?或 break 分支被别的 flag 短路)。这解释了为何"25s+ 不破块"——从未开始破。
+
+### §55 修正:break-stall 真相 = break 后 within 死区 + drive 反向(非 break 链断)
+再验尸推翻"链断"猜想:walk-keys 在打印 = `hasPendingEdge=false` = **toBreak 块已不 solid(挖掘早完成)**。真 stall 在 break 完成后的推进段:①bot 停在 node 旁 cur2=0.68(> within 门 0.45,永不 advance;passed 也不触发)= `walkerStepUpCrestReach` 注释描述的 orbit 死区的 **traverseBreak 平地变体**;②walk-keys `driveYaw=-123` vs t= 行 `bear=76` **反向 160°**(drive 朝反方向,dryDesc=true 参与)。两条线索:死区 advance(CrestReach 思路推广到 break-move)+ dryDesc/driveYaw 反向根因。下轮:先试开 `walkerStepUpCrestReach`(现成 flag,default OFF,同族机制)看是否覆盖,再查 driveYaw 反向来源。
