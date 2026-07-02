@@ -590,3 +590,8 @@ BodyLos 加入后三周期:**9/9 live ARRIVED、零 CHURN、零死亡**(C5-C7 �
 ## 62. combo 层级复测:digCommitHold 叠加仍不正向,M 组合(monotonic+SP)为当前最优(2026-07-02)
 monotonic 打底后 recovery 不再饿死,复测 digCommitHoldRepath 组合(mono+SP+digHold,K6):worstStall=4/10/21/25/**72/105** vs M 组合 12 轮尾部 58/76——**叠加恶化,维持 KILL**。画面在尾轮见"水下被方块完全封闭"(digHold 持久挖 × SP 放块疑似形成放-挖互作)。**当前最优=walkerStuckStepMonotonic+walkerPillarSurfacePlace**(验收 FLAGS 已含),judge 台 replay-0004 上尾部 76s(基线 181s)。
 **残留尾形态(均 15-30s 异构小段,单点边际递减)**:SP 塔顶滞留(y68)/放块自弹射/嵌块封闭/岸 dig 断。**下步候选**:①SP 副作用专项(塔顶回 path 快速衔接;放块前 AABB 校验)②climb-out 状态机(设计稿 scratchpad/climbout_statemachine_design.md)③接受当前尾部直接跑三周期验收看真实随机地形的通过率。
+
+## 63. C25/C26 验收:通过率由地形域决定;wedge时钟第二站点修复;陡山=最弱域(2026-07-02)
+**C25(平原/丛林/湖 spread)**:J1/J3 全绿(live worst=0s + replay 6/6 atGoal),J2 FAIL(live 33s 段+replay 1/3,maxStuck 221-258)。J2 的 33s 段暴露 **monotonic 第二站点**:wedge 时钟(noStepProgressTicks)同样被 step 抖动清零(ADVANCE-deadzone 流里 noStepProg 恒=61=阈值+1,数到门口就被抖走重数)→ 已修(retreat 换基准不清表,同 flag)。J2 replay 散度(live 绿 replay 劣化)=replan 出 envelope 的固有问题,待专项。
+**C26(陡山 spread,y89-112)**:0/3 全 CHURN——**干地陡爬域**(pmcs 2026-06-29"陡爬 wedge 内生双稳态,点修证伪,只剩结构性两选项"的那个域)。指纹:JUMP-noRise 12-13/journey(**全部 +0.78 边缘误报**,launch y 递增=真在爬,阈值 0.8→0.75 已校准)+ MOVE-noMove 7 + ADVANCE-deadzone 5-21。
+**结论**:湖区战役收效(worstStall 尾 -58%),**陡山域是 #47 剩余最大 blocker**,需下一战役(pmcs 结论:①执行器陡爬耗散 recovery 重基 ②planner partial-path,用户拍板项)。协议改进:preflight repair 成功现在打行(C26 的 FAIL 行实为 repair 前噪声);J2 GEAR×52=桶被 MLG 消耗未回收(scoop 生命周期,待查)。

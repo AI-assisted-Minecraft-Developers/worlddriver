@@ -5925,8 +5925,12 @@ public final class Walker {
         double vy = p.getDeltaMovement().y;
         if (exJumpTicksLeft > 0) {
             exJumpPeakY = Math.max(exJumpPeakY, p.getY());
-            if (--exJumpTicksLeft == 0 && exJumpPeakY < exJumpBaseY + 0.8 && !p.isInWater() && exThrottle == 0) {
-                LOG.warn("[expect] JUMP-noRise: launched at y={} peaked {} (<+0.8) hCol={} — blocked/in-place jump",
+            // 0.8→0.75: C26 mountain journeys showed 12-13 alarms/journey ALL peaking at
+            // +0.78 with the launch y climbing 2 blocks between alarms — i.e. genuinely
+            // ascending step-ups flagged 0.02 under the gate. A truly blocked jump peaks
+            // ≤+0.5 (hCol cap); 0.75 keeps that signal and drops the ascent false floor.
+            if (--exJumpTicksLeft == 0 && exJumpPeakY < exJumpBaseY + 0.75 && !p.isInWater() && exThrottle == 0) {
+                LOG.warn("[expect] JUMP-noRise: launched at y={} peaked {} (<+0.75) hCol={} — blocked/in-place jump",
                         String.format(Locale.ROOT, "%.2f", exJumpBaseY),
                         String.format(Locale.ROOT, "%.2f", exJumpPeakY), p.horizontalCollision);
                 exThrottle = 40;

@@ -86,6 +86,7 @@ def live_journey(label):
         if not preflight(label):
             print(f'[{label}] ABORT journey (preflight failed twice)', flush=True)
             return None
+        print(f'[{label}] (preflight repaired)', flush=True)
     # Mined-drop pickups crowd the hotbar mid-journey and push the pickaxe/bucket out
     # (observed live: 9/9 hotbar slots junk, no pickaxe -> hand-mining, no bucket -> MLG dead).
     rpc('mc.client.chat.send', {'text': '/clear'}); time.sleep(0.3)
