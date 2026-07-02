@@ -575,3 +575,9 @@ BodyLos 加入后三周期:**9/9 live ARRIVED、零 CHURN、零死亡**(C5-C7 �
 **fix `walkerPillarSurfacePlace`(default OFF)**:水面格 shaft 视作 dry-crest(b case),bob 峰 crest-place。**行为解锁确证**:同日志 OFF 窗 0 次 vs ON 窗 15 次 "topped out dry"(爬出动作本身从不可能变反复成功)。**但 journey 端到端无净效**:replay-0004 SP-ON 6 轮=5/6 ARRIVED+1/6 churn @(369,62,349),与基线(5/6+1/6 @372,63,347)持平;churn 簇(369-373,347-351 湖中水下地形)是内生双稳态,画面见"挖自己刚放的水下圆石"新形态。**三 flag(digCommitHold/routeHysteresis/pillarSurfacePlace)全动不了 1/6** → 结构性重基结论第三次确认。
 **rig 教训(踩了自己 6-16 就写过的坑)**:定点 rig goal (378,65,347) 悬在湖面上空 2 格(未验证可站性),造出"100% churn"假象浪费两轮 A/B;goal (369,63,352) 又距起点 4 格<near 造成 2s 原地 ARRIVED。**rig 的 goal 必须先 tp 实测落点可站**。快照区外的 journey 路径 bot 放块仍跨轮累积(区外污染),扩快照或全线 /fill 清理待做。
 **当天净产出**:观测系统 5 分钟级归因(vs 过去数小时)三次兑现;三个 default-OFF flag committed 供后续;churn 簇的结构性证据链完整,交结构性重基 cycle。
+
+## 60. 定性反转:零硬死锁,病=尾延;hysteresis KILL;worstStall 判定台(2026-07-02)
+**Q 系列(SP ON,180s 判据,K6)推翻"1/6 churn=死锁"**:6/6 全 ARRIVED,worstStall 分布 3/12/18/27/49/**97**s——Q-5 在旧 95s 判据下会被判死,实际 143s 自愈到达。恢复机制(repath/escalation)一直在工作,**病是尾延不是死锁**。重基目标改为压 worstStall 尾部。
+**H 系列(+routeHysteresis ON,K6)**:worstStall 6/15/18/21/**151/169**s——尾部反而恶化(两轮 >150s vs 基线一轮 97s)。**KILL(keep default OFF)**:路线振荡的病根不是 adopt 太频繁,而是两条路线各有固定卡点(湖中 369,349 水下地形 + 西侧 354.7,63,353.3),hysteresis 只是把 bot 钉在坏路线上更久,推迟逃出。
+**西侧固定卡点验尸**:tp 实测=普通 +1 草土台阶,bot 顶台阶侧面 MOVE-noMove(hCol=true 10t)——**干地基础 stepUp 失败形态**(stepUpBackoffRetry ON 仍发生),非水域问题;且该点在快照区外,旁边躺着历史轮 cobble(区外污染实证)。
+**至此判定链**:4 flag(carrotHColShrink/digCommitHold/pillarSurfacePlace/routeHysteresis)全无 journey 净效或有害;尾延由多段异构 stall 组成(水下 pillar/dig + 干地 stepUp + 路线切换徘徊)。**下步=per-segment 分解 97s/169s 尾轮**(dist-trace 逐段归因),按段修,worstStall 判定台(replay-0004 K6)验收;快照区外污染先全线清理。
