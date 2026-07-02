@@ -863,6 +863,32 @@ public final class SettingsCommand {
                 }
             }
         }
+        // Generic reflective fallback for every key the hand-written setters above did not
+        // consume: any `public static volatile` PRIMITIVE field on BotConfig is settable by
+        // its exact field name. This ends the copy-paste growth of this class — a new flag
+        // needs ONLY its BotConfig declaration (the ~96 boolean setters above predate this
+        // and are kept for their side effects / legacy key aliases; do not add more).
+        // volatile is required (marker that the field is designed for runtime flips);
+        // range-validated knobs keep their hand-written setters above, which win by running
+        // first and adding the key to `applied`.
+        for (Map.Entry<String, Object> e : params.entrySet()) {
+            String k = e.getKey();
+            if (applied.contains(k) || rejected.stream().anyMatch(r -> r.startsWith(k))) continue;
+            try {
+                java.lang.reflect.Field f = BotConfig.class.getField(k);
+                int mods = f.getModifiers();
+                if (!java.lang.reflect.Modifier.isStatic(mods) || !java.lang.reflect.Modifier.isVolatile(mods)) continue;
+                Class<?> t = f.getType();
+                Object v = e.getValue();
+                if (t == boolean.class && v instanceof Boolean b) { f.setBoolean(null, b); applied.add(k); }
+                else if (t == int.class && v instanceof Number n) { f.setInt(null, n.intValue()); applied.add(k); }
+                else if (t == double.class && v instanceof Number n) { f.setDouble(null, n.doubleValue()); applied.add(k); }
+                else if (t == float.class && v instanceof Number n) { f.setFloat(null, n.floatValue()); applied.add(k); }
+                else if (t == long.class && v instanceof Number n) { f.setLong(null, n.longValue()); applied.add(k); }
+            } catch (NoSuchFieldException | IllegalAccessException ignore) {
+                // unknown key → ignored, same contract as before
+            }
+        }
         Map<String, Object> snap = new LinkedHashMap<>();
         snap.put("walker.repathEveryTicks", BotConfig.walkerRepathEveryTicks);
         snap.put("walker.totalTickBudget",  BotConfig.walkerTotalTickBudget);
