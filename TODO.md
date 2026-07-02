@@ -2,6 +2,15 @@
 
 > 镜像 Task 跟踪器的长期工作。重要根因写进 memory(reference/project)。
 
+## 2026-07-02 ⭐当前优先级(用户硬指令)与任务镜像(Task #2-#7)
+
+**优先级指令**:①高效发现问题与验证(观测/验证基建)最优先 ②本项目代码防腐/架构优化次之 ③发现并解决具体寻路问题最后。
+
+- **P1 观测基建(Task #2,in_progress)**:11 类 [expect] 执行器预期报警已 committed(DIG-dropped/DIG-slow/JUMP-noRise/MOVE-noMove/REPATH-flip/DRIVE-tear/ADVANCE-deadzone/GEAR-degraded + 本日新增 CLUTCH-noArm/PLACE-noBlock/IDLE-drowning)+ JUMP 阈值 0.8 校准 + forensic.py 同 tick 配对验尸 + 反射化 setting(新 flag 零接线)+ 验收协议 preflight/expect 计数/churn-drown guard。**剩:重启客户端激活(遇 GL hang,复现 2026-06-27 签名)+ smoke。**
+- **P2 防腐(Task #3)**:验收 FLAGS(~27 个已验证 default-OFF flag)与 accept_cycle.py 从 scratchpad 入库。
+- **P3 寻路 lane(Task #4-#6)**:①escape-vs-dig 调度冲突(C24-J3 DIG-dropped 归因=DrowningEscape 抢占断 breakHold)②dig aim-drift(DIG-slow 归因)③repath 振荡 hysteresis 正确场景重 A/B((-252,70,209),K≥6)+ mount 双稳态(replay-0016)。
+- **终门(Task #7,blocked by #2)**:#47 三周期验收(3×随机长途+每程 replay×3 全绿);已 24 cycle 未连三绿,J1 已稳。flip-default 待用户。
+
 ## 2026-06-27 ⭐弧长追踪执行器重构(治本)+ 打破一个月 0-commit 死锁
 
 用户硬批评「一个月点修无进展、向后跳/挖墙/卡浮萍仍在、每次只修一小段发现不好就 revert、原地踏步」后,转向**结构性重构**:把执行器的「每-tick 瞬时几何门 + bob-immune 计数器动物园」替换成**弧长追踪 pure-pursuit**(脚投影到 path 折线→单调弧长 s→切线驱动)。分阶段、各自 flag、全 **live/replay 验证**(非 arena-green):
