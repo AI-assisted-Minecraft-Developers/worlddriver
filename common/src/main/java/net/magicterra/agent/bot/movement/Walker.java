@@ -2486,17 +2486,24 @@ public final class Walker {
             // wall blocks the rise) drive BACKWARD off the bank so buoyancy finds open surface.
             // Released once air recovers (or out of water); the interrupted climb resumes fresh.
             if (BotConfig.walkerDrowningEscape) {
-                if (p.isUnderWater() && p.getAirSupply() <= 60) {
+                // WorldView truth gate: the client's isUnderWater/air flags survive a teleport
+                // (and a corpse) un-ticked — a replay tp'd the bot onto DRY land with stale
+                // undW=true/air=0 and the reflex latched + froze the whole drive. Engage (and
+                // hold) only while the WORLD actually has water at the foot/eye and the bot is
+                // alive; a stale-flag body falls through to the normal drive.
+                boolean reallyInWater = p.getHealth() > 0
+                        && (world.isWater(foot) || world.isWater(foot.above()));
+                if (reallyInWater && p.isUnderWater() && p.getAirSupply() <= 60) {
                     if (!drowningEscapeLatch && BotConfig.walkerDebug)
                         LOG.info("[walker] DROWNING-ESCAPE engaged: air={} foot={},{},{} → surface for air",
                                 p.getAirSupply(), foot.getX(), foot.getY(), foot.getZ());
                     drowningEscapeLatch = true;
-                } else if (!p.isInWater() || p.getAirSupply() >= 240) {
+                } else if (!reallyInWater || !p.isInWater() || p.getAirSupply() >= 240) {
                     if (drowningEscapeLatch && BotConfig.walkerDebug)
                         LOG.info("[walker] DROWNING-ESCAPE released: air={} → resume", p.getAirSupply());
                     drowningEscapeLatch = false;
                 }
-                if (drowningEscapeLatch && p.isInWater()) {
+                if (drowningEscapeLatch && reallyInWater && p.isInWater()) {
                     agentJump(a, true);
                     a.breakHold(false);
                     p.setSprinting(false);
