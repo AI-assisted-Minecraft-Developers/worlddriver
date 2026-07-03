@@ -4681,7 +4681,7 @@ public final class Walker {
         // then feet height; the digAimPriority latch (armed below) keeps the crosshair
         // on it through subsequent travel ticks. Default OFF.
         if (BotConfig.walkerWallDigFallback && !p.isInWater() && p.onGround()
-                && p.horizontalCollision && stuckTicks > 60 && !a.breakHeld()) {
+                && p.horizontalCollision && stuckTicks > 40 && !a.breakHeld()) {
             double fdx = (wp.getX() + 0.5) - p.getX(), fdz = (wp.getZ() + 0.5) - p.getZ();
             double fl = Math.sqrt(fdx * fdx + fdz * fdz);
             if (fl > 1e-3) {
