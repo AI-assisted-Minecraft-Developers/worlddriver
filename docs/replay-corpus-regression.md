@@ -643,3 +643,6 @@ bot 距 goal 10.5 格(d<8 圈外)在崖顶边缘 91s churn:画面=反复"倒水-
 
 ## 73. C55-J3 起步 91s churn=腾空 jump-ram 循环饿死 wall-dig(onGround 门)
 现场:wp 侧向 1.3 格(cur2=2.08>0.45 死区),hCol=true hSpd=0 jump 循环 onG=false,noStepProg 393,attack=false 全程。跳→撞墙→落地瞬间又跳,onGround 采样窗口≈0 → wallDigFallback(要 onGround)永不触发,ADVANCE-deadzone×16。§66 腾空 arc-stall 的姊妹形态。修=wall-dig 去 onGround 门(hCol 本身已表征"墙前",腾空也够得着)。
+
+## 74. 尾延主因转移:planner 偏爱 dig 密集穿山线(C53/C58/C59 三连 50-65s)
+通宵 15 周期统计:绿 C46/C48/C52/C57(~29%),最大杀手已从硬卡死转为 **worst 50-65s 的挖掘尾延**——planner 按真实 tick 成本选中矿井/洞穴直线,每格 dig 的隐藏成本(approach/aim/格间 stall-recovery)不在价里,连环累积破 30s 门。修=`pathfinderBreakCostMultiplier`(default 1.0,验收 FLAGS 2.5):planner breakCost 乘数,偏爱绕行;executor 兜底 dig 不受影响。同场加映:archive_for 误匹配修复(start+goal 双校验,C58-J1 曾重放昨日旅途)。

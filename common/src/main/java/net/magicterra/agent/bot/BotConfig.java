@@ -1647,6 +1647,12 @@ public final class BotConfig {
      *  waypoint-facing block at head/feet height (digAimPriority latch holds it). Default OFF. */
     public static volatile boolean walkerWallDigFallback = false;
 
+    /** Dig-aversion multiplier on the planner's breakCost (§74): >1 biases A* toward
+     *  walking around instead of committing dig-dense mineshaft/cave legs whose hidden
+     *  per-block approach/stall costs broke C53/C58/C59 (50-65s worst stalls). Planner
+     *  pricing only; executor fallback digs unaffected. 1.0 = byte-identical. */
+    public static volatile double pathfinderBreakCostMultiplier = 1.0;
+
     /** Bank-dig ground-blip immunity (the underground-pool climb-out grind, live 2026-07-02
      *  (-275,49,-38): the committed bank dig requires {@code !onGround}, but the buoyant bob
      *  touches bottom ~4 ticks/second — each blip drops {@code digCommitted}, the tick falls

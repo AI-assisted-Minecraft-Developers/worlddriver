@@ -402,7 +402,13 @@ public final class ClientWorldView implements WorldView {
         // (logs/dirt/leaves: isCorrectToolForDrops=true bare-handed) and digs
         // with the proper tool keep their true price.
         if (!bestCorrect) cost *= 3;
-        return cost;
+        // Dig-aversion multiplier (§74): the per-block tick estimate is honest, yet a
+        // dig-dense route drags the same hidden costs as the wrong-tool case in miniature
+        // (approach/aim per block, stall-recovery churn between digs) — C53/C58/C59 all
+        // broke on 50-65s worst-stall mineshaft/cave legs the planner CHOSE over an open
+        // detour. >1 biases A* toward walking around; executor fallback digs are unpriced
+        // and unaffected. 1.0 = byte-identical.
+        return cost * BotConfig.pathfinderBreakCostMultiplier;
     }
     @Override public boolean canPlace() {
         return BotConfig.allowPlace && hasPlaceableBlock();
