@@ -107,6 +107,12 @@ def live_journey(label):
     print(f'[{label}] start=({sx:.0f},{sz:.0f}) goal=XZ({gx},{gz}) dist={dist:.0f}', flush=True)
     rpc('mc.bot.goto', {'xz': {'x': gx, 'z': gz}, 'near': 3})
     mind = 1e9; lastprog = 0.0; worst = 0.0; gearCheck = 0.0
+    # worst = longest MOVEMENT stall (visual hesitation, the #47 bar), not longest
+    # goal-distance plateau: a legit canopy/ridge detour holds mind flat for a minute
+    # while the bot is visibly walking (C64-J1 "73s worst" was 10 scattered 1-3s wall
+    # taps plus detours, no single long freeze). Track the last time the bot was >2
+    # blocks from its anchor; churn (90s NO GOAL PROGRESS) still uses mind.
+    apos = None; asince = 0.0
     t0 = time.time()
     while time.time() - t0 < 420:
         try: r = rpc('mc.client.player', {})
@@ -129,7 +135,10 @@ def live_journey(label):
                 pass
         d = math.dist((x, z), (gx, gz))
         if d < mind - 1.5: mind = d; lastprog = el
-        noProg = el - lastprog; worst = max(worst, noProg)
+        noProg = el - lastprog
+        if apos is None or math.dist((x, z), apos) > 2.0:
+            apos = (x, z); asince = el
+        worst = max(worst, el - asince)
         if r['health'] <= 0:
             print(f'[{label}] LIVE DIED @({x:.0f},{z:.0f})', flush=True); return None
         if d < 8:
