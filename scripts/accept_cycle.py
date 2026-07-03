@@ -195,6 +195,15 @@ for j in range(1, 4):
     cmp = 'ge' if end_v >= start_v else 'le'
     ax = round(end_v - 6) if cmp == 'ge' else round(end_v + 6)
     print(f'[{label}] archive={arc} arrive_{axis}={ax}({cmp})', flush=True)
+    # envelope-exit detection (§66): replan may route OUTSIDE the archived corridor —
+    # unarchived terrain there wedges the bot as a rig ARTIFACT, not a walker regression
+    # (C29-J2 replay#1: stuck at x=-414, 7 blocks west of the live bbox x[-407,-313]).
+    traj = json.load(open(os.path.join(RP_DIR, arc))).get('trajectory') or []
+    if traj:
+        bx = [min(t['x'] for t in traj) - 8, max(t['x'] for t in traj) + 8]
+        bz = [min(t['z'] for t in traj) - 8, max(t['z'] for t in traj) + 8]
+    else:
+        bx = bz = None
     for i in range(3):
         ensure_alive()
         r = run_case(arc, FLAGS, arrive_x=ax, cmp=cmp, timeout=240, axis=axis)
@@ -202,5 +211,8 @@ for j in range(1, 4):
         # the real criterion is the end position inside the goal circle.
         ep = rpc('mc.client.player', {})['pos']
         at_goal = math.dist((ep['x'], ep['z']), (gx, gz)) < 10 and rpc('mc.client.player', {})['health'] > 0
-        print(f'[{label}] replay#{i+1}: maxStuck={r.max_stuck} atGoal={at_goal}', flush=True)
+        env_exit = (not at_goal and bx is not None
+                    and not (bx[0] <= ep['x'] <= bx[1] and bz[0] <= ep['z'] <= bz[1]))
+        tag = ' envExit=True (rig artifact — replan left the archived corridor)' if env_exit else ''
+        print(f'[{label}] replay#{i+1}: maxStuck={r.max_stuck} atGoal={at_goal}{tag}', flush=True)
 print(f'[{CYC}] CYCLE_DONE', flush=True)
