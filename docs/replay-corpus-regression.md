@@ -629,3 +629,7 @@ C26-J3 山地档 replay A/B(aboveNodeStallRecover OFF4/ON4):**两侧全 ARRIVED(
 **周期账**:C38 全绿(1/3)→C39 J3 63s 洞穴迂回 SLOW→C40 J1 82s 蠕动 SLOW(EPS 已修④)→C41 J1 40s 树冠 bounce SLOW+J3 replay 泥坑溺亡。
 **长尾形态清单(各有档)**:①树冠 bounce 循环(replay-0001/C41:y128 树冠↔地面反复,真实运动清钟合法=net-progress-loop,wedge 时钟涨到 231 但 recovery 不破循环)②洞穴慢速迂回(C39-J3 63s)③**水下泥坑溺亡链**(replay-0003/C41:GEAR 连环丢桶[replay 无 mid-journey top-up]→泥坑无 MLG→walker 结束后 idle 水下→IDLE-drowning 哨兵未见触发→溺死。两层洞:replay 轮 gear 保障缺失+哨兵盲区待查)。
 **EPS 修复(④侧门)已进 build**,C42 起生效。三连绿计数:C38=1(C39-41 断)。
+
+## 70. 重构"回归"证伪=GT flaky 三人组;架构拆分验收通过(2026-07-03 凌晨)
+**8 轮 GT bisect 定案**:重构后 3 required 稳定失败(descentYaw 1446°/descentOvershootResync/waterFarAim)疑似回归,但**基线(重构前 commit)第 3 轮也败 descentYaw**——全场 flaky 非回归。机械等价审计全绿:88 常数类型+值 0 diff、expectTick/resolveGoal/resolveBaseGoal/geometry 方法体归一化 0 语义 diff。flaky 三人组=时序敏感测试在高负载(整夜多轮 GT,单轮 12→30 分钟)下劣化;agentrpcsmoke 8018ms 擦线有前科。**修 flaky 是独立 issue**(候选:放宽 descentYaw 阈值/rpc 超时,或 GT 前 warm-up)。
+**架构拆分(3 opus agents)验收 KEEP**:Walker 6167→5214(ExpectAlarms/Constants/Geometry 三提取;<3000 不可达因 tick() 单方法 4271 行状态机,拆它=行为风险,如实止步)、AgentGameTest 5535→741(5 文件,60 测试注册等价)、BotApiImpl 1594→983(4 提取)、SettingsCommand 1067→761(反射 fallback 原地)、BotConfig 确认反射依赖不可拆。全量编译绿。教训:**多 agent 共享工作树的 git add -A 会互吞 staged 变更**(commit 归属混杂,内容无损)——下次并行重构须 worktree 隔离或明确 add 路径。
