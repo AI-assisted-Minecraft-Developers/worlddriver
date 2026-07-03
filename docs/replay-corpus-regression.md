@@ -607,3 +607,9 @@ C26-J3 山地档 replay A/B(aboveNodeStallRecover OFF4/ON4):**两侧全 ARRIVED(
 **DIG-slow 归因✅(Task#5)**:C28-J1 @(-258,81,338) 200t 不破,窗内 aim=carrot×28/wp×14——**挖掘期间 look 通道仍被行进 aim 掌舵**,准星不在被挖块=vanilla 进度清零。修法明确:breakHold 期间 aim 独占(镜像 waterClimbYaw 锁),未实现。
 **协议台修复链(本日)**:180s/90s churn 判据、snapshot/restore、gear top-up、preflight repair 日志、**主位移轴 arrive 判据**(C27-J3 假失败根除,C28-J3 replay 3/3 验证生效)。判定台本身已可靠。
 **#47 状态**:未达三连绿。blocker 单一且明确=**陡山执行器 recovery 无效**,结构性修复方向需用户拍板;次目标=dig aim 独占(已归因待实现)。
+
+## 66. C30 首个全绿周期;stickyDig KILL;envelope-exit 判定(2026-07-02 深夜)
+**C30 = 首个全绿验收周期**(J1 27s/0s、J2 25s/0s、J3 106s/6s 全 clean expect,replay 9/9 atGoal)。C29 实质 2.5/3(J2 replay#1 是 envelope 伪影:卡点在 live bbox 外 7 格——协议新增 envExit 标注)。
+**stickyDig KILL**(badlands 档 replay-0007 K3+K3):ON [234,304,424] 2/3 False vs OFF [110,173,287] 1/3——即使收紧(reach 半径+150t watchdog)仍负:独占抢断行进与 recovery,当被锁块不是出路时(planner 已改线)锁死恶化。DIG-slow 的"挖不完"病理真实,但独占方案错误;正确方向应是 aim 优先级(挖掘 tick aim 不被行进覆盖)而非 tick 独占。default OFF 保留代码,摘出验收 FLAGS。
+**C31 全红**(badlands spread):J1 85s(sticky 锁死+水下角落)、J2 replay 0/3(maxStuck 1177)、J3 live 完美 49s/3s 但 replay 1/3。badlands 水下缝隙=新强复现卡点(replay-0007/0008)。
+**三连绿计数**:C30=1,C31 断。当前 FLAGS=monotonic+SP+aboveNodeStall(无 sticky)。
