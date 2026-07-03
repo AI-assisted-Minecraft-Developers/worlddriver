@@ -29,6 +29,7 @@ def ensure_alive():
         rpc('mc.client.chat.send', {'text': '/clear'}); time.sleep(0.3)   # full inventory silently drops gives AND buries the water bucket out of the hotbar (MLG scans hotbar only)
         for c in ['/give @p water_bucket', '/give @p diamond_pickaxe', '/give @p diamond_shovel', '/give @p cobblestone 192']:
             rpc('mc.client.chat.send', {'text': c}); time.sleep(0.3)
+        rpc('mc.client.chat.send', {'text': '/effect give @p minecraft:night_vision infinite 0 true'}); time.sleep(0.2)
         print(f'[{CYC}] (respawned + re-equipped)', flush=True)
         return False
     return True
@@ -100,6 +101,7 @@ def live_journey(label):
     for c in ['/give @p water_bucket', '/give @p diamond_pickaxe', '/give @p diamond_shovel', '/give @p cobblestone 192']:
         rpc('mc.client.chat.send', {'text': c}); time.sleep(0.3)
     rpc('mc.client.chat.send', {'text': '/effect clear @p'}); time.sleep(0.2)   # live legs stay mortal (§76)
+    rpc('mc.client.chat.send', {'text': '/effect give @p minecraft:night_vision infinite 0 true'}); time.sleep(0.2)   # keep night vision through the clear (user directive; also de-noises the dark-cave video watcher)
     p = rpc('mc.client.player', {})['pos']
     sx, sz = p['x'], p['z']
     ang = random.uniform(0, 2 * math.pi)
