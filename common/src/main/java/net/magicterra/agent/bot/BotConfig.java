@@ -1622,6 +1622,17 @@ public final class BotConfig {
      *  fellOffPath (foot-search re-routes from the real, higher position). Default OFF. */
     public static volatile boolean walkerAboveNodeStallRecover = false;
 
+    /** Sticky planned-break (Task#5 dig aim-drift root, C28-J1 @-258,81,338): once a
+     *  planned break starts swinging, own every tick (exclusive selectTool+aim+attack)
+     *  until the block breaks. Ticks where the break-edge gate flickers (buoyant bob off
+     *  the within stance, projection jitter) fall through to the travel drive, which
+     *  releases attack — and ONE released tick resets vanilla mining progress to zero, so
+     *  a 25×-slow underwater dig interleaved with travel ticks never completes (200t held
+     *  in aggregate, block still solid, walk-keys showed attack=false travel ticks
+     *  threaded through the dig). Solid-gone / breakTimeoutTicks / >5-block drift
+     *  releases the latch. Default OFF. */
+    public static volatile boolean walkerStickyDig = false;
+
     /** Bank-dig ground-blip immunity (the underground-pool climb-out grind, live 2026-07-02
      *  (-275,49,-38): the committed bank dig requires {@code !onGround}, but the buoyant bob
      *  touches bottom ~4 ticks/second — each blip drops {@code digCommitted}, the tick falls

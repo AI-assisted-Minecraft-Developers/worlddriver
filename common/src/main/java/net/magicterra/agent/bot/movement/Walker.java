@@ -601,6 +601,8 @@ public final class Walker {
     private int stuckTicks;
     private int totalTicks;
     private int actionTicks;          // ticks spent on the current break/place edge
+    private BlockPos stickyDigPos;    // walkerStickyDig: planned-break cell being mined — held across ticks so an interleaved travel tick can't release attack (a single released tick resets vanilla mining progress to zero; C28-J1 DIG-slow @-258,81,338: 200t of dig ticks interleaved with attack=false travel ticks never completed one block)
+    private int stickyDigTicks;       // watchdog for stickyDigPos
     private int pillarStep = -1;      // path index of the pillar edge in progress
     private int pillarSinceJump = -1; // ticks since the pillar jump press (-1 = grounded)
     private int waterClimbStall;      // armed flag (>WATER_CLIMB_STALL) once net-displacement window shows a bob-stall climbing out of water
@@ -1152,6 +1154,31 @@ public final class Walker {
                     && ("pillarUp".equals(ce.move) || ce.move.startsWith("parkourPlace")
                         || ce.move.startsWith("parkourDescend"));
             if (!midAirEdge) return terminal(Step.ARRIVED, PathTrace.Outcome.SUCCESS, null);
+        }
+
+        // walkerStickyDig: a planned break, once started, OWNS the tick until the block
+        // breaks (or the watchdog/range check bails). Without this, ticks where the
+        // break-edge gate flickers (buoyant bob off the within stance, projection jitter)
+        // fall through to the travel drive, which releases attack for that tick — and ONE
+        // released tick resets vanilla mining progress to zero, so an underwater 25×-slow
+        // dig interleaved with travel ticks NEVER completes (C28-J1 DIG-slow: 200t held
+        // in aggregate, block still solid, walk-keys showed attack=false travel ticks
+        // threaded through the dig). Exclusive aim+attack until done; solid-gone or
+        // timeout or drifted-away clears it. Default OFF.
+        if (BotConfig.walkerStickyDig && stickyDigPos != null) {
+            if (!world.isSolid(stickyDigPos) || ++stickyDigTicks > BotConfig.breakTimeoutTicks
+                    || stickyDigPos.distToCenterSqr(p.position()) > 25) {
+                if (BotConfig.walkerDebug)
+                    LOG.info("[walker] sticky-dig RELEASE {} solid={} ticks={}",
+                            stickyDigPos, world.isSolid(stickyDigPos), stickyDigTicks);
+                stickyDigPos = null;
+                stickyDigTicks = 0;
+            } else {
+                a.selectTool(stickyDigPos);
+                a.aimAtBlock(stickyDigPos);
+                a.breakHold(true);
+                return Step.WALKING;
+            }
         }
 
         // Hard tick budget: prevents infinite walking when A* returns a partial path
@@ -3254,6 +3281,7 @@ public final class Walker {
                     a.selectTool(b);
                     a.aimAtBlock(b);
                     a.breakHold(true);
+                    if (BotConfig.walkerStickyDig) { stickyDigPos = b; stickyDigTicks = 0; }
                     return Step.WALKING;
                 }
             }
@@ -3446,6 +3474,7 @@ public final class Walker {
                     a.selectTool(b);
                     a.aimAtBlock(b);
                     a.breakHold(true);
+                    if (BotConfig.walkerStickyDig) { stickyDigPos = b; stickyDigTicks = 0; }
                     boolean climbBreak = floatingPocket && b.getY() >= foot.getY();
                     if ((swimEscapeBreak && p.isInWater() && !p.isUnderWater()) || climbBreak) {
                         agentForward(a, true);     // press into the aimed bank (surface only)
