@@ -672,6 +672,7 @@ public final class Walker {
     private long boxedEscalateUntilTick;                     // steep-barrier escalation armed until this tick (sticky so a few net-progress windows mid-climb don't drop it)
     private double bestStepDist = Double.POSITIVE_INFINITY; // closest approach² to the current node (drives the progress-based stuckTicks)
     private int stuckStep = -1;                             // path index bestStepDist tracks; a step change starts a fresh progress window
+    private int stuckStepHigh = -1;                         // walkerStuckStepMonotonic HIGH-WATER mark: the stall clock only resets when step exceeds this (C33-J2: an oscillating pointer 5↔6 cleared the clock on every "advance" because the retreat re-base LOWERED stuckStep — the high-water mark never goes down within one path)
     private int noStepProgressTicks;                        // jitter-immune ticks on the SAME step (resets only when step advances/path changes) → wedge detector
     private int underwaterTicks;                            // consecutive eyes-under ticks → debounces the swim-up jump (surface bob ≠ sinking)
     private int noProgressStep = -1;                        // path index noStepProgressTicks tracks (independent of bridge/progress resets)
@@ -794,6 +795,7 @@ public final class Walker {
         BotConfig.pathfinderBoxedEscalate = false;          // never leak the steep-barrier escalation into the next goto
         this.bestStepDist = Double.POSITIVE_INFINITY;
         this.stuckStep = -1;
+        this.stuckStepHigh = -1;
         this.noStepProgressTicks = 0;
         this.noProgressStep = -1;
         this.smoothTargetYaw = Float.NaN;
@@ -886,6 +888,7 @@ public final class Walker {
         this.activeSearch = null;
         this.bestStepDist = Double.POSITIVE_INFINITY;
         this.stuckStep = -1;
+        this.stuckStepHigh = -1;
         this.noStepProgressTicks = 0;
         this.noProgressStep = -1;
         this.smoothTargetYaw = Float.NaN;
@@ -2074,17 +2077,22 @@ public final class Walker {
             // reset stuckTicks (observed pinned at 0-6, never reaching the nodeAim
             // fallback's 12), so ALL stuck-gated recovery starved while the yaw swept 660°
             // and thrust cancelled. A step RETREAT keeps the current window instead.
+            // HIGH-WATER form (C33-J2 fix): the first cut compared against stuckStep and
+            // the retreat re-base LOWERED it, so an oscillating pointer (5↔6 at a sand
+            // pond lip, 1200t) still cleared the clock on every "advance" of the pair.
+            // Only a step beyond the highest index EVER seen on this path is fresh.
             boolean stepWindowFresh = BotConfig.walkerStuckStepMonotonic
-                    ? step > stuckStep : step != stuckStep;
-            if (BotConfig.walkerStuckStepMonotonic && step < stuckStep) {
-                // Step RETREAT: keep the stall clock running but re-base the progress
-                // reference on the new (closer) node, else its naturally-smaller sd2
-                // would fake "real progress" and clear the clock through the side door.
+                    ? step > stuckStepHigh : step != stuckStep;
+            if (BotConfig.walkerStuckStepMonotonic && !stepWindowFresh && step != stuckStep) {
+                // Retreat OR revisit inside the seen range: keep the stall clock running
+                // but re-base the progress reference on the new node, else its
+                // naturally-different sd2 would fake "real progress" through the side door.
                 stuckStep = step;
                 bestStepDist = sd2;
             }
             if (stepWindowFresh) {                         // new node → fresh progress window
                 stuckStep = step;
+                stuckStepHigh = step;
                 bestStepDist = sd2;
                 stuckTicks = 0;
             } else if (sd2 < bestStepDist - STUCK_PROGRESS_EPS) {
@@ -5682,6 +5690,7 @@ public final class Walker {
             lastWedgeFoot = null;
         }
         bestStepDist = Double.POSITIVE_INFINITY;
+        stuckStepHigh = step - 1;   // new path, new index semantics: one fresh window on the first tick, then high-water applies
         actionTicks = 0;
         if (BotConfig.walkerDebug) {
             StringBuilder sbp = new StringBuilder();
