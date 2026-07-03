@@ -637,3 +637,6 @@ C26-J3 山地档 replay A/B(aboveNodeStallRecover OFF4/ON4):**两侧全 ARRIVED(
 ## 71. C49 强卡区+"recovery 无效"最纯现场(2026-07-03 晨)
 C49 spread 落进强卡区((-165~-171, y62-69) 地下泥土通道),J1/J2/J3 三连 churn。**现场(walk-keys)**:wp=(-173,61,-195) 下坡节点在墙后,bot(-171.7,62) hCol=true hSpd=0 原地跳,**stuckT=132 正常累积(EPS 修复生效)但无 recovery 把 bot 带走**:safetyRepath→A* 同路线;attack=false=从未尝试挖泥土墙(allowBreak ON,planner 认为节点连通但物理不可过=转角几何误判)。
 **缺口=hCol 钉死兜底挖**:stuckT 高+hCol+有镐+面前软块 → 应主动 dig 面前身体高度块(candidate flag walkerWallDigFallback,待实现+GT)。这是山地/洞穴 churn 的公共病根(§65 的 repath-同墙循环)。
+
+## 72. C54-J3 近 goal 崖顶 water-clutch 振荡(新形态档案)
+bot 距 goal 10.5 格(d<8 圈外)在崖顶边缘 91s churn:画面=反复"倒水-收水"循环,遥测 DRIVE-tear×4+CLUTCH-noArm(C47-J3 也报过)。地形=goal 在崖下,唯一路线是 bucket-MLG 下崖;clutch 执行器放水→收水→不跳循环。候选修复:clutch 放水后 commit 跳下(放水成功即水柱存在,犹豫窗口=振荡源);或 stuckT 高时 fallback 直接跳(有水垫)。待 replay 化 A/B。
