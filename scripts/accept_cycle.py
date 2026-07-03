@@ -215,4 +215,13 @@ for j in range(1, 4):
                     and not (bx[0] <= ep['x'] <= bx[1] and bz[0] <= ep['z'] <= bz[1]))
         tag = ' envExit=True (rig artifact — replan left the archived corridor)' if env_exit else ''
         print(f'[{label}] replay#{i+1}: maxStuck={r.max_stuck} atGoal={at_goal}{tag}', flush=True)
+# Final placement: the last replay can leave the bot idle UNDERWATER (post-C31 drowning
+# rescue at y57) — cancel any residual goto and stand it somewhere breathable.
+try:
+    rpc('mc.bot.cancel', {}); time.sleep(0.5)
+    for _ in range(10):                      # step up 2 blocks at a time until the head clears water
+        if not rpc('mc.client.player', {}).get('underWater'): break
+        rpc('mc.client.chat.send', {'text': '/execute as @p at @p run tp @p ~ ~2 ~'}); time.sleep(0.5)
+except Exception:
+    pass
 print(f'[{CYC}] CYCLE_DONE', flush=True)

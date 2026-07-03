@@ -1166,8 +1166,16 @@ public final class Walker {
         // threaded through the dig). Exclusive aim+attack until done; solid-gone or
         // timeout or drifted-away clears it. Default OFF.
         if (BotConfig.walkerStickyDig && stickyDigPos != null) {
-            if (!world.isSolid(stickyDigPos) || ++stickyDigTicks > BotConfig.breakTimeoutTicks
-                    || stickyDigPos.distToCenterSqr(p.position()) > 25) {
+            // Tightened after C31-J1 (-325,64,-47): the 25 (5-block) drift radius held the
+            // latch on a cell 5 below the bot — OUTSIDE mining reach (~4.5) — so the latch
+            // owned every tick swinging at an unreachable block until the full break
+            // timeout while the travel drive was starved (the 85s badlands stall). Release
+            // at reach (20 ≈ 4.5²) and cap the watchdog at 150t: with the latch holding
+            // attack every tick, any REACHABLE block (worst realistic case ~25×-slow
+            // underwater dirt with a tool) completes well inside that.
+            if (!world.isSolid(stickyDigPos)
+                    || ++stickyDigTicks > Math.min(BotConfig.breakTimeoutTicks, 150)
+                    || stickyDigPos.distToCenterSqr(p.position()) > 20) {
                 if (BotConfig.walkerDebug)
                     LOG.info("[walker] sticky-dig RELEASE {} solid={} ticks={}",
                             stickyDigPos, world.isSolid(stickyDigPos), stickyDigTicks);
