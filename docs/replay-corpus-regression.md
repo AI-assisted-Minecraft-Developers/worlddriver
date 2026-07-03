@@ -619,3 +619,8 @@ C26-J3 山地档 replay A/B(aboveNodeStallRecover OFF4/ON4):**两侧全 ARRIVED(
 **C36 断因**:J1 replay 2/3 False(143-150 低 stuck=洞穴 dig 慢速超时)+J3 replay 0/3(447-770,黑暗洞穴挖-放循环)。live 均 ARRIVED(94s/12s、280s/21s)——**dig 断挖病理**(行进 tick 松 attack 清 vanilla 进度)在 replay 放大。
 **walkerDigAimPriority**(default OFF,GT 待验):stickyDig(§66 KILL)的非独占继任——行进 tick 完整跑(drive/recovery/repath 不动),tick 末仅重申准星+attack 于被挖块(人类 W+LMB 语义),solid-gone/300t/出 reach 释放。入验收 FLAGS 待 C37 检验。
 **GT 伪影警示**:与 live 客户端并行跑 GT 出现 "server thread did not run task within 8000ms"+descentYaw 1446° 等 3 required 失败——负载扭曲,GT 必须独占跑。
+
+## 68. 停滞时钟四大清零源全堵(2026-07-03 凌晨)+ 验收协议 worst 门
+**四处 stall-clock 饥饿侧门,全部 field 归因后修复**:①step 抖动清 stuckTicks(§61 monotonic)②同款清 wedge 时钟 noStepProgressTicks(§63 第二站点)③retreat re-base 拉低基准使振荡对"前进"再清(§67 高水位 stuckStepHigh)④**墙钉蠕动**(C40-J1 82s:hCol 顶墙 hSpd 0.001,0.01格/tick 在 1.5 格外每 tick 降 sd2≈0.03>EPS 0.02=恒"进展")→ STUCK_PROGRESS_EPS 0.02→0.05(1.5b/s 真实趋近只在 0.33 格内饿死,无害)。
+**协议 worst 门**:live 单段停顿 >30s = ARRIVED-SLOW 非绿(C39-J3 曾以 63s 停顿"全绿",稀释 #47 判据)。
+**周期账**:C38 全绿(digAimPriority 首战,replay 9/9)→C39 SLOW(63s 洞穴迂回)→C40 SLOW(82s 蠕动=④的现场)。dig-aim 271 次 RELEASE 全为破块型零超时=挖掘链路已健康。
