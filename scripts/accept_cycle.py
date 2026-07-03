@@ -56,7 +56,14 @@ def expect_counts(since_epoch):
 def preflight(label):
     """Refuse to run a journey in a degraded state — flags actually ON (snapshot check),
     gear actually in the hotbar. Every past silent failure mode, checked up front."""
-    snap = rpc('mc.bot.setting', {}).get('settings', {})
+    snap = None
+    for _ in range(3):                      # rpc can transiently return None (C45 crash)
+        r = rpc('mc.bot.setting', {})
+        if r is not None: snap = r.get('settings', {}); break
+        time.sleep(2)
+    if snap is None:
+        print(f'[{label}] PREFLIGHT FAIL: setting rpc unavailable', flush=True)
+        return False
     missing = [k for k, v in FLAGS.items() if k != 'pathArchive' and snap.get(k) != v]
     if missing:
         print(f'[{label}] PREFLIGHT FAIL: flags not live: {missing}', flush=True)
