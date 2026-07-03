@@ -1168,6 +1168,22 @@ public final class Walker {
         // in aggregate, block still solid, walk-keys showed attack=false travel ticks
         // threaded through the dig). Exclusive aim+attack until done; solid-gone or
         // timeout or drifted-away clears it. Default OFF.
+        // walkerDigAimPriority — the NON-exclusive successor to stickyDig (KILLED §66:
+        // owning the whole tick starved travel/recovery when the latched block wasn't
+        // the way out). Same disease, opposite temperament: the ENTIRE travel tick runs
+        // (drive, recovery, repath), then digAimReassert at the end of walkTick re-holds
+        // ONLY crosshair+attack — a human holding W+LMB against the wall being dug.
+        // Here we just expire the latch; the re-assert happens after the tick body.
+        if (BotConfig.walkerDigAimPriority && stickyDigPos != null
+                && (!world.isSolid(stickyDigPos)
+                    || ++stickyDigTicks > Math.min(BotConfig.breakTimeoutTicks, 300)
+                    || stickyDigPos.distToCenterSqr(p.position()) > 20)) {
+            if (BotConfig.walkerDebug)
+                LOG.info("[walker] dig-aim RELEASE {} solid={} ticks={}",
+                        stickyDigPos, world.isSolid(stickyDigPos), stickyDigTicks);
+            stickyDigPos = null;
+            stickyDigTicks = 0;
+        }
         if (BotConfig.walkerStickyDig && stickyDigPos != null) {
             // Tightened after C31-J1 (-325,64,-47): the 25 (5-block) drift radius held the
             // latch on a cell 5 below the bot — OUTSIDE mining reach (~4.5) — so the latch
@@ -3297,7 +3313,7 @@ public final class Walker {
                     a.selectTool(b);
                     a.aimAtBlock(b);
                     a.breakHold(true);
-                    if (BotConfig.walkerStickyDig) { stickyDigPos = b; stickyDigTicks = 0; }
+                    if (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority) { stickyDigPos = b; stickyDigTicks = 0; }
                     return Step.WALKING;
                 }
             }
@@ -3490,7 +3506,7 @@ public final class Walker {
                     a.selectTool(b);
                     a.aimAtBlock(b);
                     a.breakHold(true);
-                    if (BotConfig.walkerStickyDig) { stickyDigPos = b; stickyDigTicks = 0; }
+                    if (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority) { stickyDigPos = b; stickyDigTicks = 0; }
                     boolean climbBreak = floatingPocket && b.getY() >= foot.getY();
                     if ((swimEscapeBreak && p.isInWater() && !p.isUnderWater()) || climbBreak) {
                         agentForward(a, true);     // press into the aimed bank (surface only)
@@ -5251,6 +5267,16 @@ public final class Walker {
                 a.aimAtBlock(pad);
                 a.breakHold(true);
             }
+        }
+        // digAimReassert (walkerDigAimPriority): the travel tick has fully run — drive,
+        // recovery, repath all had their say. Now re-hold ONLY the crosshair + attack on
+        // the committed dig cell so the interleaved travel tick can't zero vanilla mining
+        // progress (the C36-J1 cave-dig replay slowdown). Movement keys stay whatever the
+        // travel logic chose: a human holding W+LMB against the wall being dug.
+        if (BotConfig.walkerDigAimPriority && stickyDigPos != null && world.isSolid(stickyDigPos)) {
+            a.selectTool(stickyDigPos);
+            a.aimAtBlock(stickyDigPos);
+            a.breakHold(true);
         }
         if (BotConfig.walkerDebug) {
             // [dbgcollide] hard physics evidence for the hill speed-sawtooth: is the

@@ -1633,6 +1633,14 @@ public final class BotConfig {
      *  releases the latch. Default OFF. */
     public static volatile boolean walkerStickyDig = false;
 
+    /** Dig aim priority — the NON-exclusive successor to walkerStickyDig (killed §66):
+     *  after the travel tick fully runs (drive, recovery, repath untouched), re-hold
+     *  ONLY the crosshair + attack on the committed dig cell, so an interleaved travel
+     *  tick can't release attack and zero vanilla mining progress. A human holding
+     *  W+LMB against the wall being dug. Latch expires on solid-gone / 300t / beyond
+     *  mining reach. Default OFF. */
+    public static volatile boolean walkerDigAimPriority = false;
+
     /** Bank-dig ground-blip immunity (the underground-pool climb-out grind, live 2026-07-02
      *  (-275,49,-38): the committed bank dig requires {@code !onGround}, but the buoyant bob
      *  touches bottom ~4 ticks/second — each blip drops {@code digCommitted}, the tick falls
