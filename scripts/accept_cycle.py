@@ -171,6 +171,9 @@ def archive_for(sx, sz, gx=None, gz=None):
 # from the live world, the suspected C2-J1 vine-detach cause).
 # spreadplayers can drop the bot INSIDE a cave/ravine opening (C18: y37 start,
 # journey churned at y8 in the cave network) — retry until surfaced (y>=60).
+# PEACEFUL for the whole cycle (§75): pathfinding acceptance, not combat — hostiles
+# pinned the C63-J2 replay bot (spider, maxStuck 1200) and have bled hp in live legs.
+rpc('mc.client.chat.send', {'text': '/difficulty peaceful'}); time.sleep(0.3)
 for _try in range(4):
     cx, cz = random.randint(-400, 400), random.randint(-400, 400)
     rpc('mc.client.chat.send', {'text': f'/spreadplayers {cx} {cz} 0 60 false @p'})
@@ -218,6 +221,11 @@ for j in range(1, 4):
         bz = [min(t['z'] for t in traj) - 8, max(t['z'] for t in traj) + 8]
     else:
         bx = bz = None
+    # Replays run PEACEFUL (§75): the replay world restores blocks but not mobs, so
+    # live-world hostiles wander in and pin the replay bot (C63-J2: a spider wrapped
+    # the bot at the start cell -> replay#1/#2 maxStuck 1196/1200 while live passed
+    # at 19s worst). Mob combat is not what a replay verifies; kill the noise source.
+    rpc('mc.client.chat.send', {'text': '/difficulty peaceful'}); time.sleep(0.3)
     for i in range(3):
         ensure_alive()
         r = run_case(arc, FLAGS, arrive_x=ax, cmp=cmp, timeout=240, axis=axis)
