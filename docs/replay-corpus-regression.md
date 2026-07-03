@@ -613,3 +613,9 @@ C26-J3 山地档 replay A/B(aboveNodeStallRecover OFF4/ON4):**两侧全 ARRIVED(
 **stickyDig KILL**(badlands 档 replay-0007 K3+K3):ON [234,304,424] 2/3 False vs OFF [110,173,287] 1/3——即使收紧(reach 半径+150t watchdog)仍负:独占抢断行进与 recovery,当被锁块不是出路时(planner 已改线)锁死恶化。DIG-slow 的"挖不完"病理真实,但独占方案错误;正确方向应是 aim 优先级(挖掘 tick aim 不被行进覆盖)而非 tick 独占。default OFF 保留代码,摘出验收 FLAGS。
 **C31 全红**(badlands spread):J1 85s(sticky 锁死+水下角落)、J2 replay 0/3(maxStuck 1177)、J3 live 完美 49s/3s 但 replay 1/3。badlands 水下缝隙=新强复现卡点(replay-0007/0008)。
 **三连绿计数**:C30=1,C31 断。当前 FLAGS=monotonic+SP+aboveNodeStall(无 sticky)。
+
+## 67. 连续绿 2/3(C34/C35)后 C36 断于洞穴 dig 慢速;digAimPriority 实现(2026-07-02 深夜续)
+**高水位 monotonic(C33-J2 修)兑现**:C34 全绿(J1/J2 worst=0s,replay 9/9)+C35 全绿(三程 clean,replay 9/9)=**连续 2 绿周期**,C31 类水岸 within-jitter 雷未再触发。
+**C36 断因**:J1 replay 2/3 False(143-150 低 stuck=洞穴 dig 慢速超时)+J3 replay 0/3(447-770,黑暗洞穴挖-放循环)。live 均 ARRIVED(94s/12s、280s/21s)——**dig 断挖病理**(行进 tick 松 attack 清 vanilla 进度)在 replay 放大。
+**walkerDigAimPriority**(default OFF,GT 待验):stickyDig(§66 KILL)的非独占继任——行进 tick 完整跑(drive/recovery/repath 不动),tick 末仅重申准星+attack 于被挖块(人类 W+LMB 语义),solid-gone/300t/出 reach 释放。入验收 FLAGS 待 C37 检验。
+**GT 伪影警示**:与 live 客户端并行跑 GT 出现 "server thread did not run task within 8000ms"+descentYaw 1446° 等 3 required 失败——负载扭曲,GT 必须独占跑。
