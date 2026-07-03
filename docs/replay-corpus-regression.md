@@ -640,3 +640,6 @@ C49 spread 落进强卡区((-165~-171, y62-69) 地下泥土通道),J1/J2/J3 三�
 
 ## 72. C54-J3 近 goal 崖顶 water-clutch 振荡(新形态档案)
 bot 距 goal 10.5 格(d<8 圈外)在崖顶边缘 91s churn:画面=反复"倒水-收水"循环,遥测 DRIVE-tear×4+CLUTCH-noArm(C47-J3 也报过)。地形=goal 在崖下,唯一路线是 bucket-MLG 下崖;clutch 执行器放水→收水→不跳循环。候选修复:clutch 放水后 commit 跳下(放水成功即水柱存在,犹豫窗口=振荡源);或 stuckT 高时 fallback 直接跳(有水垫)。待 replay 化 A/B。
+
+## 73. C55-J3 起步 91s churn=腾空 jump-ram 循环饿死 wall-dig(onGround 门)
+现场:wp 侧向 1.3 格(cur2=2.08>0.45 死区),hCol=true hSpd=0 jump 循环 onG=false,noStepProg 393,attack=false 全程。跳→撞墙→落地瞬间又跳,onGround 采样窗口≈0 → wallDigFallback(要 onGround)永不触发,ADVANCE-deadzone×16。§66 腾空 arc-stall 的姊妹形态。修=wall-dig 去 onGround 门(hCol 本身已表征"墙前",腾空也够得着)。

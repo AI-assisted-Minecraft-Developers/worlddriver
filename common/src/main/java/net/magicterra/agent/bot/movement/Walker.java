@@ -4680,7 +4680,11 @@ public final class Walker {
         // wall-pinned and confirmed stalled, punch the waypoint-facing block at head
         // then feet height; the digAimPriority latch (armed below) keeps the crosshair
         // on it through subsequent travel ticks. Default OFF.
-        if (BotConfig.walkerWallDigFallback && !p.isInWater() && p.onGround()
+        // C55-J3 (§73): the jump-ram loop keeps the bot AIRBORNE (jump->wall-bonk->land->
+        // instantly jump again), so an onGround precondition here starves the dig for the
+        // whole 393-tick stall — the wall is reachable mid-air; drop the ground gate and
+        // key on the collision itself.
+        if (BotConfig.walkerWallDigFallback && !p.isInWater()
                 && p.horizontalCollision && stuckTicks > 40 && !a.breakHeld()) {
             double fdx = (wp.getX() + 0.5) - p.getX(), fdz = (wp.getZ() + 0.5) - p.getZ();
             double fl = Math.sqrt(fdx * fdx + fdz * fdz);
