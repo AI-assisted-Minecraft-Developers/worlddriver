@@ -633,3 +633,7 @@ C26-J3 山地档 replay A/B(aboveNodeStallRecover OFF4/ON4):**两侧全 ARRIVED(
 ## 70. 重构"回归"证伪=GT flaky 三人组;架构拆分验收通过(2026-07-03 凌晨)
 **8 轮 GT bisect 定案**:重构后 3 required 稳定失败(descentYaw 1446°/descentOvershootResync/waterFarAim)疑似回归,但**基线(重构前 commit)第 3 轮也败 descentYaw**——全场 flaky 非回归。机械等价审计全绿:88 常数类型+值 0 diff、expectTick/resolveGoal/resolveBaseGoal/geometry 方法体归一化 0 语义 diff。flaky 三人组=时序敏感测试在高负载(整夜多轮 GT,单轮 12→30 分钟)下劣化;agentrpcsmoke 8018ms 擦线有前科。**修 flaky 是独立 issue**(候选:放宽 descentYaw 阈值/rpc 超时,或 GT 前 warm-up)。
 **架构拆分(3 opus agents)验收 KEEP**:Walker 6167→5214(ExpectAlarms/Constants/Geometry 三提取;<3000 不可达因 tick() 单方法 4271 行状态机,拆它=行为风险,如实止步)、AgentGameTest 5535→741(5 文件,60 测试注册等价)、BotApiImpl 1594→983(4 提取)、SettingsCommand 1067→761(反射 fallback 原地)、BotConfig 确认反射依赖不可拆。全量编译绿。教训:**多 agent 共享工作树的 git add -A 会互吞 staged 变更**(commit 归属混杂,内容无损)——下次并行重构须 worktree 隔离或明确 add 路径。
+
+## 71. C49 强卡区+"recovery 无效"最纯现场(2026-07-03 晨)
+C49 spread 落进强卡区((-165~-171, y62-69) 地下泥土通道),J1/J2/J3 三连 churn。**现场(walk-keys)**:wp=(-173,61,-195) 下坡节点在墙后,bot(-171.7,62) hCol=true hSpd=0 原地跳,**stuckT=132 正常累积(EPS 修复生效)但无 recovery 把 bot 带走**:safetyRepath→A* 同路线;attack=false=从未尝试挖泥土墙(allowBreak ON,planner 认为节点连通但物理不可过=转角几何误判)。
+**缺口=hCol 钉死兜底挖**:stuckT 高+hCol+有镐+面前软块 → 应主动 dig 面前身体高度块(candidate flag walkerWallDigFallback,待实现+GT)。这是山地/洞穴 churn 的公共病根(§65 的 repath-同墙循环)。
