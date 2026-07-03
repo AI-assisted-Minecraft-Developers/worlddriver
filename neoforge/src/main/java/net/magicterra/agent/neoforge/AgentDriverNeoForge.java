@@ -29,7 +29,17 @@ import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 public final class AgentDriverNeoForge {
     public AgentDriverNeoForge(IEventBus modBus, ModContainer container) {
         NeoForge.EVENT_BUS.register(this);
-        modBus.addListener((RegisterGameTestsEvent event) -> event.register(AgentGameTest.class));
+        modBus.addListener((RegisterGameTestsEvent event) -> {
+            // AgentGameTest was split by arena family for file-size hygiene; every
+            // @GameTestHolder class must be registered explicitly (NeoForge does not
+            // auto-discover them here). AgentGameTestSupport holds only shared helpers
+            // (no @GameTest methods) so it is intentionally not registered.
+            event.register(AgentGameTest.class);
+            event.register(AgentGameTestTerrain.class);
+            event.register(AgentGameTestServer.class);
+            event.register(AgentGameTestWaterBank.class);
+            event.register(AgentGameTestWaterCross.class);
+        });
         AgentDriverCommon.LOG.info("[{}] NeoForge entry constructed", AgentDriverCommon.MOD_ID);
     }
 
