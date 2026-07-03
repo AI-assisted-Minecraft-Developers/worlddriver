@@ -126,7 +126,8 @@ def live_journey(label):
         if r['health'] <= 0:
             print(f'[{label}] LIVE DIED @({x:.0f},{z:.0f})', flush=True); return None
         if d < 8:
-            print(f'[{label}] LIVE ARRIVED {el:.0f}s worst={worst:.0f}s expect={expect_counts(t0)}', flush=True)
+            verdict = 'ARRIVED' if worst <= 30 else 'ARRIVED-SLOW'   # >30s single stall breaks the "no hesitation" bar (#47) — the cycle is NOT green even if replays pass
+            print(f'[{label}] LIVE {verdict} {el:.0f}s worst={worst:.0f}s expect={expect_counts(t0)}', flush=True)
             return (gx, gz, x, sx, sz)
         if noProg >= 90:
             print(f'[{label}] LIVE CHURN @({x:.0f},{r["pos"]["y"]:.0f},{z:.0f}) worst={worst:.0f}s expect={expect_counts(t0)}', flush=True)
