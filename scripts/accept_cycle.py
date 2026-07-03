@@ -150,14 +150,20 @@ def live_journey(label):
         time.sleep(3)
     print(f'[{label}] LIVE TIMEOUT mind={mind:.0f}', flush=True); return None
 
-def archive_for(sx, sz):
-    """Newest archive whose header.start matches the journey start (mtime alone
-    races with late-flushed prior-goto archives and replay-recorded ones)."""
-    fs = [f for f in os.listdir(RP_DIR) if f.startswith('replay-') and f.endswith('.json')]
-    for f in sorted(fs, key=lambda f: os.path.getmtime(os.path.join(RP_DIR, f)), reverse=True):
-        try: st = json.load(open(os.path.join(RP_DIR, f))).get('header', {}).get('start', [9e9, 0, 9e9])
-        except Exception: continue
-        if abs(st[0] - sx) <= 6 and abs(st[2] - sz) <= 6: return f
+def archive_for(sx, sz, gx=None, gz=None):
+    """Newest archive whose header start AND goal match the journey (start alone
+    mis-matched C58-J1 to a day-old archive from the same spread area; the fresh
+    goto archive flushes late, so also retry a few seconds for it to appear)."""
+    for _wait in range(5):
+        fs = [f for f in os.listdir(RP_DIR) if f.startswith('replay-') and f.endswith('.json')]
+        for f in sorted(fs, key=lambda f: os.path.getmtime(os.path.join(RP_DIR, f)), reverse=True):
+            try: h = json.load(open(os.path.join(RP_DIR, f))).get('header', {})
+            except Exception: continue
+            st = h.get('start', [9e9, 0, 9e9]); gl = h.get('goal', [9e9, 0, 9e9])
+            if abs(st[0] - sx) > 6 or abs(st[2] - sz) > 6: continue
+            if gx is not None and (abs(gl[0] - gx) > 6 or abs(gl[2] - gz) > 6): continue
+            return f
+        time.sleep(2)
     return None
 
 # Cycle start: spread to a FRESH area (escape any replay-restored corridor from
@@ -190,7 +196,7 @@ for j in range(1, 4):
     arc = None
     for wait in range(6):          # the archive flushes a few seconds AFTER ARRIVED — retry up to ~18s
         time.sleep(3)
-        arc = archive_for(jsx, jsz)
+        arc = archive_for(jsx, jsz, gx, gz)
         if arc: break
     if arc is None:
         print(f'[{label}] NO matching archive — skip replays', flush=True); continue
