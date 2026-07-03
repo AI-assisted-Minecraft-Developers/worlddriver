@@ -4672,6 +4672,33 @@ public final class Walker {
                 a.breakHold(true);
             }
         }
+        // walkerWallDigFallback (§71, C49): the purest "recovery fires but does nothing"
+        // form — a downhill node behind a 1-block dirt wall pins the bot hCol with the
+        // stall clock climbing correctly (132+ after the EPS fix) while safetyRepath
+        // returns the SAME route and nothing ever tries to DIG the wall (attack=false
+        // for the whole 90s churn, pickaxe in hand, allowBreak on). When dry, grounded,
+        // wall-pinned and confirmed stalled, punch the waypoint-facing block at head
+        // then feet height; the digAimPriority latch (armed below) keeps the crosshair
+        // on it through subsequent travel ticks. Default OFF.
+        if (BotConfig.walkerWallDigFallback && !p.isInWater() && p.onGround()
+                && p.horizontalCollision && stuckTicks > 60 && !a.breakHeld()) {
+            double fdx = (wp.getX() + 0.5) - p.getX(), fdz = (wp.getZ() + 0.5) - p.getZ();
+            double fl = Math.sqrt(fdx * fdx + fdz * fdz);
+            if (fl > 1e-3) {
+                BlockPos headCell = BlockPos.containing(p.getX() + fdx / fl, p.getY() + 1.4, p.getZ() + fdz / fl);
+                BlockPos feetCell = BlockPos.containing(p.getX() + fdx / fl, p.getY() + 0.4, p.getZ() + fdz / fl);
+                BlockPos tgt = world.isSolid(headCell) ? headCell : world.isSolid(feetCell) ? feetCell : null;
+                if (tgt != null) {
+                    a.selectTool(tgt);
+                    a.aimAtBlock(tgt);
+                    a.breakHold(true);
+                    if (BotConfig.walkerDigAimPriority) { stickyDigPos = tgt; stickyDigTicks = 0; }
+                    if (BotConfig.walkerDebug)
+                        LOG.info("[walker] wall-dig FALLBACK {},{},{} stuckT={}",
+                                tgt.getX(), tgt.getY(), tgt.getZ(), stuckTicks);
+                }
+            }
+        }
         // digAimReassert (walkerDigAimPriority): the travel tick has fully run — drive,
         // recovery, repath all had their say. Now re-hold ONLY the crosshair + attack on
         // the committed dig cell so the interleaved travel tick can't zero vanilla mining

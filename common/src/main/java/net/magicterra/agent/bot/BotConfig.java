@@ -1641,6 +1641,12 @@ public final class BotConfig {
      *  mining reach. Default OFF. */
     public static volatile boolean walkerDigAimPriority = false;
 
+    /** Dry wall-pin dig fallback (§71, C49): a route node behind a 1-block wall pins the
+     *  bot hCol with the stall clock climbing while safetyRepath returns the same route
+     *  and nothing ever digs the wall. Grounded + dry + hCol + stuckTicks>60 → punch the
+     *  waypoint-facing block at head/feet height (digAimPriority latch holds it). Default OFF. */
+    public static volatile boolean walkerWallDigFallback = false;
+
     /** Bank-dig ground-blip immunity (the underground-pool climb-out grind, live 2026-07-02
      *  (-275,49,-38): the committed bank dig requires {@code !onGround}, but the buoyant bob
      *  touches bottom ~4 ticks/second — each blip drops {@code digCommitted}, the tick falls
