@@ -154,7 +154,7 @@ public final class BotApiImpl implements BotApi {
                 return Map.of("ok", false, "error", "no player");
             }
             Goal goal;
-            try { goal = resolveGoal(p, player); }
+            try { goal = GotoGoalResolver.resolveGoal(p, player, waypoints); }
             catch (IllegalArgumentException e) { return Map.of("ok", false, "error", e.getMessage()); }
             if (goal == null) {
                 return Map.of("ok", false, "error",
