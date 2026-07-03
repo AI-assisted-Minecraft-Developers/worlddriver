@@ -624,3 +624,8 @@ C26-J3 山地档 replay A/B(aboveNodeStallRecover OFF4/ON4):**两侧全 ARRIVED(
 **四处 stall-clock 饥饿侧门,全部 field 归因后修复**:①step 抖动清 stuckTicks(§61 monotonic)②同款清 wedge 时钟 noStepProgressTicks(§63 第二站点)③retreat re-base 拉低基准使振荡对"前进"再清(§67 高水位 stuckStepHigh)④**墙钉蠕动**(C40-J1 82s:hCol 顶墙 hSpd 0.001,0.01格/tick 在 1.5 格外每 tick 降 sd2≈0.03>EPS 0.02=恒"进展")→ STUCK_PROGRESS_EPS 0.02→0.05(1.5b/s 真实趋近只在 0.33 格内饿死,无害)。
 **协议 worst 门**:live 单段停顿 >30s = ARRIVED-SLOW 非绿(C39-J3 曾以 63s 停顿"全绿",稀释 #47 判据)。
 **周期账**:C38 全绿(digAimPriority 首战,replay 9/9)→C39 SLOW(63s 洞穴迂回)→C40 SLOW(82s 蠕动=④的现场)。dig-aim 271 次 RELEASE 全为破块型零超时=挖掘链路已健康。
+
+## 69. C38 全绿后的长尾三形态+泥坑溺亡链(2026-07-03 凌晨)
+**周期账**:C38 全绿(1/3)→C39 J3 63s 洞穴迂回 SLOW→C40 J1 82s 蠕动 SLOW(EPS 已修④)→C41 J1 40s 树冠 bounce SLOW+J3 replay 泥坑溺亡。
+**长尾形态清单(各有档)**:①树冠 bounce 循环(replay-0001/C41:y128 树冠↔地面反复,真实运动清钟合法=net-progress-loop,wedge 时钟涨到 231 但 recovery 不破循环)②洞穴慢速迂回(C39-J3 63s)③**水下泥坑溺亡链**(replay-0003/C41:GEAR 连环丢桶[replay 无 mid-journey top-up]→泥坑无 MLG→walker 结束后 idle 水下→IDLE-drowning 哨兵未见触发→溺死。两层洞:replay 轮 gear 保障缺失+哨兵盲区待查)。
+**EPS 修复(④侧门)已进 build**,C42 起生效。三连绿计数:C38=1(C39-41 断)。
