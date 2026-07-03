@@ -99,6 +99,7 @@ def live_journey(label):
     rpc('mc.client.chat.send', {'text': '/clear'}); time.sleep(0.3)
     for c in ['/give @p water_bucket', '/give @p diamond_pickaxe', '/give @p diamond_shovel', '/give @p cobblestone 192']:
         rpc('mc.client.chat.send', {'text': c}); time.sleep(0.3)
+    rpc('mc.client.chat.send', {'text': '/effect clear @p'}); time.sleep(0.2)   # live legs stay mortal (§76)
     p = rpc('mc.client.player', {})['pos']
     sx, sz = p['x'], p['z']
     ang = random.uniform(0, 2 * math.pi)
@@ -235,6 +236,10 @@ for j in range(1, 4):
     # the bot at the start cell -> replay#1/#2 maxStuck 1196/1200 while live passed
     # at 19s worst). Mob combat is not what a replay verifies; kill the noise source.
     rpc('mc.client.chat.send', {'text': '/difficulty peaceful'}); time.sleep(0.3)
+    # Replays also run damage-immune (§76): a replan drifting off the archived corridor
+    # walks the bot off a cliff / into lava (C70: three replay deaths — fall, lava x2),
+    # which is rig noise, not a pathfinding regression. Live legs stay mortal.
+    rpc('mc.client.chat.send', {'text': '/effect give @p minecraft:resistance infinite 255 true'}); time.sleep(0.2)
     for i in range(3):
         ensure_alive()
         r = run_case(arc, FLAGS, arrive_x=ax, cmp=cmp, timeout=240, axis=axis)
