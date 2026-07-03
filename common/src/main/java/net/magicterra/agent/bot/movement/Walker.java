@@ -480,7 +480,13 @@ public final class Walker {
      *  sub-0.1 b/tick position jitter of a treading / water-creeping bot but below a
      *  normal sprint step, so slow-but-steady advance (esp. ~0.08 b/tick in water)
      *  keeps resetting the timer and never trips the reCentre / wiggle recovery. */
-    private static final double STUCK_PROGRESS_EPS = 0.02;
+    // 0.02->0.05 (C40-J1 82s stall): a wall-pinned CREEP (hCol, hSpd 0.001, ~0.01 blk/tick)
+    // 1.5 blocks from the node lowers sd2 by ~2*1.5*0.01=0.03 per tick — above the old
+    // margin, so the crawl read as "real progress" every tick and the stall clock pinned
+    // at 2 (the 4th starvation side-door after the three step-jitter resets). 0.05 still
+    // clears a genuine slow approach: a 1.5 b/s water cruise only starves inside 0.33
+    // blocks (2*d*v < 0.05 -> d < 0.33), well within the arrival gate.
+    private static final double STUCK_PROGRESS_EPS = 0.05;
     /** Per-step ticks of bob-stalling before the water climb-out actuator places
      *  a foothold to ground a floating bot against a too-high bank. Keyed off the
      *  per-step no-progress timer ({@code totalTicks}, which a bob can't reset —
