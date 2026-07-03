@@ -221,9 +221,18 @@ for j in range(1, 4):
         # driver is deliberately passive (user directive), so a bot left submerged here
         # drowns before the next round starts (C41-J3 death, C44-J3 near-death).
         rpc('mc.bot.cancel', {}); time.sleep(0.3)
-        for _ in range(10):
-            if not rpc('mc.client.player', {}).get('underWater'): break
-            rpc('mc.client.chat.send', {'text': '/execute as @p at @p run tp @p ~ ~2 ~'}); time.sleep(0.4)
+        # Surface AND keep rising until the head is out — a bot floated to the surface
+        # sinks again while idle (passive driver), so stepping just past underWater is
+        # not enough; push 2 extra blocks clear so it lands/breathes while idle.
+        rose = 0
+        for _ in range(12):
+            if not rpc('mc.client.player', {}).get('underWater'):
+                if rose == 0: break
+                rpc('mc.client.chat.send', {'text': '/execute as @p at @p run tp @p ~ ~2 ~'}); time.sleep(0.4)
+                rose -= 1
+            else:
+                rpc('mc.client.chat.send', {'text': '/execute as @p at @p run tp @p ~ ~2 ~'}); time.sleep(0.4)
+                rose = 1
         env_exit = (not at_goal and bx is not None
                     and not (bx[0] <= ep['x'] <= bx[1] and bz[0] <= ep['z'] <= bz[1]))
         tag = ' envExit=True (rig artifact — replan left the archived corridor)' if env_exit else ''
