@@ -695,3 +695,6 @@ C103-J3 曾 2/3 漂移 False(278/284),但干净世界 5 连跑 5/5 全过(67/280
 
 ## 89. 台架修:journey 起点树冠下探(C106-J3 起步 churn)
 C106-J3 CHURN 卡点距 start 仅 12 格:上一程的 14 格到达圈落在丛林树冠顶,下一程从树顶悬空起步——jump-ram 弹跳每跳 1-2 格、活动半径 3-4 格,2.0 欧氏物理锚窗被反复重置,恢复族全饿死,整段 timeout 烧在起步。真实旅途不会从树顶出发=台架公平性问题。修=accept_cycle 每程 goto 前:脚下是 #leaves/air 则逐格 tp 下到实地(≤30 步)。执行器侧"树冠悬空恢复盲区"记录在案,待自然 repro 再决定(扩锚窗会伤正常慢走判定)。
+
+## 90. 对角 string-pull=无益判定(激进尝试#1,flag 留 OFF)
+#15 平滑战役第一刀:解禁 stringPull 对角合并(body-LOS 守卫,walkerDiagonalStringPull,default OFF)。开阔混合地形 45° 对角 156 格 A/B(3×3 交替):OFF 53/41/41s vs ON 58/39/66s——无提升,均值反劣。结论=carrot 的 body-LOS lookahead 在执行层已连续切角,path 层再平滑是重复工作;开阔地 3.8 bps 已近 sprint 极限。微卡真源在障碍密集区(丛林 trunk 面/上坡 jump 时机/水岸),flag 永久 OFF 留档(walkerCarrotHColShrink 同模式)。下一刀先做慢段分布分析,数据定位后再动。

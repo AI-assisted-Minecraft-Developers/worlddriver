@@ -1565,6 +1565,16 @@ public final class BotConfig {
      *  hitbox into a slit only the ray fits. Path smoothing keeps the cheap ray. Default OFF. */
     public static volatile boolean walkerCarrotBodyLos = true;
 
+    /** §90 diagonal string-pull (the residual-zigzag lane of #15 path smoothing). stringPull
+     *  historically straightens ONLY axis-aligned corridors — collapsing a zigzag into a long
+     *  diagonal fabricated corner-cuts the walker couldn't thread (spawn-maze stall) back when
+     *  the merge guard was the centre-line ray. With {@code losWalkableBody} (0.6-wide corridor
+     *  probe, same primitive walkerCarrotBodyLos trusts for pursuit) a diagonal merge can be
+     *  admitted honestly: the merged segment is kept only when the BODY corridor clears. Kills
+     *  the cardinal staircase residue on open diagonal terrain — the last structural source of
+     *  corner-scrape micro-slowdowns. Default OFF. */
+    public static volatile boolean walkerDiagonalStringPull = false;
+
     /** Repath route-oscillation damper (the C16 dry-land churn, REGRESSION §55 final autopsy):
      *  two near-equal-cost A* routes (a dig-through and a detour) alternate across periodic
      *  repaths — each adoption U-TURNS the bot onto the other route, and it runs both at full

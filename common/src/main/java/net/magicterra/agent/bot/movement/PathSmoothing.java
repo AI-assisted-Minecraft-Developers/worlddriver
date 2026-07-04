@@ -71,7 +71,12 @@ public final class PathSmoothing {
                     // spawn-maze stall). Diagonal staircases stay as their cardinal
                     // steps, which the walker threads one cell at a time.
                     && (path.get(j + 1).getX() == path.get(i).getX()
-                        || path.get(j + 1).getZ() == path.get(i).getZ())
+                        || path.get(j + 1).getZ() == path.get(i).getZ()
+                        // §90: a DIAGONAL merge is admitted only under the honest
+                        // body-width corridor probe — the ray-only guard is what made
+                        // diagonal collapsing fabricate unthreadable corner-cuts.
+                        || (BotConfig.walkerDiagonalStringPull
+                            && losWalkableBody(w, path.get(i), path.get(j + 1))))
                     && losWalkable(w, path.get(i), path.get(j + 1))) {
                 j++;
             }
