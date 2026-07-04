@@ -110,6 +110,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and three-transport metadata parity — suite is now 60 GameTest cases.
 
 ### Changed
+- **Internal refactor: the eight per-edge pathfinder cost taxes now flow through a
+  composable `CostModifier` stack — no behavior change (A0 groundwork for the LLM
+  navigation intent layer).** `PathFinder.Search` seeds a `List<CostModifier>` with
+  the legacy taxes (`descendTax, waterCellTax, leafCellTax, padCellTax,
+  vineOverWaterTax, padOverWaterTax, climbOutTax, submergedTax`) in their original
+  summation order and iterates it in the neighbor loop; `world.dangerCost` /
+  `world.directionalCost` stay inline. Byte-identical (left-associative accumulation
+  preserved); the GameTest suite's pass/fail set is unchanged vs the base commit.
 - **Internal refactor: the five longest source files were split by responsibility
   — no behavior change.** `ToolCatalog` now concatenates per-category catalogs
   (`mcp/catalog/*`) over shared schema builders (`mcp/schema/Schemas`); the tool
