@@ -11,7 +11,7 @@ CYC = sys.argv[1] if len(sys.argv) > 1 else 'C?'
 RP_DIR = 'fabric/run/config/agent_driver/replays'
 FLAGS = {'pathArchive': False, 'allowBreak': True, 'allowPlace': True, 'allowWaterBucketFall': True, 'walkerStepUpBackoffRetry': True, 'walkerCarrotBodyLos': True, 'walkerBankDigGroundBlip': True, 'walkerExpectAlarm': True, 'walkerStuckStepMonotonic': True, 'walkerPillarSurfacePlace': True, 'walkerAboveNodeStallRecover': True, 'walkerDigAimPriority': True, 'walkerWallDigFallback': True, 'pathfinderBreakCostMultiplier': 2.5,
          'walkerRamNodeAimRelease': True, 'pathfinderFloatingBreakTax': True,
-         'pathfinderLogBreakTax': 3.0, 'walkerBridgeHoldRepath': True,
+         'pathfinderLogBreakTax': 3.0, 'walkerBridgeHoldRepath': True, 'walkerPhysicalStallClock': True,
          'walkerDryReanchor': True, 'walkerBuoyantSearchFromSurface': True, 'walkerBankDigSkipWhenCwpSwims': True,
          'walkerBankDigSkipOverhang': True, 'walkerVineDescentDrop': True, 'walkerAscentRamBobBreak': True,
          'walkerPillarReachGoalNoSnap': True, 'pathfinderForbidParkourFromFloatingWater': True,

@@ -1661,6 +1661,15 @@ public final class BotConfig {
      *  aim resumes. Default OFF. */
     public static volatile boolean walkerRamNodeAimRelease = false;
 
+    /** Physical stall clock feed for stuck-gated recoveries (§84): a safety-repath loop
+     *  swaps the path every few seconds and each swap resets stuckTicks (stepWindowFresh),
+     *  so a physically frozen bot never crosses the stuckT>40 gates — wall-dig and
+     *  ram-release starve while a jump-ram spins (canopy pin: 1200t frozen with leaves one
+     *  instabreak punch away). ON = those recoveries also fire on 60+ ticks without XZ
+     *  displacement (path/repath-independent anchor clock; vertical bob doesn't count).
+     *  Default OFF. */
+    public static volatile boolean walkerPhysicalStallClock = false;
+
     /** Bridge-commit repath hold (§82): a mid-bridge PERIODIC repath swaps the committed
      *  bridgePlace chain for a fresh plan whose first node sits elsewhere, steering the
      *  bot off the end of the placed deck into air ("搭桥中途掉下"). Arena A/B: 19-block

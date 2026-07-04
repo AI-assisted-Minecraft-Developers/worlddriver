@@ -671,3 +671,6 @@ bot 距 goal 10.5 格(d<8 圈外)在崖顶边缘 91s churn:画面=反复"倒水-
 
 ## 83. 三 lane 战役端到端验收:C96 全绿(2026-07-04 05:35)
 §80-§82 四 flag(ramNodeAimRelease/floatingBreakTax/logBreakTax 3.0/bridgeHoldRepath)入 FLAGS 全开跑完整验收周期:J1 34s/0s clean 3/3;J2 131s/21s 过门 2/3+1 envExit 豁免;J3 49s/6s 3/3。GT 回归只剩 §70 flaky 三人组,零新增。四 flag 保持 default-OFF,flip 决策待更多周期背书。
+
+## 84. 树冠永卡=stuck 时钟第三次被清零饿死恢复(walkerPhysicalStallClock)
+C97-J1 replay#2/#3 确定性复现:bot 钉死树冠(1200t 全程,atGoal=False×2),树叶一拳 instabreak 就通但 attack=false 全程。根因=**safety-repath 循环每 ~3s 换 path→stepWindowFresh→stuckTicks 清零→物理静止的 bot 永远过不了 stuckT>40 门→wallDig/ramRelease 双饿死**,只剩 jump-ram 空转(§71/§80 同类第三次,前两次因 path 恰好稳定而 stuckT 能涨)。修=`walkerPhysicalStallClock`(default OFF):XZ 锚定位移时钟(镜像验收台 worst 度量,与 path/step/repath 完全解耦,垂直 bob 不算移动),wallDig/ramRelease 增加 `physicalStallTicks>60` 触发通道。**A/B(replay-0004 树冠):OFF 1200 永卡×2→ON 两轮全部 atGoal(243/1038)——死变慢。**

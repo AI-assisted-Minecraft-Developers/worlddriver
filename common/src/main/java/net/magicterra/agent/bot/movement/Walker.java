@@ -57,6 +57,19 @@ public final class Walker {
     private int step;
     private int ticksSinceRepath;
     private int stuckTicks;
+    /** Physical stall clock (§84): XZ-anchor ticks-without-displacement, fully
+     *  DECOUPLED from path/step/repath — the acceptance rig's "worst movement
+     *  stall" metric mirrored into the executor. WHY: a safety-repath loop swaps
+     *  the path every ~3s and each swap fires stepWindowFresh → stuckTicks=0, so
+     *  a physically frozen bot never accumulates past the stuckT>40 gates and
+     *  every stuck-gated recovery (wall-dig, ram-release) starves — the canopy
+     *  jump-ram pin (C97-J1 replay: 1200t frozen, leaves one instabreak punch
+     *  away, attack=false the whole time) is the third occurrence of this class
+     *  (§71 wall-pin, §80 pin were the first two, masked there because the path
+     *  happened to be stable). Anchor resets on >1.5 XZ blocks moved; vertical
+     *  bob (jump-ram) deliberately does not count as movement. */
+    private double stallAnchorX = Double.NaN, stallAnchorZ;
+    private int physicalStallTicks;
     private int totalTicks;
     private int actionTicks;          // ticks spent on the current break/place edge
     private BlockPos stickyDigPos;    // walkerStickyDig: planned-break cell being mined — held across ticks so an interleaved travel tick can't release attack (a single released tick resets vanilla mining progress to zero; C28-J1 DIG-slow @-258,81,338: 200t of dig ticks interleaved with attack=false travel ticks never completed one block)
@@ -1400,6 +1413,16 @@ public final class Walker {
             // stub adopted → fall through and walk it
         }
         ticksSinceRepath++;
+        // §84 physical stall clock — see field doc. Ticks on XZ displacement only,
+        // survives every path/step/repath reset.
+        if (Double.isNaN(stallAnchorX)
+                || Math.abs(p.getX() - stallAnchorX) + Math.abs(p.getZ() - stallAnchorZ) > 1.5) {
+            stallAnchorX = p.getX();
+            stallAnchorZ = p.getZ();
+            physicalStallTicks = 0;
+        } else {
+            physicalStallTicks++;
+        }
         // "Stuck" = no PROGRESS toward the current node — NOT a foot block that has
         // not changed. A bot creeping forward (water ≈ 0.08 b/tick, a place-bridge
         // sneak ≈ 1 block/15 ticks) stays in the same foot block for many ticks while
@@ -3481,7 +3504,9 @@ public final class Walker {
         // both the drive (descentNodeYaw capture below) and the camera follow. Aims at the
         // CURRENT node under a collision gate — not the §25 step-1 reanchor that bounced.
         if (BotConfig.walkerRamNodeAimRelease && !p.isInWater()
-                && p.horizontalCollision && stuckTicks > 40
+                && p.horizontalCollision
+                && (stuckTicks > 40
+                    || (BotConfig.walkerPhysicalStallClock && physicalStallTicks > 60))
                 && path != null && step < path.size()) {
             BlockPos rn = path.get(step);
             double rndx = (rn.getX() + 0.5) - p.getX(), rndz = (rn.getZ() + 0.5) - p.getZ();
@@ -4724,7 +4749,10 @@ public final class Walker {
         // whole 393-tick stall — the wall is reachable mid-air; drop the ground gate and
         // key on the collision itself.
         if (BotConfig.walkerWallDigFallback && !p.isInWater()
-                && p.horizontalCollision && stuckTicks > 40 && !a.breakHeld()) {
+                && p.horizontalCollision
+                && (stuckTicks > 40
+                    || (BotConfig.walkerPhysicalStallClock && physicalStallTicks > 60))
+                && !a.breakHeld()) {
             double fdx = (wp.getX() + 0.5) - p.getX(), fdz = (wp.getZ() + 0.5) - p.getZ();
             double fl = Math.sqrt(fdx * fdx + fdz * fdz);
             if (fl > 1e-3) {
