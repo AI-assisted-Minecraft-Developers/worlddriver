@@ -24,6 +24,7 @@ public final class IntentProcess implements BotProcess {
     public IntentProcess(Intent intent) {
         this.intent = intent;
         walker.setGoal(intent.target());
+        walker.setBias(intent.bias());
     }
 
     public String kind() { return "goto"; }

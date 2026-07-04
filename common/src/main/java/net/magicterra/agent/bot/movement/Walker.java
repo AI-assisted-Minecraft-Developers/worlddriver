@@ -4,6 +4,7 @@ import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.debug.BotLevelHolder;
 import net.magicterra.agent.bot.movement.PathSmoothing.SmoothResult;
+import net.magicterra.agent.bot.pathfinder.CostModifier;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
 import net.magicterra.agent.bot.pathfinder.PathTrace;
@@ -52,6 +53,14 @@ public final class Walker {
     public static volatile PathStats lastStats;
 
     private Goal goal;
+    /** Per-intent cost bias forwarded to every PathFinder this Walker builds (A4a).
+     *  Empty = plain navigation; IntentProcess sets it from the Intent. */
+    private java.util.List<CostModifier> bias = java.util.List.of();
+
+    /** Set the per-intent cost bias for subsequent searches. Null → empty. */
+    public void setBias(java.util.List<CostModifier> b) {
+        this.bias = (b == null) ? java.util.List.of() : b;
+    }
     private boolean goalSnapChecked;   // one-shot per goal: snap an unstandable Goal.Block target to the nearest standable cell (see snapGoalToStandable) — needs a live WorldView so it runs on the first tick, not at setGoal
     private List<BlockPos> path;
     private List<Move.Edge> edges;   // aligned with path; edges.get(i) enters path.get(i)
@@ -1145,7 +1154,7 @@ public final class Walker {
                         world.penalizeStuckNode(c.above());
                     }
             }
-            activeSearch = new PathFinder(world).newSearch(searchFoot, goal);
+            activeSearch = new PathFinder(world, bias).newSearch(searchFoot, goal);
             searchFromEnd = false;
             searchSuppressedPlace = false;    // normal search: placing allowed; budget re-checked on result
             pendingSegment = null;            // a foot-search supersedes any stashed continuation
@@ -1153,7 +1162,7 @@ public final class Walker {
         } else if (!replayMode && pathBestEffort && commitEnd != null
                 && activeSearch == null && pendingSegment == null) {
             // Eagerly precompute the next best-effort segment from the committed end.
-            activeSearch = new PathFinder(world).newSearch(commitEnd, goal);
+            activeSearch = new PathFinder(world, bias).newSearch(commitEnd, goal);
             searchFromEnd = true;
             searchSuppressedPlace = false;
             ticksSinceRepath = 0;
@@ -1305,7 +1314,7 @@ public final class Walker {
                         if (BotConfig.walkerDebug)
                             LOG.info("[walker] path needs {} placed blocks, have {} → re-search place-off (dig/around)",
                                     placesNeeded, world.placeableBlockCount());
-                        activeSearch = new PathFinder(world).newSearch(foot, goal, true);
+                        activeSearch = new PathFinder(world, bias).newSearch(foot, goal, true);
                         searchFromEnd = false;
                         searchSuppressedPlace = true;
                         pendingSegment = null;
@@ -2052,7 +2061,7 @@ public final class Walker {
                 }
             } else {
                 if (!replayMode && activeSearch == null && commitEnd != null) {
-                    activeSearch = new PathFinder(world).newSearch(commitEnd, goal);
+                    activeSearch = new PathFinder(world, bias).newSearch(commitEnd, goal);
                     searchFromEnd = true;
                 }
                 // PROGRESSIVE QUICK-START at the splice gap: the continuation
@@ -4883,7 +4892,7 @@ public final class Walker {
                 && frontierWaitTicks < FRONTIER_WAIT_CAP) {
             frontierWaitTicks++;
             if (activeSearch == null) {
-                activeSearch = new PathFinder(world).newSearch(commitEnd, goal);
+                activeSearch = new PathFinder(world, bias).newSearch(commitEnd, goal);
                 searchFromEnd = true;
             }
             agentForward(a, false);
@@ -4928,7 +4937,7 @@ public final class Walker {
     private boolean tryQuickStart(WorldView world, BlockPos foot, Goal goal) {
         if (BotConfig.pathfinderQuickNodes <= 0) return false;
         if (quickCooldown > 0) { quickCooldown--; return false; }
-        PathFinder.Search q = new PathFinder(world, BotConfig.pathfinderQuickNodes, QUICK_MAX_MS)
+        PathFinder.Search q = new PathFinder(world, BotConfig.pathfinderQuickNodes, QUICK_MAX_MS, bias)
                 .newSearch(foot, goal);
         while (!q.advance(QUICK_MAX_MS)) { /* bounded by the node cap / QUICK_MAX_MS */ }
         PathFinder.Result res = q.result();
