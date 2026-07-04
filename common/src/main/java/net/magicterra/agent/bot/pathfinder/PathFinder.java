@@ -191,6 +191,11 @@ public final class PathFinder {
         /** Obstacle-aware goal-distance field, or null when disabled / unusable
          *  (then the heuristic is the plain Euclidean {@link Goal#estimate}). */
         private final CoarseGoalField goalField;
+        /** Ordered stack of per-edge cost taxes, summed in the neighbor loop.
+         *  A0 seeds it with the eight legacy taxes IN THEIR ORIGINAL ORDER so
+         *  the floating-point sum is bit-identical to the old inline expression;
+         *  later phases add/remove modifiers per intent. */
+        private final List<CostModifier> costModifiers = new ArrayList<>();
         private int expanded;
         private long elapsedNanos;     // cumulative compute time across slices
         private Result result;         // null until done
@@ -220,6 +225,16 @@ public final class PathFinder {
             open.add(startNode);
             PathTraceHolder.SINK.onSearchBegin(start, goal);
             Arrays.fill(bestHeuristic, Double.POSITIVE_INFINITY);
+            // A0: seed the modifier stack with the legacy taxes IN THE EXACT
+            // ORDER of the old inline sum (FP addition is not associative).
+            costModifiers.add((f, t, e, g, w) -> descendTax(f, t, e));
+            costModifiers.add((f, t, e, g, w) -> waterCellTax(t));
+            costModifiers.add((f, t, e, g, w) -> leafCellTax(t));
+            costModifiers.add((f, t, e, g, w) -> padCellTax(t));
+            costModifiers.add((f, t, e, g, w) -> vineOverWaterTax(t));
+            costModifiers.add((f, t, e, g, w) -> padOverWaterTax(t));
+            costModifiers.add((f, t, e, g, w) -> climbOutTax(f, t));
+            costModifiers.add((f, t, e, g, w) -> submergedTax(f, t));
         }
 
         public boolean done() { return result != null; }
@@ -696,15 +711,10 @@ public final class PathFinder {
                         // Soft danger penalty per entered cell (Baritone avoidance);
                         // ≥ 0 so the heuristic stays admissible.
                         double ng = cur.g + edge.cost + world.dangerCost(npos)
-                                + world.directionalCost(cur.pos, npos)
-                                + descendTax(cur.pos, npos, edge)
-                                + waterCellTax(npos)
-                                + leafCellTax(npos)
-                                + padCellTax(npos)
-                                + vineOverWaterTax(npos)
-                                + padOverWaterTax(npos)
-                                + climbOutTax(cur.pos, npos)
-                                + submergedTax(cur.pos, npos);
+                                + world.directionalCost(cur.pos, npos);
+                        for (CostModifier mod : costModifiers) {
+                            ng += mod.extraCost(cur.pos, npos, edge, goal, world);
+                        }
                         Node existing = nodes.get(npos);
                         if (existing != null && ng > existing.g - MIN_IMPROVEMENT) continue;
                         if (existing == null) {
