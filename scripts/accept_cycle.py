@@ -83,6 +83,17 @@ def preflight(label):
 
 def live_journey(label):
     ensure_alive()
+    # §89 rig fix: the previous journey's 14-block arrive circle can end ON a jungle
+    # canopy, so the next leg starts treetop-airborne — jump-ram bounce there hops
+    # 3-4 blocks and resets the physical stall anchor, burning the whole timeout at
+    # the start (C106-J3: churn 12 blocks from start). A real journey never starts
+    # on a treetop; step down to solid ground before goto.
+    for _ in range(30):
+        y0 = rpc('mc.client.player', {})['pos']['y']
+        rpc('mc.client.chat.send', {'text': '/execute as @p at @p if block ~ ~-1 ~ #minecraft:leaves run tp @p ~ ~-1 ~'})
+        rpc('mc.client.chat.send', {'text': '/execute as @p at @p if block ~ ~-1 ~ minecraft:air run tp @p ~ ~-1 ~'})
+        time.sleep(0.25)
+        if rpc('mc.client.player', {})['pos']['y'] >= y0 - 0.01: break
     # Set the FULL flag set every journey: a fresh client boots with all-default flags,
     # and run_case (replay) is the only other setter — the first journey of a chain ran
     # flag-naked otherwise (C21-J1). pathArchive back ON for recording.
