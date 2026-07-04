@@ -677,3 +677,6 @@ C97-J1 replay#2/#3 确定性复现:bot 钉死树冠(1200t 全程,atGoal=False×2
 
 ## 85. 恢复族打架收口:锚窗放宽+wallDig 全向扫描(遗留清单①)
 C98-J2 水边树冠 replay 定层第四类:reCentre(stuckT>5 即抢 aim)与 carrot 拉锯出 1-2 格微圈,曼哈顿 1.5 锚窗被反复重置→physicalStallTicks 也饿死;且 ram-release 开火 26 次无效(转向后墙仍在,真解是挖)而 wallDig 的 wp 向探针在"墙法向≠wp 方向"时空手(ultra#2 同形态)。修:①物理锚窗 1.5 曼哈顿→2.0 欧氏(台架 worst 同构,微圈不再清钟);②wallDig 目标扫描 wp 向空手→drive 向→四邻 head/feet 第一个 solid。**A/B(replay-0002):基线 1200F/765F/439T→188T/165F/409T——硬卡死消灭,残余为 8s 级漂移方差。**
+
+## 86. 丛林 30s 尾延双根=dig 被 repath 打断+路线翻面振荡(两个休眠 flag 复活)
+C99-J1 丛林 ARRIVED-SLOW(worst 30s)验尸:①DIG-dropped 9t——挖掘刚开始就被 repath 换目标,进度清零重挖循环;②REPATH-flip×3——planner 在两条 cost 接近的绕树路线间每 145-182t 翻面,走一半调头。解=激活两个早已存在但从未验证的 default-OFF flag:`walkerDigCommitHoldRepath`(挖掘 commit 期 hold repath)+`walkerRouteHysteresis`(路线滞回)。**A/B(replay-0001/C99-J1):基线 475/69 方差 → ON 68/107/87 全过(尾巴 -77%)。**零代码改动,入 FLAGS。
