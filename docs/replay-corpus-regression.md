@@ -680,3 +680,6 @@ C98-J2 水边树冠 replay 定层第四类:reCentre(stuckT>5 即抢 aim)与 carr
 
 ## 86. 丛林 30s 尾延双根=dig 被 repath 打断+路线翻面振荡(两个休眠 flag 复活)
 C99-J1 丛林 ARRIVED-SLOW(worst 30s)验尸:①DIG-dropped 9t——挖掘刚开始就被 repath 换目标,进度清零重挖循环;②REPATH-flip×3——planner 在两条 cost 接近的绕树路线间每 145-182t 翻面,走一半调头。解=激活两个早已存在但从未验证的 default-OFF flag:`walkerDigCommitHoldRepath`(挖掘 commit 期 hold repath)+`walkerRouteHysteresis`(路线滞回)。**A/B(replay-0001/C99-J1):基线 475/69 方差 → ON 68/107/87 全过(尾巴 -77%)。**零代码改动,入 FLAGS。
+
+## 87. 第二波 flip-default:§80-86 七键翻默认(C100+C101 双连绿背书)
+背书:C100(live worst 12/0/9s+9 replay 全过)+C101(9/24/3s+9 replay 全过)=8-flag 组合两周期全绿。翻默认:walkerRamNodeAimRelease/pathfinderFloatingBreakTax/walkerBridgeHoldRepath/walkerPhysicalStallClock/walkerDigCommitHoldRepath/walkerRouteHysteresis=true,pathfinderLogBreakTax=3.0。applyGameTestBaseline() 同步钉 legacy(GT 套件继续跑 default-OFF 基线,§78 机制)。

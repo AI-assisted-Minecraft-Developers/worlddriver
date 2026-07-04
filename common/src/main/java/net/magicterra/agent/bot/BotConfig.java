@@ -1576,7 +1576,7 @@ public final class BotConfig {
      *  would U-turn a working walk. A genuinely stuck bot (noStepProg >= 20) always adopts, so
      *  real reroutes (danger, dead end) are never starved; the next periodic repath re-offers
      *  the alternative anyway. Default OFF. */
-    public static volatile boolean walkerRouteHysteresis = false;
+    public static volatile boolean walkerRouteHysteresis = true;
 
     /** Dig-commit repath hold (the water-bank dig-vs-repath starvation, replay-0004 CLEAN-K5
      *  2026-07-02): an underwater bank dig takes 100-200t (25x mining penalty) but the periodic
@@ -1588,7 +1588,7 @@ public final class BotConfig {
      *  search result is rejected and the current path kept. The futile-dig release
      *  (walkerFutileBankDigRelease) still abandons a hopeless dig, which drops the hold and
      *  lets the next repath adopt normally — so this cannot starve real reroutes. Default OFF. */
-    public static volatile boolean walkerDigCommitHoldRepath = false;
+    public static volatile boolean walkerDigCommitHoldRepath = true;
 
     /** Water-surface pillar crest-place (the deterministic water-bank pillarUp deadlock,
      *  rig tp(371.5,62,348.5)→goto(378,65,347) 2026-07-02): a pillarUp whose destination
@@ -1659,7 +1659,7 @@ public final class BotConfig {
      *  Unlike the §25 REVERTED reanchor-to-step-1 (bounce oscillation), this aims at the
      *  CURRENT node under a collision gate: success clears hCol/stuckTicks and normal
      *  aim resumes. Default OFF. */
-    public static volatile boolean walkerRamNodeAimRelease = false;
+    public static volatile boolean walkerRamNodeAimRelease = true;
 
     /** Physical stall clock feed for stuck-gated recoveries (§84): a safety-repath loop
      *  swaps the path every few seconds and each swap resets stuckTicks (stepWindowFresh),
@@ -1668,7 +1668,7 @@ public final class BotConfig {
      *  instabreak punch away). ON = those recoveries also fire on 60+ ticks without XZ
      *  displacement (path/repath-independent anchor clock; vertical bob doesn't count).
      *  Default OFF. */
-    public static volatile boolean walkerPhysicalStallClock = false;
+    public static volatile boolean walkerPhysicalStallClock = true;
 
     /** Bridge-commit repath hold (§82): a mid-bridge PERIODIC repath swaps the committed
      *  bridgePlace chain for a fresh plan whose first node sits elsewhere, steering the
@@ -1676,18 +1676,18 @@ public final class BotConfig {
      *  deck finishes inside one repath period and never falls (3/3); diagonal zig-zag and
      *  40-block decks straddle it and fell 100%. ON = hold routine repaths while the
      *  current/next edge is bridgePlace; safety repaths stay live. Default OFF. */
-    public static volatile boolean walkerBridgeHoldRepath = false;
+    public static volatile boolean walkerBridgeHoldRepath = true;
 
     /** Floating-dig break repricing (§81, ultra#1 flooded-oak churn): when the from-cell
      *  is water the bot digs while floating — vanilla is 25× slow (eyes-in-water ÷5 ×
      *  not-on-ground ÷5) plus bob-drift progress resets, but the planner priced it 5×.
      *  ON = ×25 for floating digs; standing-in-shallow digs (feet dry) stay ×5. */
-    public static volatile boolean pathfinderFloatingBreakTax = false;
+    public static volatile boolean pathfinderFloatingBreakTax = true;
 
     /** Trunk-aversion multiplier on log breakCost (§81): logs are cheap (hardness 2,
      *  bare-hand correct) so dense-forest A* routes THROUGH trees; this prices the
      *  hidden approach/aim/canopy-snag cost so a walk-around wins. 1.0 = byte-identical. */
-    public static volatile double pathfinderLogBreakTax = 1.0;
+    public static volatile double pathfinderLogBreakTax = 3.0;
 
     /** Dig-aversion multiplier on the planner's breakCost (§74): >1 biases A* toward
      *  walking around instead of committing dig-dense mineshaft/cave legs whose hidden
@@ -2241,5 +2241,13 @@ public final class BotConfig {
         walkerFloatingBankBobFreeze = false;
         walkerDrowningEscape = false;
         walkerClimbGaveUpSticky = false;
+        // §87 second flip wave (C100+C101 double-green endorsement)
+        walkerRouteHysteresis = false;
+        walkerDigCommitHoldRepath = false;
+        walkerRamNodeAimRelease = false;
+        walkerPhysicalStallClock = false;
+        walkerBridgeHoldRepath = false;
+        pathfinderFloatingBreakTax = false;
+        pathfinderLogBreakTax = 1.0;
     }
 }
