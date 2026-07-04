@@ -110,9 +110,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and three-transport metadata parity — suite is now 60 GameTest cases.
 
 ### Changed
-- **Internal: `mc.bot.goto` now runs on the generic `IntentProcess` (over an `Intent`
-  value type) instead of the bespoke `GotoProcess` — no behavior change (A1 groundwork
-  for the LLM navigation intent layer).** The old `GotoProcess` is removed; `kind()`
+- **Internal: `mc.bot.goto` (plus the elytra ground-fallback and the replay-replan
+  path) now runs on the generic `IntentProcess` (over an `Intent` value type) instead
+  of the bespoke `GotoProcess` — no behavior change (A1 groundwork for the LLM
+  navigation intent layer).** The old `GotoProcess` is removed; `kind()`
   stays `"goto"` so slots/status are identical; the server Avatar proof
   (`serverProcessArena`) drives the FakePlayer through `IntentProcess` and still
   ARRIVES. The GameTest run gained no new failures vs the pre-A1 tip (the terrain
