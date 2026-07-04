@@ -704,3 +704,6 @@ slow-map 数据(replay-0008:74% 采样<1.5bps,220s/300s 烧在三个陡爬区,y 
 
 ## 92. chain-mount 连跳门=无差判定(激进尝试#3,flag 留 OFF)
 执行层刀:同方向连续 +1 链放宽 stepUp 对齐门(sideDist 0.45/lateral 0.25/launch 2.0)骑 momentum 连跳。合成 20 级直线梯 A/B:OFF/ON 完全一致(10.3-10.5s,每级 0.5s=已达人类速)——直梯上严门本就常通过,chain 门无从体现;replay-0008 慢样本台则劣化到基线 3/3 timeout(多轮 restore 后世界破损,方差吞信号)。**修正认知:slowmap 慢区不是"直线 mount 慢"而是复杂陡坡的爬上-掉下往复(y 67↔70 反复)**——转向频繁使"同方向链"条件也很少成立。#15 下场路线:从 replay-0008 慢区(175,67,257 邻域)切真实 envelope 建确定性复杂陡坡 arena(live-is-truth 原则),先逐 tick 验尸"掉下来"的机制(过冲掉边?fellOffPath?)再设计。§90/91/92 三刀证伪的共同教训:平地/直梯/开阔地都已达标,所有剩余时间损失集中在复杂 3D 陡坡的往复循环,那是一个"正确性"问题不是"调参"问题。
+
+## 92b. CSI 决定性:慢区地形短途 8s 直达=慢是"长途状态"的产物(#15 靶心再修正)
+replay-0008 慢区(171,67,254→195,64,266,长途中磨 ~100s)restore 后短途单跑:**8 秒直达零磨蹭**。结论:复杂陡坡往复不是执行器地形能力缺陷,而是长途中的 planner 状态——best-effort commit 段(goalReached=false)把段尾目标放在陡坡半腰、周期 repath 在半坡重排、进入方向不同(长途从上方掉入)。与 §88b(挖降 timeout=planner best-effort 选择)同类。#15 最终定位:**best-effort commit 段在复杂地形的段尾选择/repath 一致性**(routeHysteresis 只防翻面,不防半坡 commit 尾)。下场:长途复现+commit 段尾轨迹追踪(记录每次 commitEnd 与地形的关系),再设计段尾选择改进(如 commit 尾偏好平台格/避免半坡)。
