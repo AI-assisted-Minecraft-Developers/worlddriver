@@ -668,3 +668,6 @@ bot 距 goal 10.5 格(d<8 圈外)在崖顶边缘 91s churn:画面=反复"倒水-
 ## 82. 搭桥中途掉落:机制实锤+修复部分验证(walkerBridgeHoldRepath)
 用户报"搭桥中途掉下"。高空桥 arena 确定性复现:19 格直桥 3/3 稳过(8-9s,一个 repath 周期内);对角锯齿桥/40 格长桥 100% 掉。掉落链铁证(bridge3-OFF 逐 tick):**桥中 repath 把 committed bridgePlace 链换成首节点在别处的新 path(实测 y+8),drive 朝新节点走出已放桥板尽头(z10010 块尽头→z10012 空气)坠落**;MLG 水桶 clutch 一直在兜底(remaining 63.9 place SUCCESS 存活)——掉不死,但一次掉落+爬回耗 30-60s。修=`walkerBridgeHoldRepath`(default OFF):当前/下一 edge 是 bridgePlace 时抑制 ROUTINE repath(safety 保留)。
 受控 A/B(repath 50t 强制)未能判决:强制周期下 safety repath/best-effort 换 path 仍会掉,且"孤岛"台架让 A* 干脆不出桥线(bridgeCost 80×N,goalReached=false best-effort 乱走/绕谷底)——**台架教训:A* 天然回避长桥,人造"必须长桥"场景与真实世界(短桥 5-15 格跨峡谷)失真**。机制正确性靠 OFF 铁证支撑;实效验证交给长途验收(桥场景天然出现)。残留方向:repath 后新旧 path 桥沿衔接保护。
+
+## 83. 三 lane 战役端到端验收:C96 全绿(2026-07-04 05:35)
+§80-§82 四 flag(ramNodeAimRelease/floatingBreakTax/logBreakTax 3.0/bridgeHoldRepath)入 FLAGS 全开跑完整验收周期:J1 34s/0s clean 3/3;J2 131s/21s 过门 2/3+1 envExit 豁免;J3 49s/6s 3/3。GT 回归只剩 §70 flaky 三人组,零新增。四 flag 保持 default-OFF,flip 决策待更多周期背书。
