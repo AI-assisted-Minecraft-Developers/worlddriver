@@ -654,3 +654,6 @@ bot 距 goal 10.5 格(d<8 圈外)在崖顶边缘 91s churn:画面=反复"倒水-
 
 ## 78. flip-default 落地:31 个 #47 验证 flag 翻默认 ON + GT legacy 基线钉扎(2026-07-04)
 用户批准后执行:accept FLAGS 全集(11-flag 丝滑集+monotonic+digAim+wallDig+breakCost2.5+水域/岸族+allowBreak/Place 等 31 项)翻 BotConfig 默认。首轮 GT 14 required 红=**套件断言建立在旧 default-OFF 基线**(测试未显式设置的 flag 默认变 ON 改变 arena 行为)。解=`BotConfig.applyGameTestBaseline()`:GameTestServer 启动时(`instanceof GameTestServer` 门)钉回 legacy 基线,live/integrated 不受影响;要 flag 的测试仍显式自设。第二轮 GT 只剩 flaky 双人组(waterFarAim/descentYaw,§70 已证伪),回归通过。
+
+## 79. flip-default 落地验证:C95 全绿 smoke(2026-07-04 03:00)
+默认 ON 构建的完整验收周期:三程 34/37/34s 全 clean(worst 0s)、9/9 replay atGoal(maxStuck≤78)。默认生效的决定性证据=首轮 GT 14 红(新默认改变 arena 行为)。#47 全链闭环:验证→三连验收→flip-default→回归+smoke 全绿。
