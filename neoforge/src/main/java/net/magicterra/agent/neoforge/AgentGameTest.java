@@ -10,7 +10,6 @@ import net.magicterra.agent.neoforge.sim.ServerPlayerAvatar;
 import net.magicterra.agent.neoforge.sim.ServerAgentDriver;
 import net.magicterra.agent.neoforge.sim.ServerAgentManager;
 import net.magicterra.agent.bot.Goal;
-import net.magicterra.agent.bot.process.GotoProcess;
 import net.magicterra.agent.bot.process.BboxFillProcess;
 import net.magicterra.agent.bot.process.BuildProcess;
 import net.magicterra.agent.bot.process.FollowProcess;

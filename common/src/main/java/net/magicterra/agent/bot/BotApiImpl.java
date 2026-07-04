@@ -160,7 +160,7 @@ public final class BotApiImpl implements BotApi {
                 return Map.of("ok", false, "error",
                         "missing goal — provide pos|xz|y|block|entity|entityId|direction|waypoint");
             }
-            startProcess(new GotoProcess(goal));
+            startProcess(new IntentProcess(new Intent(goal)));
             return Map.of("ok", true, "started", true, "goal", goal.toString());
         });
     }
@@ -186,7 +186,7 @@ public final class BotApiImpl implements BotApi {
 
     /** Faithful re-run replay (mc.debug.replay replan mode): restore the recorded
      *  terrain, teleport to the recorded start, and re-issue the ORIGINAL goal through
-     *  the normal {@link GotoProcess} (full planning). Unlike {@link #startReplay}, the
+     *  the normal {@link net.magicterra.agent.bot.process.IntentProcess} (full planning). Unlike {@link #startReplay}, the
      *  recorded plan is not consulted — A* re-derives it deterministically in the
      *  restored terrain, so emergent live behaviour (repaths, execution wedges)
      *  reproduces. A normal path archive of the re-run is captured when pathArchive is on.
@@ -227,7 +227,7 @@ public final class BotApiImpl implements BotApi {
             if (!flyable && target != null && p.getBool("groundFallback")) {
                 int near = p.getIntClamped("near", 1, 0, 64);
                 Goal g = near > 0 ? new Goal.Near(target, near) : new Goal.Block(target);
-                startProcess(new GotoProcess(g));
+                startProcess(new IntentProcess(new Intent(g)));
                 return Map.of("ok", true, "started", true, "mode", "groundFallback",
                         "reason", "no usable elytra", "goal", g.toString());
             }

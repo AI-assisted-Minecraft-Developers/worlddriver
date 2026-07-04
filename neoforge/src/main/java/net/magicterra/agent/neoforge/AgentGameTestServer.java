@@ -10,10 +10,11 @@ import net.magicterra.agent.neoforge.sim.ServerPlayerAvatar;
 import net.magicterra.agent.neoforge.sim.ServerAgentDriver;
 import net.magicterra.agent.neoforge.sim.ServerAgentManager;
 import net.magicterra.agent.bot.Goal;
-import net.magicterra.agent.bot.process.GotoProcess;
 import net.magicterra.agent.bot.process.BboxFillProcess;
 import net.magicterra.agent.bot.process.BuildProcess;
 import net.magicterra.agent.bot.process.FollowProcess;
+import net.magicterra.agent.bot.process.Intent;
+import net.magicterra.agent.bot.process.IntentProcess;
 import net.magicterra.agent.bot.process.MineProcess;
 import net.magicterra.agent.bot.process.RunAwayProcess;
 import net.magicterra.agent.bot.process.Schematic;
@@ -180,9 +181,9 @@ public final class AgentGameTestServer {
     }
 
     /**
-     * Phase 2b process-layer proof: the SERVER runs a REAL {@link GotoProcess} —
+     * Phase 2b process-layer proof: the SERVER runs a REAL {@link IntentProcess} —
      * the exact same process the client scheduler runs — over a FakePlayer, with
-     * no client {@code mc}. {@link GotoProcess} is Avatar-migrated (overrides
+     * no client {@code mc}. {@link IntentProcess} is Avatar-migrated (overrides
      * {@code tick(Avatar,...)}), and {@link ServerAgentDriver#runProcess} drives
      * it through the {@link ServerAgentManager} (the live server-tick entry). This
      * exercises the {@code BotProcess} migration seam end-to-end: a process, not
@@ -205,7 +206,7 @@ public final class AgentGameTestServer {
         ServerAgentManager.clear();
         try {
             ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
-            driver.runProcess(new GotoProcess(new Goal.Block(goal)));   // the REAL client process, server-side
+            driver.runProcess(new IntentProcess(new Intent(new Goal.Block(goal))));   // the REAL client process, server-side
             ServerAgentManager.register(driver);
 
             for (int t = 0; t < 200 && ServerAgentManager.activeCount() > 0; t++)
@@ -218,10 +219,10 @@ public final class AgentGameTestServer {
                     driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(),
                     driver.finished(), ServerAgentManager.activeCount(), reached);
             if (!driver.finished() || ServerAgentManager.activeCount() != 0)
-                throw new GameTestAssertException("server GotoProcess did not finish+unregister: finished="
+                throw new GameTestAssertException("server IntentProcess did not finish+unregister: finished="
                         + driver.finished() + " active=" + ServerAgentManager.activeCount());
             if (!reached)
-                throw new GameTestAssertException("server-run GotoProcess did not reach the goal: pos=("
+                throw new GameTestAssertException("server-run IntentProcess did not reach the goal: pos=("
                         + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ")");
         } finally {
             BotConfig.walkerDebug = odbg;
@@ -237,7 +238,7 @@ public final class AgentGameTestServer {
      * — a process with extra per-tick state (it sets {@code BotConfig.fleeActive}
      * each tick so the search boosts hazard cost) — over a FakePlayer headless.
      * Confirms the Avatar seam carries stateful processes, not just the trivial
-     * GotoProcess. Bot starts on top of the flee origin; assert it walked away to
+     * IntentProcess. Bot starts on top of the flee origin; assert it walked away to
      * at least the requested min distance and the process finished+unregistered.
      */
     @GameTest(template = "empty", timeoutTicks = 100000)

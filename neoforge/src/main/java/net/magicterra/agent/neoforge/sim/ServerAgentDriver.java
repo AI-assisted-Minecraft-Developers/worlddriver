@@ -65,7 +65,7 @@ public final class ServerAgentDriver {
 
     /** Run a real (Avatar-migrated) {@link BotProcess} headless on the server tick.
      *  This is the Phase-2b process-layer seam: the SAME process the client
-     *  scheduler runs (e.g. {@link net.magicterra.agent.bot.process.GotoProcess})
+     *  scheduler runs (e.g. {@link net.magicterra.agent.bot.process.IntentProcess})
      *  drives the FakePlayer through its {@code tick(Avatar,...)} path — no
      *  bespoke driver logic, no client {@code mc}. */
     public ServerAgentDriver runProcess(BotProcess p) {

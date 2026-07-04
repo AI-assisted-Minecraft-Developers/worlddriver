@@ -2,7 +2,8 @@ package net.magicterra.agent.bot;
 
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
-import net.magicterra.agent.bot.process.GotoProcess;
+import net.magicterra.agent.bot.process.Intent;
+import net.magicterra.agent.bot.process.IntentProcess;
 import net.magicterra.agent.bot.process.ReplayProcess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -90,7 +91,7 @@ final class ReplayInstaller {
 
     /** Faithful re-run replay (mc.debug.replay replan mode): restore the recorded
      *  terrain, teleport to the recorded start, and re-issue the ORIGINAL goal through
-     *  the normal {@link GotoProcess} (full planning). Unlike {@link #startReplay}, the
+     *  the normal {@link IntentProcess} (full planning). Unlike {@link #startReplay}, the
      *  recorded plan is not consulted — A* re-derives it deterministically in the
      *  restored terrain, so emergent live behaviour (repaths, execution wedges)
      *  reproduces. A normal path archive of the re-run is captured when pathArchive is on. */
@@ -126,7 +127,7 @@ final class ReplayInstaller {
             player.moveTo(tx, ty, tz, player.getYRot(), player.getXRot());
 
             // Normal planning goto — this is what makes the re-run faithful to the live run.
-            bot.startProcess(new GotoProcess(goal));
+            bot.startProcess(new IntentProcess(new Intent(goal)));
 
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("ok", true);
