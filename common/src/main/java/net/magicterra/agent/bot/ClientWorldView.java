@@ -273,7 +273,15 @@ public final class ClientWorldView implements WorldView {
      *  reprices a 7.5s dig to 37.5s — far past any swim detour. */
     @Override public double breakCost(BlockPos p, BlockPos from) {
         double c = breakCost(p);
-        if (c > 0 && Double.isFinite(c) && isWater(from.offset(0, 1, 0))) return c * 5;
+        if (c > 0 && Double.isFinite(c) && isWater(from.offset(0, 1, 0))) {
+            // pathfinderFloatingBreakTax (§81, ultra#1): when the FROM cell itself is
+            // water the bot digs while FLOATING — vanilla stacks not-on-ground ÷5 on
+            // top of the eyes-in-water ÷5 (25× total), and the executor adds bob-drift
+            // aim resets on top (live flooded-oak forest: 200-291t held on one log,
+            // progress reset, 90s churn). ×5 alone priced that dig 5× too cheap, which
+            // is exactly how A* chose "tunnel through submerged trunks" over a detour.
+            return c * (BotConfig.pathfinderFloatingBreakTax && isWater(from) ? 25 : 5);
+        }
         return c;
     }
     /** Search origin (the bot's block pos when this findPath began), snapshotted
@@ -402,6 +410,14 @@ public final class ClientWorldView implements WorldView {
         // (logs/dirt/leaves: isCorrectToolForDrops=true bare-handed) and digs
         // with the proper tool keep their true price.
         if (!bestCorrect) cost *= 3;
+        // Trunk-aversion tax (§81): a log is cheap to break (hardness 2, bare-hand
+        // correct-tool), so in dense forest "chop through the tree" out-prices a
+        // 10-20-block walk-around and A* legally routes THROUGH trunks — the user-visible
+        // "寻路走到树里" (both ultra-journey churns started at a trunk on the path).
+        // Like the leaf cell tax this prices the hidden approach/aim/canopy-snag cost;
+        // 1.0 = byte-identical.
+        if (BotConfig.pathfinderLogBreakTax != 1.0 && s.is(BlockTags.LOGS))
+            cost *= BotConfig.pathfinderLogBreakTax;
         // Dig-aversion multiplier (§74): the per-block tick estimate is honest, yet a
         // dig-dense route drags the same hidden costs as the wrong-tool case in miniature
         // (approach/aim per block, stall-recovery churn between digs) — C53/C58/C59 all

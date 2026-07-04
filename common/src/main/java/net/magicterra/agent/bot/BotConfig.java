@@ -1647,6 +1647,31 @@ public final class BotConfig {
      *  waypoint-facing block at head/feet height (digAimPriority latch holds it). Default OFF. */
     public static volatile boolean walkerWallDigFallback = true;
 
+    /** Ram-pinned node-aim release (§80, ultra#2): two deterministic dry-descent wall-pins
+     *  where the DRIVE heading never points at the current node and every displacement
+     *  recovery fires uselessly — (A) the aim-deadzone "hold heading" band is WIDER than
+     *  the step-advance within-gate, so a bot parked 1.2 blocks beside a stepDown node
+     *  holds its stale yaw forever (yawErr -115°, hCol, hSpd 0); (B) walkerTangentAim
+     *  projects a ~reversed tangent at a switchback corner (driveYaw -180° vs node
+     *  bearing 14°) and the corner corrector (walkerWallCornerNodeAim) is default-dead
+     *  (§13 oscillation). When dry + horizontalCollision + stuckTicks past the wall-dig
+     *  gate AND the live yaw is >60° off the current-node bearing, re-aim at the node.
+     *  Unlike the §25 REVERTED reanchor-to-step-1 (bounce oscillation), this aims at the
+     *  CURRENT node under a collision gate: success clears hCol/stuckTicks and normal
+     *  aim resumes. Default OFF. */
+    public static volatile boolean walkerRamNodeAimRelease = false;
+
+    /** Floating-dig break repricing (§81, ultra#1 flooded-oak churn): when the from-cell
+     *  is water the bot digs while floating — vanilla is 25× slow (eyes-in-water ÷5 ×
+     *  not-on-ground ÷5) plus bob-drift progress resets, but the planner priced it 5×.
+     *  ON = ×25 for floating digs; standing-in-shallow digs (feet dry) stay ×5. */
+    public static volatile boolean pathfinderFloatingBreakTax = false;
+
+    /** Trunk-aversion multiplier on log breakCost (§81): logs are cheap (hardness 2,
+     *  bare-hand correct) so dense-forest A* routes THROUGH trees; this prices the
+     *  hidden approach/aim/canopy-snag cost so a walk-around wins. 1.0 = byte-identical. */
+    public static volatile double pathfinderLogBreakTax = 1.0;
+
     /** Dig-aversion multiplier on the planner's breakCost (§74): >1 biases A* toward
      *  walking around instead of committing dig-dense mineshaft/cave legs whose hidden
      *  per-block approach/stall costs broke C53/C58/C59 (50-65s worst stalls). Planner

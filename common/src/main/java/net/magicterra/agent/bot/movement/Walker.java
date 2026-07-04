@@ -3458,6 +3458,31 @@ public final class Walker {
                     targetYaw = nodeBear;
             }
         }
+        // walkerRamNodeAimRelease (§80): dry wall-pin with the drive heading >60° off the
+        // current-node bearing — the deadzone hold-heading band (A: aim2 inside the deadzone
+        // holds a stale yaw that a stepDown node's within-gate never accepts) or a reversed
+        // switchback tangent (B: tangent -180° vs node bearing 14°, corner corrector
+        // default-dead per §13) steers the body INTO a wall while the node sits elsewhere.
+        // Under the confirmed-stall gate, snap targetYaw back to the current-node bearing so
+        // both the drive (descentNodeYaw capture below) and the camera follow. Aims at the
+        // CURRENT node under a collision gate — not the §25 step-1 reanchor that bounced.
+        if (BotConfig.walkerRamNodeAimRelease && !p.isInWater()
+                && p.horizontalCollision && stuckTicks > 40
+                && path != null && step < path.size()) {
+            BlockPos rn = path.get(step);
+            double rndx = (rn.getX() + 0.5) - p.getX(), rndz = (rn.getZ() + 0.5) - p.getZ();
+            if (rndx * rndx + rndz * rndz > 1e-6) {
+                float rnb = (float) Math.toDegrees(Math.atan2(-rndx, rndz));
+                if (Math.abs(angleDiff(p.getYRot(), rnb)) > 60) {
+                    targetYaw = rnb;
+                    if (BotConfig.walkerDebug)
+                        LOG.info("[walker] ram-release: node-aim {} (was yaw={}) node={},{},{} stuckT={}",
+                                String.format(Locale.ROOT, "%.0f", rnb),
+                                String.format(Locale.ROOT, "%.0f", p.getYRot()),
+                                rn.getX(), rn.getY(), rn.getZ(), stuckTicks);
+                }
+            }
+        }
         // ── Overland camera/movement decouple (anti-spin) — see DESCENT_CAM_FAR_DIST ─────────
         // Point the CAMERA at a stable trend heading (no spin) while the MOVEMENT keeps driving the
         // immediate node (driveTargetYaw, below). Capture the immediate-node heading (the carrot/node

@@ -657,3 +657,10 @@ bot 距 goal 10.5 格(d<8 圈外)在崖顶边缘 91s churn:画面=反复"倒水-
 
 ## 79. flip-default 落地验证:C95 全绿 smoke(2026-07-04 03:00)
 默认 ON 构建的完整验收周期:三程 34/37/34s 全 clean(worst 0s)、9/9 replay atGoal(maxStuck≤78)。默认生效的决定性证据=首轮 GT 14 红(新默认改变 arena 行为)。#47 全链闭环:验证→三连验收→flip-default→回归+smoke 全绿。
+
+## 80. 超长途战役 I:双确定性干地钉死=drive 朝向背离节点(walkerRamNodeAimRelease)
+用户令跑 757/781 格超长途,两跑均 CHURN。#2 现场 100% 复现两卡点逐 tick 定层:(A) aim-deadzone"hold heading"带宽于 step 推进门——bot 停节点旁 1.2 格,历史 yaw16 恒怼南墙(yawErr -115°,91s);(B) walkerTangentAim 在 switchback 拐角投影反向切线(driveYaw -180 vs 节点方位 14°),拐角修正 §13 已死。恢复全家(arc-wedge/anti-stuck burst/safety repath)全开火无效,wallDig 只扫 wp 向(是空的)。修=`walkerRamNodeAimRelease`(default OFF):干地+hCol+stuckT>40+朝向偏节点>60°→朝向切回当前节点方位(非 §25 的 step-1 反锚,碰撞门+当前节点,成功即 hCol/stuckT 清零自然退出)。**A/B:OFF 91s 硬钉死→ON 秒过,781 格全程 ARRIVED 134s worst=3s,ram-release 触发 767 次。**
+教训:三客户端并存(39811 僵尸+39801 新旧冲突)害 setting 静默不生效——relaunch 前 ps 全列 rpcPort 清场。
+
+## 81. 超长途战役 II:planner 定价过乐观让 A* 合法穿树(FloatingBreakTax+LogBreakTax)
+#1 水淹橡林 churn 验尸:path 节点穿水下树干,水下浮挖真实 25×(眼水 ÷5×不着地 ÷5)+bob 漂移进度重置,planner 只价 ×5→"挖穿水下树"胜过绕行(DIG-slow 200-291t 一根 log 挖不完)。修①`pathfinderFloatingBreakTax`(default OFF):from 脚格也是水(浮挖)→×25。修②`pathfinderLogBreakTax`(default 1.0):log 硬度 2 太便宜,密林"砍穿树"数学上最优=用户"寻路走到树里";×3 令绕行胜出(镜像 leaf-tax)。**A/B:OFF 209 格处 90s 永卡→ON 全程 ARRIVED 305s worst=21s(547 格)。**残留:上岸钻进树冠后执行器脱困 12-21s 短卡(能自愈,后续磨)。
