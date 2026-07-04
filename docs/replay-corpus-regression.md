@@ -646,3 +646,8 @@ bot 距 goal 10.5 格(d<8 圈外)在崖顶边缘 91s churn:画面=反复"倒水-
 
 ## 74. 尾延主因转移:planner 偏爱 dig 密集穿山线(C53/C58/C59 三连 50-65s)
 通宵 15 周期统计:绿 C46/C48/C52/C57(~29%),最大杀手已从硬卡死转为 **worst 50-65s 的挖掘尾延**——planner 按真实 tick 成本选中矿井/洞穴直线,每格 dig 的隐藏成本(approach/aim/格间 stall-recovery)不在价里,连环累积破 30s 门。修=`pathfinderBreakCostMultiplier`(default 1.0,验收 FLAGS 2.5):planner breakCost 乘数,偏爱绕行;executor 兜底 dig 不受影响。同场加映:archive_for 误匹配修复(start+goal 双校验,C58-J1 曾重放昨日旅途)。
+
+## 77. ✅✅✅ #47 终门达成:三连续全绿验收周期 C92+C93+C94(2026-07-03 22:26)
+**九程随机长途 live 全 ARRIVED + 27 轮 replay 全 atGoal=True。** worst(移动停滞)九程分布:0/0/6、0/0/3、0/0/0 秒——全部 clean 或 ≤6s,无一犹豫窗口;replay maxStuck 全 ≤150(大多 ≤68)。判据:90s goal-progress churn 门+30s 移动停滞门+dominant-axis 触线+goal 圈 14+3×replay 确定性重放。
+最终 FLAGS 组合(全 default-OFF,runtime-ON):11-flag 丝滑集(§参见 silky_journey_11flag_set)+ walkerStuckStepMonotonic + walkerAboveNodeStallRecover + walkerDigAimPriority + walkerWallDigFallback(40t,无 onGround 门)+ pathfinderBreakCostMultiplier=2.5 + STUCK_PROGRESS_EPS=0.05。
+路径:C43 首绿起 51 个周期的破因驱动闭环——每破必验尸,修 bot(4 个新 flag/参数)与修台架(archive 双校验/移动停滞度量/peaceful/replay 免伤/夜视)并进,绿率从 ~29% 升至末段 ~70%(C89-C94 六周期五绿)。flip-default 决策待用户。
