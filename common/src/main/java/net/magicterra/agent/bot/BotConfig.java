@@ -1661,6 +1661,14 @@ public final class BotConfig {
      *  aim resumes. Default OFF. */
     public static volatile boolean walkerRamNodeAimRelease = false;
 
+    /** Bridge-commit repath hold (§82): a mid-bridge PERIODIC repath swaps the committed
+     *  bridgePlace chain for a fresh plan whose first node sits elsewhere, steering the
+     *  bot off the end of the placed deck into air ("搭桥中途掉下"). Arena A/B: 19-block
+     *  deck finishes inside one repath period and never falls (3/3); diagonal zig-zag and
+     *  40-block decks straddle it and fell 100%. ON = hold routine repaths while the
+     *  current/next edge is bridgePlace; safety repaths stay live. Default OFF. */
+    public static volatile boolean walkerBridgeHoldRepath = false;
+
     /** Floating-dig break repricing (§81, ultra#1 flooded-oak churn): when the from-cell
      *  is water the bot digs while floating — vanilla is 25× slow (eyes-in-water ÷5 ×
      *  not-on-ground ÷5) plus bob-drift progress resets, but the planner priced it 5×.

@@ -996,7 +996,21 @@ public final class Walker {
         }
         boolean safetyRepath = (path == null) || (stuckTicks > STUCK_TICKS) || wedged
                 || ((offPath || fellOffPath) && !fellBelowRoute);
-        boolean fullPeriodic = !pathBestEffort && path != null
+        // walkerBridgeHoldRepath (§82): a mid-bridge PERIODIC repath swaps the committed
+        // bridgePlace chain for a fresh plan whose first node sits elsewhere (arena live:
+        // new node at y+8), and the drive steers off the END of the placed deck into air —
+        // the "搭桥中途掉下" signature. Deck length decides the fate: a 19-block deck
+        // finishes in 8-9s (inside one 10s repath period, 3/3 clean) while diagonal
+        // zig-zag and 40-block decks straddle the period and fell every run. While the
+        // current or next edge is a bridgePlace, hold the ROUTINE repath; safety repaths
+        // (stuck/wedged/off-path) stay live.
+        boolean bridgingNow = false;
+        if (BotConfig.walkerBridgeHoldRepath) {
+            Move.Edge cbE = edgeAt(step), nbE = edgeAt(step + 1);
+            bridgingNow = (cbE != null && "bridgePlace".equals(cbE.move))
+                    || (nbE != null && "bridgePlace".equals(nbE.move));
+        }
+        boolean fullPeriodic = !pathBestEffort && path != null && !bridgingNow
                 && ticksSinceRepath > BotConfig.walkerRepathEveryTicks;
         // ANTI-STUCK (forced displacement, Baritone-UnstuckChain-style): a
         // re-search from the SAME foot is deterministic — when the blocker is

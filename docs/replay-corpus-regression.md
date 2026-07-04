@@ -664,3 +664,7 @@ bot 距 goal 10.5 格(d<8 圈外)在崖顶边缘 91s churn:画面=反复"倒水-
 
 ## 81. 超长途战役 II:planner 定价过乐观让 A* 合法穿树(FloatingBreakTax+LogBreakTax)
 #1 水淹橡林 churn 验尸:path 节点穿水下树干,水下浮挖真实 25×(眼水 ÷5×不着地 ÷5)+bob 漂移进度重置,planner 只价 ×5→"挖穿水下树"胜过绕行(DIG-slow 200-291t 一根 log 挖不完)。修①`pathfinderFloatingBreakTax`(default OFF):from 脚格也是水(浮挖)→×25。修②`pathfinderLogBreakTax`(default 1.0):log 硬度 2 太便宜,密林"砍穿树"数学上最优=用户"寻路走到树里";×3 令绕行胜出(镜像 leaf-tax)。**A/B:OFF 209 格处 90s 永卡→ON 全程 ARRIVED 305s worst=21s(547 格)。**残留:上岸钻进树冠后执行器脱困 12-21s 短卡(能自愈,后续磨)。
+
+## 82. 搭桥中途掉落:机制实锤+修复部分验证(walkerBridgeHoldRepath)
+用户报"搭桥中途掉下"。高空桥 arena 确定性复现:19 格直桥 3/3 稳过(8-9s,一个 repath 周期内);对角锯齿桥/40 格长桥 100% 掉。掉落链铁证(bridge3-OFF 逐 tick):**桥中 repath 把 committed bridgePlace 链换成首节点在别处的新 path(实测 y+8),drive 朝新节点走出已放桥板尽头(z10010 块尽头→z10012 空气)坠落**;MLG 水桶 clutch 一直在兜底(remaining 63.9 place SUCCESS 存活)——掉不死,但一次掉落+爬回耗 30-60s。修=`walkerBridgeHoldRepath`(default OFF):当前/下一 edge 是 bridgePlace 时抑制 ROUTINE repath(safety 保留)。
+受控 A/B(repath 50t 强制)未能判决:强制周期下 safety repath/best-effort 换 path 仍会掉,且"孤岛"台架让 A* 干脆不出桥线(bridgeCost 80×N,goalReached=false best-effort 乱走/绕谷底)——**台架教训:A* 天然回避长桥,人造"必须长桥"场景与真实世界(短桥 5-15 格跨峡谷)失真**。机制正确性靠 OFF 铁证支撑;实效验证交给长途验收(桥场景天然出现)。残留方向:repath 后新旧 path 桥沿衔接保护。
