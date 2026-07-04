@@ -689,3 +689,6 @@ C102-J2 live 段(-218,-122)bot 摔死在石笋上(尖块落地伤害×2,live 段
 
 ## 88b. C103-J2 timeout-CHURN 定性=挖降路线拖慢非卡死(观察,未修)
 J2(-333,-93→-199,-115)240s timeout 判 CHURN,但验尸:worst 仅 9s、bot 推进 190 格路程、wp 链 y58→y43 阶梯下挖、planner best-effort×24。定性=A* 选了挖降穿山路线(合法但慢,每格挖 2-3 块),非停滞死循环。单例不动全局 breakCost 定价;若复现升级为 pattern 再决策(候选:非 log 硬石挖降在 best-effort 段加 tax / 台架对挖掘段放宽 timeout)。
+
+## 88c. #13 replay 漂移方差定性(观察归档):污染敏感+边缘卡窗,live 无恙
+C103-J3 曾 2/3 漂移 False(278/284),但干净世界 5 连跑 5/5 全过(67/280/120/64/63,end 点一致 ±1 格)。定性:①replay 判定方差主要来自 live 段挖/放块的世界污染残留(replay 起跑世界≠archive 时世界);②mid-route 200-300t 卡窗的脱困方向随机,把终点推到 14 格判定圈边缘。live 从不受影响(C100/C101/C104 live 全绿)。属台架判定噪声,非执行器缺陷。改进候选(未做):run_case 回放前对 envelope 区域做 world restore。
