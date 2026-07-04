@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`mc.bot.goto` now accepts per-navigation cost bias — `avoid` (route around
+  zones), `preferY` (stay in a Y band), `leash` (soft-stay near an anchor) — via
+  the LLM navigation intent layer's `CostModifier` bias channel. Intent-scoped
+  (cleared when the goto ends), unlike the global `avoidPoints` setting.**
 - **Path archive / replay / analysis toolchain — deterministic wedge reproduction.**
   Three pieces: (1) `mc.bot.setting{pathArchive:true}` enables per-session recording
   (default **OFF** — heavyweight); on `goto` completion a self-contained JSON archive
