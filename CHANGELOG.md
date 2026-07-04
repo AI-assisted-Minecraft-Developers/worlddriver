@@ -110,6 +110,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and three-transport metadata parity — suite is now 60 GameTest cases.
 
 ### Changed
+- **Internal: the pathfinder now accepts a per-intent cost bias (a `CostModifier`
+  list) threaded from the `Intent` through the `Walker` into each search, appended
+  after the legacy taxes — inert no-op in A4a (empty bias; byte-identical), the
+  channel the LLM navigation intent layer's avoid/prefer/leash biases (A4b) ride.**
 - **Internal: `mc.bot.goto` (plus the elytra ground-fallback and the replay-replan
   path) now runs on the generic `IntentProcess` (over an `Intent` value type) instead
   of the bespoke `GotoProcess` — no behavior change (A1 groundwork for the LLM
