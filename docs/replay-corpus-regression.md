@@ -686,3 +686,6 @@ C99-J1 丛林 ARRIVED-SLOW(worst 30s)验尸:①DIG-dropped 9t——挖掘刚开�
 
 ## 88. "impaled on a stalagmite" 死亡=POINTED_DRIPSTONE 漏出 HAZARD_BLOCKS 名单
 C102-J2 live 段(-218,-122)bot 摔死在石笋上(尖块落地伤害×2,live 段无保护 buff=真实条件)。根因=POINTED_DRIPSTONE 从未进 HAZARD_BLOCKS(cactus/magma/powder_snow/berry/wither_rose 在)——contact-ring tax 和 isHazard 对石笋全隐形,A* 不绕、fall 落点旁漂移±1 落尖即死。与 42 刀 FLOWING_LAVA FluidTags 失明同类(名单缺项)。修=名单+1 行,contact ring 自动 tax 石笋邻域、isHazard 链全通。
+
+## 88b. C103-J2 timeout-CHURN 定性=挖降路线拖慢非卡死(观察,未修)
+J2(-333,-93→-199,-115)240s timeout 判 CHURN,但验尸:worst 仅 9s、bot 推进 190 格路程、wp 链 y58→y43 阶梯下挖、planner best-effort×24。定性=A* 选了挖降穿山路线(合法但慢,每格挖 2-3 块),非停滞死循环。单例不动全局 breakCost 定价;若复现升级为 pattern 再决策(候选:非 log 硬石挖降在 best-effort 段加 tax / 台架对挖掘段放宽 timeout)。
