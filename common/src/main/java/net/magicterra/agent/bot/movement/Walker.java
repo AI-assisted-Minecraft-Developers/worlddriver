@@ -1415,8 +1415,11 @@ public final class Walker {
         ticksSinceRepath++;
         // §84 physical stall clock — see field doc. Ticks on XZ displacement only,
         // survives every path/step/repath reset.
-        if (Double.isNaN(stallAnchorX)
-                || Math.abs(p.getX() - stallAnchorX) + Math.abs(p.getZ() - stallAnchorZ) > 1.5) {
+        // Euclidean 2.0 window (rig-metric parity): the first cut used |dx|+|dz|>1.5,
+        // which a reCentre/carrot tug-of-war micro-orbit (1-2 block circles at a pinned
+        // corner, C98-J2 replay) reset continuously — the clock never reached its gate.
+        double sdxA = p.getX() - stallAnchorX, sdzA = p.getZ() - stallAnchorZ;
+        if (Double.isNaN(stallAnchorX) || sdxA * sdxA + sdzA * sdzA > 4.0) {
             stallAnchorX = p.getX();
             stallAnchorZ = p.getZ();
             physicalStallTicks = 0;
@@ -4759,6 +4762,27 @@ public final class Walker {
                 BlockPos headCell = BlockPos.containing(p.getX() + fdx / fl, p.getY() + 1.4, p.getZ() + fdz / fl);
                 BlockPos feetCell = BlockPos.containing(p.getX() + fdx / fl, p.getY() + 0.4, p.getZ() + fdz / fl);
                 BlockPos tgt = world.isSolid(headCell) ? headCell : world.isSolid(feetCell) ? feetCell : null;
+                // §85: the wp-facing probe goes EMPTY-HANDED when the pinning wall's normal
+                // is not the wp direction (ultra#2: wall south, wp east; C98-J2 canopy pin:
+                // wp a stepDown below, hCol from a side trunk) — hCol says "a wall touches
+                // the box" but not WHERE. Fall back to the drive heading, then sweep the
+                // four neighbours at head/feet height and punch the first solid. Still
+                // gated on the confirmed stall, so open-field travel never reaches this.
+                if (tgt == null) {
+                    double ryaw = Math.toRadians(p.getYRot());
+                    double ddx = -Math.sin(ryaw), ddz = Math.cos(ryaw);
+                    BlockPos dh = BlockPos.containing(p.getX() + ddx, p.getY() + 1.4, p.getZ() + ddz);
+                    BlockPos df = BlockPos.containing(p.getX() + ddx, p.getY() + 0.4, p.getZ() + ddz);
+                    tgt = world.isSolid(dh) ? dh : world.isSolid(df) ? df : null;
+                }
+                if (tgt == null) {
+                    for (int[] nb : new int[][]{{1,0},{-1,0},{0,1},{0,-1}}) {
+                        BlockPos nh = BlockPos.containing(p.getX() + nb[0], p.getY() + 1.4, p.getZ() + nb[1]);
+                        BlockPos nf = BlockPos.containing(p.getX() + nb[0], p.getY() + 0.4, p.getZ() + nb[1]);
+                        if (world.isSolid(nh)) { tgt = nh; break; }
+                        if (world.isSolid(nf)) { tgt = nf; break; }
+                    }
+                }
                 if (tgt != null) {
                     a.selectTool(tgt);
                     a.aimAtBlock(tgt);

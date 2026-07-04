@@ -674,3 +674,6 @@ bot 距 goal 10.5 格(d<8 圈外)在崖顶边缘 91s churn:画面=反复"倒水-
 
 ## 84. 树冠永卡=stuck 时钟第三次被清零饿死恢复(walkerPhysicalStallClock)
 C97-J1 replay#2/#3 确定性复现:bot 钉死树冠(1200t 全程,atGoal=False×2),树叶一拳 instabreak 就通但 attack=false 全程。根因=**safety-repath 循环每 ~3s 换 path→stepWindowFresh→stuckTicks 清零→物理静止的 bot 永远过不了 stuckT>40 门→wallDig/ramRelease 双饿死**,只剩 jump-ram 空转(§71/§80 同类第三次,前两次因 path 恰好稳定而 stuckT 能涨)。修=`walkerPhysicalStallClock`(default OFF):XZ 锚定位移时钟(镜像验收台 worst 度量,与 path/step/repath 完全解耦,垂直 bob 不算移动),wallDig/ramRelease 增加 `physicalStallTicks>60` 触发通道。**A/B(replay-0004 树冠):OFF 1200 永卡×2→ON 两轮全部 atGoal(243/1038)——死变慢。**
+
+## 85. 恢复族打架收口:锚窗放宽+wallDig 全向扫描(遗留清单①)
+C98-J2 水边树冠 replay 定层第四类:reCentre(stuckT>5 即抢 aim)与 carrot 拉锯出 1-2 格微圈,曼哈顿 1.5 锚窗被反复重置→physicalStallTicks 也饿死;且 ram-release 开火 26 次无效(转向后墙仍在,真解是挖)而 wallDig 的 wp 向探针在"墙法向≠wp 方向"时空手(ultra#2 同形态)。修:①物理锚窗 1.5 曼哈顿→2.0 欧氏(台架 worst 同构,微圈不再清钟);②wallDig 目标扫描 wp 向空手→drive 向→四邻 head/feet 第一个 solid。**A/B(replay-0002):基线 1200F/765F/439T→188T/165F/409T——硬卡死消灭,残余为 8s 级漂移方差。**
