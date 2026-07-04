@@ -92,19 +92,28 @@ public final class PathFinder {
     private final WorldView world;
     private final int maxNodes;
     private final long maxMs;
+    /** Per-intent cost modifiers appended to each Search's stack after the legacy
+     *  taxes (A4a: the LLM navigation intent layer's bias channel). Empty for a
+     *  plain search. */
+    private final List<CostModifier> bias;
 
     /** Default ctor reads live tunables from {@link net.magicterra.agent.bot.BotConfig}
      *  so {@code mc.bot.setting{pathfinder.maxNodes:...}} can resize the budget
      *  without restarting the JVM. */
     public PathFinder(WorldView world) {
-        this(world,
-                BotConfig.pathfinderMaxNodes,
-                BotConfig.pathfinderMaxMs);
+        this(world, BotConfig.pathfinderMaxNodes, BotConfig.pathfinderMaxMs);
+    }
+    public PathFinder(WorldView world, List<CostModifier> bias) {
+        this(world, BotConfig.pathfinderMaxNodes, BotConfig.pathfinderMaxMs, bias);
     }
     public PathFinder(WorldView world, int maxNodes, long maxMs) {
+        this(world, maxNodes, maxMs, List.of());
+    }
+    public PathFinder(WorldView world, int maxNodes, long maxMs, List<CostModifier> bias) {
         this.world = world;
         this.maxNodes = maxNodes;
         this.maxMs = maxMs;
+        this.bias = (bias == null) ? List.of() : bias;
     }
 
     /** Run a search to completion in one call (synchronous). Kept for callers
@@ -235,6 +244,9 @@ public final class PathFinder {
             costModifiers.add((f, t, e, g, w) -> padOverWaterTax(t));
             costModifiers.add((f, t, e, g, w) -> climbOutTax(f, t));
             costModifiers.add((f, t, e, g, w) -> submergedTax(f, t));
+            // A4a: append this search's per-intent bias AFTER the legacy taxes.
+            // Empty for a plain search → byte-identical to the pre-A4a stack.
+            costModifiers.addAll(bias);
         }
 
         public boolean done() { return result != null; }
