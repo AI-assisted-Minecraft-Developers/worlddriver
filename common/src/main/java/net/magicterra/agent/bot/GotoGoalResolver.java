@@ -121,8 +121,9 @@ final class GotoGoalResolver {
     /**
      * Parse the per-intent cost bias args (avoid / preferY / leash) into modifiers
      * appended to the Intent. Empty when none supplied → plain navigation, byte-
-     * identical to A4a. Malformed entries are skipped (not thrown) — mirrors the
-     * {@code avoidPoints} leniency in {@link SettingsCommand}.
+     * identical to A4a. Malformed entries are skipped per-item (not thrown) — a
+     * bad zone drops just itself, unlike {@code avoidPoints} in {@link SettingsCommand}
+     * which rejects the whole list.
      */
     static List<CostModifier> resolveBias(Params p) {
         List<CostModifier> bias = new ArrayList<>();
@@ -145,8 +146,8 @@ final class GotoGoalResolver {
             Object loO = b.get("min"), hiO = b.get("max");
             if (loO instanceof Number lo && hiO instanceof Number hi) {
                 double weight = Params.toDouble(b.get("weight"), 10.0);
-                bias.add(new PreferYBand(
-                        Math.min(lo.intValue(), hi.intValue()), Math.max(lo.intValue(), hi.intValue()), weight));
+                int loY = (int) Math.floor(lo.doubleValue()), hiY = (int) Math.floor(hi.doubleValue());
+                bias.add(new PreferYBand(Math.min(loY, hiY), Math.max(loY, hiY), weight));
             }
         }
         // leash: {x,y,z,radius,weight?} — soft-tether to a static anchor.
