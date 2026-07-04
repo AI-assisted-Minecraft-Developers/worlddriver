@@ -44,6 +44,10 @@ public final class BotTools {
                 "  - direction + strict:true  → keep heading that cardinal with no fixed endpoint " +
                 "(Baritone GoalStrictDirection); ignores distance.\n" +
                 "  - invert:true              → flee the resolved goal instead of reaching it (Baritone GoalInverted).\n" +
+                "Bias modifiers (Intent-scoped cost tweaks):\n" +
+                "  avoid    [{x,y,z,radius?,penalty?},...] — per-goto zones to route AROUND (ramp to 0 at radius; dflt radius 8 / penalty 250). Intent-scoped alt to the global avoidPoints setting.\n" +
+                "  preferY  {min,max,weight?} — bias the route to stay in a Y band (weight/block outside; dflt 10). E.g. keep to the 2nd floor / hug the surface.\n" +
+                "  leash    {x,y,z,radius,weight?} — soft-leash the route near an anchor (weight/block beyond radius; dflt 20). E.g. lead a companion without straying far.\n" +
                 "Optional near:N relaxes target to a Euclidean radius. block selector also takes " +
                 "radius:N (search box, 1-64). " +
                 "Returns {ok, started, goal} or {ok:false, error}.",
@@ -77,6 +81,14 @@ public final class BotTools {
                         .desc("With direction: keep heading that cardinal indefinitely (no fixed endpoint)."))
                     .prop("invert", bool()
                         .desc("Flee the resolved goal instead of reaching it."))
+                    .prop("avoid", array(object()
+                            .prop("x", number()).prop("y", number()).prop("z", number())
+                            .prop("radius", number()).prop("penalty", number())))
+                    .prop("preferY", object()
+                            .prop("min", number()).prop("max", number()).prop("weight", number()))
+                    .prop("leash", object()
+                            .prop("x", number()).prop("y", number()).prop("z", number())
+                            .prop("radius", number()).prop("weight", number()))
                     .prop("awaitMs", awaitMs())
                 ),
 
