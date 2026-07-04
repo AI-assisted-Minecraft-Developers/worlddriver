@@ -1583,6 +1583,14 @@ public final class BotConfig {
      *  0 = off. Trial value 12 (≈ one extra walk block per taxed climb block). */
     public static volatile double pathfinderSteepAscentTax = 0.0;
 
+    /** §92 chain-mount (#15 steep-climb executor lane). Consecutive same-direction +1
+     *  steps loosen the stepUp square-up gate (sideDist 0.2→0.45, lateral 0.1→0.25,
+     *  launch 1.7→2.0) so the staircase is ridden on landing momentum instead of
+     *  stall-recentre-jump per step — the recentre window on a slope is exactly the
+     *  slide-back window (slow-map y sawtooth). Direction changes keep the strict
+     *  gate. Default OFF. */
+    public static volatile boolean walkerChainMount = false;
+
     /** Repath route-oscillation damper (the C16 dry-land churn, REGRESSION §55 final autopsy):
      *  two near-equal-cost A* routes (a dig-through and a detour) alternate across periodic
      *  repaths — each adoption U-TURNS the bot onto the other route, and it runs both at full

@@ -4035,9 +4035,28 @@ public final class Walker {
             // below). Misaligned → don't jump yet (the pivot/strafe centres first), matching
             // the old square-up-before-jump discipline. The arena A/B (not noisy live terrain,
             // which the prior disproofs used) is the gate for this.
-            boolean aligned = Math.abs(lateralMotion) <= 0.1 && sideDist <= 0.2;
+            // §92 chain-mount (#15 steep-climb lane): on CONSECUTIVE same-direction +1
+            // steps the strict square-up gate is the slide-back window itself — the bot
+            // lands each mount with residual lateral motion, fails `aligned`, and stalls
+            // to re-centre on a slope that sheds it backward (slow-map: y sawtooth
+            // 53→54→56→54, 220s/300s burned in three climb zones). A human sprint-jumps
+            // the whole staircase riding the landing momentum. When the JUST-MOUNTED edge
+            // and the NEXT edge are both +1 in the same horizontal direction, loosen the
+            // gate (sideDist 0.45, lateral 0.25, launch 2.0) so the chain keeps rolling;
+            // direction changes keep the strict gate (a loose corner launch bonks).
+            boolean chainAscend = false;
+            if (BotConfig.walkerChainMount && step >= 2) {
+                BlockPos cmP = path.get(step - 1), cmP2 = path.get(step - 2);
+                chainAscend = cmP.getY() - cmP2.getY() == 1
+                        && wp.getY() - cmP.getY() == 1
+                        && Integer.signum(wp.getX() - cmP.getX()) == Integer.signum(cmP.getX() - cmP2.getX())
+                        && Integer.signum(wp.getZ() - cmP.getZ()) == Integer.signum(cmP.getZ() - cmP2.getZ());
+            }
+            boolean aligned = chainAscend
+                    ? (Math.abs(lateralMotion) <= 0.25 && sideDist <= 0.45)
+                    : (Math.abs(lateralMotion) <= 0.1 && sideDist <= 0.2);
             sprintAscend = aligned;
-            ascendJumpReady = aligned && flatDist <= 1.7;
+            ascendJumpReady = aligned && flatDist <= (chainAscend ? 2.0 : 1.7);
             // STEPUP BACKOFF-RETRY trigger (walkerStepUpBackoffRetry, default OFF): the early
             // jump above assumes sprint momentum from the approach, but a slid-back mount
             // retries from a STANDING start pressed against the riser — a near-vertical hop

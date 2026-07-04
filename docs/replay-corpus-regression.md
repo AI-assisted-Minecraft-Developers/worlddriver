@@ -701,3 +701,6 @@ C106-J3 CHURN 卡点距 start 仅 12 格:上一程的 14 格到达圈落在丛�
 
 ## 91. 陡爬链税=DISPROVEN(激进尝试#2,flag 留 0)
 slow-map 数据(replay-0008:74% 采样<1.5bps,220s/300s 烧在三个陡爬区,y 锯齿=爬2滑1)指向陡爬执行慢。试 planner 层:连续爬形状(落点正对 2 高墙)加 pathfinderSteepAscentTax=12。A/B 决定性反向:tax0 到达 100.8/266.6s vs tax12 双 300s-timeout(worst 30/126s)+视频挖-放循环——**税使 stepUp(15+12=27)贵过挖隧道(25),A* 转向更慢的 dig 路线**。结论:陡爬 slide-back 的解不在 planner 绕行(绕=挖隧道或更长),在执行层爬升效率本身(jump 时机/mount 落点精度,ascentRamSlide 只修了一半的 near-vertical 残留)。flag default 0 留档。slow-map 方法(2s 采样速度分布定位慢区)入工具箱。
+
+## 92. chain-mount 连跳门=无差判定(激进尝试#3,flag 留 OFF)
+执行层刀:同方向连续 +1 链放宽 stepUp 对齐门(sideDist 0.45/lateral 0.25/launch 2.0)骑 momentum 连跳。合成 20 级直线梯 A/B:OFF/ON 完全一致(10.3-10.5s,每级 0.5s=已达人类速)——直梯上严门本就常通过,chain 门无从体现;replay-0008 慢样本台则劣化到基线 3/3 timeout(多轮 restore 后世界破损,方差吞信号)。**修正认知:slowmap 慢区不是"直线 mount 慢"而是复杂陡坡的爬上-掉下往复(y 67↔70 反复)**——转向频繁使"同方向链"条件也很少成立。#15 下场路线:从 replay-0008 慢区(175,67,257 邻域)切真实 envelope 建确定性复杂陡坡 arena(live-is-truth 原则),先逐 tick 验尸"掉下来"的机制(过冲掉边?fellOffPath?)再设计。§90/91/92 三刀证伪的共同教训:平地/直梯/开阔地都已达标,所有剩余时间损失集中在复杂 3D 陡坡的往复循环,那是一个"正确性"问题不是"调参"问题。
