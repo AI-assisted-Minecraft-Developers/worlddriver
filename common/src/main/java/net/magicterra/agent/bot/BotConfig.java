@@ -1591,6 +1591,13 @@ public final class BotConfig {
      *  gate. Default OFF. */
     public static volatile boolean walkerChainMount = false;
 
+    /** §93 commit-tail platform retreat (#15 final lane). Best-effort segments whose
+     *  tail lands mid-slope (fewer than 2 same-Y standable cardinal neighbours) retreat
+     *  up to 8 nodes to the nearest platform node — the half-mounted commit tail plus
+     *  periodic repath is what turns complex steep terrain into a 100s climb-fall grind
+     *  while the same terrain runs clean standalone (§92b CSI). Default OFF. */
+    public static volatile boolean walkerCommitTailPlatform = false;
+
     /** Repath route-oscillation damper (the C16 dry-land churn, REGRESSION §55 final autopsy):
      *  two near-equal-cost A* routes (a dig-through and a detour) alternate across periodic
      *  repaths — each adoption U-TURNS the bot onto the other route, and it runs both at full

@@ -707,3 +707,6 @@ slow-map 数据(replay-0008:74% 采样<1.5bps,220s/300s 烧在三个陡爬区,y 
 
 ## 92b. CSI 决定性:慢区地形短途 8s 直达=慢是"长途状态"的产物(#15 靶心再修正)
 replay-0008 慢区(171,67,254→195,64,266,长途中磨 ~100s)restore 后短途单跑:**8 秒直达零磨蹭**。结论:复杂陡坡往复不是执行器地形能力缺陷,而是长途中的 planner 状态——best-effort commit 段(goalReached=false)把段尾目标放在陡坡半腰、周期 repath 在半坡重排、进入方向不同(长途从上方掉入)。与 §88b(挖降 timeout=planner best-effort 选择)同类。#15 最终定位:**best-effort commit 段在复杂地形的段尾选择/repath 一致性**(routeHysteresis 只防翻面,不防半坡 commit 尾)。下场:长途复现+commit 段尾轨迹追踪(记录每次 commitEnd 与地形的关系),再设计段尾选择改进(如 commit 尾偏好平台格/避免半坡)。
+
+## 93. commit 尾平台回退=实现完毕,判定未决(#15 最终刀,flag 留 OFF)
+§92b 靶心的对症实现:best-effort 段尾非平台(同 Y 四邻可站<2)时回退 ≤8 节点到最近平台节点(walkerCommitTailPlatform,default OFF)。判定受挫:①C105-J2 原路线在当前世界已报废(4/4 timeout,OFF/ON 皆然,世界多轮实验污染);②45s 强制 best-effort 探针 retreat 0 触发——开阔地形段尾天然是平台,需要"尾在半坡"专门场景。下场验证路线:fresh spread 山地重跑长途(C105-J2 类)K≥3 每臂,或造陡山+超远 goal 合成台;机制日志=[walker] commit-tail retreat。教训:**判定台先于实现**——本日 §91/92/93 三刀全卡在判定台不可信(replay 台劣化/route 报废/合成台不含目标形态),下一场先建可信陡坡判定台再动刀。
