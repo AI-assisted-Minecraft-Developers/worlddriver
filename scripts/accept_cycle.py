@@ -136,6 +136,11 @@ def live_journey(label):
                     rpc('mc.client.chat.send', {'text': '/give @p water_bucket'})
                 if 'minecraft:diamond_pickaxe' not in hot:
                     rpc('mc.client.chat.send', {'text': '/give @p diamond_pickaxe'})
+                # cobble starves too (C98-J1: 30-block cliff pillarUp jump-spun with the
+                # block supply consumed by earlier digs/bridges — top-up only covered
+                # bucket/pickaxe, so the pillar had nothing to place)
+                if 'minecraft:cobblestone' not in hot:
+                    rpc('mc.client.chat.send', {'text': '/give @p cobblestone 64'})
             except Exception:
                 pass
         d = math.dist((x, z), (gx, gz))
