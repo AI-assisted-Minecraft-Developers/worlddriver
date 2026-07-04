@@ -651,3 +651,6 @@ bot 距 goal 10.5 格(d<8 圈外)在崖顶边缘 91s churn:画面=反复"倒水-
 **九程随机长途 live 全 ARRIVED + 27 轮 replay 全 atGoal=True。** worst(移动停滞)九程分布:0/0/6、0/0/3、0/0/0 秒——全部 clean 或 ≤6s,无一犹豫窗口;replay maxStuck 全 ≤150(大多 ≤68)。判据:90s goal-progress churn 门+30s 移动停滞门+dominant-axis 触线+goal 圈 14+3×replay 确定性重放。
 最终 FLAGS 组合(全 default-OFF,runtime-ON):11-flag 丝滑集(§参见 silky_journey_11flag_set)+ walkerStuckStepMonotonic + walkerAboveNodeStallRecover + walkerDigAimPriority + walkerWallDigFallback(40t,无 onGround 门)+ pathfinderBreakCostMultiplier=2.5 + STUCK_PROGRESS_EPS=0.05。
 路径:C43 首绿起 51 个周期的破因驱动闭环——每破必验尸,修 bot(4 个新 flag/参数)与修台架(archive 双校验/移动停滞度量/peaceful/replay 免伤/夜视)并进,绿率从 ~29% 升至末段 ~70%(C89-C94 六周期五绿)。flip-default 决策待用户。
+
+## 78. flip-default 落地:31 个 #47 验证 flag 翻默认 ON + GT legacy 基线钉扎(2026-07-04)
+用户批准后执行:accept FLAGS 全集(11-flag 丝滑集+monotonic+digAim+wallDig+breakCost2.5+水域/岸族+allowBreak/Place 等 31 项)翻 BotConfig 默认。首轮 GT 14 required 红=**套件断言建立在旧 default-OFF 基线**(测试未显式设置的 flag 默认变 ON 改变 arena 行为)。解=`BotConfig.applyGameTestBaseline()`:GameTestServer 启动时(`instanceof GameTestServer` 门)钉回 legacy 基线,live/integrated 不受影响;要 flag 的测试仍显式自设。第二轮 GT 只剩 flaky 双人组(waterFarAim/descentYaw,§70 已证伪),回归通过。

@@ -44,7 +44,15 @@ public final class AgentDriverNeoForge {
     }
 
     @SubscribeEvent
-    public void onServerStarting(ServerStartingEvent event) { AgentDriverCommon.onServerStarting(); }
+    public void onServerStarting(ServerStartingEvent event) {
+        // GameTest suite runs on a dedicated GameTestServer: pin the legacy default-OFF
+        // flag baseline the arenas were authored against (BotConfig.applyGameTestBaseline
+        // doc). Live/integrated servers keep the new defaults.
+        if (event.getServer() instanceof net.minecraft.gametest.framework.GameTestServer) {
+            net.magicterra.agent.bot.BotConfig.applyGameTestBaseline();
+        }
+        AgentDriverCommon.onServerStarting();
+    }
 
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) { AgentDriverCommon.onServerStarted(event.getServer()); }
