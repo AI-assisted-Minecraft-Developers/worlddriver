@@ -1575,6 +1575,14 @@ public final class BotConfig {
      *  corner-scrape micro-slowdowns. Default OFF. */
     public static volatile boolean walkerDiagonalStringPull = false;
 
+    /** §91 steep-ascent chain tax (#15). Ascending edge whose landing faces another
+     *  2-high wall (the climb continues immediately) costs this much extra — the
+     *  slow-map measured continued climbs at ~5s/block real execution (climb-2-slide-1
+     *  churn) while A* priced them 15 vs walk 10. Taxing the continued-climb shape
+     *  steers the planner onto switchbacks/detours that execute at full walk speed.
+     *  0 = off. Trial value 12 (≈ one extra walk block per taxed climb block). */
+    public static volatile double pathfinderSteepAscentTax = 0.0;
+
     /** Repath route-oscillation damper (the C16 dry-land churn, REGRESSION §55 final autopsy):
      *  two near-equal-cost A* routes (a dig-through and a detour) alternate across periodic
      *  repaths — each adoption U-TURNS the bot onto the other route, and it runs both at full

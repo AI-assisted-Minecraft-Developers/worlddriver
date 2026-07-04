@@ -698,3 +698,6 @@ C106-J3 CHURN 卡点距 start 仅 12 格:上一程的 14 格到达圈落在丛�
 
 ## 90. 对角 string-pull=无益判定(激进尝试#1,flag 留 OFF)
 #15 平滑战役第一刀:解禁 stringPull 对角合并(body-LOS 守卫,walkerDiagonalStringPull,default OFF)。开阔混合地形 45° 对角 156 格 A/B(3×3 交替):OFF 53/41/41s vs ON 58/39/66s——无提升,均值反劣。结论=carrot 的 body-LOS lookahead 在执行层已连续切角,path 层再平滑是重复工作;开阔地 3.8 bps 已近 sprint 极限。微卡真源在障碍密集区(丛林 trunk 面/上坡 jump 时机/水岸),flag 永久 OFF 留档(walkerCarrotHColShrink 同模式)。下一刀先做慢段分布分析,数据定位后再动。
+
+## 91. 陡爬链税=DISPROVEN(激进尝试#2,flag 留 0)
+slow-map 数据(replay-0008:74% 采样<1.5bps,220s/300s 烧在三个陡爬区,y 锯齿=爬2滑1)指向陡爬执行慢。试 planner 层:连续爬形状(落点正对 2 高墙)加 pathfinderSteepAscentTax=12。A/B 决定性反向:tax0 到达 100.8/266.6s vs tax12 双 300s-timeout(worst 30/126s)+视频挖-放循环——**税使 stepUp(15+12=27)贵过挖隧道(25),A* 转向更慢的 dig 路线**。结论:陡爬 slide-back 的解不在 planner 绕行(绕=挖隧道或更长),在执行层爬升效率本身(jump 时机/mount 落点精度,ascentRamSlide 只修了一半的 near-vertical 残留)。flag default 0 留档。slow-map 方法(2s 采样速度分布定位慢区)入工具箱。

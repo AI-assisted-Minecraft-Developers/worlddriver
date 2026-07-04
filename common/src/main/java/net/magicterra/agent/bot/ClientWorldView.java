@@ -204,18 +204,37 @@ public final class ClientWorldView implements WorldView {
         return fs.getFlow(lvl, p);   // (x,y,z) velocity; zero for a still source
     }
     @Override public double directionalCost(BlockPos from, BlockPos to) {
-        if (BotConfig.waterFlowPenalty <= 0) return 0;
+        double dc = 0;
+        // §91 steep-ascent chain tax (#15 smoothness: the slow-map showed 74% of a
+        // mixed journey's samples under 1.5 b/s, 220s/300s burned in THREE steep-climb
+        // zones with y sawing up-down — climb-2-slide-1. A* prices stepUp at 15 vs
+        // walk 10, but a CONTINUED climb (wall straight ahead at the landing, so the
+        // next move must climb again) executes at ~5s/block real time. Tax exactly
+        // that shape — ascending edge whose landing faces another 2-high wall — so
+        // the planner prefers a gentle switchback/detour; an isolated step or a
+        // staircase with a flat landing stays untaxed.
+        if (BotConfig.pathfinderSteepAscentTax > 0 && to.getY() > from.getY()) {
+            int adx = Integer.signum(to.getX() - from.getX());
+            int adz = Integer.signum(to.getZ() - from.getZ());
+            if (adx != 0 || adz != 0) {
+                BlockPos ahead = to.offset(adx, 0, adz);
+                if (isSolid(ahead) && isSolid(ahead.above())) {
+                    dc += BotConfig.pathfinderSteepAscentTax;
+                }
+            }
+        }
+        if (BotConfig.waterFlowPenalty <= 0) return dc;
         Vec3 flow = waterFlow(to);
         double fx = flow.x, fz = flow.z;
         double fm = Math.sqrt(fx * fx + fz * fz);
-        if (fm < 1e-3) return 0;                              // still water → no current
+        if (fm < 1e-3) return dc;                              // still water → no current
         double dx = to.getX() - from.getX(), dz = to.getZ() - from.getZ();
         double dm = Math.sqrt(dx * dx + dz * dz);
-        if (dm < 1e-6) return 0;                              // pure vertical move
+        if (dm < 1e-6) return dc;                              // pure vertical move
         // Component of travel AGAINST the current (>0 only when heading upstream).
         double upstream = -(fx * dx + fz * dz) / dm;          // = |flow|·cos(angle to downstream), signed
-        if (upstream <= 0) return 0;                          // crossing or with the flow → no extra cost
-        return BotConfig.waterFlowPenalty * upstream;         // |flow|·cosθ scaled
+        if (upstream <= 0) return dc;                          // crossing or with the flow → no extra cost
+        return dc + BotConfig.waterFlowPenalty * upstream;         // |flow|·cosθ scaled
     }
     public boolean isHazard(BlockPos p) {
         BlockState s = state(p);
