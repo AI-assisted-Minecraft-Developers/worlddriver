@@ -10,9 +10,11 @@ import net.minecraft.core.BlockPos;
  * changing behavior; later phases (the LLM navigation intent layer) add and
  * remove modifiers per intent (avoid / leash / preferY / water taxes ...).
  *
- * <p><b>Admissibility contract:</b> implementations MUST return {@code >= 0}, or
- * the A* heuristic stops being an underestimate and optimality/termination
- * guarantees break.
+ * <p><b>Admissibility contract:</b> implementations MUST return {@code >= 0}.
+ * These are edge (g-cost) contributions, not heuristic terms; a negative one
+ * would lower the true remaining cost below the fixed Euclidean heuristic's
+ * estimate, making {@code h} no longer an underestimate and breaking A*
+ * optimality/termination.
  *
  * <p>{@code goal} and {@code world} are supplied so an implementation need not
  * close over a {@link PathFinder.Search}; the A0 adapters ignore them and call
