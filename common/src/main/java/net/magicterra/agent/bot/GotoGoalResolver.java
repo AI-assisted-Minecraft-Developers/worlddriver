@@ -1,5 +1,9 @@
 package net.magicterra.agent.bot;
 
+import net.magicterra.agent.bot.pathfinder.CostModifier;
+import net.magicterra.agent.bot.pathfinder.modifiers.AvoidRegion;
+import net.magicterra.agent.bot.pathfinder.modifiers.LeashAnchor;
+import net.magicterra.agent.bot.pathfinder.modifiers.PreferYBand;
 import net.magicterra.agent.model.Params;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -7,6 +11,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -110,5 +116,51 @@ final class GotoGoalResolver {
             return targetGoal(wpPos, mode, near);
         }
         return null;
+    }
+
+    /**
+     * Parse the per-intent cost bias args (avoid / preferY / leash) into modifiers
+     * appended to the Intent. Empty when none supplied → plain navigation, byte-
+     * identical to A4a. Malformed entries are skipped (not thrown) — mirrors the
+     * {@code avoidPoints} leniency in {@link SettingsCommand}.
+     */
+    static List<CostModifier> resolveBias(Params p) {
+        List<CostModifier> bias = new ArrayList<>();
+        // avoid: [{x,y,z,radius?,penalty?}, ...] — per-intent route-around zones.
+        if (p.get("avoid") instanceof List<?> zones) {
+            for (Object o : zones) {
+                if (!(o instanceof Map<?, ?> m)) continue;
+                Object xo = m.get("x"), yo = m.get("y"), zo = m.get("z");
+                if (!(xo instanceof Number) || !(yo instanceof Number) || !(zo instanceof Number)) continue;
+                double x = ((Number) xo).doubleValue();
+                double y = ((Number) yo).doubleValue();
+                double z = ((Number) zo).doubleValue();
+                double radius = Params.toDouble(m.get("radius"), 8.0);
+                double penalty = Params.toDouble(m.get("penalty"), 250.0);
+                bias.add(new AvoidRegion(x, y, z, radius, penalty));
+            }
+        }
+        // preferY: {min,max,weight?} — hug a Y band (e.g. "2nd floor", "surface").
+        if (p.get("preferY") instanceof Map<?, ?> b) {
+            Object loO = b.get("min"), hiO = b.get("max");
+            if (loO instanceof Number lo && hiO instanceof Number hi) {
+                double weight = Params.toDouble(b.get("weight"), 10.0);
+                bias.add(new PreferYBand(
+                        Math.min(lo.intValue(), hi.intValue()), Math.max(lo.intValue(), hi.intValue()), weight));
+            }
+        }
+        // leash: {x,y,z,radius,weight?} — soft-tether to a static anchor.
+        if (p.get("leash") instanceof Map<?, ?> l) {
+            Object xo = l.get("x"), yo = l.get("y"), zo = l.get("z"), ro = l.get("radius");
+            if (xo instanceof Number && yo instanceof Number && zo instanceof Number && ro instanceof Number) {
+                double x = ((Number) xo).doubleValue();
+                double y = ((Number) yo).doubleValue();
+                double z = ((Number) zo).doubleValue();
+                double radius = ((Number) ro).doubleValue();
+                double weight = Params.toDouble(l.get("weight"), 20.0);
+                bias.add(new LeashAnchor(x, y, z, radius, weight));
+            }
+        }
+        return bias;
     }
 }
