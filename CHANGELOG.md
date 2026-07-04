@@ -110,6 +110,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and three-transport metadata parity — suite is now 60 GameTest cases.
 
 ### Changed
+- **Internal: `mc.bot.goto` now runs on the generic `IntentProcess` (over an `Intent`
+  value type) instead of the bespoke `GotoProcess` — no behavior change (A1 groundwork
+  for the LLM navigation intent layer).** The old `GotoProcess` is removed; `kind()`
+  stays `"goto"` so slots/status are identical; the server Avatar proof
+  (`serverProcessArena`) drives the FakePlayer through `IntentProcess` and still
+  ARRIVES. The GameTest run gained no new failures vs the pre-A1 tip (the terrain
+  arenas drive the `Walker` directly, unaffected by the process-layer change).
 - **Internal refactor: the eight per-edge pathfinder cost taxes now flow through a
   composable `CostModifier` stack — no behavior change (A0 groundwork for the LLM
   navigation intent layer).** `PathFinder.Search` seeds a `List<CostModifier>` with
