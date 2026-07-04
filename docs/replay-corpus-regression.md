@@ -683,3 +683,6 @@ C99-J1 丛林 ARRIVED-SLOW(worst 30s)验尸:①DIG-dropped 9t——挖掘刚开�
 
 ## 87. 第二波 flip-default:§80-86 七键翻默认(C100+C101 双连绿背书)
 背书:C100(live worst 12/0/9s+9 replay 全过)+C101(9/24/3s+9 replay 全过)=8-flag 组合两周期全绿。翻默认:walkerRamNodeAimRelease/pathfinderFloatingBreakTax/walkerBridgeHoldRepath/walkerPhysicalStallClock/walkerDigCommitHoldRepath/walkerRouteHysteresis=true,pathfinderLogBreakTax=3.0。applyGameTestBaseline() 同步钉 legacy(GT 套件继续跑 default-OFF 基线,§78 机制)。
+
+## 88. "impaled on a stalagmite" 死亡=POINTED_DRIPSTONE 漏出 HAZARD_BLOCKS 名单
+C102-J2 live 段(-218,-122)bot 摔死在石笋上(尖块落地伤害×2,live 段无保护 buff=真实条件)。根因=POINTED_DRIPSTONE 从未进 HAZARD_BLOCKS(cactus/magma/powder_snow/berry/wither_rose 在)——contact-ring tax 和 isHazard 对石笋全隐形,A* 不绕、fall 落点旁漂移±1 落尖即死。与 42 刀 FLOWING_LAVA FluidTags 失明同类(名单缺项)。修=名单+1 行,contact ring 自动 tax 石笋邻域、isHazard 链全通。

@@ -91,7 +91,13 @@ public final class BotUtil {
             Blocks.CACTUS,
             Blocks.SWEET_BERRY_BUSH,
             Blocks.POWDER_SNOW,
-            Blocks.WITHER_ROSE
+            Blocks.WITHER_ROSE,
+            // §88: "impaled on a stalagmite" (C102-J2 death). Fall damage onto an
+            // upward spike is DOUBLED and the executor drifts ±1 block during a
+            // committed fall, so the contact ring must tax the spike's neighbourhood
+            // — the block was simply missing from this list (same class as the
+            // FLOWING_LAVA FluidTags blind spot).
+            Blocks.POINTED_DRIPSTONE
     );
 
     /** Cheap stand finder: 4 cardinals at same Y, then Y-1, then Y+1, then on
