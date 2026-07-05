@@ -106,17 +106,14 @@ public final class PathFinder {
     public PathFinder(WorldView world, SearchProfile profile) {
         this(world, BotConfig.pathfinderMaxNodes, BotConfig.pathfinderMaxMs, profile);
     }
-    /** Back-compat: bias-only search (kept until Walker migrates to SearchProfile in A2a Task 3). */
+    /** Back-compat: bias-only convenience ctor for callers that just want a cost
+     *  bias without a full profile (e.g. {@code AgentGameTestBias}). */
     public PathFinder(WorldView world, List<CostModifier> bias) {
         this(world, BotConfig.pathfinderMaxNodes, BotConfig.pathfinderMaxMs,
                 new SearchProfile(bias, CapabilityProfile.ALL, List.of()));
     }
     public PathFinder(WorldView world, int maxNodes, long maxMs) {
         this(world, maxNodes, maxMs, SearchProfile.NONE);
-    }
-    /** Back-compat bias-only + budget (kept until Task 3). */
-    public PathFinder(WorldView world, int maxNodes, long maxMs, List<CostModifier> bias) {
-        this(world, maxNodes, maxMs, new SearchProfile(bias, CapabilityProfile.ALL, List.of()));
     }
     public PathFinder(WorldView world, int maxNodes, long maxMs, SearchProfile profile) {
         this.world = world;

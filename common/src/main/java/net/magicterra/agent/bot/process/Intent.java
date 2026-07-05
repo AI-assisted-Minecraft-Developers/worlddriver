@@ -1,7 +1,10 @@
 package net.magicterra.agent.bot.process;
 
 import net.magicterra.agent.bot.Goal;
+import net.magicterra.agent.bot.pathfinder.CapabilityProfile;
+import net.magicterra.agent.bot.pathfinder.Constraint;
 import net.magicterra.agent.bot.pathfinder.CostModifier;
+import net.magicterra.agent.bot.pathfinder.SearchProfile;
 
 import java.util.List;
 
@@ -9,23 +12,31 @@ import java.util.List;
  * The declarative unit of navigation the {@link IntentProcess} interprets. Holds
  * the target {@link Goal} and a per-intent {@code bias} — a list of
  * {@link CostModifier}s appended to the pathfinder's cost stack for THIS intent
- * (avoid a region, prefer a Y band, leash to an anchor). A4a threads the (empty)
- * bias through; A4b adds the modifiers and the verb args that build them. Later
- * phases add a capability profile, hard constraints, terminators, and the
- * mutable-goal {@code amend} operation.
+ * (avoid a region, prefer a Y band, leash to an anchor), plus a
+ * {@link CapabilityProfile} and a list of {@link Constraint}s. A4a threaded the
+ * (empty) bias through; A2a threads the full {@link SearchProfile}. Later
+ * phases add terminators and the mutable-goal {@code amend} operation.
  */
 public final class Intent {
     private final Goal target;
     private final List<CostModifier> bias;
+    private final CapabilityProfile capability;
+    private final List<Constraint> constraints;
 
     public Intent(Goal target) {
-        this(target, List.of());
+        this(target, List.of(), CapabilityProfile.ALL, List.of());
     }
 
     public Intent(Goal target, List<CostModifier> bias) {
+        this(target, bias, CapabilityProfile.ALL, List.of());
+    }
+
+    public Intent(Goal target, List<CostModifier> bias, CapabilityProfile capability, List<Constraint> constraints) {
         if (target == null) throw new IllegalArgumentException("intent target is null");
         this.target = target;
         this.bias = (bias == null) ? List.of() : List.copyOf(bias);
+        this.capability = (capability == null) ? CapabilityProfile.ALL : capability;
+        this.constraints = (constraints == null) ? List.of() : List.copyOf(constraints);
     }
 
     /** The A* goal this intent currently converges on. */
@@ -36,5 +47,20 @@ public final class Intent {
     /** Per-intent cost modifiers appended to the pathfinder stack. Empty = plain navigation. */
     public List<CostModifier> bias() {
         return bias;
+    }
+
+    /** The mobility envelope this intent's pathfinder search must respect. */
+    public CapabilityProfile capability() {
+        return capability;
+    }
+
+    /** Hard constraints this intent's pathfinder search must satisfy. */
+    public List<Constraint> constraints() {
+        return constraints;
+    }
+
+    /** The full {@link SearchProfile} — bias, capability, and constraints — for this intent. */
+    public SearchProfile searchProfile() {
+        return new SearchProfile(bias, capability, constraints);
     }
 }
