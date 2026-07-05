@@ -27,7 +27,11 @@ public final class BotTools {
                 "Goal forms (provide one — Baritone-style selectors):\n" +
                 "  - pos:{x,y,z}              → walk to that exact block; pair with near:N\n" +
                 "  - xz:{x,z}                 → reach this XZ column at any Y\n" +
-                "  - y:N                      → reach this Y level\n" +
+                "  - y:N                      → reach this Y level. DIG-TO-Y RECIPE: for 'dig down to " +
+                "Y=-54' / 'dig up to the surface' in open terrain, COMBINE y:N with a leash around your " +
+                "current column — leash:{x,y,z:current,radius:4,weight:30} — or the search drowns in " +
+                "sideways branches and times out (measured: 16205 nodes timeout bare vs 68 nodes reached " +
+                "with the leash). Add requireTool:'minecraft:iron_pickaxe' to insist on the tool\n" +
                 "  - block:'minecraft:foo'    → nearest matching block within radius (default 32); " +
                 "Baritone 'goto <block>'. Accepts a '#tag' selector too — block:'#minecraft:logs' " +
                 "walks to the nearest tree of any species\n" +
