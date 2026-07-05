@@ -22,21 +22,28 @@ public final class Intent {
     private final List<CostModifier> bias;
     private final CapabilityProfile capability;
     private final List<Constraint> constraints;
+    private final EntityLeash entityLeash;
 
     public Intent(Goal target) {
-        this(target, List.of(), CapabilityProfile.ALL, List.of());
+        this(target, List.of(), CapabilityProfile.ALL, List.of(), null);
     }
 
     public Intent(Goal target, List<CostModifier> bias) {
-        this(target, bias, CapabilityProfile.ALL, List.of());
+        this(target, bias, CapabilityProfile.ALL, List.of(), null);
     }
 
     public Intent(Goal target, List<CostModifier> bias, CapabilityProfile capability, List<Constraint> constraints) {
+        this(target, bias, capability, constraints, null);
+    }
+
+    public Intent(Goal target, List<CostModifier> bias, CapabilityProfile capability, List<Constraint> constraints,
+                  EntityLeash entityLeash) {
         if (target == null) throw new IllegalArgumentException("intent target is null");
         this.target = target;
         this.bias = (bias == null) ? List.of() : List.copyOf(bias);
         this.capability = (capability == null) ? CapabilityProfile.ALL : capability;
         this.constraints = (constraints == null) ? List.of() : List.copyOf(constraints);
+        this.entityLeash = entityLeash;
     }
 
     /** The A* goal this intent currently converges on. */
@@ -62,5 +69,11 @@ public final class Intent {
     /** The full {@link SearchProfile} — bias, capability, and constraints — for this intent. */
     public SearchProfile searchProfile() {
         return new SearchProfile(bias, capability, constraints);
+    }
+
+    /** Optional dynamic entity-anchor leash (A3a); {@code null} = no leash, byte-identical
+     *  to pre-A3a behavior. Resolved per re-solve by {@link IntentProcess}. */
+    public EntityLeash entityLeash() {
+        return entityLeash;
     }
 }

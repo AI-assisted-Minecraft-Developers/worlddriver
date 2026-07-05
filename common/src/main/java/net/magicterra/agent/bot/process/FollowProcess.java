@@ -10,6 +10,7 @@ import net.magicterra.agent.bot.movement.Avatar;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
+import net.magicterra.agent.bot.pathfinder.SearchProfile;
 import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.KeyMapping;
@@ -67,10 +68,17 @@ public final class FollowProcess implements BotProcess {
     private BlockPos lastTargetBlock;
 
     public FollowProcess(String entityType, String name, int radius, int maxIdleTicks) {
+        this(entityType, name, radius, maxIdleTicks, SearchProfile.NONE);
+    }
+
+    /** A3a: pass a per-follow {@link SearchProfile} (e.g. a leashed capability
+     *  envelope) through to the underlying {@link Walker}. */
+    public FollowProcess(String entityType, String name, int radius, int maxIdleTicks, SearchProfile profile) {
         this.entityType = entityType;
         this.name = name;
         this.radius = radius;
         this.maxIdleTicks = maxIdleTicks;
+        walker.setSearchProfile(profile == null ? SearchProfile.NONE : profile);
     }
 
     public String kind() { return "follow"; }
