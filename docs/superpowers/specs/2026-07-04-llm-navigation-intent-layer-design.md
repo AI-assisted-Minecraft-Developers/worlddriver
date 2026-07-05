@@ -159,8 +159,28 @@ compound terminators (`condition`). No separate engine layer.
 - **A1** — `Intent` value type + `IntentProcess` (mutable goal, dirty re-solve) with `static` target
   + `walk` capability only. Re-express `goto` as an adapter. Prove parity with `GotoProcess` on
   replay corpus.
-- **A2** — `CapabilityProfile` (dig-down/up + tool requirement; parkour gate). New dig-column Moves.
-  Scenarios: "铁镐挖到 Y=-54", "挖到地面", "跑酷过 2 格河".
+- **A2a** *(done-order after A4b; DETERMINISTIC, no live)* — the capability-gating **mechanism** +
+  the hard **`Constraint`** channel, over EXISTING moves only. Threads two new per-intent fields on
+  `Intent` (`CapabilityProfile`, `List<Constraint>`) exactly like A4a's `bias`
+  (Intent→Walker→every `new PathFinder`→`Search`). Mechanism decisions:
+  - **CapabilityProfile** gates move *types* (catalog-level). Add one method
+    `Capability requiredCapability()` to `Move` (default `NONE`); the categories that need gating
+    override it (`Parkour*`→`PARKOUR`; placing→`PLACE`; swim→`SWIM`; break→`DIG`). The Search
+    move-filter loop gains `if (!capability.allows(m.requiredCapability())) continue;` — this
+    *generalizes* the ad-hoc `suppressPlace && placesBlock()` (`suppressPlace` becomes `forbid(PLACE)`).
+  - **Constraint** hard-prunes individual *edges* (position-dependent): predicate
+    `allows(from,to,edge,goal,world)→boolean`, checked in the neighbor loop beside the CostModifier sum
+    (`if (!c.allows(...)) continue;`).
+  - A2a citizens + verb args: `forbidParkour`/`capability:"walk"` (CapabilityProfile, drops `Parkour*`);
+    `yFloor`/`yCeil` (Constraint on `edge.to.y`); `leashHard{x,y,z,radius}` (Constraint, the HARD twin
+    of A4b's soft `leash`).
+  - Validation: deterministic PLANNER arenas asserting `Result.path()` (parkour-gate reroute/no-path;
+    yFloor forces the high route; leashHard no-path outside radius) — the clean oracle, like A4b.
+- **A2b** *(needs LIVE validation, GL-blocker)* — new dig-column Moves + `requireTool`/tool gating
+  (`DIG` capability + item precondition) + `forbidWater` (`SWIM` capability). Scenarios: "铁镐挖到
+  Y=-54", "挖到地面". Validated live A/B + GameTest regression guard.
+  *(Note: the SOFT `CostModifier` verb args — `avoid`/`leash`/`preferY` — were delivered as A4a+A4b
+  ahead of the original sequence; A2a delivers the "hard half" of the old A4 entry below.)*
 - **A3** — `dynamic` + `derived` targets (`entity:` follow, `riverbank`/`surface`). Re-express
   `follow`. Scenarios: "跟玩家 A", "沿河岸走".
 - **A4** — soft `CostModifier`s exposed to the verb (`avoid`, `leash`, `preferY`) + hard
