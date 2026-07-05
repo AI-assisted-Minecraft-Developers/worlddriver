@@ -2,8 +2,13 @@ package net.magicterra.agent.neoforge;
 
 import net.magicterra.agent.AgentDriverCommon;
 import net.magicterra.agent.bot.Goal;
+import net.magicterra.agent.bot.pathfinder.Capability;
+import net.magicterra.agent.bot.pathfinder.CapabilityProfile;
 import net.magicterra.agent.bot.pathfinder.CostModifier;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
+import net.magicterra.agent.bot.pathfinder.SearchProfile;
+import net.magicterra.agent.bot.pathfinder.constraints.LeashHardRadius;
+import net.magicterra.agent.bot.pathfinder.constraints.YFloor;
 import net.magicterra.agent.bot.pathfinder.modifiers.AvoidRegion;
 import net.magicterra.agent.bot.world.LevelWorldView;
 import net.magicterra.agent.neoforge.sim.ServerPlayerAvatar;
@@ -17,6 +22,7 @@ import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
+import java.util.EnumSet;
 import java.util.List;
 
 /**
@@ -79,5 +85,179 @@ public final class AgentGameTestBias {
             if (Math.sqrt(dx * dx + dy * dy + dz * dz) < rad) return true;
         }
         return false;
+    }
+
+    /** Lowest Y of any cell on the planned path (Integer.MAX_VALUE for an empty path) —
+     *  mirrors {@code AgentGameTestSupport.maxPathY} for the yFloor arena. */
+    private static int minPathY(PathFinder.Result r) {
+        int min = Integer.MAX_VALUE;
+        for (BlockPos p : r.path()) min = Math.min(min, p.getY());
+        return min;
+    }
+
+    /**
+     * Deterministic proof of the A2a per-intent {@code CapabilityProfile} move-type gate:
+     * two flat platforms separated by a single missing-floor column spanning the FULL lane
+     * width (dz -1..1), so there is no walk-around and the only physical crossing is a
+     * Parkour2 leap (2-block cardinal, same Y). The FakePlayer's inventory is cleared so no
+     * block-placing move (BridgePlace / ParkourPlace) can substitute — {@code canPlace()}
+     * is false, and ParkourPlace additionally requires the same PARKOUR capability anyway.
+     * Planning PLAIN must cross (goalReached); planning with PARKOUR forbidden must NOT
+     * (goalReached==false) — proving the gate actually removes the move from the search.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void parkourGateArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int x0 = 1400, z0 = 1400, y = 240;
+
+        // Clear a generous box first (defensive against residue from a prior run at
+        // these coords sharing the same ServerLevel — see avoidRegionDetourArena's doc).
+        for (int dx = -2; dx <= 10; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                for (int dy = 0; dy <= 6; dy++)
+                    level.setBlockAndUpdate(new BlockPos(x0 + dx, y + dy, z0 + dz), Blocks.AIR.defaultBlockState());
+
+        // Platform A: dx -1..3. Platform B: dx 5..9. dx=4 stays air (the gap) across the
+        // full dz -1..1 lane width — no floor there and no way around it.
+        for (int dx = -1; dx <= 3; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                level.setBlockAndUpdate(new BlockPos(x0 + dx, y, z0 + dz), Blocks.STONE.defaultBlockState());
+        for (int dx = 5; dx <= 9; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                level.setBlockAndUpdate(new BlockPos(x0 + dx, y, z0 + dz), Blocks.STONE.defaultBlockState());
+
+        BlockPos start = new BlockPos(x0, y + 1, z0);
+        BlockPos goal = new BlockPos(x0 + 7, y + 1, z0);
+
+        ServerPlayerAvatar av = ServerPlayerAvatar.create(level, x0 + 0.5, y + 1, z0 + 0.5);
+        FakePlayer fp = av.fakePlayer();
+        fp.getInventory().clearContent();   // CRITICAL: no placeable block in the hotbar
+        LevelWorldView w = new LevelWorldView(level, fp);
+
+        PathFinder.Result plain = new PathFinder(w, SearchProfile.NONE).findPath(start, new Goal.Block(goal));
+        SearchProfile walkOnly = new SearchProfile(List.of(),
+                new CapabilityProfile(EnumSet.of(Capability.PARKOUR)), List.of());
+        PathFinder.Result noParkour = new PathFinder(w, walkOnly).findPath(start, new Goal.Block(goal));
+
+        AgentDriverCommon.LOG.info(
+                "[parkourGateArena] plain.goalReached={} plain.finalCost={} | noParkour.goalReached={} noParkour.finalCost={}",
+                plain.goalReached(), plain.finalCost(), noParkour.goalReached(), noParkour.finalCost());
+
+        if (!plain.goalReached())
+            throw new GameTestAssertException(
+                    "baseline: PLAIN plan did NOT cross the gap — arena geometry wrong (no parkour move fired)");
+        if (noParkour.goalReached())
+            throw new GameTestAssertException(
+                    "capability gate failed: walk-only (PARKOUR forbidden) plan still crossed the gap");
+        helper.succeed();
+    }
+
+    /**
+     * Deterministic proof of the A2a {@code YFloor} hard constraint (reachability variant —
+     * simpler to hold deterministically than a dual-route detour, per the Task 7 fallback
+     * contract): a platform edge drops {@code drop=3} blocks (Baritone's dry-fall floor, the
+     * minimum always-registered {@code Fall} move) into an enclosed pit whose floor sits at
+     * {@code pitY}. Planning PLAIN reaches the pit (goalReached, minPathY at the dip). Planning
+     * with {@code YFloor(pitY+1)} prunes the ONLY edge into the pit (its destination Y is below
+     * the floor) so the goal becomes unreachable — proving the constraint prunes edges by
+     * {@code to.y}, not just biases them.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void yFloorConstraintArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int x0 = 1400, z0 = 1450, y = 240;
+
+        for (int dx = -2; dx <= 3; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                for (int dy = -6; dy <= 6; dy++)
+                    level.setBlockAndUpdate(new BlockPos(x0 + dx, y + dy, z0 + dz), Blocks.AIR.defaultBlockState());
+
+        // Launch platform at dx -1..0, dz -1..1, floor at y.
+        for (int dx = -1; dx <= 0; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                level.setBlockAndUpdate(new BlockPos(x0 + dx, y, z0 + dz), Blocks.STONE.defaultBlockState());
+        // Pit landing floor at dx=1, dz -1..1, 3 blocks below (y-3) — the column above it
+        // (y-1..y+2) is left air by the clear pass so the Fall(1,0,3) move's foot+head
+        // clearance checks all pass.
+        int pitFloorY = y - 3;
+        for (int dz = -1; dz <= 1; dz++)
+            level.setBlockAndUpdate(new BlockPos(x0 + 1, pitFloorY, z0 + dz), Blocks.STONE.defaultBlockState());
+
+        BlockPos start = new BlockPos(x0 - 1, y + 1, z0);
+        int dipY = pitFloorY + 1;                 // standing cell on the pit floor
+        BlockPos goal = new BlockPos(x0 + 1, dipY, z0);
+
+        ServerPlayerAvatar av = ServerPlayerAvatar.create(level, x0 - 0.5, y + 1, z0 + 0.5);
+        FakePlayer fp = av.fakePlayer();
+        LevelWorldView w = new LevelWorldView(level, fp);
+
+        PathFinder.Result plain = new PathFinder(w, SearchProfile.NONE).findPath(start, new Goal.Block(goal));
+        SearchProfile constrained = new SearchProfile(List.of(), CapabilityProfile.ALL,
+                List.of(new YFloor(dipY + 1)));
+        PathFinder.Result held = new PathFinder(w, constrained).findPath(start, new Goal.Block(goal));
+
+        AgentDriverCommon.LOG.info(
+                "[yFloorConstraintArena] dipY={} plain.goalReached={} minPathY(plain)={} | held.goalReached={} minPathY(held)={}",
+                dipY, plain.goalReached(), minPathY(plain), held.goalReached(),
+                held.path().isEmpty() ? -1 : minPathY(held));
+
+        if (!plain.goalReached() || minPathY(plain) > dipY)
+            throw new GameTestAssertException(
+                    "baseline: PLAIN plan did not reach/dip into the pit — arena geometry wrong");
+        if (held.goalReached())
+            throw new GameTestAssertException(
+                    "YFloor(dipY+1) did NOT prune the pit descent: goal still reached with the hard floor set");
+        helper.succeed();
+    }
+
+    /**
+     * Deterministic proof of the A2a {@code LeashHardRadius} hard constraint: a flat lane,
+     * one anchor at the start position, one radius R shared verbatim between the constraint
+     * AND the "inside/outside" reasoning below (the A4b lesson — checker and modifier must
+     * use the SAME coordinate convention). A goal inside R must be reached; the identical
+     * leash to a goal farther than R along the same lane must NOT be — every edge past the
+     * radius is pruned, so there is no way to "sneak up" to it via a different route.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void leashHardArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int x0 = 1400, z0 = 1500, y = 240;
+
+        for (int dx = -2; dx <= 20; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                for (int dy = 0; dy <= 6; dy++)
+                    level.setBlockAndUpdate(new BlockPos(x0 + dx, y + dy, z0 + dz), Blocks.AIR.defaultBlockState());
+        for (int dx = -1; dx <= 18; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                level.setBlockAndUpdate(new BlockPos(x0 + dx, y, z0 + dz), Blocks.STONE.defaultBlockState());
+
+        double sx = x0 + 0.5, sy = y + 1, sz = z0 + 0.5;
+        final double radius = 10.0;
+
+        BlockPos start = new BlockPos(x0, y + 1, z0);
+        BlockPos insideGoal = new BlockPos(x0 + 8, y + 1, z0);    // dist 8  < R
+        BlockPos outsideGoal = new BlockPos(x0 + 16, y + 1, z0);  // dist 16 > R
+
+        ServerPlayerAvatar av = ServerPlayerAvatar.create(level, sx, sy, sz);
+        FakePlayer fp = av.fakePlayer();
+        LevelWorldView w = new LevelWorldView(level, fp);
+
+        SearchProfile leashed = new SearchProfile(List.of(), CapabilityProfile.ALL,
+                List.of(new LeashHardRadius(sx, sy, sz, radius)));
+
+        PathFinder.Result inside = new PathFinder(w, leashed).findPath(start, new Goal.Block(insideGoal));
+        PathFinder.Result outside = new PathFinder(w, leashed).findPath(start, new Goal.Block(outsideGoal));
+
+        AgentDriverCommon.LOG.info(
+                "[leashHardArena] anchor=({},{},{}) R={} inside.goalReached={} outside.goalReached={}",
+                sx, sy, sz, radius, inside.goalReached(), outside.goalReached());
+
+        if (!inside.goalReached())
+            throw new GameTestAssertException(
+                    "baseline: goal INSIDE the hard leash radius was not reached — arena geometry wrong");
+        if (outside.goalReached())
+            throw new GameTestAssertException(
+                    "LeashHardRadius did NOT hold: a goal OUTSIDE the radius was still reached");
+        helper.succeed();
     }
 }
