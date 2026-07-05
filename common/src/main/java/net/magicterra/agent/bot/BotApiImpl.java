@@ -160,6 +160,8 @@ public final class BotApiImpl implements BotApi {
                 return Map.of("ok", false, "error",
                         "missing goal — provide pos|xz|y|block|entity|entityId|direction|waypoint");
             }
+            try { GotoGoalResolver.checkRequiredTool(p, player); }
+            catch (IllegalArgumentException e) { return Map.of("ok", false, "error", e.getMessage()); }
             startProcess(new IntentProcess(new Intent(goal,
                     GotoGoalResolver.resolveBias(p),
                     GotoGoalResolver.resolveCapability(p),

@@ -52,6 +52,9 @@ public final class BotTools {
                 "  forbidParkour  true → drop all parkour moves (also: capability:\"walk\"). Route must not jump gaps.\n" +
                 "  yFloor / yCeil  N — hard-limit the route's Y (prune cells below yFloor / above yCeil). E.g. keep out of caves.\n" +
                 "  leashHard  {x,y,z,radius} — HARD tether: route may not leave the radius at all (firm twin of soft `leash`).\n" +
+                "  forbidWater  true → never route through water (hard prune; walking beside water stays fine).\n" +
+                "  forbidDig    true → never plan a block-breaking edge (per-goto allowBreak-off; a non-digging pillar/parkour stays allowed).\n" +
+                "  requireTool  'minecraft:iron_pickaxe' → fail this goto immediately unless the item is in inventory (equip is automatic when digging; mid-run loss is not monitored).\n" +
                 "Optional near:N relaxes target to a Euclidean radius. block selector also takes " +
                 "radius:N (search box, 1-64). " +
                 "Returns {ok, started, goal} or {ok:false, error}.",
@@ -104,6 +107,12 @@ public final class BotTools {
                     .prop("leashHard", object()
                             .prop("x", number()).prop("y", number()).prop("z", number())
                             .prop("radius", number()))
+                    .prop("forbidWater", bool()
+                        .desc("Never route through water (hard prune)."))
+                    .prop("forbidDig", bool()
+                        .desc("Never plan a block-breaking edge (per-goto allowBreak-off)."))
+                    .prop("requireTool", string()
+                        .desc("Fail immediately unless this item id is present in inventory (e.g. 'minecraft:iron_pickaxe')."))
                     .prop("awaitMs", awaitMs())
                 ),
 

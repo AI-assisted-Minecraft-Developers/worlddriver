@@ -5,6 +5,8 @@ import net.magicterra.agent.bot.pathfinder.CapabilityProfile;
 import net.magicterra.agent.bot.pathfinder.Constraint;
 import net.magicterra.agent.bot.pathfinder.CostModifier;
 import net.magicterra.agent.bot.pathfinder.constraints.LeashHardRadius;
+import net.magicterra.agent.bot.pathfinder.constraints.NoBreak;
+import net.magicterra.agent.bot.pathfinder.constraints.NoWater;
 import net.magicterra.agent.bot.pathfinder.constraints.YCeil;
 import net.magicterra.agent.bot.pathfinder.constraints.YFloor;
 import net.magicterra.agent.bot.pathfinder.modifiers.AvoidRegion;
@@ -14,6 +16,7 @@ import net.magicterra.agent.model.Params;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 
@@ -212,6 +215,25 @@ final class GotoGoalResolver {
                 cs.add(new LeashHardRadius(x, y, z, radius));
             }
         }
+        // forbidWater: true — never route through a water cell (hard prune).
+        if (p.getBool("forbidWater")) cs.add(new NoWater());
+        // forbidDig: true — never plan a block-breaking edge (per-intent allowBreak-off).
+        if (p.getBool("forbidDig")) cs.add(new NoBreak());
         return cs;
+    }
+
+    /** requireTool:'minecraft:iron_pickaxe' — fail the goto up front unless the item is
+     *  in the player inventory. Presence-only: the Walker already auto-equips the best
+     *  tool per dig (Avatar.selectTool), and mid-run tool loss is out of scope here. */
+    static void checkRequiredTool(Params p, LocalPlayer player) {
+        if (!(p.get("requireTool") instanceof String id) || id.isBlank()) return;
+        String want = id.contains(":") ? id : "minecraft:" + id;
+        for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
+            var stack = player.getInventory().getItem(slot);
+            if (!stack.isEmpty()
+                    && BuiltInRegistries.ITEM.getKey(stack.getItem()).toString().equals(want))
+                return;
+        }
+        throw new IllegalArgumentException("required tool not in inventory: " + want);
     }
 }
