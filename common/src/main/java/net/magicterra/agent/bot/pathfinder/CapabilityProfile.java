@@ -18,6 +18,4 @@ public final class CapabilityProfile {
 
     /** True unless this move's required capability is forbidden. {@code NONE} is never forbidden. */
     public boolean allows(Capability c) { return c == Capability.NONE || !forbidden.contains(c); }
-
-    public boolean isEmpty() { return forbidden.isEmpty(); }
 }
