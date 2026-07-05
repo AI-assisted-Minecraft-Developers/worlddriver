@@ -64,13 +64,16 @@ public final class IntentProcess implements BotProcess {
         if (el != null) {
             ticksSinceAnchorSolve++;
             if (lastAnchor == null || ticksSinceAnchorSolve >= ANCHOR_RESOLVE_MIN_TICKS) {
+                // Reset on every SCAN attempt, not just dirty hits — the AABB entity scan is
+                // the cost being rate-limited. (Un-latched lastAnchor==null still scans every
+                // tick via the OR, so we latch onto a late-appearing anchor promptly.)
+                ticksSinceAnchorSolve = 0;
                 Player self = a.player();
                 Entity anchor = (self != null) ? EntityFind.nearest(self.level(), self, el.entity()) : null;
                 if (anchor != null) {
                     BlockPos ab = anchor.blockPosition();
                     if (lastAnchor == null || ab.distSqr(lastAnchor) > ANCHOR_DIRTY_DIST_SQ) {
                         lastAnchor = ab;
-                        ticksSinceAnchorSolve = 0;
                         walker.setSearchProfile(profileWith(el, ab));
                         walker.forceRepath();
                     }
