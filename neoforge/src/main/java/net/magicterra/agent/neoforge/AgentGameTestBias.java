@@ -1,6 +1,7 @@
 package net.magicterra.agent.neoforge;
 
 import net.magicterra.agent.AgentDriverCommon;
+import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.pathfinder.Capability;
 import net.magicterra.agent.bot.pathfinder.CapabilityProfile;
@@ -17,6 +18,8 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -93,6 +96,76 @@ public final class AgentGameTestBias {
         int min = Integer.MAX_VALUE;
         for (BlockPos p : r.path()) min = Math.min(min, p.getY());
         return min;
+    }
+
+    /**
+     * A2b reuse-first probe: "dig down to Y=N" must ALREADY plan with the existing
+     * {@code DownBreak} move — no new dig-column move needed. A solid stone slab with the
+     * FakePlayer on top (holding an iron pickaxe, so {@code breakCost} takes the real
+     * tool-aware branch) and a {@code Goal.YLevel} inside the slab: the only way down is
+     * a DownBreak chain, so the plan must reach the level and every step must stay in the
+     * start column's XZ cell (a straight shaft — any sideways dig would cost an extra break).
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void digDownYArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int x0 = 1600, z0 = 1600, top = 240, targetY = 234;
+
+        // Defensive clear above the slab (residue guard, same as the other arenas here).
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                for (int dy = 1; dy <= 5; dy++)
+                    level.setBlockAndUpdate(new BlockPos(x0 + dx, top + dy, z0 + dz), Blocks.AIR.defaultBlockState());
+        // Solid 5x5 stone slab from y=228..240 — deep enough that the last dig
+        // (into targetY) still has a solid landing floor below it.
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                for (int y = 228; y <= top; y++)
+                    level.setBlockAndUpdate(new BlockPos(x0 + dx, y, z0 + dz), Blocks.STONE.defaultBlockState());
+
+        BlockPos start = new BlockPos(x0, top + 1, z0);
+        ServerPlayerAvatar av = ServerPlayerAvatar.create(level, x0 + 0.5, top + 1, z0 + 0.5);
+        FakePlayer fp = av.fakePlayer();
+        fp.getInventory().clearContent();
+        fp.getInventory().add(new ItemStack(Items.IRON_PICKAXE));
+        fp.getInventory().selected = 0;
+        LevelWorldView w = new LevelWorldView(level, fp);
+
+        // BotConfig is GLOBAL state shared by every test in the batch — another arena
+        // flipping allowBreak mid-search silently disables DownBreak (the buoyantWall
+        // "concurrent stomp" flake class). Pin it ON for the plan, restore after.
+        boolean ob = BotConfig.allowBreak;
+        BotConfig.allowBreak = true;
+        try {
+            // Self-diagnosis: if this arena fails, these two numbers say WHY —
+            // breakCost=Infinity → FakePlayer destroy-progress problem;
+            // allowBreak=false → config stomp the pin above didn't cover.
+            double probeCost = w.breakCost(new BlockPos(x0, top, z0), start);
+            AgentDriverCommon.LOG.info("[digDownYArena] probe allowBreak={} breakCost(topBlock)={}",
+                    BotConfig.allowBreak, probeCost);
+
+            PathFinder.Result r = new PathFinder(w, SearchProfile.NONE)
+                    .findPath(start, new Goal.YLevel(targetY));
+
+            boolean straightShaft = true;
+            for (BlockPos p : r.path())
+                if (p.getX() != x0 || p.getZ() != z0) { straightShaft = false; break; }
+            AgentDriverCommon.LOG.info(
+                    "[digDownYArena] goalReached={} minPathY={} pathLen={} straightShaft={} finalCost={}",
+                    r.goalReached(), minPathY(r), r.path().size(), straightShaft, r.finalCost());
+
+            if (!r.goalReached() || minPathY(r) != targetY)
+                throw new GameTestAssertException(
+                        "DownBreak chain did NOT plan a dig-down to YLevel(" + targetY + "): reached="
+                        + r.goalReached() + " minY=" + minPathY(r) + " breakCost=" + probeCost);
+            if (!straightShaft)
+                throw new GameTestAssertException(
+                        "dig-down plan wandered out of the start column (expected a straight DownBreak shaft): "
+                        + r.path());
+            helper.succeed();
+        } finally {
+            BotConfig.allowBreak = ob;
+        }
     }
 
     /**
