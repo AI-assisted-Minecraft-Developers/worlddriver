@@ -1,5 +1,6 @@
 package net.magicterra.agent.bot.pathfinder.moves;
 
+import net.magicterra.agent.bot.pathfinder.Capability;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.magicterra.agent.bot.BotConfig;
@@ -51,5 +52,6 @@ public final class Parkour2 extends Move {
         // Destination head clearance.
         return w.isPassable(to.offset(0, 1, 0));
     }
+    @Override public Capability requiredCapability() { return Capability.PARKOUR; }
     public String name() { return "parkour2"; }
 }

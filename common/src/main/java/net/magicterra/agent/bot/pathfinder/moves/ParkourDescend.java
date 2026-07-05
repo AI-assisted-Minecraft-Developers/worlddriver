@@ -1,5 +1,6 @@
 package net.magicterra.agent.bot.pathfinder.moves;
 
+import net.magicterra.agent.bot.pathfinder.Capability;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
@@ -78,5 +79,6 @@ public final class ParkourDescend extends Move {
         }
         return true;
     }
+    @Override public Capability requiredCapability() { return Capability.PARKOUR; }
     public String name() { return "parkourDescend" + dist + "d" + drop; }
 }

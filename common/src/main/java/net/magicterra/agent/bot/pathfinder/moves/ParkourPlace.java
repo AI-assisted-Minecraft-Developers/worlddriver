@@ -1,5 +1,6 @@
 package net.magicterra.agent.bot.pathfinder.moves;
 
+import net.magicterra.agent.bot.pathfinder.Capability;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.magicterra.agent.bot.BotConfig;
@@ -55,6 +56,7 @@ public final class ParkourPlace extends Move {
         if (!Move.hasPlaceSupport(w, floor)) return null;
         return new Edge(to, cost, List.of(), List.of(floor), name());
     }
+    @Override public Capability requiredCapability() { return Capability.PARKOUR; }
     public String name() { return "parkourPlace2"; }
     @Override public boolean placesBlock() { return true; }
 }
