@@ -3,6 +3,7 @@ package net.magicterra.agent.bot;
 import net.magicterra.agent.bot.elytra.ElytraPhysics;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
+import net.magicterra.agent.bot.pathfinder.SearchProfile;
 import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.magicterra.agent.model.Params;
 import net.minecraft.core.BlockPos;
@@ -165,7 +166,8 @@ public final class BotApiImpl implements BotApi {
             startProcess(new IntentProcess(new Intent(goal,
                     GotoGoalResolver.resolveBias(p),
                     GotoGoalResolver.resolveCapability(p),
-                    GotoGoalResolver.resolveConstraints(p))));
+                    GotoGoalResolver.resolveConstraints(p),
+                    GotoGoalResolver.resolveEntityLeash(p))));
             return Map.of("ok", true, "started", true, "goal", goal.toString());
         });
     }
@@ -715,7 +717,11 @@ public final class BotApiImpl implements BotApi {
         if (entityType == null && name == null) return Map.of("ok", false, "error", "entityType or name required");
         return onClient(() -> {
             if (Minecraft.getInstance().player == null) return Map.of("ok", false, "error", "no player");
-            startProcess(new FollowProcess(entityType, name, radius, maxIdleTicks));
+            SearchProfile followProfile = new SearchProfile(
+                    GotoGoalResolver.resolveBias(p),
+                    GotoGoalResolver.resolveCapability(p),
+                    GotoGoalResolver.resolveConstraints(p));
+            startProcess(new FollowProcess(entityType, name, radius, maxIdleTicks, followProfile));
             Map<String, Object> r = new LinkedHashMap<>();
             r.put("ok", true); r.put("started", true);
             if (entityType != null) r.put("entityType", entityType);

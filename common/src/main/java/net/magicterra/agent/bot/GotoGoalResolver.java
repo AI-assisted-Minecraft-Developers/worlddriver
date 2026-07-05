@@ -12,6 +12,7 @@ import net.magicterra.agent.bot.pathfinder.constraints.YFloor;
 import net.magicterra.agent.bot.pathfinder.modifiers.AvoidRegion;
 import net.magicterra.agent.bot.pathfinder.modifiers.LeashAnchor;
 import net.magicterra.agent.bot.pathfinder.modifiers.PreferYBand;
+import net.magicterra.agent.bot.process.EntityLeash;
 import net.magicterra.agent.model.Params;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -160,8 +161,11 @@ final class GotoGoalResolver {
                 bias.add(new PreferYBand(Math.min(loY, hiY), Math.max(loY, hiY), weight));
             }
         }
-        // leash: {x,y,z,radius,weight?} — soft-tether to a static anchor.
-        if (p.get("leash") instanceof Map<?, ?> l) {
+        // leash: {x,y,z,radius,weight?} — soft-tether to a static anchor. An
+        // entity-keyed leash (leash:{entity:...}) is handled dynamically by
+        // resolveEntityLeash instead — skip the static parse here so it isn't
+        // ALSO added as a fixed-point modifier.
+        if (p.get("leash") instanceof Map<?, ?> l && !(l.get("entity") instanceof String)) {
             Object xo = l.get("x"), yo = l.get("y"), zo = l.get("z"), ro = l.get("radius");
             if (xo instanceof Number && yo instanceof Number && zo instanceof Number && ro instanceof Number) {
                 double x = ((Number) xo).doubleValue();
@@ -205,7 +209,8 @@ final class GotoGoalResolver {
             cs.add(new YCeil((int) Math.floor(n.doubleValue())));
         }
         // leashHard: {x,y,z,radius} — hard tether; route may not leave the radius at all.
-        if (p.get("leashHard") instanceof Map<?, ?> l) {
+        // An entity-keyed leashHard is handled dynamically by resolveEntityLeash instead.
+        if (p.get("leashHard") instanceof Map<?, ?> l && !(l.get("entity") instanceof String)) {
             Object xo = l.get("x"), yo = l.get("y"), zo = l.get("z"), ro = l.get("radius");
             if (xo instanceof Number && yo instanceof Number && zo instanceof Number && ro instanceof Number) {
                 double x = ((Number) xo).doubleValue();
@@ -220,6 +225,22 @@ final class GotoGoalResolver {
         // forbidDig: true — never plan a block-breaking edge (per-intent allowBreak-off).
         if (p.getBool("forbidDig")) cs.add(new NoBreak());
         return cs;
+    }
+
+    /** leash:{entity:'X',radius?,weight?} / leashHard:{entity:'X',radius} → dynamic anchor.
+     *  When the entity key is present the STATIC x/y/z parse is skipped for that key
+     *  (dynamic wins); absent → null and the static path runs exactly as before. */
+    static EntityLeash resolveEntityLeash(Params p) {
+        if (p.get("leash") instanceof Map<?, ?> l && l.get("entity") instanceof String e && !e.isBlank()) {
+            double radius = Params.toDouble(l.get("radius"), 8.0);
+            double weight = Params.toDouble(l.get("weight"), 20.0);
+            return new EntityLeash(e, radius, weight, false);
+        }
+        if (p.get("leashHard") instanceof Map<?, ?> l && l.get("entity") instanceof String e && !e.isBlank()) {
+            double radius = Params.toDouble(l.get("radius"), 8.0);
+            return new EntityLeash(e, radius, 0, true);
+        }
+        return null;
     }
 
     /** requireTool:'minecraft:iron_pickaxe' — fail the goto up front unless the item is

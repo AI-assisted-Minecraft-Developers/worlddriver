@@ -51,11 +51,13 @@ public final class BotTools {
                 "Bias modifiers (Intent-scoped cost tweaks):\n" +
                 "  avoid    [{x,y,z,radius?,penalty?},...] — per-goto zones to route AROUND (ramp to 0 at radius; dflt radius 8 / penalty 250). Intent-scoped alt to the global avoidPoints setting.\n" +
                 "  preferY  {min,max,weight?} — bias the route to stay in a Y band (weight/block outside; dflt 10). E.g. keep to the 2nd floor / hug the surface.\n" +
-                "  leash    {x,y,z,radius,weight?} — soft-leash the route near an anchor (weight/block beyond radius; dflt 20). E.g. lead a companion without straying far.\n" +
+                "  leash    {x,y,z,radius,weight?} — soft-leash the route near an anchor (weight/block beyond radius; dflt 20). E.g. lead a companion without straying far. " +
+                "Or entity:'name-or-type' → DYNAMIC anchor that follows the entity (带路: goto the destination + leash:{entity:'PlayerB'}).\n" +
                 "Hard constraints (Intent-scoped, pruned rather than costed):\n" +
                 "  forbidParkour  true → drop all parkour moves (also: capability:\"walk\"). Route must not jump gaps.\n" +
                 "  yFloor / yCeil  N — hard-limit the route's Y (prune cells below yFloor / above yCeil). E.g. keep out of caves.\n" +
-                "  leashHard  {x,y,z,radius} — HARD tether: route may not leave the radius at all (firm twin of soft `leash`).\n" +
+                "  leashHard  {x,y,z,radius} — HARD tether: route may not leave the radius at all (firm twin of soft `leash`). " +
+                "Or entity:'name-or-type' → DYNAMIC anchor that follows the entity (带路: goto the destination + leash:{entity:'PlayerB'}).\n" +
                 "  forbidWater  true → never route through water (hard prune; walking beside water stays fine).\n" +
                 "  forbidDig    true → never plan a block-breaking edge (per-goto allowBreak-off; a non-digging pillar/parkour stays allowed).\n" +
                 "  requireTool  'minecraft:iron_pickaxe' → fail this goto immediately unless the item is in inventory (equip is automatic when digging; mid-run loss is not monitored).\n" +
@@ -99,7 +101,8 @@ public final class BotTools {
                             .prop("min", number()).prop("max", number()).prop("weight", number()))
                     .prop("leash", object()
                             .prop("x", number()).prop("y", number()).prop("z", number())
-                            .prop("radius", number()).prop("weight", number()))
+                            .prop("radius", number()).prop("weight", number())
+                            .prop("entity", string()))
                     .prop("forbidParkour", bool()
                         .desc("Forbid parkour moves — the route must not jump gaps. Also settable via capability:'walk'."))
                     .prop("capability", string()
@@ -110,7 +113,8 @@ public final class BotTools {
                         .desc("Hard-prune any move whose destination is above this Y."))
                     .prop("leashHard", object()
                             .prop("x", number()).prop("y", number()).prop("z", number())
-                            .prop("radius", number()))
+                            .prop("radius", number())
+                            .prop("entity", string()))
                     .prop("forbidWater", bool()
                         .desc("Never route through water (hard prune)."))
                     .prop("forbidDig", bool()
@@ -142,6 +146,7 @@ public final class BotTools {
                 "`name` (case-sensitive GameProfile). " +
                 "radius: standoff 1-16 (default 3). maxIdleTicks>0 stops gracefully when no " +
                 "match seen for N ticks (~20=1s); 0 = forever. " +
+                "Accepts goto's bias/constraint args (forbidWater etc.) applied to the follow pathing. " +
                 "Returns {ok, started, entityType?|name?, radius, maxIdleTicks?}.",
                 object()
                     .prop("entityType", string().desc("Registry id of entity type."))
@@ -149,6 +154,25 @@ public final class BotTools {
                     .prop("radius", integer(1, 16))
                     .prop("maxIdleTicks", integer(0, 100000)
                         .desc("Idle-tick budget before giving up. 0 = no timeout."))
+                    .prop("avoid", array(object()
+                            .prop("x", number()).prop("y", number()).prop("z", number())
+                            .prop("radius", number()).prop("penalty", number())))
+                    .prop("preferY", object()
+                            .prop("min", number()).prop("max", number()).prop("weight", number()))
+                    .prop("leash", object()
+                            .prop("x", number()).prop("y", number()).prop("z", number())
+                            .prop("radius", number()).prop("weight", number())
+                            .prop("entity", string()))
+                    .prop("forbidParkour", bool()
+                        .desc("Forbid parkour moves — the route must not jump gaps. Also settable via capability:'walk'."))
+                    .prop("yFloor", number()
+                        .desc("Hard-prune any move whose destination is below this Y."))
+                    .prop("yCeil", number()
+                        .desc("Hard-prune any move whose destination is above this Y."))
+                    .prop("forbidWater", bool()
+                        .desc("Never route through water (hard prune)."))
+                    .prop("forbidDig", bool()
+                        .desc("Never plan a block-breaking edge (per-goto allowBreak-off)."))
                     .prop("awaitMs", awaitMs())
                 ),
 
