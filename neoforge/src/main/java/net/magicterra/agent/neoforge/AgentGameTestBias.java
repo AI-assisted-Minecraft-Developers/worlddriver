@@ -9,6 +9,8 @@ import net.magicterra.agent.bot.pathfinder.CostModifier;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
 import net.magicterra.agent.bot.pathfinder.SearchProfile;
 import net.magicterra.agent.bot.pathfinder.constraints.LeashHardRadius;
+import net.magicterra.agent.bot.pathfinder.constraints.NoBreak;
+import net.magicterra.agent.bot.pathfinder.constraints.NoWater;
 import net.magicterra.agent.bot.pathfinder.constraints.YFloor;
 import net.magicterra.agent.bot.pathfinder.modifiers.AvoidRegion;
 import net.magicterra.agent.bot.world.LevelWorldView;
@@ -389,5 +391,157 @@ public final class AgentGameTestBias {
             throw new GameTestAssertException(
                     "LeashHardRadius did NOT hold: a goal OUTSIDE the radius was still reached");
         helper.succeed();
+    }
+
+    /**
+     * Deterministic proof of the A2b-c {@code NoWater} hard constraint: a 3-wide dry stone
+     * lane (dz -1..1) walled in on both sides (BEDROCK at dz=-2/dz=2, 4 blocks tall — no
+     * floor exists beyond the walls, and bedrock's {@code breakCost} is infinite so a
+     * TraverseBreak tunnel through/along the wall can't dry-bypass the strip either) with
+     * a full-lane-width, 2-long wading pool mid-lane: the strip keeps the SAME stone floor
+     * as the rest of the lane (y) but its FOOT layer (y+1 — the cell the bot OCCUPIES while
+     * crossing) is water source blocks. The foot cell itself must be the water one:
+     * canStandAt() accepts a water FOOT cell ({@code isWater(foot)}) but canStandOn() =
+     * {@code blocksMotion()} rejects water as a FLOOR, so with water at the FLOOR layer the
+     * bot "walks the surface" dry — and worse, that dry-floored 2-gap is exactly a Parkour2
+     * leap (the first cut of this arena planned 8 walks + parkour2 = finalCost 102, water
+     * never touched). Water at the FOOT layer fixes both at once: the wading nodes ARE
+     * water nodes, and the water mid-cells are standable so Parkour's "gap must be real"
+     * check (no standable mid-cell) refuses the over-the-top leap. PLAIN planning wades
+     * through (the only route); planning with {@code NoWater} prunes every edge whose
+     * destination foot cell is water, so the goal — reachable only by crossing — becomes
+     * unreachable.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void forbidWaterArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int x0 = 1800, z0 = 1800, y = 240;
+        final int stripLo = 5, stripHi = 6;
+
+        // Defensive clear first (residue guard, same as the other arenas here).
+        for (int dx = -2; dx <= 14; dx++)
+            for (int dz = -3; dz <= 3; dz++)
+                for (int dy = 0; dy <= 6; dy++)
+                    level.setBlockAndUpdate(new BlockPos(x0 + dx, y + dy, z0 + dz), Blocks.AIR.defaultBlockState());
+
+        for (int dx = -1; dx <= 12; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                // Uniform lane floor at y; strip columns get water in the FOOT cell (y+1)
+                // so a crossing bot's occupied cell is water (see the doc above for why
+                // the floor-layer variant silently stays dry).
+                level.setBlockAndUpdate(new BlockPos(x0 + dx, y, z0 + dz), Blocks.STONE.defaultBlockState());
+                if (dx >= stripLo && dx <= stripHi)
+                    level.setBlockAndUpdate(new BlockPos(x0 + dx, y + 1, z0 + dz), Blocks.WATER.defaultBlockState());
+            }
+            // Side walls (dz=-2 and dz=2), 4 blocks tall, BEDROCK — no floor beyond them
+            // (the defensive clear above left dz=-3/3 as bare air) and no finite-cost dig
+            // through them, so neither plan has a dry detour around the strip.
+            for (int dz : new int[]{-2, 2})
+                for (int dy = 0; dy <= 3; dy++)
+                    level.setBlockAndUpdate(new BlockPos(x0 + dx, y + dy, z0 + dz), Blocks.BEDROCK.defaultBlockState());
+        }
+
+        BlockPos start = new BlockPos(x0, y + 1, z0);
+        BlockPos goal = new BlockPos(x0 + 10, y + 1, z0);
+
+        ServerPlayerAvatar av = ServerPlayerAvatar.create(level, x0 + 0.5, y + 1, z0 + 0.5);
+        FakePlayer fp = av.fakePlayer();
+        fp.getInventory().clearContent();   // no placeable block — no PillarUp/BridgePlace bypass
+        LevelWorldView w = new LevelWorldView(level, fp);
+
+        PathFinder.Result plain = new PathFinder(w, SearchProfile.NONE).findPath(start, new Goal.Block(goal));
+        SearchProfile noWater = new SearchProfile(List.of(), CapabilityProfile.ALL, List.of(new NoWater()));
+        PathFinder.Result held = new PathFinder(w, noWater).findPath(start, new Goal.Block(goal));
+
+        boolean plainEntersWater = pathEntersWater(w, plain);
+        AgentDriverCommon.LOG.info(
+                "[forbidWaterArena] plain.goalReached={} plainEntersWater={} plainLen={} finalCost={} | held.goalReached={} heldLen={}",
+                plain.goalReached(), plainEntersWater, plain.path().size(), plain.finalCost(),
+                held.goalReached(), held.path().size());
+
+        if (!plain.goalReached() || !plainEntersWater)
+            throw new GameTestAssertException(
+                    "baseline: PLAIN plan did not cross the water strip — arena geometry wrong (goalReached="
+                    + plain.goalReached() + " enteredWater=" + plainEntersWater + ")");
+        if (held.goalReached())
+            throw new GameTestAssertException(
+                    "NoWater did NOT hold: constrained plan still reached the goal (a route avoided the strip "
+                    + "without going through it — geometry allows a bypass) path=" + held.path());
+        helper.succeed();
+    }
+
+    /** Any planned path node whose foot cell is water — the water-crossing baseline check
+     *  for {@link #forbidWaterArena}. */
+    private static boolean pathEntersWater(LevelWorldView w, PathFinder.Result r) {
+        if (r == null || r.path() == null) return false;
+        for (BlockPos p : r.path())
+            if (w.isWater(p)) return true;
+        return false;
+    }
+
+    /**
+     * Deterministic proof of the A2b-c {@code NoBreak} hard constraint: reuses the
+     * {@code digDownYArena} recipe verbatim at fresh coords — a solid 5x5 stone slab with
+     * the FakePlayer on top (iron pickaxe in hand) and {@code Goal.YLevel} INSIDE the slab,
+     * so the only route down is a chained {@code DownBreak}. That arena already proves PLAIN
+     * planning reaches it (baseline, re-asserted here at the new coords); planning with
+     * {@code NoBreak} prunes every edge whose OWN break list is non-empty — including every
+     * DownBreak rung — so the goal becomes unreachable even though the GLOBAL
+     * {@code BotConfig.allowBreak} switch stays ON (proving the prune is per-intent, not a
+     * proxy for the kill-switch).
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void forbidDigArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int x0 = 1900, z0 = 1900, top = 240, targetY = 234;
+
+        // Defensive clear above the slab (residue guard, same as digDownYArena).
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                for (int dy = 1; dy <= 5; dy++)
+                    level.setBlockAndUpdate(new BlockPos(x0 + dx, top + dy, z0 + dz), Blocks.AIR.defaultBlockState());
+        // Solid 5x5 stone slab from y=228..240 — deep enough that the last dig
+        // (into targetY) still has a solid landing floor below it.
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                for (int y = 228; y <= top; y++)
+                    level.setBlockAndUpdate(new BlockPos(x0 + dx, y, z0 + dz), Blocks.STONE.defaultBlockState());
+
+        BlockPos start = new BlockPos(x0, top + 1, z0);
+        ServerPlayerAvatar av = ServerPlayerAvatar.create(level, x0 + 0.5, top + 1, z0 + 0.5);
+        FakePlayer fp = av.fakePlayer();
+        fp.getInventory().clearContent();
+        fp.getInventory().add(new ItemStack(Items.IRON_PICKAXE));
+        fp.getInventory().selected = 0;
+        LevelWorldView w = new LevelWorldView(level, fp);
+
+        // BotConfig is GLOBAL state shared by every test in the batch — pin allowBreak ON
+        // for the plan (same rationale as digDownYArena) and restore after.
+        boolean ob = BotConfig.allowBreak;
+        BotConfig.allowBreak = true;
+        try {
+            PathFinder.Result plain = new PathFinder(w, SearchProfile.NONE)
+                    .findPath(start, new Goal.YLevel(targetY));
+            SearchProfile noBreak = new SearchProfile(List.of(), CapabilityProfile.ALL, List.of(new NoBreak()));
+            PathFinder.Result held = new PathFinder(w, noBreak).findPath(start, new Goal.YLevel(targetY));
+
+            AgentDriverCommon.LOG.info(
+                    "[forbidDigArena] allowBreak={} plain.goalReached={} minPathY(plain)={} plainLen={} | "
+                    + "held.goalReached={} heldLen={}",
+                    BotConfig.allowBreak, plain.goalReached(), minPathY(plain), plain.path().size(),
+                    held.goalReached(), held.path().size());
+
+            if (!plain.goalReached() || minPathY(plain) != targetY)
+                throw new GameTestAssertException(
+                        "baseline: PLAIN plan did NOT dig down to YLevel(" + targetY + "): reached="
+                        + plain.goalReached() + " minY=" + minPathY(plain));
+            if (held.goalReached())
+                throw new GameTestAssertException(
+                        "NoBreak did NOT hold: constrained plan still reached YLevel(" + targetY
+                        + ") with allowBreak=" + BotConfig.allowBreak + " — path=" + held.path());
+            helper.succeed();
+        } finally {
+            BotConfig.allowBreak = ob;
+        }
     }
 }
