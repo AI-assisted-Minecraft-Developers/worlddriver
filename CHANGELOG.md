@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`mc.bot.goto` gains `forbidWater` (never route through water), `forbidDig` (never
+  plan a block-breaking edge — per-goto `allowBreak`-off), and `requireTool` (fail fast
+  unless the named item is in inventory) via the intent layer's Constraint channel.**
 - **`mc.bot.goto` gains hard navigation controls via the intent layer: `forbidParkour`
   (drop parkour moves), `yFloor`/`yCeil` (hard-limit route Y), and `leashHard`
   (firm radius tether — the hard twin of the soft `leash`). Enforced by a per-intent
