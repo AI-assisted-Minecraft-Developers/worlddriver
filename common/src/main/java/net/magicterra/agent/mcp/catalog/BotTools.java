@@ -48,6 +48,10 @@ public final class BotTools {
                 "  avoid    [{x,y,z,radius?,penalty?},...] — per-goto zones to route AROUND (ramp to 0 at radius; dflt radius 8 / penalty 250). Intent-scoped alt to the global avoidPoints setting.\n" +
                 "  preferY  {min,max,weight?} — bias the route to stay in a Y band (weight/block outside; dflt 10). E.g. keep to the 2nd floor / hug the surface.\n" +
                 "  leash    {x,y,z,radius,weight?} — soft-leash the route near an anchor (weight/block beyond radius; dflt 20). E.g. lead a companion without straying far.\n" +
+                "Hard constraints (Intent-scoped, pruned rather than costed):\n" +
+                "  forbidParkour  true → drop all parkour moves (also: capability:\"walk\"). Route must not jump gaps.\n" +
+                "  yFloor / yCeil  N — hard-limit the route's Y (prune cells below yFloor / above yCeil). E.g. keep out of caves.\n" +
+                "  leashHard  {x,y,z,radius} — HARD tether: route may not leave the radius at all (firm twin of soft `leash`).\n" +
                 "Optional near:N relaxes target to a Euclidean radius. block selector also takes " +
                 "radius:N (search box, 1-64). " +
                 "Returns {ok, started, goal} or {ok:false, error}.",
@@ -89,6 +93,17 @@ public final class BotTools {
                     .prop("leash", object()
                             .prop("x", number()).prop("y", number()).prop("z", number())
                             .prop("radius", number()).prop("weight", number()))
+                    .prop("forbidParkour", bool()
+                        .desc("Forbid parkour moves — the route must not jump gaps. Also settable via capability:'walk'."))
+                    .prop("capability", string()
+                        .desc("Capability envelope. Only 'walk' is recognized (forbids parkour); other values are a no-op."))
+                    .prop("yFloor", number()
+                        .desc("Hard-prune any move whose destination is below this Y."))
+                    .prop("yCeil", number()
+                        .desc("Hard-prune any move whose destination is above this Y."))
+                    .prop("leashHard", object()
+                            .prop("x", number()).prop("y", number()).prop("z", number())
+                            .prop("radius", number()))
                     .prop("awaitMs", awaitMs())
                 ),
 

@@ -160,7 +160,10 @@ public final class BotApiImpl implements BotApi {
                 return Map.of("ok", false, "error",
                         "missing goal — provide pos|xz|y|block|entity|entityId|direction|waypoint");
             }
-            startProcess(new IntentProcess(new Intent(goal, GotoGoalResolver.resolveBias(p))));
+            startProcess(new IntentProcess(new Intent(goal,
+                    GotoGoalResolver.resolveBias(p),
+                    GotoGoalResolver.resolveCapability(p),
+                    GotoGoalResolver.resolveConstraints(p))));
             return Map.of("ok", true, "started", true, "goal", goal.toString());
         });
     }

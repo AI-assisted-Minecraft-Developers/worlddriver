@@ -1,6 +1,12 @@
 package net.magicterra.agent.bot;
 
+import net.magicterra.agent.bot.pathfinder.Capability;
+import net.magicterra.agent.bot.pathfinder.CapabilityProfile;
+import net.magicterra.agent.bot.pathfinder.Constraint;
 import net.magicterra.agent.bot.pathfinder.CostModifier;
+import net.magicterra.agent.bot.pathfinder.constraints.LeashHardRadius;
+import net.magicterra.agent.bot.pathfinder.constraints.YCeil;
+import net.magicterra.agent.bot.pathfinder.constraints.YFloor;
 import net.magicterra.agent.bot.pathfinder.modifiers.AvoidRegion;
 import net.magicterra.agent.bot.pathfinder.modifiers.LeashAnchor;
 import net.magicterra.agent.bot.pathfinder.modifiers.PreferYBand;
@@ -12,6 +18,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -163,5 +170,48 @@ final class GotoGoalResolver {
             }
         }
         return bias;
+    }
+
+    /**
+     * Resolve the capability envelope for this goto. {@code forbidParkour:true}
+     * OR {@code capability:"walk"} forbids the PARKOUR move-type; any other
+     * capability string is a no-op (A2a only wires "walk"). Empty when neither
+     * is supplied → {@link CapabilityProfile#ALL}, byte-identical to A4a/A4b.
+     */
+    static CapabilityProfile resolveCapability(Params p) {
+        boolean forbidParkour = p.getBool("forbidParkour")
+                || (p.get("capability") instanceof String s && s.trim().equalsIgnoreCase("walk"));
+        if (!forbidParkour) return CapabilityProfile.ALL;
+        return new CapabilityProfile(EnumSet.of(Capability.PARKOUR));
+    }
+
+    /**
+     * Parse the per-intent hard constraints (yFloor / yCeil / leashHard) into
+     * {@link Constraint}s appended to the Intent. Empty when none supplied →
+     * plain navigation, byte-identical to A4a/A4b. Malformed entries are
+     * skipped per-item (not thrown), mirroring {@link #resolveBias}'s leniency.
+     */
+    static List<Constraint> resolveConstraints(Params p) {
+        List<Constraint> cs = new ArrayList<>();
+        // yFloor: N — hard-prune any move whose destination is below Y=N.
+        if (p.get("yFloor") instanceof Number n) {
+            cs.add(new YFloor((int) Math.floor(n.doubleValue())));
+        }
+        // yCeil: N — hard-prune any move whose destination is above Y=N.
+        if (p.get("yCeil") instanceof Number n) {
+            cs.add(new YCeil((int) Math.floor(n.doubleValue())));
+        }
+        // leashHard: {x,y,z,radius} — hard tether; route may not leave the radius at all.
+        if (p.get("leashHard") instanceof Map<?, ?> l) {
+            Object xo = l.get("x"), yo = l.get("y"), zo = l.get("z"), ro = l.get("radius");
+            if (xo instanceof Number && yo instanceof Number && zo instanceof Number && ro instanceof Number) {
+                double x = ((Number) xo).doubleValue();
+                double y = ((Number) yo).doubleValue();
+                double z = ((Number) zo).doubleValue();
+                double radius = ((Number) ro).doubleValue();
+                cs.add(new LeashHardRadius(x, y, z, radius));
+            }
+        }
+        return cs;
     }
 }
