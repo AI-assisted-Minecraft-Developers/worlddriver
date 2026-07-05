@@ -92,28 +92,37 @@ public final class PathFinder {
     private final WorldView world;
     private final int maxNodes;
     private final long maxMs;
-    /** Per-intent cost modifiers appended to each Search's stack after the legacy
-     *  taxes (A4a: the LLM navigation intent layer's bias channel). Empty for a
-     *  plain search. */
-    private final List<CostModifier> bias;
+    /** Per-intent inputs to every Search launched from this PathFinder (A2a: bundles
+     *  the A4a bias channel with the capability gate and edge constraints). {@link
+     *  SearchProfile#NONE} for a plain search — byte-identical to pre-A2a. */
+    private final SearchProfile profile;
 
     /** Default ctor reads live tunables from {@link net.magicterra.agent.bot.BotConfig}
      *  so {@code mc.bot.setting{pathfinder.maxNodes:...}} can resize the budget
      *  without restarting the JVM. */
     public PathFinder(WorldView world) {
-        this(world, BotConfig.pathfinderMaxNodes, BotConfig.pathfinderMaxMs);
+        this(world, BotConfig.pathfinderMaxNodes, BotConfig.pathfinderMaxMs, SearchProfile.NONE);
     }
+    public PathFinder(WorldView world, SearchProfile profile) {
+        this(world, BotConfig.pathfinderMaxNodes, BotConfig.pathfinderMaxMs, profile);
+    }
+    /** Back-compat: bias-only search (kept until Walker migrates to SearchProfile in A2a Task 3). */
     public PathFinder(WorldView world, List<CostModifier> bias) {
-        this(world, BotConfig.pathfinderMaxNodes, BotConfig.pathfinderMaxMs, bias);
+        this(world, BotConfig.pathfinderMaxNodes, BotConfig.pathfinderMaxMs,
+                new SearchProfile(bias, CapabilityProfile.ALL, List.of()));
     }
     public PathFinder(WorldView world, int maxNodes, long maxMs) {
-        this(world, maxNodes, maxMs, List.of());
+        this(world, maxNodes, maxMs, SearchProfile.NONE);
     }
+    /** Back-compat bias-only + budget (kept until Task 3). */
     public PathFinder(WorldView world, int maxNodes, long maxMs, List<CostModifier> bias) {
+        this(world, maxNodes, maxMs, new SearchProfile(bias, CapabilityProfile.ALL, List.of()));
+    }
+    public PathFinder(WorldView world, int maxNodes, long maxMs, SearchProfile profile) {
         this.world = world;
         this.maxNodes = maxNodes;
         this.maxMs = maxMs;
-        this.bias = (bias == null) ? List.of() : bias;
+        this.profile = (profile == null) ? SearchProfile.NONE : profile;
     }
 
     /** Run a search to completion in one call (synchronous). Kept for callers
@@ -197,6 +206,12 @@ public final class PathFinder {
          *  variants for a bucketless bot and the Parkour4 tier when it's off —
          *  ~100/259 fewer dispatch-and-reject per expansion in the default config. */
         private final Move[] activeMoves;
+        /** Per-intent move-type gate (A2a) — checked in the move-filter loop below,
+         *  set early (before that loop runs) from {@code PathFinder.this.profile}. */
+        private final CapabilityProfile capability;
+        /** Per-intent hard edge prunes (A2a) — checked in the neighbor loop. Empty
+         *  for a plain search (the whole prune block is then skipped). */
+        private final List<Constraint> constraints;
         /** Obstacle-aware goal-distance field, or null when disabled / unusable
          *  (then the heuristic is the plain Euclidean {@link Goal#estimate}). */
         private final CoarseGoalField goalField;
@@ -213,6 +228,11 @@ public final class PathFinder {
             this.start = start;
             this.startInWater = world.isWater(start);
             this.goal = goal;
+            // A2a: pull the per-intent capability gate + edge constraints off the
+            // enclosing PathFinder's profile BEFORE the move-filter loop below reads
+            // `capability` — both are final fields, so ordering here is load-bearing.
+            this.capability = PathFinder.this.profile.capability();
+            this.constraints = PathFinder.this.profile.constraints();
             world.beginSearch();       // snapshot per-search state (e.g. nearby mobs)
             // Prune the move catalog to this search's relevant subset (after
             // beginSearch so bucket/flag snapshots are live). One pass over ALL.
@@ -222,6 +242,7 @@ public final class PathFinder {
             for (Move m : Move.ALL) {
                 if (!m.availableInSearch(world)) continue;
                 if (suppressPlace && m.placesBlock()) continue;
+                if (!capability.allows(m.requiredCapability())) continue;   // A2a: per-intent move-type gate
                 active.add(m);
             }
             this.activeMoves = active.toArray(new Move[0]);
@@ -246,7 +267,7 @@ public final class PathFinder {
             costModifiers.add((f, t, e, g, w) -> submergedTax(f, t));
             // A4a: append this search's per-intent bias AFTER the legacy taxes.
             // Empty for a plain search → byte-identical to the pre-A4a stack.
-            costModifiers.addAll(bias);
+            costModifiers.addAll(PathFinder.this.profile.bias());
         }
 
         public boolean done() { return result != null; }
@@ -720,6 +741,13 @@ public final class PathFinder {
                         Move.Edge edge = m.eval(world, cur.pos);
                         if (edge == null) continue;
                         BlockPos npos = edge.to;
+                        if (!constraints.isEmpty()) {
+                            boolean pruned = false;
+                            for (Constraint c : constraints) {
+                                if (!c.allows(cur.pos, npos, edge, goal, world)) { pruned = true; break; }
+                            }
+                            if (pruned) continue;   // A2a: hard edge prune (successor never generated)
+                        }
                         // Soft danger penalty per entered cell (Baritone avoidance);
                         // ≥ 0 so the heuristic stays admissible.
                         double ng = cur.g + edge.cost + world.dangerCost(npos)

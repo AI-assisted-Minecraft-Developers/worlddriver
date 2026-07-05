@@ -64,6 +64,16 @@ public abstract class Move {
     public boolean placesBlock() { return false; }
 
     /**
+     * The {@link Capability} category a {@link CapabilityProfile} must allow before this
+     * move can fire (A2a: per-intent move-type gate, checked once per candidate edge in the
+     * search's neighbor loop). Default {@link Capability#NONE} — never forbidden, so an
+     * ungated move is unaffected by any profile. TEMPORARY base landing in A2a Task 2 ahead
+     * of A2a Task 4, which will override this in the Parkour move family to return
+     * {@link Capability#PARKOUR}; every other move keeps this default.
+     */
+    public Capability requiredCapability() { return Capability.NONE; }
+
+    /**
      * Resolve this move from {@code from} into a concrete A* edge, or
      * {@code null} if the world doesn't allow it. The default delegates to
      * {@link #valid} with the static {@link #cost} and no block edits — covers
