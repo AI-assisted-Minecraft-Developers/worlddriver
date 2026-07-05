@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`mc.bot.goto` gains hard navigation controls via the intent layer: `forbidParkour`
+  (drop parkour moves), `yFloor`/`yCeil` (hard-limit route Y), and `leashHard`
+  (firm radius tether — the hard twin of the soft `leash`). Enforced by a per-intent
+  `CapabilityProfile` (move-type gate) and `Constraint` edge-prune in the pathfinder.**
 - **`mc.bot.goto` now accepts per-navigation cost bias — `avoid` (route around
   zones), `preferY` (stay in a Y band), `leash` (soft-stay near an anchor) — via
   the LLM navigation intent layer's `CostModifier` bias channel. Intent-scoped
