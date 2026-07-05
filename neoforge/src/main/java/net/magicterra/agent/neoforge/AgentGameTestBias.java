@@ -99,6 +99,63 @@ public final class AgentGameTestBias {
     }
 
     /**
+     * A2b dig-UP: "dig up to the surface" from an ENCLOSED shaft must plan as a chained
+     * PillarUp (dig own ceiling, place under feet, rise — repeat). Reproduces the live
+     * 2026-07-05 failure (16205 expanded, goalReached=false, then a lethal best-effort
+     * wander): PillarUp #2's {@code to} cell is rung #1's planned ceiling break, still
+     * solid in the immutable WorldView, so the old hard {@code isPassable(to)} rejection
+     * capped every plan at ONE rung. A 2-high chamber inside a solid slab, cobblestone in
+     * hand, {@code Goal.YLevel} above the slab: the plan must reach the level.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void digUpYArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int x0 = 1700, z0 = 1700, base = 230, top = 240, targetY = 241;
+
+        // Solid 5x5 stone slab y=base..top with a 2-high chamber carved at the centre
+        // (foot base+1, head base+2) — 8 solid blocks overhead, air above the slab.
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= 2; dz++) {
+                for (int y = base; y <= top; y++)
+                    level.setBlockAndUpdate(new BlockPos(x0 + dx, y, z0 + dz), Blocks.STONE.defaultBlockState());
+                for (int dy = 1; dy <= 5; dy++)
+                    level.setBlockAndUpdate(new BlockPos(x0 + dx, top + dy, z0 + dz), Blocks.AIR.defaultBlockState());
+            }
+        level.setBlockAndUpdate(new BlockPos(x0, base + 1, z0), Blocks.AIR.defaultBlockState());
+        level.setBlockAndUpdate(new BlockPos(x0, base + 2, z0), Blocks.AIR.defaultBlockState());
+
+        BlockPos start = new BlockPos(x0, base + 1, z0);
+        ServerPlayerAvatar av = ServerPlayerAvatar.create(level, x0 + 0.5, base + 1, z0 + 0.5);
+        FakePlayer fp = av.fakePlayer();
+        fp.getInventory().clearContent();
+        fp.getInventory().add(new ItemStack(Items.IRON_PICKAXE));
+        fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));   // pillar blocks → canPlace()=true
+        fp.getInventory().selected = 0;
+        LevelWorldView w = new LevelWorldView(level, fp);
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;
+        try {
+            PathFinder.Result r = new PathFinder(w, SearchProfile.NONE)
+                    .findPath(start, new Goal.YLevel(targetY));
+            AgentDriverCommon.LOG.info(
+                    "[digUpYArena] goalReached={} maxPathY={} pathLen={} expanded={} finalCost={}",
+                    r.goalReached(), AgentGameTestSupport.maxPathY(r), r.path().size(),
+                    r.expanded(), r.finalCost());
+            if (!r.goalReached() || AgentGameTestSupport.maxPathY(r) < targetY)
+                throw new GameTestAssertException(
+                        "chained PillarUp did NOT plan a dig-up to YLevel(" + targetY + "): reached="
+                        + r.goalReached() + " maxY=" + AgentGameTestSupport.maxPathY(r)
+                        + " expanded=" + r.expanded());
+            helper.succeed();
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+        }
+    }
+
+    /**
      * A2b reuse-first probe: "dig down to Y=N" must ALREADY plan with the existing
      * {@code DownBreak} move — no new dig-column move needed. A solid stone slab with the
      * FakePlayer on top (holding an iron pickaxe, so {@code breakCost} takes the real
