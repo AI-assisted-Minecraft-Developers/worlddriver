@@ -223,6 +223,11 @@ public final class PathFinder {
         private long elapsedNanos;     // cumulative compute time across slices
         private Result result;         // null until done
         private String segmentReason = "none";   // A5 diagnostics: which chooseSegment branch fired
+        /** A5: this search's intent opted into DIVE — water is a legitimate MEDIUM, so the
+         *  water-avoidance taxes are skipped (ctor) and the water-start ASHORE-forcing
+         *  segment policy ({@link #chooseSegment} / {@link #hasCommittableSegment}) is
+         *  bypassed in favor of the standard goal-ward selection. */
+        private final boolean diveRelief;
 
         private Search(BlockPos start, Goal goal, boolean suppressPlace) {
             this.start = start;
@@ -276,7 +281,7 @@ public final class PathFinder {
             // reality that holds for a dive intent too). Dropping a non-negative
             // g-side tax keeps every edge cost ≥ its base, so the heuristic (which
             // never counted taxes) stays an underestimate — admissibility holds.
-            boolean diveRelief = this.capability.allowsOptIn(Capability.DIVE);
+            diveRelief = this.capability.allowsOptIn(Capability.DIVE);
             if (!diveRelief) costModifiers.add((f, t, e, g, w) -> descendTax(f, t, e));
             if (!diveRelief) costModifiers.add((f, t, e, g, w) -> waterCellTax(t));
             costModifiers.add((f, t, e, g, w) -> leafCellTax(t));
@@ -864,7 +869,17 @@ public final class PathFinder {
             // otherwise). If NO ashore node is reachable (allowBreak off + a sheer-walled
             // bowl, say), return null = "no path": the bot stays put rather than commit a
             // fake in-water segment or dive. Land searches keep the conservative backoff.
-            if (startInWater) {
+            // A5: a DIVE-opt-in search is EXEMPT from the water-escape policy below —
+            // its goal is (typically) UNDERWATER, so "may ONLY commit a segment that
+            // climbs ASHORE" is exactly backwards: the live rc-a5i first search
+            // (walkerDebug diagnostics) burned to the relaxed 24000-node tier and
+            // committed the tank-rim climb-out (bestAshoreG=40730) while goal-ward
+            // submerged bestSoFar progress was structurally excluded, stranding the
+            // bot overland at a dead-end. With the exemption a dive search falls
+            // through to the standard goal-ward selection (selectSegment/bestSoFar),
+            // so best-effort progress goes TOWARD the underwater goal instead of
+            // ashore. Non-dive water starts keep the escape policy byte-identically.
+            if (startInWater && !diveRelief) {
                 // A CHEAP climb-out (pure swim+walk, no submerged dig priced in)
                 // commits as before. An EXPENSIVE one means the only dry cell the
                 // budget reached sits behind a 5×-priced underwater dig (round37b:
@@ -953,7 +968,10 @@ public final class PathFinder {
             // alone keeps the search burning toward the relaxed tier — stopping at
             // 6k nodes on a 5×-priced underwater tunnel is exactly the round37b
             // lake-bed trap.
-            if (startInWater) {
+            // A5: dive searches skip the water tiering (mirrors chooseSegment's
+            // exemption) — an ashore node must never soft-stop a search whose goal
+            // is underwater; the land tiering below (goal-ward gain) applies instead.
+            if (startInWater && !diveRelief) {
                 boolean relaxedW = BotConfig.pfSoftCommitNodes() > 0
                         && expanded >= BotConfig.pfSoftCommitNodes() * 4L;
                 return (bestAshore != null && (relaxedW || bestAshore.g <= ASHORE_CHEAP_G))
