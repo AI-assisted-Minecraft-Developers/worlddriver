@@ -17,7 +17,10 @@ import net.minecraft.core.BlockPos;
  *  check leaves zero admissible edges and bricks the bot permanently. Outside
  *  the sphere, only edges that STRICTLY APPROACH the anchor are allowed: the
  *  bot beelines back into the tether, then normal in-radius leash behavior
- *  resumes. Prune-only either way — costs are never modified. */
+ *  resumes. Rejoin assumes a roughly clear line of approach: in a concave
+ *  pocket where every detour edge temporarily INCREASES anchor distance, the
+ *  approach-only rule still dead-ends (best-effort stall, no loop) — an
+ *  accepted residual. Prune-only either way — costs are never modified. */
 public record LeashHardRadius(double ax, double ay, double az, double radius) implements Constraint {
     @Override
     public boolean allows(BlockPos from, BlockPos to, Move.Edge edge, Goal goal, WorldView world) {

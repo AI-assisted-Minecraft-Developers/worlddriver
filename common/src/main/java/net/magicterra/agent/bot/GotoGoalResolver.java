@@ -165,7 +165,7 @@ final class GotoGoalResolver {
         // entity-keyed leash (leash:{entity:...}) is handled dynamically by
         // resolveEntityLeash instead — skip the static parse here so it isn't
         // ALSO added as a fixed-point modifier.
-        if (p.get("leash") instanceof Map<?, ?> l && !(l.get("entity") instanceof String)) {
+        if (p.get("leash") instanceof Map<?, ?> l && !(l.get("entity") instanceof String e && !e.isBlank())) {
             Object xo = l.get("x"), yo = l.get("y"), zo = l.get("z"), ro = l.get("radius");
             if (xo instanceof Number && yo instanceof Number && zo instanceof Number && ro instanceof Number) {
                 double x = ((Number) xo).doubleValue();
@@ -210,7 +210,7 @@ final class GotoGoalResolver {
         }
         // leashHard: {x,y,z,radius} — hard tether; route may not leave the radius at all.
         // An entity-keyed leashHard is handled dynamically by resolveEntityLeash instead.
-        if (p.get("leashHard") instanceof Map<?, ?> l && !(l.get("entity") instanceof String)) {
+        if (p.get("leashHard") instanceof Map<?, ?> l && !(l.get("entity") instanceof String e && !e.isBlank())) {
             Object xo = l.get("x"), yo = l.get("y"), zo = l.get("z"), ro = l.get("radius");
             if (xo instanceof Number && yo instanceof Number && zo instanceof Number && ro instanceof Number) {
                 double x = ((Number) xo).doubleValue();

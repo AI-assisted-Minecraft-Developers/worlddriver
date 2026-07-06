@@ -161,9 +161,10 @@ public final class BotTools {
                     .prop("preferY", object()
                             .prop("min", number()).prop("max", number()).prop("weight", number()))
                     .prop("leash", object()
+                            // static x/y/z anchor only — follow already tracks an entity;
+                            // an entity-keyed leash is a goto concept and is ignored here
                             .prop("x", number()).prop("y", number()).prop("z", number())
-                            .prop("radius", number()).prop("weight", number())
-                            .prop("entity", string()))
+                            .prop("radius", number()).prop("weight", number()))
                     .prop("forbidParkour", bool()
                         .desc("Forbid parkour moves — the route must not jump gaps. Also settable via capability:'walk'."))
                     .prop("yFloor", number()
