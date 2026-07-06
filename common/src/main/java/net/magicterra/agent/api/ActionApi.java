@@ -1,16 +1,21 @@
 package net.magicterra.agent.api;
 
 import net.magicterra.agent.model.Params;
+import net.minecraft.commands.CommandResultCallback;
+import net.minecraft.commands.CommandSource;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import net.minecraft.commands.CommandSourceStack;
 
 /**
  * {@code mc.action.*} handlers, extracted from {@code AgentApi}. All writes bounce
@@ -103,6 +108,13 @@ public final class ActionApi {
      * setblock fast-path (used pre-Brigadier wiring) is preserved so existing
      * scripts and event consumers see the same {@code block.place} /
      * {@code block.break} events as before.
+     *
+     * <p>Beyond dispatch status ({@code ok}), the result carries the command's own
+     * outcome so callers can assert on it: {@code success}/{@code value} come from
+     * the Brigadier result callback ({@code execute if entity} → match count), and
+     * {@code feedback} collects the chat lines the command would have shown
+     * ({@code data get} → the NBT text). {@code ok:true, success:false} means the
+     * command dispatched but reported failure (e.g. selector matched nothing).
      */
     public Map<String, Object> runCommand(String cmd) {
         if (cmd == null || cmd.isBlank()) throw new IllegalArgumentException("empty command");
@@ -136,7 +148,8 @@ public final class ActionApi {
                     String prev = ApiSupport.blockId(before);
                     level.setBlockAndUpdate(bp, newState);
                     api.emit(isAir ? "block.break" : "block.place", pos, isAir ? prev : type);
-                    return Map.of("ok", true, "via", "fast-path");
+                    return Map.of("ok", true, "via", "fast-path",
+                            "success", true, "value", 1, "feedback", List.of());
                 });
             }
             // else fall through to Brigadier
@@ -154,9 +167,45 @@ public final class ActionApi {
             // dedicated server / before-anyone-joined.
             ServerPlayer anchor = s.getPlayerList().getPlayers().isEmpty()
                     ? null : s.getPlayerList().getPlayers().get(0);
-            CommandSourceStack src = (anchor != null)
-                    ? anchor.createCommandSourceStack().withSuppressedOutput().withPermission(4)
-                    : s.createCommandSourceStack().withSuppressedOutput().withPermission(4);
+            // Collect feedback instead of suppressing it: parse errors and command
+            // output (e.g. `data get`'s NBT text) land in `feedback` for the caller.
+            List<String> feedback = new ArrayList<>();
+            CommandSource collector = new CommandSource() {
+                @Override
+                public void sendSystemMessage(Component message) {
+                    feedback.add(message.getString());
+                }
+
+                @Override
+                public boolean acceptsSuccess() {
+                    return true;
+                }
+
+                @Override
+                public boolean acceptsFailure() {
+                    return true;
+                }
+
+                @Override
+                public boolean shouldInformAdmins() {
+                    return false;
+                }
+            };
+            // Brigadier reports the command's own outcome through the result
+            // callback (1.20.2+ execution rework made performPrefixedCommand void).
+            boolean[] cbState = {false, false}; // [fired, success]
+            int[] cbValue = {0};
+            CommandResultCallback callback = (success, result) -> {
+                cbState[0] = true;
+                cbState[1] = success;
+                cbValue[0] = result;
+            };
+            CommandSourceStack src = ((anchor != null)
+                    ? anchor.createCommandSourceStack()
+                    : s.createCommandSourceStack())
+                    .withSource(collector)
+                    .withPermission(4)
+                    .withCallback(callback);
             boolean ok;
             String err = null;
             try {
@@ -166,12 +215,25 @@ public final class ActionApi {
                 ok = false;
                 err = t.getMessage() == null ? t.toString() : t.getMessage();
             }
+            // A parse failure doesn't throw — Brigadier reports it via the source's
+            // failure feedback with no callback. Treat "no callback fired" as failed
+            // unless the command genuinely produced no result (rare; still ok:true).
+            boolean success = ok && cbState[0] && cbState[1];
             // Push a command.result event so subscribers see commands run by any
             // agent/transport (the synchronous return only reaches the caller).
             api.emit("command.result", null,
-                    net.magicterra.agent.rpc.JsonCodec.encode(Map.of("cmd", finalCmd, "ok", ok)));
-            return ok ? Map.of("ok", true, "via", "brigadier")
-                      : Map.of("ok", false, "error", err);
+                    net.magicterra.agent.rpc.JsonCodec.encode(Map.of("cmd", finalCmd, "ok", ok, "success", success)));
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("ok", ok);
+            if (ok) {
+                out.put("via", "brigadier");
+            } else {
+                out.put("error", err);
+            }
+            out.put("success", success);
+            out.put("value", cbValue[0]);
+            out.put("feedback", List.copyOf(feedback));
+            return out;
         });
     }
 }

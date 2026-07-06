@@ -93,7 +93,7 @@ runs on a **background thread** (poll `op:"status"`).
 All accept `returnEvents?:bool` → response also carries an `events[]` array (saves a cursor/eventsSince round-trip).
 | method | params | returns / notes |
 |---|---|---|
-| `mc.action.runCommand` | `cmd` (req) | run a vanilla command at operator level → `{ok, via:"fast-path"\|"brigadier", error?}`. Any Brigadier verb (bound to localhost). `setblock`+absolute int coords gets a fast-path emitting block.place/break. |
+| `mc.action.runCommand` | `cmd` (req) | run a vanilla command at operator level → `{ok, via:"fast-path"\\|"brigadier", success, value, feedback[], error?}`. `success`/`value` = Brigadier result callback (`execute if entity` → match count); `feedback` = collected chat output (`data get` → NBT text); `ok:true,success:false` = dispatched but command failed. `setblock`+absolute int coords gets a fast-path emitting block.place/break. |
 | `mc.action.fill` | `from,to,type` (req) | fill an AABB in one tick → `{ok, placed, error?}`. Volume cap 32768 (32³). |
 | `mc.action.placeMany` | `blocks:[{pos,type}]` (req) | place ≤4096 cells in one tick → `{ok, placed, skipped}`. |
 

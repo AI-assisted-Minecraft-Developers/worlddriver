@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`mc.action.runCommand` now returns the command's own outcome** — `success`/`value`
+  from the Brigadier result callback (`execute if entity` → match count) and
+  `feedback[]` with the collected chat output (`data get` → NBT text) instead of
+  suppressing it. `ok:true, success:false` = dispatched but the command failed
+  (e.g. selector matched nothing). Unblocks headless assertion of entity NBT /
+  MobEffects that `mc.query` can't project.
 - **`mc.bot.goto` gains `hugShore` (shoreline-affinity bias) — 沿着河岸走 = goto far
   point + hugShore + forbidWater.**
 - **Bias-aware string-pull**: the path smoother no longer straightens a bow the
