@@ -4469,7 +4469,31 @@ public final class Walker {
         // surface, then re-planned a parkour-onto-water it cannot execute. Only a real dive (diving)
         // sneaks in water; buoyancy alone already keeps a surface swimmer off any lethal edge.
         boolean brakeSneak = (bridgeBrake || descendBrake) && !p.isInWater();
-        agentSneak(a, brakeSneak || diving || lavaBrake);
+        // A5 UNDERWATER HORIZONTAL DEPTH-HOLD (dive → traverse). After a dive the path
+        // continues through SUBMERGED horizontal edges — the planner emits plain walk/diag
+        // nodes mid-water (they are not named swimDown*, so none of the dive gates hold
+        // them), and without a depth-hold the swim-up bob below (swimUp / swimColumn /
+        // deepWaterRise) ratchets the bot back to the surface where it pins (live
+        // 2026-07-04 underwater-base run: dove to -57, walk edges at -59 through a 2-tall
+        // doorway, bot ratcheted to -50.8 and drowned at the surface). Gate — as narrow as
+        // the dive gates, keyed on WATER STATE not move name:
+        //   • the bot is SUBMERGED (water two above the feet — WorldView#isSubmergedFoot;
+        //     a surface floater NEVER reads true, so the surface machinery — carrot-drive,
+        //     bob-latch, flatWaterWalk sprint, float-over crossing, climb-out — is
+        //     completely untouched), AND
+        //   • the current step target is itself UNDERWATER (its head cell is water too;
+        //     a climb-out / bank node reads false), AND
+        //   • the node is at-or-below the feet (wp above foot = a planned ascent → gate
+        //     off, the normal swim-up rise applies).
+        // Action: feet ABOVE the node level → sneak (the vanilla shift-sink, the exact
+        // actuator a swimDown* dive rides) until back at level; AT level → no sneak, the
+        // plain forward drive traverses (and the swim-up jump stays suppressed so the
+        // level HOLDS); feet BELOW → gate is off by the third clause.
+        boolean underwaterDepthHold = p.isInWater() && world.isSubmergedFoot(foot)
+                && world.isWater(wp) && world.isWater(wp.above())
+                && wp.getY() <= foot.getY();
+        boolean underwaterSink = underwaterDepthHold && wp.getY() < foot.getY();
+        agentSneak(a, brakeSneak || diving || lavaBrake || underwaterSink);
         p.setShiftKeyDown(brakeSneak || lavaBrake);
         // Jump for a real upward step, a parkour-leap edge (by move type, not
         // raw distance — string-pulling makes plain walk waypoints far apart
@@ -4657,9 +4681,15 @@ public final class Walker {
                     || levelRiserJump
                     // !diving: swimColumn is true for any submerged body, so during an
                     // ACTIVE dive the held jump cancelled the sneak-sink exactly —
+                    // !underwaterDepthHold: same cancellation for the SUBMERGED HORIZONTAL
+                    // traverse after a dive (walk/diag edges through deep water — see the
+                    // depth-hold gate beside brakeSneak): the swim-up bob is exactly the
+                    // ratchet that hauled the bot back to the surface mid-traverse. A
+                    // planned ascent (wp above foot) reads false there, so a real rise
+                    // and every surface behavior keep their jump. —
                     // the bot hovered at constant depth (hSpd 0.02, jump+sneak both
                     // down) while the burst storm wound yaw 4.5 turns (mangrove live).
-                    || ((swimUp || swimColumn || deepWaterRise) && !cappedHead && !diving) || wiggle);
+                    || ((swimUp || swimColumn || deepWaterRise) && !cappedHead && !diving && !underwaterDepthHold) || wiggle);
         // TEMP-DIAG (sunken-start deadlock): dump every jump term while submerged & stuck
         if (BotConfig.walkerDebug && p.isInWater() && p.isUnderWater() && stuckTicks > 20 && stuckTicks % 20 == 1) {
             LOG.info("[walker] JUMP-DIAG jump={} swimUp={} swimCol={} dwRise={} capped={} diving={} descBrake={} fbMis={} belowRam={} stepUpJump={} wiggle={} uwT={} wp={},{},{} foot={},{},{}",
