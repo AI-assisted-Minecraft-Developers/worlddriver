@@ -255,14 +255,33 @@ public final class PathFinder {
             Arrays.fill(bestHeuristic, Double.POSITIVE_INFINITY);
             // A0: seed the modifier stack with the legacy taxes IN THE EXACT
             // ORDER of the old inline sum (FP addition is not associative).
-            costModifiers.add((f, t, e, g, w) -> descendTax(f, t, e));
-            costModifiers.add((f, t, e, g, w) -> waterCellTax(t));
+            // A5 dive water-tax relief: a DIVE opt-in declares water a legitimate
+            // MEDIUM for this intent, so the three taxes whose sole purpose is
+            // water-AVOIDANCE are skipped (descend / per-cell / submerged). The
+            // diveGoal() exemption inside them was meant to do this, but it keys on
+            // the target CELL being water — an air-pocket base goal is an AIR cell,
+            // so diveGoal() read false and submergedTax (80/descending edge ≈ 8
+            // walk-blocks each) inflated the dive route's g until thousands of land
+            // nodes looked cheaper: every live search from the water surface burned
+            // its full budget overland and best-effort'd into a dead-end against the
+            // base wall (live 2026-07-06 rc-a5c: goalReached=false expanded≈16k
+            // ms=1501 on EVERY repath). Relief is per-intent (goto dive:true only);
+            // without the opt-in all taxes are added exactly as before, same order →
+            // bit-identical sums. KEPT under relief: leaf/pad/vineOverWater/
+            // padOverWater (hazard geometry pricing — bob-jam walls, not water
+            // avoidance) and climbOutTax (prices tall bank EXITS, an executor
+            // reality that holds for a dive intent too). Dropping a non-negative
+            // g-side tax keeps every edge cost ≥ its base, so the heuristic (which
+            // never counted taxes) stays an underestimate — admissibility holds.
+            boolean diveRelief = this.capability.allowsOptIn(Capability.DIVE);
+            if (!diveRelief) costModifiers.add((f, t, e, g, w) -> descendTax(f, t, e));
+            if (!diveRelief) costModifiers.add((f, t, e, g, w) -> waterCellTax(t));
             costModifiers.add((f, t, e, g, w) -> leafCellTax(t));
             costModifiers.add((f, t, e, g, w) -> padCellTax(t));
             costModifiers.add((f, t, e, g, w) -> vineOverWaterTax(t));
             costModifiers.add((f, t, e, g, w) -> padOverWaterTax(t));
             costModifiers.add((f, t, e, g, w) -> climbOutTax(f, t));
-            costModifiers.add((f, t, e, g, w) -> submergedTax(f, t));
+            if (!diveRelief) costModifiers.add((f, t, e, g, w) -> submergedTax(f, t));
             // A4a: append this search's per-intent bias AFTER the legacy taxes.
             // Empty for a plain search → byte-identical to the pre-A4a stack.
             costModifiers.addAll(PathFinder.this.profile.bias());

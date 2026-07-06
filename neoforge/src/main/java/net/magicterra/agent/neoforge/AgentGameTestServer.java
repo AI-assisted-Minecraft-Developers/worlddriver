@@ -1328,8 +1328,17 @@ public final class AgentGameTestServer {
         for (int dz = -1; dz <= 1; dz++)
             for (int y = floorY + 1; y <= floorY + 2; y++)
                 level.setBlockAndUpdate(new BlockPos(cx + 2, y, cz + dz), Blocks.WATER.defaultBlockState());
-        BlockPos goalCell = new BlockPos(cx + 4, floorY + 1, cz);   // chamber centre, on the floor
-        Goal.Near goal = new Goal.Near(goalCell, 1);
+        // The stand cell (chamber-centre water, on the floor) is where the bot ends up;
+        // the GOAL targets the AIR cell two above it — the LIVE shape. An air-pocket
+        // base goal is NOT a water cell, so PathFinder.diveGoal() reads FALSE and the
+        // water-avoidance taxes apply in full unless the DIVE opt-in relieves them
+        // (targeting the water cell instead silently exempted the taxes via diveGoal()
+        // and masked the live planner starvation — rc-a5c: every search timed out at
+        // 16k nodes and best-effort'd overland). Near(2) is reached from the stand
+        // cell (dist exactly 2).
+        BlockPos standCell = new BlockPos(cx + 4, floorY + 1, cz);
+        BlockPos goalCell = new BlockPos(cx + 4, floorY + 3, cz);   // AIR-pocket cell above the water
+        Goal.Near goal = new Goal.Near(goalCell, 2);
 
         boolean odbg = BotConfig.walkerDebug;
         long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
@@ -1352,12 +1361,22 @@ public final class AgentGameTestServer {
             boolean hasSurfaceDive = false;
             for (Move.Edge e : plan.edges()) if (e != null && "swimDownSurface".equals(e.move)) hasSurfaceDive = true;
             AgentDriverCommon.LOG.info(
-                    "[underwaterBaseArena] plan.goalReached={} hasSurfaceDive={} start=({},{},{}) goalCell={}",
-                    plan.goalReached(), hasSurfaceDive, start.getX(), start.getY(), start.getZ(), goalCell);
+                    "[underwaterBaseArena] plan.goalReached={} hasSurfaceDive={} finalCost={} start=({},{},{}) goalCell={}",
+                    plan.goalReached(), hasSurfaceDive, plan.finalCost(),
+                    start.getX(), start.getY(), start.getZ(), goalCell);
             if (!plan.goalReached())
                 throw new GameTestAssertException("planner: dive+traverse plan did NOT reach the chamber goal");
             if (!hasSurfaceDive)
                 throw new GameTestAssertException("planner: plan reached the chamber WITHOUT a swimDownSurface edge");
+            // Dive water-tax relief gate: the ~12-edge route's BASE cost is ~350; without
+            // the DIVE opt-in relief the water-avoidance taxes (submergedTax 80 on each of
+            // the ~6 descending submerged edges of the dive column) push it past ~800 —
+            // the same g-inflation that starved the live open-world search into an
+            // overland dead-end. 640 (≈ 16 cells × 40) cleanly separates the two.
+            if (plan.finalCost() >= 640)
+                throw new GameTestAssertException("planner: dive plan finalCost=" + plan.finalCost()
+                        + " ≥ 640 — the DIVE opt-in water-tax relief is not engaging (the un-relieved"
+                        + " taxes starve the open-world live search into an overland dead-end)");
 
             Intent intent = new Intent(goal, List.of(), diveProfile, constraints);
             driver.runProcess(new IntentProcess(intent));
@@ -1366,9 +1385,11 @@ public final class AgentGameTestServer {
                 ServerAgentManager.tickAll();
 
             FakePlayer fp = driver.fakePlayer();
-            double ddx = fp.getX() - (goalCell.getX() + 0.5);
-            double ddy = fp.getY() - goalCell.getY();
-            double ddz = fp.getZ() - (goalCell.getZ() + 0.5);
+            // Position asserts measure against the STAND cell (the water cell on the
+            // chamber floor) — the goal's air cell sits two above where a body can be.
+            double ddx = fp.getX() - (standCell.getX() + 0.5);
+            double ddy = fp.getY() - standCell.getY();
+            double ddz = fp.getZ() - (standCell.getZ() + 0.5);
             double dist = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz);
             boolean insideChamber = fp.getX() > cx + 2.5;   // past the tank's east wall plane
             AgentDriverCommon.LOG.info(
