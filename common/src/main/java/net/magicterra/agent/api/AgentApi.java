@@ -794,6 +794,11 @@ public final class AgentApi {
         } else if ("entities".equals(p.q)) {
             int r = Math.max(0, Math.min(128, num(p.filter.getOrDefault("in_radius", 16))));
             Boolean wantHostile = (p.filter.get("is_hostile") instanceof Boolean b) ? b : null;
+            // filter.type restricts to one entity id (exact match; bare paths get the
+            // minecraft: namespace) — mirrors the blocks branch, which had it first.
+            Object entityTypeFilter = p.filter.get("type");
+            String wantType = (entityTypeFilter instanceof String s && !s.isBlank())
+                    ? (s.contains(":") ? s : "minecraft:" + s) : null;
             return onServerThread(() -> {
                 List<Map<String, Object>> out = new ArrayList<>();
                 BlockPos center = centerPos;
@@ -801,6 +806,7 @@ public final class AgentApi {
                 for (Entity e : level.getEntities((Entity) null, box)) {
                     boolean hostile = e instanceof Enemy;
                     if (wantHostile != null && wantHostile != hostile) continue;
+                    if (wantType != null && !wantType.equals(BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString())) continue;
                     Map<String, Object> row = new LinkedHashMap<>();
                     row.put("pos", new BlockPos(e.blockPosition().getX(), e.blockPosition().getY(), e.blockPosition().getZ()));
                     row.put("type", BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString());

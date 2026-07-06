@@ -107,7 +107,7 @@ In-memory block-box save/restore — the clean way to A/B a pathfinder/build tri
 ## mc.query
 | method | params | returns / notes |
 |---|---|---|
-| `mc.query` | `q:"blocks"\|"entities"` (req), `center?`, `filter?:{in_radius?, type?, is_hostile?}`, `select?:[…]` | scan a cube (Chebyshev `in_radius`; required for blocks, default 16 for entities) → `[{pos,type, health?,id?,hostile?,maxHealth?,distance?}]`. `select` projects fields. `type` accepts `#tag` selectors. |
+| `mc.query` | `q:"blocks"\|"entities"` (req), `center?`, `filter?:{in_radius?, type?, is_hostile?}`, `select?:[…]` | scan a cube (Chebyshev `in_radius`; required for blocks, default 16 for entities). `filter.type` = one exact id for both blocks (`#tag` ok) and entities (bare path → `minecraft:`) → `[{pos,type, health?,id?,hostile?,maxHealth?,distance?}]`. `select` projects fields. `type` accepts `#tag` selectors. |
 
 ## mc.events
 Server-side event channel: emit your own events and set up server-side **watchers** that poll an arbitrary method on a rising-edge predicate and emit when it fires (a building block for `wait.condition`-style automation without a client long-poll).

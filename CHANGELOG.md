@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`mc.query` entities gains `filter.type`** (exact entity id; bare path → `minecraft:`),
+  mirroring the blocks branch — the docs promised it for both, only blocks had it.
 - **`mc.action.runCommand` now returns the command's own outcome** — `success`/`value`
   from the Brigadier result callback (`execute if entity` → match count) and
   `feedback[]` with the collected chat output (`data get` → NBT text) instead of
