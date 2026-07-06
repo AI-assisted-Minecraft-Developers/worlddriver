@@ -3,6 +3,8 @@ package net.magicterra.agent.bot.pathfinder;
 import net.magicterra.agent.bot.Goal;
 import net.minecraft.core.BlockPos;
 
+import static net.magicterra.agent.AgentDriverCommon.LOG;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -220,6 +222,7 @@ public final class PathFinder {
         private int expanded;
         private long elapsedNanos;     // cumulative compute time across slices
         private Result result;         // null until done
+        private String segmentReason = "none";   // A5 diagnostics: which chooseSegment branch fired
 
         private Search(BlockPos start, Goal goal, boolean suppressPlace) {
             this.start = start;
@@ -285,6 +288,29 @@ public final class PathFinder {
             // A4a: append this search's per-intent bias AFTER the legacy taxes.
             // Empty for a plain search → byte-identical to the pre-A4a stack.
             costModifiers.addAll(PathFinder.this.profile.bias());
+            // A5 dive diagnostics (walkerDebug-gated, one line per search): whether the
+            // DIVE opt-in actually reached THIS search, whether the SurfaceDive move
+            // survived the filter, and whether it (and SwimDown) yields an edge from
+            // the start cell — the live rc-a5c/e/g mystery was invisible without this.
+            if (BotConfig.walkerDebug) {
+                Move surfDive = null, swimDown = null;
+                for (Move m : activeMoves) {
+                    if ("swimDownSurface".equals(m.name())) surfDive = m;
+                    else if ("swimDown".equals(m.name())) swimDown = m;
+                }
+                Move.Edge sdE = surfDive == null ? null : surfDive.eval(world, start);
+                Move.Edge swE = swimDown == null ? null : swimDown.eval(world, start);
+                LOG.info("[pathfinder] search-begin start={} goal={} diveOptIn={} activeMoves={} surfaceDiveInSet={} "
+                                + "surfaceDiveEdge@start={} swimDownEdge@start={} startInWater={} submergedFoot@start={} "
+                                + "maxNodes={} maxMs={} softCommit={} boxedEscalate={} constraints={} bias={}",
+                        start.toShortString(), goal, capability.allowsOptIn(Capability.DIVE), activeMoves.length,
+                        surfDive != null,
+                        sdE == null ? "null" : sdE.to.toShortString() + "/cost=" + sdE.cost,
+                        swE == null ? "null" : swE.to.toShortString() + "/cost=" + swE.cost,
+                        startInWater, world.isSubmergedFoot(start),
+                        maxNodes, maxMs, BotConfig.pfSoftCommitNodes(), BotConfig.pathfinderBoxedEscalate,
+                        constraints.size(), PathFinder.this.profile.bias().size());
+            }
         }
 
         public boolean done() { return result != null; }
@@ -622,6 +648,7 @@ public final class PathFinder {
             // Cache is LIVE only while this slice expands nodes (static-world memoise);
             // cleared off in finally so the Walker's between-slice reads stay fresh.
             world.cacheActive(true);
+            String stopCause = "open-exhausted";   // A5 diagnostics: why the expand loop ended
             try {
                 while (!open.isEmpty()) {
                     // Check the clock every TIME_CHECK_INTERVAL expansions, not every 128:
@@ -737,8 +764,8 @@ public final class PathFinder {
                         bestEscape = cur;
                     }
 
-                    if (expanded >= maxNodes) break;
-                    if (totalMs(sliceStart) > maxMs) break;
+                    if (expanded >= maxNodes) { stopCause = "maxNodes(" + maxNodes + ")"; break; }
+                    if (totalMs(sliceStart) > maxMs) { stopCause = "maxMs(" + maxMs + ")"; break; }
                     // Soft commit (BotConfig.pathfinderSoftCommitNodes): the horizon
                     // early-stop above only fires on real forward progress; when the bot is
                     // BOXED at an obstacle no such node appears and the search would grind the
@@ -750,7 +777,12 @@ public final class PathFinder {
                     // reachability is unchanged.
                     if (BotConfig.pfSoftCommitNodes() > 0
                             && expanded >= BotConfig.pfSoftCommitNodes()
-                            && hasCommittableSegment()) break;
+                            && hasCommittableSegment()) {
+                        stopCause = "soft-commit(softNodes=" + BotConfig.pfSoftCommitNodes()
+                                + (startInWater && expanded >= BotConfig.pfSoftCommitNodes() * 4L
+                                        ? " water-relaxed-4x" : "") + ")";
+                        break;
+                    }
 
                     for (Move m : activeMoves) {
                         // eval() → null for an inadmissible move, else a concrete
@@ -790,6 +822,15 @@ public final class PathFinder {
                 }
                 // open empty / node budget / time budget → commit best-effort segment
                 Node segment = chooseSegment();
+                if (BotConfig.walkerDebug) {
+                    LOG.info("[pathfinder] STOP cause={} expanded={} ms={} segment={} segG={} bestAshore={} bestAshoreG={} bestClimbY={} openLeft={}",
+                            stopCause, expanded, totalMs(sliceStart), segmentReason,
+                            segment == null ? -1 : segment.g,
+                            bestAshore == null ? "null" : bestAshore.pos.toShortString(),
+                            bestAshore == null ? -1 : bestAshore.g,
+                            bestClimb == null ? "null" : bestClimb.pos.getY(),
+                            open.size());
+                }
                 result = (segment == null)
                         ? new Result(List.of(), List.of(), false, expanded, totalMs(sliceStart), startNode.h)
                         : build(segment, false, expanded, totalMs(sliceStart), segment.g);
@@ -833,20 +874,23 @@ public final class PathFinder {
                 // the monotone-up bestClimb through open water and re-plan from the
                 // surface vantage where the real shore is reachable. The dig-ashore
                 // stays as the genuine last resort (a fully roofed water pocket).
-                if (bestAshore != null && bestAshore.g <= ASHORE_CHEAP_G) return bestAshore;
+                if (bestAshore != null && bestAshore.g <= ASHORE_CHEAP_G) { segmentReason = "water-ashore-cheap"; return bestAshore; }
                 if (bestClimb != null && bestClimb.pos.getY() - start.getY() >= MIN_CLIMB_ESCAPE) {
+                    segmentReason = "water-climb-surface";
                     return bestClimb;
                 }
+                segmentReason = bestAshore == null ? "water-none" : "water-ashore";
                 return bestAshore;
             }
 
             if (BotConfig.pathfinderFrontierCommit && bestFrontier != null
                     && bestFrontier.h < startNode.h - MIN_FRONTIER_GAIN
                     && bestFrontier.pos.distSqr(start) > MIN_DIST_PATH * MIN_DIST_PATH) {
+                segmentReason = "frontier-forward";
                 return bestFrontier;
             }
             Node seg = selectSegment(bestSoFar, start);
-            if (seg != null) return seg;
+            if (seg != null) { segmentReason = "goalward-bestSoFar"; return seg; }
             // Walled-to-frontier exploration (progressive planning): no goal-WARD segment
             // (the direct line is walled) but the search reached the edge of KNOWN terrain.
             // The detour around the wall lies in UNLOADED chunks, so grinding the hard
@@ -865,6 +909,7 @@ public final class PathFinder {
             if (BotConfig.pathfinderFrontierCommit && bestFrontier != null
                     && bestFrontier.pos.distSqr(start) > MIN_DIST_PATH * MIN_DIST_PATH
                     && bestFrontier.h < startNode.h + MIN_FRONTIER_GAIN) {
+                segmentReason = "frontier-walled";
                 return bestFrontier;
             }
             // Boxed: no horizontal segment made real progress (conservative selector
@@ -875,6 +920,7 @@ public final class PathFinder {
             // so it can't oscillate, and it self-terminates when blocks run out (no
             // climbed node → null → today's "no path"). User-chosen vertical escape.
             if (bestClimb != null && bestClimb.pos.getY() - start.getY() >= MIN_CLIMB_ESCAPE) {
+                segmentReason = "climb-escape";
                 return bestClimb;
             }
             // LAST RESORT — boxed with no goal-ward, frontier or upward escape at
@@ -889,8 +935,10 @@ public final class PathFinder {
             // Unreachable only via hard-cap exhaustion: hasCommittableSegment()
             // deliberately ignores bestEscape, so soft-commit can never fire on it.
             if (bestEscape != null && bestEscapeD2 > (long) MIN_DIST_PATH * MIN_DIST_PATH) {
+                segmentReason = "escape-farthest";
                 return bestEscape;
             }
+            segmentReason = "none";
             return null;
         }
 
