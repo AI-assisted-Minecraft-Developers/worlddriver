@@ -660,28 +660,35 @@ public final class AgentGameTestBias {
     public static void shorelineSmootherArena(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         final int x0 = 2200, z0 = 2200, y = 240;
+        AgentDriverCommon.LOG.info("[shorelineSmootherArena] START");   // entry probe: a frozen
+        // log right after this line = THIS arena hung (the 2026-07-06 51-min freeze).
 
-        // Defensive clear + stone slab 35x35 (dx/dz -2..32).
+        // TWO-LAYER basin — the water must be sealed BELOW as well: the first cut carved
+        // water into the slab layer with the template VOID underneath, and the strips
+        // cascaded into the void forever (228% CPU, frozen log, hung wheel). Bed layer at
+        // y, surface layer at y+1 stone everywhere EXCEPT the L strips (water), walking
+        // foot at y+2 — forbidWaterArena's basin pattern.
         for (int dx = -2; dx <= 32; dx++)
             for (int dz = -2; dz <= 32; dz++) {
-                for (int dy = 1; dy <= 4; dy++)
+                for (int dy = 2; dy <= 5; dy++)
                     level.setBlockAndUpdate(new BlockPos(x0 + dx, y + dy, z0 + dz), Blocks.AIR.defaultBlockState());
                 level.setBlockAndUpdate(new BlockPos(x0 + dx, y, z0 + dz), Blocks.STONE.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(x0 + dx, y + 1, z0 + dz), Blocks.STONE.defaultBlockState());
             }
-        // Carved L channel: water REPLACES the slab layer (surface at y, bank foot at
-        // y+1 — the live river shape; contained by the surrounding slab stone, and the
-        // shoreline probe's to.y-1 level sees it).
+        // L channel: water embedded in the surface layer (y+1), sealed by the bed below
+        // and the surrounding surface stone on all sides. Bank foot y+2 sees it at
+        // to.y-1 — the ShorelineHug probe level.
         for (int dx = 0; dx <= 30; dx++)
             for (int dz = 5; dz <= 7; dz++)
-                level.setBlockAndUpdate(new BlockPos(x0 + dx, y, z0 + dz), Blocks.WATER.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(x0 + dx, y + 1, z0 + dz), Blocks.WATER.defaultBlockState());
         for (int dx = 28; dx <= 30; dx++)
             for (int dz = 5; dz <= 30; dz++)
-                level.setBlockAndUpdate(new BlockPos(x0 + dx, y, z0 + dz), Blocks.WATER.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(x0 + dx, y + 1, z0 + dz), Blocks.WATER.defaultBlockState());
 
-        BlockPos start = new BlockPos(x0 + 10, y + 1, z0 + 8);   // south bank of the horizontal strip
-        BlockPos goal = new BlockPos(x0 + 27, y + 1, z0 + 25);   // west bank of the vertical strip
+        BlockPos start = new BlockPos(x0 + 10, y + 2, z0 + 8);   // south bank of the horizontal strip
+        BlockPos goal = new BlockPos(x0 + 27, y + 2, z0 + 25);   // west bank of the vertical strip
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.create(level, x0 + 10.5, y + 1, z0 + 8.5);
+        ServerPlayerAvatar av = ServerPlayerAvatar.create(level, x0 + 10.5, y + 2, z0 + 8.5);
         FakePlayer fp = av.fakePlayer();
         fp.getInventory().clearContent();
         LevelWorldView w = new LevelWorldView(level, fp);
