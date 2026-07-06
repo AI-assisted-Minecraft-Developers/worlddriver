@@ -19,9 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`mc.bot.goto` gains `hugShore` (shoreline-affinity bias) — 沿着河岸走 = goto far
   point + hugShore + forbidWater.**
 - **Bias-aware string-pull**: the path smoother no longer straightens a bow the
-  per-intent bias paid for (a ShorelineHug bank-hug was being collapsed straight
-  across the taxed dry interior — the dangerCost-smoother lesson, replayed for the
-  intent layer's bias channel and fixed the same way).
+  per-intent bias paid for — protects ALL bias citizens (hugShore, avoid, preferY,
+  leash), found via a ShorelineHug bank-hug collapsed straight across the taxed dry
+  interior (the dangerCost-smoother lesson, replayed for the intent layer's bias
+  channel and fixed the same way).
 - **`mc.bot.goto` leash/leashHard accept `entity:'name-or-type'` — a DYNAMIC anchor
   re-solved as the entity moves (带路 scenarios); `mc.bot.follow` accepts the goto
   bias/constraint args (compose "follow A but forbidWater/avoid zones").** The hard
