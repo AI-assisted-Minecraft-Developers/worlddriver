@@ -25,11 +25,15 @@ import net.magicterra.agent.bot.debug.NodePhysics;
 import net.magicterra.agent.bot.debug.PathArchive;
 import net.magicterra.agent.bot.debug.PathArchiveRecorder;
 import net.magicterra.agent.bot.debug.PathDebugBootstrap;
+import net.magicterra.agent.bot.pathfinder.Capability;
 import net.magicterra.agent.bot.pathfinder.CapabilityProfile;
+import net.magicterra.agent.bot.pathfinder.Constraint;
 import net.magicterra.agent.bot.pathfinder.MultiTrace;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
 import net.magicterra.agent.bot.pathfinder.PathTrace;
 import net.magicterra.agent.bot.pathfinder.PathTraceHolder;
+import net.magicterra.agent.bot.pathfinder.SearchProfile;
+import net.magicterra.agent.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.world.LevelWorldView;
@@ -51,6 +55,7 @@ import net.neoforged.neoforge.common.util.FakePlayer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -1124,6 +1129,131 @@ public final class AgentGameTestServer {
         } finally {
             BotConfig.allowBreak = ob;
             BotConfig.allowPlace = op;
+        }
+        helper.succeed();
+    }
+
+    /**
+     * A5 proof: a goal at the bottom of deep water is unreachable from a floating
+     * SURFACE start until the intent explicitly opts into {@link Capability#DIVE}.
+     * Pre-A5, {@code SwimDown.valid} hard-requires {@code isSubmergedFoot(from)} — a
+     * deliberate anti-regression for the 2026-06-20 buoyancy-ratchet disaster (an
+     * UNPLANNED surface dive let A* ratchet a shallow bank climb-out into a deep dive
+     * it could never execute) — so no move could ever start a descent from the
+     * surface, and "游进水里回水下基地" (swim back down to an underwater base) was only
+     * reachable via absurd routes (digging through the tank wall).
+     *
+     * <p>{@link net.magicterra.agent.bot.pathfinder.moves.SurfaceDive} ("swimDownSurface")
+     * is the surface complement, gated OPT-IN on {@code Capability.DIVE} so it never
+     * fires unless {@code dive:true} is requested. Two proofs, same tank:
+     * <ol>
+     *   <li>PLANNER: with DIVE opted in (+{@link NoBreak}, so digging through the
+     *       stone shell can't offer a cheaper escape hatch), the plan reaches the
+     *       floor AND its edge list contains a {@code "swimDownSurface"} edge — proof
+     *       the new move actually fires, not just that SOME route exists.</li>
+     *   <li>EXECUTOR: the SAME intent run as a real {@link IntentProcess} over a
+     *       {@link ServerAgentDriver} (entityLeashRepathArena's ticked-process idiom)
+     *       must finish + land the FakePlayer within 2 blocks of the floor — proving
+     *       the Walker's existing {@code move.startsWith("swimDown")} dive exemptions
+     *       (pitch-down, active sink, suppressed swim-up jump) cover the surface-start
+     *       case for free, since {@code "swimDownSurface"} inherits all of them by name.</li>
+     * </ol>
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void surfaceDiveArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        // Ground-anchored (per-test placement), not a hardcoded absolute coord — see
+        // entityLeashRepathArena's rationale.
+        BlockPos anchor = helper.absolutePos(BlockPos.ZERO);
+        final int cx = anchor.getX(), cz = anchor.getZ(), floorY = anchor.getY();
+        final int depth = 8;                       // interior water depth
+        final int surfaceY = floorY + depth;        // top water layer
+
+        // Defensive full clear first (shared ServerLevel residue — see buoyantWallArena).
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = -3; dz <= 3; dz++)
+                for (int y = floorY - 2; y <= surfaceY + 2; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
+        // TWO-LAYER sealed bottom: the "empty" template is VOID below the anchor, so a
+        // single floor layer risks the water sitting on nothing solid underneath it.
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= 2; dz++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY - 1, cz + dz), Blocks.STONE.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+            }
+        // Stone shell walls (|dx|==2 or |dz|==2), floor+1 .. surface+1 (one rim above
+        // the water so it can't spill over the top); 3x3 interior water core.
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= 2; dz++) {
+                boolean wall = Math.abs(dx) == 2 || Math.abs(dz) == 2;
+                for (int y = floorY + 1; y <= surfaceY + 1; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz),
+                            wall ? Blocks.STONE.defaultBlockState()
+                                 : (y <= surfaceY ? Blocks.WATER.defaultBlockState() : Blocks.AIR.defaultBlockState()));
+            }
+        BlockPos bottomCell = new BlockPos(cx, floorY + 1, cz);   // first water cell ON the sealed floor
+        Goal.Near goal = new Goal.Near(bottomCell, 1);
+
+        boolean odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ServerAgentManager.clear();
+        try {
+            CapabilityProfile diveProfile = new CapabilityProfile(
+                    EnumSet.noneOf(Capability.class), EnumSet.of(Capability.DIVE));
+            List<Constraint> constraints = List.of(new NoBreak());
+            SearchProfile diveSearch = new SearchProfile(List.of(), diveProfile, constraints);
+
+            // FakePlayer starts IN the water AT the surface — surfaceY-1 (buoyantWallArena's
+            // idiom): both surfaceY and surfaceY-1 read as non-submerged (WorldView#isSubmergedFoot
+            // checks foot+2, which is still air at either depth), so SwimDown (isSubmergedFoot-gated)
+            // cannot fire from here — only the new opt-in SurfaceDive can start the descent.
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, surfaceY - 1, cz + 0.5);
+            BlockPos start = driver.fakePlayer().blockPosition();
+
+            // PLANNER-ONLY proof: the plan reaches the floor and its edge list actually
+            // contains a swimDownSurface edge (not just SOME reachable route).
+            PathFinder.Result plan = new PathFinder(driver.world(), diveSearch).findPath(start, goal);
+            boolean hasSurfaceDive = false;
+            for (Move.Edge e : plan.edges()) if (e != null && "swimDownSurface".equals(e.move)) hasSurfaceDive = true;
+            AgentDriverCommon.LOG.info(
+                    "[surfaceDiveArena] plan.goalReached={} hasSurfaceDive={} start=({},{},{}) bottomCell={}",
+                    plan.goalReached(), hasSurfaceDive, start.getX(), start.getY(), start.getZ(), bottomCell);
+            if (!plan.goalReached())
+                throw new GameTestAssertException("planner: dive-enabled plan did NOT reach the underwater goal");
+            if (!hasSurfaceDive)
+                throw new GameTestAssertException(
+                        "planner: dive-enabled plan reached the goal WITHOUT a swimDownSurface edge — "
+                                + "the new opt-in move never fired");
+
+            // EXECUTOR proof: the SAME intent, run for real over the ticked ServerAgentManager loop.
+            Intent intent = new Intent(goal, List.of(), diveProfile, constraints);
+            driver.runProcess(new IntentProcess(intent));
+            ServerAgentManager.register(driver);
+            for (int t = 0; t < 600 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            FakePlayer fp = driver.fakePlayer();
+            double ddx = fp.getX() - (bottomCell.getX() + 0.5);
+            double ddy = fp.getY() - bottomCell.getY();
+            double ddz = fp.getZ() - (bottomCell.getZ() + 0.5);
+            double dist = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz);
+            AgentDriverCommon.LOG.info(
+                    "[surfaceDiveArena] pos=({},{},{}) finished={} active={} dist={}",
+                    fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAgentManager.activeCount(), dist);
+            if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                throw new GameTestAssertException("executor: dive process did not finish+unregister within 600t: "
+                        + "finished=" + driver.finished() + " active=" + ServerAgentManager.activeCount());
+            if (dist > 2.0)
+                throw new GameTestAssertException("executor: bot did not land within 2 of the underwater goal: pos=("
+                        + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") dist=" + dist);
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            ServerAgentManager.clear();
         }
         helper.succeed();
     }
