@@ -1343,7 +1343,18 @@ public final class AgentGameTestServer {
         boolean odbg = BotConfig.walkerDebug;
         long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
         BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        // SMALL slice (NOT the usual unbounded pin): the executor's search must take
+        // MANY TICKS to resolve so the arena reproduces the live PRE-PATH RACE — on
+        // the live client the sliced search always loses to the walker's progressive
+        // stubs (tryQuickStart's best-effort mini-plan contains climb-out edges), the
+        // instinct hauled the floating bot ASHORE before the first plan existed, and
+        // every later search started from land (rc-a5c overland dead-end). An
+        // unbounded slice resolves the plan on the first walker tick, window ≈ 0, and
+        // the race is invisible. With the slice pinned tiny, the walker spends real
+        // in-water pre-path ticks where ONLY the A5 dive-intent hold keeps it treading
+        // in the tank instead of stub-walking. maxMs stays unbounded so the search
+        // itself is still node-budget-deterministic.
+        BotConfig.pathfinderSliceMs = 1;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         ServerAgentManager.clear();
         try {

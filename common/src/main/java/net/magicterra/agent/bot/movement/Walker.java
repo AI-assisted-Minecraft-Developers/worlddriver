@@ -4,6 +4,7 @@ import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.debug.BotLevelHolder;
 import net.magicterra.agent.bot.movement.PathSmoothing.SmoothResult;
+import net.magicterra.agent.bot.pathfinder.Capability;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
 import net.magicterra.agent.bot.pathfinder.PathTrace;
@@ -1410,7 +1411,26 @@ public final class Walker {
         // the big result supersedes it on landing. Only hold if no useful
         // stub exists (boxed in — moving blind would jitter).
         if (path == null) {
-            if (replayMode || activeSearch == null
+            // A5 DIVE-INTENT HOLD: while a DIVE-opt-in intent's search is pending and
+            // the bot floats IN WATER, do NOT adopt a progressive stub — HOLD (tread
+            // water) until the real plan lands. tryQuickStart is a genuine mini-A*
+            // whose best-effort partial happily contains climb-OUT edges, so from a
+            // water-surface start it beat the sliced big search every time and hauled
+            // the bot ASHORE before the first plan existed — by then the search start
+            // was on LAND and the dive route was gone (live 2026-07-06 rc-a5c: every
+            // t=2 sample already climbing out at ~(601.7,-49.6) with no [walker]
+            // repath line yet; at maxMs=8000 the land-start search burned 90k nodes
+            // honestly-unreachable). tryWaterBeeline likewise marches the floater
+            // AWAY along the surface, moving the next search's start off the dive
+            // column. The swimDown*/depth-hold exemptions all key on the CURRENT
+            // EDGE, which does not exist pre-path — this is the pre-path twin of
+            // those gates. Planned climb-out EDGES from a real path still execute
+            // (a dive route may legitimately end with a bank exit); dry-land legs
+            // of a dive-intent journey keep their stubs (gate requires isInWater).
+            // No DIVE opt-in → allowsOptIn false → byte-identical.
+            boolean diveIntentWaterHold = p.isInWater()
+                    && profile.capability().allowsOptIn(Capability.DIVE);
+            if (replayMode || activeSearch == null || diveIntentWaterHold
                     || (!tryLandBeeline(world, foot, goal)
                         && !tryQuickStart(world, foot, goal) && !tryWaterBeeline(world, foot, goal))) {
                 // replayMode: a fixed plan was adopted at beginReplay, so path is
