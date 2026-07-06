@@ -1,6 +1,7 @@
 package net.magicterra.agent.bot.movement;
 
 import net.magicterra.agent.bot.BotConfig;
+import net.magicterra.agent.bot.pathfinder.CostModifier;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
@@ -25,6 +26,9 @@ public final class PathSmoothing {
         final List<BlockPos> path;
         final List<Move.Edge> edges;
         SmoothResult(List<BlockPos> path, List<Move.Edge> edges) { this.path = path; this.edges = edges; }
+        /** Public accessors for out-of-package callers (GameTest arenas). */
+        public List<BlockPos> path() { return path; }
+        public List<Move.Edge> edges() { return edges; }
     }
 
     /** True if an edge is a plain flat walk/diagonal with no break/place — the
@@ -45,6 +49,21 @@ public final class PathSmoothing {
      * nodes are preserved as hard waypoints so movement timing is unaffected.
      */
     public static SmoothResult stringPull(WorldView w, List<BlockPos> path, List<Move.Edge> edges) {
+        return stringPull(w, path, edges, List.of());
+    }
+
+    /**
+     * Bias-aware overload: {@code bias} is the active per-intent
+     * {@code SearchProfile.bias()} modifiers. Exactly like the dangerCost
+     * rejection below, a bow A* paid extra bias cost to avoid (e.g. a
+     * ShorelineHug tax bow hugging the waterline) must not be straightened back
+     * through the taxed region — the straight line is rejected when its summed
+     * bias cost exceeds the kept waypoints'. Modifiers are probed with a
+     * synthetic flat "walk" edge and a null goal (every per-intent citizen —
+     * avoid/leash/preferY/hugShore — ignores both).
+     */
+    public static SmoothResult stringPull(WorldView w, List<BlockPos> path, List<Move.Edge> edges,
+            List<CostModifier> bias) {
         if (path.size() <= 2) return new SmoothResult(path, edges);
         List<BlockPos> np = new ArrayList<>();
         List<Move.Edge> ne = new ArrayList<>();
@@ -86,9 +105,15 @@ public final class PathSmoothing {
             // silently re-introduces the cliff edge / lava graze the planner paid
             // to avoid (losWalkable only checks walkability, not danger). On safe
             // ground both sums are 0, so normal zigzag staircases still collapse.
-            if (BotConfig.avoidDanger
+            if ((BotConfig.avoidDanger
                     && straightLineDanger(w, path.get(i), path.get(j))
-                       > waypointDanger(w, path, i, j) + 1e-6) {
+                       > waypointDanger(w, path, i, j) + 1e-6)
+                    // Same rule for per-intent bias (ShorelineHug / AvoidRegion /
+                    // PreferYBand / LeashAnchor): don't straighten a bow the
+                    // planner paid bias cost to make.
+                    || (!bias.isEmpty()
+                        && straightLineBias(w, path.get(i), path.get(j), bias)
+                           > waypointBias(w, path, i, j, bias) + 1e-6)) {
                 for (int k = next; k <= j; k++) {
                     np.add(path.get(k));
                     ne.add(edges.get(k));
@@ -171,6 +196,43 @@ public final class PathSmoothing {
     private static boolean cornerBlocked(WorldView w, BlockPos c) {
         return !w.isPassable(c) || w.isHazard(c)
             || !w.isPassable(c.offset(0, 1, 0)) || w.isHazard(c.offset(0, 1, 0));
+    }
+
+    /** Sum of the per-intent bias modifiers over the original waypoints in
+     *  {@code (i, end]} — the bias twin of {@link #waypointDanger}. Probed with
+     *  a synthetic flat "walk" edge and null goal (see the bias-aware
+     *  {@code stringPull} overload's contract). */
+    public static double waypointBias(WorldView w, List<BlockPos> path, int i, int end,
+            List<CostModifier> bias) {
+        double sum = 0;
+        for (int k = i + 1; k <= end; k++) {
+            BlockPos from = path.get(k - 1), to = path.get(k);
+            Move.Edge probe = new Move.Edge(to, 0, List.of(), List.of(), "walk");
+            for (CostModifier m : bias) sum += m.extraCost(from, to, probe, null, w);
+        }
+        return sum;
+    }
+
+    /** Sum of the per-intent bias modifiers over the straight-line cells
+     *  {@code a}→{@code b} (same sampling as {@link #straightLineDanger}) — the
+     *  bias twin used by the bias-aware collapse rejection. */
+    public static double straightLineBias(WorldView w, BlockPos a, BlockPos b,
+            List<CostModifier> bias) {
+        int steps = Math.max(Math.abs(b.getX() - a.getX()), Math.abs(b.getZ() - a.getZ()));
+        if (steps == 0) return 0;
+        double sum = 0;
+        BlockPos prev = a;
+        for (int s = 1; s <= steps; s++) {
+            double t = (double) s / steps;
+            int x = (int) Math.round(a.getX() + (b.getX() - a.getX()) * t);
+            int y = (int) Math.round(a.getY() + (b.getY() - a.getY()) * t);
+            int z = (int) Math.round(a.getZ() + (b.getZ() - a.getZ()) * t);
+            BlockPos c = new BlockPos(x, y, z);
+            Move.Edge probe = new Move.Edge(c, 0, List.of(), List.of(), "walk");
+            for (CostModifier m : bias) sum += m.extraCost(prev, c, probe, null, w);
+            prev = c;
+        }
+        return sum;
     }
 
     /** Sum of {@link WorldView#dangerCost} over the original path waypoints in

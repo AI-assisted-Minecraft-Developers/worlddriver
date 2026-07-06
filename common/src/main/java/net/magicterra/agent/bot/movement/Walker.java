@@ -5137,7 +5137,7 @@ public final class Walker {
         // String-pull flat walk runs so the heading stays steady over the
         // staircase (no left-right camera wobble) and the bot walks straight;
         // action/vertical/parkour nodes are preserved.
-        SmoothResult sm = stringPull(world, res.path(), res.edges());
+        SmoothResult sm = stringPull(world, res.path(), res.edges(), profile.bias());
         path = sm.path;
         edges = sm.edges;
         pathBestEffort = !res.goalReached();
