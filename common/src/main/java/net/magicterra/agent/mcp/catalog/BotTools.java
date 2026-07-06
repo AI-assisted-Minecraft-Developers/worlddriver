@@ -56,7 +56,8 @@ public final class BotTools {
                 "Hard constraints (Intent-scoped, pruned rather than costed):\n" +
                 "  forbidParkour  true → drop all parkour moves (also: capability:\"walk\"). Route must not jump gaps.\n" +
                 "  yFloor / yCeil  N — hard-limit the route's Y (prune cells below yFloor / above yCeil). E.g. keep out of caves.\n" +
-                "  leashHard  {x,y,z,radius} — HARD tether: route may not leave the radius at all (firm twin of soft `leash`). " +
+                "  leashHard  {x,y,z,radius} — HARD tether: route may not leave the radius at all (firm twin of soft `leash`); " +
+                "if the bot falls outside the tether it routes straight back in (approach-only). " +
                 "Or entity:'name-or-type' → DYNAMIC anchor that follows the entity (带路: goto the destination + leash:{entity:'PlayerB'}).\n" +
                 "  forbidWater  true → never route through water (hard prune; walking beside water stays fine).\n" +
                 "  forbidDig    true → never plan a block-breaking edge (per-goto allowBreak-off; a non-digging pillar/parkour stays allowed).\n" +
