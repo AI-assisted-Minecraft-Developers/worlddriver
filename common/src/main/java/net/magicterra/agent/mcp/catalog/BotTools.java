@@ -53,6 +53,7 @@ public final class BotTools {
                 "  preferY  {min,max,weight?} — bias the route to stay in a Y band (weight/block outside; dflt 10). E.g. keep to the 2nd floor / hug the surface.\n" +
                 "  leash    {x,y,z,radius,weight?} — soft-leash the route near an anchor (weight/block beyond radius; dflt 20). E.g. lead a companion without straying far. " +
                 "Or entity:'name-or-type' → DYNAMIC anchor that follows the entity (带路: goto the destination + leash:{entity:'PlayerB'}).\n" +
+                "  hugShore {weight:30} → 沿着河岸走 recipe: goto a far point (or direction) + hugShore + forbidWater:true — the route sticks to the waterline and stays dry; weight ≫ 10 (per-node walk cost) pins it to the bank.\n" +
                 "Hard constraints (Intent-scoped, pruned rather than costed):\n" +
                 "  forbidParkour  true → drop all parkour moves (also: capability:\"walk\"). Route must not jump gaps.\n" +
                 "  yFloor / yCeil  N — hard-limit the route's Y (prune cells below yFloor / above yCeil). E.g. keep out of caves.\n" +
@@ -104,6 +105,9 @@ public final class BotTools {
                             .prop("x", number()).prop("y", number()).prop("z", number())
                             .prop("radius", number()).prop("weight", number())
                             .prop("entity", string()))
+                    .prop("hugShore", object()
+                            .prop("weight", number())
+                        .desc("沿河岸走: tax nodes with no adjacent water (dflt weight 30); {} defaults. Bare true also accepted."))
                     .prop("forbidParkour", bool()
                         .desc("Forbid parkour moves — the route must not jump gaps. Also settable via capability:'walk'."))
                     .prop("capability", string()

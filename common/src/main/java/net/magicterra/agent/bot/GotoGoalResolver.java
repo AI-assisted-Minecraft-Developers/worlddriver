@@ -12,6 +12,7 @@ import net.magicterra.agent.bot.pathfinder.constraints.YFloor;
 import net.magicterra.agent.bot.pathfinder.modifiers.AvoidRegion;
 import net.magicterra.agent.bot.pathfinder.modifiers.LeashAnchor;
 import net.magicterra.agent.bot.pathfinder.modifiers.PreferYBand;
+import net.magicterra.agent.bot.pathfinder.modifiers.ShorelineHug;
 import net.magicterra.agent.bot.process.EntityLeash;
 import net.magicterra.agent.model.Params;
 import net.minecraft.client.Minecraft;
@@ -161,6 +162,11 @@ final class GotoGoalResolver {
                 bias.add(new PreferYBand(Math.min(loY, hiY), Math.max(loY, hiY), weight));
             }
         }
+        // hugShore: true|{weight} — 沿河岸走: tax nodes with no adjacent water so the
+        // route glues to the waterline (pair with forbidWater to stay dry).
+        Object hs = p.get("hugShore");
+        if (hs instanceof Boolean b && b) bias.add(new ShorelineHug(30.0));
+        else if (hs instanceof Map<?, ?> m) bias.add(new ShorelineHug(Params.toDouble(m.get("weight"), 30.0)));
         // leash: {x,y,z,radius,weight?} — soft-tether to a static anchor. An
         // entity-keyed leash (leash:{entity:...}) is handled dynamically by
         // resolveEntityLeash instead — skip the static parse here so it isn't
