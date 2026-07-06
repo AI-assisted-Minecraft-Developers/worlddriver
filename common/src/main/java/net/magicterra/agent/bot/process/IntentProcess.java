@@ -1,5 +1,6 @@
 package net.magicterra.agent.bot.process;
 
+import net.magicterra.agent.AgentDriverCommon;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.movement.Avatar;
@@ -73,6 +74,8 @@ public final class IntentProcess implements BotProcess {
                 if (anchor != null) {
                     BlockPos ab = anchor.blockPosition();
                     if (lastAnchor == null || ab.distSqr(lastAnchor) > ANCHOR_DIRTY_DIST_SQ) {
+                        AgentDriverCommon.LOG.info("[IntentProcess] anchor re-solve: {} -> {} (was {}), repath",
+                                el.entity(), ab.toShortString(), lastAnchor == null ? "first" : lastAnchor.toShortString());
                         lastAnchor = ab;
                         walker.setSearchProfile(profileWith(el, ab));
                         walker.forceRepath();

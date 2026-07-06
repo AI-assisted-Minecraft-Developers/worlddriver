@@ -12,6 +12,7 @@ import net.magicterra.agent.neoforge.sim.ServerAgentManager;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.process.BboxFillProcess;
 import net.magicterra.agent.bot.process.BuildProcess;
+import net.magicterra.agent.bot.process.EntityLeash;
 import net.magicterra.agent.bot.process.FollowProcess;
 import net.magicterra.agent.bot.process.Intent;
 import net.magicterra.agent.bot.process.IntentProcess;
@@ -24,6 +25,7 @@ import net.magicterra.agent.bot.debug.NodePhysics;
 import net.magicterra.agent.bot.debug.PathArchive;
 import net.magicterra.agent.bot.debug.PathArchiveRecorder;
 import net.magicterra.agent.bot.debug.PathDebugBootstrap;
+import net.magicterra.agent.bot.pathfinder.CapabilityProfile;
 import net.magicterra.agent.bot.pathfinder.MultiTrace;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
 import net.magicterra.agent.bot.pathfinder.PathTrace;
@@ -35,6 +37,7 @@ import net.magicterra.agent.bot.pathfinder.moves.Fall;
 import net.magicterra.agent.bot.pathfinder.moves.FallIntoWater;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -512,6 +515,138 @@ public final class AgentGameTestServer {
                     fp.getX(), fp.getY(), fp.getZ(), dist, closed);
             if (!closed)
                 throw new GameTestAssertException("server FollowProcess did not close on the armor stand: dist=" + dist);
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            ServerAgentManager.clear();
+            stand.discard();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * A3a Task 3 proof: the SERVER runs a real {@link IntentProcess} with a DYNAMIC
+     * {@link EntityLeash} anchor — the {@code entity:'name-or-type'} form of
+     * {@code mc.bot.goto leashHard} — proving the whole re-solve chain (find → dirty
+     * → rebuild profile → forceRepath), not just the static leash math.
+     *
+     * <p>Phase 1: an armor stand spawns AT the bot's start; the goal is 24 blocks
+     * away but the HARD leash (radius 8) prunes every route node farther than 8
+     * blocks from the (stationary) stand, so {@link PathFinder}'s best-effort
+     * fallback can only reach the radius edge. {@link Walker} does NOT declare
+     * {@code ARRIVED} on a best-effort partial path short of the true goal (see
+     * {@code Walker.tick} around the {@code pathBestEffort} checks) — it holds at
+     * the edge instead, so the process stays registered/un-finished for the whole
+     * 200-tick window. Phase 2: the stand teleports onto the goal; within the
+     * leash's 20-tick re-solve rate limit, {@link IntentProcess} notices the anchor
+     * moved &gt; 2 blocks, rebuilds the {@link net.magicterra.agent.bot.pathfinder.SearchProfile}
+     * with a leash centred on the NEW anchor position, and force-repaths — now the
+     * true goal is inside the radius, so the bot ARRIVES for real within 600 more
+     * ticks.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void entityLeashRepathArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        // Anchor to this test's own (entity-ticking) chunk column — see serverFollowArena /
+        // serverCombatArena rationale: a hardcoded far coord lands in a tracked chunk only
+        // by luck of the per-run test placement, and EntityFind.nearest (the leash's entity
+        // scan) needs the armor stand to actually show up in Level.getEntities.
+        BlockPos anchor = helper.absolutePos(BlockPos.ZERO);
+        // GROUND level, not a sky platform: a bot that clips the lane edge must lose one
+        // block of height, not fall out of the leash sphere AND EntityFind's 96-block
+        // scan box (the y=220 first cut did exactly that — phase1 "leash held" was a
+        // fallen bot at bedrock, and the stand 280 above was unscannable, so the
+        // phase-2 re-solve never fired).
+        final int cx = anchor.getX(), cz = anchor.getZ(), floorY = anchor.getY();
+        final int goalDz = 24;
+        final double leashRadius = 8.0;
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -1; dz <= goalDz + 2; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+        // Side rails: keep the walker ON the lane so the arena tests the leash, not
+        // edge-clipping churn.
+        for (int dz = -1; dz <= goalDz + 2; dz++) {
+            level.setBlockAndUpdate(new BlockPos(cx - 2, floorY + 1, cz + dz), Blocks.STONE.defaultBlockState());
+            level.setBlockAndUpdate(new BlockPos(cx + 2, floorY + 1, cz + dz), Blocks.STONE.defaultBlockState());
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dy = 1; dy <= 3; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+        }
+        BlockPos goal = new BlockPos(cx, floorY + 1, cz + goalDz);
+
+        var stand = new ArmorStand(level, cx + 0.5, floorY + 1, cz + 0.5);   // AT the bot's start
+        stand.setNoGravity(true);
+        level.addFreshEntity(stand);
+        // Freshly-added entity isn't indexed into the entity-section lookup until the level
+        // processes it (ServerAgentManager.tickAll() drives the bot but not the level).
+        for (int i = 0; i < 3; i++) level.tick(() -> true);
+
+        boolean odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ServerAgentManager.clear();
+        try {
+            EntityLeash leash = new EntityLeash("minecraft:armor_stand", leashRadius, 0, true);
+            // Near(1), not Block: 带路 semantics are "reach the destination AREA" — exact-cell
+            // parking is a walker trait, not this arena's gate (run-e evidence: reached=true
+            // ±1.5 but the exact cell never latched → finished=false forever).
+            Intent intent = new Intent(new Goal.Near(goal, 1), List.of(), CapabilityProfile.ALL, List.of(), leash);
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            driver.runProcess(new IntentProcess(intent));
+            ServerAgentManager.register(driver);
+
+            // Phase 1: stand stationary at start — the hard leash must hold the bot back.
+            for (int t = 0; t < 200 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            FakePlayer fp = driver.fakePlayer();
+            double sdx = fp.getX() - (cx + 0.5), sdz = fp.getZ() - (cz + 0.5);
+            double standDist1 = Math.sqrt(sdx * sdx + sdz * sdz);
+            boolean arrivedTrueGoal1 = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
+                    && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
+            AgentDriverCommon.LOG.info(
+                    "[entityLeashRepathArena] phase1 pos=({},{},{}) finished={} active={} standDist={} arrivedTrueGoal={}",
+                    fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAgentManager.activeCount(),
+                    standDist1, arrivedTrueGoal1);
+            if (driver.finished() || arrivedTrueGoal1)
+                throw new GameTestAssertException("phase1: process reached the true goal before the anchor moved — "
+                        + "the hard leash did not hold the bot back: pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ()
+                        + ") finished=" + driver.finished());
+            if (standDist1 > leashRadius + 3.0)
+                throw new GameTestAssertException("phase1: bot strayed beyond the leash radius+slack: standDist="
+                        + standDist1 + " radius=" + leashRadius);
+
+            // Phase 2: teleport the anchor 4 PAST the goal — the sphere still covers the
+            // goal, but the stand sits beyond the walker's overshoot band (run-e: a +2
+            // stand was rammed by the carrot-drive overshoot, and its collision shoved
+            // the bot onto the rails). NoGravity, so floating past the lane end is fine.
+            stand.teleportTo(goal.getX() + 0.5, floorY + 1, goal.getZ() + 4 + 0.5);
+            for (int i = 0; i < 3; i++) level.tick(() -> true);
+
+            for (int t = 0; t < 600 && ServerAgentManager.activeCount() > 0; t++) {
+                ServerAgentManager.tickAll();
+                if (t % 150 == 0) {
+                    FakePlayer pp = driver.fakePlayer();
+                    AgentDriverCommon.LOG.info("[entityLeashRepathArena] p2 t={} pos=({},{},{}) standPos={}",
+                            t, pp.getX(), pp.getY(), pp.getZ(), stand.blockPosition().toShortString());
+                }
+            }
+
+            FakePlayer fp2 = driver.fakePlayer();
+            boolean reached = Math.abs(fp2.getX() - (goal.getX() + 0.5)) < 1.5
+                    && Math.abs(fp2.getZ() - (goal.getZ() + 0.5)) < 1.5;
+            AgentDriverCommon.LOG.info(
+                    "[entityLeashRepathArena] phase2 pos=({},{},{}) finished={} active={} reached={}",
+                    fp2.getX(), fp2.getY(), fp2.getZ(), driver.finished(), ServerAgentManager.activeCount(), reached);
+            if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                throw new GameTestAssertException("phase2: leash re-solve process did not finish+unregister after "
+                        + "the anchor moved: finished=" + driver.finished() + " active=" + ServerAgentManager.activeCount());
+            if (!reached)
+                throw new GameTestAssertException("phase2: bot did not ARRIVE at the goal after the anchor moved: pos=("
+                        + fp2.getX() + "," + fp2.getY() + "," + fp2.getZ() + ")");
         } finally {
             BotConfig.walkerDebug = odbg;
             BotConfig.pathfinderSliceMs = osl;
