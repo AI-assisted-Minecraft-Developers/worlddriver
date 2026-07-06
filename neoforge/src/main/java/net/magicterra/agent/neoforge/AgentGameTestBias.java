@@ -14,6 +14,7 @@ import net.magicterra.agent.bot.pathfinder.constraints.NoWater;
 import net.magicterra.agent.bot.pathfinder.constraints.YFloor;
 import net.magicterra.agent.bot.pathfinder.modifiers.AvoidRegion;
 import net.magicterra.agent.bot.pathfinder.modifiers.ShorelineHug;
+import net.magicterra.agent.bot.movement.PathSmoothing;
 import net.magicterra.agent.bot.world.LevelWorldView;
 import net.magicterra.agent.neoforge.sim.ServerPlayerAvatar;
 import net.minecraft.core.BlockPos;
@@ -638,6 +639,114 @@ public final class AgentGameTestBias {
                     "ShorelineHug did NOT stay within 2 of water at every node — worst offender="
                     + worst + " path=" + hugged.path());
         helper.succeed();
+    }
+
+    /**
+     * A3b smoother regression: the LIVE red where {@code stringPull} straightened a
+     * bank-hugging bow clean across the taxed dry interior (the dangerCost-smoother
+     * lesson replayed for the per-intent bias channel). Geometry is the live shape: an
+     * L-shaped carved water channel whose bank route is an L, while the straight chord
+     * between start and goal crosses ONLY dry slab (so {@code losWalkable} accepts the
+     * collapse — in {@link #shorelineHugArena} the chord crosses water, which is why
+     * that arena stayed green while live failed). Asserts BOTH forms: smoothing WITHOUT
+     * the bias must collapse out of the shoreline band (the red form — proves the arena
+     * discriminates), and smoothing WITH the bias must keep every node in-band.
+     *
+     * <p>Pins {@code walkerDiagonalStringPull=true}: the code default is false, but the
+     * live client runs true via persisted config — without the pin the non-axis-aligned
+     * chord collapse can't happen at all and both asserts lose their subject.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void shorelineSmootherArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int x0 = 2200, z0 = 2200, y = 240;
+
+        // Defensive clear + stone slab 35x35 (dx/dz -2..32).
+        for (int dx = -2; dx <= 32; dx++)
+            for (int dz = -2; dz <= 32; dz++) {
+                for (int dy = 1; dy <= 4; dy++)
+                    level.setBlockAndUpdate(new BlockPos(x0 + dx, y + dy, z0 + dz), Blocks.AIR.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(x0 + dx, y, z0 + dz), Blocks.STONE.defaultBlockState());
+            }
+        // Carved L channel: water REPLACES the slab layer (surface at y, bank foot at
+        // y+1 — the live river shape; contained by the surrounding slab stone, and the
+        // shoreline probe's to.y-1 level sees it).
+        for (int dx = 0; dx <= 30; dx++)
+            for (int dz = 5; dz <= 7; dz++)
+                level.setBlockAndUpdate(new BlockPos(x0 + dx, y, z0 + dz), Blocks.WATER.defaultBlockState());
+        for (int dx = 28; dx <= 30; dx++)
+            for (int dz = 5; dz <= 30; dz++)
+                level.setBlockAndUpdate(new BlockPos(x0 + dx, y, z0 + dz), Blocks.WATER.defaultBlockState());
+
+        BlockPos start = new BlockPos(x0 + 10, y + 1, z0 + 8);   // south bank of the horizontal strip
+        BlockPos goal = new BlockPos(x0 + 27, y + 1, z0 + 25);   // west bank of the vertical strip
+
+        ServerPlayerAvatar av = ServerPlayerAvatar.create(level, x0 + 10.5, y + 1, z0 + 8.5);
+        FakePlayer fp = av.fakePlayer();
+        fp.getInventory().clearContent();
+        LevelWorldView w = new LevelWorldView(level, fp);
+
+        List<CostModifier> bias = List.of(new ShorelineHug(30.0));
+        SearchProfile hug = new SearchProfile(bias, CapabilityProfile.ALL, List.of(new NoWater()));
+
+        boolean odiag = BotConfig.walkerDiagonalStringPull;
+        BotConfig.walkerDiagonalStringPull = true;
+        try {
+            PathFinder.Result hugged = new PathFinder(w, hug).findPath(start, new Goal.Block(goal));
+            BlockPos rawWorst = firstOutOfBand(hugged, 2, w);
+            PathSmoothing.SmoothResult noBias = PathSmoothing.stringPull(w, hugged.path(), hugged.edges());
+            PathSmoothing.SmoothResult withBias =
+                    PathSmoothing.stringPull(w, hugged.path(), hugged.edges(), bias);
+            BlockPos noBiasWorst = firstOutOfBandSmoothed(noBias.path(), 2, w);
+            BlockPos withBiasWorst = firstOutOfBandSmoothed(withBias.path(), 2, w);
+            AgentDriverCommon.LOG.info(
+                    "[shorelineSmootherArena] hugged.goalReached={} rawLen={} rawWorst={} | "
+                    + "noBiasLen={} noBiasWorst={} | withBiasLen={} withBiasWorst={}",
+                    hugged.goalReached(), hugged.path().size(), rawWorst,
+                    noBias.path().size(), noBiasWorst, withBias.path().size(), withBiasWorst);
+
+            if (!hugged.goalReached())
+                throw new GameTestAssertException("baseline: hugged plan did not reach the goal");
+            if (rawWorst != null)
+                throw new GameTestAssertException(
+                        "baseline: the RAW hugged path already leaves the shoreline band at " + rawWorst
+                        + " — geometry wrong (the L bank route should be optimal)");
+            if (noBiasWorst == null)
+                throw new GameTestAssertException(
+                        "discrimination lost: bias-BLIND smoothing kept every node in-band — the dry "
+                        + "chord no longer tempts the collapse (geometry or diagonal-string-pull pin wrong)");
+            if (withBiasWorst != null)
+                throw new GameTestAssertException(
+                        "REGRESSION: bias-AWARE smoothing still collapsed out of the shoreline band at "
+                        + withBiasWorst + " — the straight chord's bias cost must reject the collapse");
+        } finally {
+            BotConfig.walkerDiagonalStringPull = odiag;
+        }
+        helper.succeed();
+    }
+
+    /** First RAW-path node farther than {@code rad} (Chebyshev, own Y and one below) from
+     *  any water — null when the whole path stays in the shoreline band. */
+    private static BlockPos firstOutOfBand(PathFinder.Result r, int rad, LevelWorldView w) {
+        return firstOutOfBandSmoothed(r.path(), rad, w);
+    }
+
+    /** Same, over an explicit waypoint list, checking the STRAIGHT LINES between
+     *  consecutive smoothed waypoints cell by cell — a collapsed chord's violation lives
+     *  between the endpoints, not at them. */
+    private static BlockPos firstOutOfBandSmoothed(List<BlockPos> path, int rad, LevelWorldView w) {
+        for (int i = 0; i < path.size(); i++) {
+            BlockPos a = i == 0 ? path.get(i) : path.get(i - 1), b = path.get(i);
+            int steps = Math.max(1, Math.max(Math.abs(b.getX() - a.getX()), Math.abs(b.getZ() - a.getZ())));
+            for (int s = 0; s <= steps; s++) {
+                double t = (double) s / steps;
+                BlockPos c = new BlockPos((int) Math.round(a.getX() + (b.getX() - a.getX()) * t),
+                        (int) Math.round(a.getY() + (b.getY() - a.getY()) * t),
+                        (int) Math.round(a.getZ() + (b.getZ() - a.getZ()) * t));
+                if (!distToWaterLE(c, rad, w)) return c;
+            }
+        }
+        return null;
     }
 
     /** Lowest Z RELATIVE to {@code z0} (negative = south, toward the water) of any node on
