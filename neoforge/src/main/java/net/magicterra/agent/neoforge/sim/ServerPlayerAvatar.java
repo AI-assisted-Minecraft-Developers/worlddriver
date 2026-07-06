@@ -338,6 +338,20 @@ public final class ServerPlayerAvatar implements Avatar {
                 fp.setDeltaMovement(dm.x, dm.y + 0.04, dm.z);
             }
         }
+        // Sneak-SINK in water: the exact counterpart of the jumpInLiquid bob above.
+        // Vanilla LocalPlayer.aiStep calls goDownInWater() (deltaMovement.y -= 0.04)
+        // EVERY tick shift is held in water — the active descent every live dive rides
+        // (the Walker holds sneak while a swimDown* edge is pending; on the client the
+        // real aiStep turns that into the sink). This emulation was missing, so a
+        // HEADLESS dive had pitch-down + sneak but ZERO downward force and the avatar
+        // floated at the surface forever (A5 surfaceDiveArena: pos pinned at the top
+        // water layer for 600t while the plan below it was correct). Faithful to
+        // vanilla: independent of the jump branch (both held = net 0, as aiStep does),
+        // no onGround gate (a collision zeroes the tiny -0.04 in a shallow film).
+        if (pendingSneak && inWater) {
+            Vec3 dm = fp.getDeltaMovement();
+            fp.setDeltaMovement(dm.x, dm.y - 0.04, dm.z);
+        }
         // Movement speed: LocalPlayer.aiStep seeds `speed` each tick; without
         // aiStep we seed it from MOVEMENT_SPEED (sprint ×1.3). travel()'s water
         // branch also reads getSpeed(), so this feeds both land and water.
