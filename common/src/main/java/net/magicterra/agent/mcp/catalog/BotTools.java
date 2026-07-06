@@ -63,6 +63,7 @@ public final class BotTools {
                 "  forbidWater  true → never route through water (hard prune; walking beside water stays fine).\n" +
                 "  forbidDig    true → never plan a block-breaking edge (per-goto allowBreak-off; a non-digging pillar/parkour stays allowed).\n" +
                 "  requireTool  'minecraft:iron_pickaxe' → fail this goto immediately unless the item is in inventory (equip is automatic when digging; mid-run loss is not monitored).\n" +
+                "  dive         true → 游进水里回水下基地 recipe: goto pos:{underwater base} + dive:true (+forbidDig to forbid tunneling); unlocks planned surface dives (off by default — unplanned dives fight buoyancy).\n" +
                 "Optional near:N relaxes target to a Euclidean radius. block selector also takes " +
                 "radius:N (search box, 1-64). " +
                 "Returns {ok, started, goal} or {ok:false, error}.",
@@ -126,6 +127,8 @@ public final class BotTools {
                         .desc("Never plan a block-breaking edge (per-goto allowBreak-off)."))
                     .prop("requireTool", string()
                         .desc("Fail immediately unless this item id is present in inventory (e.g. 'minecraft:iron_pickaxe')."))
+                    .prop("dive", bool()
+                        .desc("Opt in to planned surface dives (Capability.DIVE) — needed to route down to an underwater goal. Off by default."))
                     .prop("awaitMs", awaitMs())
                 ),
 

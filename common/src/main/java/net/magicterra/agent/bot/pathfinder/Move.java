@@ -74,6 +74,20 @@ public abstract class Move {
     public Capability requiredCapability() { return Capability.NONE; }
 
     /**
+     * The OPT-IN {@link Capability} this move requires (A5: DIVE is the first).
+     * Unlike {@link #requiredCapability} (a forbid-set gate — allowed unless the
+     * profile forbids it), an opt-in move is PRUNED FROM EVERY SEARCH unless the
+     * profile explicitly opts into its category ({@link CapabilityProfile#allowsOptIn}).
+     * Default {@link Capability#NONE} — never opt-in-gated, so the overwhelming
+     * majority of moves are unaffected and only fall under {@link #requiredCapability}.
+     * {@link net.magicterra.agent.bot.pathfinder.moves.SurfaceDive} overrides this
+     * to return {@link Capability#DIVE} so a planned surface dive only ever fires
+     * when a goto explicitly asks for it (dive:true) — see that class's javadoc for
+     * why an UNPLANNED surface dive stays forbidden.
+     */
+    public Capability optInCapability() { return Capability.NONE; }
+
+    /**
      * Resolve this move from {@code from} into a concrete A* edge, or
      * {@code null} if the world doesn't allow it. The default delegates to
      * {@link #valid} with the static {@link #cost} and no block edits — covers
@@ -324,6 +338,7 @@ public abstract class Move {
         ms.add(new ClimbDown());
         ms.add(new SwimUp());
         ms.add(new SwimDown());
+        ms.add(new SurfaceDive());   // A5: opt-in-only planned surface dive (Capability.DIVE)
         // Parkour: 2-block cardinal leap at same Y. Only emitted when there's
         // a real gap (no stand-able cell between) so A* doesn't pick it over
         // a cheaper Walk+Walk pair when both are valid.

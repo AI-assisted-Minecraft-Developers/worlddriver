@@ -240,6 +240,7 @@ public final class PathFinder {
                 if (!m.availableInSearch(world)) continue;
                 if (suppressPlace && m.placesBlock()) continue;
                 if (!capability.allows(m.requiredCapability())) continue;   // A2a: per-intent move-type gate
+                if (m.optInCapability() != Capability.NONE && !capability.allowsOptIn(m.optInCapability())) continue;   // A5: opt-in-only move-type gate
                 active.add(m);
             }
             this.activeMoves = active.toArray(new Move[0]);

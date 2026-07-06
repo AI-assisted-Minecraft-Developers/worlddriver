@@ -27,6 +27,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static net.magicterra.agent.bot.GoalResolver.*;
 import static net.magicterra.agent.bot.util.BotUtil.*;
@@ -188,14 +189,20 @@ final class GotoGoalResolver {
     /**
      * Resolve the capability envelope for this goto. {@code forbidParkour:true}
      * OR {@code capability:"walk"} forbids the PARKOUR move-type; any other
-     * capability string is a no-op (A2a only wires "walk"). Empty when neither
-     * is supplied → {@link CapabilityProfile#ALL}, byte-identical to A4a/A4b.
+     * capability string is a no-op (A2a only wires "walk"). {@code dive:true}
+     * (A5) OPTS IN to {@link Capability#DIVE} — a planned surface dive is
+     * otherwise pruned from every search (see {@link net.magicterra.agent.bot.pathfinder.moves.SurfaceDive}).
+     * Both are independent gates on the same profile — {@code CapabilityProfile.ALL}
+     * only when NEITHER is supplied, byte-identical to A4a/A4b/pre-A5.
      */
     static CapabilityProfile resolveCapability(Params p) {
         boolean forbidParkour = p.getBool("forbidParkour")
                 || (p.get("capability") instanceof String s && s.trim().equalsIgnoreCase("walk"));
-        if (!forbidParkour) return CapabilityProfile.ALL;
-        return new CapabilityProfile(EnumSet.of(Capability.PARKOUR));
+        boolean dive = p.getBool("dive");
+        if (!forbidParkour && !dive) return CapabilityProfile.ALL;
+        Set<Capability> forbidden = forbidParkour ? EnumSet.of(Capability.PARKOUR) : EnumSet.noneOf(Capability.class);
+        Set<Capability> optIn = dive ? EnumSet.of(Capability.DIVE) : EnumSet.noneOf(Capability.class);
+        return new CapabilityProfile(forbidden, optIn);
     }
 
     /**
