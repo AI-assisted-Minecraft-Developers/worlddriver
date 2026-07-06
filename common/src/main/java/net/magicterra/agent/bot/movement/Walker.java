@@ -4496,7 +4496,10 @@ public final class Walker {
         // deepWaterRise) ratchets the bot back to the surface where it pins (live
         // 2026-07-04 underwater-base run: dove to -57, walk edges at -59 through a 2-tall
         // doorway, bot ratcheted to -50.8 and drowned at the surface). Gate — as narrow as
-        // the dive gates, keyed on WATER STATE not move name:
+        // the dive gates, keyed on the DIVE opt-in plus WATER STATE, not move name:
+        //   • the profile explicitly opted into DIVE (empty optIn → byte-identical:
+        //     a non-dive bot submerged over a same-level/1-below waypoint keeps the
+        //     pre-A5 buoyant swim-up rise), AND
         //   • the bot is SUBMERGED (water two above the feet — WorldView#isSubmergedFoot;
         //     a surface floater NEVER reads true, so the surface machinery — carrot-drive,
         //     bob-latch, flatWaterWalk sprint, float-over crossing, climb-out — is
@@ -4509,7 +4512,8 @@ public final class Walker {
         // actuator a swimDown* dive rides) until back at level; AT level → no sneak, the
         // plain forward drive traverses (and the swim-up jump stays suppressed so the
         // level HOLDS); feet BELOW → gate is off by the third clause.
-        boolean underwaterDepthHold = p.isInWater() && world.isSubmergedFoot(foot)
+        boolean underwaterDepthHold = profile.capability().allowsOptIn(Capability.DIVE)
+                && p.isInWater() && world.isSubmergedFoot(foot)
                 && world.isWater(wp) && world.isWater(wp.above())
                 && wp.getY() <= foot.getY();
         boolean underwaterSink = underwaterDepthHold && wp.getY() < foot.getY();
