@@ -13,6 +13,7 @@ import net.magicterra.agent.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.agent.bot.pathfinder.constraints.NoWater;
 import net.magicterra.agent.bot.pathfinder.constraints.YFloor;
 import net.magicterra.agent.bot.pathfinder.modifiers.AvoidRegion;
+import net.magicterra.agent.bot.pathfinder.modifiers.ShorelineHug;
 import net.magicterra.agent.bot.world.LevelWorldView;
 import net.magicterra.agent.neoforge.sim.ServerPlayerAvatar;
 import net.minecraft.core.BlockPos;
@@ -543,5 +544,119 @@ public final class AgentGameTestBias {
         } finally {
             BotConfig.allowBreak = ob;
         }
+    }
+
+    /**
+     * Deterministic proof of the A3b {@link ShorelineHug} cost-bias modifier: a 40x14 stone
+     * slab with a receding shoreline (water south of a 3-plateau shore line: {@code z0-1}
+     * near both ends of the +x travel lane, receding to {@code z0-7} across the middle
+     * third) and a fully-dry, straight travel lane at {@code z0} the whole way. Planning
+     * PLAIN (no bias) has zero reason to leave the straight lane — baseline gate: no node
+     * strays past {@code z0-2}, proving the geometry itself doesn't force a detour. Planning
+     * WITH {@code ShorelineHug(30)} (paired with {@code NoWater} so the bot never wades) must
+     * dip south to hug the receding shoreline across the middle third (at least one node
+     * {@code z<=z0-5}) while every node stays within 2 cells of water the whole route — the
+     * cardinal-adjacency probe (both the tax and the band check) spans neighbouring columns,
+     * so the abrupt per-column shore step is self-smoothing and needs no manual ramp.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void shorelineHugArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int x0 = 2100, z0 = 2100, y = 240;
+
+        // Defensive clear first (residue guard, same as the other arenas here).
+        for (int dx = -3; dx <= 41; dx++)
+            for (int dz = -12; dz <= 7; dz++)
+                for (int dy = 0; dy <= 8; dy++)
+                    level.setBlockAndUpdate(new BlockPos(x0 + dx, y + dy, z0 + dz), Blocks.AIR.defaultBlockState());
+
+        // Stone slab floor: 40 wide (dx -1..38) x 14 deep (dz -9..4).
+        for (int dx = -1; dx <= 38; dx++)
+            for (int dz = -9; dz <= 4; dz++)
+                level.setBlockAndUpdate(new BlockPos(x0 + dx, y, z0 + dz), Blocks.STONE.defaultBlockState());
+
+        // Receding shoreline: water (1-deep, foot layer y+1, on the stone floor below —
+        // same "1-deep on stone" containment as forbidWaterArena's pool) fills z0-9..shore(x)
+        // per column. shore(x) = z0-1 near both ends of the travel lane (dx<12 or dx>=24),
+        // z0-7 across the middle third (12<=dx<24) — a simple 3-plateau step function.
+        for (int dx = -1; dx <= 38; dx++) {
+            int shoreDz = (dx >= 12 && dx < 24) ? -7 : -1;
+            for (int dz = -9; dz <= shoreDz; dz++)
+                level.setBlockAndUpdate(new BlockPos(x0 + dx, y + 1, z0 + dz), Blocks.WATER.defaultBlockState());
+        }
+
+        // Containment walls: north edge (z0+4) fences the dry side; beyond-south (z0-10,
+        // one row past the water's southernmost extent z0-9) fences the wet side — 4 tall
+        // bedrock, no finite-cost dig-around, same idiom as forbidWaterArena's side walls.
+        for (int dx = -1; dx <= 38; dx++)
+            for (int dy = 0; dy <= 3; dy++) {
+                level.setBlockAndUpdate(new BlockPos(x0 + dx, y + dy, z0 + 4), Blocks.BEDROCK.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(x0 + dx, y + dy, z0 - 10), Blocks.BEDROCK.defaultBlockState());
+            }
+
+        BlockPos start = new BlockPos(x0, y + 1, z0);
+        BlockPos goal = new BlockPos(x0 + 36, y + 1, z0);
+
+        ServerPlayerAvatar av = ServerPlayerAvatar.create(level, x0 + 0.5, y + 1, z0 + 0.5);
+        FakePlayer fp = av.fakePlayer();
+        fp.getInventory().clearContent();   // no placeable block — no bridge/pillar bypass
+        LevelWorldView w = new LevelWorldView(level, fp);
+
+        PathFinder.Result plain = new PathFinder(w).findPath(start, new Goal.Block(goal));
+        SearchProfile hug = new SearchProfile(List.of(new ShorelineHug(30.0)),
+                CapabilityProfile.ALL, List.of(new NoWater()));
+        PathFinder.Result hugged = new PathFinder(w, hug).findPath(start, new Goal.Block(goal));
+
+        int plainMinZ = minPathZRelative(plain, z0);
+        int huggedMinZ = minPathZRelative(hugged, z0);
+        AgentDriverCommon.LOG.info(
+                "[shorelineHugArena] plain.goalReached={} plainMinZ(rel)={} plainLen={} | "
+                + "hugged.goalReached={} huggedMinZ(rel)={} huggedLen={}",
+                plain.goalReached(), plainMinZ, plain.path().size(),
+                hugged.goalReached(), huggedMinZ, hugged.path().size());
+
+        if (!plain.goalReached() || !hugged.goalReached())
+            throw new GameTestAssertException(
+                    "baseline: PLAIN and/or HUGGED plan did not reach the goal — plain="
+                    + plain.goalReached() + " hugged=" + hugged.goalReached());
+
+        if (plainMinZ < -2)
+            throw new GameTestAssertException(
+                    "baseline: PLAIN plan cut away from the straight lane past z0-2 (minZ(rel)="
+                    + plainMinZ + ") — no bias should ever leave it; arena geometry wrong");
+
+        if (huggedMinZ > -5)
+            throw new GameTestAssertException(
+                    "ShorelineHug did NOT dip to the receding shoreline: worst minZ(rel)="
+                    + huggedMinZ + " (expected <= -5 somewhere in the middle third)");
+
+        BlockPos worst = null;
+        for (BlockPos p : hugged.path())
+            if (!distToWaterLE(p, 2, w)) { worst = p; break; }
+        if (worst != null)
+            throw new GameTestAssertException(
+                    "ShorelineHug did NOT stay within 2 of water at every node — worst offender="
+                    + worst + " path=" + hugged.path());
+        helper.succeed();
+    }
+
+    /** Lowest Z RELATIVE to {@code z0} (negative = south, toward the water) of any node on
+     *  the path — {@code Integer.MAX_VALUE} for an empty path. Mirrors {@code minPathY} but
+     *  for {@link #shorelineHugArena}'s Z axis. */
+    private static int minPathZRelative(PathFinder.Result r, int z0) {
+        int min = Integer.MAX_VALUE;
+        for (BlockPos p : r.path()) min = Math.min(min, p.getZ() - z0);
+        return min;
+    }
+
+    /** Chebyshev 5x5-ring probe (rad=2) at the node's own Y and one below — the shoreline
+     *  "close enough to the water" band check for {@link #shorelineHugArena}, looser than
+     *  {@link ShorelineHug}'s own rad=1 tax-free adjacency probe. */
+    private static boolean distToWaterLE(BlockPos p, int rad, LevelWorldView w) {
+        for (int dx = -rad; dx <= rad; dx++)
+            for (int dz = -rad; dz <= rad; dz++)
+                for (int dy = 0; dy >= -1; dy--)
+                    if (w.isWater(p.offset(dx, dy, dz))) return true;
+        return false;
     }
 }
