@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`mc.bot.goto` leash/leashHard accept `entity:'name-or-type'` — a DYNAMIC anchor
+  re-solved as the entity moves (带路 scenarios); `mc.bot.follow` accepts the goto
+  bias/constraint args (compose "follow A but forbidWater/avoid zones").** The hard
+  leash gains rejoin semantics: if the bot falls outside the tether (e.g. the anchor
+  teleports away), it is no longer fully pruned — only edges that strictly approach
+  the anchor are allowed, so it routes straight back into the radius and resumes
+  normal leash behavior.
 - **`mc.bot.goto` gains `forbidWater` (never route through water), `forbidDig` (never
   plan a block-breaking edge — per-goto `allowBreak`-off), and `requireTool` (fail fast
   unless the named item is in inventory) via the intent layer's Constraint channel.**
