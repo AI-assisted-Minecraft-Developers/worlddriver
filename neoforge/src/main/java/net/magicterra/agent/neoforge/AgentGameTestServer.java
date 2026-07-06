@@ -1257,4 +1257,138 @@ public final class AgentGameTestServer {
         }
         helper.succeed();
     }
+
+    /**
+     * A5 part 2 — the FULL 游进水里回水下基地 route: dive + underwater HORIZONTAL traverse
+     * into an air-pocket chamber. {@link #surfaceDiveArena} proved the straight-down
+     * case (an all-dive-edge path); LIVE (2026-07-04, tank at x600-609, chamber at
+     * 610-614, doorway x609-610 / y-59..-58 / z603-605) exposed that the route's
+     * SUBMERGED HORIZONTAL edges — plain walk/diag nodes the planner emits mid-water,
+     * not named swimDown* — had no depth-hold: after the dive, the swim-up bob
+     * ratcheted the bot back to the surface where it pinned (-50.8) and drowned.
+     * This arena reproduces that exact L-shaped geometry: a water tank column, a
+     * 2-tall flooded doorway through the bottom of one wall, and a sealed chamber
+     * beyond whose interior is water ONLY at the doorway levels with trapped air
+     * above (the classic underwater-base air pocket). The goal sits in the chamber,
+     * so the path is dive edges THEN submerged walk edges — the process must finish
+     * with the FakePlayer inside the chamber, proving the Walker's underwater
+     * depth-hold (sneak-sink to the step level while submerged, swim-up suppressed
+     * at-or-above it) carries a dive into a horizontal traverse.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void underwaterBaseArena(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos anchor = helper.absolutePos(BlockPos.ZERO);
+        final int cx = anchor.getX(), cz = anchor.getZ(), floorY = anchor.getY();
+        final int depth = 8;
+        final int surfaceY = floorY + depth;
+
+        // Defensive clear (shared ServerLevel residue), covering tank + chamber.
+        for (int dx = -3; dx <= 8; dx++)
+            for (int dz = -3; dz <= 3; dz++)
+                for (int y = floorY - 2; y <= surfaceY + 2; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
+        // TWO-LAYER sealed floor under the tank AND the chamber (void template below).
+        for (int dx = -2; dx <= 7; dx++)
+            for (int dz = -2; dz <= 2; dz++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY - 1, cz + dz), Blocks.STONE.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+            }
+        // Tank: stone shell, 3x3 water core floorY+1..surfaceY, rim one above the water.
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= 2; dz++) {
+                boolean wall = Math.abs(dx) == 2 || Math.abs(dz) == 2;
+                for (int y = floorY + 1; y <= surfaceY + 1; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz),
+                            wall ? Blocks.STONE.defaultBlockState()
+                                 : (y <= surfaceY ? Blocks.WATER.defaultBlockState() : Blocks.AIR.defaultBlockState()));
+            }
+        // Chamber shell east of the tank: east wall at dx=6, side walls dz=±2 over
+        // dx 3..5, ceiling at floorY+5 — the tank's own east wall (dx=2) is the
+        // chamber's west wall.
+        for (int dz = -2; dz <= 2; dz++)
+            for (int y = floorY + 1; y <= floorY + 5; y++)
+                level.setBlockAndUpdate(new BlockPos(cx + 6, y, cz + dz), Blocks.STONE.defaultBlockState());
+        for (int dx = 3; dx <= 5; dx++)
+            for (int y = floorY + 1; y <= floorY + 5; y++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz - 2), Blocks.STONE.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + 2), Blocks.STONE.defaultBlockState());
+            }
+        for (int dx = 3; dx <= 5; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 5, cz + dz), Blocks.STONE.defaultBlockState());
+        // Chamber interior: water ONLY at the doorway levels (floorY+1..+2), trapped
+        // air above (floorY+3..+4 stays the cleared AIR) — the dry pocket.
+        for (int dx = 3; dx <= 5; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                for (int y = floorY + 1; y <= floorY + 2; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
+        // Doorway: carve the tank's east wall (dx=2) open at the bottom two water
+        // levels, full 3-wide (dz -1..1) — the live doorway was z603-605.
+        for (int dz = -1; dz <= 1; dz++)
+            for (int y = floorY + 1; y <= floorY + 2; y++)
+                level.setBlockAndUpdate(new BlockPos(cx + 2, y, cz + dz), Blocks.WATER.defaultBlockState());
+        BlockPos goalCell = new BlockPos(cx + 4, floorY + 1, cz);   // chamber centre, on the floor
+        Goal.Near goal = new Goal.Near(goalCell, 1);
+
+        boolean odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ServerAgentManager.clear();
+        try {
+            CapabilityProfile diveProfile = new CapabilityProfile(
+                    EnumSet.noneOf(Capability.class), EnumSet.of(Capability.DIVE));
+            List<Constraint> constraints = List.of(new NoBreak());
+            SearchProfile diveSearch = new SearchProfile(List.of(), diveProfile, constraints);
+
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, surfaceY - 1, cz + 0.5);
+            grantWaterEffects(driver.fakePlayer());
+            BlockPos start = driver.fakePlayer().blockPosition();
+
+            // Planner precheck: reachable, and still via a surface dive.
+            PathFinder.Result plan = new PathFinder(driver.world(), diveSearch).findPath(start, goal);
+            boolean hasSurfaceDive = false;
+            for (Move.Edge e : plan.edges()) if (e != null && "swimDownSurface".equals(e.move)) hasSurfaceDive = true;
+            AgentDriverCommon.LOG.info(
+                    "[underwaterBaseArena] plan.goalReached={} hasSurfaceDive={} start=({},{},{}) goalCell={}",
+                    plan.goalReached(), hasSurfaceDive, start.getX(), start.getY(), start.getZ(), goalCell);
+            if (!plan.goalReached())
+                throw new GameTestAssertException("planner: dive+traverse plan did NOT reach the chamber goal");
+            if (!hasSurfaceDive)
+                throw new GameTestAssertException("planner: plan reached the chamber WITHOUT a swimDownSurface edge");
+
+            Intent intent = new Intent(goal, List.of(), diveProfile, constraints);
+            driver.runProcess(new IntentProcess(intent));
+            ServerAgentManager.register(driver);
+            for (int t = 0; t < 600 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            FakePlayer fp = driver.fakePlayer();
+            double ddx = fp.getX() - (goalCell.getX() + 0.5);
+            double ddy = fp.getY() - goalCell.getY();
+            double ddz = fp.getZ() - (goalCell.getZ() + 0.5);
+            double dist = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz);
+            boolean insideChamber = fp.getX() > cx + 2.5;   // past the tank's east wall plane
+            AgentDriverCommon.LOG.info(
+                    "[underwaterBaseArena] pos=({},{},{}) finished={} active={} dist={} insideChamber={}",
+                    fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAgentManager.activeCount(),
+                    dist, insideChamber);
+            if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                throw new GameTestAssertException("executor: dive+traverse process did not finish+unregister within "
+                        + "600t: finished=" + driver.finished() + " active=" + ServerAgentManager.activeCount()
+                        + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ")");
+            if (!insideChamber || dist > 2.0)
+                throw new GameTestAssertException("executor: bot did not end INSIDE the chamber near the goal: pos=("
+                        + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") dist=" + dist
+                        + " insideChamber=" + insideChamber);
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
 }
