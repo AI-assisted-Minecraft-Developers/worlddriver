@@ -32,6 +32,10 @@ public final class BotTools {
                 "current column — leash:{x,y,z:current,radius:4,weight:30} — or the search drowns in " +
                 "sideways branches and times out (measured: 16205 nodes timeout bare vs 68 nodes reached " +
                 "with the leash). Add requireTool:'minecraft:iron_pickaxe' to insist on the tool\n" +
+                "  LONG AIRBORNE TRAVEL (鞘翅返程): don't goto across thousands of blocks — use " +
+                "mc.bot.elytraFly (reactive glide control, firework boost, groundFallback when no elytra)\n" +
+                "  UNDERWATER BASE (游进水下基地): goto pos:{base} + dive:true (+forbidDig) — dive is " +
+                "opt-in; without it the planner treats water as an obstacle and routes ashore\n" +
                 "  - block:'minecraft:foo'    → nearest matching block within radius (default 32); " +
                 "Baritone 'goto <block>'. Accepts a '#tag' selector too — block:'#minecraft:logs' " +
                 "walks to the nearest tree of any species\n" +
