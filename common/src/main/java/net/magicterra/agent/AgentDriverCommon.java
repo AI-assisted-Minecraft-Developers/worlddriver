@@ -140,7 +140,19 @@ public final class AgentDriverCommon {
             if (rpcServer == null) {
                 int wantPort = Integer.getInteger("agent.rpcPort", 0);
                 String bindHost = System.getProperty("agent.rpcHost", "127.0.0.1");
-                rpcServer = new RpcServer(api, bindHost, wantPort);
+                try {
+                    rpcServer = new RpcServer(api, bindHost, wantPort);
+                } catch (Exception bindFail) {
+                    // A pinned port already held (e.g. another instance's runClient)
+                    // used to be a hard ERROR with no server at all; consumers only
+                    // saw a mid-log BindException (docs/feedback/2026-06-04). Fall
+                    // back to an ephemeral port — run/agent-rpc.port records the
+                    // real one, which is how well-behaved clients resolve it anyway.
+                    if (wantPort == 0) throw bindFail;
+                    LOG.warn("[{}] RPC port {} unavailable ({}); falling back to an ephemeral port",
+                            MOD_ID, wantPort, bindFail.getMessage());
+                    rpcServer = new RpcServer(api, bindHost, 0);
+                }
                 rpcPort = rpcServer.port();
                 LOG.info("[{}] RPC server listening on ws://{}:{}/rpc", MOD_ID, urlHost(bindHost), rpcPort);
                 writePortFile("agent-rpc.port", rpcPort);
@@ -169,7 +181,16 @@ public final class AgentDriverCommon {
         try {
             int wantPort = Integer.getInteger("agent.mcpPort", 0);
             String bindHost = System.getProperty("agent.mcpHost", "127.0.0.1");
-            mcpServer = new McpServer(api, bindHost, wantPort);
+            try {
+                mcpServer = new McpServer(api, bindHost, wantPort);
+            } catch (IOException bindFail) {
+                // Same ephemeral-port fallback as the RPC server above; the real
+                // port lands in run/agent-mcp.port.
+                if (wantPort == 0) throw bindFail;
+                LOG.warn("[{}] MCP port {} unavailable ({}); falling back to an ephemeral port",
+                        MOD_ID, wantPort, bindFail.getMessage());
+                mcpServer = new McpServer(api, bindHost, 0);
+            }
             mcpPort = mcpServer.port();
             LOG.info("[{}] MCP server listening on http://{}:{}/mcp", MOD_ID, urlHost(bindHost), mcpPort);
             writePortFile("agent-mcp.port", mcpPort);
