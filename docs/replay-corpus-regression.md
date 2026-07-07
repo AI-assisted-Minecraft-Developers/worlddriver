@@ -713,3 +713,18 @@ replay-0008 慢区(171,67,254→195,64,266,长途中磨 ~100s)restore 后短途�
 
 ## 93b. §93 KILL(可信山地台)+#15 战役终局
 终于有了可信判定台(fresh spread 山地 y124 起点,150 格对角,基线 54.9/56.9s=3.6% 方差):§93 ON 87.2/75.2s(+50% 劣化)——尾回退把合法可走的坡上尾也退掉,段变短→重规划更频繁→更慢。KILL,flag 留 OFF。**#15 战役终局(四刀全证伪于实测)**:§90 对角平滑(carrot 已覆盖)/§91 陡爬税(定价反转)/§92 连跳门(直梯已达人类速)/§93 尾回退(+50% 劣化)。结论:当前 stack 在正常地形已近局部最优(山地 150 格 55s≈2.7bps 含爬升,直梯 0.5s/级,开阔 3.8bps);slowmap 的 100s 慢区单独重跑 8s 直达=罕见状态组合非系统性缺陷,不值得为其伤害主线性能。#15 关闭;残余优化机会留给未来 live 撞上可复现慢样本时(那时有真 repro 再验尸)。可信台方法(spread 山地+基线一致性≥门槛才 A/B)入工具箱——本战役最大产出是这个纪律和四个被排除的方向。
+
+## 94. STUCK_PROGRESS_EPS 0.05 水域误伤=waterFarAim 拐角钉死(git-bisect 定罪+介质拆分修复)
+2026-07-06 全量 gametest 发现 waterFarAimBankCornerArena(required)确定性失败(五轮同点
+dGoal=6.3256、pos=(565.7,204.5,563.0)=分隔墙缺口北角)。**git-bisect 定罪 31bdb5c(07-03)**:
+STUCK_PROGRESS_EPS 0.02→0.05(C40-J1 干地贴墙爬行饿死 stall clock 的修复)。机制:水中绕障的
+横向速度天然只有 ~0.02-0.05 blk/tick,0.05 阈值让每个水下节点的接近尾段都读作"无进展"→stall
+clock 中途触发 reCentre/wiggle 恢复→打断绕角机动→恢复/重瞄把 bot 钉回拐角吸引子。单变量证明:
+仅 0.05→0.02 arena 即绿(reachedTick=222)。**修复=介质拆分**:干地 0.05(保住 C40-J1),水中新
+STUCK_PROGRESS_EPS_WATER=0.02(使用点按 p.isInWater() 选)。
+工具沉淀:AGENT_GT_ONLY=<testName> 单 arena 19s 快跑(gt-filter 守卫行+bisect 脚本);**注意
+solo 跑与全量跑不等价**(全量时其他 arena 的全局 BotConfig 副作用会改变行为,descentYawArena
+solo 会烧搜索不终止)——bisect/复现用 solo,验收必须全量。
+教训:①bisect 两端点都要实测(首轮 good 端未验,白跑 6 步);②"default OFF/短路无行为差"的
+提交≠无辜,但也别只看嫌疑名单——本案真凶是名单外的一行调参;③arena 判定值逐字节一致=强确定性
+信号,值得直接上 bisect 而不是读 diff 猜。

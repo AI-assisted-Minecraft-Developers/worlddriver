@@ -461,7 +461,16 @@ final class WalkerConstants {
     // at 2 (the 4th starvation side-door after the three step-jitter resets). 0.05 still
     // clears a genuine slow approach: a 1.5 b/s water cruise only starves inside 0.33
     // blocks (2*d*v < 0.05 -> d < 0.33), well within the arrival gate.
+    // DRY ONLY (§94 regression, git-bisect convicted on waterFarAimBankCornerArena):
+    // in water the lateral speed while rounding an obstacle is ~0.02-0.05 blk/tick, so
+    // 0.05 starves every water node approach — the stall clock trips mid-manoeuvre and
+    // the recovery/repath cycle pins the bot on the obstacle corner (deterministic
+    // dGoal=6.33 pin, 07-03..07-06). Water keeps 0.02 via STUCK_PROGRESS_EPS_WATER.
     public static final double STUCK_PROGRESS_EPS = 0.05;
+    /** Water twin of {@link #STUCK_PROGRESS_EPS} — the pre-C40-J1 value. The C40-J1
+     *  wall-pinned-creep starvation that 0.05 fixes was a DRY pathology (hCol creep on
+     *  land); water's naturally slow manoeuvring must not read as "no progress". */
+    public static final double STUCK_PROGRESS_EPS_WATER = 0.02;
     /** Per-step ticks of bob-stalling before the water climb-out actuator places
      *  a foothold to ground a floating bot against a too-high bank. Keyed off the
      *  per-step no-progress timer ({@code totalTicks}, which a bob can't reset —

@@ -1586,7 +1586,11 @@ public final class Walker {
                 stuckStepHigh = step;
                 bestStepDist = sd2;
                 stuckTicks = 0;
-            } else if (sd2 < bestStepDist - STUCK_PROGRESS_EPS) {
+            } else if (sd2 < bestStepDist
+                    // Medium-split margin (§94): the dry 0.05 margin (C40-J1 wall-creep
+                    // starvation fix) starves water's naturally slow rounding manoeuvres
+                    // and the tripped recovery pins the bot on the obstacle corner.
+                    - (p.isInWater() ? STUCK_PROGRESS_EPS_WATER : STUCK_PROGRESS_EPS)) {
                 bestStepDist = sd2;                        // closer than ever to this node → real progress
                 stuckTicks = 0;
             } else {
