@@ -307,3 +307,54 @@ classpath 上目前**没有** YAML 解析器。引入 `org.yaml:snakeyaml`（~30
 落地后回写 `minecraft-agent-driver-proposal.md`：§0 状态表 §4.1 C 行从「⚠️ 部分」推进，
 §5 Phase 2 的「YAML 转译器 ❌」勾掉；CHANGELOG `[Unreleased] / Added` 记一条。
 microtiming、magic-server 回归集、headlessmc CI 仍留 ❌，是 Phase 2 收尾的后续项。
+
+## 12. 可靠 gameplay 断言写作指南（来自外部消费者反馈 2026-06-04，坑均为实测）
+
+写 headless（`runServer` / `runGameTestServer` / 无人登录的专服）测试脚本时，下面每一条都
+曾让真实消费者烧掉数小时——世界**看起来**活着（命令能跑、实体能召唤、query 有返回），
+但静默地**不在模拟**，所有症状都像被测 mod 的 bug。
+
+### 12.1 无玩家 ⇒ 没有 chunk 达到 entity-ticking ⇒ 召唤的怪全冻结（最高频坑）
+
+专服没人登录时，任何 chunk 都到不了 entity-ticking ticket 等级。后果（全部静默）：
+
+- MobEffect 时长**不倒数**→ 永不过期，`MobEffectEvent.Expired` 不发、`applyEffectTick` 不跑;
+- 无 AI、**无重力**（y=200 的怪悬空不落）、不白昼燃烧、不 despawn、poison/wither 不掉血;
+- **但** `/summon`、`/effect give`、`/damage` 及其触发的事件 handler（如 `LivingDamageEvent`）
+  **全部正常**——它们由命令同步驱动，不走 tick 循环。于是"命中即爆"类测试绿、
+  "到期自爆/计时"类测试神秘地红。
+
+**脚本修法**：召唤前 `/forceload add <cx> <cz>` 实体所在 chunk（chunk `0 0` 覆盖方块 0–15），
+实体放进该 chunk;收尾 `/forceload remove`。实测：有 forceload 时 poison 掉血、自定义效果
+expiry 触发;没有时同一套 setup 完全惰性。
+
+### 12.2 无玩家 ⇒ `OnDatapackSyncEvent` 不发 ⇒ 惰性配置系统全是默认值
+
+Iron's Spellbooks 族（及一切"datapack-sync 时才 build 配置"的系统）在玩家登录或 `/reload`
+时才解析配置。headless 启动后直接断言 → 读到的全是参数默认值（例：自定义 school 的法术
+伤害类型解析成默认 `evocation_magic`）。**脚本修法**：boot 后先跑一次 `/reload` 再断言。
+
+### 12.3 无敌帧（i-frames）：连续 `/damage` 第二发静默 no-op
+
+实体被 `/damage` 后 ~10 tick 免伤。背靠背两发 `/damage` 只有第一发生效。
+**修法**：每次断言用新目标，或两发之间 `mc.system.waitTicks`。
+（对被测 mod 的设计含义：任何"造成伤害后立刻 AoE/链式补伤"的机制必须绕过受害者 i-frames。）
+
+### 12.4 难度缩放让绝对伤害不确定
+
+带 `scaling: when_caused_by_living_non_player` 的伤害类型受难度影响（`/damage 6` 实际打 5）。
+**修法**：测试开头 `/difficulty normal` 固定难度，断言**比例/差值**而非绝对 HP。
+
+### 12.5 实体汤（entity soup）
+
+同一竞技场格反复 summon 会累积尸体/残留实体污染 count 断言。
+**修法**：每个断言用独立 tag + 独立坐标，收尾 `kill @e[tag=…]`;或用
+`mc.world.snapshot`/`restore` 的区域复原模式管理场地（实体不在 snapshot 内，仍需手动 kill）。
+
+### 12.6 读回自己的改动用哪条路
+
+- 命令输出/结果值：`mc.action.runCommand` 返回 `{ok, success, value, feedback[]}`——
+  `data get`/`execute if`/`seed` 的输出都在里面（2026-07-06 起）。
+- 单格 blockstate/光照/BE NBT：`mc.world.block {pos, nbt?}`。
+- 区域扫描：`mc.query q:"blocks"`（行含 `state` 属性 map）;实体含 `effects`/`uuid`，
+  `filter.is_living` 排除掉落物污染。

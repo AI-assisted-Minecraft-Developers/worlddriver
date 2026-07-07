@@ -8,6 +8,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`mc.world.block` — read-only single-cell inspection** `{pos, type, state?,
+  light:{block,sky}, blockEntity?}`: blockstate property map (`lit`/`facing`/`half`
+  as `/setblock`-style strings), light levels (previously unreadable through any
+  surface), and opt-in block-entity SNBT. The verify half of a build→verify loop
+  (docs/feedback/2026-06-08 asked for exactly this; every verification used to be
+  an `execute if block … run setblock <scratch>` hack). Also exposed to scripts as
+  `Agent.world.block/snapshot/restore`.
+- **`mc.query` entities rows gain `uuid`, `id`, and `effects`**
+  (`[{id, amplifier, durationTicks}]`, living entities only) — the MobEffect-read
+  gap external consumers ranked as their single biggest blocker for testing
+  effect-based mechanics (docs/feedback/2026-06-04 #4); `filter.is_living`
+  drops item/XP-orb rows that polluted health-delta assertions (#6).
+- **`mc.query` blocks rows gain `state`** — the blockstate property map, omitted
+  for property-less states; the client-MCP fallback rows carry it too
+  (docs/feedback/2026-06-08 #2).
+- **Server-side `mc.observe.player` now returns `effects`** — the client snapshot
+  grew it first, but headless dedicated servers (the main external-consumer
+  scenario) read the player through the server path, which still lacked it.
+- **Guard scripts 58–61** for all of the above plus the runCommand-outcome and
+  entities-`filter.type` fixes (both had shipped without tests), including a
+  per-variant stairs place→query sweep closing the 2026-06-07 "query is blind to
+  stairs" report (not reproducible on today's scan code; the sweep keeps it closed).
+
+### Fixed
+- **Walker stall-clock water starvation (REGRESSION §94)** — `STUCK_PROGRESS_EPS`
+  0.02→0.05 (the C40-J1 dry wall-creep fix, 07-03) made every water node
+  approach's slow rounding manoeuvre (~0.02-0.05 blk/tick lateral) read as "no
+  progress"; the tripped reCentre/wiggle recovery pinned the bot on obstacle
+  corners (waterFarAimBankCornerArena deterministic dGoal=6.33 pin, convicted by
+  git-bisect → 31bdb5c, single-variable verified). Fix: medium split — dry keeps
+  0.05, water uses new `STUCK_PROGRESS_EPS_WATER=0.02`.
+- **`mc.query` select rejects unknown keys** (`isError` naming the bad key and the
+  allowed set) instead of silently dropping them — callers were misled into
+  "field not supported" detours (docs/feedback/2026-06-04 #3).
+- **`mc.action.runCommand` setblock fast-path no longer throws "invalid block id"
+  on `[state]`/`{nbt}` syntax or trailing keep|destroy|replace modes** — those
+  now fall through to Brigadier (caught by the new guard scripts: the fast-path
+  ate `setblock … oak_stairs[facing=south,half=top]`).
+- **Pinned RPC/MCP ports fall back to an ephemeral port when already bound**
+  (WARN + `run/agent-{rpc,mcp}.port` records the real port) instead of dying with
+  a mid-log BindException — two instances now coexist by default
+  (docs/feedback/2026-06-04 port-conflict UX).
+- **Published POM/metadata no longer leak the Jar-in-Jar'd Rhino as a consumable
+  dependency** (naive consumers got a second Rhino on the classpath —
+  docs/feedback/2026-06-04 #2; module metadata is disabled so the cleaned POM is
+  the single source of truth).
+- **`agentRpcSmoke` runs in its own GameTest batch** — sharing a batch with
+  wall-clock-hungry walker/pathfinder arenas starved its 8s `onServerThread`
+  deadline into 46 false FAILs.
 - **`mc.query` entities gains `filter.type`** (exact entity id; bare path → `minecraft:`),
   mirroring the blocks branch — the docs promised it for both, only blocks had it.
 - **`mc.action.runCommand` now returns the command's own outcome** — `success`/`value`
