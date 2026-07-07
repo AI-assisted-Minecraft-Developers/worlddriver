@@ -15,6 +15,7 @@ import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.phys.AABB;
 
 import java.util.*;
@@ -177,6 +178,9 @@ public final class AgentApi {
         routes.put("mc.action.placeMany",  p -> withEvents(p, () -> action.placeMany(p)));
         // World snapshot/restore — deterministic test setup/teardown. restore
         // emits a world.restore event, so it honors returnEvents like the action.* group.
+        // Read-only single-cell inspection (blockstate + light + optional BE NBT)
+        // — the verify half of build→verify (docs/feedback/2026-06-08).
+        routes.put("mc.world.block",       p -> world.block(p));
         routes.put("mc.world.snapshot",    p -> world.snapshot(p));
         routes.put("mc.world.restore",     p -> withEvents(p, () -> world.restore(p)));
         // Run YAML GameTest definitions through the interpreter on demand (docs/
@@ -773,6 +777,7 @@ public final class AgentApi {
             // Supports exact ids and '#tag' selectors (e.g. #minecraft:logs).
             Predicate<BlockState> match =
                     (typeFilterId == null) ? null : BlockMatch.of(typeFilterId);
+            checkSelect(p.select, BLOCK_SELECT_KEYS);
             return onServerThread(() -> {
                 List<Map<String, Object>> out = new ArrayList<>();
                 BlockPos center = centerPos;
@@ -787,6 +792,17 @@ public final class AgentApi {
                             Map<String, Object> row = new LinkedHashMap<>();
                             row.put("pos", new BlockPos(bp.getX(), bp.getY(), bp.getZ()));
                             row.put("type", id);
+                            // Blockstate properties (lit/facing/half/…) so callers can
+                            // verify more than the block id (docs/feedback/2026-06-08,
+                            // fix #2). Omitted for property-less states (stone etc.)
+                            // to keep large scans lean.
+                            if (!st.getProperties().isEmpty()) {
+                                Map<String, Object> stateMap = new LinkedHashMap<>();
+                                for (var prop : st.getProperties()) {
+                                    stateMap.put(prop.getName(), stringifyProperty(st, prop));
+                                }
+                                row.put("state", stateMap);
+                            }
                             out.add(project(row, p.select));
                         }
                 return (Object) out;
@@ -794,11 +810,16 @@ public final class AgentApi {
         } else if ("entities".equals(p.q)) {
             int r = Math.max(0, Math.min(128, num(p.filter.getOrDefault("in_radius", 16))));
             Boolean wantHostile = (p.filter.get("is_hostile") instanceof Boolean b) ? b : null;
+            // filter.is_living drops non-living rows (dropped items, XP orbs) so
+            // health-delta assertions don't need client-side filtering
+            // (docs/feedback/2026-06-04, bug #6).
+            Boolean wantLiving = (p.filter.get("is_living") instanceof Boolean b) ? b : null;
             // filter.type restricts to one entity id (exact match; bare paths get the
             // minecraft: namespace) — mirrors the blocks branch, which had it first.
             Object entityTypeFilter = p.filter.get("type");
             String wantType = (entityTypeFilter instanceof String s && !s.isBlank())
                     ? (s.contains(":") ? s : "minecraft:" + s) : null;
+            checkSelect(p.select, ENTITY_SELECT_KEYS);
             return onServerThread(() -> {
                 List<Map<String, Object>> out = new ArrayList<>();
                 BlockPos center = centerPos;
@@ -806,17 +827,60 @@ public final class AgentApi {
                 for (Entity e : level.getEntities((Entity) null, box)) {
                     boolean hostile = e instanceof Enemy;
                     if (wantHostile != null && wantHostile != hostile) continue;
+                    if (wantLiving != null && wantLiving != (e instanceof LivingEntity)) continue;
                     if (wantType != null && !wantType.equals(BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString())) continue;
                     Map<String, Object> row = new LinkedHashMap<>();
                     row.put("pos", new BlockPos(e.blockPosition().getX(), e.blockPosition().getY(), e.blockPosition().getZ()));
                     row.put("type", BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString());
-                    if (e instanceof LivingEntity le) row.put("health", (double) le.getHealth());
+                    // uuid for stable identity across queries, numeric id for
+                    // attackEntity — parity with the client fallback path.
+                    row.put("uuid", e.getUUID().toString());
+                    row.put("id", e.getId());
+                    if (e instanceof LivingEntity le) {
+                        row.put("health", (double) le.getHealth());
+                        // Active MobEffects — the single biggest gap for testing
+                        // effect-based mechanics (docs/feedback/2026-06-04, bug #4).
+                        // Same entry shape as mc.observe.player's effects.
+                        List<Object> fx = new ArrayList<>();
+                        for (var inst : le.getActiveEffects()) {
+                            Map<String, Object> fe = new LinkedHashMap<>();
+                            fe.put("id", BuiltInRegistries.MOB_EFFECT.getKey(inst.getEffect().value()).toString());
+                            fe.put("amplifier", inst.getAmplifier());
+                            fe.put("durationTicks", inst.getDuration());
+                            fx.add(fe);
+                        }
+                        row.put("effects", fx);
+                    }
                     out.add(project(row, p.select));
                 }
                 return (Object) out;
             });
         }
         return List.of();
+    }
+
+    /** Property value as the string a /setblock predicate would use ("true", "north", "3"). */
+    private static <T extends Comparable<T>> String stringifyProperty(BlockState st, Property<T> prop) {
+        return prop.getName(st.getValue(prop));
+    }
+
+    /** Every key a q='entities' row can carry — {@link #checkSelect} validates against it. */
+    private static final Set<String> ENTITY_SELECT_KEYS =
+            Set.of("pos", "type", "uuid", "id", "health", "effects");
+    /** Every key a q='blocks' row can carry. */
+    private static final Set<String> BLOCK_SELECT_KEYS = Set.of("pos", "type", "state");
+
+    /** Unknown select keys used to be silently ignored, misleading callers into
+     *  "field not supported" detours (docs/feedback/2026-06-04, bug #3). Reject
+     *  them instead; the transport layers surface the message as isError. */
+    private static void checkSelect(List<String> select, Set<String> allowed) {
+        if (select == null) return;
+        for (String k : select) {
+            if (!allowed.contains(k)) {
+                throw new IllegalArgumentException(
+                        "unknown select key '" + k + "' (allowed: " + String.join(", ", allowed) + ")");
+            }
+        }
     }
 
     private Map<String, Object> project(Map<String, Object> row, List<String> select) {

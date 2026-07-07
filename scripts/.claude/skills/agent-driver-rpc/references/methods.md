@@ -82,7 +82,7 @@ runs on a **background thread** (poll `op:"status"`).
 |---|---|---|
 | `mc.observe.cursor` | — | latest event seq `<integer>`; save and feed to `eventsSince`/`wait.event`. |
 | `mc.observe.eventsSince` | `cursor` (req), `types?[]`, `limit?` | events with `seq>cursor`; types: block.break/place/fill, entity.death, player.join/leave, chat.message. limit default 256, max 4096. |
-| `mc.observe.player` | `name?` | `{present, name, uuid, dimension, pos, blockPos, look, onGround, health, maxHealth, food, xpLevel, gameMode, mainHand, offHand, hotbar[], selectedSlot}`; client fallback adds `inventory, saturation, effects, time, hit`. |
+| `mc.observe.player` | `name?` | `{present, name, uuid, dimension, pos, blockPos, look, onGround, health, maxHealth, food, xpLevel, effects[], time, gameMode, mainHand, offHand, hotbar[], selectedSlot, armor}`; client fallback adds `inventory, saturation, hit`. |
 | `mc.observe.threats` | `radius?` (1–64, dflt 24) | `{threats:[{id,type,pos,distance,hostile,canSeeMe,facingMe,charging,creeperSwell,threat}], incomingProjectiles:[{id,type,pos,vel,willHit,ticksToImpact}]}`. Client-backed (empty on dedicated server). `threat` is a 0–1 priority score. |
 | `mc.observe.boss` | `radius?` (1–256, dflt 64) | `{present, type?:"ender_dragon"\|"wither", health, maxHealth, healthPct, pos, distance, phase, crystals:[{id,pos,distance,caged}], …}`. Client-backed → `{present:false, crystals:[]}` on a dedicated server. |
 | `mc.observe.scene` | `center?`, `radius?` (1–32, dflt 12), `render?:"summary"\|"map"`, `overlays?:[string]` | `{present, center, radius, authority:"server", hazardSummary:{lethalCount, cornered, safeFleeStep?}, truncated?, rows?:[string], legend?:{}, …}`. Server-side; works headless in GameTest. |
@@ -101,13 +101,14 @@ All accept `returnEvents?:bool` → response also carries an `events[]` array (s
 In-memory block-box save/restore — the clean way to A/B a pathfinder/build trial without contaminating the saved world. Cap 32768 (32³) volume; up to 64 snapshots retained.
 | method | params | returns / notes |
 |---|---|---|
+| `mc.world.block` | `pos` (req), `nbt?` (dflt false) | read-only single-cell inspection → `{pos, type, state?, light:{block,sky}, blockEntity?}`. `state` = blockstate property map (omitted when property-less); `nbt:true` adds block-entity NBT as SNBT (null when none). |
 | `mc.world.snapshot` | `from,to` (req), `id?`, `blockEntities?` (dflt true) | capture a box into the in-memory store → `{ok, id, from, to, blocks, nonAir, blockEntities}`. Auto-generates `id` if omitted. |
 | `mc.world.restore` | `id` (req), `discard?` (dflt false), `returnEvents?` | restore a snapshot verbatim → `{ok, id, restored, blockEntities}`. Emits a `world.restore` event; frees the snapshot if `discard:true`. |
 
 ## mc.query
 | method | params | returns / notes |
 |---|---|---|
-| `mc.query` | `q:"blocks"\|"entities"` (req), `center?`, `filter?:{in_radius?, type?, is_hostile?}`, `select?:[…]` | scan a cube (Chebyshev `in_radius`; required for blocks, default 16 for entities). `filter.type` = one exact id for both blocks (`#tag` ok) and entities (bare path → `minecraft:`) → `[{pos,type, health?,id?,hostile?,maxHealth?,distance?}]`. `select` projects fields. `type` accepts `#tag` selectors. |
+| `mc.query` | `q:"blocks"\|"entities"` (req), `center?`, `filter?:{in_radius?, type?, is_hostile?, is_living?}`, `select?:[…]` | scan a cube (Chebyshev `in_radius`; required for blocks, default 16 for entities). `filter.type` = one exact id for both blocks (`#tag` ok) and entities (bare path → `minecraft:`). Blocks → `[{pos,type,state?}]` (`state` = blockstate property map, omitted when property-less); entities → `[{pos,type,uuid,id,health?,effects?}]` (`effects` = `[{id,amplifier,durationTicks}]`, living only; `is_living` filters item/orb rows). `select` projects fields; unknown select keys are rejected with an error. Client fallback rows add `{hostile,maxHealth,distance}`. |
 
 ## mc.events
 Server-side event channel: emit your own events and set up server-side **watchers** that poll an arbitrary method on a rising-edge predicate and emit when it fires (a building block for `wait.condition`-style automation without a client long-poll).

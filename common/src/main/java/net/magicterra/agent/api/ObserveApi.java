@@ -144,6 +144,20 @@ public final class ObserveApi {
             out.put("maxHealth", pl.getMaxHealth());
             out.put("food", pl.getFoodData().getFoodLevel());
             out.put("xpLevel", pl.experienceLevel);
+            // Active MobEffects, mirroring the client-side snapshot
+            // (ClientObserve.observePlayer). The client path grew this first;
+            // headless dedicated servers — the main external-consumer scenario
+            // (docs/feedback/2026-06-04, bug #4) — read the player through HERE,
+            // so the server snapshot must carry the same field.
+            List<Map<String, Object>> fx = new ArrayList<>();
+            for (var inst : pl.getActiveEffects()) {
+                Map<String, Object> fe = new LinkedHashMap<>();
+                fe.put("id", BuiltInRegistries.MOB_EFFECT.getKey(inst.getEffect().value()).toString());
+                fe.put("amplifier", inst.getAmplifier());
+                fe.put("durationTicks", inst.getDuration());
+                fx.add(fe);
+            }
+            out.put("effects", fx);
             // World time so the Agent can plan around day/night — gather by day,
             // hole up by night. phase: day | sunset | night | sunrise. Pair with
             // mc.wait.condition{invoke:'mc.observe.player', field:'time.phase',

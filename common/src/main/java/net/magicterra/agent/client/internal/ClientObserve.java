@@ -27,6 +27,7 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import java.util.Set;
 import java.util.function.Predicate;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.Property;
 import net.magicterra.agent.bot.util.BlockMatch;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.LivingEntity;
@@ -221,6 +222,15 @@ public final class ClientObserve {
                         p.put("x", pos.getX()); p.put("y", pos.getY()); p.put("z", pos.getZ());
                         e.put("pos", p);
                         e.put("type", id);
+                        // Blockstate property map, mirroring the server-side
+                        // q='blocks' rows; omitted for property-less states.
+                        if (!bs.getProperties().isEmpty()) {
+                            Map<String, Object> stateMap = new LinkedHashMap<>();
+                            for (var prop : bs.getProperties()) {
+                                stateMap.put(prop.getName(), propValue(bs, prop));
+                            }
+                            e.put("state", stateMap);
+                        }
                         blocks.add(e);
                     }
                 }
@@ -255,6 +265,10 @@ public final class ClientObserve {
                 if (hostileFilter != null && hostileFilter != hostile) continue;
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("id", e.getId());
+                // uuid for identity parity with the server-side q='entities' rows.
+                // (effects stays server-only: the client doesn't receive other
+                // entities' MobEffect instances, only its own.)
+                row.put("uuid", e.getUUID().toString());
                 row.put("type", BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString());
                 Map<String, Object> pos = new LinkedHashMap<>();
                 pos.put("x", e.getX()); pos.put("y", e.getY()); pos.put("z", e.getZ());
@@ -312,5 +326,10 @@ public final class ClientObserve {
             out.put("slots", slots);
             return out;
         });
+    }
+
+    /** Property value as the string a /setblock predicate would use ("true", "north", "3"). */
+    private static <T extends Comparable<T>> String propValue(BlockState bs, Property<T> prop) {
+        return prop.getName(bs.getValue(prop));
     }
 }

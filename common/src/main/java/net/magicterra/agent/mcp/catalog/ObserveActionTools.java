@@ -25,12 +25,12 @@ public final class ObserveActionTools {
             roTool("mc.observe.player",
                 "Player snapshot. Server-mode: name picks the player (defaults to first); returns " +
                 "{present:false} when nobody matches. Returns {present, name, uuid, dimension, pos, " +
-                "blockPos, look, onGround, health, maxHealth, food, xpLevel, gameMode, mainHand, " +
-                "offHand, hotbar, selectedSlot}.\n" +
+                "blockPos, look, onGround, health, maxHealth, food, xpLevel, effects:[{id,amplifier," +
+                "durationTicks},...], time:{dayTime,dayOfWorld,timeOfDay,phase}, gameMode, mainHand, " +
+                "offHand, hotbar, selectedSlot, armor}.\n" +
                 "Client-MCP fallback (no server): LocalPlayer snapshot; `name` ignored; result also " +
-                "carries inventory:[{slot,id,count},...], saturation, effects:[{id,amplifier," +
-                "durationTicks},...], time:{dayTime,dayOfWorld,timeOfDay,phase:day|sunset|night|" +
-                "sunrise}, hit (crosshair HitResult) — full state without opening any screen.",
+                "carries inventory:[{slot,id,count},...], saturation, hit (crosshair HitResult) — " +
+                "full state without opening any screen.",
                 object()
                     .prop("name", string()
                         .desc("Player GameProfile name. Optional — defaults to first player."))),
@@ -137,6 +137,18 @@ public final class ObserveActionTools {
                             .req("type", string())))
                     .prop("returnEvents", returnEvents())),
 
+            roTool("mc.world.block",
+                "Read-only single-cell inspection: {pos, type, state?, light:{block,sky}, " +
+                "blockEntity?}. state maps blockstate properties (lit/facing/half/...) as " +
+                "/setblock-style strings, omitted for property-less states. nbt:true adds the " +
+                "block entity's full NBT as an SNBT string (null when the cell has none). " +
+                "The verify half of a build→verify loop — answers \"is this lamp actually " +
+                "lit=true?\" or \"what light level is here?\" in one round-trip.",
+                object()
+                    .req("pos", pos())
+                    .prop("nbt", bool()
+                        .desc("Include block-entity NBT as SNBT (default false)."))),
+
             roTool("mc.world.snapshot",
                 "Capture an axis-aligned box of block states (and block-entity NBT) into an " +
                 "in-memory store, for deterministic test setup/teardown. from/to are inclusive " +
@@ -182,22 +194,30 @@ public final class ObserveActionTools {
             roTool("mc.query",
                 "Scan blocks or entities in a cube. center defaults to mc.system.testOrigin. " +
                 "filter.in_radius is the Chebyshev radius (required for blocks, default 16 for entities). " +
-                "filter.type restricts blocks to one id; filter.is_hostile restricts entities to Enemies. " +
-                "select projects fields. Returns [{pos, type, health?}, ...].\n" +
+                "filter.type restricts blocks OR entities to one id; filter.is_hostile / filter.is_living " +
+                "restrict entities. select projects fields (unknown keys are rejected). " +
+                "Blocks rows: {pos, type, state?} — state maps blockstate properties " +
+                "(lit/facing/half/...) as /setblock-style strings, omitted for property-less states. " +
+                "Entities rows: {pos, type, uuid, id, health?, effects?} — health/effects on living " +
+                "entities only; effects entries are {id, amplifier, durationTicks}; " +
+                "id feeds mc.bot.attackEntity.\n" +
                 "Client-MCP fallback (no server attached): scans ClientLevel. center defaults to " +
                 "local player; radius capped at 32 (entities) / 16 (blocks). q='entities' adds " +
-                "{id, hostile, maxHealth, distance} per row (id feeds mc.bot.attackEntity).",
+                "{hostile, maxHealth, distance} per row.",
                 object()
                     .req("q", stringEnum("blocks", "entities"))
                     .prop("center", pos())
                     .prop("filter", object()
                         .prop("in_radius", integer(0, 128))
                         .prop("type", string()
-                            .desc("Blocks only: restrict to this block id, or a '#tag' "
+                            .desc("Restrict to one id. Blocks also accept a '#tag' "
                                 + "selector to match any block in that tag (e.g. '#minecraft:logs' "
                                 + "matches every log species)."))
                         .prop("is_hostile", bool()
-                            .desc("Entities only: restrict to hostile mobs.")))
+                            .desc("Entities only: restrict to hostile mobs."))
+                        .prop("is_living", bool()
+                            .desc("Entities only: true drops non-living rows (items, XP orbs) "
+                                + "so health-delta assertions stay clean; false keeps only non-living.")))
                     .prop("select", array(string())))
         );
     }
