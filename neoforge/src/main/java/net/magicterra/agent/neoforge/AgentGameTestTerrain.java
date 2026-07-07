@@ -73,6 +73,7 @@ public final class AgentGameTestTerrain {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void summitArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"summitArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // cz=440 (NOT the shared 8,8): concurrent tick-stepped tests stomp each other at shared
         // absolute coords, and this arena's buildFloor clear also reached agentRpcSmoke's (3,3)
@@ -150,6 +151,7 @@ public final class AgentGameTestTerrain {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void sheerWallArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"sheerWallArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // cz=380 (NOT the shared 8,8): GameTest tick-steps tests CONCURRENTLY, and arenas build
         // at absolute coords (ignoring GameTest's per-test spatial spacing), so two tests at the
@@ -221,6 +223,7 @@ public final class AgentGameTestTerrain {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void bridgeGapArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"bridgeGapArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // cz=320 (NOT the shared 8,8): concurrent tick-stepped tests at the same absolute coords
         // stomp each other (see sheerWallArena) — disjoint region per arena.
@@ -288,6 +291,7 @@ public final class AgentGameTestTerrain {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void parkourAscendArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"parkourAscendArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 340, cz = 340, launchY = 230, pitY = 200;
         // Deep catch-floor (a failed leap falls far → detectable).
@@ -380,6 +384,7 @@ public final class AgentGameTestTerrain {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void ridgeOvershootArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"ridgeOvershootArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 220, cz = 220, plainY = 180, topY = 186;
         // These arenas write to ABSOLUTE coords (not the per-test structure region),
@@ -490,6 +495,7 @@ public final class AgentGameTestTerrain {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void stepUpCrestOrbitArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"stepUpCrestOrbitArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Disjoint absolute region (shared level — see sheerWallArena), away from every other footprint.
         final int cx = 420, cz = 560, baseY = 200;
@@ -615,6 +621,7 @@ public final class AgentGameTestTerrain {
 
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void descentOvershootResyncArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"descentOvershootResyncArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Disjoint region (absolute coords, shared level — see sheerWallArena). cx,cz away from
         // every other arena's footprint.
@@ -758,6 +765,7 @@ public final class AgentGameTestTerrain {
 
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void descentArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"descentArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 100, cz = 100, pitFloorY = 180, topY = 220, steps = 12;
         // Deep pit floor (a safety net far below — reaching it = fell off).
@@ -825,6 +833,7 @@ public final class AgentGameTestTerrain {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void ascentSpeedArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"ascentSpeedArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 440, cz = 440, baseY = 210, stepCount = 6;
         // Flat run-up (10 long), surface baseY → walk baseY+1.
@@ -920,6 +929,7 @@ public final class AgentGameTestTerrain {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void diagonalAscentSpeedArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"diagonalAscentSpeedArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 440, cz = 520, baseY = 210, steps = 8;
         final int span = 2 * steps;                 // dx,dz 0..16
@@ -1004,8 +1014,12 @@ public final class AgentGameTestTerrain {
      * sums to ~the one initial turn; a carrot-chase winds up hundreds of degrees). Logs it + asserts
      * the bot reaches the bottom and the thrash stays under a regression ceiling.
      */
-    @GameTest(template = "empty", timeoutTicks = 100000)
+    // batch: solo — diagnostic isolation (2026-07-06): failed twice in defaultBatch
+    // alongside wall-clock-hungry peers; a solo batch separates real regression
+    // from server-thread contention distorting the walker's ms-budget searches.
+    @GameTest(template = "empty", timeoutTicks = 100000, batch = "soloDescentYaw")
     public static void descentYawArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"descentYawArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 440, cz = 600, topY = 240, steps = 9;
         final int span = 2 * steps;                 // dx,dz 0..18
@@ -1124,6 +1138,7 @@ public final class AgentGameTestTerrain {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void ledgeOvershootArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"ledgeOvershootArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 460, cz = 560, H = 240, RUN = 26, DROP = 3;
         for (int x = cx; x <= cx + RUN; x++)              // runway, top surface at y=H
@@ -1206,6 +1221,7 @@ public final class AgentGameTestTerrain {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void wallCollisionProbe(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"wallCollisionProbe".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 560, cz = 700, H = 240;
         for (int x = cx - 1; x <= cx + 1; x++)            // floor pad
@@ -1256,6 +1272,7 @@ public final class AgentGameTestTerrain {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void bridgeDescendArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"bridgeDescendArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 640, cz = 640, baseY = 210;
         // Start platform, one block HIGHER than the far side (foot baseY+2).

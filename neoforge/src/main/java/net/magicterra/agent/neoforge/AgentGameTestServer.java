@@ -85,6 +85,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverDriverArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverDriverArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 380, cz = 380, floorY = 220;
         for (int dx = -1; dx <= 1; dx++)
@@ -145,6 +146,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverMineArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverMineArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 460, cz = 460, floorY = 220;
         buildFloor(level, cx, cz, floorY);
@@ -199,6 +201,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverProcessArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverProcessArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 540, cz = 540, floorY = 220;
         for (int dx = -1; dx <= 1; dx++)
@@ -251,6 +254,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverFleeArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverFleeArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 600, cz = 600, floorY = 220, R = 10;
         for (int dx = -R; dx <= R; dx++)
@@ -308,6 +312,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverMineProcessArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverMineProcessArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 660, cz = 660, floorY = 220;
         // DIRT floor (NOT a target) so the scan only finds the placed stone.
@@ -370,6 +375,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverBuildArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverBuildArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 720, cz = 720, floorY = 220;
         for (int dx = -1; dx <= 6; dx++)
@@ -436,6 +442,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverLookRaycastArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverLookRaycastArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 760, cz = 760, floorY = 220;
         // The GameTest world PERSISTS across runs and these are fixed absolute
@@ -479,6 +486,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverFollowArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverFollowArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Anchor to this test's own (entity-ticking) chunk column — a hardcoded far
         // coord lands in a tracked chunk only by luck of the per-run test placement,
@@ -552,6 +560,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void entityLeashRepathArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"entityLeashRepathArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Anchor to this test's own (entity-ticking) chunk column — see serverFollowArena /
         // serverCombatArena rationale: a hardcoded far coord lands in a tracked chunk only
@@ -677,6 +686,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverCombatArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverCombatArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Anchor the arena to THIS test's own region (the structure's chunk column),
         // not a hardcoded absolute spot: the GameTest framework places each test
@@ -769,6 +779,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverLookArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverLookArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 480, cz = 480, floorY = 220;
         for (int dx = -1; dx <= 1; dx++)
@@ -817,6 +828,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverEscapeArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverEscapeArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 520, cz = 520, floorY = 220;
         // Solid stone block floorY..floorY+3 (top surface = floorY+3, stand = floorY+4).
@@ -875,6 +887,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverBunkerArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverBunkerArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 560, cz = 560, floorY = 220;
         // Solid dirt block floorY-3..floorY+1 to dig into; carve the bot's 1×2 standing
@@ -940,6 +953,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverCraftArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverCraftArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 600, cz = 600, floorY = 220;
         for (int dx = -1; dx <= 1; dx++)
@@ -987,6 +1001,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverSmeltCliffArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverSmeltCliffArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 620, cz = 620, floorY = 220;
         for (int dx = -1; dx <= 2; dx++)
@@ -1035,6 +1050,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverElytraArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverElytraArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 700, cz = 700, floorY = 200;
         // A small pad far BELOW so the bot is airborne (onGround=false → can fall-fly);
@@ -1094,6 +1110,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverCapabilityArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverCapabilityArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 420, cz = 420, floorY = 220;
         buildFloor(level, cx, cz, floorY);
@@ -1161,6 +1178,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void surfaceDiveArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"surfaceDiveArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Ground-anchored (per-test placement), not a hardcoded absolute coord — see
         // entityLeashRepathArena's rationale.
@@ -1277,6 +1295,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void underwaterBaseArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"underwaterBaseArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         BlockPos anchor = helper.absolutePos(BlockPos.ZERO);
         final int cx = anchor.getX(), cz = anchor.getZ(), floorY = anchor.getY();

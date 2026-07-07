@@ -68,6 +68,14 @@ unexpected location, treat it as a leftover and delete it — do not commit it.
 # Integration tests (use as CI)
 ./gradlew :neoforge:runGameTestServer
 
+# Single-arena fast run (~20s vs ~25min) — every @GameTest starts with a
+# gt-filter guard line; with AGENT_GT_ONLY set, all other tests succeed
+# immediately. For bisects/repros ONLY: a solo arena sees the baseline
+# BotConfig, not the global flag side effects earlier arenas apply in a full
+# run, so results can differ (descentYawArena burns unbounded searches solo).
+# Acceptance is ALWAYS the full run (REGRESSION.md §94).
+AGENT_GT_ONLY=waterFarAimBankCornerArena ./gradlew :neoforge:runGameTestServer
+
 # Interactive client (pin ports so .mcp.json keeps working)
 JAVA_TOOL_OPTIONS="-Dagent.mcpPort=39800 -Dagent.rpcPort=39801" \
   ./gradlew :fabric:runClient

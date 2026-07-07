@@ -46,6 +46,7 @@ public final class AgentGameTestBias {
 
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void avoidRegionDetourArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"avoidRegionDetourArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int x0 = 700, z0 = 700, y = 240;
         // 7-wide (dz -3..3) flat stone lane along +x from (x0,z0) to (x0+20,z0) — wide
@@ -113,6 +114,7 @@ public final class AgentGameTestBias {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void digUpYArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"digUpYArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int x0 = 1700, z0 = 1700, base = 230, top = 240, targetY = 241;
 
@@ -169,6 +171,7 @@ public final class AgentGameTestBias {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void digDownYArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"digDownYArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int x0 = 1600, z0 = 1600, top = 240, targetY = 234;
 
@@ -241,6 +244,7 @@ public final class AgentGameTestBias {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void parkourGateArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"parkourGateArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int x0 = 1400, z0 = 1400, y = 240;
 
@@ -298,6 +302,7 @@ public final class AgentGameTestBias {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void yFloorConstraintArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"yFloorConstraintArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int x0 = 1400, z0 = 1450, y = 240;
 
@@ -354,6 +359,7 @@ public final class AgentGameTestBias {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void leashHardArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"leashHardArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int x0 = 1400, z0 = 1500, y = 240;
 
@@ -416,6 +422,7 @@ public final class AgentGameTestBias {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void forbidWaterArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"forbidWaterArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int x0 = 1800, z0 = 1800, y = 240;
         final int stripLo = 5, stripHi = 6;
@@ -494,6 +501,7 @@ public final class AgentGameTestBias {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void forbidDigArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"forbidDigArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int x0 = 1900, z0 = 1900, top = 240, targetY = 234;
 
@@ -562,6 +570,7 @@ public final class AgentGameTestBias {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void shorelineHugArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"shorelineHugArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int x0 = 2100, z0 = 2100, y = 240;
 
@@ -658,6 +667,7 @@ public final class AgentGameTestBias {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void shorelineSmootherArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"shorelineSmootherArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int x0 = 2200, z0 = 2200, y = 240;
         AgentDriverCommon.LOG.info("[shorelineSmootherArena] START");   // entry probe: a frozen

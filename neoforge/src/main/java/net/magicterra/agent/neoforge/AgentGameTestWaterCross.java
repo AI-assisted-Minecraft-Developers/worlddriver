@@ -75,6 +75,7 @@ public final class AgentGameTestWaterCross {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void goalSnapBuriedArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"goalSnapBuriedArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 300, cz = 300, floorY = 64;
         // Flat stone floor the bot walks on; air above.
@@ -144,6 +145,7 @@ public final class AgentGameTestWaterCross {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void basinArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"basinArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 300, cz = 300, plY = 240;
         // Flat plateau (the go-around) across the whole arena.
@@ -243,6 +245,7 @@ public final class AgentGameTestWaterCross {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void waterClimbOutRouteArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"waterClimbOutRouteArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 440, cz = 440, wsurf = 220;       // water surface y; air at wsurf+1
         // Two-column pool, dx 0 and dx 1, dz 0..6: solid floor wsurf-2, water at wsurf-1 & wsurf.
@@ -379,6 +382,7 @@ public final class AgentGameTestWaterCross {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void waterStepDownFloatArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"waterStepDownFloatArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Disjoint absolute region (shared level — see sheerWallArena), away from every other footprint.
         final int cx = 360, cz = 520, floorY = 200;
@@ -536,6 +540,7 @@ public final class AgentGameTestWaterCross {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void deepWaterSubmergedCrossArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"deepWaterSubmergedCrossArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Disjoint absolute region (shared level — see sheerWallArena), beyond every other footprint.
         final int cx = 820, cz = 820, floorY = 200;
@@ -694,6 +699,7 @@ public final class AgentGameTestWaterCross {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void vineOverWaterCrossArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"vineOverWaterCrossArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Disjoint absolute region (shared level — see sheerWallArena), beyond every other footprint.
         final int cx = 880, cz = 880, floorY = 200;
@@ -870,6 +876,7 @@ public final class AgentGameTestWaterCross {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void padOverWaterCrossArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"padOverWaterCrossArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Disjoint absolute region (shared level — see sheerWallArena), beyond every other footprint.
         final int cx = 920, cz = 880, floorY = 200;
@@ -1027,6 +1034,7 @@ public final class AgentGameTestWaterCross {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void padClusterCrossArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"padClusterCrossArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Disjoint absolute region (shared level — see sheerWallArena), beyond every other footprint.
         final int cx = 960, cz = 880, floorY = 200;
@@ -1234,6 +1242,7 @@ public final class AgentGameTestWaterCross {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void deepWaterFloatBeelineArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"deepWaterFloatBeelineArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Disjoint absolute region (shared level — see sheerWallArena), beyond every other footprint.
         final int cx = 1000, cz = 1000, floorY = 200, depth = 8;

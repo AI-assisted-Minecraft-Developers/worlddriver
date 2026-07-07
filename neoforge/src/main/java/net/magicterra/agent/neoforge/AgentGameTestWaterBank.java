@@ -75,6 +75,7 @@ public final class AgentGameTestWaterBank {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void waterPhysicsParity(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"waterPhysicsParity".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 40, cz = 40, floorY = 200, depth = 14;
         buildWaterColumn(level, cx, cz, floorY, depth);
@@ -131,6 +132,7 @@ public final class AgentGameTestWaterBank {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void buoyantWallArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"buoyantWallArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 60, cz = 60, floorY = 200, depth = 6;
         int surface = floorY + depth;            // y206 water surface
@@ -248,6 +250,7 @@ public final class AgentGameTestWaterBank {
      */
     @GameTest(template = "empty", timeoutTicks = 100000, required = false)
     public static void vineClingFidelityProbe(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"vineClingFidelityProbe".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 60, cz = 150, floorY = 200, base = floorY + 1;
         for (int dx = -4; dx <= 4; dx++)
@@ -334,8 +337,10 @@ public final class AgentGameTestWaterBank {
      * live bug. Marking it required would turn the 50-required suite RED. Run it on demand for the
      * executor-fix A/B; the fix must flip it to PASS while keeping the 50 required green.
      */
-    @GameTest(template = "empty", timeoutTicks = 100000, required = false)
+    // batch: solo — see descentYawArena's isolation note (2026-07-06).
+    @GameTest(template = "empty", timeoutTicks = 100000, required = false, batch = "soloVineOverWater")
     public static void vineOverWaterClimbArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"vineOverWaterClimbArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 60, cz = 120, padTop = 201;
         int footY = padTop + 1;                   // y202 — bot foot on the pad
@@ -565,6 +570,7 @@ public final class AgentGameTestWaterBank {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void tallBankDigClimbArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"tallBankDigClimbArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Unique coords: these arenas build at HARDCODED level positions in the shared
         // GameTest level (ignoring the structure region), so a coord shared with another
@@ -684,6 +690,7 @@ public final class AgentGameTestWaterBank {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void waterLowBankArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"waterLowBankArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 100, cz = 100, floorY = 200, depth = 6;
         final int surface = floorY + depth;        // y206 water surface (floating foot ~206)
@@ -797,6 +804,7 @@ public final class AgentGameTestWaterBank {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void riverSheerBankArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"riverSheerBankArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 160, cz = 60, floorY = 200, depth = 6;
         final int surface = floorY + depth;            // y206 water surface
@@ -909,6 +917,7 @@ public final class AgentGameTestWaterBank {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void deepWaterCrossArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"deepWaterCrossArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 100, cz = 160, floorY = 200, depth = 8;
         final int surface = floorY + depth;        // y208 water surface (floating foot ~y208)
@@ -1018,6 +1027,7 @@ public final class AgentGameTestWaterBank {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void deepWaterClimboutNoBlockArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"deepWaterClimboutNoBlockArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 140, cz = 160, floorY = 200, depth = 8;   // PROBE: deeper, matches live canyon
         final int surface = floorY + depth;        // water surface plane
@@ -1123,6 +1133,7 @@ public final class AgentGameTestWaterBank {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void deepWaterClimboutDriftArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"deepWaterClimboutDriftArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 420, cz = 420, floorY = 200, depth = 8;
         final int surface = floorY + depth;        // y208 water surface
@@ -1232,8 +1243,10 @@ public final class AgentGameTestWaterBank {
      * recreate. The spinFreeze target-stability fix is verified LIVE on the saved-world basin;
      * this arena is the regression smoke test for the surrounding water-navigation path.
      */
-    @GameTest(template = "empty", timeoutTicks = 100000)
+    // batch: solo — see descentYawArena's isolation note (2026-07-06).
+    @GameTest(template = "empty", timeoutTicks = 100000, batch = "soloWaterFarAim")
     public static void waterFarAimBankCornerArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"waterFarAimBankCornerArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 560, cz = 560, floorY = 200, depth = 5;
         final int surface = floorY + depth;            // y205 water surface

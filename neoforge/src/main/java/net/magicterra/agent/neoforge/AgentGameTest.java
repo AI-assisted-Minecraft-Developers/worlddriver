@@ -86,8 +86,14 @@ import static net.magicterra.agent.neoforge.AgentGameTestSupport.*;
 public final class AgentGameTest {
     private AgentGameTest() {}
 
-    @GameTest(template = "empty", timeoutTicks = 100000)
+    // batch: the validation suite marshals every call through onServerThread()
+    // with an 8s deadline; sharing a batch with tick-hungry walker/pathfinder
+    // arenas (single searches hold the server thread for seconds) starves those
+    // calls into uniform 8000ms timeouts (46 false FAILs, 2026-07-06 round 1).
+    // A dedicated batch runs it with the server thread to itself.
+    @GameTest(template = "empty", timeoutTicks = 100000, batch = "agentValidation")
     public static void agentRpcSmoke(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"agentRpcSmoke".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         if (AgentDriverCommon.api() == null) {
             helper.fail("AgentApi not initialized — was the mod loaded?");
             return;
@@ -124,6 +130,7 @@ public final class AgentGameTest {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void pinchArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"pinchArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         StringBuilder log = new StringBuilder("[pinchArena]\n");
         boolean anyReached = false;
         for (int budget : new int[]{150, 300, 600, 2000, 60000}) {
@@ -150,6 +157,7 @@ public final class AgentGameTest {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void horizonArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"horizonArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         net.magicterra.agent.bot.debug.HorizonArena.Result off =
                 net.magicterra.agent.bot.debug.HorizonArena.run(0);
         net.magicterra.agent.bot.debug.HorizonArena.Result on =
@@ -199,6 +207,7 @@ public final class AgentGameTest {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void inputReleaseGate(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"inputReleaseGate".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         net.magicterra.agent.bot.movement.InputReleaseGate g =
                 new net.magicterra.agent.bot.movement.InputReleaseGate();
 
@@ -242,6 +251,7 @@ public final class AgentGameTest {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void physicsParity(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"physicsParity".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 3, cz = 3, floorY = 220, standY = 221;
         buildFloor(level, cx, cz, floorY);
@@ -301,6 +311,7 @@ public final class AgentGameTest {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void buildBlockWhitelistArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"buildBlockWhitelistArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 460, cz = 460, floorY = 220;
         buildFloor(level, cx, cz, floorY);
@@ -351,6 +362,7 @@ public final class AgentGameTest {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void pathArchiveJsonArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"pathArchiveJsonArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         PathArchive a = PathArchive.demo();
         String json = a.toJson();
         PathArchive b = PathArchive.fromJson(json);
@@ -380,6 +392,7 @@ public final class AgentGameTest {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void nodePhysicsArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"nodePhysicsArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // cx=240, cz=240, floorY=179; stand cells at y=180.
         final int cx = 240, cz = 240, floorY = 179;
@@ -463,6 +476,7 @@ public final class AgentGameTest {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void pathArchiveCaptureArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"pathArchiveCaptureArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 350, cz = 350, floorY = 220;
 
@@ -564,6 +578,7 @@ public final class AgentGameTest {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void replayRoundTripArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"replayRoundTripArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 380, cz = 380, floorY = 220;
 
