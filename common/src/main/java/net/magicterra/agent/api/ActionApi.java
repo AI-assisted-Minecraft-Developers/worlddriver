@@ -132,7 +132,15 @@ public final class ActionApi {
             Integer ax = ApiSupport.parseAbsInt(tok[1]);
             Integer ay = ApiSupport.parseAbsInt(tok[2]);
             Integer az = ApiSupport.parseAbsInt(tok[3]);
-            if (ax != null && ay != null && az != null) {
+            // Also require a bare block id: `[state]` / `{nbt}` syntax belongs to
+            // Brigadier (the fast-path used to throw "invalid block id" on
+            // setblock …oak_stairs[facing=south] — caught by
+            // 59_query_projections.js on 2026-07-06). A trailing mode token
+            // (keep|destroy|replace) stays on the fast-path as before — it is
+            // treated as replace, and 03_events_since depends on the fast-path's
+            // block.break event for `… air destroy`.
+            boolean plainType = tok[4].indexOf('[') < 0 && tok[4].indexOf('{') < 0;
+            if (ax != null && ay != null && az != null && plainType) {
                 BlockPos pos = new BlockPos(ax, ay, az);
                 String type = tok[4];
                 ServerLevel level = api.level();
