@@ -109,7 +109,14 @@ public final class AgentScriptManager {
             "  }," +
             "  runCommand:   function(c)     { return Agent.invoke('mc.action.runCommand', {cmd: c}); }" +
             "};" +
-            "Agent.query = function(p)      { return Agent.invoke('mc.query', p); };";
+            "Agent.query = function(p)      { return Agent.invoke('mc.query', p); };" +
+            // Read-only world inspection + snapshot/restore, so scripts can verify
+            // their own edits (blockstate, light, BE NBT) without scratch-cell hacks.
+            "Agent.world = {" +
+            "  block:    function(p)        { return Agent.invoke('mc.world.block',    p); }," +
+            "  snapshot: function(p)        { return Agent.invoke('mc.world.snapshot', p); }," +
+            "  restore:  function(p)        { return Agent.invoke('mc.world.restore',  p); }" +
+            "};";
         cx.evaluateString(scope, prelude, "<prelude>", 1, null);
 
         List<Path> files = new ArrayList<>();

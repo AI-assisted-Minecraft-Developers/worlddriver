@@ -4,8 +4,10 @@ import net.magicterra.agent.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.Property;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -93,6 +95,50 @@ public final class WorldApi {
      * a chest's contents won't survive a restore). Returns
      * {@code {ok, id, from, to, blocks, nonAir, blockEntities}}.
      */
+    /**
+     * Read-only single-cell inspection: blockstate id + property map, light
+     * levels, and (opt-in) block-entity NBT. External consumers had no
+     * first-class way to answer "what blockstate is at this position?" or read
+     * a light level at all (docs/feedback/2026-06-08); every verification became
+     * an {@code execute if block … run setblock <scratch>} hack. This is the
+     * verify half of the build→verify loop, one round-trip, no side effects.
+     */
+    public Map<String, Object> block(Map<String, Object> params) {
+        Params p = Params.of(params);
+        BlockPos pos = p.getPos("pos");
+        if (pos == null) throw new IllegalArgumentException("pos required");
+        boolean withNbt = p.getBool("nbt", false);
+        ServerLevel level = api.level();
+        return api.onServerThread(() -> {
+            BlockState st = level.getBlockState(pos);
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("pos", new BlockPos(pos.getX(), pos.getY(), pos.getZ()));
+            out.put("type", ApiSupport.blockId(st));
+            if (!st.getProperties().isEmpty()) {
+                Map<String, Object> stateMap = new LinkedHashMap<>();
+                for (var prop : st.getProperties()) {
+                    stateMap.put(prop.getName(), propValue(st, prop));
+                }
+                out.put("state", stateMap);
+            }
+            Map<String, Object> light = new LinkedHashMap<>();
+            light.put("block", level.getBrightness(LightLayer.BLOCK, pos));
+            light.put("sky", level.getBrightness(LightLayer.SKY, pos));
+            out.put("light", light);
+            if (withNbt) {
+                BlockEntity be = level.getBlockEntity(pos);
+                out.put("blockEntity", be == null
+                        ? null : be.saveWithFullMetadata(level.registryAccess()).toString());
+            }
+            return out;
+        });
+    }
+
+    /** Property value as the string a /setblock predicate would use ("true", "north", "3"). */
+    private static <T extends Comparable<T>> String propValue(BlockState st, Property<T> prop) {
+        return prop.getName(st.getValue(prop));
+    }
+
     public Map<String, Object> snapshot(Map<String, Object> params) {
         Params p = Params.of(params);
         BlockPos from = p.getPos("from");
