@@ -65,7 +65,7 @@
 
         if (b.invulTicks > 0) {
             // Spawning: stay clear of the imminent explosion.
-            if (!backedOff) { try { Agent.invoke('mc.bot.runAway', { distance: 12 }); } catch (e) {} backedOff = true; }
+            if (!backedOff) { try { Agent.invoke('mc.bot.runAway', { minDist: 12 }); } catch (e) {} backedOff = true; }
             Agent.system.waitTicks(10);
             continue;
         }
