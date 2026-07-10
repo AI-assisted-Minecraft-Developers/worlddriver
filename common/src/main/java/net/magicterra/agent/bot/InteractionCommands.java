@@ -14,6 +14,7 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static net.magicterra.agent.bot.util.BotInteract.*;
@@ -131,7 +132,7 @@ final class InteractionCommands {
         InteractionHand hand = parseHand(q.get("hand"));
         boolean wantLookAt = q.getBool("lookAt", true);
         boolean sneak = q.getBool("sneak", false);
-        return onClient(() -> {
+        Map<String, Object> partial = onClient(() -> {
             Minecraft mc = Minecraft.getInstance();
             LocalPlayer p = mc.player;
             if (p == null || mc.gameMode == null || mc.level == null) {
@@ -157,29 +158,72 @@ final class InteractionCommands {
             // need it held for exactly this call.
             p.setShiftKeyDown(sneak);
             try {
+                // Snapshot pre-interact state; the server applies the mount /
+                // opens the menu and syncs back on a later tick, so this call's
+                // post-interact p.getVehicle()/mc.screen still show the old state.
+                String vehicleBefore = vehicleTypeOf(p);
+                String screenBefore = screenNameOf(mc);
                 // Vanilla Minecraft.startUseItem ENTITY branch: interactAt
                 // first, fall through to interact when not consumed.
                 EntityHitResult hit = new EntityHitResult(target);
                 InteractionResult result = mc.gameMode.interactAt(p, target, hit, hand);
                 if (!result.consumesAction()) result = mc.gameMode.interact(p, target, hand);
                 if (result.consumesAction()) p.swing(hand);
-                Entity vehicle = p.getVehicle();
-                return Map.of(
-                    "ok", true,
-                    "entityId", entityId,
-                    "type", BuiltInRegistries.ENTITY_TYPE.getKey(target.getType()).toString(),
-                    "hand", hand == InteractionHand.MAIN_HAND ? "main" : "off",
-                    "result", result.name(),
-                    "consumed", result.consumesAction(),
-                    "distance", Math.sqrt(p.distanceToSqr(target)),
-                    "riding", vehicle == null ? "none"
-                            : BuiltInRegistries.ENTITY_TYPE.getKey(vehicle.getType()).toString(),
-                    "screen", mc.screen == null ? "none" : mc.screen.getClass().getSimpleName()
-                );
+                Map<String, Object> m = new HashMap<>();
+                m.put("ok", true);
+                m.put("entityId", entityId);
+                m.put("type", BuiltInRegistries.ENTITY_TYPE.getKey(target.getType()).toString());
+                m.put("hand", hand == InteractionHand.MAIN_HAND ? "main" : "off");
+                m.put("result", result.name());
+                m.put("consumed", result.consumesAction());
+                m.put("distance", Math.sqrt(p.distanceToSqr(target)));
+                m.put("vehicleBefore", vehicleBefore);
+                m.put("screenBefore", screenBefore);
+                return m;
             } finally {
                 p.setShiftKeyDown(false);
             }
         });
+        if (!Boolean.TRUE.equals(partial.get("ok"))) return partial;
+
+        String vehicleBefore = (String) partial.remove("vehicleBefore");
+        String screenBefore = (String) partial.remove("screenBefore");
+        // Can't sleep on the client thread — packet processing (the very mount/
+        // menu-open we're waiting on) runs in the client tick, so blocking it
+        // deadlocks. Poll from this (RPC) thread instead, each attempt a short
+        // onClient() sample, until the server-applied state actually changes.
+        String riding = vehicleBefore;
+        String screen = screenBefore;
+        for (int attempt = 0; attempt < 6; attempt++) {
+            Map<String, String> sample = onClient(() -> {
+                Minecraft mc = Minecraft.getInstance();
+                LocalPlayer p = mc.player;
+                return Map.of("riding", p == null ? "none" : vehicleTypeOf(p), "screen", screenNameOf(mc));
+            });
+            riding = sample.get("riding");
+            screen = sample.get("screen");
+            if (!riding.equals(vehicleBefore) || !screen.equals(screenBefore)) break;
+            if (attempt < 5) {
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
+        partial.put("riding", riding);
+        partial.put("screen", screen);
+        return partial;
+    }
+
+    private static String vehicleTypeOf(LocalPlayer p) {
+        Entity vehicle = p.getVehicle();
+        return vehicle == null ? "none" : BuiltInRegistries.ENTITY_TYPE.getKey(vehicle.getType()).toString();
+    }
+
+    private static String screenNameOf(Minecraft mc) {
+        return mc.screen == null ? "none" : mc.screen.getClass().getSimpleName();
     }
 
     static Map<String, Object> useItemOn(Map<String, Object> params) {
