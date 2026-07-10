@@ -19,15 +19,19 @@ if (!clientAvailable()) {
 } else {
 
     AgentTest.run("28_construct: rejects missing mode", function(t) {
-        var r = Agent.invoke("mc.bot.construct", {});
-        t.assertEqual(r.ok, false, "missing mode → ok:false");
-        t.assertTrue(String(r.error).indexOf("mode") >= 0, "error mentions mode: " + r.error);
+        // Route-layer schema validation rejects the missing required key before the tool runs.
+        var msg = null;
+        try { Agent.invoke("mc.bot.construct", {}); } catch (e) { msg = String(e); }
+        t.assertTrue(msg !== null && msg.indexOf("missing required 'mode'") >= 0,
+            "missing mode must be rejected by schema validation, got: " + msg);
     });
 
     AgentTest.run("28_construct: rejects unknown mode", function(t) {
-        var r = Agent.invoke("mc.bot.construct", { mode: "elevator" });
-        t.assertEqual(r.ok, false, "unknown mode → ok:false");
-        t.assertTrue(String(r.error).indexOf("mode") >= 0, "error mentions mode: " + r.error);
+        // Route-layer schema validation rejects the enum violation before the tool runs.
+        var msg = null;
+        try { Agent.invoke("mc.bot.construct", { mode: "elevator" }); } catch (e) { msg = String(e); }
+        t.assertTrue(msg !== null && msg.indexOf("mode") >= 0 && msg.indexOf("must be one of") >= 0,
+            "unknown mode must be rejected by schema validation, got: " + msg);
     });
 
     AgentTest.run("28_construct: tower rejects missing height/targetY", function(t) {
@@ -38,10 +42,12 @@ if (!clientAvailable()) {
     });
 
     AgentTest.run("28_construct: tower rejects oversize height", function(t) {
-        var r = Agent.invoke("mc.bot.construct", { mode: "tower", height: 9999 });
-        t.assertEqual(r.ok, false, "9999-block tower → ok:false");
-        t.assertTrue(String(r.error).indexOf("256") >= 0 || String(r.error).indexOf("too large") >= 0,
-            "error mentions cap: " + r.error);
+        // Route-layer schema validation rejects the bounds violation (height ≤ 256) before the tool runs.
+        var msg = null;
+        try { Agent.invoke("mc.bot.construct", { mode: "tower", height: 9999 }); }
+        catch (e) { msg = String(e); }
+        t.assertTrue(msg !== null && msg.indexOf("256") >= 0,
+            "9999-block tower must be rejected by schema validation naming the cap, got: " + msg);
     });
 
     AgentTest.run("28_construct: bridge rejects missing distance", function(t) {
@@ -52,36 +58,39 @@ if (!clientAvailable()) {
     });
 
     AgentTest.run("28_construct: bridge rejects oversize distance", function(t) {
-        var r = Agent.invoke("mc.bot.construct", {
-            mode: "bridge", direction: "north", distance: 9999
-        });
-        t.assertEqual(r.ok, false, "9999-block bridge → ok:false");
-        t.assertTrue(String(r.error).indexOf("64") >= 0 || String(r.error).indexOf("too large") >= 0,
-            "error mentions cap: " + r.error);
+        // Route-layer schema validation rejects the bounds violation (distance ≤ 64) before the tool runs.
+        var msg = null;
+        try {
+            Agent.invoke("mc.bot.construct", { mode: "bridge", direction: "north", distance: 9999 });
+        } catch (e) { msg = String(e); }
+        t.assertTrue(msg !== null && msg.indexOf("64") >= 0,
+            "9999-block bridge must be rejected by schema validation naming the cap, got: " + msg);
     });
 
     AgentTest.run("28_construct: bridge rejects unknown direction", function(t) {
-        var r = Agent.invoke("mc.bot.construct", {
-            mode: "bridge", direction: "diagonalwise", distance: 4
-        });
-        // Either no-player rejection (title screen) or unknown-direction
-        // rejection (in world). Both confirm dispatch.
-        t.assertEqual(r.ok, false, "unknown direction → ok:false");
-        t.assertTrue(String(r.error).indexOf("direction") >= 0
-                  || String(r.error).indexOf("no player") >= 0,
-            "error mentions direction or no-player: " + r.error);
+        // Route-layer schema validation rejects the enum violation before the tool
+        // runs — deterministic regardless of player state.
+        var msg = null;
+        try {
+            Agent.invoke("mc.bot.construct", { mode: "bridge", direction: "diagonalwise", distance: 4 });
+        } catch (e) { msg = String(e); }
+        t.assertTrue(msg !== null && msg.indexOf("direction") >= 0 && msg.indexOf("must be one of") >= 0,
+            "unknown direction must be rejected by schema validation, got: " + msg);
     });
 
-    AgentTest.run("28_construct: byte-identical schema-reject across transports", function(t) {
-        // The mode-missing path is checked before onClient — deterministic.
+    AgentTest.run("28_construct: schema-reject surfaces identically across in-JVM, RPC, MCP transports", function(t) {
+        // The validator runs inside AgentApi.route(), shared by all three
+        // transports — each must surface the SAME core violation message
+        // (each transport adds its own wrapper prefix, so we compare cores).
         var args = { mode: "elevator" };
-        var direct = Agent.invoke("mc.bot.construct", args);
-        var viaTcp = Agent.system.rpcRoundtrip("mc.bot.construct", args);
-        var viaMcp = Agent.system.mcpRoundtrip("mc.bot.construct", args);
-        t.assertEqual(viaTcp.ok,    direct.ok,    "RPC.ok mismatch");
-        t.assertEqual(viaMcp.ok,    direct.ok,    "MCP.ok mismatch");
-        t.assertEqual(viaTcp.error, direct.error, "RPC.error mismatch");
-        t.assertEqual(viaMcp.error, direct.error, "MCP.error mismatch");
+        var core = "invalid params for mc.bot.construct:";
+        function thrownMsg(fn) { try { fn(); return null; } catch (e) { return String(e); } }
+        var direct = thrownMsg(function() { Agent.invoke("mc.bot.construct", args); });
+        var viaTcp = thrownMsg(function() { Agent.system.rpcRoundtrip("mc.bot.construct", args); });
+        var viaMcp = thrownMsg(function() { Agent.system.mcpRoundtrip("mc.bot.construct", args); });
+        t.assertTrue(direct !== null && direct.indexOf(core) >= 0, "in-JVM must throw validator error, got: " + direct);
+        t.assertTrue(viaTcp !== null && viaTcp.indexOf(core) >= 0, "RPC must surface the validator error, got: " + viaTcp);
+        t.assertTrue(viaMcp !== null && viaMcp.indexOf(core) >= 0, "MCP must surface the validator error, got: " + viaMcp);
     });
 
 }

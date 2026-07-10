@@ -48,9 +48,12 @@ if (!clientAvailable()) {
 } else {
 
     AgentTest.run("42_combat: rejects an unknown mode", function(t) {
-        var r = Agent.invoke("mc.bot.combat", { mode: "bogus" });
-        t.assertEqual(r.ok, false, "bad mode must be ok:false");
-        t.assertTrue(r.error.indexOf("engage") >= 0, "error names the valid modes");
+        // Route-layer schema validation rejects the enum violation before the tool runs;
+        // the validator message names the allowed set ("must be one of [engage, ...]").
+        var msg = null;
+        try { Agent.invoke("mc.bot.combat", { mode: "bogus" }); } catch (e) { msg = String(e); }
+        t.assertTrue(msg !== null && msg.indexOf("engage") >= 0,
+            "unknown mode must be rejected by schema validation naming the valid modes, got: " + msg);
     });
 
     AgentTest.run("42_combat: kill mode requires a target", function(t) {

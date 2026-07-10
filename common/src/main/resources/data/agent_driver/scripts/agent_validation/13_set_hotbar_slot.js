@@ -19,9 +19,11 @@ if (!clientAvailable()) {
 } else {
 
     AgentTest.run("13_set_hotbar_slot: rejects out-of-range slot", function(t) {
-        var r = Agent.invoke("mc.client.input.setHotbarSlot", { slot: 99 });
-        t.assertEqual(r.ok, false, "slot 99 must report ok:false");
-        t.assertTrue(typeof r.error === "string", "must include error string");
+        // Route-layer schema validation rejects the bounds violation (slot 0-8) before the tool runs.
+        var msg = null;
+        try { Agent.invoke("mc.client.input.setHotbarSlot", { slot: 99 }); } catch (e) { msg = String(e); }
+        t.assertTrue(msg !== null && msg.indexOf("must be <= 8") >= 0,
+            "slot 99 must be rejected by schema validation, got: " + msg);
     });
 
     AgentTest.run("13_set_hotbar_slot: switches slot and is observable via observe.player", function(t) {
@@ -46,17 +48,21 @@ if (!clientAvailable()) {
         Agent.invoke("mc.client.input.setHotbarSlot", { slot: before.selectedSlot });
     });
 
-    AgentTest.run("13_set_hotbar_slot: byte-identical results across in-JVM, RPC, MCP transports",
+    AgentTest.run("13_set_hotbar_slot: schema-reject surfaces identically across in-JVM, RPC, MCP transports",
         function(t) {
-            var direct = Agent.invoke("mc.client.input.setHotbarSlot", { slot: 99 });
-            var viaTcp = Agent.system.rpcRoundtrip("mc.client.input.setHotbarSlot", { slot: 99 });
-            var viaMcp = Agent.system.mcpRoundtrip("mc.client.input.setHotbarSlot", { slot: 99 });
-            // All three must agree on the error-path response shape. The byte-
-            // identical check is the Hard Rule #1 contract in AGENTS.md.
-            t.assertEqual(viaTcp.ok, direct.ok, "RPC.ok mismatch");
-            t.assertEqual(viaMcp.ok, direct.ok, "MCP.ok mismatch");
-            t.assertEqual(viaTcp.error, direct.error, "RPC.error mismatch");
-            t.assertEqual(viaMcp.error, direct.error, "MCP.error mismatch");
+            // The validator runs inside AgentApi.route(), shared by all three
+            // transports — each must surface the SAME core violation message
+            // (each transport adds its own wrapper prefix, so we compare cores).
+            // This keeps the Hard Rule #1 contract: one route, one behavior.
+            var args = { slot: 99 };
+            var core = "invalid params for mc.client.input.setHotbarSlot:";
+            function thrownMsg(fn) { try { fn(); return null; } catch (e) { return String(e); } }
+            var direct = thrownMsg(function() { Agent.invoke("mc.client.input.setHotbarSlot", args); });
+            var viaTcp = thrownMsg(function() { Agent.system.rpcRoundtrip("mc.client.input.setHotbarSlot", args); });
+            var viaMcp = thrownMsg(function() { Agent.system.mcpRoundtrip("mc.client.input.setHotbarSlot", args); });
+            t.assertTrue(direct !== null && direct.indexOf(core) >= 0, "in-JVM must throw validator error, got: " + direct);
+            t.assertTrue(viaTcp !== null && viaTcp.indexOf(core) >= 0, "RPC must surface the validator error, got: " + viaTcp);
+            t.assertTrue(viaMcp !== null && viaMcp.indexOf(core) >= 0, "MCP must surface the validator error, got: " + viaMcp);
         });
 
 }

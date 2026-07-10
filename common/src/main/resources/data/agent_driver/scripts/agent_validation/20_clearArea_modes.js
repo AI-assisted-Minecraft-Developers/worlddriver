@@ -30,13 +30,18 @@ if (!clientAvailable()) {
     });
 
     AgentTest.run("20_clearArea_modes: rejects malformed replace", function(t) {
-        var r = Agent.invoke("mc.bot.clearArea", {
-            from: { x: 0, y: 64, z: 0 },
-            to:   { x: 1, y: 64, z: 1 },
-            replace: { from: "minecraft:dirt" }   // missing 'to'
-        });
-        t.assertEqual(r.ok, false, "missing replace.to must be ok:false");
-        t.assertTrue(r.error.indexOf("replace") >= 0, "error must mention 'replace'");
+        // Route-layer schema validation rejects the missing required nested key
+        // (replace.to) before the tool runs.
+        var msg = null;
+        try {
+            Agent.invoke("mc.bot.clearArea", {
+                from: { x: 0, y: 64, z: 0 },
+                to:   { x: 1, y: 64, z: 1 },
+                replace: { from: "minecraft:dirt" }   // missing 'to'
+            });
+        } catch (e) { msg = String(e); }
+        t.assertTrue(msg !== null && msg.indexOf("replace") >= 0 && msg.indexOf("missing required 'to'") >= 0,
+            "missing replace.to must be rejected by schema validation, got: " + msg);
     });
 
     AgentTest.run("20_clearArea_modes: oversize volume rejected", function(t) {

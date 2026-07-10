@@ -19,15 +19,19 @@ if (!clientAvailable()) {
 } else {
 
     AgentTest.run("16_attack_entity: rejects missing entityId", function(t) {
-        var r = Agent.invoke("mc.bot.attackEntity", {});
-        t.assertEqual(r.ok, false, "missing entityId must be ok:false");
-        t.assertTrue(typeof r.error === "string", "must include error string");
+        // Route-layer schema validation rejects the missing required key before the tool runs.
+        var msg = null;
+        try { Agent.invoke("mc.bot.attackEntity", {}); } catch (e) { msg = String(e); }
+        t.assertTrue(msg !== null && msg.indexOf("missing required 'entityId'") >= 0,
+            "missing entityId must be rejected by schema validation, got: " + msg);
     });
 
     AgentTest.run("16_attack_entity: rejects non-integer entityId", function(t) {
-        var r = Agent.invoke("mc.bot.attackEntity", { entityId: "abc" });
-        t.assertEqual(r.ok, false, "non-integer must be ok:false");
-        t.assertTrue(r.error.indexOf("integer") >= 0, "error must mention integer");
+        // Route-layer schema validation rejects the type violation before the tool runs.
+        var msg = null;
+        try { Agent.invoke("mc.bot.attackEntity", { entityId: "abc" }); } catch (e) { msg = String(e); }
+        t.assertTrue(msg !== null && msg.indexOf("must be integer") >= 0,
+            "non-integer entityId must be rejected by schema validation, got: " + msg);
     });
 
     AgentTest.run("16_attack_entity: rejects nonexistent entity id", function(t) {

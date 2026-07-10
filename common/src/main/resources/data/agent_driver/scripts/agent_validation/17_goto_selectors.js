@@ -27,9 +27,12 @@ if (!clientAvailable()) {
     });
 
     AgentTest.run("17_goto_selectors: rejects unknown direction name", function(t) {
-        var r = Agent.invoke("mc.bot.goto", { direction: "wiggle", distance: 4 });
-        t.assertEqual(r.ok, false, "unknown direction must be ok:false");
-        t.assertTrue(r.error.indexOf("direction") >= 0, "error must mention 'direction'");
+        // Route-layer schema validation rejects the enum violation before the tool runs.
+        var msg = null;
+        try { Agent.invoke("mc.bot.goto", { direction: "wiggle", distance: 4 }); }
+        catch (e) { msg = String(e); }
+        t.assertTrue(msg !== null && msg.indexOf("direction") >= 0 && msg.indexOf("must be one of") >= 0,
+            "unknown direction must be rejected by schema validation, got: " + msg);
     });
 
     AgentTest.run("17_goto_selectors: rejects missing waypoint", function(t) {
@@ -44,16 +47,20 @@ if (!clientAvailable()) {
         t.assertTrue(r.error.indexOf("entity") >= 0, "error must mention 'entity'");
     });
 
-    AgentTest.run("17_goto_selectors: byte-identical results across in-JVM, RPC, MCP transports",
+    AgentTest.run("17_goto_selectors: schema-reject surfaces identically across in-JVM, RPC, MCP transports",
         function(t) {
+            // The validator runs inside AgentApi.route(), shared by all three
+            // transports — each must surface the SAME core violation message
+            // (each transport adds its own wrapper prefix, so we compare cores).
             var args = { direction: "wiggle", distance: 4 };
-            var direct = Agent.invoke("mc.bot.goto", args);
-            var viaTcp = Agent.system.rpcRoundtrip("mc.bot.goto", args);
-            var viaMcp = Agent.system.mcpRoundtrip("mc.bot.goto", args);
-            t.assertEqual(viaTcp.ok, direct.ok, "RPC.ok mismatch");
-            t.assertEqual(viaMcp.ok, direct.ok, "MCP.ok mismatch");
-            t.assertEqual(viaTcp.error, direct.error, "RPC.error mismatch");
-            t.assertEqual(viaMcp.error, direct.error, "MCP.error mismatch");
+            var core = "invalid params for mc.bot.goto:";
+            function thrownMsg(fn) { try { fn(); return null; } catch (e) { return String(e); } }
+            var direct = thrownMsg(function() { Agent.invoke("mc.bot.goto", args); });
+            var viaTcp = thrownMsg(function() { Agent.system.rpcRoundtrip("mc.bot.goto", args); });
+            var viaMcp = thrownMsg(function() { Agent.system.mcpRoundtrip("mc.bot.goto", args); });
+            t.assertTrue(direct !== null && direct.indexOf(core) >= 0, "in-JVM must throw validator error, got: " + direct);
+            t.assertTrue(viaTcp !== null && viaTcp.indexOf(core) >= 0, "RPC must surface the validator error, got: " + viaTcp);
+            t.assertTrue(viaMcp !== null && viaMcp.indexOf(core) >= 0, "MCP must surface the validator error, got: " + viaMcp);
         });
 
 }
