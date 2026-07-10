@@ -30,8 +30,145 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   entities-`filter.type` fixes (both had shipped without tests), including a
   per-variant stairs place→query sweep closing the 2026-06-07 "query is blind to
   stairs" report (not reproducible on today's scan code; the sweep keeps it closed).
+- **Guard script 62 — `in_radius` membership sweep** closing the 2026-06-04 §C
+  "radius query silently missed an entity 1 block away" report the same way: a
+  pinned armor-stand ring (same cell, the reported dz=+1 shape, axis/diagonal/
+  vertical extremes, out-of-range ring, r=0) pins the block-symmetric AABB-slab
+  semantics. Green on today's scan code — no static geometric hole; the leading
+  suspect for the original miss is a death race (server had removed the mob
+  while its death animation still showed it standing). The sweep keeps the
+  geometry closed. Each block is hermetic (review follow-up): defensive
+  pre-kill, own summons, kill in a `finally` — a failed assertion can't leak
+  pinned stands into later suites, and the r=0 case no longer depends on the
+  r=3 block's leftovers.
 
 ### Fixed
+- **descentYawArena "flakiness" convicted and cured — it was a rig defect, not a
+  thinning walker margin.** Sixty days of archived gametest logs showed the yaw
+  totals were byte-identical across days per suite build (1935°×3, 1893°×3,
+  2386°×2, 729°×2): the run is deterministic, and the "flaky" spread came from
+  which un-restored BotConfig flags earlier batches leaked into it. Worse, since
+  07-02 the bot never ARRIVED — it sprinted off the 19×19 built strip into the
+  void (terminal y=-60), the loop then measured 400+ ticks of mid-air/void-floor
+  anti-stuck spin instead of descent thrash, and the `reached` check (no lower y
+  bound) still passed runs that were falling when x/z crossed the corner. Fix
+  (rig hardening): NE run-out plateau (dx/dz clamped to span+8) so overshoot
+  lands and walks back; `BotConfig.applyGameTestBaseline()` re-applied at arena
+  start to kill inter-batch flag leaks; `reached` gains `y >= goalSurf-1`.
+  Post-fix: deterministic ARRIVED@~299t, 993° (byte-identical ×3 solo runs), and
+  `AGENT_GT_ONLY` solo runs now terminate in ~17s (the old "solo hangs" was the
+  void-floor bot grinding 100k-node searches). Ceilings re-documented against
+  the deterministic baseline (yaw 1200 vs 993; backSteps 90 vs 67). Same disease
+  family (void fall + vacuous reached) still lives in descentOvershootResync /
+  riverSheerBank / vineOverWater — the hardening template applies, tracked as a
+  follow-up. Review follow-up: the baseline re-pin itself was a leak — it flips
+  ~37 flags but the finally restored only this arena's five keys, so a `/test`
+  run on an integrated server left the live bot with the legacy-OFF baseline
+  (violating `applyGameTestBaseline`'s "live clients never call this"
+  invariant). The arena now snapshots EVERY mutable config key
+  (`BotConfig.snapshotAll()`) and restores them all in the finally
+  (`restoreAll`) — the reusable rig template for the other arenas.
+- **seeded query-prop cow/sheep are now NoAI** — the wandering cow stepped one
+  block between 06_rpc_parity's two snapshots (in-JVM vs TCP, 15 ms apart) and
+  failed the row-equality assert. They are props for entity-query assertions,
+  not livestock.
+- **chat readback is now usable: `mc.client.chat.history` / `chat.send awaitReplyMs`
+  read a packet-level buffer (`ClientChatLog`) instead of reflecting on the GUI's
+  `ChatComponent.allMessages`** (docs/feedback/2026-06-08 "chat is not a usable
+  readback channel"). The GUI list is newest-first, hard-capped at 100 and
+  re-indexes on every arrival, so the old code returned the *oldest* buffered
+  line as the "reply" (on a busy server: some other mod's broadcast), went
+  permanently blind once 100 lines had ever arrived (size stops changing, so
+  "new message" checks never fire), and swallowed every reflection failure into
+  an empty result (on Fabric-intermediary runtimes the field fallback even
+  grabbed `recentChat` — the *sent*-message history). The new buffer is fed by
+  the platform chat-received hooks (Fabric `ClientReceiveMessageEvents.CHAT/GAME`,
+  NeoForge `ClientChatReceivedEvent`; action-bar overlay excluded), keeps a
+  monotonic `seq` over the last 512 lines, tags each row `kind:"system"|"player"`
+  (command feedback = system) for correlation, and `awaitReplyMs` now returns
+  only lines that arrived *after* the send, with a ~150ms settle window so
+  multi-line feedback batches into `reply`/`replyExtra`. The `client.message`
+  event stream drains the same buffer (rows gain `kind`) instead of doing its
+  own GUI reflection. Guarded by the `clientChatLogSemantics` gametest.
+- **Chat readback review round (found by an 8-angle code review of the above,
+  all fixed before merge):**
+  - *Self-echo returned as the "reply"* — since 1.19 signed chat the server
+    echoes your own plain-chat line back as a packet, so `awaitReplyMs`
+    returned the message the bot itself just sent and dropped the real answer.
+    Entries now carry a `self` flag (sender == local player), reply correlation
+    skips self lines entirely, history keeps them (rows gain `self`).
+  - *Loader kind divergence on disguised chat* — console//command-block `/say`
+    and proxy-relayed unsigned chat was `kind:"player"` on Fabric but
+    `"system"` on NeoForge. Classification now lives in ONE common funnel
+    (`ClientChat.recordReceived`): "player" iff the line carries a real sender
+    profile, so both loaders file disguised chat as "system".
+  - *Chat-filter-mod blind spot* — lines other client mods cancel (typical
+    cancel-and-redisplay chat managers) never reached the log on either loader.
+    NeoForge now subscribes with `receiveCanceled=true`, Fabric additionally
+    registers `CHAT_CANCELED`/`GAME_CANCELED`: the readback channel records
+    what the server delivered, not what survived other mods' filters.
+  - *Capture boundary documented* — lines added client-locally without a packet
+    (Fabric client-command feedback, vanilla chat-validation errors, mods
+    calling `ChatComponent.addMessage` directly) render on screen but never
+    cross the packet layer; the old GUI scrape saw them, the packet log cannot.
+    Tool descriptions + methods.md now state this instead of implying "the
+    scrollback".
+  - *Tick-safety regression* — the rewrite dropped the old drain's
+    catch-everything guard while `BotApiImpl.clientTick` still promised
+    "never breaks the tick"; an encode/emit throw would have escaped into the
+    vanilla tick loop with movement keys latched. The drain is re-guarded, the
+    cursor advances before the emit (drop one line, never wedge), and
+    `record()` normalizes a null kind to "system" so the event `Map.of` can't
+    NPE.
+  - *Test isolation* — `clientChatLogSemantics` cleared and flooded the
+    process-global live log (a dev-client `/test run` shares the JVM with real
+    chat history, the `client.message` drain and in-flight `awaitReplyMs`).
+    The buffer core is now an instance class (`ClientChatLog.Buffer`) with a
+    static facade for the live session; the gametest runs on a private
+    instance and `clearForTest()` is gone.
+  - *Hot-path cost* — `since()` was an O(cap) scan + list alloc under the
+    global lock every client tick (and every 50ms awaitReply poll) even when
+    nothing new arrived; all pollers now probe `nextSeq()` first (O(1)) and
+    `chatHistory` builds rows newest-first straight off the tail instead of
+    materializing up to 512 rows to trim to `limit`.
+- **Chat readback / rig-template review round 2 (a second 8-angle review of the
+  above two features, all fixed):**
+  - *NIL_UUID normalization pulled INTO the funnel* — the "one classifier"
+    still left disguised chat's NIL_UUID→system translation at the NeoForge
+    call site; a loader handing a NIL sender down the player path
+    (proxy-relayed/unsigned chat edges) would have re-opened the kind drift
+    and let `awaitReplyMs` return it as a real reply. `recordReceived` now
+    normalizes null AND NIL_UUID to "system" itself, and the action-bar
+    overlay exclusion moved in with it — capture policy has one home, the
+    loader taps only translate event shapes.
+  - *`since()` O(cap)→O(k)* — the seq is contiguous and the deque ordered, so
+    `since()` now walks back from the newest entry and stops at the first
+    `seq < sinceSeq` instead of scanning all 512 retained lines under the
+    global lock (chat floods queued `record()` behind the per-tick drain);
+    `chatHistory` gets a `tail(cap, sinceSeq)` slice that never materializes
+    the entries the cap discards (covered by new `clientChatLogSemantics`
+    assertions).
+  - *`client.message` rows = history rows* — the event drain hand-rolled a
+    `{text,kind}` subset, so event consumers couldn't reconcile against
+    `chat.history` seqs or skip the bot's own echo. The row encode is now
+    `ClientChatLog.Entry.row()` (`{seq,kind,text,self}`), shared by history,
+    awaitReply and the event stream; javadoc states the chat seq and the
+    `eventsSince` cursor are separate sequences.
+  - *Rig template unlosable* — the snapshot→`applyGameTestBaseline`→restore
+    triple lived as loose arena code, one missed `finally` away from
+    re-leaking the legacy-OFF baseline as the other void-fall arenas copy it.
+    Now `BotConfig.pinnedBaseline()` returns the restore as an AutoCloseable
+    (`try (var pin = …)`); descentYawArena uses it and reproduces the
+    deterministic baseline byte-identically (ARRIVED, 993°, backSteps=67).
+    `snapshotAll`/`restoreAll`/`save`/`load` also share ONE
+    `persistableFields()` enumeration so the persisted set and the snapshot
+    set can't drift.
+  - *Misc* — `chatHistory` takes `sinceSeq` as long end-to-end (the returned
+    `nextSeq` is long; the int boundary silently truncated the contract);
+    Fabric registers one method per event family for normal+CANCELED so the
+    pairs can't drift; new tests use `AgentGameTestSupport.gtSkip()` instead
+    of the copied `AGENT_GT_ONLY` guard line (double `getenv`, typo→false
+    green, and an FQN the conventions ban).
 - **Walker stall-clock water starvation (REGRESSION §94)** — `STUCK_PROGRESS_EPS`
   0.02→0.05 (the C40-J1 dry wall-creep fix, 07-03) made every water node
   approach's slow rounding manoeuvre (~0.02-0.05 blk/tick lateral) read as "no
