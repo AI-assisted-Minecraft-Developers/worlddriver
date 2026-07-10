@@ -643,8 +643,10 @@ public final class BotTools {
                 "awaitMs to block. Returns {ok, started, pos?, radius}.",
                 object()
                     .prop("pos", pos())
-                    .prop("radius", integer(1, 64)
-                        .desc("Scan radius around the player when no explicit pos. Default 16."))
+                    .prop("radius", integer().min(1)
+                        .desc("Scan radius around the player when no explicit pos. Default 16; "
+                            + "clamped to 64 server-side (the route clamps rather than rejects — "
+                            + "same contract as observe.scene radius)."))
                     .prop("awaitMs", awaitMs())
                 ),
 
@@ -797,7 +799,7 @@ public final class BotTools {
                 "Run a multi-phase boss playbook (Phase G) — a hot-reloadable Rhino script that " +
                 "orchestrates combat/goto/equip/setting + boss sensing into a full fight. Runs on a " +
                 "background thread (returns immediately) so the multi-minute loop outlives the " +
-                "mc.script.eval cap. op='start' (default) needs name='dragon'|'wither'; returns " +
+                "mc.script.eval cap. op='start' (default) needs name (built-ins: 'dragon'|'wither'); returns " +
                 "{ok, started, name}. op='status' returns {ok, active, name?, aborting, lastResult?, " +
                 "lastError?} — poll lastResult for the fight outcome. op='cancel' asks it to stop " +
                 "(honoured at the next loop turn). One playbook at a time. The dragon playbook clears " +
@@ -805,8 +807,11 @@ public final class BotTools {
                 "playbook gear-gates on Phase F (aborts if not full armor + sword), then summons " +
                 "(unless summon:false) and melee-grinds both phases.",
                 object()
-                    .prop("name", stringEnum("dragon", "wither")
-                        .desc("Which playbook to start (op=start)."))
+                    .prop("name", string()
+                        .desc("Which playbook to start (op=start). Built-ins: 'dragon', 'wither'; "
+                            + "playbooks are hot-reloadable scripts, so any [a-z][a-z0-9_]* name "
+                            + "that resolves to a playbook body is accepted (unknown names get a "
+                            + "business-layer {ok:false, error:'unknown playbook: …'})."))
                     .prop("op", stringEnum("start", "status", "cancel")
                         .desc("start (default) | status | cancel."))
                     .prop("summon", bool()
