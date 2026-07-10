@@ -3,7 +3,11 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
@@ -2154,8 +2158,7 @@ public final class BotConfig {
         if (!persistEnabled()) return;
         try {
             Properties props = new Properties();
-            for (Field f : BotConfig.class.getDeclaredFields()) {
-                if (!persistable(f)) continue;
+            for (Field f : persistableFields()) {
                 Object v = f.get(null);
                 if (v == null) continue;
                 if (v instanceof Set<?> set) {
@@ -2187,8 +2190,7 @@ public final class BotConfig {
             Properties props = new Properties();
             try (var r = Files.newBufferedReader(path)) { props.load(r); }
             int n = 0;
-            for (Field f : BotConfig.class.getDeclaredFields()) {
-                if (!persistable(f)) continue;
+            for (Field f : persistableFields()) {
                 String s = props.getProperty(f.getName());
                 if (s == null) continue;
                 try { assign(f, s); n++; }
@@ -2220,6 +2222,17 @@ public final class BotConfig {
                 || t == String.class || t == Set.class;
     }
 
+    /** The {@link #persistable} fields, in declaration order — the ONE
+     *  enumeration save/load/snapshotAll/restoreAll all iterate, so the
+     *  persisted set and the snapshot set can't drift apart. */
+    private static List<Field> persistableFields() {
+        List<Field> out = new ArrayList<>();
+        for (Field f : BotConfig.class.getDeclaredFields()) {
+            if (persistable(f)) out.add(f);
+        }
+        return out;
+    }
+
     private static void assign(Field f, String s) throws IllegalAccessException {
         Class<?> t = f.getType();
         if (t == boolean.class) f.setBoolean(null, Boolean.parseBoolean(s.trim()));
@@ -2233,6 +2246,57 @@ public final class BotConfig {
             for (String part : s.split(",")) { part = part.trim(); if (!part.isEmpty()) set.add(part); }
             f.set(null, Set.copyOf(set));
         }
+    }
+
+    /** Snapshot every mutable config key (the {@link #persistable} set — all
+     *  walker/pathfinder flags included). Rig guard for tests that flip config
+     *  beyond a handful of named keys — especially anything calling
+     *  {@link #applyGameTestBaseline} mid-suite: pair with {@link #restoreAll}
+     *  in a finally so a {@code /test} run on an integrated server can't leak
+     *  the legacy-OFF baseline into the live bot. */
+    public static synchronized Map<String, Object> snapshotAll() {
+        Map<String, Object> snap = new LinkedHashMap<>();
+        try {
+            for (Field f : persistableFields()) {
+                snap.put(f.getName(), f.get(null));
+            }
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException(e);   // own accessible fields — cannot happen
+        }
+        return snap;
+    }
+
+    /** Restore a {@link #snapshotAll} snapshot verbatim. */
+    public static synchronized void restoreAll(Map<String, Object> snap) {
+        try {
+            for (Field f : persistableFields()) {
+                if (snap.containsKey(f.getName())) {
+                    f.set(null, snap.get(f.getName()));
+                }
+            }
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** Closeable snapshot+restore pair — {@code close()} is {@link #restoreAll}. */
+    public interface ConfigPin extends AutoCloseable {
+        @Override void close();
+    }
+
+    /** The gametest rig template in one unlosable piece: snapshot EVERY mutable
+     *  config key, re-pin {@link #applyGameTestBaseline}, and hand back the
+     *  restore as an {@link AutoCloseable} —
+     *  <pre>try (var pin = BotConfig.pinnedBaseline()) { … arena body … }</pre>
+     *  Arenas whose metrics are config-sensitive must use this instead of
+     *  hand-rolling the three steps: restoring only a few named keys after
+     *  flipping the whole baseline is exactly the leak that made
+     *  descentYawArena "flaky" for sixty days (a {@code /test} run on an
+     *  integrated server left the live bot on the legacy-OFF baseline). */
+    public static ConfigPin pinnedBaseline() {
+        Map<String, Object> snap = snapshotAll();
+        applyGameTestBaseline();
+        return () -> restoreAll(snap);
     }
 
     /** GameTest legacy baseline (§78): the arena suite's assertions were authored

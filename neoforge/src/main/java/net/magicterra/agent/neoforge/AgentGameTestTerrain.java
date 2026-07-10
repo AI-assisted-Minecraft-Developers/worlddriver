@@ -1030,23 +1030,34 @@ public final class AgentGameTestTerrain {
         // Diagonal slope DESCENDING NE, STEEP: surface = topY - (dx+dz) (-2 every diagonal step) so
         // the bot drops fast — that speed is what makes the close-node bearing sweep (the carrot
         // chase). A gentle slope walks down controlled and never reproduces it.
-        for (int dx = 0; dx <= span; dx++)
-            for (int dz = 0; dz <= span; dz++) {
-                int surf = topY - (dx + dz);
+        // dx/dz are CLAMPED to span so the plane continues FLAT past the slope for 8 cells on
+        // the east/north faces (run-out plateau). Without it the sprint-momentum zigzag walked
+        // off the built strip into the void (terminal y=-60 in the 07-02..07-07 logs): the loop
+        // then measured 400+ ticks of mid-air/void-floor anti-stuck spin instead of descent
+        // thrash, the walker never ARRIVED, and the metric turned into a fall-timing lottery.
+        for (int dx = 0; dx <= span + 8; dx++)
+            for (int dz = 0; dz <= span + 8; dz++) {
+                int surf = topY - (Math.min(dx, span) + Math.min(dz, span));
                 for (int y = surf - 3; y <= surf; y++)
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
             }
         final int goalSurf = topY - 2 * span;       // NE corner surface (surf = topY-(dx+dz))
         BlockPos goal = new BlockPos(cx + span, goalSurf + 1, cz + span);
 
-        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
-        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
-        try {
+        // Re-pin the whole suite baseline, not just this arena's five keys: the
+        // yaw metric is config-sensitive, and un-restored flag leaks from earlier
+        // batches made the run land on one of several deterministic trajectories
+        // (byte-identical repeats of 1935°/1893°/729° across days, different value per
+        // suite composition — the "flaky" P0.9 signature). pinnedBaseline() snapshots
+        // EVERY mutable key first and close() restores them all — restoring only a few
+        // named keys after applyGameTestBaseline flipped ~37 leaked the legacy-OFF
+        // baseline into the live bot whenever /test ran on an integrated server.
+        // allowBreak/allowPlace are already false in the baseline; only the keys
+        // below diverge from it.
+        try (var pin = BotConfig.pinnedBaseline()) {
+            BotConfig.walkerDebug = false;
+            BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+            BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
             ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, topY + 1, cz + 0.5);
             FakePlayer fp = av.fakePlayer();
             grantWaterEffects(fp);
@@ -1093,8 +1104,11 @@ public final class AgentGameTestTerrain {
                     onSlope++;
                 }
             }
+            // Lower y bound matters: before the run-out plateau existed, a bot that fell
+            // off the strip into the void still counted "reached" whenever its x/z had
+            // crossed the corner thresholds mid-air (terminal y=-60 runs read as PASS).
             boolean reached = fp.getX() > cx + span - 3 && fp.getZ() > cz + span - 3
-                    && fp.getY() <= goalSurf + 2;
+                    && fp.getY() <= goalSurf + 2 && fp.getY() >= goalSurf - 1;
             double thrashPerTick = onSlope > 0 ? sumAbsDyaw / onSlope : 0;
             AgentDriverCommon.LOG.info(
                     "[descentYawArena] step={} pos=({},{},{}) reached={} sumAbsDyaw={}° maxDyaw={}° reversals={} onSlope={} thrash/tick={} backSteps={} worstBack={}",
@@ -1106,24 +1120,22 @@ public final class AgentGameTestTerrain {
             if (!reached)
                 throw new GameTestAssertException("descentYawArena: did not reach the bottom: pos=("
                         + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + s);
-            // ⚠ ~1050° here is the UNSOLVED carrot-swing baseline, NOT a smoothness pass: a steep
-            // dry descent still winds the yaw badly (the live "下山转圈"). This ceiling only guards
-            // against a GROSS regression while the real fix is pending (damp the swinging target
-            // bearing / cut switchback density — the trend-average swap was A/B-disproven, see
-            // Walker descent note). Tighten it down toward a smooth value once that fix lands.
+            // ⚠ 993° is the UNSOLVED carrot-swing baseline, NOT a smoothness pass: a steep dry
+            // descent still winds the yaw badly (the live "下山转圈"; the real fix — damp the
+            // swinging target bearing / cut switchback density — is pending; the trend-average
+            // swap was A/B-disproven, see Walker descent note). Since the 2026-07-09 rig
+            // hardening (run-out plateau + baseline re-pin) the run is DETERMINISTIC
+            // (ARRIVED@~299t, 993°, byte-identical across solo runs), so this ceiling is a
+            // real regression gate, not flake headroom. Tighten toward a smooth value once
+            // the carrot-swing fix lands.
             if (sumAbsDyaw > 1200)
-                throw new GameTestAssertException("descentYawArena: yaw thrash blew up to " + sumAbsDyaw + "°");
-            // Backward-hop guard: raw baseline is 42; flag a GROSS regression (any change that drives the
-            // body backward far more often). Generous ceiling — tighten once a real back-hop fix lands.
-            if (backSteps > 70)
+                throw new GameTestAssertException("descentYawArena: yaw thrash blew up to " + sumAbsDyaw
+                        + "° (deterministic baseline 993°)");
+            // Backward-hop guard: deterministic post-hardening baseline is 67 (pre-hardening
+            // raw-drive figure was 42 with the fall ticks diluting it). Gross-regression gate.
+            if (backSteps > 90)
                 throw new GameTestAssertException("descentYawArena: backward-hops regressed to " + backSteps
-                        + " (baseline 42)");
-        } finally {
-            BotConfig.allowBreak = ob;
-            BotConfig.allowPlace = op;
-            BotConfig.walkerDebug = odbg;
-            BotConfig.pathfinderSliceMs = osl;
-            BotConfig.pathfinderMaxMs = omm;
+                        + " (deterministic baseline 67)");
         }
         helper.succeed();
     }
