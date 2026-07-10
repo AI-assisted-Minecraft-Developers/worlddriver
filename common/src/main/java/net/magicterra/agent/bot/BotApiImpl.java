@@ -835,9 +835,10 @@ public final class BotApiImpl implements BotApi {
         // / player-death transitions (client-sensed; no server-side equivalent for
         // threats, and this is the player the agent actually controls).
         eventDetector.detectClientEvents(mc);
-        // Driver→agent push: surface new chat / system / command-result lines and
-        // action-bar / title text the client displays (no server-side hook in
-        // client-MCP mode). Best-effort reflection, guarded — never breaks the tick.
+        // Driver→agent push: surface new chat / system / command-result lines
+        // (packet-level ClientChatLog drain) and action-bar / title text (guarded
+        // reflection) — no server-side hook in client-MCP mode. Both paths are
+        // guarded; never breaks the tick.
         eventDetector.detectClientMessages(mc);
         // Ambient hand/equipment/hotbar gating reads the foreground user process
         // (a preempting survival/combat chain leaves it held but suspended).

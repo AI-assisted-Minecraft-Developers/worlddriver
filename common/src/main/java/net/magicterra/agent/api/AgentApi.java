@@ -283,7 +283,7 @@ public final class AgentApi {
                 p.get("awaitReplyMs") instanceof Number n ? n.intValue() : 0));
         routes.put("mc.client.chat.history",         p -> requireClient().chatHistory(
                 p.get("limit") instanceof Number ln ? ln.intValue() : 50,
-                p.get("sinceSeq") instanceof Number sn ? sn.intValue() : 0));
+                p.get("sinceSeq") instanceof Number sn ? sn.longValue() : 0L));
         routes.put("mc.client.overlays",             p -> requireClient().overlays(
                 !(p.get("tutorial") instanceof Boolean tb) || tb,
                 !(p.get("toasts") instanceof Boolean tt) || tt));

@@ -61,6 +61,19 @@ import java.util.concurrent.atomic.AtomicReference;
 final class AgentGameTestSupport {
     private AgentGameTestSupport() {}
 
+    /** Shared {@code AGENT_GT_ONLY} solo-run filter: when the env var names a
+     *  DIFFERENT test, succeed immediately and return true so the caller bails.
+     *  Replaces the per-test copied guard line (which read getenv twice and
+     *  hand-maintained a name string a typo silently turns into a false
+     *  green). New tests use this; the legacy inline copies migrate as their
+     *  files get touched. */
+    static boolean gtSkip(GameTestHelper helper, String name) {
+        String only = System.getenv("AGENT_GT_ONLY");
+        if (only == null || only.equalsIgnoreCase(name)) return false;
+        helper.succeed();
+        return true;
+    }
+
     static int HorizonArenaMinReach() {
         return net.magicterra.agent.bot.debug.HorizonArena.CORRIDOR_LEN - 20;
     }

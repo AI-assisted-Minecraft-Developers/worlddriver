@@ -1,6 +1,7 @@
 package net.magicterra.agent.neoforge;
 
 import net.magicterra.agent.AgentDriverCommon;
+import net.magicterra.agent.client.internal.ClientChatLog;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -751,5 +752,65 @@ public final class AgentGameTest {
             BotConfig.pathfinderMaxMs   = omm;
             PathTraceHolder.SINK = previousSink;
         }
+    }
+
+    /**
+     * Regression guard for the chat-readback buffer behind {@code mc.client.chat.*}
+     * (docs/feedback/2026-06-08): seq must be monotonic and stable, {@code since()}
+     * oldest-first, eviction must drop oldest without rewinding seq. The old
+     * GUI-reflection path indexed into ChatComponent.allMessages, which is
+     * newest-first and saturates at 100 — awaitReplyMs returned stale lines and
+     * history went blind on busy servers. Pure JVM; no client needed. Runs on a
+     * PRIVATE Buffer instance — the live session's global log must never be
+     * cleared or flooded by a test (a dev-client /test run shares the JVM with
+     * the real chat history, the client.message drain and in-flight awaitReplyMs).
+     */
+    @GameTest(template = "empty")
+    public static void clientChatLogSemantics(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtSkip(helper, "clientChatLogSemantics")) return;
+        ClientChatLog.Buffer log = new ClientChatLog.Buffer();
+        long base = log.nextSeq();
+
+        log.record("system", "feedback-A", 100L, false);
+        log.record("player", "<bob> hi", 101L, false);
+        log.record("system", "feedback-B", 102L, false);
+        log.record(null, "kindless", 103L, true);
+
+        helper.assertTrue(log.nextSeq() == base + 4,
+                "nextSeq must advance by exactly one per record");
+        var all = log.since(base);
+        helper.assertTrue(all.size() == 4, "since(base) returns every recorded line");
+        helper.assertTrue(all.get(0).text().equals("feedback-A") && all.get(2).text().equals("feedback-B"),
+                "since() must be oldest-first (stable chronological order)");
+        helper.assertTrue(all.get(0).seq() == base && all.get(2).seq() == base + 2,
+                "seq values are assigned in arrival order");
+        helper.assertTrue(all.get(1).kind().equals("player") && all.get(0).kind().equals("system"),
+                "kind survives round-trip");
+        helper.assertTrue(all.get(3).kind().equals("system"),
+                "null kind normalizes to system — the drain's row encode must never NPE");
+        helper.assertTrue(all.get(3).self() && !all.get(1).self(),
+                "self flag survives round-trip");
+        helper.assertTrue(log.since(base + 4).isEmpty(),
+                "since(nextSeq) is empty — no phantom lines");
+
+        // tail(): the chat.history slice — newest first, capped, sinceSeq-bounded.
+        var t2 = log.tail(2, base);
+        helper.assertTrue(t2.size() == 2 && t2.get(0).text().equals("kindless")
+                        && t2.get(1).text().equals("feedback-B"),
+                "tail(cap) returns the newest cap entries, newest first");
+        helper.assertTrue(log.tail(10, base + 3).size() == 1,
+                "tail() respects the sinceSeq lower bound");
+        helper.assertTrue(log.tail(10, base + 4).isEmpty(),
+                "tail(nextSeq) is empty — no phantom lines");
+
+        // Eviction: overflow the cap; seq stays monotonic, oldest lines drop.
+        for (int i = 0; i < 600; i++) log.record("system", "spam-" + i, 200L, false);
+        var tail = log.since(0);
+        helper.assertTrue(tail.size() == 512, "buffer caps at 512, got " + tail.size());
+        helper.assertTrue(tail.get(tail.size() - 1).text().equals("spam-599"),
+                "newest line survives eviction");
+        helper.assertTrue(tail.get(0).seq() > base,
+                "oldest entries evicted, seq never reused");
+        helper.succeed();
     }
 }

@@ -3,6 +3,8 @@ package net.magicterra.agent.bot;
 import net.magicterra.agent.bot.combat.ClientThreatScanner;
 import net.magicterra.agent.bot.combat.ThreatScanner;
 import net.magicterra.agent.bot.world.WorldModel;
+import net.magicterra.agent.client.internal.ClientChatLog;
+import net.magicterra.agent.rpc.JsonCodec;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.ItemStack;
@@ -50,12 +52,11 @@ final class ClientEventDetector {
     private boolean evtInWater = false;
     private boolean evtInLava = false;
     // Client message surfaces (chat / action-bar / title). No server is attached in
-    // client-MCP mode, so the server-side chat hook never fires; instead poll the
-    // client's own display buffers each tick (best-effort reflection, like the
-    // advancement poll) and emit each NEW line. Captures system messages, command
-    // results and server broadcasts too — all land in the ChatComponent buffer.
-    private String evtLastChat = null;
-    private boolean evtChatInit = false;
+    // client-MCP mode, so the server-side chat hook never fires; chat lines drain
+    // from ClientChatLog (fed at the packet layer by the platform entrypoints),
+    // action-bar / title still poll the Gui's display fields via reflection.
+    // Captures system messages, command results and server broadcasts too.
+    private long evtChatSeq = -1;
     private String evtLastActionBar = null;
     private String evtLastTitle = null;
     private String evtLastSubtitle = null;
@@ -246,14 +247,14 @@ final class ClientEventDetector {
         }
     }
 
-    /** Poll the client's chat buffer + action-bar / title HUD and push each NEW
-     *  line as an event. In client-MCP mode no server is attached, so the
-     *  server-side chat hook is silent; everything the client DISPLAYS (player
-     *  chat, system messages, command results, server broadcasts) funnels into
-     *  the {@code ChatComponent} buffer, and the action-bar / title arrive as
-     *  client-bound packets the vanilla {@code Gui} stashes in private fields.
-     *  All reflection is guarded — a mapping shift silently no-ops (mirrors the
-     *  advancement poll); never breaks the tick. */
+    /** Push each NEW chat line + action-bar / title change as an event. In
+     *  client-MCP mode no server is attached, so the server-side chat hook is
+     *  silent; chat / system / command-result lines are drained from the
+     *  packet-level {@link ClientChatLog} (fed by the platform receive events),
+     *  while the action-bar / title arrive as client-bound packets the vanilla
+     *  {@code Gui} stashes in private fields, read via guarded reflection (a
+     *  mapping shift silently no-ops, mirroring the advancement poll). The
+     *  whole poll never breaks the tick. */
     void detectClientMessages(Minecraft mc) {
         net.magicterra.agent.api.AgentApi api = net.magicterra.agent.AgentDriverCommon.api();
         net.minecraft.client.gui.Gui gui = mc.gui;
@@ -262,31 +263,24 @@ final class ClientEventDetector {
                 ? mc.player.blockPosition() : net.minecraft.core.BlockPos.ZERO;
 
         // --- Chat / system / command-result lines -------------------------------
-        // ChatComponent.allMessages is newest-first; emit every line above the last
-        // one we saw, oldest-first so the stream stays chronological. First poll
-        // seeds the marker silently so existing history isn't replayed.
+        // Drain ClientChatLog above our cursor, oldest-first so the stream stays
+        // chronological. First poll seeds the cursor silently so history present
+        // before the detector started isn't replayed. Guarded like every other
+        // poll in this class — an encode/emit throw must not break the tick, so
+        // the cursor advances BEFORE the emit (drop one line, never wedge).
         try {
-            java.util.List<?> all = readListField(gui.getChat(), "allMessages");
-            if (all != null) {
-                String newest = !all.isEmpty() ? guiMessageText(all.get(0)) : null;
-                if (!evtChatInit) {
-                    evtLastChat = newest;
-                    evtChatInit = true;
-                } else if (newest != null && !newest.equals(evtLastChat)) {
-                    java.util.List<String> fresh = new java.util.ArrayList<>();
-                    for (Object m : all) {
-                        String t = guiMessageText(m);
-                        if (t == null || t.equals(evtLastChat)) break;
-                        fresh.add(t);
-                    }
-                    for (int i = fresh.size() - 1; i >= 0; i--) {
-                        api.emitExternal("client.message", at,
-                                net.magicterra.agent.rpc.JsonCodec.encode(Map.of("text", fresh.get(i))));
-                    }
-                    evtLastChat = newest;
+            if (evtChatSeq < 0) {
+                evtChatSeq = ClientChatLog.nextSeq();
+            } else if (ClientChatLog.nextSeq() > evtChatSeq) {   // O(1) common case
+                for (var e : ClientChatLog.since(evtChatSeq)) {
+                    evtChatSeq = e.seq() + 1;
+                    // Entry.row() = the same {seq,kind,text,self} shape chat.history
+                    // returns, so consumers can reconcile the two surfaces by seq
+                    // and skip the bot's own echoed lines via self.
+                    api.emitExternal("client.message", at, JsonCodec.encode(e.row()));
                 }
             }
-        } catch (Throwable ignored) { /* mapping shift — never break the tick */ }
+        } catch (Throwable ignored) { /* never break the tick */ }
 
         // --- Action bar (overlay message) ---------------------------------------
         try {
@@ -309,24 +303,6 @@ final class ClientEventDetector {
             }
             evtLastTitle = title;
         } catch (Throwable ignored) { }
-    }
-
-    /** Read a named {@code List} field (walking up the hierarchy), or null. */
-    private static java.util.List<?> readListField(Object obj, String name) {
-        java.lang.reflect.Field f = findField(obj.getClass(), name);
-        if (f == null) return null;
-        try { f.setAccessible(true); Object v = f.get(obj);
-            return (v instanceof java.util.List<?> l) ? l : null;
-        } catch (Throwable t) { return null; }
-    }
-
-    /** {@code GuiMessage.content().getString()} via reflection, or null. */
-    private static String guiMessageText(Object guiMessage) {
-        try {
-            Object content = guiMessage.getClass().getMethod("content").invoke(guiMessage);
-            return content == null ? null
-                    : String.valueOf(content.getClass().getMethod("getString").invoke(content));
-        } catch (Throwable t) { return null; }
     }
 
     /** Read a named {@code Component} field's {@code getString()}, or null. */

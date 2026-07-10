@@ -65,7 +65,7 @@ public final class ClientAgentApiImpl implements ClientAgentApi {
     public Map<String, Object> chatSend(String text, int awaitReplyMs) { return ClientChat.chatSend(text, awaitReplyMs); }
 
     @Override
-    public Map<String, Object> chatHistory(int limit, int sinceSeq) { return ClientChat.chatHistory(limit, sinceSeq); }
+    public Map<String, Object> chatHistory(int limit, long sinceSeq) { return ClientChat.chatHistory(limit, sinceSeq); }
 
     @Override
     public Map<String, Object> overlays(boolean tutorial, boolean toasts) { return ClientChat.overlays(tutorial, toasts); }

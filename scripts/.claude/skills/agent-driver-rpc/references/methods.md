@@ -143,8 +143,8 @@ Crafting/acquisition planning off the live recipe table — `resolve` expands a 
 ## mc.client.chat.*
 | method | params | returns / notes |
 |---|---|---|
-| `mc.client.chat.send` | `text` (req), `awaitReplyMs?` | send chat / command (leading `/`) via the connection. `awaitReplyMs>0` blocks for server feedback → `{ok, kind, length, reply?:{seq,text,ageTicks}, replyTimeout?}`. |
-| `mc.client.chat.history` | `limit?`, `sinceSeq?` | client scrollback (plain text) → `{ok, count, nextSeq, messages:[{seq,ageTicks,text}]}`. limit default 50, max 256; paginate via `nextSeq`. |
+| `mc.client.chat.send` | `text` (req), `awaitReplyMs?` | send chat / command (leading `/`) via the connection. `awaitReplyMs>0` blocks for lines arriving AFTER the send (+~150ms settle window for multi-line feedback) → `{ok, kind, length, reply?:{seq,kind:"system"\|"player",text,self}, replyExtra?[], replyTimeout?, replyMs}`. 自己平聊的服务器回声打 `self` 标记、绝不作为 reply 返回(history 里保留)。Busy servers can interleave unrelated lines — match on text/kind (command feedback = `system`). 边界: 客户端本地渲染的答复(client-command feedback、chat validation error、mod 直写 chat HUD)不过 packet 层, 会 `replyTimeout`。Server-side命令读回优先用 `mc.action.runCommand`(直接返回 feedback[]). |
+| `mc.client.chat.history` | `limit?`, `sinceSeq?` | packet 层捕获的 chat+system 行(action-bar 除外; 其他 mod cancel 的行仍捕获), monotonic seq, 缓冲 512 行 → `{ok, count, nextSeq, messages:[{seq,kind,text,ageTicks,self}]}` newest-first。`kind:"player"`=带真实 sender profile 的聊天(`self:true`=自己的回声); disguised chat(控制台 /say、命令方块)=`system`(双 loader 一致)。limit default 50, max 256;轮询: 记住 `nextSeq`, 下次传 `sinceSeq` 只拿新行(`seq>=sinceSeq`)。边界: 不经 packet 的客户端本地行(client-command feedback、validation error、直调 ChatComponent.addMessage)在屏幕上可见但这里看不到。 |
 
 ## mc.client.input.*
 Logical screen coords (post-GUI-scale). Reflection-based, work under Xvfb.

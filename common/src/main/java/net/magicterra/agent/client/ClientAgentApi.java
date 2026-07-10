@@ -40,7 +40,7 @@ public interface ClientAgentApi {
      * Backs the new {@code mc.client.chat.history} tool — fills the
      * "server replied, agent can't see it" gap.
      */
-    Map<String, Object> chatHistory(int limit, int sinceSeq);
+    Map<String, Object> chatHistory(int limit, long sinceSeq);
 
     /**
      * Dismiss persistent on-screen overlays that don't belong to the world.

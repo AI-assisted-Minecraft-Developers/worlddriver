@@ -84,29 +84,46 @@ public final class ClientTools {
                 "as a command (e.g. '/tp 0 80 0'); anything else is a plain chat message. " +
                 "Goes through LocalPlayer.connection so it works even when the client is " +
                 "on a remote dedicated server. With awaitReplyMs>0, blocks up to that many " +
-                "ms for the next inbound chat line (server feedback like \"Gave 64 X to Y\" " +
-                "or \"Set the time to N\") and folds it into the response as {reply:{seq,text,ageTicks}}. " +
+                "ms for chat lines that arrive AFTER the send (packet-level capture with a " +
+                "monotonic seq — command feedback like \"Set the time to N\", /say echoes, " +
+                "broadcasts), waits a ~150ms settle window so multi-line feedback batches, " +
+                "then folds them in as {reply:{seq,kind:'system'|'player',text,self}, replyExtra?:[...]}. " +
+                "The server's echo of your own plain-chat line is flagged self and NEVER " +
+                "returned as the reply (history keeps it). On a busy server unrelated lines " +
+                "can interleave — match on text/kind; command feedback is kind:'system'. " +
                 "On timeout, returns {replyTimeout:true, replyMs}. " +
-                "Returns {ok, kind:'command'|'chat', length, reply?, replyExtra?, replyTimeout?, replyMs?}.",
+                "Returns {ok, kind:'command'|'chat', length, reply?, replyExtra?, replyTimeout?, replyMs?}. " +
+                "Boundary: replies rendered CLIENT-locally (client-command feedback, chat " +
+                "validation errors, mods writing straight to the chat HUD) never cross the " +
+                "packet layer and won't be seen — those time out despite a visible answer. " +
+                "(For server-side commands, prefer mc.action runCommand — it returns the " +
+                "command's own feedback[] directly, no chat correlation needed.)",
                 object()
                     .req("text", string()
                         .desc("Chat text. Leading '/' makes it a command."))
                     .prop("awaitReplyMs", integer(1, 30000)
-                        .desc("Wait up to N ms for the next chat reply and include it."))),
+                        .desc("Wait up to N ms for post-send chat lines and include them."))),
 
             roTool("mc.client.chat.history",
-                "Read recent chat + system messages from the client's chat component (the " +
-                "scrollback you'd see by pressing T). Returns {ok, count, nextSeq, messages:" +
-                "[{seq, ageTicks, text}, ...]} newest-first, capped at limit (default 50, " +
-                "max 256). Pass sinceSeq to paginate; use the previous response's nextSeq. " +
-                "Plain text only (formatting stripped via Component.getString()). Backs the " +
-                "\"server replied to my command, what did it say\" use case — fills the gap " +
-                "that chat.send didn't surface server feedback before awaitReplyMs landed.",
+                "Read recent chat + system messages captured at the packet layer (player " +
+                "chat, command feedback, /say, server broadcasts; action-bar excluded; " +
+                "lines other client mods cancel are still captured). " +
+                "Returns {ok, count, nextSeq, messages:[{seq, kind:'system'|'player', text, " +
+                "ageTicks, self}, ...]} newest-first, capped at limit (default 50, max 256). " +
+                "kind:'player' = chat with a real sender profile (self=true marks your own " +
+                "echoed lines); disguised chat (console /say, command blocks) is 'system'. " +
+                "seq is monotonic for the client session (buffer retains the last 512 lines). " +
+                "Poll pattern: remember nextSeq, later pass it as sinceSeq to get only new " +
+                "lines. Plain text only (formatting stripped via Component.getString()). " +
+                "Boundary: lines added CLIENT-locally without a packet (client-command " +
+                "feedback, chat validation errors, mods calling ChatComponent.addMessage) " +
+                "render on screen but do NOT appear here. " +
+                "Backs the \"server replied to my command, what did it say\" use case.",
                 object()
                     .prop("limit", integer(1, 256)
                         .desc("Newest N messages. Default 50."))
                     .prop("sinceSeq", integer().min(0)
-                        .desc("Only return messages with seq > this. Default 0."))),
+                        .desc("Only return messages with seq >= this. Default 0."))),
 
             wrTool("mc.client.overlays",
                 "Dismiss persistent HUD overlays that don't belong to the world. Two flags, " +
