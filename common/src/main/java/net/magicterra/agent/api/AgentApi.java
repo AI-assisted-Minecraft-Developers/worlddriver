@@ -526,16 +526,21 @@ public final class AgentApi {
             // Place both animals on top of the 5x5 stone plane (x,z ∈ [-2,2]),
             // not outside it — otherwise gravity drops them out of the query AABB
             // and length-2 assertions in 05_query become flaky after a few ticks.
+            // NoAI: they are query props, not livestock — a wandering cow stepped
+            // one block between 06_rpc_parity's two snapshots (in-JVM vs TCP,
+            // 15 ms apart) and failed the row-equality assert (2026-07-09).
             Cow cow = EntityType.COW.create(level);
             if (cow != null) {
                 cow.moveTo(ORIGIN.getX() + 1 + 0.5, ORIGIN.getY() + 1, ORIGIN.getZ() + 0.5, 0f, 0f);
                 cow.setPersistenceRequired();
+                cow.setNoAi(true);
                 level.addFreshEntity(cow);
             }
             Sheep sheep = EntityType.SHEEP.create(level);
             if (sheep != null) {
                 sheep.moveTo(ORIGIN.getX() - 1 + 0.5, ORIGIN.getY() + 1, ORIGIN.getZ() + 1 + 0.5, 0f, 0f);
                 sheep.setPersistenceRequired();
+                sheep.setNoAi(true);
                 level.addFreshEntity(sheep);
             }
             synchronized (eventsLock) {
