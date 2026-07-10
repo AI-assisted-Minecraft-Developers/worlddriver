@@ -31,7 +31,9 @@ public final class ObserveActionTools {
                 "offHand, hotbar, selectedSlot, armor}.\n" +
                 "Client-MCP fallback (no server): LocalPlayer snapshot; `name` ignored; result also " +
                 "carries inventory:[{slot,id,count},...], saturation, hit (crosshair HitResult) — " +
-                "full state without opening any screen.",
+                "full state without opening any screen." +
+                " NOTE: look lags client-side rotation changes (mc.bot.lookAt) by one tick — " +
+                "waitTicks(1) before asserting.",
                 object()
                     .prop("name", string()
                         .desc("Player GameProfile name. Optional — defaults to first player."))),

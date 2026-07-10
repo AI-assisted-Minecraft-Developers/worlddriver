@@ -46,6 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   open villager trade UI, shear/milk/feed/tame/leash. New optional `sneak`
   param for sneak-gated interactions. Returns `riding`/`screen` so one call
   confirms whether a mount/UI landed. No new tools (Hard Rule #6).
+- **`mc.bot.lookAt` and `mc.observe.player` lag documentation** — lookAt updates
+  reach the SERVER entity one tick after the call returns; observe.player().look
+  reads pre-lookAt angles until the next tick. Tool descriptions now document this
+  timing and recommend `waitTicks(1)` before asserting (docs/feedback/2026-07-10 §3).
 
 ### Fixed
 - **descentYawArena "flakiness" convicted and cured — it was a rig defect, not a
@@ -77,6 +81,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   block between 06_rpc_parity's two snapshots (in-JVM vs TCP, 15 ms apart) and
   failed the row-equality assert. They are props for entity-query assertions,
   not livestock.
+- **`mc.client.overlays` TutorialSteps reflection is now robust** — the lookup used
+  a bare class name (`Class.forName("TutorialSteps")`) and threw in every runtime,
+  not just mojmap dev. Replaced with a direct import + field write so both vanilla
+  and intermediary runtimes succeed (docs/feedback/2026-07-10 §2).
+- **`AgentApi.route()` validates params against the MCP schema — single source of
+  truth** — wrong-argument errors now name missing required fields and unexpected
+  keys instead of silently consuming them or returning a generic message. `{command:…}`
+  (missing required `cmd`) now fails with `invalid params for mc.action.runCommand:
+  missing required 'cmd' (string); unexpected key 'command'` on every transport
+  (RPC, MCP, in-JVM scripts). `SchemaValidator` unmarshals JSON against the same
+  `ToolSchema` the catalog advertises, so advertisement and enforcement cannot
+  drift (docs/feedback/2026-07-10 §4).
 - **chat readback is now usable: `mc.client.chat.history` / `chat.send awaitReplyMs`
   read a packet-level buffer (`ClientChatLog`) instead of reflecting on the GUI's
   `ChatComponent.allMessages`** (docs/feedback/2026-06-08 "chat is not a usable

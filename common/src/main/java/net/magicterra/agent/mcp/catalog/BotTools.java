@@ -235,7 +235,10 @@ public final class BotTools {
                 "Instant by default (no process slot) → returns {ok, yaw, pitch}. When " +
                 "mc.bot.setting{smoothLook:true} is on, it instead starts a 'look' process that " +
                 "pans the camera to the target over ticks (cancel via mc.bot.cancel{process:'look'}) " +
-                "→ returns {ok, started:true, smooth:true, yaw, pitch}.",
+                "→ returns {ok, started:true, smooth:true, yaw, pitch}." +
+                " NOTE: the new rotation reaches the SERVER entity one tick later — " +
+                "mc.observe.player().look reads the pre-lookAt angles until then; call " +
+                "mc.system.waitTicks{ticks:1} before asserting look.",
                 object()
                     .prop("pos", pos())
                     .prop("yaw", number())

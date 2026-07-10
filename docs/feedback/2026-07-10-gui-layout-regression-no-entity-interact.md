@@ -86,3 +86,26 @@ would have saved a tools/list round-trip.
 - Title-screen navigation by `screen.tree` coordinates, quit-to-title world save, and
   the documented restore-from-zip baseline flow all replayed exactly as written in the
   consumer repo's regression manual.
+
+## Disposition (2026-07-10)
+
+- **§1 (no entity interact)** — CLOSED by `mc.bot.useItem {entityId}` (master `99ed7da`,
+  same day): right-click an entity with vanilla `interactAt→interact→swing` parity;
+  mount/trade/shear/milk/feed/leash covered; `riding`/`screen` echoed back in the result.
+  - `uuid` param: WONTFIX — `mc.query`'s int `id` is the tool-surface-wide entity handle
+    (same as `attackEntity`); a second handle system isn't worth the drift.
+  - `mc.bot.useKey` fallback: WONTFIX — the three useItem modes (bare / pos / entityId)
+    cover its scenarios; parameterized beats crosshair-dependent. Revisit only if a real
+    press-timing need (e.g. charged interactions) shows up.
+- **§2 (overlays tutorialError)** — FIXED: the reflection lookup used a bare class name
+  (`Class.forName("TutorialSteps")`) and threw in every runtime, not just mojmap dev;
+  replaced with a direct import + field write. See feature/schema-single-source.
+- **§3 (observe.player().look lag)** — DOCUMENTED on both `mc.bot.lookAt` and
+  `mc.observe.player` tool descriptions: rotation is visible to observe one tick later;
+  `waitTicks(1)` before asserting.
+- **§4 (unhelpful wrong-argument error)** — FIXED STRUCTURALLY: `AgentApi.route()` now
+  validates params against the same typed Schema the MCP catalog advertises
+  (`SchemaValidator`, single source — advertisement and enforcement cannot drift).
+  `{"command":…}` now fails with `invalid params for mc.action.runCommand: missing
+  required 'cmd' (string); unexpected key 'command'`, on every transport including RPC
+  and in-JVM scripts.
