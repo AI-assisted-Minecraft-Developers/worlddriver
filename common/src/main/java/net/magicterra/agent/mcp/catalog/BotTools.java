@@ -229,22 +229,32 @@ public final class BotTools {
                 ),
 
             wrTool("mc.bot.useItem",
-                "Right-click with the held item. Two modes:\n" +
-                "  no pos  — use in mid-air: eat, drink, draw bow, throw snowball/pearl.\n" +
-                "  + pos   — use ON a block face: place / bone-meal / bucket / flint / shears.\n" +
+                "Right-click with the held item. Three modes:\n" +
+                "  no pos    — use in mid-air: eat, drink, draw bow, throw snowball/pearl.\n" +
+                "  + pos     — use ON a block face: place / bone-meal / bucket / flint / shears.\n" +
+                "  + entityId — use ON an entity: mount a boat/saddled horse (EMPTY hand!), open villager\n" +
+                "    trade UI, shear/milk/feed/tame, leash. Outcome depends on the HELD item (empty hand\n" +
+                "    mounts; holding a saddle saddles; food feeds) — setHotbarSlot to an empty slot first\n" +
+                "    to mount. Vanilla parity: interactAt then interact. Find ids via mc.query q='entities'.\n" +
                 "Synthesizes the BlockHitResult so the call doesn't depend on stale Minecraft.hitResult. " +
                 "Synchronous. " +
-                "face defaults to the face of pos closest to the player; lookAt (pos-mode) snaps " +
+                "face defaults to the face of pos closest to the player; lookAt (pos/entity mode) snaps " +
                 "yaw+pitch to the hit (default true). " +
-                "Returns {ok, hand, result, consumed} (+ pos, face in pos-mode). " +
+                "Returns {ok, hand, result, consumed} (+ pos, face in pos-mode; + entityId, type, distance, " +
+                "riding, screen in entity-mode — riding/screen tell you immediately whether a mount/UI landed; " +
+                "'none' when absent). " +
                 "result is the vanilla InteractionResult (SUCCESS / CONSUME / PASS / FAIL).",
                 object()
                     .prop("pos", pos())
+                    .prop("entityId", integer().min(0)
+                        .desc("Entity.getId() — switches to entity-mode. Find via mc.query q='entities' (rows include id)."))
                     .prop("face", stringEnum("up", "down", "north", "south", "east", "west"))
                     .prop("hand", stringEnum("main", "off")
                         .desc("Which hand. Default 'main'."))
                     .prop("lookAt", bool()
-                        .desc("pos-mode only: snap yaw/pitch toward the hit before sending. Default true."))
+                        .desc("pos/entity-mode: snap yaw/pitch toward the target before sending. Default true."))
+                    .prop("sneak", bool()
+                        .desc("entity-mode only: hold shift during the interact (open tamed horse inventory etc). Default false."))
                 ),
 
             wrTool("mc.bot.attackEntity",
