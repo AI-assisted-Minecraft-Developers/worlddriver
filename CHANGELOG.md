@@ -41,6 +41,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pre-kill, own summons, kill in a `finally` — a failed assertion can't leak
   pinned stands into later suites, and the r=0 case no longer depends on the
   r=3 block's leftovers.
+- `mc.bot.useItem` third mode `entityId` — right-click an entity (vanilla
+  `interactAt`→`interact` parity): mount boats/saddled horses (empty hand),
+  open villager trade UI, shear/milk/feed/tame/leash. New optional `sneak`
+  param for sneak-gated interactions. Returns `riding`/`screen` so one call
+  confirms whether a mount/UI landed. No new tools (Hard Rule #6).
 
 ### Fixed
 - **descentYawArena "flakiness" convicted and cured — it was a rig defect, not a
