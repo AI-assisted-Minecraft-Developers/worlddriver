@@ -97,7 +97,8 @@ public final class AgentDriverCommon {
             "58_command_result_query_type.js",
             "59_query_projections.js",
             "60_stairs_query_guard.js",
-            "61_world_block.js"
+            "61_world_block.js",
+            "62_query_in_radius.js"
     );
 
     private static AgentApi api;
