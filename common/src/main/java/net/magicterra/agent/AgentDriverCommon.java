@@ -7,6 +7,7 @@ import net.magicterra.agent.api.AgentApi;
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.mcp.McpServer;
 import net.magicterra.agent.mcp.ToolCatalog;
+import net.magicterra.agent.mcp.schema.Schema;
 import net.magicterra.agent.mcp.schema.SchemaValidator;
 import net.magicterra.agent.rpc.RpcServer;
 import net.magicterra.agent.script.AgentScriptManager;
@@ -180,7 +181,7 @@ public final class AgentDriverCommon {
             // looked up per call: it is a cached volatile read, and registerExtra
             // invalidates the cache so late-registered extras validate too.
             api.setParamsValidator((method, params) -> {
-                net.magicterra.agent.mcp.schema.Schema s = ToolCatalog.schemaByName().get(method);
+                Schema s = ToolCatalog.schemaByName().get(method);
                 if (s != null) SchemaValidator.validate(method, s, params);
             });
         }

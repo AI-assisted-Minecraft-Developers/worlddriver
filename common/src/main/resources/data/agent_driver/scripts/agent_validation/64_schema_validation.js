@@ -31,9 +31,24 @@ AgentTest.run("64_schema_validation: enum violation names the allowed set", func
 });
 
 AgentTest.run("64_schema_validation: integral double passes an integer slot", function(t) {
-    // JSON decoders routinely hand integers over as doubles — 1.0 must be accepted.
-    var res = Agent.invoke("mc.system.waitTicks", { ticks: 1.0 });
-    t.assertTrue(res !== null && res !== undefined, "waitTicks{ticks:1.0} must be accepted");
+    // Agent.invoke round-trips params through JS JSON.stringify first, which
+    // renders 1.0 as the token "1" — so this only ever exercises Long 1
+    // through the integer slot, not JsonCodec's Double branch. Go under
+    // Agent.invoke straight to __api.invokeJson with a hand-written JSON
+    // body so the "1.0" token survives to JsonCodec.decode as a real Double
+    // (JsonCodec parses any token containing '.' as Double.parseDouble).
+    var json = __api.invokeJson("mc.system.waitTicks", '{"ticks":1.0}');
+    var res = JSON.parse(json);
+    t.assertTrue(res !== null && res !== undefined,
+        "waitTicks{ticks:1.0} (real Double) must be accepted, got: " + json);
+});
+
+AgentTest.run("64_schema_validation: non-integral double on an integer slot is rejected", function(t) {
+    var msg = null;
+    try { __api.invokeJson("mc.system.waitTicks", '{"ticks":1.5}'); }
+    catch (e) { msg = String(e); }
+    t.assertTrue(msg !== null && msg.indexOf("must be integer") >= 0,
+        "ticks:1.5 must reject as non-integer, got: " + msg);
 });
 
 AgentTest.run("64_schema_validation: additionalProperties(true) tool accepts unknown keys", function(t) {
