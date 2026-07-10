@@ -34,9 +34,12 @@ if (!clientAvailable()) {
     });
 
     AgentTest.run("14_type_text_and_key: key rejects bad action", function(t) {
-        var r = Agent.invoke("mc.client.input.key", { key: "ENTER", action: "smash" });
-        t.assertEqual(r.ok, false, "bad action must report ok:false");
-        t.assertTrue(typeof r.error === "string", "must include error string");
+        // Route-layer schema validation rejects the enum violation before the tool runs.
+        var msg = null;
+        try { Agent.invoke("mc.client.input.key", { key: "ENTER", action: "smash" }); }
+        catch (e) { msg = String(e); }
+        t.assertTrue(msg !== null && msg.indexOf("action") >= 0 && msg.indexOf("must be one of") >= 0,
+            "bad action must be rejected by schema validation, got: " + msg);
     });
 
     AgentTest.run("14_type_text_and_key: byte-identical results across in-JVM, RPC, MCP transports",

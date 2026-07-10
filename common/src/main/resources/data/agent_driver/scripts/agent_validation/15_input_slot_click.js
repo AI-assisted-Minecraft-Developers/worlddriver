@@ -19,11 +19,14 @@ if (!clientAvailable()) {
 } else {
 
     AgentTest.run("15_input_slot_click: rejects unknown ClickType", function(t) {
-        var r = Agent.invoke("mc.client.input.slotClick",
-            { slot: 0, button: 0, type: "wiggle" });
-        t.assertEqual(r.ok, false, "unknown type must report ok:false");
-        t.assertTrue(typeof r.error === "string" && r.error.indexOf("wiggle") >= 0,
-            "error must mention the offending type");
+        // Route-layer schema validation rejects the enum violation before the tool
+        // runs; the validator message echoes the offending value.
+        var msg = null;
+        try {
+            Agent.invoke("mc.client.input.slotClick", { slot: 0, button: 0, type: "wiggle" });
+        } catch (e) { msg = String(e); }
+        t.assertTrue(msg !== null && msg.indexOf("wiggle") >= 0,
+            "unknown type must be rejected by schema validation echoing the bad type, got: " + msg);
     });
 
     AgentTest.run("15_input_slot_click: rejects when no container screen open", function(t) {
@@ -41,16 +44,20 @@ if (!clientAvailable()) {
         t.assertTrue(typeof r.error === "string", "must include error string");
     });
 
-    AgentTest.run("15_input_slot_click: byte-identical results across in-JVM, RPC, MCP transports",
+    AgentTest.run("15_input_slot_click: schema-reject surfaces identically across in-JVM, RPC, MCP transports",
         function(t) {
+            // The validator runs inside AgentApi.route(), shared by all three
+            // transports — each must surface the SAME core violation message
+            // (each transport adds its own wrapper prefix, so we compare cores).
             var args = { slot: 0, type: "wiggle" };
-            var direct = Agent.invoke("mc.client.input.slotClick", args);
-            var viaTcp = Agent.system.rpcRoundtrip("mc.client.input.slotClick", args);
-            var viaMcp = Agent.system.mcpRoundtrip("mc.client.input.slotClick", args);
-            t.assertEqual(viaTcp.ok, direct.ok, "RPC.ok mismatch");
-            t.assertEqual(viaMcp.ok, direct.ok, "MCP.ok mismatch");
-            t.assertEqual(viaTcp.error, direct.error, "RPC.error mismatch");
-            t.assertEqual(viaMcp.error, direct.error, "MCP.error mismatch");
+            var core = "invalid params for mc.client.input.slotClick:";
+            function thrownMsg(fn) { try { fn(); return null; } catch (e) { return String(e); } }
+            var direct = thrownMsg(function() { Agent.invoke("mc.client.input.slotClick", args); });
+            var viaTcp = thrownMsg(function() { Agent.system.rpcRoundtrip("mc.client.input.slotClick", args); });
+            var viaMcp = thrownMsg(function() { Agent.system.mcpRoundtrip("mc.client.input.slotClick", args); });
+            t.assertTrue(direct !== null && direct.indexOf(core) >= 0, "in-JVM must throw validator error, got: " + direct);
+            t.assertTrue(viaTcp !== null && viaTcp.indexOf(core) >= 0, "RPC must surface the validator error, got: " + viaTcp);
+            t.assertTrue(viaMcp !== null && viaMcp.indexOf(core) >= 0, "MCP must surface the validator error, got: " + viaMcp);
         });
 
 }

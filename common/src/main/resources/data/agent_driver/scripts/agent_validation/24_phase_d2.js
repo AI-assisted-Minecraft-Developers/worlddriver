@@ -36,13 +36,17 @@ if (!clientAvailable()) {
     });
 
     AgentTest.run("24_phase_d2: non-boolean for toggle leaves state unchanged", function(t) {
-        // setting() typing guard — wrong-type values are silently skipped, not applied.
+        // Route-layer schema validation now rejects the wrong-type value before
+        // the tool runs (stronger than the old silent-skip typing guard) — and
+        // the rejected write must leave the stored state untouched.
         var before = Agent.invoke("mc.bot.setting", {}).settings.autoTool;
-        var r = Agent.invoke("mc.bot.setting", { autoTool: "yes" });
-        t.assertEqual(r.settings.autoTool, before,
-            "string 'yes' must not flip the boolean: before=" + before + " after=" + r.settings.autoTool);
-        t.assertTrue(!r.applied || r.applied.indexOf("autoTool") < 0,
-            "applied must NOT include autoTool when type was wrong");
+        var msg = null;
+        try { Agent.invoke("mc.bot.setting", { autoTool: "yes" }); } catch (e) { msg = String(e); }
+        t.assertTrue(msg !== null && msg.indexOf("must be boolean") >= 0,
+            "string 'yes' must be rejected by schema validation, got: " + msg);
+        var after = Agent.invoke("mc.bot.setting", {}).settings.autoTool;
+        t.assertEqual(after, before,
+            "rejected write must not flip the boolean: before=" + before + " after=" + after);
     });
 
     AgentTest.run("24_phase_d2: byte-identical setting reads across in-JVM/RPC/MCP",

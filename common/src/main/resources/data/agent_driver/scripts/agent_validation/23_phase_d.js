@@ -20,10 +20,12 @@ if (!clientAvailable()) {
 } else {
 
     AgentTest.run("23_phase_d: farm rejects missing from/to", function(t) {
-        var r = Agent.invoke("mc.bot.farm", {});
-        t.assertEqual(r.ok, false, "missing rect → ok:false");
-        t.assertTrue(String(r.error).indexOf("required") >= 0
-                  || String(r.error).indexOf("from") >= 0, "error mentions from/to: " + r.error);
+        // Route-layer schema validation rejects the missing required keys before the tool runs.
+        var msg = null;
+        try { Agent.invoke("mc.bot.farm", {}); } catch (e) { msg = String(e); }
+        t.assertTrue(msg !== null && msg.indexOf("missing required 'from'") >= 0
+                  && msg.indexOf("missing required 'to'") >= 0,
+            "missing rect must be rejected by schema validation naming both keys, got: " + msg);
     });
 
     AgentTest.run("23_phase_d: farm rejects oversize area", function(t) {
