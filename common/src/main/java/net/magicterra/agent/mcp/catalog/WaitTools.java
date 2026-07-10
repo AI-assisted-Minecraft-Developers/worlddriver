@@ -51,7 +51,9 @@ public final class WaitTools {
                 object()
                     .req("invoke", string().desc(
                         "Method name to call each poll, e.g. 'mc.observe.container'."))
-                    .prop("params", object().desc("Params object passed to the invoked tool."))
+                    .prop("params", object().additionalProperties(true).desc(
+                        "Params object passed through to the invoked tool (validated against "
+                        + "that tool's own schema on every poll)."))
                     .prop("field", string().desc(
                         "Dotted path into the result. Omit to test whole result for truthiness."))
                     .prop("value", any().desc(

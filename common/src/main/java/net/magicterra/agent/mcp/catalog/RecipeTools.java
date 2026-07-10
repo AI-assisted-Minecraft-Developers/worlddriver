@@ -49,9 +49,10 @@ public final class RecipeTools {
                         .desc("Item id to make, e.g. minecraft:diamond_pickaxe."))
                     .prop("count", integer(1, 4096)
                         .desc("How many to make (default 1)."))
-                    .prop("have", object()
-                        .desc("Map of itemId→count already in hand; deducted before " +
-                            "reporting missing. Optional (default: have nothing).")) ),
+                    .prop("have", object().additionalProperties(true)
+                        .desc("Map of itemId→count already in hand (dynamic item-id keys, " +
+                            "integer values); deducted before reporting missing. " +
+                            "Optional (default: have nothing).")) ),
 
             roTool("mc.plan.acquire",
                 "Goal-directed acquisition planner (Phase H): \"I want N of an item\" → a full, " +
@@ -70,8 +71,9 @@ public final class RecipeTools {
                         .desc("Item id to acquire, e.g. minecraft:iron_pickaxe."))
                     .prop("count", integer(1, 4096)
                         .desc("How many (default 1)."))
-                    .prop("have", object()
-                        .desc("Map of itemId→count already in hand; deducted first. Optional.")))
+                    .prop("have", object().additionalProperties(true)
+                        .desc("Map of itemId→count already in hand (dynamic item-id keys, " +
+                            "integer values); deducted first. Optional.")))
         );
     }
 }

@@ -51,8 +51,9 @@ public final class ScriptTools {
                         .desc("Skill name [a-z][a-z0-9_]* (for save/get/run/delete)."))
                     .prop("source", string()
                         .desc("JS source (for save). Last expression is the result; reads args from SKILL."))
-                    .prop("args", object()
-                        .desc("Args passed to the skill as the SKILL global (for run). Optional."))
+                    .prop("args", any()
+                        .desc("Args passed to the skill as the SKILL global (for run). Any JSON "
+                            + "value — object, array, or scalar. Optional."))
                     .prop("timeoutMs", integer(1, 30000)
                         .desc("Run budget ms (for run; default 3000)."))),
 
@@ -73,8 +74,16 @@ public final class ScriptTools {
                         .desc("Which action."))
                     .prop("type", string().desc("Event type (for emit)."))
                     .prop("data", any().desc("Event payload — string or object (for emit). Optional."))
+                    .prop("pos", pos()
+                        .desc("Optional position attached to the emitted event (for emit)."))
                     .prop("invoke", string().desc("Route name to poll (for watch)."))
+                    .prop("params", object().additionalProperties(true)
+                        .desc("Params object passed through to the polled route (for watch); "
+                            + "validated against that route's own schema on every poll."))
                     .prop("field", string().desc("Dotted path into the poll result (for watch)."))
+                    .prop("value", any().desc("Predicate: fire when the field deep-equals this value (watch)."))
+                    .prop("above", number().desc("Predicate: fire when the numeric field rises above this (watch)."))
+                    .prop("below", number().desc("Predicate: fire when the numeric field drops below this (watch)."))
                     .prop("emitAs", string().desc("Event type to emit on the rising edge (watch; default condition.met)."))
                     .prop("everyMs", integer(200, 60000)
                         .desc("Poll interval ms (watch; default 1000)."))

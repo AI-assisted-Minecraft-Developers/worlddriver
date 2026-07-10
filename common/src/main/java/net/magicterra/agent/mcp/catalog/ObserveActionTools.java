@@ -73,10 +73,14 @@ public final class ObserveActionTools {
                 "'x':contact-damage '!':lava/fire '@':center). Works headless in GameTest.",
                 object()
                     .prop("center", pos())
-                    .prop("radius", integer(1, 32)
-                        .desc("Chebyshev radius in blocks (default 12, max 32)."))
+                    .prop("radius", integer().min(1)
+                        .desc("Chebyshev radius in blocks (default 12). Clamped to sceneQueryMaxRadius "
+                            + "server-side; over-limit requests return truncated:true + requested:N."))
                     .prop("render", stringEnum("summary", "map")
-                        .desc("summary (default): hazardSummary only. map: also include ASCII rows + legend."))),
+                        .desc("summary (default): hazardSummary only. map: also include ASCII rows + legend."))
+                    .prop("overlays", array(string())
+                        .desc("Extra overlay layers, e.g. ['height'] adds surface-height stats "
+                            + "(centerY/minY/maxY)."))),
 
             roTool("mc.observe.map",
                 "Server-side ASCII spatial map — a compact, glanceable substitute for parsing block + " +

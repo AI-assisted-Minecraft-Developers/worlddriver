@@ -50,6 +50,7 @@ public final class DebugTools {
                 object()
                     .prop("file", string().desc("Archive filename under config/agent_driver/replays/. Default: newest plan archive."))
                     .prop("restoreBlocks", bool().desc("Restore the recorded block envelope before replay. Default true."))
+                    .prop("replan", bool().desc("Re-plan from the recorded goal instead of re-executing the stored plan verbatim. Default true."))
                     .prop("fromStep", integer(0, 100000).desc("Start at this plan step. Default 0 (MVP: accepted but ignored).")))
         );
     }
