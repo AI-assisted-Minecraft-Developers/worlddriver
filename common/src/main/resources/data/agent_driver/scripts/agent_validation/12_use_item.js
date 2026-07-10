@@ -90,4 +90,39 @@ if (!clientAvailable()) {
         t.assertEqual(r.ok, false, "nonexistent entity must be ok:false");
         t.assertTrue(typeof r.error === "string", "must include error string");
     });
+
+    AgentTest.run("12_use_item: entity-mode mounts a boat with an empty hand", function(t) {
+        var info = Agent.invoke("mc.client.screen.info", {});
+        if (!info.hasPlayer) return;
+        var me = Agent.invoke("mc.observe.player", {});
+        var x = Math.round(me.pos.x), y = Math.round(me.pos.y), z = Math.round(me.pos.z);
+        // Mounting needs an EMPTY main hand (a held saddle/item would saddle/feed
+        // per the tool doc instead of mounting) — clear it before summoning.
+        Agent.invoke("mc.action.runCommand", { cmd: "item replace entity @p weapon.mainhand with minecraft:air" });
+        Agent.invoke("mc.action.runCommand",
+            { cmd: "summon minecraft:boat " + x + " " + y + " " + z + " {Tags:[\"t12_boat\"]}" });
+        try {
+            // center is REQUIRED on mc.query — it defaults to world origin otherwise.
+            var rows = Agent.invoke("mc.query", {
+                q: "entities",
+                center: { x: x, y: y, z: z },
+                filter: { in_radius: 8, type: "boat" },
+                select: ["id"]
+            });
+            t.assertTrue(Array.isArray(rows) && rows.length >= 1,
+                "boat must be findable via mc.query, got " + JSON.stringify(rows));
+            var res = Agent.invoke("mc.bot.useItem", { entityId: rows[0].id });
+            t.assertEqual(res.ok, true, "useItem on boat must succeed (got " + JSON.stringify(res) + ")");
+            t.assertEqual(res.riding, "minecraft:boat", "riding must report the mounted boat type");
+        } finally {
+            // This suite runs on a worker (RPC) thread, never the client thread, so
+            // the post-interact poll in useItemOnEntity always runs and 'riding' above
+            // reflects the server-applied mount — safe by construction. Guards a
+            // future "move validation onto the client thread" refactor: that would
+            // hit the new isSameThread() skip, and this assertion would need to wait
+            // and re-check riding explicitly instead of trusting the immediate return.
+            Agent.invoke("mc.action.runCommand", { cmd: "ride @p dismount" });
+            Agent.invoke("mc.action.runCommand", { cmd: "kill @e[tag=t12_boat]" });
+        }
+    });
 }

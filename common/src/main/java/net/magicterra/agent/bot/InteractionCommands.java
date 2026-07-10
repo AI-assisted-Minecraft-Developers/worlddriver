@@ -103,14 +103,8 @@ final class InteractionCommands {
             // turn to face, swing main arm, dispatch attack through MPGameMode so
             // the server applies weapon damage + cooldown + crit/sweep rules.
             p.setShiftKeyDown(false);
-            Vec3 ep = target.position();
-            double dx = ep.x - p.getX();
-            double dz = ep.z - p.getZ();
-            float yaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0);
-            float pitch = (float) -Math.toDegrees(Math.atan2(
-                    (ep.y + target.getBbHeight() * 0.5) - p.getEyeY(),
-                    Math.sqrt(dx * dx + dz * dz)));
-            p.setYRot(yaw); p.setXRot(pitch);
+            float[] aim = aimAnglesAt(p, target);
+            p.setYRot(aim[0]); p.setXRot(aim[1]);
             mc.gameMode.attack(p, target);
             p.swing(InteractionHand.MAIN_HAND);
             return Map.of(
@@ -144,14 +138,8 @@ final class InteractionCommands {
             }
             if (target == p) return Map.of("ok", false, "error", "cannot interact with self");
             if (wantLookAt) {
-                Vec3 ep = target.position();
-                double dx = ep.x - p.getX();
-                double dz = ep.z - p.getZ();
-                float yaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0);
-                float pitch = (float) -Math.toDegrees(Math.atan2(
-                        (ep.y + target.getBbHeight() * 0.5) - p.getEyeY(),
-                        Math.sqrt(dx * dx + dz * dz)));
-                p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw; p.setXRot(pitch);
+                float[] aim = aimAnglesAt(p, target);
+                p.setYRot(aim[0]); p.yHeadRot = aim[0]; p.yBodyRot = aim[0]; p.setXRot(aim[1]);
             }
             // The interact packets snapshot isShiftKeyDown — sneak-gated
             // interactions (open tamed horse inventory, armor-stand pickup)
@@ -194,21 +182,30 @@ final class InteractionCommands {
         // onClient() sample, until the server-applied state actually changes.
         String riding = vehicleBefore;
         String screen = screenBefore;
-        for (int attempt = 0; attempt < 6; attempt++) {
-            Map<String, String> sample = onClient(() -> {
-                Minecraft mc = Minecraft.getInstance();
-                LocalPlayer p = mc.player;
-                return Map.of("riding", p == null ? "none" : vehicleTypeOf(p), "screen", screenNameOf(mc));
-            });
-            riding = sample.get("riding");
-            screen = sample.get("screen");
-            if (!riding.equals(vehicleBefore) || !screen.equals(screenBefore)) break;
-            if (attempt < 5) {
-                try {
-                    Thread.sleep(50);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    break;
+        // If we're already ON the client thread (BotUtil.onClient runs its lambda
+        // inline rather than dispatching when isSameThread() is true — e.g. a
+        // process step calling useItemOnEntity directly during a client tick),
+        // skip the poll entirely and keep the pre-interact snapshot: the
+        // Thread.sleep(50) below would freeze the client for up to 250ms AND
+        // deadlock the very packet processing (the mount/menu sync this loop
+        // waits on) it's blocking, since that processing runs on this same thread.
+        if (!Minecraft.getInstance().isSameThread()) {
+            for (int attempt = 0; attempt < 6; attempt++) {
+                Map<String, String> sample = onClient(() -> {
+                    Minecraft mc = Minecraft.getInstance();
+                    LocalPlayer p = mc.player;
+                    return Map.of("riding", p == null ? "none" : vehicleTypeOf(p), "screen", screenNameOf(mc));
+                });
+                riding = sample.get("riding");
+                screen = sample.get("screen");
+                if (!riding.equals(vehicleBefore) || !screen.equals(screenBefore)) break;
+                if (attempt < 5) {
+                    try {
+                        Thread.sleep(50);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
                 }
             }
         }

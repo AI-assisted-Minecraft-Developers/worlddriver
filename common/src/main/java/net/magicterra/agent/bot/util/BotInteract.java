@@ -9,6 +9,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.network.protocol.game.ServerboundContainerClosePacket;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ClickType;
@@ -52,6 +53,23 @@ public final class BotInteract {
         if (!(o instanceof String s) || s.isBlank()) return null;
         try { return Direction.byName(s.toLowerCase(Locale.ROOT)); }
         catch (Exception e) { return null; }
+    }
+
+    /** Yaw/pitch to aim from {@code p} at {@code target}'s mid-bounding-box —
+     *  the shared math {@code InteractionCommands.attackEntity} and
+     *  {@code useItemOnEntity} both computed inline before this was extracted.
+     *  Returns {@code {yaw, pitch}}; callers apply the angles exactly as they
+     *  did before (attackEntity sets only body yaw/pitch, useItemOnEntity also
+     *  drives yHeadRot/yBodyRot) — this only dedupes the trig, not the effect. */
+    public static float[] aimAnglesAt(LocalPlayer p, Entity target) {
+        Vec3 ep = target.position();
+        double dx = ep.x - p.getX();
+        double dz = ep.z - p.getZ();
+        float yaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0);
+        float pitch = (float) -Math.toDegrees(Math.atan2(
+                (ep.y + target.getBbHeight() * 0.5) - p.getEyeY(),
+                Math.sqrt(dx * dx + dz * dz)));
+        return new float[]{yaw, pitch};
     }
 
     /** Pick the face of {@code block} closest to the player's eye — the face the

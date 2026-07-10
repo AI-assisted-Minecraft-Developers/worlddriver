@@ -236,6 +236,9 @@ public final class BotTools {
                 "    trade UI, shear/milk/feed/tame, leash. Outcome depends on the HELD item (empty hand\n" +
                 "    mounts; holding a saddle saddles; food feeds) — setHotbarSlot to an empty slot first\n" +
                 "    to mount. Vanilla parity: interactAt then interact. Find ids via mc.query q='entities'.\n" +
+                "    entityId wins over pos if both are passed (entity-mode takes precedence).\n" +
+                "    Like attackEntity, out-of-reach interacts are rejected server-side even though the\n" +
+                "    client may report consumed — check `distance` in the return.\n" +
                 "Synthesizes the BlockHitResult so the call doesn't depend on stale Minecraft.hitResult. " +
                 "Synchronous. " +
                 "face defaults to the face of pos closest to the player; lookAt (pos/entity mode) snaps " +
