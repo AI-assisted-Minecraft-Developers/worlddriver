@@ -16,6 +16,18 @@ function scene(center, radius, render) {
     return Agent.invoke("mc.observe.scene", p);
 }
 
+// Rig: the test sites stretch to z=300, far outside any ticketed region. The
+// fill() calls only load chunks TRANSIENTLY (setBlockAndUpdate's synchronous
+// load carries no ticket), so a chunk-unload tick between fill() and scene()
+// turns every cell UNKNOWN (not standable, not lethal) — which failed tests
+// 5/8 in full-wheel runs (order/timing dependent; solo runs always won the
+// race). Pin the whole work strip for the duration of this file; the last
+// test releases it. (Deterministic-rig template: REGRESSION.md arena rig.)
+AgentTest.run("50_scene: rig — forceload the z=0..300 work strip", function (t) {
+    var r = Agent.invoke("mc.action.runCommand", { cmd: "forceload add -8 -8 8 308" });
+    t.assertEqual(r.ok, true, "forceload add must succeed");
+});
+
 AgentTest.run("50_scene: flat ground -> no lethal cells", function (t) {
     var ox = 0, oy = 200, oz = 0;
     // Build a stone platform (9x9) at y=199 with clear air above (y=200..205)
@@ -177,4 +189,10 @@ AgentTest.run("50_scene: height overlay reports centerY/minY/maxY", function (t)
     t.assertTrue("minY" in s && "maxY" in s, "height overlay populates minY and maxY");
     t.assertEqual(s.minY, 200, "flat platform: minY == 200 (surface at center.y)");
     t.assertEqual(s.maxY, 200, "flat platform: maxY == 200 (all cells same height)");
+});
+
+// Rig teardown — release the chunk pin added by the first test in this file.
+AgentTest.run("50_scene: rig — release the forceloaded work strip", function (t) {
+    var r = Agent.invoke("mc.action.runCommand", { cmd: "forceload remove -8 -8 8 308" });
+    t.assertEqual(r.ok, true, "forceload remove must succeed");
 });
