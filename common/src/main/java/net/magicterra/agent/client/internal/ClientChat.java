@@ -3,6 +3,7 @@ package net.magicterra.agent.client.internal;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.tutorial.TutorialSteps;
 import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
@@ -12,8 +13,6 @@ import java.util.Map;
 import java.util.UUID;
 
 import static net.magicterra.agent.client.internal.ClientThread.runOnClient;
-import java.lang.reflect.Method;
-import java.lang.reflect.Field;
 
 /**
  * Chat send/history and HUD-overlay dismissal for {@code mc.client.chat.*} and
@@ -162,19 +161,11 @@ public final class ClientChat {
             out.put("ok", true);
             if (tutorial) {
                 try {
-                    Class<?> stepsCls = Class.forName("TutorialSteps");
-                    Object none = Enum.valueOf((Class<Enum>) stepsCls, "NONE");
-                    // Options.tutorialStep is a plain TutorialSteps field, not an
-                    // OptionInstance — write it directly. (OptionInstance applies
-                    // to most options but tutorialStep stayed simple.)
-                    Field optField = mc.options.getClass().getDeclaredField("tutorialStep");
-                    optField.setAccessible(true);
-                    optField.set(mc.options, none);
-                    // Apply immediately to the live Tutorial controller so the
-                    // active step changes without waiting for an options-screen save.
-                    Object tut = mc.getTutorial();
-                    Method setStep = tut.getClass().getMethod("setStep", stepsCls);
-                    setStep.invoke(tut, none);
+                    // Options.tutorialStep is a plain public TutorialSteps field, not an
+                    // OptionInstance — write it directly, then apply to the live Tutorial
+                    // controller so the active step changes without an options-screen save.
+                    mc.options.tutorialStep = TutorialSteps.NONE;
+                    mc.getTutorial().setStep(TutorialSteps.NONE);
                     out.put("tutorial", "NONE");
                 } catch (Throwable t) {
                     out.put("tutorialError", t.getClass().getSimpleName() + ": " + t.getMessage());
