@@ -261,3 +261,9 @@ waterFarAimBankCornerArena=水域隔墙绕行 smoke test(不确定性复现 spin
 - **为何赢过 faster-reactive**:reactive 让坏 pocket 段先提交+bot 先 churn 再 undo;proactive 在坏段提交那刻就 arm,下一搜直接出绕障路。
 - **LIVE A/B(深湾 tp 1732,64,3428→goto 1730,3500)**:proactive arm @~6s(首 commit 倒退-36格)vs reactive 20-52s;**开阔水面视频转 NORMAL(起步 churn 消除)、ARRIVED ~54s vs reactive ~162s(~3×快)**。GT 109/109(flag ON 也验)。
 - 残留:对岸岸坡/沙坝近处独立 pre-existing pinch(「沙丘横移/水下死角」);land bee-line 留作平地 biome 件。
+
+## Schema 单源校验 backlog (2026-07-10, master d149da5)
+
+- [ ] mine/goto 的 `radius` schema 收紧为 `integer(1,64)`(现为宽松 number;route 实际按 int 半径用)——单独 conformance 小扫。
+- [ ] 未来 conformance 清扫必须 grep `resources/scripts/**` 全部 `Agent.invoke(` 调用点(playbooks/prelude,不止 agent_validation 套件)——本轮终审在 dragon.js/wither.js 抓到错键静默瘫痪(空 catch 吞 IllegalArgumentException)。
+- [ ] 环境:AgentTest 世界 spawn (-301.5,94,291.5) 下方虚空柱,套件收尾 tp 必摔死 → 下轮脏状态假败;考虑 setworldspawn 挪点或补地。50_scene forceload 泄漏(终审 Minor)顺手看。
