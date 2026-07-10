@@ -7,6 +7,7 @@ import net.magicterra.agent.api.AgentApi;
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.mcp.McpServer;
 import net.magicterra.agent.mcp.ToolCatalog;
+import net.magicterra.agent.mcp.schema.SchemaValidator;
 import net.magicterra.agent.rpc.RpcServer;
 import net.magicterra.agent.script.AgentScriptManager;
 import net.magicterra.agent.script.McpBridge;
@@ -170,7 +171,17 @@ public final class AgentDriverCommon {
         // not a recoverable startup hiccup — let it abort mod init rather than limp on
         // with a half-specified tool surface. Cheap + idempotent, so re-running across
         // ensureRpcUp calls (incl. after optional subsystems register) is harmless.
-        if (api != null) api.requireSchemasFor(ToolCatalog.declaredMethodNames());
+        if (api != null) {
+            api.requireSchemasFor(ToolCatalog.declaredMethodNames());
+            // Route-layer schema validation — same typed Schema the catalog renders
+            // for tools/list (single source; see SchemaValidator). schemaByName() is
+            // looked up per call: it is a cached volatile read, and registerExtra
+            // invalidates the cache so late-registered extras validate too.
+            api.setParamsValidator((method, params) -> {
+                net.magicterra.agent.mcp.schema.Schema s = ToolCatalog.schemaByName().get(method);
+                if (s != null) SchemaValidator.validate(method, s, params);
+            });
+        }
     }
 
     /**

@@ -36,8 +36,11 @@ if (!clientAvailable()) {
     });
 
     AgentTest.run("12_use_item: pos-mode rejects malformed pos", function(t) {
-        var res = Agent.invoke("mc.bot.useItem", { pos: "not-a-pos" });
-        t.assertEqual(res.ok, false, "string-pos must report ok:false");
+        // Route-layer schema validation rejects string pos before the tool runs.
+        var msg = null;
+        try { Agent.invoke("mc.bot.useItem", { pos: "not-a-pos" }); } catch (e) { msg = String(e); }
+        t.assertTrue(msg !== null && msg.indexOf("must be object") >= 0,
+            "string pos must be rejected by schema validation, got: " + msg);
     });
 
     AgentTest.run("12_use_item: pos-mode echoes effective face", function(t) {
@@ -78,10 +81,11 @@ if (!clientAvailable()) {
     });
 
     AgentTest.run("12_use_item: entity-mode rejects non-integer entityId", function(t) {
-        var r = Agent.invoke("mc.bot.useItem", { entityId: "abc" });
-        t.assertEqual(r.ok, false, "non-integer entityId must be ok:false");
-        t.assertTrue(typeof r.error === "string" && r.error.indexOf("integer") >= 0,
-            "error must mention integer (got " + JSON.stringify(r) + ")");
+        // Route-layer schema validation rejects string entityId before the tool runs.
+        var msg = null;
+        try { Agent.invoke("mc.bot.useItem", { entityId: "abc" }); } catch (e) { msg = String(e); }
+        t.assertTrue(msg !== null && msg.indexOf("must be integer") >= 0,
+            "non-integer entityId must be rejected by schema validation, got: " + msg);
     });
 
     AgentTest.run("12_use_item: entity-mode rejects nonexistent entity id", function(t) {

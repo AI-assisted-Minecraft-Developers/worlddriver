@@ -93,6 +93,7 @@ public final class AgentApi {
         return t;
     });
     private final Map<String, Function<Map<String, Object>, Object>> routes = new ConcurrentHashMap<>();
+    private volatile ParamsValidator paramsValidator;
     private volatile Function<Map<String, Object>, Object> scriptHandler;
     private volatile Function<Map<String, Object>, Object> playbookHandler;
     private volatile Function<Map<String, Object>, Object> skillHandler;
@@ -438,7 +439,10 @@ public final class AgentApi {
     public Object route(String method, Map<String, Object> params) {
         Function<Map<String, Object>, Object> fn = routes.get(method);
         if (fn == null) throw new IllegalArgumentException("unknown method: " + method);
-        return fn.apply(params == null ? Map.of() : params);
+        Map<String, Object> p = (params == null) ? Map.of() : params;
+        ParamsValidator v = paramsValidator;
+        if (v != null) v.validate(method, p);
+        return fn.apply(p);
     }
 
     /**
@@ -488,6 +492,18 @@ public final class AgentApi {
                 "agent-driver: " + missing.size() + " route(s) have no MCP ToolSchema — declare each "
                 + "in ToolCatalog (a normal schema, or a hidden one for RPC-only verbs): " + missing);
         }
+    }
+
+    /**
+     * Pre-dispatch params validation, injected by the bootstrap from the MCP
+     * ToolCatalog (Hard Rule #1: the api layer never depends on the mcp layer —
+     * same seam style as {@link #requireSchemasFor}). Covers EVERY caller of
+     * {@link #route}: MCP tools/call, RPC websocket, in-JVM Rhino Agent.invoke,
+     * and internal consumers (EventsApi/WaitApi/YamlTestInterpreter/…) — one
+     * contract, uniformly enforced.
+     */
+    public void setParamsValidator(ParamsValidator validator) {
+        this.paramsValidator = validator;
     }
 
     /**
