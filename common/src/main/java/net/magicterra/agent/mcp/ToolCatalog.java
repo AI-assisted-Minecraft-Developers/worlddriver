@@ -1,6 +1,8 @@
 package net.magicterra.agent.mcp;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +21,7 @@ import net.magicterra.agent.mcp.catalog.RecipeTools;
 import net.magicterra.agent.mcp.catalog.ScriptTools;
 import net.magicterra.agent.mcp.catalog.SystemTools;
 import net.magicterra.agent.mcp.catalog.WaitTools;
+import net.magicterra.agent.mcp.schema.Schema;
 import net.magicterra.agent.mcp.schema.ToolSchema;
 
 /**
@@ -39,11 +42,14 @@ import net.magicterra.agent.mcp.schema.ToolSchema;
  * is still <b>declared</b> here, as a {@link #HIDDEN_TOOLS hidden} {@code ToolSchema}:
  * it satisfies the invariant but is left out of {@link #tools()} (the MCP
  * {@code tools/list}). RPC-only is an explicit, reviewed choice, never an omission.
+ * The typed schema also drives route-layer validation ({@code SchemaValidator}) —
+ * rendering and validation read the same tree, so they cannot drift.
  */
 public final class ToolCatalog {
     private ToolCatalog() {}
 
-    private static final List<Supplier<List<Map<String, Object>>>> EXTRA = new CopyOnWriteArrayList<>();
+    private static final List<Supplier<List<ToolSchema>>> EXTRA = new CopyOnWriteArrayList<>();
+    private static volatile Map<String, Schema> byNameCache;
 
     /**
      * Methods declared but deliberately kept out of MCP {@code tools/list}. Each is
@@ -52,21 +58,22 @@ public final class ToolCatalog {
      */
     private static final List<ToolSchema> HIDDEN_TOOLS = List.of(
             // mc.test.yaml — run YAML gametests on demand; a harness verb, not an agent action.
-            ToolSchema.hidden(tool("mc.test.yaml",
+            tool("mc.test.yaml",
                     "Run YAML GameTest specs on demand (dev/test harness verb; reachable over RPC only). "
                     + "Params: file | inline | all:true.",
-                    object().additionalProperties(true)))
+                    object().additionalProperties(true)).asHidden()
     );
 
     /** Register an extra schema supplier (e.g. the path-debug tool). Inert until called. */
-    public static void registerExtra(Supplier<List<Map<String, Object>>> supplier) {
+    public static void registerExtra(Supplier<List<ToolSchema>> supplier) {
         Objects.requireNonNull(supplier, "supplier");
         EXTRA.add(supplier);
+        byNameCache = null;   // extras registered after boot wiring must still validate
     }
 
-    /** The curated, hand-written MCP tool maps in their fixed section order (+ registered extras). */
-    private static List<Map<String, Object>> curated() {
-        ArrayList<Map<String, Object>> all = new ArrayList<>();
+    /** The curated, hand-written tool schemas in their fixed section order (+ registered extras). */
+    private static List<ToolSchema> curated() {
+        ArrayList<ToolSchema> all = new ArrayList<>();
         all.addAll(SystemTools.tools());
         all.addAll(ScriptTools.tools());
         all.addAll(ObserveActionTools.tools());
@@ -74,14 +81,13 @@ public final class ToolCatalog {
         all.addAll(WaitTools.tools());
         all.addAll(ClientTools.tools());
         all.addAll(BotTools.tools());
-        for (Supplier<List<Map<String, Object>>> s : EXTRA) all.addAll(s.get());
+        for (Supplier<List<ToolSchema>> s : EXTRA) all.addAll(s.get());
         return all;
     }
 
-    /** Every declared tool as a {@link ToolSchema}: the visible curated set + the hidden ones. */
+    /** Every declared tool: the visible curated set + the hidden ones. */
     public static List<ToolSchema> schemas() {
-        List<ToolSchema> out = new ArrayList<>();
-        for (Map<String, Object> m : curated()) out.add(ToolSchema.visible(m));
+        List<ToolSchema> out = new ArrayList<>(curated());
         out.addAll(HIDDEN_TOOLS);
         return out;
     }
@@ -99,5 +105,19 @@ public final class ToolCatalog {
         List<Map<String, Object>> out = new ArrayList<>();
         for (ToolSchema s : schemas()) if (!s.hidden()) out.add(s.mcpTool());
         return List.copyOf(out);
+    }
+
+    /**
+     * name → typed Schema for EVERY declared tool (visible + hidden) — the
+     * validation side of the single source. Cached; registerExtra invalidates.
+     */
+    public static Map<String, Schema> schemaByName() {
+        Map<String, Schema> c = byNameCache;
+        if (c == null) {
+            LinkedHashMap<String, Schema> m = new LinkedHashMap<>();
+            for (ToolSchema s : schemas()) m.put(s.name(), s.schema());
+            byNameCache = c = Collections.unmodifiableMap(m);
+        }
+        return c;
     }
 }

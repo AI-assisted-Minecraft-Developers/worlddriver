@@ -1,7 +1,8 @@
 package net.magicterra.agent.mcp.catalog;
 
 import java.util.List;
-import java.util.Map;
+
+import net.magicterra.agent.mcp.schema.ToolSchema;
 
 import static net.magicterra.agent.mcp.schema.Schemas.*;
 
@@ -12,7 +13,7 @@ import static net.magicterra.agent.mcp.schema.Schemas.*;
 public final class ObserveActionTools {
     private ObserveActionTools() {}
 
-    public static List<Map<String, Object>> tools() {
+    public static List<ToolSchema> tools() {
         return List.of(
             roTool("mc.observe.cursor",
                 "Get the latest event sequence number. Save the integer and pass it as the cursor " +

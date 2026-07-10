@@ -1,7 +1,8 @@
 package net.magicterra.agent.mcp.catalog;
 
 import java.util.List;
-import java.util.Map;
+
+import net.magicterra.agent.mcp.schema.ToolSchema;
 
 import static net.magicterra.agent.mcp.schema.Schemas.*;
 
@@ -12,7 +13,7 @@ import static net.magicterra.agent.mcp.schema.Schemas.*;
 public final class ScriptTools {
     private ScriptTools() {}
 
-    public static List<Map<String, Object>> tools() {
+    public static List<ToolSchema> tools() {
         return List.of(
             tool("mc.script.eval",
                 "**Prefer this when a task would otherwise need ≥3 separate tool calls** " +

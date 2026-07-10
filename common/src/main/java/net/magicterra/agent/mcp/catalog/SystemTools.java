@@ -1,7 +1,8 @@
 package net.magicterra.agent.mcp.catalog;
 
 import java.util.List;
-import java.util.Map;
+
+import net.magicterra.agent.mcp.schema.ToolSchema;
 
 import static net.magicterra.agent.mcp.schema.Schemas.*;
 
@@ -9,7 +10,7 @@ import static net.magicterra.agent.mcp.schema.Schemas.*;
 public final class SystemTools {
     private SystemTools() {}
 
-    public static List<Map<String, Object>> tools() {
+    public static List<ToolSchema> tools() {
         return List.of(
             roTool("mc.system.version",
                 "Probe the agent driver. Use first to confirm the server is reachable. " +

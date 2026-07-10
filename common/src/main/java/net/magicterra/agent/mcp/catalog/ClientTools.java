@@ -3,6 +3,8 @@ package net.magicterra.agent.mcp.catalog;
 import java.util.List;
 import java.util.Map;
 
+import net.magicterra.agent.mcp.schema.ToolSchema;
+
 import static net.magicterra.agent.mcp.schema.Schemas.*;
 
 /**
@@ -14,7 +16,7 @@ import static net.magicterra.agent.mcp.schema.Schemas.*;
 public final class ClientTools {
     private ClientTools() {}
 
-    public static List<Map<String, Object>> tools() {
+    public static List<ToolSchema> tools() {
         return List.of(
             roTool("mc.client.screen.info",
                 "Lightweight probe of the current client screen. Cheap; call this first as an " +

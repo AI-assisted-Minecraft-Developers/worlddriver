@@ -1,7 +1,8 @@
 package net.magicterra.agent.bot.debug;
 
 import java.util.List;
-import java.util.Map;
+
+import net.magicterra.agent.mcp.schema.ToolSchema;
 
 import static net.magicterra.agent.mcp.schema.Schemas.*;
 
@@ -9,7 +10,7 @@ import static net.magicterra.agent.mcp.schema.Schemas.*;
 public final class DebugTools {
     private DebugTools() {}
 
-    public static List<Map<String, Object>> tools() {
+    public static List<ToolSchema> tools() {
         return List.of(
             roTool("mc.debug.pathChart",
                 "Render the current goto session's pathfinding debug chart to a PNG on disk " +

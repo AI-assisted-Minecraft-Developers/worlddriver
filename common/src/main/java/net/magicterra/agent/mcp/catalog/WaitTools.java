@@ -1,7 +1,8 @@
 package net.magicterra.agent.mcp.catalog;
 
 import java.util.List;
-import java.util.Map;
+
+import net.magicterra.agent.mcp.schema.ToolSchema;
 
 import static net.magicterra.agent.mcp.schema.Schemas.*;
 
@@ -9,7 +10,7 @@ import static net.magicterra.agent.mcp.schema.Schemas.*;
 public final class WaitTools {
     private WaitTools() {}
 
-    public static List<Map<String, Object>> tools() {
+    public static List<ToolSchema> tools() {
         return List.of(
             roTool("mc.wait.event",
                 "Long-poll for events with seq > cursor matching `types`. Returns when ≥1 event " +

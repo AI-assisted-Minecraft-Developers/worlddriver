@@ -1,8 +1,6 @@
 package net.magicterra.agent.mcp.schema;
 
-import java.util.List;
 import java.util.Map;
-import java.util.LinkedHashMap;
 
 import com.mojang.serialization.JavaOps;
 
@@ -77,23 +75,23 @@ public final class Schemas {
     }
 
     /** Plain tool from a typed schema. */
-    public static Map<String, Object> tool(String name, String description, Schema schema) {
-        return toolFull(name, description, render(schema), null, null);
+    public static ToolSchema tool(String name, String description, Schema schema) {
+        return new ToolSchema(name, description, schema, null, null, false);
     }
     /** Read-only tool from a typed schema. */
-    public static Map<String, Object> roTool(String name, String description, Schema schema) {
-        return toolFull(name, description, render(schema), readOnly(), null);
+    public static ToolSchema roTool(String name, String description, Schema schema) {
+        return new ToolSchema(name, description, schema, readOnly(), null, false);
     }
     /** Destructive tool from a typed schema. */
-    public static Map<String, Object> wrTool(String name, String description, Schema schema) {
-        return toolFull(name, description, render(schema), destructive(), null);
+    public static ToolSchema wrTool(String name, String description, Schema schema) {
+        return new ToolSchema(name, description, schema, destructive(), null, false);
     }
     /** Read-only + _meta tool from a typed schema. */
-    public static Map<String, Object> roTool(String name, String description, Schema schema, Map<String, Object> meta) {
-        return toolFull(name, description, render(schema), readOnly(), meta);
+    public static ToolSchema roTool(String name, String description, Schema schema, Map<String, Object> meta) {
+        return new ToolSchema(name, description, schema, readOnly(), meta, false);
     }
 
-    // ----- Tool annotations + the master tool builder. -----
+    // ----- Tool annotations. -----
 
     /** Read-only annotation. Per MCP spec these are hints, not guarantees, but
      *  let clients render confirmations only on destructive tools. */
@@ -103,26 +101,5 @@ public final class Schemas {
     /** Destructive (state-mutating) tool annotation. */
     public static Map<String, Object> destructive() {
         return Map.of("readOnlyHint", false, "destructiveHint", true, "idempotentHint", false);
-    }
-
-    /**
-     * Master tool builder. {@code annotations} maps to MCP's
-     * {@code Tool.annotations} (readOnlyHint / destructiveHint / idempotentHint /
-     * openWorldHint), {@code meta} maps to {@code _meta}. Keys are namespaced by
-     * reverse-DNS prefix per the MCP spec; clients ignore prefixes they don't
-     * recognize, so the Anthropic-specific {@code anthropic/maxResultSizeChars}
-     * on screenshot stays platform-agnostic.
-     */
-    public static Map<String, Object> toolFull(String name, String description,
-                                                Map<String, Object> schema,
-                                                Map<String, Object> annotations,
-                                                Map<String, Object> meta) {
-        LinkedHashMap<String, Object> m = new LinkedHashMap<>();
-        m.put("name", name);
-        m.put("description", description);
-        m.put("inputSchema", schema);
-        if (annotations != null) m.put("annotations", annotations);
-        if (meta != null) m.put("_meta", meta);
-        return m;
     }
 }

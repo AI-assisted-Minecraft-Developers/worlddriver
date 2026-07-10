@@ -1,7 +1,8 @@
 package net.magicterra.agent.mcp.catalog;
 
 import java.util.List;
-import java.util.Map;
+
+import net.magicterra.agent.mcp.schema.ToolSchema;
 
 import static net.magicterra.agent.mcp.schema.Schemas.*;
 
@@ -19,7 +20,7 @@ import static net.magicterra.agent.mcp.schema.Schemas.*;
 public final class BotTools {
     private BotTools() {}
 
-    public static List<Map<String, Object>> tools() {
+    public static List<ToolSchema> tools() {
         return List.of(
             wrTool("mc.bot.goto",
                 "Pathfind and walk the local player to a goal. Async (see category note); pass " +
