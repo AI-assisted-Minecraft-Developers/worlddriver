@@ -784,6 +784,11 @@ public final class BotApiImpl implements BotApi {
     }
 
     @Override
+    public Map<String, Object> useItemOnEntity(Map<String, Object> params) {
+        return InteractionCommands.useItemOnEntity(params);
+    }
+
+    @Override
     public Map<String, Object> setting(Map<String, Object> params) {
         return SettingsCommand.apply(this, params);
     }

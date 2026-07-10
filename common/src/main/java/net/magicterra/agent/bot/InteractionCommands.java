@@ -11,6 +11,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.Map;
@@ -118,6 +119,66 @@ final class InteractionCommands {
                 "alive", target.isAlive(),
                 "distance", Math.sqrt(p.distanceToSqr(target))
             );
+        });
+    }
+
+    static Map<String, Object> useItemOnEntity(Map<String, Object> params) {
+        if (params == null) return Map.of("ok", false, "error", "missing entityId");
+        Params q = Params.of(params);
+        Object idObj = q.get("entityId");
+        if (!(idObj instanceof Number)) return Map.of("ok", false, "error", "entityId required (integer)");
+        final int entityId = ((Number) idObj).intValue();
+        InteractionHand hand = parseHand(q.get("hand"));
+        boolean wantLookAt = q.getBool("lookAt", true);
+        boolean sneak = q.getBool("sneak", false);
+        return onClient(() -> {
+            Minecraft mc = Minecraft.getInstance();
+            LocalPlayer p = mc.player;
+            if (p == null || mc.gameMode == null || mc.level == null) {
+                return Map.of("ok", false, "error", "no player");
+            }
+            Entity target = mc.level.getEntity(entityId);
+            if (target == null) {
+                return Map.of("ok", false, "error", "no entity with id " + entityId);
+            }
+            if (target == p) return Map.of("ok", false, "error", "cannot interact with self");
+            if (wantLookAt) {
+                Vec3 ep = target.position();
+                double dx = ep.x - p.getX();
+                double dz = ep.z - p.getZ();
+                float yaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0);
+                float pitch = (float) -Math.toDegrees(Math.atan2(
+                        (ep.y + target.getBbHeight() * 0.5) - p.getEyeY(),
+                        Math.sqrt(dx * dx + dz * dz)));
+                p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw; p.setXRot(pitch);
+            }
+            // The interact packets snapshot isShiftKeyDown — sneak-gated
+            // interactions (open tamed horse inventory, armor-stand pickup)
+            // need it held for exactly this call.
+            p.setShiftKeyDown(sneak);
+            try {
+                // Vanilla Minecraft.startUseItem ENTITY branch: interactAt
+                // first, fall through to interact when not consumed.
+                EntityHitResult hit = new EntityHitResult(target);
+                InteractionResult result = mc.gameMode.interactAt(p, target, hit, hand);
+                if (!result.consumesAction()) result = mc.gameMode.interact(p, target, hand);
+                if (result.consumesAction()) p.swing(hand);
+                Entity vehicle = p.getVehicle();
+                return Map.of(
+                    "ok", true,
+                    "entityId", entityId,
+                    "type", BuiltInRegistries.ENTITY_TYPE.getKey(target.getType()).toString(),
+                    "hand", hand == InteractionHand.MAIN_HAND ? "main" : "off",
+                    "result", result.name(),
+                    "consumed", result.consumesAction(),
+                    "distance", Math.sqrt(p.distanceToSqr(target)),
+                    "riding", vehicle == null ? "none"
+                            : BuiltInRegistries.ENTITY_TYPE.getKey(vehicle.getType()).toString(),
+                    "screen", mc.screen == null ? "none" : mc.screen.getClass().getSimpleName()
+                );
+            } finally {
+                p.setShiftKeyDown(false);
+            }
         });
     }
 

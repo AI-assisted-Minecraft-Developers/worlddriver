@@ -76,4 +76,18 @@ if (!clientAvailable()) {
         t.assertTrue(allowed.indexOf(res.face) >= 0,
             "auto-picked face must be a cardinal direction, got '" + res.face + "'");
     });
+
+    AgentTest.run("12_use_item: entity-mode rejects non-integer entityId", function(t) {
+        var r = Agent.invoke("mc.bot.useItem", { entityId: "abc" });
+        t.assertEqual(r.ok, false, "non-integer entityId must be ok:false");
+        t.assertTrue(typeof r.error === "string" && r.error.indexOf("integer") >= 0,
+            "error must mention integer (got " + JSON.stringify(r) + ")");
+    });
+
+    AgentTest.run("12_use_item: entity-mode rejects nonexistent entity id", function(t) {
+        // 2^30 is well past any real entity id in a fresh world
+        var r = Agent.invoke("mc.bot.useItem", { entityId: 1073741824 });
+        t.assertEqual(r.ok, false, "nonexistent entity must be ok:false");
+        t.assertTrue(typeof r.error === "string", "must include error string");
+    });
 }

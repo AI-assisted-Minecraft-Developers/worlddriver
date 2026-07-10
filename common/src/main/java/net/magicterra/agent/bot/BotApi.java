@@ -53,6 +53,8 @@ public interface BotApi {
      * Synchronous, instant; no process slot.
      */
     Map<String, Object> useItemOn(Map<String, Object> params);
+    /** Right-click an entity (mount / trade / shear / milk / feed / leash). */
+    Map<String, Object> useItemOnEntity(Map<String, Object> params);
     /**
      * Attack an entity by entity id — the same path as left-clicking a mob
      * in-game. Routes through {@code MultiPlayerGameMode.attack(player, target)}

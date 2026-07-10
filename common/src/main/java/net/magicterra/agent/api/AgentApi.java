@@ -325,12 +325,15 @@ public final class AgentApi {
         routes.put("mc.bot.explore",   p -> awaitable(p, "explore", requireBot()::explore));
         routes.put("mc.bot.runAway",   p -> awaitable(p, "runAway", requireBot()::runAway));
         routes.put("mc.bot.lookAt",    p -> requireBot().lookAt(p));
-        // mc.bot.useItem dispatches based on params: pass `pos` to use the held
-        // item ON a block face (place / bone-meal / shears / etc.); omit pos to
-        // use the item in mid-air (eat / draw bow / throw snowball).
-        routes.put("mc.bot.useItem",     p -> (p != null && p.get("pos") != null)
-                ? requireBot().useItemOn(p)
-                : requireBot().useItem(p));
+        // mc.bot.useItem dispatches based on params: pass `entityId` to right-click
+        // an entity (mount / trade / shear / milk / feed / leash); pass `pos` to use
+        // the held item ON a block face (place / bone-meal / shears / etc.); omit both
+        // to use the item in mid-air (eat / draw bow / throw snowball).
+        routes.put("mc.bot.useItem",     p -> {
+            if (p != null && p.get("entityId") != null) return requireBot().useItemOnEntity(p);
+            if (p != null && p.get("pos") != null) return requireBot().useItemOn(p);
+            return requireBot().useItem(p);
+        });
         routes.put("mc.bot.attackEntity",p -> requireBot().attackEntity(p));
         // pause/resume are reachable through mc.bot.setting{paused:bool} —
         // same vol-toggle handler in BotApiImpl.setting absorbs both.
