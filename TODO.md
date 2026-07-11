@@ -278,3 +278,4 @@ waterFarAimBankCornerArena=水域隔墙绕行 smoke test(不确定性复现 spin
 - [ ] goto/mine 等进程完成**无主动 push 事件**(process.done),现靠 wait.condition 120s 轮询兜底,超时窗口内 agent 盲等。
 - [ ] 环境:Xvfb :99 被其他项目的 NeoForge 客户端抢前台,推流跟着切画面——已用 xdotool windowraise 夺回;共享显示器多客户端需约定或分显示器。
 - [ ] 🔴 **duskSecure/bunker 封顶不验侧向围合**:死亡#2=坡面掩体只封头顶,侧面开口僵尸走进来贴脸打死(14→0 位置不动)。挖三填一后应验证 body 层 4 侧+顶全 solid(cornered 检测有现成 HazardField),缺口用挖出的块补;另 autoRetreat 在密闭 1×1 坑里无处可逃=触发也无效,围合验证是唯一解。
+- [ ] 🔴 **bunker/duskSecure 反射失控深挖**:bunkerDepth=2 配置下直挖 13 格竖井(spawn 复活当夜);疑似封顶步骤失败(空手挖石无掉落→没块可封)就不终止;且 `mc.bot.cancel bunker` 后条件仍真→立即重臂继续挖,只有 paused 总闸能停。修法=depth 达标即终止(封顶 best-effort)+ cancel 应带冷却/抑制位;直挖竖井还有掉洞/岩浆风险(该反射本意是 2 格应急坑)。
