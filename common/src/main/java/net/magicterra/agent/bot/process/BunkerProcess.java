@@ -66,6 +66,20 @@ public final class BunkerProcess implements BotProcess {
         return lvl != null && lvl.getBlockState(pos).getBlock() instanceof FallingBlock;
     }
 
+    /** The niche must be carved INTO a solid mass, not through a thin wall: its far
+     *  wall and both perpendicular side walls (at foot AND head height) must all be
+     *  solid, or the "sealed pocket" has a lateral opening onto a slope/cave that a
+     *  mob simply walks through (survival-run death#2: shelter on a hillside, niche
+     *  punched through to the open slope, zombie walked in and beat the bot to death
+     *  inside its own bunker). When no direction qualifies the existing deepen-and-
+     *  retry path runs — a few blocks further down every niche is fully buried. */
+    private static boolean nicheEmbedded(WorldView w, BlockPos n0, BlockPos n1, Direction d) {
+        if (!w.isSolid(n0.relative(d)) || !w.isSolid(n1.relative(d))) return false;   // far wall
+        Direction cw = d.getClockWise(), ccw = d.getCounterClockWise();
+        return w.isSolid(n0.relative(cw)) && w.isSolid(n1.relative(cw))
+            && w.isSolid(n0.relative(ccw)) && w.isSolid(n1.relative(ccw));
+    }
+
     private static void dbg(String msg, Object... a) {
         if (BotConfig.walkerDebug) LOG.info("[bunker] " + msg, a);
     }
@@ -173,7 +187,7 @@ public final class BunkerProcess implements BotProcess {
                 if (w.isSolid(n0) && w.isSolid(n1) && w.isSolid(n0.below())
                         && w.isSolid(roof) && !isFalling(p.level(), roof)
                         && !w.isWater(n0) && !w.isWater(n1) && !w.isHazard(n0) && !w.isHazard(n1)
-                        && !w.isWater(n0.relative(d))) {     // not opening straight into water
+                        && nicheEmbedded(w, n0, n1, d)) {
                     nicheDir = d; break;
                 }
             }

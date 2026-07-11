@@ -38,6 +38,7 @@ public final class BunkerChain implements Chain {
 
     private static final int NONE = Integer.MIN_VALUE;
     private int startY = NONE;       // surface Y where this bunker episode began
+    private int startX, startZ;      // shaft column — episode is invalid off it
     private boolean sealed = false;  // roof placed (or given up on) → safe, holding
     private int lastDepth = 0;
     private int digTicks = 0;        // per-block mining watchdog
@@ -66,7 +67,25 @@ public final class BunkerChain implements Chain {
         LocalPlayer p = mc.player;
         if (p == null) return;
         BlockPos foot = p.blockPosition();
-        if (startY == NONE) { startY = foot.getY(); sealed = false; lastDepth = 0; digTicks = 0; }
+        // Stale-episode guard (survival-run death#2 aftermath): the episode state
+        // used to survive PLAYER DEATH — the bot died mid-dig at HP≤10, respawned
+        // at full HP 70 blocks away, and `depth = startY - foot.getY()` went NEGATIVE
+        // against the old startY, so the chain dug a 13-deep runaway shaft at spawn
+        // (bunkerDepth=2) and, because startY != NONE keeps priority() bidding,
+        // mc.bot.cancel couldn't stop it. An episode is only valid on the shaft
+        // column it started: any XZ change or rising ABOVE the start Y means death,
+        // teleport, or knockback broke it — reset and let priority() re-evaluate
+        // the cornered gate from scratch.
+        if (startY != NONE
+                && (foot.getX() != startX || foot.getZ() != startZ || foot.getY() > startY)) {
+            mc.options.keyAttack.setDown(false);
+            releaseKeys();
+            reset();
+        }
+        if (startY == NONE) {
+            startY = foot.getY(); startX = foot.getX(); startZ = foot.getZ();
+            sealed = false; lastDepth = 0; digTicks = 0;
+        }
 
         if (sealed) { releaseKeys(); return; }        // safe pocket — sit tight
 

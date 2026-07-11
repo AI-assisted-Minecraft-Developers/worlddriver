@@ -40,6 +40,7 @@ import net.magicterra.agent.bot.world.LevelWorldView;
 import net.magicterra.agent.bot.pathfinder.moves.Fall;
 import net.magicterra.agent.bot.pathfinder.moves.FallIntoWater;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.item.ItemStack;
@@ -930,6 +931,80 @@ public final class AgentGameTestServer {
             if (sealed < shaftCells)
                 throw new GameTestAssertException("server BunkerProcess left the shaft open: sealed="
                         + sealed + "/" + shaftCells);
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Bunker enclosure regression (survival-run death#2): the shelter niche must be
+     * carved INTO a solid mass, never through a thin wall onto an open face — the old
+     * direction predicate only checked the two niche cells + roof + floor, so on a
+     * hillside it happily punched the niche through a 1-thick wall and a zombie walked
+     * in through the lateral opening and killed the bot inside its "sealed" bunker.
+     * Arena: same dirt slab as serverBunkerArena but with an open cliff face carved at
+     * dz=-2 (NORTH — the FIRST direction the picker tries), so the naive pick creates a
+     * pocket open to the air. Asserts the final pocket is fully enclosed: every lateral
+     * neighbour of the bot's foot+head cells is solid, and the shaft is plugged.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverBunkerSlopeArena(GameTestHelper helper) {
+        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverBunkerSlopeArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int cx = 592, cz = 592, floorY = 220;
+        for (int dx = -4; dx <= 4; dx++)
+            for (int dz = -4; dz <= 4; dz++)
+                for (int dy = -4; dy <= 1; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.DIRT.defaultBlockState());
+        // Standing slot at the centre.
+        level.setBlockAndUpdate(new BlockPos(cx, floorY + 1, cz), Blocks.AIR.defaultBlockState());
+        level.setBlockAndUpdate(new BlockPos(cx, floorY + 2, cz), Blocks.AIR.defaultBlockState());
+        // Open cliff face: everything at dz <= -2 is AIR — a NORTH niche at any depth
+        // this arena reaches would open onto it through a 1-thick wall.
+        for (int dx = -4; dx <= 4; dx++)
+            for (int dz = -4; dz <= -2; dz++)
+                for (int dy = -4; dy <= 1; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            driver.fakePlayer().getInventory().clearContent();
+            driver.fakePlayer().getInventory().add(new ItemStack(Items.DIRT, 64));
+            driver.runProcess(new net.magicterra.agent.bot.process.BunkerProcess(2));
+            ServerAgentManager.register(driver);
+            for (int t = 0; t < 1200 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            FakePlayer fp = driver.fakePlayer();
+            BlockPos foot = fp.blockPosition();
+            BlockPos head = foot.above();
+            int openLateral = 0;
+            StringBuilder open = new StringBuilder();
+            for (Direction d : new Direction[]{Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST}) {
+                for (BlockPos cell : new BlockPos[]{foot.relative(d), head.relative(d)}) {
+                    if (level.getBlockState(cell).isAir()) { openLateral++; open.append(cell).append(' '); }
+                }
+            }
+            boolean roofOpen = level.getBlockState(head.above()).isAir();
+            AgentDriverCommon.LOG.info("[serverBunkerSlopeArena] pos={} openLateral={} roofOpen={} open=[{}]",
+                    foot, openLateral, roofOpen, open);
+            if (openLateral > 0 || roofOpen)
+                throw new GameTestAssertException("bunker pocket not enclosed: openLateral="
+                        + openLateral + " roofOpen=" + roofOpen + " cells=" + open);
         } finally {
             BotConfig.allowBreak = ob;
             BotConfig.allowPlace = op;

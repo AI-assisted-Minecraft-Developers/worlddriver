@@ -4839,7 +4839,13 @@ public final class Walker {
         // instantly jump again), so an onGround precondition here starves the dig for the
         // whole 393-tick stall — the wall is reachable mid-air; drop the ground gate and
         // key on the collision itself.
-        if (BotConfig.walkerWallDigFallback && !p.isInWater()
+        // Survival-run death#1 family: this fallback used to fire regardless of
+        // allowBreak — with breaking globally OFF the planner emits walk-only paths,
+        // and every wall-pin stall then silently punched through terrain anyway
+        // (bare-hand stone, 7.5s+/block: looked like "the bot chose to tunnel").
+        // An executor recovery must never exceed the world-mutation authority the
+        // planner was given.
+        if (BotConfig.walkerWallDigFallback && BotConfig.allowBreak && !p.isInWater()
                 && p.horizontalCollision
                 && (stuckTicks > 40
                     || (BotConfig.walkerPhysicalStallClock && physicalStallTicks > 60))
