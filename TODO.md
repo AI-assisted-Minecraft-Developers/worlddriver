@@ -267,3 +267,13 @@ waterFarAimBankCornerArena=水域隔墙绕行 smoke test(不确定性复现 spin
 - [ ] mine/goto 的 `radius` schema 收紧为 `integer(1,64)`(现为宽松 number;route 实际按 int 半径用)——单独 conformance 小扫。
 - [ ] 未来 conformance 清扫必须 grep `resources/scripts/**` 全部 `Agent.invoke(` 调用点(playbooks/prelude,不止 agent_validation 套件)——本轮终审在 dragon.js/wither.js 抓到错键静默瘫痪(空 catch 吞 IllegalArgumentException)。
 - [ ] 环境:AgentTest 世界 spawn (-301.5,94,291.5) 下方虚空柱,套件收尾 tp 必摔死 → 下轮脏状态假败;考虑 setworldspawn 挪点或补地。50_scene forceload 泄漏(终审 Minor)顺手看。
+
+## 生存跑 gap 清单 (2026-07-11, SurvivalTest 重启跑 day1-2 实测)
+
+- [ ] 🔴 **walkerWallDigFallback 无 allowBreak 门**(Walker.java:4842):只查 hCol+stall,不查 `BotConfig.allowBreak`——allowBreak=false 时执行器仍凿墙(live 实锤:自挖隧道内 goto,cancel+allowBreak:false 后 break 事件持续;规划器无辜,ClientWorldView.breakCost 正确+INF)。修法=加 `&& BotConfig.allowBreak`;同时设计"walk-only 卡墙 repath 同路"的可见失败路径(不然 gate 后变真死锁);arena:allowBreak=false+墙 pin→必须不破块。同族 bankDig/ceiling 都有门,唯 wallDig 漏。
+- [ ] plan.acquire/recipe.resolve **木种硬编码 oak**:背包有 acacia_log 仍规划 oak_log 路线,craft wooden_pickaxe 报"缺 8 个 oak_log"。tag 族配方(#planks/#logs)应按库存现货选 species。
+- [ ] craft 不把 **crafting_table 纳入子配方树**(3x3 配方缺台时报"需要工作台"而不是自动 craft 一个,台的材料明明够)。
+- [ ] planner **break 代价不按工具挖掘速度缩放**:空手挖石(7.5-37.5s/块)与镐挖同价(10×2.5),导致空手时选隧道路线而非绕路。breakCost 应乘 destroySpeed 比值。
+- [ ] mc.bot.setting 部分键**写入被静默忽略**(pathfinderBreakCostMultiplier=40/40.5 均无 applied 无 rejected,echo 仍 2.5)——反射 fallback 类型/字段名问题,且违背"unknown keys are ignored"文档口径(它不是 unknown)。
+- [ ] goto/mine 等进程完成**无主动 push 事件**(process.done),现靠 wait.condition 120s 轮询兜底,超时窗口内 agent 盲等。
+- [ ] 环境:Xvfb :99 被其他项目的 NeoForge 客户端抢前台,推流跟着切画面——已用 xdotool windowraise 夺回;共享显示器多客户端需约定或分显示器。
