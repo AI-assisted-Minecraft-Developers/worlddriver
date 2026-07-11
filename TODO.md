@@ -277,3 +277,4 @@ waterFarAimBankCornerArena=水域隔墙绕行 smoke test(不确定性复现 spin
 - [ ] mc.bot.setting 部分键**写入被静默忽略**(pathfinderBreakCostMultiplier=40/40.5 均无 applied 无 rejected,echo 仍 2.5)——反射 fallback 类型/字段名问题,且违背"unknown keys are ignored"文档口径(它不是 unknown)。
 - [ ] goto/mine 等进程完成**无主动 push 事件**(process.done),现靠 wait.condition 120s 轮询兜底,超时窗口内 agent 盲等。
 - [ ] 环境:Xvfb :99 被其他项目的 NeoForge 客户端抢前台,推流跟着切画面——已用 xdotool windowraise 夺回;共享显示器多客户端需约定或分显示器。
+- [ ] 🔴 **duskSecure/bunker 封顶不验侧向围合**:死亡#2=坡面掩体只封头顶,侧面开口僵尸走进来贴脸打死(14→0 位置不动)。挖三填一后应验证 body 层 4 侧+顶全 solid(cornered 检测有现成 HazardField),缺口用挖出的块补;另 autoRetreat 在密闭 1×1 坑里无处可逃=触发也无效,围合验证是唯一解。
