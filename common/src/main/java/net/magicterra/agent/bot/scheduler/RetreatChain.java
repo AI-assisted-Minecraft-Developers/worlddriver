@@ -44,11 +44,25 @@ public final class RetreatChain implements Chain {
      *  ACTIVE bow fire from 13+ "not in danger" — the reflex never bid while HP went
      *  20→0 (live death #6, gap#65). */
     private static final double RANGED_RADIUS = 18.0;
+    /** Guard B (gap#71, near-death #19): a connected hit is the strongest signal
+     *  there is, but the scan's {@code attackedMe} rides vanilla's ~40t last-damager
+     *  window — shorter than a skeleton's 2-3s (40-60t) shot cadence. A bot that broke
+     *  contact for 2s mid-cadence saw {@code attackedMe} lapse and released, sprinted
+     *  16, and took the NEXT arrow. Once latched, release additionally requires this
+     *  many ticks since the last CONNECTED hit — wider than the shot interval so the
+     *  gap between volleys can no longer look "safe". */
+    private static final long HURT_RELEASE_COOLDOWN_TICKS = 60;
 
     private final BotState state;
     private RunAwayProcess process;
     /** Latched true while a flee is committed — see {@link #RELEASE_HP_MARGIN}. */
     private boolean retreating;
+    /** gap#71: game-time of the last tick a scanned threat's hit connected
+     *  ({@code attackedMe}), tracked independently of the scan's own decaying flag so
+     *  release can enforce {@link #HURT_RELEASE_COOLDOWN_TICKS} even after
+     *  {@code attackedMe} itself has lapsed. {@code Long.MIN_VALUE} = never hurt (or
+     *  reset since the last flee ended). */
+    private long lastHurtGameTime = Long.MIN_VALUE;
 
     public RetreatChain(BotState state) {
         this.state = state;
@@ -61,6 +75,8 @@ public final class RetreatChain implements Chain {
         float hp = mc.player.getHealth();
         float thr = BotConfig.retreatHpThreshold;
         ThreatScanner.Scan scan = ClientThreatScanner.current(mc);
+        long now = mc.player.level().getGameTime();
+        if (hurtByAnyone(scan)) lastHurtGameTime = now;   // gap#71: track past attackedMe's own decay
         if (!retreating) {
             // st.combat.active mirrors CombatChain.engaged(), refreshed every tick by
             // CombatChain.priority() (called for every registered chain, not just the
@@ -71,7 +87,8 @@ public final class RetreatChain implements Chain {
             if (!shouldEnter(hp, thr, mc.player.getMaxHealth(), scan, combatEngaged)) return idle();
             retreating = true;                       // latch the flee
         } else {
-            if (shouldRelease(hp, thr, scan)) return idle();
+            long ticksSinceHurt = (lastHurtGameTime == Long.MIN_VALUE) ? Long.MAX_VALUE : (now - lastHurtGameTime);
+            if (shouldRelease(hp, thr, scan, ticksSinceHurt)) return idle();
         }
         // Ramp: the lower the HP below the threshold, the harder we flee.
         return Priorities.SURVIVAL + (thr - Math.min(hp, thr));
@@ -152,15 +169,42 @@ public final class RetreatChain implements Chain {
      *  ranged attacker whose arrows are still connecting (attackedMe holds
      *  ~2s past the last hit, so this decays on its own once we break LoS). */
     public static boolean shouldRelease(float hp, float thr, ThreatScanner.Scan scan) {
+        return shouldRelease(hp, thr, scan, Long.MAX_VALUE);
+    }
+
+    /** 4-arg gate (gap#71, near-death #19): adds two guards ANDed onto BOTH release
+     *  branches, on top of the gap#65/#68 signals below:
+     *  <ul>
+     *  <li>{@code visibleRangedThreatWithin} — a {@link RangedAttackMob} that is
+     *  CURRENTLY VISIBLE within {@link #RANGED_RADIUS}, independent of {@code
+     *  charging}/{@code attackedMe}. hostileWithin's engagedRanged widening only
+     *  fires on charging||attackedMe, and a pursuing skeleton goes both-false between
+     *  shots (mid-strafe, vanilla's attackedMe window shorter than the 2-3s shot
+     *  cadence) — so the gap between volleys read as "safe" and released the bot
+     *  straight back under fire (live: HP 20→3.2 across 4 hits).</li>
+     *  <li>{@code ticksSinceHurt < HURT_RELEASE_COOLDOWN_TICKS} — a connected hit
+     *  blocks release for a fixed cooldown wider than the shot interval, computed by
+     *  the caller from its own tracked timestamp (not the scan's decaying flag) so
+     *  the guard survives past {@code attackedMe}'s own ~40t window.</li>
+     *  </ul>
+     *  @param ticksSinceHurt ticks since a threat's hit last connected ({@code
+     *                        attackedMe}); {@code Long.MAX_VALUE} if never (or long
+     *                        enough ago not to matter) — see the 3-arg back-compat
+     *                        overload above. */
+    public static boolean shouldRelease(float hp, float thr, ThreatScanner.Scan scan, long ticksSinceHurt) {
         boolean recovered = hp >= thr + RELEASE_HP_MARGIN;
+        boolean visibleRanged = visibleRangedThreatWithin(scan, RANGED_RADIUS);
+        boolean recentHurt = ticksSinceHurt < HURT_RELEASE_COOLDOWN_TICKS;
         // gap#68-①: hurtByAnyone blocks release SYMMETRICALLY with the enter gate, the
         // same way gap#65's underRangedFire guards both sides. Without it, a melee
         // attacker whose hit connected (attackedMe, ~2s window) in the 12–24 band —
         // outside hostileWithin's melee radius but inside hurt-entry's — releases via
         // the safe branch this tick and re-enters via hurtByAnyone the next: a per-tick
         // enter/release flap. Like attackedMe itself, this decays once we break contact.
-        boolean safe = !hostileWithin(scan) && !underRangedFire(scan) && !hurtByAnyone(scan);
-        return safe || (recovered && !rangedThreatAiming(scan) && !underRangedFire(scan) && !hurtByAnyone(scan));
+        boolean safe = !hostileWithin(scan) && !underRangedFire(scan) && !hurtByAnyone(scan)
+                && !visibleRanged && !recentHurt;
+        return safe || (recovered && !rangedThreatAiming(scan) && !underRangedFire(scan) && !hurtByAnyone(scan)
+                && !visibleRanged && !recentHurt);
     }
 
     /** Sit out the bid (return 0) AND clean up: drop the flee latch and clear the
@@ -174,6 +218,7 @@ public final class RetreatChain implements Chain {
      *  down (autoRetreat off / recovered / threat cleared) reaches here. */
     private float idle() {
         retreating = false;
+        lastHurtGameTime = Long.MIN_VALUE;   // gap#71: fresh cooldown bookkeeping next flee
         if (state.retreat.active) state.retreat.reset();
         return 0f;
     }
@@ -213,6 +258,18 @@ public final class RetreatChain implements Chain {
     private static boolean underRangedFire(ThreatScanner.Scan scan) {
         for (ThreatScanner.Threat t : scan.threats()) {
             if (t.attackedMe() && t.entity() instanceof RangedAttackMob) return true;
+        }
+        return false;
+    }
+
+    /** A {@link RangedAttackMob} within {@code radius} that the bot can currently
+     *  SEE — gap#71's release guard, deliberately independent of {@code charging}
+     *  (facing) and {@code attackedMe} (recent hit): a pursuing skeleton between
+     *  shots is neither aiming nor freshly connected, but it is still right there at
+     *  bow range, and releasing into that is exactly the near-death-#19 mechanism. */
+    private static boolean visibleRangedThreatWithin(ThreatScanner.Scan scan, double radius) {
+        for (ThreatScanner.Threat t : scan.threats()) {
+            if (t.entity() instanceof RangedAttackMob && t.canSeeMe() && t.distance() <= radius) return true;
         }
         return false;
     }
@@ -282,6 +339,7 @@ public final class RetreatChain implements Chain {
      *  and fully stops the reflex from re-arming. */
     @Override public void cancelEpisode(String reason) {
         retreating = false;
+        lastHurtGameTime = Long.MIN_VALUE;   // gap#71: fresh cooldown bookkeeping next flee
         process = null;
         if (state.retreat.active) { state.retreat.lastError = reason; state.retreat.reset(); }
         releaseKeys();

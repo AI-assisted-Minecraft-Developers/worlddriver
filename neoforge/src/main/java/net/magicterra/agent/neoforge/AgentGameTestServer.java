@@ -3298,6 +3298,11 @@ public final class AgentGameTestServer {
      * ({@code attackedMe}, gap#55's attribution) must latch the flee regardless of
      * LoS or the HP threshold. The gates are static and scan-fed precisely so this
      * matrix runs server-side without a client.
+     *
+     * <p>gap#71 (near-death #19, appended below): release fired in the GAP between a
+     * pursuing skeleton's shots (charging/attackedMe both false mid-cadence) even
+     * though the skeleton stayed visible at bow range the whole time — cases (j)-(o)
+     * cover the added visible-ranged-threat guard and the 60t hurt-cooldown latch.
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void retreatGateMatrixArena(GameTestHelper helper) {
@@ -3411,6 +3416,58 @@ public final class AgentGameTestServer {
             // not-engaged scenario the 4-arg back-compat overload models, = case (g)).
             if (!RetreatChain.shouldEnter(18f, 6f, 20f, meleeHit.apply(2.0), /*combatEngaged*/ false))
                 throw new GameTestAssertException("finding#2: not-engaged + healthy + melee hit must enter (leg ① / case (g) preserved)");
+
+            // gap#71 (near-death #19): a pursuing skeleton (bow 15+, 2-3s shot cadence)
+            // circled a naked bot 20->3.2 across 4 hits — release fired on EVERY gap
+            // between shots because hostileWithin's engagedRanged only widens on
+            // charging||attackedMe, and both go false between volleys (mid-strafe,
+            // vanilla's attackedMe window lapses faster than the shot interval). The
+            // fix is two guards ANDed into shouldRelease: (A) a currently-VISIBLE
+            // RangedAttackMob within 18, regardless of charging/attackedMe; (B) a
+            // release-side cooldown of 60t since the last connected hit, wider than
+            // the shot interval. visibleSkel/visibleZombie isolate each guard from
+            // the pre-existing charging/attackedMe-gated signals.
+            java.util.function.BiFunction<Double, Boolean, net.magicterra.agent.bot.combat.ThreatScanner.Scan> visibleSkel =
+                    (dist, canSee) -> new net.magicterra.agent.bot.combat.ThreatScanner.Scan(
+                            java.util.List.of(new net.magicterra.agent.bot.combat.ThreatScanner.Threat(
+                                    skeleton, skeleton.getId(), "minecraft:skeleton", dist,
+                                    /*canSeeMe*/ canSee, /*facingMe*/ false, /*charging*/ false,
+                                    0.8, 0f, /*attackedMe*/ false)),
+                            java.util.List.of());
+            java.util.function.Function<Double, net.magicterra.agent.bot.combat.ThreatScanner.Scan> visibleZombie =
+                    dist -> new net.magicterra.agent.bot.combat.ThreatScanner.Scan(
+                            java.util.List.of(new net.magicterra.agent.bot.combat.ThreatScanner.Threat(
+                                    zombie, zombie.getId(), "minecraft:zombie", dist,
+                                    /*canSeeMe*/ true, /*facingMe*/ false, /*charging*/ false,
+                                    0.6, 0f, /*attackedMe*/ false)),
+                            java.util.List.of());
+
+            // (j) THE near-death-#19 case: recovered HP, a VISIBLE skeleton at 15 that
+            // is neither charging nor freshly attackedMe — old gate reads this as
+            // "safe" (engagedRanged never widens) and releases straight back under
+            // the next volley. Must NOT release.
+            if (RetreatChain.shouldRelease(20f, 10f, visibleSkel.apply(15.0, true)))
+                throw new GameTestAssertException("gap#71(j): recovered + VISIBLE ranged threat at 15 (not charging/hit) must NOT release");
+            // (k) same skeleton/distance but LoS is broken (stepped behind cover) +
+            // long since the last hit -> the visible-ranged guard clears -> release.
+            if (!RetreatChain.shouldRelease(20f, 10f, visibleSkel.apply(15.0, false), 100L))
+                throw new GameTestAssertException("gap#71(k): same skeleton, canSeeMe=false (behind cover) + 100t since hurt must release");
+            // (l) a MELEE hostile (not RangedAttackMob) at the same 15 -> unaffected by
+            // the new visible-ranged guard; hostileWithin's original 12-radius still
+            // governs and this releases exactly as before gap#71.
+            if (!RetreatChain.shouldRelease(20f, 10f, visibleZombie.apply(15.0), 100L))
+                throw new GameTestAssertException("gap#71(l): melee (non-Ranged) hostile at 15 must NOT be gated by the new visible-ranged guard");
+            // (m) Guard B: hurt 30t ago (<60t cooldown) with NO threats visible at all
+            // -> must still NOT release. Isolates the hurt-cooldown latch from every
+            // scan-based signal (this is the "circled in the gap between shots" case).
+            if (RetreatChain.shouldRelease(20f, 10f, empty, 30L))
+                throw new GameTestAssertException("gap#71(m): 30t since last hurt (<60t cooldown) with empty scan must NOT release");
+            // (n) boundary: exactly 60t since last hurt, no threats -> release.
+            if (!RetreatChain.shouldRelease(20f, 10f, empty, 60L))
+                throw new GameTestAssertException("gap#71(n): exactly 60t since last hurt must release (cooldown boundary)");
+            // (o) boundary: 59t -> one tick inside the cooldown, still blocked.
+            if (RetreatChain.shouldRelease(20f, 10f, empty, 59L))
+                throw new GameTestAssertException("gap#71(o): 59t since last hurt must NOT release (one tick inside cooldown)");
         } finally {
             skeleton.discard();
             zombie.discard();
