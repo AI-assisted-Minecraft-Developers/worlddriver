@@ -427,6 +427,8 @@ public final class BotApiImpl implements BotApi {
         if (mode == CombatProcess.Mode.KILL && id == null && type == null) {
             return Map.of("ok", false, "error", "kill mode requires target:{id|type}");
         }
+        // gap#68-②: force:true overrides the frail-HP entry gate for this explicit order.
+        final boolean force = p.get("force") instanceof Boolean b && b;
         final CombatProcess.Mode fMode = mode;
         final Integer fId = id;
         final String fType = type;
@@ -435,7 +437,7 @@ public final class BotApiImpl implements BotApi {
                 state.combat.lastError = "no player";
                 return Map.of("ok", false, "error", "no player");
             }
-            combatChain.engage(fMode, fId, fType);
+            combatChain.engage(fMode, fId, fType, force);
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("ok", true);
             out.put("started", true);

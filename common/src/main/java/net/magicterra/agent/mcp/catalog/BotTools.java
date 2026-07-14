@@ -790,15 +790,20 @@ public final class BotTools {
                 "kiteDistance and fires at full draw. mode='engage' clears every hostile in range, " +
                 "'defend' only retaliates against mobs actively eyeing the bot, 'kill' targets a specific " +
                 "mob via target:{id} or target:{type}. Self-terminates when the target dies / area is clear. " +
-                "Returns {ok, started, mode, targetId?, targetType?}. Watch mc.bot.status.combat for " +
-                "{active, swings, wellTimed, crits, kills, lastError?}. (Set mc.bot.setting{autoFight:true} to " +
-                "auto-engage without calling this each time.)",
+                "gap#68-②: refuses to enter when HP <= combatFrailThreshold (default 6) — check " +
+                "mc.bot.status.combat.lastError for 'frail-abort'; pass force:true to fight anyway (an " +
+                "already-running fight that turns frail is only auto-disengaged for autoFight, never for " +
+                "this explicit order). Returns {ok, started, mode, targetId?, targetType?}. Watch " +
+                "mc.bot.status.combat for {active, swings, wellTimed, crits, kills, lastError?}. (Set " +
+                "mc.bot.setting{autoFight:true} to auto-engage without calling this each time.)",
                 object()
                     .prop("mode", stringEnum("engage", "defend", "kill")
                         .desc("engage = clear all; defend = retaliate only; kill = one target. Default engage."))
                     .prop("target", any()
                         .desc("For kill mode: {id:<entityId>} or {type:'minecraft:zombie'}; a bare "
                             + "number is taken as the entity id, a bare string as the type."))
+                    .prop("force", bool()
+                        .desc("gap#68-②: override the frail-HP entry gate (fight anyway at low HP). Default false."))
                     .prop("awaitMs", awaitMs())
                 ),
 

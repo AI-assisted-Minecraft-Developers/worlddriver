@@ -36,6 +36,9 @@ public final class CombatChain implements Chain {
     private volatile CombatProcess.Mode intentMode;
     private volatile Integer intentId;
     private volatile String intentType;
+    /** gap#68-②: {@code force:true} on the mc.bot.combat verb overrides the frail-HP
+     *  entry gate for THIS intent only (the agent has explicitly accepted the risk). */
+    private volatile boolean intentForce;
 
     private CombatProcess process;
 
@@ -60,12 +63,22 @@ public final class CombatChain implements Chain {
 
     @Override public String name() { return "combat"; }
 
-    /** Set an explicit combat intent (from the {@code mc.bot.combat} verb). Resets
-     *  the per-engagement telemetry and forces a fresh process next tick. */
+    /** Set an explicit combat intent (from the {@code mc.bot.combat} verb), with the
+     *  frail-HP gate at default (not forced). Delegates to the 4-arg overload. */
     public void engage(CombatProcess.Mode mode, Integer id, String type) {
+        engage(mode, id, type, false);
+    }
+
+    /** Set an explicit combat intent (from the {@code mc.bot.combat} verb). Resets
+     *  the per-engagement telemetry and forces a fresh process next tick.
+     *  @param force gap#68-②: when true, overrides the frail-HP entry gate in
+     *               {@link #bid} for this intent — the agent has explicitly accepted
+     *               the risk of fighting at low HP. */
+    public void engage(CombatProcess.Mode mode, Integer id, String type, boolean force) {
         this.intentMode = mode;
         this.intentId = id;
         this.intentType = type;
+        this.intentForce = force;
         this.process = null;
         resetCounters();
         state.combat.active = true;
@@ -81,6 +94,7 @@ public final class CombatChain implements Chain {
         this.intentMode = null;
         this.intentId = null;
         this.intentType = null;
+        this.intentForce = false;
         this.process = null;
         state.combat.active = false;
         releaseKeys();
@@ -105,10 +119,27 @@ public final class CombatChain implements Chain {
         return bid;
     }
 
+    /** gap#68-②: don't ENTER a fight on fragile HP. Pure & matrix-testable.
+     *  {@code force} (explicit-intent only) overrides the gate — the agent has
+     *  accepted the risk. */
+    public static boolean frailBlocked(float hp, float thr, boolean force) {
+        return !force && hp <= thr;
+    }
+
     private float bid(Minecraft mc) {
         if (mc.player == null) return 0f;
-        if (intentMode != null) return Priorities.COMBAT;
-        if (BotConfig.autoFight && autoSuppressTicks == 0) {
+        float hp = mc.player.getHealth();
+        if (intentMode != null) {
+            if (frailBlocked(hp, BotConfig.combatFrailThreshold, intentForce)) {
+                // Explicit kill order on fragile HP: refuse loudly instead of dying quietly.
+                state.combat.lastError = "frail-abort hp=" + hp;
+                standDown();
+                return 0f;
+            }
+            return Priorities.COMBAT;
+        }
+        if (BotConfig.autoFight && autoSuppressTicks == 0
+                && !frailBlocked(hp, BotConfig.combatFrailThreshold, false)) {
             ThreatScanner.Threat top = ClientThreatScanner.current(mc).top();
             if (top != null && top.score() >= BotConfig.autoFightThreatThreshold) return Priorities.COMBAT;
         }
@@ -116,6 +147,13 @@ public final class CombatChain implements Chain {
     }
 
     @Override public void tick(Minecraft mc, WorldView w, BotState st) {
+        if (mc.player != null && intentMode == null
+                && frailBlocked(mc.player.getHealth(), BotConfig.combatFrailThreshold, false)) {
+            // Auto-fight turned frail mid-swing: stand down; Retreat (>=100) naturally takes over.
+            standDown();
+            state.combat.lastError = "frail-disengage";
+            return;
+        }
         if (process == null) {
             if (intentMode != null) {
                 process = new CombatProcess(intentMode, intentId, intentType);

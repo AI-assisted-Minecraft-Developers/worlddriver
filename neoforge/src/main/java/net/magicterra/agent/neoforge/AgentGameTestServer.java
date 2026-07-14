@@ -3480,4 +3480,20 @@ public final class AgentGameTestServer {
         combatGraceMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); }, new BotState());
         helper.succeed();
     }
+
+    // gap#68-②: a bot at frail HP must not be walked into a fight — neither by
+    // autoFight bidding in, nor (absent force:true) by an explicit mc.bot.combat
+    // order. Pure static gate — no Minecraft instance needed.
+    static void frailBlockedMatrix(java.util.function.BiConsumer<Boolean, String> check) {
+        check.accept(CombatChain.frailBlocked(5f, 6f, false), "hp5<=thr6 without force must block");
+        check.accept(!CombatChain.frailBlocked(5f, 6f, true), "force overrides the frail gate");
+        check.accept(!CombatChain.frailBlocked(7f, 6f, false), "hp above threshold must not block");
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void frailBlockedMatrixArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("frailBlockedMatrixArena")) { helper.succeed(); return; } // gt-filter
+        frailBlockedMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
+        helper.succeed();
+    }
 }

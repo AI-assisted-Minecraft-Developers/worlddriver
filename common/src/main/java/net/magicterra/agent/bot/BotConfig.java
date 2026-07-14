@@ -919,6 +919,15 @@ public final class BotConfig {
      *  lethal intents (combat kept hunting / orphan digging executed post-respawn). */
     public static volatile int respawnGraceTicks = 60;
 
+    /** gap#68-②: HP at or below which
+     *  {@link net.magicterra.agent.bot.scheduler.CombatChain#frailBlocked} refuses to
+     *  ENTER a fight — autoFight simply won't bid, and an explicit {@code mc.bot.combat}
+     *  order is refused loudly (lastError) unless the caller passes {@code force:true}.
+     *  A live fight already in progress under auto-fight is also abandoned (mid-fight
+     *  disengage) if HP drops to/below this while fighting; an explicit intent never
+     *  abandons mid-fight (its gate is only at entry — the agent already knew the risk). */
+    public static volatile float combatFrailThreshold = 6f;
+
     /** Proactive idle-only dusk shelter (DuskSecureChain, priority IDLE_SECURE=40):
      *  when the bot is sky-exposed at dusk/night, idle (no user task running), and
      *  no threat is within 12 blocks, dig a "挖三填一" bunker (BunkerProcess) after a
