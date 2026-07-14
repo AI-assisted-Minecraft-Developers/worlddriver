@@ -174,6 +174,11 @@ public final class DuskSecureChain implements Chain {
 
     @Override public String episodePhase() { return process != null ? "SECURING" : null; }
 
+    /** gap#72-②: expose the held BunkerProcess's kind ("bunker") so a targeted
+     *  {@code mc.bot.cancel{process:"bunker"}} can reach it — by NAME it only ever
+     *  found the (unrelated, usually idle) BunkerChain. */
+    @Override public String heldProcessKind() { return process != null ? process.kind() : null; }
+
     @Override public void cancelEpisode(String reason) {
         cancelEpisodeState(reason);
         releaseKeys();

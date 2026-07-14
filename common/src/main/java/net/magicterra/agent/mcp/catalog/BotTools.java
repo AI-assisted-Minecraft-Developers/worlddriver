@@ -902,15 +902,22 @@ public final class BotTools {
 
             wrTool("mc.bot.cancel",
                 "Cancel running bot processes. Sets process slot inactive, releases input keys, " +
-                "leaves lastError='user-cancel'. " +
-                "Returns {ok, cancelled:string}.",
+                "leaves lastError='user-cancel'. A named cancel resolves, in order: the user-task " +
+                "process by kind, a reflex chain's LIVE internal episode by chain name, and any " +
+                "chain-HELD process of that kind (e.g. process:'bunker' also reaches duskSecure's " +
+                "auto-started BunkerProcess). Returns {ok:true, cancelled:string} naming what was " +
+                "actually cancelled ('user/bunker-process', 'bunker-episode', " +
+                "'duskSecure/bunker-process', comma-joined when several), or {ok:false, " +
+                "reason:'no-active-target', requested} when nothing matched. 'all' is a " +
+                "best-effort broadcast and always returns {ok:true, cancelled:'all'}.",
                 object()
                     .prop("process", stringEnum("all", "goto", "mine", "craft", "smelt", "combat",
                             "builder", "follow", "explore", "runAway", "look", "elytra", "escape",
                             "bunker", "sleep", "replay", "retreat", "duskSecure")
                         .desc("Which process to cancel. Default 'all'. Besides user-task process " +
                             "kinds, a reflex chain's own name ('retreat', 'duskSecure', 'bunker', " +
-                            "'combat') targets that chain's internal episode directly."))
+                            "'combat') targets that chain's internal episode, and a process KIND " +
+                            "also reaches a process held inside a reflex chain."))
                 )
         );
     }

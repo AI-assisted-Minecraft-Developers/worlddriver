@@ -35,6 +35,7 @@ import java.util.function.Supplier;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.process.*;
 import net.magicterra.agent.bot.scheduler.BunkerChain;
+import net.magicterra.agent.bot.scheduler.CancelRouting;
 import net.magicterra.agent.bot.scheduler.Chain;
 import net.magicterra.agent.bot.scheduler.CombatChain;
 import net.magicterra.agent.bot.scheduler.DodgeChain;
@@ -532,30 +533,35 @@ public final class BotApiImpl implements BotApi {
         Params p = Params.of(params);
         return onClient(() -> {
             String which = p.get("process") instanceof String s ? s : "all";
+            List<String> hits = new ArrayList<>();
             // Combat lives in its own chain, not the user-task slot — cancel it directly.
             if ("all".equals(which) || "combat".equals(which)) {
                 if (combatChain.engaged()) {
                     combatChain.standDown();
                     state.combat.lastError = "user-cancel";
                     state.combat.active = false;
+                    hits.add("combat");
                 }
             }
-            BotProcess c = userTask.process();
-            boolean match = "all".equals(which) || (c != null && which.equals(c.kind()));
-            if (match) cancelCurrent("user-cancel");
-            // gap#68-⑦: cancel must also reach chain-internal episodes (BunkerChain anchor,
-            // retreat latch, dusk process) that hold priority with no user process.
+            // gap#68-⑦/⑫: "cancel all" stays a best-effort broadcast (always ok:true) —
+            // every chain episode + the user slot + the orphan backfill queue.
             if ("all".equals(which)) {
+                cancelCurrent("user-cancel");
                 scheduler.cancelAllEpisodes("user-cancel");
-                // gap#68-⑫: "cancel all" must also drop the orphan backfill queue — the
-                // auto-start at clientTick would otherwise resume placing blocks right
-                // after the cancel (live: post-cancel backfill marched HP7→5 into a fall).
                 backfillTracker.clear();
-            } else {
-                Chain byName = scheduler.byName(which);
-                if (byName != null) byName.cancelEpisode("user-cancel");
+                return Map.of("ok", true, "cancelled", "all");
             }
-            return Map.of("ok", true, "cancelled", which);
+            // gap#72-②: a NAMED cancel routes through the shared resolver — user slot
+            // by kind, chain episode by NAME, then any chain-HELD process by KIND
+            // ("bunker" is both BunkerChain's name and BunkerProcess's kind; duskSecure's
+            // held BunkerProcess was unreachable by every leg while cancel said ok:true).
+            BotProcess c = userTask.process();
+            CancelRouting.Plan plan =
+                    CancelRouting.resolve(which, c != null ? c.kind() : null, scheduler.chains());
+            if (plan.cancelUserProcess()) cancelCurrent("user-cancel");
+            for (Chain target : plan.episodeTargets()) target.cancelEpisode("user-cancel");
+            hits.addAll(plan.labels());
+            return CancelRouting.honestResult(hits, which);
         });
     }
 

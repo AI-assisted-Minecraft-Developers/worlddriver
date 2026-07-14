@@ -14,6 +14,8 @@ import net.magicterra.agent.bot.auto.AntiSuffocateGate;
 import net.magicterra.agent.bot.auto.DrowningFloatGate;
 import net.magicterra.agent.bot.scheduler.BunkerAnchor;
 import net.magicterra.agent.bot.scheduler.BunkerChain;
+import net.magicterra.agent.bot.scheduler.CancelRouting;
+import net.magicterra.agent.bot.scheduler.Chain;
 import net.magicterra.agent.bot.scheduler.CombatChain;
 import net.magicterra.agent.bot.scheduler.DuskSecureChain;
 import net.magicterra.agent.bot.scheduler.Priorities;
@@ -3867,6 +3869,119 @@ public final class AgentGameTestServer {
     public static void duskSecureHeldProcessLifecycleArena(GameTestHelper helper) {
         if (AgentGameTestSupport.gtOnlySkips("duskSecureHeldProcessLifecycleArena")) { helper.succeed(); return; } // gt-filter
         duskSecureHeldProcessLifecycleMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
+        helper.succeed();
+    }
+
+    // gap#72-②: mc.bot.cancel{process:"bunker"} returned ok:true while duskSecure's held
+    // BunkerProcess sat untouched (live 2026-07-14). "bunker" is BOTH BunkerChain's chain
+    // NAME and BunkerProcess's KIND: the old routing tried the user slot (dusk's process
+    // isn't there), then scheduler.byName("bunker") — the IDLE BunkerChain's anchor — and
+    // unconditionally said ok:true. A named cancel must resolve, in order: user slot by
+    // kind → chain episode by NAME (only a LIVE one counts as a hit) → any chain-HELD
+    // process of that kind (Chain.heldProcessKind, cancelled through the unified
+    // ChainProcessLifecycle drop) — and the result must be honest: distinguishable
+    // labels for what was actually cancelled, ok:false/no-active-target on zero hits.
+    // Routing is the pure server-safe CancelRouting seam BotApiImpl.cancel executes;
+    // execution asserts use the chains' server-safe *State halves (client key release
+    // can't run here — same split as duskSecureHeldProcessLifecycleMatrix).
+    static void cancelRoutingMatrix(java.util.function.BiConsumer<Boolean, String> check) {
+        // ① the incident: duskSecure holds a SEALED-hold BunkerProcess, BunkerChain idle.
+        BotState st = new BotState();
+        DuskSecureChain dusk = new DuskSecureChain(st, new WorldModel());
+        BunkerProcess held = new BunkerProcess(3);
+        held.attach(st);
+        st.bunker.endReason = "SEALED";
+        st.bunker.goalReached = true;
+        dusk.adoptProcessForTest(held);
+        BunkerChain bunkerChain = new BunkerChain();
+        RetreatChain retreat = new RetreatChain(st);
+        List<Chain> chains = List.of(bunkerChain, retreat, dusk);
+        check.accept("bunker".equals(dusk.heldProcessKind()),
+                "duskSecure holding a BunkerProcess must expose heldProcessKind=bunker — got "
+                        + dusk.heldProcessKind());
+        CancelRouting.Plan plan = CancelRouting.resolve("bunker", null, chains);
+        check.accept(!plan.cancelUserProcess(), "incident: nothing in the user slot to cancel");
+        check.accept(plan.episodeTargets().size() == 1 && plan.episodeTargets().get(0) == dusk,
+                "incident: the ONE target must be duskSecure (held process by kind), not the idle "
+                        + "BunkerChain — got " + plan.episodeTargets());
+        check.accept(List.of("duskSecure/bunker-process").equals(plan.labels()),
+                "incident: label must say what is actually cancelled — got " + plan.labels());
+        // Execute the plan the way BotApiImpl does (server-safe state half of
+        // cancelEpisode) and assert the process REALLY cancels + the slot resets.
+        dusk.cancelEpisodeState("user-cancel");
+        check.accept(dusk.heldProcessForTest() == null, "incident: held process really dropped");
+        check.accept(!st.bunker.active && "CANCELLED".equals(st.bunker.endReason),
+                "incident: slot reset with honest endReason — active=" + st.bunker.active
+                        + " endReason=" + st.bunker.endReason);
+        Map<String, Object> r = CancelRouting.honestResult(plan.labels(), "bunker");
+        check.accept(Boolean.TRUE.equals(r.get("ok"))
+                        && "duskSecure/bunker-process".equals(r.get("cancelled")),
+                "incident: result must name the real target — got " + r);
+
+        // ② nothing active anywhere: cancel{process:"bunker"} must be an honest miss
+        // (the old unconditional ok:true is the live lie).
+        CancelRouting.Plan miss = CancelRouting.resolve("bunker", null, chains);
+        check.accept(!miss.cancelUserProcess() && miss.episodeTargets().isEmpty()
+                        && miss.labels().isEmpty(),
+                "empty world: no targets — got " + miss.labels());
+        Map<String, Object> rm = CancelRouting.honestResult(miss.labels(), "bunker");
+        check.accept(Boolean.FALSE.equals(rm.get("ok")),
+                "empty world: ok must be false, not the unconditional true — got " + rm);
+        check.accept("no-active-target".equals(rm.get("reason")),
+                "empty world: reason=no-active-target — got " + rm);
+
+        // ③ P1-⑦ regression: USER-verb bunker (kind in the user slot) still routes to
+        // the user slot; an idle duskSecure must not be dragged in.
+        CancelRouting.Plan user = CancelRouting.resolve("bunker", "bunker", chains);
+        check.accept(user.cancelUserProcess(),
+                "user-verb bunker: the user slot leg must hit");
+        check.accept(user.episodeTargets().isEmpty(),
+                "user-verb bunker: no chain episode to cancel — got " + user.episodeTargets());
+        check.accept(List.of("user/bunker-process").equals(user.labels()),
+                "user-verb bunker: label — got " + user.labels());
+
+        // ④ chain NAME with a LIVE episode + a held process of the same kind elsewhere:
+        // both are hit, labels distinguish them (episode vs held process).
+        bunkerChain.anchorForTest().beginIfIdle(0, 64, 0);   // BunkerChain mid-dig
+        BunkerProcess held2 = new BunkerProcess(3);
+        held2.attach(st);
+        dusk.adoptProcessForTest(held2);
+        CancelRouting.Plan both = CancelRouting.resolve("bunker", null, chains);
+        check.accept(both.episodeTargets().equals(List.of(bunkerChain, dusk)),
+                "name+kind: BunkerChain episode first, then duskSecure's held process — got "
+                        + both.episodeTargets());
+        check.accept(List.of("bunker-episode", "duskSecure/bunker-process").equals(both.labels()),
+                "name+kind: distinguishable labels — got " + both.labels());
+        check.accept("bunker-episode,duskSecure/bunker-process".equals(
+                        CancelRouting.honestResult(both.labels(), "bunker").get("cancelled")),
+                "name+kind: cancelled joins all hits");
+        bunkerChain.resetEpisodeState();
+        dusk.cancelEpisodeState("cleanup");
+
+        // ⑤ an IDLE chain matched by name is NOT a hit (BunkerChain anchor idle →
+        // episodePhase null → cancel{process:"bunker"} with nothing held = miss ②
+        // above already proves it); retreat's held flee is reachable by KIND.
+        retreat.adoptProcessForTest(new RunAwayProcess(new BlockPos(0, 64, 0), 16, st.retreat));
+        check.accept("runAway".equals(retreat.heldProcessKind()),
+                "retreat holding a flee must expose heldProcessKind=runAway — got "
+                        + retreat.heldProcessKind());
+        CancelRouting.Plan flee = CancelRouting.resolve("runAway", null, chains);
+        check.accept(flee.episodeTargets().equals(List.of(retreat))
+                        && List.of("retreat/runAway-process").equals(flee.labels()),
+                "kind=runAway: retreat's held flee is the target — got " + flee.labels());
+        // user runAway AND reflex flee at once: both legs hit, both labelled.
+        CancelRouting.Plan fleeBoth = CancelRouting.resolve("runAway", "runAway", chains);
+        check.accept(fleeBoth.cancelUserProcess()
+                        && List.of("user/runAway-process", "retreat/runAway-process").equals(fleeBoth.labels()),
+                "kind=runAway with user flee: both hits labelled — got " + fleeBoth.labels());
+        // (no cancelEpisode cleanup for retreat here — its client half touches
+        // Minecraft.getInstance(); these are throwaway test-local objects.)
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void cancelRoutingArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("cancelRoutingArena")) { helper.succeed(); return; } // gt-filter
+        cancelRoutingMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
         helper.succeed();
     }
 

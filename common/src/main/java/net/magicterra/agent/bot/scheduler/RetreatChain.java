@@ -359,6 +359,11 @@ public final class RetreatChain implements Chain {
 
     @Override public String episodePhase() { return retreating ? "FLEEING" : null; }
 
+    /** gap#72-②: expose the held flee's kind ("runAway") so a targeted
+     *  {@code mc.bot.cancel{process:"runAway"}} reaches the reflex's own flee, not
+     *  just the user-verb slot. */
+    @Override public String heldProcessKind() { return process != null ? process.kind() : null; }
+
     /** gap#68-⑦: reach the flee latch even with no process (e.g. mid-preempt,
      *  {@code process == null} while a higher chain steers) so cancel is idempotent
      *  and fully stops the reflex from re-arming. */
@@ -376,4 +381,9 @@ public final class RetreatChain implements Chain {
         if (state.retreat.active) { state.retreat.lastError = reason; state.retreat.reset(); }
         releaseKeys();
     }
+
+    /** Test seam (gap#72-②): inject a held flee so cancel-by-kind routing is
+     *  matrix-testable without a client tick — same seam as
+     *  {@link DuskSecureChain#adoptProcessForTest}. */
+    public void adoptProcessForTest(RunAwayProcess p) { this.process = p; }
 }

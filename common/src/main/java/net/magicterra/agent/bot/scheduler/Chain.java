@@ -66,4 +66,21 @@ public interface Chain {
      * behaviour while an episode IS active and simply running its course.
      */
     default void cancelEpisode(String reason) {}
+
+    /**
+     * The {@link net.magicterra.agent.bot.process.BotProcess#kind()} of the process
+     * this chain is currently HOLDING and driving, or {@code null} when it holds
+     * none (gap#72-②). This is the seam that lets {@code mc.bot.cancel} resolve a
+     * process by KIND across chain owners: "bunker" is both {@link BunkerChain}'s
+     * chain name AND {@link net.magicterra.agent.bot.process.BunkerProcess}'s kind,
+     * so {@code cancel{process:"bunker"}} used to hit only the (idle) BunkerChain's
+     * anchor while duskSecure's live BunkerProcess sat untouched — and still
+     * returned ok:true. Chains that own a process (duskSecure, retreat) override
+     * this; a chain whose held state is not a BotProcess (BunkerChain's anchor)
+     * keeps the default and is reached by chain NAME via {@link #episodePhase}/
+     * {@link #cancelEpisode} instead. {@code UserTaskChain} also keeps the default:
+     * the user slot is cancel's own first routing leg. A hit is cancelled through
+     * {@link #cancelEpisode}, i.e. the unified {@link ChainProcessLifecycle} drop.
+     */
+    default String heldProcessKind() { return null; }
 }
