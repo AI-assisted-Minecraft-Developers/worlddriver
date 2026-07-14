@@ -3522,4 +3522,26 @@ public final class AgentGameTestServer {
         urgentBidMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
         helper.succeed();
     }
+
+    // gap#68-⑪: an external setHotbarSlot RPC (or human scroll) must not be clobbered
+    // by AutoTool on the very next tick — if the live selection differs from the slot
+    // AutoTool itself last wrote, honor the external change for a grace period instead
+    // of overwriting it. Pure static gate — no Minecraft instance needed.
+    static void manualSlotGraceMatrix(java.util.function.BiConsumer<Boolean, String> check) {
+        check.accept(net.magicterra.agent.bot.auto.AutoTool.shouldYield(2, 7, 0),
+                "selected(2) != lastAuto(7) = external change -> yield");
+        check.accept(!net.magicterra.agent.bot.auto.AutoTool.shouldYield(7, 7, 0),
+                "no external change, no grace -> proceed");
+        check.accept(net.magicterra.agent.bot.auto.AutoTool.shouldYield(7, 7, 10),
+                "grace still counting -> yield");
+        check.accept(!net.magicterra.agent.bot.auto.AutoTool.shouldYield(2, -1, 0),
+                "first tick (no lastAuto yet) -> proceed");
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void manualSlotGraceMatrixArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("manualSlotGraceMatrixArena")) { helper.succeed(); return; } // gt-filter
+        manualSlotGraceMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
+        helper.succeed();
+    }
 }

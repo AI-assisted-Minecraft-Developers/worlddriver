@@ -898,6 +898,13 @@ public final class BotConfig {
      *  slot. Read every clientTick via maybeAutoTool. */
     public static volatile boolean autoTool = false;
 
+    /** gap#68-⑪: ticks {@link net.magicterra.agent.bot.auto.AutoTool} yields the hotbar
+     *  selection after detecting an external actor (setHotbarSlot RPC / human scroll)
+     *  changed the slot it last wrote — without this, AutoTool re-clobbers the slot on
+     *  the very next tick whenever the crosshair is on a breakable block, so an external
+     *  slot switch right before a placement/useItem call silently loses the race. */
+    public static volatile int manualSlotGraceTicks = 100;
+
     /** Baritone {@code BackfillProcess} analogue — when on, the bot tracks
      *  cells it walked through and auto-fills them with {@link #autoBackfillBlock}
      *  whenever no other process owns the keys. Useful for sealing mine
