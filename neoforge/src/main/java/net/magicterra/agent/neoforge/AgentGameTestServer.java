@@ -59,6 +59,8 @@ import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.decoration.ArmorStand;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -4015,6 +4017,122 @@ public final class AgentGameTestServer {
         } finally {
             coreLogger.removeAppender(catcher);
             catcher.stop();
+            BotConfig.walkerDebug = odbg;
+            ServerAgentManager.clear();
+            level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.AIR.defaultBlockState());
+        }
+        helper.succeed();
+    }
+
+    /** Minimal non-inventory {@link AbstractContainerMenu} stand-in, used ONLY by
+     *  {@link #serverCraftFailGridReturnArena} to make {@code fp.containerMenu !=
+     *  fp.inventoryMenu} true at FAIL time. Zero slots, never actually opened through
+     *  vanilla menu-open plumbing — just assigned directly to the public {@code
+     *  containerMenu} field (same "manipulate the public field" precedent as gap#64 /
+     *  gap#67-③'s grid-stuffing). See that test's javadoc for why the distinction
+     *  matters: on a server {@code FakePlayer}, {@code ServerPlayer.doCloseContainer()}
+     *  unconditionally runs {@code containerMenu.removed(this)} on whatever menu is
+     *  CURRENTLY active — if that's already {@code inventoryMenu}, CraftProcess's own
+     *  unconditional trailing {@code a.closeContainer()} call would run {@code
+     *  InventoryMenu.removed()} and return the 2×2 grid ALL BY ITSELF, masking
+     *  whether {@code clearInventoryCraftGrid()} ran at all. With a distinct menu
+     *  open, that same {@code removed()} call lands on THIS menu instead (a no-op —
+     *  {@code AbstractContainerMenu.removed} only ever touches the cursor-carried
+     *  stack, {@code quickMoveStack}/{@code stillValid} are never invoked), leaving
+     *  {@code inventoryMenu}'s own craft grid untouched by closeContainer alone. */
+    private static final class DummyMenu extends AbstractContainerMenu {
+        DummyMenu(int containerId) { super(null, containerId); }
+        @Override public ItemStack quickMoveStack(Player player, int index) { return ItemStack.EMPTY; }
+        @Override public boolean stillValid(Player player) { return true; }
+    }
+
+    /**
+     * gap#67-③ follow-up (final-review Important finding #1): the three
+     * {@code a.clearInventoryCraftGrid()} exit-wiring calls in CraftProcess (DONE at
+     * :127, FAIL at :133, the 2×2 STATION-switch at :234) were verified only by
+     * reading during the whole-branch review — no test reverts one and goes RED.
+     * This pins the FAIL terminal specifically (CraftProcess.java:133).
+     *
+     * <p>First cut of this test (superseded) stuffed the grid with {@code
+     * containerMenu == inventoryMenu} throughout, like {@link
+     * #serverCraftGridClearHelperArena}. That does NOT discriminate the :133 call on
+     * a server FakePlayer: commenting it out still went GREEN, because CraftProcess's
+     * own unconditional trailing {@code a.closeContainer()} call (line 134, always
+     * present) ALSO returns the 2×2 grid — {@code ServerPlayer.doCloseContainer()}
+     * unconditionally runs {@code containerMenu.removed(this)} on whatever menu is
+     * currently active, and (verified by decompiling 1.21.1)
+     * {@code InventoryMenu.removed()} unconditionally clears/returns its own craft
+     * grid, with NO guard on prior menu identity — unlike the CLIENT's {@code
+     * BotInteract.closeContainer()}, which never calls {@code removed()} at all.
+     * So on this harness the :133 revert was invisible: closeContainer() alone
+     * already did the job. This is why {@link #serverCraftGridClearHelperArena} only
+     * pins the HELPER's own logic (calling it directly, no trailing closeContainer)
+     * and why this wiring specifically needed a rig where that masking can't happen.
+     *
+     * <p>Fix: put {@link DummyMenu} — not {@code inventoryMenu} — in {@code
+     * containerMenu} before the craft starts. Now the trailing {@code
+     * a.closeContainer()} closes THAT menu (a no-op stand-in) and never touches
+     * {@code inventoryMenu}'s own craft grid; only the explicit QUICK_MOVE loop
+     * inside {@code clearInventoryCraftGrid()} (CraftProcess.java:133) can return the
+     * stuffed items. Materials are stuffed into the grid via {@code
+     * InventoryMenu.getCraftSlots()} (gap#64 precedent — a synchronous FakePlayer
+     * can't produce a genuine "placed but never resulted" straddle), then a REAL
+     * {@link CraftProcess} is run whose plan fails at {@code plan()} (empty
+     * inventory → "缺 N 个 oak_log", exactly {@link #serverCraftFailTelemetryArena}'s
+     * setup) — it fails in INIT, never reaching STATION/PLACE, so {@code
+     * containerMenu} is never touched by CraftProcess itself before the FAIL exit.
+     * Asserts the grid ends empty and the stuffed items are back in the main
+     * inventory. Commenting out the :133 call turns this test RED (verified during
+     * TDD — see .superpowers/sdd/gap67/task-3-report.md); restoring it is GREEN.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverCraftFailGridReturnArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverCraftFailGridReturnArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int cx = 3200, cz = 3380, floorY = 220;
+        level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.STONE.defaultBlockState());
+        boolean odbg = BotConfig.walkerDebug;
+        BotConfig.walkerDebug = false;
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            FakePlayer fp = driver.fakePlayer();
+            fp.getInventory().clearContent();   // zero materials: plan() must report "缺 …", never reach STATION
+            InventoryMenu invMenu = (InventoryMenu) fp.inventoryMenu;
+            // Residue sitting in the grid from some earlier job, per gap#64 precedent
+            // (manually stuffing a public containerMenu) — same rig as
+            // serverCraftGridClearHelperArena, but exercised through the real FAIL exit
+            // of a running CraftProcess instead of calling the helper directly.
+            invMenu.getCraftSlots().setItem(0, new ItemStack(Items.OAK_LOG, 1));
+            invMenu.getCraftSlots().setItem(1, new ItemStack(Items.STICK, 2));
+            // Keep containerMenu != inventoryMenu so the trailing a.closeContainer()
+            // (CraftProcess.java:134, always present) can't mask :133 — see javadoc.
+            fp.containerMenu = new DummyMenu(1);
+
+            driver.runProcess(new CraftProcess("minecraft:oak_planks", 4));
+            ServerAgentManager.register(driver);
+            for (int t = 0; t < 60 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            String err = driver.botState().craft.lastError;
+            boolean gridEmpty = true;
+            for (int i = 0; i < 4; i++) gridEmpty &= invMenu.getCraftSlots().getItem(i).isEmpty();
+            int logs = countItem(fp, Items.OAK_LOG);
+            int sticks = countItem(fp, Items.STICK);
+            AgentDriverCommon.LOG.info("[serverCraftFailGridReturnArena] err={} gridEmpty={} logs={} sticks={} finished={}",
+                    err, gridEmpty, logs, sticks, driver.finished());
+            if (err == null)
+                throw new GameTestAssertException("expected craft to fail on zero materials (test setup broken)");
+            if (!gridEmpty)
+                throw new GameTestAssertException("gap#67-③ (final-review #1): CraftProcess FAIL exit (CraftProcess.java:133) "
+                        + "left material sitting in the 2x2 grid");
+            if (logs != 1 || sticks != 2)
+                throw new GameTestAssertException("gap#67-③ (final-review #1): stranded grid material not returned "
+                        + "to inventory on FAIL: logs=" + logs + " (want 1) sticks=" + sticks + " (want 2)");
+            if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                throw new GameTestAssertException("server CraftProcess did not finish+unregister: active="
+                        + ServerAgentManager.activeCount());
+        } finally {
             BotConfig.walkerDebug = odbg;
             ServerAgentManager.clear();
             level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.AIR.defaultBlockState());
