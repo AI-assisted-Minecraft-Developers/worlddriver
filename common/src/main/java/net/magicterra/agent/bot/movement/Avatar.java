@@ -4,6 +4,8 @@ import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.ClickType;
 
 /**
  * Actuation surface over the entity the agent drives. The Walker reads entity
@@ -103,6 +105,31 @@ public interface Avatar {
     void containerClick(int containerId, int slot, int button, net.minecraft.world.inventory.ClickType type);
     /** Close the open container back to the inventory menu. */
     void closeContainer();
+    /** Return any material stranded in the 2×2 crafting grid (InventoryMenu slots
+     *  1-4) to the main inventory via QUICK_MOVE, leaving the grid empty. {@code
+     *  placeRecipe} fills the grid straight from the inventory, and a craft step
+     *  that never reaches the shift-click out (e.g. an AWAIT_RESULT timeout) leaves
+     *  it sitting there; {@link #closeContainer()}'s vanilla-close path only returns
+     *  those items when the menu that was open differs from the inventory menu (a
+     *  3×3 table screen, whose {@code removed()} runs the return) — a headless 2×2
+     *  job has {@code containerMenu == inventoryMenu} from the start, so that guard
+     *  never fires and the grid strands materials forever (live gap #67-③: 5
+     *  acacia_log vanished after a failed 6-craft). Closes any OTHER open menu first
+     *  so the QUICK_MOVE click lands on the inventory menu's id (see {@link
+     *  #closeContainer()}'s id-mismatch note). Safe to call when nothing is
+     *  stranded (no-op); callers should run it at every CraftProcess exit (DONE/FAIL)
+     *  and before starting a fresh 2×2 job. */
+    default void clearInventoryCraftGrid() {
+        Player p = player();
+        if (p == null) return;
+        if (p.containerMenu != p.inventoryMenu) closeContainer();
+        AbstractContainerMenu inv = p.inventoryMenu;
+        for (int slot = 1; slot <= 4; slot++) {
+            if (!inv.getSlot(slot).getItem().isEmpty()) {
+                containerClick(inv.containerId, slot, 0, ClickType.QUICK_MOVE);
+            }
+        }
+    }
     /** Ensure a SPECIFIC item occupies the main hand; false if none in the inventory.
      *  (Unlike {@link #holdPlaceable()} which holds ANY support block, this holds the
      *  exact item — used to hold a crafting table / furnace before placing it.) */

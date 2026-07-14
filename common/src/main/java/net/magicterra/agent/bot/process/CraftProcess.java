@@ -102,7 +102,7 @@ public final class CraftProcess implements BotProcess {
     @Override public boolean tick(Avatar a, WorldView w, BotState s) {
         Player p = a.player();
         Level lvl = p == null ? null : p.level();
-        if (p == null || lvl == null) { fail(s, "no player"); return true; }
+        if (p == null || lvl == null) { fail(s, null, "no player"); return true; }
 
         switch (st) {
             case INIT -> plan(a, p, lvl, s);
@@ -121,11 +121,16 @@ public final class CraftProcess implements BotProcess {
         if (st == St.RECLAIM) return false;
 
         if (st == St.DONE) {
+            // Return anything stranded in the 2×2 grid BEFORE closing (gap #67-③):
+            // closeContainer's inventoryMenu branch is a documented no-op, so a
+            // headless 2×2 job's leftovers would otherwise never come back.
+            a.clearInventoryCraftGrid();
             a.closeContainer();
             s.craft.reset();
             return true;
         }
         if (st == St.FAIL) {
+            a.clearInventoryCraftGrid();
             a.closeContainer();
             s.craft.lastError = error;
             s.craft.reset();
@@ -177,9 +182,9 @@ public final class CraftProcess implements BotProcess {
     private void plan(Avatar a, Player p, Level lvl, BotState s) {
         RecipeManager rm = a.recipeManager();
         HolderLookup.Provider ra = lvl.registryAccess();
-        if (rm == null) { fail(s, "no recipe manager"); return; }
+        if (rm == null) { fail(s, p, "no recipe manager"); return; }
         if (!BuiltInRegistries.ITEM.containsKey(net.minecraft.resources.ResourceLocation.tryParse(target == null ? "" : target))) {
-            fail(s, "unknown item: " + target);
+            fail(s, p, "unknown item: " + target);
             return;
         }
         Map<String, Integer> have = inventorySnapshot(p);
@@ -200,16 +205,19 @@ public final class CraftProcess implements BotProcess {
                 sb.append(first ? " " : "、").append(e.getValue()).append(" 个 ").append(shortId(e.getKey()));
                 first = false;
             }
-            fail(s, sb.toString());
+            LOG.info("[craft] plan {}×{} incomplete missing={}", count, target, plan.missing());
+            fail(s, p, sb.toString());
             return;
         }
         if (plan.jobs().isEmpty()) {     // already have enough — nothing to craft
+            LOG.info("[craft] plan {}×{} already satisfied, no jobs", count, target);
             st = St.DONE;
             return;
         }
         this.jobs = plan.jobs();
         this.jobIdx = 0;
         this.craftsDone = 0;
+        LOG.info("[craft] plan {}×{} jobs={} missing=none", count, target, jobsSummary(jobs));
         st = St.STATION;
     }
 
@@ -218,10 +226,12 @@ public final class CraftProcess implements BotProcess {
     private void setupStation(Avatar a, Player p, Level lvl, BotState s) {
         RecipeResolver.Job job = jobs.get(jobIdx);
         if ("inventory2x2".equals(job.station())) {
-            // Use the player inventory's 2×2 grid (container id 0). Close any
+            // Use the player inventory's 2×2 grid (container id 0). Closes any
             // table screen left open by a previous job so containerMenu is the
-            // inventory menu the place packet targets.
-            if (p.containerMenu != p.inventoryMenu) a.closeContainer();
+            // inventory menu the place packet targets, AND returns anything
+            // stranded in the grid by a previous 2×2 job that didn't clear it
+            // (gap #67-③) before this job's own placeRecipe fills it fresh.
+            a.clearInventoryCraftGrid();
             waited = 0;
             st = St.PLACE;
             return;
@@ -235,7 +245,7 @@ public final class CraftProcess implements BotProcess {
             // Distinguish the two causes: a missing ITEM needs an acquire plan, a
             // missing SPOT needs one dug cell — conflating them (the old single
             // message) sent the agent hunting wood while sealed in a 1×1 bunker.
-            fail(s, p.getInventory().countItem(Items.CRAFTING_TABLE) > 0
+            fail(s, p, p.getInventory().countItem(Items.CRAFTING_TABLE) > 0
                     ? "需要工作台（背包里有，但脚边没有可放置的空位——先清出一格）"
                     : "需要工作台（背包里没有工作台）");
             return;
@@ -252,7 +262,7 @@ public final class CraftProcess implements BotProcess {
 
     private void awaitTableOpen(Player p, BotState s) {
         if (p.containerMenu instanceof CraftingMenu) { waited = 0; st = St.PLACE; return; }
-        if (++waited > STEP_TIMEOUT) fail(s, "打开工作台超时");
+        if (++waited > STEP_TIMEOUT) fail(s, p, "打开工作台超时");
     }
 
     // === craft loop ==========================================================
@@ -278,14 +288,17 @@ public final class CraftProcess implements BotProcess {
             st = St.AWAIT_TAKE;
             return;
         }
-        if (++waited > STEP_TIMEOUT) fail(s, "摆料失败（原料不足或未同步）: " + shortId(jobs.get(jobIdx).result()));
+        if (++waited > STEP_TIMEOUT) fail(s, p, "摆料失败（原料不足或未同步）: " + shortId(jobs.get(jobIdx).result()));
     }
 
     private void awaitTake(Player p, BotState s) {
         // Give the server a couple ticks to clear the grid and deliver the output.
         if (++waited < 2) return;
         craftsDone++;
-        if (craftsDone >= jobs.get(jobIdx).crafts()) {
+        RecipeResolver.Job job = jobs.get(jobIdx);
+        LOG.info("[craft] job {}/{} {} craftsDone={}/{} totalCrafted={}",
+                jobIdx + 1, jobs.size(), shortId(job.result()), craftsDone, job.crafts(), crafted);
+        if (craftsDone >= job.crafts()) {
             jobIdx++;
             craftsDone = 0;
             if (jobIdx >= jobs.size()) { st = St.DONE; return; }
@@ -379,5 +392,39 @@ public final class CraftProcess implements BotProcess {
         return i >= 0 ? id.substring(i + 1) : id;
     }
 
-    private void fail(BotState s, String msg) { this.error = msg; this.st = St.FAIL; }
+    /** Compact one-line dump of a resolved job list for the plan-telemetry log line. */
+    private static String jobsSummary(List<RecipeResolver.Job> jobs) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < jobs.size(); i++) {
+            RecipeResolver.Job j = jobs.get(i);
+            if (i > 0) sb.append(',');
+            sb.append(shortId(j.result())).append('x').append(j.crafts()).append('@').append(j.station());
+        }
+        return sb.append(']').toString();
+    }
+
+    /** The 2×2 inventory grid's current contents (InventoryMenu slots 1-4), for the
+     *  fail-path telemetry line — lets a log reader see directly whether this failure
+     *  is the gap #67-③ strand (grid non-empty at a FAIL) or a clean one. {@code p}
+     *  is null only from the "no player" guard in {@link #tick}, which never has
+     *  anything to report. */
+    private static String gridSummary(Player p) {
+        if (p == null) return "n/a";
+        StringBuilder sb = new StringBuilder("[");
+        for (int slot = 1; slot <= 4; slot++) {
+            ItemStack stk = p.inventoryMenu.getSlot(slot).getItem();
+            if (slot > 1) sb.append(',');
+            sb.append(stk.isEmpty() ? "-" : stk.getCount() + "x" + shortId(id(stk.getItem())));
+        }
+        return sb.append(']').toString();
+    }
+
+    /** Every failure exits through here — single source for both the terminal
+     *  transition and the fail-path telemetry line (gap #67-⑥: CraftProcess used to
+     *  import LOG and never call it). {@code p} may be null (the "no player" guard). */
+    private void fail(BotState s, Player p, String msg) {
+        this.error = msg;
+        LOG.info("[craft] fail state={} jobIdx={} msg={} grid={}", st, jobIdx, msg, gridSummary(p));
+        this.st = St.FAIL;
+    }
 }

@@ -59,6 +59,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.decoration.ArmorStand;
+import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -3835,6 +3836,188 @@ public final class AgentGameTestServer {
                 for (int dy = 0; dy <= 8; dy++)
                     for (int dz = -1; dz <= 1; dz++)
                         level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+        }
+        helper.succeed();
+    }
+
+    /**
+     * gap#67-③ (live: 6-craft acacia_log session, 5 logs vanished after a failed
+     * craft): {@link net.magicterra.agent.bot.movement.Avatar#clearInventoryCraftGrid()}
+     * must return whatever is sitting in the 2×2 inventory grid (InventoryMenu slots
+     * 1-4) back to the main inventory and leave the grid empty. Root cause (see
+     * CraftProcess.java:260-265/281 and BotInteract.closeContainer's doc comment): a
+     * headless 2×2 job never leaves {@code containerMenu == inventoryMenu}, so
+     * closeContainer's vanilla-close return path — which only fires when the menu
+     * that was open DIFFERS from the inventory menu (a 3×3 table screen) — never runs,
+     * and any material an AWAIT_RESULT timeout left in the grid is gone for good.
+     *
+     * <p>A real live client can leave items sitting in this grid via a client/server
+     * placement round-trip that a synchronous FakePlayer harness cannot reproduce
+     * (verified: {@code ServerPlaceRecipe.recipeClicked} either fully places a valid
+     * recipe — whose result then computes on the SAME tick, no timeout window — or
+     * fully rolls back via {@code clearGrid()} when the recipe can't be satisfied; a
+     * synchronous FakePlayer never sees a "placed but never resulted" straddle). So,
+     * per the task brief's own documented fallback and the gap#64 furnace-menu-state
+     * precedent (manually stuffing a public {@code containerMenu}), this test manually
+     * stuffs the grid directly via {@code InventoryMenu.getCraftSlots()} — the exact
+     * "residue is sitting there" end state, regardless of how it got there — and
+     * exercises the new helper directly.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverCraftGridClearHelperArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverCraftGridClearHelperArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int cx = 3200, cz = 3200, floorY = 220;
+        level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.STONE.defaultBlockState());
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            FakePlayer fp = driver.fakePlayer();
+            fp.getInventory().clearContent();
+            InventoryMenu invMenu = (InventoryMenu) fp.inventoryMenu;
+            // Simulate the exact strand: real material sitting in the 2×2 grid with
+            // nobody having shift-clicked it out.
+            invMenu.getCraftSlots().setItem(0, new ItemStack(Items.OAK_LOG, 1));
+            invMenu.getCraftSlots().setItem(1, new ItemStack(Items.STICK, 2));
+
+            driver.avatar().clearInventoryCraftGrid();
+
+            boolean gridEmpty = true;
+            for (int i = 0; i < 4; i++) gridEmpty &= invMenu.getCraftSlots().getItem(i).isEmpty();
+            int logs = countItem(fp, Items.OAK_LOG);
+            int sticks = countItem(fp, Items.STICK);
+            AgentDriverCommon.LOG.info("[serverCraftGridClearHelperArena] gridEmpty={} logs={} sticks={}",
+                    gridEmpty, logs, sticks);
+            if (!gridEmpty)
+                throw new GameTestAssertException("gap#67-③: clearInventoryCraftGrid left material sitting in the 2x2 grid");
+            if (logs != 1 || sticks != 2)
+                throw new GameTestAssertException("gap#67-③: stranded grid material not returned to inventory: logs="
+                        + logs + " (want 1) sticks=" + sticks + " (want 2)");
+        } finally {
+            ServerAgentManager.clear();
+            level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.AIR.defaultBlockState());
+        }
+        helper.succeed();
+    }
+
+    /**
+     * gap#67-③ end-to-end conservation guard: a normal, successful 2×2 craft
+     * (acacia_planks from 1 acacia_log) must finish with the grid EMPTY and the
+     * inventory exactly accounted for (log -1, planks +4) — the invariant the exit-clear
+     * fix must never violate on the HAPPY path (this run is expected to already be
+     * green on the happy path even before the fix, since a successful shift-click
+     * naturally drains the grid; it is the FAIL/DONE exit-clear and the STATION-switch
+     * clear that close the actual strand — see serverCraftGridClearHelperArena and
+     * serverCraftFailTelemetryArena for the parts of the fix this run alone can't prove).
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverCraftGridConservationArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverCraftGridConservationArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int cx = 3200, cz = 3260, floorY = 220;
+        level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.STONE.defaultBlockState());
+        boolean odbg = BotConfig.walkerDebug;
+        BotConfig.walkerDebug = false;
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            FakePlayer fp = driver.fakePlayer();
+            fp.getInventory().clearContent();
+            fp.getInventory().add(new ItemStack(Items.ACACIA_LOG, 1));
+            driver.runProcess(new CraftProcess("minecraft:acacia_planks", 4));
+            ServerAgentManager.register(driver);
+            for (int t = 0; t < 300 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            InventoryMenu invMenu = (InventoryMenu) fp.inventoryMenu;
+            boolean gridEmpty = true;
+            for (int i = 0; i < 4; i++) gridEmpty &= invMenu.getCraftSlots().getItem(i).isEmpty();
+            int logs = countItem(fp, Items.ACACIA_LOG);
+            int planks = countItem(fp, Items.ACACIA_PLANKS);
+            AgentDriverCommon.LOG.info("[serverCraftGridConservationArena] gridEmpty={} logs={} planks={} finished={} err={}",
+                    gridEmpty, logs, planks, driver.finished(), driver.botState().craft.lastError);
+            if (!gridEmpty)
+                throw new GameTestAssertException("gap#67-③: 2x2 grid not empty after craft DONE");
+            if (logs != 0)
+                throw new GameTestAssertException("expected the single acacia_log fully consumed, got " + logs + " remaining");
+            if (planks != 4)
+                throw new GameTestAssertException("expected 4 acacia_planks, got " + planks);
+            if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                throw new GameTestAssertException("server CraftProcess did not finish+unregister: active="
+                        + ServerAgentManager.activeCount());
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            ServerAgentManager.clear();
+            level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.AIR.defaultBlockState());
+        }
+        helper.succeed();
+    }
+
+    /** In-memory log4j2 appender used only by {@link #serverCraftFailTelemetryArena} to
+     *  assert a real {@code [craft]} log line was emitted — gap#67-⑥: CraftProcess
+     *  imported {@code LOG} (CraftProcess.java:28) but never called it (0 call sites).
+     *  Attached directly to the "AgentDriver" core logger (the same named logger the
+     *  SLF4J {@code AgentDriverCommon.LOG} façade routes through at runtime via
+     *  log4j-slf4j2-impl), scoped to this one arena, and detached in the finally block. */
+    private static final class CraftLogCatcher extends org.apache.logging.log4j.core.appender.AbstractAppender {
+        final java.util.List<String> lines = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        CraftLogCatcher() {
+            super("craft-telemetry-test-catcher", null, null, false,
+                    org.apache.logging.log4j.core.config.Property.EMPTY_ARRAY);
+        }
+        @Override public void append(org.apache.logging.log4j.core.LogEvent event) {
+            lines.add(event.getMessage().getFormattedMessage());
+        }
+    }
+
+    /**
+     * gap#67-⑥ telemetry smoke: a plan-stage fail (zero materials, so RecipeResolver
+     * reports everything missing after the {@code PLAN_GRACE} settle) must emit both the
+     * plan-dump line AND the fail-path line CraftProcess now logs. Before this fix
+     * neither existed (CraftProcess had zero LOG call sites); the process still failed
+     * correctly (that half was never broken), only the logging was silent.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverCraftFailTelemetryArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverCraftFailTelemetryArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int cx = 3200, cz = 3320, floorY = 220;
+        level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.STONE.defaultBlockState());
+
+        org.apache.logging.log4j.core.Logger coreLogger =
+                (org.apache.logging.log4j.core.Logger) org.apache.logging.log4j.LogManager.getLogger("AgentDriver");
+        CraftLogCatcher catcher = new CraftLogCatcher();
+        catcher.start();
+        coreLogger.addAppender(catcher);
+        boolean odbg = BotConfig.walkerDebug;
+        BotConfig.walkerDebug = false;
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            driver.fakePlayer().getInventory().clearContent();   // zero materials: plan() must report "缺 …"
+            driver.runProcess(new CraftProcess("minecraft:oak_planks", 4));
+            ServerAgentManager.register(driver);
+            for (int t = 0; t < 60 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            String err = driver.botState().craft.lastError;
+            boolean sawFailLog = catcher.lines.stream().anyMatch(l -> l.startsWith("[craft]") && l.contains("fail"));
+            boolean sawPlanLog = catcher.lines.stream().anyMatch(l -> l.startsWith("[craft] plan"));
+            AgentDriverCommon.LOG.info("[serverCraftFailTelemetryArena] err={} sawFailLog={} sawPlanLog={} lines={}",
+                    err, sawFailLog, sawPlanLog, catcher.lines);
+            if (err == null)
+                throw new GameTestAssertException("expected craft to fail on zero materials (test setup broken)");
+            if (!sawFailLog)
+                throw new GameTestAssertException("gap#67-⑥: no '[craft] ...fail...' log line on the fail path "
+                        + "(CraftProcess.LOG import was dead code): captured=" + catcher.lines);
+            if (!sawPlanLog)
+                throw new GameTestAssertException("gap#67-⑥: no '[craft] plan' dump log line: captured=" + catcher.lines);
+        } finally {
+            coreLogger.removeAppender(catcher);
+            catcher.stop();
+            BotConfig.walkerDebug = odbg;
+            ServerAgentManager.clear();
+            level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.AIR.defaultBlockState());
         }
         helper.succeed();
     }
