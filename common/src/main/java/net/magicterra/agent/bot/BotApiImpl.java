@@ -331,6 +331,12 @@ public final class BotApiImpl implements BotApi {
                 return Map.of("ok", false, "error", "no player");
             }
             startProcess(new BunkerProcess(depth));
+            // "acted" (did BunkerProcess ever really break/place a block) can't be
+            // known synchronously here — the dig/carve/plug runs over many later
+            // ticks, not within this call. This response stays a start ack
+            // ("ok:true" = "受理", not "sealed"); the honest terminal verdict
+            // (goalReached/endReason, folded in via awaitable()) lands on the
+            // bunker slot once BunkerProcess actually finishes or bails.
             return Map.of("ok", true, "started", true, "depth", depth);
         });
     }

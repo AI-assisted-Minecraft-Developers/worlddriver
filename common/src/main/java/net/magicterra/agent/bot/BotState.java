@@ -37,6 +37,12 @@ public final class BotState {
      *  ended with active:false and NO lastError — indistinguishable from success.
      *  EscapeProcess now reports goal/target/lastError here every tick. */
     public final ProcessSlot escape = new ProcessSlot("escape");
+    /** mc.bot.bunker (BunkerProcess). gap#68-⑩: the verb used to be a bare start
+     *  ack with no slot at all — a zero-action bail (water at the dig site, dig
+     *  timeout, …) reported ok:true indistinguishable from a real shelter. Now
+     *  BunkerProcess stamps goalReached/endReason here at every terminal exit
+     *  (goalReached = block-level enclosure ground truth, NOT hazardSummary.cornered). */
+    public final ProcessSlot bunker = new ProcessSlot("bunker");
 
     /** Phase C combat telemetry (mutated by CombatProcess on the tick thread,
      *  read by status()). {@code wellTimed} counts swings issued at full attack
@@ -61,6 +67,7 @@ public final class BotState {
         out.put("craft", craft.snapshot());
         out.put("smelt", smelt.snapshot());
         out.put("escape", escape.snapshot());
+        out.put("bunker", bunker.snapshot());
         // Combat slot carries the per-engagement telemetry alongside the standard
         // slot fields so a single status read covers both liveness and timing.
         Map<String, Object> combatSnap = combat.snapshot();

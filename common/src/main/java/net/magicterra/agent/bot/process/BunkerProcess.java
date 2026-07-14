@@ -54,6 +54,16 @@ public final class BunkerProcess implements BotProcess {
     private int plugTicks = 0;
     private Direction nicheDir = null;       // horizontal direction of the niche
     private BlockPos bottom = null;          // shaft-bottom foot cell
+    /** gap#68-⑩: true once a real break or place has been attempted — distinguishes
+     *  a zero-action bail (e.g. water at the dig site, first tick) from a run that
+     *  actually touched the world before failing. Not yet surfaced synchronously in
+     *  the verb response (the run is async; see BotApiImpl#bunker), but available on
+     *  the instance for future status/telemetry wiring. */
+    private boolean acted;
+    /** True once {@link Phase#SEALED} has ever been reached this run — the ground
+     *  truth for "did this bunker ever actually finish sealing" independent of
+     *  whatever phase it happens to be sitting in when finish() runs. */
+    private boolean sealedOk;
 
     public BunkerProcess(int depth) {
         this.depth = Math.max(1, Math.min(5, depth));
@@ -85,7 +95,15 @@ public final class BunkerProcess implements BotProcess {
     }
 
     @Override public String kind() { return "bunker"; }
-    @Override public void attach(BotState st) {}
+
+    @Override public void attach(BotState st) {
+        st.bunker.active = true;
+        st.bunker.goal = "bunker depth=" + depth;
+        st.bunker.startedAtMs = System.currentTimeMillis();
+        st.bunker.lastError = null;
+        st.bunker.goalReached = null;
+        st.bunker.endReason = null;
+    }
 
     /** Surfaced as {@code activeProcessDetail} in mc.bot.status so the agent can
      *  tell a working bunker (DIG_DOWN/CARVE/STEP_IN/PLUG) from a SEALED one
@@ -96,7 +114,7 @@ public final class BunkerProcess implements BotProcess {
 
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
         Player p = a.player();
-        if (p == null) return true;
+        if (p == null) return finish(st, w, a, "no-player", "player entity unavailable — no action taken");
         BlockPos foot = p.blockPosition();
         if (startY == Integer.MIN_VALUE) {
             startY = foot.getY();
@@ -127,7 +145,8 @@ public final class BunkerProcess implements BotProcess {
             }
             if (fit == 0) {
                 dbg("ABORT bunker: water at/around even the shallowest niche at {}", foot);
-                a.releaseInputs(); return true;
+                a.releaseInputs();
+                return finish(st, w, a, "unsafe-site", "water/hazard at dig site — no action taken");
             }
             if (fit < effectiveDepth) dbg("bunker: water table → shrink depth {}→{}", effectiveDepth, fit);
             effectiveDepth = fit;
@@ -136,21 +155,49 @@ public final class BunkerProcess implements BotProcess {
         if (phase != Phase.STEP_IN) p.setDeltaMovement(0, p.getDeltaMovement().y, 0);
 
         switch (phase) {
-            case DIG_DOWN: return digDown(a, w, p, foot);
-            case CARVE:    return carve(a, w, p);
+            case DIG_DOWN: return digDown(a, w, st, p, foot);
+            case CARVE:    return carve(a, w, st, p);
             case STEP_IN:  return stepIn(a, w, p, foot);
-            case PLUG:     return plug(a, w, p);
+            case PLUG:     return plug(a, w, st, p);
             // Stay SEALED after a successful plug: keep holding the channel (this is
             // a BunkerProcess, so UserTaskChain reports BUNKER priority 300 > combat
             // 60 — see GAP #20) so autoFight/idle can't walk the bot out of its
             // pocket and get it killed at night (GAP #22). Released only when the
             // Agent calls mc.bot.cancel (typically at dawn, then it breaks out).
             case SEALED:   a.releaseInputs(); return false;
-            default:       a.releaseInputs(); return true;
+            default:       a.releaseInputs(); return finish(st, w, a, phase.name(), null);
         }
     }
 
-    private boolean digDown(Avatar a, WorldView w, Player p, BlockPos foot) {
+    /** Stamps the honest terminal verdict on the bunker slot before every real
+     *  {@code return true} exit (gap#68-⑩). {@code goalReached} is block-level
+     *  enclosure ground truth — NOT {@code hazardSummary.cornered} (that means
+     *  "besieged into a corner" and was measured false during a genuinely SEALED
+     *  state on day60 live). Always returns {@code true} so call sites can just
+     *  {@code return finish(...)} without altering their control flow. */
+    private boolean finish(BotState st, WorldView w, Avatar a, String endReason, String err) {
+        st.bunker.endReason = endReason;
+        if (err != null) st.bunker.lastError = err;
+        boolean sealedNow = phase == Phase.SEALED || (phase == Phase.DONE && sealedOk);
+        st.bunker.goalReached = sealedNow && enclosed(w, a);
+        st.bunker.reset();
+        return true;
+    }
+
+    /** Block-level enclosure ground truth (spec §4.3 修正): the 4 horizontal
+     *  neighbors of the FOOT cell, the head cell's 4 horizontal neighbors, and the
+     *  cell above the head are all solid. hazardSummary.cornered 语义是"被敌对逼
+     *  死角",不可用作围合断言。 */
+    private static boolean enclosed(WorldView w, Avatar a) {
+        if (a.player() == null) return false;
+        BlockPos foot = a.player().blockPosition();
+        BlockPos head = foot.above();
+        return w.isSolid(foot.north()) && w.isSolid(foot.south()) && w.isSolid(foot.east()) && w.isSolid(foot.west())
+            && w.isSolid(head.north()) && w.isSolid(head.south()) && w.isSolid(head.east()) && w.isSolid(head.west())
+            && w.isSolid(head.above());
+    }
+
+    private boolean digDown(Avatar a, WorldView w, BotState st, Player p, BlockPos foot) {
         int d = startY - foot.getY();
         if (d != lastDepth) { lastDepth = d; digTicks = 0; }
         if (d >= effectiveDepth) {
@@ -164,17 +211,22 @@ public final class BunkerProcess implements BotProcess {
         BlockPos below = foot.below();
         if (w.isWater(foot) || w.isWater(foot.offset(0, 1, 0))
                 || w.isWater(below) || w.isHazard(below) || w.isHazard(foot.offset(0, 1, 0))) {
-            a.breakHold(false); a.releaseInputs(); return true;   // unsafe
+            a.breakHold(false); a.releaseInputs();
+            return finish(st, w, a, "unsafe-mid-dig", "hazard opened mid-dig");   // unsafe
         }
         if (!w.isSolid(below)) return false;                                   // mid-fall, settle
         a.selectTool(below);
         a.aimAtBlock(below);
         a.breakHold(true);
-        if (++digTicks > BotConfig.breakTimeoutTicks) { a.breakHold(false); a.releaseInputs(); return true; }
+        acted = true;
+        if (++digTicks > BotConfig.breakTimeoutTicks) {
+            a.breakHold(false); a.releaseInputs();
+            return finish(st, w, a, "dig-timeout", "break timeout (unbreakable below?)");
+        }
         return false;
     }
 
-    private boolean carve(Avatar a, WorldView w, Player p) {
+    private boolean carve(Avatar a, WorldView w, BotState st, Player p) {
         if (nicheDir == null) {
             // Pick a cardinal whose 2-tall niche is a solid (diggable) wall with a
             // solid floor (so we can stand), a SOLID NON-FALLING ROOF (n1.above() —
@@ -204,7 +256,8 @@ public final class BunkerProcess implements BotProcess {
                     return false;
                 }
                 dbg("CARVE no solid non-falling roof within depth budget → BAIL (would be open-air)");
-                a.releaseInputs(); return true;
+                a.releaseInputs();
+                return finish(st, w, a, "no-safe-roof", "no solid non-falling roof within depth budget — terrain unsuitable for bunker");
             }
             dbg("CARVE niche dir={} roof={} (n0={})", nicheDir,
                     bottom.relative(nicheDir).above().above(), bottom.relative(nicheDir));
@@ -216,7 +269,11 @@ public final class BunkerProcess implements BotProcess {
         a.selectTool(target);
         a.aimAtBlock(target);
         a.breakHold(true);
-        if (++actTicks > BotConfig.breakTimeoutTicks * 2) { a.breakHold(false); a.releaseInputs(); return true; }
+        acted = true;
+        if (++actTicks > BotConfig.breakTimeoutTicks * 2) {
+            a.breakHold(false); a.releaseInputs();
+            return finish(st, w, a, "act-timeout", "seal/carve timeout");
+        }
         return false;
     }
 
@@ -257,15 +314,22 @@ public final class BunkerProcess implements BotProcess {
 
     private static String fmt(double v) { return String.format(Locale.ROOT, "%.2f", v); }
 
-    private boolean plug(Avatar a, WorldView w, Player p) {
+    private boolean plug(Avatar a, WorldView w, BotState st, Player p) {
         a.commandForward(0f);
         // Plug the shaft column the bot vacated: bottom foot then the cell above.
         // Both gain support from below (floor / the foot-plug) so even sand holds.
         BlockPos p0 = bottom;             // old foot, has solid floor under it
         BlockPos p1 = bottom.above();     // old head, supported by p0 once placed
         BlockPos target = !w.isSolid(p0) ? p0 : (!w.isSolid(p1) ? p1 : null);
-        if (target == null) { dbg("PLUG sealed (p0={},p1={} both solid) → SEALED-hold", p0, p1); phase = Phase.SEALED; a.releaseInputs(); return false; }   // sealed → hold the pocket (GAP #22)
-        if (!a.holdPlaceable()) { dbg("PLUG no placeable block in hand → DONE UNSEALED target={}", target); phase = Phase.DONE; a.releaseInputs(); return true; } // nothing to plug with
+        if (target == null) {
+            dbg("PLUG sealed (p0={},p1={} both solid) → SEALED-hold", p0, p1);
+            phase = Phase.SEALED; sealedOk = true; a.releaseInputs(); return false;   // sealed → hold the pocket (GAP #22)
+        }
+        if (!a.holdPlaceable()) {
+            dbg("PLUG no placeable block in hand → DONE UNSEALED target={}", target);
+            phase = Phase.DONE; a.releaseInputs();
+            return finish(st, w, a, phase.name(), null); // nothing to plug with
+        }
         // Guard: if the bot's own hitbox still overlaps the cell we're filling,
         // placement silently fails forever. Detect it and keep shuffling into
         // the niche instead of burning the timeout unsealed.
@@ -273,14 +337,23 @@ public final class BunkerProcess implements BotProcess {
             p.setYRot(yawFor(nicheDir));
             a.commandForward(1f);
             dbg("PLUG body overlaps target={} pos=({},{}) → shuffle deeper", target, fmt(p.getX()), fmt(p.getZ()));
-            if (++actTicks > BotConfig.breakTimeoutTicks * 2) { dbg("PLUG give up (still overlapping) → DONE UNSEALED"); phase = Phase.DONE; a.releaseInputs(); return true; }
+            if (++actTicks > BotConfig.breakTimeoutTicks * 2) {
+                dbg("PLUG give up (still overlapping) → DONE UNSEALED");
+                phase = Phase.DONE; a.releaseInputs();
+                return finish(st, w, a, phase.name(), null);
+            }
             return false;
         }
         a.commandForward(0f);
         a.aimAtBlock(target);
         a.place(w, target);
+        acted = true;
         dbg("PLUG place target={} solidNow={} t={}", target, w.isSolid(target), actTicks);
-        if (++plugTicks > BotConfig.breakTimeoutTicks) { dbg("PLUG TIMEOUT target={} solid={} → DONE", target, w.isSolid(target)); phase = Phase.DONE; a.releaseInputs(); return true; }
+        if (++plugTicks > BotConfig.breakTimeoutTicks) {
+            dbg("PLUG TIMEOUT target={} solid={} → DONE", target, w.isSolid(target));
+            phase = Phase.DONE; a.releaseInputs();
+            return finish(st, w, a, phase.name(), null);
+        }
         return false;
     }
 

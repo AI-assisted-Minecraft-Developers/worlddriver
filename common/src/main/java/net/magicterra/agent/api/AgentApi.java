@@ -314,7 +314,7 @@ public final class AgentApi {
         // out), folding the final status snapshot into the response.
         routes.put("mc.bot.goto",      p -> awaitable(p, "goto",    requireBot()::mcGoto));
         routes.put("mc.bot.mine",      p -> awaitable(p, "mine",    requireBot()::mine));
-        routes.put("mc.bot.bunker",    p -> requireBot().bunker(p));
+        routes.put("mc.bot.bunker",    p -> awaitable(p, "bunker",  requireBot()::bunker));
         routes.put("mc.bot.escape",    p -> requireBot().escape(p));
         routes.put("mc.bot.craft",     p -> awaitable(p, "craft",   requireBot()::craft));
         routes.put("mc.bot.smelt",     p -> awaitable(p, "smelt",   requireBot()::smelt));

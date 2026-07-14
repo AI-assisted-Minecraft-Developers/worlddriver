@@ -117,10 +117,11 @@ public final class UserTaskChain implements Chain {
             case "craft"   -> state.craft;
             case "smelt"   -> state.smelt;
             case "escape"  -> state.escape;
-            // bunker (and any future slot-less kind) has NO BotState slot —
-            // its liveness surfaces via activeProcessDetail + the live process. Return
-            // null so cancel()/error don't (a) leave state.craft/smelt.active stuck true
-            // by resetting the wrong slot, or (b) stamp a phantom error on the goto slot.
+            case "bunker"  -> state.bunker;
+            // Any future slot-less kind has NO BotState slot — its liveness surfaces
+            // via activeProcessDetail + the live process. Return null so cancel()/error
+            // don't (a) leave some other slot's active stuck true by resetting the
+            // wrong slot, or (b) stamp a phantom error on the goto slot.
             default        -> null;
         };
     }
