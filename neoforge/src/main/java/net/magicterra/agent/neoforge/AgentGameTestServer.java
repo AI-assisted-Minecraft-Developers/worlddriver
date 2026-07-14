@@ -11,6 +11,7 @@ import net.magicterra.agent.neoforge.sim.ServerAgentDriver;
 import net.magicterra.agent.neoforge.sim.ServerAgentManager;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.scheduler.BunkerAnchor;
+import net.magicterra.agent.bot.scheduler.BunkerChain;
 import net.magicterra.agent.bot.process.BboxFillProcess;
 import net.magicterra.agent.bot.process.BuildProcess;
 import net.magicterra.agent.bot.process.CraftProcess;
@@ -3390,5 +3391,37 @@ public final class AgentGameTestServer {
         int n = 0;
         for (ItemStack stk : fp.getInventory().items) if (stk.getItem() == item) n += stk.getCount();
         return n;
+    }
+
+    // gap#68-R1a/⑦: the structural fix for "cancel can't reach a process-less reflex
+    // chain" — BunkerChain's anchor re-bids priority 300 forever once sealed, and
+    // mc.bot.cancel (all or named) had no seam to reach it (live: starved the user
+    // chain a whole night; only mc.bot.setting{autoBunker:false} broke it). Chain now
+    // exposes episodePhase()/cancelEpisode() so every reflex's internal state is
+    // externally reachable. BunkerChain can be constructed with no Minecraft instance
+    // and cancelEpisode's pure state reset (resetEpisodeState) is exercised directly —
+    // the client key-release half of cancelEpisode touches Minecraft.getInstance() and
+    // is NOT exercised here (dedicated GameTest server has no client classes); that
+    // half is live-verified in Task 10 leg ⑦.
+    static void chainEpisodeCancelMatrix(java.util.function.BiConsumer<Boolean, String> check) {
+        BunkerChain bc = new BunkerChain();
+        // Build a sealed episode (the ⑦ deadlock shape: sealed anchor re-bids forever).
+        bc.anchorForTest().beginIfIdle(0, 64, 0);
+        bc.anchorForTest().sealed = true;
+        check.accept("SEALED".equals(bc.episodePhase()), "sealed anchor reads as SEALED episode");
+        bc.resetEpisodeState();
+        check.accept(bc.episodePhase() == null, "resetEpisodeState clears the anchor");
+        check.accept(!bc.anchorForTest().active() && !bc.anchorForTest().sealed, "anchor fully reset");
+    }
+
+    /**
+     * gap#68-R1a: matrix-only (no world state needed), mirrors the gap#65
+     * {@code retreatGateMatrixArena} static-call pattern above.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void chainEpisodeCancelMatrixArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("chainEpisodeCancelMatrixArena")) { helper.succeed(); return; } // gt-filter
+        chainEpisodeCancelMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
+        helper.succeed();
     }
 }

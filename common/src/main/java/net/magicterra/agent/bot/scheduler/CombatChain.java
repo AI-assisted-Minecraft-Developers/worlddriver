@@ -139,6 +139,12 @@ public final class CombatChain implements Chain {
 
     @Override public void onResume() {}
 
+    @Override public String episodePhase() { return engaged() ? "ENGAGED" : null; }
+
+    @Override public void cancelEpisode(String reason) {
+        if (engaged()) { standDown(); state.combat.lastError = reason; }
+    }
+
     /** Drop the use key the {@link CombatProcess} holds while drawing a bow.
      *  {@code releaseKeys()} deliberately omits keyUse (the idle path runs it AFTER
      *  the shield/heal/eat reflexes set keyUse, so clearing it there would clobber

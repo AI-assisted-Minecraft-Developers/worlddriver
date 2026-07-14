@@ -95,4 +95,17 @@ public final class ProcessScheduler {
         lastPriorities = prios;
         if (best != null) best.tick(mc, w, st);
     }
+
+    /** Cancel every chain's internal episode (reflex anchors, latches, held processes).
+     *  The structural fix for "cancel can't reach a process-less reflex chain" (gap#68-⑦):
+     *  mc.bot.cancel{all} and the player-death hook both call this. Idempotent. */
+    public void cancelAllEpisodes(String reason) {
+        for (Chain c : chains) c.cancelEpisode(reason);
+    }
+
+    /** Find a chain by its name() (for targeted mc.bot.cancel{process:<chainName>}). */
+    public Chain byName(String name) {
+        for (Chain c : chains) if (c.name().equals(name)) return c;
+        return null;
+    }
 }

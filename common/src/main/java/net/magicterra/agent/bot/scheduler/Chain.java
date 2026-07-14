@@ -37,4 +37,33 @@ public interface Chain {
 
     /** Called when this chain regains the channel after being suspended. */
     default void onResume() {}
+
+    /**
+     * The chain's internal, cross-tick episode state, if any — {@code null} means
+     * "idle, no residual state" (the common case for stateless chains). A non-null
+     * value is a short phase label (e.g. {@code "SEALED"}, {@code "FLEEING"},
+     * {@code "ENGAGED"}) surfaced in {@code mc.bot.status.chains}.
+     *
+     * <p>This exists because some chains (notably {@link BunkerChain}) keep state
+     * that outlives any {@code BotProcess} and re-bids priority every tick purely
+     * from that state (gap#68-⑦: a sealed {@link BunkerAnchor} bids priority 300
+     * forever with no process to cancel). Without a uniform seam, {@code mc.bot.cancel}
+     * structurally could not reach it — only flipping the feature's config flag off
+     * broke the loop, after it starved the user task overnight in a live run.
+     */
+    default String episodePhase() { return null; }
+
+    /**
+     * Idempotently clear this chain's internal episode state so it stops bidding
+     * for the movement channel — the fix for gap#68-⑦. Called by
+     * {@code mc.bot.cancel} (targeted by chain name, or via
+     * {@link ProcessScheduler#cancelAllEpisodes} on {@code cancel{all}}) and by the
+     * player-death hook. Must leave the chain in the same state as a fresh,
+     * never-activated instance: after this call {@link #episodePhase()} must return
+     * {@code null} and {@link #priority} must go back to sitting out the bid (until
+     * its own trigger condition re-arms it). Calling it on an already-idle chain
+     * must be a harmless no-op. Does not affect the chain's normal tick/priority
+     * behaviour while an episode IS active and simply running its course.
+     */
+    default void cancelEpisode(String reason) {}
 }

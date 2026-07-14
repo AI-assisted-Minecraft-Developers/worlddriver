@@ -35,6 +35,7 @@ import java.util.function.Supplier;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.process.*;
 import net.magicterra.agent.bot.scheduler.BunkerChain;
+import net.magicterra.agent.bot.scheduler.Chain;
 import net.magicterra.agent.bot.scheduler.CombatChain;
 import net.magicterra.agent.bot.scheduler.DodgeChain;
 import net.magicterra.agent.bot.scheduler.DuskSecureChain;
@@ -499,6 +500,21 @@ public final class BotApiImpl implements BotApi {
             lp.put("pathLen", ps.pathLen());
             snap.put("lastPath", lp);
         }
+        // gap#68-R1a: per-chain priority + episode phase, so the agent (and the
+        // player-death hook, Task 5) can see chain-internal state that outlives any
+        // BotProcess — the ⑦ deadlock (a sealed BunkerAnchor bidding 300 forever with
+        // nothing in the process slot) was invisible to status() before this.
+        Map<String, Object> chains = new LinkedHashMap<>();
+        Map<String, Float> prios = scheduler.lastPriorities();
+        for (Chain ch : scheduler.chains()) {
+            Map<String, Object> one = new LinkedHashMap<>();
+            Float pr = prios.get(ch.name());
+            one.put("priority", pr == null ? 0f : pr);
+            String ep = ch.episodePhase();
+            if (ep != null) one.put("episode", ep);
+            chains.put(ch.name(), one);
+        }
+        snap.put("chains", chains);
         // Always-on water-bucket clutch state (idle/lip/falling) — lets a test
         // confirm an unplanned fall actually armed and is self-rescuing.
         snap.put("clutch", CLUTCH.phase());
@@ -520,6 +536,18 @@ public final class BotApiImpl implements BotApi {
             BotProcess c = userTask.process();
             boolean match = "all".equals(which) || (c != null && which.equals(c.kind()));
             if (match) cancelCurrent("user-cancel");
+            // gap#68-⑦: cancel must also reach chain-internal episodes (BunkerChain anchor,
+            // retreat latch, dusk process) that hold priority with no user process.
+            if ("all".equals(which)) {
+                scheduler.cancelAllEpisodes("user-cancel");
+                // gap#68-⑫: "cancel all" must also drop the orphan backfill queue — the
+                // auto-start at clientTick would otherwise resume placing blocks right
+                // after the cancel (live: post-cancel backfill marched HP7→5 into a fall).
+                backfillTracker.clear();
+            } else {
+                Chain byName = scheduler.byName(which);
+                if (byName != null) byName.cancelEpisode("user-cancel");
+            }
             return Map.of("ok", true, "cancelled", which);
         });
     }

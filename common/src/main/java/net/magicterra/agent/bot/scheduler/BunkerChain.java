@@ -136,6 +136,30 @@ public final class BunkerChain implements Chain {
 
     @Override public void onResume() { a.resume(); }  // preemption gap must not accrue toward breakTimeoutTicks
 
+    @Override public String episodePhase() {
+        if (a.sealed) return "SEALED";
+        return a.active() ? "DIGGING" : null;
+    }
+
+    @Override public void cancelEpisode(String reason) {
+        resetEpisodeState();
+        // Client-only key release — split from the state reset so the state semantics
+        // stay testable on the dedicated GameTest server (no client classes there).
+        Minecraft mc = Minecraft.getInstance();
+        if (mc != null && mc.options != null) mc.options.keyAttack.setDown(false);
+        releaseKeys();
+    }
+
+    /** Pure episode-state reset (server-safe, matrix-testable). Public (not merely
+     *  package-private) because the gap#68-R1a matrix test lives in the neoforge
+     *  module's {@code AgentGameTestServer}, a different package/module than this
+     *  common-module class. */
+    public void resetEpisodeState() { a.reset(); }
+
+    /** Test seam: the anchor, for episode lifecycle matrix tests. Public for the
+     *  same cross-module reason as {@link #resetEpisodeState()}. */
+    public BunkerAnchor anchorForTest() { return a; }
+
     /** Hostiles within the trigger radius — the "surrounded" gauge. */
     private int surroundCount(Minecraft mc) {
         ThreatScanner.Scan scan = ClientThreatScanner.current(mc);

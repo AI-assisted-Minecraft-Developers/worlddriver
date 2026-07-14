@@ -216,4 +216,16 @@ public final class RetreatChain implements Chain {
     /** Resumed (e.g. after a panic dodge) — the next tick rebuilds the flee from
      *  the current position, so nothing to restore here. */
     @Override public void onResume() {}
+
+    @Override public String episodePhase() { return retreating ? "FLEEING" : null; }
+
+    /** gap#68-⑦: reach the flee latch even with no process (e.g. mid-preempt,
+     *  {@code process == null} while a higher chain steers) so cancel is idempotent
+     *  and fully stops the reflex from re-arming. */
+    @Override public void cancelEpisode(String reason) {
+        retreating = false;
+        process = null;
+        if (state.retreat.active) { state.retreat.lastError = reason; state.retreat.reset(); }
+        releaseKeys();
+    }
 }

@@ -80,4 +80,8 @@ public final class DuskSecureChain implements Chain {
     }
 
     @Override public void onInterrupt(Chain by) { process = null; releaseKeys(); }
+
+    @Override public String episodePhase() { return process != null ? "SECURING" : null; }
+
+    @Override public void cancelEpisode(String reason) { process = null; idleTicks = 0; releaseKeys(); }
 }

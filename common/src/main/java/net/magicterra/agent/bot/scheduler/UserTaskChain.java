@@ -104,6 +104,10 @@ public final class UserTaskChain implements Chain {
         if (process != null) process.onResume();
     }
 
+    @Override public String episodePhase() { BotProcess c = process; return c == null ? null : c.kind(); }
+
+    @Override public void cancelEpisode(String reason) { cancel(reason); }
+
     private BotState.ProcessSlot slotFor(String kind) {
         return switch (kind) {
             case "goto"    -> state.mc_goto;
