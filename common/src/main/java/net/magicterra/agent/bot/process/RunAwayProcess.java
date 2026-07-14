@@ -66,6 +66,10 @@ public final class RunAwayProcess implements BotProcess {
         this.from = from;
         this.minDist = minDist;
         this.reportSlot = slot;
+        // gap#72-④ owner tag: an explicit slot means the RetreatChain reflex owns this
+        // flee (see reportSlot's javadoc) — attribute its searches to the chain, not
+        // the user verb, so latest.log distinguishes "I told it to flee" from "it fled".
+        walker.setOwner(slot != null ? "retreat" : "runAway");
         walker.setGoal(new Goal.RunAway(from, minDist));
     }
 

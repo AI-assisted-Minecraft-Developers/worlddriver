@@ -57,7 +57,7 @@ public final class BackfillProcess implements BotProcess {
     private static final int PLACE_TIMEOUT_TICKS = 60;
 
     private final BackfillTracker tracker;
-    private final Walker walker = new Walker();
+    private final Walker walker = new Walker("backfill");
     private final Set<BlockPos> failed = new HashSet<>();
     private Phase phase = Phase.NEXT;
     private BlockPos currentBlock;

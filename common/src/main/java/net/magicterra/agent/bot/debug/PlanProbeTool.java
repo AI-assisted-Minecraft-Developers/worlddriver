@@ -56,7 +56,7 @@ public final class PlanProbeTool {
 
             if (!chain) {
                 long t0 = System.nanoTime();
-                PathFinder.Result r = new PathFinder(world).findPath(start, goal);
+                PathFinder.Result r = new PathFinder(world).withOwner("debug.plan").findPath(start, goal);
                 long wallMs = (System.nanoTime() - t0) / 1_000_000L;
                 return single(start, goal, goalX, goalZ, r, wallMs);
             }
@@ -75,7 +75,7 @@ public final class PlanProbeTool {
             long totalExpanded = 0;
             int n = 0;
             for (; n < maxSegments; n++) {
-                PathFinder.Result r = new PathFinder(world).findPath(from, goal);
+                PathFinder.Result r = new PathFinder(world).withOwner("debug.plan").findPath(from, goal);
                 totalExpanded += r.expanded();
                 List<BlockPos> path = r.path();
                 BlockPos end = path.isEmpty() ? from : path.get(path.size() - 1);

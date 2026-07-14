@@ -58,7 +58,7 @@ public final class BuildProcess implements BotProcess {
 
     private final BlockPos origin;
     private final Schematic schematic;
-    private final Walker walker = new Walker();
+    private final Walker walker = new Walker("build");
     private int idx;
     private int placed;
     private int skipped;

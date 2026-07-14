@@ -103,22 +103,29 @@ public final class AntiSuffocate {
 
     /** @return true if it took over to break a suffocating head block this tick. */
     public static boolean tick(Minecraft mc, LocalPlayer p) {
-        if (mc.level == null) { reset(mc); return false; }
+        if (mc.level == null) { reset(mc, "level-gone"); return false; }
         String lastDamageMsgId = null;
         DamageSource src = p.getLastDamageSource();
         if (src != null) lastDamageMsgId = src.getMsgId();
 
         boolean suffocating = AntiSuffocateGate.shouldTrigger(p.isInWall(), lastDamageMsgId,
                 BotConfig.antiSuffocate, BotConfig.allowBreak);
-        if (!suffocating) { reset(mc); return false; }
+        if (!suffocating) { reset(mc, "clear"); return false; }
 
         BlockPos head = resolveHead(mc, p);
-        if (head == null) { reset(mc); return false; }
+        if (head == null) { reset(mc, "no-solid-target"); return false; }
         BlockState st = mc.level.getBlockState(head);
         // Don't flail at an unbreakable block (bedrock = negative destroy speed).
-        if (st.getDestroySpeed(mc.level, head) < 0f) { reset(mc); return false; }
+        if (st.getDestroySpeed(mc.level, head) < 0f) { reset(mc, "unbreakable"); return false; }
 
-        if (!head.equals(trackedHead)) { trackedHead = head; rayMissTicks = 0; directDrive = false; }
+        if (!head.equals(trackedHead)) {
+            // gap#72-④ log dedup: this used to print "head suffocating → breaking …"
+            // EVERY tick while held (152 identical lines in one live burial) — now one
+            // line per TARGET (episode start or fallback-chain move), never per tick.
+            LOG.info("[antiSuffocate] suffocating → breaking {} ({}){}", head, st.getBlock(),
+                    trackedHead == null ? "" : " [switched from " + trackedHead.toShortString() + "]");
+            trackedHead = head; rayMissTicks = 0; directDrive = false;
+        }
 
         selectBestToolFor(mc, head);
         aimAtBlockSnap(p, head);
@@ -135,20 +142,21 @@ public final class AntiSuffocate {
         boolean rayOnTarget = mc.hitResult instanceof BlockHitResult bhr
                 && bhr.getType() == HitResult.Type.BLOCK && bhr.getBlockPos().equals(head);
         if (rayOnTarget) rayMissTicks = 0; else rayMissTicks++;
-        if (!directDrive && rayMissTicks >= RAYCAST_BYPASS_TICKS) directDrive = true;
+        if (!directDrive && rayMissTicks >= RAYCAST_BYPASS_TICKS) {
+            directDrive = true;
+            // gap#72-④: state transition (keyAttack → direct drive), logged once —
+            // the per-tick copy of this line is gone with the per-tick "breaking" one.
+            LOG.info("[antiSuffocate] raycast miss x{} → direct-driving destroy on {} ({})",
+                    rayMissTicks, head, st.getBlock());
+        }
 
         if (directDrive) {
             if (held) { mc.options.keyAttack.setDown(false); held = false; }
             Direction face = pickFaceTowardsPlayer(head, p);
             mc.gameMode.continueDestroyBlock(head, face);
-            if (BotConfig.walkerDebug)
-                LOG.info("[antiSuffocate] raycast miss x{} → direct-driving destroy on {} ({})",
-                        rayMissTicks, head, st.getBlock());
         } else {
             mc.options.keyAttack.setDown(true);
             held = true;
-            if (BotConfig.walkerDebug)
-                LOG.info("[antiSuffocate] head suffocating → breaking {} ({})", head, st.getBlock());
         }
         return true;
     }
@@ -191,7 +199,15 @@ public final class AntiSuffocate {
         return null;
     }
 
-    private static void reset(Minecraft mc) {
+    /** gap#72-④: {@code outcome} names WHY the episode ended, logged once IFF an
+     *  episode was actually running ({@code trackedHead != null} — reset() is also
+     *  the every-idle-tick no-op path, which must stay silent):
+     *  "clear" = the suffocation gate dropped; "no-solid-target" = nothing solid
+     *  left to break (typically the break succeeded and the trigger's ~40t damage
+     *  tail is still decaying); "unbreakable" = gave up (bedrock); "level-gone". */
+    private static void reset(Minecraft mc, String outcome) {
+        if (trackedHead != null)
+            LOG.info("[antiSuffocate] episode end ({}) — last target {}", outcome, trackedHead.toShortString());
         if (held) { mc.options.keyAttack.setDown(false); held = false; }
         if (directDrive) { mc.gameMode.stopDestroyBlock(); directDrive = false; }
         trackedHead = null;

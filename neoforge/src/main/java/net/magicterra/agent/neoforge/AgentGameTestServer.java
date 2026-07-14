@@ -3530,6 +3530,30 @@ public final class AgentGameTestServer {
             if (RetreatChain.shouldRelease(8f, 10f, pocket.apply(false, false), Long.MAX_VALUE, /*sealed*/ false))
                 throw new GameTestAssertException("gap#72-③(w): not sealed + hostile at 11 at low hp must NOT release (existing semantics preserved)");
 
+            // gap#72-④: the telemetry REASON CLASSIFIERS are the same single source
+            // as the boolean gates (shouldEnter == enterReason!=null and shouldRelease
+            // == releaseReason!=null by construction — the booleans delegate to the
+            // classifiers), so pin the classification itself: first-match order is
+            // lowHp → ranged-aiming → ranged-fire → hurt, release is safe/recovered.
+            if (!"lowHp".equals(RetreatChain.enterReason(8f, 10f, 20f, skel.apply(11.0, new boolean[]{false, false}), false)))
+                throw new GameTestAssertException("gap#72-④: hp8 + hostile at 11 must classify enter as lowHp");
+            if (!"ranged-aiming".equals(RetreatChain.enterReason(20f, 10f, 20f, skel.apply(10.0, new boolean[]{true, false}), false)))
+                throw new GameTestAssertException("gap#72-④: charging skeleton at 10 (full HP) must classify enter as ranged-aiming");
+            if (!"ranged-fire".equals(RetreatChain.enterReason(20f, 10f, 20f, skel.apply(16.0, new boolean[]{false, true}), false)))
+                throw new GameTestAssertException("gap#72-④: connected ranged hit at 16 (full HP) must classify enter as ranged-fire");
+            if (!"hurt".equals(RetreatChain.enterReason(20f, 10f, 20f, meleeHit.apply(14.0), false)))
+                throw new GameTestAssertException("gap#72-④: melee attackedMe at 14 (full HP) must classify enter as hurt");
+            if (RetreatChain.enterReason(18f, 6f, 20f, zombieNear.apply(5.0), false) != null)
+                throw new GameTestAssertException("gap#72-④: no-enter must classify as null (idle zombie, healthy)");
+            if (RetreatChain.enterReason(8f, 10f, 20f, pocket.apply(false, false), false, /*sealed*/ true) != null)
+                throw new GameTestAssertException("gap#72-④: sealed exemption must classify as null (no phantom reason)");
+            if (!"safe".equals(RetreatChain.releaseReason(8f, 10f, empty, Long.MAX_VALUE)))
+                throw new GameTestAssertException("gap#72-④: empty field must classify release as safe");
+            if (!"recovered".equals(RetreatChain.releaseReason(20f, 10f, zombieNear.apply(5.0), Long.MAX_VALUE)))
+                throw new GameTestAssertException("gap#72-④: hp20 + idle zombie at 5 must classify release as recovered (hysteresis branch)");
+            if (RetreatChain.releaseReason(20f, 10f, meleeHit.apply(14.0), Long.MAX_VALUE) != null)
+                throw new GameTestAssertException("gap#72-④: hurt-blocked release must classify as null");
+
             // gap#72-③ geometry leg: the "am I sealed" signal is BunkerProcess's
             // block-level enclosure ground truth (foot's 4 horizontal neighbors +
             // head's 4 + the cell above the head all solid), now a public static

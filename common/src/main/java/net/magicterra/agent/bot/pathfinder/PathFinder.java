@@ -109,6 +109,12 @@ public final class PathFinder {
      *  the A4a bias channel with the capability gate and edge constraints). {@link
      *  SearchProfile#NONE} for a plain search — byte-identical to pre-A2a. */
     private final SearchProfile profile;
+    /** gap#72-④: which chain/verb owns the goal every Search from this PathFinder
+     *  serves (e.g. "mine", "retreat", "goto") — telemetry only, never read by the
+     *  search itself. "?" = an untagged caller (direct tools/arenas/gametests). The
+     *  Walker threads its own owner through {@link #withOwner}; goal producers tag
+     *  the Walker, so the plumbing stays single-source (producer → Walker → here). */
+    private String owner = "?";
 
     /** Default ctor reads live tunables from {@link net.magicterra.agent.bot.BotConfig}
      *  so {@code mc.bot.setting{pathfinder.maxNodes:...}} can resize the budget
@@ -133,6 +139,14 @@ public final class PathFinder {
         this.maxNodes = maxNodes;
         this.maxMs = maxMs;
         this.profile = (profile == null) ? SearchProfile.NONE : profile;
+    }
+
+    /** gap#72-④: tag the searches launched from this PathFinder with the owning
+     *  chain/verb, so latest.log's search-begin lines are attributable. Fluent so
+     *  call sites stay one expression; null/empty keeps the "?" default. */
+    public PathFinder withOwner(String owner) {
+        if (owner != null && !owner.isEmpty()) this.owner = owner;
+        return this;
     }
 
     /** Run a search to completion in one call (synchronous). Kept for callers
@@ -327,6 +341,12 @@ public final class PathFinder {
             // A4a: append this search's per-intent bias AFTER the legacy taxes.
             // Empty for a plain search → byte-identical to the pre-A4a stack.
             costModifiers.addAll(PathFinder.this.profile.bias());
+            // gap#72-④ (always-on telemetry): one compact line per SEARCH, tagged with
+            // the chain/verb that owns the goal — the gap#72 live investigation spent a
+            // whole section attributing "8 blocks of unlogged digging" because no
+            // search in latest.log said WHO asked for it.
+            LOG.info("[pathfinder] search-begin owner={} start={} goal={} maxNodes={} maxMs={}",
+                    owner, start.toShortString(), goal, maxNodes, maxMs);
             // A5 dive diagnostics (walkerDebug-gated, one line per search): whether the
             // DIVE opt-in actually reached THIS search, whether the SurfaceDive move
             // survived the filter, and whether it (and SwimDown) yields an edge from

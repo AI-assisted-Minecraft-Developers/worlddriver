@@ -65,7 +65,7 @@ public final class PinchArena {
         int maxY = start.getY();
         int seg = 0;
         for (; seg < 60; seg++) {
-            PathFinder.Result r = new PathFinder(w, maxNodes, 30_000).findPath(from, goal);
+            PathFinder.Result r = new PathFinder(w, maxNodes, 30_000).withOwner("debug.pinch").findPath(from, goal);
             List<BlockPos> path = r.path();
             BlockPos end = path.isEmpty() ? from : path.get(path.size() - 1);
             maxY = Math.max(maxY, end.getY());

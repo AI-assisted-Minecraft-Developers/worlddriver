@@ -25,7 +25,7 @@ import java.util.List;
  */
 public final class ReplayProcess implements BotProcess {
 
-    private final Walker walker = new Walker();
+    private final Walker walker = new Walker("replay");
     private final List<BlockPos> plan;
     private final List<Move.Edge> edges;
     private final Goal endGoal;

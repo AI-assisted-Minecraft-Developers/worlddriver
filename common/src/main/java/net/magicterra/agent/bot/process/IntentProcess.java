@@ -31,7 +31,7 @@ import java.util.List;
  */
 public final class IntentProcess implements BotProcess {
     private final Intent intent;
-    private final Walker walker = new Walker();
+    private final Walker walker = new Walker("goto");
     private BlockPos lastAnchor;           // last solved anchor block (null = not yet solved)
     private int ticksSinceAnchorSolve;     // rate limiter
     private static final int ANCHOR_RESOLVE_MIN_TICKS = 20;

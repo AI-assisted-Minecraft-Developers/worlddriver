@@ -70,7 +70,7 @@ public final class CombatProcess implements BotProcess {
     private final Integer targetId;     // KILL by entity id (nullable)
     private final String targetType;    // KILL by entity type id (nullable)
 
-    private final Walker walker = new Walker();
+    private final Walker walker = new Walker("combat");
     private Integer lockedId;
     private boolean lockWasAlive;       // last-seen liveness of the locked target
     private int lostTicks;              // consecutive ticks the locked target was unseen

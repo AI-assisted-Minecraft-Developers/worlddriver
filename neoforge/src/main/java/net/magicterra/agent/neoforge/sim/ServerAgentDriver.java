@@ -26,7 +26,7 @@ import net.neoforged.neoforge.common.util.FakePlayer;
 public final class ServerAgentDriver {
     private final ServerPlayerAvatar avatar;
     private final LevelWorldView world;
-    private final Walker walker = new Walker();
+    private final Walker walker = new Walker("server");
     private final BotState botState = new BotState();
     private volatile Walker.Step last = Walker.Step.WALKING;
     private volatile boolean finished;

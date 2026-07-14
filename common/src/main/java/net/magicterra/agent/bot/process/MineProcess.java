@@ -71,7 +71,7 @@ public final class MineProcess implements BotProcess {
     private final List<Predicate<BlockState>> targetMatchers;
     private final int desiredQty;
     private final int searchRadius;
-    private final Walker walker = new Walker();
+    private final Walker walker = new Walker("mine");
     private final Set<BlockPos> blacklist = new HashSet<>();
     private int broken;
     // When the last SEARCH returned no usable target ONLY because every in-range
@@ -100,7 +100,7 @@ public final class MineProcess implements BotProcess {
     // magnet vacuum the drops. Capped to avoid backtracking forever.
     private final Deque<BlockPos> recentBreaks = new ArrayDeque<>();
     private int collectTicks;
-    private final Walker collectWalker = new Walker();
+    private final Walker collectWalker = new Walker("mine.collect");
     private BlockPos currentCollectGoal;
     private static final int MAX_COLLECT_TICKS = 240;       // ~12 s @ 20 tps — long enough to walk to all 8 break spots
     private static final int COLLECT_SCAN_RADIUS = 8;       // matches vanilla item lifetime drift

@@ -55,6 +55,18 @@ public final class Walker {
     public record PathStats(int expanded, long ms, boolean goalReached, double finalCost, int pathLen) {}
     public static volatile PathStats lastStats;
 
+    /** gap#72-④: the chain/verb this walker moves for (e.g. "mine", "retreat",
+     *  "goto") — threaded into every {@link PathFinder} it launches so latest.log's
+     *  search-begin lines are attributable. "?" = an untagged caller (test rigs,
+     *  direct arena walkers). Telemetry only; never read by planning/steering. */
+    private String owner = "?";
+
+    public Walker() {}
+    /** gap#72-④: construct pre-tagged — the one-expression form for the processes'
+     *  {@code private final Walker walker = new Walker("mine")} field initializers. */
+    public Walker(String owner) { setOwner(owner); }
+    public void setOwner(String owner) { if (owner != null && !owner.isEmpty()) this.owner = owner; }
+
     private Goal goal;
     /** Per-intent search profile (bias + capability + constraints) forwarded to
      *  every PathFinder this Walker builds (A4a bias-only; A2a full profile).
@@ -1337,7 +1349,7 @@ public final class Walker {
                         world.penalizeStuckNode(c.above());
                     }
             }
-            activeSearch = new PathFinder(world, profile).newSearch(searchFoot, goal);
+            activeSearch = new PathFinder(world, profile).withOwner(owner).newSearch(searchFoot, goal);
             searchFromEnd = false;
             searchSuppressedPlace = false;    // normal search: placing allowed; budget re-checked on result
             pendingSegment = null;            // a foot-search supersedes any stashed continuation
@@ -1346,7 +1358,7 @@ public final class Walker {
                 && activeSearch == null && pendingSegment == null
                 && searchBackoffTicks == 0) {
             // Eagerly precompute the next best-effort segment from the committed end.
-            activeSearch = new PathFinder(world, profile).newSearch(commitEnd, goal);
+            activeSearch = new PathFinder(world, profile).withOwner(owner).newSearch(commitEnd, goal);
             searchFromEnd = true;
             searchSuppressedPlace = false;
             ticksSinceRepath = 0;
@@ -1541,7 +1553,7 @@ public final class Walker {
                         if (BotConfig.walkerDebug)
                             LOG.info("[walker] path needs {} placed blocks, have {} → re-search place-off (dig/around)",
                                     placesNeeded, world.placeableBlockCount());
-                        activeSearch = new PathFinder(world, profile).newSearch(foot, goal, true);
+                        activeSearch = new PathFinder(world, profile).withOwner(owner).newSearch(foot, goal, true);
                         searchFromEnd = false;
                         searchSuppressedPlace = true;
                         pendingSegment = null;
@@ -2312,7 +2324,7 @@ public final class Walker {
                 }
             } else {
                 if (!replayMode && activeSearch == null && commitEnd != null) {
-                    activeSearch = new PathFinder(world, profile).newSearch(commitEnd, goal);
+                    activeSearch = new PathFinder(world, profile).withOwner(owner).newSearch(commitEnd, goal);
                     searchFromEnd = true;
                 }
                 // PROGRESSIVE QUICK-START at the splice gap: the continuation
@@ -5292,7 +5304,7 @@ public final class Walker {
                 && frontierWaitTicks < FRONTIER_WAIT_CAP) {
             frontierWaitTicks++;
             if (activeSearch == null) {
-                activeSearch = new PathFinder(world, profile).newSearch(commitEnd, goal);
+                activeSearch = new PathFinder(world, profile).withOwner(owner).newSearch(commitEnd, goal);
                 searchFromEnd = true;
             }
             agentForward(a, false);
@@ -5337,7 +5349,7 @@ public final class Walker {
     private boolean tryQuickStart(WorldView world, BlockPos foot, Goal goal) {
         if (BotConfig.pathfinderQuickNodes <= 0) return false;
         if (quickCooldown > 0) { quickCooldown--; return false; }
-        PathFinder.Search q = new PathFinder(world, BotConfig.pathfinderQuickNodes, QUICK_MAX_MS, profile)
+        PathFinder.Search q = new PathFinder(world, BotConfig.pathfinderQuickNodes, QUICK_MAX_MS, profile).withOwner(owner)
                 .newSearch(foot, goal);
         while (!q.advance(QUICK_MAX_MS)) { /* bounded by the node cap / QUICK_MAX_MS */ }
         PathFinder.Result res = q.result();

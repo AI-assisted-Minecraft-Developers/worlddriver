@@ -53,7 +53,7 @@ public final class ExploreProcess implements BotProcess {
     private final int centerChunkX, centerChunkZ;
     private final int maxChunks;
     private final Set<Long> visited = new HashSet<>();
-    private final Walker walker = new Walker();
+    private final Walker walker = new Walker("explore");
     private int visitedCount;
     private BlockPos currentChunkCenter;
     private int currentChunkX, currentChunkZ;

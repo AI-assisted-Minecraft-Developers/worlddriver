@@ -60,7 +60,7 @@ public final class BboxFillProcess implements BotProcess {
     private final BlockPos maxP;
     private final String fillId;        // null = no placement
     private final String filterFromId;  // null = any non-air; else only this id
-    private final Walker walker = new Walker();
+    private final Walker walker = new Walker("fill");
     private final Set<BlockPos> blacklist = new HashSet<>();
     private final Set<BlockPos> done = new HashSet<>();
     private final int totalEstimate;

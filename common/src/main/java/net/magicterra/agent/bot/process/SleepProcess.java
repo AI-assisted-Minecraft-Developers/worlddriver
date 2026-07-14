@@ -57,7 +57,7 @@ public final class SleepProcess implements BotProcess {
 
     private final BlockPos explicit;
     private final int searchRadius;
-    private final Walker walker = new Walker();
+    private final Walker walker = new Walker("sleep");
 
     private BlockPos bedPos;
     private int useTicks;

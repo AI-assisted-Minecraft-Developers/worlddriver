@@ -86,7 +86,7 @@ public final class HorizonArena {
             boolean firstGoalReached = false;
             BlockPos from = start;
             for (; segments < 60; segments++) {
-                PathFinder.Result r = new PathFinder(w, 8_000, 30_000).findPath(from, goal);
+                PathFinder.Result r = new PathFinder(w, 8_000, 30_000).withOwner("debug.horizon").findPath(from, goal);
                 List<BlockPos> path = r.path();
                 BlockPos end = path.isEmpty() ? from : path.get(path.size() - 1);
                 if (segments == 0) {

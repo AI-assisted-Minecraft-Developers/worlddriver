@@ -15,6 +15,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.monster.RangedAttackMob;
 
+import static net.magicterra.agent.AgentDriverCommon.LOG;
 import static net.magicterra.agent.bot.util.BotInteract.releaseKeys;
 
 /**
@@ -93,7 +94,11 @@ public final class RetreatChain implements Chain {
     @Override public String name() { return "retreat"; }
 
     @Override public float priority(Minecraft mc, WorldView w, BotState st) {
-        if (!BotConfig.autoRetreat || mc.player == null) return idle();
+        if (!BotConfig.autoRetreat || mc.player == null) {
+            // gap#72-④: an in-flight flee killed by the toggle is a transition too.
+            if (retreating) LOG.info("[retreat] release reason=disabled");
+            return idle();
+        }
         float hp = mc.player.getHealth();
         float thr = BotConfig.retreatHpThreshold;
         ThreatScanner.Scan scan = ClientThreatScanner.current(mc);
@@ -114,11 +119,22 @@ public final class RetreatChain implements Chain {
             // CombatChain, so this reads last tick's value: one-tick-stale, which is
             // acceptable for a gate whose job is "don't flee a healthy ongoing brawl".
             boolean combatEngaged = st.combat.active;
-            if (!shouldEnter(hp, thr, mc.player.getMaxHealth(), scan, combatEngaged, sealed)) return idle();
+            String reason = enterReason(hp, thr, mc.player.getMaxHealth(), scan, combatEngaged, sealed);
+            if (reason == null) return idle();
             retreating = true;                       // latch the flee
+            // gap#72-④: one line per TRANSITION (enter/release/preempt), never per tick —
+            // the gap#72 investigation burned a whole section attributing an unlogged flee.
+            LOG.info("[retreat] enter reason={} hp={} thr={} threats={} sealed={} sealedFiltered={} combatEngaged={}",
+                    reason, hp, thr, scan.threats().size(), sealed,
+                    sealed ? sealedFilteredCount(scan) : 0, combatEngaged);
         } else {
             long ticksSinceHurt = (lastHurtGameTime == Long.MIN_VALUE) ? Long.MAX_VALUE : (now - lastHurtGameTime);
-            if (shouldRelease(hp, thr, scan, ticksSinceHurt, sealed)) return idle();
+            String release = releaseReason(hp, thr, scan, ticksSinceHurt, sealed);
+            if (release != null) {
+                LOG.info("[retreat] release reason={} hp={} ticksSinceHurt={} sealed={}",
+                        release, hp, ticksSinceHurt == Long.MAX_VALUE ? "never" : ticksSinceHurt, sealed);
+                return idle();
+            }
         }
         // Ramp: the lower the HP below the threshold, the harder we flee.
         return Priorities.SURVIVAL + (thr - Math.min(hp, thr));
@@ -159,19 +175,32 @@ public final class RetreatChain implements Chain {
      *                       (see {@link CombatChain#engaged()} via {@code state.combat.active}). */
     public static boolean shouldEnter(float hp, float thr, float maxHp, ThreatScanner.Scan scan,
                                        boolean combatEngaged) {
+        return enterReason(hp, thr, maxHp, scan, combatEngaged) != null;
+    }
+
+    /** gap#72-④: the enter gate as a REASON CLASSIFIER — returns WHICH signal latches
+     *  the flee (first match, in the exact order the boolean OR used to evaluate:
+     *  {@code "lowHp" | "ranged-aiming" | "ranged-fire" | "hurt"}), or null for
+     *  no-enter. {@link #shouldEnter} delegates here, so the telemetry line in
+     *  {@link #priority} can never disagree with the gate itself (single source).
+     *
+     *  <p>On the "hurt" leg: being HIT by a ranged attacker (gap#55's attackedMe
+     *  attribution) latches the flee at ANY hp and regardless of LoS — {@code charging}
+     *  goes blind in exactly the stair/corner geometry where arrows still arc in
+     *  (canSee is an eye-to-eye ray, arrows are ballistic); waiting for hp<=thr there
+     *  means 2-3 hits already landed (death #6). gap#68-①: melee attackers no longer
+     *  stay on the hp gate — hurtByAnyone latches on ANY connected hit within
+     *  2×CLEAR_RADIUS (deaths #9/#11/#12: shot/hit repeatedly while goto/digging,
+     *  never fled) — UNLESS we're already engaged in a healthy brawl (final-review
+     *  finding #2). */
+    public static String enterReason(float hp, float thr, float maxHp, ThreatScanner.Scan scan,
+                                     boolean combatEngaged) {
         float effThr = Math.max(thr, maxHp * 0.4f);
-        boolean lowHp = hp <= effThr && hostileWithin(scan);
-        boolean ranged = rangedThreatAiming(scan);
-        // Being HIT by a ranged attacker (gap#55's attackedMe attribution) latches the
-        // flee at ANY hp and regardless of LoS: {@code charging} goes blind in exactly
-        // the stair/corner geometry where arrows still arc in (canSee is an eye-to-eye
-        // ray, arrows are ballistic) — waiting for hp<=thr there means 2-3 hits already
-        // landed (death #6). gap#68-①: melee attackers no longer stay on the hp gate —
-        // hurtByAnyone latches on ANY connected hit within 2×CLEAR_RADIUS (deaths
-        // #9/#11/#12: shot/hit repeatedly while goto/digging, never fled) — UNLESS
-        // we're already engaged in a healthy brawl (final-review finding #2).
-        boolean hurtEntry = (!combatEngaged || hp <= effThr) && hurtByAnyone(scan);
-        return lowHp || ranged || underRangedFire(scan) || hurtEntry;
+        if (hp <= effThr && hostileWithin(scan)) return "lowHp";
+        if (rangedThreatAiming(scan)) return "ranged-aiming";
+        if (underRangedFire(scan)) return "ranged-fire";
+        if ((!combatEngaged || hp <= effThr) && hurtByAnyone(scan)) return "hurt";
+        return null;
     }
 
     /** Back-compat 3-arg gate (existing matrix tests + call sites): maxHp=20,
@@ -196,7 +225,13 @@ public final class RetreatChain implements Chain {
      *                      1×1 pocket (4 foot + 4 head neighbors + roof solid). */
     public static boolean shouldEnter(float hp, float thr, float maxHp, ThreatScanner.Scan scan,
                                        boolean combatEngaged, boolean sealedPocket) {
-        return shouldEnter(hp, thr, maxHp, sealedPocket ? seenOrConnectedOnly(scan) : scan, combatEngaged);
+        return enterReason(hp, thr, maxHp, scan, combatEngaged, sealedPocket) != null;
+    }
+
+    /** gap#72-④: sealed-aware {@link #enterReason} — same filter as the 6-arg gate. */
+    public static String enterReason(float hp, float thr, float maxHp, ThreatScanner.Scan scan,
+                                     boolean combatEngaged, boolean sealedPocket) {
+        return enterReason(hp, thr, maxHp, sealedPocket ? seenOrConnectedOnly(scan) : scan, combatEngaged);
     }
 
     /** ANY attacker whose hit actually connected (vanilla last-damager window), near
@@ -241,19 +276,28 @@ public final class RetreatChain implements Chain {
      *                        enough ago not to matter) — see the 3-arg back-compat
      *                        overload above. */
     public static boolean shouldRelease(float hp, float thr, ThreatScanner.Scan scan, long ticksSinceHurt) {
-        boolean recovered = hp >= thr + RELEASE_HP_MARGIN;
+        return releaseReason(hp, thr, scan, ticksSinceHurt) != null;
+    }
+
+    /** gap#72-④: the release gate as a REASON CLASSIFIER — {@code "safe"} (outran
+     *  everything) or {@code "recovered"} (HP margin + no ranged pressure), or null
+     *  for keep-fleeing. {@link #shouldRelease} delegates here (single source).
+     *
+     *  <p>gap#68-①: hurtByAnyone blocks release SYMMETRICALLY with the enter gate, the
+     *  same way gap#65's underRangedFire guards both sides. Without it, a melee
+     *  attacker whose hit connected (attackedMe, ~2s window) in the 12–24 band —
+     *  outside hostileWithin's melee radius but inside hurt-entry's — releases via
+     *  the safe branch this tick and re-enters via hurtByAnyone the next: a per-tick
+     *  enter/release flap. Like attackedMe itself, this decays once we break contact. */
+    public static String releaseReason(float hp, float thr, ThreatScanner.Scan scan, long ticksSinceHurt) {
         boolean visibleRanged = visibleRangedThreatWithin(scan, RANGED_RADIUS);
         boolean recentHurt = ticksSinceHurt < HURT_RELEASE_COOLDOWN_TICKS;
-        // gap#68-①: hurtByAnyone blocks release SYMMETRICALLY with the enter gate, the
-        // same way gap#65's underRangedFire guards both sides. Without it, a melee
-        // attacker whose hit connected (attackedMe, ~2s window) in the 12–24 band —
-        // outside hostileWithin's melee radius but inside hurt-entry's — releases via
-        // the safe branch this tick and re-enters via hurtByAnyone the next: a per-tick
-        // enter/release flap. Like attackedMe itself, this decays once we break contact.
-        boolean safe = !hostileWithin(scan) && !underRangedFire(scan) && !hurtByAnyone(scan)
-                && !visibleRanged && !recentHurt;
-        return safe || (recovered && !rangedThreatAiming(scan) && !underRangedFire(scan) && !hurtByAnyone(scan)
-                && !visibleRanged && !recentHurt);
+        if (!hostileWithin(scan) && !underRangedFire(scan) && !hurtByAnyone(scan)
+                && !visibleRanged && !recentHurt) return "safe";
+        boolean recovered = hp >= thr + RELEASE_HP_MARGIN;
+        if (recovered && !rangedThreatAiming(scan) && !underRangedFire(scan) && !hurtByAnyone(scan)
+                && !visibleRanged && !recentHurt) return "recovered";
+        return null;
     }
 
     /** 5-arg gate (gap#72-③): the MAINTAIN half of the sealed-pocket exemption —
@@ -266,7 +310,20 @@ public final class RetreatChain implements Chain {
      *                      ThreatScanner.Scan, boolean, boolean)}. */
     public static boolean shouldRelease(float hp, float thr, ThreatScanner.Scan scan, long ticksSinceHurt,
                                         boolean sealedPocket) {
-        return shouldRelease(hp, thr, sealedPocket ? seenOrConnectedOnly(scan) : scan, ticksSinceHurt);
+        return releaseReason(hp, thr, scan, ticksSinceHurt, sealedPocket) != null;
+    }
+
+    /** gap#72-④: sealed-aware {@link #releaseReason} — same filter as the 5-arg gate. */
+    public static String releaseReason(float hp, float thr, ThreatScanner.Scan scan, long ticksSinceHurt,
+                                       boolean sealedPocket) {
+        return releaseReason(hp, thr, sealedPocket ? seenOrConnectedOnly(scan) : scan, ticksSinceHurt);
+    }
+
+    /** gap#72-④ telemetry: how many scanned threats the sealed-pocket filter
+     *  ({@link #seenOrConnectedOnly}) is dropping — surfaced on the enter line so a
+     *  flee latched WHILE sealed shows how much of the field was exempted noise. */
+    private static int sealedFilteredCount(ThreatScanner.Scan scan) {
+        return scan.threats().size() - seenOrConnectedOnly(scan).threats().size();
     }
 
     /** gap#72-③'s filter: the threats a SEALED bot still has to answer for — those
@@ -392,6 +449,10 @@ public final class RetreatChain implements Chain {
     /** Preempted by something higher (panic/dodge) — drop the flee so the next
      *  activation starts fresh from the current position. */
     @Override public void onInterrupt(Chain by) {
+        // gap#72-④: preemption is the third transition worth a line (enter/release are
+        // the other two) — fires once per preempt, never per tick.
+        LOG.info("[retreat] preempted by={} (flee latch kept, resumes when repriced)",
+                by != null ? by.name() : "unknown");
         // gap#72-①: unified drop (onCancelled fires) — but deliberately NO slot here:
         process = ChainProcessLifecycle.drop(process, null,
                 ChainProcessLifecycle.INTERRUPTED, "preempted by " + (by != null ? by.name() : "unknown"));
@@ -422,6 +483,9 @@ public final class RetreatChain implements Chain {
      *  {@code process == null} while a higher chain steers) so cancel is idempotent
      *  and fully stops the reflex from re-arming. */
     @Override public void cancelEpisode(String reason) {
+        // gap#72-④: an explicit cancel that actually ended something is a transition.
+        if (retreating || process != null)
+            LOG.info("[retreat] release reason=cancelled ({})", reason);
         retreating = false;
         lastHurtGameTime = Long.MIN_VALUE;   // gap#71: fresh cooldown bookkeeping next flee
         prevHurtByAnyone = false;            // final-review L1: fresh edge-detection next flee

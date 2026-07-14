@@ -61,7 +61,7 @@ public final class FollowProcess implements BotProcess {
     private final String name;
     private final int radius;
     private final int maxIdleTicks;
-    private final Walker walker = new Walker();
+    private final Walker walker = new Walker("follow");
     private int ticksSinceReplan;
     private int idleTicks;
     private int consecutiveFails;

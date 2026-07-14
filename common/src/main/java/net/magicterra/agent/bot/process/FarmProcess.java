@@ -68,7 +68,7 @@ public final class FarmProcess implements BotProcess {
     private final BlockPos minP, maxP;     // y range collapsed to a single scan plane below
     private final Set<String> crops;
     private final boolean replant;
-    private final Walker walker = new Walker();
+    private final Walker walker = new Walker("farm");
     private final Set<BlockPos> blacklist = new HashSet<>();
     private final int totalEstimate;
 
