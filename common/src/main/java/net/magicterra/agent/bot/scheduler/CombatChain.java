@@ -138,8 +138,20 @@ public final class CombatChain implements Chain {
             }
             return Priorities.COMBAT;
         }
-        if (BotConfig.autoFight && autoSuppressTicks == 0
-                && !frailBlocked(hp, BotConfig.combatFrailThreshold, false)) {
+        if (BotConfig.autoFight && autoSuppressTicks == 0) {
+            if (frailBlocked(hp, BotConfig.combatFrailThreshold, false)) {
+                // Auto-fight turned frail mid-swing: stand down LOUDLY; Retreat (>=100)
+                // naturally takes over. This must live here in bid(), NOT in tick() —
+                // once this bid returns 0 the scheduler interrupts the chain and never
+                // ticks it again (tick() only runs on the winning chain), so a
+                // tick()-side disengage would be unreachable and the exit silent.
+                // Entering frail while NOT engaged stays quiet: simply don't bid.
+                if (engaged()) {
+                    standDown();
+                    state.combat.lastError = "frail-disengage";
+                }
+                return 0f;
+            }
             ThreatScanner.Threat top = ClientThreatScanner.current(mc).top();
             if (top != null && top.score() >= BotConfig.autoFightThreatThreshold) return Priorities.COMBAT;
         }
@@ -147,13 +159,6 @@ public final class CombatChain implements Chain {
     }
 
     @Override public void tick(Minecraft mc, WorldView w, BotState st) {
-        if (mc.player != null && intentMode == null
-                && frailBlocked(mc.player.getHealth(), BotConfig.combatFrailThreshold, false)) {
-            // Auto-fight turned frail mid-swing: stand down; Retreat (>=100) naturally takes over.
-            standDown();
-            state.combat.lastError = "frail-disengage";
-            return;
-        }
         if (process == null) {
             if (intentMode != null) {
                 process = new CombatProcess(intentMode, intentId, intentType);
@@ -174,6 +179,7 @@ public final class CombatChain implements Chain {
                 intentMode = null;
                 intentId = null;
                 intentType = null;
+                intentForce = false;
             }
             releaseKeys();
         }
