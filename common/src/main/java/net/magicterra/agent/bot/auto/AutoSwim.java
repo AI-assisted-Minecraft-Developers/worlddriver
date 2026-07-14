@@ -25,9 +25,23 @@ import static net.magicterra.agent.AgentDriverCommon.LOG;
  * its own water-escape moves ({@code SwimAshoreBreak}/{@code SwimUpBreak}) and we
  * must not fight its steering. The lift step is unconditional (compatible with a
  * walking Walker — both want the surface).
+ *
+ * <p><b>gap#70 boundary (live death #18), see {@link #drowningSentinel}:</b> the
+ * paragraph above is precisely why an IDLE bot got none of this — {@link #tick}
+ * returns immediately when idle (by design: the driver must not move the bot on
+ * its own with no command). {@link #drowningSentinel} is the deliberate carve-out
+ * for that gap: a PURE VERTICAL float (hold jump only, never forward/turn/beach)
+ * is a survival reflex, not the "autonomous movement" the idle-passive contract
+ * forbids — same boundary P1 already drew for combat (hurt-entry retreat reacts
+ * to being hit while idle).
  */
 public final class AutoSwim {
     private AutoSwim() {}
+
+    /** True while {@link #drowningSentinel} is the one holding jump, so it
+     *  releases its own hold exactly once when air recovers/surfaces, without
+     *  clobbering a jump some other actuator set. */
+    private static boolean floatHeld;
 
     /** Max horizontal (Chebyshev) rings scanned for a shore when beaching. */
     private static final int SHORE_SCAN_R = 10;
@@ -43,19 +57,49 @@ public final class AutoSwim {
     /** Throttle counter for walkerDebug shore logging. */
     private static int DBG = 0;
 
-    /** ALARM-only drowning sentinel — must be called UNCONDITIONALLY every client tick
-     *  (NOT behind the autoSwim flag: with autoSwim off, an idle bot left submerged after
-     *  a cancelled goto has no walker and no DrowningEscape, and it drowned silently twice
-     *  live 2026-07-02 — the second time WITH this sentinel compiled in but dead behind the
-     *  flag gate). Never drives inputs; the idle-passive contract holds. One WARN per ~5 s
-     *  while air is critical so the operator/harness can intervene. */
-    public static void drowningSentinel(LocalPlayer p, boolean idle) {
-        if (!idle || p == null) return;
-        if (BotConfig.walkerExpectAlarm && p.isUnderWater() && p.getAirSupply() <= 100
-                && p.getHealth() > 0 && (DBG++ % 100 == 0)) {
-            LOG.warn("[expect] IDLE-drowning: no process owns the bot, underwater with air={} at {},{},{} — passive contract forbids self-rescue",
-                    p.getAirSupply(), (int) p.getX(), (int) p.getY(), (int) p.getZ());
+    /** Idle drowning REFLEX — must be called UNCONDITIONALLY every client tick, same as
+     *  its predecessor (NOT behind the autoSwim flag: with autoSwim off, an idle bot left
+     *  submerged after a cancelled goto has no walker and no DrowningEscape, and it
+     *  drowned silently twice live 2026-07-02).
+     *
+     *  <p><b>gap#70 (live death #18):</b> this used to be ALARM-only — it computed the
+     *  exact trigger condition every tick ({@code isUnderWater() && air<=100}) and just
+     *  WARNed, on the theory that any self-rescue here would violate "driver idle must be
+     *  passive". That theory was wrong: a bot tp'd into a ~29-block-deep river with no
+     *  task sank to the bottom and drowned air 16→0 in ~40 s while this method logged the
+     *  WARN the entire time and did nothing. <b>Controller ruling</b> (see also {@link
+     *  BotConfig#autoFloatWhenDrowning}, {@link DrowningFloatGate}, and the class doc
+     *  above): the idle-passive contract was always about forbidding UNCOMMANDED
+     *  HORIZONTAL movement/beaching, never about letting the bot drown — P1 already drew
+     *  this exact line for combat (hurt-entry retreat fires while idle, gap#68). A PURE
+     *  VERTICAL float — hold jump ONLY, never {@code keyUp}/{@code keyLeft}/{@code
+     *  keyRight}/yaw, never the shore-steer above — is the same class of survival reflex,
+     *  in-bounds for idle. So this now DRIVES {@code keyJump} once air is critical,
+     *  gated by {@link DrowningFloatGate#shouldFloat} (pure, matrix-tested) and {@link
+     *  BotConfig#autoFloatWhenDrowning} — independent of {@link BotConfig#autoSwim} on
+     *  purpose, since it's a bare reflex (the {@code AntiSuffocate} pattern), not the
+     *  autoSwim movement/beach feature.
+     *
+     *  @return true iff this call drove {@code keyJump} (so the caller can mark the
+     *          release gate dirty and avoid a trailing held jump). */
+    public static boolean drowningSentinel(Minecraft mc, LocalPlayer p, boolean idle) {
+        if (!idle || p == null) {
+            if (floatHeld) { mc.options.keyJump.setDown(false); floatHeld = false; }
+            return false;
         }
+        boolean floating = DrowningFloatGate.shouldFloat(p.isUnderWater(), p.getAirSupply(),
+                BotConfig.drownFloatAirThreshold, BotConfig.autoFloatWhenDrowning);
+        if (floating) {
+            mc.options.keyJump.setDown(true);
+            floatHeld = true;
+            if (BotConfig.walkerDebug && (DBG++ % 20 == 0))
+                LOG.info("[drowningFloat] idle + underwater + air={} <= threshold {} → holding jump to surface at {},{},{}",
+                        p.getAirSupply(), BotConfig.drownFloatAirThreshold, (int) p.getX(), (int) p.getY(), (int) p.getZ());
+        } else if (floatHeld) {
+            mc.options.keyJump.setDown(false);
+            floatHeld = false;
+        }
+        return floating;
     }
 
     /** Legacy 2-arg entry (lift only) kept for any caller that lacks a WorldView. */

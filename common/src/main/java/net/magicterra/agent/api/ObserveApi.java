@@ -158,6 +158,11 @@ public final class ObserveApi {
             out.put("onGround", pl.onGround());
             out.put("health", pl.getHealth());
             out.put("maxHealth", pl.getMaxHealth());
+            // gap#70 (live death #18): air was invisible on both observation paths — a
+            // bot sinking toward drowning gave no signal short of the one-shot
+            // player.enteredWater event. Mirrors ClientObserve's field of the same name.
+            out.put("air", pl.getAirSupply());
+            out.put("maxAir", pl.getMaxAirSupply());
             out.put("food", pl.getFoodData().getFoodLevel());
             out.put("xpLevel", pl.experienceLevel);
             // Active MobEffects, mirroring the client-side snapshot

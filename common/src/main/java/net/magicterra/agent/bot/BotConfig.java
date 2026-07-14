@@ -251,6 +251,33 @@ public final class BotConfig {
      *  Read only by the {@code AntiSuffocate} client-tick reflex — never the planner. */
     public static volatile boolean antiSuffocate = true;
 
+    /** gap#70 (live death #18): an IDLE bot (no movement process) that sinks in
+     *  deep water gets ZERO self-rescue — {@link #autoSwim}'s lift/beach steer is
+     *  deliberately idle-gated OFF ({@code AutoSwim.tick}'s own doc: "with NO
+     *  command … force-surfacing … is exactly what must NOT happen"), and
+     *  Walker's {@code drowningEscape} only runs inside an active Walker, which an
+     *  idle bot has none of. A bot tp'd into a ~29-block-deep river with no task
+     *  drowned air 16→0 in ~40 s with both flags on and zero action taken.
+     *  <p><b>Controller ruling (written into code, not just this comment — see
+     *  {@code AutoSwim.drowningSentinel}/{@code AutoSwim.tick}):</b> the "driver
+     *  idle must be passive" contract was always about forbidding UNCOMMANDED
+     *  HORIZONTAL movement/beaching, never about letting the bot drown. P1
+     *  already established that the reflex layer (lethal-threat response) stays
+     *  active while idle (hurt-entry retreat reacts to being hit at rest); a pure
+     *  VERTICAL float-to-surface is the same kind of survival reflex, not
+     *  "autonomous movement" — no forward key, no turning, no beach-steer, ever.
+     *  Independent of {@link #autoSwim} on purpose: this is a bare survival
+     *  reflex (AntiSuffocate's pattern), not the autoSwim movement/beach feature,
+     *  so it can be toggled without touching autoSwim's active-process
+     *  lift/beach semantics. Default ON. */
+    public static volatile boolean autoFloatWhenDrowning = true;
+
+    /** Air-supply threshold (ticks; vanilla max 300, drown damage starts at 0)
+     *  at/below which {@link #autoFloatWhenDrowning} takes over — 100 ≈ half a
+     *  bubble icon left, early enough to reach the surface from a moderate depth
+     *  but not so early it fights a bot that's merely diving briefly. gap#70. */
+    public static volatile int drownFloatAirThreshold = 100;
+
     /** A* node cap surfaced as a tunable knob — Baritone's
      *  {@code pathTimeoutMS} analogue. Maps directly to
      *  {@link net.magicterra.agent.bot.pathfinder.PathFinder} default. */

@@ -11,6 +11,7 @@ import net.magicterra.agent.neoforge.sim.ServerAgentDriver;
 import net.magicterra.agent.neoforge.sim.ServerAgentManager;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.auto.AntiSuffocateGate;
+import net.magicterra.agent.bot.auto.DrowningFloatGate;
 import net.magicterra.agent.bot.scheduler.BunkerAnchor;
 import net.magicterra.agent.bot.scheduler.BunkerChain;
 import net.magicterra.agent.bot.scheduler.CombatChain;
@@ -4178,6 +4179,98 @@ public final class AgentGameTestServer {
             if (!driver.finished() || ServerAgentManager.activeCount() != 0)
                 throw new GameTestAssertException("server CraftProcess did not finish+unregister: active="
                         + ServerAgentManager.activeCount());
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            ServerAgentManager.clear();
+            level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.AIR.defaultBlockState());
+        }
+        helper.succeed();
+    }
+
+    /**
+     * gap#70 (live death #18): a bot tp'd into a ~29-block-deep river with NO
+     * task (idle) sank to the bottom and drowned air 16→0 in ~40 s with zero
+     * self-rescue — {@code AutoSwim.tick}'s lift+beach steer is deliberately
+     * idle-gated OFF (the driver-idle-passivity contract: no command means no
+     * autonomous horizontal movement), and Walker's {@code drowningEscape} only
+     * runs inside an active Walker, which an idle bot has none of. The old
+     * {@code AutoSwim.drowningSentinel} computed the exact trigger condition
+     * every tick ({@code isUnderWater() && air<=100}) but only WARNed — it never
+     * acted, so the alarm rang the whole time the bot died.
+     *
+     * <p>Controller ruling (also written into {@code BotConfig#autoFloatWhenDrowning}
+     * and {@code DrowningFloatGate}): "idle must be passive" was always about
+     * forbidding UNCOMMANDED horizontal movement/beaching, never about letting
+     * the bot drown — P1 already drew this line for combat (hurt-entry retreat
+     * fires at rest); a PURE VERTICAL float-to-surface (hold jump only, no
+     * forward/turn/beach) is the same class of reflex, in-bounds for idle.
+     *
+     * <p>{@link DrowningFloatGate#shouldFloat} is the pure gate — zero client
+     * type references, matrix-testable with no {@code Minecraft}/{@code
+     * LocalPlayer} instance, same split-file precedent as {@link
+     * AntiSuffocateGate} (gap#69). The actual jump-driving reflex lives in
+     * {@code AutoSwim.drowningSentinel}, which needs a real client tick to
+     * exercise (hold/release {@code keyJump}) — verified live, not here (see
+     * task-2-report.md).
+     */
+    static void drowningFloatShouldFloatMatrix(java.util.function.BiConsumer<Boolean, String> check) {
+        // (a) underwater, air at the threshold exactly, enabled → must float.
+        check.accept(DrowningFloatGate.shouldFloat(true, 100, 100, true),
+                "gap#70(a): underwater with air==threshold and enabled must float");
+        // (b) underwater but air comfortably above the threshold → must NOT float
+        // (don't fight a bot that's merely diving briefly with plenty of air left).
+        check.accept(!DrowningFloatGate.shouldFloat(true, 300, 100, true),
+                "gap#70(b): underwater with air well above threshold must NOT float");
+        // (c) air critically low but NOT underwater (e.g. head just broke the
+        // surface) → must NOT float; nothing to rescue from.
+        check.accept(!DrowningFloatGate.shouldFloat(false, 50, 100, true),
+                "gap#70(c): low air but not underwater must NOT float");
+        // (d) config gate: even underwater + critical air, disabled must NOT float.
+        check.accept(!DrowningFloatGate.shouldFloat(true, 50, 100, false),
+                "gap#70(d): autoFloatWhenDrowning=false must suppress even underwater+critical air");
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void drowningFloatShouldFloatMatrixArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("drowningFloatShouldFloatMatrixArena")) { helper.succeed(); return; } // gt-filter
+        drowningFloatShouldFloatMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
+        helper.succeed();
+    }
+
+    /**
+     * gap#70: air (oxygen) was invisible on both observation paths —
+     * {@code ObserveApi.playerSnapshot} (server, the ONLY inventory/status verb a
+     * server FakePlayer avatar has — see {@link #serverObservePlayerInventoryArena})
+     * and {@code ClientObserve} (client, {@code mc.client.player}) both omitted
+     * {@code getAirSupply()}/{@code getMaxAirSupply()}, so an agent watching a bot
+     * sink toward drowning had no signal at all short of the one-shot
+     * {@code player.enteredWater} event. Drives the SERVER path (the one a
+     * FakePlayer avatar can exercise): set air low via {@code setAirSupply}, then
+     * assert {@code observe.player} reports it.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverObserveAirSupplyArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverObserveAirSupplyArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int cx = 3200, cz = 3440, floorY = 220;
+        boolean odbg = BotConfig.walkerDebug;
+        BotConfig.walkerDebug = false;
+        ServerAgentManager.clear();
+        try {
+            level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.STONE.defaultBlockState());
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            FakePlayer fp = driver.fakePlayer();
+            fp.setAirSupply(42);
+
+            Map<String, Object> snap = new AgentApi().observe.playerSnapshot(fp);
+            AgentDriverCommon.LOG.info("[serverObserveAirSupplyArena] air={} maxAir={}",
+                    snap.get("air"), snap.get("maxAir"));
+            if (!(snap.get("air") instanceof Number an) || an.intValue() != 42)
+                throw new GameTestAssertException("gap#70: observe.player carries no (or wrong) `air` "
+                        + "field — got " + snap.get("air") + ", wanted 42 (fp.setAirSupply(42))");
+            if (!(snap.get("maxAir") instanceof Number mn) || mn.intValue() != fp.getMaxAirSupply())
+                throw new GameTestAssertException("gap#70: observe.player carries no (or wrong) `maxAir` "
+                        + "field — got " + snap.get("maxAir"));
         } finally {
             BotConfig.walkerDebug = odbg;
             ServerAgentManager.clear();

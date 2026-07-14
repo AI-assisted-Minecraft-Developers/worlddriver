@@ -88,6 +88,11 @@ public final class ClientObserve {
             }
             out.put("health", p.getHealth());
             out.put("maxHealth", p.getMaxHealth());
+            // gap#70 (live death #18): air was invisible on both observation paths — a
+            // bot sinking toward drowning gave no signal short of the one-shot
+            // player.enteredWater event. Mirrors ObserveApi's field of the same name.
+            out.put("air", p.getAirSupply());
+            out.put("maxAir", p.getMaxAirSupply());
             out.put("food", p.getFoodData().getFoodLevel());
             out.put("saturation", p.getFoodData().getSaturationLevel());
             out.put("xpLevel", p.experienceLevel);

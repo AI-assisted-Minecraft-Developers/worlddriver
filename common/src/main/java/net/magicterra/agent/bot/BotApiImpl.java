@@ -1015,10 +1015,15 @@ public final class BotApiImpl implements BotApi {
         // a walking Walker (both want the surface), and we only ever ADD lift here —
         // the release branch (surface transition) stays idle-gated so we never
         // clobber a land jump the Walker set.
-        // Drowning sentinel runs regardless of the autoSwim flag (alarm-only; the flag
-        // gates the DRIVING backstop below, and hiding the alarm behind it made the
-        // sentinel dead code — the idle bot drowned live with it compiled in).
-        if (mc.player != null) AutoSwim.drowningSentinel(mc.player, scheduler.current() == null);
+        // Idle drowning reflex runs regardless of the autoSwim flag — gated by its own
+        // independent BotConfig.autoFloatWhenDrowning (gap#70, live death #18: a bot with
+        // no task sank and drowned with zero self-rescue; this used to be alarm-only and
+        // is now an unconditional PURE-VERTICAL float, never movement — see AutoSwim
+        // .drowningSentinel's doc for the controller's idle-passivity ruling). Mark the
+        // release gate dirty when it actually held jump so the idle release path clears
+        // that trailing key once air recovers, same bookkeeping as autoSwim's lift below.
+        if (mc.player != null && AutoSwim.drowningSentinel(mc, mc.player, scheduler.current() == null))
+            releaseGate.markDirtied();
         if (BotConfig.autoSwim && mc.player != null && mc.player.isInWater()) {
             // Lift while submerged AND (when idle) actively swim to the nearest
             // shore — a bot that respawned/fell into a lake with no process used
