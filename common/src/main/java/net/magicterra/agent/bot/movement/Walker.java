@@ -10,6 +10,8 @@ import net.magicterra.agent.bot.pathfinder.PathFinder;
 import net.magicterra.agent.bot.pathfinder.PathTrace;
 import net.magicterra.agent.bot.pathfinder.PathTraceHolder;
 import net.magicterra.agent.bot.pathfinder.SearchProfile;
+import net.magicterra.agent.bot.pathfinder.Constraint;
+import net.magicterra.agent.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.magicterra.agent.bot.world.SurvivalMath;
 import net.minecraft.core.BlockPos;
@@ -58,10 +60,32 @@ public final class Walker {
      *  every PathFinder this Walker builds (A4a bias-only; A2a full profile).
      *  {@link SearchProfile#NONE} = plain navigation; IntentProcess sets it from the Intent. */
     private SearchProfile profile = SearchProfile.NONE;
+    /** Cached from {@link #profile} in {@link #setSearchProfile}: does the current profile carry a
+     *  {@link NoBreak} (a per-goto {@code forbidDig})? Cached so the execution-layer dig gate
+     *  ({@link #mayBreak}) is a field read, not a per-tick constraint scan at every fallback site. */
+    private boolean profileForbidsBreak = false;
 
     /** Set the per-intent search profile for subsequent searches. Null → {@link SearchProfile#NONE}. */
     public void setSearchProfile(SearchProfile p) {
         this.profile = (p == null) ? SearchProfile.NONE : p;
+        boolean forbids = false;
+        for (Constraint c : this.profile.constraints()) if (c instanceof NoBreak) { forbids = true; break; }
+        this.profileForbidsBreak = forbids;
+    }
+
+    /** True when the executor MAY mutate the world to recover (the discretionary dig FALLBACKS:
+     *  wallDig, the swim/bank climb-out riser, the lily-pad ram). Honors BOTH the global
+     *  {@link BotConfig#allowBreak} master switch AND the per-intent {@link NoBreak} constraint
+     *  (a per-goto {@code forbidDig}): an executor recovery must never exceed the world-mutation
+     *  authority the planner was given. Before this, the fallbacks checked only the global switch,
+     *  so a {@code forbidDig} bot pinned against terrain still tunnelled (survival day6: a leashed
+     *  {@code goto entityId forbidDig:true} carved back underground; the live workaround was to kill
+     *  global {@code allowBreak}, which also killed legitimate planned digs). Planned break edges
+     *  are NOT gated here — {@code NoBreak} already prunes them at the planner. The single-head-cell
+     *  anti-suffocation dig (pillarRecover) is DELIBERATELY exempt and stays on {@code allowBreak}
+     *  only: suffocation is death, {@code forbidDig} is a navigation preference — safety wins. */
+    private boolean mayBreak() {
+        return BotConfig.allowBreak && !profileForbidsBreak;
     }
     private boolean goalSnapChecked;   // one-shot per goal: snap an unstandable Goal.Block target to the nearest standable cell (see snapGoalToStandable) — needs a live WorldView so it runs on the first tick, not at setGoal
     private List<BlockPos> path;
@@ -194,6 +218,7 @@ public final class Walker {
     private float freeHangDriveYaw = Float.NaN;             // slew-limited world heading of the free-hang vine DRIVE (NaN = resync); smooths the step-jitter ±180° flips that would circle the body off a narrow column
     private int surfaceWaterLatch = 0;                      // ticks the open-water swim stays latched after a surface bob lifts the foot out of the fluid (rides out the isInWater blink)
     private int deepWaterDriftLatch = 0;                    // ticks the deep-water drift sprint-brake stays latched after firing while grounded, so sprint stays OFF through the airborne sub-arcs of a step-down descent toward a deep pocket (otherwise sprint re-arms each airborne tick and the accumulated forward momentum still overshoots into the water)
+    private int steepDescentLatch = 0;                      // DRY sibling of deepWaterDriftLatch (task#36): ticks the steep-descent sprint-brake stays latched across the airborne sub-arcs of a step-down, so sprint can't re-arm mid-fall and accumulate forward momentum off a survivable-deep lip (live 2026-07-11 Mountains massif: onG=false→sprint=true walked the body off a 19-block lip to death)
     private int climbPressConsec = 0;                       // consecutive ticks the buoyant-climb-press raw condition has held (debounces the surface-bob false trigger)
     private int waterDriveRejectStreak = 0;                 // consecutive flip-rejections of the water drive heading (escape-hatch snaps after WATER_DRIVE_MAX_REJECT)
     private int descentDriveRejectStreak = 0;               // consecutive back-hop rejections on a dry diagDown slope (escape-hatch snaps to the real node after WATER_DRIVE_MAX_REJECT)
@@ -214,14 +239,32 @@ public final class Walker {
     private int unstuckCountCooldown;                       // anti-stuck: min ticks between counted repath events (debounce)
     private int unstuckTicks;                               // anti-stuck: ticks left driving the forced displacement
     private float unstuckYaw;                               // anti-stuck: fixed heading for the displacement burst
+    // Unreachable-goal churn guard (gap #49-③): consecutive completed searches that
+    // neither improved the best goal distance nor followed any bot displacement.
+    private double futileBestDist = Double.POSITIVE_INFINITY;  // bestDistToGoal snapshot at last counted search
+    private BlockPos futileFoot;                                // foot snapshot at last counted search
+    private int futileSearches;                                 // consecutive futile completions
+    private int searchBackoffTicks;                             // no new search kickoff while >0
     private int dbgPrevStep = -1;     // walkerDebug: detect step changes for per-step timing
     private int dbgTicksOnStep = 0;   // walkerDebug: ticks spent on the current step
     private boolean replayMode;   // executing a fixed archived plan: no repath/quick-start/splice/anti-stuck repath
     public String lastError;
+    /** gap#68-R2 honest terminal report: why the last tick() returned ARRIVED/FAILED,
+     *  whether the (possibly snapped-away-from) goal was ACTUALLY reached at the foot,
+     *  and the heuristic distance left. Written once at every terminal() call site;
+     *  read by IntentProcess to stamp the status slot. Volatile: status threads read. */
+    public volatile String lastEndReason;
+    public volatile boolean lastGoalReached;
+    public volatile double lastFinalDist;
+    /** True once snapGoalToStandable() rewrote the requested Goal.Block to a nearby
+     *  standable cell — arrival then means "arrived NEAR", not "arrived AT". */
+    private boolean goalSnapped;
 
     public void setGoal(Goal g) {
         this.goal = g;
         this.goalSnapChecked = false;
+        this.goalSnapped = false;
+        this.lastEndReason = null;
         this.path = null;
         this.edges = null;
         this.step = 0;
@@ -251,12 +294,17 @@ public final class Walker {
         this.diveLatch = 0;
         this.diveHold = 0;
         this.deepWaterDriftLatch = 0;
+        this.steepDescentLatch = 0;
         this.pillarRecoverLatch = 0;
         this.wantClimbRecent = 0;
         this.descending = false;
         this.activeSearch = null;
         this.bestDistToGoal = Double.POSITIVE_INFINITY;
         this.bestGoalDist = Double.POSITIVE_INFINITY;
+        this.futileBestDist = Double.POSITIVE_INFINITY;
+        this.futileFoot = null;
+        this.futileSearches = 0;
+        this.searchBackoffTicks = 0;
         this.repathsNoProgress = 0;
         this.churnBase = null;
         this.churnWindowTicks = 0;
@@ -338,6 +386,7 @@ public final class Walker {
                 LOG.info("[walker] goal snap: unstandable target {} → nearest standable {} (d={})",
                         t, best, String.format(Locale.ROOT, "%.1f", Math.sqrt(bestToTarget)));
             this.goal = new Goal.Block(best);
+            this.goalSnapped = true;
         }
     }
 
@@ -393,6 +442,7 @@ public final class Walker {
         this.diveLatch = 0;
         this.diveHold = 0;
         this.deepWaterDriftLatch = 0;
+        this.steepDescentLatch = 0;
         this.pillarRecoverLatch = 0;
         this.wantClimbRecent = 0;
         this.descending = false;
@@ -464,8 +514,124 @@ public final class Walker {
     }
 
     public Step tick(Avatar a, WorldView world) {
+        // Single-exit wrapper: tickInner() has dozens of early returns (pillar, dig, escape,
+        // stepUp...), so a safety invariant appended to its tail only covers SOME ticks — the
+        // gap #53 death strode over a well mouth from a branch that never reached it. Run the
+        // stride floor-guard here, after EVERY decision path, before the avatar integrates.
+        Step s = tickInner(a, world);
+        boolean fired = strideFloorGuard(a, world);
+        // Self-releasing latch: the pin must last exactly as long as the hazard. A sneak
+        // that nothing releases turns a one-stride save into a permanent stall (ridge
+        // descent pinned at maxNoProgress=205 in the first full-suite run).
+        if (guardSneakLatch && !fired) agentSneak(a, false);
+        guardSneakLatch = fired;
+        if (fired) {
+            // A pin is a deliberate hold, not a stall: revert this tick's stuck accounting so
+            // anti-stuck recovery bursts don't shove the body over the very lip the pin holds it
+            // from (live 2026-07-13 death: 8 clean pins at the cliff, stuckT climbing 2→4, then a
+            // recovery nudge pushed the 2.5HP body over a 6-block drop — the guard's save undone
+            // by the machinery around it).
+            if (stuckTicks > 0) stuckTicks--;
+            // Sustained pinning is a PLANNING fact — the current route leads over a lethal lip —
+            // not an actuation stall. Drop the path so safetyRepath solves a fresh route from
+            // here instead of letting the drive fight the pin indefinitely (descentDrift
+            // livelock: 567 pins in one run). The planner does not yet tax the hazard cell, so
+            // the new route may re-approach it; the streak then trips again — bounded churn that
+            // the futile-search cap ultimately converts into an actionable FAILED.
+            if (++guardPinStreak >= 30) { path = null; guardPinStreak = 0; }
+        } else guardPinStreak = 0;
+        return s;
+    }
+
+    /** Consecutive ticks the stride floor-guard has pinned; sustained pinning forces a repath. */
+    private int guardPinStreak;
+
+    /** True while the stride floor-guard's sneak-pin is held; cleared (and the sneak
+     *  released) on the first tick the hazard is gone. */
+    private boolean guardSneakLatch;
+
+    /** True while this tick's edge is a parkour launch — the guard must not sneak-pin or
+     *  jump-cancel a deliberate leap over void (its landing is the plan). Set inside
+     *  {@link #tickInner}; reset each tick. */
+    private boolean guardParkourTick;
+
+    /** Stride floor-guard (gap #53, the 2026-07-12 survival death; #51's stair-side void is
+     *  the same invariant): while GROUNDED and dry, project the body's actual horizontal
+     *  VELOCITY ~4 ticks ahead; if that cell is passable with NO floor within
+     *  {@link BotConfig#pathfinderMaxDryFall}+1 below — a drop the planner can never have
+     *  routed (Fall.valid caps at maxDryFall), so the exposure is always UNPLANNED — pin the
+     *  body with vanilla sneak (maybeBackOffFromEdge stops it at the edge), cancel any pending
+     *  jump, and when a placeable is at hand + allowPlace, plug the mouth so the crossing
+     *  becomes real (backfill-as-you-go). Velocity, not the commanded yaw, is used: the fatal
+     *  strides (live well-mouth crossing; arena pillar-top drift) moved the body along headings
+     *  the drive variables did not predict. Planned descents (current waypoint below foot in
+     *  the stride column) and parkour launches are exempt; water has its own physics. */
+    private boolean strideFloorGuard(Avatar a, WorldView world) {
+        if (!BotConfig.walkerStrideFloorGuard || guardParkourTick) return false;
         Player p = a.player();
-        if (p == null) { lastError = "player vanished"; return terminal(Step.FAILED, PathTrace.Outcome.ERROR, lastError); }
+        if (p == null || p.isInWater() || !p.onGround()) return false;
+        Vec3 dm = p.getDeltaMovement();
+        double h = Math.sqrt(dm.x * dm.x + dm.z * dm.z);
+        if (h < 0.03) return false;                             // not translating
+        double lead = Math.max(0.9, h * 4);                     // ~4 ticks of travel, min one cell
+        BlockPos strideCell = BlockPos.containing(
+                p.getX() + dm.x / h * lead, p.getY() + 0.05, p.getZ() + dm.z / h * lead);
+        BlockPos footCell = BlockPos.containing(p.getX(), p.getY() + 0.05, p.getZ());
+        if (strideCell.equals(footCell) || !world.isPassable(strideCell)) return false;
+        // Planned descent into that exact column (current or next few nodes — chained falls
+        // put the landing node a step or two ahead of the pointer). Column must match
+        // EXACTLY: a Chebyshev-1 slack would exempt the pit mouth beside a staircase and
+        // re-open the descentDrift launch death.
+        if (path != null) {
+            int end = Math.min(step + 8, path.size());
+            for (int i = Math.max(step, 0); i < end; i++) {
+                BlockPos n = path.get(i);
+                if (n.getY() < footCell.getY() && n.getX() == strideCell.getX() && n.getZ() == strideCell.getZ())
+                    return false;
+            }
+        }
+        // Hazard threshold is LETHALITY at current HP, not mere unplannability: fall damage is
+        // (blocks - 3), so a drop can kill only from ceil(HP)+3 blocks up (3.8HP → 7; full HP →
+        // 23, the vanilla lethal line). Small unplanned falls are normal walker dynamics —
+        // pinning them (first cut used maxDryFall+1=5) perturbed legitimate steep descents into
+        // NEW failures (descentYaw chord-cuts are 5-6 block hops). The planner-unplannable
+        // floor (maxDryFall+1) is kept as the minimum so a dying bot never out-shrinks it.
+        int lethalDepth = Math.max(BotConfig.pathfinderMaxDryFall + 1, (int) Math.ceil(p.getHealth()) + 3);
+        for (int i = 1; i <= lethalDepth; i++) {
+            BlockPos below = strideCell.below(i);
+            if (!world.isPassable(below) || world.isWater(below))
+                return false;                                   // a floor or a water landing → safe
+        }
+        agentSneak(a, true);
+        a.commandJump(false);
+        p.setSprinting(false);
+        // Log the plug's REAL outcome: the 2026-07-13 live death log claimed "plug" eight ticks
+        // running for the same cell — if the first placement had landed, the second scan would
+        // have found floor and never fired. The place() result was being discarded.
+        boolean canPlug = BotConfig.allowPlace && !a.breakHeld();
+        boolean held = canPlug && a.holdPlaceable();
+        if (held) a.place(world, strideCell.below());
+        // place() has no return value, so read the WORLD for the outcome. A client-side place
+        // may land a tick later — then the next scan finds floor and stops firing, which is the
+        // same signal; what matters is that repeated fires on one cell now read "plug FAILED"
+        // instead of eight confident "plug" lines while nothing was ever placed.
+        boolean plugged = held && !world.isPassable(strideCell.below());
+        // Unconditional: firing means the body was one stride from an unplanned lethal drop —
+        // rare by design, and the one signal that matters when reconstructing a fall post-mortem.
+        LOG.info("[walker] stride floor-guard: bottomless stride {},{},{} (vel {}, {}) → sneak-pin{}",
+                    strideCell.getX(), strideCell.getY(), strideCell.getZ(),
+                    String.format(java.util.Locale.ROOT, "%.2f", dm.x),
+                    String.format(java.util.Locale.ROOT, "%.2f", dm.z),
+                    plugged ? " + plug " + strideCell.below()
+                            : !canPlug ? "" : !held ? " (no placeable held)"
+                            : " (plug FAILED " + strideCell.below() + ")");
+        return true;
+    }
+
+    private Step tickInner(Avatar a, WorldView world) {
+        Player p = a.player();
+        if (p == null) { lastError = "player vanished"; return terminalReport(Step.FAILED, PathTrace.Outcome.ERROR, lastError, "failed:" + lastError, null); }
+        guardParkourTick = false;
         // AgentInput install (client) is handled inside the Avatar implementation.
 
         // Steep-barrier planner escalation: a confirmed boxed churn (below) arms a sticky
@@ -594,7 +760,8 @@ public final class Walker {
             boolean midAirEdge = ce != null && ce.move != null && !p.onGround()
                     && ("pillarUp".equals(ce.move) || ce.move.startsWith("parkourPlace")
                         || ce.move.startsWith("parkourDescend"));
-            if (!midAirEdge) return terminal(Step.ARRIVED, PathTrace.Outcome.SUCCESS, null);
+            if (!midAirEdge) return terminalReport(Step.ARRIVED, PathTrace.Outcome.SUCCESS, null,
+                    classifyArrival(pathBestEffort, goal.reached(foot), goalSnapped), foot);
         }
 
         // walkerStickyDig: a planned break, once started, OWNS the tick until the block
@@ -622,7 +789,7 @@ public final class Walker {
             stickyDigPos = null;
             stickyDigTicks = 0;
         }
-        if (BotConfig.walkerStickyDig && stickyDigPos != null) {
+        if (BotConfig.walkerStickyDig && !BotConfig.walkerDigAimPriority && stickyDigPos != null) {
             // Tightened after C31-J1 (-325,64,-47): the 25 (5-block) drift radius held the
             // latch on a cell 5 below the bot — OUTSIDE mining reach (~4.5) — so the latch
             // owned every tick swinging at an unreachable block until the full break
@@ -630,6 +797,15 @@ public final class Walker {
             // at reach (20 ≈ 4.5²) and cap the watchdog at 150t: with the latch holding
             // attack every tick, any REACHABLE block (worst realistic case ~25×-slow
             // underwater dirt with a tool) completes well inside that.
+            // gap#66: this legacy EXCLUSIVE latch must not run alongside its successor
+            // walkerDigAimPriority — with both on, the two release checks each ran
+            // ++stickyDigTicks on the same counter, so the 150t watchdog fired at ~75
+            // REAL ticks. A bare-hand stone dig needs 150 CONSECUTIVE held ticks
+            // (vanilla zeroes progress on any released tick), so every wall-dig
+            // fallback swing was dropped mid-dig ("DIG-dropped after 76t") and the
+            // stuck recovery piling up behind the starved actuator shoved the bot off
+            // its own stairs. digAimPriority alone re-holds crosshair+attack at the
+            // end of every travel tick — the dig survives without owning the tick.
             if (!world.isSolid(stickyDigPos)
                     || ++stickyDigTicks > Math.min(BotConfig.breakTimeoutTicks, 150)
                     || stickyDigPos.distToCenterSqr(p.position()) > 20) {
@@ -666,7 +842,7 @@ public final class Walker {
             // Y toward the goal → bestDistToGoal drops → totalTicks resets on the next step.
         } else if (++totalTicks > BotConfig.walkerTotalTickBudget) {
             lastError = "no progress for " + BotConfig.walkerTotalTickBudget + " ticks (best dist=" + Math.round(bestDistToGoal) + ")";
-            return terminal(Step.FAILED, PathTrace.Outcome.STUCK, lastError);
+            return terminalReport(Step.FAILED, PathTrace.Outcome.STUCK, lastError, "failed:" + lastError, p.blockPosition());
         }
 
         // Re-searching toward a FAR goal mid-segment returns a DIVERGENT best-effort
@@ -1111,7 +1287,12 @@ public final class Walker {
                 lastWedgeFoot = foot;
             }
         }
-        if (!replayMode && (safetyRepath || fullPeriodic) && activeSearch == null) {
+        // Futile-cycle backoff (gap #49-③): while cooling down after a futile search,
+        // don't kick off another one — the churn loop otherwise relaunches a full-budget
+        // A* every tick from the same foot toward the same unreachable goal.
+        if (searchBackoffTicks > 0) searchBackoffTicks--;
+        if (!replayMode && (safetyRepath || fullPeriodic) && activeSearch == null
+                && searchBackoffTicks == 0) {
             // Stuck too long on a move the Walker can't execute (a steep stepUp it
             // slides off, a pillar it can't ground)? Blacklist that node so this
             // re-search routes AROUND the wedge instead of re-planning into it —
@@ -1162,7 +1343,8 @@ public final class Walker {
             pendingSegment = null;            // a foot-search supersedes any stashed continuation
             ticksSinceRepath = 0;
         } else if (!replayMode && pathBestEffort && commitEnd != null
-                && activeSearch == null && pendingSegment == null) {
+                && activeSearch == null && pendingSegment == null
+                && searchBackoffTicks == 0) {
             // Eagerly precompute the next best-effort segment from the committed end.
             activeSearch = new PathFinder(world, profile).newSearch(commitEnd, goal);
             searchFromEnd = true;
@@ -1236,6 +1418,49 @@ public final class Walker {
                 LOG.info(
                         "[walker] repath from {} → goalReached={} pathLen={} expanded={} ms={}",
                         wasFromEnd ? commitEnd : foot, res.goalReached(), res.path().size(), res.expanded(), res.ms());
+            // Unreachable-goal churn guard (gap #49-③): a best-effort result landing while
+            // the bot has neither moved nor gotten any closer to the goal is a FUTILE cycle
+            // — repath → reject/no progress → identical repath — and each cycle burns a full
+            // A* budget. The total-tick budget below does bound this, but it counts ticks
+            // while the cost is per-SEARCH (live probe: 129 searches, ~36 s of A* CPU inside
+            // the 62 s wait). Count the searches themselves: after walkerFutileSearchCap
+            // consecutive futile completions, end the journey with a reason the agent can
+            // act on ("no route progress" = the goal is unreachable from here, re-plan; the
+            // tick-budget's "no progress for N ticks" keeps meaning a transient stall).
+            // Actively mining exempts (goal distance is legitimately flat mid-break), same
+            // as the tick budget's breakHeld hold below.
+            // Water is exempt: an afloat bot legitimately repaths many times while
+            // stationary (bank climb-outs, bobbing), and that churn is owned by the
+            // existing in-water anti-spin (repathsNoProgress) — two governors on one
+            // loop would race. This guard owns the DRY unreachable churn.
+            // gap#66 leg C: a COMPLETELY empty result while stuck-penalties are live is
+            // (likely) SELF-INFLICTED blindness — the wedge penalties walled the pocket, not
+            // the terrain (same rationale as the path==null decay-wait below, which this cap
+            // was racing: live pit 2026-07-14, "waiting out decay (1/900)" then the 5th
+            // futile search fail-stopped the goto 6 s in, 39 s before the penalties would
+            // have cleared). Don't count those; penalties decay in 15-90 s and the counter
+            // resumes on the first clean-view failure. Partial results still count — the
+            // penalties didn't blind the search enough to matter.
+            if (BotConfig.walkerFutileSearchCap > 0 && !res.goalReached()
+                    && !a.breakHeld() && !waterClimbDigging && !world.isWater(foot)
+                    && !(!res.hasPath() && world.hasStuckPenalties())) {
+                boolean gotCloser = bestDistToGoal < futileBestDist - 0.5;
+                boolean moved = futileFoot == null || futileFoot.distSqr(foot) > 4;
+                if (gotCloser || moved) {
+                    futileSearches = 0;
+                    futileBestDist = bestDistToGoal;
+                    futileFoot = foot;
+                } else if (++futileSearches >= BotConfig.walkerFutileSearchCap) {
+                    lastError = "no route progress after " + futileSearches
+                            + " consecutive searches — goal unreachable from here (best dist="
+                            + Math.round(bestDistToGoal) + ")";
+                    return terminalReport(Step.FAILED, PathTrace.Outcome.NO_PATH, lastError, "failed:" + lastError, p.blockPosition());
+                } else {
+                    // Cool down before the next kickoff so the wait between futile cycles
+                    // stops burning full search budgets (4→8→16→32-tick backoff).
+                    searchBackoffTicks = Math.min(40, 4 << Math.min(futileSearches, 3));
+                }
+            }
             if (wasFromEnd && path != null && step < path.size()) {
                 // Continuation finished while we're still walking the current
                 // segment — stash it and splice only once we reach the segment end
@@ -1301,7 +1526,7 @@ public final class Walker {
                         agentForward(a, false);
                         agentJump(a, false);
                         p.setSprinting(false);
-                        return terminal(Step.ARRIVED, PathTrace.Outcome.SUCCESS, null);
+                        return terminalReport(Step.ARRIVED, PathTrace.Outcome.SUCCESS, null, "churn-giveup", p.blockPosition());
                     }
                 }
                 // BLOCK-BUDGET ("搭桥前算够不够，否则就挖"): if this path would place
@@ -1400,7 +1625,7 @@ public final class Walker {
                     return Step.WALKING;
                 }
                 lastError = "no path (expanded=" + res.expanded() + ")";
-                return terminal(Step.FAILED, PathTrace.Outcome.NO_PATH, lastError);
+                return terminalReport(Step.FAILED, PathTrace.Outcome.NO_PATH, lastError, "failed:" + lastError, p.blockPosition());
             }
             // else: search failed but we still have the previous path — keep it.
         }
@@ -2052,7 +2277,8 @@ public final class Walker {
             if (!pathBestEffort || goal.reached(foot)) {
                 // A path that actually reaches the goal (or we ended up standing in
                 // the goal cell): the journey is done.
-                return terminal(Step.ARRIVED, PathTrace.Outcome.SUCCESS, null);
+                return terminalReport(Step.ARRIVED, PathTrace.Outcome.SUCCESS, null,
+                        classifyArrival(pathBestEffort, goal.reached(foot), goalSnapped), foot);
             }
             // Best-effort segment consumed but the goal is still ahead. DON'T give
             // up — this is the long-distance splice point. Adopt the continuation
@@ -2307,7 +2533,7 @@ public final class Walker {
             // pillar↔dig↔repath thrash ~105 s). Ride the isInWater bob-blink with the latch.
             boolean buoyantFloat = !p.onGround() && (p.isInWater() || surfaceWaterLatch > 0);
             boolean deepDig = (world.isWater(foot.below()) || buoyantFloat)
-                    && BotConfig.allowBreak && BotConfig.allowSwimEscapeBreak;
+                    && mayBreak() && BotConfig.allowSwimEscapeBreak;   // mayBreak(): honor per-goto forbidDig, not just the global switch
             if ((!wantClimb || !nearWater) && !digCommitted) {
                 // Left the climb context (grounded on the bank, or A* now routes
                 // down/along) → clear the per-attempt accounting AND the "pillar
@@ -2464,7 +2690,7 @@ public final class Walker {
                     // toward the bank — so the column RATCHETS to the supported bank-adjacent
                     // cell and the foothold-place finally lands (the pre-3160836 behavior the
                     // self-correcting latch regressed: waterLowBankArena went red for ~5 days).
-                    boolean digFallbackHere = BotConfig.allowBreak && BotConfig.allowSwimEscapeBreak;
+                    boolean digFallbackHere = mayBreak() && BotConfig.allowSwimEscapeBreak;   // mayBreak(): honor per-goto forbidDig, not just the global switch
                     if ((drifted || placeFutile || tooHigh) && digFallbackHere) {
                         climbPillarGaveUp = true;
                         // walkerClimbGaveUpSticky: anchor the latch to THIS bank so repath-driven
@@ -2544,7 +2770,7 @@ public final class Walker {
             boolean cwpSwims = BotConfig.walkerBankDigSkipWhenCwpSwims && world.isWater(cwp);
             if (!waterClimbPillaring && waterClimbing && waterClimbStall > digStall
                     && futileBankDigCooldown <= 0 && !cwpSwims
-                    && BotConfig.allowBreak && BotConfig.allowSwimEscapeBreak
+                    && mayBreak() && BotConfig.allowSwimEscapeBreak   // mayBreak(): honor per-goto forbidDig, not just the global switch
                     && (!a.holdPlaceable() || climbPillarGaveUp || deepDig)) {
                 // Keep digging the LATCHED riser while it's still solid — a buoyant bob
                 // (foot.y flickering ±1) or lateral drift (foot.z wandering) must NOT
@@ -3027,6 +3253,7 @@ public final class Walker {
         BlockPos wp = path.get(step);
         Move.Edge nextEdge = edgeAt(step + 1);
         boolean parkourEdge = edge != null && edge.move != null && edge.move.startsWith("parkour");
+        if (parkourEdge) guardParkourTick = true;
         // Bridging-over-a-gap detection (place-bridge on the current OR next edge),
         // hoisted up here so the travel-aim pitch (below) can keep the camera trained on
         // the bridge frontier instead of being yanked back to the horizon between place
@@ -4018,6 +4245,9 @@ public final class Walker {
             // pillarUp actuator clears its toBreak the same way; this recovery path had none.
             // Only with allowBreak, and only the single head cell, so it digs no more than the
             // one block needed to rise this rung (re-checked each rung as pillarRecoverCell rises).
+            // DELIBERATELY on the global allowBreak switch, NOT mayBreak(): this is the
+            // anti-suffocation safety dig, and it is EXEMPT from per-goto forbidDig — suffocation is
+            // death, forbidDig is only a navigation preference, so safety wins over the constraint.
             BlockPos recCeiling = pillarRecoverCell.offset(0, 2, 0);
             if (BotConfig.allowBreak && world.isSolid(recCeiling)) {
                 agentJump(a, false);
@@ -4226,7 +4456,26 @@ public final class Walker {
         // Decoupling them lets the body crab toward the waypoint (Δ = aimYaw − cameraYaw) and
         // make net progress, which resets repathsNoProgress and releases the freeze on its own,
         // so the vicious cycle (frozen drive → no progress → freeze stays frozen) can't form.
-        double driveF = (!descendBrake && !pivotForStepUp) ? 1.0 : 0.0;
+        // AIRBORNE forward-drift clamp (task#36, 2026-07-12, repurposed walkerDescentStepSkipBrake,
+        // isolable backup toggle to the sprint-kill above). When the steep-descent latch is armed
+        // (set on the grounded tick before the launch, ~line 4443) and the body is now airborne over
+        // the descent, zero the forward drive so it drops onto the near tread instead of sailing off
+        // the lip on driveF=1. Reads the latch FIELD (its previous-tick value — correct, the latch's
+        // whole purpose is to persist across the airborne arc). Airborne-only: a grounded descent
+        // keeps driveF=1 and gravity still drops the body, so it can never stall/deadlock the descent
+        // (the vanilla-sneak edge-pin the old grounded variant used COULD stall; this cannot). Sprint
+        // is killed independently by steepDescentNear, so with this OFF the fix is arming-only.
+        // EXCLUDE parkourEdge: descendBrake already zeros driveF for parkourDescend* leaps, but a
+        // plain parkour* move that lands lower is parkourEdge yet NOT descendLeap — clamping its
+        // takeoff drive would land it short into the gap (a NEW fall death inside this fix's blast
+        // radius). The validated RED launches were plain walk-offs, never parkourEdge, so guarding
+        // here cannot weaken the fix; it only spares deliberate gap-crossing leaps.
+        // No wp-vs-foot term here: it flickers during the arc (see the latch release above) and
+        // every flicker tick was one tick of full impulse at a bearing that swings ±90° when the
+        // node is nearly underfoot. The latch alone decides; driveF=0 makes the bearing moot.
+        boolean descentAirborneDriftClamp = BotConfig.walkerDescentStepSkipBrake
+                && !p.onGround() && steepDescentLatch > 0 && !parkourEdge;
+        double driveF = (!descendBrake && !pivotForStepUp && !descentAirborneDriftClamp) ? 1.0 : 0.0;
         double driveL = strafeL ? 1.0 : (strafeR ? -1.0 : 0.0);
         // Drive heading: normally aimYaw (decoupled from the slewing camera). EXCEPTION —
         // a BUOYANT slope-mount. A floating bot at a +1/+2 bank top bobs UP to the bank
@@ -4373,7 +4622,16 @@ public final class Walker {
         boolean lethalNear = BotConfig.lethalEdgeBrake && p.onGround()
                 && lethalDropAdjacent(world, p, foot);
         boolean plannedDescent = wp.getY() < foot.getY();
-        boolean edgeBrake = lethalNear && !plannedDescent;
+        // Low-HP care (survival DEATH #3, 2026-07-11): releasing the pin for a
+        // planned descent bets that the body lands exactly on the planned cell.
+        // At critical health that bet is fatal — survivableFall shrinks to 3-4
+        // blocks, so ordinary walk/jump drift past the lip onto a deeper drop
+        // kills. Below the threshold keep the sneak pin even across a planned
+        // step-down: a pinned descent stalls and repaths (recoverable); a fall
+        // at 1-6 HP is not. Sprint is also suppressed below (same gate).
+        boolean lowHpCareful = BotConfig.lowHealthCareful > 0
+                && p.getHealth() <= BotConfig.lowHealthCareful;
+        boolean edgeBrake = lethalNear && (!plannedDescent || lowHpCareful);
         // Steep-descent SPRINT brake (NOT a sneak-pin): a survivable-but-deep drop in an
         // edge-neighbour while descending is invisible to lethalNear (its threshold is
         // survivableFall ≈ 23 blk, even higher with resist buffs), so the bot SPRINTS a
@@ -4383,8 +4641,62 @@ public final class Walker {
         // deeper than a normal step (>4 blk) sits adjacent during a planned descent so the
         // body decelerates onto the node instead of overshooting the lip; sneak stays
         // released (a survivable drop needn't pin the body, so the step-down still proceeds).
-        boolean steepDescentNear = p.onGround() && plannedDescent
-                && dropAdjacentExceeds(world, foot, 4);
+        // LATCH the sprint-drop across the airborne sub-arcs of the step-down (task#36, DRY sibling
+        // of the deepWaterDriftLatch below): the raw brake is gated onGround, so on the airborne
+        // half of each step sprint RE-ARMS and the accumulated FORWARD momentum walks the body off
+        // a survivable-deep (>4, <survivableFall) lip into a fatal cumulative fall — live 2026-07-11
+        // Mountains massif telemetry: grounded sprint=false at the lip, but onG=false→sprint=true on
+        // every fall tick, forward z crept the body over a 19-block lip to death. Hold the brake
+        // STEEP_DESCENT_DRIFT_LATCH ticks after each grounded fire so sprint stays off through the
+        // whole descent; it re-arms on each grounded step and decays once the descent flattens (wp
+        // flush/ascending) or a long free-fall outruns it (harmless — nothing to brake mid-air).
+        // Off entirely when the flag is off (byte-identical: raw already requires onGround, and the
+        // release clause clears the latch on the next non-raw tick). A gentle ≤4 staircase never
+        // trips the raw, so normal descents keep full sprint.
+        // CUMULATIVE-descent arm (task#36, 2026-07-12, gated walkerSteepDescentLatch): the single-
+        // edge dropAdjacentExceeds only fires on a >maxDryFall CLIFF neighbour. A mountain descent
+        // the planner routes as a run of individually-legal ≤maxDryFall steps (live Mountains
+        // y79→77→73→72) has no such neighbour at ANY grounded tick, so steepDescentRaw never armed,
+        // the latch never engaged, and the body sprint-sailed off the slope (hSpd rising 0.21→0.23,
+        // sprint=T, 6+ block continuous fall to death). Sum the drop the planner actually laid over
+        // the next few nodes (foot.Y − min node.Y); arm when it exceeds a single legal step. Uses
+        // the PATH (authoritative — exactly maxStepDrop≤4 per node) not a hand-rolled world probe.
+        int steepDescentPathDrop = 0;
+        if (path != null && !path.isEmpty()) {
+            int loY = foot.getY();
+            for (int k = step; k < Math.min(path.size(), step + STEEP_DESCENT_LOOKAHEAD_NODES); k++) {
+                loY = Math.min(loY, path.get(k).getY());
+            }
+            steepDescentPathDrop = foot.getY() - loY;
+        }
+        boolean steepDescentPathAhead = BotConfig.walkerSteepDescentLatch && p.onGround()
+                && steepDescentPathDrop > BotConfig.pathfinderMaxDryFall;
+        boolean steepDescentRaw = p.onGround()
+                && ((plannedDescent && dropAdjacentExceeds(world, foot, 4))   // local >4 cliff neighbour
+                    || steepDescentPathAhead);                                // NEW: cumulative slope ahead
+        if (steepDescentRaw) steepDescentLatch = STEEP_DESCENT_DRIFT_LATCH;
+        // Release ONLY when GROUNDED at/above the node. The old instantaneous wp-vs-foot check
+        // flickered true MID-ARC (gap #51 trace t=43: foot 233.7 falls past wp 234 for one tick)
+        // and zeroed the latch in the air — re-enabling full drive at a swinging bearing and
+        // re-arming sprint mid-fall, which is exactly the sideways kick that walked the body off
+        // the 1-wide stair (landed x=301 on a corner, slid off, fell to -60). A latch armed for
+        // an airborne descent arc must survive the whole arc; landing is the only sane release.
+        else if (steepDescentLatch > 0
+                && (!BotConfig.walkerSteepDescentLatch || (p.onGround() && wp.getY() >= foot.getY()))) steepDescentLatch = 0;
+        else if (steepDescentLatch > 0) steepDescentLatch--;
+        boolean steepDescentNear = steepDescentRaw || steepDescentLatch > 0;
+        if (steepDescentPathAhead && BotConfig.walkerDebug)
+            LOG.info("[walker] STEEP-DESCENT path-arm: foot y={} pathDrop={}>{} over {} nodes → latch {} (noSprint{})",
+                    foot.getY(), steepDescentPathDrop, BotConfig.pathfinderMaxDryFall,
+                    STEEP_DESCENT_LOOKAHEAD_NODES, STEEP_DESCENT_DRIFT_LATCH,
+                    BotConfig.walkerDescentStepSkipBrake ? "+airborneDriveFClamp" : "");
+        // DESCENT STEP-SKIP grounded sneak-brake — RETIRED (task#36, 2026-07-12). Its gate
+        // (onGround && foot.Y-wp.Y > maxDryFall) was proven a literal NO-OP by live trace: the
+        // far-below wp only appears while AIRBORNE (grounded max(foot.Y-wp.Y) is exactly 4.0,
+        // never >4), so this never fired. The flag walkerDescentStepSkipBrake is now repurposed as
+        // the AIRBORNE forward-drift clamp on driveF (see ~line 4259). Kept as `false` here so the
+        // brakeSneak/sprint terms below stay byte-identical without editing them.
+        boolean descentStepSkip = false;
         // DEEP-WATER drift SPRINT brake (mechanism b, sibling of steepDescentNear for a water
         // hazard): a dry descending/flush staircase that runs ALONG a deep floating-water pocket
         // is invisible to the dry-drop brakes (dropAdjacentExceeds skips water as a splash), so the
@@ -4492,7 +4804,7 @@ public final class Walker {
         // descendBrake → shift → the buoyant bot sank y62→58 and churned ~100 t clawing back to the
         // surface, then re-planned a parkour-onto-water it cannot execute. Only a real dive (diving)
         // sneaks in water; buoyancy alone already keeps a surface swimmer off any lethal edge.
-        boolean brakeSneak = (bridgeBrake || descendBrake) && !p.isInWater();
+        boolean brakeSneak = (bridgeBrake || descendBrake || descentStepSkip) && !p.isInWater();
         // A5 UNDERWATER HORIZONTAL DEPTH-HOLD (dive → traverse). After a dive the path
         // continues through SUBMERGED horizontal edges — the planner emits plain walk/diag
         // nodes mid-water (they are not named swimDown*, so none of the dive gates hold
@@ -4776,8 +5088,9 @@ public final class Walker {
         boolean diagAscent = !parkourEdge && !p.isInWater()
                 && wp.getX() != foot.getX() && wp.getZ() != foot.getZ() && wp.getY() > foot.getY();
         boolean sprint = !bridging && !steppingOffFall && !steppingOffWaterFall && !diagAscent
+                && !lowHpCareful  // low-HP care: sprint is the drift amplifier behind every unplanned fall — at ≤lowHealthCareful HP walk everything (DEATH #3)
                 && !hazardAhead   // never carry sprint momentum INTO a lava/hazard cell — in water too (no sneak there, but dropping sprint kills the drift that pushed the swimmer in)
-                && !descendBrake && (!lethalNear || parkourAscend) && !steepDescentNear && !deepWaterDriftNear && (!needJumpForStep || parkourAscend || sprintAscend)   // !lethalNear (not !edgeBrake): never sprint NEAR a lethal edge — incl. a planned descent past it — so no drift/overshoot momentum off the lip while sneak is released for the step-down. !deepWaterDriftNear: same, for a deep-water pocket bordering a descent/edge-walk (drift-in bob-stall). Baritone doesn't sprint a jumped CARDINAL ascend (overshoots/bonks) but DOES sprint a parkour leap; a horse auto-walk-up keeps sprint
+                && !descendBrake && (!lethalNear || parkourAscend) && !steepDescentNear && !deepWaterDriftNear && !descentStepSkip && (!needJumpForStep || parkourAscend || sprintAscend)   // !descentStepSkip: pointer ran ahead down the staircase (wp >maxDryFall below the grounded foot) — kill sprint so no residual momentum launches the body off the stair edge while sneak (brakeSneak) edge-guards it down. !lethalNear (not !edgeBrake): never sprint NEAR a lethal edge — incl. a planned descent past it — so no drift/overshoot momentum off the lip while sneak is released for the step-down. !deepWaterDriftNear: same, for a deep-water pocket bordering a descent/edge-walk (drift-in bob-stall). Baritone doesn't sprint a jumped CARDINAL ascend (overshoots/bonks) but DOES sprint a parkour leap; a horse auto-walk-up keeps sprint
                 // A/B-DISPROVEN (2026-06-06): re-enabling sprint on an aligned ascend (sprintableAscend)
                 // regressed hCol 13%→36% / mean hSpd .112→.082 — because the jump fires CLOSE to the riser
                 // (ascendJumpReady flatDist≤1.2), the sprint forward-boost rams the riser face HARDER instead
@@ -4791,7 +5104,11 @@ public final class Walker {
         // pad — hCol=true, hSpd→0 — and the swamp current + anti-stuck bursts spin
         // the bot in place (round28: 7×7 of open water + pads, yaw wound to -994°).
         // Pads are instabreak: punch the one ahead (or overhead) and keep swimming.
-        if (p.isInWater() && p.horizontalCollision) {
+        // mayBreak(): a pad is a WALK-edge traversal (the planner treats it passable, so NoBreak
+        // does NOT prune it) — this is the ONE fallback a forbidDig bot can reach with a full plan,
+        // and it historically checked neither allowBreak NOR NoBreak. Gate it so forbidDig (and the
+        // global switch) are both honored — an executor recovery must never out-mutate the planner.
+        if (p.isInWater() && p.horizontalCollision && mayBreak()) {
             double bdx = (wp.getX() + 0.5) - p.getX(), bdz = (wp.getZ() + 0.5) - p.getZ();
             double bl = Math.sqrt(bdx * bdx + bdz * bdz);
             BlockPos surf = BlockPos.containing(p.getX(), p.getY() + 1.0, p.getZ());
@@ -4845,7 +5162,7 @@ public final class Walker {
         // (bare-hand stone, 7.5s+/block: looked like "the bot chose to tunnel").
         // An executor recovery must never exceed the world-mutation authority the
         // planner was given.
-        if (BotConfig.walkerWallDigFallback && BotConfig.allowBreak && !p.isInWater()
+        if (BotConfig.walkerWallDigFallback && mayBreak() && !p.isInWater()   // mayBreak(): honor per-goto forbidDig (day6 tunnel), not just the global switch
                 && p.horizontalCollision
                 && (stuckTicks > 40
                     || (BotConfig.walkerPhysicalStallClock && physicalStallTicks > 60))
@@ -4930,6 +5247,24 @@ public final class Walker {
         return s;
     }
 
+    /** Pure classification of a generic ARRIVED exit (static & matrix-testable).
+     *  Public like the sibling {@code RetreatChain.shouldEnter}/{@code shouldRelease}
+     *  static gates — the neoforge matrix gametest calls it cross-package/cross-module. */
+    public static String classifyArrival(boolean bestEffort, boolean reachedFoot, boolean snapped) {
+        if (snapped && reachedFoot) return "goal-snapped";
+        if (reachedFoot) return "arrived";
+        return bestEffort ? "best-effort-consumed" : "path-consumed";
+    }
+
+    /** terminal() + honest report stamp. foot may be null (no player) → conservative false. */
+    private Step terminalReport(Step s, PathTrace.Outcome outcome, String reason,
+                                String endReason, BlockPos foot) {
+        lastEndReason = endReason;
+        lastGoalReached = foot != null && goal != null && !goalSnapped && goal.reached(foot);
+        lastFinalDist = (foot != null && goal != null) ? goal.estimate(foot) : -1;
+        return terminal(s, outcome, reason);
+    }
+
     /** Externally cancelled (mc.bot.cancel / superseded by a new goto) before a
      *  natural terminal. Fire onTerminal(CANCELLED) so per-session trace observers
      *  finalize the partial run (e.g. a path archive is flushed for a wedge the
@@ -4965,7 +5300,7 @@ public final class Walker {
             p.setSprinting(false);
             return Step.WALKING;
         }
-        return terminal(Step.ARRIVED, PathTrace.Outcome.SUCCESS, null);
+        return terminalReport(Step.ARRIVED, PathTrace.Outcome.SUCCESS, null, "frontier-giveup", p.blockPosition());
     }
 
     /** PROACTIVE PINCH escalation — see {@link #PINCH_MIN_PROGRESS}. When the big search

@@ -10,16 +10,26 @@ import net.magicterra.agent.neoforge.sim.ServerPlayerAvatar;
 import net.magicterra.agent.neoforge.sim.ServerAgentDriver;
 import net.magicterra.agent.neoforge.sim.ServerAgentManager;
 import net.magicterra.agent.bot.Goal;
+import net.magicterra.agent.bot.scheduler.BunkerAnchor;
 import net.magicterra.agent.bot.process.BboxFillProcess;
 import net.magicterra.agent.bot.process.BuildProcess;
+import net.magicterra.agent.bot.process.CraftProcess;
 import net.magicterra.agent.bot.process.EntityLeash;
+import net.magicterra.agent.bot.process.EscapeProcess;
 import net.magicterra.agent.bot.process.FollowProcess;
 import net.magicterra.agent.bot.process.Intent;
 import net.magicterra.agent.bot.process.IntentProcess;
 import net.magicterra.agent.bot.process.MineProcess;
+import net.magicterra.agent.api.AgentApi;
+import net.minecraft.world.item.crafting.RecipeManager;
+import net.minecraft.core.HolderLookup;
+import net.magicterra.agent.model.Params;
+import net.magicterra.agent.api.RecipeApi;
+import net.magicterra.agent.bot.process.RecipeResolver;
 import net.magicterra.agent.bot.process.RunAwayProcess;
 import net.magicterra.agent.bot.process.Schematic;
 import net.magicterra.agent.bot.BotConfig;
+import net.magicterra.agent.bot.scheduler.RetreatChain;
 import net.magicterra.agent.bot.debug.BotLevelHolder;
 import net.magicterra.agent.bot.debug.NodePhysics;
 import net.magicterra.agent.bot.debug.PathArchive;
@@ -42,10 +52,12 @@ import net.magicterra.agent.bot.pathfinder.moves.FallIntoWater;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.VineBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -57,8 +69,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import static net.magicterra.agent.neoforge.AgentGameTestSupport.*;
@@ -86,7 +101,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverDriverArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverDriverArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("serverDriverArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 380, cz = 380, floorY = 220;
         for (int dx = -1; dx <= 1; dx++)
@@ -147,7 +162,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverMineArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverMineArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("serverMineArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 460, cz = 460, floorY = 220;
         buildFloor(level, cx, cz, floorY);
@@ -202,7 +217,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverProcessArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverProcessArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("serverProcessArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 540, cz = 540, floorY = 220;
         for (int dx = -1; dx <= 1; dx++)
@@ -255,7 +270,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverFleeArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverFleeArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("serverFleeArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 600, cz = 600, floorY = 220, R = 10;
         for (int dx = -R; dx <= R; dx++)
@@ -313,7 +328,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverMineProcessArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverMineProcessArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("serverMineProcessArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 660, cz = 660, floorY = 220;
         // DIRT floor (NOT a target) so the scan only finds the placed stone.
@@ -337,6 +352,11 @@ public final class AgentGameTestServer {
         ServerAgentManager.clear();
         try {
             ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            // Hold a pickaxe: stone requiresCorrectToolForDrops, and the tool gate (gap#2)
+            // now keeps a toolless bot from futilely "mining" harvest-requiring blocks for
+            // zero drops — so the mine happy-path must actually carry the harvesting tool.
+            driver.fakePlayer().getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));
+            driver.fakePlayer().getInventory().selected = 0;
             driver.runProcess(new MineProcess(java.util.List.of("minecraft:stone"), 3, 8));
             ServerAgentManager.register(driver);
 
@@ -366,6 +386,328 @@ public final class AgentGameTestServer {
     }
 
     /**
+     * gap#2 — tool-capability gate: a bot with NO correct tool must NOT futilely grind
+     * harvest-requiring blocks. Same rig as {@link #serverMineProcessArena} but the
+     * FakePlayer holds no pickaxe. Bare-handed, stone still BREAKS but drops NOTHING
+     * ({@code requiresCorrectToolForDrops}), so mining it is pure futility — the old
+     * behaviour ground the whole quota for zero yield (client) / removed the blocks for
+     * zero drops (server). Assert MineProcess leaves the stone untouched and instead
+     * reaches a clean, typed abort whose signal NAMES the missing tool — the actionable
+     * hand-off to the LLM planner (craft/relocate), not a silent stop or endless grind.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverMineNoToolArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverMineNoToolArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int cx = 690, cz = 690, floorY = 220;
+        // DIRT floor (NOT a target, mines fine bare-handed) so the scan only weighs the stone.
+        for (int dx = -1; dx <= 9; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.DIRT.defaultBlockState());
+        BlockPos[] targets = {
+                new BlockPos(cx + 2, floorY + 1, cz),
+                new BlockPos(cx + 4, floorY + 1, cz),
+                new BlockPos(cx + 6, floorY + 1, cz),
+        };
+        for (BlockPos t : targets) level.setBlockAndUpdate(t, Blocks.STONE.defaultBlockState());
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = false;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            // NO pickaxe — empty-handed, matching the campaign soft-lock (broken pickaxe, no craft path).
+            driver.runProcess(new MineProcess(java.util.List.of("minecraft:stone"), 3, 8));
+            ServerAgentManager.register(driver);
+
+            for (int t = 0; t < 400 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            int remaining = 0;
+            for (BlockPos t : targets) if (!level.getBlockState(t).isAir()) remaining++;
+            String err = driver.botState().mine.lastError;
+            AgentDriverCommon.LOG.info("[serverMineNoToolArena] finished={} active={} remaining={}/3 lastError={}",
+                    driver.finished(), ServerAgentManager.activeCount(), remaining, err);
+            // Must have mined NONE — a harvest-requiring block with no tool yields nothing.
+            if (remaining != 3)
+                throw new GameTestAssertException("toolless MineProcess broke " + (3 - remaining)
+                        + "/3 stone for zero drops (should mine none): remaining=" + remaining);
+            // Must have aborted cleanly (finished + unregistered), not spun or ground the quota.
+            if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                throw new GameTestAssertException("toolless MineProcess did not abort+unregister: finished="
+                        + driver.finished() + " active=" + ServerAgentManager.activeCount());
+            // Signal must name the missing tool so the planner can act (craft/relocate).
+            if (err == null || !err.contains("pickaxe"))
+                throw new GameTestAssertException("expected a tool-block signal naming a pickaxe, got: " + err);
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * gap#2 follow-up VERDICT (advisor-driven), now a regression guard: the Walker
+     * EXECUTOR CLEARS a harvest-requiring block it lacks the tool for — it does NOT
+     * soft-lock. This is a DIFFERENT concern from {@link #serverMineNoToolArena}
+     * (MineProcess's futile zero-drop grind): here the bot NEEDS the block gone
+     * (clearance to progress), not its drops — so a tool-gate would be WRONG (bare-hand
+     * clearance is legitimate and necessary). The question was only whether the dig
+     * terminates. It does.
+     *
+     * <p>Bare-hand DEEPSLATE is the discriminator (stone ~150t squeaks under the dig-aim
+     * watchdog cap {@code min(breakTimeoutTicks=200,300)=200} and can't expose a
+     * reset-stall). Requires {@link ServerPlayerAvatar#faithfulBreak}: the server's
+     * default instant destroyBlock would mask the timing. A 1-wide, 2-tall BEDROCK shell
+     * (unbreakable = infinite breakCost) with a single 2-block DEEPSLATE plug is the ONLY
+     * finite-cost route to the goal, forcing A* to plan the dig and the Walker to execute
+     * it bare-handed.
+     *
+     * <p>Empirical finding: {@code traverseBreak} holds {@code breakHold} CONTINUOUSLY on
+     * the plug, so {@code breakProg} accumulates MONOTONICALLY to completion; faithfulBreak
+     * modeled ~650 ticks/block and the bot broke through BOTH cells and ARRIVED at tick
+     * ~1336 with ZERO dig-aim/sticky-dig RELEASE events — the fragile latch never even
+     * engaged, and the {@code walkerTotalTickBudget} give-up stayed suppressed while
+     * breaking. Lacking a tool only makes the break SLOWER, not less stable; the
+     * unstable-geometry slow-break case is separately covered green by the faithful-stone
+     * climb-out arenas (~750–843t bare-hand afloat). Asserts the bot reaches the goal with
+     * the plug fully cleared, so a future reset-stall regression (bot can't break through)
+     * is caught.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverWalkerDeepslateNoToolArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverWalkerDeepslateNoToolArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int cx = 690, cz = 740, floorY = 220;
+        // BEDROCK shell (unbreakable → infinite breakCost) so the ONLY finite route is
+        // straight through the deepslate plug. Interior corridor: x=cx, z=cz..cz+4, 2-tall.
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dz = -1; dz <= 5; dz++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.BEDROCK.defaultBlockState());       // floor
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 3, cz + dz), Blocks.BEDROCK.defaultBlockState());   // ceiling
+            }
+        for (int dz = -1; dz <= 5; dz++)
+            for (int dy = 1; dy <= 2; dy++) {
+                level.setBlockAndUpdate(new BlockPos(cx - 1, floorY + dy, cz + dz), Blocks.BEDROCK.defaultBlockState());   // west wall
+                level.setBlockAndUpdate(new BlockPos(cx + 1, floorY + dy, cz + dz), Blocks.BEDROCK.defaultBlockState());   // east wall
+            }
+        for (int dy = 1; dy <= 2; dy++) {
+            level.setBlockAndUpdate(new BlockPos(cx, floorY + dy, cz - 1), Blocks.BEDROCK.defaultBlockState());           // back cap
+            level.setBlockAndUpdate(new BlockPos(cx, floorY + dy, cz + 5), Blocks.BEDROCK.defaultBlockState());           // front cap
+        }
+        // Clear the interior to air, then plug z=cz+2 with deepslate (foot + head cells).
+        for (int dz = 0; dz <= 4; dz++)
+            for (int dy = 1; dy <= 2; dy++)
+                level.setBlockAndUpdate(new BlockPos(cx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+        BlockPos plugFoot = new BlockPos(cx, floorY + 1, cz + 2);
+        BlockPos plugHead = new BlockPos(cx, floorY + 2, cz + 2);
+        level.setBlockAndUpdate(plugFoot, Blocks.DEEPSLATE.defaultBlockState());
+        level.setBlockAndUpdate(plugHead, Blocks.DEEPSLATE.defaultBlockState());
+        BlockPos goal = new BlockPos(cx, floorY + 1, cz + 4);
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        boolean ofb = ServerPlayerAvatar.faithfulBreak;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = false;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ServerPlayerAvatar.faithfulBreak = true;         // REAL destroy-progress: bare-hand deepslate ~650t (else instant destroyBlock masks the timing)
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            // NO pickaxe — empty-handed, matching the campaign soft-lock at y-14 deepslate.
+            driver.gotoGoal(new Goal.Block(goal));       // real Walker executor, no MineProcess
+            ServerAgentManager.register(driver);
+
+            final int BUDGET = 3000;                     // >> walkerTotalTickBudget(1200); an infinite grind stays active past this
+            int endTick = -1;
+            for (int t = 0; t < BUDGET; t++) {
+                if (ServerAgentManager.activeCount() == 0) { endTick = t; break; }
+                ServerAgentManager.tickAll();
+            }
+            if (endTick < 0 && ServerAgentManager.activeCount() == 0) endTick = BUDGET;
+
+            FakePlayer fp = driver.fakePlayer();
+            int plugRemaining = (level.getBlockState(plugFoot).isAir() ? 0 : 1)
+                              + (level.getBlockState(plugHead).isAir() ? 0 : 1);
+            boolean reached = Math.abs(fp.getZ() - (cz + 4 + 0.5)) < 1.5 && fp.getY() >= floorY + 1 - 0.4;
+            AgentDriverCommon.LOG.info("[serverWalkerDeepslateNoToolArena] endTick={} step={} pos=({},{},{}) finished={} active={} reached={} plugRemaining={}/2",
+                    endTick, driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(),
+                    driver.finished(), ServerAgentManager.activeCount(), reached, plugRemaining);
+            // Real guard: the bot must BREAK THROUGH the bare-hand deepslate plug and REACH
+            // the goal. A reset-stall regression (dig never completes) would leave the plug
+            // solid and the bot short of the goal — reached/plugRemaining catch it, where a
+            // bare active==0 check would not (it stays green even on a FAIL-at-budget).
+            if (!reached || plugRemaining != 0)
+                throw new GameTestAssertException("Walker did not clear bare-hand deepslate to the goal: reached="
+                        + reached + " plugRemaining=" + plugRemaining + "/2 step=" + driver.lastStep()
+                        + " endTick=" + endTick + " z=" + fp.getZ());
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            ServerPlayerAvatar.faithfulBreak = ofb;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Per-goto {@code forbidDig} against a SOLID WALL — proof of the clean planner give-up (NOT a
+     * wallDig RED; that lives in {@link AgentGameTestWaterCross#forbidDigPadRamArena}).
+     *
+     * <p><b>Key finding (empirically established, do not re-derive):</b> {@code NoBreak} prunes
+     * BREAK edges only. A solid wall needs a break edge to pass → pruned → A* returns an EMPTY
+     * best-effort ({@code pathLen=0, goalReached=false}) → the process gives up at PLANNING and
+     * declares ARRIVED at the start cell (endTick≈3). The Walker's drive loop NEVER runs, so the
+     * execution-layer wallDig / swim-climb fallbacks CANNOT engage from a clean NoBreak plan — not
+     * even with a leashed entity keeping a live carrot beyond the wall (tried: still {@code pathLen=0},
+     * bot never moves). day6's live tunnelling therefore required a SECOND defect (the planner's
+     * tunnel-preference / step-down mis-cost handing the executor an unwalkable-but-planned path);
+     * the executor-layer gate ({@code Walker.mayBreak()}) is validated for its FIRING by the pad
+     * arena (a lily pad is a WALK-edge, not pruned by NoBreak, so the drive loop DOES run and ram it).
+     *
+     * <p>This arena is a REGRESSION GUARD, not the fix's RED. BEDROCK-shell only-route corridor
+     * (as {@link #serverWalkerDeepslateNoToolArena}) with a DIRT plug and a leashed armor stand
+     * beyond it; the FakePlayer holds a STONE_PICKAXE so nothing is tool-gated.
+     * <ul>
+     *   <li>Phase A ({@code forbidDig}, {@link NoBreak}): the plug stays intact and the bot does NOT
+     *       get past it — under a solid-wall NoBreak plan the bot gives up cleanly and never tunnels.
+     *       Catches a future PLANNER regression that would route a NoBreak goal into/through a wall.</li>
+     *   <li>Phase B (NO {@code forbidDig}, precision guard): the SAME rig without the constraint must
+     *       plan a break through the plug and REACH the stand — proof the gate does not over-kill
+     *       legitimate (planner-authorized) digging.</li>
+     * </ul>
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverForbidDigWallArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverForbidDigWallArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        // Ground-anchor to THIS test's entity-ticking chunk (entityLeashRepathArena's rationale):
+        // EntityFind.nearest (the leash's entity scan) needs the armor stand in Level.getEntities.
+        BlockPos anchor = helper.absolutePos(BlockPos.ZERO);
+        final int cx = anchor.getX(), cz = anchor.getZ(), floorY = anchor.getY();
+        final int plugDz = 6;                              // plug sits 6 CLEAR cells from start: best-effort partial is multi-node (>1) so the Walker WALKS it to the wall face (Walker.java:650), where the carrot presses the plug → wallDig can engage. A 1-cell approach ARRIVES at start before the executor ever runs.
+        final int standDz = 9;                             // stand sits 3 cells BEYOND the plug
+        final double leashRadius = 16.0;                   // stand ~9 from start → inside → PULL forward, not hold back
+        // Build the BEDROCK shell corridor (only route = straight through the plug).
+        Runnable buildShell = () -> {
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dz = -1; dz <= standDz + 2; dz++) {
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.BEDROCK.defaultBlockState());       // floor
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 3, cz + dz), Blocks.BEDROCK.defaultBlockState());   // ceiling
+                }
+            for (int dz = -1; dz <= standDz + 2; dz++)
+                for (int dy = 1; dy <= 2; dy++) {
+                    level.setBlockAndUpdate(new BlockPos(cx - 1, floorY + dy, cz + dz), Blocks.BEDROCK.defaultBlockState());   // west wall
+                    level.setBlockAndUpdate(new BlockPos(cx + 1, floorY + dy, cz + dz), Blocks.BEDROCK.defaultBlockState());   // east wall
+                }
+            for (int dy = 1; dy <= 2; dy++) {
+                level.setBlockAndUpdate(new BlockPos(cx, floorY + dy, cz - 1), Blocks.BEDROCK.defaultBlockState());           // back cap
+                level.setBlockAndUpdate(new BlockPos(cx, floorY + dy, cz + standDz + 2), Blocks.BEDROCK.defaultBlockState()); // front cap
+            }
+        };
+        BlockPos plugFoot = new BlockPos(cx, floorY + 1, cz + plugDz);
+        BlockPos plugHead = new BlockPos(cx, floorY + 2, cz + plugDz);
+        Runnable setPlug = () -> {
+            for (int dz = 0; dz <= standDz + 1; dz++)
+                for (int dy = 1; dy <= 2; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+            level.setBlockAndUpdate(plugFoot, Blocks.DIRT.defaultBlockState());
+            level.setBlockAndUpdate(plugHead, Blocks.DIRT.defaultBlockState());
+        };
+        BlockPos standCell = new BlockPos(cx, floorY + 1, cz + standDz);
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug, owd = BotConfig.walkerWallDigFallback;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = false;
+        BotConfig.walkerDebug = false;
+        BotConfig.walkerWallDigFallback = true;          // match the live default that produced day6
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ServerAgentManager.clear();
+        final int BUDGET = 1600;                          // > walkerTotalTickBudget(1200); wallDig fires within ~40t of engaging
+        buildShell.run();
+        var stand = new ArmorStand(level, cx + 0.5, floorY + 1, cz + standDz + 0.5);   // BEYOND the plug
+        stand.setNoGravity(true);
+        level.addFreshEntity(stand);
+        for (int i = 0; i < 3; i++) level.tick(() -> true);   // index the fresh entity so EntityFind sees it
+        EntityLeash leash = new EntityLeash("minecraft:armor_stand", leashRadius, 0, true);
+        try {
+            // ---- Phase A: forbidDig (NoBreak) — the plug MUST survive, bot must NOT get past it. ----
+            setPlug.run();
+            ServerAgentDriver driverA = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            driverA.fakePlayer().getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));  // NOT tool-gated: only forbidDig can stop the dig
+            driverA.fakePlayer().getInventory().selected = 0;
+            Intent intentA = new Intent(new Goal.Near(standCell, 1), List.of(), CapabilityProfile.ALL, List.of(new NoBreak()), leash);
+            driverA.runProcess(new IntentProcess(intentA));
+            ServerAgentManager.register(driverA);
+            int endA = -1;
+            for (int t = 0; t < BUDGET; t++) {
+                if (ServerAgentManager.activeCount() == 0) { endA = t; break; }
+                ServerAgentManager.tickAll();
+            }
+            FakePlayer fpA = driverA.fakePlayer();
+            int plugA = (level.getBlockState(plugFoot).isAir() ? 0 : 1) + (level.getBlockState(plugHead).isAir() ? 0 : 1);
+            boolean gotPastA = fpA.getZ() > cz + plugDz + 1.0;   // past the plug = tunnelled through
+            AgentDriverCommon.LOG.info("[serverForbidDigWallArena] A(forbidDig) endTick={} step={} pos=({},{},{}) gotPast={} plugRemaining={}/2",
+                    endA, driverA.lastStep(), fpA.getX(), fpA.getY(), fpA.getZ(), gotPastA, plugA);
+            ServerAgentManager.clear();
+            fpA.discard();                                  // so the pinned FakePlayer can't linger into Phase B
+            if (plugA != 2 || gotPastA)
+                throw new GameTestAssertException("forbidDig LEAK: executor dig fallback punched the wall despite NoBreak — "
+                        + "plugRemaining=" + plugA + "/2 (want 2) gotPast=" + gotPastA + " (want false) step=" + driverA.lastStep()
+                        + " z=" + fpA.getZ());
+
+            // ---- Phase B: precision — SAME rig, NO forbidDig — must dig through and REACH the stand. ----
+            setPlug.run();
+            ServerAgentDriver driverB = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            driverB.fakePlayer().getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));
+            driverB.fakePlayer().getInventory().selected = 0;
+            Intent intentB = new Intent(new Goal.Near(standCell, 1), List.of(), CapabilityProfile.ALL, List.of(), leash);   // no NoBreak = digging allowed
+            driverB.runProcess(new IntentProcess(intentB));
+            ServerAgentManager.register(driverB);
+            int endB = -1;
+            for (int t = 0; t < BUDGET; t++) {
+                if (ServerAgentManager.activeCount() == 0) { endB = t; break; }
+                ServerAgentManager.tickAll();
+            }
+            FakePlayer fpB = driverB.fakePlayer();
+            int plugB = (level.getBlockState(plugFoot).isAir() ? 0 : 1) + (level.getBlockState(plugHead).isAir() ? 0 : 1);
+            boolean reachedB = Math.abs(fpB.getX() - (cx + 0.5)) < 1.5 && Math.abs(fpB.getZ() - (cz + standDz + 0.5)) < 2.0;
+            AgentDriverCommon.LOG.info("[serverForbidDigWallArena] B(precision) endTick={} step={} pos=({},{},{}) reached={} plugRemaining={}/2",
+                    endB, driverB.lastStep(), fpB.getX(), fpB.getY(), fpB.getZ(), reachedB, plugB);
+            if (!reachedB || plugB != 0)
+                throw new GameTestAssertException("precision guard: without forbidDig the bot must dig through and reach the stand — "
+                        + "reached=" + reachedB + " (want true) plugRemaining=" + plugB + "/2 (want 0) step=" + driverB.lastStep()
+                        + " z=" + fpB.getZ());
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.walkerWallDigFallback = owd;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
      * Phase 2b process-layer proof #4: the SERVER runs the REAL {@link BuildProcess}
      * (NEXT→GOING→PLACING, find-support, hold-block, sneak-place) over a FakePlayer
      * headless. BuildProcess is Avatar-migrated: place is {@code a.placeOn(support,
@@ -376,7 +718,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverBuildArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverBuildArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("serverBuildArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 720, cz = 720, floorY = 220;
         for (int dx = -1; dx <= 6; dx++)
@@ -443,7 +785,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverLookRaycastArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverLookRaycastArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("serverLookRaycastArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 760, cz = 760, floorY = 220;
         // The GameTest world PERSISTS across runs and these are fixed absolute
@@ -487,7 +829,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverFollowArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverFollowArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("serverFollowArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Anchor to this test's own (entity-ticking) chunk column — a hardcoded far
         // coord lands in a tracked chunk only by luck of the per-run test placement,
@@ -561,7 +903,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void entityLeashRepathArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"entityLeashRepathArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("entityLeashRepathArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Anchor to this test's own (entity-ticking) chunk column — see serverFollowArena /
         // serverCombatArena rationale: a hardcoded far coord lands in a tracked chunk only
@@ -687,7 +1029,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverCombatArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverCombatArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("serverCombatArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Anchor the arena to THIS test's own region (the structure's chunk column),
         // not a hardcoded absolute spot: the GameTest framework places each test
@@ -780,7 +1122,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverLookArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverLookArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("serverLookArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 480, cz = 480, floorY = 220;
         for (int dx = -1; dx <= 1; dx++)
@@ -829,7 +1171,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverEscapeArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverEscapeArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("serverEscapeArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 520, cz = 520, floorY = 220;
         // Solid stone block floorY..floorY+3 (top surface = floorY+3, stand = floorY+4).
@@ -888,7 +1230,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverBunkerArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverBunkerArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("serverBunkerArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 560, cz = 560, floorY = 220;
         // Solid dirt block floorY-3..floorY+1 to dig into; carve the bot's 1×2 standing
@@ -943,6 +1285,224 @@ public final class AgentGameTestServer {
     }
 
     /**
+     * autoBunker downward-ratchet regression (survival-run gap#29, 2026-07-11). The
+     * emergency {@link net.magicterra.agent.bot.scheduler.BunkerChain} reflex digs
+     * straight down {@code bunkerDepth} then seals a 1×1 pocket. That bound is per
+     * EPISODE; the live bug was episode MULTIPLICITY: {@code startY} was re-anchored to
+     * the current (already-lowered) foot Y every time an episode restarted, and restarts
+     * fired on EVERY preemption (a dodge/combat chain flickering in and out under a swarm)
+     * and on any 1-block knockback drift. Each restart re-anchored lower and dug another
+     * {@code bunkerDepth} → an unbounded ratchet that marched a 3.8-HP bot from y-5 to y-15
+     * into a deeper mob cave, uncancellable (the chain re-bids priority every tick).
+     *
+     * <p>This is a pure state-machine test of {@link BunkerAnchor} — it drives the exact
+     * anchor lifecycle {@code BunkerChain.tick()} uses (single source; no world I/O, since
+     * the bug was the anchor lifecycle, not block breaking). It asserts: one episode digs
+     * exactly {@code bunkerDepth} and anchors at the siege start; 50 preemption cycles at
+     * the sealed spot neither re-anchor nor re-dig; in-tolerance knockback is NOT a
+     * displacement; a far respawn / knock-up above the start IS (preserving the death#2
+     * fix); and onResume clears the per-block watchdog. The client-integration proof
+     * (real BunkerChain under a live swarm) is the queued live A-B.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverBunkerAnchorRatchetArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverBunkerAnchorRatchetArena")) { helper.succeed(); return; } // gt-filter
+        final int DEPTH = 2;
+        final int START_Y = 64, X = 0, Z = 0;
+        BunkerAnchor a = new BunkerAnchor();
+        int y = START_Y;
+
+        // --- one episode: dig straight down DEPTH, then seal (mirrors tick() anchor flow) ---
+        for (int t = 0; t < 100 && !a.sealed; t++) {
+            if (a.displacedFrom(X, y, Z)) a.reset();
+            a.beginIfIdle(X, y, Z);
+            if (a.sealed) break;
+            int depth = a.depth(y);
+            a.noteDepth(depth);
+            if (depth < DEPTH) y -= 1;            // block below broke → bot drops a level
+            else a.sealed = true;                 // deep enough → roof sealed
+        }
+        if (a.startY != START_Y)
+            throw new GameTestAssertException("episode must anchor at the siege start Y=" + START_Y + ", got " + a.startY);
+        if (START_Y - y != DEPTH)
+            throw new GameTestAssertException("one episode must dig exactly DEPTH=" + DEPTH + ", dug " + (START_Y - y));
+        final int sealedY = y;
+
+        // --- gap#29 core: 50 preemptions at the sealed spot. Each cycle is the real
+        // contract: onInterrupt→onPreempt() (no reset) + onResume→resume() + a tick at the
+        // SAME position. The anchor must NOT move and the pocket must NOT re-dig. ---
+        for (int cycle = 0; cycle < 50; cycle++) {
+            a.onPreempt();                        // BunkerChain.onInterrupt contract
+            a.resume();                           // BunkerChain.onResume contract
+            if (a.displacedFrom(X, y, Z)) a.reset();
+            a.beginIfIdle(X, y, Z);
+            if (!a.sealed || a.startY != START_Y || y != sealedY)
+                throw new GameTestAssertException("gap#29 ratchet re-opened at preempt cycle " + cycle
+                        + ": sealed=" + a.sealed + " startY=" + a.startY + " y=" + y);
+        }
+
+        // --- knockback within tolerance must NOT be treated as displacement ---
+        if (a.displacedFrom(X + BunkerAnchor.DRIFT_TOL, sealedY, Z)
+                || a.displacedFrom(X, sealedY, Z - BunkerAnchor.DRIFT_TOL))
+            throw new GameTestAssertException("in-tolerance knockback wrongly flagged as displacement (would ratchet)");
+
+        // --- genuine relocation (far respawn, or risen above start) MUST reset the episode ---
+        if (!a.displacedFrom(X + BunkerAnchor.DRIFT_TOL + 1, sealedY, Z))
+            throw new GameTestAssertException("far horizontal displacement (respawn) must reset the episode");
+        if (!a.displacedFrom(X, START_Y + 2, Z))
+            throw new GameTestAssertException("rising above the start Y (teleport/knock-up) must reset the episode");
+
+        // --- onResume must clear the per-block watchdog (else a preempt gap trips a
+        // spurious bedrock-bail → reset → re-anchor, reopening the ratchet) ---
+        a.digTicks = 999;
+        a.resume();
+        if (a.digTicks != 0)
+            throw new GameTestAssertException("onResume must clear the dig watchdog, got digTicks=" + a.digTicks);
+
+        helper.succeed();
+    }
+
+    /**
+     * Escape sealed-shelter regression (survival-run silent-stall 2026-07-10): a bot
+     * sealed inside a 1×2 pocket in solid dirt (a plugged bunker) must carve its way
+     * to the surface. The old CARVE only cleared the TARGET niche column and never the
+     * cell above the bot's OWN head, so with a sealed roof every STEP_UP jump was a
+     * no-op → STEP_UP timed out → re-PICK → same direction (already carved) → infinite
+     * ping-pong breaking zero blocks with zero report. Asserts the bot climbs to the
+     * surface, the process finishes+unregisters, and the escape slot carries no error.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverEscapeSealedShelterArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverEscapeSealedShelterArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int cx = 800, cz = 800, floorY = 220;
+        // Solid dirt mass floorY..floorY+5 (surface stand = floorY+6), wide enough for
+        // the 5-step diagonal staircase out of the centre pocket.
+        for (int dx = -6; dx <= 6; dx++)
+            for (int dz = -6; dz <= 6; dz++)
+                for (int dy = 0; dy <= 5; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.DIRT.defaultBlockState());
+        // The sealed 1×2 pocket: air foot+head only — the roof above stays solid.
+        level.setBlockAndUpdate(new BlockPos(cx, floorY + 1, cz), Blocks.AIR.defaultBlockState());
+        level.setBlockAndUpdate(new BlockPos(cx, floorY + 2, cz), Blocks.AIR.defaultBlockState());
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;
+        BotConfig.walkerDebug = false;
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            driver.fakePlayer().getInventory().clearContent();
+            driver.fakePlayer().getInventory().add(new ItemStack(Items.DIRT, 64));   // VERT_RISE fallback
+            driver.runProcess(new EscapeProcess(floorY + 6));
+            ServerAgentManager.register(driver);
+            for (int t = 0; t < 800 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            FakePlayer fp = driver.fakePlayer();
+            boolean climbed = fp.getY() >= floorY + 5.0;
+            String slotErr = driver.botState().escape.lastError;
+            AgentDriverCommon.LOG.info("[serverEscapeSealedShelterArena] pos=({},{},{}) climbed={} finished={} active={} slotErr={}",
+                    fp.getX(), fp.getY(), fp.getZ(), climbed, driver.finished(), ServerAgentManager.activeCount(), slotErr);
+            if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                throw new GameTestAssertException("sealed-shelter escape did not finish+unregister (old STEP_UP ping-pong?): active="
+                        + ServerAgentManager.activeCount() + " y=" + fp.getY());
+            if (!climbed)
+                throw new GameTestAssertException("sealed-shelter escape did not reach the surface: y=" + fp.getY()
+                        + " slotErr=" + slotErr);
+            if (slotErr != null)
+                throw new GameTestAssertException("escape slot reports an error after a successful climb: " + slotErr);
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Low-HP edge discipline (survival-run DEATH #3 2026-07-11): a 2-HP bot fleeing
+     * down a PLANNED staircase toward a flat that ends in a lethal lip must arrive
+     * without ever falling — sprint momentum plus the planned-descent sneak release
+     * is exactly what carried the live bot over a safe landing into a lethal drop.
+     * With {@link BotConfig#lowHealthCareful} active the Walker suppresses sprint and
+     * keeps the lethal-edge sneak pin across planned descents. Asserts the flee
+     * reaches min distance AND health is untouched (a fall over the 10-block lip is
+     * fatal at 2 HP, so any slip fails loudly).
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverLowHpEdgePinArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverLowHpEdgePinArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int cx = 840, cz = 840, floorY = 200;
+        // Broad base slab — the lethal landing zone under the lip.
+        for (int dx = -6; dx <= 18; dx++)
+            for (int dz = -6; dz <= 6; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+        // Elevated runway heading +x: flat top floorY+12 (dx -2..6), a 2-step planned
+        // descent (dx 7 → +11, dx 8 → +10), a 2-cell flat (dx 9..10 at +10), then the
+        // lethal 10-block lip (dx ≥ 11 is open air down to the base slab).
+        for (int dx = -2; dx <= 10; dx++) {
+            int top = dx <= 6 ? 12 : dx == 7 ? 11 : 10;
+            for (int dz = -1; dz <= 1; dz++)
+                for (int dy = 8; dy <= top; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.STONE.defaultBlockState());
+            // Side walls channel the flee along +x so the only route is the staircase.
+            for (int dy = top + 1; dy <= top + 3; dy++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz - 2), Blocks.STONE.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + 2), Blocks.STONE.defaultBlockState());
+            }
+        }
+        BlockPos from = new BlockPos(cx - 2, floorY + 13, cz);
+        final int minDist = 10;   // satisfied at dx ≥ 8, right after the planned descent
+
+        boolean odbg = BotConfig.walkerDebug, oflee = BotConfig.fleeActive;
+        double olhc = BotConfig.lowHealthCareful;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.walkerDebug = false;
+        BotConfig.lowHealthCareful = 6.0;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 13, cz + 0.5);
+            driver.fakePlayer().setHealth(2.0f);
+            driver.runProcess(new RunAwayProcess(from, minDist));
+            ServerAgentManager.register(driver);
+            for (int t = 0; t < 800 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            FakePlayer fp = driver.fakePlayer();
+            double ddx = fp.getX() - (cx - 2 + 0.5), ddz = fp.getZ() - (cz + 0.5);
+            double dist = Math.sqrt(ddx * ddx + ddz * ddz);
+            AgentDriverCommon.LOG.info("[serverLowHpEdgePinArena] pos=({},{},{}) dist={} hp={} finished={} active={}",
+                    fp.getX(), fp.getY(), fp.getZ(), dist, fp.getHealth(),
+                    driver.finished(), ServerAgentManager.activeCount());
+            if (fp.getHealth() < 2.0f)
+                throw new GameTestAssertException("low-HP flee took damage (fell off the planned descent / lip): hp="
+                        + fp.getHealth() + " y=" + fp.getY());
+            if (fp.getY() < floorY + 9.0)
+                throw new GameTestAssertException("low-HP flee left the elevated runway (fell): y=" + fp.getY());
+            if (dist < minDist - 0.5)
+                throw new GameTestAssertException("low-HP flee did not reach min distance: dist=" + dist
+                        + " (need " + minDist + ")");
+            if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                throw new GameTestAssertException("low-HP flee did not finish+unregister: active="
+                        + ServerAgentManager.activeCount());
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            BotConfig.fleeActive = oflee;
+            BotConfig.lowHealthCareful = olhc;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
      * Bunker enclosure regression (survival-run death#2): the shelter niche must be
      * carved INTO a solid mass, never through a thin wall onto an open face — the old
      * direction predicate only checked the two niche cells + roof + floor, so on a
@@ -955,7 +1515,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverBunkerSlopeArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverBunkerSlopeArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("serverBunkerSlopeArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 592, cz = 592, floorY = 220;
         for (int dx = -4; dx <= 4; dx++)
@@ -1028,7 +1588,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverCraftArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverCraftArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("serverCraftArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 600, cz = 600, floorY = 220;
         for (int dx = -1; dx <= 1; dx++)
@@ -1066,6 +1626,915 @@ public final class AgentGameTestServer {
     }
 
     /**
+     * Recipe species selection follows INVENTORY, not registry order (gap #274,
+     * 2026-07-12). A bot holding only ACACIA logs must resolve wooden_pickaxe through
+     * acacia_planks/acacia_log — NOT report the registry-first oak_log as missing
+     * while the acacia sits unused. Pure {@link RecipeResolver} test over the server's
+     * real recipe table (wooden_pickaxe needs a 3×3 table a FakePlayer can't open, so
+     * CraftProcess execution isn't an option here). Asserts SPECIES ROUTING (oak absent
+     * from missing, acacia present in the plan) — the correctness property; species
+     * follows PRESENCE, not abundance, so quantity/completeness is a separate concern
+     * (here stock is generous enough that completeness also holds, asserted last).
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverRecipeSpeciesArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverRecipeSpeciesArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        var rm = level.getRecipeManager();
+        var ra = level.registryAccess();
+        // ONLY acacia logs in stock — enough to complete (pickaxe = 3 planks + 2 sticks
+        // ≈ 5 planks ≈ 2 logs; stock 8 comfortably covers it).
+        Map<String, Integer> have = new HashMap<>();
+        have.put("minecraft:acacia_log", 8);
+
+        RecipeResolver.Plan plan = RecipeResolver.resolve(rm, ra, "minecraft:wooden_pickaxe", 1, have);
+
+        List<String> jobIds = new ArrayList<>();
+        for (RecipeResolver.Job j : plan.jobs()) jobIds.add(j.result() + "[" + String.join("+", j.fromParts()) + "]");
+        AgentDriverCommon.LOG.info("[serverRecipeSpeciesArena] have=acacia_log:8 missing={} jobs={}",
+                plan.missing(), jobIds);
+
+        // (1) Species routing: the registry-first oak species must NOT leak into the plan.
+        if (plan.missing().containsKey("minecraft:oak_log") || plan.missing().containsKey("minecraft:oak_planks"))
+            throw new GameTestAssertException("recipe species leaked to oak despite acacia_log in stock: missing=" + plan.missing());
+        // (2) Positive: the plan must route the acacia species the bot actually holds.
+        boolean routesAcacia = plan.jobs().stream().anyMatch(j ->
+                j.result().equals("minecraft:acacia_planks")
+                || j.fromParts().stream().anyMatch(fp -> fp.contains("acacia")));
+        if (!routesAcacia)
+            throw new GameTestAssertException("plan did not route acacia species: jobs=" + jobIds);
+        // (3) With generous acacia stock the plan completes (no missing leaves).
+        if (!plan.complete())
+            throw new GameTestAssertException("wooden_pickaxe from acacia_log:8 should complete: missing=" + plan.missing());
+        helper.succeed();
+    }
+
+    /**
+     * A 3×3 craft must INJECT the crafting_table into the sub-recipe tree when none is
+     * available (gap #275, 2026-07-12). A bot with only logs — no table item, and (pure
+     * resolver) no world table — dead-ends live at CraftProcess "需要工作台" because the
+     * plan lists crafting_table as a needed station but never a job to acquire one.
+     * Fix: {@link RecipeResolver} treats the crafting_table station as a reusable
+     * quantity-1 dependency — crafts one (2×2, no chicken-and-egg) before the jobs that
+     * need it, deduped to a single table, and SUPPRESSED when a table is already in
+     * inventory ({@code have}) or the world-aware caller signals one via
+     * {@code availableStations}. Pure {@link RecipeResolver} test over the real recipe
+     * table (the world/inventory suppression is the discriminator that keeps the working
+     * "placed table nearby" execution path from regressing).
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverCraftTableInjectArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverCraftTableInjectArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        var rm = level.getRecipeManager();
+        var ra = level.registryAccess();
+
+        // Logs only — no crafting_table item, and (pure resolver) no world table.
+        Map<String, Integer> have = new HashMap<>();
+        have.put("minecraft:oak_log", 16);
+
+        RecipeResolver.Plan plan = RecipeResolver.resolve(rm, ra, "minecraft:wooden_pickaxe", 1, have);
+        List<String> jobIds = new ArrayList<>();
+        for (RecipeResolver.Job j : plan.jobs()) jobIds.add(j.result());
+        AgentDriverCommon.LOG.info("[serverCraftTableInjectArena] have=oak_log:16 jobs={} stations={} missing={}",
+                jobIds, plan.stations(), plan.missing());
+
+        // (1) The crafting_table station must be injected as a real acquisition job.
+        int tableIdx = jobIds.indexOf("minecraft:crafting_table");
+        int pickIdx  = jobIds.indexOf("minecraft:wooden_pickaxe");
+        if (tableIdx < 0)
+            throw new GameTestAssertException("crafting_table NOT injected into sub-recipe tree: jobs=" + jobIds);
+        // (2) Dependency-first: the table is crafted BEFORE the job that consumes it.
+        if (pickIdx < 0 || tableIdx > pickIdx)
+            throw new GameTestAssertException("crafting_table must precede wooden_pickaxe: jobs=" + jobIds);
+        // (3) Dedup: exactly one table (not one per craft nor per 3×3 job).
+        long tableCount = jobIds.stream().filter("minecraft:crafting_table"::equals).count();
+        if (tableCount != 1)
+            throw new GameTestAssertException("expected exactly 1 injected crafting_table, got " + tableCount + ": jobs=" + jobIds);
+        // (4) Still complete from 16 logs (the table's +4 planks are covered).
+        if (!plan.complete())
+            throw new GameTestAssertException("should complete from oak_log:16: missing=" + plan.missing());
+
+        // (5) Suppression: a crafting_table ALREADY in inventory must NOT be re-injected.
+        Map<String, Integer> haveTable = new HashMap<>();
+        haveTable.put("minecraft:oak_log", 16);
+        haveTable.put("minecraft:crafting_table", 1);
+        RecipeResolver.Plan planHas = RecipeResolver.resolve(rm, ra, "minecraft:wooden_pickaxe", 1, haveTable);
+        if (planHas.jobs().stream().anyMatch(j -> j.result().equals("minecraft:crafting_table")))
+            throw new GameTestAssertException("crafting_table in inventory must suppress injection: jobs="
+                    + planHas.jobs().stream().map(RecipeResolver.Job::result).toList());
+
+        // (6) Suppression via availableStations — the WORLD table (a placed table within
+        // reach, which the resolver is blind to and the caller supplies). THE crux of the
+        // world-aware design: without it a bot beside a village table would craft a
+        // redundant one and, with barely enough planks, have a feasible craft reported
+        // infeasible. Live Case W proves it today; this keeps it proven in CI, where a
+        // dropped param or a mis-wired provisioned set would otherwise pass silently.
+        RecipeResolver.Plan planWorld = RecipeResolver.resolve(rm, ra, "minecraft:wooden_pickaxe", 1, have,
+                java.util.Set.of("crafting_table"));
+        if (planWorld.jobs().stream().anyMatch(j -> j.result().equals("minecraft:crafting_table")))
+            throw new GameTestAssertException("world-available table (availableStations) must suppress injection: jobs="
+                    + planWorld.jobs().stream().map(RecipeResolver.Job::result).toList());
+
+        helper.succeed();
+    }
+
+    /** Blow a {@code (2r+1) × h × (2r+1)} box of air above a site. The GameTestServer world
+     *  is persistent, so an arena that can leave blocks behind must scrub its own site or it
+     *  ends up testing the residue of its last run. */
+    private static void clearBox(ServerLevel level, int cx, int baseY, int cz, int r, int h) {
+        for (int dx = -r; dx <= r; dx++)
+            for (int dy = 0; dy < h; dy++)
+                for (int dz = -r; dz <= r; dz++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, baseY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+    }
+
+    /**
+     * gap #276 — a crafting table {@link CraftProcess} PLACED itself must be taken back
+     * when the craft ends; a table it merely FOUND standing must be left alone.
+     *
+     * <p>Rides the same capability cliff as {@link #serverSmeltCliffArena}: a FakePlayer
+     * cannot open a table menu (see {@code CraftProcess.setupStation}'s note), so a server
+     * 3×3 craft always runs place → useBlock no-op → OPEN_WAIT timeout → FAIL, and never
+     * reaches DONE. That is not a limitation here — it is exactly the vehicle: reclaim must
+     * run on the FAILURE path too (a craft that dies after placing littered a table just the
+     * same), so the one terminal the server can reach is one we must test anyway. Reclaim
+     * after a SUCCESSFUL craft is live-only by construction.
+     *
+     * <p>Likewise the ITEM cannot be asserted here: {@code ServerPlayerAvatar.breakHold}
+     * destroys with {@code dropBlock=false}, so a server break yields no drop. This arena
+     * therefore proves the WORLD half (the table is gone / is spared); that the table lands
+     * back in the inventory is proven live.
+     *
+     * <p>(B) is the safety crux of the whole design. {@code tablePos} is set from BOTH
+     * {@code placeTable} and {@code findTable}, so the tempting one-liner ("break tablePos on
+     * exit") would demolish the village or player-base table the bot merely borrowed. Only
+     * {@code placedTable} — assigned at the single site where a placement actually succeeds —
+     * may ever be broken. Without this assertion that regression passes CI in silence.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverCraftTableReclaimArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverCraftTableReclaimArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int floorY = 220;
+        boolean odbg = BotConfig.walkerDebug, orc = BotConfig.craftReclaimTable;
+        BotConfig.walkerDebug = false;
+        BotConfig.craftReclaimTable = true;
+        ServerAgentManager.clear();
+        try {
+            // (A) PLACED table → reclaimed. Bot carries a table + the pickaxe materials, so
+            // it places its own table (no table in the world to find).
+            final int ax = 760, az = 760;
+            // Scrub the site FIRST. The GameTestServer world PERSISTS across runs, and this
+            // arena's own failure mode is "a crafting table is left standing" — so a red run
+            // seeds a table that the next run's findTable happily borrows: nothing is placed,
+            // nothing is reclaimed, and the assertion still sees tablesLeft=1. That cost a
+            // real debugging cycle here. Self-cleaning keeps the arena a test, not an echo of
+            // the run before it.
+            clearBox(level, ax, floorY + 1, az, 4, 3);
+            for (int dx = -2; dx <= 2; dx++)
+                for (int dz = -2; dz <= 2; dz++)
+                    level.setBlockAndUpdate(new BlockPos(ax + dx, floorY, az + dz), Blocks.STONE.defaultBlockState());
+            ServerAgentDriver da = ServerAgentDriver.create(level, ax + 0.5, floorY + 1, az + 0.5);
+            da.fakePlayer().getInventory().clearContent();
+            da.fakePlayer().getInventory().add(new ItemStack(Items.CRAFTING_TABLE, 1));
+            da.fakePlayer().getInventory().add(new ItemStack(Items.OAK_PLANKS, 3));
+            da.fakePlayer().getInventory().add(new ItemStack(Items.STICK, 2));
+            da.runProcess(new CraftProcess("minecraft:wooden_pickaxe", 1));
+            ServerAgentManager.register(da);
+            for (int t = 0; t < 400 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            int tablesLeft = 0;
+            for (int dx = -3; dx <= 3; dx++)
+                for (int dy = -1; dy <= 2; dy++)
+                    for (int dz = -3; dz <= 3; dz++)
+                        if (level.getBlockState(new BlockPos(ax + dx, floorY + dy, az + dz)).is(Blocks.CRAFTING_TABLE))
+                            tablesLeft++;
+            String errA = da.botState().craft.lastError;
+            AgentDriverCommon.LOG.info("[serverCraftTableReclaimArena] A finished={} active={} tablesLeft={} err={}",
+                    da.finished(), ServerAgentManager.activeCount(), tablesLeft, errA);
+
+            // The process must still terminate cleanly — reclaim runs on the way out, it
+            // must never leave the process spinning.
+            if (!da.finished() || ServerAgentManager.activeCount() != 0)
+                throw new GameTestAssertException("craft did not terminate after reclaim: finished="
+                        + da.finished() + " active=" + ServerAgentManager.activeCount());
+            // (1) THE FIX: the table the bot placed is gone from the world.
+            if (tablesLeft != 0)
+                throw new GameTestAssertException("placed crafting_table was abandoned (gap #276): "
+                        + tablesLeft + " still standing near the bot");
+            // (2) Reclaim must not clobber the craft's own outcome: the error the caller
+            // sees is still the menu-open timeout, not something reclaim invented.
+            if (errA == null || !errA.contains("工作台"))
+                throw new GameTestAssertException("reclaim overwrote the craft's error: " + errA);
+
+            ServerAgentManager.clear();
+
+            // (B) ⭐SAFETY CRUX: a table already STANDING is borrowed, never broken. Same
+            // craft, but the table is in the WORLD and not in the bag — so findTable supplies
+            // it, placeTable never runs, and placedTable stays null.
+            final int bx = 800, bz = 800;
+            clearBox(level, bx, floorY + 1, bz, 4, 3);
+            for (int dx = -2; dx <= 2; dx++)
+                for (int dz = -2; dz <= 2; dz++)
+                    level.setBlockAndUpdate(new BlockPos(bx + dx, floorY, bz + dz), Blocks.STONE.defaultBlockState());
+            BlockPos preExisting = new BlockPos(bx + 1, floorY + 1, bz);   // within reach
+            level.setBlockAndUpdate(preExisting, Blocks.CRAFTING_TABLE.defaultBlockState());
+            ServerAgentDriver db = ServerAgentDriver.create(level, bx + 0.5, floorY + 1, bz + 0.5);
+            db.fakePlayer().getInventory().clearContent();
+            db.fakePlayer().getInventory().add(new ItemStack(Items.OAK_PLANKS, 3));
+            db.fakePlayer().getInventory().add(new ItemStack(Items.STICK, 2));   // NO table item
+            db.runProcess(new CraftProcess("minecraft:wooden_pickaxe", 1));
+            ServerAgentManager.register(db);
+            for (int t = 0; t < 400 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            boolean survived = level.getBlockState(preExisting).is(Blocks.CRAFTING_TABLE);
+            AgentDriverCommon.LOG.info("[serverCraftTableReclaimArena] B finished={} preExistingSurvived={}",
+                    db.finished(), survived);
+            if (!survived)
+                throw new GameTestAssertException("reclaim BROKE a pre-existing table it only borrowed "
+                        + "(placedTable must never be set from findTable) at " + preExisting);
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            BotConfig.craftReclaimTable = orc;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Gap #41 — {@code mc.observe.player} exposed 9 of the inventory's 36 slots, so
+     * three quarters of what the bot owned was invisible to the agent driving it. (A
+     * real consequence: a bot was judged resource-softlocked — "no food, no pickaxe,
+     * no blocks" — off a hotbar read, while 27 hidden slots held 200+ cobblestone and
+     * a furnace.)
+     *
+     * <p>The client CAN read all 36 through {@code mc.observe.container} with the
+     * inventory screen open, which is why this arena drives the SERVER snapshot
+     * specifically: a FakePlayer cannot open a menu (see {@code serverSmeltCliffArena}),
+     * so for a server avatar {@code observe.player} is the ONLY inventory verb there is
+     * — the one path with no fallback. A client-side test would pass on the workaround
+     * while the server verb stayed blind.
+     *
+     * <p>(B) additionally pins the half that makes the data USEFUL: the emitted
+     * {@code items} map must be directly consumable as {@code have} by the planner.
+     * Ids are namespaced on both sides ({@code minecraft:cobblestone}), and a bare-id
+     * map would resolve as have-nothing — wired up in appearance, silently empty in
+     * effect. So (B) feeds the map straight into {@link RecipeResolver} and demands a
+     * complete plan, with every ingredient sitting in a HIDDEN slot.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverObservePlayerInventoryArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverObservePlayerInventoryArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int cx = 840, cz = 840, floorY = 220;
+        boolean odbg = BotConfig.walkerDebug;
+        BotConfig.walkerDebug = false;
+        ServerAgentManager.clear();
+        try {
+            clearBox(level, cx, floorY + 1, cz, 3, 3);
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dz = -1; dz <= 1; dz++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            FakePlayer fp = driver.fakePlayer();
+            fp.getInventory().clearContent();
+
+            // Slot 0 is the hotbar (visible before the fix). Slots 9 / 20 / 33 are main
+            // inventory — invisible before the fix. Offhand is a fourth carrier.
+            fp.getInventory().setItem(0, new ItemStack(Items.CRAFTING_TABLE, 1));
+            fp.getInventory().setItem(9, new ItemStack(Items.COBBLESTONE, 5));
+            fp.getInventory().setItem(20, new ItemStack(Items.STICK, 2));
+            fp.getInventory().setItem(33, new ItemStack(Items.BREAD, 3));
+            fp.getInventory().offhand.set(0, new ItemStack(Items.TORCH, 4));
+            // A nearly-spent pickaxe (gap #42): 245 of 250 damage taken = 5 uses left.
+            ItemStack worn = new ItemStack(Items.IRON_PICKAXE);
+            worn.setDamageValue(245);
+            fp.getInventory().setItem(4, worn);
+
+            Map<String, Object> snap = new AgentApi().observe.playerSnapshot(fp);
+
+            // (A) the hidden slots are reported at all.
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> inv = (List<Map<String, Object>>) snap.get("inventory");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> items = (Map<String, Object>) snap.get("items");
+            AgentDriverCommon.LOG.info("[serverObservePlayerInventoryArena] invRows={} items={}",
+                    inv == null ? -1 : inv.size(), items);
+            if (inv == null)
+                throw new GameTestAssertException("observe.player carries no `inventory` field at all — "
+                        + "the bot cannot see its own bag through the only verb a server avatar has");
+            // Rows are non-empty-only with vanilla indexing, byte-identical to the client
+            // snapshot's shape (0-8 hotbar, 9-35 main, 36-39 armor, 40 offhand).
+            Map<Integer, Map<String, Object>> bySlot = new LinkedHashMap<>();
+            for (Map<String, Object> row : inv) bySlot.put(((Number) row.get("slot")).intValue(), row);
+            if (bySlot.size() != 6)
+                throw new GameTestAssertException("expected exactly the 6 stacks placed, got " + inv);
+            for (int hidden : new int[]{9, 20, 33}) {
+                if (!bySlot.containsKey(hidden))
+                    throw new GameTestAssertException("hidden main-inventory slot " + hidden
+                            + " is still invisible (this is the whole gap): " + inv);
+            }
+            if (!"minecraft:bread".equals(bySlot.get(33).get("id"))
+                    || !Integer.valueOf(3).equals(bySlot.get(33).get("count")))
+                throw new GameTestAssertException("slot 33 misreported: " + bySlot.get(33));
+            if (!bySlot.containsKey(40) || !"minecraft:torch".equals(bySlot.get(40).get("id")))
+                throw new GameTestAssertException("offhand (slot 40) not reported: " + inv);
+
+            // Gap #42 — tool WEAR. A pickaxe with 5 uses left used to look exactly like a
+            // fresh one ({slot,id,count} and nothing else), so the agent could only learn a
+            // tool was gone AFTER tool.broke fired — never in time to switch to the spare,
+            // head home while it can still dig, or judge whether a 90-block tunnel is
+            // affordable. Damageable items now carry maxDamage/damage/durability (points
+            // REMAINING = maxDamage-damage; note points are not uses — Unbreaking stretches a
+            // point over several, so it is a FLOOR on remaining work); stackables carry none, so
+            // the presence of `durability` itself means "this is a thing that wears out".
+            Map<String, Object> pick = bySlot.get(4);
+            if (pick == null || !"minecraft:iron_pickaxe".equals(pick.get("id")))
+                throw new GameTestAssertException("worn pickaxe missing from slot 4: " + inv);
+            if (pick.get("durability") == null)
+                throw new GameTestAssertException("tool wear is invisible to the agent — a "
+                        + "nearly-broken pickaxe reads identical to a fresh one: " + pick);
+            if (!Integer.valueOf(5).equals(pick.get("durability"))
+                    || !Integer.valueOf(245).equals(pick.get("damage")))
+                throw new GameTestAssertException("`durability` must be points REMAINING (maxDamage-damage): " + pick);
+            if (bySlot.get(9).containsKey("durability"))
+                throw new GameTestAssertException("a stackable (cobblestone) must carry no wear fields: "
+                        + bySlot.get(9));
+
+            // hotbar stays exactly as it was — this is additive, existing readers must not break.
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> hotbar = (List<Map<String, Object>>) snap.get("hotbar");
+            if (hotbar == null || hotbar.size() != 9)
+                throw new GameTestAssertException("the `hotbar` field must survive unchanged, got " + hotbar);
+
+            if (items == null)
+                throw new GameTestAssertException("observe.player must emit an aggregated `items` map (the `have` shape)");
+            if (!Integer.valueOf(5).equals(items.get("minecraft:cobblestone"))
+                    || !Integer.valueOf(4).equals(items.get("minecraft:torch")))   // offhand counted, like CraftProcess
+                throw new GameTestAssertException("`items` must aggregate hidden slots + offhand: " + items);
+            if (items.containsKey("cobblestone"))
+                throw new GameTestAssertException("`items` ids must be namespaced — a bare id is silently "
+                        + "have-nothing to the resolver: " + items);
+
+            // (B) the map is actually usable as `have`. Every ingredient of the target
+            // (3 cobblestone + 2 sticks) lives in a hidden slot, so a plan can only come
+            // out complete if the snapshot really saw them AND the key format matches.
+            Map<String, Integer> have = new LinkedHashMap<>();
+            for (var e : items.entrySet()) have.put(e.getKey(), ((Number) e.getValue()).intValue());
+            RecipeResolver.Plan plan = RecipeResolver.resolve(
+                    level.getServer().getRecipeManager(), level.registryAccess(),
+                    "minecraft:stone_pickaxe", 1, have, Set.of());
+            AgentDriverCommon.LOG.info("[serverObservePlayerInventoryArena] planComplete={} missing={}",
+                    plan.complete(), plan.missing());
+            if (!plan.complete())
+                throw new GameTestAssertException("the emitted `items` map is not consumable as `have` — "
+                        + "planner still reports missing " + plan.missing()
+                        + " though every ingredient is in the bag (hidden slots / id format)");
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+
+    /**
+     * Gap #44 — the planner and the craft executor must measure the SAME bag.
+     *
+     * <p>{@code mc.recipe.resolve} / {@code mc.plan.acquire} used to default {@code have} to
+     * an EMPTY map when the caller omitted it, while {@link CraftProcess} — the thing that
+     * actually executes the plan — consumes from the real inventory. Two rulers for one
+     * fact: the plan was a plan for a different bot. Live, that read as a bot carrying 208
+     * cobblestone being handed a 9-step plan whose first step was "go mine cobblestone".
+     * It is gap #275's lesson (planner and executor must share one ruler) in its items half.
+     *
+     * <p>The fix must NOT cost the what-if use case, so omitted and explicitly-empty are
+     * deliberately different: omitted = "plan for me as I am" (read the bag), explicit
+     * {@code {}} = "suppose I had nothing". Callers that already pass {@code have} — which
+     * is every existing test — are untouched.
+     *
+     * <p>Driven through {@code RecipeApi.resolveHave} rather than the verb because a
+     * FakePlayer is not in the {@code PlayerList} and so is invisible to the verb's own
+     * {@code botPlayer()} lookup (gap #41's cliff).
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverPlanHaveDefaultsToBagArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverPlanHaveDefaultsToBagArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int cx = 880, cz = 880, floorY = 220;
+        boolean odbg = BotConfig.walkerDebug;
+        BotConfig.walkerDebug = false;
+        ServerAgentManager.clear();
+        try {
+            clearBox(level, cx, floorY + 1, cz, 3, 3);
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dz = -1; dz <= 1; dz++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            FakePlayer fp = driver.fakePlayer();
+            fp.getInventory().clearContent();
+            // Everything a stone pickaxe needs, and it all sits in HIDDEN main-inventory
+            // slots — so a plan can only come out complete if the default really read the bag.
+            fp.getInventory().setItem(9, new ItemStack(Items.COBBLESTONE, 208));
+            fp.getInventory().setItem(20, new ItemStack(Items.STICK, 2));
+
+            RecipeManager rm = level.getServer().getRecipeManager();
+            HolderLookup.Provider ra = level.registryAccess();
+
+            // (A) OMITTED have → the real bag. This is the RED: before the fix this map was
+            // empty and the plan demanded cobblestone the bot was already carrying 208 of.
+            Map<String, Integer> dflt = RecipeApi.resolveHave(Params.of(Map.of()), fp);
+            AgentDriverCommon.LOG.info("[serverPlanHaveDefaultsToBagArena] defaultHave={}", dflt);
+            if (!Integer.valueOf(208).equals(dflt.get("minecraft:cobblestone")))
+                throw new GameTestAssertException("omitting `have` must plan against the REAL bag "
+                        + "(the same one mc.bot.craft consumes from), got " + dflt);
+            RecipeResolver.Plan planned = RecipeResolver.resolve(rm, ra,
+                    "minecraft:stone_pickaxe", 1, dflt, Set.of("crafting_table"));
+            if (!planned.complete())
+                throw new GameTestAssertException("planner still reports missing " + planned.missing()
+                        + " for a bot that is carrying every ingredient — planner and executor "
+                        + "are measuring different bags");
+
+            // (B) EXPLICIT {} stays a hypothesis ("suppose I had nothing"). If the fix
+            // collapsed these two cases, what-if planning would be silently impossible.
+            Map<String, Object> emptyHave = new LinkedHashMap<>();
+            emptyHave.put("have", new LinkedHashMap<String, Object>());
+            Map<String, Integer> hypo = RecipeApi.resolveHave(Params.of(emptyHave), fp);
+            if (!hypo.isEmpty())
+                throw new GameTestAssertException("an explicit empty `have` must stay the "
+                        + "'suppose I had nothing' hypothesis, got " + hypo);
+            RecipeResolver.Plan hypoPlan = RecipeResolver.resolve(rm, ra,
+                    "minecraft:stone_pickaxe", 1, hypo, Set.of("crafting_table"));
+            if (hypoPlan.complete())
+                throw new GameTestAssertException("what-if planning is broken: an empty hypothesis "
+                        + "must still lack the ingredients");
+
+            // (C) an explicitly supplied map is used VERBATIM — every existing caller
+            // (and every existing test) must be byte-for-byte unaffected.
+            Map<String, Object> given = new LinkedHashMap<>();
+            Map<String, Object> inner = new LinkedHashMap<>();
+            inner.put("minecraft:cobblestone", 3);
+            given.put("have", inner);
+            Map<String, Integer> verbatim = RecipeApi.resolveHave(Params.of(given), fp);
+            if (verbatim.size() != 1 || !Integer.valueOf(3).equals(verbatim.get("minecraft:cobblestone")))
+                throw new GameTestAssertException("an explicit `have` must be used verbatim, not "
+                        + "merged with the bag, got " + verbatim);
+
+            // (D) no bot (headless / not yet joined) → empty, and above all no crash.
+            if (!RecipeApi.resolveHave(Params.of(Map.of()), null).isEmpty())
+                throw new GameTestAssertException("a null bot must fall back to have-nothing");
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Put a weapon in the main hand AND apply its attribute modifiers (attack speed, attack
+     * damage), swapping out the previous weapon's.
+     *
+     * <p>A live player gets this for free: {@code LivingEntity.tick()} calls the private
+     * {@code detectEquipmentUpdates()} every tick, which diffs the held stack and moves its
+     * {@code ItemAttributeModifiers} onto the attribute map. A FakePlayer driven by
+     * {@link ServerPlayerAvatar} never runs {@code Player.tick()} (only {@code baseTick()}), so
+     * its attributes stay at the BARE-HANDED baseline no matter what it holds — an iron sword
+     * reads as attack speed 4.0/s (5-tick recharge) instead of 1.6/s (13 ticks). Reproducing the
+     * one line of vanilla here is what makes this arena faithful to a real player.
+     *
+     * <p>That staleness was itself a real defect — gap #46, now FIXED in
+     * {@code ServerPlayerAvatar.syncEquipmentAttributes()}, so the engine applies these modifiers
+     * on its own tick. This helper stays anyway: it applies them WITHOUT stepping the avatar, which
+     * keeps the #45 arena (an OBSERVATION test) independent of #46's fix — if the sync ever
+     * regresses, #45 must still measure exactly what a live player measures, and
+     * {@code serverAvatarGearScopeProbeArena} is the test that fails.
+     */
+    private static void equipMainHand(FakePlayer fp, ItemStack weapon) {
+        ItemStack prev = fp.getMainHandItem();
+        if (!prev.isEmpty()) {
+            prev.forEachModifier(EquipmentSlot.MAINHAND, (attr, mod) -> {
+                var inst = fp.getAttributes().getInstance(attr);
+                if (inst != null) inst.removeModifier(mod.id());
+            });
+        }
+        fp.getInventory().setItem(0, weapon);
+        fp.getInventory().selected = 0;
+        weapon.forEachModifier(EquipmentSlot.MAINHAND, (attr, mod) -> {
+            var inst = fp.getAttributes().getInstance(attr);
+            if (inst != null) { inst.removeModifier(mod.id()); inst.addTransientModifier(mod); }
+        });
+    }
+
+    /**
+     * Gap #46 SCOPE PROBE — how much of the server avatar's gear is actually inert?
+     *
+     * <p>Established by the #45 arena: {@code detectEquipmentUpdates()} is private and only
+     * {@code Player.tick()} calls it, while {@link ServerPlayerAvatar} runs {@code baseTick()}
+     * only — so an equipped item's {@code ItemAttributeModifiers} never reach the attribute map
+     * and the FakePlayer holds an iron sword with bare-handed attack SPEED. What that costs
+     * beyond rhythm was ASSERTED, not measured, so this measures OUTCOMES (damage dealt, damage
+     * absorbed) rather than attributes: a test that reads back the attribute a fix writes proves
+     * only that the fix calls its own API.
+     *
+     * <p>Deliberately makes NO assertion about what the numbers should be — it is a measurement
+     * that logs, so the fix (if any) is designed against the real blast radius. It fails only if
+     * the rig itself is broken (a swing that does not land, a hit that does no damage at all).
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverAvatarGearScopeProbeArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverAvatarGearScopeProbeArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int cx = 1000, cz = 1000, floorY = 220;
+        boolean odbg = BotConfig.walkerDebug;
+        BotConfig.walkerDebug = false;
+        ServerAgentManager.clear();
+        try {
+            clearBox(level, cx, floorY + 1, cz, 6, 6);
+            for (int dx = -2; dx <= 4; dx++)
+                for (int dz = -2; dz <= 2; dz++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            FakePlayer fp = driver.fakePlayer();
+
+            // --- (1) DAMAGE DEALT: bare hand vs iron sword, both at FULL attack strength. ---
+            float bare = probeSwing(level, driver, fp, ItemStack.EMPTY, cx, floorY, cz);
+            float sword = probeSwing(level, driver, fp, new ItemStack(Items.IRON_SWORD), cx, floorY, cz);
+
+            // --- (2) DAMAGE ABSORBED: bare vs full diamond armor, same 10-point generic hit. ---
+            float tookBare = probeHurt(fp, false);
+            float tookArmored = probeHurt(fp, true);
+
+            // --- (3) The attribute values behind those outcomes. ---
+            fp.getInventory().clearContent();
+            fp.getInventory().setItem(0, new ItemStack(Items.IRON_SWORD));
+            fp.getInventory().selected = 0;
+            driver.avatar().step();   // the gear must land through the NORMAL tick, not a special API
+            double atk = fp.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE);
+            double spd = fp.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_SPEED);
+            double arm = fp.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR);
+
+            AgentDriverCommon.LOG.warn("[GEAR-SCOPE] dealt: bareHand={} ironSword={} (iron sword should hit HARDER)",
+                    bare, sword);
+            AgentDriverCommon.LOG.warn("[GEAR-SCOPE] taken(10pt hit): noArmor={} fullDiamond={} (armor should ABSORB)",
+                    tookBare, tookArmored);
+            AgentDriverCommon.LOG.warn("[GEAR-SCOPE] attrs while HOLDING iron sword: ATTACK_DAMAGE={} ATTACK_SPEED={} ARMOR={}",
+                    atk, spd, arm);
+
+            // Is the avatar hurtable AT ALL? If a FakePlayer is invulnerable by construction, then
+            // "armor does nothing" is moot for it and the blast radius is offense-only — a very
+            // different fix than a survivability bug. Measure it rather than assume either way.
+            fp.getInventory().clearContent();
+            fp.getInventory().armor.set(3, new ItemStack(Items.DIAMOND_HELMET));
+            fp.getInventory().armor.set(2, new ItemStack(Items.DIAMOND_CHESTPLATE));
+            fp.getInventory().armor.set(1, new ItemStack(Items.DIAMOND_LEGGINGS));
+            fp.getInventory().armor.set(0, new ItemStack(Items.DIAMOND_BOOTS));
+            driver.avatar().step();
+            double armWorn = fp.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR);
+            AgentDriverCommon.LOG.warn("[GEAR-SCOPE] WEARING full diamond: ARMOR attr={} getArmorValue={} "
+                            + "(vanilla full diamond = 20) | invulnerable={} isInvulnerableTo(generic)={} creative={}",
+                    armWorn, fp.getArmorValue(), fp.isInvulnerable(),
+                    fp.isInvulnerableTo(fp.damageSources().generic()), fp.isCreative());
+
+            if (bare <= 0f)
+                throw new GameTestAssertException("rig broken: a bare-handed swing dealt no damage at all");
+
+            // THE assertion (gap #46): an OUTCOME, not a mirrored attribute. Reading back the
+            // attribute the fix writes would only prove the fix calls its own API; a zombie losing
+            // more health to a sword than to a fist is the thing an agent actually pays for.
+            // Vanilla: fist = 1 damage, iron sword = 7 — so a 3x floor is far below the real gap
+            // (measured 0.94 vs 0.94 before the fix: the sword was worth exactly nothing).
+            if (sword < bare * 3.0f)
+                throw new GameTestAssertException("an iron sword deals no more than a bare fist (bare=" + bare
+                        + " sword=" + sword + "): the avatar's held item never reaches its attributes, so"
+                        + " server-mode melee swings a weapon it does not benefit from");
+            // The other half of the same staleness: the recharge the swing rhythm is built on.
+            if (Math.round(spd * 10) != 16)   // iron sword = 1.6 attacks/s; bare hand = 4.0
+                throw new GameTestAssertException("ATTACK_SPEED with an iron sword should be 1.6, got " + spd
+                        + " — CombatProcess would pace its swings by the wrong weapon");
+            // 1.21 iron sword = 6 total attack damage (1.0 player base + a +5 modifier). Asserting the
+            // OUTCOME first caught my own wrong constant here: the swing already proved the fix works
+            // (0.94 -> 5.90) while this line still expected the diamond sword's 7.
+            if (Math.abs(atk - 6.0) > 0.001)
+                throw new GameTestAssertException("ATTACK_DAMAGE with an iron sword should be 6.0, got " + atk);
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Gap #48 — every server agent shared ONE body.
+     *
+     * <p>{@code ServerPlayerAvatar.create} took its FakePlayer from {@code FakePlayerFactory
+     * .getMinecraft(level)}, which is a per-LEVEL singleton. So two {@code /agentserver} agents in
+     * the same world were not two bots: they were one entity being teleported and driven by two
+     * drivers, each overwriting the other's position, inventory and attributes every tick.
+     *
+     * <p>It also made the GameTest suite a lottery. GameTest runs arenas concurrently in one level,
+     * so every server arena was steering that same singleton; the failure SET drifted run to run
+     * ({@code entityLeashRepath}, {@code deepwaterClimbout}, {@code buoyantWall},
+     * {@code descentOvershootResync}, {@code gearScope} all took turns) on IDENTICAL code. That drift
+     * had been written off for a long time as a "known water-arena flake" — a misattribution: the
+     * water algorithms were never the variable, the shared body was. An {@code identityHashCode}
+     * probe settled it (one fp across the whole suite).
+     *
+     * <p>The assertion is an OUTCOME and it is the user-visible one: drive agent A, and agent B must
+     * not move. Before the fix B was A — it moved with it, because it WAS it.
+     *
+     * <p>FIXED for production (2026-07-12): {@code /agentserver} drivers now take
+     * {@code ServerAgentDriver.createIsolated} → {@code ServerPlayerAvatar.createUnique} (a fresh
+     * unique GameProfile per agent), which is exactly what this arena drives — so it is a REQUIRED
+     * regression guard now. The GameTest arenas themselves deliberately stay on the shared
+     * singleton: arming per-arena bodies suite-wide was measured (3 full runs, 2026-07-12) to
+     * surface the suite's OTHER cross-arena couplings — shared world regions and server-thread
+     * load — as drifting required failures ({@code entityLeashRepath} 3/3, {@code agentRpcSmoke}
+     * 2/3, {@code horizonArena} 1/3, all solo-green), plus it unmasked {@code descentDriftArena}
+     * as a deterministic solo-RED false green. Suite-wide isolation therefore waits on the test
+     * framework rework, not on this factory.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverAgentDistinctBodiesArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverAgentDistinctBodiesArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int ax = 1120, az = 1120, bx = 1140, bz = 1140, floorY = 220;
+        boolean odbg = BotConfig.walkerDebug;
+        BotConfig.walkerDebug = false;
+        ServerAgentManager.clear();
+        try {
+            clearBox(level, ax, floorY + 1, az, 6, 6);
+            clearBox(level, bx, floorY + 1, bz, 6, 6);
+            for (int dx = -3; dx <= 3; dx++)
+                for (int dz = -3; dz <= 3; dz++) {
+                    level.setBlockAndUpdate(new BlockPos(ax + dx, floorY, az + dz), Blocks.STONE.defaultBlockState());
+                    level.setBlockAndUpdate(new BlockPos(bx + dx, floorY, bz + dz), Blocks.STONE.defaultBlockState());
+                }
+            ServerAgentDriver a = ServerAgentDriver.createIsolated(level, ax + 0.5, floorY + 1, az + 0.5);
+            ServerAgentDriver b = ServerAgentDriver.createIsolated(level, bx + 0.5, floorY + 1, bz + 0.5);
+            FakePlayer fpA = a.fakePlayer(), fpB = b.fakePlayer();
+
+            if (fpA == fpB)
+                throw new GameTestAssertException("both server agents are literally the same entity ("
+                        + java.lang.System.identityHashCode(fpA) + "): FakePlayerFactory.getMinecraft(level) is a"
+                        + " per-level singleton, so agents (and concurrent arenas) fight over one body");
+
+            // B is parked. A walks. Vanilla-obvious, and the whole point of having two agents.
+            Vec3 bStart = fpB.position();
+            a.avatar().commandMove(0f, 1f);
+            for (int i = 0; i < 20; i++) { a.avatar().step(); }
+            Vec3 bEnd = fpB.position();
+            double bDrift = bStart.distanceTo(bEnd);
+            double aMoved = fpA.position().distanceTo(new Vec3(ax + 0.5, floorY + 1, az + 0.5));
+            AgentDriverCommon.LOG.warn("[DISTINCT-BODIES] fpA={} fpB={} | A walked {} blocks, B (idle) drifted {}",
+                    java.lang.System.identityHashCode(fpA), java.lang.System.identityHashCode(fpB), aMoved, bDrift);
+            if (aMoved < 0.5)
+                throw new GameTestAssertException("rig broken: agent A did not walk at all (" + aMoved + ")");
+            if (bDrift > 0.01)
+                throw new GameTestAssertException("driving agent A dragged idle agent B " + bDrift
+                        + " blocks: the two agents are sharing one body");
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Gap #47 — the server avatar hand-reimplements {@code Player.tick()}, and kept missing pieces.
+     *
+     * <p>{@link ServerPlayerAvatar#step()} runs {@code baseTick()} only (it integrates locomotion by
+     * hand, so {@code aiStep} must not run) and NeoForge's {@code FakePlayer.tick()} is empty — so
+     * every piece of per-tick PLAYER bookkeeping is absent unless mirrored. Two were found the hard
+     * way, one arena at a time (#45 the attack ticker, #46 the equipment attributes). This arena
+     * pins the rest as a LIST, so the next omission is a missing line rather than an ambush.
+     *
+     * <p>All three assertions are OUTCOMES, not read-backs of the state the fix writes: food actually
+     * swallowed, a cooldown actually expiring, a recharge bar actually emptied by a weapon swap.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverAvatarTickFidelityArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverAvatarTickFidelityArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int cx = 1060, cz = 1060, floorY = 220;
+        boolean odbg = BotConfig.walkerDebug;
+        BotConfig.walkerDebug = false;
+        ServerAgentManager.clear();
+        try {
+            clearBox(level, cx, floorY + 1, cz, 3, 3);
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dz = -1; dz <= 1; dz++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            FakePlayer fp = driver.fakePlayer();
+
+            // --- (A) A HELD USE COMPLETES: eating. ---
+            // commandUseItem(true) calls startUsingItem, which only ARMS a countdown that
+            // LivingEntity.updatingUsingItem() (private, tick()-only) is supposed to advance. Without
+            // it the bite never lands: the agent holds use forever, the food is never eaten, and the
+            // whole `Avatar.commandUseItem` capability is a silent no-op on the server path.
+            fp.getInventory().clearContent();
+            fp.getInventory().setItem(0, new ItemStack(Items.COOKED_BEEF, 2));
+            fp.getInventory().selected = 0;
+            fp.getFoodData().setFoodLevel(6);              // hungry, so the meal has somewhere to go
+            driver.avatar().commandUseItem(true);
+            for (int i = 0; i < 40; i++) driver.avatar().step();   // cooked beef = 32 ticks to eat
+            driver.avatar().commandUseItem(false);
+            int beefLeft = fp.getInventory().getItem(0).getCount();
+            int food = fp.getFoodData().getFoodLevel();
+            AgentDriverCommon.LOG.warn("[TICK-FIDELITY] after holding use 40t on cooked beef: beefLeft={} foodLevel={}"
+                    + " (vanilla: 1 left, food 6 -> 14)", beefLeft, food);
+            if (beefLeft != 1 || food <= 6)
+                throw new GameTestAssertException("holding USE on food never finished the bite (beefLeft=" + beefLeft
+                        + " foodLevel=" + food + "): startUsingItem arms a countdown that nothing advances, so"
+                        + " eat/drink/bow-draw are all silent no-ops on the server avatar");
+
+            // --- (B) AN ITEM COOLDOWN EXPIRES. ---
+            // Player.tick() calls cooldowns.tick(). Without it the first ender pearl / shield-disable
+            // puts the item on a cooldown that NEVER ends — the item is permanently dead.
+            fp.getCooldowns().addCooldown(Items.ENDER_PEARL, 10);
+            if (!fp.getCooldowns().isOnCooldown(Items.ENDER_PEARL))
+                throw new GameTestAssertException("rig broken: the cooldown did not even register");
+            for (int i = 0; i < 15; i++) driver.avatar().step();
+            boolean stillCooling = fp.getCooldowns().isOnCooldown(Items.ENDER_PEARL);
+            AgentDriverCommon.LOG.warn("[TICK-FIDELITY] 10t cooldown after 15 ticks: stillOnCooldown={}", stillCooling);
+            if (stillCooling)
+                throw new GameTestAssertException("a 10-tick item cooldown had not expired after 15 avatar ticks:"
+                        + " nothing calls cooldowns.tick(), so any item that goes on cooldown stays there forever");
+
+            // --- (C) SWAPPING WEAPONS EMPTIES THE RECHARGE BAR. ---
+            // Vanilla resets attackStrengthTicker whenever the held ITEM changes. Without it an agent
+            // banks a full bar on one weapon and swings a freshly-drawn one at full strength — and
+            // observe.player.attack (gap #45) reports that phantom full bar as fact.
+            fp.getInventory().clearContent();
+            fp.getInventory().setItem(0, new ItemStack(Items.IRON_SWORD));
+            fp.getInventory().selected = 0;
+            for (int i = 0; i < 30; i++) driver.avatar().step();   // bar fills on the sword
+            float charged = fp.getAttackStrengthScale(0.0f);
+            if (charged < 1.0f)
+                throw new GameTestAssertException("rig broken: bar not full after 30 ticks (" + charged + ")");
+            fp.getInventory().setItem(0, new ItemStack(Items.IRON_AXE));   // swap: different item
+            driver.avatar().step();
+            float afterSwap = fp.getAttackStrengthScale(0.0f);
+            AgentDriverCommon.LOG.warn("[TICK-FIDELITY] recharge scale: onSword={} oneTickAfterSwapToAxe={}"
+                    + " (vanilla: the swap empties the bar)", charged, afterSwap);
+            if (afterSwap > 0.5f)
+                throw new GameTestAssertException("swapping to a different weapon did not reset the recharge bar"
+                        + " (scale still " + afterSwap + "): the avatar would swing the new weapon at full strength"
+                        + " immediately, and observe.player.attack would advertise a bar vanilla says is empty");
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /** One full-strength swing at a fresh NoAI zombie; returns the health it lost. */
+    private static float probeSwing(ServerLevel level, ServerAgentDriver driver, FakePlayer fp,
+                                    ItemStack weapon, int cx, int floorY, int cz) {
+        fp.getInventory().clearContent();
+        if (!weapon.isEmpty()) { fp.getInventory().setItem(0, weapon); }
+        fp.getInventory().selected = 0;
+        var z = new net.minecraft.world.entity.monster.Zombie(level);
+        z.setPos(cx + 2 + 0.5, floorY + 1, cz + 0.5);
+        z.setNoAi(true);
+        z.setPersistenceRequired();
+        var kbr = z.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.KNOCKBACK_RESISTANCE);
+        if (kbr != null) kbr.setBaseValue(1.0);
+        z.setInvulnerable(false);
+        level.addFreshEntity(z);
+        for (int i = 0; i < 3; i++) level.tick(() -> true);
+        // Full recharge: step() is the only thing that advances the FakePlayer's ticker.
+        fp.resetAttackStrengthTicker();
+        for (int i = 0; i < 30; i++) driver.avatar().step();
+        float before = z.getHealth();
+        driver.avatar().attackEntity(z);
+        float lost = before - z.getHealth();
+        z.discard();
+        return lost;
+    }
+
+    /** A fixed 10-point generic hit, with and without a full set of diamond armor; returns health lost. */
+    private static float probeHurt(FakePlayer fp, boolean armored) {
+        fp.getInventory().clearContent();
+        if (armored) {
+            fp.getInventory().armor.set(3, new ItemStack(Items.DIAMOND_HELMET));
+            fp.getInventory().armor.set(2, new ItemStack(Items.DIAMOND_CHESTPLATE));
+            fp.getInventory().armor.set(1, new ItemStack(Items.DIAMOND_LEGGINGS));
+            fp.getInventory().armor.set(0, new ItemStack(Items.DIAMOND_BOOTS));
+        }
+        fp.setHealth(20.0f);
+        fp.invulnerableTime = 0;                       // no i-frames from a previous probe
+        fp.hurt(fp.damageSources().generic(), 10.0f);
+        return 20.0f - fp.getHealth();
+    }
+
+    /**
+     * Gap #45 — the melee attack COOLDOWN was invisible to the agent.
+     *
+     * <p>{@link CombatProcess} reads {@code getAttackStrengthScale} every tick and holds its
+     * swing until the bar is full, because vanilla scales damage by that bar. No verb ever
+     * reported it, and {@code mc.bot.attackEntity} does no cooldown check — so an agent driving
+     * its own swings landed 40-80% hits and could not distinguish that from a tanky mob.
+     * Unlike gap #41 this is a TRUE void, not a client/server parity slip: {@code ClientObserve}
+     * did not carry the field either (checked before writing this), so there was no client
+     * back door that would have let a client-side RED pass for the wrong reason.
+     *
+     * <p>Driven through the {@code playerSnapshot(ServerPlayer)} seam rather than the verb: a
+     * FakePlayer is not in the PlayerList, so {@code botPlayer()} cannot see it (the #41 cliff).
+     * {@link ServerPlayerAvatar#step()} is the clock — it advances {@code attackStrengthTicker}
+     * exactly once per tick, the same increment a live server's {@code Player.tick()} does.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverAttackCooldownArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverAttackCooldownArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int cx = 940, cz = 940, floorY = 220;
+        boolean odbg = BotConfig.walkerDebug;
+        BotConfig.walkerDebug = false;
+        ServerAgentManager.clear();
+        try {
+            clearBox(level, cx, floorY + 1, cz, 3, 3);
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dz = -1; dz <= 1; dz++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            FakePlayer fp = driver.fakePlayer();
+            fp.getInventory().clearContent();
+            equipMainHand(fp, new ItemStack(Items.IRON_SWORD));
+            // Let the weapon SWAP land before timing anything: vanilla empties the recharge bar on the
+            // tick the held item changes (gap #47), so a bar timed from the same tick as the draw would
+            // be zeroed one tick in. This arena is about the RECHARGE, not the draw — so draw first.
+            driver.avatar().step();
+
+            AgentApi api = new AgentApi();
+            fp.resetAttackStrengthTicker();               // just swung: bar empty
+            @SuppressWarnings("unchecked")
+            Map<String, Object> a0 = (Map<String, Object>) api.observe.playerSnapshot(fp).get("attack");
+            AgentDriverCommon.LOG.info("[serverAttackCooldownArena] swordFresh={}", a0);
+            if (a0 == null)
+                throw new GameTestAssertException("observe.player carries no `attack` field at all — "
+                        + "the agent cannot see the cooldown its own damage is scaled by (this is the gap)");
+
+            // (A) Right after a swing the bar is empty: a hit sent NOW would land for ~0 damage.
+            float s0 = ((Number) a0.get("strengthScale")).floatValue();
+            int cd0 = ((Number) a0.get("cooldownTicks")).intValue();
+            int period = ((Number) a0.get("fullCooldownTicks")).intValue();
+            if (s0 > 0.01f || Boolean.TRUE.equals(a0.get("ready")))
+                throw new GameTestAssertException("bar must read empty right after a swing: " + a0);
+            // Iron sword = 1.6 attacks/s = 12.5 ticks; the whole point of reporting the number
+            // is that the agent can WAIT it out, so it must be the real recharge, not a guess.
+            if (period != 13 || cd0 != 13)
+                throw new GameTestAssertException("iron sword recharge should be ceil(20/1.6)=13 ticks, got "
+                        + "period=" + period + " cooldownTicks=" + cd0);
+
+            // (B) The bar fills monotonically as ticks pass, and `ready` flips exactly when the
+            // scale reaches 1.0 — i.e. `ready` is the same gate CombatProcess swings on.
+            int readyAt = -1;
+            float prev = s0;
+            for (int t = 1; t <= period + 2; t++) {
+                driver.avatar().step();                   // the one tick-clock a FakePlayer gets
+                @SuppressWarnings("unchecked")
+                Map<String, Object> a = (Map<String, Object>) api.observe.playerSnapshot(fp).get("attack");
+                float s = ((Number) a.get("strengthScale")).floatValue();
+                int cd = ((Number) a.get("cooldownTicks")).intValue();
+                boolean ready = Boolean.TRUE.equals(a.get("ready"));
+                if (s < prev)
+                    throw new GameTestAssertException("scale went backwards at t=" + t + ": " + a);
+                if (ready != (s >= 1.0f))
+                    throw new GameTestAssertException("`ready` disagrees with scale>=1.0 at t=" + t + ": " + a);
+                if (ready && cd != 0)
+                    throw new GameTestAssertException("ready but cooldownTicks!=0 at t=" + t + ": " + a);
+                if (!ready && cd <= 0)
+                    throw new GameTestAssertException("not ready but nothing left to wait at t=" + t + ": " + a);
+                if (ready && readyAt < 0) readyAt = t;
+                prev = s;
+            }
+            if (readyAt != period)
+                throw new GameTestAssertException("full strength should arrive after exactly the reported "
+                        + period + " ticks (that IS the contract the agent waits on), arrived at " + readyAt);
+
+            // (C) The number tracks the HELD weapon, not the player: an axe recharges slower than
+            // a sword. Without this the field could be a constant and every assertion above would
+            // still pass.
+            equipMainHand(fp, new ItemStack(Items.IRON_AXE));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> axe = (Map<String, Object>) api.observe.playerSnapshot(fp).get("attack");
+            int axePeriod = ((Number) axe.get("fullCooldownTicks")).intValue();
+            AgentDriverCommon.LOG.info("[serverAttackCooldownArena] axe={}", axe);
+            if (axePeriod <= period)
+                throw new GameTestAssertException("an axe swings slower than a sword; got axe=" + axePeriod
+                        + " sword=" + period + " — the field is not reading the held weapon");
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
      * Capability-cliff proof for the SERVER {@link SmeltProcess}: a FakePlayer CANNOT
      * open a furnace menu ({@code openMenu} is a no-op and there's no always-present
      * furnace menu like the inventory 2×2 grid), so smelting is real-Player-only. This
@@ -1076,7 +2545,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverSmeltCliffArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverSmeltCliffArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("serverSmeltCliffArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 620, cz = 620, floorY = 220;
         for (int dx = -1; dx <= 2; dx++)
@@ -1125,7 +2594,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverElytraArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverElytraArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("serverElytraArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 700, cz = 700, floorY = 200;
         // A small pad far BELOW so the bot is airborne (onGround=false → can fall-fly);
@@ -1185,7 +2654,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverCapabilityArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"serverCapabilityArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("serverCapabilityArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 420, cz = 420, floorY = 220;
         buildFloor(level, cx, cz, floorY);
@@ -1253,7 +2722,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void surfaceDiveArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"surfaceDiveArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("surfaceDiveArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Ground-anchored (per-test placement), not a hardcoded absolute coord — see
         // entityLeashRepathArena's rationale.
@@ -1370,7 +2839,7 @@ public final class AgentGameTestServer {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void underwaterBaseArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"underwaterBaseArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("underwaterBaseArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         BlockPos anchor = helper.absolutePos(BlockPos.ZERO);
         final int cx = anchor.getX(), cz = anchor.getZ(), floorY = anchor.getY();
@@ -1516,5 +2985,410 @@ public final class AgentGameTestServer {
             ServerAgentManager.clear();
         }
         helper.succeed();
+    }
+
+    /**
+     * gap#61 — placeTable is blind to the rim of a 1-block hole: the candidate loop
+     * only tries dy 0 and -1, so a bot standing in a 1-deep depression (the exact
+     * hole its own duskSecure reflex digs every evening) sees all foot-level
+     * neighbours as solid wall and reports "no placeable spot" on open flat ground —
+     * the live repro stalled the whole tool chain twice in one day. The natural spot
+     * is the hole RIM (dy=+1, air above the surrounding surface, well within reach).
+     * Rig: 5x5 two-layer stone slab, centre cell of the top layer removed (the
+     * hole), bot inside it with table + pickaxe materials. craftReclaimTable is
+     * pinned OFF so the placed table survives the server craft's expected
+     * OPEN_WAIT failure (FakePlayer cannot open a table menu) and can be asserted
+     * in the world. RED: no table placed, craft dies at "需要工作台".
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverCraftTableHoleRimArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverCraftTableHoleRimArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int cx = 1160, cz = 1160, floorY = 220;
+        boolean odbg = BotConfig.walkerDebug, orc = BotConfig.craftReclaimTable;
+        BotConfig.walkerDebug = false;
+        BotConfig.craftReclaimTable = false;
+        ServerAgentManager.clear();
+        try {
+            clearBox(level, cx, floorY + 2, cz, 4, 3);
+            for (int dx = -2; dx <= 2; dx++)
+                for (int dz = -2; dz <= 2; dz++) {
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 1, cz + dz), Blocks.STONE.defaultBlockState());
+                }
+            // The 1-deep hole the bot stands in.
+            level.setBlockAndUpdate(new BlockPos(cx, floorY + 1, cz), Blocks.AIR.defaultBlockState());
+
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            driver.fakePlayer().getInventory().clearContent();
+            driver.fakePlayer().getInventory().add(new ItemStack(Items.CRAFTING_TABLE, 1));
+            driver.fakePlayer().getInventory().add(new ItemStack(Items.OAK_PLANKS, 3));
+            driver.fakePlayer().getInventory().add(new ItemStack(Items.STICK, 2));
+            driver.runProcess(new CraftProcess("minecraft:wooden_pickaxe", 1));
+            ServerAgentManager.register(driver);
+            for (int t = 0; t < 400 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            int tables = 0;
+            for (int dx = -3; dx <= 3; dx++)
+                for (int dy = 0; dy <= 3; dy++)
+                    for (int dz = -3; dz <= 3; dz++)
+                        if (level.getBlockState(new BlockPos(cx + dx, floorY + dy, cz + dz)).is(Blocks.CRAFTING_TABLE))
+                            tables++;
+            String err = driver.botState().craft.lastError;
+            AgentDriverCommon.LOG.info("[serverCraftTableHoleRimArena] finished={} active={} tables={} err={}",
+                    driver.finished(), ServerAgentManager.activeCount(), tables, err);
+            if (tables == 0)
+                throw new GameTestAssertException("bot in a 1-deep hole placed NO crafting table (gap#61: "
+                        + "rim dy=+1 not searched): lastError=" + err);
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            BotConfig.craftReclaimTable = orc;
+            ServerAgentManager.clear();
+            for (int dx = -3; dx <= 3; dx++)
+                for (int dy = 0; dy <= 4; dy++)
+                    for (int dz = -3; dz <= 3; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+        }
+        helper.succeed();
+    }
+
+    /**
+     * gap#62 — placeFurnace is the pre-evolution copy of placeTable: 4 foot-level
+     * cardinals only (no diagonals, no dy=-1/+1) and the isFaceSturdy support gate
+     * placeTable's own comment calls out as wrong. Live repro: in a mined chamber
+     * the SAME spot where placeTable had just placed a table twice, smelt died with
+     * "需要熔炉" — the survival iron line stalls one step after gap#60 opened it.
+     * Fix under test: both processes share one placement scan. Same 1-deep-hole rig
+     * as {@link #serverCraftTableHoleRimArena}; assert a furnace lands in the world
+     * (the smelt itself then dies at the expected server OPEN_WAIT cliff).
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverSmeltFurnaceHoleRimArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverSmeltFurnaceHoleRimArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int cx = 1200, cz = 1200, floorY = 220;
+        boolean odbg = BotConfig.walkerDebug;
+        BotConfig.walkerDebug = false;
+        ServerAgentManager.clear();
+        try {
+            for (int dx = -2; dx <= 2; dx++)
+                for (int dz = -2; dz <= 2; dz++) {
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 1, cz + dz), Blocks.STONE.defaultBlockState());
+                }
+            level.setBlockAndUpdate(new BlockPos(cx, floorY + 1, cz), Blocks.AIR.defaultBlockState());
+
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            driver.fakePlayer().getInventory().clearContent();
+            driver.fakePlayer().getInventory().add(new ItemStack(Items.FURNACE, 1));
+            driver.fakePlayer().getInventory().add(new ItemStack(Items.RAW_IRON, 3));
+            driver.fakePlayer().getInventory().add(new ItemStack(Items.COAL, 8));
+            driver.runProcess(new net.magicterra.agent.bot.process.SmeltProcess("minecraft:raw_iron", 3, null));
+            ServerAgentManager.register(driver);
+            for (int t = 0; t < 400 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            int furnaces = 0;
+            for (int dx = -3; dx <= 3; dx++)
+                for (int dy = 0; dy <= 3; dy++)
+                    for (int dz = -3; dz <= 3; dz++)
+                        if (level.getBlockState(new BlockPos(cx + dx, floorY + dy, cz + dz)).is(Blocks.FURNACE))
+                            furnaces++;
+            String err = driver.botState().smelt.lastError;
+            AgentDriverCommon.LOG.info("[serverSmeltFurnaceHoleRimArena] finished={} active={} furnaces={} err={}",
+                    driver.finished(), ServerAgentManager.activeCount(), furnaces, err);
+            if (furnaces == 0)
+                throw new GameTestAssertException("bot in a 1-deep hole placed NO furnace (gap#62: "
+                        + "placeFurnace lags placeTable's candidate scan): lastError=" + err);
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            ServerAgentManager.clear();
+            for (int dx = -3; dx <= 3; dx++)
+                for (int dy = 0; dy <= 4; dy++)
+                    for (int dz = -3; dz <= 3; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+        }
+        helper.succeed();
+    }
+
+    /**
+     * gap#60 — buried-ore reachability: an ore fully encased in harvestable stone has
+     * NO standable adjacent cell, so the geometric stand test alone rejects it and
+     * MineProcess aborts "no reachable target" — even though the bot holds a pickaxe
+     * and the Walker's break-route A* digs tunnels for every other verb. Reachability
+     * through diggable cover is A*'s job, not a pre-filter's: the live repro is a
+     * 6-block iron vein 5 blocks from the bot reported unreachable, making the
+     * survival iron line impossible at the engine level. Rig: dirt clearing, a
+     * 5x3x3 stone cube 3 blocks away, one IRON_ORE at the cube's centre (stone on
+     * all 6 faces), bot with a stone pickaxe. Assert the ore gets mined and the
+     * process finishes cleanly instead of aborting on the spot.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverMineBuriedOreArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverMineBuriedOreArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        // 1120: unused across all gametest classes — the shared world PERSISTS between
+        // runs, so a coordinate collision leaves this cube inside another arena
+        // (an earlier 720 pick buried serverBuildArena's build strip in stone).
+        final int cx = 1120, cz = 1120, floorY = 220;
+        // DIRT floor under the whole strip (clearing + under the cube).
+        for (int dx = -1; dx <= 9; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.DIRT.defaultBlockState());
+        // Solid stone cube dx 3..7, dy +1..+3, dz -1..1 — then bury the ore at its
+        // centre so every face neighbour is stone (no stand survives the geometric test).
+        for (int dx = 3; dx <= 7; dx++)
+            for (int dy = 1; dy <= 3; dy++)
+                for (int dz = -1; dz <= 1; dz++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.STONE.defaultBlockState());
+        BlockPos ore = new BlockPos(cx + 5, floorY + 2, cz);
+        level.setBlockAndUpdate(ore, Blocks.IRON_ORE.defaultBlockState());
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = false;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            // Stone pickaxe harvests iron_ore AND digs the stone cover.
+            driver.fakePlayer().getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));
+            driver.fakePlayer().getInventory().selected = 0;
+            driver.runProcess(new MineProcess(java.util.List.of("minecraft:iron_ore"), 1, 16));
+            ServerAgentManager.register(driver);
+
+            for (int t = 0; t < 800 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+
+            boolean oreMined = !level.getBlockState(ore).is(Blocks.IRON_ORE);
+            String err = driver.botState().mine.lastError;
+            FakePlayer fp = driver.fakePlayer();
+            AgentDriverCommon.LOG.info("[serverMineBuriedOreArena] pos=({},{},{}) finished={} active={} oreMined={} lastError={}",
+                    fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAgentManager.activeCount(), oreMined, err);
+            if (!oreMined)
+                throw new GameTestAssertException("buried ore not mined (gap#60: stand pre-filter rejected a dig-reachable target): lastError=" + err);
+            if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                throw new GameTestAssertException("buried-ore MineProcess did not finish+unregister: finished="
+                        + driver.finished() + " active=" + ServerAgentManager.activeCount());
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            ServerAgentManager.clear();
+            // The shared gametest world persists across runs — clear the whole rig
+            // (cube + any tunnel the bot carved) so this arena can never bleed into
+            // a future test that lands near these coordinates.
+            for (int dx = -1; dx <= 9; dx++)
+                for (int dy = 0; dy <= 4; dy++)
+                    for (int dz = -2; dz <= 2; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+        }
+        helper.succeed();
+    }
+
+    /**
+     * gap#65 — the death-#6 matrix for RetreatChain's enter/release gates. A skeleton
+     * engages from 15-16 blocks, but the gate's single 12-block radius meant a low-HP
+     * bot under ACTIVE arrow fire from 13+ was "not in danger"; and the proactive
+     * aim signal ({@code charging} = facing + eye-to-eye LoS) goes blind in exactly
+     * the stair/corner geometry where arrows still arc in — so the reflex never bid
+     * while HP went 20→0 (live death #6, 2026-07-13). Being HIT by a ranged attacker
+     * ({@code attackedMe}, gap#55's attribution) must latch the flee regardless of
+     * LoS or the HP threshold. The gates are static and scan-fed precisely so this
+     * matrix runs server-side without a client.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void retreatGateMatrixArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("retreatGateMatrixArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int cx = 1240, cz = 1240, floorY = 220;
+        var skeleton = net.minecraft.world.entity.EntityType.SKELETON.create(level);
+        var zombie = net.minecraft.world.entity.EntityType.ZOMBIE.create(level);
+        try {
+            skeleton.moveTo(cx + 0.5, floorY + 1, cz + 0.5, 0, 0);
+            zombie.moveTo(cx + 2.5, floorY + 1, cz + 0.5, 0, 0);
+            level.addFreshEntity(skeleton);
+            level.addFreshEntity(zombie);
+
+            java.util.function.BiFunction<Double, boolean[], net.magicterra.agent.bot.combat.ThreatScanner.Scan> skel =
+                    (dist, flags) -> new net.magicterra.agent.bot.combat.ThreatScanner.Scan(
+                            java.util.List.of(new net.magicterra.agent.bot.combat.ThreatScanner.Threat(
+                                    skeleton, skeleton.getId(), "minecraft:skeleton", dist,
+                                    /*canSeeMe*/ flags[0], /*facingMe*/ flags[0], /*charging*/ flags[0],
+                                    0.8, 0f, /*attackedMe*/ flags[1])),
+                            java.util.List.of());
+            var empty = new net.magicterra.agent.bot.combat.ThreatScanner.Scan(java.util.List.of(), java.util.List.of());
+
+            // (a) THE death-#6 case: low HP, sniped from 14 (attackedMe), LoS-blocked
+            // (charging=false because arrows arc over the corner) → MUST enter.
+            if (!RetreatChain.shouldEnter(8f, 10f, skel.apply(14.0, new boolean[]{false, true})))
+                throw new GameTestAssertException("gap#65(a): hp8 + ranged attacker hit me from 14 (LoS-blocked) must enter retreat");
+            // (b) idle distant skeleton, never hit me → must NOT enter (flee-from-nothing guard).
+            if (RetreatChain.shouldEnter(8f, 10f, skel.apply(14.0, new boolean[]{false, false})))
+                throw new GameTestAssertException("gap#65(b): hp8 + idle skeleton at 14 that never hit me must not enter");
+            // (c) low HP with a hostile close by → enter (pre-existing reactive path preserved).
+            if (!RetreatChain.shouldEnter(8f, 10f, skel.apply(11.0, new boolean[]{false, false})))
+                throw new GameTestAssertException("gap#65(c): hp8 + hostile at 11 must enter (reactive path)");
+            // (d) low HP, empty field → must NOT enter.
+            if (RetreatChain.shouldEnter(4f, 10f, empty))
+                throw new GameTestAssertException("gap#65(d): hp4 + no threats must not enter");
+            // (e) full HP but a skeleton is aiming with LoS at 10 → enter (proactive preserved).
+            if (!RetreatChain.shouldEnter(20f, 10f, skel.apply(10.0, new boolean[]{true, false})))
+                throw new GameTestAssertException("gap#65(e): charging skeleton at 10 must enter (proactive path)");
+            // (f) ranged attacker hit me from 16 at FULL HP → enter: confirmed fire is a
+            // strictly stronger signal than the aim (e) already reacts to. Waiting for
+            // hp<=thr means 2-3 arrows already landed (the canopy/tunnel-snipe deaths).
+            if (!RetreatChain.shouldEnter(20f, 10f, skel.apply(16.0, new boolean[]{false, true})))
+                throw new GameTestAssertException("gap#65(f): ranged attacker hit me (16, full HP) must enter");
+            // (g) melee attacker at 14 who hit me once, full HP → NOT enter (melee is
+            // combat/bunker's business; a zombie can't keep hitting from 14).
+            var meleeScan = new net.magicterra.agent.bot.combat.ThreatScanner.Scan(
+                    java.util.List.of(new net.magicterra.agent.bot.combat.ThreatScanner.Threat(
+                            zombie, zombie.getId(), "minecraft:zombie", 14.0, true, true, false, 0.6, 0f, true)),
+                    java.util.List.of());
+            if (RetreatChain.shouldEnter(20f, 10f, meleeScan))
+                throw new GameTestAssertException("gap#65(g): melee attackedMe at 14, full HP must not enter");
+            // (h) latched + recovered, but the ranged attacker is STILL hitting me from 14
+            // → must NOT release (releasing walks straight back into the fire).
+            if (RetreatChain.shouldRelease(20f, 10f, skel.apply(14.0, new boolean[]{false, true})))
+                throw new GameTestAssertException("gap#65(h): recovered but still under ranged fire must not release");
+            // (i) skeleton drifted to 20, no longer hit me → release (outran it).
+            if (!RetreatChain.shouldRelease(8f, 10f, skel.apply(20.0, new boolean[]{false, false})))
+                throw new GameTestAssertException("gap#65(i): hostile at 20, not firing → must release");
+        } finally {
+            skeleton.discard();
+            zombie.discard();
+        }
+        helper.succeed();
+    }
+
+    // gap#68-R2: Walker.classifyArrival 纯函数矩阵 —— ARRIVED 出口必须可区分
+    // (goal-snapped / frontier-giveup 等由调用点直接传标签,本函数只管三态通用出口)
+    static void walkerTerminalReportMatrix(java.util.function.BiConsumer<Boolean, String> check) {
+        check.accept("arrived".equals(Walker.classifyArrival(false, true,  false)), "full path + reached = arrived");
+        check.accept("arrived".equals(Walker.classifyArrival(true,  true,  false)), "best-effort + reached = arrived");
+        check.accept("path-consumed".equals(Walker.classifyArrival(false, false, false)), "full path + NOT reached = path-consumed");
+        check.accept("best-effort-consumed".equals(Walker.classifyArrival(true, false, false)), "best-effort + NOT reached = best-effort-consumed");
+        check.accept("goal-snapped".equals(Walker.classifyArrival(false, true,  true)),  "snapped goal reached = goal-snapped");
+    }
+
+    /**
+     * gap#68-R2a: Walker's honest terminal report — {@code classifyArrival} is the pure
+     * three-way classification of a generic ARRIVED exit (full path vs best-effort partial,
+     * reached vs not, snapped vs not). No world state needed; matrix-only, mirrors the
+     * gap#65 {@code retreatGateMatrixArena} static-call pattern above.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void walkerTerminalReportMatrixArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("walkerTerminalReportMatrixArena")) { helper.succeed(); return; } // gt-filter
+        walkerTerminalReportMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
+        helper.succeed();
+    }
+
+    /**
+     * gap#64 (live 2026-07-13): SmeltProcess fuel handling, three defects in one live
+     * furnace session — ① auto-fuel took the FIRST {@code isFuel} inventory stack in
+     * slot order and fed the CRAFTING TABLE to the furnace while coal sat unused;
+     * ② one fuel load only, so the fire died mid-batch and the whole timeout budget
+     * burned at a cold furnace ("部分完成：只炼出 1/4"); ③ the end state took back only
+     * the RESULT slot — surplus ingredient + unburned fuel stayed in the furnace and
+     * silently left the inventory (8 coal + raw iron stranded; recovery took MINING
+     * the furnace). A FakePlayer cannot open menus (openMenu no-op), so the arena
+     * assigns the furnace menu to {@code containerMenu} directly — the container-click
+     * seam ({@code menu.clicked}) is the same one the live client path drives.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void smeltFuelPolicyArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("smeltFuelPolicyArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int x0 = 2400, z0 = 2400, floorY = 220;
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                level.setBlockAndUpdate(new BlockPos(x0 + dx, floorY, z0 + dz), Blocks.STONE.defaultBlockState());
+        BlockPos fpos = new BlockPos(x0 + 1, floorY + 1, z0);
+        level.setBlockAndUpdate(fpos, Blocks.FURNACE.defaultBlockState());
+        net.minecraft.world.Container furnace = (net.minecraft.world.Container) level.getBlockEntity(fpos);
+
+        ServerAgentManager.clear();
+        try {
+            ServerAgentDriver driver = ServerAgentDriver.create(level, x0 + 0.5, floorY + 1, z0 + 0.5);
+            FakePlayer fp = driver.fakePlayer();
+            fp.getInventory().clearContent();
+            // Slot order is the trap: the workstation sits FIRST, the real fuel last.
+            fp.getInventory().add(new ItemStack(Items.CRAFTING_TABLE, 1));
+            fp.getInventory().add(new ItemStack(Items.OAK_PLANKS, 8));
+            fp.getInventory().add(new ItemStack(Items.COAL, 8));
+            fp.getInventory().add(new ItemStack(Items.RAW_IRON, 3));
+            driver.runProcess(new net.magicterra.agent.bot.process.SmeltProcess("minecraft:raw_iron", 2, null));
+            ServerAgentManager.register(driver);
+
+            var menu = ((net.minecraft.world.MenuProvider) level.getBlockEntity(fpos))
+                    .createMenu(77, fp.getInventory(), fp);
+
+            // Phase 1 — drive to LOAD (hand the process its furnace menu as soon as it
+            // is waiting for one) and let it load ingredient + fuel.
+            for (int t = 0; t < 80 && furnace.getItem(0).isEmpty(); t++) {
+                if (!(fp.containerMenu instanceof net.minecraft.world.inventory.AbstractFurnaceMenu) && menu != null)
+                    fp.containerMenu = menu;
+                ServerAgentManager.tickAll();
+            }
+            ItemStack fuelLoaded = furnace.getItem(1);
+            AgentDriverCommon.LOG.info("[smeltFuelPolicyArena] after LOAD: in={} fuel={} tableInBag={}",
+                    furnace.getItem(0), fuelLoaded, countItem(fp, Items.CRAFTING_TABLE));
+            if (fuelLoaded.getItem() != Items.COAL)
+                throw new GameTestAssertException("gap#64①: auto-fuel must pick coal (best burn, non-workstation), got "
+                        + fuelLoaded + " — the live run burned the crafting table");
+            if (countItem(fp, Items.CRAFTING_TABLE) != 1)
+                throw new GameTestAssertException("gap#64①: crafting table left the inventory (fed to the furnace)");
+
+            // Phase 2 — simulate the fire dying with input still to cook: the process
+            // must RELOAD fuel (next-best = planks; the table stays blacklisted).
+            furnace.setItem(1, ItemStack.EMPTY);
+            for (int t = 0; t < 40 && furnace.getItem(1).isEmpty(); t++) ServerAgentManager.tickAll();
+            ItemStack refuel = furnace.getItem(1);
+            AgentDriverCommon.LOG.info("[smeltFuelPolicyArena] after burn-out: fuel={}", refuel);
+            if (refuel.getItem() != Items.OAK_PLANKS)
+                throw new GameTestAssertException("gap#64②: fire died with input left — fuel must be reloaded "
+                        + "(expected planks), got " + refuel);
+
+            // Phase 3 — cook enough (the GameTest chunk never ticks the furnace, so
+            // inject the result) and let the process finish: ALL THREE slots must be
+            // taken back, not just the result.
+            furnace.setItem(2, new ItemStack(Items.IRON_INGOT, 2));
+            for (int t = 0; t < 60 && ServerAgentManager.activeCount() > 0; t++) ServerAgentManager.tickAll();
+            AgentDriverCommon.LOG.info("[smeltFuelPolicyArena] end: ingot={} rawIron={} planks={} coal={} slots=[{},{},{}] err={}",
+                    countItem(fp, Items.IRON_INGOT), countItem(fp, Items.RAW_IRON),
+                    countItem(fp, Items.OAK_PLANKS), countItem(fp, Items.COAL),
+                    furnace.getItem(0), furnace.getItem(1), furnace.getItem(2),
+                    driver.botState().smelt.lastError);
+            if (countItem(fp, Items.IRON_INGOT) < 2)
+                throw new GameTestAssertException("smelt result not collected: ingots=" + countItem(fp, Items.IRON_INGOT));
+            if (!furnace.getItem(0).isEmpty() || !furnace.getItem(1).isEmpty())
+                throw new GameTestAssertException("gap#64③: furnace still holds residue after DONE: in="
+                        + furnace.getItem(0) + " fuel=" + furnace.getItem(1)
+                        + " — live this stranded 8 coal + raw iron until the furnace was mined");
+            if (countItem(fp, Items.RAW_IRON) != 3)
+                throw new GameTestAssertException("gap#64③: surplus ingredient not returned: rawIron="
+                        + countItem(fp, Items.RAW_IRON) + "/3");
+            if (countItem(fp, Items.OAK_PLANKS) != 8)
+                throw new GameTestAssertException("gap#64③: unburned fuel not returned: planks="
+                        + countItem(fp, Items.OAK_PLANKS) + "/8");
+        } finally {
+            ServerAgentManager.clear();
+            level.setBlockAndUpdate(fpos, Blocks.AIR.defaultBlockState());
+        }
+        helper.succeed();
+    }
+
+    private static int countItem(FakePlayer fp, net.minecraft.world.item.Item item) {
+        int n = 0;
+        for (ItemStack stk : fp.getInventory().items) if (stk.getItem() == item) n += stk.getCount();
+        return n;
     }
 }
