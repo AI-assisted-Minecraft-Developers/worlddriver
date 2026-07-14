@@ -64,6 +64,15 @@ public final class BunkerProcess implements BotProcess {
      *  truth for "did this bunker ever actually finish sealing" independent of
      *  whatever phase it happens to be sitting in when finish() runs. */
     private boolean sealedOk;
+    /** True once the SEALED hold branch has stamped its verdict on the bunker slot.
+     *  SEALED never returns true (it holds the channel until an external cancel), so
+     *  finish() is unreachable for the success case — instead the hold branch stamps
+     *  endReason/goalReached in place, ONCE, without reset() and without changing the
+     *  return value. awaitable's slot fold then carries
+     *  {active:true, endReason:"SEALED", goalReached:<enclosed>} = the caller can
+     *  read "真围合成功且在驻守" even though the await itself times out (by design —
+     *  the process keeps holding the pocket). */
+    private boolean sealedVerdictStamped;
 
     public BunkerProcess(int depth) {
         this.depth = Math.max(1, Math.min(5, depth));
@@ -103,6 +112,7 @@ public final class BunkerProcess implements BotProcess {
         st.bunker.lastError = null;
         st.bunker.goalReached = null;
         st.bunker.endReason = null;
+        sealedVerdictStamped = false;
     }
 
     /** Surfaced as {@code activeProcessDetail} in mc.bot.status so the agent can
@@ -164,7 +174,15 @@ public final class BunkerProcess implements BotProcess {
             // 60 — see GAP #20) so autoFight/idle can't walk the bot out of its
             // pocket and get it killed at night (GAP #22). Released only when the
             // Agent calls mc.bot.cancel (typically at dawn, then it breaks out).
-            case SEALED:   a.releaseInputs(); return false;
+            // The success verdict is stamped HERE (once, no reset, return unchanged)
+            // because this branch never reaches finish() — see sealedVerdictStamped.
+            case SEALED:
+                if (!sealedVerdictStamped) {
+                    st.bunker.endReason = "SEALED";
+                    st.bunker.goalReached = enclosed(w, a);
+                    sealedVerdictStamped = true;
+                }
+                a.releaseInputs(); return false;
             default:       a.releaseInputs(); return finish(st, w, a, phase.name(), null);
         }
     }
