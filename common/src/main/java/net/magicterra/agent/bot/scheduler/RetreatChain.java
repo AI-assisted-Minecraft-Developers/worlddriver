@@ -338,7 +338,9 @@ public final class RetreatChain implements Chain {
     /** Preempted by something higher (panic/dodge) — drop the flee so the next
      *  activation starts fresh from the current position. */
     @Override public void onInterrupt(Chain by) {
-        process = null;
+        // gap#72-①: unified drop (onCancelled fires) — but deliberately NO slot here:
+        process = ChainProcessLifecycle.drop(process, null,
+                ChainProcessLifecycle.INTERRUPTED, "preempted by " + (by != null ? by.name() : "unknown"));
         // Keep state.retreat.active TRUE: the flee is still the committed survival
         // intent (priority() stays >0 while in danger and will resume it) — see the
         // idle() javadoc. But the dropped process won't update the slot while the
@@ -364,7 +366,13 @@ public final class RetreatChain implements Chain {
         retreating = false;
         lastHurtGameTime = Long.MIN_VALUE;   // gap#71: fresh cooldown bookkeeping next flee
         prevHurtByAnyone = false;            // final-review L1: fresh edge-detection next flee
-        process = null;
+        // gap#72-①: drop the held process through the unified lifecycle (onCancelled +
+        // honest endReason=CANCELLED + slot reset) instead of a bare `process = null` —
+        // the same sibling copy that orphaned duskSecure's bunker slot.
+        process = ChainProcessLifecycle.drop(process, state.retreat,
+                ChainProcessLifecycle.CANCELLED, reason);
+        // gap#68-⑦ idempotence: even with NO held process (e.g. mid-preempt, a higher
+        // chain steers while the flee latch persists) the slot must still clear.
         if (state.retreat.active) { state.retreat.lastError = reason; state.retreat.reset(); }
         releaseKeys();
     }

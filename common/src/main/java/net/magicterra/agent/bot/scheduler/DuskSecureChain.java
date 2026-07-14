@@ -163,18 +163,49 @@ public final class DuskSecureChain implements Chain {
         dryRunCooldown = DRY_RUN_EMIT_COOLDOWN_TICKS;
     }
 
-    // Both interrupt paths null out `process`; lastBidTier is only ever consulted while
+    // Both interrupt paths drop `process`; lastBidTier is only ever consulted while
     // process != null (the mid-dig hold), so a stale value can't leak into a fresh bid —
     // but reset it anyway for defensive clarity: a cancelled/interrupted episode must
     // never be found holding a phantom 90 (gap#68-⑨ review note).
-    @Override public void onInterrupt(Chain by) { process = null; lastBidTier = Priorities.IDLE_SECURE; releaseKeys(); }
+    @Override public void onInterrupt(Chain by) {
+        interruptEpisodeState(by != null ? by.name() : "unknown");
+        releaseKeys();
+    }
 
     @Override public String episodePhase() { return process != null ? "SECURING" : null; }
 
     @Override public void cancelEpisode(String reason) {
-        process = null;
-        idleTicks = 0;
-        lastBidTier = Priorities.IDLE_SECURE;
+        cancelEpisodeState(reason);
         releaseKeys();
     }
+
+    /** Pure state half of {@link #onInterrupt} (server-safe, matrix-testable — the
+     *  {@link BunkerChain#resetEpisodeState()} split precedent: the client key-release
+     *  half touches {@code Minecraft.getInstance()} and can't run on the dedicated
+     *  GameTest server). gap#72-①: a bare {@code process = null} here orphaned the
+     *  st.bunker slot (its only reset lives in BunkerProcess.finish, unreachable once
+     *  the reference is dropped) — active=true/SEALED lingered forever after a
+     *  RetreatChain preemption. Dropping a held process now runs the unified
+     *  finish/slot-reset lifecycle with a distinguishable endReason. */
+    public void interruptEpisodeState(String byName) {
+        process = ChainProcessLifecycle.drop(process, state.bunker,
+                ChainProcessLifecycle.INTERRUPTED, "preempted by " + byName);
+        lastBidTier = Priorities.IDLE_SECURE;
+    }
+
+    /** Pure state half of {@link #cancelEpisode} (server-safe, matrix-testable). */
+    public void cancelEpisodeState(String reason) {
+        process = ChainProcessLifecycle.drop(process, state.bunker,
+                ChainProcessLifecycle.CANCELLED, reason);
+        idleTicks = 0;
+        lastBidTier = Priorities.IDLE_SECURE;
+    }
+
+    /** Test seam (gap#72): inject a held process so the interrupt/cancel lifecycle is
+     *  matrix-testable without a client tick. Public for the same cross-module reason
+     *  as {@link BunkerChain#anchorForTest()}. */
+    public void adoptProcessForTest(BunkerProcess p) { this.process = p; }
+
+    /** Test seam (gap#72): the held process, or null once dropped. */
+    public BunkerProcess heldProcessForTest() { return process; }
 }

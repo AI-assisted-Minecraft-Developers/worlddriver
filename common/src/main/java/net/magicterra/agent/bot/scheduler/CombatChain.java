@@ -190,9 +190,12 @@ public final class CombatChain implements Chain {
 
     /** Preempted by a higher chain (retreat/dodge/panic): stop steering and drop the
      *  process so resume re-acquires the target and repaths. Intent is preserved so
-     *  the fight continues once the higher chain stands down. */
+     *  the fight continues once the higher chain stands down. gap#72-①: dropped via
+     *  the unified lifecycle (onCancelled fires) but with NO slot — state.combat is
+     *  recomputed from engaged() every tick, so it never orphans. */
     @Override public void onInterrupt(Chain by) {
-        process = null;
+        process = ChainProcessLifecycle.drop(process, null,
+                ChainProcessLifecycle.INTERRUPTED, "preempted by " + (by != null ? by.name() : "unknown"));
         releaseKeys();
         releaseUseKey();
     }

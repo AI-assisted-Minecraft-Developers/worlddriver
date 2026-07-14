@@ -19,6 +19,10 @@ import net.magicterra.agent.bot.scheduler.DuskSecureChain;
 import net.magicterra.agent.bot.scheduler.Priorities;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.process.BboxFillProcess;
+import net.magicterra.agent.bot.process.BotProcess;
+import net.magicterra.agent.bot.process.BunkerProcess;
+import net.magicterra.agent.bot.scheduler.ChainProcessLifecycle;
+import net.magicterra.agent.bot.world.WorldModel;
 import net.magicterra.agent.bot.process.BuildProcess;
 import net.magicterra.agent.bot.process.CraftProcess;
 import net.magicterra.agent.bot.process.EntityLeash;
@@ -1264,7 +1268,7 @@ public final class AgentGameTestServer {
             ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
             driver.fakePlayer().getInventory().clearContent();
             driver.fakePlayer().getInventory().add(new ItemStack(Items.DIRT, 64));   // server breaks drop nothing → pre-stock plug blocks
-            driver.runProcess(new net.magicterra.agent.bot.process.BunkerProcess(2));
+            driver.runProcess(new BunkerProcess(2));
             ServerAgentManager.register(driver);
             // BunkerProcess holds at SEALED (returns false forever), so it won't
             // unregister — run a fixed window then inspect the world.
@@ -1554,7 +1558,7 @@ public final class AgentGameTestServer {
             ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
             driver.fakePlayer().getInventory().clearContent();
             driver.fakePlayer().getInventory().add(new ItemStack(Items.DIRT, 64));
-            driver.runProcess(new net.magicterra.agent.bot.process.BunkerProcess(2));
+            driver.runProcess(new BunkerProcess(2));
             ServerAgentManager.register(driver);
             for (int t = 0; t < 1200 && ServerAgentManager.activeCount() > 0; t++)
                 ServerAgentManager.tickAll();
@@ -3770,6 +3774,99 @@ public final class AgentGameTestServer {
         if (AgentGameTestSupport.gtOnlySkips("urgentBidMatrixArena")) { helper.succeed(); return; } // gt-filter
         urgentBidMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
         wouldEscalateMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
+        helper.succeed();
+    }
+
+    // gap#72-①: duskSecure holds a BunkerProcess (SEALED-hold, active=true endReason=SEALED
+    // = "驻守中" by design) and a higher chain (RetreatChain 100) preempts it. onInterrupt
+    // used to only `process = null` — the slot's ONLY reset point (BunkerProcess.finish)
+    // became forever unreachable, so st.bunker stayed active=true/SEALED as a permanent
+    // orphan and mc.bot.status lied all night (live 2026-07-14 incident). Interrupt/cancel
+    // of a chain-held process must go through the same finish/slot-reset lifecycle as a
+    // natural completion, with a distinguishable endReason (INTERRUPTED vs CANCELLED vs
+    // SEALED). Pure state matrix — client key release is NOT exercised here (dedicated
+    // GameTest server has no client classes; same split as chainEpisodeCancelMatrix).
+    static void duskSecureHeldProcessLifecycleMatrix(java.util.function.BiConsumer<Boolean, String> check) {
+        // ① preemption (onInterrupt) of a SEALED-hold bunker
+        BotState st = new BotState();
+        DuskSecureChain chain = new DuskSecureChain(st, new WorldModel());
+        BunkerProcess held = new BunkerProcess(3);
+        held.attach(st);                       // active=true, exactly what tick() does
+        st.bunker.endReason = "SEALED";        // what the SEALED-hold branch stamps in place
+        st.bunker.goalReached = true;
+        chain.adoptProcessForTest(held);
+        chain.interruptEpisodeState("retreat");
+        check.accept(chain.heldProcessForTest() == null, "interrupt drops the held process");
+        check.accept(!st.bunker.active,
+                "interrupt: bunker slot must not stay active (orphan) — active=" + st.bunker.active);
+        check.accept("INTERRUPTED".equals(st.bunker.endReason),
+                "interrupt: endReason must be INTERRUPTED, not stale SEALED — got " + st.bunker.endReason);
+        check.accept(Boolean.TRUE.equals(st.bunker.goalReached),
+                "interrupt: the sealed verdict (goalReached=true) is history, keep it readable");
+
+        // ② cancelEpisode of a mid-dig bunker (no SEALED verdict yet)
+        BotState st2 = new BotState();
+        DuskSecureChain chain2 = new DuskSecureChain(st2, new WorldModel());
+        BunkerProcess held2 = new BunkerProcess(3);
+        held2.attach(st2);
+        chain2.adoptProcessForTest(held2);
+        chain2.cancelEpisodeState("agent cancel");
+        check.accept(chain2.heldProcessForTest() == null, "cancel drops the held process");
+        check.accept(!st2.bunker.active, "cancel: bunker slot must not stay active");
+        check.accept("CANCELLED".equals(st2.bunker.endReason),
+                "cancel: endReason must be CANCELLED — got " + st2.bunker.endReason);
+        check.accept("agent cancel".equals(st2.bunker.lastError),
+                "cancel: reason recorded on lastError — got " + st2.bunker.lastError);
+
+        // ③ guard: st.bunker is SHARED with the user-verb mc.bot.bunker (UserTaskChain
+        // slot). When duskSecure holds NO process, its interrupt/cancel must not stomp
+        // a user bunker's live slot.
+        BotState st3 = new BotState();
+        DuskSecureChain chain3 = new DuskSecureChain(st3, new WorldModel());
+        new BunkerProcess(3).attach(st3);      // user-verb bunker owns the slot
+        st3.bunker.endReason = "SEALED";
+        chain3.cancelEpisodeState("stray cancel");
+        check.accept(st3.bunker.active,
+                "no held process: cancel must NOT reset the user-verb bunker's slot");
+        check.accept("SEALED".equals(st3.bunker.endReason),
+                "no held process: user slot endReason untouched — got " + st3.bunker.endReason);
+        chain3.interruptEpisodeState("retreat");
+        check.accept(st3.bunker.active,
+                "no held process: interrupt must NOT reset the user-verb bunker's slot");
+
+        // ④ the shared helper itself: onCancelled must fire with the detail (the same
+        // finalize hook UserTaskChain.cancel runs — path archives etc.), null process
+        // is a no-op, and an already-inactive slot is left untouched.
+        BotState st4 = new BotState();
+        java.util.concurrent.atomic.AtomicReference<String> cancelledWith = new java.util.concurrent.atomic.AtomicReference<>();
+        BotProcess probe = new BotProcess() {
+            @Override public String kind() { return "probe"; }
+            @Override public void attach(BotState s) {}
+            @Override public void onCancelled(String reason) { cancelledWith.set(reason); }
+        };
+        st4.bunker.active = true;
+        BotProcess dropped = ChainProcessLifecycle.drop(probe, st4.bunker,
+                ChainProcessLifecycle.INTERRUPTED, "preempted by retreat");
+        check.accept(dropped == null, "drop returns null for assignment");
+        check.accept("preempted by retreat".equals(cancelledWith.get()),
+                "drop must run the process's onCancelled finalize hook — got " + cancelledWith.get());
+        check.accept(!st4.bunker.active && "INTERRUPTED".equals(st4.bunker.endReason),
+                "drop stamps+resets a live slot");
+        check.accept(ChainProcessLifecycle.drop(null, st4.bunker, ChainProcessLifecycle.CANCELLED, "x") == null,
+                "null process is a no-op");
+        check.accept(!"x".equals(st4.bunker.lastError),
+                "null process must not stamp the slot");
+        BotState st5 = new BotState();          // inactive slot: verdict of a FINISHED run
+        st5.bunker.endReason = "DONE";
+        ChainProcessLifecycle.drop(probe, st5.bunker, ChainProcessLifecycle.CANCELLED, "late cancel");
+        check.accept("DONE".equals(st5.bunker.endReason),
+                "inactive slot keeps its finished verdict — got " + st5.bunker.endReason);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void duskSecureHeldProcessLifecycleArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("duskSecureHeldProcessLifecycleArena")) { helper.succeed(); return; } // gt-filter
+        duskSecureHeldProcessLifecycleMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
         helper.succeed();
     }
 
