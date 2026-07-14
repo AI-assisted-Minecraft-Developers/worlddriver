@@ -126,8 +126,14 @@ public final class RetreatChain implements Chain {
      *  ~2s past the last hit, so this decays on its own once we break LoS). */
     public static boolean shouldRelease(float hp, float thr, ThreatScanner.Scan scan) {
         boolean recovered = hp >= thr + RELEASE_HP_MARGIN;
-        boolean safe = !hostileWithin(scan) && !underRangedFire(scan);
-        return safe || (recovered && !rangedThreatAiming(scan) && !underRangedFire(scan));
+        // gap#68-①: hurtByAnyone blocks release SYMMETRICALLY with the enter gate, the
+        // same way gap#65's underRangedFire guards both sides. Without it, a melee
+        // attacker whose hit connected (attackedMe, ~2s window) in the 12–24 band —
+        // outside hostileWithin's melee radius but inside hurt-entry's — releases via
+        // the safe branch this tick and re-enters via hurtByAnyone the next: a per-tick
+        // enter/release flap. Like attackedMe itself, this decays once we break contact.
+        boolean safe = !hostileWithin(scan) && !underRangedFire(scan) && !hurtByAnyone(scan);
+        return safe || (recovered && !rangedThreatAiming(scan) && !underRangedFire(scan) && !hurtByAnyone(scan));
     }
 
     /** Sit out the bid (return 0) AND clean up: drop the flee latch and clear the

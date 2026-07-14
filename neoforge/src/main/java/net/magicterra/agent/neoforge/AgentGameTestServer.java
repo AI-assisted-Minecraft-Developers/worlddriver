@@ -3290,6 +3290,16 @@ public final class AgentGameTestServer {
             // 阴性:无人打我、HP 高、无 ranged → 不进
             if (RetreatChain.shouldEnter(18f, 6f, 20f, zombieNear.apply(5.0)))
                 throw new GameTestAssertException("gap#68-①: nearby idle zombie at high HP must NOT latch");
+            // release 对称性(gap#65 先例: underRangedFire 同时挡 enter 和 release):
+            // melee attackedMe@14 在 hostileWithin(12) 外、hurt-entry(24) 内 —— 若 release
+            // 不认 hurtByAnyone, safe 支当 tick 放闩、下一 tick hurt-entry 重进 = 每 tick 抖动。
+            if (RetreatChain.shouldRelease(20f, 10f, meleeHit.apply(14.0)))
+                throw new GameTestAssertException("gap#68-①: melee attackedMe at 14 must BLOCK release (enter/release symmetry)");
+            // 进入边界: 锁定 CLEAR_RADIUS*2=24 的精确截断。
+            if (!RetreatChain.shouldEnter(18f, 6f, 20f, meleeHit.apply(23.0)))
+                throw new GameTestAssertException("gap#68-①: connected hit at 23 (inside 2xCLEAR_RADIUS) must enter");
+            if (RetreatChain.shouldEnter(18f, 6f, 20f, meleeHit.apply(25.0)))
+                throw new GameTestAssertException("gap#68-①: connected hit at 25 (outside 2xCLEAR_RADIUS) must NOT enter");
         } finally {
             skeleton.discard();
             zombie.discard();
