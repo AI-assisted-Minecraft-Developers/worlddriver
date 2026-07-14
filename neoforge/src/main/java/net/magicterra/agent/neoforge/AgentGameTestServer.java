@@ -1744,6 +1744,92 @@ public final class AgentGameTestServer {
         helper.succeed();
     }
 
+    /**
+     * gap #67-①② — a mid-tree shortfall must not leak the registry-first species (oak) into
+     * a plan built entirely from a DIFFERENT species, and picking a tag member with no stock
+     * signal at all must not route through a wasteful craftable intermediate when a raw leaf
+     * (the plain log) is an equally valid tag member.
+     *
+     * <p>(A) Root cause: {@code expand} DFS's single mutable {@code have} map is consumed
+     * in-place. {@code wooden_pickaxe}'s main branch (planks + sticks) spends all of a 2-log
+     * acacia stock; by the time the crafting_table sub-branch (injected as a station
+     * dependency) resolves its OWN {@code #planks} slot, the live {@code have} reads
+     * acacia_log=0 — no stock signal — so species selection fell through to registry order
+     * (oak). Fix: a committed-species tier consults the ORIGINAL have snapshot (captured at
+     * {@code resolve()}'s entry, before the tree's own consumption) so a species present at
+     * entry is preferred even after a sibling branch has spent it.
+     *
+     * <p>(B) Independent of stock: once a species is fixed, its OWN {@code #logs} tag has both
+     * a raw leaf (oak_log — no recipe) and a craftable intermediate (oak_wood — 4 logs → 3
+     * wood). With no stock signal either way, the resolver used to prefer the first CRAFTABLE
+     * member (oak_wood), silently 4x'ing the log cost. Fix: prefer a genuine raw/non-craftable
+     * tag member over any craftable intermediate — a no-op for pure-craftable families
+     * (planks/dyes/stone variants have no raw member at all), so species routing (gap #37) and
+     * crafting_table injection (gap #38) are untouched.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverRecipeShortfallSpeciesArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverRecipeShortfallSpeciesArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        var rm = level.getRecipeManager();
+        var ra = level.registryAccess();
+
+        // (1) Committed-species shortfall: exactly enough acacia_log for the main branch
+        // (planks+sticks), none left over for the crafting_table station it injects.
+        Map<String, Integer> shortHave = new HashMap<>();
+        shortHave.put("minecraft:acacia_log", 2);
+        RecipeResolver.Plan shortPlan = RecipeResolver.resolve(rm, ra, "minecraft:wooden_pickaxe", 1, shortHave);
+        List<String> shortJobIds = new ArrayList<>();
+        for (RecipeResolver.Job j : shortPlan.jobs())
+            shortJobIds.add(j.result() + "[" + String.join("+", j.fromParts()) + "]");
+        AgentDriverCommon.LOG.info("[serverRecipeShortfallSpeciesArena] have=acacia_log:2 missing={} jobs={}",
+                shortPlan.missing(), shortJobIds);
+
+        boolean anyOak = shortJobIds.stream().anyMatch(s -> s.contains("oak"))
+                || shortPlan.missing().keySet().stream().anyMatch(k -> k.contains("oak"));
+        if (anyOak)
+            throw new GameTestAssertException("shortfall on the crafting_table sub-branch leaked oak: jobs="
+                    + shortJobIds + " missing=" + shortPlan.missing());
+        if (shortPlan.missing().size() != 1
+                || !Integer.valueOf(1).equals(shortPlan.missing().get("minecraft:acacia_log")))
+            throw new GameTestAssertException("expected missing == {acacia_log: 1} (1 log tops up the table's "
+                    + "4 planks), got " + shortPlan.missing());
+
+        // (2) Raw-leaf route: crafting_table with NO stock signal at all must still route
+        // its planks straight through log→planks, never the wasteful log→wood→planks detour.
+        Map<String, Integer> emptyHave = new HashMap<>();
+        emptyHave.put("minecraft:acacia_log", 0);
+        RecipeResolver.Plan tablePlan = RecipeResolver.resolve(rm, ra, "minecraft:crafting_table", 1, emptyHave);
+        List<String> tableJobIds = new ArrayList<>();
+        for (RecipeResolver.Job j : tablePlan.jobs())
+            tableJobIds.add(j.result() + "[" + String.join("+", j.fromParts()) + "]");
+        AgentDriverCommon.LOG.info("[serverRecipeShortfallSpeciesArena] have=(empty) missing={} jobs={}",
+                tablePlan.missing(), tableJobIds);
+
+        if (tablePlan.missing().size() != 1)
+            throw new GameTestAssertException("pure shortfall on crafting_table must report a SINGLE species "
+                    + "missing, got " + tablePlan.missing());
+        boolean anyWood = tableJobIds.stream().anyMatch(s -> s.contains("_wood["));
+        if (anyWood)
+            throw new GameTestAssertException("planks route must go straight log→planks, not log→wood→planks: jobs="
+                    + tableJobIds);
+
+        // (3) Regression (gap #37): sufficient acacia stock still completes with zero oak.
+        Map<String, Integer> fullHave = new HashMap<>();
+        fullHave.put("minecraft:acacia_log", 6);
+        RecipeResolver.Plan fullPlan = RecipeResolver.resolve(rm, ra, "minecraft:wooden_pickaxe", 1, fullHave);
+        if (!fullPlan.complete())
+            throw new GameTestAssertException("wooden_pickaxe from acacia_log:6 should complete: missing="
+                    + fullPlan.missing());
+        boolean fullAnyOak = fullPlan.jobs().stream().anyMatch(j -> j.result().contains("oak")
+                || j.fromParts().stream().anyMatch(fp -> fp.contains("oak")));
+        if (fullAnyOak)
+            throw new GameTestAssertException("wooden_pickaxe from acacia_log:6 leaked oak: jobs="
+                    + fullPlan.jobs().stream().map(RecipeResolver.Job::result).toList());
+
+        helper.succeed();
+    }
+
     /** Blow a {@code (2r+1) × h × (2r+1)} box of air above a site. The GameTestServer world
      *  is persistent, so an arena that can leave blocks behind must scrub its own site or it
      *  ends up testing the residue of its last run. */

@@ -93,8 +93,11 @@ public final class RecipeResolver {
         // Mutable copy: injection marks a station provisioned so siblings dedup.
         Set<String> provisioned = new LinkedHashSet<>(availableStations);
         Deque<String> stack = new ArrayDeque<>();
+        // Immutable snapshot of what was on hand BEFORE the DFS spends any of it — see
+        // chooseIngredients' committed-species tier (gap #67-①).
+        Map<String, Integer> originalHave = Map.copyOf(have);
         // Work on a copy so the caller's snapshot isn't mutated.
-        expand(target, count, new LinkedHashMap<>(have), producers, ra, jobs, missing, stations, provisioned, stack, 0);
+        expand(target, count, new LinkedHashMap<>(have), producers, ra, jobs, missing, stations, provisioned, stack, 0, originalHave);
         // Drop any zeroed entries the merge left behind.
         missing.entrySet().removeIf(e -> e.getValue() <= 0);
         return new Plan(target, count, jobs, missing, stations);
@@ -106,7 +109,7 @@ public final class RecipeResolver {
                                Map<String, List<RecipeHolder<?>>> producers, HolderLookup.Provider ra,
                                List<Job> jobs, Map<String, Integer> missing,
                                Set<String> stations, Set<String> provisioned,
-                               Deque<String> stack, int depth) {
+                               Deque<String> stack, int depth, Map<String, Integer> originalHave) {
         if (qty <= 0) return;
         int avail = have.getOrDefault(itemId, 0);
         int use = Math.min(avail, qty);
@@ -127,13 +130,13 @@ public final class RecipeResolver {
         ItemStack out = safeResult(r, ra);
         int yield = Math.max(1, out == null ? 1 : out.getCount());
         int crafts = (remaining + yield - 1) / yield;
-        Map<String, Integer> perCraft = chooseIngredients(r, have, producers);
+        Map<String, Integer> perCraft = chooseIngredients(r, have, originalHave, producers);
 
         stack.push(itemId);
         List<String> fromParts = new ArrayList<>();
         for (var e : perCraft.entrySet()) {
             int need = e.getValue() * crafts;
-            expand(e.getKey(), need, have, producers, ra, jobs, missing, stations, provisioned, stack, depth + 1);
+            expand(e.getKey(), need, have, producers, ra, jobs, missing, stations, provisioned, stack, depth + 1, originalHave);
             fromParts.add(e.getKey() + "×" + need);
         }
         stack.pop();
@@ -149,7 +152,7 @@ public final class RecipeResolver {
             if (STATION_CRAFTING_TABLE.equals(station)
                     && !provisioned.contains(STATION_CRAFTING_TABLE)
                     && have.getOrDefault(ITEM_CRAFTING_TABLE, 0) <= 0) {
-                expand(ITEM_CRAFTING_TABLE, 1, have, producers, ra, jobs, missing, stations, provisioned, stack, depth + 1);
+                expand(ITEM_CRAFTING_TABLE, 1, have, producers, ra, jobs, missing, stations, provisioned, stack, depth + 1, originalHave);
                 provisioned.add(STATION_CRAFTING_TABLE);
             }
         }
@@ -218,10 +221,11 @@ public final class RecipeResolver {
     }
 
     /** Per-craft ingredient counts, choosing one concrete item id per slot: prefer
-     *  an accepted item already in {@code have}, else an accepted craftable item,
-     *  else the first accepted (→ becomes missing). Tag ingredients (#planks)
-     *  resolve to whichever member fits. */
+     *  an accepted item already in {@code have}, else a raw leaf, else an accepted
+     *  craftable item, else the first accepted (→ becomes missing). Tag ingredients
+     *  (#planks) resolve to whichever member fits. */
     private static Map<String, Integer> chooseIngredients(Recipe<?> r, Map<String, Integer> have,
+                                                          Map<String, Integer> originalHave,
                                                           Map<String, List<RecipeHolder<?>>> producers) {
         Map<String, Integer> counts = new LinkedHashMap<>();
         for (Ingredient ing : r.getIngredients()) {
@@ -231,14 +235,27 @@ public final class RecipeResolver {
             String pick = null;
             // Tier 1: an accepted item already in stock (species already in hand wins).
             for (String id : accepts) if (have.getOrDefault(id, 0) > 0) { pick = id; break; }
-            // Tier 2: else an accepted craftable member whose OWN recipe draws on current
+            // Tier 2 (gap #67-②): a genuine raw/mined member of this tag — e.g. a #logs
+            // tag's own log, which has no recipe at all — beats any craftable intermediate
+            // (wood) once there's no direct-stock signal either way. Prevents the silent
+            // log→wood→planks 4x waste. A no-op for pure-craftable families (planks, dyes,
+            // stone/copper variants have no raw member), so it never touches SPECIES choice.
+            if (pick == null) for (String id : accepts) if (!producers.containsKey(id)) { pick = id; break; }
+            // Tier 3: else an accepted craftable member whose OWN recipe draws on CURRENT
             // stock — so species follows inventory (acacia_log in hand → acacia_planks,
-            // not registry-first oak_planks). Strictly below tier 1 so stock-in-hand of a
-            // different species is never bypassed to craft from raw of another.
+            // not registry-first oak_planks). Strictly below tier 1/2 so stock-in-hand of a
+            // different species, or a genuine raw member, is never bypassed.
             if (pick == null) pick = craftableFromStock(accepts, have, producers);
-            // Tier 3: else the first craftable member (registry order → oak).
+            // Tier 4 (gap #67-①): committed species — the ORIGINAL have snapshot (taken at
+            // resolve()'s entry, before this tree's own DFS spent it on a sibling branch)
+            // still shows presence. Without this, wooden_pickaxe's main branch spending all
+            // the acacia_log left the crafting_table sub-branch with a live `have` of zero
+            // and no stock signal, so it fell through to registry-order oak. Species follows
+            // PRESENCE AT ENTRY, not what survived the tree's own consumption.
+            if (pick == null) pick = craftableFromStock(accepts, originalHave, producers);
+            // Tier 5: else the first craftable member (registry order → oak).
             if (pick == null) for (String id : accepts) if (producers.containsKey(id)) { pick = id; break; }
-            // Tier 4: else the first accepted member (→ reported missing).
+            // Tier 6: else the first accepted member (→ reported missing).
             if (pick == null) pick = accepts.get(0);
             counts.merge(pick, 1, Integer::sum);
         }
