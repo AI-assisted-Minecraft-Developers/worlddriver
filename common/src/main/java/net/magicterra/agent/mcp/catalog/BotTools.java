@@ -902,8 +902,10 @@ public final class BotTools {
                 object()
                     .prop("process", stringEnum("all", "goto", "mine", "craft", "smelt", "combat",
                             "builder", "follow", "explore", "runAway", "look", "elytra", "escape",
-                            "bunker", "sleep", "replay")
-                        .desc("Which process to cancel. Default 'all'."))
+                            "bunker", "sleep", "replay", "retreat", "duskSecure")
+                        .desc("Which process to cancel. Default 'all'. Besides user-task process " +
+                            "kinds, a reflex chain's own name ('retreat', 'duskSecure', 'bunker', " +
+                            "'combat') targets that chain's internal episode directly."))
                 )
         );
     }

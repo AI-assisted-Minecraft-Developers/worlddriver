@@ -62,7 +62,13 @@ public final class RetreatChain implements Chain {
         float thr = BotConfig.retreatHpThreshold;
         ThreatScanner.Scan scan = ClientThreatScanner.current(mc);
         if (!retreating) {
-            if (!shouldEnter(hp, thr, mc.player.getMaxHealth(), scan)) return idle();
+            // st.combat.active mirrors CombatChain.engaged(), refreshed every tick by
+            // CombatChain.priority() (called for every registered chain, not just the
+            // winner) — see ProcessScheduler.tick(). RetreatChain is registered BEFORE
+            // CombatChain, so this reads last tick's value: one-tick-stale, which is
+            // acceptable for a gate whose job is "don't flee a healthy ongoing brawl".
+            boolean combatEngaged = st.combat.active;
+            if (!shouldEnter(hp, thr, mc.player.getMaxHealth(), scan, combatEngaged)) return idle();
             retreating = true;                       // latch the flee
         } else {
             if (shouldRelease(hp, thr, scan)) return idle();
@@ -88,6 +94,24 @@ public final class RetreatChain implements Chain {
      *  the attacker to be a {@link RangedAttackMob}; and (b) a dynamic low-HP threshold
      *  of max(thr, 40% of maxHp) so a naked 20-HP bot reacts at 8, not 6. */
     public static boolean shouldEnter(float hp, float thr, float maxHp, ThreatScanner.Scan scan) {
+        return shouldEnter(hp, thr, maxHp, scan, false);
+    }
+
+    /** 5-arg gate (final-review finding #2, T6×T7 composition): the hurt-entry latch
+     *  ({@link #hurtByAnyone}) used to fire at ANY hp unconditionally, so a HEALTHY bot
+     *  deliberately brawling via {@code mc.bot.combat} fled on the very first connected
+     *  counter-hit — retreat outbids COMBAT (100 > 60), so an explicit fight order can
+     *  livelock (approach → hit → flee → repeat). gap#68's evidence book (legs ⑨⑪⑫)
+     *  is all hit-while-goto/digging, never hit-while-brawling — taking hits mid-fight
+     *  is normal, and Task 7's frail gate ({@link CombatChain#frailBlocked}) is the
+     *  designed handoff once HP actually drops. So the hurt-entry term now only latches
+     *  when we are NOT actively engaged in combat, OR HP has fallen to the effective
+     *  threshold — an engaged, healthy bot rides out ordinary melee exchanges; an
+     *  engaged bot that drops to {@code effThr} still gets the safety net.
+     *  @param combatEngaged whether {@link CombatChain} currently holds/wants the fight
+     *                       (see {@link CombatChain#engaged()} via {@code state.combat.active}). */
+    public static boolean shouldEnter(float hp, float thr, float maxHp, ThreatScanner.Scan scan,
+                                       boolean combatEngaged) {
         float effThr = Math.max(thr, maxHp * 0.4f);
         boolean lowHp = hp <= effThr && hostileWithin(scan);
         boolean ranged = rangedThreatAiming(scan);
@@ -97,13 +121,16 @@ public final class RetreatChain implements Chain {
         // ray, arrows are ballistic) — waiting for hp<=thr there means 2-3 hits already
         // landed (death #6). gap#68-①: melee attackers no longer stay on the hp gate —
         // hurtByAnyone latches on ANY connected hit within 2×CLEAR_RADIUS (deaths
-        // #9/#11/#12: shot/hit repeatedly while goto/digging, never fled).
-        return lowHp || ranged || underRangedFire(scan) || hurtByAnyone(scan);
+        // #9/#11/#12: shot/hit repeatedly while goto/digging, never fled) — UNLESS
+        // we're already engaged in a healthy brawl (final-review finding #2).
+        boolean hurtEntry = (!combatEngaged || hp <= effThr) && hurtByAnyone(scan);
+        return lowHp || ranged || underRangedFire(scan) || hurtEntry;
     }
 
-    /** Back-compat 3-arg gate (existing matrix tests + call sites): maxHp=20. */
+    /** Back-compat 3-arg gate (existing matrix tests + call sites): maxHp=20,
+     *  combatEngaged=false (models the not-engaged scenario — leg ① / case (g)). */
     public static boolean shouldEnter(float hp, float thr, ThreatScanner.Scan scan) {
-        return shouldEnter(hp, thr, 20f, scan);
+        return shouldEnter(hp, thr, 20f, scan, false);
     }
 
     /** ANY attacker whose hit actually connected (vanilla last-damager window), near

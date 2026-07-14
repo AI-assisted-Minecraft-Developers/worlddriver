@@ -3302,6 +3302,24 @@ public final class AgentGameTestServer {
                 throw new GameTestAssertException("gap#68-①: connected hit at 23 (inside 2xCLEAR_RADIUS) must enter");
             if (RetreatChain.shouldEnter(18f, 6f, 20f, meleeHit.apply(25.0)))
                 throw new GameTestAssertException("gap#68-①: connected hit at 25 (outside 2xCLEAR_RADIUS) must NOT enter");
+
+            // final-review finding #2 (T6×T7 composition): the unconditional hurt-entry
+            // latch made a HEALTHY bot deliberately brawling (mc.bot.combat) flee on the
+            // first connected counter-hit — retreat (>=100) outbids COMBAT (60), so an
+            // explicit fight can livelock (approach -> hit -> flee -> repeat). gap#68's
+            // evidence book (legs ⑨⑪⑫) is all hit-while-goto/digging, never
+            // hit-while-brawling; Task 7's frail gate is the designed handoff once HP
+            // actually drops. hp=18, thr=6, maxHp=20 -> effThr=max(6,8)=8.
+            // engaged + healthy (18>8) + melee hit -> must NOT enter (the fix).
+            if (RetreatChain.shouldEnter(18f, 6f, 20f, meleeHit.apply(2.0), /*combatEngaged*/ true))
+                throw new GameTestAssertException("finding#2: engaged + healthy (hp18>effThr8) + melee hit must NOT enter (would livelock an explicit fight)");
+            // engaged but FRAIL (hp7<=effThr8) + melee hit -> still enter: the safety net.
+            if (!RetreatChain.shouldEnter(7f, 6f, 20f, meleeHit.apply(2.0), /*combatEngaged*/ true))
+                throw new GameTestAssertException("finding#2: engaged + frail (hp7<=effThr8) + melee hit must enter (frail handoff)");
+            // NOT engaged + healthy + melee hit -> must enter (leg ① preserved; the
+            // not-engaged scenario the 4-arg back-compat overload models, = case (g)).
+            if (!RetreatChain.shouldEnter(18f, 6f, 20f, meleeHit.apply(2.0), /*combatEngaged*/ false))
+                throw new GameTestAssertException("finding#2: not-engaged + healthy + melee hit must enter (leg ① / case (g) preserved)");
         } finally {
             skeleton.discard();
             zombie.discard();
@@ -3516,10 +3534,31 @@ public final class AgentGameTestServer {
                 "already cornered/sheltered = no bid");
     }
 
+    // final-review finding #3: the dry-run canary (maybeEmitDryRun) used to be gated
+    // behind priority()'s legacy THREAT_RADIUS veto, which returns 0 (and resets
+    // idleTicks) BEFORE the canary is ever reached — so a threat sitting near the bot
+    // at night (precisely the case the escalation exists to catch) silently starved
+    // the canary of every emit. wouldEscalate is the extracted pure predicate that now
+    // gates the emit INSTEAD, deliberately taking no threat-distance/idle-debounce
+    // input at all — its whole point is to be independent of both.
+    static void wouldEscalateMatrix(java.util.function.BiConsumer<Boolean, String> check) {
+        check.accept(DuskSecureChain.wouldEscalate(true, false, true, true),
+                "exposed+not cornered+urgent-on+dry-run -> canary would fire (the fixed case)");
+        check.accept(!DuskSecureChain.wouldEscalate(true, false, true, false),
+                "not dry-run -> nothing to observe, the real escalation happens instead");
+        check.accept(!DuskSecureChain.wouldEscalate(true, false, false, true),
+                "escalation flag off -> nothing would have escalated");
+        check.accept(!DuskSecureChain.wouldEscalate(true, true, true, true),
+                "cornered -> never (bunker/real dig-in owns the channel, not the canary)");
+        check.accept(!DuskSecureChain.wouldEscalate(false, false, true, true),
+                "daytime -> never");
+    }
+
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void urgentBidMatrixArena(GameTestHelper helper) {
         if (AgentGameTestSupport.gtOnlySkips("urgentBidMatrixArena")) { helper.succeed(); return; } // gt-filter
         urgentBidMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
+        wouldEscalateMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
         helper.succeed();
     }
 

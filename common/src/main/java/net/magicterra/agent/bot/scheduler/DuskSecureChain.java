@@ -69,6 +69,20 @@ public final class DuskSecureChain implements Chain {
         return Priorities.IDLE_SECURE;
     }
 
+    /** Pure predicate (final-review finding #3): would the escalation have fired this
+     *  tick if not for dry-run mode holding it at the legacy tier? Deliberately NOT
+     *  gated on the legacy idle-tier {@link #THREAT_RADIUS} veto or the idle-debounce
+     *  window — both live downstream in {@link #priority} and both can suppress/reset
+     *  on the EXACT condition (a threat nearby at night) the canary exists to observe.
+     *  A threat sitting at, say, 8 blocks all night would veto the bid to 0 every tick
+     *  (never entering the debounce window at all) and previously starved the canary of
+     *  a single emit during precisely the case escalation is for. The 200-tick emit
+     *  cooldown ({@link #maybeEmitDryRun}) is the sole anti-spam guard. */
+    public static boolean wouldEscalate(boolean exposedAtNight, boolean cornered,
+                                        boolean urgentOn, boolean dryRun) {
+        return exposedAtNight && !cornered && urgentOn && dryRun;
+    }
+
     @Override public float priority(Minecraft mc, WorldView w, BotState st) {
         if (!BotConfig.autoSecureAtDusk || mc.player == null) { idleTicks = 0; return 0f; }
         // Once a shelter dig is committed, hold the channel until BunkerProcess finishes.
@@ -80,6 +94,16 @@ public final class DuskSecureChain implements Chain {
         // bid at all outside dusk/night, and never while genuinely cornered.
         if (!s.present() || !s.exposedAtNight() || s.cornered()) { idleTicks = 0; return 0f; }
         float bid = urgentBid(true, false, BotConfig.duskUrgent, BotConfig.duskUrgentDryRun);
+        // final-review finding #3: emit the "would have escalated" canary BEFORE the
+        // legacy idle-tier THREAT_RADIUS veto below (and independent of the idle-debounce
+        // window) — a nearby-threat night is exactly the case the escalation is for, and
+        // the old placement let the veto zero the bid (and reset idleTicks) before
+        // maybeEmitDryRun was ever reached, so the canary emitted nothing precisely when
+        // mobs were near. This only affects the OBSERVE-ONLY emit; the RETURNED bid below
+        // still runs through the legacy veto/debounce path completely unchanged.
+        if (wouldEscalate(true, false, BotConfig.duskUrgent, BotConfig.duskUrgentDryRun)) {
+            maybeEmitDryRun(mc);
+        }
         if (bid == Priorities.IDLE_SECURE) {
             // Legacy idle tier keeps its protections: never near a threat, never preempting.
             for (ThreatScanner.Threat t : ClientThreatScanner.current(mc).threats()) {
@@ -91,9 +115,6 @@ public final class DuskSecureChain implements Chain {
         // RetreatChain(100)/BunkerChain(300) still outrank 90 in genuine combat.
         idleTicks++;
         if (idleTicks < IDLE_DEBOUNCE_TICKS) return 0f;  // require a stable window before acting
-        if (BotConfig.duskUrgent && BotConfig.duskUrgentDryRun && bid == Priorities.IDLE_SECURE) {
-            maybeEmitDryRun(mc); // observe-only canary: would have escalated, but dry-run holds it at 40
-        }
         lastBidTier = bid;
         return bid;
     }
