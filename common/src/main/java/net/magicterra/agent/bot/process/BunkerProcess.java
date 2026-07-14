@@ -208,7 +208,15 @@ public final class BunkerProcess implements BotProcess {
      *  死角",不可用作围合断言。 */
     private static boolean enclosed(WorldView w, Avatar a) {
         if (a.player() == null) return false;
-        BlockPos foot = a.player().blockPosition();
+        return enclosed(w, a.player().blockPosition());
+    }
+
+    /** Position-keyed enclosure check — public single source (gap#72-③): also the
+     *  "am I in a sealed pocket" signal for {@code RetreatChain}'s sealed-pocket
+     *  exemption, so the reflex and the bunker agree on what "sealed" means. Being
+     *  a live block read it self-verifies 龛未破: a stale SEALED slot over a
+     *  since-breached pocket reads {@code false} here. */
+    public static boolean enclosed(WorldView w, BlockPos foot) {
         BlockPos head = foot.above();
         return w.isSolid(foot.north()) && w.isSolid(foot.south()) && w.isSolid(foot.east()) && w.isSolid(foot.west())
             && w.isSolid(head.north()) && w.isSolid(head.south()) && w.isSolid(head.east()) && w.isSolid(head.west())

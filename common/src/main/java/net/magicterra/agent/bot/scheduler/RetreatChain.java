@@ -1,10 +1,14 @@
 package net.magicterra.agent.bot.scheduler;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.combat.ThreatScanner;
 import net.magicterra.agent.bot.combat.ClientThreatScanner;
 import net.magicterra.agent.bot.pathfinder.WorldView;
+import net.magicterra.agent.bot.process.BunkerProcess;
 import net.magicterra.agent.bot.process.RunAwayProcess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
@@ -99,6 +103,10 @@ public final class RetreatChain implements Chain {
         boolean hurtNow = hurtByAnyone(scan);
         if (hurtNow && !prevHurtByAnyone) lastHurtGameTime = now;
         prevHurtByAnyone = hurtNow;
+        // gap#72-③: block-level "am I in a sealed 1×1 pocket" ground truth, shared
+        // with BunkerProcess so the reflex and the bunker agree on what "sealed"
+        // means. Live block reads, so a breached pocket stops exempting instantly.
+        boolean sealed = BunkerProcess.enclosed(w, mc.player.blockPosition());
         if (!retreating) {
             // st.combat.active mirrors CombatChain.engaged(), refreshed every tick by
             // CombatChain.priority() (called for every registered chain, not just the
@@ -106,11 +114,11 @@ public final class RetreatChain implements Chain {
             // CombatChain, so this reads last tick's value: one-tick-stale, which is
             // acceptable for a gate whose job is "don't flee a healthy ongoing brawl".
             boolean combatEngaged = st.combat.active;
-            if (!shouldEnter(hp, thr, mc.player.getMaxHealth(), scan, combatEngaged)) return idle();
+            if (!shouldEnter(hp, thr, mc.player.getMaxHealth(), scan, combatEngaged, sealed)) return idle();
             retreating = true;                       // latch the flee
         } else {
             long ticksSinceHurt = (lastHurtGameTime == Long.MIN_VALUE) ? Long.MAX_VALUE : (now - lastHurtGameTime);
-            if (shouldRelease(hp, thr, scan, ticksSinceHurt)) return idle();
+            if (shouldRelease(hp, thr, scan, ticksSinceHurt, sealed)) return idle();
         }
         // Ramp: the lower the HP below the threshold, the harder we flee.
         return Priorities.SURVIVAL + (thr - Math.min(hp, thr));
@@ -172,6 +180,25 @@ public final class RetreatChain implements Chain {
         return shouldEnter(hp, thr, 20f, scan, false);
     }
 
+    /** 6-arg gate (gap#72-③, the self-dug-bunker breach): a duskSecure-SEALED 1×1
+     *  pocket is UNREACHABLE to the mob outside — strictly safer than any flee —
+     *  yet {@link #hostileWithin}'s bare 3D distance latched a flee THROUGH the
+     *  7-block roof, and the only expandable flee direction inside a sealed pocket
+     *  is straight down: the reflex dug the bot out of its own bunker at night.
+     *  When {@code sealedPocket} (block-level enclosure ground truth, see
+     *  {@link BunkerProcess#enclosed(WorldView, BlockPos)}), threats that
+     *  can neither see me ({@code canSeeMe=false}) nor have hit me ({@code
+     *  attackedMe=false}) don't count toward entering. A connected hit still
+     *  latches at full strength (a hit through the seal means it's breached —
+     *  hurt-entry semantics untouched), and a VISIBLE threat means the pocket
+     *  isn't actually sealing, so the normal gate applies to it.
+     *  @param sealedPocket whether the bot currently stands in a fully enclosed
+     *                      1×1 pocket (4 foot + 4 head neighbors + roof solid). */
+    public static boolean shouldEnter(float hp, float thr, float maxHp, ThreatScanner.Scan scan,
+                                       boolean combatEngaged, boolean sealedPocket) {
+        return shouldEnter(hp, thr, maxHp, sealedPocket ? seenOrConnectedOnly(scan) : scan, combatEngaged);
+    }
+
     /** ANY attacker whose hit actually connected (vanilla last-damager window), near
      *  enough that it can do it again. Melee included — being hit IS the threat,
      *  regardless of the attacker's class (gap#68-① recharacterized: a zombie that
@@ -227,6 +254,33 @@ public final class RetreatChain implements Chain {
                 && !visibleRanged && !recentHurt;
         return safe || (recovered && !rangedThreatAiming(scan) && !underRangedFire(scan) && !hurtByAnyone(scan)
                 && !visibleRanged && !recentHurt);
+    }
+
+    /** 5-arg gate (gap#72-③): the MAINTAIN half of the sealed-pocket exemption —
+     *  a latched flee must not persist against threats that can neither see me
+     *  nor have hit me while I sit sealed (they can't reach me; keeping the flee
+     *  alive is what digs the bot out of its own bunker). The 4-arg release
+     *  semantics themselves (gap#65/#68/#71 guards incl. the 60t hurt cooldown)
+     *  are untouched — sealing only changes which threats they get to see.
+     *  @param sealedPocket see {@link #shouldEnter(float, float, float,
+     *                      ThreatScanner.Scan, boolean, boolean)}. */
+    public static boolean shouldRelease(float hp, float thr, ThreatScanner.Scan scan, long ticksSinceHurt,
+                                        boolean sealedPocket) {
+        return shouldRelease(hp, thr, sealedPocket ? seenOrConnectedOnly(scan) : scan, ticksSinceHurt);
+    }
+
+    /** gap#72-③'s filter: the threats a SEALED bot still has to answer for — those
+     *  that can see me (the pocket isn't actually sealing on that side) or whose
+     *  hit connected (the seal is breached). Everything else is unreachable noise:
+     *  a surface mob pacing over a 7-block roof. Projectiles pass through untouched
+     *  (no gate in this family reads them). */
+    private static ThreatScanner.Scan seenOrConnectedOnly(ThreatScanner.Scan scan) {
+        List<ThreatScanner.Threat> kept = new ArrayList<>();
+        for (ThreatScanner.Threat t : scan.threats()) {
+            if (t.canSeeMe() || t.attackedMe()) kept.add(t);
+        }
+        return kept.size() == scan.threats().size() ? scan
+                : new ThreatScanner.Scan(List.copyOf(kept), scan.projectiles());
     }
 
     /** Sit out the bid (return 0) AND clean up: drop the flee latch and clear the

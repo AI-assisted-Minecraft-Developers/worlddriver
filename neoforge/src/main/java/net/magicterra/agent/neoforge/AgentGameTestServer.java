@@ -3474,6 +3474,80 @@ public final class AgentGameTestServer {
             // (o) boundary: 59t -> one tick inside the cooldown, still blocked.
             if (RetreatChain.shouldRelease(20f, 10f, empty, 59L))
                 throw new GameTestAssertException("gap#71(o): 59t since last hurt must NOT release (one tick inside cooldown)");
+
+            // gap#72-③ (the self-dug-bunker breach): duskSecure SEALED a 1×1 pocket,
+            // a surface hostile drifted to 11.4 (3D distance, THROUGH the 7-block
+            // roof) — hostileWithin's bare distance yardstick latched the flee, and
+            // the only expandable flee direction inside a sealed pocket is straight
+            // DOWN: the reflex dug the bot out of its own bunker (y76→68) at night.
+            // A SEALED pocket is unreachable to the mob, i.e. SAFER than any flee —
+            // so for a threat that cannot see me (canSeeMe=false) and has not hit me
+            // (attackedMe=false), a sealed bot must neither ENTER nor MAINTAIN the
+            // flee. A connected hit still latches (breached pocket = real danger:
+            // hurt-entry semantics untouched), and a VISIBLE threat means the pocket
+            // is effectively breached — only unseen+unconnected threats are exempt.
+            // pocket = zombie at dist with the given canSeeMe/attackedMe flags.
+            java.util.function.BiFunction<Boolean, Boolean, net.magicterra.agent.bot.combat.ThreatScanner.Scan> pocket =
+                    (canSee, hitMe) -> new net.magicterra.agent.bot.combat.ThreatScanner.Scan(
+                            java.util.List.of(new net.magicterra.agent.bot.combat.ThreatScanner.Threat(
+                                    zombie, zombie.getId(), "minecraft:zombie", 11.0,
+                                    /*canSeeMe*/ canSee, /*facingMe*/ false, /*charging*/ false,
+                                    0.6, 0f, /*attackedMe*/ hitMe)),
+                            java.util.List.of());
+            // (p) THE incident case: sealed + low HP + unseen never-hit hostile at 11
+            // -> must NOT enter (old gate: lowHp && hostileWithin latched the flee).
+            if (RetreatChain.shouldEnter(8f, 10f, 20f, pocket.apply(false, false), false, /*sealed*/ true))
+                throw new GameTestAssertException("gap#72-③(p): sealed pocket + unseen never-hit hostile at 11 must NOT enter (fleeing out of a sealed bunker is a downgrade)");
+            // (q) sealed + the same hostile actually HIT me -> pocket is breached,
+            // hurt-entry must latch exactly as before.
+            if (!RetreatChain.shouldEnter(8f, 10f, 20f, pocket.apply(false, true), false, /*sealed*/ true))
+                throw new GameTestAssertException("gap#72-③(q): sealed + attackedMe must still enter (hurt-entry untouched — a hit through the seal means it's breached)");
+            // (r) NOT sealed, same unseen hostile at 11, low HP -> enters exactly as
+            // before (case (c) semantics preserved through the new overload).
+            if (!RetreatChain.shouldEnter(8f, 10f, 20f, pocket.apply(false, false), false, /*sealed*/ false))
+                throw new GameTestAssertException("gap#72-③(r): not sealed + hostile at 11 + low HP must enter (existing reactive path preserved)");
+            // (s) sealed but the hostile CAN SEE me (lateral opening / broken seal)
+            // -> the exemption must not apply; low HP + visible hostile enters.
+            if (!RetreatChain.shouldEnter(8f, 10f, 20f, pocket.apply(true, false), false, /*sealed*/ true))
+                throw new GameTestAssertException("gap#72-③(s): sealed + VISIBLE hostile at 11 must enter (a mob that sees me means the pocket is not actually sealing)");
+            // (t) MAINTAIN side: latched flee at LOW hp (recovered branch out of
+            // play), now sealed, unseen never-hit hostile at 11, long since any
+            // hurt -> must RELEASE (don't keep fleeing/digging away from a threat
+            // that can't reach me).
+            if (!RetreatChain.shouldRelease(8f, 10f, pocket.apply(false, false), Long.MAX_VALUE, /*sealed*/ true))
+                throw new GameTestAssertException("gap#72-③(t): sealed + unseen never-hit hostile at 11 must RELEASE (don't maintain a flee out of your own bunker)");
+            // (u) sealed but hurt 30t ago -> gap#71's 60t cooldown still blocks
+            // release (hurt semantics untouched by the exemption).
+            if (RetreatChain.shouldRelease(20f, 10f, pocket.apply(false, false), 30L, /*sealed*/ true))
+                throw new GameTestAssertException("gap#72-③(u): sealed + 30t since last hurt must NOT release (60t cooldown intact)");
+            // (v) sealed + the hostile's hit is still connecting (attackedMe) ->
+            // release stays blocked (enter/release hurt symmetry intact).
+            if (RetreatChain.shouldRelease(20f, 10f, pocket.apply(false, true), Long.MAX_VALUE, /*sealed*/ true))
+                throw new GameTestAssertException("gap#72-③(v): sealed + attackedMe must NOT release (breached pocket = real danger)");
+            // (w) NOT sealed through the new overload, same low hp -> hostileWithin
+            // blocks release exactly as before (the (t)/(w) pair isolates the seal:
+            // identical inputs, only sealedPocket flips).
+            if (RetreatChain.shouldRelease(8f, 10f, pocket.apply(false, false), Long.MAX_VALUE, /*sealed*/ false))
+                throw new GameTestAssertException("gap#72-③(w): not sealed + hostile at 11 at low hp must NOT release (existing semantics preserved)");
+
+            // gap#72-③ geometry leg: the "am I sealed" signal is BunkerProcess's
+            // block-level enclosure ground truth (foot's 4 horizontal neighbors +
+            // head's 4 + the cell above the head all solid), now a public static
+            // gate shared with RetreatChain — single source, and it self-verifies
+            // "龛未破" (a stale SEALED slot over a since-breached pocket reads false).
+            BlockPos pFoot = new BlockPos(cx + 8, floorY + 1, cz + 8);
+            BlockPos pHead = pFoot.above();
+            for (BlockPos b : new BlockPos[]{pFoot.north(), pFoot.south(), pFoot.east(), pFoot.west(),
+                    pHead.north(), pHead.south(), pHead.east(), pHead.west(), pHead.above()})
+                level.setBlockAndUpdate(b, Blocks.STONE.defaultBlockState());
+            level.setBlockAndUpdate(pFoot, Blocks.AIR.defaultBlockState());
+            level.setBlockAndUpdate(pHead, Blocks.AIR.defaultBlockState());
+            LevelWorldView pocketView = new LevelWorldView(level, null);
+            if (!BunkerProcess.enclosed(pocketView, pFoot))
+                throw new GameTestAssertException("gap#72-③(x): fully enclosed 1×1 pocket must read enclosed=true");
+            level.setBlockAndUpdate(pHead.above(), Blocks.AIR.defaultBlockState());   // breach the roof
+            if (BunkerProcess.enclosed(pocketView, pFoot))
+                throw new GameTestAssertException("gap#72-③(y): pocket with a broken roof must read enclosed=false (龛未破 self-verifies)");
         } finally {
             skeleton.discard();
             zombie.discard();
