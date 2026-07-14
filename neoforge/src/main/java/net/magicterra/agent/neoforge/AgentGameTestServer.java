@@ -10,6 +10,7 @@ import net.magicterra.agent.neoforge.sim.ServerPlayerAvatar;
 import net.magicterra.agent.neoforge.sim.ServerAgentDriver;
 import net.magicterra.agent.neoforge.sim.ServerAgentManager;
 import net.magicterra.agent.bot.Goal;
+import net.magicterra.agent.bot.auto.AntiSuffocateGate;
 import net.magicterra.agent.bot.scheduler.BunkerAnchor;
 import net.magicterra.agent.bot.scheduler.BunkerChain;
 import net.magicterra.agent.bot.scheduler.CombatChain;
@@ -3436,6 +3437,51 @@ public final class AgentGameTestServer {
     public static void walkerTerminalReportMatrixArena(GameTestHelper helper) {
         if (AgentGameTestSupport.gtOnlySkips("walkerTerminalReportMatrixArena")) { helper.succeed(); return; } // gt-filter
         walkerTerminalReportMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
+        helper.succeed();
+    }
+
+    /**
+     * gap#69 (live death #16): a bot tp'd into the CENTER of a solid cube desyncs —
+     * the client never received the blocks before entering, so it self-rescues
+     * (crawl-evade never engages because there's no gap to crouch into, but the
+     * client's own {@code isInWall()} read can still lag/miss for a tick) while the
+     * SERVER keeps applying suffocation damage every tick. {@code AntiSuffocate}'s
+     * only gate used to be the client's {@code isInWall()}, so a desync tick meant
+     * zero action while HP drained to zero. The fix ORs in the server-authoritative
+     * damage signal: {@code getLastDamageSource().getMsgId() == "inWall"} (vanilla's
+     * own ~40-tick last-damager window) trusted ABOVE the client geometry read.
+     * Matrix mirrors the gap#65 {@code retreatGateMatrixArena} static-call pattern —
+     * {@link AntiSuffocateGate#shouldTrigger} is a pure function with zero client
+     * type references (unlike {@code AntiSuffocate} itself), so it can be called
+     * from a dedicated-server gametest with no client/{@code Minecraft} instance.
+     */
+    static void antiSuffocateShouldTriggerMatrix(java.util.function.BiConsumer<Boolean, String> check) {
+        // (a) THE death-#16 case: client geometry says NOT in a wall, but the server
+        // damage attribution says we ARE taking inWall damage — must trigger.
+        check.accept(AntiSuffocateGate.shouldTrigger(false, "inWall", true, true),
+                "gap#69(a): isInWall=false but lastDamage=inWall must trigger (death #16 desync)");
+        // (b) existing behavior preserved: client geometry alone still triggers.
+        check.accept(AntiSuffocateGate.shouldTrigger(true, null, true, true),
+                "gap#69(b): isInWall=true (no damage signal yet) must still trigger");
+        // (c) negative control: neither signal present → must NOT trigger.
+        check.accept(!AntiSuffocateGate.shouldTrigger(false, null, true, true),
+                "gap#69(c): no isInWall and no inWall damage must NOT trigger");
+        // (d) allowBreak gate preserved: even with the damage fallback firing, a
+        // disabled allowBreak must still suppress the reflex (it mines the block).
+        check.accept(!AntiSuffocateGate.shouldTrigger(false, "inWall", true, false),
+                "gap#69(d): allowBreak=false must suppress even the damage fallback");
+        // (e) antiSuffocate config gate preserved: cfg off must suppress everything.
+        check.accept(!AntiSuffocateGate.shouldTrigger(true, "inWall", false, true),
+                "gap#69(e): antiSuffocate=false must suppress even isInWall+damage both true");
+        // (f) an unrelated damage source (e.g. a mob hit) must NOT trigger the reflex.
+        check.accept(!AntiSuffocateGate.shouldTrigger(false, "mob", true, true),
+                "gap#69(f): a non-inWall lastDamage msgId must NOT trigger");
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void antiSuffocateShouldTriggerMatrixArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("antiSuffocateShouldTriggerMatrixArena")) { helper.succeed(); return; } // gt-filter
+        antiSuffocateShouldTriggerMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
         helper.succeed();
     }
 

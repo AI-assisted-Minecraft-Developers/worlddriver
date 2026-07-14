@@ -4,10 +4,15 @@ import net.magicterra.agent.bot.BotConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 
 import static net.magicterra.agent.AgentDriverCommon.LOG;
 import static net.magicterra.agent.bot.util.BotInteract.aimAtBlockSnap;
+import static net.magicterra.agent.bot.util.BotInteract.pickFaceTowardsPlayer;
 import static net.magicterra.agent.bot.util.BotInteract.selectBestToolFor;
 
 /**
@@ -50,42 +55,122 @@ import static net.magicterra.agent.bot.util.BotInteract.selectBestToolFor;
  * eye block to air within ~20 ticks ("head suffocating → breaking" ×23),
  * {@code inWall} flips false and the bleed stops. Same mechanic covers real
  * client-synced falling-sand cave-ins.
+ *
+ * <p><b>gap#69 (live death #16):</b> the cube A/B above deliberately synced the
+ * client BEFORE entry. A raw {@code tp} into the CENTER of already-solid terrain
+ * is the opposite case — client/server DESYNC on entry — and {@code isInWall()}
+ * is a pure client geometry read that can disagree with the server's own
+ * suffocation bookkeeping on exactly that tick: the bot took full HP→0 damage
+ * with this reflex reading {@code isInWall()==false} every tick, zero action.
+ * The server's damage attribution is authoritative and trusted ABOVE the client
+ * geometry: {@link LocalPlayer#getLastDamageSource()} mirrors the server's last
+ * hurt cause via {@code ClientboundDamageEventPacket} (vanilla's own ~40-tick
+ * last-damager window, same one {@link net.magicterra.agent.bot.combat.ThreatScanner}
+ * and {@link net.magicterra.agent.bot.ClientEventDetector} already lean on for
+ * gap#55 attribution) — its {@code msgId} is {@code "inWall"} while suffocation
+ * damage keeps landing, geometry read or not. {@link AntiSuffocateGate#shouldTrigger}
+ * folds both signals into one static, matrix-tested gate (split into its own
+ * dependency-free file so a server-side gametest can call it with no client).
  */
 public final class AntiSuffocate {
     private AntiSuffocate() {}
 
+    /** gap#69: once the raycast-driven path has failed to land on the target for
+     *  this many consecutive ticks, stop trusting {@code keyAttack} and drive the
+     *  destroy pipeline directly (see {@link #tick}). */
+    private static final int RAYCAST_BYPASS_TICKS = 10;
+
     /** True while we are the one driving the attack key, so we release our own hold. */
     private static boolean held;
+    /** True while we're bypassing keyAttack and driving gameMode.continueDestroyBlock
+     *  directly for the current head block (gap#69, requirement 3). */
+    private static boolean directDrive;
+    /** The head cell the raycast-miss counter below is tracking; reset whenever the
+     *  resolved target changes (new suffocation episode or the fallback chain moved). */
+    private static BlockPos trackedHead;
+    /** Consecutive ticks the camera raycast ({@code mc.hitResult}) failed to land on
+     *  {@link #trackedHead} while we were actively aiming at it. */
+    private static int rayMissTicks;
 
     /** @return true if it took over to break a suffocating head block this tick. */
     public static boolean tick(Minecraft mc, LocalPlayer p) {
-        boolean suffocating = BotConfig.antiSuffocate && BotConfig.allowBreak
-                && mc.level != null && p.isInWall();
-        if (!suffocating) { releaseIfHeld(mc); return false; }
+        if (mc.level == null) { reset(mc); return false; }
+        String lastDamageMsgId = null;
+        DamageSource src = p.getLastDamageSource();
+        if (src != null) lastDamageMsgId = src.getMsgId();
 
-        // The block intersecting the eyes is what's choking us. The eye box can
-        // straddle two cells; if the eye cell reads air, fall back to the cell
-        // just above the foot (the standard head block).
-        BlockPos head = BlockPos.containing(p.getEyePosition());
+        boolean suffocating = AntiSuffocateGate.shouldTrigger(p.isInWall(), lastDamageMsgId,
+                BotConfig.antiSuffocate, BotConfig.allowBreak);
+        if (!suffocating) { reset(mc); return false; }
+
+        BlockPos head = resolveHead(mc, p);
+        if (head == null) { reset(mc); return false; }
         BlockState st = mc.level.getBlockState(head);
-        if (st.isAir()) {
-            head = p.blockPosition().above();
-            st = mc.level.getBlockState(head);
-            if (st.isAir()) { releaseIfHeld(mc); return false; }
-        }
         // Don't flail at an unbreakable block (bedrock = negative destroy speed).
-        if (st.getDestroySpeed(mc.level, head) < 0f) { releaseIfHeld(mc); return false; }
+        if (st.getDestroySpeed(mc.level, head) < 0f) { reset(mc); return false; }
+
+        if (!head.equals(trackedHead)) { trackedHead = head; rayMissTicks = 0; directDrive = false; }
 
         selectBestToolFor(mc, head);
         aimAtBlockSnap(p, head);
-        mc.options.keyAttack.setDown(true);
-        held = true;
-        if (BotConfig.walkerDebug)
-            LOG.info("[antiSuffocate] head suffocating → breaking {} ({})", head, st.getBlock());
+
+        // gap#69 requirement 3: the camera raycast (mc.hitResult) can fail to land on
+        // `head` even after aiming dead-center at it — the eye origin sits INSIDE solid
+        // geometry when we're genuinely embedded, and a raycast starting inside a solid
+        // block can miss entirely or resolve to the wrong face/block. keyAttack rides
+        // that same raycast (vanilla's continueAttack → gameMode.continueDestroyBlock),
+        // so a persistently-missing raycast means keyAttack silently does nothing while
+        // this reflex believes it's breaking. Track consecutive misses and, past the
+        // threshold, drive gameMode.continueDestroyBlock directly — it self-starts via
+        // startDestroyBlock on the first call for a new target, no separate call needed.
+        boolean rayOnTarget = mc.hitResult instanceof BlockHitResult bhr
+                && bhr.getType() == HitResult.Type.BLOCK && bhr.getBlockPos().equals(head);
+        if (rayOnTarget) rayMissTicks = 0; else rayMissTicks++;
+        if (!directDrive && rayMissTicks >= RAYCAST_BYPASS_TICKS) directDrive = true;
+
+        if (directDrive) {
+            if (held) { mc.options.keyAttack.setDown(false); held = false; }
+            Direction face = pickFaceTowardsPlayer(head, p);
+            mc.gameMode.continueDestroyBlock(head, face);
+            if (BotConfig.walkerDebug)
+                LOG.info("[antiSuffocate] raycast miss x{} → direct-driving destroy on {} ({})",
+                        rayMissTicks, head, st.getBlock());
+        } else {
+            mc.options.keyAttack.setDown(true);
+            held = true;
+            if (BotConfig.walkerDebug)
+                LOG.info("[antiSuffocate] head suffocating → breaking {} ({})", head, st.getBlock());
+        }
         return true;
     }
 
-    private static void releaseIfHeld(Minecraft mc) {
+    /** The block intersecting the eyes is what's choking us. The eye box can straddle
+     *  two cells; fall back to the cell just above the foot (the standard head block),
+     *  then the foot cell itself. gap#69 requirement 2: a damage-signal-driven trigger
+     *  can fire on a tick where the client's geometry is fully desynced and reads AIR
+     *  at eye/above/foot alike — the damage is real (we only got here because
+     *  {@link AntiSuffocateGate#shouldTrigger} matched), so as a last resort hug a solid HORIZONTAL
+     *  neighbour of the eye cell: sustained suffocation damage means some solid block
+     *  is touching us even if vanilla's client-side render hasn't caught up yet.
+     *  @return the block to break, or null if nothing nearby reads solid. */
+    private static BlockPos resolveHead(Minecraft mc, LocalPlayer p) {
+        BlockPos eye = BlockPos.containing(p.getEyePosition());
+        if (!mc.level.getBlockState(eye).isAir()) return eye;
+        BlockPos above = p.blockPosition().above();
+        if (!mc.level.getBlockState(above).isAir()) return above;
+        BlockPos foot = p.blockPosition();
+        if (!mc.level.getBlockState(foot).isAir()) return foot;
+        for (Direction d : Direction.Plane.HORIZONTAL) {
+            BlockPos n = eye.relative(d);
+            if (!mc.level.getBlockState(n).isAir()) return n;
+        }
+        return null;
+    }
+
+    private static void reset(Minecraft mc) {
         if (held) { mc.options.keyAttack.setDown(false); held = false; }
+        if (directDrive) { mc.gameMode.stopDestroyBlock(); directDrive = false; }
+        trackedHead = null;
+        rayMissTicks = 0;
     }
 }
