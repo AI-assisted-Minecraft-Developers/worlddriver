@@ -3681,4 +3681,161 @@ public final class AgentGameTestServer {
         manualSlotGraceMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
         helper.succeed();
     }
+
+    // gap#67-⑤ — MineProcess.scanForTarget and GoalResolver.findNearestStandForBlock
+    // both walked a dy-outer / dx,dz-inner triple loop with a flat "cells scanned"
+    // budget: at a large horizontal radius, ONE dy layer alone blows the whole
+    // budget (r=32 -> 65x65=4225 cells/layer, 50_000 cap -> dy in [+4,+8] never
+    // scanned at all), so a jungle-canopy log 6 blocks above the bot went
+    // invisible even though it sits well inside both limits. The shared fix is
+    // net.magicterra.agent.bot.util.NearestFirstScan.offsetsNearestFirst: every
+    // offset in the box, sorted ascending by squared distance from the origin,
+    // so any budget cutoff drops the FARTHEST cells instead of a whole height
+    // band. Pure static function — no world state needed; matrix-only, mirrors
+    // the gap#65 retreatGateMatrixArena static-call pattern above.
+    static void nearestFirstScanMatrix(java.util.function.BiConsumer<Boolean, String> check) {
+        // (a) full coverage: every offset in the box appears exactly once.
+        net.minecraft.core.BlockPos[] atR32 =
+                net.magicterra.agent.bot.util.NearestFirstScan.offsetsNearestFirst(32, 8);
+        check.accept(atR32.length == 65 * 65 * 17,
+                "gap#67(a): offset count wrong: " + atR32.length);
+
+        // (b) the exact reproduction from the live bug report: at r=32 the old
+        // dy-outer loop never reached dy=+6 (budget dies mid-way through the
+        // low dy layers) even though (8,6,6) is a NEAR cell (distSq=136, rank
+        // near the very front once sorted) — it must land inside a 50_000 cap.
+        int idx = indexOfOffset(atR32, 8, 6, 6);
+        check.accept(idx >= 0 && idx < 50_000,
+                "gap#67(b): near-but-high cell (8,6,6) must rank inside a 50k budget, got index " + idx);
+
+        // (c) nearest-first really means sorted ascending by squared distance —
+        // the property any budget cutoff relies on to drop the farthest cells.
+        long prev = -1;
+        boolean sorted = true;
+        for (net.minecraft.core.BlockPos p : atR32) {
+            long d2 = (long) p.getX() * p.getX() + (long) p.getY() * p.getY() + (long) p.getZ() * p.getZ();
+            if (d2 < prev) { sorted = false; break; }
+            prev = d2;
+        }
+        check.accept(sorted, "gap#67(c): offsets must be sorted ascending by squared distance");
+
+        // (d) the origin itself (zero distance) is always first.
+        check.accept(atR32[0].equals(net.minecraft.core.BlockPos.ZERO),
+                "gap#67(d): nearest offset must be the origin itself");
+
+        // (e) goto's call site (GoalResolver.findNearestStandForBlock, radius 64
+        // per the brief) gets the same guarantee at the larger radius.
+        net.minecraft.core.BlockPos[] atR64 =
+                net.magicterra.agent.bot.util.NearestFirstScan.offsetsNearestFirst(64, 8);
+        int idx64 = indexOfOffset(atR64, 10, 6, 0);
+        check.accept(idx64 >= 0 && idx64 < 50_000,
+                "gap#67(e): radius-64 near-but-high cell (10,6,0) must still rank inside a 50k budget, got index " + idx64);
+    }
+
+    private static int indexOfOffset(net.minecraft.core.BlockPos[] arr, int x, int y, int z) {
+        for (int i = 0; i < arr.length; i++)
+            if (arr[i].getX() == x && arr[i].getY() == y && arr[i].getZ() == z) return i;
+        return -1;
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void nearestFirstScanMatrixArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("nearestFirstScanMatrixArena")) { helper.succeed(); return; } // gt-filter
+        nearestFirstScanMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
+        helper.succeed();
+    }
+
+    /**
+     * gap#67-⑤ end-to-end fallback: the same defect through the real
+     * {@link MineProcess#scanForTarget} call site (not just the extracted
+     * helper). A single log sits at dy=+4 above the bot's spawn foot level
+     * (horizontal distance 10) with nothing else matching nearby, reached by
+     * an ordinary walk-up-stairs-then-platform path (no digging/placing
+     * needed — the only thing under test is whether the SCAN sees the log,
+     * not the Walker's climb). Pre-fix, radius=32 blows the scan budget on
+     * the low dy layers and never reaches +4 (brief: dy in [+4,+8] never
+     * scanned at r=32), so the process reports "no reachable target" with
+     * the log sitting in plain, walkable sight; radius=16 (same target,
+     * well inside the OLD budget already) must keep working both before and
+     * after the fix — the near-field regression the brief calls out
+     * explicitly.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverMineCanopyRadiusArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverMineCanopyRadiusArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        // 2600: unused across all gametest classes (max prior pick was 2500,2500
+        // in AgentGameTestTerrain) — the shared world persists between runs, so a
+        // coordinate collision would leave this arena's lone log buried inside
+        // another arena's structure (gap#60's exact "assumption falsified" trap).
+        final int cx = 2600, cz = 2600, floorY = 220;
+        BlockPos logPos = new BlockPos(cx + 10, floorY + 5, cz);
+        level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.DIRT.defaultBlockState());
+        level.setBlockAndUpdate(new BlockPos(cx - 1, floorY, cz), Blocks.DIRT.defaultBlockState());
+        // Ascending 1-block-per-step staircase (ordinary step-up, no digging or
+        // placing) from spawn up to platform height, then a flat platform run —
+        // a real, walkable path so the ONLY variable under test is the scan.
+        for (int s = 1; s <= 4; s++)
+            level.setBlockAndUpdate(new BlockPos(cx + s, floorY + s, cz), Blocks.STONE.defaultBlockState());
+        for (int x = cx + 5; x <= cx + 9; x++)
+            level.setBlockAndUpdate(new BlockPos(x, floorY + 4, cz), Blocks.STONE.defaultBlockState());
+        level.setBlockAndUpdate(logPos, Blocks.OAK_LOG.defaultBlockState());
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = false;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ServerAgentManager.clear();
+        try {
+            // Phase 1 — radius=16 (regression: already worked before this fix,
+            // must still work after it; same log, same dy=+4 offset).
+            ServerAgentDriver driver16 = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            driver16.fakePlayer().getInventory().items.set(0, new ItemStack(Items.WOODEN_AXE));
+            driver16.fakePlayer().getInventory().selected = 0;
+            driver16.runProcess(new MineProcess(List.of("#minecraft:logs"), 1, 16));
+            ServerAgentManager.register(driver16);
+            for (int t = 0; t < 800 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+            boolean minedAt16 = !level.getBlockState(logPos).is(Blocks.OAK_LOG);
+            String err16 = driver16.botState().mine.lastError;
+            AgentDriverCommon.LOG.info("[serverMineCanopyRadiusArena] radius=16 minedAt16={} finished={} lastError={}",
+                    minedAt16, driver16.finished(), err16);
+            if (!minedAt16)
+                throw new GameTestAssertException("gap#67(regression): radius=16 must still find the dy=+4 canopy log: lastError=" + err16);
+            ServerAgentManager.clear();
+
+            // Phase 2 — radius=32, the exact live repro: respawn the log and re-run
+            // with the wider radius that used to blow the scan budget on the top
+            // of the vertical band before ever reaching dy=+4.
+            level.setBlockAndUpdate(logPos, Blocks.OAK_LOG.defaultBlockState());
+            ServerAgentDriver driver32 = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            driver32.fakePlayer().getInventory().items.set(0, new ItemStack(Items.WOODEN_AXE));
+            driver32.fakePlayer().getInventory().selected = 0;
+            driver32.runProcess(new MineProcess(List.of("#minecraft:logs"), 1, 32));
+            ServerAgentManager.register(driver32);
+            for (int t = 0; t < 800 && ServerAgentManager.activeCount() > 0; t++)
+                ServerAgentManager.tickAll();
+            boolean minedAt32 = !level.getBlockState(logPos).is(Blocks.OAK_LOG);
+            String err32 = driver32.botState().mine.lastError;
+            AgentDriverCommon.LOG.info("[serverMineCanopyRadiusArena] radius=32 minedAt32={} finished={} lastError={}",
+                    minedAt32, driver32.finished(), err32);
+            if (!minedAt32)
+                throw new GameTestAssertException("gap#67(⑤): radius=32 must find the dy=+4 canopy log (was: scan budget truncated the top dy layers, not the farthest cells): lastError=" + err32);
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            ServerAgentManager.clear();
+            for (int dx = -1; dx <= 11; dx++)
+                for (int dy = 0; dy <= 8; dy++)
+                    for (int dz = -1; dz <= 1; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+        }
+        helper.succeed();
+    }
 }

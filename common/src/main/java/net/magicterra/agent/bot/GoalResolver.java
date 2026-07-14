@@ -13,6 +13,7 @@ import java.util.Map;
 
 import static net.magicterra.agent.bot.util.BotUtil.*;
 import net.magicterra.agent.bot.util.BlockMatch;
+import net.magicterra.agent.bot.util.NearestFirstScan;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.block.state.BlockState;
 import java.util.Locale;
@@ -50,24 +51,23 @@ public static BlockPos findNearestStandForBlock(LocalPlayer player, String block
     int vr = BotConfig.mineSearchVerticalRadius;
     long bestD2 = Long.MAX_VALUE;
     BlockPos bestStand = null;
-    int scanned = 0;
     // Supports exact ids and '#tag' selectors (e.g. #minecraft:logs → any tree).
     Predicate<BlockState> match = BlockMatch.of(blockId);
-    outer:
-    for (int dy = -vr; dy <= vr; dy++) {
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dz = -radius; dz <= radius; dz++) {
-                if (++scanned > 200_000) break outer;
-                BlockPos bp = foot.offset(dx, dy, dz);
-                if (!match.test(lvl.getBlockState(bp))) continue;
-                long d2 = (long) bp.distSqr(foot);
-                if (d2 >= bestD2) continue;
-                BlockPos stand = findStandAdjacent(lvl, bp);
-                if (stand == null) continue;
-                bestD2 = d2;
-                bestStand = stand;
-            }
-        }
+    // gap#67-⑤: nearest-first order (shared with MineProcess.scanForTarget) so
+    // the scan budget drops the FARTHEST cells instead of truncating the top of
+    // the vertical band — the old dy-outer loop silently never reached the high
+    // dy layers once a wide horizontal radius blew the budget on the low ones.
+    BlockPos[] offsets = NearestFirstScan.offsetsNearestFirst(radius, vr);
+    int budget = Math.min(offsets.length, 200_000);
+    for (int i = 0; i < budget; i++) {
+        BlockPos bp = foot.offset(offsets[i]);
+        if (!match.test(lvl.getBlockState(bp))) continue;
+        long d2 = (long) bp.distSqr(foot);
+        if (d2 >= bestD2) continue;
+        BlockPos stand = findStandAdjacent(lvl, bp);
+        if (stand == null) continue;
+        bestD2 = d2;
+        bestStand = stand;
     }
     return bestStand;
 }

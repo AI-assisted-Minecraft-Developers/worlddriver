@@ -50,6 +50,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.function.Predicate;
 import net.magicterra.agent.bot.util.BlockMatch;
+import net.magicterra.agent.bot.util.NearestFirstScan;
 import java.util.Map;
 import java.util.Set;
 
@@ -103,6 +104,11 @@ public final class MineProcess implements BotProcess {
     private BlockPos currentCollectGoal;
     private static final int MAX_COLLECT_TICKS = 240;       // ~12 s @ 20 tps — long enough to walk to all 8 break spots
     private static final int COLLECT_SCAN_RADIUS = 8;       // matches vanilla item lifetime drift
+    // gap#67-⑤: real safety cap on cells visited per scanForTarget call. Applied
+    // to NearestFirstScan's nearest-first order (see below), so a cutoff drops
+    // the FARTHEST cells, never an entire dy layer — unlike the old dy-outer
+    // loop, radius alone no longer determines which height band goes blind.
+    private static final int SCAN_BUDGET = 50_000;
 
     public MineProcess(List<String> ids, int qty, int radius) {
         this.targetIds = new HashSet<>(ids);
@@ -385,55 +391,57 @@ public final class MineProcess implements BotProcess {
         int scanned = 0;
         int targetHits = 0;          // DIAG: cells passing isTarget
         int targetLavaSkips = 0;     // DIAG: targets skipped for lava
-        for (int dy = -BotConfig.mineSearchVerticalRadius; dy <= BotConfig.mineSearchVerticalRadius; dy++) {
-            for (int dx = -r; dx <= r; dx++) {
-                for (int dz = -r; dz <= r; dz++) {
-                    scanned++;
-                    BlockPos bp = foot.offset(dx, dy, dz);
-                    // Cap horizontal drift from where the command began so a chain of
-                    // SEARCH hops can't walk the bot across the world / an ocean.
-                    if (BotConfig.mineMaxDriftFromStart > 0 && startAnchor != null) {
-                        long hx = bp.getX() - startAnchor.getX();
-                        long hz = bp.getZ() - startAnchor.getZ();
-                        long cap = BotConfig.mineMaxDriftFromStart;
-                        if (hx * hx + hz * hz > cap * cap) continue;
-                    }
-                    if (blacklist.contains(bp)) continue;
-                    BlockState bs = lvl.getBlockState(bp);
-                    if (!isTarget(bs)) continue;
-                    targetHits++;
-                    // Don't dig a block that walls off lava: breaking it lets the
-                    // pocket flood toward us. Lava is loaded in the world model even
-                    // when hidden behind a solid face, so a face-neighbour scan
-                    // catches the pocket BEFORE the dig opens it.
-                    if (lavaTouching(lvl, bp)) { targetLavaSkips++; continue; }
-                    // Tool gate: a block that needs a correct tool for its drop, when the
-                    // bot holds/owns none, BREAKS but drops NOTHING — mining it is pure
-                    // futility (the bare-hand stone grind that spun the campaign soft-lock:
-                    // block.break fires forever, inventory never fills). Skip it, but keep
-                    // one so the caller emits an actionable "needs <tool>" abort.
-                    if (!canHarvest(p, bs)) {
-                        if (toolBlocked == null) { toolBlocked = bp; toolBlockedTool = requiredToolName(bs); }
-                        continue;
-                    }
-                    // Find a standable adjacent position (incl. a pillar-up
-                    // stand for an otherwise-too-high log, relative to our feet).
-                    long d2 = (long) bp.distSqr(foot);
-                    BlockPos stand = findStandableAdjacent(lvl, bp, foot.getY());
-                    if (stand == null) {
-                        // Real target, but no stand reaches it (the leaf-encased
-                        // floating-canopy oak: leaves wall it in and block the reach
-                        // raycast). Remember the nearest so we can clear its leaves.
-                        if (d2 < nuD2) { nuD2 = d2; nearestUnreachable = bp; }
-                        continue;
-                    }
-                    if (d2 < bestD2) {
-                        bestD2 = d2;
-                        best = new Target(bp, stand, faceFromStandToBlock(stand, bp), false);
-                    }
-                }
+        // gap#67-⑤: nearest-first order (shared with GoalResolver.findNearestStandForBlock)
+        // so SCAN_BUDGET drops the FARTHEST cells instead of truncating the top of the
+        // vertical band — the old dy-outer loop silently never reached dy in [+4,+8] once
+        // a wide horizontal radius blew the budget on the low layers (a jungle-canopy log
+        // sat in plain sight and was reported unreachable).
+        BlockPos[] offsets = NearestFirstScan.offsetsNearestFirst(r, BotConfig.mineSearchVerticalRadius);
+        int budget = Math.min(offsets.length, SCAN_BUDGET);
+        for (int i = 0; i < budget; i++) {
+            scanned++;
+            BlockPos bp = foot.offset(offsets[i]);
+            // Cap horizontal drift from where the command began so a chain of
+            // SEARCH hops can't walk the bot across the world / an ocean.
+            if (BotConfig.mineMaxDriftFromStart > 0 && startAnchor != null) {
+                long hx = bp.getX() - startAnchor.getX();
+                long hz = bp.getZ() - startAnchor.getZ();
+                long cap = BotConfig.mineMaxDriftFromStart;
+                if (hx * hx + hz * hz > cap * cap) continue;
             }
-            if (scanned > 50_000) break;
+            if (blacklist.contains(bp)) continue;
+            BlockState bs = lvl.getBlockState(bp);
+            if (!isTarget(bs)) continue;
+            targetHits++;
+            // Don't dig a block that walls off lava: breaking it lets the
+            // pocket flood toward us. Lava is loaded in the world model even
+            // when hidden behind a solid face, so a face-neighbour scan
+            // catches the pocket BEFORE the dig opens it.
+            if (lavaTouching(lvl, bp)) { targetLavaSkips++; continue; }
+            // Tool gate: a block that needs a correct tool for its drop, when the
+            // bot holds/owns none, BREAKS but drops NOTHING — mining it is pure
+            // futility (the bare-hand stone grind that spun the campaign soft-lock:
+            // block.break fires forever, inventory never fills). Skip it, but keep
+            // one so the caller emits an actionable "needs <tool>" abort.
+            if (!canHarvest(p, bs)) {
+                if (toolBlocked == null) { toolBlocked = bp; toolBlockedTool = requiredToolName(bs); }
+                continue;
+            }
+            // Find a standable adjacent position (incl. a pillar-up
+            // stand for an otherwise-too-high log, relative to our feet).
+            long d2 = (long) bp.distSqr(foot);
+            BlockPos stand = findStandableAdjacent(lvl, bp, foot.getY());
+            if (stand == null) {
+                // Real target, but no stand reaches it (the leaf-encased
+                // floating-canopy oak: leaves wall it in and block the reach
+                // raycast). Remember the nearest so we can clear its leaves.
+                if (d2 < nuD2) { nuD2 = d2; nearestUnreachable = bp; }
+                continue;
+            }
+            if (d2 < bestD2) {
+                bestD2 = d2;
+                best = new Target(bp, stand, faceFromStandToBlock(stand, bp), false);
+            }
         }
         if (best != null) return best;
         // Nothing directly reachable. If a real target is occluded by leaves we can
