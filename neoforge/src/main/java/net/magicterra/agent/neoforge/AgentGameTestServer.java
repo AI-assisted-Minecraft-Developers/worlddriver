@@ -3249,14 +3249,15 @@ public final class AgentGameTestServer {
             // hp<=thr means 2-3 arrows already landed (the canopy/tunnel-snipe deaths).
             if (!RetreatChain.shouldEnter(20f, 10f, skel.apply(16.0, new boolean[]{false, true})))
                 throw new GameTestAssertException("gap#65(f): ranged attacker hit me (16, full HP) must enter");
-            // (g) melee attacker at 14 who hit me once, full HP → NOT enter (melee is
-            // combat/bunker's business; a zombie can't keep hitting from 14).
+            // (g) melee attacker at 14 who hit me once, full HP → MUST enter.
+            // gap#68-①: hurt-entry supersedes the gap#65-era expectation — a connected
+            // hit within 2×CLEAR_RADIUS latches at ANY hp
             var meleeScan = new net.magicterra.agent.bot.combat.ThreatScanner.Scan(
                     java.util.List.of(new net.magicterra.agent.bot.combat.ThreatScanner.Threat(
                             zombie, zombie.getId(), "minecraft:zombie", 14.0, true, true, false, 0.6, 0f, true)),
                     java.util.List.of());
-            if (RetreatChain.shouldEnter(20f, 10f, meleeScan))
-                throw new GameTestAssertException("gap#65(g): melee attackedMe at 14, full HP must not enter");
+            if (!RetreatChain.shouldEnter(20f, 10f, meleeScan))
+                throw new GameTestAssertException("gap#68-①(g): melee attackedMe at 14 must enter (hurt-entry supersedes gap#65's melee carve-out)");
             // (h) latched + recovered, but the ranged attacker is STILL hitting me from 14
             // → must NOT release (releasing walks straight back into the fire).
             if (RetreatChain.shouldRelease(20f, 10f, skel.apply(14.0, new boolean[]{false, true})))
@@ -3264,6 +3265,31 @@ public final class AgentGameTestServer {
             // (i) skeleton drifted to 20, no longer hit me → release (outran it).
             if (!RetreatChain.shouldRelease(8f, 10f, skel.apply(20.0, new boolean[]{false, false})))
                 throw new GameTestAssertException("gap#65(i): hostile at 20, not firing → must release");
+
+            // gap#68-①(R3): hurt-entry latch for ANY connected attacker (melee included)
+            // + dynamic low-HP threshold max(thr, 40% maxHp). meleeHit = zombie that
+            // actually hit me (attackedMe=true) at the given distance; zombieNear = an
+            // idle (never-hit-me) zombie at the given distance — used both to prove the
+            // dynamic threshold's hostileWithin gate and as the negative control.
+            java.util.function.Function<Double, net.magicterra.agent.bot.combat.ThreatScanner.Scan> meleeHit =
+                    dist -> new net.magicterra.agent.bot.combat.ThreatScanner.Scan(
+                            java.util.List.of(new net.magicterra.agent.bot.combat.ThreatScanner.Threat(
+                                    zombie, zombie.getId(), "minecraft:zombie", dist, true, true, false, 0.6, 0f, /*attackedMe*/ true)),
+                            java.util.List.of());
+            java.util.function.Function<Double, net.magicterra.agent.bot.combat.ThreatScanner.Scan> zombieNear =
+                    dist -> new net.magicterra.agent.bot.combat.ThreatScanner.Scan(
+                            java.util.List.of(new net.magicterra.agent.bot.combat.ThreatScanner.Threat(
+                                    zombie, zombie.getId(), "minecraft:zombie", dist, true, true, false, 0.6, 0f, /*attackedMe*/ false)),
+                            java.util.List.of());
+            // gap#68-①: 被近战打中(attackedMe,非 Ranged)必须进闩——旧门只认 Ranged 或 HP≤thr
+            if (!RetreatChain.shouldEnter(18f, 6f, 20f, meleeHit.apply(2.0)))
+                throw new GameTestAssertException("gap#68-①: melee attackedMe at full-ish HP must latch the flee");
+            // 动态阈值:maxHp*0.4=8 > thr=6,HP 7 + 近战近身必须进
+            if (!RetreatChain.shouldEnter(7f, 6f, 20f, zombieNear.apply(5.0)))
+                throw new GameTestAssertException("gap#68-①: effective threshold is max(thr, 40% maxHp)");
+            // 阴性:无人打我、HP 高、无 ranged → 不进
+            if (RetreatChain.shouldEnter(18f, 6f, 20f, zombieNear.apply(5.0)))
+                throw new GameTestAssertException("gap#68-①: nearby idle zombie at high HP must NOT latch");
         } finally {
             skeleton.discard();
             zombie.discard();

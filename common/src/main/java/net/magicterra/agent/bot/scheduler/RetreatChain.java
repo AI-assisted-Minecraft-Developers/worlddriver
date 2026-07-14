@@ -62,7 +62,7 @@ public final class RetreatChain implements Chain {
         float thr = BotConfig.retreatHpThreshold;
         ThreatScanner.Scan scan = ClientThreatScanner.current(mc);
         if (!retreating) {
-            if (!shouldEnter(hp, thr, scan)) return idle();
+            if (!shouldEnter(hp, thr, mc.player.getMaxHealth(), scan)) return idle();
             retreating = true;                       // latch the flee
         } else {
             if (shouldRelease(hp, thr, scan)) return idle();
@@ -80,16 +80,41 @@ public final class RetreatChain implements Chain {
      *    HP has already cratered. A naked bot loses ~4HP/hit, so waiting for
      *    the HP threshold means 2+ hits already connected (the canopy-snipe
      *    death). React to the AIM, not the hit.
-     *  Static and scan-fed so the gate is testable without a client (gap#65). */
-    public static boolean shouldEnter(float hp, float thr, ThreatScanner.Scan scan) {
-        boolean lowHp = hp <= thr && hostileWithin(scan);
+     *  Static and scan-fed so the gate is testable without a client (gap#65).
+     *
+     *  <p>4-arg gate (gap#68-R3): adds (a) hurt-entry — ANY attacker that actually hit
+     *  me (attackedMe, melee included) within 2×{@link #CLEAR_RADIUS} latches the flee
+     *  at ANY hp: damage attribution is the single source (#55), we no longer require
+     *  the attacker to be a {@link RangedAttackMob}; and (b) a dynamic low-HP threshold
+     *  of max(thr, 40% of maxHp) so a naked 20-HP bot reacts at 8, not 6. */
+    public static boolean shouldEnter(float hp, float thr, float maxHp, ThreatScanner.Scan scan) {
+        float effThr = Math.max(thr, maxHp * 0.4f);
+        boolean lowHp = hp <= effThr && hostileWithin(scan);
         boolean ranged = rangedThreatAiming(scan);
         // Being HIT by a ranged attacker (gap#55's attackedMe attribution) latches the
         // flee at ANY hp and regardless of LoS: {@code charging} goes blind in exactly
         // the stair/corner geometry where arrows still arc in (canSee is an eye-to-eye
         // ray, arrows are ballistic) — waiting for hp<=thr there means 2-3 hits already
-        // landed (death #6). Melee attackers stay on the hp gate: combat/bunker's turf.
-        return lowHp || ranged || underRangedFire(scan);
+        // landed (death #6). gap#68-①: melee attackers no longer stay on the hp gate —
+        // hurtByAnyone latches on ANY connected hit within 2×CLEAR_RADIUS (deaths
+        // #9/#11/#12: shot/hit repeatedly while goto/digging, never fled).
+        return lowHp || ranged || underRangedFire(scan) || hurtByAnyone(scan);
+    }
+
+    /** Back-compat 3-arg gate (existing matrix tests + call sites): maxHp=20. */
+    public static boolean shouldEnter(float hp, float thr, ThreatScanner.Scan scan) {
+        return shouldEnter(hp, thr, 20f, scan);
+    }
+
+    /** ANY attacker whose hit actually connected (vanilla last-damager window), near
+     *  enough that it can do it again. Melee included — being hit IS the threat,
+     *  regardless of the attacker's class (gap#68-① recharacterized: a zombie that
+     *  connects at HP 18 latched nothing under the old Ranged-only hurt gate). */
+    private static boolean hurtByAnyone(ThreatScanner.Scan scan) {
+        for (ThreatScanner.Threat t : scan.threats()) {
+            if (t.attackedMe() && t.distance() <= CLEAR_RADIUS * 2) return true;
+        }
+        return false;
     }
 
     /** Release once we've outrun every hostile, OR HP recovered a margin above
