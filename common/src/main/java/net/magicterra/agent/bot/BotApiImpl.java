@@ -149,6 +149,11 @@ public final class BotApiImpl implements BotApi {
      *  long session. */
     final BackfillTracker backfillTracker = new BackfillTracker();
 
+    /** gap#68-⑧: post-respawn grace countdown gating autoBackfill's auto-start (mirrors
+     *  {@link CombatChain#autoSuppressed()} for autoFight). Armed to {@link BotConfig#respawnGraceTicks}
+     *  by the death hook; decremented once per tick regardless of process state. */
+    private int respawnGraceLeft;
+
     @Override
     public Map<String, Object> mcGoto(Map<String, Object> params) {
         final Params p = Params.of(params);
@@ -843,7 +848,13 @@ public final class BotApiImpl implements BotApi {
         // carrier of the SPECIFIC cause of death (slain by X / drowned / blown
         // up). Read it on the screen's rising edge, emit player.death + cancel
         // active processes, THEN let autoRespawn skip past.
-        eventDetector.detectDeath(mc, () -> cancelAllProcesses("player-death"));
+        eventDetector.detectDeath(mc, () -> {
+            cancelAllProcesses("player-death");
+            scheduler.cancelAllEpisodes("player-death");   // gap#68-③⑦: 全链 episode 清零
+            backfillTracker.clear();                        // gap#68-⑧⑫: 孤儿回填队列清零
+            combatChain.suppressAutoFor(BotConfig.respawnGraceTicks);
+            respawnGraceLeft = BotConfig.respawnGraceTicks;
+        });
         // autoRespawn fires even when level/player is in the dying transition —
         // DeathScreen shows briefly with mc.player still alive but at 0 HP, and
         // we want to skip past it ASAP. Done first so the rest of the tick sees
@@ -971,7 +982,8 @@ public final class BotApiImpl implements BotApi {
         // Matches Baritone's BackfillProcess.isActive() trigger pattern: it
         // only runs when no higher-priority process wants the slot. The
         // process self-terminates once its work is done.
-        if (c == null && BotConfig.autoBackfill && backfillTracker.size() > 0) {
+        if (respawnGraceLeft > 0) respawnGraceLeft--;
+        if (c == null && respawnGraceLeft == 0 && BotConfig.autoBackfill && backfillTracker.size() > 0) {
             startProcess(new BackfillProcess(backfillTracker));
         }
         // Movement channel: run the highest-priority chain (user task, or a

@@ -914,6 +914,11 @@ public final class BotConfig {
      *  but more pathing per tick. */
     public static volatile int autoBackfillRadius = 6;
 
+    /** gap#68-⑧: ticks after a respawn during which autoFight does NOT re-engage and
+     *  autoBackfill does NOT auto-start — a freshly-respawned naked bot must not resume
+     *  lethal intents (combat kept hunting / orphan digging executed post-respawn). */
+    public static volatile int respawnGraceTicks = 60;
+
     /** Proactive idle-only dusk shelter (DuskSecureChain, priority IDLE_SECURE=40):
      *  when the bot is sky-exposed at dusk/night, idle (no user task running), and
      *  no threat is within 12 blocks, dig a "挖三填一" bunker (BunkerProcess) after a

@@ -39,9 +39,24 @@ public final class CombatChain implements Chain {
 
     private CombatProcess process;
 
+    /** Post-respawn autoFight suppression countdown (gap#68 grace). Tick thread only. */
+    private int autoSuppressTicks;
+
     public CombatChain(BotState state) {
         this.state = state;
     }
+
+    /** Arm (or extend) the post-respawn grace: autoFight will not bid for {@code ticks}
+     *  ticks. Does not affect an explicit {@code mc.bot.combat} intent — that is the
+     *  agent's own decision and is never suppressed. */
+    public void suppressAutoFor(int ticks) { autoSuppressTicks = Math.max(autoSuppressTicks, ticks); }
+
+    /** True while the post-respawn autoFight grace is still counting down. */
+    public boolean autoSuppressed() { return autoSuppressTicks > 0; }
+
+    /** Tick the grace countdown by one. Called unconditionally from {@link #priority}
+     *  every tick so it decays even while some other chain holds the channel. */
+    public void decayAutoSuppression() { if (autoSuppressTicks > 0) autoSuppressTicks--; }
 
     @Override public String name() { return "combat"; }
 
@@ -79,6 +94,7 @@ public final class CombatChain implements Chain {
     }
 
     @Override public float priority(Minecraft mc, WorldView w, BotState st) {
+        decayAutoSuppression();
         float bid = bid(mc);
         // Keep the status slot truthful EVERY tick (not just on engage). Without
         // this an explicit fight left combat.active stuck true after it finished
@@ -92,7 +108,7 @@ public final class CombatChain implements Chain {
     private float bid(Minecraft mc) {
         if (mc.player == null) return 0f;
         if (intentMode != null) return Priorities.COMBAT;
-        if (BotConfig.autoFight) {
+        if (BotConfig.autoFight && autoSuppressTicks == 0) {
             ThreatScanner.Threat top = ClientThreatScanner.current(mc).top();
             if (top != null && top.score() >= BotConfig.autoFightThreatThreshold) return Priorities.COMBAT;
         }

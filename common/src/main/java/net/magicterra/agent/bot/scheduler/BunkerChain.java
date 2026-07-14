@@ -44,6 +44,13 @@ public final class BunkerChain implements Chain {
     @Override public float priority(Minecraft mc, WorldView w, BotState st) {
         if (!BotConfig.autoBunker || mc.player == null) return 0f;
         int near = surroundCount(mc);
+        // Self-heal on displacement/respawn even when NOT winning the bid: the old check
+        // lived in tick(), which only runs while this chain holds the channel — a stale
+        // sealed episode from before a death could bid 300 forever (gap#68-⑦).
+        if (a.active() && mc.player != null) {
+            BlockPos f = mc.player.blockPosition();
+            if (a.displacedFrom(f.getX(), f.getY(), f.getZ())) a.reset();
+        }
         if (a.sealed) {
             if (near < BotConfig.bunkerMinHostiles) { a.reset(); return 0f; }
             return Priorities.BUNKER;                 // hold the pocket while still besieged

@@ -12,6 +12,8 @@ import net.magicterra.agent.neoforge.sim.ServerAgentManager;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.scheduler.BunkerAnchor;
 import net.magicterra.agent.bot.scheduler.BunkerChain;
+import net.magicterra.agent.bot.scheduler.CombatChain;
+import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.process.BboxFillProcess;
 import net.magicterra.agent.bot.process.BuildProcess;
 import net.magicterra.agent.bot.process.CraftProcess;
@@ -3422,6 +3424,24 @@ public final class AgentGameTestServer {
     public static void chainEpisodeCancelMatrixArena(GameTestHelper helper) {
         if (AgentGameTestSupport.gtOnlySkips("chainEpisodeCancelMatrixArena")) { helper.succeed(); return; } // gt-filter
         chainEpisodeCancelMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
+        helper.succeed();
+    }
+
+    // gap#68-③/⑧: death must gate autoFight re-engagement for a grace window, or a
+    // freshly-respawned naked bot resumes hunting whatever killed it (death #9/#11/#12
+    // family). Pure counter logic — no Minecraft instance needed.
+    static void combatGraceMatrix(java.util.function.BiConsumer<Boolean, String> check, BotState st) {
+        CombatChain cc = new CombatChain(st);
+        cc.suppressAutoFor(3);
+        check.accept(cc.autoSuppressed(), "suppressed right after death");
+        cc.decayAutoSuppression(); cc.decayAutoSuppression(); cc.decayAutoSuppression();
+        check.accept(!cc.autoSuppressed(), "suppression decays to zero");
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void combatGraceMatrixArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("combatGraceMatrixArena")) { helper.succeed(); return; } // gt-filter
+        combatGraceMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); }, new BotState());
         helper.succeed();
     }
 }
