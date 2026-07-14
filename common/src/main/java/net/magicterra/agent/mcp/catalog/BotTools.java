@@ -729,6 +729,7 @@ public final class BotTools {
                 object()
                     .prop("depth", integer(1, 5)
                         .desc("Blocks to dig down before sealing. Default = bunkerDepth setting (2)."))
+                    .prop("awaitMs", awaitMs())
                 ),
 
             wrTool("mc.bot.escape",
