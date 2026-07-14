@@ -1,5 +1,6 @@
 package net.magicterra.agent.mcp.schema;
 
+import java.util.List;
 import java.util.Map;
 
 import com.mojang.serialization.JavaOps;
@@ -35,6 +36,15 @@ public final class Schemas {
     public static Schema.Arr array(Schema items) { return new Schema.Arr(items); }
     /** A typeless "accept anything" schema (no {@code type}) — for free-form values. */
     public static Schema.Any any() { return new Schema.Any(); }
+    /**
+     * A union of JSON-Schema primitive types (renders {@code "type":[...]}) — for a param
+     * whose consuming route code branches on runtime type over MORE THAN ONE type but not
+     * literally anything (see {@link #any()} for that). Verify the accepted set against the
+     * consuming code, not the intent — see gap#67-④ (a typeless field gets JSON-stringified
+     * by at least one MCP client, since it has no type to preserve across the wire).
+     * Member names: {@code "integer"|"number"|"string"|"boolean"|"object"|"array"|"null"}.
+     */
+    public static Schema.Union union(String... types) { return new Schema.Union(List.of(types)); }
 
     /** Typed {x,y,z} integer block position. */
     public static Schema.Obj pos() {

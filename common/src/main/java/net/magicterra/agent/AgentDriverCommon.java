@@ -102,7 +102,8 @@ public final class AgentDriverCommon {
             "61_world_block.js",
             "62_query_in_radius.js",
             "63_overlays_tutorial.js",
-            "64_schema_validation.js"
+            "64_schema_validation.js",
+            "65_schema_union.js"
     );
 
     private static AgentApi api;

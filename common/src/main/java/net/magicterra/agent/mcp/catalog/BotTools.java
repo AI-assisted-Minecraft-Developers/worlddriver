@@ -115,7 +115,7 @@ public final class BotTools {
                             .prop("x", number()).prop("y", number()).prop("z", number())
                             .prop("radius", number()).prop("weight", number())
                             .prop("entity", string()))
-                    .prop("hugShore", any()
+                    .prop("hugShore", union("boolean", "object")
                         .desc("沿河岸走: tax nodes with no adjacent water. Accepts bare true "
                             + "(default weight 30) or {weight:number}."))
                     .prop("forbidParkour", bool()
@@ -187,7 +187,7 @@ public final class BotTools {
                             .prop("radius", number()).prop("weight", number())
                             .prop("entity", string()
                                 .desc("Ignored by follow — it already tracks an entity.")))
-                    .prop("hugShore", any()
+                    .prop("hugShore", union("boolean", "object")
                         .desc("沿河岸走 bias, as in mc.bot.goto: bare true or {weight:number}."))
                     .prop("forbidParkour", bool()
                         .desc("Forbid parkour moves — the route must not jump gaps. Also settable via capability:'walk'."))
@@ -800,7 +800,7 @@ public final class BotTools {
                 object()
                     .prop("mode", stringEnum("engage", "defend", "kill")
                         .desc("engage = clear all; defend = retaliate only; kill = one target. Default engage."))
-                    .prop("target", any()
+                    .prop("target", union("integer", "string", "object")
                         .desc("For kill mode: {id:<entityId>} or {type:'minecraft:zombie'}; a bare "
                             + "number is taken as the entity id, a bare string as the type."))
                     .prop("force", bool()

@@ -56,7 +56,7 @@ public final class WaitTools {
                         + "that tool's own schema on every poll)."))
                     .prop("field", string().desc(
                         "Dotted path into the result. Omit to test whole result for truthiness."))
-                    .prop("value", any().desc(
+                    .prop("value", union("object", "array", "string", "number", "boolean").desc(
                         "Optional target value for deep-equal comparison. Omit for truthy check."))
                     .prop("timeoutMs", integer(100, 120000))
                     .prop("pollMs", integer(50, 5000))

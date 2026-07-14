@@ -33,7 +33,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
  * {@code stringEnum("xz","xy")}, …). {@link Raw} is a migration-only escape hatch and is
  * intentionally outside {@link #CODEC} (rendered by {@code Schemas.render}).
  */
-public sealed interface Schema permits Schema.Obj, Schema.Str, Schema.Int, Schema.Num, Schema.Bool, Schema.Arr, Schema.Any {
+public sealed interface Schema permits Schema.Obj, Schema.Str, Schema.Int, Schema.Num, Schema.Bool, Schema.Arr, Schema.Any, Schema.Union {
 
     /** JSON-Schema {@code "type"} discriminator — drives {@link #CODEC}'s dispatch. */
     String typeName();
@@ -92,9 +92,21 @@ public sealed interface Schema permits Schema.Obj, Schema.Str, Schema.Int, Schem
                 Codec.STRING.optionalFieldOf("description").forGetter(a -> Optional.ofNullable(a.description()))
         ).apply(i, Any::decoded));
 
+        // Union renders "type" as a JSON ARRAY of primitive names (vs the six concrete
+        // kinds' single-string "type") — also outside the STRING-keyed dispatch above,
+        // so it's routed the same way as Any: by runtime class on encode. A full Codec
+        // (RecordCodecBuilder.create, not .mapCodec) so it exposes the 3-arg
+        // encode(A, ops, prefix) that Any's routing below relies on.
+        Codec<Union> union = RecordCodecBuilder.create(i -> i.group(
+                Codec.STRING.listOf().fieldOf("type").forGetter(Union::types),
+                Codec.STRING.optionalFieldOf("description").forGetter(u -> Optional.ofNullable(u.description()))
+        ).apply(i, Union::decoded));
+
         Encoder<Schema> encoder = new Encoder<Schema>() {
             @Override public <T> DataResult<T> encode(Schema input, DynamicOps<T> ops, T prefix) {
-                return (input instanceof Any a) ? any.encode(a, ops, prefix) : typed.encode(input, ops, prefix);
+                if (input instanceof Any a) return any.encode(a, ops, prefix);
+                if (input instanceof Union u) return union.encode(u, ops, prefix);
+                return typed.encode(input, ops, prefix);
             }
         };
         return Codec.of(encoder, typed);
@@ -246,5 +258,41 @@ public sealed interface Schema permits Schema.Obj, Schema.Str, Schema.Int, Schem
         @Override public String typeName() { return "any"; }
         String description() { return description; }
         static Any decoded(Optional<String> desc) { Any a = new Any(); desc.ifPresent(a::desc); return a; }
+    }
+
+    /**
+     * A union of JSON-Schema primitive types — renders {@code "type": ["integer","string","object"]}
+     * (a JSON ARRAY, unlike the six concrete kinds' single-string {@code "type"}).
+     *
+     * <p>Use where the consuming route code genuinely branches on runtime type
+     * ({@code instanceof Number}/{@code Map}/{@code String}/…) — i.e. more than one
+     * type is accepted, but not literally anything (see {@link Any} for that). This is
+     * the gap#67-④ fix: a typeless field (no {@code "type"} key at all) gets
+     * JSON-stringified by at least one MCP client before the value reaches
+     * {@code tools/call} (verified live: {@code target:99999} arrived server-side as
+     * {@code targetType:"minecraft:99999"} — the client re-serialized a bare number
+     * because the schema gave it no type to preserve). Declaring the accepted set lets
+     * the client keep the caller's JSON type across the wire.
+     *
+     * <p>Validation ({@code SchemaValidator}) accepts a value matching ANY declared
+     * member type, checked with the same shape rules as the six concrete kinds
+     * (enum/min/max don't apply to a union member — only the type check).
+     */
+    final class Union implements Schema {
+        private final List<String> types;   // ordered, e.g. ["integer","string","object"]
+        private String description;
+
+        public Union(List<String> types) { this.types = List.copyOf(Objects.requireNonNull(types)); }
+        public Union desc(String d) { this.description = d; return this; }
+
+        @Override public String typeName() { return "union"; }
+        List<String> types() { return types; }
+        String description() { return description; }
+
+        static Union decoded(List<String> types, Optional<String> desc) {
+            Union u = new Union(types);
+            desc.ifPresent(u::desc);
+            return u;
+        }
     }
 }

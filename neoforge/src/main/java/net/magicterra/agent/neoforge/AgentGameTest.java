@@ -2,6 +2,7 @@ package net.magicterra.agent.neoforge;
 
 import net.magicterra.agent.AgentDriverCommon;
 import net.magicterra.agent.client.internal.ClientChatLog;
+import net.magicterra.agent.mcp.ToolCatalog;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -49,6 +50,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import static net.magicterra.agent.neoforge.AgentGameTestSupport.*;
@@ -242,6 +244,64 @@ public final class AgentGameTest {
             throw new GameTestAssertException("gate did not re-arm for a second drive burst");
 
         helper.succeed();
+    }
+
+    /**
+     * Pure-CPU rendering matrix for gap#67-④: the 7 catalog sites that used to declare
+     * {@code any()} (a typeless schema — no {@code "type"} key at all) must now render a
+     * {@code Schema.Union} — {@code "type"} present as a JSON ARRAY of the accepted
+     * primitive names. Live repro that motivated this: {@code mc.bot.combat
+     * {target:99999}} (a JSON number) arrived server-side as
+     * {@code targetType:"minecraft:99999"} — an MCP client JSON-stringified the typeless
+     * value before tools/call, because the advertised schema gave it no type to
+     * preserve. Reads {@link ToolCatalog#tools()} directly (the exact object MCP
+     * tools/list serializes) — no world/client needed, so this runs synchronously here
+     * like {@link #inputReleaseGate}. No JS bridge reaches raw MCP tools/list (only
+     * tools/call is exposed to the Rhino suite), so this Java-level matrix is the
+     * rendering-side proof; SchemaValidator's accept/reject behavior for these same
+     * unions is covered by 65_schema_union.js.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void schemaUnionRendering(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("schemaUnionRendering")) { helper.succeed(); return; } // gt-filter
+
+        assertUnionType("mc.bot.combat", "target", List.of("integer", "string", "object"));
+        assertUnionType("mc.bot.goto", "hugShore", List.of("boolean", "object"));
+        assertUnionType("mc.bot.follow", "hugShore", List.of("boolean", "object"));
+        assertUnionType("mc.wait.condition", "value", List.of("object", "array", "string", "number", "boolean"));
+        assertUnionType("mc.skill", "args", List.of("object", "array", "string", "number", "boolean"));
+        assertUnionType("mc.events", "data", List.of("object", "array", "string", "number", "boolean"));
+        assertUnionType("mc.events", "value", List.of("object", "array", "string", "number", "boolean"));
+
+        helper.succeed();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void assertUnionType(String toolName, String propName, List<String> expectedTypes) {
+        Map<String, Object> tool = null;
+        for (Map<String, Object> t : ToolCatalog.tools()) {
+            if (toolName.equals(t.get("name"))) { tool = t; break; }
+        }
+        if (tool == null) throw new GameTestAssertException("tool not found in ToolCatalog.tools(): " + toolName);
+
+        Object inputSchemaObj = tool.get("inputSchema");
+        if (!(inputSchemaObj instanceof Map<?, ?> inputSchema))
+            throw new GameTestAssertException(toolName + ": inputSchema not an object: " + inputSchemaObj);
+        Object propsObj = inputSchema.get("properties");
+        if (!(propsObj instanceof Map<?, ?> props))
+            throw new GameTestAssertException(toolName + ": inputSchema.properties not an object: " + propsObj);
+        Object propSchemaObj = props.get(propName);
+        if (!(propSchemaObj instanceof Map<?, ?> propSchema))
+            throw new GameTestAssertException(toolName + "." + propName + ": property schema not an object: " + propSchemaObj);
+
+        Object type = propSchema.get("type");
+        if (type == null)
+            throw new GameTestAssertException(toolName + "." + propName + ": inputSchema has NO \"type\" key "
+                    + "(typeless any() — this is the gap#67-④ defect: an MCP client will JSON-stringify the "
+                    + "value before tools/call). Full property schema: " + propSchema);
+        if (!(type instanceof List<?> typeList) || !typeList.equals(expectedTypes))
+            throw new GameTestAssertException(toolName + "." + propName + ": type must be " + expectedTypes
+                    + ", got " + type);
     }
 
     /**

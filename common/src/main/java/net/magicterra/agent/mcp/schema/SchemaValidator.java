@@ -60,7 +60,32 @@ public final class SchemaValidator {
                     check(arr.items(), list.get(idx), path + "[" + idx + "]", out);
                 }
             }
+            case Schema.Union u -> {
+                boolean matched = false;
+                for (String t : u.types()) {
+                    if (matchesType(t, value)) { matched = true; break; }
+                }
+                if (!matched) {
+                    out.add(at(path) + "must be one of types " + u.types() + ", got " + kind(value));
+                }
+            }
         }
+    }
+
+    /** Shape check for one JSON-Schema primitive name, used by {@link Schema.Union}'s
+     *  member-wise OR. Same rules as the concrete node kinds (integer tolerates an
+     *  integral double; "null" is unreachable — an explicit null short-circuits at the
+     *  top of {@link #check} before any node is inspected). */
+    private static boolean matchesType(String type, Object value) {
+        return switch (type) {
+            case "integer" -> integralOf(value) != null;
+            case "number"  -> value instanceof Number;
+            case "string"  -> value instanceof String;
+            case "boolean" -> value instanceof Boolean;
+            case "object"  -> value instanceof Map;
+            case "array"   -> value instanceof List;
+            default -> false;   // "null" (unreachable here) or an unrecognized name
+        };
     }
 
     private static void checkObj(Schema.Obj o, Object value, String path, List<String> out) {
