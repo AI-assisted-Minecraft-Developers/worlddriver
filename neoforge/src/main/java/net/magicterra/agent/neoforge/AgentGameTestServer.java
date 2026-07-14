@@ -3536,6 +3536,18 @@ public final class AgentGameTestServer {
                 "grace still counting -> yield");
         check.accept(!net.magicterra.agent.bot.auto.AutoTool.shouldYield(2, -1, 0),
                 "first tick (no lastAuto yet) -> proceed");
+        // Arm/decrement/expire sequence (stepGrace): an armed grace of N yields N ticks
+        // total, and — regression lock — a zero/negative config must clamp to a
+        // single-tick grace that EXPIRES (returns 0), not load 0 and decrement to -1
+        // (which skips the ==0 expiry forever and wedges AutoTool in a permanent yield).
+        check.accept(net.magicterra.agent.bot.auto.AutoTool.stepGrace(0, 100) == 99,
+                "fresh arm with config 100 -> 99 left after this tick");
+        check.accept(net.magicterra.agent.bot.auto.AutoTool.stepGrace(1, 100) == 0,
+                "last armed tick -> 0 = expired, re-arms cleanly");
+        check.accept(net.magicterra.agent.bot.auto.AutoTool.stepGrace(0, 0) == 0,
+                "config 0 clamps to single-tick grace that expires (no -1 wedge)");
+        check.accept(net.magicterra.agent.bot.auto.AutoTool.stepGrace(0, -7) == 0,
+                "negative config clamps to single-tick grace that expires (no wedge)");
     }
 
     @GameTest(template = "empty", timeoutTicks = 100000)

@@ -32,11 +32,21 @@ public final class AutoTool {
         return lastAuto != -1 && selectedNow != lastAuto;
     }
 
+    /** Advance the grace countdown one yielding tick (pure, matrix-testable): a fresh
+     *  external change ({@code graceLeft == 0}) arms {@code configTicks} clamped to >=1.
+     *  Without the clamp, a zero/negative config (settable live over the settings
+     *  reflection channel) would load 0, decrement to -1, and never hit the {@code == 0}
+     *  expiry again — wedging AutoTool in a permanent yield. Returns the new graceLeft;
+     *  0 = expired (caller re-arms {@code lastAutoSelected}). */
+    public static int stepGrace(int graceLeft, int configTicks) {
+        if (graceLeft == 0) graceLeft = Math.max(1, configTicks);  // fresh external change
+        return graceLeft - 1;
+    }
+
     public static void tick(Minecraft mc, LocalPlayer p) {
         Inventory inv = p.getInventory();
         if (shouldYield(inv.selected, lastAutoSelected, graceLeft)) {
-            if (graceLeft == 0) graceLeft = BotConfig.manualSlotGraceTicks;  // fresh external change
-            graceLeft--;
+            graceLeft = stepGrace(graceLeft, BotConfig.manualSlotGraceTicks);
             if (graceLeft == 0) lastAutoSelected = -1;   // grace expired: re-arm cleanly
             return;
         }

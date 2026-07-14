@@ -902,7 +902,9 @@ public final class BotConfig {
      *  selection after detecting an external actor (setHotbarSlot RPC / human scroll)
      *  changed the slot it last wrote — without this, AutoTool re-clobbers the slot on
      *  the very next tick whenever the crosshair is on a breakable block, so an external
-     *  slot switch right before a placement/useItem call silently loses the race. */
+     *  slot switch right before a placement/useItem call silently loses the race.
+     *  Values <=1 degrade to a single-tick grace (the arm clamps to >=1, so a zero or
+     *  negative live setting can never wedge the yield loop). */
     public static volatile int manualSlotGraceTicks = 100;
 
     /** Baritone {@code BackfillProcess} analogue — when on, the bot tracks
