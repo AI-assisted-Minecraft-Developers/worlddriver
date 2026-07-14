@@ -85,6 +85,17 @@ public final class PathFinder {
      *  costs more CPU in repropagation than the path-time it buys. */
     private static final double MIN_IMPROVEMENT = 0.1;
 
+    /** Max ground loss a last-resort escape node may carry over the start when the
+     *  search stopped on BUDGET rather than exhausting the graph — a budget-stopped
+     *  escape may move sideways around the pocket but not walk meaningfully AWAY
+     *  from the goal (gap#63: raw farthest-node commits ran a deep-cave bot 75
+     *  blocks the wrong way per repath, drift churn). DIST is in blocks against a
+     *  concrete {@link Goal#targetPos} (straight-line — immune to the Chebyshev
+     *  estimate's free lateral drift inside the goal's Y-span); H is the cost-unit
+     *  fallback (~10/block) for open goals whose estimate is the ground metric. */
+    private static final double ESCAPE_DIST_SLACK = 2;
+    private static final double ESCAPE_H_SLACK = 20;
+
     /** How many node expansions between wall-clock checks in a time-sliced search.
      *  Small enough that a slice can't overshoot {@code sliceMs} by much even when
      *  each expansion is doing slow world/chunk access, large enough that the
@@ -197,6 +208,25 @@ public final class PathFinder {
         // across a NE cave web, goal SW, hDelta=0 → goto FAILED in a cave pocket).
         private Node bestEscape;
         private double bestEscapeD2;
+        // Ground-holding escape: farthest walkable node whose heuristic is no more than
+        // ESCAPE_H_SLACK worse than the start's — "leave the pocket WITHOUT losing ground
+        // toward the goal". This is the only escape a BUDGET-stopped search may commit
+        // (gap#63): with open nodes left, "every reachable cell heads away" is an artifact
+        // of the cap, not of the terrain, and committing the raw farthest node walked the
+        // bot 75 blocks the wrong way per repath (drift churn). The unrestricted
+        // bestEscape stays reserved for a genuinely exhausted graph (open set empty).
+        private Node bestEscapeSafe;
+        private double bestEscapeSafeD2;
+        // Ground-holding ruler for bestEscapeSafe. The heuristic is the WRONG ruler
+        // for "did this node lose ground": Goal.Block's Chebyshev makes any lateral
+        // drift within the goal's Y-span h-free (dy=40 → ~40 blocks of sideways
+        // wander reads as zero loss). When the goal has a concrete target cell,
+        // measure true straight-line distance instead: a safe escape node may sit at
+        // most ESCAPE_DIST_SLACK blocks farther from the target than the start.
+        // Open goals (XZ / YLevel / RunAway — targetPos null) keep the h ruler,
+        // where their own estimate IS the ground metric. -1 = use the h fallback.
+        private final BlockPos escapeTarget;
+        private final double escapeSafeMaxD2;
         private final boolean startInWater;
         private final Node startNode;
         /** Move-set pruned to the catalog entries that can fire under this search's
@@ -233,6 +263,10 @@ public final class PathFinder {
             this.start = start;
             this.startInWater = world.isWater(start);
             this.goal = goal;
+            this.escapeTarget = goal.targetPos();
+            double maxD = escapeTarget == null ? -1
+                    : Math.sqrt(start.distSqr(escapeTarget)) + ESCAPE_DIST_SLACK;
+            this.escapeSafeMaxD2 = maxD < 0 ? -1 : maxD * maxD;
             // A2a: pull the per-intent capability gate + edge constraints off the
             // enclosing PathFinder's profile BEFORE the move-filter loop below reads
             // `capability` — both are final fields, so ordering here is load-bearing.
@@ -749,12 +783,24 @@ public final class PathFinder {
                     // start (pillar-up / dig-up). Score = h biased slightly toward greater
                     // height, so it prefers a node that climbed AND advanced toward the goal
                     // (lower h); on an h-tie (a straight-up pillar leaves the XZ estimate
-                    // unchanged) it prefers the highest rung, gaining the most vantage. Only
-                    // for Y-agnostic XZ goals — there "over the obstacle toward the column"
-                    // is the intent; a Y-aware goal guides height via its own 3D heuristic.
+                    // unchanged) it prefers the highest rung, gaining the most vantage.
+                    // Tracked for Y-agnostic XZ goals ("over the obstacle toward the column")
+                    // AND for a concrete target meaningfully ABOVE the start (gap#63): a
+                    // deep-cave bot under a surface goal has no goal-ward horizontal segment
+                    // within budget, and the lateral safe-escape just wanders the cave — the
+                    // convergent move is UP (height is monotone across the re-plan chain, so
+                    // a climb commit per repath ratchets toward the goal instead of orbiting
+                    // it). Y-aware goals BELOW or level keep their own 3D heuristic guidance.
                     // Inert unless the bot can place/break (else no climbed node exists), so
                     // the headless GameTest view (canPlace=false, breakCost=∞) never trips it.
-                    if (goal.ignoresY() && cur.pos.getY() > start.getY()) {
+                    // (Dry starts only for the Y-aware case: a water start already has its
+                    // own climb-out triage — bestAshore first, bestClimb as the surfacing
+                    // fallback — and feeding it Y-aware climb candidates let a 2-block
+                    // bobbing "climb" preempt a reachable shore: riverSheerBankArena RED.)
+                    boolean climbWanted = goal.ignoresY()
+                            || (!startInWater && escapeTarget != null
+                                && escapeTarget.getY() >= start.getY() + MIN_CLIMB_ESCAPE);
+                    if (climbWanted && cur.pos.getY() > start.getY()) {
                         double climbScore = cur.h - 0.01 * (cur.pos.getY() - start.getY());
                         if (climbScore < bestClimbScore) {
                             bestClimbScore = climbScore;
@@ -762,11 +808,32 @@ public final class PathFinder {
                         }
                     }
                     // Track the farthest reachable node for the last-resort escape
-                    // commit (see chooseSegment) — direction-agnostic on purpose.
-                    double escD2 = cur.pos.distSqr(start);
-                    if (escD2 > bestEscapeD2) {
-                        bestEscapeD2 = escD2;
-                        bestEscape = cur;
+                    // commit (see chooseSegment) — direction-agnostic on purpose, but
+                    // WALKABLE-ONLY (no break edge anywhere on the path): "physically
+                    // leave the dead pocket" means walking/swimming/pillaring out of a
+                    // cave network. A node reached by MINING is not an escape vantage —
+                    // and with breaks priced in, the farthest node under a budget cap in
+                    // uniform rock is always the straight-DOWN drill (1 break/cell vs
+                    // 2-3 lateral/up): gap#59's 69-block shaft under two UP-goals.
+                    // Sealed in solid rock this leaves bestEscape null → "no path" →
+                    // the futile-search backoff (#50) owns the failure, fail-stop.
+                    if (!cur.dug) {
+                        double escD2 = cur.pos.distSqr(start);
+                        if (escD2 > bestEscapeD2) {
+                            bestEscapeD2 = escD2;
+                            bestEscape = cur;
+                        }
+                        // Ground-holding variant (gap#63): eligible for a BUDGET-stopped
+                        // commit only if it hasn't lost more than ~2 blocks toward the goal
+                        // (true distance for concrete targets, h for open goals — see
+                        // the escapeSafeMaxD2 field note).
+                        boolean holdsGround = escapeSafeMaxD2 >= 0
+                                ? cur.pos.distSqr(escapeTarget) <= escapeSafeMaxD2
+                                : cur.h <= startNode.h + ESCAPE_H_SLACK;
+                        if (holdsGround && escD2 > bestEscapeSafeD2) {
+                            bestEscapeSafeD2 = escD2;
+                            bestEscapeSafe = cur;
+                        }
                     }
 
                     if (expanded >= maxNodes) { stopCause = "maxNodes(" + maxNodes + ")"; break; }
@@ -949,8 +1016,22 @@ public final class PathFinder {
             // way around. Oscillation is bounded by the stuck-penalties + anti-spin.
             // Unreachable only via hard-cap exhaustion: hasCommittableSegment()
             // deliberately ignores bestEscape, so soft-commit can never fire on it.
-            if (bestEscape != null && bestEscapeD2 > (long) MIN_DIST_PATH * MIN_DIST_PATH) {
+            // gap#63 split: the ANY-DIRECTION escape is only trustworthy when the
+            // graph is truly EXHAUSTED (open set empty — "away" is provably the only
+            // move). A search that merely ran out of BUDGET (open nodes left) may
+            // only commit the ground-holding variant: with nodes still unexplored,
+            // "everything heads away" is an artifact of the cap, and committing the
+            // raw farthest node ran the live bot 75 blocks the wrong way per repath
+            // (deep-cave drift churn, deaths #6/#7 window). No safe escape either →
+            // null → the #50 futile backoff owns the fail-stop and the policy layer
+            // re-plans (staged hops proved out live).
+            if (bestEscapeSafe != null && bestEscapeSafeD2 > (long) MIN_DIST_PATH * MIN_DIST_PATH) {
                 segmentReason = "escape-farthest";
+                return bestEscapeSafe;
+            }
+            if (open.isEmpty()
+                    && bestEscape != null && bestEscapeD2 > (long) MIN_DIST_PATH * MIN_DIST_PATH) {
+                segmentReason = "escape-farthest-exhausted";
                 return bestEscape;
             }
             segmentReason = "none";
@@ -1107,10 +1188,20 @@ public final class PathFinder {
         Move.Edge edge;     // the edge used to reach this node (null for start)
         double g, h, f;
         boolean closed;
+        /** True when ANY edge on the path to this node breaks a block. The last-resort
+         *  escape-farthest commit only considers {@code !dug} nodes: "leave the dead
+         *  pocket" means a WALKABLE (walk/swim/pillar) exit — with break moves priced
+         *  in, the farthest-g node in uniform rock is always straight DOWN (1 break/cell
+         *  vs 2-3 lateral/up), which is how gap#59 drilled a 69-block shaft under two
+         *  UP-goals (live 2026-07-13). Note {@code parent.dug} is read at construction:
+         *  a later cheaper re-parenting can in principle clear a parent's flag, but a
+         *  stale {@code true} here only makes escape-farthest MORE conservative. */
+        final boolean dug;
         Node(BlockPos pos, Node parent, Move.Edge edge, double g, double h) {
             this.pos = pos;
             this.parent = parent;
             this.edge = edge;
+            this.dug = parent != null && (parent.dug || (edge != null && !edge.toBreak.isEmpty()));
             this.g = g;
             this.h = h;            // raw (admissible) heuristic — best-effort selection reads this
             // Weighted A*: ordering key inflates h by W so the frontier drives harder

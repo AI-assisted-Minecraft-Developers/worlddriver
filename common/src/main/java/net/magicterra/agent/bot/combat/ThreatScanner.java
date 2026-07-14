@@ -1,6 +1,7 @@
 package net.magicterra.agent.bot.combat;
 
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -38,10 +39,13 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class ThreatScanner {
     private ThreatScanner() {}
 
-    /** A scored hostile. {@code entity} is kept so chains can act on it directly. */
+    /** A scored hostile. {@code entity} is kept so chains can act on it directly.
+     *  {@code attackedMe} = this entity is the player's most recent damager (vanilla
+     *  {@code getLastDamageSource()} 40-tick window) — the one signal that makes a
+     *  non-{@code Enemy} mob (angered wolf/bee/…) a threat. */
     public record Threat(Entity entity, int id, String type, double distance,
                          boolean canSeeMe, boolean facingMe, boolean charging,
-                         double score, float creeperSwell) {}
+                         double score, float creeperSwell, boolean attackedMe) {}
 
     /** An in-flight projectile heading roughly at the player. */
     public record Incoming(Entity entity, int id, String type, Vec3 pos, Vec3 vel,
@@ -99,6 +103,18 @@ public final class ThreatScanner {
         Vec3 myEye = player.getEyePosition();
         AABB myBody = player.getBoundingBox().inflate(0.35);
 
+        // The player's most recent damager (vanilla 40-tick window, maintained on
+        // BOTH sides: server hurt(), client handleDamageEvent). Being hit is the
+        // highest-confidence threat signal there is, so the attacker joins the scan
+        // even when it isn't an Enemy — angered NEUTRAL mobs (wolf/bee/polar bear)
+        // never implement Enemy and were invisible to every reflex chain (gap #55).
+        int attackerId = -1;
+        DamageSource lastSrc = player.getLastDamageSource();
+        if (lastSrc != null && lastSrc.getEntity() instanceof LivingEntity le
+                && le != player && le.isAlive()) {
+            attackerId = le.getId();
+        }
+
         List<Threat> threats = new ArrayList<>();
         List<Incoming> incoming = new ArrayList<>();
         for (Entity e : lvl.getEntities(player, box, x -> true)) {
@@ -113,7 +129,8 @@ public final class ThreatScanner {
             // ~20-tick death animation (isAlive()=false, still instanceof Zombie),
             // and a dead mob is no threat — exclude it so reflexes and the combat
             // loop (and mc.observe.threats) see a cleared field the moment it dies.
-            if (!(e instanceof Enemy) || !(e instanceof LivingEntity) || !e.isAlive()) continue;
+            boolean attackedMe = e.getId() == attackerId;
+            if ((!(e instanceof Enemy) && !attackedMe) || !(e instanceof LivingEntity) || !e.isAlive()) continue;
 
             double dist = Math.sqrt(e.distanceToSqr(px, py, pz));
             boolean canSee = lineOfSight(lvl, e, myEye);
@@ -121,7 +138,11 @@ public final class ThreatScanner {
             boolean charging = (e instanceof RangedAttackMob) && facing && canSee;
             float swell = (e instanceof Creeper c) ? c.getSwelling(1f) : 0f;
             double score = score(e, dist, radius, canSee, charging, swell);
-            threats.add(new Threat(e, e.getId(), typeId(e), dist, canSee, facing, charging, score, swell));
+            // "It just hit me" outranks any passive proximity read: floor + boost so
+            // the attacker wins target selection over an idle mob that merely stands
+            // closer, while a swelling creeper can still take over.
+            if (attackedMe) score = Math.min(1.0, Math.max(score, 0.5) + 0.25);
+            threats.add(new Threat(e, e.getId(), typeId(e), dist, canSee, facing, charging, score, swell, attackedMe));
         }
         threats.sort(Comparator.comparingDouble((Threat t) -> t.score).reversed());
         return new Scan(List.copyOf(threats), List.copyOf(incoming));
@@ -196,6 +217,7 @@ public final class ThreatScanner {
             m.put("facingMe", t.facingMe());
             m.put("charging", t.charging() ? "bow" : "none");
             m.put("creeperSwell", (double) t.creeperSwell());
+            m.put("attackedMe", t.attackedMe());
             m.put("threat", t.score());
             threats.add(m);
         }

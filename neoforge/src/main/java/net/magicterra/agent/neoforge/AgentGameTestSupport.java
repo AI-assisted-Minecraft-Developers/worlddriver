@@ -61,15 +61,29 @@ import java.util.concurrent.atomic.AtomicReference;
 final class AgentGameTestSupport {
     private AgentGameTestSupport() {}
 
-    /** Shared {@code AGENT_GT_ONLY} solo-run filter: when the env var names a
-     *  DIFFERENT test, succeed immediately and return true so the caller bails.
-     *  Replaces the per-test copied guard line (which read getenv twice and
-     *  hand-maintained a name string a typo silently turns into a false
-     *  green). New tests use this; the legacy inline copies migrate as their
-     *  files get touched. */
-    static boolean gtSkip(GameTestHelper helper, String name) {
+    /** Shared {@code AGENT_GT_ONLY} run filter: unset = run everything; otherwise a
+     *  COMMA-SEPARATED list of test names to run (a single name is just a one-element
+     *  list). Everything else succeeds immediately so the run only contains the named
+     *  subset.
+     *
+     *  <p>The list form is what lets a SUBSET be run together — needed to tell a real
+     *  algorithmic failure apart from arenas contending over the shared body (gap #48):
+     *  run the historically-"flaky" arenas as a group and see whether the failure set
+     *  still drifts between identical runs. A single-name filter can never show that,
+     *  and the full suite is too slow to repeat. */
+    static boolean gtOnlySkips(String name) {
         String only = System.getenv("AGENT_GT_ONLY");
-        if (only == null || only.equalsIgnoreCase(name)) return false;
+        if (only == null) return false;
+        for (String want : only.split(",")) {
+            if (want.trim().equalsIgnoreCase(name)) return false;
+        }
+        return true;
+    }
+
+    /** {@link #gtOnlySkips} + the {@code helper.succeed()} the caller would otherwise
+     *  hand-copy. Returns true when the caller should bail out of the test body. */
+    static boolean gtSkip(GameTestHelper helper, String name) {
+        if (!gtOnlySkips(name)) return false;
         helper.succeed();
         return true;
     }

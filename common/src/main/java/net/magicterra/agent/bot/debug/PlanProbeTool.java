@@ -117,6 +117,18 @@ public final class PlanProbeTool {
         BlockPos end = path.isEmpty() ? start : path.get(path.size() - 1);
         double hStart = goal.estimate(start);
         double hEnd = goal.estimate(end);
+        // Committed-path elevation profile — the discriminator for descent-goto lethal
+        // falls (task#36): maxStepDrop = the largest single-node Y decrease the PLANNER
+        // routed. A pure walkable staircase keeps every step-down small (≈ survivableFall
+        // capped); a large maxStepDrop means the planner itself committed a cliff drop.
+        // yProfile is a compact per-node absolute-Y trail (read as a side elevation) so a
+        // staircase (graded) is visually distinguishable from a plunge. Read-only.
+        int maxStepDrop = 0;
+        List<Integer> yProfile = new java.util.ArrayList<>(path.size());
+        for (int k = 0; k < path.size(); k++) {
+            yProfile.add(path.get(k).getY());
+            if (k > 0) maxStepDrop = Math.max(maxStepDrop, path.get(k - 1).getY() - path.get(k).getY());
+        }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("ok", true);
         out.put("start", xyz(start));
@@ -132,6 +144,8 @@ public final class PlanProbeTool {
         out.put("hEnd", Math.round(hEnd));
         out.put("hDelta", Math.round(hEnd - hStart));   // <0 = forward progress, >=0 = backward/lateral
         out.put("forward", hEnd < hStart - 1e-6);
+        out.put("maxStepDrop", maxStepDrop);            // task#36 discriminator: planner-routed single-node Y drop (blocks)
+        out.put("yProfile", yProfile);                  // per-node absolute Y along committed path (side elevation)
         return out;
     }
 

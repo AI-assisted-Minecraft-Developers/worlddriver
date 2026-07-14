@@ -188,7 +188,16 @@ public final class BotInteract {
         return sp;
     }
 
-    /** Swap to the best hotbar tool for a block (mirrors MineProcess.selectBestTool). */
+    /** Swap to the best tool for a block, pulling from the FULL inventory. Scans the
+     *  hotbar first (a plain select), then the MAIN inventory (menu slots 9-35): a
+     *  strictly-better tool stranded off-hotbar is SWAPped into the hotbar (prefer an
+     *  empty slot, else the held slot) — mirrors the pillar-block reach in
+     *  {@link #ensureHoldingPillarBlock}. Without the main-inventory reach a bot whose
+     *  crafted pickaxes overflowed the hotbar mines stone BARE-HANDED (5× slower); the
+     *  slow break trips the Walker's stall clock, which re-picks and re-aims at an
+     *  adjacent block before the first finishes — the "东挖一下西挖一下、不等挖完视角就
+     *  切走" churn (live 2026-07-11: two stone_pickaxes stranded in slots 33/34 while
+     *  the bot held cobblestone; the escape carve then timed out on bare-hand stone). */
     public static void selectBestToolFor(Minecraft mc, BlockPos pos) {
         LocalPlayer p = mc.player;
         Level lvl = mc.level;
@@ -204,6 +213,8 @@ public final class BotInteract {
                     .lookupOrThrow(Registries.ENCHANTMENT)
                     .getOrThrow(Enchantments.EFFICIENCY);
         } catch (Exception ignored) { eff = null; }
+        // Baseline = currently held item; a candidate wins if it is correct-for-drops
+        // when the current isn't, or an equal-correctness faster one.
         int bestSlot = -1;
         float bestSpeed = effSpeed(inv.getSelected(), bs, eff);
         boolean bestCorrect = inv.getSelected().isCorrectToolForDrops(bs);
@@ -217,6 +228,32 @@ public final class BotInteract {
                 bestSpeed = sp;
                 bestCorrect = cor;
             }
+        }
+        // Main inventory (menu slots 9-35): find a tool that beats the best hotbar
+        // option, seeded from the post-hotbar-scan best so we only swap when it is a
+        // real upgrade (no needless swaps when the hotbar already holds an adequate tool).
+        AbstractContainerMenu menu = p.inventoryMenu;
+        int bestMainMenuSlot = -1;
+        float mainSpeed = bestSpeed;
+        boolean mainCorrect = bestCorrect;
+        for (int ms = 9; ms <= 35; ms++) {
+            ItemStack stk = menu.getSlot(ms).getItem();
+            if (stk.isEmpty()) continue;
+            float sp = effSpeed(stk, bs, eff);
+            boolean cor = stk.isCorrectToolForDrops(bs);
+            if ((cor && !mainCorrect) || (cor == mainCorrect && sp > mainSpeed)) {
+                bestMainMenuSlot = ms;
+                mainSpeed = sp;
+                mainCorrect = cor;
+            }
+        }
+        if (bestMainMenuSlot >= 0 && mc.gameMode != null) {
+            int hb = inv.selected;                                          // default: swap into the held slot
+            for (int h = 0; h < 9; h++) if (inv.items.get(h).isEmpty()) { hb = h; break; }  // prefer empty (keep tools)
+            mc.gameMode.handleInventoryMouseClick(menu.containerId, bestMainMenuSlot, hb, ClickType.SWAP, p);
+            inv.selected = hb;
+            if (p.connection != null) p.connection.send(new ServerboundSetCarriedItemPacket(hb));
+            return;
         }
         if (bestSlot >= 0 && bestSlot != inv.selected) {
             inv.selected = bestSlot;
@@ -304,18 +341,7 @@ public final class BotInteract {
         // climb (live replay 2026-06-24: ~28 drift-stalls/climb with the cobble stranded in slot 9 → 2
         // once it was reachable). Pull it to the hotbar via a SWAP click (mirrors AutoEquip's inv→hotbar
         // swap). InventoryMenu slots: 9-35 = main inventory, 36-44 = hotbar.
-        AbstractContainerMenu menu = p.inventoryMenu;
-        for (int ms = 9; ms <= 35; ms++) {
-            if (!isPillarBlock(menu.getSlot(ms).getItem())) continue;
-            int hb = inv.selected;                                       // default: swap into the held slot
-            for (int h = 0; h < 9; h++) if (inv.items.get(h).isEmpty()) { hb = h; break; }  // prefer empty (keep tools)
-            if (mc.gameMode != null)
-                mc.gameMode.handleInventoryMouseClick(menu.containerId, ms, hb, ClickType.SWAP, p);
-            inv.selected = hb;
-            if (p.connection != null) p.connection.send(new ServerboundSetCarriedItemPacket(hb));
-            return isPillarBlock(inv.getSelected());
-        }
-        return false;
+        return swapFromMainInv(mc, p, BotInteract::isPillarBlock);
     }
 
     /** First hotbar slot (0-8) holding {@code item}, or -1. */
@@ -325,18 +351,46 @@ public final class BotInteract {
         return -1;
     }
 
-    /** Swap the selected hotbar slot to one holding {@code item}; false if none. */
+    /** Hold {@code item}: select it in the hotbar, else pull it from the MAIN
+     *  inventory via a swap click. The old hotbar-only version made every
+     *  placement verb silently no-op once the item drifted past slot 8 — the
+     *  live 2026-07-13 "craft fails with a crafting_table in slot 9" wall, the
+     *  same #27 family as bare-hand mining with pickaxes stranded in slot 33. */
     public static boolean ensureHolding(Minecraft mc, Item item) {
         LocalPlayer p = mc.player;
         if (p == null) return false;
         Inventory inv = p.getInventory();
         if (inv.getSelected().getItem() == item) return true;
         int s = hotbarSlotOf(p, item);
-        if (s < 0) return false;
-        inv.selected = s;
-        if (p.connection != null) p.connection.send(
-                new ServerboundSetCarriedItemPacket(s));
-        return true;
+        if (s >= 0) {
+            inv.selected = s;
+            if (p.connection != null) p.connection.send(
+                    new ServerboundSetCarriedItemPacket(s));
+            return true;
+        }
+        return swapFromMainInv(mc, p, stk -> stk.getItem() == item)
+                && inv.getSelected().getItem() == item;
+    }
+
+    /** Pull the first main-inventory stack matching {@code want} into the hotbar
+     *  via a SWAP click and select it (the {@link #ensureHoldingPillarBlock}
+     *  survival path, extracted). InventoryMenu slots: 9-35 = main inventory,
+     *  36-44 = hotbar. Prefers an empty hotbar slot so tools are kept. */
+    public static boolean swapFromMainInv(Minecraft mc, LocalPlayer p,
+                                          java.util.function.Predicate<ItemStack> want) {
+        Inventory inv = p.getInventory();
+        AbstractContainerMenu menu = p.inventoryMenu;
+        for (int ms = 9; ms <= 35; ms++) {
+            if (!want.test(menu.getSlot(ms).getItem())) continue;
+            int hb = inv.selected;                                       // default: swap into the held slot
+            for (int h = 0; h < 9; h++) if (inv.items.get(h).isEmpty()) { hb = h; break; }  // prefer empty (keep tools)
+            if (mc.gameMode != null)
+                mc.gameMode.handleInventoryMouseClick(menu.containerId, ms, hb, ClickType.SWAP, p);
+            inv.selected = hb;
+            if (p.connection != null) p.connection.send(new ServerboundSetCarriedItemPacket(hb));
+            return want.test(inv.getSelected());
+        }
+        return false;
     }
 
     /** Place a block into {@code cell} by clicking a solid neighbour's face.
@@ -349,6 +403,13 @@ public final class BotInteract {
         for (Direction d : order) {
             BlockPos support = cell.offset(d.getStepX(), d.getStepY(), d.getStepZ());
             if (w.isSolid(support)) {
+                // Never click an interactive support (furnace/table/chest …): the
+                // right-click OPENS ITS GUI instead of placing, and the open screen
+                // paralyses every input channel (gap #58, live death #3). Try the
+                // next face — a plain-block support usually exists.
+                if (mc.level != null
+                        && net.magicterra.agent.bot.BotConfig.isInteractiveBlock(
+                                mc.level.getBlockState(support).getBlock())) continue;
                 clientUseItemOn(mc, p, support, d.getOpposite());   // face points from support back at cell
                 return;
             }

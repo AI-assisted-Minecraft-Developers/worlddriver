@@ -39,6 +39,8 @@ public final class AgentDriverNeoForge {
             event.register(AgentGameTestServer.class);
             event.register(AgentGameTestWaterBank.class);
             event.register(AgentGameTestWaterCross.class);
+            event.register(AgentGameTestCombatSense.class);
+            event.register(AgentGameTestBuildBlock.class);
         });
         AgentDriverCommon.LOG.info("[{}] NeoForge entry constructed", AgentDriverCommon.MOD_ID);
     }

@@ -1,5 +1,6 @@
 package net.magicterra.agent.api;
 
+import net.magicterra.agent.bot.util.ItemSnap;
 import net.magicterra.agent.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -63,6 +64,7 @@ final class ApiSupport {
         m.put("empty", false);
         m.put("id", BuiltInRegistries.ITEM.getKey(s.getItem()).toString());
         m.put("count", s.getCount());
+        ItemSnap.putWear(m, s);
         return m;
     }
 

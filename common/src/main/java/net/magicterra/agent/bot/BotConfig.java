@@ -31,6 +31,32 @@ public final class BotConfig {
     /** Walker total-tick safety budget; if no progress within this many ticks, fail. */
     public static volatile int walkerTotalTickBudget = 1200;
 
+    /** Consecutive completed A* searches with NO goal-distance improvement AND no bot
+     *  displacement (>2 blocks) before the Walker fails the journey as unreachable
+     *  (gap #49-③). The tick budget above bounds the same loop, but it counts TICKS
+     *  while each churn cycle burns a full search (live: 129 searches / ~36 s of A* CPU
+     *  inside the 62 s wait; an arena with big slices stretched the same loop past
+     *  9 minutes) — this counts the searches themselves, ends the journey in seconds,
+     *  and reports a reason the agent can tell apart from a transient stall ("no route
+     *  progress" vs "no progress for N ticks"). Real journeys reset the counter every
+     *  time the bot moves >2 blocks or the best goal distance improves. Each futile
+     *  search also arms a short exponential repath backoff so the wait itself stops
+     *  burning CPU. 0 disables both. */
+    public static volatile int walkerFutileSearchCap = 5;
+
+    /** Stride floor-guard (gap #53, the 2026-07-12 survival death; same family as #51):
+     *  while GROUNDED and dry, if the cell one stride ahead along the drive heading has no
+     *  floor within {@link #pathfinderMaxDryFall}+1 below — a drop the planner can never
+     *  have routed (Fall.valid caps at maxDryFall), so the exposure is always UNPLANNED —
+     *  hold vanilla sneak (its maybeBackOffFromEdge pins the body at the edge) and, when a
+     *  placeable is in inventory and allowPlace is on, plug the well mouth so the crossing
+     *  becomes real (backfill-as-you-go, the Baritone MovementPillar behaviour). The live
+     *  death: stairUpBreak dug two hollow columns and routed an UP node across the first
+     *  one's open mouth; the #36 brake only checks the drive TARGET's dY (+1, up), never
+     *  the real drop under the stride — the body fell 10 blocks and died. Planned descents
+     *  (waypoint below foot in the stride column) and parkour launches are exempt. */
+    public static volatile boolean walkerStrideFloorGuard = true;
+
     /** Yaw delta below this is not written each tick — reduces jitter when already aligned. */
     public static volatile float walkerYawHysteresisDeg = 5f;
 
@@ -100,6 +126,14 @@ public final class BotConfig {
      *  the body is on a vine with a non-ascending immediate node. Default OFF; flip ON via
      *  {@code mc.bot.setting} for the inlet vine-bob A/B. */
     public static volatile boolean walkerVineDescentDrop = true;
+
+    /** Break back a crafting table {@code mc.bot.craft} placed itself, once the craft ends
+     *  (gap #276). Without this the table is abandoned where it stood: 4 planks burned at
+     *  every craft site, and the world littered with tables. Only ever breaks a table THIS
+     *  craft placed — a table found already standing (village, player base) is borrowed and
+     *  left exactly as it was. Reclaim is best-effort: if it can't finish, the craft's own
+     *  result stands unchanged. Default ON; turn OFF to leave placed tables as landmarks. */
+    public static volatile boolean craftReclaimTable = true;
 
     /** Vertical band (+/-) of mine scans around the player's foot Y. */
     public static volatile int mineSearchVerticalRadius = 8;
@@ -777,6 +811,14 @@ public final class BotConfig {
      *  callable from both client and dedicated-server WorldViews. */
     public static boolean isUsableBuildBlock(net.minecraft.world.level.block.Block block) {
         if (block instanceof net.minecraft.world.level.block.FallingBlock) return false;
+        // Interactive blocks are resources, not dirt. Placing one both spends a
+        // crafted station as filler AND booby-traps every later place-click against
+        // it: right-click on a menu block OPENS ITS GUI instead of placing, and an
+        // open screen swallows all movement input (gap #57/#58 — live death #3:
+        // the walker plugged with the bot's fresh furnace, re-clicked it, and the
+        // FurnaceScreen paralysed the engine while a zombie chewed). Safety-class
+        // rejection: applies even under a buildBlockWhitelist.
+        if (isInteractiveBlock(block)) return false;
         net.minecraft.world.level.block.state.BlockState st = block.defaultBlockState();
         if (!st.blocksMotion()) return false;
         Set<String> wl = buildBlockWhitelist;
@@ -796,6 +838,19 @@ public final class BotConfig {
         return st.isFaceSturdy(
                 net.minecraft.world.level.EmptyBlockGetter.INSTANCE, net.minecraft.core.BlockPos.ZERO,
                 net.minecraft.core.Direction.UP);
+    }
+
+    /** A block whose use-click opens a GUI (block-entity holders + the menu-opening
+     *  work-station family). Shared by {@link #isUsableBuildBlock} (never place one
+     *  as filler) and the walker's place actuator (never CLICK one as a support —
+     *  the click opens the GUI instead of placing; gap #57/#58). */
+    public static boolean isInteractiveBlock(net.minecraft.world.level.block.Block block) {
+        return block instanceof net.minecraft.world.level.block.EntityBlock
+                || block instanceof net.minecraft.world.level.block.CraftingTableBlock
+                || block instanceof net.minecraft.world.level.block.SmithingTableBlock
+                || block instanceof net.minecraft.world.level.block.CartographyTableBlock
+                || block instanceof net.minecraft.world.level.block.FletchingTableBlock
+                || block instanceof net.minecraft.world.level.block.LoomBlock;
     }
 
     /** Like {@link #isUsableBuildBlock} but ALSO accepts FallingBlocks (sand/gravel) — for a
@@ -1117,6 +1172,17 @@ public final class BotConfig {
      *  move — hence lethal-only here never blocks a legitimate planned step-down. */
     public static volatile boolean lethalEdgeBrake = true;
 
+    /** Health at/below which the Walker goes CAREFUL: sprint is suppressed (sprint
+     *  momentum is the drift amplifier behind every unplanned fall) and the
+     *  lethal-edge sneak pin is KEPT across planned descents instead of releasing
+     *  (the release bets the body lands exactly on the planned cell; at low HP that
+     *  bet is fatal — survivableFall shrinks to 3-4 blocks, so residual walk/jump
+     *  drift past the lip onto a deeper drop kills). A pinned descent stalls, the
+     *  stuck detector repaths, the bot lives. Survival DEATH #3 (2026-07-11):
+     *  HP=1 flee through cave terrain, executor drift, "hit the ground too hard".
+     *  0 disables. */
+    public static volatile double lowHealthCareful = 6.0;
+
     /** VERTICAL step-pointer re-sync — the vertical analogue of the horizontal
      *  OVERSHOOT_RESYNC. When the bot is GROUNDED but its step-pointer node is beyond a
      *  single jump vertically (|foot.y − node.y| ≥ 2, EITHER sign), the foot is laterally
@@ -1244,6 +1310,47 @@ public final class BotConfig {
      *  shore-walk / river crossing is merely walked (not sprinted) along the deep edge.
      *  <p>Default decided by live A/B at the replay-0008台. Flip via {@code mc.bot.setting}. */
     public static volatile boolean walkerDeepWaterDriftBrake = true;
+
+    /** DRY sibling of {@link #walkerDeepWaterDriftBrake} (task#36): latches the
+     *  {@code steepDescentNear} sprint-drop across the airborne sub-arcs of a step-down descent.
+     *  The raw brake is gated onGround, so on the airborne half of each step sprint re-arms and
+     *  the accumulated FORWARD momentum walks the body off a survivable-but-deep (&gt;4,
+     *  &lt;survivableFall) lip into a fatal cumulative fall — live 2026-07-11 Mountains massif,
+     *  telemetry-confirmed (grounded sprint=false at the lip, onG=false→sprint=true on every fall
+     *  tick, body crept over a 19-block lip to death). With the latch on, sprint stays suppressed
+     *  through the whole descent so momentum can't build over the lip. Drop-sprint only (no pin),
+     *  so a gentle ≤4 staircase (no deep drop adjacent) is a byte-identical no-op. Flip via
+     *  {@code mc.bot.setting} for live A/B. */
+    public static volatile boolean walkerSteepDescentLatch = true;
+
+    /** Descent step-skip SNEAK-brake (task#36). The planner is HARD-capped at
+     *  {@link #pathfinderMaxDryFall} per single node, so a grounded body can never legitimately
+     *  have its drive target (wp = path.get(step)) more than that many blocks below the foot —
+     *  read-only {@code mc.debug.plan} of the fatal Mountains descent routes a clean ≤4 staircase
+     *  all the way down (maxStepDrop=4). Yet live the executor advances {@code step} DOWN the
+     *  staircase ahead of the body (arc-length advance runs the pointer forward along the
+     *  descending path while the feet are still up top): grounded foot y94 while wp=y83 (11 below).
+     *  The drive then aims the body forward+DOWN at that far node and residual sprint momentum
+     *  LAUNCHES it off the stair edge into a cumulative fatal fall (2026-07-11 Mountains,
+     *  deterministic). Unlike the sprint-only {@link #walkerSteepDescentLatch}, this holds vanilla
+     *  SNEAK (maybeBackOffFromEdge clamps the whole movement delta so the body cannot step off a
+     *  block edge, yet still steps DOWN one block at a time).
+     *  <p><b>REPURPOSED — AIRBORNE forward-drift clamp (task#36, 2026-07-12).</b> The original
+     *  grounded gate was proven a literal NO-OP (the far-below wp only appears airborne; grounded
+     *  max(foot.Y-wp.Y) is exactly 4.0). The flag now gates the ISOLABLE BACKUP half of the #36
+     *  fix: when the steep-descent latch ({@link #walkerSteepDescentLatch}) is armed and the body is
+     *  AIRBORNE over a descent, zero the forward drive ({@code driveF→0}, Walker ~line 4259) so the
+     *  body drops onto the near tread instead of sailing off the lip on {@code driveF=1}. The arming
+     *  half (cumulative path-lookahead → kills sprint) lives under {@code walkerSteepDescentLatch};
+     *  this clamp is the driveF-side backup.
+     *  <b>Default ON (2026-07-12).</b> Live Mountains A/B (regen off, same start/goal) settled it:
+     *  RED (both off) = 13 descent fall-damage (Fall A launch=8); arming-only (this OFF) = 9 (Fall A
+     *  STILL launched for 5 — sprint-kill alone sails off the lip); arming+clamp (this ON) = 2, no
+     *  launch. So the clamp is the decisive lever, not a backup — enabled by default. Airborne-only →
+     *  gravity still drops the body, so it can never stall/deadlock a descent (A/B: bot crossed every
+     *  lip and kept descending, no stall-at-lip). Flip OFF via {@code mc.bot.setting} to isolate the
+     *  arming half. */
+    public static volatile boolean walkerDescentStepSkipBrake = true;
 
     /** Walker drive fix for the "移动中向后跳 / 下坡往回看" backward lurch on a DISCRETE drop.
      *  The dry descent flip-rejection holds the steady trend heading while a fall/stepDown node

@@ -1,6 +1,9 @@
 package net.magicterra.agent.api;
 
 import net.magicterra.agent.bot.BotConfig;
+import net.magicterra.agent.bot.process.CraftProcess;
+import net.magicterra.agent.bot.util.AttackSnap;
+import net.magicterra.agent.bot.util.ItemSnap;
 import net.magicterra.agent.bot.world.AsciiMapRenderer;
 import net.magicterra.agent.bot.world.HazardCell;
 import net.magicterra.agent.bot.world.HazardField;
@@ -18,14 +21,15 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.monster.Enemy;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 
 import java.util.ArrayList;
-import net.minecraft.world.entity.EquipmentSlot;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -98,6 +102,7 @@ public final class ObserveApi {
                     Map<String, Object> slot = new LinkedHashMap<>();
                     slot.put("id", BuiltInRegistries.ITEM.getKey(s.getItem()).toString());
                     slot.put("count", s.getCount());
+                    ItemSnap.putWear(slot, s);
                     slots.add(slot);
                 }
                 out.put("slots", slots);
@@ -124,6 +129,17 @@ public final class ObserveApi {
                 if (!all.isEmpty()) pl = all.get(0);
             }
             if (pl == null) return Map.of("present", false);
+            return playerSnapshot(pl);
+        });
+    }
+
+    /**
+     * The body of {@link #player(String)}, split out so it can be driven against a
+     * {@link ServerPlayer} that is not in the {@code PlayerList} — a FakePlayer-backed
+     * avatar, which is exactly the carrier the gametest arenas use. Must be called on
+     * the server thread.
+     */
+    public Map<String, Object> playerSnapshot(ServerPlayer pl) {
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("present", true);
             out.put("name", pl.getGameProfile().getName());
@@ -186,6 +202,40 @@ public final class ObserveApi {
             for (int i = 0; i < 9; i++) hotbar.add(ApiSupport.itemSnapshot(pl.getInventory().getItem(i)));
             out.put("hotbar", hotbar);
             out.put("selectedSlot", pl.getInventory().selected);
+            // Melee cooldown of the held weapon. CombatProcess gates every swing on this
+            // (scale >= 1.0) but no verb ever reported it, so an agent swinging by hand via
+            // mc.bot.attackEntity (which does no cooldown check, by design) hit for a fraction
+            // of the weapon's damage with no way to know why. Same shape on the client.
+            out.put("attack", AttackSnap.snapshot(pl));
+            // Full inventory. Without it the agent saw 9 of 36 slots through THIS verb —
+            // three quarters of what the bot owns was invisible, so it could not tell
+            // whether it held the food/tool/blocks a decision turned on. The CLIENT
+            // snapshot (ClientObserve.observePlayer) has carried `inventory` all along;
+            // the server one never grew it — the same parity slip already recorded for
+            // `effects` a few lines up. It bites hardest exactly where there is no
+            // fallback: a client can also read every slot via mc.observe.container with
+            // the inventory screen open, but a server avatar cannot (a FakePlayer cannot
+            // open a menu), so for it this verb is the ONLY view of its own bag.
+            //
+            // Shape is deliberately byte-identical to the client's — same verb, same
+            // field, same rows — so an agent never has to know which side answered:
+            // non-empty rows only, vanilla Player.getInventory() indexing
+            // (0-8 hotbar, 9-35 main, 36-39 armor, 40 offhand).
+            List<Map<String, Object>> inv = new ArrayList<>();
+            Inventory pInv = pl.getInventory();
+            int totalSlots = pInv.items.size() + pInv.armor.size() + pInv.offhand.size();
+            for (int i = 0; i < totalSlots; i++) {
+                ItemStack st = pInv.getItem(i);
+                if (st == null || st.isEmpty()) continue;
+                Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("slot", i);
+                entry.put("id", BuiltInRegistries.ITEM.getKey(st.getItem()).toString());
+                entry.put("count", st.getCount());
+                ItemSnap.putWear(entry, st);
+                inv.add(entry);
+            }
+            out.put("inventory", inv);
+            out.put("items", CraftProcess.inventorySnapshot(pl));
             // Worn armor (head/chest/legs/feet) — lets the agent see its defensive
             // loadout + durability (Phase F equip + Boss prep read this).
             Map<String, Object> armor = new LinkedHashMap<>();
@@ -195,7 +245,6 @@ public final class ObserveApi {
             armor.put("feet", ApiSupport.itemSnapshot(pl.getItemBySlot(EquipmentSlot.FEET)));
             out.put("armor", armor);
             return out;
-        });
     }
 
     /**

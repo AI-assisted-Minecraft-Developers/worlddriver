@@ -7,6 +7,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
@@ -80,6 +81,31 @@ public final class ServerPlayerAvatar implements Avatar {
         }
     }
 
+    /** {@code LivingEntity.updatingUsingItem()} (PRIVATE, called only from {@code LivingEntity.tick()}).
+     *  It is the whole engine of a HELD use: it decrements {@code useItemRemaining} each tick and, at
+     *  zero, calls {@code completeUsingItem()} — the swallow of a bite, the drink, the release of a
+     *  fully-drawn bow. {@link #commandUseItem(boolean)} calls {@code startUsingItem}, which only ARMS
+     *  that countdown; with nothing advancing it, a server-side use begins and never ends
+     *  ({@code getTicksUsingItem()} stays 0 forever, so a bow also releases at zero charge and a shield
+     *  never reaches its 5-tick blocking threshold). One reflective call reproduces the entire vanilla
+     *  chain, including the protected {@code completeUsingItem}; reimplementing it by hand would fork
+     *  the eat/drink/release semantics. Null if the name ever changes — held uses then simply never
+     *  complete, exactly as before this fix, with no crash. */
+    private static final java.lang.reflect.Method USE_ITEM_TICK = resolveUseItemTick();
+
+    private static java.lang.reflect.Method resolveUseItemTick() {
+        try {
+            java.lang.reflect.Method m = net.minecraft.world.entity.LivingEntity.class
+                    .getDeclaredMethod("updatingUsingItem");
+            m.setAccessible(true);
+            return m;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            net.magicterra.agent.AgentDriverCommon.LOG.warn(
+                    "[ServerPlayerAvatar] updatingUsingItem not resolvable; server-side eat/drink/bow never complete", e);
+            return null;
+        }
+    }
+
     private float pendingLeft, pendingForward;
     private boolean pendingJump, pendingSneak;
     private BlockPos aimTarget;
@@ -97,9 +123,47 @@ public final class ServerPlayerAvatar implements Avatar {
 
     public ServerPlayerAvatar(FakePlayer fp) { this.fp = fp; }
 
-    /** Build a FakePlayer at {@code pos} in {@code level}, ready to drive. */
+    /**
+     * Build a FakePlayer at {@code pos} in {@code level}, ready to drive.
+     *
+     * <p>⚠️ SHARED BODY (gap #48): {@code getMinecraft(level)} is a per-LEVEL SINGLETON — every
+     * caller of THIS factory in a level shares one body. Production no longer rides it
+     * ({@code /agentserver} → {@link #createUnique}, one body per agent, guarded by the required
+     * {@code serverAgentDistinctBodiesArena}); the GameTest arenas deliberately still do — see
+     * {@link #createUnique}'s javadoc for the measured reason (suite-wide isolation surfaces
+     * cross-arena world/load couplings as drifting failures; that determinism problem belongs to
+     * the planned test-framework rework, not this factory). Consequence to keep in mind while the
+     * arenas share: a concurrent arena can steal/teleport this body, so a solo-RED arena can ride
+     * a neighbour's shove to a full-suite false green (proven twice: descentOvershootResync,
+     * descentDrift).
+     */
+    private static final java.util.concurrent.atomic.AtomicInteger BODY_SEQ =
+            new java.util.concurrent.atomic.AtomicInteger();
+
     public static ServerPlayerAvatar create(ServerLevel level, double x, double y, double z) {
-        FakePlayer fp = FakePlayerFactory.getMinecraft(level);
+        return init(FakePlayerFactory.getMinecraft(level), x, y, z);
+    }
+
+    /** Like {@link #create} but with a body of its OWN — a fresh unique GameProfile, so this
+     *  avatar can never be steered/teleported through another driver's shared singleton
+     *  (gap #48). Production {@code /agentserver} agents use this: two agents = two bodies.
+     *  The GameTest arenas stay on the shared {@link #create} for now — with per-arena
+     *  bodies every arena runs its full workload concurrently and the suite's OTHER
+     *  cross-arena couplings (shared world regions, server-thread load) surface as
+     *  required-test failures (measured 2026-07-12: 3 iso runs → failure sets {leash,
+     *  descentdrift,rpcsmoke}/{leash,descentdrift}/{leash,descentdrift,horizon,rpcsmoke},
+     *  139s vs 41s) — that determinism problem belongs to the planned custom test
+     *  framework, not to this factory. NOTE: {@code FakePlayerFactory.get} caches per
+     *  profile per level; each call mints a new entry that lives until level unload, fine
+     *  for the single-demo-agent command, revisit if agents get spawned in bulk. */
+    public static ServerPlayerAvatar createUnique(ServerLevel level, double x, double y, double z) {
+        String name = "agent-body-" + BODY_SEQ.incrementAndGet();
+        com.mojang.authlib.GameProfile profile = new com.mojang.authlib.GameProfile(
+                java.util.UUID.nameUUIDFromBytes(name.getBytes(java.nio.charset.StandardCharsets.UTF_8)), name);
+        return init(FakePlayerFactory.get(level, profile), x, y, z);
+    }
+
+    private static ServerPlayerAvatar init(FakePlayer fp, double x, double y, double z) {
         fp.setPos(x, y, z);
         fp.setDeltaMovement(Vec3.ZERO);
         fp.setYRot(0);
@@ -286,6 +350,129 @@ public final class ServerPlayerAvatar implements Avatar {
         fp.attack(target);   // server-authoritative: applies damage/knockback/crit directly
     }
 
+    /**
+     * Last stack seen in each slot, so a change can be detected the way vanilla detects it.
+     *
+     * <p>Keyed by the FAKEPLAYER, not held per-avatar: {@code FakePlayerFactory} hands the same
+     * FakePlayer back for the same profile, so a new {@code ServerAgentDriver} inherits the
+     * previous one's entity — and its attribute map. With a per-avatar record the fresh avatar
+     * starts with no memory, cannot remove modifiers it did not add, and the previous run's weapon
+     * bonus survives onto an empty hand. That is not hypothetical: the full suite caught it (a
+     * bare-handed swing measured 2.94 damage instead of 0.94, because an earlier arena's weapon was
+     * still on the attribute map). The record belongs to the entity that carries the state.
+     * Weak so a discarded FakePlayer is not pinned.
+     */
+    private static final java.util.Map<FakePlayer, java.util.EnumMap<EquipmentSlot, ItemStack>> EQUIP_MEMO =
+            java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
+
+    /**
+     * Move the equipped items' {@code ItemAttributeModifiers} onto the attribute map when the
+     * gear changes — gap #46.
+     *
+     * <p>Vanilla does this in {@code LivingEntity.detectEquipmentUpdates()}, which is PRIVATE and
+     * called only from {@code LivingEntity.tick()}. This avatar never gets it from either end:
+     * it deliberately runs {@code baseTick()} only (to avoid double-integrating physics), and
+     * NeoForge's {@code FakePlayer.tick()} is an empty method anyway — so calling {@code tick()}
+     * would not help. Without this the FakePlayer's ATTACK_DAMAGE / ATTACK_SPEED stay at the
+     * BARE-HANDED baseline no matter what it holds: measured, an iron sword dealt exactly as much
+     * as a fist (0.94) and recharged on the fist's 5-tick rhythm instead of 13. Server-mode melee
+     * was therefore ~7x weaker than the same bot on a client, and {@link Player#getAttackStrengthScale}
+     * — which CombatProcess gates every swing on — was measuring the wrong weapon.
+     *
+     * <p>Armor is included for the same reason, but note it changes nothing today: NeoForge's
+     * {@code FakePlayer.isInvulnerableTo} returns {@code true} unconditionally, so a server avatar
+     * cannot be damaged at all and its ARMOR value never gets consulted. Syncing every slot keeps
+     * one rule instead of a special case that would silently rot if that ever changes.
+     */
+    private void syncEquipmentAttributes() {
+        java.util.EnumMap<EquipmentSlot, ItemStack> lastEquipped =
+                EQUIP_MEMO.computeIfAbsent(fp, k -> new java.util.EnumMap<>(EquipmentSlot.class));
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            ItemStack now = fp.getItemBySlot(slot);
+            ItemStack was = lastEquipped.get(slot);
+            if (was != null && ItemStack.matches(was, now)) continue;   // unchanged: nothing to move
+            if (was != null && !was.isEmpty()) {
+                was.forEachModifier(slot, (attr, mod) -> {
+                    var inst = fp.getAttributes().getInstance(attr);
+                    if (inst != null) inst.removeModifier(mod.id());
+                });
+            }
+            if (!now.isEmpty()) {
+                now.forEachModifier(slot, (attr, mod) -> {
+                    var inst = fp.getAttributes().getInstance(attr);
+                    if (inst != null) { inst.removeModifier(mod.id()); inst.addTransientModifier(mod); }
+                });
+            }
+            lastEquipped.put(slot, now.copy());
+        }
+    }
+
+    /**
+     * The per-tick PLAYER bookkeeping that {@code Player.tick()} / {@code LivingEntity.tick()} do and
+     * {@code baseTick()} does not — gap #47.
+     *
+     * <p>This avatar deliberately runs {@code baseTick()} only (see {@link #step()}: it integrates
+     * locomotion by hand, so it must not let {@code aiStep()} integrate it a second time), and
+     * NeoForge's {@code FakePlayer.tick()} is an empty method — so EVERYTHING vanilla does in
+     * {@code tick()} outside {@code aiStep} is simply absent unless mirrored here. It was previously
+     * discovered one field at a time by whichever arena happened to trip over it (#45 the attack
+     * ticker, #46 the equipment attributes); this method is the enumeration, so the next omission is
+     * a line missing from a list rather than an ambush.
+     *
+     * <p>MIRRORED (vanilla order preserved — {@code updatingUsingItem} and {@code detectEquipmentUpdates}
+     * run in {@code LivingEntity.tick()} before {@code aiStep}; the ticker/cooldowns are the tail of
+     * {@code Player.tick()}):
+     * <ol>
+     *   <li>the held item-use countdown ({@link #USE_ITEM_TICK}) — without it eat/drink/bow never finish;</li>
+     *   <li>equipment → attribute modifiers ({@link #syncEquipmentAttributes()});</li>
+     *   <li>{@code attackStrengthTicker++} ({@link #ATTACK_TICKER}) — the melee recharge bar;</li>
+     *   <li>the main-hand SWAP reset: vanilla empties the recharge bar when the held ITEM changes
+     *       (damage/NBT changes don't count — hence {@code isSameItem}, not {@code matches}). Without
+     *       it an agent could bank a full bar on one weapon, switch to another and swing it at full
+     *       strength immediately — and {@code observe.player.attack} (gap #45) would report that
+     *       phantom full bar as fact;</li>
+     *   <li>{@code cooldowns.tick()} — ItemCooldowns (ender pearl, shield-disable, chorus fruit)
+     *       otherwise never expire, so the first use of such an item disables it permanently.</li>
+     * </ol>
+     *
+     * <p>DELIBERATELY NOT MIRRORED — these are capability cliffs of the server avatar, not oversights:
+     * <ul>
+     *   <li>{@code aiStep()}/{@code travel()} drive: {@link #step()} integrates movement by hand;
+     *       running vanilla's would double-integrate.</li>
+     *   <li>{@code foodData.tick()}: hunger would be a half-truth here. Exhaustion accrues in
+     *       {@code Player.aiStep}/{@code causeFoodExhaustion}, which this avatar never runs, so the
+     *       bot would never get hungry no matter what {@code foodData.tick()} did — and starvation
+     *       could not hurt it anyway (next bullet). The whole hunger/health dimension is absent, and
+     *       saying so is better than mirroring one visible half of it.</li>
+     *   <li>damage, health and every health-driven reflex: NeoForge's {@code FakePlayer.isInvulnerableTo}
+     *       returns {@code true} unconditionally — a server avatar cannot be hurt by anything. On top
+     *       of that {@link ServerAgentDriver} wires no reflex chains at all (no Retreat/Panic/Bunker/
+     *       Dodge/AutoHeal/AutoShield). The server agent is a TASK automaton, not a survivalist; treat
+     *       any survival guarantee on this path as absent until both of those change.</li>
+     *   <li>cosmetic/irrelevant server bookkeeping: swim amount, arrow/stinger counts, statistics,
+     *       cloak, container-menu validity.</li>
+     * </ul>
+     */
+    private void mirrorPlayerTick() {
+        if (USE_ITEM_TICK != null && fp.isUsingItem()) {
+            try { USE_ITEM_TICK.invoke(fp); }
+            catch (ReflectiveOperationException ignored) { /* held uses never complete; no crash */ }
+        }
+        // Read the previous main-hand BEFORE the sync overwrites the memo: this is the same
+        // `lastItemInMainHand` comparison vanilla makes, against the same per-entity record.
+        java.util.EnumMap<EquipmentSlot, ItemStack> memo = EQUIP_MEMO.get(fp);
+        ItemStack lastMain = memo == null ? ItemStack.EMPTY
+                : memo.getOrDefault(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+        syncEquipmentAttributes();
+        if (ATTACK_TICKER != null) {
+            try { ATTACK_TICKER.setInt(fp, ATTACK_TICKER.getInt(fp) + 1); }
+            catch (ReflectiveOperationException ignored) { /* fall back to one-shot */ }
+        }
+        // Vanilla order: the ticker is incremented first, then a swap zeroes it (Player.tick).
+        if (!ItemStack.isSameItem(lastMain, fp.getMainHandItem())) fp.resetAttackStrengthTicker();
+        fp.getCooldowns().tick();
+    }
+
     @Override public BodyCapabilities capabilities() { return BodyCapabilities.PLAYER; }
 
     @Override public boolean dbgForwardImpulse() { return pendingForward != 0; }
@@ -309,12 +496,9 @@ public final class ServerPlayerAvatar implements Avatar {
         // protective effects the harness grants the avatar in water arenas; none
         // of those effects alter locomotion.)
         fp.baseTick();
-        // Advance the melee attack-strength cooldown (see ATTACK_TICKER): baseTick()
-        // doesn't, and a non-level-ticked FakePlayer is never tick()'d by the server.
-        if (ATTACK_TICKER != null) {
-            try { ATTACK_TICKER.setInt(fp, ATTACK_TICKER.getInt(fp) + 1); }
-            catch (ReflectiveOperationException ignored) { /* fall back to one-shot */ }
-        }
+        // Everything Player.tick()/LivingEntity.tick() do that baseTick() skips, in one place —
+        // see mirrorPlayerTick() for the mirrored list AND the deliberate omissions (gap #47).
+        mirrorPlayerTick();
         boolean inWater = fp.isInWater();
 
         if (pendingJump) {

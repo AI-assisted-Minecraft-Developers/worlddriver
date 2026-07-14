@@ -85,6 +85,9 @@ final class SettingsSnapshot {
         snap.put("walkerPadRamBreak", BotConfig.walkerPadRamBreak);
         snap.put("walkerParkourAscendHold", BotConfig.walkerParkourAscendHold);
         snap.put("walkerDeepWaterDriftBrake", BotConfig.walkerDeepWaterDriftBrake);
+        snap.put("walkerSteepDescentLatch", BotConfig.walkerSteepDescentLatch);
+        snap.put("craftReclaimTable", BotConfig.craftReclaimTable);
+        snap.put("walkerDescentStepSkipBrake", BotConfig.walkerDescentStepSkipBrake);
         snap.put("walkerDescentFlipHold", BotConfig.walkerDescentFlipHold);
         snap.put("walkerWaterStepDownFloat", BotConfig.walkerWaterStepDownFloat);
         snap.put("walkerStepUpCrestReach", BotConfig.walkerStepUpCrestReach);

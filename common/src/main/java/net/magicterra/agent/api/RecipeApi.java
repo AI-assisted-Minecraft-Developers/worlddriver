@@ -1,6 +1,7 @@
 package net.magicterra.agent.api;
 
 import net.magicterra.agent.bot.process.AcquireResolver;
+import net.magicterra.agent.bot.process.CraftProcess;
 import net.magicterra.agent.bot.process.RecipeResolver;
 import net.magicterra.agent.model.Params;
 import net.minecraft.core.HolderLookup;
@@ -8,6 +9,8 @@ import net.minecraft.core.NonNullList;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
@@ -41,6 +44,17 @@ import java.util.Set;
 public final class RecipeApi {
     private final AgentApi api;
     RecipeApi(AgentApi api) { this.api = api; }
+
+    /** The bot's server player, or {@code null} when there is none (headless / not yet
+     *  joined). Used only to ask whether a crafting station is already within reach
+     *  (gap #275); a null player simply means "no station available", so the plan
+     *  includes acquiring one — the safe, self-sufficient default. Must be called on
+     *  the server thread. */
+    private ServerPlayer botPlayer() {
+        if (api.server == null) return null;
+        List<ServerPlayer> all = api.server.getPlayerList().getPlayers();
+        return all.isEmpty() ? null : all.get(0);
+    }
 
     // === mc.recipe.lookup ====================================================
 
@@ -114,7 +128,6 @@ public final class RecipeApi {
         String target = p.getNonBlank("target");
         if (target == null) return Map.of("ok", false, "error", "missing target");
         int count = p.getIntClamped("count", 1, 1, 4096);
-        Map<String, Integer> have = readHave(p);
         ServerLevel level = api.level();
         return api.onServerThread(() -> {
             ResourceLocation trl;
@@ -123,11 +136,16 @@ public final class RecipeApi {
             if (!BuiltInRegistries.ITEM.containsKey(trl)) {
                 return Map.of("ok", false, "error", "unknown item: " + target);
             }
+            Map<String, Integer> have = resolveHave(p, botPlayer());   // reads the bag: server thread only
             RecipeManager rm = level.getRecipeManager();
             HolderLookup.Provider ra = level.registryAccess();
             // Resolution lives in RecipeResolver (single source of truth): the verb
-            // serializes the plan to JSON; CraftProcess executes the same Jobs.
-            RecipeResolver.Plan plan = RecipeResolver.resolve(rm, ra, target, count, have);
+            // serializes the plan to JSON; CraftProcess executes the same Jobs. Pass the
+            // SAME world-aware station check CraftProcess uses (gap #275), so the plan we
+            // report is the plan that will run: beside a placed table the bot needs no
+            // new one, and reporting otherwise would call a feasible craft infeasible.
+            RecipeResolver.Plan plan = RecipeResolver.resolve(rm, ra, target, count, have,
+                    CraftProcess.availableStations(botPlayer(), level));
 
             List<Map<String, Object>> steps = new ArrayList<>();
             for (RecipeResolver.Job j : plan.jobs()) {
@@ -167,7 +185,6 @@ public final class RecipeApi {
         String target = p.getNonBlank("target");
         if (target == null) return Map.of("ok", false, "error", "missing target");
         int count = p.getIntClamped("count", 1, 1, 4096);
-        Map<String, Integer> have = readHave(p);
         ServerLevel level = api.level();
         return api.onServerThread(() -> {
             ResourceLocation trl;
@@ -176,9 +193,12 @@ public final class RecipeApi {
             if (!BuiltInRegistries.ITEM.containsKey(trl)) {
                 return Map.of("ok", false, "error", "unknown item: " + target);
             }
+            Map<String, Integer> have = resolveHave(p, botPlayer());   // reads the bag: server thread only
             RecipeManager rm = level.getRecipeManager();
             HolderLookup.Provider ra = level.registryAccess();
-            AcquireResolver.Plan plan = AcquireResolver.plan(rm, ra, target, count, have);
+            // Same world-aware station check as CraftProcess/mc.recipe.resolve (gap #275).
+            AcquireResolver.Plan plan = AcquireResolver.plan(rm, ra, target, count, have,
+                    CraftProcess.availableStations(botPlayer(), level));
 
             List<Map<String, Object>> steps = new ArrayList<>();
             for (AcquireResolver.Step s : plan.steps()) {
@@ -304,13 +324,36 @@ public final class RecipeApi {
         catch (RuntimeException e) { return null; }   // some dynamic recipes throw
     }
 
-    private Map<String, Integer> readHave(Params p) {
+    /**
+     * The stock the planner plans against.
+     *
+     * <p>OMITTED {@code have} means "plan for the bot as it actually is", so it reads the
+     * real bag through {@link CraftProcess#inventorySnapshot} — the very method the craft
+     * executor consumes from. Planner and executor must measure the same bag with the same
+     * ruler; when they don't, the plan is a plan for a different bot. That is gap #38's
+     * lesson (stations half) and this is its items half: with the old empty-map default a
+     * bot carrying 208 cobblestone was planned to go mine cobblestone.
+     *
+     * <p>An explicitly supplied map is a HYPOTHESIS and is used verbatim — including an
+     * explicit {@code {}}, which still means "suppose I had nothing". That keeps what-if
+     * planning available and leaves every caller that already passes {@code have}
+     * byte-for-byte unchanged; only the omitted case moves, and it moves from wrong to right.
+     *
+     * <p>A null bot (headless / not yet joined) falls back to empty — the same
+     * self-sufficient default {@link #botPlayer()} uses for stations.
+     *
+     * <p>Static and player-taking so a gametest can drive it against a FakePlayer, which is
+     * NOT in the {@code PlayerList} and therefore invisible to {@link #botPlayer()} (gap #41).
+     * Must be called on the server thread.
+     */
+    public static Map<String, Integer> resolveHave(Params p, Player bot) {
         Map<String, Integer> have = new LinkedHashMap<>();
-        Map<String, Object> raw = p.getMap("have");
-        if (raw != null) {
-            for (var e : raw.entrySet()) {
-                if (e.getValue() instanceof Number n) have.put(e.getKey(), n.intValue());
-            }
+        if (!p.present("have")) {
+            if (bot != null) have.putAll(CraftProcess.inventorySnapshot(bot));
+            return have;
+        }
+        for (var e : p.getMap("have").entrySet()) {
+            if (e.getValue() instanceof Number n) have.put(e.getKey(), n.intValue());
         }
         return have;
     }

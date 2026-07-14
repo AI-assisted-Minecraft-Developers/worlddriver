@@ -81,7 +81,17 @@ public final class AcquireResolver {
 
     public static Plan plan(RecipeManager rm, HolderLookup.Provider ra,
                             String target, int count, Map<String, Integer> have) {
-        RecipeResolver.Plan craftPlan = RecipeResolver.resolve(rm, ra, target, count, have);
+        return plan(rm, ra, target, count, have, Set.of());
+    }
+
+    /** As above, but {@code availableStations} names stations the caller can already
+     *  reach (e.g. {@code "crafting_table"} for a placed table in range) so the plan
+     *  doesn't include acquiring a redundant one — see
+     *  {@link CraftProcess#availableStations} (gap #275). */
+    public static Plan plan(RecipeManager rm, HolderLookup.Provider ra,
+                            String target, int count, Map<String, Integer> have,
+                            Set<String> availableStations) {
+        RecipeResolver.Plan craftPlan = RecipeResolver.resolve(rm, ra, target, count, have, availableStations);
         Map<String, String> smeltIndex = buildSmeltIndex(rm, ra);
 
         // Accumulate counts per item so repeats merge; build immutable Steps after.

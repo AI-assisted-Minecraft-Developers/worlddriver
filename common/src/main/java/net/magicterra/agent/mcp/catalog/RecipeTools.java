@@ -38,8 +38,7 @@ public final class RecipeTools {
                 "materials still missing. This is the planner you should call before crafting — it " +
                 "does the recipe-tree math (counts, yields, tag substitution, cycle/storage-pair " +
                 "detection) that's easy to get wrong by hand. " +
-                "Pass `have` (a map of itemId→count you already possess) so it only reports what you " +
-                "truly lack. Returns {ok, target, count, steps:[{craft, count, recipe, station, " +
+                "By default it plans against the bot's REAL inventory (pass `have` only to plan a hypothesis). Returns {ok, target, count, steps:[{craft, count, recipe, station, " +
                 "from}], missing:[{item, count}], stations_needed:[...]}. `steps` is dependency-" +
                 "ordered (make earlier steps first). `missing` is the leaf items with no recipe " +
                 "(mine/gather them); raw materials like diamond/iron never resolve to their storage " +
@@ -50,9 +49,12 @@ public final class RecipeTools {
                     .prop("count", integer(1, 4096)
                         .desc("How many to make (default 1)."))
                     .prop("have", object().additionalProperties(true)
-                        .desc("Map of itemId→count already in hand (dynamic item-id keys, " +
-                            "integer values); deducted before reporting missing. " +
-                            "Optional (default: have nothing).")) ),
+                        .desc("Map of itemId→count to plan against (dynamic item-id keys, integer " +
+                            "values); deducted before reporting missing. OMIT it and the planner " +
+                            "reads the bot's REAL bag — the same bag mc.bot.craft consumes from, so " +
+                            "plan and execution agree. Pass a map only to plan a HYPOTHESIS " +
+                            "(\"suppose I had these\"); an explicit {} means \"suppose I had " +
+                            "nothing\". mc.observe.player.items is emitted in exactly this shape.")) ),
 
             roTool("mc.plan.acquire",
                 "Goal-directed acquisition planner (Phase H): \"I want N of an item\" → a full, " +
@@ -61,7 +63,7 @@ public final class RecipeTools {
                 "ore→ingot smelting recipe whose input is mineable), farm (a vanilla crop), or mine " +
                 "(an ore that drops it, or a placeable block). Steps come out ordered mine+farm → " +
                 "smelt → craft, so you execute them top-to-bottom via mc.bot.mine/farm/smelt/craft. " +
-                "Pass `have` (itemId→count) to skip what you already own. Returns {ok, target, count, " +
+                "By default it plans against the bot's REAL inventory (pass `have` only for what-if planning). Returns {ok, target, count, " +
                 "feasible, steps:[{action:'mine'|'farm'|'smelt'|'craft', item, count, blocks?:[ore/" +
                 "block ids], input?:smelt input, station?, from?}], unobtainable:[{item,count}]}. " +
                 "`unobtainable` = leaves needing mob drops / trading / structures (hand back to " +
@@ -72,8 +74,10 @@ public final class RecipeTools {
                     .prop("count", integer(1, 4096)
                         .desc("How many (default 1)."))
                     .prop("have", object().additionalProperties(true)
-                        .desc("Map of itemId→count already in hand (dynamic item-id keys, " +
-                            "integer values); deducted first. Optional.")))
+                        .desc("Map of itemId→count to plan against (dynamic item-id keys, integer " +
+                            "values); deducted first. OMIT it and the planner reads the bot's REAL " +
+                            "bag (same source mc.bot.craft consumes from). Pass a map only to plan " +
+                            "a HYPOTHESIS; an explicit {} means \"suppose I had nothing\".")))
         );
     }
 }

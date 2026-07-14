@@ -65,6 +65,10 @@ public final class BotTools {
                 "  leashHard  {x,y,z,radius} — HARD tether: route may not leave the radius at all (firm twin of soft `leash`); " +
                 "if the bot falls outside the tether it routes straight back in (approach-only). " +
                 "Or entity:'name-or-type' → DYNAMIC anchor that follows the entity (带路: goto the destination + leash:{entity:'PlayerB'}).\n" +
+                "  column   {x,z,radius} — HARD XZ cylinder: the route may not leave `radius` of the (x,z) vertical " +
+                "line, but Y is free. Pair with a vertical goal (y:N / direction:'up'|'down') to force a straight " +
+                "pillar/dig up|down the START column (pass your own current x,z) instead of drifting sideways to cheap " +
+                "far-off air — the reliable-ascent recipe. radius ~1-2 pins the shaft; >0 required.\n" +
                 "  forbidWater  true → never route through water (hard prune; walking beside water stays fine).\n" +
                 "  forbidDig    true → never plan a block-breaking edge (per-goto allowBreak-off; a non-digging pillar/parkour stays allowed).\n" +
                 "  requireTool  'minecraft:iron_pickaxe' → fail this goto immediately unless the item is in inventory (equip is automatic when digging; mid-run loss is not monitored).\n" +
@@ -126,6 +130,10 @@ public final class BotTools {
                             .prop("x", number()).prop("y", number()).prop("z", number())
                             .prop("radius", number())
                             .prop("entity", string()))
+                    .prop("column", object()
+                            .prop("x", number()).prop("z", number()).prop("radius", number())
+                        .desc("Hard XZ cylinder around the (x,z) column line (Y free) — bind a "
+                            + "vertical goal to a fresh shaft up/down the start column."))
                     .prop("forbidWater", bool()
                         .desc("Never route through water (hard prune)."))
                     .prop("forbidDig", bool()
@@ -196,6 +204,9 @@ public final class BotTools {
                             .prop("radius", number())
                             .prop("entity", string()
                                 .desc("Ignored by follow — it already tracks an entity.")))
+                    .prop("column", object()
+                            .prop("x", number()).prop("z", number()).prop("radius", number())
+                        .desc("Hard XZ cylinder around the (x,z) column line (Y free)."))
                     .prop("forbidWater", bool()
                         .desc("Never route through water (hard prune)."))
                     .prop("forbidDig", bool()
@@ -282,7 +293,11 @@ public final class BotTools {
                 "applies weapon damage, cooldown, crit, sweep). Snaps yaw+pitch first. Spam by " +
                 "polling. Find ids via mc.query q='entities' or observe.player.hit.entityId. " +
                 "Returns {ok, entityId, type, alive, distance} or {ok:false, error}. " +
-                "No range/cooldown check — out-of-reach is silently ignored server-side.",
+                "No range/cooldown check — out-of-reach is silently ignored server-side, and a swing " +
+                "fired early still lands, just for a FRACTION of the weapon's damage (vanilla scales " +
+                "damage by the recharge bar, and a crit needs a full one). So read " +
+                "observe.player.attack first: swing when ready is true, otherwise wait cooldownTicks. " +
+                "Spamming this verb is not more DPS — it is the same DPS at a worse hit rate.",
                 object()
                     .req("entityId", integer().min(0)
                         .desc("Entity.getId() — find via mc.query q='entities' (rows include id) or observe.player.hit.entityId"))
@@ -336,6 +351,7 @@ public final class BotTools {
                 "  pathfinder.mobAvoidPenalty[0,1000]  dflt 40 — peak cost (at the mob) of an avoided mob, ramping to 0 at mobAvoidRadius\n" +
                 "  rangedAvoidRadius         [4,48]    dflt 16 — wider avoid radius for RANGED mobs (skeleton/witch) when avoidMobs is on, so flee/goto routes give them more berth than melee mobs\n" +
                 "  fleeDangerBoost           [1,20]    dflt 8  — while actively fleeing (runAway/retreat), multiply water+ledge danger by this so the flee won't dive into water or off a cliff\n" +
+                "  lowHealthCareful          [0,20]    dflt 6  — at or below this HP the walker suppresses sprint and keeps the lethal-edge sneak pin even across PLANNED descents (residual momentum near a survivable-planned ledge is the killer at low HP); 0 disables\n" +
                 "  smoothLook                bool      — pan camera over ticks (pathfinding + lookAt) for stream/demo instead of snapping; off by default\n" +
                 "  smoothLookDegPerTick      [1,180]   dflt 20 — turn rate when smoothLook on (20°/tick ≈ 400°/s)\n" +
                 "  walkerDebug               bool      — log per-tick Walker movement/break decisions to the client log (movement-bug instrumentation); off by default\n" +
@@ -344,6 +360,9 @@ public final class BotTools {
                 "  walkerPadRamBreak         bool      — break a LILY PAD a floating bot rams in an ADJACENT body-overlap column the head-on pad scan misses: a surface swimmer can straddle 4 XZ cells, and a pad off the heading axis blocks the body (hCol, hSpd≈0, attack stays false) until A* repaths (~13.5s). When CONFIRMED rammed in water (noStepProgressTicks past the gate) and nothing was found ahead, scan the body footprint cells at the surface for an instabreak obstruction and punch the nearest. Instabreak-only (lily pad / surface plant) so a real wall is never touched; inert on dry land / pad-free crossings. Off by default\n" +
                 "  walkerParkourAscendHold   bool      — hold the step-pointer on a RISING parkour leap until the feet have risen to its landing (grounded), like the pillarUp/parkourPlace gates, so the within/passed re-sync can't skip the un-executed leap and strand the bot on the +2 walk node above a water climb-out. On by default\n" +
                 "  walkerDeepWaterDriftBrake bool      — drop sprint when descending / walking ALONG a DEEP floating-water edge (≥2 deep, no floor) bordering the foot, so sprint momentum can't drift the body off the dry staircase into the pocket where a buoyant bot bob-stalls on the un-climbable surface. Never fires on deliberate water entry (planned node IS deep water) or a 1-deep splash. Drop-sprint only (no sneak-pin, so a planned step-down still proceeds). On by default\n" +
+                "  walkerSteepDescentLatch   bool      — DRY sibling of walkerDeepWaterDriftBrake (task#36): latch the steepDescentNear sprint-drop across the airborne sub-arcs of a step-down descent. The raw brake is gated onGround, so on the airborne half of each step sprint re-arms and forward momentum walks the body off a survivable-but-deep (>4, <survivableFall) lip into a fatal cumulative fall (live Mountains massif). Latched, sprint stays suppressed through the descent so momentum can't build over the lip. Drop-sprint only (no pin); a gentle ≤4 staircase is a no-op. On by default\n" +
+                "  walkerDescentStepSkipBrake bool     — descent step-skip SNEAK-brake (task#36 real fix): the planner is hard-capped at pathfinderMaxDryFall (=4) per node, so a grounded body can never legitimately have its drive target (wp=path.get(step)) more than that below the foot — yet the executor advances step DOWN the staircase ahead of the body (arc-length advance), aiming it forward+down at a far node and launching it off the stair edge into a fatal fall (grounded foot y94 while wp=y83). Holds vanilla sneak (edge-guard: can't step off a block edge but still steps down one at a time) + kills sprint on the same tick, so the bot safely down-steps the routed ≤4 staircase. Cannot deadlock (a ≤4 staircase keeps wp within maxDryFall → never fires). On by default\n" +
+                "  craftReclaimTable         bool      — break back a crafting table mc.bot.craft placed itself, once the craft ends (gap #276). Without it the table is abandoned where it stood: 4 planks burned at every craft site and the world littered with tables. Reclaims ONLY a table this craft placed — one found already standing (village, player base) is borrowed and left untouched. Best-effort: a reclaim that can't finish never changes the craft's own result. Runs on failure too (a craft that died after placing still littered a table). On by default\n" +
                 "  walkerDescentFlipHold     bool      — kill the '移动中向后跳 / 下坡往回看' backward lurch on a DISCRETE drop: when a fall/stepDown node sits >120° behind the steady descent trend (the bot landed 1 above & short of it, stuck in the step-advance dead-zone), HOLD the trend continuously instead of escaping to the backward node every 5th tick (which pushed the bot away from the node, growing cur2 until a repath). Continuous slopes (diagDown/parkourDescend) keep their bounded escape; safetyRepath still rescues a real wedge. Off by default\n" +
                 "  walkerWaterStepDownFloat  bool      — advance the step-pointer off a stepDown/fall/diagDown node that is a SHALLOW WATER-SURFACE foothold (water at node, SOLID floor below, head not water) once the buoyant bot has grounded vertically AT it but pinned ~0.74 b short of centre (cur2≈0.55, just over the 0.45 reach gate — buoyancy + the water-climb jump ram it and it can't walk the last fraction in). Treats arrival at the surface cell as reaching the node (relaxed reach), gated on a confirmed stall so a clean approach advances normally first. Dry step-downs, deep floating-water landings, and climb/walk/parkour edges are inert. Off by default\n" +
                 "  walkerStepUpCrestReach    bool      — advance the step-pointer off a +1 stepUp/diagUp CREST node (a diagonal-staircase plateau lip) the DRY body has topped out on (foot risen to the node's Y, |dyNode|<0.5) but ORBITS, pinning cur2 at ~0.49-1.2 just over the 0.45 reach gate so `within` never fires and `passed` never reads the next node strictly closer while circling — the step freezes ~25-51 ticks (live -633,80,318, deterministic). No actuator catches it (ascentRamSlide needs node >=2 above a grounded foot; the bot is +1 above, airborne, no hCol). Treats the apex arrival as reaching the node (relaxed reach 1.3), gated on a confirmed stall so a clean fast stepUp advances normally first. A not-yet-topped climb (|dyNode|>=0.5), a non-ascent edge, and every in-water case are inert. Off by default\n" +
@@ -467,6 +486,7 @@ public final class BotTools {
                     .prop("pathfinder.mobAvoidPenalty", number())
                     .prop("rangedAvoidRadius",          integer())
                     .prop("fleeDangerBoost",            number())
+                    .prop("lowHealthCareful",           number())
                     .prop("smoothLook",                 bool())
                     .prop("smoothLookDegPerTick",       number())
                     .prop("walkerDebug",                bool())
@@ -475,6 +495,9 @@ public final class BotTools {
                     .prop("walkerPadRamBreak",          bool())
                     .prop("walkerParkourAscendHold",    bool())
                     .prop("walkerDeepWaterDriftBrake",  bool())
+                    .prop("walkerSteepDescentLatch",    bool())
+                    .prop("craftReclaimTable",          bool())
+                    .prop("walkerDescentStepSkipBrake", bool())
                     .prop("walkerDescentFlipHold",      bool())
                     .prop("walkerWaterStepDownFloat",   bool())
                     .prop("walkerStepUpCrestReach",     bool())

@@ -8,6 +8,7 @@ import net.magicterra.agent.bot.pathfinder.CapabilityProfile;
 import net.magicterra.agent.bot.pathfinder.CostModifier;
 import net.magicterra.agent.bot.pathfinder.PathFinder;
 import net.magicterra.agent.bot.pathfinder.SearchProfile;
+import net.magicterra.agent.bot.pathfinder.constraints.ColumnRadius;
 import net.magicterra.agent.bot.pathfinder.constraints.LeashHardRadius;
 import net.magicterra.agent.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.agent.bot.pathfinder.constraints.NoWater;
@@ -46,7 +47,7 @@ public final class AgentGameTestBias {
 
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void avoidRegionDetourArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"avoidRegionDetourArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("avoidRegionDetourArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int x0 = 700, z0 = 700, y = 240;
         // 7-wide (dz -3..3) flat stone lane along +x from (x0,z0) to (x0+20,z0) — wide
@@ -114,7 +115,7 @@ public final class AgentGameTestBias {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void digUpYArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"digUpYArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("digUpYArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int x0 = 1700, z0 = 1700, base = 230, top = 240, targetY = 241;
 
@@ -171,7 +172,7 @@ public final class AgentGameTestBias {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void digDownYArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"digDownYArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("digDownYArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int x0 = 1600, z0 = 1600, top = 240, targetY = 234;
 
@@ -233,6 +234,109 @@ public final class AgentGameTestBias {
     }
 
     /**
+     * Deterministic proof of the new {@code ColumnRadius} hard XZ-cylinder constraint — the
+     * fix for the ascent-drift gap. A {@code Goal.YLevel} is XZ-blind (h = 10*|dy|), so A*
+     * gains Y by whatever is cheapest and drifts sideways to a cheap pre-existing ramp
+     * instead of pillaring the start column (the soft {@code LeashAnchor} can't hold it, and
+     * the spherical {@code LeashHardRadius} would prune the ascent — its dy² term makes every
+     * climb "leave" the anchor). Geometry: a start column with open air above (cobblestone in
+     * hand → PillarUp available) AND a cheap solid staircase leading +X/+Y (StepUp 15/rung <
+     * PillarUp 30/rung), so PLAIN planning to a YLevel above takes the staircase and DRIFTS +8
+     * in X (baseline gate — proves the drift reproduces). Planning WITH
+     * {@code ColumnRadius(startXZ, 0.9)} prunes every out-of-column successor, so the ONLY
+     * route to the level is a straight pillar up the start column: the plan must still REACH
+     * the level AND every node must stay within the radius (containment — the assertion drift
+     * itself would fail, so a no-op constraint can't rubber-stamp it).
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void columnRadiusArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("columnRadiusArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int x0 = 2000, z0 = 2000, base = 230, rungs = 8, targetY = base + rungs + 1;
+
+        // Defensive clear (residue guard): a generous box over the whole staircase + column.
+        for (int dx = -2; dx <= rungs + 2; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                for (int dy = 0; dy <= rungs + 6; dy++)
+                    level.setBlockAndUpdate(new BlockPos(x0 + dx, base + dy, z0 + dz), Blocks.AIR.defaultBlockState());
+
+        // Start floor at (x0, base); feet at base+1. Open air above the whole column → PillarUp.
+        level.setBlockAndUpdate(new BlockPos(x0, base, z0), Blocks.STONE.defaultBlockState());
+        // Cheap staircase +X/+Y: floor block at (x0+k, base+k), k=1..rungs. Each rung is a
+        // StepUp (15) from the previous; walking all 8 lands feet at (x0+8, base+9)=targetY,
+        // drifted +8 in X — cheaper than 8 PillarUps (30 each) straight up the start column.
+        for (int k = 1; k <= rungs; k++)
+            level.setBlockAndUpdate(new BlockPos(x0 + k, base + k, z0), Blocks.STONE.defaultBlockState());
+
+        BlockPos start = new BlockPos(x0, base + 1, z0);
+        ServerPlayerAvatar av = ServerPlayerAvatar.create(level, x0 + 0.5, base + 1, z0 + 0.5);
+        FakePlayer fp = av.fakePlayer();
+        fp.getInventory().clearContent();
+        fp.getInventory().add(new ItemStack(Items.IRON_PICKAXE));
+        fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));   // pillar blocks → canPlace()
+        fp.getInventory().selected = 0;
+        LevelWorldView w = new LevelWorldView(level, fp);
+
+        double cx = x0 + 0.5, cz = z0 + 0.5;
+        // radius admits ONLY the start-column cell (its distSqXZ to the centre is 0.5); the
+        // first lateral neighbour is distSqXZ 1.0 > 0.81 = radius², so it's pruned.
+        final double radius = 0.9;
+
+        // BotConfig is GLOBAL — pin place/break ON for the plan (PillarUp needs canPlace), restore after.
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;
+        try {
+            PathFinder.Result plain = new PathFinder(w, SearchProfile.NONE)
+                    .findPath(start, new Goal.YLevel(targetY));
+            SearchProfile column = new SearchProfile(List.of(), CapabilityProfile.ALL,
+                    List.of(new ColumnRadius(cx, cz, radius)));
+            PathFinder.Result held = new PathFinder(w, column)
+                    .findPath(start, new Goal.YLevel(targetY));
+
+            double plainMaxXZ = maxPathXZDist(plain, cx, cz);
+            double heldMaxXZ = maxPathXZDist(held, cx, cz);
+            AgentDriverCommon.LOG.info(
+                    "[columnRadiusArena] plain.goalReached={} plainMaxXZ={} maxPathY(plain)={} | "
+                    + "held.goalReached={} heldMaxXZ={} maxPathY(held)={}",
+                    plain.goalReached(), plainMaxXZ, AgentGameTestSupport.maxPathY(plain),
+                    held.goalReached(), heldMaxXZ, AgentGameTestSupport.maxPathY(held));
+
+            if (!plain.goalReached() || plainMaxXZ <= radius)
+                throw new GameTestAssertException(
+                        "baseline: PLAIN plan did not drift out of the start column (reached="
+                        + plain.goalReached() + " maxXZ=" + plainMaxXZ + " radius=" + radius
+                        + ") — arena geometry wrong, the ascent-drift bug is not reproduced");
+            if (!held.goalReached() || AgentGameTestSupport.maxPathY(held) < targetY)
+                throw new GameTestAssertException(
+                        "ColumnRadius over-pruned: constrained plan did NOT reach YLevel(" + targetY
+                        + ") up the start column (reached=" + held.goalReached()
+                        + " maxY=" + AgentGameTestSupport.maxPathY(held) + ")");
+            if (heldMaxXZ > radius + 1e-6)
+                throw new GameTestAssertException(
+                        "ColumnRadius did NOT contain the ascent: a planned node strayed "
+                        + heldMaxXZ + " from the start column (radius=" + radius + ") — path=" + held.path());
+            helper.succeed();
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+        }
+    }
+
+    /** Max Euclidean XZ distance of any planned node from the column centre (cx,cz) — the
+     *  containment metric for {@link #columnRadiusArena}, matching {@code ColumnRadius}'s
+     *  cell-centre (x+0.5, z+0.5) convention. */
+    private static double maxPathXZDist(PathFinder.Result r, double cx, double cz) {
+        double max = 0;
+        if (r == null || r.path() == null) return max;
+        for (BlockPos p : r.path()) {
+            double dx = (p.getX() + 0.5) - cx, dz = (p.getZ() + 0.5) - cz;
+            max = Math.max(max, Math.sqrt(dx * dx + dz * dz));
+        }
+        return max;
+    }
+
+    /**
      * Deterministic proof of the A2a per-intent {@code CapabilityProfile} move-type gate:
      * two flat platforms separated by a single missing-floor column spanning the FULL lane
      * width (dz -1..1), so there is no walk-around and the only physical crossing is a
@@ -244,7 +348,7 @@ public final class AgentGameTestBias {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void parkourGateArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"parkourGateArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("parkourGateArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int x0 = 1400, z0 = 1400, y = 240;
 
@@ -302,7 +406,7 @@ public final class AgentGameTestBias {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void yFloorConstraintArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"yFloorConstraintArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("yFloorConstraintArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int x0 = 1400, z0 = 1450, y = 240;
 
@@ -359,7 +463,7 @@ public final class AgentGameTestBias {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void leashHardArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"leashHardArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("leashHardArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int x0 = 1400, z0 = 1500, y = 240;
 
@@ -422,7 +526,7 @@ public final class AgentGameTestBias {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void forbidWaterArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"forbidWaterArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("forbidWaterArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int x0 = 1800, z0 = 1800, y = 240;
         final int stripLo = 5, stripHi = 6;
@@ -501,7 +605,7 @@ public final class AgentGameTestBias {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void forbidDigArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"forbidDigArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("forbidDigArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int x0 = 1900, z0 = 1900, top = 240, targetY = 234;
 
@@ -570,7 +674,7 @@ public final class AgentGameTestBias {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void shorelineHugArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"shorelineHugArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("shorelineHugArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int x0 = 2100, z0 = 2100, y = 240;
 
@@ -667,7 +771,7 @@ public final class AgentGameTestBias {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void shorelineSmootherArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"shorelineSmootherArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("shorelineSmootherArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int x0 = 2200, z0 = 2200, y = 240;
         AgentDriverCommon.LOG.info("[shorelineSmootherArena] START");   // entry probe: a frozen
@@ -784,5 +888,149 @@ public final class AgentGameTestBias {
                 for (int dy = 0; dy >= -1; dy--)
                     if (w.isWater(p.offset(dx, dy, dz))) return true;
         return false;
+    }
+
+    /**
+     * gap#59 (live 2026-07-13): a budget-capped search from a chamber SEALED in solid
+     * stone, toward a {@code Goal.Block} ABOVE the slab, must never commit an
+     * escape-farthest best-effort segment that DIGS AWAY DOWNWARD. Live, `escape-farthest`
+     * picked the farthest-g node — and with break moves priced in, "farthest reachable
+     * under a time cap" in uniform rock is always straight DOWN (1 break/cell vs 2-3
+     * lateral/up), so two up-goals drilled a 69-block shaft (y82→13), re-armed by the
+     * dead-pocket penalty each repath. A Block goal never tracks bestClimb
+     * ({@code goal.ignoresY()} is false), so the fallback chain lands exactly on
+     * escape-farthest — 600 nodes reproduces the live quick-search branch verbatim.
+     * GREEN = the planner returns goal-reached, a non-descending best-effort segment,
+     * or NO path (futile backoff owns it) — anything but the downward drill.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void escapeFarthestNoRockDrillArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("escapeFarthestNoRockDrillArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int x0 = 1900, z0 = 1900, base = 218, top = 240;
+
+        // Solid 7x7 stone slab y=base..top with a 2-high chamber near the TOP
+        // (3 solid blocks overhead — the live nook geometry), air above the slab.
+        // Deep solid rock below so a downward drill has room to manifest.
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = -3; dz <= 3; dz++) {
+                for (int y = base; y <= top; y++)
+                    level.setBlockAndUpdate(new BlockPos(x0 + dx, y, z0 + dz), Blocks.STONE.defaultBlockState());
+                for (int dy = 1; dy <= 5; dy++)
+                    level.setBlockAndUpdate(new BlockPos(x0 + dx, top + dy, z0 + dz), Blocks.AIR.defaultBlockState());
+            }
+        final int footY = top - 4;
+        level.setBlockAndUpdate(new BlockPos(x0, footY, z0), Blocks.AIR.defaultBlockState());
+        level.setBlockAndUpdate(new BlockPos(x0, footY + 1, z0), Blocks.AIR.defaultBlockState());
+
+        BlockPos start = new BlockPos(x0, footY, z0);
+        ServerPlayerAvatar av = ServerPlayerAvatar.create(level, x0 + 0.5, footY, z0 + 0.5);
+        FakePlayer fp = av.fakePlayer();
+        fp.getInventory().clearContent();
+        fp.getInventory().add(new ItemStack(Items.IRON_PICKAXE));
+        fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));
+        fp.getInventory().selected = 0;
+        LevelWorldView w = new LevelWorldView(level, fp);
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;
+        try {
+            // Node cap small enough that the up-dig breakthrough is NOT found — the
+            // live quick-search branch (600 nodes) that committed escape-farthest.
+            PathFinder.Result r = new PathFinder(w, 200, 100, SearchProfile.NONE)
+                    .findPath(start, new Goal.Block(new BlockPos(x0, top + 2, z0)));
+            int minY = r.hasPath() ? minPathY(r) : start.getY();
+            AgentDriverCommon.LOG.info(
+                    "[escapeFarthestNoRockDrillArena] goalReached={} hasPath={} pathLen={} minPathY={} startY={} expanded={}",
+                    r.goalReached(), r.hasPath(), r.hasPath() ? r.path().size() : 0, minY, start.getY(), r.expanded());
+            if (!r.goalReached() && r.hasPath() && minY < start.getY() - 2)
+                throw new GameTestAssertException(
+                        "escape-farthest committed a downward rock drill (goal is ABOVE): minPathY=" + minY
+                        + " startY=" + start.getY() + " pathLen=" + r.path().size());
+            helper.succeed();
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+        }
+    }
+
+    /**
+     * gap#63 (live 2026-07-13, twice): a BUDGET-capped search (maxMs/maxNodes — the graph
+     * was NOT exhausted) from a chamber sealed in rock, toward a goal ABOVE, committed a
+     * best-effort segment that ran a walkable cave tunnel AWAY from the goal at constant
+     * y — 120 steps / 75 blocks the wrong way on the corpse-run goto. Each repath then
+     * penalized the burned segment and committed a DIFFERENT away-run: drift churn, never
+     * ascending, until cancel (deaths #6/#7 window). gap#59 fixed the DUG drill;
+     * the walkable away-tunnel is the remaining escape-farthest blind spot — it picks the
+     * farthest node by raw distance, direction-agnostic BY DESIGN, which is right when the
+     * graph is exhausted (a true dead pocket: any exit beats standing) and wrong when the
+     * search merely ran out of budget (the up-dig it never explored is the real answer —
+     * proven live by the +8y staged-hop workaround).
+     * GREEN = goal reached, or a partial segment that does NOT end farther from the goal
+     * than it started (small slack), or NO path (the #50 futile backoff owns the failure).
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void budgetAwayTunnelChurnArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("budgetAwayTunnelChurnArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int x0 = 2300, z0 = 2300, base = 218, top = 240;
+
+        // Solid stone: 7 wide in z, stretched +x to fit the tunnel, sealed above the
+        // chamber (3 solid overhead), air above the slab. Same nook geometry as the
+        // gap#59 arena plus one 2-high WALKABLE tunnel heading +x — strictly AWAY from
+        // a goal that sits directly overhead.
+        for (int dx = -3; dx <= 20; dx++)
+            for (int dz = -3; dz <= 3; dz++) {
+                for (int y = base; y <= top; y++)
+                    level.setBlockAndUpdate(new BlockPos(x0 + dx, y, z0 + dz), Blocks.STONE.defaultBlockState());
+                for (int dy = 1; dy <= 5; dy++)
+                    level.setBlockAndUpdate(new BlockPos(x0 + dx, top + dy, z0 + dz), Blocks.AIR.defaultBlockState());
+            }
+        final int footY = top - 4;
+        for (int dx = 0; dx <= 16; dx++) {           // chamber cell + away tunnel
+            level.setBlockAndUpdate(new BlockPos(x0 + dx, footY, z0), Blocks.AIR.defaultBlockState());
+            level.setBlockAndUpdate(new BlockPos(x0 + dx, footY + 1, z0), Blocks.AIR.defaultBlockState());
+        }
+
+        BlockPos start = new BlockPos(x0, footY, z0);
+        BlockPos goalPos = new BlockPos(x0, top + 2, z0);
+        ServerPlayerAvatar av = ServerPlayerAvatar.create(level, x0 + 0.5, footY, z0 + 0.5);
+        FakePlayer fp = av.fakePlayer();
+        fp.getInventory().clearContent();
+        fp.getInventory().add(new ItemStack(Items.IRON_PICKAXE));
+        fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));
+        fp.getInventory().selected = 0;
+        LevelWorldView w = new LevelWorldView(level, fp);
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, od = BotConfig.walkerDebug;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;
+        BotConfig.walkerDebug = true;   // STOP line names the committing branch
+        try {
+            // Budget mirrors the live quick-search scale: the tunnel walk is cheap and
+            // fully explored, the 6-block up-dig breakthrough is not found.
+            PathFinder.Result r = new PathFinder(w, 200, 100, SearchProfile.NONE)
+                    .findPath(start, new Goal.Block(goalPos));
+            double startDist = Math.sqrt(start.distSqr(goalPos));
+            double endDist = r.hasPath()
+                    ? Math.sqrt(r.path().get(r.path().size() - 1).distSqr(goalPos))
+                    : startDist;
+            AgentDriverCommon.LOG.info(
+                    "[budgetAwayTunnelChurnArena] goalReached={} hasPath={} pathLen={} startDist={} endDist={} expanded={}",
+                    r.goalReached(), r.hasPath(), r.hasPath() ? r.path().size() : 0,
+                    String.format("%.1f", startDist), String.format("%.1f", endDist), r.expanded());
+            if (!r.goalReached() && r.hasPath() && endDist > startDist + 2.0)
+                throw new GameTestAssertException(
+                        "budget-capped partial path runs AWAY from the goal (the gap#63 drift-churn seed): "
+                        + "startDist=" + String.format("%.1f", startDist)
+                        + " endDist=" + String.format("%.1f", endDist)
+                        + " pathLen=" + r.path().size());
+            helper.succeed();
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = od;
+        }
     }
 }

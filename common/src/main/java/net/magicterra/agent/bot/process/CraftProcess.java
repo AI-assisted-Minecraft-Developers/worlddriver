@@ -1,5 +1,6 @@
 package net.magicterra.agent.bot.process;
 
+import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.movement.Avatar;
 import net.magicterra.agent.bot.pathfinder.WorldView;
@@ -22,6 +23,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
+import static net.magicterra.agent.AgentDriverCommon.LOG;
 
 /**
  * Phase E — execute a {@link RecipeResolver} plan as real client-side crafting.
@@ -52,7 +56,16 @@ public final class CraftProcess implements BotProcess {
     private final String target;
     private final int count;
 
-    private enum St { INIT, STATION, OPEN_WAIT, PLACE, AWAIT_RESULT, AWAIT_TAKE, DONE, FAIL }
+    /** Max ticks to spend breaking our own table back (gap #276). A crafting table is
+     *  wood (hardness 2.5): ~75 ticks bare-handed, far less with an axe. Generous cap —
+     *  if it expires we simply walk away, we never fail a craft over cleanup. */
+    private static final int RECLAIM_TIMEOUT = 200;
+    /** Ticks to stand still after the table breaks. Vanilla gives a dropped item a
+     *  10-tick pickup delay; leave without waiting it out and the next process walks
+     *  the bot away from its own table. */
+    private static final int PICKUP_GRACE = 15;
+
+    private enum St { INIT, STATION, OPEN_WAIT, PLACE, AWAIT_RESULT, AWAIT_TAKE, RECLAIM, DONE, FAIL }
     private St st = St.INIT;
 
     private List<RecipeResolver.Job> jobs;
@@ -60,7 +73,15 @@ public final class CraftProcess implements BotProcess {
     private int craftsDone;
     private int planTries;
     private int waited;
-    private BlockPos tablePos;   // table currently in use (found or placed)
+    private BlockPos tablePos;   // table currently in use (found OR placed)
+    /** The table THIS process placed, and the only block it may ever break (gap #276).
+     *  Deliberately NOT {@link #tablePos}: that one is also set from {@link #findTable},
+     *  so reclaiming it would demolish a village / player-base table the bot merely
+     *  borrowed. Null unless {@link #placeTable} actually succeeded. */
+    private BlockPos placedTable;
+    private boolean reclaimTried;   // reclaim runs at most once, on the way out
+    private int reclaimTicks;
+    private int pickupTicks;
     private String error;
     private int crafted;         // total items produced (for the result summary)
 
@@ -90,8 +111,14 @@ public final class CraftProcess implements BotProcess {
             case PLACE -> place(a, p, s);
             case AWAIT_RESULT -> awaitResult(a, p, s);
             case AWAIT_TAKE -> awaitTake(p, s);
+            case RECLAIM -> reclaimTick(a, lvl);
             default -> {}
         }
+
+        // On the way out — success OR failure — take back a table we placed (gap #276).
+        // Both terminals: a craft that failed after placing still littered a table.
+        if ((st == St.DONE || st == St.FAIL) && beginReclaim(a, p, lvl)) return false;
+        if (st == St.RECLAIM) return false;
 
         if (st == St.DONE) {
             a.closeContainer();
@@ -107,6 +134,44 @@ public final class CraftProcess implements BotProcess {
         return false;
     }
 
+    // === table reclaim (gap #276) ============================================
+
+    /** Enter RECLAIM if we placed a table and it's still standing. Returns true if the
+     *  process must keep ticking to break it. Runs at most once — {@code reclaimTried}
+     *  is set on the first call, so the terminal check below it can't loop. */
+    private boolean beginReclaim(Avatar a, Player p, Level lvl) {
+        if (reclaimTried) return false;
+        reclaimTried = true;
+        if (!BotConfig.craftReclaimTable) return false;
+        if (placedTable == null || !isTable(lvl, placedTable)) return false;
+        a.closeContainer();          // can't swing at a block with the table menu open
+        a.selectTool(placedTable);   // an axe if we carry one; bare hands work too
+        reclaimTicks = 0;
+        pickupTicks = 0;
+        st = St.RECLAIM;
+        return true;
+    }
+
+    private void reclaimTick(Avatar a, Level lvl) {
+        if (isTable(lvl, placedTable)) {
+            // Give up on the block, never on the craft: a reclaim that can't finish
+            // (protected region, block replaced under us) must not turn a successful
+            // craft into a failure, nor overwrite the error a failed one is reporting.
+            if (++reclaimTicks > RECLAIM_TIMEOUT) { endReclaim(a); return; }
+            a.aimAtBlock(placedTable);
+            a.breakHold(true);
+            return;
+        }
+        a.breakHold(false);
+        if (++pickupTicks >= PICKUP_GRACE) endReclaim(a);
+    }
+
+    /** Back to whichever terminal we were headed for when reclaim interrupted us. */
+    private void endReclaim(Avatar a) {
+        a.breakHold(false);
+        st = error != null ? St.FAIL : St.DONE;
+    }
+
     // === planning ============================================================
 
     private void plan(Avatar a, Player p, Level lvl, BotState s) {
@@ -118,7 +183,13 @@ public final class CraftProcess implements BotProcess {
             return;
         }
         Map<String, Integer> have = inventorySnapshot(p);
-        RecipeResolver.Plan plan = RecipeResolver.resolve(rm, ra, target, count, have);
+        // World-aware station availability (gap #275): a crafting_table already PLACED
+        // within reach is usable as-is (setupStation → findTable), so the plan must not
+        // craft a redundant one. The resolver suppresses on an INVENTORY table by itself
+        // (via `have`); this supplies the world half it is blind to. Without it, a bot
+        // crafting beside a village table would waste 4 planks — and with barely enough
+        // planks, a feasible craft would be reported as missing.
+        RecipeResolver.Plan plan = RecipeResolver.resolve(rm, ra, target, count, have, availableStations(p, lvl));
         if (!plan.complete()) {
             // Give the client inventory a few ticks to catch up before giving up —
             // a craft issued right after a pickup/give would otherwise read empty.
@@ -160,7 +231,15 @@ public final class CraftProcess implements BotProcess {
 
         BlockPos table = (tablePos != null && isTable(lvl, tablePos)) ? tablePos : findTable(p, lvl);
         if (table == null) table = placeTable(a, p, lvl);
-        if (table == null) { fail(s, "需要工作台（背包里没有可放置的工作台）"); return; }
+        if (table == null) {
+            // Distinguish the two causes: a missing ITEM needs an acquire plan, a
+            // missing SPOT needs one dug cell — conflating them (the old single
+            // message) sent the agent hunting wood while sealed in a 1×1 bunker.
+            fail(s, p.getInventory().countItem(Items.CRAFTING_TABLE) > 0
+                    ? "需要工作台（背包里有，但脚边没有可放置的空位——先清出一格）"
+                    : "需要工作台（背包里没有工作台）");
+            return;
+        }
         tablePos = table;
         // Right-click the table to open its menu (block.use takes priority over
         // placing even while holding a crafting_table). NOTE: a server FakePlayer
@@ -220,6 +299,19 @@ public final class CraftProcess implements BotProcess {
         return lvl.getBlockState(pos).is(Blocks.CRAFTING_TABLE);
     }
 
+    /** Stations the bot can use RIGHT NOW without acquiring one — currently just a
+     *  crafting_table already placed within interaction reach ({@link #findTable}, the
+     *  same check {@link #setupStation} uses). SINGLE SOURCE, shared with the planner
+     *  verbs (mc.recipe.resolve / mc.plan.acquire): the plan they report must be the
+     *  plan this process will actually run. If the planner used a different reach rule
+     *  it could promise "no table needed" where setupStation then fails — or, the other
+     *  way, report an infeasible craft that would in fact succeed beside a village table
+     *  (gap #275). {@code p == null} → nothing available (world-less caller). */
+    public static Set<String> availableStations(Player p, Level lvl) {
+        return (p != null && lvl != null && findTable(p, lvl) != null)
+                ? Set.of("crafting_table") : Set.of();
+    }
+
     /** Nearest crafting table within interaction reach of the eye. */
     private static BlockPos findTable(Player p, Level lvl) {
         BlockPos base = p.blockPosition();
@@ -238,40 +330,26 @@ public final class CraftProcess implements BotProcess {
         return best;
     }
 
-    /** Place a crafting table from the hotbar on a sturdy neighbour, return its
-     *  position (or null if we can't). */
+    /** Place a crafting table from inventory nearby, return its position (or null). */
     private BlockPos placeTable(Avatar a, Player p, Level lvl) {
-        if (!a.holdItem(Items.CRAFTING_TABLE)) return null;
-        BlockPos foot = p.blockPosition();
-        // Candidate columns: 4 cardinals + 4 diagonals, tried at foot level and
-        // one block below. The old version only tried the 4 cardinals at foot
-        // level, so a bot embedded in leaves / on uneven terrain found no spot
-        // and the whole craft failed with "no placeable crafting table".
-        int[][] off = {{0, -1}, {0, 1}, {1, 0}, {-1, 0}, {1, -1}, {1, 1}, {-1, -1}, {-1, 1}};
-        for (int dy = 0; dy >= -1; dy--) {
-            for (int[] o : off) {
-                BlockPos cell = foot.offset(o[0], dy, o[1]);
-                BlockPos below = cell.below();
-                BlockState cs = lvl.getBlockState(cell);
-                BlockState bs = lvl.getBlockState(below);
-                if (!cs.canBeReplaced()) continue;
-                // A full block (the crafting table) can be placed on the top face
-                // of ANY non-air, non-replaceable support — including leaves,
-                // which fail isFaceSturdy yet still accept a block placed on them.
-                // The old isFaceSturdy gate wrongly rejected leaf/dirt-path ground.
-                if (bs.isAir() || bs.canBeReplaced()) continue;
-                a.aimAtBlock(cell);
-                // Click the support's top face → block lands in `cell`.
-                a.useBlock(below, Direction.UP);
-                if (isTable(lvl, cell)) return cell;
-            }
-        }
-        return null;
+        BlockPos cell = PlaceNearby.place(a, p, lvl, Items.CRAFTING_TABLE, Blocks.CRAFTING_TABLE, "craft");
+        // The ONLY assignment of placedTable: this table is ours, so it is the
+        // only one reclaim may break (gap #276).
+        if (cell != null) placedTable = cell;
+        return cell;
     }
 
     // === misc ================================================================
 
-    private static Map<String, Integer> inventorySnapshot(Player p) {
+    /**
+     * Item id -> count over the bag the craft executor actually consumes from: main
+     * inventory + offhand, armor excluded, ids namespaced. This is the definition of
+     * {@code have} — {@code mc.observe.player} emits its {@code items} map through
+     * THIS method precisely so the bag the agent asks the planner about is the bag the
+     * executor will reach into. Two rulers is how a plan comes back "complete" and then
+     * fails at craft time (gap #38, same lesson, stations half).
+     */
+    public static Map<String, Integer> inventorySnapshot(Player p) {
         Map<String, Integer> have = new LinkedHashMap<>();
         for (ItemStack s : p.getInventory().items) {
             if (s.isEmpty()) continue;

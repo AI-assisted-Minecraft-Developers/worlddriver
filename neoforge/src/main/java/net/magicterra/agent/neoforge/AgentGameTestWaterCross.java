@@ -28,6 +28,9 @@ import net.magicterra.agent.bot.pathfinder.PathTrace;
 import net.magicterra.agent.bot.pathfinder.PathTraceHolder;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
+import net.magicterra.agent.bot.pathfinder.SearchProfile;
+import net.magicterra.agent.bot.pathfinder.CapabilityProfile;
+import net.magicterra.agent.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.agent.bot.world.LevelWorldView;
 import net.magicterra.agent.bot.pathfinder.moves.Fall;
 import net.magicterra.agent.bot.pathfinder.moves.FallIntoWater;
@@ -75,7 +78,7 @@ public final class AgentGameTestWaterCross {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void goalSnapBuriedArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"goalSnapBuriedArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("goalSnapBuriedArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 300, cz = 300, floorY = 64;
         // Flat stone floor the bot walks on; air above.
@@ -145,7 +148,7 @@ public final class AgentGameTestWaterCross {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void basinArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"basinArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("basinArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 300, cz = 300, plY = 240;
         // Flat plateau (the go-around) across the whole arena.
@@ -245,7 +248,7 @@ public final class AgentGameTestWaterCross {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void waterClimbOutRouteArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"waterClimbOutRouteArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("waterClimbOutRouteArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 440, cz = 440, wsurf = 220;       // water surface y; air at wsurf+1
         // Two-column pool, dx 0 and dx 1, dz 0..6: solid floor wsurf-2, water at wsurf-1 & wsurf.
@@ -369,7 +372,7 @@ public final class AgentGameTestWaterCross {
      * 12 s+ until a safety repath. {@code floatOverSubmerged} misses it (node AT the foot, not below).
      *
      * <p>The buoyant equilibrium is hard to synthesize from a free approach on a static arena (the same
-     * reason {@code descentOvershootResyncArena}/{@code ridgeOvershootArena} inject the pose). This arena
+     * reason {@code ridgeOvershootArena} injects the pose). This arena
      * makes the pin DETERMINISTIC by HEAD-WALLING the node: the node's head cell ({@code waterY+1}) is a
      * solid block (the reliable synthesizer of the live lily-pad/vine head-clutter — the same failure, a
      * buoyant body that cannot seat its head into the surface foothold cell), so the bot pins in the
@@ -382,7 +385,7 @@ public final class AgentGameTestWaterCross {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void waterStepDownFloatArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"waterStepDownFloatArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("waterStepDownFloatArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Disjoint absolute region (shared level — see sheerWallArena), away from every other footprint.
         final int cx = 360, cz = 520, floorY = 200;
@@ -516,6 +519,126 @@ public final class AgentGameTestWaterCross {
     }
 
     /**
+     * Engine gap (per-goto {@code forbidDig} execution-layer leak) — the LILY-PAD head-on break,
+     * the ONE executor dig-fallback that reproduces under a clean {@link NoBreak} plan.
+     *
+     * <p><b>Why the pad, not the wall.</b> {@code NoBreak} prunes BREAK edges only. A solid wall
+     * needs a break edge to get past → pruned → A* returns an EMPTY best-effort ({@code pathLen=0})
+     * → the process gives up at PLANNING and the Walker's drive loop never runs, so the wallDig /
+     * swim-climb fallbacks can't even engage from a clean NoBreak plan (empirically: a walled goal
+     * ARRIVES at the start cell at tick 3). A lily pad is different: the planner treats it as
+     * PASSABLE — a WALK-edge traversal, not a break edge — so {@code NoBreak} does NOT prune it. The
+     * plan reaches ({@code pathLen>0}), the executor DRIVES, the buoyant body rams the pad's
+     * collision box ({@code isInWater && horizontalCollision}), and the head-on pad break fires. And
+     * that site (Walker.java, the {@code isInWater && horizontalCollision} pad punch) historically
+     * checked NEITHER {@code allowBreak} NOR {@code NoBreak} — the most leak-prone break in the
+     * Walker. This is the deterministic in-arena proof that {@code mayBreak()} actually FIRES
+     * (returns false) at an execution-layer site under {@code forbidDig}.
+     *
+     * <p>Rig = {@link #waterStepDownFloatArena}'s PROVEN buoyant hCol pin: a 1-deep water channel
+     * HEAD-WALLED at the west node so the seeded body pins ({@code hCol}, ~0.6-1.0 b short) in the
+     * east cell, with a lily pad in that cell's head (the head-on break's {@code surf} fallback
+     * target). {@code allowBreak=true} throughout — the leak precondition — so the ONLY thing that
+     * can stop the punch is the {@code forbidDig} gate.
+     * <ul>
+     *   <li>Phase A ({@code NoBreak}): the pad MUST survive. Pre-fix RED = the head-on break punches
+     *       it out despite {@code forbidDig}.</li>
+     *   <li>Phase B (no constraint, precision): the pad MUST be removed — proof the gate is precise
+     *       (honors {@code forbidDig}) and does not over-kill legitimate pad clearance.</li>
+     * </ul>
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void forbidDigPadRamArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("forbidDigPadRamArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        // Disjoint absolute region (shared level — see waterStepDownFloatArena), clear of other footprints.
+        final int cx = 360, cz = 560, floorY = 200;
+        final int waterY = floorY + 1;
+        for (int dx = -10; dx <= 8; dx++)
+            for (int dz = -3; dz <= 3; dz++)
+                for (int y = floorY - 2; y <= floorY + 8; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
+        for (int dx = -7; dx <= 2; dx++) {
+            level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz), Blocks.DIRT.defaultBlockState());
+            level.setBlockAndUpdate(new BlockPos(cx + dx, waterY, cz), Blocks.WATER.defaultBlockState());
+            for (int dz = -1; dz <= 1; dz += 2)
+                for (int y = floorY; y <= waterY + 3; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+        }
+        BlockPos node  = new BlockPos(cx,     waterY, cz);
+        BlockPos cont  = new BlockPos(cx - 3, waterY, cz);
+        BlockPos goalN = new BlockPos(cx - 6, waterY, cz);
+        BlockPos padCell = new BlockPos(cx + 1, waterY + 1, cz);   // the pinned body's OWN head cell = the head-on break's surf fallback
+        Runnable setup = () -> {
+            level.setBlockAndUpdate(node.above(), Blocks.STONE.defaultBlockState());       // head-wall → deterministic buoyant pin (hCol)
+            level.setBlockAndUpdate(padCell, Blocks.LILY_PAD.defaultBlockState());
+        };
+        Goal goal = new Goal.Block(goalN);
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug, owd = BotConfig.walkerWallDigFallback;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = true;             // leak precondition: only forbidDig should stop the pad punch
+        BotConfig.allowPlace = false;
+        BotConfig.walkerDebug = false;
+        BotConfig.walkerWallDigFallback = false; // irrelevant in water; isolate the pad break
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        try {
+            // Phase A: forbidDig (NoBreak) — the pad MUST survive.
+            setup.run();
+            boolean survivedA = runPadLeg(level, cx, cz, waterY, node, cont, goalN, goal,
+                    new SearchProfile(List.of(), CapabilityProfile.ALL, List.of(new NoBreak())), padCell);
+            // Phase B: no constraint (precision) — the head-on break MUST fire, removing the pad.
+            setup.run();
+            boolean survivedB = runPadLeg(level, cx, cz, waterY, node, cont, goalN, goal,
+                    SearchProfile.NONE, padCell);
+            AgentDriverCommon.LOG.info("[forbidDigPadRamArena] survivedA(forbidDig)={} survivedB(plain)={}", survivedA, survivedB);
+            if (!survivedA)
+                throw new GameTestAssertException("forbidDig LEAK: the head-on lily-pad break punched the pad despite NoBreak "
+                        + "(pad removed pre-fix). Under forbidDig the pad MUST survive.");
+            if (survivedB)
+                throw new GameTestAssertException("precision guard: WITHOUT forbidDig the head-on pad break must still fire "
+                        + "(pad removed) — the pad survived, so the gate OVER-KILLED legitimate pad clearance.");
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.walkerWallDigFallback = owd;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+        }
+        helper.succeed();
+    }
+
+    /** Seed the buoyant pin, drive the scripted plan under {@code profile}, return whether the lily
+     *  pad at {@code padCell} SURVIVED (still a lily pad) after 120 ticks. See {@link #forbidDigPadRamArena}. */
+    private static boolean runPadLeg(ServerLevel level, int cx, int cz, int waterY,
+                                     BlockPos node, BlockPos cont, BlockPos goalN, Goal goal,
+                                     SearchProfile profile, BlockPos padCell) {
+        ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 1.5, waterY, cz + 0.5);
+        FakePlayer fp = av.fakePlayer();
+        fp.setDeltaMovement(-0.10, 0, 0);        // residual west approach momentum → press into the head-wall
+        grantWaterEffects(fp);
+        LevelWorldView w = new LevelWorldView(level, fp);
+        Walker walker = new Walker();
+        BlockPos approach = new BlockPos(cx + 1, waterY, cz);
+        List<BlockPos> plan = List.of(approach, node, cont, goalN);
+        List<Move.Edge> planEdges = List.of(
+                new Move.Edge(approach, 10, List.of(), List.of(), "walk"),
+                new Move.Edge(node,  10, List.of(), List.of(), "stepDown"),
+                new Move.Edge(cont,  10, List.of(), List.of(), "walk"),
+                new Move.Edge(goalN, 10, List.of(), List.of(), "walk"));
+        walker.beginReplay(w, plan, planEdges, goal, approach);
+        walker.setSearchProfile(profile);        // AFTER beginReplay so it isn't reset
+        Walker.Step s = Walker.Step.WALKING;
+        for (int t = 0; t < 120 && s == Walker.Step.WALKING; t++) {
+            s = walker.tick(av, w);
+            av.step();
+        }
+        return level.getBlockState(padCell).is(Blocks.LILY_PAD);
+    }
+
+    /**
      * Deep-water SUBMERGED-crossing surface-bias ({@link BotConfig#pathfinderFloatingSurfaceCross}).
      *
      * <p>The live #47 R3 bob-jam (-832.76,355.78): a buoyant bot ENTERS a deep open-water body already
@@ -540,7 +663,7 @@ public final class AgentGameTestWaterCross {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void deepWaterSubmergedCrossArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"deepWaterSubmergedCrossArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("deepWaterSubmergedCrossArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Disjoint absolute region (shared level — see sheerWallArena), beyond every other footprint.
         final int cx = 820, cz = 820, floorY = 200;
@@ -699,7 +822,7 @@ public final class AgentGameTestWaterCross {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void vineOverWaterCrossArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"vineOverWaterCrossArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("vineOverWaterCrossArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Disjoint absolute region (shared level — see sheerWallArena), beyond every other footprint.
         final int cx = 880, cz = 880, floorY = 200;
@@ -876,7 +999,7 @@ public final class AgentGameTestWaterCross {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void padOverWaterCrossArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"padOverWaterCrossArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("padOverWaterCrossArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Disjoint absolute region (shared level — see sheerWallArena), beyond every other footprint.
         final int cx = 920, cz = 880, floorY = 200;
@@ -1034,7 +1157,7 @@ public final class AgentGameTestWaterCross {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void padClusterCrossArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"padClusterCrossArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("padClusterCrossArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Disjoint absolute region (shared level — see sheerWallArena), beyond every other footprint.
         final int cx = 960, cz = 880, floorY = 200;
@@ -1242,7 +1365,7 @@ public final class AgentGameTestWaterCross {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void deepWaterFloatBeelineArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"deepWaterFloatBeelineArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("deepWaterFloatBeelineArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Disjoint absolute region (shared level — see sheerWallArena), beyond every other footprint.
         final int cx = 1000, cz = 1000, floorY = 200, depth = 8;

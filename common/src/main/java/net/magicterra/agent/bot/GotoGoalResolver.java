@@ -4,6 +4,7 @@ import net.magicterra.agent.bot.pathfinder.Capability;
 import net.magicterra.agent.bot.pathfinder.CapabilityProfile;
 import net.magicterra.agent.bot.pathfinder.Constraint;
 import net.magicterra.agent.bot.pathfinder.CostModifier;
+import net.magicterra.agent.bot.pathfinder.constraints.ColumnRadius;
 import net.magicterra.agent.bot.pathfinder.constraints.LeashHardRadius;
 import net.magicterra.agent.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.agent.bot.pathfinder.constraints.NoWater;
@@ -231,6 +232,19 @@ final class GotoGoalResolver {
                 double z = ((Number) zo).doubleValue();
                 double radius = ((Number) ro).doubleValue();
                 cs.add(new LeashHardRadius(x, y, z, radius));
+            }
+        }
+        // column: {x,z,radius} — hard XZ cylinder: the route may not leave `radius` of the
+        // (x,z) vertical line, but Y is UNCONSTRAINED. Binds a vertical goal (y:N / direction:up|down)
+        // to the start column so it pillars/digs a fresh shaft instead of drifting sideways to
+        // cheap far-off air (the ascent-drift gap). Caller passes its own current XZ as (x,z).
+        if (p.get("column") instanceof Map<?, ?> c) {
+            Object xo = c.get("x"), zo = c.get("z"), ro = c.get("radius");
+            if (xo instanceof Number && zo instanceof Number && ro instanceof Number) {
+                double x = ((Number) xo).doubleValue();
+                double z = ((Number) zo).doubleValue();
+                double radius = ((Number) ro).doubleValue();
+                cs.add(new ColumnRadius(x + 0.5, z + 0.5, radius));
             }
         }
         // forbidWater: true — never route through a water cell (hard prune).

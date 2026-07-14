@@ -46,7 +46,7 @@ public final class ServerAgentCommand {
         CommandSourceStack src = ctx.getSource();
         ServerLevel level = src.getLevel();
         Vec3 p = src.getPosition();
-        current = ServerAgentDriver.create(level, p.x, p.y, p.z);
+        current = ServerAgentDriver.createIsolated(level, p.x, p.y, p.z);
         ServerAgentManager.register(current);
         src.sendSuccess(() -> Component.literal("agentserver: spawned a server-side agent at "
                 + String.format("%.1f %.1f %.1f", p.x, p.y, p.z) + " (active=" + ServerAgentManager.activeCount() + ")"), false);

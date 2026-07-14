@@ -73,6 +73,12 @@ public final class MineProcess implements BotProcess {
     private final Walker walker = new Walker();
     private final Set<BlockPos> blacklist = new HashSet<>();
     private int broken;
+    // When the last SEARCH returned no usable target ONLY because every in-range
+    // candidate needs a tool the bot doesn't have (breaks but drops nothing), this
+    // holds the actionable abort signal ("blocked: <block> needs <tool> …"); null
+    // when the miss was for the ordinary reasons (no blocks / no stand). Recomputed
+    // from scratch on every scanForTarget. See canHarvest / the tool gate below.
+    private String noTargetReason;
     // Position where this mine command began. Targets beyond
     // BotConfig.mineMaxDriftFromStart of this anchor are rejected so a single
     // mine command can't chain hops across the world (e.g. swim an ocean toward
@@ -156,7 +162,11 @@ public final class MineProcess implements BotProcess {
             case SEARCH -> {
                 Target t = scanForTarget(lvl, p);
                 if (t == null) {
-                    st.mine.lastError = "no reachable target (broken=" + broken + "/" + desiredQty + ")";
+                    // Prefer the tool-block signal when every candidate was skipped only
+                    // because the bot lacks the harvesting tool — that's the actionable
+                    // hand-off ("go craft/relocate"), not the ambiguous "no reachable target".
+                    st.mine.lastError = noTargetReason != null ? noTargetReason
+                            : "no reachable target (broken=" + broken + "/" + desiredQty + ")";
                     st.mine.reset();
                     return true;
                 }
@@ -358,6 +368,7 @@ public final class MineProcess implements BotProcess {
     /** Scan candidates within radius, filter by target id + blacklist + stand reachability, pick nearest. */
     private Target scanForTarget(Level lvl, Player p) {
         if (lvl == null) return null;
+        noTargetReason = null;
         BlockPos foot = new BlockPos((int) Math.floor(p.getX()), (int) Math.floor(p.getY()), (int) Math.floor(p.getZ()));
         int r = searchRadius;
         Target best = null;
@@ -366,6 +377,11 @@ public final class MineProcess implements BotProcess {
         // fallback (below) tries to open access to it when nothing else is reachable.
         BlockPos nearestUnreachable = null;
         long nuD2 = Long.MAX_VALUE;
+        // Nearest candidate skipped ONLY because the bot owns no tool that would
+        // harvest it (breaks but drops nothing). Kept so we can emit an actionable
+        // abort when nothing reachable-and-harvestable remains.
+        BlockPos toolBlocked = null;
+        String toolBlockedTool = null;
         int scanned = 0;
         int targetHits = 0;          // DIAG: cells passing isTarget
         int targetLavaSkips = 0;     // DIAG: targets skipped for lava
@@ -391,6 +407,15 @@ public final class MineProcess implements BotProcess {
                     // when hidden behind a solid face, so a face-neighbour scan
                     // catches the pocket BEFORE the dig opens it.
                     if (lavaTouching(lvl, bp)) { targetLavaSkips++; continue; }
+                    // Tool gate: a block that needs a correct tool for its drop, when the
+                    // bot holds/owns none, BREAKS but drops NOTHING — mining it is pure
+                    // futility (the bare-hand stone grind that spun the campaign soft-lock:
+                    // block.break fires forever, inventory never fills). Skip it, but keep
+                    // one so the caller emits an actionable "needs <tool>" abort.
+                    if (!canHarvest(p, bs)) {
+                        if (toolBlocked == null) { toolBlocked = bp; toolBlockedTool = requiredToolName(bs); }
+                        continue;
+                    }
                     // Find a standable adjacent position (incl. a pillar-up
                     // stand for an otherwise-too-high log, relative to our feet).
                     long d2 = (long) bp.distSqr(foot);
@@ -418,12 +443,64 @@ public final class MineProcess implements BotProcess {
             if (BotConfig.walkerDebug)
                 LOG.info("[mine] no direct stand; nearestUnreachable={} -> clearing={}",
                         nearestUnreachable, clear == null ? "null" : clear.block());
-            return clear;
+            if (clear != null) return clear;
+            // gap#60 — buried target (an ore fully encased in rock has NO standable
+            // adjacent cell, so the geometric stand test rejects it wholesale and the
+            // whole command aborts "no reachable target" while a pickaxe sits in hand).
+            // The stand test only knows the CURRENT world; reachability through
+            // diggable cover is the pathfinder's call — every other verb already digs
+            // via the Walker's priced break-route A*. So hand the Walker the
+            // face-adjacent cell nearest the bot as the goal and let it carve the
+            // tunnel. A genuinely unreachable ore (out of budget, lava-walled) makes
+            // the Walker FAIL, which blacklists the ore — still a clean abort.
+            if (BotConfig.allowBreak) {
+                Target dig = findDigStand(lvl, foot, nearestUnreachable);
+                if (BotConfig.walkerDebug)
+                    LOG.info("[mine] no clearing leaf; buried target {} -> digStand={}",
+                            nearestUnreachable, dig == null ? "null" : dig.stand());
+                if (dig != null) return dig;
+            }
+        }
+        // No reachable-and-harvestable target and no leaf we can clear to open one.
+        // If the ONLY candidates we saw were tool-blocked, surface that as the reason so
+        // the bot aborts with an actionable "needs <tool>" (→ the planner crafts/relocates)
+        // instead of grinding for zero yield or reporting a misleading "no reachable target".
+        if (toolBlocked != null) {
+            noTargetReason = "blocked: "
+                    + BuiltInRegistries.BLOCK.getKey(lvl.getBlockState(toolBlocked).getBlock())
+                    + " needs " + toolBlockedTool + " — none held or in inventory";
         }
         if (BotConfig.walkerDebug)
-            LOG.info("[mine] scan found no target (scanned={} targetHits={} lavaSkips={} foot={} r={} vR={})",
-                    scanned, targetHits, targetLavaSkips, foot, r, BotConfig.mineSearchVerticalRadius);
+            LOG.info("[mine] scan found no target (scanned={} targetHits={} lavaSkips={} toolBlocked={} foot={} r={} vR={})",
+                    scanned, targetHits, targetLavaSkips, toolBlocked, foot, r, BotConfig.mineSearchVerticalRadius);
         return null;
+    }
+
+    /**
+     * True when breaking {@code bs} would actually yield its drop with a tool the bot can
+     * bring to hand — i.e. the block needs no correct tool (dirt/gravel/sand/logs mine
+     * fine bare-handed), OR some item across the full main inventory (0-35, the reach of
+     * {@code selectBestToolFor}) is the correct tool for it. A block that
+     * {@code requiresCorrectToolForDrops} with no such tool owned breaks but drops
+     * NOTHING, so mining it is futile — the gate keeps it out of the scan.
+     */
+    private static boolean canHarvest(Player p, BlockState bs) {
+        if (!bs.requiresCorrectToolForDrops()) return true;
+        var items = p.getInventory().items;
+        for (int i = 0; i < items.size(); i++) {
+            ItemStack stk = items.get(i);
+            if (!stk.isEmpty() && stk.isCorrectToolForDrops(bs)) return true;
+        }
+        return false;
+    }
+
+    /** Human-readable name of the tool class a block wants, for the abort signal. */
+    private static String requiredToolName(BlockState bs) {
+        if (bs.is(BlockTags.MINEABLE_WITH_PICKAXE)) return "a pickaxe";
+        if (bs.is(BlockTags.MINEABLE_WITH_AXE)) return "an axe";
+        if (bs.is(BlockTags.MINEABLE_WITH_SHOVEL)) return "a shovel";
+        if (bs.is(BlockTags.MINEABLE_WITH_HOE)) return "a hoe";
+        return "the correct tool";
     }
 
     /** Per-axis radius around an unreachable target searched for an occluding leaf
@@ -466,6 +543,28 @@ public final class MineProcess implements BotProcess {
 
     private static boolean isLeaf(BlockState bs) {
         return bs.is(BlockTags.LEAVES);
+    }
+
+    /**
+     * gap#60 — walk goal for a fully buried target: the face-adjacent cell nearest
+     * the bot (same-Y cardinals only — the natural tunnel head; above/below stands
+     * of an encased ore invite digging past it). The cell is usually SOLID right
+     * now; that's the point — the Walker's break-route A* prices and digs the
+     * approach, and BREAKING then mines the target from a true face-adjacent cell.
+     * Fluid-flooded cells are skipped (never send the tunnel head into a pocket).
+     */
+    private Target findDigStand(Level lvl, BlockPos foot, BlockPos block) {
+        BlockPos best = null;
+        double bestD2 = Double.MAX_VALUE;
+        int[][] dxz = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        for (int[] d : dxz) {
+            BlockPos cand = block.offset(d[0], 0, d[1]);
+            if (!lvl.getFluidState(cand).isEmpty()) continue;
+            double d2 = cand.distSqr(foot);
+            if (d2 < bestD2) { bestD2 = d2; best = cand; }
+        }
+        if (best == null) return null;
+        return new Target(block, best, faceFromStandToBlock(best, block), false);
     }
 
     /** How many blocks above the bot's own feet a pillar-up stand may sit. The bot

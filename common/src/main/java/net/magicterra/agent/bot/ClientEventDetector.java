@@ -42,6 +42,11 @@ final class ClientEventDetector {
     // first poll so the existing inventory isn't reported as a pickup.
     private final Map<String, Integer> evtInvCounts = new HashMap<>();
     private boolean evtInvInit = false;
+    // Tool-broke detection: the mainhand tool seen last tick (id + damage). A tool
+    // that was within 2 uses of max damage and whose inventory COUNT drops this
+    // tick has broken — the count check keeps hotbar swaps / slot moves silent.
+    private String evtMainhandId = null;
+    private int evtMainhandDamage, evtMainhandMax;
     // Advancement-earned detection (client-side, best-effort): completed advancement
     // ids seen so far; new ones emit. evtAdvInit seeds the first poll silently.
     private final Set<String> evtDoneAdv = new HashSet<>();
@@ -133,8 +138,26 @@ final class ClientEventDetector {
 
         float hp = pl.getHealth();
         if (!Float.isNaN(evtLastHealth) && hp < evtLastHealth - 0.01f && !dead) {
-            api.emitExternal("player.hurt", at, net.magicterra.agent.rpc.JsonCodec.encode(Map.of(
-                    "health", (double) hp, "prev", (double) evtLastHealth, "lost", (double) (evtLastHealth - hp))));
+            java.util.Map<String, Object> hurtData = new java.util.HashMap<>();
+            hurtData.put("health", (double) hp);
+            hurtData.put("prev", (double) evtLastHealth);
+            hurtData.put("lost", (double) (evtLastHealth - hp));
+            // Damage attribution (gap #55): without it a fall in a self-dug pit and a
+            // mob bite are indistinguishable HP deltas, and both the combat chain and
+            // the agent engage phantoms. The client mirrors the server's DamageSource
+            // via handleDamageEvent (ClientboundDamageEventPacket, 40-tick window).
+            net.minecraft.world.damagesource.DamageSource src = pl.getLastDamageSource();
+            if (src != null) {
+                hurtData.put("source", src.getMsgId());
+                net.minecraft.world.entity.Entity att = src.getEntity();
+                if (att != null && att != pl) {
+                    hurtData.put("attackerId", att.getId());
+                    hurtData.put("attackerType", net.minecraft.core.registries.BuiltInRegistries
+                            .ENTITY_TYPE.getKey(att.getType()).toString());
+                    hurtData.put("attackerDistance", att.distanceTo(pl));
+                }
+            }
+            api.emitExternal("player.hurt", at, net.magicterra.agent.rpc.JsonCodec.encode(hurtData));
         }
         evtLastHealth = hp;
 
@@ -207,6 +230,31 @@ final class ClientEventDetector {
                                 "id", e.getKey(), "count", delta, "total", e.getValue())));
                     }
                 }
+            }
+            // --- Tool broke (工具耐久打光提醒) --------------------------------
+            // The mainhand tool durability runs out SILENTLY: the item vanishes
+            // and mine/goto grind on bare-handed at up to 12× the planned break
+            // cost, with the Agent none the wiser until a "slow dig" mystery.
+            // Best-effort edge: last tick's mainhand was a damageable item within
+            // 2 uses of max damage, and that item id's total count dropped this
+            // tick (a swap/slot-move keeps the count; a second identical tool
+            // still decrements on a true break). A Q-drop of a near-dead tool
+            // can false-positive — acceptable, the advice ("re-craft before the
+            // next dig commit") is identical.
+            if (evtInvInit && evtMainhandId != null
+                    && evtMainhandDamage >= evtMainhandMax - 2
+                    && cur.getOrDefault(evtMainhandId, 0) < evtInvCounts.getOrDefault(evtMainhandId, 0)) {
+                api.emitExternal("tool.broke", at, net.magicterra.agent.rpc.JsonCodec.encode(Map.of(
+                        "id", evtMainhandId,
+                        "damage", evtMainhandDamage, "maxDamage", evtMainhandMax)));
+            }
+            ItemStack mh = pl.getMainHandItem();
+            if (!mh.isEmpty() && mh.isDamageableItem()) {
+                evtMainhandId = BuiltInRegistries.ITEM.getKey(mh.getItem()).toString();
+                evtMainhandDamage = mh.getDamageValue();
+                evtMainhandMax = mh.getMaxDamage();
+            } else {
+                evtMainhandId = null;
             }
             evtInvCounts.clear();
             evtInvCounts.putAll(cur);

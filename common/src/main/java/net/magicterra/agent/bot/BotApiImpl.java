@@ -78,6 +78,9 @@ public final class BotApiImpl implements BotApi {
 
     private final BotState state = new BotState();
     private final ClientWorldView world = new ClientWorldView();
+    /** Consecutive ticks a stray container screen has been blocking input while a
+     *  movement process is live — the gap #58 screen-watchdog counter. */
+    private int screenBlockTicks = 0;
     /** Per-tick derived-facts blackboard. Updated each client tick; snapshotted
      *  for off-thread reads by {@code mc.client.scene}. */
     private final WorldModel worldModel = new WorldModel();
@@ -833,6 +836,34 @@ public final class BotApiImpl implements BotApi {
         // flag off can still raise the CLUTCH-noArm alarm instead of vanishing.
         CLUTCH.armReactive(mc, world);
         if (CLUTCH.tick(mc, world)) { releaseGate.markDirtied(); return; }
+        // Screen watchdog (gap #58): an unexpectedly-open container GUI swallows
+        // every movement input, paralysing the walker AND all reflex chains (live
+        // death #3: a stray place-click opened a FurnaceScreen; the pinned walker's
+        // futile-search then misreported "goal unreachable" while a zombie chewed
+        // the defenseless bot). Craft/smelt legitimately hold their station screens
+        // (craft.active/smelt.active gate), and one grace second tolerates screens
+        // a verb opened deliberately; anything else that lingers while a movement
+        // process wants the input channel gets closed and reported.
+        if (mc.screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?>
+                && !state.craft.active && !state.smelt.active
+                && (state.mc_goto.active || state.mine.active || state.builder.active
+                    || state.follow.active || state.explore.active || state.runAway.active
+                    || state.retreat.active || state.escape.active || state.combat.active)) {
+            if (++screenBlockTicks >= 20) {
+                String type = mc.screen.getClass().getSimpleName();
+                mc.player.closeContainer();
+                mc.setScreen(null);
+                net.magicterra.agent.api.AgentApi api = net.magicterra.agent.AgentDriverCommon.api();
+                if (api != null) api.emitExternal("screen.autoClosed", mc.player.blockPosition(),
+                        net.magicterra.agent.rpc.JsonCodec.encode(java.util.Map.of(
+                                "screen", type, "blockedTicks", (double) screenBlockTicks)));
+                net.magicterra.agent.AgentDriverCommon.LOG.warn(
+                        "[screenWatchdog] closed stray {} after {} blocked ticks", type, screenBlockTicks);
+                screenBlockTicks = 0;
+            }
+        } else {
+            screenBlockTicks = 0;
+        }
         // Refresh the shared threat picture once per tick — reflex chains
         // (panic/dodge) and the use-key arbiter (shield) all read it below.
         ClientThreatScanner.refresh(mc);

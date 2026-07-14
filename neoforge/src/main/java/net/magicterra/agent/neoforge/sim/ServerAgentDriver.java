@@ -43,6 +43,12 @@ public final class ServerAgentDriver {
         return new ServerAgentDriver(ServerPlayerAvatar.create(level, x, y, z));
     }
 
+    /** {@link #create} with an isolated body ({@link ServerPlayerAvatar#createUnique}) —
+     *  the production entry point: every /agentserver agent gets its own FakePlayer. */
+    public static ServerAgentDriver createIsolated(ServerLevel level, double x, double y, double z) {
+        return new ServerAgentDriver(ServerPlayerAvatar.createUnique(level, x, y, z));
+    }
+
     /** Point the driver at a goal (re-arms a finished driver). */
     public ServerAgentDriver gotoGoal(Goal goal) {
         walker.setGoal(goal);

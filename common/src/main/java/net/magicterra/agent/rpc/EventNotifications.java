@@ -45,8 +45,10 @@ public final class EventNotifications {
             case "player.death" -> "error";
             // High-attention signals (incoming threat, taking damage, a background wait or
             // another transport's command completing, the dusk reflex auto-starting an
-            // unattended dig) surface as warning so they stand out in a client UI.
-            case "threat.appeared", "player.hurt", "wait.done", "command.result", "duskSecure.triggered" -> "warning";
+            // unattended dig, a mainhand tool breaking mid-task) surface as warning so
+            // they stand out in a client UI.
+            case "threat.appeared", "player.hurt", "wait.done", "command.result", "duskSecure.triggered",
+                 "tool.broke" -> "warning";
             case "entity.death" -> "notice";
             default -> "info";
         };

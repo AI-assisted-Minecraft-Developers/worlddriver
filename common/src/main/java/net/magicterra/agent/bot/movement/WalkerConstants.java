@@ -143,6 +143,25 @@ final class WalkerConstants {
      *  each grounded tick, so 8 comfortably bridges the gaps without lingering once the bot
      *  has finished the descent or moved off the deep edge). */
     public static final int DEEP_WATER_DRIFT_LATCH = 8;
+    /** Ticks the steep-descent (dry) drift sprint-brake stays latched after a grounded fire —
+     *  the dry sibling of {@link #DEEP_WATER_DRIFT_LATCH}. steepDescentNear drops sprint when a
+     *  survivable-but-deep (&gt;4) drop borders a planned descent, but it is gated onGround, so
+     *  across the airborne sub-arcs of each step-down sprint RE-ARMS and the accumulated FORWARD
+     *  momentum walks the body off a survivable-deep lip into a fatal cumulative fall (live
+     *  2026-07-11 Mountains massif, telemetry-confirmed: grounded sprint=false, but
+     *  onG=false→sprint=true on every fall tick). 8 bridges a step-down's airborne arc and
+     *  re-arms each grounded step; a genuine long free-fall decays past it harmlessly (nothing
+     *  to brake mid-air). */
+    public static final int STEEP_DESCENT_DRIFT_LATCH = 8;
+    /** How many path nodes ahead of the current step the steep-descent brake looks to detect a
+     *  CUMULATIVE deep descent (task#36, 2026-07-12). The single-edge {@code dropAdjacentExceeds}
+     *  probe only sees a drop when ONE neighbour is a &gt;maxDryFall cliff; a mountain descent the
+     *  planner routes as a run of individually-legal ≤maxDryFall steps (e.g. y79→77→73→72) has no
+     *  such neighbour at any grounded tick, so the raw brake never armed and the body sprint-sailed
+     *  off the slope (live Mountains: hSpd rising 0.21→0.23, sprint=T, 6+ block continuous fall).
+     *  Summing the drop over the next few nodes (foot.Y − min node.Y) catches the slope the way the
+     *  planner laid it. 3 spans the ~2-node horizon where a &gt;4 cumulative drop first appears. */
+    public static final int STEEP_DESCENT_LOOKAHEAD_NODES = 3;
     /** Consecutive ticks the buoyant-climb-press condition (wp above foot) must hold before the
      *  press engages. A surface bob drops the foot one block under a SAME-LEVEL surface node for
      *  ~1 tick, spuriously satisfying wp.y > foot.y and firing a "mount" that overrides the drive

@@ -36,23 +36,19 @@ import static net.magicterra.agent.bot.util.BotInteract.walkerPlace;
  */
 public final class BunkerChain implements Chain {
 
-    private static final int NONE = Integer.MIN_VALUE;
-    private int startY = NONE;       // surface Y where this bunker episode began
-    private int startX, startZ;      // shaft column — episode is invalid off it
-    private boolean sealed = false;  // roof placed (or given up on) → safe, holding
-    private int lastDepth = 0;
-    private int digTicks = 0;        // per-block mining watchdog
+    /** Per-siege anchor + descent-bounding state (single source; see {@link BunkerAnchor}). */
+    private final BunkerAnchor a = new BunkerAnchor();
 
     @Override public String name() { return "bunker"; }
 
     @Override public float priority(Minecraft mc, WorldView w, BotState st) {
         if (!BotConfig.autoBunker || mc.player == null) return 0f;
         int near = surroundCount(mc);
-        if (sealed) {
-            if (near < BotConfig.bunkerMinHostiles) { reset(); return 0f; }
+        if (a.sealed) {
+            if (near < BotConfig.bunkerMinHostiles) { a.reset(); return 0f; }
             return Priorities.BUNKER;                 // hold the pocket while still besieged
         }
-        if (startY != NONE) return Priorities.BUNKER; // mid-dig: finish what we started
+        if (a.active()) return Priorities.BUNKER;     // mid-dig: finish what we started
         // NB: do NOT gate on onGround() — under a swarm the bot is constantly
         // knocked back, flickering onGround false on the very ticks the trigger
         // needs to hold, so it never took the channel (observed live: bot beaten
@@ -67,30 +63,26 @@ public final class BunkerChain implements Chain {
         LocalPlayer p = mc.player;
         if (p == null) return;
         BlockPos foot = p.blockPosition();
-        // Stale-episode guard (survival-run death#2 aftermath): the episode state
-        // used to survive PLAYER DEATH — the bot died mid-dig at HP≤10, respawned
-        // at full HP 70 blocks away, and `depth = startY - foot.getY()` went NEGATIVE
-        // against the old startY, so the chain dug a 13-deep runaway shaft at spawn
-        // (bunkerDepth=2) and, because startY != NONE keeps priority() bidding,
-        // mc.bot.cancel couldn't stop it. An episode is only valid on the shaft
-        // column it started: any XZ change or rising ABOVE the start Y means death,
-        // teleport, or knockback broke it — reset and let priority() re-evaluate
-        // the cornered gate from scratch.
-        if (startY != NONE
-                && (foot.getX() != startX || foot.getZ() != startZ || foot.getY() > startY)) {
+        // Stale-episode guard (survival-run death#2 aftermath): the bot could die
+        // mid-dig at HP≤10 and respawn at full HP tens of blocks away; the old code
+        // measured `depth` against the pre-death startY and dug a runaway shaft at
+        // spawn. Only a GENUINE displacement — teleport/respawn/knocked clean off the
+        // column — invalidates the episode. Ordinary digging only lowers Y and small
+        // knockback stays within DRIFT_TOL, so those keep the SAME anchor. Resetting
+        // on any 1-block drift (as the old exact-XZ guard did), combined with the
+        // reset-on-every-preempt in onInterrupt, was the gap#29 downward ratchet that
+        // marched a 3.8-HP bot from y-5 to y-15. See {@link BunkerAnchor}.
+        if (a.displacedFrom(foot.getX(), foot.getY(), foot.getZ())) {
             mc.options.keyAttack.setDown(false);
             releaseKeys();
-            reset();
+            a.reset();
         }
-        if (startY == NONE) {
-            startY = foot.getY(); startX = foot.getX(); startZ = foot.getZ();
-            sealed = false; lastDepth = 0; digTicks = 0;
-        }
+        a.beginIfIdle(foot.getX(), foot.getY(), foot.getZ());
 
-        if (sealed) { releaseKeys(); return; }        // safe pocket — sit tight
+        if (a.sealed) { releaseKeys(); return; }      // safe pocket — sit tight
 
-        int depth = startY - foot.getY();
-        if (depth != lastDepth) { lastDepth = depth; digTicks = 0; }   // descended a level
+        int depth = a.depth(foot.getY());
+        a.noteDepth(depth);                           // descended a level → reset per-block watchdog
 
         if (depth < BotConfig.bunkerDepth) {
             // --- dig straight down ---
@@ -101,16 +93,16 @@ public final class BunkerChain implements Chain {
             if (w.isWater(foot) || w.isWater(foot.offset(0, 1, 0))
                     || w.isWater(below) || w.isHazard(below) || w.isHazard(foot.offset(0, 1, 0))) {
                 mc.options.keyAttack.setDown(false);
-                reset();
+                a.reset();
                 return;
             }
             if (!w.isSolid(below)) { return; }        // already open (still falling) — settle a tick
             selectBestToolFor(mc, below);
             aimAtBlockSnap(p, below);
             mc.options.keyAttack.setDown(true);
-            if (++digTicks > BotConfig.breakTimeoutTicks) {   // unbreakable (bedrock) — give up
+            if (++a.digTicks > BotConfig.breakTimeoutTicks) {   // unbreakable (bedrock) — give up
                 mc.options.keyAttack.setDown(false);
-                reset();
+                a.reset();
             }
             return;
         }
@@ -118,27 +110,31 @@ public final class BunkerChain implements Chain {
         // --- deep enough: seal the roof (the cell just above the head) ---
         mc.options.keyAttack.setDown(false);
         BlockPos ceiling = foot.offset(0, 2, 0);
-        if (w.isSolid(ceiling)) { sealed = true; releaseKeys(); return; }
+        if (w.isSolid(ceiling)) { a.sealed = true; releaseKeys(); return; }
         if (ensureHoldingPlaceableAny(mc)) {
             aimAtBlockSnap(p, ceiling);
             walkerPlace(mc, p, w, ceiling);
         } else {
             // Nothing placeable (e.g. hand-mined stone dropped nothing). The deep
             // hole still buys time; stop churning and hold.
-            sealed = true;
+            a.sealed = true;
             releaseKeys();
         }
     }
 
     @Override public void onInterrupt(Chain by) {
+        // Release the movement channel but PRESERVE the episode (startY + sealed). The
+        // old reset() here re-anchored startY to the current, lower foot Y on the next
+        // tick — under a flickering swarm (dodge/combat trading the channel every few
+        // ticks) that ratcheted the bot arbitrarily deep (gap#29). A genuine relocation
+        // is caught by displacedFrom() on the resuming tick; a plain preemption must
+        // resume the SAME pocket, not dig a fresh one.
         if (mc() != null) mc().options.keyAttack.setDown(false);
         releaseKeys();
-        reset();                                       // re-evaluate from the new position when resumed
+        a.onPreempt();
     }
 
-    @Override public void onResume() {}
-
-    private void reset() { startY = NONE; sealed = false; lastDepth = 0; digTicks = 0; }
+    @Override public void onResume() { a.resume(); }  // preemption gap must not accrue toward breakTimeoutTicks
 
     /** Hostiles within the trigger radius — the "surrounded" gauge. */
     private int surroundCount(Minecraft mc) {

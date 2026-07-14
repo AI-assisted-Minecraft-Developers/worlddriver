@@ -29,6 +29,9 @@ import java.util.function.Predicate;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 import net.magicterra.agent.bot.util.BlockMatch;
+import net.magicterra.agent.bot.process.CraftProcess;
+import net.magicterra.agent.bot.util.AttackSnap;
+import net.magicterra.agent.bot.util.ItemSnap;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.LivingEntity;
 
@@ -120,6 +123,8 @@ public final class ClientObserve {
             }
             out.put("gameMode", mc.gameMode != null ? mc.gameMode.getPlayerMode().getName() : "unknown");
             out.put("selectedSlot", p.getInventory().selected);
+            // Same field, same shape as the server snapshot (AttackSnap is the single source).
+            out.put("attack", AttackSnap.snapshot(p));
             ItemStack held = p.getMainHandItem();
             Map<String, Object> hand = new LinkedHashMap<>();
             if (held == null || held.isEmpty()) {
@@ -127,6 +132,7 @@ public final class ClientObserve {
             } else {
                 hand.put("id", BuiltInRegistries.ITEM.getKey(held.getItem()).toString());
                 hand.put("count", held.getCount());
+                ItemSnap.putWear(hand, held);
             }
             out.put("mainHand", hand);
             // Full inventory snapshot — saves an openInventory + screen.tree
@@ -143,9 +149,15 @@ public final class ClientObserve {
                 entry.put("slot", i);
                 entry.put("id", BuiltInRegistries.ITEM.getKey(st.getItem()).toString());
                 entry.put("count", st.getCount());
+                ItemSnap.putWear(entry, st);
                 inv.add(entry);
             }
             out.put("inventory", inv);
+            // Aggregated id -> count, the exact shape mc.recipe.resolve / mc.plan.acquire
+            // take as `have`. Same helper the craft executor counts with, so the bag the
+            // agent plans against is the bag the executor reaches into — and the server
+            // snapshot emits this field through the same call (ObserveApi.playerSnapshot).
+            out.put("items", CraftProcess.inventorySnapshot(p));
             // HitResult — what the camera is aimed at right now (client-side raycast).
             HitResult hr = mc.hitResult;
             Map<String, Object> hit = new LinkedHashMap<>();
@@ -317,6 +329,7 @@ public final class ClientObserve {
                 } else {
                     entry.put("id", BuiltInRegistries.ITEM.getKey(st.getItem()).toString());
                     entry.put("count", st.getCount());
+                    ItemSnap.putWear(entry, st);
                 }
                 slots.add(entry);
             }

@@ -1,5 +1,6 @@
 package net.magicterra.agent.bot.process;
 
+import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.movement.Avatar;
 import net.magicterra.agent.bot.pathfinder.WorldView;
@@ -12,6 +13,7 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.AbstractFurnaceMenu;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -78,7 +80,7 @@ public final class SmeltProcess implements BotProcess {
             case INIT -> init(a, p, lvl, s);
             case OPEN_WAIT -> awaitOpen(p, s);
             case LOAD -> load(a, p, s);
-            case SMELT_WAIT -> smeltWait(p, s);
+            case SMELT_WAIT -> smeltWait(a, p, s);
             case COLLECT -> collect(a, p, s);
             default -> {}
         }
@@ -122,27 +124,41 @@ public final class SmeltProcess implements BotProcess {
         if (inSlot < 0) { fail(s, "背包里找不到 " + shortId(input)); return; }
         a.containerClick(menu.containerId, inSlot, 0, ClickType.QUICK_MOVE);
 
-        // Fuel: explicit id, else first inventory stack the furnace accepts as fuel.
-        int fuelSlot = findInvMenuSlot(menu, slot -> {
-            ItemStack stk = slot.getItem();
-            if (fuelId != null) return idOf(stk).equals(fuelId);
-            return AbstractFurnaceBlockEntity.isFuel(stk);
-        });
-        if (fuelSlot < 0) { fail(s, fuelId != null ? "背包里找不到燃料 " + shortId(fuelId) : "背包里没有可用燃料"); return; }
-        a.containerClick(menu.containerId, fuelSlot, 0, ClickType.QUICK_MOVE);
-
+        if (!loadFuel(a, menu)) {
+            fail(s, fuelId != null ? "背包里找不到燃料 " + shortId(fuelId)
+                    : "背包里没有可用燃料（工作方块不作燃料烧）");
+            return;
+        }
         smeltWaitBudget = PER_ITEM_TIMEOUT * targetOut + 100;
         waited = 0;
         st = St.SMELT_WAIT;
     }
 
-    private void smeltWait(Player p, BotState s) {
+    /** Shift-click the best inventory fuel into the furnace. False if none usable. */
+    private boolean loadFuel(Avatar a, AbstractContainerMenu menu) {
+        int fuelSlot = pickFuelMenuSlot(menu, fuelId);
+        if (fuelSlot < 0) return false;
+        a.containerClick(menu.containerId, fuelSlot, 0, ClickType.QUICK_MOVE);
+        return true;
+    }
+
+    private void smeltWait(Avatar a, Player p, BotState s) {
         AbstractContainerMenu menu = p.containerMenu;
-        if (!(menu instanceof AbstractFurnaceMenu)) { fail(s, "熔炉界面意外关闭"); return; }
+        if (!(menu instanceof AbstractFurnaceMenu fm)) { fail(s, "熔炉界面意外关闭"); return; }
         ItemStack out = menu.getSlot(AbstractFurnaceMenu.RESULT_SLOT).getItem();
         ItemStack in = menu.getSlot(AbstractFurnaceMenu.INGREDIENT_SLOT).getItem();
+        ItemStack fuel = menu.getSlot(AbstractFurnaceMenu.FUEL_SLOT).getItem();
         if (out.getCount() >= targetOut) { st = St.COLLECT; return; }
-        // Input exhausted and something cooked → fuel likely ran out; take what we got.
+        // Fire died with input still to cook (gap#64②): reload fuel instead of
+        // burning the whole timeout budget standing at a cold furnace. The reload
+        // resets the wait budget — fresh fuel restarts real progress.
+        if (!in.isEmpty() && fuel.isEmpty() && !fm.isLit()) {
+            if (loadFuel(a, menu)) { waited = 0; return; }
+            if (!out.isEmpty()) { error = "部分完成：只炼出 " + out.getCount() + "/" + targetOut + "（燃料耗尽）"; st = St.COLLECT; }
+            else fail(s, "燃料耗尽且背包无可续装燃料");
+            return;
+        }
+        // Input exhausted and something cooked → take what we got.
         if (in.isEmpty() && !out.isEmpty()) { st = St.COLLECT; return; }
         if (++waited > smeltWaitBudget) {
             if (!out.isEmpty()) { error = "部分完成：只炼出 " + out.getCount() + "/" + targetOut; st = St.COLLECT; }
@@ -152,12 +168,50 @@ public final class SmeltProcess implements BotProcess {
 
     private void collect(Avatar a, Player p, BotState s) {
         AbstractContainerMenu menu = p.containerMenu;
-        ItemStack out = menu.getSlot(AbstractFurnaceMenu.RESULT_SLOT).getItem();
-        if (!out.isEmpty()) {
-            a.containerClick(menu.containerId, AbstractFurnaceMenu.RESULT_SLOT, 0, ClickType.QUICK_MOVE);
+        // Take back ALL THREE furnace slots, not just the result (gap#64③): the
+        // shift-click loading moves whole stacks, so surplus ingredient and unburned
+        // fuel otherwise stay in the furnace and silently leave the inventory (live:
+        // 8 coal + several raw-iron rounds stranded; recovering them took mining the
+        // furnace). QUICK_MOVE back is a no-op on an already-full inventory — the
+        // residue then stays put, same as before, nothing lost either way.
+        for (int slot : new int[]{AbstractFurnaceMenu.RESULT_SLOT,
+                                  AbstractFurnaceMenu.INGREDIENT_SLOT,
+                                  AbstractFurnaceMenu.FUEL_SLOT}) {
+            if (!menu.getSlot(slot).getItem().isEmpty()) {
+                a.containerClick(menu.containerId, slot, 0, ClickType.QUICK_MOVE);
+            }
         }
         if (error != null) s.smelt.lastError = error;   // surface partial-completion note
         st = St.DONE;
+    }
+
+    /**
+     * Best inventory fuel slot of the open furnace menu, or -1.
+     * Explicit {@code fuelId} wins verbatim (the caller knows what they want).
+     * Auto mode fixes gap#64①: the old rule was "first {@code isFuel} stack in slot
+     * order", which fed the CRAFTING TABLE to the furnace while coal sat in the bag.
+     * Now: never burn an interactive workstation ({@link BotConfig#isInteractiveBlock}
+     * — same safety class that keeps the walker from bridging with furnaces, #57),
+     * and among the rest prefer the highest vanilla burn value per item, so a
+     * dedicated fuel (coal 1600t) beats scaffolding wood (planks 300t).
+     * Package-private static so the gametest can assert the policy directly.
+     */
+    static int pickFuelMenuSlot(AbstractContainerMenu menu, String fuelId) {
+        int best = -1;
+        int bestBurn = -1;
+        for (int i = 3; i < menu.slots.size(); i++) {
+            ItemStack stk = menu.slots.get(i).getItem();
+            if (stk.isEmpty()) continue;
+            if (fuelId != null) {
+                if (idOf(stk).equals(fuelId)) return i;
+                continue;
+            }
+            if (!AbstractFurnaceBlockEntity.isFuel(stk)) continue;
+            if (stk.getItem() instanceof BlockItem bi && BotConfig.isInteractiveBlock(bi.getBlock())) continue;
+            int burn = AbstractFurnaceBlockEntity.getFuel().getOrDefault(stk.getItem(), 0);
+            if (burn > bestBurn) { bestBurn = burn; best = i; }
+        }
+        return best;
     }
 
     // === helpers =============================================================
@@ -199,20 +253,7 @@ public final class SmeltProcess implements BotProcess {
     }
 
     private BlockPos placeFurnace(Avatar a, Player p, Level lvl) {
-        if (!a.holdItem(Items.FURNACE)) return null;
-        BlockPos foot = p.blockPosition();
-        for (Direction d : new Direction[]{Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST}) {
-            BlockPos cell = foot.relative(d);
-            BlockPos below = cell.below();
-            BlockState cs = lvl.getBlockState(cell);
-            BlockState bs = lvl.getBlockState(below);
-            if (!cs.canBeReplaced()) continue;
-            if (!bs.isFaceSturdy(lvl, below, Direction.UP)) continue;
-            a.aimAtBlock(cell);
-            a.useBlock(below, Direction.UP);
-            if (lvl.getBlockState(cell).is(Blocks.FURNACE)) return cell;
-        }
-        return null;
+        return PlaceNearby.place(a, p, lvl, Items.FURNACE, Blocks.FURNACE, "smelt");
     }
 
     /** The face of {@code block} toward the player's eye. Inlined (was

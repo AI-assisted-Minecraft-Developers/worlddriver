@@ -28,10 +28,28 @@ public final class ObserveActionTools {
                 "{present:false} when nobody matches. Returns {present, name, uuid, dimension, pos, " +
                 "blockPos, look, onGround, health, maxHealth, food, xpLevel, effects:[{id,amplifier," +
                 "durationTicks},...], time:{dayTime,dayOfWorld,timeOfDay,phase}, gameMode, mainHand, " +
-                "offHand, hotbar, selectedSlot, armor}.\n" +
-                "Client-MCP fallback (no server): LocalPlayer snapshot; `name` ignored; result also " +
-                "carries inventory:[{slot,id,count},...], saturation, hit (crosshair HitResult) — " +
-                "full state without opening any screen." +
+                "offHand, hotbar, selectedSlot, attack, armor, inventory, items}.\n" +
+                "attack:{strengthScale,ready,cooldownTicks,fullCooldownTicks} is the melee recharge of " +
+                "the HELD weapon: vanilla scales damage by strengthScale (0.0-1.0) and only allows a " +
+                "crit at 1.0, so a swing sent while ready=false lands for a fraction of the weapon's " +
+                "damage. Wait cooldownTicks before each mc.bot.attackEntity; fullCooldownTicks is the " +
+                "weapon's full recharge (compare weapons with it). mc.bot.combat already paces itself " +
+                "on exactly this — the field is for when YOU drive the swings.\n" +
+                "inventory:[{slot,id,count},...] is the WHOLE bag — non-empty slots only, vanilla " +
+                "indexing (0-8 hotbar, 9-35 main, 36-39 armor, 40 offhand). hotbar covers just 9 of " +
+                "those 36 slots, so read `inventory` before any decision that turns on what you own.\n" +
+                "Damageable items (tools/armor/elytra) additionally carry maxDamage, damage and " +
+                "durability (points REMAINING = maxDamage-damage) wherever an item is reported — hands, " +
+                "hotbar, armor, " +
+                "inventory, and mc.observe.container. Stackables carry none, so the presence of " +
+                "`durability` itself means \"this wears out\". Points are not uses (Unbreaking stretches " +
+                "a point over several), so treat it as a FLOOR on remaining work. Read it BEFORE a long " +
+                "dig: tool.broke only tells you a tool is already gone.\n" +
+                "items:{id:count} aggregates main inventory + offhand (armor excluded, ids namespaced) " +
+                "— it is exactly the `have` shape mc.recipe.resolve / mc.plan.acquire take, and the " +
+                "same bag mc.bot.craft consumes from, so a plan made from it is a plan that executes.\n" +
+                "Client-MCP fallback (no server): LocalPlayer snapshot; `name` ignored; carries the " +
+                "same fields plus saturation and hit (crosshair HitResult)." +
                 " NOTE: look lags client-side rotation changes (mc.bot.lookAt) by one tick — " +
                 "waitTicks(1) before asserting.",
                 object()
@@ -104,7 +122,8 @@ public final class ObserveActionTools {
                 "furnace/dispenser); slot indices vanilla (furnace: 0=input,1=fuel,2=output). " +
                 "Without pos: whichever container menu is currently open client-side (player " +
                 "inventory, crafting table, server-pushed chest). " +
-                "Returns {present, type?|screen?, slots?:[{index,id?,count?,empty?}]}.",
+                "Returns {present, type?|screen?, slots?:[{index,id?,count?,empty?,durability?}]} — " +
+                "durability (points remaining) + maxDamage/damage on damageable items only.",
                 object()
                     .prop("pos", pos())),
 

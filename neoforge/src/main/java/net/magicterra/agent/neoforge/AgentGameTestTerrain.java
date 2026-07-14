@@ -73,7 +73,7 @@ public final class AgentGameTestTerrain {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void summitArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"summitArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("summitArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // cz=440 (NOT the shared 8,8): concurrent tick-stepped tests stomp each other at shared
         // absolute coords, and this arena's buildFloor clear also reached agentRpcSmoke's (3,3)
@@ -151,7 +151,7 @@ public final class AgentGameTestTerrain {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void sheerWallArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"sheerWallArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("sheerWallArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // cz=380 (NOT the shared 8,8): GameTest tick-steps tests CONCURRENTLY, and arenas build
         // at absolute coords (ignoring GameTest's per-test spatial spacing), so two tests at the
@@ -223,7 +223,7 @@ public final class AgentGameTestTerrain {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void bridgeGapArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"bridgeGapArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("bridgeGapArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // cz=320 (NOT the shared 8,8): concurrent tick-stepped tests at the same absolute coords
         // stomp each other (see sheerWallArena) — disjoint region per arena.
@@ -291,7 +291,7 @@ public final class AgentGameTestTerrain {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void parkourAscendArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"parkourAscendArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("parkourAscendArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 340, cz = 340, launchY = 230, pitY = 200;
         // Deep catch-floor (a failed leap falls far → detectable).
@@ -384,7 +384,7 @@ public final class AgentGameTestTerrain {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void ridgeOvershootArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"ridgeOvershootArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("ridgeOvershootArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 220, cz = 220, plainY = 180, topY = 186;
         // These arenas write to ABSOLUTE coords (not the per-test structure region),
@@ -476,7 +476,9 @@ public final class AgentGameTestTerrain {
      * {@code descentRamStuck} needs the node 1 BELOW + hCol, {@code stepUpFreeze} needs a grounded riser-RAM.
      *
      * <p>The airborne apex-bob orbit canNOT be synthesized from free physics on a static arena — exactly the
-     * limitation {@code descentOvershootResyncArena} documents: a grounded DRY bot has no buoyancy-ramming to
+     * limitation the deleted descentOvershootResyncArena documented (removed 2026-07-12, gap #49: its
+     * promised dz=7 containment wall was never built, so the bot walked into the void and the arena
+     * never judged anything): a grounded DRY bot has no buoyancy-ramming to
      * stop it, so the camera-decoupled drive just walks it the last 0.25 b into the node centre
      * ({@code cur2→0}, {@code within} closes) within ~10 ticks, dissolving the orbit (the un-braked 3-D
      * apex-bob momentum a 2-D arena lacks). The water sibling {@code waterStepDownFloatArena} pins for free
@@ -495,7 +497,7 @@ public final class AgentGameTestTerrain {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void stepUpCrestOrbitArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"stepUpCrestOrbitArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("stepUpCrestOrbitArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // Disjoint absolute region (shared level — see sheerWallArena), away from every other footprint.
         final int cx = 420, cz = 560, baseY = 200;
@@ -620,152 +622,8 @@ public final class AgentGameTestTerrain {
     }
 
     @GameTest(template = "empty", timeoutTicks = 100000)
-    public static void descentOvershootResyncArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"descentOvershootResyncArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
-        ServerLevel level = helper.getLevel();
-        // Disjoint region (absolute coords, shared level — see sheerWallArena). cx,cz away from
-        // every other arena's footprint.
-        final int cx = 300, cz = 660, Y = 200;   // Y = the bot's DRIFT-terrace foot level
-        // Clear a generous air box for a clean slate (residue from a neighbouring arena would
-        // change the planner/physics).
-        for (int dx = -8; dx <= 8; dx++)
-            for (int dz = -10; dz <= 28; dz++)
-                for (int y = Y - 8; y <= Y + 8; y++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
-        // The live wedge mechanism is the 原地后跳: the bot has OVERSHOT a discrete descend node
-        // (it landed a hair PAST it), so descentNodeYaw flips ~180° and the decoupled drive hops
-        // BACKWARD into the node — and the crossedDescendNode advance that would kill the back-hop is
-        // BLOCKED because the NEXT node is itself ≥2 below the foot (its |nx.y − p.y| < 1.2 gate
-        // fails). To make that state STABLE on a flat arena (so HEAD oscillates instead of resolving),
-        // the geometry must (a) keep the bot grounded 2 ABOVE node[1] which it has gone PAST, and
-        // (b) give node[2] a ≥2-below offset so crossedDescendNode can't fast-forward.
-        //
-        // DRIFT terrace (solid top Y-1, foot Y): a narrow ridge the bot is stranded on, PAST the
-        // node. It is bounded on +Z by a sheer face down to the deep floor (no clean walk-forward
-        // exit), and node[1] sits in a 1-wide notch on the −Z (behind) side. dx −1..1 (3 wide) so a
-        // back-hop can't escape sideways either.
-        for (int dx = -1; dx <= 1; dx++)
-            for (int dz = 3; dz <= 6; dz++)
-                level.setBlockAndUpdate(new BlockPos(cx + dx, Y - 1, cz + dz), Blocks.STONE.defaultBlockState());
-        // node[1]'s notch: a 1-wide 2-deep pocket on the BEHIND (−Z) edge of the ridge at x=cx,
-        // dz=1..2 (floor top Y-3, foot Y-2). The bot has drifted PAST it onto the ridge (dz≥3), so
-        // the node is now 2 below + ~1.6 behind — the overshot descend node.
-        for (int dz = 1; dz <= 2; dz++)
-            level.setBlockAndUpdate(new BlockPos(cx, Y - 3, cz + dz), Blocks.STONE.defaultBlockState());
-        // DEEP floor far below (foot Y-6) carrying node[2]+goal beyond the ridge's +Z face, so the
-        // planned continuation descends FURTHER (node[2] ≥2 below the ridge foot → crossedDescendNode
-        // blocked). A sheer 5-block face on the ridge's +Z side (dz=7) walls the forward walk.
-        for (int dx = -3; dx <= 3; dx++)
-            for (int dz = 8; dz <= 18; dz++)
-                level.setBlockAndUpdate(new BlockPos(cx + dx, Y - 7, cz + dz), Blocks.STONE.defaultBlockState());
-
-        // The 3-node plan: node[1] = the overshot fall2 in the −Z notch (foot Y-2, BEHIND the bot);
-        // node[2] = a fall on the deep floor (foot Y-6, ≥2 below the ridge); goal further on it.
-        BlockPos node  = new BlockPos(cx, Y - 2, cz + 1);      // overshot fall2 node — BEHIND the bot, 2 below
-        BlockPos node2 = new BlockPos(cx, Y - 6, cz + 10);     // deep continuation, ≥2 below → crossedDescendNode blocked
-        BlockPos goalN = new BlockPos(cx, Y - 6, cz + 16);
-        Goal goal = new Goal.Block(goalN);
-
-        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug, ovr = BotConfig.walkerVerticalResync;
-        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
-        try {
-            int[] dwell = new int[2];            // ticks dwelt on step==1 (the un-advanceable node) per leg
-            boolean[] recovered = new boolean[2];
-            // Leg 0 = fix OFF (must wedge), leg 1 = fix ON (must recover fast).
-            for (int leg = 0; leg < 2; leg++) {
-                BotConfig.walkerVerticalResync = (leg == 1);
-                BotConfig.walkerDebug = true;
-                // Grounded on the ridge at cz+3, having OVERSHOT node[1] (cz+1) in +Z by ~2 b; seed a
-                // small +Z velocity so the first ticks reproduce the post-landing overshoot momentum.
-                ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, Y, cz + 3 + 0.50);
-                FakePlayer fp = av.fakePlayer();
-                fp.setDeltaMovement(0, 0, 0.10);
-                grantWaterEffects(fp);
-                LevelWorldView w = new LevelWorldView(level, fp);
-                Walker walker = new Walker();
-                List<BlockPos> plan = List.of(node, node2, goalN);
-                List<Move.Edge> planEdges = List.of(
-                        new Move.Edge(node,  20, List.of(), List.of(), "fall2"),   // the OVERSHOT node (step→1 sits here)
-                        new Move.Edge(node2, 60, List.of(), List.of(), "fall4"),   // ≥2 below the ridge → crossedDescendNode blocked
-                        new Move.Edge(goalN, 60, List.of(), List.of(), "walk"));
-                walker.beginScriptedFollow(w, plan, planEdges, goal, 1);   // step→1 = the overshot fall2 node, recovery LEFT ON
-
-                Walker.Step s = Walker.Step.WALKING;
-                int onNode = 0, maxOnNode = 0;
-                boolean recoveredFlag = false;
-                for (int t = 0; t < 260 && s == Walker.Step.WALKING; t++) {
-                    s = walker.tick(av, w);
-                    av.step();
-                    // Count consecutive ticks the pointer is frozen at the injected un-advanceable
-                    // node[1] while the bot is STILL grounded ~2 above it (the wedge). A recovery
-                    // (repath advances the step, or the bot drops to a lower level) resets the count.
-                    BlockPos pn = walker.pathNode();
-                    boolean stillWedged = walker.pathStep() == 1 && pn != null
-                            && fp.getY() >= Y - 0.5
-                            && Math.abs(fp.getY() - pn.getY()) >= 1.6;
-                    if (stillWedged) { onNode++; maxOnNode = Math.max(maxOnNode, onNode); }
-                    else onNode = 0;
-                    // Recovery = the pointer moved OFF node[1] (repath/advance) OR the bot left the
-                    // ridge level (dropped toward the real route).
-                    if (walker.pathStep() != 1 || fp.getY() < Y - 1.0) recoveredFlag = true;
-                }
-                dwell[leg] = maxOnNode;
-                recovered[leg] = recoveredFlag || s == Walker.Step.ARRIVED;
-                AgentDriverCommon.LOG.info("[descentOvershootResyncArena] leg={} fixOn={} maxDwellOnNode={} recovered={} endStep={} endPos=({},{},{}) step={}",
-                        leg, leg == 1, dwell[leg], recovered[leg], walker.pathStep(),
-                        String.format(Locale.ROOT, "%.2f", fp.getX()), String.format(Locale.ROOT, "%.2f", fp.getY()),
-                        String.format(Locale.ROOT, "%.2f", fp.getZ()), s);
-            }
-            // ── CLEAN NEGATIVE (documented finding) ──────────────────────────────────────────
-            // The grounded-2-above-node dead-zone is a REAL hole in the recovery family (confirmed by
-            // reading Walker: ascentRamSlide needs ≥2 ABOVE, descentRamStuck needs 1-below + hCol,
-            // fellOffPath needs |Δy|>3, crossedDescendNode/passed are reachability-gated). But the
-            // STATE itself does NOT synthesize on a flat arena: the moment the step-pointer sits on a
-            // 2-below descend node, the camera-decoupled descent drive walks the grounded bot toward
-            // that node and vanilla physics DROPS it in within ~10 ticks — both with the fix OFF and
-            // ON. The ~80-tick live oscillation (-1037) needs the un-braked 3-D shoulder momentum that
-            // a 2-D arena + a hand-injected static position cannot reproduce (the same reason
-            // ridgeOvershootArena is a smoothness guard, not a wedge repro). So this arena CANNOT give
-            // the clean A/B the live wedge couldn't — it is a NON-WEDGE / NON-REGRESSION guard instead:
-            //   (1) the injected dead-zone resolves PROMPTLY (no wedge) — a regression that turned this
-            //       transient into a real ≥WEDGE_TICKS stall would trip it; and
-            //   (2) the walkerVerticalResync fix is a STRICT no-op in this (resolvable) state — OFF and
-            //       ON behave IDENTICALLY — so this is positive evidence the fix doesn't perturb the
-            //       smooth baseline (the fix's gate requires the dead-zone HELD past STEPUP_FREEZE_TICKS,
-            //       which never happens here because the drive resolves it first).
-            final int NONWEDGE_CAP = 40;           // « WEDGE_TICKS(100): the transient must resolve, not hang
-            if (dwell[0] > NONWEDGE_CAP)
-                throw new GameTestAssertException("descentOvershootResyncArena: the injected dead-zone WEDGED with the fix OFF "
-                        + "(maxDwellOnNode=" + dwell[0] + " > " + NONWEDGE_CAP + ") — unexpected; if a code change now makes this 2-above "
-                        + "state a real stall this arena becomes a true A/B repro (then restore the fix-proof assertions).");
-            if (dwell[1] > NONWEDGE_CAP)
-                throw new GameTestAssertException("descentOvershootResyncArena: the injected dead-zone WEDGED with the fix ON "
-                        + "(maxDwellOnNode=" + dwell[1] + " > " + NONWEDGE_CAP + ")");
-            if (dwell[1] != dwell[0])
-                throw new GameTestAssertException("descentOvershootResyncArena: walkerVerticalResync is NOT a no-op in the "
-                        + "synthesizable state (OFF dwell=" + dwell[0] + " ON dwell=" + dwell[1] + ") — the fix must not perturb a "
-                        + "descent the drive resolves on its own");
-            if (!recovered[0] || !recovered[1])
-                throw new GameTestAssertException("descentOvershootResyncArena: the bot did not move off the injected node / descend "
-                        + "(recoveredOFF=" + recovered[0] + " recoveredON=" + recovered[1] + ")");
-        } finally {
-            BotConfig.allowBreak = ob;
-            BotConfig.allowPlace = op;
-            BotConfig.walkerDebug = odbg;
-            BotConfig.walkerVerticalResync = ovr;
-            BotConfig.pathfinderSliceMs = osl;
-            BotConfig.pathfinderMaxMs = omm;
-        }
-        helper.succeed();
-    }
-
-    @GameTest(template = "empty", timeoutTicks = 100000)
     public static void descentArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"descentArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("descentArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 100, cz = 100, pitFloorY = 180, topY = 220, steps = 12;
         // Deep pit floor (a safety net far below — reaching it = fell off).
@@ -820,6 +678,184 @@ public final class AgentGameTestTerrain {
     }
 
     /**
+     * DESCENT STEP-SKIP DRIFT gate (task#36, walkerDescentStepSkipBrake). Reproduces the
+     * Mountains-massif death: on a STEEP descending staircase the executor advances {@code step}
+     * DOWN the routed path ahead of the body (arc-length advance runs the pointer forward while
+     * the feet are still up top), so the drive aims the body forward+DOWN at a node many blocks
+     * below the foot and residual sprint momentum LAUNCHES it off the stair edge — off the 1-wide
+     * steps into the flanking void, plunging to the pit floor (the live cumulative fatal fall). The
+     * planner is hard-capped at pathfinderMaxDryFall, so every routed drop here is ≤ that — the
+     * fall is purely executor overshoot, not a routed cliff (mirrors the read-only mc.debug.plan
+     * finding maxStepDrop=4 on the live fatal segment). The fix holds vanilla SNEAK when the drive
+     * target sits > maxDryFall below the grounded foot: its maybeBackOffFromEdge pins the body on
+     * the step so it can't launch off the edge, and sprint is killed the same tick — so the bot
+     * descends the routed staircase (repathing off any pointer-ahead stall) instead of flying off.
+     * RED (flag off): fellInPit — the body overshoots the narrow steps into the void. GREEN (flag
+     * on): reaches the bottom without falling in. NO water/resistance effects (a masked fall would
+     * hide the very launch under test).
+     *
+     * <p>⚠️ {@code required = false} (2026-07-12, gap #49 audit): PROVEN FALSE GREEN. Solo it is
+     * deterministically RED — the fix-ON leg still LAUNCHES off the stair into the pit and then
+     * past it to the world floor (minY=-60 vs pitFloorY=182; with the futile-search guard off it
+     * hangs past 300 s, with it on it fails in ~110 s) — and it "passed" the full suite only
+     * because a concurrent arena shoved the shared FakePlayer body ({@code getMinecraft}
+     * singleton) out of the wedge. Same disease as the deleted descentOvershootResyncArena.
+     * Known-failing repro kept visible (vineOverWaterClimbArena convention) until the launch is
+     * root-caused: either gap #36's descent fix doesn't hold on this synthetic stair, or the rig
+     * (pit floor extent) doesn't catch the body it promises to.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000, required = false)
+    public static void descentDriftArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("descentDriftArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int cx = 300, cz = 300, topY = 236, drop = 3, run = 1, steps = 14;
+        final int pitFloorY = topY - drop * steps - 12;   // deep net well below the last step
+        final int lastY = topY - drop * steps;
+        // Deep pit floor spanning the whole footprint — reaching it = launched off the stair.
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = -3; dz <= steps * run + 3; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, pitFloorY, cz + dz), Blocks.STONE.defaultBlockState());
+        // 1-wide steep descending staircase: a `drop`-block cliff every `run` blocks in +z, void
+        // on both sides and (until the pit floor far below) beneath the front edge. A controlled
+        // descent lands on each step; an overshoot/launch flies off into the flanking void.
+        int flatTop = 6;                                  // flat run-up so the bot reaches cruise speed first
+        for (int dz = -flatTop; dz < 0; dz++)
+            level.setBlockAndUpdate(new BlockPos(cx, topY, cz + dz), Blocks.STONE.defaultBlockState());
+        for (int i = 0; i <= steps; i++) {
+            int sy = topY - drop * Math.min(i, steps);
+            for (int r = 0; r < run; r++)
+                level.setBlockAndUpdate(new BlockPos(cx, sy, cz + i * run + r), Blocks.STONE.defaultBlockState());
+        }
+        // Flat run-out at the bottom so "reached the bottom" is a stable landing, not the edge.
+        for (int dz = 1; dz <= 6; dz++)
+            level.setBlockAndUpdate(new BlockPos(cx, lastY, cz + steps * run + dz), Blocks.STONE.defaultBlockState());
+        BlockPos goal = new BlockPos(cx, lastY + 1, cz + steps * run + 4);
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        boolean obrake = BotConfig.walkerDescentStepSkipBrake;
+        // Test-only A/B lever: AGENT_DESC_BRAKE=off forces the RED baseline (flag off) so the same
+        // arena demonstrates the launch (fellInPit) without the fix; default/on is the GREEN gate.
+        if ("off".equalsIgnoreCase(java.lang.System.getenv("AGENT_DESC_BRAKE"))) BotConfig.walkerDescentStepSkipBrake = false;
+        BotConfig.allowBreak = false;
+        BotConfig.allowPlace = false;
+        BotConfig.walkerDebug = true;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, topY + 1, cz - flatTop + 0.5);
+            FakePlayer fp = av.fakePlayer();
+            // NO grantWaterEffects — a launch off the stair MUST register (fall into the pit), not be masked.
+            LevelWorldView w = new LevelWorldView(level, fp);
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.Block(goal));
+
+            Walker.Step s = Walker.Step.WALKING;
+            double minY = fp.getY();
+            for (int t = 0; t < 600 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+                minY = Math.min(minY, fp.getY());
+            }
+            boolean fellInPit = minY <= pitFloorY + 2;
+            boolean atBottom = Math.abs(fp.getZ() - (cz + steps * run + 4 + 0.5)) < 2.0
+                    && Math.abs(fp.getY() - (lastY + 1)) < 2.0;
+            AgentDriverCommon.LOG.info("[descentDriftArena] flag={} step={} pos=({},{},{}) minY={} lastY={} pitFloorY={} fellInPit={} atBottom={}",
+                    BotConfig.walkerDescentStepSkipBrake, s, fp.getX(), fp.getY(), fp.getZ(), minY, lastY, pitFloorY, fellInPit, atBottom);
+            if (fellInPit)
+                throw new GameTestAssertException("descent-drift LAUNCHED off the stair into the pit (step-skip overshoot): minY="
+                        + minY + " pitFloorY=" + pitFloorY);
+            if (!atBottom)
+                throw new GameTestAssertException("descent-drift did not reach the bottom (sneak-brake deadlock?): pos=("
+                        + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + s);
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+            BotConfig.walkerDescentStepSkipBrake = obrake;
+        }
+        helper.succeed();
+    }
+
+    /**
+     * SELF-SHAFT dig-up gate (gap #53, the 2026-07-12 survival DEATH): a bare-hand
+     * {@code goto Goal.YLevel(top)} from a SEALED chamber must climb its stair/pillar shaft
+     * WITHOUT ever falling back down the hollow columns it digs behind itself. Live, the
+     * stairUpBreak zigzag dug two hollow columns and then routed an UP node (dY=+1) across
+     * the open mouth of the first one — the executor strode over it (the #36 brake only
+     * checks the drive TARGET's dY, not the real drop under the stride) and the body fell
+     * 10 blocks to its death (3.8 HP, full inventory despawned). The fix under test is the
+     * stride floor-guard: while grounded, a stride cell whose column has no floor within
+     * pathfinderMaxDryFall+1 forces sneak (vanilla maybeBackOffFromEdge pins the body) and,
+     * with a placeable in inventory + allowPlace, plugs the well mouth (backfill-as-you-go)
+     * so the crossing becomes real. RED (guard off / pre-fix): the bot falls > maxDryFall+1
+     * below its running max-Y mid-journey. GREEN: reaches the level, worst backslide small.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void selfShaftDigUpArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("selfShaftDigUpArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        // Disjoint absolute region (shared level), away from every other arena footprint.
+        final int cx = 1960, cz = 300, base = 200, top = base + 20, targetY = top + 2;
+        // Solid 7x7 stone slab base..top, air above, sealed 2-high chamber at the centre.
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = -3; dz <= 3; dz++) {
+                for (int y = base; y <= top; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+                for (int dy = 1; dy <= 6; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, top + dy, cz + dz), Blocks.AIR.defaultBlockState());
+            }
+        level.setBlockAndUpdate(new BlockPos(cx, base + 1, cz), Blocks.AIR.defaultBlockState());
+        level.setBlockAndUpdate(new BlockPos(cx, base + 2, cz), Blocks.AIR.defaultBlockState());
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;
+        BotConfig.walkerDebug = true;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, base + 1, cz + 0.5);
+            FakePlayer fp = av.fakePlayer();
+            fp.getInventory().clearContent();
+            fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));  // pillar/plug stock; NO pickaxe (live parity)
+            fp.getInventory().selected = 0;
+            LevelWorldView w = new LevelWorldView(level, fp);
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.YLevel(targetY));
+
+            Walker.Step s = Walker.Step.WALKING;
+            double maxY = fp.getY();
+            double worstBackslide = 0;
+            for (int t = 0; t < 4000 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+                maxY = Math.max(maxY, fp.getY());
+                worstBackslide = Math.max(worstBackslide, maxY - fp.getY());
+            }
+            AgentDriverCommon.LOG.info("[selfShaftDigUpArena] step={} pos=({},{},{}) maxY={} worstBackslide={}",
+                    s, fp.getX(), fp.getY(), fp.getZ(), maxY, worstBackslide);
+            if (worstBackslide > BotConfig.pathfinderMaxDryFall + 1)
+                throw new GameTestAssertException("dig-up FELL back down its own shaft: worstBackslide="
+                        + worstBackslide + " (> maxDryFall+1=" + (BotConfig.pathfinderMaxDryFall + 1)
+                        + ") — the gap #53 death, reproduced");
+            if (fp.getY() < targetY - 1.5)
+                throw new GameTestAssertException("dig-up did not reach the level: pos=(" + fp.getX() + ","
+                        + fp.getY() + "," + fp.getZ() + ") step=" + s + " maxY=" + maxY);
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+        }
+        helper.succeed();
+    }
+
+    /**
      * SMOOTHNESS gate (丝滑寻路): measures the real {@link Walker}'s average
      * horizontal speed UP a gentle staircase vs across flat ground. Live client
      * A/B (the fill-built course at z=-1245 in the Mountains world) localised the
@@ -833,7 +869,7 @@ public final class AgentGameTestTerrain {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void ascentSpeedArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"ascentSpeedArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("ascentSpeedArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 440, cz = 440, baseY = 210, stepCount = 6;
         // Flat run-up (10 long), surface baseY → walk baseY+1.
@@ -929,7 +965,7 @@ public final class AgentGameTestTerrain {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void diagonalAscentSpeedArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"diagonalAscentSpeedArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("diagonalAscentSpeedArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 440, cz = 520, baseY = 210, steps = 8;
         final int span = 2 * steps;                 // dx,dz 0..16
@@ -1019,7 +1055,7 @@ public final class AgentGameTestTerrain {
     // from server-thread contention distorting the walker's ms-budget searches.
     @GameTest(template = "empty", timeoutTicks = 100000, batch = "soloDescentYaw")
     public static void descentYawArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"descentYawArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("descentYawArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 440, cz = 600, topY = 240, steps = 9;
         final int span = 2 * steps;                 // dx,dz 0..18
@@ -1150,7 +1186,7 @@ public final class AgentGameTestTerrain {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void ledgeOvershootArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"ledgeOvershootArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("ledgeOvershootArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 460, cz = 560, H = 240, RUN = 26, DROP = 3;
         for (int x = cx; x <= cx + RUN; x++)              // runway, top surface at y=H
@@ -1233,7 +1269,7 @@ public final class AgentGameTestTerrain {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void wallCollisionProbe(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"wallCollisionProbe".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("wallCollisionProbe")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 560, cz = 700, H = 240;
         for (int x = cx - 1; x <= cx + 1; x++)            // floor pad
@@ -1284,7 +1320,7 @@ public final class AgentGameTestTerrain {
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void bridgeDescendArena(GameTestHelper helper) {
-        if (java.lang.System.getenv("AGENT_GT_ONLY") != null && !"bridgeDescendArena".equalsIgnoreCase(java.lang.System.getenv("AGENT_GT_ONLY"))) { helper.succeed(); return; } // gt-filter
+        if (AgentGameTestSupport.gtOnlySkips("bridgeDescendArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         final int cx = 640, cz = 640, baseY = 210;
         // Start platform, one block HIGHER than the far side (foot baseY+2).
@@ -1332,6 +1368,91 @@ public final class AgentGameTestTerrain {
         } finally {
             BotConfig.allowBreak = ob;
             BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            BotConfig.pathfinderSliceMs = osl;
+            BotConfig.pathfinderMaxMs = omm;
+        }
+        helper.succeed();
+    }
+
+    /**
+     * BARE-HAND DIG CADENCE gate (gap #66, the 2026-07-14 survival ascent stall): a
+     * bare-hand stone break needs 150 CONSECUTIVE held ticks — vanilla zeroes the
+     * mining progress on ANY tick the attack is released. Live, with both
+     * {@code walkerStickyDig} and {@code walkerDigAimPriority} at their default ON,
+     * the two release checks each ran {@code ++stickyDigTicks} on the same counter
+     * (double increment), so the sticky latch's 150-tick watchdog fired at ~75 REAL
+     * ticks — every planned dig was dropped mid-swing (live: dozens of
+     * "DIG-dropped: breakHold released after 76t while ... still solid"), the block
+     * never broke, and the stuck recovery that piled up behind the latch shoved the
+     * bot off its own freshly-carved stairs (the y42→37 fall, staged-hop net-zero).
+     *
+     * <p>Geometry: a sealed corridor — start chamber, ONE 2-high stone wall, goal
+     * chamber. The only route is a traverseBreak through the wall (2 blocks × 150t
+     * bare-hand). RED (double increment): breakHold drops every ~75t while the wall
+     * is still solid and the wall never opens. GREEN: at most one incidental drop
+     * per block and the bot stands in the goal chamber.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void bareHandDigCadenceArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("bareHandDigCadenceArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int cx = 2500, cz = 2500, base = 200;
+        // Solid shell dx -1..3 / dz -1..1 / y base..base+4, then carve the two chambers.
+        for (int dx = -1; dx <= 3; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                for (int y = base; y <= base + 4; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+        for (int dy = 1; dy <= 2; dy++) {
+            level.setBlockAndUpdate(new BlockPos(cx, base + dy, cz), Blocks.AIR.defaultBlockState());     // start chamber
+            level.setBlockAndUpdate(new BlockPos(cx + 2, base + dy, cz), Blocks.AIR.defaultBlockState()); // goal chamber
+        }
+        BlockPos wallFeet = new BlockPos(cx + 1, base + 1, cz);
+        BlockPos wallHead = new BlockPos(cx + 1, base + 2, cz);
+
+        boolean ob = BotConfig.allowBreak, odbg = BotConfig.walkerDebug;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = true;
+        BotConfig.walkerDebug = true;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, base + 1, cz + 0.5);
+            FakePlayer fp = av.fakePlayer();
+            fp.getInventory().clearContent();   // BARE HANDS — 150t/stone is the whole point
+            LevelWorldView w = new LevelWorldView(level, fp);
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.Block(new BlockPos(cx + 2, base + 1, cz)));
+
+            Walker.Step s = Walker.Step.WALKING;
+            boolean prevHeld = false;
+            int heldTicks = 0, dropsWhileSolid = 0;
+            for (int t = 0; t < 1500 && s == Walker.Step.WALKING; t++) {
+                s = walker.tick(av, w);
+                av.step();
+                boolean held = av.breakHeld();
+                boolean wallSolid = level.getBlockState(wallFeet).isSolid() || level.getBlockState(wallHead).isSolid();
+                if (prevHeld && !held && wallSolid) {
+                    dropsWhileSolid++;
+                    AgentDriverCommon.LOG.info("[bareHandDigCadenceArena] DROP #{} after {}t held (wall still solid) t={}",
+                            dropsWhileSolid, heldTicks, t);
+                }
+                heldTicks = held ? (prevHeld ? heldTicks + 1 : 1) : 0;
+                prevHeld = held;
+            }
+            boolean wallOpen = !level.getBlockState(wallFeet).isSolid() && !level.getBlockState(wallHead).isSolid();
+            boolean arrived = fp.getX() > cx + 1.5;
+            AgentDriverCommon.LOG.info("[bareHandDigCadenceArena] step={} pos=({},{},{}) wallOpen={} arrived={} dropsWhileSolid={}",
+                    s, String.format(Locale.ROOT, "%.1f", fp.getX()), String.format(Locale.ROOT, "%.1f", fp.getY()),
+                    String.format(Locale.ROOT, "%.1f", fp.getZ()), wallOpen, arrived, dropsWhileSolid);
+            if (dropsWhileSolid > 2)
+                throw new GameTestAssertException("dig cadence broken: breakHold dropped " + dropsWhileSolid
+                        + "x while the wall was still solid (each drop zeroes vanilla mining progress — gap #66)");
+            if (!arrived)
+                throw new GameTestAssertException("never reached the goal chamber: pos=(" + fp.getX() + ","
+                        + fp.getY() + "," + fp.getZ() + ") wallOpen=" + wallOpen + " drops=" + dropsWhileSolid);
+        } finally {
+            BotConfig.allowBreak = ob;
             BotConfig.walkerDebug = odbg;
             BotConfig.pathfinderSliceMs = osl;
             BotConfig.pathfinderMaxMs = omm;

@@ -32,6 +32,11 @@ public final class BotState {
     public final ProcessSlot craft = new ProcessSlot("craft");
     public final ProcessSlot smelt = new ProcessSlot("smelt");
     public final ProcessSlot combat = new ProcessSlot("combat");
+    /** mc.bot.escape (EscapeProcess). Escape used to be slot-less, so its four
+     *  silent-stall modes (weak canWalkOut gate, sealed-roof STEP_UP ping-pong)
+     *  ended with active:false and NO lastError — indistinguishable from success.
+     *  EscapeProcess now reports goal/target/lastError here every tick. */
+    public final ProcessSlot escape = new ProcessSlot("escape");
 
     /** Phase C combat telemetry (mutated by CombatProcess on the tick thread,
      *  read by status()). {@code wellTimed} counts swings issued at full attack
@@ -55,6 +60,7 @@ public final class BotState {
         out.put("elytra", elytra.snapshot());
         out.put("craft", craft.snapshot());
         out.put("smelt", smelt.snapshot());
+        out.put("escape", escape.snapshot());
         // Combat slot carries the per-engagement telemetry alongside the standard
         // slot fields so a single status read covers both liveness and timing.
         Map<String, Object> combatSnap = combat.snapshot();

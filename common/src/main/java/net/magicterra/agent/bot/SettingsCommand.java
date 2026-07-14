@@ -143,6 +143,10 @@ public final class SettingsCommand {
                 BotConfig.lethalEdgeBrake = leb;
                 applied.add("lethalEdgeBrake");
             }
+            if (params.get("lowHealthCareful") instanceof Number lhc) {
+                BotConfig.lowHealthCareful = lhc.doubleValue();
+                applied.add("lowHealthCareful");
+            }
             if (params.get("descentCameraDecouple") instanceof Boolean dcd) {
                 BotConfig.descentCameraDecouple = dcd;
                 applied.add("descentCameraDecouple");
@@ -315,6 +319,18 @@ public final class SettingsCommand {
             if (params.get("walkerDeepWaterDriftBrake") instanceof Boolean wdwd) {
                 BotConfig.walkerDeepWaterDriftBrake = wdwd;
                 applied.add("walkerDeepWaterDriftBrake");
+            }
+            if (params.get("walkerSteepDescentLatch") instanceof Boolean wsdl) {
+                BotConfig.walkerSteepDescentLatch = wsdl;
+                applied.add("walkerSteepDescentLatch");
+            }
+            if (params.get("craftReclaimTable") instanceof Boolean crt) {
+                BotConfig.craftReclaimTable = crt;
+                applied.add("craftReclaimTable");
+            }
+            if (params.get("walkerDescentStepSkipBrake") instanceof Boolean wdssb) {
+                BotConfig.walkerDescentStepSkipBrake = wdssb;
+                applied.add("walkerDescentStepSkipBrake");
             }
             if (params.get("walkerDescentFlipHold") instanceof Boolean wdfh) {
                 BotConfig.walkerDescentFlipHold = wdfh;
