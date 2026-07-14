@@ -13,6 +13,8 @@ import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.scheduler.BunkerAnchor;
 import net.magicterra.agent.bot.scheduler.BunkerChain;
 import net.magicterra.agent.bot.scheduler.CombatChain;
+import net.magicterra.agent.bot.scheduler.DuskSecureChain;
+import net.magicterra.agent.bot.scheduler.Priorities;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.process.BboxFillProcess;
 import net.magicterra.agent.bot.process.BuildProcess;
@@ -3494,6 +3496,30 @@ public final class AgentGameTestServer {
     public static void frailBlockedMatrixArena(GameTestHelper helper) {
         if (AgentGameTestSupport.gtOnlySkips("frailBlockedMatrixArena")) { helper.succeed(); return; } // gt-filter
         frailBlockedMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
+        helper.succeed();
+    }
+
+    // gap#68-④⑨: a user task (USER=50) must not permanently suppress dusk shelter all
+    // night — when exposed at night and not already cornered/sheltered, the reflex must
+    // escalate to DUSK_URGENT=90 (above USER, below SURVIVAL/BUNKER) unless the escalation
+    // flag is off or a dry-run canary holds it at the legacy 40. Pure static gate.
+    static void urgentBidMatrix(java.util.function.BiConsumer<Boolean, String> check) {
+        check.accept(DuskSecureChain.urgentBid(true, false, true, false) == Priorities.DUSK_URGENT,
+                "exposed night urgent=90");
+        check.accept(DuskSecureChain.urgentBid(true, false, true, true) == Priorities.IDLE_SECURE,
+                "dry-run stays 40");
+        check.accept(DuskSecureChain.urgentBid(true, false, false, false) == Priorities.IDLE_SECURE,
+                "flag off stays 40");
+        check.accept(DuskSecureChain.urgentBid(false, false, true, false) == Priorities.IDLE_SECURE,
+                "daytime stays 40");
+        check.accept(DuskSecureChain.urgentBid(true, true, true, false) == 0f,
+                "already cornered/sheltered = no bid");
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void urgentBidMatrixArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("urgentBidMatrixArena")) { helper.succeed(); return; } // gt-filter
+        urgentBidMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
         helper.succeed();
     }
 }

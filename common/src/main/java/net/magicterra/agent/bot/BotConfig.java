@@ -937,6 +937,13 @@ public final class BotConfig {
      *  unattended dig is never silent. Below the USER band, so any active task suppresses it. */
     public static volatile boolean autoSecureAtDusk = false;
 
+    /** gap#68-⑨: allow DuskSecureChain to escalate above the user task when exposed at
+     *  night and unsheltered. Off = legacy idle-only (40) behaviour. */
+    public static volatile boolean duskUrgent = true;
+    /** First-night canary: when true the escalated tier only LOGS/emits (bid stays 40),
+     *  so the new preemption path can be observed before it is allowed to act. */
+    public static volatile boolean duskUrgentDryRun = false;
+
     /** Emergency "挖三填一" bunker reflex (BunkerChain): when cornered — low HP
      *  AND several hostiles right next to the bot, where fleeing just runs into
      *  more mobs — dig straight down a couple of blocks and seal the roof with the

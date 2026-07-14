@@ -24,6 +24,11 @@ public final class Priorities {
     public static final float BUNKER = 300f;
     /** Low-HP disengage (RetreatChain). Ramps up as HP falls below threshold. */
     public static final float SURVIVAL = 100f;
+    /** DuskSecureChain escalated tier (gap#68-⑨): exposed at night with no shelter,
+     *  self-preservation MUST outrank the user task (same philosophy as SURVIVAL>USER)
+     *  but stay below SURVIVAL so an active flee still wins, and above COMBAT so the
+     *  bot digs in rather than picking fights at dusk. */
+    public static final float DUSK_URGENT = 90f;
     /** Active combat (CombatChain — Phase C). */
     public static final float COMBAT = 60f;
     /** User foreground task (goto/mine/craft/...) via UserTaskChain. */
