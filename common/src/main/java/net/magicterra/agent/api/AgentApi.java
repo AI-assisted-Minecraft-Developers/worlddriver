@@ -706,8 +706,10 @@ public final class AgentApi {
         out.put("ms", ms);
         if (finalStatus != null) {
             Object slotObj = finalStatus.get(slot);
-            if (slotObj instanceof Map<?, ?>) {
+            if (slotObj instanceof Map<?, ?> slotMap) {
                 out.put("status", slotObj);
+                Object gr = ((Map<String, Object>) slotMap).get("goalReached");
+                if (gr != null) out.put("goalReached", gr);
             }
         }
         return out;

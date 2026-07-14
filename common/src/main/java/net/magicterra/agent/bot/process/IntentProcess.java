@@ -55,6 +55,9 @@ public final class IntentProcess implements BotProcess {
         else if (goal instanceof Goal.GetToBlock g) st.mc_goto.target = g.target();
         st.mc_goto.startedAtMs = System.currentTimeMillis();
         st.mc_goto.lastError = null;
+        st.mc_goto.goalReached = null;
+        st.mc_goto.endReason = null;
+        st.mc_goto.finalDist = -1;
     }
 
     /** Avatar-migrated: drives the client LocalPlayer (via the BotProcess bridge)
@@ -89,6 +92,9 @@ public final class IntentProcess implements BotProcess {
         st.mc_goto.pathStep = walker.pathStep();
         if (s == Walker.Step.WALKING) return false;
         if (s == Walker.Step.FAILED) st.mc_goto.lastError = walker.lastError;
+        st.mc_goto.goalReached = walker.lastGoalReached;
+        st.mc_goto.endReason = walker.lastEndReason;
+        st.mc_goto.finalDist = walker.lastFinalDist;
         st.mc_goto.reset();
         return true;
     }

@@ -82,6 +82,11 @@ public final class BotState {
         public volatile int pathStep;      // current node index
         public volatile long startedAtMs;
         public volatile String lastError;  // null if last run ok or in-progress
+        /** gap#68-R2: honest terminal verdict of the LAST run. Null/−1 until a run ends.
+         *  Kept across reset() (like lastError) so awaitable/wait.condition can read it. */
+        public volatile Boolean goalReached;
+        public volatile String endReason;
+        public volatile double finalDist = -1;
 
         ProcessSlot(String name) { this.name = name; }
 
@@ -94,6 +99,9 @@ public final class BotState {
             m.put("pathStep", pathStep);
             if (startedAtMs > 0) m.put("startedAtMs", startedAtMs);
             if (lastError != null) m.put("lastError", lastError);
+            if (goalReached != null) m.put("goalReached", goalReached);
+            if (endReason != null) m.put("endReason", endReason);
+            if (finalDist >= 0) m.put("finalDist", finalDist);
             return m;
         }
 
