@@ -71,6 +71,15 @@ import static net.magicterra.agent.bot.util.BotInteract.selectBestToolFor;
  * damage keeps landing, geometry read or not. {@link AntiSuffocateGate#shouldTrigger}
  * folds both signals into one static, matrix-tested gate (split into its own
  * dependency-free file so a server-side gametest can call it with no client).
+ *
+ * <p><b>final-review M1:</b> {@code shouldTrigger}'s ~40-tick damage-window can
+ * outlive the actual suffocation by up to 40 ticks after the bot is freed. That is
+ * harmless for the eye/above legs in {@link #resolveHead} (they just re-check an
+ * already-air cell), but the foot/horizontal fallback legs are a last-resort guess
+ * that degenerates into digging the bot's own foot or a shaft/bunker wall during
+ * that stale tail. Those two legs are additionally gated on
+ * {@link AntiSuffocateGate#allowProximityFallback} — see its javadoc and
+ * {@link #resolveHead}.
  */
 public final class AntiSuffocate {
     private AntiSuffocate() {}
@@ -146,18 +155,33 @@ public final class AntiSuffocate {
 
     /** The block intersecting the eyes is what's choking us. The eye box can straddle
      *  two cells; fall back to the cell just above the foot (the standard head block),
-     *  then the foot cell itself. gap#69 requirement 2: a damage-signal-driven trigger
-     *  can fire on a tick where the client's geometry is fully desynced and reads AIR
-     *  at eye/above/foot alike — the damage is real (we only got here because
-     *  {@link AntiSuffocateGate#shouldTrigger} matched), so as a last resort hug a solid HORIZONTAL
-     *  neighbour of the eye cell: sustained suffocation damage means some solid block
-     *  is touching us even if vanilla's client-side render hasn't caught up yet.
+     *  then — ONLY while damage is still FRESH, see below — the foot cell itself and a
+     *  solid HORIZONTAL neighbour of the eye cell. gap#69 requirement 2: a damage-
+     *  signal-driven trigger can fire on a tick where the client's geometry is fully
+     *  desynced and reads AIR at eye/above/foot alike — the damage is real (we only
+     *  got here because {@link AntiSuffocateGate#shouldTrigger} matched), so as a last
+     *  resort hug a solid HORIZONTAL neighbour of the eye cell: sustained suffocation
+     *  damage means some solid block is touching us even if vanilla's client-side
+     *  render hasn't caught up yet.
+     *
+     *  <p><b>final-review M1:</b> {@code shouldTrigger} rides vanilla's ~40-tick last-
+     *  damager window, which outlives the actual suffocation by up to 40 ticks after
+     *  the bot is freed (eye/above legs clear harmlessly during that tail — at worst a
+     *  redundant air check). The foot/horizontal legs do NOT degrade harmlessly: once
+     *  freed, eye/above read air too, so these legs fall through to the bot's OWN foot
+     *  cell or the first solid neighbour of the eye — typically the shaft/bunker wall —
+     *  and chew it for the trailing ~2s (a bunker-wall breach on every successful
+     *  rescue). Gate them on {@link AntiSuffocateGate#allowProximityFallback}
+     *  ({@code p.hurtTime>0}): real suffocation re-damages every ~10 ticks so hurtTime
+     *  stays hot for the whole episode, but decays to 0 within ≤10 ticks of freedom —
+     *  well inside the stale 40-tick tail.
      *  @return the block to break, or null if nothing nearby reads solid. */
     private static BlockPos resolveHead(Minecraft mc, LocalPlayer p) {
         BlockPos eye = BlockPos.containing(p.getEyePosition());
         if (!mc.level.getBlockState(eye).isAir()) return eye;
         BlockPos above = p.blockPosition().above();
         if (!mc.level.getBlockState(above).isAir()) return above;
+        if (!AntiSuffocateGate.allowProximityFallback(p.hurtTime)) return null;
         BlockPos foot = p.blockPosition();
         if (!mc.level.getBlockState(foot).isAir()) return foot;
         for (Direction d : Direction.Plane.HORIZONTAL) {

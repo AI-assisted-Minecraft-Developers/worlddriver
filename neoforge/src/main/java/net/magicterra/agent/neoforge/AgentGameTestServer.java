@@ -3534,6 +3534,24 @@ public final class AgentGameTestServer {
         // (f) an unrelated damage source (e.g. a mob hit) must NOT trigger the reflex.
         check.accept(!AntiSuffocateGate.shouldTrigger(false, "mob", true, true),
                 "gap#69(f): a non-inWall lastDamage msgId must NOT trigger");
+
+        // final-review M1: AntiSuffocate#resolveHead's foot/horizontal fallback legs
+        // must additionally require hurtTime>0 — shouldTrigger above stays a coarse
+        // ~40t damage-window gate (fine for the eye/above legs), but the proximity
+        // fallback is a last-resort guess that must go quiet as soon as the bot is
+        // actually freed, well before the 40t window itself lapses.
+        // (g) a real, ongoing desync burial: shouldTrigger fires (damage signal) AND
+        // hurtTime is hot (re-damaged this cycle) → fallback stays armed.
+        check.accept(AntiSuffocateGate.shouldTrigger(false, "inWall", true, true)
+                        && AntiSuffocateGate.allowProximityFallback(10),
+                "M1(g): damage-signal fresh (death-#16 desync) AND hurtTime=10 (still being hurt) must arm the fallback legs");
+        // (h) THE M1 case: damage-signal still fresh (shouldTrigger true — we're inside
+        // the stale 40t tail) but hurtTime has already decayed to 0 (freed) → the
+        // fallback must NOT arm, even though shouldTrigger itself is still true (the
+        // eye/above legs are unaffected and keep reading real air, so nothing breaks).
+        check.accept(AntiSuffocateGate.shouldTrigger(false, "inWall", true, true)
+                        && !AntiSuffocateGate.allowProximityFallback(0),
+                "M1(h): damage-signal fresh but hurtTime==0 (freed) must NOT arm foot/horizontal fallback (eye/above-only)");
     }
 
     @GameTest(template = "empty", timeoutTicks = 100000)

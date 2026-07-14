@@ -50,19 +50,37 @@ public final class RetreatChain implements Chain {
      *  contact for 2s mid-cadence saw {@code attackedMe} lapse and released, sprinted
      *  16, and took the NEXT arrow. Once latched, release additionally requires this
      *  many ticks since the last CONNECTED hit — wider than the shot interval so the
-     *  gap between volleys can no longer look "safe". */
+     *  gap between volleys can no longer look "safe". (final-review L1: this is now
+     *  exact — {@code lastHurtGameTime} is stamped on the hit's rising edge, not
+     *  restamped for the whole ~40t {@code attackedMe} window, so this constant means
+     *  literally "60 ticks after the hit landed", not ~100.) */
     private static final long HURT_RELEASE_COOLDOWN_TICKS = 60;
 
     private final BotState state;
     private RunAwayProcess process;
     /** Latched true while a flee is committed — see {@link #RELEASE_HP_MARGIN}. */
     private boolean retreating;
-    /** gap#71: game-time of the last tick a scanned threat's hit connected
-     *  ({@code attackedMe}), tracked independently of the scan's own decaying flag so
-     *  release can enforce {@link #HURT_RELEASE_COOLDOWN_TICKS} even after
-     *  {@code attackedMe} itself has lapsed. {@code Long.MIN_VALUE} = never hurt (or
-     *  reset since the last flee ended). */
+    /** gap#71: game-time of the RISING EDGE of a scanned threat's hit connecting
+     *  ({@code attackedMe} false→true), tracked independently of the scan's own
+     *  decaying flag so release can enforce {@link #HURT_RELEASE_COOLDOWN_TICKS}
+     *  even after {@code attackedMe} itself has lapsed. {@code Long.MIN_VALUE} =
+     *  never hurt (or reset since the last flee ended).
+     *
+     *  <p><b>final-review L1:</b> this used to be stamped on every tick
+     *  {@code hurtByAnyone(scan)} was true — a ~40-tick LEVEL, not an edge — so
+     *  {@code ticksSinceHurt} only started counting once that window itself lapsed,
+     *  making the documented "60 ticks since the last connected hit" actually ~100
+     *  ticks (hit + 40t window + 60t cooldown). Stamping only on the false→true
+     *  transition (see {@link #priority}) makes {@code lastHurtGameTime} mean what
+     *  its name says: the moment the hit landed. This doesn't lose safety — while
+     *  {@code attackedMe}'s own window is still active, {@code shouldRelease}'s
+     *  {@code !hurtByAnyone(scan)} term already blocks release outright; the 60-tick
+     *  cooldown only has to (and now does) cover the gap AFTER that window clears. */
     private long lastHurtGameTime = Long.MIN_VALUE;
+    /** gap#71/final-review L1: last tick's {@code hurtByAnyone(scan)} value, so
+     *  {@link #priority} can detect the false→true rising edge instead of restamping
+     *  {@link #lastHurtGameTime} on every tick the level stays true. */
+    private boolean prevHurtByAnyone;
 
     public RetreatChain(BotState state) {
         this.state = state;
@@ -76,7 +94,11 @@ public final class RetreatChain implements Chain {
         float thr = BotConfig.retreatHpThreshold;
         ThreatScanner.Scan scan = ClientThreatScanner.current(mc);
         long now = mc.player.level().getGameTime();
-        if (hurtByAnyone(scan)) lastHurtGameTime = now;   // gap#71: track past attackedMe's own decay
+        // final-review L1: stamp on the RISING EDGE only (false→true), not on every
+        // tick the level stays true — see lastHurtGameTime's javadoc.
+        boolean hurtNow = hurtByAnyone(scan);
+        if (hurtNow && !prevHurtByAnyone) lastHurtGameTime = now;
+        prevHurtByAnyone = hurtNow;
         if (!retreating) {
             // st.combat.active mirrors CombatChain.engaged(), refreshed every tick by
             // CombatChain.priority() (called for every registered chain, not just the
@@ -219,6 +241,7 @@ public final class RetreatChain implements Chain {
     private float idle() {
         retreating = false;
         lastHurtGameTime = Long.MIN_VALUE;   // gap#71: fresh cooldown bookkeeping next flee
+        prevHurtByAnyone = false;            // final-review L1: fresh edge-detection next flee
         if (state.retreat.active) state.retreat.reset();
         return 0f;
     }
@@ -340,6 +363,7 @@ public final class RetreatChain implements Chain {
     @Override public void cancelEpisode(String reason) {
         retreating = false;
         lastHurtGameTime = Long.MIN_VALUE;   // gap#71: fresh cooldown bookkeeping next flee
+        prevHurtByAnyone = false;            // final-review L1: fresh edge-detection next flee
         process = null;
         if (state.retreat.active) { state.retreat.lastError = reason; state.retreat.reset(); }
         releaseKeys();

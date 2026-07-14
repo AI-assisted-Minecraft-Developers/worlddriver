@@ -273,10 +273,14 @@ public final class BotConfig {
     public static volatile boolean autoFloatWhenDrowning = true;
 
     /** Air-supply threshold (ticks; vanilla max 300, drown damage starts at 0)
-     *  at/below which {@link #autoFloatWhenDrowning} takes over — 100 ≈ half a
-     *  bubble icon left, early enough to reach the surface from a moderate depth
-     *  but not so early it fights a bot that's merely diving briefly. gap#70. */
-    public static volatile int drownFloatAirThreshold = 100;
+     *  at/below which {@link #autoFloatWhenDrowning} takes over — 240 ≈ 12s of air
+     *  still in reserve when the float starts (raised from 100, final-review M2):
+     *  the death-#18 reproducer was a 29-block-deep river, where a 100-tick (5s)
+     *  reserve left only ~15s total survival budget against a 15-29s ascent — marginal
+     *  to insufficient at the incident's own depth. The float is pure-vertical and
+     *  harmless (matrix case (b) still protects "merely diving with plenty of air"),
+     *  so triggering earlier costs nothing and buys real margin at depth. gap#70. */
+    public static volatile int drownFloatAirThreshold = 240;
 
     /** A* node cap surfaced as a tunable knob — Baritone's
      *  {@code pathTimeoutMS} analogue. Maps directly to

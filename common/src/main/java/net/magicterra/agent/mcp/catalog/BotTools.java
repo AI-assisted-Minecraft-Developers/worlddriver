@@ -326,7 +326,7 @@ public final class BotTools {
                 "  autoSwim                  bool      — hold jump while submerged so the bot rises to the surface\n" +
                 "  antiSuffocate             bool      — break the block choking the bot's head (falling sand in a dig pit); needs allowBreak; default on\n" +
                 "  autoFloatWhenDrowning     bool      — idle-only pure-vertical float reflex (hold jump, no movement) when air <= drownFloatAirThreshold; independent of autoSwim; default on (gap#70)\n" +
-                "  drownFloatAirThreshold    int       dflt 100 — air-supply ticks (max 300) at/below which autoFloatWhenDrowning takes over\n" +
+                "  drownFloatAirThreshold    int       dflt 240 — air-supply ticks (max 300) at/below which autoFloatWhenDrowning takes over (12s air reserve, final-review M2)\n" +
                 "  autoTool                  bool      — swap to best hotbar tool when crosshair on a breakable block\n" +
                 "  autoBackfill              bool      — Baritone BackfillProcess analogue; auto-fills cells the bot walked through when idle\n" +
                 "  autoBackfillBlock         id        — block placed by autoBackfill (default minecraft:cobblestone)\n" +
