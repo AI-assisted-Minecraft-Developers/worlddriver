@@ -97,7 +97,7 @@ record ThreatContext(
    - `deathResetArena`:挂起 user 任务+塞 backfill 队列+置 retreat 闩 → mock 死亡钩子 → 断言全表清零+宽限期内 autoFight 不竞价;
    - `terminalHonestyArena`:goal-snap/frontier-giveup 两个放弃出口 → 断言 slot 带 `goalReached:false+endReason`。
    - 已知结构性盲区(异步慢搜/fallback 研磨 gametest 无法复现,#66 教训)不硬测,交 live。
-3. **live 受控 rig**(#65 模板扩展):关 dusk+summon skeleton+0.5s 采样器,变体= **goto 行进中**受击(治①的验证盲区:#65 只验证过 idle 态);bunker 后断言 `cornered=true`(治⑩)。
+3. **live 受控 rig**(#65 模板扩展):关 dusk+summon skeleton+0.5s 采样器,变体= **goto 行进中**受击(治①的验证盲区:#65 只验证过 idle 态);bunker 后断言**方块级围合**(6 邻实心 ground truth——⚠`hazardSummary.cornered` 语义是"被敌对逼死角"而非围合,day60 live 实测 SEALED 时 cornered=false,不可用作围合断言;3.2 的 bunker awaitable 返回应新增 `enclosed:boolean` 方块级字段,治⑩)。
 4. **live 回归信标**:SurvivalTest 世界夜间例行(手动 bunker→改后 autoBunker 重开),死亡数/夜为核心指标;replay 存档 A/B(#63 模式)用于 Walker 上报改动。
 
 **验收对账表**:11 条腿逐条映射到上述某层的具体断言(实现计划里落成 checklist)。
