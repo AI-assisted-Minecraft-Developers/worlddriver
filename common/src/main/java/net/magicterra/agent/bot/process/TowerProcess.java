@@ -157,7 +157,11 @@ public final class TowerProcess implements BotProcess {
                 BlockPos support = new BlockPos(sx, jumpFromY - 1, sz);
                 faceDown(p);
                 a.placeOn(support, Direction.UP);
-                placed++;
+                // Count only VERIFIED placements (gap #75-a family audit): placeOn can
+                // no-op (obstruction/reach/wind-down) and blindly incrementing decouples
+                // `placed` from the world. Both ends make the block observable in-tick
+                // (server: authoritative setBlock; client: local prediction).
+                if (p.level().getBlockState(support.above()).blocksMotion()) placed++;
                 phase = Phase.READY;
             }
             case DONE -> { return true; }
