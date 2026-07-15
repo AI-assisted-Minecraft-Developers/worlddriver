@@ -3676,6 +3676,64 @@ public final class AgentGameTestServer {
     }
 
     /**
+     * gap#80 (live drowning-escape verification, DrownEscapeChain vs AntiSuffocate
+     * fight): {@code AntiSuffocate#resolveHead} used to pick its break target with
+     * {@code !state.isAir()} at all four candidate cells (eye/above/foot/horizontal
+     * neighbour). WATER is {@code !isAir()} too, so a bot whose head is submerged
+     * (drowning, NOT suffocating) had {@code resolveHead} return the water block —
+     * live log: {@code "[antiSuffocate] suffocating -> breaking Block{minecraft:water}"}
+     * followed by 10 consecutive raycast misses (water has no real destroy
+     * geometry to land on) that flipped the reflex into direct-driving
+     * {@code continueDestroyBlock} on unbreakable water every tick, fighting
+     * {@link DrownEscapeChain}'s pure-vertical float the whole time.
+     *
+     * <p>The correct eligibility test is vanilla's own {@code
+     * BlockState#isSuffocating(BlockGetter, BlockPos)} — the exact predicate
+     * {@code Entity#isInWall()} ANDs against {@code !isAir()} internally, and which
+     * returns {@code false} for water (its cached collision shape is empty, so
+     * {@code blocksMotion()} is false and the default {@code isSuffocating}
+     * predicate never fires) but {@code true} for an ordinary solid block like
+     * stone. {@link AntiSuffocateGate#suffocates} is that criterion, factored into
+     * its own zero-client-type function (same split-file reason as {@link
+     * AntiSuffocateGate#shouldTrigger}) so this dedicated-server arena can plant
+     * real blocks and call it directly — {@code AntiSuffocate.resolveHead} itself
+     * needs a live {@code Minecraft}/{@code LocalPlayer} tick to exercise (no
+     * client instance exists on the GameTest server), so this is the pure seam
+     * precedent established by {@code shouldTrigger} above.
+     */
+    static void antiSuffocateSuffocatesBlockMatrix(ServerLevel level, BlockPos stone, BlockPos water, BlockPos air,
+                                                    java.util.function.BiConsumer<Boolean, String> check) {
+        check.accept(AntiSuffocateGate.suffocates(level, stone),
+                "gap#80(a): an ordinary solid block (stone) must read as suffocating");
+        check.accept(!AntiSuffocateGate.suffocates(level, water),
+                "gap#80(b): WATER must NOT read as suffocating (drowning, not suffocation) — "
+                        + "the live bug: resolveHead's old !isAir() check treated water as a valid break target");
+        check.accept(!AntiSuffocateGate.suffocates(level, air),
+                "gap#80(c): AIR must NOT read as suffocating (baseline sanity)");
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void antiSuffocateWaterNotSuffocatingArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("antiSuffocateWaterNotSuffocatingArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        BlockPos anchor = helper.absolutePos(BlockPos.ZERO);
+        BlockPos stone = anchor.above(1);
+        BlockPos water = anchor.above(2);
+        BlockPos air = anchor.above(3);
+        try {
+            level.setBlockAndUpdate(stone, Blocks.STONE.defaultBlockState());
+            level.setBlockAndUpdate(water, Blocks.WATER.defaultBlockState());
+            level.setBlockAndUpdate(air, Blocks.AIR.defaultBlockState());
+            antiSuffocateSuffocatesBlockMatrix(level, stone, water, air,
+                    (ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
+        } finally {
+            level.setBlockAndUpdate(stone, Blocks.AIR.defaultBlockState());
+            level.setBlockAndUpdate(water, Blocks.AIR.defaultBlockState());
+        }
+        helper.succeed();
+    }
+
+    /**
      * gap#64 (live 2026-07-13): SmeltProcess fuel handling, three defects in one live
      * furnace session — ① auto-fuel took the FIRST {@code isFuel} inventory stack in
      * slot order and fed the CRAFTING TABLE to the furnace while coal sat unused;

@@ -158,6 +158,9 @@ public final class AutoSwim {
             mc.options.keyLeft.setDown(false);
             mc.options.keyRight.setDown(false);
             mc.options.keySprint.setDown(false);
+            // gap#80: a held sneak SINKS the bot (DrownEscapeChain.tick's own comment) — a
+            // concurrently-latched sneak from a prior process would defeat this straight-up climb.
+            mc.options.keyShift.setDown(false);
             if (BotConfig.walkerDebug && (DBG++ % 8 == 0))
                 LOG.info("[autoSwim] deep-ascent straight-up pos={},{},{} air={}",
                         bx, by, bz, p.getAirSupply());

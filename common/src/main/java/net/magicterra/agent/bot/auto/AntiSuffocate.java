@@ -183,18 +183,25 @@ public final class AntiSuffocate {
      *  ({@code p.hurtTime>0}): real suffocation re-damages every ~10 ticks so hurtTime
      *  stays hot for the whole episode, but decays to 0 within ≤10 ticks of freedom —
      *  well inside the stale 40-tick tail.
+     *
+     *  <p><b>gap#80:</b> eligibility is {@link AntiSuffocateGate#suffocates}
+     *  (vanilla's {@code BlockState#isSuffocating}), NOT {@code !isAir()} — the
+     *  latter also matches WATER, which made this method hand back the water
+     *  column itself while the bot was drowning (not suffocating), fighting
+     *  {@code DrownEscapeChain}'s float-up reflex (live log: "breaking
+     *  Block{minecraft:water}" then 10 raycast misses into direct-drive).
      *  @return the block to break, or null if nothing nearby reads solid. */
     private static BlockPos resolveHead(Minecraft mc, LocalPlayer p) {
         BlockPos eye = BlockPos.containing(p.getEyePosition());
-        if (!mc.level.getBlockState(eye).isAir()) return eye;
+        if (AntiSuffocateGate.suffocates(mc.level, eye)) return eye;
         BlockPos above = p.blockPosition().above();
-        if (!mc.level.getBlockState(above).isAir()) return above;
+        if (AntiSuffocateGate.suffocates(mc.level, above)) return above;
         if (!AntiSuffocateGate.allowProximityFallback(p.hurtTime)) return null;
         BlockPos foot = p.blockPosition();
-        if (!mc.level.getBlockState(foot).isAir()) return foot;
+        if (AntiSuffocateGate.suffocates(mc.level, foot)) return foot;
         for (Direction d : Direction.Plane.HORIZONTAL) {
             BlockPos n = eye.relative(d);
-            if (!mc.level.getBlockState(n).isAir()) return n;
+            if (AntiSuffocateGate.suffocates(mc.level, n)) return n;
         }
         return null;
     }

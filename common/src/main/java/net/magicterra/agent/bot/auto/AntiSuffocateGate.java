@@ -1,5 +1,8 @@
 package net.magicterra.agent.bot.auto;
 
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.BlockGetter;
+
 /**
  * Pure trigger gate for {@link AntiSuffocate} (gap#69, live death #16), split into
  * its own file with ZERO client-only ({@code net.minecraft.client.*}) type
@@ -68,5 +71,23 @@ public final class AntiSuffocateGate {
      */
     public static boolean allowProximityFallback(int hurtTime) {
         return hurtTime > 0;
+    }
+
+    /**
+     * gap#80 (live drowning-escape verification): {@code AntiSuffocate#resolveHead}'s
+     * target-eligibility test, factored out into its own zero-client-type function (same
+     * split-file reason as {@link #shouldTrigger}) so a dedicated GameTest server can
+     * exercise it directly with real blocks. The four {@code resolveHead} call sites used
+     * to test {@code !state.isAir()} — WATER is {@code !isAir()} too, so a submerged
+     * (drowning, not suffocating) head made {@code resolveHead} return the water block,
+     * which the reflex then flailed at trying to break (unbreakable, raycast misses),
+     * fighting {@code DrownEscapeChain}'s float-up. The correct criterion is vanilla's own
+     * {@code BlockState#isSuffocating(BlockGetter, BlockPos)} — the exact predicate
+     * {@code Entity#isInWall()} ANDs against {@code !isAir()} internally (true only for a
+     * block whose cached collision shape is a full, motion-blocking solid; false for
+     * water, whose collision shape is empty, and for air).
+     */
+    public static boolean suffocates(BlockGetter level, BlockPos pos) {
+        return level.getBlockState(pos).isSuffocating(level, pos);
     }
 }
