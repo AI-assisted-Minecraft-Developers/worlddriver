@@ -40,6 +40,18 @@ public final class DuskSecureChain implements Chain {
     private int idleTicks;
     private float lastBidTier = Priorities.IDLE_SECURE;
     private int dryRunCooldown;
+    /** gap#75-b: true while the last dig episode ended by PREEMPTION (onInterrupt)
+     *  rather than by the process's own verdict. The bot preempted mid-dig is left
+     *  standing in its own half-dug 1×1 shaft, which reads {@code cornered=true}
+     *  in the HazardField (no standable neighbor within a 1-block step-up) — so the
+     *  legacy start-gate self-vetoed the reflex for the REST of the night and the
+     *  bot idled exposed in an unsealed pit (live 2026-07-14, dayTime 13000). While
+     *  set, {@link #startGateBlocks} waives ONLY the cornered veto (day/present
+     *  still gate; the idle-tier THREAT_RADIUS veto and debounce still apply).
+     *  Consumed by: the next process's own terminal verdict (a bail must NOT
+     *  re-trigger in a loop — each retry re-anchors lower and would ratchet the
+     *  shaft down), dawn (window closed), or an explicit episode cancel. */
+    private boolean rearmPending;
 
     public DuskSecureChain(BotState state, WorldModel worldModel) {
         this.state = state;
@@ -83,6 +95,19 @@ public final class DuskSecureChain implements Chain {
         return exposedAtNight && !cornered && urgentOn && dryRun;
     }
 
+    /** gap#75-b pure start-gate (server-safe, matrix-testable — the {@link #urgentBid}
+     *  split precedent): does the legacy day/present/cornered gate refuse to (re)start
+     *  a dig this tick? {@code cornered} normally sits the reflex out (a genuinely
+     *  boxed-in bot is BunkerChain(300)'s case) — EXCEPT while {@code rearmPending}:
+     *  a preemption dropped the held process mid-dig, so the cornered reading IS our
+     *  own unsealed shaft and must not block finishing/sealing it. Day/absent always
+     *  block; the caller's THREAT_RADIUS veto and idle debounce stay downstream. */
+    public static boolean startGateBlocks(boolean present, boolean exposedAtNight,
+                                          boolean cornered, boolean rearmPending) {
+        if (!present || !exposedAtNight) return true;
+        return cornered && !rearmPending;
+    }
+
     @Override public float priority(Minecraft mc, WorldView w, BotState st) {
         if (!BotConfig.autoSecureAtDusk || mc.player == null) { idleTicks = 0; return 0f; }
         // Once a shelter dig is committed, hold the channel until BunkerProcess finishes.
@@ -90,9 +115,14 @@ public final class DuskSecureChain implements Chain {
         // start-gate and abandon a half-dug, unsealed hole. (Live-cert finding.)
         if (process != null) return lastBidTier;
         WorldModel.Snapshot s = worldModel.snapshot();
-        // Legacy day/present/cornered gate — UNCHANGED from before the escalation: never
-        // bid at all outside dusk/night, and never while genuinely cornered.
-        if (!s.present() || !s.exposedAtNight() || s.cornered()) { idleTicks = 0; return 0f; }
+        // Legacy day/present/cornered gate (never bid outside dusk/night, never while
+        // genuinely cornered) — except that a PREEMPTED dig's own half-dug shaft reads
+        // cornered too, and must not self-veto the re-arm (gap#75-b; pure seam).
+        if (startGateBlocks(s.present(), s.exposedAtNight(), s.cornered(), rearmPending)) {
+            // Dawn/day closes the dusk window: any pending re-arm is consumed with it.
+            if (s.present() && !s.exposedAtNight()) rearmPending = false;
+            idleTicks = 0; return 0f;
+        }
         float bid = urgentBid(true, false, BotConfig.duskUrgent, BotConfig.duskUrgentDryRun);
         // final-review finding #3: emit the "would have escalated" canary BEFORE the
         // legacy idle-tier THREAT_RADIUS veto below (and independent of the idle-debounce
@@ -124,11 +154,16 @@ public final class DuskSecureChain implements Chain {
         if (process == null) {
             process = new BunkerProcess(BotConfig.bunkerDepth);
             process.attach(st);
-            announceAutoTrigger(mc);
+            announceAutoTrigger(mc, rearmPending);
         }
         if (process.tick(mc, w, st)) {
             process = null; // sheltered/done -> priority will drop next tick
             lastBidTier = Priorities.IDLE_SECURE;
+            // gap#75-b: the process issued its OWN terminal verdict (a bail — SEALED
+            // holds forever and never returns true). Consume any pending re-arm: only
+            // an external preemption re-arms; re-running a bail would loop, each retry
+            // re-anchoring lower (the gap#29 ratchet shape).
+            rearmPending = false;
         }
     }
 
@@ -137,14 +172,17 @@ public final class DuskSecureChain implements Chain {
      *  can react (e.g. mc.bot.cancel) and the operator sees it. Pairs with the off-by-default
      *  {@link BotConfig#autoSecureAtDusk} to keep 挖三填一 predominantly an Agent-invoked
      *  action (mc.bot.bunker) rather than an uncontrolled reflex. */
-    private static void announceAutoTrigger(Minecraft mc) {
+    private static void announceAutoTrigger(Minecraft mc, boolean rearm) {
         AgentApi api = AgentDriverCommon.api();
         if (api == null || mc.player == null) return;
         BlockPos p = mc.player.blockPosition();
         api.emitExternal("duskSecure.triggered", p,
                 JsonCodec.encode(Map.of(
                         "pos", Map.of("x", p.getX(), "y", p.getY(), "z", p.getZ()),
-                        "depth", BotConfig.bunkerDepth)));
+                        "depth", BotConfig.bunkerDepth,
+                        // gap#75-b: distinguishes a re-arm after preemption from a fresh
+                        // dusk trigger in the event stream.
+                        "rearm", rearm)));
     }
 
     /** Observe-only canary for {@link BotConfig#duskUrgentDryRun}: pushes at most one
@@ -193,6 +231,10 @@ public final class DuskSecureChain implements Chain {
      *  RetreatChain preemption. Dropping a held process now runs the unified
      *  finish/slot-reset lifecycle with a distinguishable endReason. */
     public void interruptEpisodeState(String byName) {
+        // gap#75-b: a preemption must not consume the dusk episode — arm a re-try so
+        // the half-dug shaft's own cornered=true reading can't self-veto the restart
+        // once the preempting chain releases the channel (see startGateBlocks).
+        if (process != null) rearmPending = true;
         process = ChainProcessLifecycle.drop(process, state.bunker,
                 ChainProcessLifecycle.INTERRUPTED, "preempted by " + byName);
         lastBidTier = Priorities.IDLE_SECURE;
@@ -204,6 +246,7 @@ public final class DuskSecureChain implements Chain {
                 ChainProcessLifecycle.CANCELLED, reason);
         idleTicks = 0;
         lastBidTier = Priorities.IDLE_SECURE;
+        rearmPending = false;   // an explicit cancel means "stand down", not "retry"
     }
 
     /** Test seam (gap#72): inject a held process so the interrupt/cancel lifecycle is
@@ -213,4 +256,7 @@ public final class DuskSecureChain implements Chain {
 
     /** Test seam (gap#72): the held process, or null once dropped. */
     public BunkerProcess heldProcessForTest() { return process; }
+
+    /** Test seam (gap#75-b): is a post-preemption re-arm pending? */
+    public boolean rearmPendingForTest() { return rearmPending; }
 }
