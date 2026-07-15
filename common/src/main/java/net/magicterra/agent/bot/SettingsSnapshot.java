@@ -123,6 +123,7 @@ final class SettingsSnapshot {
         snap.put("walkerVineFreeHangClimb", BotConfig.walkerVineFreeHangClimb);
         snap.put("walkerVineLandGrab", BotConfig.walkerVineLandGrab);
         snap.put("walkerVineDescentDrop", BotConfig.walkerVineDescentDrop);
+        snap.put("walkerAscendMovement", BotConfig.walkerAscendMovement);
         snap.put("pathDebug", BotConfig.pathDebug);
         snap.put("pathArchive", BotConfig.pathArchive);
         snap.put("pathDebugMaxNodes", BotConfig.pathDebugMaxNodes);

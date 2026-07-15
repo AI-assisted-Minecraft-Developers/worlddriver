@@ -352,6 +352,10 @@ public final class SettingsCommand {
                 BotConfig.walkerAscentRamJitterImmune = warji;
                 applied.add("walkerAscentRamJitterImmune");
             }
+            if (params.get("walkerAscendMovement") instanceof Boolean wam) {
+                BotConfig.walkerAscendMovement = wam;
+                applied.add("walkerAscendMovement");
+            }
             if (params.get("walkerArcLengthShadow") instanceof Boolean wals) {
                 BotConfig.walkerArcLengthShadow = wals;
                 applied.add("walkerArcLengthShadow");

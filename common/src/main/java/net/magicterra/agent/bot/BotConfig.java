@@ -1816,6 +1816,12 @@ public final class BotConfig {
      *  gate. Default OFF. */
     public static volatile boolean walkerChainMount = false;
 
+    /** task#82: route ascent/climb edges (stepUp/stairUpBreak/diagUp) through the per-move
+     *  AscendMovement state machine (own PREP→BREAK→ASCEND→CONFIRM + bounded timeout→cancel).
+     *  Default OFF = the tickInner delegation branch is skipped and legacy ascent handling runs
+     *  byte-identically (spec §5). Flip ON only on a clean live A/B (Unit 6). Wired to mc.bot.setting. */
+    public static volatile boolean walkerAscendMovement = false;
+
     /** §93 commit-tail platform retreat (#15 final lane). Best-effort segments whose
      *  tail lands mid-slope (fewer than 2 same-Y standable cardinal neighbours) retreat
      *  up to 8 nodes to the nearest platform node — the half-mounted commit tail plus

@@ -27,6 +27,7 @@ import net.magicterra.agent.bot.pathfinder.PathFinder;
 import net.magicterra.agent.bot.pathfinder.PathTrace;
 import net.magicterra.agent.bot.pathfinder.PathTraceHolder;
 import net.magicterra.agent.bot.movement.Walker;
+import net.magicterra.agent.bot.movement.MovementContext;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.world.LevelWorldView;
 import net.magicterra.agent.bot.pathfinder.moves.Fall;
@@ -952,6 +953,66 @@ public final class AgentGameTestTerrain {
             BotConfig.walkerDebug = odbg;
             BotConfig.pathfinderSliceMs = osl;
             BotConfig.pathfinderMaxMs = omm;
+        }
+        helper.succeed();
+    }
+
+    /**
+     * task#82 Unit 1: with {@code walkerAscendMovement} OFF, the tickInner delegation branch must
+     * be a byte-identical no-op — it never constructs a {@link MovementContext} (test seam:
+     * {@link MovementContext#ALLOC_COUNT}) and the legacy cardinal staircase climb still tops out.
+     * Mirrors {@code ascentSpeedArena} (same course shape) in a disjoint region.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void ascendMovementNoopArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("ascendMovementNoopArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int cx = 440, cz = 620, baseY = 210, stepCount = 6;   // disjoint region (away from ascentSpeedArena cz=440)
+        for (int dx = -10; dx <= -1; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, baseY, cz + dz), Blocks.STONE.defaultBlockState());
+        for (int i = 0; i < stepCount; i++) {
+            int sy = baseY + 1 + i;
+            for (int dx = 2 * i; dx <= 2 * i + 1; dx++)
+                for (int dz = -2; dz <= 2; dz++)
+                    for (int y = baseY; y <= sy; y++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+        }
+        final int topSurf = baseY + stepCount;
+        final int ascEndX = cx + 2 * stepCount - 1;
+        for (int dx = 2 * stepCount; dx <= 2 * stepCount + 12; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, topSurf, cz + dz), Blocks.STONE.defaultBlockState());
+        BlockPos goal = new BlockPos(cx + 2 * stepCount + 10, topSurf + 1, cz);
+
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, oam = BotConfig.walkerAscendMovement;
+        long osl = BotConfig.pathfinderSliceMs, omm = BotConfig.pathfinderMaxMs;
+        BotConfig.allowBreak = false; BotConfig.allowPlace = false;
+        BotConfig.walkerAscendMovement = false;             // OFF leg → machine must be inert
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2; BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        try {
+            ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx - 9 + 0.5, baseY + 1, cz + 0.5);
+            FakePlayer fp = av.fakePlayer();
+            grantWaterEffects(fp);
+            LevelWorldView w = new LevelWorldView(level, fp);
+            Walker walker = new Walker();
+            walker.setGoal(new Goal.Block(goal));
+            long allocBefore = MovementContext.ALLOC_COUNT;
+            Walker.Step s = Walker.Step.WALKING;
+            for (int t = 0; t < 500 && s == Walker.Step.WALKING; t++) { s = walker.tick(av, w); av.step(); }
+            boolean reachedTop = fp.getX() > ascEndX && fp.getY() >= topSurf + 1 - 0.4;
+            long allocated = MovementContext.ALLOC_COUNT - allocBefore;
+            AgentDriverCommon.LOG.info("[ascendMovementNoopArena] step={} pos=({},{},{}) reachedTop={} ctxAllocated={}",
+                    s, fp.getX(), fp.getY(), fp.getZ(), reachedTop, allocated);
+            if (allocated != 0)
+                throw new GameTestAssertException("ascendMovementNoopArena: flag OFF but MovementContext was constructed "
+                        + allocated + " times — the OFF branch is not a zero-cost no-op (spec §8.3)");
+            if (!reachedTop)
+                throw new GameTestAssertException("ascendMovementNoopArena: did not reach the flat top: pos=("
+                        + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + s);
+        } finally {
+            BotConfig.allowBreak = ob; BotConfig.allowPlace = op; BotConfig.walkerAscendMovement = oam;
+            BotConfig.pathfinderSliceMs = osl; BotConfig.pathfinderMaxMs = omm;
         }
         helper.succeed();
     }
