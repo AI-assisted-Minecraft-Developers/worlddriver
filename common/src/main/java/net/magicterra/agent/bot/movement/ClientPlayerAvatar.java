@@ -39,6 +39,7 @@ public final class ClientPlayerAvatar implements Avatar {
 
     @Override public boolean holdPlaceable() { return BotInteract.ensureHoldingPlaceableAny(mc); }
     @Override public boolean holdPillarBlock() { return BotInteract.ensureHoldingPillarBlock(mc); }
+    @Override public boolean holdThrowawayPlaceable() { return BotInteract.ensureHoldingPlaceableAny(mc, true); }
     @Override public void selectTool(BlockPos cell) { BotInteract.selectBestToolFor(mc, cell); }
     @Override public void setSelectedSlot(int slot) {
         if (p == null || slot < 0 || slot > 8) return;

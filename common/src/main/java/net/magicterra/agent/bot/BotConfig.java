@@ -938,6 +938,30 @@ public final class BotConfig {
                 net.minecraft.core.Direction.UP);
     }
 
+    /** Resources the bot deliberately gathered — must not be spent as disposable
+     *  pillar/scaffold filler (gap#81). Deliberately NARROW (wood family, the
+     *  observed waste); extend by adding tags if a run surfaces another wasted
+     *  resource — do not speculate now. */
+    public static boolean isValuablePlacementBlock(net.minecraft.world.level.block.Block block) {
+        net.minecraft.world.level.block.state.BlockState st = block.defaultBlockState();
+        return st.is(net.minecraft.tags.BlockTags.LOGS) || st.is(net.minecraft.tags.BlockTags.PLANKS);
+    }
+
+    /** Pure ItemStack-level core of a "throwaway" support block — a usable build block (see
+     *  {@link #isUsableBuildBlock}) that is NOT a gathered resource (see
+     *  {@link #isValuablePlacementBlock}); gap#81. Hosted here (not in
+     *  {@code BotInteract}, the client-facing caller) so it stays dist-neutral: {@code
+     *  BotInteract} mixes in unrelated client-only methods (LocalPlayer/Minecraft), and the
+     *  NeoForge RuntimeDistCleaner refuses to load THAT class at all on a dedicated server
+     *  (confirmed live via GameTestServer — "Attempted to load class LocalPlayer for invalid
+     *  dist DEDICATED_SERVER" — even though this predicate itself never touches a client type),
+     *  so the gametest matrix calls this dist-neutral entry point instead. {@code
+     *  BotInteract.isThrowawaySupportBlock} delegates here for production use. */
+    public static boolean isThrowawaySupportBlock(net.minecraft.world.item.ItemStack stk) {
+        if (stk.isEmpty() || !(stk.getItem() instanceof net.minecraft.world.item.BlockItem bi)) return false;
+        return isUsableBuildBlock(bi.getBlock()) && !isValuablePlacementBlock(bi.getBlock());
+    }
+
     /** Event types muted from the live PUSH channel via
      *  {@code mc.bot.setting{mutedEvents:[type,...]}}. By default EVERY driver event
      *  pushes to the MCP/WS channel; listing a type here suppresses ONLY its push — the

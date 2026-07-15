@@ -57,6 +57,12 @@ public interface Avatar {
      *  never falls). Defaults to {@link #holdPlaceable()} so non-client avatars are unchanged;
      *  the client overrides it. Use ONLY where the placement is supported below. */
     default boolean holdPillarBlock() { return holdPlaceable(); }
+    /** Like {@link #holdPlaceable()} but avoids spending gathered-wood resources (logs/planks)
+     *  as disposable filler (gap#81) — for the ROUTINE pillar/scaffold actuator only; life-safety
+     *  escape/recovery paths keep using {@link #holdPlaceable()} since surviving is worth any
+     *  block. Defaults to {@link #holdPlaceable()} so non-client avatars are unchanged; the
+     *  client overrides it. */
+    default boolean holdThrowawayPlaceable() { return holdPlaceable(); }
     /** Swap to the best tool for breaking the block at {@code cell}. */
     void selectTool(BlockPos cell);
     /** Select hotbar {@code slot} (0..8) as the held item. Client syncs the

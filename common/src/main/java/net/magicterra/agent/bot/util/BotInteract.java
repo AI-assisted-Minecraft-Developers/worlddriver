@@ -276,6 +276,17 @@ public final class BotInteract {
         return net.magicterra.agent.bot.BotConfig.isUsableBuildBlock(bi.getBlock());
     }
 
+    /** Like {@link #isSupportBlock} but ALSO excludes gathered-wood resources (see
+     *  {@link net.magicterra.agent.bot.BotConfig#isValuablePlacementBlock}) — a support
+     *  block the picker may spend as disposable filler without eating something the bot
+     *  deliberately gathered (gap#81). Delegates to the dist-neutral
+     *  {@link net.magicterra.agent.bot.BotConfig#isThrowawaySupportBlock} core (this class mixes
+     *  in unrelated client-only methods, so IT cannot be loaded on a dedicated server — the pure
+     *  logic lives where it's gametestable). */
+    public static boolean isThrowawaySupportBlock(ItemStack stk) {
+        return net.magicterra.agent.bot.BotConfig.isThrowawaySupportBlock(stk);
+    }
+
     /** Like {@link #isSupportBlock} but accepts supported FallingBlocks (sand/gravel) — for a
      *  strictly vertical pillar-up only (see {@link net.magicterra.agent.bot.BotConfig#isUsablePillarBlock}). */
     public static boolean isPillarBlock(ItemStack stk) {
@@ -286,12 +297,23 @@ public final class BotInteract {
     /** Hold (or swap to) a SOLID-support BlockItem in the hotbar (see {@link #isSupportBlock}).
      *  Creative can pull from main inventory. Returns false when none is available. */
     public static boolean ensureHoldingPlaceableAny(Minecraft mc) {
+        return ensureHoldingPlaceableAny(mc, false);
+    }
+
+    /** Like {@link #ensureHoldingPlaceableAny(Minecraft)} but with an extra {@code avoidValuable}
+     *  gate: when true, the slot test excludes gathered-wood resources (see
+     *  {@link #isThrowawaySupportBlock}) so the ROUTINE pillar/scaffold picker never spends a
+     *  block the bot deliberately gathered (gap#81). When {@code avoidValuable} is true and NO
+     *  non-valuable support block exists anywhere, this returns false — it deliberately does
+     *  NOT fall back to a valuable block; the caller's gate then skips the placement and the
+     *  bot keeps its resource. */
+    public static boolean ensureHoldingPlaceableAny(Minecraft mc, boolean avoidValuable) {
         LocalPlayer p = mc.player;
         if (p == null) return false;
         Inventory inv = p.getInventory();
-        if (isSupportBlock(inv.getSelected())) return true;
+        if (avoidValuable ? isThrowawaySupportBlock(inv.getSelected()) : isSupportBlock(inv.getSelected())) return true;
         for (int s = 0; s < 9; s++) {
-            if (isSupportBlock(inv.items.get(s))) {
+            if (avoidValuable ? isThrowawaySupportBlock(inv.items.get(s)) : isSupportBlock(inv.items.get(s))) {
                 inv.selected = s;
                 if (p.connection != null) p.connection.send(
                         new ServerboundSetCarriedItemPacket(s));
@@ -300,9 +322,9 @@ public final class BotInteract {
         }
         if (p.isCreative()) {
             for (int s = 9; s < inv.items.size(); s++) {
-                if (isSupportBlock(inv.items.get(s))) {
+                if (avoidValuable ? isThrowawaySupportBlock(inv.items.get(s)) : isSupportBlock(inv.items.get(s))) {
                     inv.pickSlot(s);
-                    return isSupportBlock(inv.getSelected());
+                    return avoidValuable ? isThrowawaySupportBlock(inv.getSelected()) : isSupportBlock(inv.getSelected());
                 }
             }
         }

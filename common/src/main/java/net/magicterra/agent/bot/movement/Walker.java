@@ -3066,7 +3066,8 @@ public final class Walker {
             }
             if (shaftFlooded || p.isInWater() || world.isWater(path.get(step).offset(0, -1, 0))) {
                 agentJump(a, true);
-                if (!shaftFlooded && a.holdPlaceable()) {
+                // gap#81: routine pillar/scaffold filler must not spend gathered wood.
+                if (!shaftFlooded && a.holdThrowawayPlaceable()) {
                     BlockPos wp = edge.toPlace.get(0);
                     p.setXRot(89.5f);                       // look down to aim the support
                     if (p.getY() >= wp.getY() + 0.9) {      // bobbed clear of the place cell
