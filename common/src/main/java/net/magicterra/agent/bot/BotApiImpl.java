@@ -39,6 +39,7 @@ import net.magicterra.agent.bot.scheduler.CancelRouting;
 import net.magicterra.agent.bot.scheduler.Chain;
 import net.magicterra.agent.bot.scheduler.CombatChain;
 import net.magicterra.agent.bot.scheduler.DodgeChain;
+import net.magicterra.agent.bot.scheduler.DrownEscapeChain;
 import net.magicterra.agent.bot.scheduler.DuskSecureChain;
 import net.magicterra.agent.bot.scheduler.PanicChain;
 import net.magicterra.agent.bot.scheduler.ProcessScheduler;
@@ -105,6 +106,13 @@ public final class BotApiImpl implements BotApi {
         // order is irrelevant, selection is purely by per-tick priority.
         scheduler.register(new PanicChain());     // 1000 — creeper blast
         scheduler.register(new DodgeChain());     // 900  — incoming projectile
+        // Active-process drowning escape (gap#76, live death #25): mine dug into
+        // water and kept digging through seven drown hits — the idle-only gap#70
+        // float never runs under a process and AutoSwim's in-process jump backstop
+        // loses the input channel to the process's own drive. Drowning must
+        // PREEMPT, like every other lethal-now reflex. Above bunker (digging DOWN
+        // while drowning is precisely lethal), below panic/dodge.
+        scheduler.register(new DrownEscapeChain()); // 500 — drowning under an active process (autoDrownEscape)
         // 挖三填一 emergency dig-in, registered but DEFAULT-OFF (autoBunker=false):
         // an OPT-IN last-resort reflex for a no-gear bot a flee can't save (a skeleton
         // matches walking speed on open ground — fleeing just circles, HP bleeds out).
@@ -1030,7 +1038,12 @@ public final class BotApiImpl implements BotApi {
         // that trailing key once air recovers, same bookkeeping as autoSwim's lift below.
         if (mc.player != null && AutoSwim.drowningSentinel(mc, mc.player, scheduler.current() == null))
             releaseGate.markDirtied();
-        if (BotConfig.autoSwim && mc.player != null && mc.player.isInWater()) {
+        // gap#76: while DrownEscapeChain holds the channel the contract is PURE
+        // VERTICAL (hold jump only) — AutoSwim.tick's in-process backstop would
+        // re-add its near-surface shore-steer (keyUp + yaw) right after the
+        // chain's tick zeroed it, so it is skipped for exactly that chain.
+        if (BotConfig.autoSwim && mc.player != null && mc.player.isInWater()
+                && !DrownEscapeChain.NAME.equals(scheduler.currentName())) {
             // Lift while submerged AND (when idle) actively swim to the nearest
             // shore — a bot that respawned/fell into a lake with no process used
             // to bob until it drowned (spawn-water death-loop). Steering is

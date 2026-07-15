@@ -327,6 +327,9 @@ public final class BotTools {
                 "  antiSuffocate             bool      — break the block choking the bot's head (falling sand in a dig pit); needs allowBreak; default on\n" +
                 "  autoFloatWhenDrowning     bool      — idle-only pure-vertical float reflex (hold jump, no movement) when air <= drownFloatAirThreshold; independent of autoSwim; default on (gap#70)\n" +
                 "  drownFloatAirThreshold    int       dflt 240 — air-supply ticks (max 300) at/below which autoFloatWhenDrowning takes over (12s air reserve, final-review M2)\n" +
+                "  autoDrownEscape           bool      — ACTIVE-process drowning reflex (DrownEscapeChain, priority 500): underwater with air <= drownEscapeAirThreshold PREEMPTS the running process (mine/goto/...) and floats straight up — pure vertical, breaks a solid lid overhead when allowBreak is on — until air >= drownEscapeReleaseAir or the head surfaces and air recovers. Complements the idle-only autoFloatWhenDrowning; default on (gap#76)\n" +
+                "  drownEscapeAirThreshold   int       dflt 100 — air ticks at/below which DrownEscapeChain preempts an active process (deliberately far below drownFloatAirThreshold so planned water crossings aren't interrupted)\n" +
+                "  drownEscapeReleaseAir     int       dflt 280 — air ticks at/above which DrownEscapeChain hands the channel back (wide hysteresis; values >300 clamp to vanilla max)\n" +
                 "  autoTool                  bool      — swap to best hotbar tool when crosshair on a breakable block\n" +
                 "  autoBackfill              bool      — Baritone BackfillProcess analogue; auto-fills cells the bot walked through when idle\n" +
                 "  autoBackfillBlock         id        — block placed by autoBackfill (default minecraft:cobblestone)\n" +
@@ -458,6 +461,9 @@ public final class BotTools {
                     .prop("antiSuffocate",              bool())
                     .prop("autoFloatWhenDrowning",      bool())
                     .prop("drownFloatAirThreshold",     integer())
+                    .prop("autoDrownEscape",            bool())
+                    .prop("drownEscapeAirThreshold",    integer())
+                    .prop("drownEscapeReleaseAir",      integer())
                     .prop("autoTool",                   bool())
                     .prop("autoBackfill",               bool())
                     .prop("autoBackfillBlock",          string())

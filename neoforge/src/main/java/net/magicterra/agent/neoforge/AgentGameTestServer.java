@@ -11,20 +11,30 @@ import net.magicterra.agent.neoforge.sim.ServerAgentDriver;
 import net.magicterra.agent.neoforge.sim.ServerAgentManager;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.auto.AntiSuffocateGate;
+import net.magicterra.agent.bot.auto.DrownEscapeGate;
 import net.magicterra.agent.bot.auto.DrowningFloatGate;
 import net.magicterra.agent.bot.scheduler.BunkerAnchor;
 import net.magicterra.agent.bot.scheduler.BunkerChain;
 import net.magicterra.agent.bot.scheduler.CancelRouting;
 import net.magicterra.agent.bot.scheduler.Chain;
 import net.magicterra.agent.bot.scheduler.CombatChain;
+import net.magicterra.agent.bot.scheduler.DrownEscapeChain;
 import net.magicterra.agent.bot.scheduler.DuskSecureChain;
 import net.magicterra.agent.bot.scheduler.Priorities;
+import net.magicterra.agent.bot.scheduler.ProcessScheduler;
+import net.magicterra.agent.bot.pathfinder.WorldView;
+import net.minecraft.client.Minecraft;
+import net.minecraft.tags.FluidTags;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.process.BboxFillProcess;
 import net.magicterra.agent.bot.process.BotProcess;
 import net.magicterra.agent.bot.process.BunkerProcess;
 import net.magicterra.agent.bot.scheduler.ChainProcessLifecycle;
+import net.magicterra.agent.bot.world.HazardField;
+import net.magicterra.agent.bot.world.SurvivalFacts;
+import net.magicterra.agent.bot.world.SurvivalMath;
 import net.magicterra.agent.bot.world.WorldModel;
+import net.magicterra.agent.bot.process.BridgeProcess;
 import net.magicterra.agent.bot.process.BuildProcess;
 import net.magicterra.agent.bot.process.CraftProcess;
 import net.magicterra.agent.bot.process.EntityLeash;
@@ -3961,13 +3971,158 @@ public final class AgentGameTestServer {
         ChainProcessLifecycle.drop(probe, st5.bunker, ChainProcessLifecycle.CANCELLED, "late cancel");
         check.accept("DONE".equals(st5.bunker.endReason),
                 "inactive slot keeps its finished verdict — got " + st5.bunker.endReason);
+
+        // ⑤ gap#75-b: a preemption must ARM a re-try. The dropped dig leaves the bot
+        // standing in its own half-dug 1×1 shaft, which reads cornered=true in the
+        // HazardField — without a pending re-arm the legacy cornered start-gate
+        // self-vetoes the reflex for the REST of the night (live 2026-07-14: a user
+        // goto preempted the dusk dig, was itself cancelled, and the bot idled
+        // exposed in an unsealed 2-deep pit all night). Only the process's own
+        // verdict / dawn / an explicit cancel consume the pending re-arm.
+        BotState st6 = new BotState();
+        DuskSecureChain chain6 = new DuskSecureChain(st6, new WorldModel());
+        BunkerProcess held6 = new BunkerProcess(2);
+        held6.attach(st6);
+        chain6.adoptProcessForTest(held6);
+        check.accept(!chain6.rearmPendingForTest(), "no re-arm pending before any preemption");
+        chain6.interruptEpisodeState("user");
+        check.accept(chain6.rearmPendingForTest(),
+                "gap#75-b: INTERRUPTED must not consume the dusk episode — re-arm must be pending");
+        // The armed gate waives ONLY the cornered self-veto, and only inside the window.
+        check.accept(!DuskSecureChain.startGateBlocks(true, true, true, true),
+                "armed: the own-shaft cornered reading must not block the re-dig");
+        check.accept(DuskSecureChain.startGateBlocks(true, true, true, false),
+                "unarmed: genuine cornered still sits the reflex out (BunkerChain's case)");
+        check.accept(DuskSecureChain.startGateBlocks(true, false, true, true),
+                "armed but day/dawn: window closed, gate blocks");
+        check.accept(DuskSecureChain.startGateBlocks(false, true, true, true),
+                "armed but absent: gate blocks");
+        check.accept(!DuskSecureChain.startGateBlocks(true, true, false, false),
+                "plain exposed night, not cornered: gate open (legacy path unchanged)");
+        // An explicit cancel stands down — it consumes the pending re-arm.
+        BunkerProcess held6b = new BunkerProcess(2);
+        held6b.attach(st6);
+        chain6.adoptProcessForTest(held6b);
+        chain6.cancelEpisodeState("agent cancel");
+        check.accept(!chain6.rearmPendingForTest(), "cancel consumes the pending re-arm");
+        // A stray interrupt with NOTHING held must not arm (no dig was preempted).
+        BotState st7 = new BotState();
+        DuskSecureChain chain7 = new DuskSecureChain(st7, new WorldModel());
+        chain7.interruptEpisodeState("retreat");
+        check.accept(!chain7.rearmPendingForTest(),
+                "no held process: interrupt must not arm a re-dig");
     }
 
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void duskSecureHeldProcessLifecycleArena(GameTestHelper helper) {
         if (AgentGameTestSupport.gtOnlySkips("duskSecureHeldProcessLifecycleArena")) { helper.succeed(); return; } // gt-filter
         duskSecureHeldProcessLifecycleMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
+        duskSecureRearmWorldLeg(helper);
         helper.succeed();
+    }
+
+    /**
+     * gap#75-b world leg (merged into the lifecycle arena — no new @GameTest): the full
+     * live incident shape over a REAL {@link BunkerProcess} on a FakePlayer. duskSecure
+     * starts a dusk dig; a user goto (USER 50 > 40) preempts it mid-shaft; the goto is
+     * then cancelled and the body is idle IN the half-dug, unsealed pit. Ground truth
+     * asserted from the real world: that pit reads {@code cornered=true} in the
+     * HazardField and is still sky-exposed — so pre-fix, priority()'s cornered
+     * start-gate self-vetoed and duskSecure never re-armed, idling the bot exposed all
+     * night (live 2026-07-14, dayTime 13000). Asserts the pure start-gate re-arms after
+     * the preemption, then drives the re-armed dig to a genuinely SEALED pocket.
+     * (The dusk clock itself has no server seam — priority() is client-tick code — so
+     * window state feeds the pure gate, same split as urgentBidMatrix.)
+     */
+    private static void duskSecureRearmWorldLeg(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        final int cx = 3200, cz = 3500, floorY = 220;
+        boolean ob = BotConfig.allowBreak, op = BotConfig.allowPlace, odbg = BotConfig.walkerDebug;
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;
+        BotConfig.walkerDebug = false;
+        ServerAgentManager.clear();
+        try {
+            // Dirt slab with a 1×2 standing slot at the centre (serverBunkerArena shape),
+            // deep enough for the re-armed dig to deepen + carve an embedded niche.
+            for (int dx = -3; dx <= 3; dx++)
+                for (int dz = -3; dz <= 3; dz++) {
+                    for (int dy = -6; dy <= 1; dy++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.DIRT.defaultBlockState());
+                    for (int dy = 2; dy <= 6; dy++)   // defensive air box above the slab
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+                }
+            level.setBlockAndUpdate(new BlockPos(cx, floorY + 1, cz), Blocks.AIR.defaultBlockState());
+
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            FakePlayer fp = driver.fakePlayer();
+            fp.getInventory().clearContent();
+            fp.getInventory().add(new ItemStack(Items.DIRT, 64));  // server breaks drop nothing → pre-stock plug blocks
+            BotState st = driver.botState();
+            DuskSecureChain chain = new DuskSecureChain(st, new WorldModel());
+
+            // ① dusk: duskSecure starts the dig (live seq1945) — run until mid-shaft.
+            BunkerProcess dig = new BunkerProcess(2);
+            driver.runProcess(dig);                 // attaches to st, like chain.tick() does
+            chain.adoptProcessForTest(dig);
+            int t = 0;
+            for (; t < 400 && fp.blockPosition().getY() > floorY; t++) driver.tick();
+            if (fp.blockPosition().getY() > floorY)
+                throw new GameTestAssertException("rig: dig never went a block down in " + t + " ticks");
+
+            // ② USER preempts mid-dig (live: endReason=INTERRUPTED "preempted by user").
+            chain.interruptEpisodeState("user");
+            if (chain.heldProcessForTest() != null || st.bunker.active)
+                throw new GameTestAssertException("rig: interrupt must drop the held process + slot");
+
+            // ③ user goto cancelled; body idle IN the half-dug unsealed shaft. Evidence
+            // for the root cause, from the real world:
+            BlockPos foot = fp.blockPosition();
+            HazardField hf = HazardField.compute(driver.world(), foot, 1,
+                    SurvivalMath.survivableFall(fp.getHealth()), BotConfig.deepWaterMax);
+            boolean cornered = SurvivalFacts.cornered(hf);
+            // "Still exposed" ground truth as a direct block scan — canSeeSky would read
+            // the light engine, which hasn't recomputed the freshly-carved column within
+            // this synchronous gametest tick (live it reads true: duskExposed kept firing).
+            boolean openAbove = true;
+            for (int y = foot.getY() + 1; y <= floorY + 6; y++)
+                if (driver.world().isSolid(new BlockPos(foot.getX(), y, foot.getZ()))) { openAbove = false; break; }
+            AgentDriverCommon.LOG.info("[duskSecureRearmWorldLeg] preempted@t{} foot={} cornered={} openAbove={} rearmPending={}",
+                    t, foot, cornered, openAbove, chain.rearmPendingForTest());
+            if (!cornered)
+                throw new GameTestAssertException("rig: the half-dug 1×1 shaft must read cornered=true "
+                        + "(that reading IS the live self-veto) — foot=" + foot);
+            if (!openAbove)
+                throw new GameTestAssertException("rig: the unsealed shaft must still be open to the sky — foot=" + foot);
+
+            // ④ THE gap: the dusk window is still open and the body is idle — the
+            // start-gate must be willing to restart. Pre-fix it blocked all night.
+            if (DuskSecureChain.startGateBlocks(true, true, cornered, chain.rearmPendingForTest()))
+                throw new GameTestAssertException("gap#75-b: duskSecure preempted mid-dig never re-arms — its own "
+                        + "unsealed shaft reads cornered and the start-gate self-vetoes for the rest of the night "
+                        + "(rearmPending=" + chain.rearmPendingForTest() + ")");
+
+            // ⑤ re-arm exactly as tick() would: a fresh BunkerProcess from the pit floor
+            // must finish the job — dig on, carve, step in, plug: genuinely SEALED.
+            BunkerProcess redo = new BunkerProcess(2);
+            driver.runProcess(redo);
+            chain.adoptProcessForTest(redo);
+            for (int i = 0; i < 800 && !"SEALED".equals(st.bunker.endReason); i++) driver.tick();
+            AgentDriverCommon.LOG.info("[duskSecureRearmWorldLeg] redo endReason={} lastErr={} foot={} enclosed={}",
+                    st.bunker.endReason, st.bunker.lastError, fp.blockPosition(),
+                    BunkerProcess.enclosed(driver.world(), fp.blockPosition()));
+            if (!"SEALED".equals(st.bunker.endReason))
+                throw new GameTestAssertException("gap#75-b: re-armed bunker failed to seal — endReason="
+                        + st.bunker.endReason + " lastError=" + st.bunker.lastError);
+            if (!BunkerProcess.enclosed(driver.world(), fp.blockPosition()))
+                throw new GameTestAssertException("gap#75-b: SEALED verdict but the pocket is not enclosed at "
+                        + fp.blockPosition());
+        } finally {
+            BotConfig.allowBreak = ob;
+            BotConfig.allowPlace = op;
+            BotConfig.walkerDebug = odbg;
+            ServerAgentManager.clear();
+        }
     }
 
     // gap#72-②: mc.bot.cancel{process:"bunker"} returned ok:true while duskSecure's held
@@ -4620,6 +4775,347 @@ public final class AgentGameTestServer {
         if (AgentGameTestSupport.gtOnlySkips("drowningFloatShouldFloatMatrixArena")) { helper.succeed(); return; } // gt-filter
         drowningFloatShouldFloatMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
         helper.succeed();
+    }
+
+    /**
+     * gap#76 (live death #25): drowning under an ACTIVE process had ZERO working
+     * defense. A mine process dug a shaft from y59 into water at y53; once air ran
+     * out the bot ate seven drown hits (HP 16→12→10→8→6→4→2→dead) while mine KEPT
+     * BREAKING BLOCKS — the last swing landed the tick it died. gap#70's
+     * {@code drowningSentinel} is idle-only by design, and {@code AutoSwim.tick}'s
+     * in-process jump backstop shares the input channel with the process, whose
+     * per-tick dig/steer drive suppresses it (proven live). The fix is
+     * scheduler-semantic: {@link DrownEscapeChain} (priority
+     * {@link Priorities#DROWN_ESCAPE}=500) PREEMPTS the channel and floats the bot
+     * straight up, releasing with WIDE hysteresis ({@link DrownEscapeGate}).
+     *
+     * <p>This is the pure entry/release/hysteresis matrix — zero client types,
+     * same precedent as {@link #drowningFloatShouldFloatMatrix} (gap#70) /
+     * {@code AntiSuffocateGate} (gap#69).
+     */
+    static void drownEscapeGateMatrix(java.util.function.BiConsumer<Boolean, String> check) {
+        // -------- entry --------
+        check.accept(DrownEscapeGate.next(false, true, 100, 101, 100, 280, true),
+                "gap#76(a): underwater with air==enter threshold must latch");
+        check.accept(DrownEscapeGate.next(false, true, 40, 41, 100, 280, true),
+                "gap#76(b): underwater well below the threshold must latch");
+        check.accept(!DrownEscapeGate.next(false, true, 101, 102, 100, 280, true),
+                "gap#76(c): air just above the threshold must NOT latch (planned crossings keep their reserve)");
+        check.accept(!DrownEscapeGate.next(false, false, 50, 51, 100, 280, true),
+                "gap#76(d): head out of water never ENTERS (nothing to escape)");
+        check.accept(!DrownEscapeGate.next(false, true, 50, 51, 100, 280, false),
+                "gap#76(e): autoDrownEscape=false must suppress entry");
+        // -------- hold (the hysteresis band) --------
+        check.accept(DrownEscapeGate.next(true, true, 101, 100, 100, 280, true),
+                "gap#76(f): latched + air back above the ENTRY threshold must STAY latched (no flap at 100)");
+        check.accept(DrownEscapeGate.next(true, true, 279, 278, 100, 280, true),
+                "gap#76(g): latched underwater one below release must stay latched");
+        check.accept(DrownEscapeGate.next(true, false, 150, 150, 100, 280, true),
+                "gap#76(h): head momentarily out but air NOT yet recovering must stay latched (surface bob)");
+        // -------- release --------
+        check.accept(!DrownEscapeGate.next(true, true, 280, 279, 100, 280, true),
+                "gap#76(i): air >= release lets go even with the head still underwater");
+        check.accept(!DrownEscapeGate.next(true, false, 154, 150, 100, 280, true),
+                "gap#76(j): head out + air recovering releases early");
+        check.accept(!DrownEscapeGate.next(true, true, 60, 60, 100, 280, false),
+                "gap#76(k): flipping autoDrownEscape off drops an existing latch");
+        check.accept(!DrownEscapeGate.next(true, true, 300, 299, 100, 999, true),
+                "gap#76(l): releaseAir above vanilla max 300 clamps (a full-air latch can't hold forever)");
+        // -------- oscillation guard: jitter AROUND the entry threshold stays latched --------
+        boolean latch = DrownEscapeGate.next(false, true, 100, 101, 100, 280, true);
+        int prev = 100;
+        for (int air : new int[]{99, 101, 100, 102, 98, 103}) {
+            latch = DrownEscapeGate.next(latch, true, air, prev, 100, 280, true);
+            check.accept(latch, "gap#76(m): latch must hold through entry-threshold jitter (air=" + air
+                    + " — the frail-gate no-hysteresis oscillation precedent)");
+            prev = air;
+        }
+    }
+
+    // gap#76 chain-level episode lifecycle (gap#72 semantics): the latch IS the
+    // episode; cancel/death-clear reach it through the pure state half
+    // (resetEpisodeState — the client key-release half touches Minecraft.getInstance()
+    // and is live-verified, same split as chainEpisodeCancelMatrix / BunkerChain).
+    static void drownEscapeChainLifecycleMatrix(java.util.function.BiConsumer<Boolean, String> check) {
+        boolean oEnabled = BotConfig.autoDrownEscape;
+        int oEnter = BotConfig.drownEscapeAirThreshold, oRelease = BotConfig.drownEscapeReleaseAir;
+        BotConfig.autoDrownEscape = true;
+        BotConfig.drownEscapeAirThreshold = 100;
+        BotConfig.drownEscapeReleaseAir = 280;
+        try {
+            DrownEscapeChain ch = new DrownEscapeChain();
+            check.accept(ch.episodePhase() == null, "fresh chain has no episode");
+            check.accept(!ch.updateLatch(true, 300), "plenty of air: no episode");
+            check.accept(ch.updateLatch(true, 100), "critical air underwater latches");
+            check.accept("FLOATING".equals(ch.episodePhase()), "live episode reads FLOATING");
+            check.accept(ch.updateLatch(true, 101), "chain holds through the hysteresis band");
+            ch.resetEpisodeState();
+            check.accept(ch.episodePhase() == null, "cancel/death-clear (pure half) clears the episode");
+            check.accept(ch.updateLatch(true, 99),
+                    "still underwater+critical after a cancel re-arms next evaluation (fresh-instance contract)");
+            ch.resetEpisodeState();
+            BotConfig.autoDrownEscape = false;
+            check.accept(!ch.updateLatch(true, 10), "setting off: chain never latches");
+        } finally {
+            BotConfig.autoDrownEscape = oEnabled;
+            BotConfig.drownEscapeAirThreshold = oEnter;
+            BotConfig.drownEscapeReleaseAir = oRelease;
+        }
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void drownEscapeGateMatrixArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("drownEscapeGateMatrixArena")) { helper.succeed(); return; } // gt-filter
+        drownEscapeGateMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
+        drownEscapeChainLifecycleMatrix((ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); });
+        helper.succeed();
+    }
+
+    /**
+     * gap#76 behavioural leg: the REAL {@link DrownEscapeChain} + REAL
+     * {@link ProcessScheduler} against a REAL FakePlayer in a real 1×1 flooded
+     * shaft — a "user" stub chain stands in for the active process (bidding
+     * {@link Priorities#USER} every tick, the death-#25 mine shape). Asserts the
+     * full episode: user chain holds the channel while air is healthy → the chain
+     * PREEMPTS at the entry threshold (stub gets onInterrupt) → jump-driven ascent
+     * up the water column (the avatar's jump input stands in for the client
+     * keyJump the chain holds — no client on the dedicated GameTest server; the
+     * one-line keyJump actuation itself is live-verified per project convention)
+     * → head surfaces, air recovers → hysteresis release hands the channel back —
+     * and air NEVER reached 0 (live death #25 = seven drown hits to 0 HP).
+     *
+     * <p>FakePlayer quirk bypass (documented per task): air is bookkept at exact
+     * vanilla rates (-1/tick eye-in-water, +4/tick surfaced) from the entity's
+     * REAL fluid state via setAirSupply, rather than trusting the FakePlayer's
+     * own air tick (FakePlayer damage/air special-casing precedent, cf.
+     * serverObserveAirSupplyArena which also drives air via setAirSupply).
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void drownEscapePreemptArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("drownEscapePreemptArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        BlockPos anchor = helper.absolutePos(BlockPos.ZERO);
+        final int cx = anchor.getX(), cz = anchor.getZ(), floorY = anchor.getY();
+        final int depth = 6;                     // water column floorY+1 .. floorY+depth
+        boolean oEnabled = BotConfig.autoDrownEscape;
+        int oEnter = BotConfig.drownEscapeAirThreshold, oRelease = BotConfig.drownEscapeReleaseAir;
+        BotConfig.autoDrownEscape = true;
+        BotConfig.drownEscapeAirThreshold = 100;
+        BotConfig.drownEscapeReleaseAir = 280;
+        try {
+            // Defensive clear (shared ServerLevel residue) + sealed 2-layer floor +
+            // stone-shelled 1×1 water shaft, open at the top (the lid-break leg is
+            // matrix-covered; a lidded shaft would need client break actuation).
+            for (int dx = -2; dx <= 2; dx++)
+                for (int dz = -2; dz <= 2; dz++)
+                    for (int y = floorY + 1; y <= floorY + depth + 4; y++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
+            for (int dx = -2; dx <= 2; dx++)
+                for (int dz = -2; dz <= 2; dz++) {
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY - 1, cz + dz), Blocks.STONE.defaultBlockState());
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+                }
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dz = -1; dz <= 1; dz++)
+                    for (int y = floorY + 1; y <= floorY + depth; y++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz),
+                                (dx == 0 && dz == 0 ? Blocks.WATER : Blocks.STONE).defaultBlockState());
+
+            ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5, floorY + 1, cz + 0.5);
+            FakePlayer fp = driver.fakePlayer();
+
+            DrownEscapeChain drown = new DrownEscapeChain();
+            drown.sensorForTest(fp::isUnderWater, fp::getAirSupply);
+            final int[] userInterrupts = new int[1];
+            Chain user = new Chain() {           // the "active process" placeholder (death-#25 mine shape)
+                @Override public String name() { return "user"; }
+                @Override public float priority(Minecraft mc, WorldView w, BotState st) { return Priorities.USER; }
+                @Override public void tick(Minecraft mc, WorldView w, BotState st) { /* keeps digging */ }
+                @Override public void onInterrupt(Chain by) { userInterrupts[0]++; }
+            };
+            ProcessScheduler sched = new ProcessScheduler();
+            sched.register(drown);
+            sched.register(user);
+            BotState st = new BotState();
+
+            int airSim = 150;
+            fp.setAirSupply(airSim);
+            List<String> flips = new ArrayList<>();
+            String prevChain = "";
+            int preemptTick = -1, releaseTick = -1, airAtPreempt = -1, minAir = Integer.MAX_VALUE;
+            double yAtPreempt = -1, airAtRelease = -1;
+            boolean underAtRelease = true;
+            for (int t = 0; t < 1200 && releaseTick < 0; t++) {
+                sched.tick(null, driver.world(), st);
+                String cur = String.valueOf(sched.currentName());
+                if (!cur.equals(prevChain)) { flips.add(cur + "@t" + t); prevChain = cur; }
+                boolean escape = DrownEscapeChain.NAME.equals(sched.currentName());
+                if (escape && preemptTick < 0) {
+                    preemptTick = t; airAtPreempt = fp.getAirSupply(); yAtPreempt = fp.getY();
+                }
+                if (preemptTick >= 0 && !escape && releaseTick < 0) {
+                    releaseTick = t; airAtRelease = fp.getAirSupply(); underAtRelease = fp.isUnderWater();
+                }
+                // Actuation mirror of DrownEscapeChain.tick's client keyJump hold.
+                driver.avatar().commandJump(escape);
+                driver.avatar().step();
+                boolean eyeInWater = fp.isEyeInFluid(FluidTags.WATER);
+                airSim = eyeInWater ? Math.max(airSim - 1, -20) : Math.min(airSim + 4, 300);
+                fp.setAirSupply(airSim);
+                minAir = Math.min(minAir, airSim);
+            }
+            AgentDriverCommon.LOG.info(
+                    "[drownEscapePreemptArena] flips={} preempt@t{} (air={}) release@t{} (air={} under={}) minAir={} "
+                            + "y {}→{} interrupts={} phase={}",
+                    flips, preemptTick, airAtPreempt, releaseTick, airAtRelease, underAtRelease, minAir,
+                    yAtPreempt, fp.getY(), userInterrupts[0], drown.episodePhase());
+            if (!flips.isEmpty() && !flips.get(0).startsWith("user@"))
+                throw new GameTestAssertException("gap#76: user chain should hold the channel while air is healthy: " + flips);
+            if (preemptTick < 0)
+                throw new GameTestAssertException("gap#76 (live death #25): DrownEscapeChain NEVER preempted the "
+                        + "active process while the bot drowned — minAir=" + minAir + " flips=" + flips);
+            if (airAtPreempt > BotConfig.drownEscapeAirThreshold)
+                throw new GameTestAssertException("gap#76: preempted too early, air=" + airAtPreempt
+                        + " > threshold " + BotConfig.drownEscapeAirThreshold);
+            if (userInterrupts[0] < 1)
+                throw new GameTestAssertException("gap#76: preemption must interrupt the user chain (onInterrupt)");
+            if (minAir <= 0)
+                throw new GameTestAssertException("gap#76: air hit " + minAir
+                        + " — the escape did not beat the drown clock (death #25 shape)");
+            if (releaseTick < 0)
+                throw new GameTestAssertException("gap#76: chain never released the channel after surfacing — "
+                        + "hysteresis release broken (air=" + fp.getAirSupply() + " under=" + fp.isUnderWater() + ")");
+            if (fp.getY() < yAtPreempt + 2.0)
+                throw new GameTestAssertException("gap#76: bot did not float up: y " + yAtPreempt + " → " + fp.getY());
+            if (underAtRelease && airAtRelease < BotConfig.drownEscapeReleaseAir)
+                throw new GameTestAssertException("gap#76: released while still underwater below the release level "
+                        + "(air=" + airAtRelease + ") — hysteresis violated");
+            if (!"user".equals(sched.currentName()))
+                throw new GameTestAssertException("gap#76: channel not handed back to the user task after release: "
+                        + sched.currentName());
+            if (drown.episodePhase() != null)
+                throw new GameTestAssertException("gap#76: episode must clear on release: " + drown.episodePhase());
+            if (flips.size() != 3)
+                throw new GameTestAssertException("gap#76: expected exactly user→drownEscape→user, no oscillation: " + flips);
+        } finally {
+            BotConfig.autoDrownEscape = oEnabled;
+            BotConfig.drownEscapeAirThreshold = oEnter;
+            BotConfig.drownEscapeReleaseAir = oRelease;
+        }
+        helper.succeed();
+    }
+
+    /**
+     * gap#75-a (live death #24): {@code construct bridge} from a 1×1 pillar top killed the
+     * bot within ~20 ticks — status died with "no support under feet (fell off?)" and the
+     * body fell y72→y64.
+     *
+     * <p>Mechanism this arena pins (leg A): {@link BridgeProcess} anchors ALL of its
+     * bookkeeping on {@code floor(center)}, but vanilla's sneak edge-clamp
+     * ({@code Player.maybeBackOffFromEdge}) deliberately allows the player to OVERHANG a
+     * ledge until only an AABB sliver (half-width 0.3) still touches support — so
+     * {@code floor(center)} legally flips into the UNSUPPORTED neighbour column while the
+     * body is still standing. A tower finish routinely leaves the bot in exactly that state
+     * (TowerProcess fills the {@code floor(center)} cell of wherever the body stood, edge
+     * overhang included). The bridge's PLACING branch then reads "support under feet = air",
+     * declares the bot fallen while it is physically fine, and terminates — and the
+     * terminal {@code releaseInputs()} drops the sneak that was pinning the body to the
+     * ledge, converting the misdiagnosis into the real fall (death #24). Leg A spawns the
+     * FakePlayer in that legal overhang state (center 0.05 past the pillar edge, AABB still
+     * 0.25 on support) and runs the REAL BridgeProcess over the server avatar.
+     *
+     * <p>Leg B is the centered baseline: bridge from a clean pillar-top must place
+     * {@code distance} blocks and finish {@code done} without the feet ever dropping below
+     * the pillar top.
+     *
+     * <p>NOT reproducible headless (documented, live-verified instead): the client-only
+     * yaw half of #75-a — BridgeProcess snap-writes yRot but {@code LookController.apply}
+     * re-clamps the camera to 30°/tick AFTER the scheduler, and the raw forward impulse
+     * walks along the CAMERA yaw, so the first WALKING ticks drive up to 180° off the
+     * bridge axis. The shared-logic fix (forward gated on pre-write yaw alignment) is
+     * exercised here by starting leg A with yaw 90° off; the LookController interplay
+     * itself has no server seam (GameTest has no client tick).
+     */
+    @GameTest(template = "empty", timeoutTicks = 100000)
+    public static void serverBridgePillarStartArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("serverBridgePillarStartArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        boolean odbg = BotConfig.walkerDebug;
+        BotConfig.walkerDebug = false;
+        ServerAgentManager.clear();
+        try {
+            // Leg A: live death-#24 shape — sneak-overhang start (center 1.05 east of the
+            // pillar cell origin => floor(center) is already the void column) + yaw 90° off.
+            bridgePillarLeg(level, 1300, 1300, 0.55, 90f, "A(overhang)");
+            // Leg B: centered start, aligned yaw — the plain happy path.
+            bridgePillarLeg(level, 1300, 1316, 0.0, 270f, "B(centered)");
+        } finally {
+            BotConfig.walkerDebug = odbg;
+            ServerAgentManager.clear();
+        }
+        helper.succeed();
+    }
+
+    /** One bridge-from-pillar-top run: 1×1 cobblestone pillar (6 high) over a catch floor,
+     *  FakePlayer on top at {@code (cx+0.5+xOff, cz+0.5)}, REAL {@link BridgeProcess}
+     *  east ×4. Asserts: feet never drop below pillar-top−1, 4 bridge blocks laid, process
+     *  ends in the {@code done} terminal. */
+    private static void bridgePillarLeg(ServerLevel level, int cx, int cz, double xOff,
+                                        float startYaw, String leg) {
+        final int floorY = 220, pillarH = 6;
+        final int topY = floorY + pillarH;        // pillar top block y
+        final double feetY = topY + 1;            // bot feet
+        final int distance = 4;
+        // Catch floor + air box (defensive clear against shared-level residue).
+        for (int dx = -3; dx <= 9; dx++)
+            for (int dz = -3; dz <= 3; dz++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+                for (int y = floorY + 1; y <= topY + 5; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
+            }
+        for (int y = floorY + 1; y <= topY; y++)
+            level.setBlockAndUpdate(new BlockPos(cx, y, cz), Blocks.COBBLESTONE.defaultBlockState());
+
+        ServerAgentDriver driver = ServerAgentDriver.create(level, cx + 0.5 + xOff, feetY, cz + 0.5);
+        FakePlayer fp = driver.fakePlayer();
+        fp.setYRot(startYaw); fp.yHeadRot = startYaw; fp.yBodyRot = startYaw;
+        fp.getInventory().clearContent();
+        fp.getInventory().setItem(0, new ItemStack(Items.COBBLESTONE, 64));
+        fp.getInventory().selected = 0;
+        driver.runProcess(new BridgeProcess(Direction.EAST, distance, "minecraft:cobblestone"));
+        ServerAgentManager.register(driver);
+
+        double minY = fp.getY();
+        int t = 0;
+        for (; t < 400 && ServerAgentManager.activeCount() > 0; t++) {
+            ServerAgentManager.tickAll();
+            minY = Math.min(minY, fp.getY());
+            if (t < 40 || t % 20 == 0)
+                AgentDriverCommon.LOG.info("[bridgePillar {} t={}] pos=({},{},{}) onGround={} dm={} step={} lastErr={}",
+                        leg, t, String.format("%.3f", fp.getX()), String.format("%.3f", fp.getY()),
+                        String.format("%.3f", fp.getZ()), fp.onGround(), fp.getDeltaMovement(),
+                        driver.botState().builder.pathStep, driver.botState().builder.lastError);
+        }
+        String lastErr = driver.botState().builder.lastError;
+        StringBuilder laid = new StringBuilder();
+        int laidCount = 0;
+        for (int i = 1; i <= distance; i++) {
+            boolean solid = level.getBlockState(new BlockPos(cx + i, topY, cz)).blocksMotion();
+            if (solid) laidCount++;
+            laid.append(solid ? '#' : '.');
+        }
+        AgentDriverCommon.LOG.info("[bridgePillar {}] END t={} pos=({},{},{}) minY={} laid={} finished={} lastErr={}",
+                leg, t, fp.getX(), fp.getY(), fp.getZ(), minY, laid, driver.finished(), lastErr);
+        if (minY < feetY - 1.0)
+            throw new GameTestAssertException("gap#75-a leg " + leg + ": bot dropped below pillar-top-1 (minY="
+                    + minY + ", start feetY=" + feetY + ") — bridge start fell off the pillar (death #24 shape)");
+        if (laidCount < distance)
+            throw new GameTestAssertException("gap#75-a leg " + leg + ": bridge only laid " + laidCount + "/"
+                    + distance + " (" + laid + ") — lastErr=" + lastErr);
+        if (!driver.finished() || lastErr == null || !lastErr.startsWith("done"))
+            throw new GameTestAssertException("gap#75-a leg " + leg + ": process did not reach the done terminal: "
+                    + "finished=" + driver.finished() + " lastErr=" + lastErr);
+        ServerAgentManager.clear();
     }
 
     /**

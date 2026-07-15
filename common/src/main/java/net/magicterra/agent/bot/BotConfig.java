@@ -282,6 +282,35 @@ public final class BotConfig {
      *  so triggering earlier costs nothing and buys real margin at depth. gap#70. */
     public static volatile int drownFloatAirThreshold = 240;
 
+    /** ACTIVE-process drowning-escape reflex chain (gap#76, live death #25):
+     *  {@code DrownEscapeChain} (priority 500) PREEMPTS the movement channel when
+     *  the bot is underwater with {@code air <= drownEscapeAirThreshold} and floats
+     *  it straight up (pure vertical — hold jump, zero horizontal/turn; breaks a
+     *  solid lid overhead when {@link #allowBreak} allows). Complements gap#70's
+     *  idle-only {@link #autoFloatWhenDrowning}: that one deliberately never runs
+     *  under an active process, and the in-process {@code AutoSwim.tick} backstop
+     *  shares the input channel with the process, whose per-tick dig/steer drive
+     *  suppresses it — live death #25 had mine still breaking blocks on the tick
+     *  the bot drowned. Default ON: it saves the bot's life and touches nothing
+     *  but its own vertical motion. */
+    public static volatile boolean autoDrownEscape = true;
+
+    /** Air-supply threshold (ticks; vanilla max 300) at/below which
+     *  {@link #autoDrownEscape} preempts an ACTIVE process. Deliberately far
+     *  BELOW {@link #drownFloatAirThreshold} (240): an active goto/mine crossing
+     *  water on purpose must not be interrupted while it still has a healthy
+     *  reserve; 100 ≈ 5s of air left, and the preemption stops the process's own
+     *  drive entirely so the whole reserve goes to the ascent. gap#76. */
+    public static volatile int drownEscapeAirThreshold = 100;
+
+    /** Air-supply level (ticks) at/above which {@code DrownEscapeChain} releases
+     *  the channel back to the preempted task — WIDE hysteresis above the 100
+     *  entry so the latch cannot oscillate around the trigger threshold (the
+     *  frail-gate no-hysteresis precedent). The gate also releases early once the
+     *  head is OUT of the water and air is measurably recovering. Values above
+     *  vanilla max 300 are clamped by the gate. gap#76. */
+    public static volatile int drownEscapeReleaseAir = 280;
+
     /** A* node cap surfaced as a tunable knob — Baritone's
      *  {@code pathTimeoutMS} analogue. Maps directly to
      *  {@link net.magicterra.agent.bot.pathfinder.PathFinder} default. */

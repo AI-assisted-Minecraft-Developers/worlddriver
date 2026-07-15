@@ -18,6 +18,11 @@ public final class Priorities {
     public static final float PANIC = 1000f;
     /** Sidestep an incoming projectile / step out of a damaging cloud. */
     public static final float DODGE = 900f;
+    /** Drowning under an ACTIVE process (DrownEscapeChain, gap#76): float straight
+     *  up before the air runs out. Above BUNKER — the bunker reflex digs DOWN,
+     *  which while drowning is precisely lethal — and below PANIC/DODGE so a
+     *  creeper-blast sprint or projectile sidestep still wins the tick. */
+    public static final float DROWN_ESCAPE = 500f;
     /** Emergency dig-in (BunkerChain "挖三填一") when cornered by a swarm — outranks
      *  a plain low-HP retreat, because fleeing into more mobs is worse than sealing
      *  a hole. Below DODGE so a creeper/projectile reflex still wins. */
