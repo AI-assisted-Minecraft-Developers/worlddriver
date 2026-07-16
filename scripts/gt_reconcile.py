@@ -90,6 +90,38 @@ FIXTURE_LOG_GREEN = "irrelevant\nAll 2 required tests passed :)\nBUILD SUCCESSFU
 FIXTURE_LOG_REQFAIL = "TOTAL: 2   PASS: 2   FAIL: 0\n1 required tests failed :(\nBUILD FAILED in 1m\n"
 FIXTURE_LOG_REQFAIL_ONLY = "All done\n1 required tests failed :(\nBUILD SUCCESSFUL in 1m\n"
 
+# audit_text() fixtures: a fake Java source where beta's guard string only shows up in a
+# leading comment (outside any method's own region) — must still be flagged, unlike the
+# pre-fix file-wide guard search which would have let it slide.
+FIXTURE_AUDIT_TEXT_BAD = (
+    "public class AgentGameTestFake {\n"
+    "    // gtSkip(helper, \"beta\") mentioned here in a comment, not in beta's own body\n"
+    "    @GameTest(template = \"empty\")\n"
+    "    public static void alpha(GameTestHelper helper) {\n"
+    "        if (gtSkip(helper, \"alpha\")) return;\n"
+    "    }\n"
+    "\n"
+    "    @GameTest(template = \"empty\")\n"
+    "    public static void beta(GameTestHelper helper) {\n"
+    "        // no guard call here at all\n"
+    "        helper.succeed();\n"
+    "    }\n"
+    "}\n"
+)
+FIXTURE_AUDIT_TEXT_GOOD = (
+    "public class AgentGameTestFake2 {\n"
+    "    @GameTest(template = \"empty\")\n"
+    "    public static void alpha(GameTestHelper helper) {\n"
+    "        if (gtSkip(helper, \"alpha\")) return;\n"
+    "    }\n"
+    "\n"
+    "    @GameTest(template = \"empty\")\n"
+    "    public static void beta(GameTestHelper helper) {\n"
+    "        if (gtSkip(helper, \"beta\")) return;\n"
+    "    }\n"
+    "}\n"
+)
+
 
 def self_test():
     checks = []
@@ -109,6 +141,12 @@ def self_test():
                 '{"type":"enter","name":"alphaArena"}\n')
     r = reconcile(*parse_manifest(prefixed), parse_log(FIXTURE_LOG_GREEN))
     checks.append(("dotted registered prefix still matches bare enter name", r["ok"]))
+    bad_problems = audit_text("AgentGameTestFake.java", FIXTURE_AUDIT_TEXT_BAD)
+    checks.append(("audit flags guard outside method body",
+                   len(bad_problems) == 1 and "beta" in bad_problems[0]
+                   and "no matching" in bad_problems[0]))
+    good_problems = audit_text("AgentGameTestFake2.java", FIXTURE_AUDIT_TEXT_GOOD)
+    checks.append(("audit passes in-body guards", good_problems == []))
     failed = [name for name, ok in checks if not ok]
     for name, ok in checks:
         print(f"  [{'PASS' if ok else 'FAIL'}] {name}")
@@ -119,6 +157,36 @@ GAMETEST_RX = re.compile(r"@GameTest\b[^)]*\)?\s*(?:@\w+[^\n]*\n\s*)*public\s+st
 GUARD_RX = re.compile(r"gtOnlySkips\(\s*\"([^\"]+)\"\s*\)|gtSkip\(\s*\w+\s*,\s*\"([^\"]+)\"\s*\)")
 
 
+def audit_text(fname, text):
+    """Pure per-file audit: returns a list of problem strings. Guard matching is
+    scoped to each method's own region (its @GameTest match end -> the start of
+    the next @GameTest match, or EOF) so a guard string that only appears in a
+    comment or a sibling method's body no longer satisfies this method's check.
+    Known remaining narrowness: a *commented-out* guard call still inside this
+    same method's region will still incorrectly satisfy the check.
+    """
+    problems = []
+    method_matches = list(GAMETEST_RX.finditer(text))
+    methods = [m.group(1) for m in method_matches]
+    # The audit must not be silently blind itself: every raw @GameTest occurrence
+    # must have been parsed into a method name, or the regex missed one.
+    raw = text.count("@GameTest(") + len(re.findall(r"@GameTest\s*\n", text)) \
+        + len(re.findall(r"@GameTest\s+(?=@|public)", text))
+    if raw != len(methods):
+        problems.append(f"{fname}: {raw} raw @GameTest occurrences but regex parsed "
+                        f"{len(methods)} methods — audit regex is blind to the difference")
+    for i, m in enumerate(method_matches):
+        name = m.group(1)
+        region_start = m.end()
+        region_end = method_matches[i + 1].start() if i + 1 < len(method_matches) else len(text)
+        region = text[region_start:region_end]
+        guards = {(a or b).lower() for a, b in GUARD_RX.findall(region)}
+        if name.lower() not in guards:
+            problems.append(f"{fname}: @GameTest {name} has no matching gtOnlySkips/gtSkip "
+                            f"guard — enter probe blind for it")
+    return problems
+
+
 def audit_source(src_dir):
     problems = []
     for fname in sorted(os.listdir(src_dir)):
@@ -127,19 +195,7 @@ def audit_source(src_dir):
         if fname == "AgentGameTestSupport.java":
             continue
         text = open(os.path.join(src_dir, fname), encoding="utf-8").read()
-        methods = GAMETEST_RX.findall(text)
-        # The audit must not be silently blind itself: every raw @GameTest occurrence
-        # must have been parsed into a method name, or the regex missed one.
-        raw = text.count("@GameTest(") + len(re.findall(r"@GameTest\s*\n", text)) \
-            + len(re.findall(r"@GameTest\s+(?=@|public)", text))
-        if raw != len(methods):
-            problems.append(f"{fname}: {raw} raw @GameTest occurrences but regex parsed "
-                            f"{len(methods)} methods — audit regex is blind to the difference")
-        guards = {(a or b).lower() for a, b in GUARD_RX.findall(text)}
-        for m in methods:
-            if m.lower() not in guards:
-                problems.append(f"{fname}: @GameTest {m} has no matching gtOnlySkips/gtSkip "
-                                f"guard — enter probe blind for it")
+        problems.extend(audit_text(fname, text))
     for p in problems:
         print(f"  [AUDIT] {p}")
     print(f"[gt_reconcile] source audit: {'CLEAN' if not problems else str(len(problems)) + ' problem(s)'}")
