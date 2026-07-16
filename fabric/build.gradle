@@ -90,8 +90,20 @@ loom {
             client()
             vmArg '-Dfabric.addMods=run/mods'
         }
+        contractServer {
+            server()
+            property 'agent.contractRun', 'true'
+            property 'agent.rpcPort', '0'
+            property 'agent.mcpPort', '0'
+            runDir 'run-contract'
+            vmArg '-Xmx1g'
+        }
     }
     runConfigs.configureEach {
+        // contractServer pins its own ephemeral ports (agent.rpcPort/mcpPort='0')
+        // so the headless contract suite never competes with a live dev client on
+        // 39800/39801. Without this guard the defaults below would clobber that.
+        if (it.name == 'contractServer') return
         property 'agent.runValidation', project.findProperty('agentRunValidation') ?: 'false'
         // Pin the MCP / RPC ports so the external driver (Claude harness, docs
         // example, rpc.py) always finds the mod at a known address. Default to

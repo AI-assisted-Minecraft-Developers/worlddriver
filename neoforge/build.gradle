@@ -112,6 +112,14 @@ loom {
             property 'neoforge.gameTestServer', 'true'
             runDir 'run-gametest'
         }
+        contractServer {
+            server()
+            property 'agent.contractRun', 'true'
+            property 'agent.rpcPort', '0'
+            property 'agent.mcpPort', '0'
+            runDir 'run-contract'
+            vmArg '-Xmx1g'
+        }
     }
     runConfigs.configureEach {
         property 'agent.runValidation', project.findProperty('agentRunValidation') ?: 'false'
