@@ -11,6 +11,8 @@ NEVER consults the mod reporter's "TOTAL:" line (it can read all-green while req
 """
 import argparse
 import json
+import os
+import re
 import sys
 
 
@@ -113,14 +115,48 @@ def self_test():
     return 0 if not failed else 1
 
 
+GAMETEST_RX = re.compile(r"@GameTest\b[^)]*\)?\s*(?:@\w+[^\n]*\n\s*)*public\s+static\s+void\s+(\w+)\s*\(")
+GUARD_RX = re.compile(r"gtOnlySkips\(\s*\"([^\"]+)\"\s*\)|gtSkip\(\s*\w+\s*,\s*\"([^\"]+)\"\s*\)")
+
+
+def audit_source(src_dir):
+    problems = []
+    for fname in sorted(os.listdir(src_dir)):
+        if not (fname.startswith("AgentGameTest") and fname.endswith(".java")):
+            continue
+        if fname == "AgentGameTestSupport.java":
+            continue
+        text = open(os.path.join(src_dir, fname), encoding="utf-8").read()
+        methods = GAMETEST_RX.findall(text)
+        # The audit must not be silently blind itself: every raw @GameTest occurrence
+        # must have been parsed into a method name, or the regex missed one.
+        raw = text.count("@GameTest(") + len(re.findall(r"@GameTest\s*\n", text)) \
+            + len(re.findall(r"@GameTest\s+(?=@|public)", text))
+        if raw != len(methods):
+            problems.append(f"{fname}: {raw} raw @GameTest occurrences but regex parsed "
+                            f"{len(methods)} methods — audit regex is blind to the difference")
+        guards = {(a or b).lower() for a, b in GUARD_RX.findall(text)}
+        for m in methods:
+            if m.lower() not in guards:
+                problems.append(f"{fname}: @GameTest {m} has no matching gtOnlySkips/gtSkip "
+                                f"guard — enter probe blind for it")
+    for p in problems:
+        print(f"  [AUDIT] {p}")
+    print(f"[gt_reconcile] source audit: {'CLEAN' if not problems else str(len(problems)) + ' problem(s)'}")
+    return 0 if not problems else 1
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--manifest")
     ap.add_argument("--log")
     ap.add_argument("--self-test", action="store_true")
+    ap.add_argument("--audit-source")
     args = ap.parse_args()
     if args.self_test:
         sys.exit(self_test())
+    if args.audit_source:
+        sys.exit(audit_source(args.audit_source))
     if not args.manifest or not args.log:
         ap.error("--manifest and --log are required (or use --self-test)")
     try:
