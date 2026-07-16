@@ -33,6 +33,7 @@
 - Create: `mc-testkit/common/build.gradle`
 - Create: `mc-testkit/fabric/build.gradle`
 - Create: `mc-testkit/neoforge/build.gradle`
+- Create: `mc-testkit/neoforge/gradle.properties`（单行 `loom.platform = neoforge`——architectury-loom 靠它在插件应用前认定平台并注册 `neoForge` 依赖配置；仓库 `neoforge/gradle.properties` 同款；fabric 是 loom 默认平台无需此文件。执行期 BLOCKED 实证补齐）
 - Create: `mc-testkit/common/src/main/java/net/magicterra/testkit/TestkitCommon.java`（stub，Task 3 长大）
 - Create: `mc-testkit/fabric/src/main/java/net/magicterra/testkit/fabric/TestkitFabric.java`
 - Create: `mc-testkit/neoforge/src/main/java/net/magicterra/testkit/neoforge/TestkitNeoForge.java`
