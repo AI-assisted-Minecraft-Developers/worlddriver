@@ -25,10 +25,11 @@ rm -f "$MANIFEST"
 
 timeout --kill-after=30 "${GT_TIMEOUT:-3600}" ./gradlew :neoforge:runGameTestServer 2>&1 | tee "$LOG"
 GRADLE_RC=${PIPESTATUS[0]}
-if [ "$GRADLE_RC" -eq 124 ]; then
-  echo "[run_gametests] WALL-CLOCK TIMEOUT after ${GT_TIMEOUT:-3600}s"
-  # timeout killed the gradle wrapper; the game JVM is a child of the gradle
-  # DAEMON and survives — sweep again so it cannot poison the next run.
+if [ "$GRADLE_RC" -eq 124 ] || [ "$GRADLE_RC" -eq 137 ]; then
+  echo "[run_gametests] WALL-CLOCK TIMEOUT (rc=$GRADLE_RC) after ${GT_TIMEOUT:-3600}s"
+  # timeout killed the gradle wrapper (124=SIGTERM, 137=--kill-after SIGKILL);
+  # the game JVM is a child of the gradle DAEMON and survives — sweep again
+  # so it cannot poison the next run.
   sweep_jvms
 fi
 
