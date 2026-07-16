@@ -246,6 +246,16 @@ final class WalkerConstants {
      *  in <12 ticks so it never trips, yet this breaks a freeze far sooner than the ~6 s
      *  anti-stuck burst (which yanks the bot BACKWARD off the very step it needs). */
     public static final int STEPUP_FREEZE_TICKS = 24;
+    /** task#82 dead-zone watchdog (AscendMovement, plan B1): delegated ascent-episode ticks with NO
+     *  progress — no dy high-water gain, no horizontal gap-close beyond the episode's best, no active
+     *  dig — before the machine returns UNREACHABLE and routes into the fellOffPath re-route. A
+     *  healthy stepUp closes in well under STEPUP_FREEZE_TICKS (~1.2 s); 3× gives slow approaches and
+     *  jump arcs full margin, while the task#82 pose (cur2 wedged in (0.45,4.0), no hCol, riser
+     *  unbroken — every legacy gate misses it) times out in ~3.6 s instead of churning forever. Both
+     *  progress marks are MONOTONIC high-waters, so a jump-land-slideback bob cannot keep resetting
+     *  the clock (the crestOrbitTicks trick). Digging is exempt: bare-hand stone is 150 t+/block
+     *  (#66) and an active BREAK is progress by definition. */
+    public static final int ASCEND_DEADZONE_GIVEUP = STEPUP_FREEZE_TICKS * 3;
     /** Lateral-bank-follow: how many cells to scan along the bank (each way) for a mountable exit lip.
      *  Widened 6→10 (2026-06-28): tall +2 walls (e.g. -722 boxed-pinch) have their nearest steppable
      *  +1/flat exit further along the bank; a 6-cell reach missed it → 3-min floating deadlock. */

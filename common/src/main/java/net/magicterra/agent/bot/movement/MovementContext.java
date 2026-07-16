@@ -24,13 +24,14 @@ public final class MovementContext {
     public final int maxStepUp;        // world.maxStepUpBlocks()
     public final BlockPos prevNode;    // path.get(step-1) or null — chainAscend peek
     public final BlockPos prevNode2;   // path.get(step-2) or null — chainAscend peek
+    public final boolean digging;      // Walker's breakingEdge this tick — an active planned dig is progress (dead-zone watchdog exemption, #66: bare-hand stone is 150t+/block)
 
     public MovementContext(Player p, WorldView world, Avatar avatar, Move.Edge edge,
                            BlockPos foot, BlockPos node, int maxJumpUp, int maxStepUp,
-                           BlockPos prevNode, BlockPos prevNode2) {
+                           BlockPos prevNode, BlockPos prevNode2, boolean digging) {
         ALLOC_COUNT++;
         this.p = p; this.world = world; this.avatar = avatar; this.edge = edge;
         this.foot = foot; this.node = node; this.maxJumpUp = maxJumpUp; this.maxStepUp = maxStepUp;
-        this.prevNode = prevNode; this.prevNode2 = prevNode2;
+        this.prevNode = prevNode; this.prevNode2 = prevNode2; this.digging = digging;
     }
 }

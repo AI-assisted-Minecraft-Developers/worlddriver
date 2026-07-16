@@ -28,6 +28,8 @@ import net.magicterra.agent.bot.pathfinder.PathTrace;
 import net.magicterra.agent.bot.pathfinder.PathTraceHolder;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.movement.MovementContext;
+import net.magicterra.agent.bot.movement.MovementStatus;
+import net.magicterra.agent.bot.movement.AscendMovement;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.world.LevelWorldView;
 import net.magicterra.agent.bot.pathfinder.moves.Fall;
@@ -1015,6 +1017,88 @@ public final class AgentGameTestTerrain {
             BotConfig.pathfinderSliceMs = osl; BotConfig.pathfinderMaxMs = omm;
         }
         helper.succeed();
+    }
+
+    /**
+     * task#82 dead-zone watchdog (plan B1-2, machine seam): drives {@link AscendMovement#updateState}
+     * directly with a pinned FakePlayer and asserts the full watchdog contract — PREP on a fresh
+     * edge, RUNNING for exactly {@link AscendMovement#DEADZONE_GIVEUP} no-progress ticks then
+     * UNREACHABLE, a fresh episode after the terminal, the active-dig exemption (#66: bare-hand stone
+     * is 150 t+/block), and the monotonic dy high-water reset (bob-immune: re-reaching the same apex
+     * does NOT reset). The weave-level truth (UNREACHABLE→fellOffPath→re-route un-wedges a live
+     * buried bot) is the B1-3 live A/B — this arena is the regression guard for the semantics.
+     */
+    @GameTest(template = "empty", timeoutTicks = 1200)
+    public static void ascendDeadZoneWatchdogArena(GameTestHelper helper) {
+        if (AgentGameTestSupport.gtOnlySkips("ascendDeadZoneWatchdogArena")) { helper.succeed(); return; } // gt-filter
+        ServerLevel level = helper.getLevel();
+        final int cx = 460, cz = 700, baseY = 210;   // disjoint region (grep'd: no other arena at 460,700)
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, baseY, cz + dz), Blocks.STONE.defaultBlockState());
+        ServerPlayerAvatar av = ServerPlayerAvatar.create(level, cx + 0.5, baseY + 1, cz + 0.5);
+        FakePlayer fp = av.fakePlayer();
+        LevelWorldView w = new LevelWorldView(level, fp);
+        final int giveUp = AscendMovement.DEADZONE_GIVEUP;
+        // The task#82 pose: stand-cell node +1 above the foot, ~1.5 b off horizontally (cur2≈2.25,
+        // inside the (0.45,4.0) dead-zone), no hCol — the machine sees zero progress every tick.
+        BlockPos node = new BlockPos(cx + 2, baseY + 2, cz);
+        Move.Edge edge = new Move.Edge(node, 10, List.of(), List.of(), "stepUp");
+        AscendMovement m = new AscendMovement();
+
+        // 1) Fresh edge → PREP.
+        if (m.updateState(ascendCtx(fp, w, av, edge, node, false)) != MovementStatus.PREP)
+            throw new GameTestAssertException("watchdog: fresh episode did not return PREP");
+        // 2) Pinned pose: exactly giveUp RUNNING ticks, then UNREACHABLE.
+        for (int t = 1; t <= giveUp; t++) {
+            MovementStatus st = m.updateState(ascendCtx(fp, w, av, edge, node, false));
+            if (st != MovementStatus.RUNNING)
+                throw new GameTestAssertException("watchdog: expected RUNNING at no-progress tick " + t + "/" + giveUp + " but got " + st);
+        }
+        if (m.updateState(ascendCtx(fp, w, av, edge, node, false)) != MovementStatus.UNREACHABLE)
+            throw new GameTestAssertException("watchdog: no UNREACHABLE after " + (giveUp + 1) + " no-progress ticks — the task#82 dead-zone would churn forever");
+        // 3) The terminal clears the episode: next delegated tick is a fresh PREP (a replanned
+        //    edge on the same node gets a fresh clock).
+        if (m.updateState(ascendCtx(fp, w, av, edge, node, false)) != MovementStatus.PREP)
+            throw new GameTestAssertException("watchdog: episode not cleared after UNREACHABLE");
+        // 4) Active-dig exemption: digging ticks never accrue dead-zone time...
+        for (int t = 0; t < giveUp + 30; t++) {
+            MovementStatus st = m.updateState(ascendCtx(fp, w, av, edge, node, true));
+            if (st != MovementStatus.RUNNING)
+                throw new GameTestAssertException("watchdog: digging tick " + t + " returned " + st + " — an active BREAK must be exempt (#66: bare-hand stone is 150t+/block)");
+        }
+        // ...and the clock restarts from zero when the dig ends (full budget again).
+        for (int t = 1; t <= giveUp; t++) {
+            MovementStatus st = m.updateState(ascendCtx(fp, w, av, edge, node, false));
+            if (st != MovementStatus.RUNNING)
+                throw new GameTestAssertException("watchdog: post-dig tick " + t + " returned " + st + " — dig must reset the dead-zone clock in full");
+        }
+        if (m.updateState(ascendCtx(fp, w, av, edge, node, false)) != MovementStatus.UNREACHABLE)
+            throw new GameTestAssertException("watchdog: no UNREACHABLE one tick past the post-dig budget");
+        // 5) Monotonic dy high-water: a genuine rise resets the clock; RE-reaching the same apex
+        //    (the jump-land-slideback bob) does NOT.
+        m.updateState(ascendCtx(fp, w, av, edge, node, false));            // fresh PREP
+        double y0 = fp.getY();
+        for (int t = 0; t < giveUp - 10; t++) m.updateState(ascendCtx(fp, w, av, edge, node, false));
+        fp.setPos(fp.getX(), y0 + 0.6, fp.getZ());                          // rise → new high-water → reset
+        if (m.updateState(ascendCtx(fp, w, av, edge, node, false)) != MovementStatus.RUNNING)
+            throw new GameTestAssertException("watchdog: rise tick not RUNNING");
+        fp.setPos(fp.getX(), y0, fp.getZ());                                // slide back down
+        for (int t = 1; t <= giveUp; t++) {                                 // bob back to the SAME apex mid-window: no reset
+            if (t == 20) fp.setPos(fp.getX(), y0 + 0.6, fp.getZ());
+            if (t == 21) fp.setPos(fp.getX(), y0, fp.getZ());
+            MovementStatus st = m.updateState(ascendCtx(fp, w, av, edge, node, false));
+            if (st != MovementStatus.RUNNING)
+                throw new GameTestAssertException("watchdog: expected RUNNING at post-rise tick " + t + " but got " + st);
+        }
+        if (m.updateState(ascendCtx(fp, w, av, edge, node, false)) != MovementStatus.UNREACHABLE)
+            throw new GameTestAssertException("watchdog: same-apex bob reset the clock — the high-water is not monotonic (crestOrbit lesson)");
+        helper.succeed();
+    }
+
+    private static MovementContext ascendCtx(FakePlayer fp, LevelWorldView w, ServerPlayerAvatar av,
+                                             Move.Edge edge, BlockPos node, boolean digging) {
+        return new MovementContext(fp, w, av, edge, fp.blockPosition(), node, 1, 1, null, null, digging);
     }
 
     /**

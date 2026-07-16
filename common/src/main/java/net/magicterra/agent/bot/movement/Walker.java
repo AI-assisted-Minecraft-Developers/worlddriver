@@ -4299,9 +4299,13 @@ public final class Walker {
                     p, world, a, edge, foot, path.get(step),
                     world.maxJumpUpBlocks(), world.maxStepUpBlocks(),
                     step >= 1 ? path.get(step - 1) : null,
-                    step >= 2 ? path.get(step - 2) : null);
+                    step >= 2 ? path.get(step - 2) : null, breakingEdge);
             switch (ascendMovement.updateState(ctx)) {
-                case UNREACHABLE, FAILED -> forceFellOffPath = true;   // fold into the existing re-route (consumed next tick at line 1042)
+                case UNREACHABLE, FAILED -> {                          // fold into the existing re-route (consumed next tick at line 1042)
+                    forceFellOffPath = true;
+                    LOG.info("[walker] ascend dead-zone UNREACHABLE move={} node={} foot={} pos=({},{},{}) → re-route (task#82)",
+                            edge.move, path.get(step), foot, p.getX(), p.getY(), p.getZ());
+                }
                 case PREP, RUNNING, SUCCESS -> { }                     // fall through — legacy drive actuates this tick
             }
         }
