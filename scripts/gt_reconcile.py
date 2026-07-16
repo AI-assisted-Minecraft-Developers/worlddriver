@@ -86,6 +86,7 @@ FIXTURE_MANIFEST_DRIFTED = (
 )
 FIXTURE_LOG_GREEN = "irrelevant\nAll 2 required tests passed :)\nBUILD SUCCESSFUL in 1m\n"
 FIXTURE_LOG_REQFAIL = "TOTAL: 2   PASS: 2   FAIL: 0\n1 required tests failed :(\nBUILD FAILED in 1m\n"
+FIXTURE_LOG_REQFAIL_ONLY = "All done\n1 required tests failed :(\nBUILD SUCCESSFUL in 1m\n"
 
 
 def self_test():
@@ -98,6 +99,8 @@ def self_test():
     checks.append(("drifted guard fails the run", not r["ok"] and r["drifted"] == ["alphaarena2"]))
     r = reconcile(*parse_manifest(FIXTURE_MANIFEST_GREEN), parse_log(FIXTURE_LOG_REQFAIL))
     checks.append(("required-failed beats green TOTAL line", not r["ok"]))
+    r = reconcile(*parse_manifest(FIXTURE_MANIFEST_GREEN), parse_log(FIXTURE_LOG_REQFAIL_ONLY))
+    checks.append(("required-failed alone forces red (isolated gate coverage)", not r["ok"]))
     r = reconcile(*parse_manifest(""), parse_log(FIXTURE_LOG_GREEN))
     checks.append(("empty manifest fails (manifest never armed)", not r["ok"]))
     prefixed = ('{"type":"registered","name":"somebatch.alphaarena","batch":"b","required":true}\n'
