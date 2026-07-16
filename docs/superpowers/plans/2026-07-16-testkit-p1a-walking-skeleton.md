@@ -1032,16 +1032,44 @@ def sweep():
             subprocess.run(["kill", "-9", pid])
 
 
-def launch(loader, wall):
+def launch(loader, wall, results):
+    """Launch the server run and wait for the DONE FOOTER, not for gradle.
+
+    Task-3 smoke finding: after the harness halt()s the server, the game JVM
+    exits cleanly in seconds but the gradle run task does NOT return control.
+    So gradle's exit is neither awaited as the happy path nor consulted for the
+    verdict (contract v0): we poll the results file for the done footer, give a
+    short grace for final writes, then sweep whatever is left and move to judge.
+    """
+    import time
     cmd = ["./gradlew", f":testkit-{loader}:runTestkitServer"]
-    print(f"[t0] launching: {' '.join(cmd)} (wall={wall}s)")
-    try:
-        proc = subprocess.run(cmd, cwd=REPO_ROOT, timeout=wall)
-        return proc.returncode
-    except subprocess.TimeoutExpired:
-        print(f"[t0] WALL-CLOCK TIMEOUT after {wall}s — sweeping")
-        sweep()
-        return 124
+    print(f"[t0] launching: {' '.join(cmd)} (wall={wall}s, waiting on done footer)")
+    proc = subprocess.Popen(cmd, cwd=REPO_ROOT,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    deadline = time.monotonic() + wall
+    footer = False
+    while time.monotonic() < deadline:
+        if os.path.exists(results):
+            with open(results, encoding="utf-8", errors="replace") as f:
+                if '"type":"done"' in f.read():
+                    footer = True
+                    break
+        if proc.poll() is not None:
+            break  # gradle actually returned (crash or clean) — judge whatever exists
+        time.sleep(2)
+    if footer:
+        print("[t0] done footer observed — reaping the run")
+        time.sleep(3)  # grace for file flush + server teardown
+    else:
+        print(f"[t0] no done footer within {wall}s — wall timeout")
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=20)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+    sweep()
+    return 0 if footer else 124
 
 
 def judge(lines):
@@ -1152,8 +1180,8 @@ def main():
 
     sweep()
     results = provision(args.loader)
-    rc = launch(args.loader, args.wall)
-    print(f"[t0] gradle rc={rc}")
+    rc = launch(args.loader, args.wall, results)
+    print(f"[t0] launch rc={rc} (informational only — verdict comes from the results file)")
     if not os.path.exists(results):
         print("[t0] ENV: results file missing")
         sys.exit(3)
@@ -1189,6 +1217,9 @@ harness 之间的接口。**变更需升 v1 并保持 v0 解析兼容。**
   与旧结果文件；跑前按显式 PID 清扫命令行含 `testkit.autorun` 的残留 JVM（禁 pkill）。
 - harness 跑完注册表后自行 `MinecraftServer.halt(false)` 正常停机；
   **服务器进程退出码不是裁决依据**，裁决唯一来源是结果文件。
+- **编排器的完成信号 = 结果文件的 done 尾记录，不是 gradle 退出**（实证：halt 后
+  游戏 JVM 秒级干净退出，但 loom run task 不归还控制权）；观察到尾记录 → 宽限
+  数秒 → 终止 gradle + 显式 PID 清扫 → 裁决。
 
 ## 结果文件
 `<runDir>/testkit-results.jsonl`，UTF-8，一行一个 JSON 对象：
