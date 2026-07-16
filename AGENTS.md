@@ -56,6 +56,7 @@ Runtime output is local-only and must never appear at the project root:
 | Fabric client / server logs            | `fabric/run/logs/` |
 | NeoForge client logs                   | `neoforge/run/logs/` |
 | NeoForge GameTest server logs          | `neoforge/run-gametest/logs/` |
+| Testkit T0 server run results          | `mc-testkit/<loader>/run-testkit/` (results: `testkit-results.jsonl`) |
 | Smoke-test screenshots, traces, logs   | `fabric/run/smoke/` |
 | Gradle compile output                  | `<platform>/build/` |
 

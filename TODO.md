@@ -2,6 +2,13 @@
 
 > 镜像 Task 跟踪器的长期工作。重要根因写进 memory(reference/project)。
 
+## ✅ 2026-07-16 P1a 走样骨架落地 — 五任务全过(文档收尾)
+
+- **✅ P1a 竖切五任务已合 master**: ① Task 1 gradle 骨架(affc448: testkit-common/fabric/neoforge 三模块+run 配置);② Task 2 scene 模型+注册(034709b: Scenes.all()五场景含三金丝雀);③ Task 3 T0 harness(936f4f2: ResultsJsonl+TestkitCommon 接线);④ Task 4 编排器+冻结契约(06861ea + a340cfd: scripts/testkit/t0.py+docs/testkit/orchestration-contract-v0.md);⑤ Task 5 dual-loader 证(2026-07-16 零 commit:fabric T0 GREEN 首跑、neoforge GREEN、双 loader 重跑全绿、exit=0、场景输出字节同(timings 除外))。
+- **✅ 双 loader 实证**: fabric T0 首跑 GREEN;dual-loader 重跑 neoforge GREEN + fabric GREEN,combined exit=0;场景结果字节同(PASS/FAIL/TIMEOUT 行为同,timings 漂移)。
+- **✅ 金丝雀哨兵语义**: MUST_FAIL/MUST_TIMEOUT 必须被捕获为 FAIL/TIMEOUT,MUST_SWALLOW 无记录;任何金丝雀误判 → exit 2 DEAD,整轮失效。契约 v0 冻结位置:`docs/testkit/orchestration-contract-v0.md`。
+- **下一步**:P1b 仪表契约子集(agent_driver 接线)、P1c dogfood 迁移(agent-driver arena 搬家)——头部隔离说明见 spec §。
+
 ## 2026-07-16 task#85 suite-integrity P0 落地 + 全量基线重建(评审修正版,见下方⭐⭐)
 
 - ✅ **P0 四件套已合 master**:①in-game JSONL manifest(76362e5 + **926396d/a5c9e06 探针异步化两修,见下方⭐⭐**,registered/enter 双record,`gtOnlySkips` 埋点处发 enter 探针);②`scripts/gt_reconcile.py` 对账门(a812103 + 574639a,registered-vs-entered SWALLOWED/DRIFTED 双向门 + BUILD/required verdict,9 条内嵌 self-test);③`--audit-source` 源码审计模式(d56c54f + 8bcdfe9,每个 `@GameTest` 必须在自己方法体内挂 guard,防漏埋);④`scripts/run_gametests.sh` 统一入口(288b396,PID sweep→世界清→`timeout --kill-after=30`硬顶→对账验收,永不信 mod reporter 的 `TOTAL:` 行)。
