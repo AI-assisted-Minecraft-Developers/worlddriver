@@ -35,6 +35,7 @@
 - Produces: `neoforge/run-gametest/testkit-manifest.jsonl`，两种记录（Task 2 的解析契约）：
   - `{"type":"registered","name":"<testName>","batch":"<batchName>","required":true|false}` — 每个注册测试一行，server starting 时 dump。
   - `{"type":"enter","name":"<guard名>"}` — 测试体被调用时追加（guard 名是手写混合大小写；对账侧统一 lowercase 匹配 vanilla 的小写 testName）。
+- 已知限制：registered dump 取 `GameTestRegistry` 全局注册表——当前环境只有本 mod 注册测试（130 计数对上）；若将来有依赖 mod 也注册 gametest，其测试无 enter 探针会被误报 SWALLOWED，届时按 batch/名单过滤（YAGNI，现不做）。
 
 - [ ] **Step 1: 写 GameTestManifest.java**
 
@@ -153,7 +154,8 @@ Expected: BUILD SUCCESSFUL
 
 - [ ] **Step 5: 单测烟囱验证（过滤跑一个便宜测试）**
 
-Run: `rm -rf neoforge/run-gametest/world && AGENT_GT_ONLY=valuablePlacementBlockMatrix timeout 900 ./gradlew :neoforge:runGameTestServer 2>&1 | tail -20`
+Run: `rm -rf neoforge/run-gametest/world && AGENT_GT_ONLY=valuablePlacementBlockMatrix timeout 900 ./gradlew :neoforge:runGameTestServer 2>&1 | tee ../neoforge-gametest-run.log | tail -20`
+（tee 到日志文件——Task 2 Step 3 直接复用这份真实日志）
 Expected: BUILD SUCCESSFUL；然后检查清单：
 
 Run: `grep -c '"type":"registered"' neoforge/run-gametest/testkit-manifest.jsonl && grep -c '"type":"enter"' neoforge/run-gametest/testkit-manifest.jsonl && grep '"type":"enter"' neoforge/run-gametest/testkit-manifest.jsonl | grep -i valuable`
@@ -198,6 +200,13 @@ import json
 import sys
 
 
+def norm(name):
+    """Case-insensitive; also strip any dotted prefix — vanilla testName() is expected
+    to be the bare lowercased method name, but if a batch/class prefix ever appears
+    ("agentvalidation.agentrpcsmoke") the gate must not false-positive on it."""
+    return name.lower().rsplit(".", 1)[-1]
+
+
 def parse_manifest(text):
     registered, entered = {}, set()
     for line in text.splitlines():
@@ -205,7 +214,7 @@ def parse_manifest(text):
         if not line:
             continue
         rec = json.loads(line)
-        name = rec["name"].lower()
+        name = norm(rec["name"])
         if rec["type"] == "registered":
             registered[name] = {"batch": rec["batch"], "required": rec["required"]}
         elif rec["type"] == "enter":
@@ -277,6 +286,10 @@ def self_test():
     checks.append(("required-failed beats green TOTAL line", not r["ok"]))
     r = reconcile(*parse_manifest(""), parse_log(FIXTURE_LOG_GREEN))
     checks.append(("empty manifest fails (manifest never armed)", not r["ok"]))
+    prefixed = ('{"type":"registered","name":"somebatch.alphaarena","batch":"b","required":true}\n'
+                '{"type":"enter","name":"alphaArena"}\n')
+    r = reconcile(*parse_manifest(prefixed), parse_log(FIXTURE_LOG_GREEN))
+    checks.append(("dotted registered prefix still matches bare enter name", r["ok"]))
     failed = [name for name, ok in checks if not ok]
     for name, ok in checks:
         print(f"  [{'PASS' if ok else 'FAIL'}] {name}")
@@ -310,12 +323,12 @@ if __name__ == "__main__":
 - [ ] **Step 2: 跑 self-test**
 
 Run: `python3 scripts/gt_reconcile.py --self-test`
-Expected: 5 行全 PASS，exit 0（`echo $?` 验证）。
+Expected: 6 行全 PASS，exit 0（`echo $?` 验证）。
 
 - [ ] **Step 3: 用 Task 1 烟囱验证留下的真实产物跑一次**
 
-Run: `python3 scripts/gt_reconcile.py --manifest neoforge/run-gametest/testkit-manifest.jsonl --log ../neoforge-gametest-run.log 2>/dev/null || true`（若上一步日志文件不存在，用 Task 1 Step 5 的输出重定向重跑一次生成）
-Expected: 打印 registered/entered 计数与 SWALLOWED 名单（**非空是预期**——#85 已知被吞者会出现），VERDICT 按实际。此步只验证脚本吃真数据不崩。
+Run: `python3 scripts/gt_reconcile.py --manifest neoforge/run-gametest/testkit-manifest.jsonl --log ../neoforge-gametest-run.log; echo "exit=$?"`（清单与日志都是 Task 1 Step 5 留下的真实产物）
+Expected: 打印 registered/entered 计数与 SWALLOWED 名单（**非空是预期**——#85 已知被吞者会出现），VERDICT 按实际。此步验证脚本吃真数据不崩、且被吞检测在真实产物上首次点亮。
 
 - [ ] **Step 4: Commit**
 
@@ -355,6 +368,13 @@ def audit_source(src_dir):
             continue
         text = open(os.path.join(src_dir, fname), encoding="utf-8").read()
         methods = GAMETEST_RX.findall(text)
+        # The audit must not be silently blind itself: every raw @GameTest occurrence
+        # must have been parsed into a method name, or the regex missed one.
+        raw = text.count("@GameTest(") + len(re.findall(r"@GameTest\s*\n", text)) \
+            + len(re.findall(r"@GameTest\s+(?=@|public)", text))
+        if raw != len(methods):
+            problems.append(f"{fname}: {raw} raw @GameTest occurrences but regex parsed "
+                            f"{len(methods)} methods — audit regex is blind to the difference")
         guards = {(a or b).lower() for a, b in GUARD_RX.findall(text)}
         for m in methods:
             if m.lower() not in guards:
@@ -445,7 +465,7 @@ sweep_jvms
 rm -rf neoforge/run-gametest/world
 rm -f "$MANIFEST"
 
-timeout "${GT_TIMEOUT:-3600}" ./gradlew :neoforge:runGameTestServer 2>&1 | tee "$LOG"
+timeout --kill-after=30 "${GT_TIMEOUT:-3600}" ./gradlew :neoforge:runGameTestServer 2>&1 | tee "$LOG"
 GRADLE_RC=${PIPESTATUS[0]}
 if [ "$GRADLE_RC" -eq 124 ]; then
   echo "[run_gametests] WALL-CLOCK TIMEOUT after ${GT_TIMEOUT:-3600}s"
@@ -479,6 +499,8 @@ git commit -m "test(#85): canonical suite entrypoint — PID sweep, world clean,
 
 **Files:**
 - Modify: `TODO.md`（task#85 条目补 P0 落地记录与基线数据）
+- Modify: `AGENTS.md`（"Tests" 小节：canonical 入口从裸 `./gradlew :neoforge:runGameTestServer` 改为 `scripts/run_gametests.sh`；"60 cases" 的陈旧计数改为「以对账门为准」；判据三合一写明）
+- Modify: `CLAUDE.md` 无需动（它只转指 AGENTS.md）
 
 **Interfaces:**
 - Consumes: Task 4 入口。
@@ -494,23 +516,35 @@ Expected: 跑完（若 underwaterBase 型挂死触发 wall cap，脚本自会清
 把 Step 1 的 SWALLOWED 名单逗号拼接（示例，按实际名单替换）：
 
 Run: `AGENT_GT_ONLY=ascendMovementNoop,ascendDeadZoneWatchdog,diagonalAscentSpeed GT_TIMEOUT=1800 scripts/run_gametests.sh; echo "exit=$?"`
-Expected: 名单内测试真实执行（enter 记录齐全、对账对 SWALLOWED 的报告只含未点名者——过滤跑下其余测试也 enter（早退），故对账应绿）；记下每个被吞者的真实 PASS/FAIL。
+Expected（两条分开判）：①**点名的被吞者本次全部有 enter 记录且真实执行**（#85 实证过 AGENT_GT_ONLY 单点跑会真执行）——记下每个的真实 PASS/FAIL，这是本 Step 的交付物；②整体 VERDICT 不承诺绿——过滤跑下其余测试虽只 enter+早退，但吞现象若对别的测试复现，SWALLOWED 仍非空、exit=1，如实记录复现名单即可（同样是有效基线数据）。
 
-- [ ] **Step 3: 记录进 TODO.md**
+- [ ] **Step 3: 记录进 TODO.md + 更新 AGENTS.md**
 
 在 `TODO.md` 的 task#85 相关条目（文件头部 2026-07-16 区域）追加一段，格式沿用现有条目风格，内容必须包含：P0 四件套已合（manifest/reconciler/audit/entrypoint + commit hashes）、全量 SWALLOWED 名单原文、显式基线的真实结果、以及「从此验收只走 scripts/run_gametests.sh」。
+
+`AGENTS.md` "Project at a glance" 的 Tests 行改为：
+
+```markdown
+- **Tests**: `scripts/run_gametests.sh` is the canonical integration gate
+  (kills leftover gametest JVMs by PID, wipes the persistent world, runs
+  `:neoforge:runGameTestServer`, then reconciles the in-game manifest).
+  Verdict = BUILD SUCCESSFUL + no "required tests failed" + registered==entered
+  in `neoforge/run-gametest/testkit-manifest.jsonl`. Never trust the `TOTAL:` line.
+```
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add TODO.md
+git add TODO.md AGENTS.md
 git commit -m "docs(#85): P0 landed — swallowed-list baseline recorded; run_gametests.sh is the only gate"
 ```
 
 ---
 
-## Self-Review（计划自检记录）
+## Self-Review（计划自检记录，二轮）
 
 1. **Spec 覆盖**：spec §7 P0 三件（执行清单/对账门/统一包装）→ Task 1/2/4；「被吞名单显式跑一轮重建基线」→ Task 5；guard 全覆盖前提 → Task 3。EXIT 偏差已在头部声明。
 2. **占位符扫描**：全部代码为完整可用文本；Task 3 Step 3 的"逐个看方法体"是审计类任务的固有人工判断点，处理原则已给（与兄弟测试语义一致）。
 3. **类型/名字一致性**：`GameTestManifest.enter/reset`、JSONL 两 record、`gt_reconcile.py` CLI 三模式（--manifest/--log、--self-test、--audit-source）、`run_gametests.sh` env 名，跨 Task 引用已核对一致。API 签名（getAllTestFunctions/testName/batchName/required）经 javap 对 mojmap 1.21.1 实证。
+4. **二轮修订（对抗自审后）**：①Task 1 Step 5 改 tee 日志（Task 2 Step 3 复用真实产物，去掉"若不存在再重跑"的补丁逻辑）；②对账加 `norm()` 点前缀剥离 + 第 6 条 self-test（防 registered 名带 batch/类前缀时全量假 SWALLOWED）；③审计加"raw @GameTest 计数 vs 正则解析数"自盲检查（审计器自己不许静默漏看——金丝雀精神）；④`timeout --kill-after=30`（防 gradle 捕获 SIGTERM 后挂住）；⑤Task 5 Step 2 撤回"对账应绿"的过头承诺，改为两条分开判（点名者真执行=交付物；整体 VERDICT 如实）；⑥Task 5 补 AGENTS.md Tests 行更新（canonical 入口换名，否则新代理仍走裸 gradle 旧门）；⑦Task 1 接口注明 registry 全局 dump 的单 mod 假设。
+5. **确认过的非问题**：GameTestRegistry 在 ServerStarting 时已注册完毕（GameTestServer 构造即依赖批次表）；manifest 相对路径落 loom runDir（#85 调查的 gt-probe.log 同机制实证）；`rm -rf world` 不伤 run-gametest/config 下的 replay 资产；sweep grep 模式 `[n]eoforge.gameTestServer` 与真实命令行匹配（历史教训字面沿用）。
