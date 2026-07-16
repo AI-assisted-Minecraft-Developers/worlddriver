@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Collection;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * Suite-integrity manifest (task#85 stopgap): one JSONL file per GameTest run,
@@ -25,6 +26,19 @@ import java.util.Collection;
  *       by the vanilla scheduler (#85); scripts/gt_reconcile.py turns that into
  *       a hard failure.
  *
+ * enter() runs on the SERVER THREAD at every test body's first line, and a
+ * controller A/B measured that synchronous open/append/close there perturbs
+ * wall-clock timing enough to flip the byte-level-deterministic
+ * descentYawArena. enter() is therefore lock-free and IO-free: it only offers
+ * the name onto a {@link ConcurrentLinkedQueue}. A dedicated daemon writer
+ * thread ("gt-manifest-writer", started by reset()) drains the queue off the
+ * server thread and does the actual file append. A JVM shutdown hook drains
+ * any remainder on normal server stop so a run's tail is never lost. If the
+ * writer thread's append itself fails, it throws loudly there (that thread's
+ * job is exactly that append) rather than silently dropping records — and any
+ * record that never makes it to disk is still caught downstream, since the
+ * reconciler treats a missing enter line as a hard (fail-RED) swallow.
+ *
  * Name matching is case-insensitive downstream: vanilla testName() is the
  * lowercased method name, guard strings are hand-written mixed case.
  * Test names are Java identifiers — no JSON escaping needed.
@@ -34,10 +48,14 @@ final class GameTestManifest {
     private static final Object LOCK = new Object();
     private static volatile boolean armed = false;
 
+    private static final ConcurrentLinkedQueue<String> PENDING = new ConcurrentLinkedQueue<>();
+    private static volatile boolean writerStarted = false;
+
     private GameTestManifest() {}
 
-    /** Truncate the manifest and dump every registered test. GameTestServer runs only —
-     *  live/integrated servers never call this, so enter() stays a no-op there. */
+    /** Truncate the manifest, dump every registered test, and start the async enter-writer.
+     *  GameTestServer runs only — live/integrated servers never call this, so enter()
+     *  stays a no-op there. */
     static void reset() {
         synchronized (LOCK) {
             try {
@@ -58,19 +76,54 @@ final class GameTestManifest {
                 // A broken manifest must never read as green — fail the run loudly.
                 throw new UncheckedIOException("cannot write gametest manifest", e);
             }
+            if (!writerStarted) {
+                writerStarted = true;
+                Thread writer = new Thread(GameTestManifest::drainLoop, "gt-manifest-writer");
+                writer.setDaemon(true);
+                writer.start();
+                Runtime.getRuntime().addShutdownHook(
+                        new Thread(GameTestManifest::drainPending, "gt-manifest-writer-shutdown"));
+            }
         }
     }
 
-    /** Append an enter record. No-op unless reset() armed this run. */
+    /** Offer an enter record for the async writer. No-op unless reset() armed this run.
+     *  Lock-free, IO-free — see class javadoc: this runs on the server thread and must
+     *  never block on IO. */
     static void enter(String name) {
         if (!armed) return;
-        synchronized (LOCK) {
+        PENDING.offer(name);
+    }
+
+    /** Runs on the "gt-manifest-writer" daemon thread: poll-and-append forever. */
+    private static void drainLoop() {
+        while (true) {
+            drainPending();
             try {
-                Files.writeString(FILE, "{\"type\":\"enter\",\"name\":\"" + name + "\"}\n",
-                        StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-            } catch (IOException e) {
-                throw new UncheckedIOException("cannot append gametest manifest", e);
+                Thread.sleep(25);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                drainPending();
+                return;
             }
+        }
+    }
+
+    /** Append every currently-queued enter record. Called by the writer loop and by
+     *  the shutdown hook (so a normal server stop flushes the tail). */
+    private static void drainPending() {
+        String name;
+        StringBuilder sb = null;
+        while ((name = PENDING.poll()) != null) {
+            if (sb == null) sb = new StringBuilder();
+            sb.append("{\"type\":\"enter\",\"name\":\"").append(name).append("\"}\n");
+        }
+        if (sb == null) return;
+        try {
+            Files.writeString(FILE, sb.toString(), StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            throw new UncheckedIOException("cannot append gametest manifest", e);
         }
     }
 }
