@@ -110,20 +110,32 @@ final class GameTestManifest {
     }
 
     /** Append every currently-queued enter record. Called by the writer loop and by
-     *  the shutdown hook (so a normal server stop flushes the tail). */
+     *  the shutdown hook — both can run this concurrently near process exit (the
+     *  writer thread mid-sleep while the shutdown hook fires), so the whole body is
+     *  serialized on LOCK rather than relying on POSIX O_APPEND atomicity alone.
+     *
+     *  <p>Mid-batch loss path: names are removed from PENDING as soon as they're
+     *  polled into the local buffer. If {@code Files.writeString} then throws, that
+     *  batch's names are already gone from the queue and are never retried — they
+     *  are lost. This is accepted, not accidental: a lost enter record reads
+     *  downstream as "registered but never entered," which the reconciler already
+     *  treats as a hard RED swallow (the fail-safe direction), so a lost record can
+     *  only make the run fail loud, never falsely pass. */
     private static void drainPending() {
-        String name;
-        StringBuilder sb = null;
-        while ((name = PENDING.poll()) != null) {
-            if (sb == null) sb = new StringBuilder();
-            sb.append("{\"type\":\"enter\",\"name\":\"").append(name).append("\"}\n");
-        }
-        if (sb == null) return;
-        try {
-            Files.writeString(FILE, sb.toString(), StandardCharsets.UTF_8,
-                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-        } catch (IOException e) {
-            throw new UncheckedIOException("cannot append gametest manifest", e);
+        synchronized (LOCK) {
+            String name;
+            StringBuilder sb = null;
+            while ((name = PENDING.poll()) != null) {
+                if (sb == null) sb = new StringBuilder();
+                sb.append("{\"type\":\"enter\",\"name\":\"").append(name).append("\"}\n");
+            }
+            if (sb == null) return;
+            try {
+                Files.writeString(FILE, sb.toString(), StandardCharsets.UTF_8,
+                        StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            } catch (IOException e) {
+                throw new UncheckedIOException("cannot append gametest manifest", e);
+            }
         }
     }
 }
