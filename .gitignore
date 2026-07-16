@@ -3,6 +3,7 @@ build/
 */build/
 run/
 run-gametest/
+run-testkit/
 .idea/
 *.log
 

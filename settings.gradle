@@ -12,3 +12,9 @@ rootProject.name = 'noteblockapi'
 include 'common'
 include 'fabric'
 include 'neoforge'
+include 'testkit-common'
+include 'testkit-fabric'
+include 'testkit-neoforge'
+project(':testkit-common').projectDir = file('mc-testkit/common')
+project(':testkit-fabric').projectDir = file('mc-testkit/fabric')
+project(':testkit-neoforge').projectDir = file('mc-testkit/neoforge')
