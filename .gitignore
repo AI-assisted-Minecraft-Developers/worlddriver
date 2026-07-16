@@ -4,6 +4,7 @@ build/
 run/
 run-gametest/
 run-testkit/
+run-dogfood/
 .idea/
 *.log
 

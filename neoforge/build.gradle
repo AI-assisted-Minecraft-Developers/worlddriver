@@ -39,6 +39,11 @@ dependencies {
     common(project(path: ':common', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':common', configuration: 'transformProductionNeoForge')
 
+    // testkit-common (P1c dogfood wiring) — same two-line idiom as :common above,
+    // and identical to how mc-testkit/neoforge/build.gradle already consumes it.
+    common(project(path: ':testkit-common', configuration: 'namedElements')) { transitive false }
+    shadowBundle project(path: ':testkit-common', configuration: 'transformProductionNeoForge')
+
     // Rhino (KubeJS fork) — a full mod jar (ships neoforge.mods.toml), so we
     // nest it via Jar-in-Jar instead of shadowing its classes. FML discovers the
     // nested mod and DEDUPES it by version against any other mod that JiJ's the
@@ -119,6 +124,16 @@ loom {
             property 'agent.mcpPort', '0'
             runDir 'run-contract'
             vmArg '-Xmx1g'
+        }
+        // P1c: dogfood run — boots a professional dedicated server with BOTH
+        // agent_driver and the mc-testkit harness loaded, autorun gate ON. This
+        // is what proves the testkit orchestrator (t0.py) generalizes beyond its
+        // own bare-bones testkit-neoforge module to a real, feature-loaded mod.
+        dogfoodServer {
+            server()
+            property 'testkit.autorun', 'true'
+            runDir 'run-dogfood'
+            vmArg '-Xmx2g'
         }
     }
     runConfigs.configureEach {

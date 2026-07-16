@@ -2,12 +2,15 @@ package net.magicterra.agent.neoforge;
 
 import net.magicterra.agent.AgentDriverCommon;
 import net.magicterra.agent.api.AgentApi;
+import net.magicterra.agent.bot.BotConfig;
 import net.minecraft.core.BlockPos;
 import net.magicterra.agent.script.AgentEvents;
+import net.magicterra.testkit.TestkitCommon;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.gametest.framework.GameTestServer;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -27,6 +30,13 @@ import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 
 @Mod(AgentDriverCommon.MOD_ID)
 public final class AgentDriverNeoForge {
+    // P1c dogfood wiring (mc-testkit task 3): mirrors TestkitCommon's own internal
+    // testkit.autorun gate. The double gate is intentionally redundant — it keeps
+    // BotConfig.applyGameTestBaseline() (an agent-driver-side concern TestkitCommon
+    // knows nothing about) conditioned on the exact same system property that decides
+    // whether the harness itself runs, so the two can never diverge.
+    private static final boolean TESTKIT_AUTORUN = Boolean.getBoolean("testkit.autorun");
+
     public AgentDriverNeoForge(IEventBus modBus, ModContainer container) {
         NeoForge.EVENT_BUS.register(this);
         modBus.addListener((RegisterGameTestsEvent event) -> {
@@ -50,15 +60,21 @@ public final class AgentDriverNeoForge {
         // GameTest suite runs on a dedicated GameTestServer: pin the legacy default-OFF
         // flag baseline the arenas were authored against (BotConfig.applyGameTestBaseline
         // doc). Live/integrated servers keep the new defaults.
-        if (event.getServer() instanceof net.minecraft.gametest.framework.GameTestServer) {
-            net.magicterra.agent.bot.BotConfig.applyGameTestBaseline();
+        if (event.getServer() instanceof GameTestServer) {
+            BotConfig.applyGameTestBaseline();
             GameTestManifest.reset();
         }
         AgentDriverCommon.onServerStarting();
     }
 
     @SubscribeEvent
-    public void onServerStarted(ServerStartedEvent event) { AgentDriverCommon.onServerStarted(event.getServer()); }
+    public void onServerStarted(ServerStartedEvent event) {
+        AgentDriverCommon.onServerStarted(event.getServer());
+        if (TESTKIT_AUTORUN) {
+            BotConfig.applyGameTestBaseline();
+            TestkitCommon.onServerStarted(event.getServer(), "neoforge");
+        }
+    }
 
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) { AgentDriverCommon.onServerStopping(); }
@@ -73,6 +89,7 @@ public final class AgentDriverNeoForge {
     public void onServerTick(ServerTickEvent.Post event) {
         AgentEvents.fireTick();
         net.magicterra.agent.neoforge.sim.ServerAgentManager.tickAll();   // Phase 2: drive server-side FakePlayer agents
+        if (TESTKIT_AUTORUN) TestkitCommon.onServerTick(event.getServer());
     }
 
     // LOWEST priority: run after all other handlers so cancellations have settled
