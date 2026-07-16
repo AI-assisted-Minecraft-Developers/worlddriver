@@ -2,6 +2,15 @@
 
 > 镜像 Task 跟踪器的长期工作。重要根因写进 memory(reference/project)。
 
+## 2026-07-16 ✅ P1b 仪表契约子集落地 — 五任务全过(双 loader 验收+门自证+文档)
+
+- **✅ P1b 竖切五任务已落 feature/executor-permove-ascend**: ① Task 1 verdict 抽取(a53d8dc: 从 t0.py 抽共享 verdict 模块,行为冻结,self-test 11/11);② Task 2 骨架+run 配置+金丝雀(a540771: contractServer run 配置+裸 RPC ws client+金丝雀对+共享 verdict);③ Task 3 batch A(ee95891: 路由分派/schema 违规/client-only 大声失败/脚本 parity,7 项真检查);④ Task 4 batch B(11088a5: world 操作/观测保真含 #42 耐久/事件/等待,10 项真检查,套件共 17 项+2 金丝雀);⑤ Task 5 双 loader 验收+门自证+文档(本条目)。
+- **✅ fabric 侧就绪探针竞态发现+修复(a436c61,非批 A/B,单列 commit)**: Task 5 Step 1 首次对 fabric 跑满 17 项真检查时暴露——`launch()` 就绪门原探针 `mc.system.version` 不需要 server attach 就能回应,fabric 快速 flat-world 首启(RPC 监听到 `Done` 仅约 1s)下探针提前判定就绪,8/17 项 touch `api.level()` 的检查(world/obs/events 族)全部 `FAIL — AgentApi not attached to a server`(`VERDICT: RED`,exit=1);根因非产品缺陷,是仪表套件自身的竞态。修复把就绪探针换成 `mc.observe.player`(只读无副作用,但函数体第一行即 `api.level()` 显式 attach 门)。修复后 fabric 复跑 17/17 PASS,`VERDICT: GREEN`,exit=0。`agent-rpc.port` 未与 neoforge 撞车(Task 2 Step 2 的 `configureEach` 端口覆盖风险未兑现)。
+- **✅ 门自证三跑(临时改错,均 `git checkout --` 还原,零 commit 残留)**: ①改 `check_version_shape` 断言错值 → neoforge → `VERDICT: RED` exit=1;②改 `canary_must_fail` 为 `return None` → neoforge → `VERDICT: DEAD` exit=2;③两次均还原后重跑 → `VERDICT: GREEN` 17/17 PASS exit=0。等价 P1a 的门自证,验证金丝雀条款(spec §5)活体有效。
+- **✅ 双 loader 确定性重跑**: `neoforge && fabric` 两轮均 `VERDICT: GREEN`,combined exit=0;17 项检查+2 金丝雀两个 loader 上行为一致(仅 wallMs 计时抖动)。
+- **✅ 契约文档 v0**: `docs/testkit/instrument-contract-v0.md`——17+2 检查逐条列名+断言+钉住哪条病历(#42 工具耐久、#280 静默吞病族)、永久断言台账、已知缺口(P2:#41 全背包/#45 攻击冷却/#55 伤害源需真玩家、avatar FakePlayer 不入 PlayerList、`mc.bot.setting` 未知键静默吞)。
+- **下一步**: P1c dogfood 迁移(agent-driver arena 搬家),顺延清单见 `docs/testkit/instrument-contract-v0.md` 已知缺口节。
+
 ## 2026-07-16 ✅ P1a 行走骨架落地 — 五任务全过(文档收尾)
 
 - **✅ P1a 竖切五任务已落 feature/executor-permove-ascend**: ① Task 1 gradle 骨架(affc448: testkit-common/fabric/neoforge 三模块+run 配置);② Task 2 scene 模型+注册(034709b: Scenes.all()五场景含三金丝雀);③ Task 3 T0 harness(936f4f2: ResultsJsonl+TestkitCommon 接线);④ Task 4 编排器+冻结契约(06861ea + a340cfd: scripts/testkit/t0.py+docs/testkit/orchestration-contract-v0.md);⑤ Task 5 dual-loader 证(2026-07-16 零 commit:fabric T0 GREEN 首跑、neoforge GREEN、双 loader 重跑全绿、exit=0、场景输出字节同(timings 除外))。
