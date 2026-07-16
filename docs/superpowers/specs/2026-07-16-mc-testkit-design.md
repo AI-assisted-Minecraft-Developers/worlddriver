@@ -88,7 +88,9 @@ public static void furnaceKeepsFuel(SceneContext ctx) {
 
 注册在 common 层由 runtime 注解扫描发现，两个 loader 同一套测试代码。
 
-**② 进程外 JUnit 5 场景**（已拍板：JUnit 5 基座）——测试体跑在游戏进程外普通 JVM，经控制通道拿类型化代理；IDE 单跑、断点、CI 报告白拿：
+**执行模型铁律**：`@SceneTest` 体跑在 server 线程 tick 内；体内调仪表 verb 安全（`onServerThread` 同线程内联执行，AgentApi:627 已核实），但**禁止任何阻塞等待跨线程 future**（如带长 awaitMs 的 `wait.*`）——只许 `ctx.await()` continuation，违反即死锁（既有 GameTest 死锁病的同款机制）。harness 对体内阻塞加看门狗侦测。
+
+**② 进程外 JUnit 5 场景**（已拍板：JUnit 5 基座）——测试体跑在游戏进程外普通 JVM，经控制通道拿类型化代理；断点、断言报告、CI 集成白拿。**拓扑生命周期采用 attach 模式契约**：JUnit 扩展读 `TESTKIT_ENDPOINT`（编排器起好拓扑后写出的端点描述文件）——已设则附着，未设则 fail-fast 并提示先跑对应 gradle/编排器任务。IDE 里"点一下全自动起拓扑"要到 P3 gradle-plugin 内嵌启动逻辑后才成立，此前 IDE 单跑需先手动起一次拓扑（attach 后可反复跑）：
 
 ```java
 @TestkitScenario(topology = DEDICATED_PLUS_CLIENT, world = "template:flatstone")
@@ -140,6 +142,7 @@ agent-driver 用 testkit 自测，而 testkit 依赖 agent-driver——需防「
 | xvfb/DISPLAY 管理 | headless CI |
 | **单源 JSONL + 「注册数=执行数」对账门** | #85 静默吞 |
 | required 语义单源（退出码由编排器判定） | TOTAL 行假绿 |
+| **金丝雀自测**：套件内置必红/必超时/必吞（注册但标记不执行）三只哨兵，每轮全量必须把它们判成对应的 FAIL/TIMEOUT/RECONCILE-MISS，否则**门本身判死**、整轮结果作废 | 对账门/watchdog 自身回归 = 元盲区（#85 的教训反着用：验证"框架能抓住失败"这件事本身） |
 
 **arena 基建默认值**（runtime 侧，同为坑史制度化）：坐标分配器（撞车假 RED）、身体进场重置（共享身体彩票，串行复用单具身体 + 显式 reset，绕开每测新建 ServerPlayer 的成本坑）、rig 护栏三件套内建于 builder（跑飞缓冲台 / config pin / reached 判定带 y 下限——虚空坠落 rig 病家族）。
 
@@ -161,8 +164,8 @@ agent-driver 用 testkit 自测，而 testkit 依赖 agent-driver——需防「
 ## 7. 阶段计划
 
 - **P0 止血**（立即，独立于产品，~1-2 天）：现有套件 ENTER/EXIT JSONL 执行清单（单处 helper）+ 跑后「注册=执行」对账脚本 + 统一包装脚本（跑前按 PID 杀残留→删 world→跑→解析 BUILD/required/对账，缺一即 FAIL）；被吞名单以 `AGENT_GT_ONLY` 显式跑一轮重建可信基线。
-- **P1 第一竖切**：mc-testkit 项目骨架 + core（断言 DSL/测试模型/JSONL schema）+ T0 harness + 编排器最小版（server-only）；**编排契约冻结**；dogfood 迁被吞名单 + flaky 家族，双 loader 跑通（fabric 从零到有测试）。
-- **P2 客户端两形态**：schema SPI + `mc.test.*` verbs + JUnit 5 集成 + T1 拓扑 + 首批 UI 场景 + 仪表契约套件。
+- **P1 第一竖切**：mc-testkit 项目骨架 + core（断言 DSL/测试模型/JSONL schema）+ T0 harness + 编排器最小版（server-only）+ 金丝雀自测；**编排契约冻结**；**最小仪表契约子集**（T0 依赖面：route dispatch/观察读/直接世界操作——信任链不许在 dogfood 开始前是断的）；dogfood 迁被吞名单 + flaky 家族。**双 loader 验收分级：neoforge 全量 + fabric 冒烟子集**（fabric 侧驱动层从未被测过，全量对齐单列为 P1.5 里程碑，防 scope 失控）。
+- **P2 客户端两形态**：schema SPI + `mc.test.*` verbs + JUnit 5 集成（attach 模式）+ T1 拓扑 + 首批 UI 场景 + 仪表契约套件扩展到客户端仪表（含客户端进场重置 verb：releaseKeys/closeScreen/清 chat）。
 - **P3 生产拓扑 + 分发**：T2 拓扑 + gradle-plugin（shell 同一契约）+ 客户端进程池 + maven 发布准备。
 - **P4 收尾**：剩余测试迁完、testmod 搬家、GameTestServer/`solo*` 退役。
 
@@ -200,3 +203,10 @@ agent-driver 用 testkit 自测，而 testkit 依赖 agent-driver——需防「
 - **JUnit 场景与游戏进程的生命周期同步**：JUnit 并行 fork 与拓扑租约的映射（一个 topology 实例服务多个 @Test？串行租约先行）。
 - **T2 世界模板的两端一致性**：专服世界模板与客户端资源的版本匹配。
 - **迁移期双轨**：旧 GameTest 与新 harness 并存期间，验收门以哪边为准——规则：已迁 family 以 testkit 为准，未迁以旧门（P0 加固后）为准，家族清单入 spec 附录维护。
+- **壳更换的时序漂移**：GameTestServer → 普通专服，chunk/entity-ticking 语义改变（GT 区块永不 entity-ticking 的旧限制消失、mob AI 开始活 tick、玩家相关的 spawn/sim-distance 语义不同）——同一测试迁壳后基线可能移动。处置：迁移按 family 做新旧壳 A/B，允许显式重定基线，漂移记录进迁移日志；**禁止为凑绿调阈值不留痕**。
+- **`level.tick()` 手动模式是迁移雷**：AgentGameTestServer 里 9 处手动 `level.tick()`（正是 processUnloads 挂死栈的入口）在活 tick 专服上语义完全不同，**必须重写为 await 式，不得机械搬运**；迁移 checklist 单列。
+- **fabric 侧 scope 膨胀**：agent_driver 的服务端路径从未在 fabric 上被测过，P1 双 loader 可能掀出驱动层 fabric 专属 bug。已用验收分级（P1 fabric 冒烟 / P1.5 全量对齐）设界；掀出的驱动层 bug 立独立 task，不算 testkit scope。
+- **客户端进程池的状态残留**：复用 client 进程 = 新 flaky 源（按键卡手/screen 未关/相机残留——input clobber 病史）。客户端进场重置 verb（P2）+ reset 完备性验收（连跑 3 次一致）扩展到 client 侧；残留嫌疑时进程池支持"弃用重启"降级。
+- **#85 根因未除的保险**：弃 GameTestServer 是绕开其调度，但 #85 从未根因定位——若吞的机制在本仓库共享 support 代码里会跟着走。保险：对账门与根因无关地捕获任何吞（注册数=执行数在新旧两侧都生效）；金丝雀"必吞"哨兵每轮验证捕获能力本身。不专项深挖 vanilla 根因（时间盒为零），除非对账门再次抓到新形态。
+- **产品维护面耦合**：第三方依赖 testkit → 连带 agent_driver 的版本节奏与 MC 支持矩阵（当前 1.21.1 单版本）。发布前文档必须写明支持矩阵与兼容承诺；MC 版本升级策略（连带 fabric client gametest 官方 API 的关系重估）留待首个外部用户前决策。
+- **仪表面≠冻结面**：仪表 verb 也会演进（驱动层自己的产品迭代），契约套件要随 verb 版本走——verb 语义变更必须同 PR 更新契约断言，CI 上契约套件红 = 阻断合并，防"仪表悄悄变语义、行为测试集体误判"。
