@@ -2,6 +2,16 @@
 
 > 镜像 Task 跟踪器的长期工作。重要根因写进 memory(reference/project)。
 
+## 2026-07-16 ✅ P1c dogfood wave 1 落地 — SceneProvider SPI + 双门 A/B(branch `feature/executor-permove-ascend`)
+
+- **✅ P1c 五任务已落**:① Task 1 SPI+ctx+forceload(`768a67b`: `SceneProvider` 接口、`SceneContext` level/origin/cleanup、PREP 等满 3×3 forceload);② Task 2 `done.scenes` 对账门(`4c87fde`: judge() 新增 TRUNCATED 检查、t0 `--run-task`/`--results` 通用化);③ Task 3 dogfood 接线(`367ac53`: `:testkit-common` 依赖、`runDogfoodServer` run 配置、autorun 钩子);④ Task 4 三员迁移(`b86468d`: 历史被吞候选 `ascendMovementNoopArena`/`ascendDeadZoneWatchdogArena`/`diagonalAscentSpeedArena` 移植为 `ad.*` 场景,legacy `@GameTest` 双胞胎保留,断言值逐条 verbatim 保留);⑤ Task 5 双门并行验收+文档(本条目)。
+- **✅ A/B 双证据**:legacy 全量门(`AGENT_GT_ONLY=` 三员显式基线,Task 4 同一 build)GREEN 19s;dogfood 新壳(`t0.py --run-task :neoforge:runDogfoodServer`)同一 build GREEN,3 个 `ad.*` 场景与 5 个内建场景(含 3 金丝雀)全过——两条门在同一份迁移代码上独立裁决一致,互为回归卫士。
+- **🟡 legacy 全量门本轮 RED(诚实记录,非回归)**:Step 1 首次全量(`./scripts/run_gametests.sh`)`registered=130 entered=130`(零吞测试)但 3 个 required 失败——`serveravatargearscopeprobearena`/`descentyawarena`/`agentrpcsmoke`(+optional `vineoverwaterclimb`)。这正是 P0(task#85)记录在案的 #48 彩票家族(见本文件 07-16 P0 条目:三次全量三种不同失败集,全员 solo 绿)。**测量而非断言分类**:①三员编组过滤跑(`AGENT_GT_ONLY=` 三名一起)GREEN 除 `descentyawarena` 单飘 1 次;②`descentyawarena` 真单跑(`AGENT_GT_ONLY=descentYawArena` 单名)GREEN 1.779s;③`serverAvatarGearScopeProbeArena`/`agentRpcSmoke` 各自真单跑均 GREEN——三员逐一 solo 绿,叠加 Task 4 同一份代码今天早些时候全量 GREEN 130/130 的既有记录,判定为既知彩票家族的又一次抽样,非本轮 P1c 改动引入的回归(P1c 五个 commit 未触碰这三个 legacy arena 或探针代码)。**这正是彩票家族排入 dogfood 队列 P1.5 的论据**——只要还挂在共享 body 的全量门上,这类漂移就会继续消耗验收轮次。
+- **✅ 双拓扑纯 T0 验收**:`t0.py --run-task :neoforge:runDogfoodServer` GREEN(exit=0,8 场景=5 内建+3 ad.*)+ 纯 testkit T0(`t0.py`,零 agent-driver 依赖)GREEN(exit=0,5 内建场景+2 金丝雀)——provider 有/无两种拓扑都健康。
+- **✅ 契约文档 v0 附录(语义只收紧,版本仍 v0)**:`docs/testkit/orchestration-contract-v0.md` 新增「SceneProvider(v0 附录)」(ServiceLoader 发现顺序、`rejectDuplicateNames()` 撞名门、金丝雀仅内建承担)+「done.scenes 对账」(TRUNCATED 判据、与 SWALLOWED 分工、缺字段前向兼容);RED 退出码行补 TRUNCATED 提及。`mc-testkit/README.md` 补 dogfood 入口小节(run 命令+SPI 三行示例+services 文件路径示例)。`.gitignore` 补 `run-contract/`(P1b 遗留的 untracked-unignored 缺口,顺手清)。
+- **⭐legacy 三员删除条件(显式记录)**:双门(legacy `@GameTest` 三员 + `ad.*` 三场景)连续 **3 轮**全绿(注:本轮 legacy 全量因彩票家族飘红,不计入连续计数;三员各自 solo 绿 + dogfood 门绿计入门本身健康证据,但"3 轮双门全绿"计数器从下一次干净全量开始累积)方可删除 legacy `@GameTest` 三胞胎与其 `gtOnlySkips` 埋点。
+- **残留清单**:① `ResultsJsonl` 异步化(结果写盘目前仍限场景边界同步写,P0 探针事故教训适用范围待评估是否需要扩展到 SceneContext 写路径);② 彩票家族(#48,本轮再证:gearscope/descentyaw/agentrpcsmoke/vineoverwater)排 P1.5,目标是把这些 arena 也迁到隔离 origin 的 `ad.*`/testkit 场景,脱离共享 body 全量门;③ legacy 三员删除计数器归零重开(见上条)。
+
 ## 2026-07-16 ✅ P1b 仪表契约子集落地 — 五任务全过(双 loader 验收+门自证+文档)
 
 - **✅ P1b 竖切五任务已落 feature/executor-permove-ascend**: ① Task 1 verdict 抽取(a53d8dc: 从 t0.py 抽共享 verdict 模块,行为冻结,self-test 11/11);② Task 2 骨架+run 配置+金丝雀(a540771: contractServer run 配置+裸 RPC ws client+金丝雀对+共享 verdict);③ Task 3 batch A(ee95891: 路由分派/schema 违规/client-only 大声失败/脚本 parity,7 项真检查);④ Task 4 batch B(11088a5: world 操作/观测保真含 #42 耐久/事件/等待,10 项真检查,套件共 17 项+2 金丝雀);⑤ Task 5 双 loader 验收+门自证+文档(本条目)。

@@ -5,6 +5,7 @@ run/
 run-gametest/
 run-testkit/
 run-dogfood/
+run-contract/
 .idea/
 *.log
 
