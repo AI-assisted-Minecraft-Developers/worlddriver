@@ -122,6 +122,7 @@ loom {
         }
     }
     runConfigs.configureEach {
+        if (it.name == 'contractServer') return
         property 'agent.runValidation', project.findProperty('agentRunValidation') ?: 'false'
         // Cap heap so dedicated server + gametest don't trigger system OOM.
         vmArg '-Xmx2g'
