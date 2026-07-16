@@ -72,6 +72,7 @@ final class AgentGameTestSupport {
      *  still drifts between identical runs. A single-name filter can never show that,
      *  and the full suite is too slow to repeat. */
     static boolean gtOnlySkips(String name) {
+        GameTestManifest.enter(name);
         String only = System.getenv("AGENT_GT_ONLY");
         if (only == null) return false;
         for (String want : only.split(",")) {

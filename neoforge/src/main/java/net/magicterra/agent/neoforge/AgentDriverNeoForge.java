@@ -52,6 +52,7 @@ public final class AgentDriverNeoForge {
         // doc). Live/integrated servers keep the new defaults.
         if (event.getServer() instanceof net.minecraft.gametest.framework.GameTestServer) {
             net.magicterra.agent.bot.BotConfig.applyGameTestBaseline();
+            GameTestManifest.reset();
         }
         AgentDriverCommon.onServerStarting();
     }
