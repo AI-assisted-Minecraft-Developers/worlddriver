@@ -55,10 +55,13 @@ import java.util.concurrent.atomic.AtomicReference;
  * Shared static helpers extracted from {@link AgentGameTest} when it was split by
  * arena family. Pure test-scaffolding utilities (arena builders / effect grants /
  * path-search wrappers); no {@code @GameTest} methods live here, so this class is
- * NOT a {@code @GameTestHolder}. Package-private static so the sibling test classes
- * can reach them via {@code import static}.
+ * NOT a {@code @GameTestHolder}. Sibling test classes reach these via
+ * {@code import static}; a few (see {@link #grantWaterEffects}) are additionally
+ * consumed by the P1c testkit scenes in the {@code .testkit} subpackage, so the
+ * class is {@code public} to make those callable across the package boundary
+ * (single source — the scenes must not re-implement the same effect grant).
  */
-final class AgentGameTestSupport {
+public final class AgentGameTestSupport {
     private AgentGameTestSupport() {}
 
     /** Shared {@code AGENT_GT_ONLY} run filter: unset = run everything; otherwise a
@@ -111,7 +114,7 @@ final class AgentGameTestSupport {
     /** Infinite non-locomotion protective effects (matches the harness eval player):
      *  water-breathing/resistance/regen/fire-resistance keep baseTick survival
      *  mechanics from skewing the physics — none of these alter movement. */
-    static void grantWaterEffects(net.minecraft.world.entity.player.Player p) {
+    public static void grantWaterEffects(net.minecraft.world.entity.player.Player p) {
         p.addEffect(new MobEffectInstance(MobEffects.WATER_BREATHING, -1, 0, false, false));
         p.addEffect(new MobEffectInstance(MobEffects.DAMAGE_RESISTANCE, -1, 4, false, false));
         p.addEffect(new MobEffectInstance(MobEffects.REGENERATION, -1, 4, false, false));

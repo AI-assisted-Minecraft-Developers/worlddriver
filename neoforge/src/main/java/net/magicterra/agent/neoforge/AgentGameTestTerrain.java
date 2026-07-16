@@ -960,6 +960,8 @@ public final class AgentGameTestTerrain {
     }
 
     /**
+     * Migrated to testkit scene "ad.ascendMovementNoop" (P1c); kept for dual-gate A/B — delete after 3 consecutive dual-gate greens.
+     * <p>
      * task#82 Unit 1: with {@code walkerAscendMovement} OFF, the tickInner delegation branch must
      * be a byte-identical no-op — it never constructs a {@link MovementContext} (test seam:
      * {@link MovementContext#ALLOC_COUNT}) and the legacy cardinal staircase climb still tops out.
@@ -1020,6 +1022,8 @@ public final class AgentGameTestTerrain {
     }
 
     /**
+     * Migrated to testkit scene "ad.ascendDeadZoneWatchdog" (P1c); kept for dual-gate A/B — delete after 3 consecutive dual-gate greens.
+     * <p>
      * task#82 dead-zone watchdog (plan B1-2, machine seam): drives {@link AscendMovement#updateState}
      * directly with a pinned FakePlayer and asserts the full watchdog contract — PREP on a fresh
      * edge, RUNNING for exactly {@link AscendMovement#DEADZONE_GIVEUP} no-progress ticks then
@@ -1102,6 +1106,8 @@ public final class AgentGameTestTerrain {
     }
 
     /**
+     * Migrated to testkit scene "ad.diagonalAscentSpeed" (P1c); kept for dual-gate A/B — delete after 3 consecutive dual-gate greens.
+     * <p>
      * DIAGONAL ascent speed — the cardinal ascentSpeedArena can't reproduce the live
      * "干地对角爬山" case (a ~45° goal up a slope). A diagonal slope rises +1 every 2 blocks of
      * NE progress; A* routes a 45° climb whose step-ups are DIAGONAL, so the cardinalUp-gated
