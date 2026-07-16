@@ -11,8 +11,11 @@ etc.) working in this project. Keep it short and authoritative.
   Every transport (MCP HTTP, WebSocket RPC, in-JVM Rhino) routes through
   `AgentApi.route(method, params)`. Do **not** add game-affecting behavior
   in a transport — add it in AgentApi, expose it through all three.
-- **Tests**: `./gradlew :neoforge:runGameTestServer` is the canonical
-  integration suite. 60 cases must pass.
+- **Tests**: `scripts/run_gametests.sh` is the canonical integration gate
+  (kills leftover gametest JVMs by PID, wipes the persistent world, runs
+  `:neoforge:runGameTestServer`, then reconciles the in-game manifest).
+  Verdict = BUILD SUCCESSFUL + no "required tests failed" + registered==entered
+  in `neoforge/run-gametest/testkit-manifest.jsonl`. Never trust the `TOTAL:` line.
 
 ## Hard rules
 
