@@ -49,12 +49,12 @@ behavior — the timeout→UNREACHABLE conversion. Live/arena verification watch
 
 ## Slices
 
-- [ ] **B1-1 — fall-through + episode tracking (behavior no-op):** reshape the delegation branch
+- [x] **B1-1 (6fbc4cd) — fall-through + episode tracking (behavior no-op):** reshape the delegation branch
   (drop the early return; only UNREACHABLE/FAILED act, via forceFellOffPath). AscendMovement becomes
   a real episode tracker (edge identity, episodeTicks, best dy, dig-activity latch) but the watchdog
   is UNARMED (never returns UNREACHABLE). Flag ON is still a behavior no-op → suite must be green
   under both OFF (default) and the noopArena contract. Gate: build + full suite. Commit.
-- [ ] **B1-2 — arm the watchdog + task#82 arena (RED→GREEN):** bounded no-progress episode →
+- [x] **B1-2 (a3f9c13; seam-arena verified via explicit AGENT_GT_ONLY execution — see the suite-integrity P0: full runs silently never execute the ascend arenas) — arm the watchdog + task#82 arena (RED→GREEN):** bounded no-progress episode →
   UNREACHABLE. New buried-bot rig in AgentGameTestTerrain (deep-stone shaft, bare-hand, assert the
   churn converts to a re-route/futile terminal instead of infinite dead-zone). **CLOSES task#82.**
   Gate: new arena RED on legacy semantics (flag OFF or watchdog off) → GREEN armed; full suite.
