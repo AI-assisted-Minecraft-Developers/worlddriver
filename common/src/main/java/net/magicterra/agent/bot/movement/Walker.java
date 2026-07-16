@@ -4287,8 +4287,13 @@ public final class Walker {
             }
             return Step.WALKING;
         }
-        // task#82 per-move ASCENT machine (spec §3.3). Flag FIRST so OFF short-circuits with no allocation.
-        // isMigratedAscent is a cheap string check; !isInWater keeps water ascents on legacy dig-recovery.
+        // task#82 per-move ASCENT machine (plan B1 2026-07-16). Flag FIRST so OFF short-circuits with
+        // no allocation. isMigratedAscent is a cheap string check; !isInWater keeps water ascents on
+        // legacy dig-recovery. B1 weave: the machine NEVER early-returns — PREP/RUNNING/SUCCESS fall
+        // through so the legacy jump-timing + drive below stays the single actuation source (an early
+        // return here skips the shared drive and forces a re-implementation — the disproven Option-A
+        // trap). The machine owns only the per-edge episode + dead-zone watchdog; step advancement
+        // stays with the legacy advance loop (~line 2265) so there is no double-advance race.
         if (BotConfig.walkerAscendMovement && edge != null && isMigratedAscent(edge.move) && !p.isInWater()) {
             MovementContext ctx = new MovementContext(
                     p, world, a, edge, foot, path.get(step),
@@ -4296,9 +4301,8 @@ public final class Walker {
                     step >= 1 ? path.get(step - 1) : null,
                     step >= 2 ? path.get(step - 2) : null);
             switch (ascendMovement.updateState(ctx)) {
-                case SUCCESS -> { step++; noProgressStep = -1; noStepProgressTicks = 0; }   // machine ratified arrival → advance (mirrors the within-gate advance at line 2284)
-                case PREP, RUNNING -> { return Step.WALKING; }                              // machine drove inputs this tick → hold the pointer
-                case UNREACHABLE, FAILED -> { forceFellOffPath = true; }                    // fold into the existing re-route (consumed next tick at line 1042)
+                case UNREACHABLE, FAILED -> forceFellOffPath = true;   // fold into the existing re-route (consumed next tick at line 1042)
+                case PREP, RUNNING, SUCCESS -> { }                     // fall through — legacy drive actuates this tick
             }
         }
         // Baritone MovementAscend jump-timing applies whenever we actually JUMP a
