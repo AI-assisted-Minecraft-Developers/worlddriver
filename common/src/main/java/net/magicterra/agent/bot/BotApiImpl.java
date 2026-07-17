@@ -862,18 +862,23 @@ public final class BotApiImpl implements BotApi {
     @Override
     public Map<String, Object> resetClientEntry() {
         List<String> reset = new ArrayList<>();
-        // Cancel a residual smooth-look process FIRST (scheduler state, no client thread needed) so
-        // the key release below is not re-driven by a live LookProcess on the next client tick.
-        // The look slot is the user-task slot (mc.bot.lookAt{smoothLook:true} starts a LookProcess
-        // there); UserTaskChain.heldProcessKind() is deliberately null (cancel's own routing leg),
-        // so read the held process directly and cancel through the same path mc.bot.cancel uses.
-        BotProcess held = userTask.process();
-        if (held != null && "look".equals(held.kind())) {
-            cancelCurrent("mc.test.reset");
-            reset.add("look");
-        }
-        // releaseKeys + screen close both touch the render thread → one client-thread hop.
+        // One client-thread hop for everything that touches scheduler or render state.
+        // The look-cancel MUST be inside the hop: the scheduler (userTask) is ticked and
+        // mutated from clientTick(), and every sibling mutation (mc.bot.cancel's own leg
+        // included) marshals via onClient — an off-thread cancel here would race the tick
+        // (P2a Task 3 review, Important). Cancelling FIRST, same-thread, also guarantees no
+        // client tick can interleave between the cancel and the key release, so a live
+        // LookProcess can never re-drive the keys we are about to release.
+        // The look slot is the user-task slot (mc.bot.lookAt{smoothLook:true} starts a
+        // LookProcess there); UserTaskChain.heldProcessKind() is deliberately null
+        // (cancel's own routing leg), so read the held process directly and cancel
+        // through the same path mc.bot.cancel uses.
         onClient(() -> {
+            BotProcess held = userTask.process();
+            if (held != null && "look".equals(held.kind())) {
+                cancelCurrent("mc.test.reset");
+                reset.add("look");
+            }
             releaseKeys();
             reset.add("keys");
             Minecraft mc = Minecraft.getInstance();
