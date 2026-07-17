@@ -204,8 +204,13 @@ Movement/automation processes. The async ones take `awaitMs?` — see [Async](#a
 ### `mc.bot.setting` keys
 The full set lives in `BotConfig.java` (this list reflects it; grep there if a key
 seems missing). Out-of-range numeric keys land in `rejected`, applied ones in
-`applied`; an **unknown** key is silently dropped (see the SKILL.md note — this is
-the #1 reason to drive settings over RPC after adding a new one).
+`applied`; an **unknown** key is now **rejected loudly, all-or-nothing** (post-#280:
+the `mc.bot.setting` schema is CLOSED and validated at `route()` from the single-source
+`SettingsRegistry`, so a call carrying ANY key not in the registry errors and applies
+NOTHING — the mod no longer silently drops it). The MCP-client stale-schema caveat still
+holds (see the SKILL.md note — the harness's frozen MCP tool schema strips a brand-new
+key *client-side* before it reaches the mod, which is the #1 reason to drive a
+just-added setting over RPC).
 
 **Booleans** — reflexes & toggles: `paused, autoEat, autoRespawn, autoRetreat,
 autoBunker, autoFight, autoDodge, autoShield, autoHeal, autoTotem, autoEquip,

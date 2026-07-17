@@ -29,10 +29,14 @@ way:
 - **A new param/setting/tool isn't in the MCP schema.** The harness caches MCP
   tool schemas at session start and re-fetching (`ToolSearch`) returns the same
   stale copy. After you rebuild + relaunch the mod with a new `mc.bot.setting`
-  key (or any new param), the MCP tool call **silently drops the unknown key**
-  (it's missing from `applied:` and unchanged in the snapshot, even though the
-  snapshot now lists it — proof the new build loaded). RPC forwards params
-  verbatim, so it just works. This is the #1 reason this skill exists.
+  key (or any new param), the MCP client **strips the unknown key before it ever
+  leaves the harness** (the frozen client-side schema doesn't know it) — so it's
+  missing from `applied:` and unchanged in the snapshot, even though the snapshot
+  now lists it (proof the new build loaded). This is a *client-side* strip, not a
+  mod-layer drop: post-#280 the mod's `mc.bot.setting` schema is CLOSED and would
+  reject an unknown key **loudly, all-or-nothing**, if one reached it. RPC forwards
+  params verbatim — bypassing the stale schema — so it just works. This is the #1
+  reason this skill exists.
 - **Multi-step setup as one block.** Stage an arena (`give`→`tp`→`fill`→`setting`
   →`goto`) in a single shell invocation instead of N separate tool calls.
 - **Headless client driving.** Title→world, input, screenshots — the surface
