@@ -9,6 +9,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static net.magicterra.agent.mcp.schema.Schemas.object;
@@ -44,12 +46,128 @@ import net.magicterra.agent.mcp.schema.ToolSchema;
  * {@code tools/list}). RPC-only is an explicit, reviewed choice, never an omission.
  * The typed schema also drives route-layer validation ({@code SchemaValidator}) —
  * rendering and validation read the same tree, so they cannot drift.
+ *
+ * <h2>Verb namespace policy</h2>
+ * {@link #registerVerb} is the public, atomic extension point for adding a
+ * game-affecting verb (schema + route together, so they can never drift). It
+ * enforces this namespace policy at registration time (violations throw
+ * {@link IllegalArgumentException}):
+ * <ul>
+ *   <li>The <b>{@code mc.} prefix is reserved for the driver core</b>. A verb name
+ *       under {@code mc.*} is rejected…</li>
+ *   <li>…<b>except {@code mc.test.*}</b>, which is granted to the testkit runtime.</li>
+ *   <li>Third-party verbs MUST be namespaced under their mod id: at least one dot,
+ *       and not starting with {@code mc.} (i.e. {@code <modid>.<verb>}).</li>
+ * </ul>
+ * The driver's own curated catalog and the internal {@code AgentApi.addRoute}
+ * consumers (e.g. the path-debug package) do NOT go through {@code registerVerb}
+ * and are unaffected by the policy. {@code mc.test.yaml} (a {@link #HIDDEN_TOOLS
+ * hidden} harness verb registered the classic way, not via {@code registerVerb})
+ * is grandfathered under the {@code mc.test.*} grant.
  */
 public final class ToolCatalog {
     private ToolCatalog() {}
 
     private static final List<Supplier<List<ToolSchema>>> EXTRA = new CopyOnWriteArrayList<>();
     private static volatile Map<String, Schema> byNameCache;
+
+    /**
+     * Route sink injected by the bootstrap at boot (bound to {@code AgentApi::addRoute}).
+     * {@link #registerVerb} publishes its route through this so ToolCatalog never imports
+     * or holds the {@code AgentApi} — it depends only on the {@code addRoute} shape,
+     * mirroring the {@code AgentApi.setParamsValidator}/{@code setScriptHandler} injection
+     * direction (bootstrap pushes the functional dependency in).
+     */
+    private static volatile BiConsumer<String, Function<Map<String, Object>, Object>> routeSink;
+
+    /**
+     * Wire the route sink used by {@link #registerVerb}. Called once from the platform
+     * bootstrap ({@code AgentDriverCommon.ensureRpcUp}) right after the {@code AgentApi}
+     * is constructed, with {@code api::addRoute}. Keeps the mcp layer free of any
+     * {@code AgentApi} import (Hard Rule #1: only a data-flow of {@code (name, handler)}
+     * crosses the seam, never a type dependency).
+     */
+    public static void wireRouteSink(BiConsumer<String, Function<Map<String, Object>, Object>> sink) {
+        routeSink = Objects.requireNonNull(sink, "sink");
+    }
+
+    /** Policy text quoted in every namespace-violation exception. */
+    private static final String NAMESPACE_POLICY =
+            "namespace policy: 'mc.*' is reserved for the agent-driver core (only 'mc.test.*' "
+            + "is granted, to the testkit runtime); third-party verbs must be '<modid>.<verb>' "
+            + "(at least one dot, not starting with 'mc.').";
+
+    /**
+     * The single public, atomic entry point for registering a game-affecting verb:
+     * one call supplies the MCP {@link ToolSchema} <b>and</b> installs the dispatch
+     * route, so the pair can never be registered in isolation (the drift that let
+     * routes slip to schema-less / RPC-only). Steps, in order:
+     * <ol>
+     *   <li>enforce the {@linkplain ToolCatalog class-level} namespace policy on
+     *       {@code schema.name()} — violation throws {@link IllegalArgumentException};</li>
+     *   <li>supply the schema through the {@link #registerExtra} mechanism (which
+     *       invalidates the validation cache so the new verb validates immediately);</li>
+     *   <li>install the route on the live {@code AgentApi} via the bootstrap-wired
+     *       {@linkplain #wireRouteSink route sink};</li>
+     *   <li>self-check that the route now has a resolvable schema (single-name mirror
+     *       of {@code AgentApi.requireSchemasFor}) — a torn pair is an internal bug.</li>
+     * </ol>
+     *
+     * <p><b>Ordering.</b> Must be called after the driver boots and wires the route
+     * sink (mirror {@code PathDebugBootstrap.init}, which runs once the {@code AgentApi}
+     * exists). A pre-boot call throws {@link IllegalStateException} — pre-boot queueing
+     * is deliberately unsupported, because deferring only the route half would split the
+     * atomic (schema+route) pair and could mask a mod registering before boot.
+     *
+     * <p><b>Duplicate names</b> follow {@code AgentApi.addRoute} last-wins semantics for
+     * the route; the schema supplier is appended (last entry for a name wins in
+     * {@code schemaByName()}), so re-registering a verb replaces its route and its
+     * effective schema.
+     *
+     * @throws IllegalArgumentException if {@code schema.name()} violates the namespace policy
+     * @throws IllegalStateException    if the route sink is not yet wired (pre-boot), or the
+     *                                  self-check finds the pair torn
+     */
+    public static void registerVerb(ToolSchema schema, Function<Map<String, Object>, Object> handler) {
+        Objects.requireNonNull(schema, "schema");
+        Objects.requireNonNull(handler, "handler");
+        String name = schema.name();
+        enforceNamespacePolicy(name);
+        BiConsumer<String, Function<Map<String, Object>, Object>> sink = routeSink;
+        if (sink == null) {
+            throw new IllegalStateException(
+                    "ToolCatalog.registerVerb('" + name + "') called before agent-driver wired the "
+                    + "route sink — register verbs after the driver boots (mirror PathDebugBootstrap.init, "
+                    + "which runs once the AgentApi exists). Pre-boot queueing is intentionally not "
+                    + "supported: it would split the atomic (schema+route) pair.");
+        }
+        // Atomic pair: schema first (via EXTRA — invalidates the validation cache), then the
+        // route on the live api. Both halves land under this one call.
+        registerExtra(() -> List.of(schema));
+        sink.accept(name, handler);
+        // Self-check — single-name mirror of AgentApi.requireSchemasFor. A paired entry that
+        // leaves the route without a resolvable schema is a bug, not a runtime possibility.
+        if (schemaByName().get(name) == null) {
+            throw new IllegalStateException(
+                    "ToolCatalog.registerVerb('" + name + "') left the route without a resolvable "
+                    + "schema — the paired registration is torn (internal invariant violation).");
+        }
+    }
+
+    /** Enforce the {@linkplain ToolCatalog class-level} verb namespace policy. */
+    private static void enforceNamespacePolicy(String name) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("verb name must be non-empty; " + NAMESPACE_POLICY);
+        }
+        if (name.indexOf('.') < 0) {
+            throw new IllegalArgumentException(
+                    "verb name '" + name + "' is not namespaced; " + NAMESPACE_POLICY);
+        }
+        if (name.startsWith("mc.") && !name.startsWith("mc.test.")) {
+            throw new IllegalArgumentException(
+                    "verb name '" + name + "' is reserved for the agent-driver core; " + NAMESPACE_POLICY);
+        }
+    }
 
     /**
      * Methods declared but deliberately kept out of MCP {@code tools/list}. Each is

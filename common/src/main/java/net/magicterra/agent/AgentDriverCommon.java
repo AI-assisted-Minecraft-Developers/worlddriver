@@ -146,6 +146,10 @@ public final class AgentDriverCommon {
                 // Phase H — persistent skill library (Voyager) under scripts/skills/.
                 SkillLibrary skillLibrary = new SkillLibrary(evaluator, userScriptsDir().resolve("skills"));
                 api.setSkillHandler(skillLibrary::dispatch);
+                // Wire the paired-verb route sink so ToolCatalog.registerVerb can install
+                // routes on this api instance without importing it (Hard Rule #1 — only the
+                // (name, handler) data-flow crosses the seam, mirroring setParamsValidator).
+                ToolCatalog.wireRouteSink(api::addRoute);
             }
             if (rpcServer == null) {
                 int wantPort = Integer.getInteger("agent.rpcPort", 0);
@@ -183,7 +187,20 @@ public final class AgentDriverCommon {
             // invalidates the cache so late-registered extras validate too.
             api.setParamsValidator((method, params) -> {
                 Schema s = ToolCatalog.schemaByName().get(method);
-                if (s != null) SchemaValidator.validate(method, s, params);
+                // Schema-less dispatch is now a loud programming error, not a silent skip.
+                // requireSchemasFor (above) guarantees every route has a schema at boot;
+                // post-boot the only route additions are the paired ToolCatalog.registerVerb
+                // (self-checked) — so a missing schema here means a raw AgentApi.addRoute was
+                // used WITHOUT a matching declared ToolSchema. Refuse to dispatch rather than
+                // run an unvalidated verb (the #280-shaped hole: no schema ⇒ no param check).
+                if (s == null) {
+                    throw new IllegalStateException(
+                            "agent-driver: route '" + method + "' has no MCP ToolSchema — schema-less "
+                            + "dispatch is refused. Register game-affecting verbs via the paired "
+                            + "ToolCatalog.registerVerb(schema, handler); a raw AgentApi.addRoute must "
+                            + "be matched by a declared ToolSchema (see AgentApi.requireSchemasFor).");
+                }
+                SchemaValidator.validate(method, s, params);
             });
         }
     }
