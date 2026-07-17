@@ -2523,46 +2523,25 @@ public final class AgentGameTestServer {
      *  {@code ad.gearScope} testkit scene in the {@code .testkit} subpackage can share this
      *  exact probe across the package boundary instead of re-implementing it (same
      *  cross-package promotion rationale as {@link AgentGameTestSupport#grantWaterEffects};
-     *  single source — the scene must drive the identical measurement). */
+     *  single source — the scene must drive the identical measurement).
+     *  <p>P1.6 Task 2: the body moved to common
+     *  {@link net.magicterra.agent.bot.testkit.SimProbes#probeSwing}; this static is now a
+     *  one-line delegate keeping its ORIGINAL signature (neoforge-shim {@code ServerAgentDriver}
+     *  + {@code FakePlayer}), so every legacy caller compiles untouched — the shim's covariant
+     *  types widen to the common {@code ServerAgentDriver}/{@code ServerPlayer} params. */
     public static float probeSwing(ServerLevel level, ServerAgentDriver driver, FakePlayer fp,
                                     ItemStack weapon, int cx, int floorY, int cz) {
-        fp.getInventory().clearContent();
-        if (!weapon.isEmpty()) { fp.getInventory().setItem(0, weapon); }
-        fp.getInventory().selected = 0;
-        var z = new net.minecraft.world.entity.monster.Zombie(level);
-        z.setPos(cx + 2 + 0.5, floorY + 1, cz + 0.5);
-        z.setNoAi(true);
-        z.setPersistenceRequired();
-        var kbr = z.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.KNOCKBACK_RESISTANCE);
-        if (kbr != null) kbr.setBaseValue(1.0);
-        z.setInvulnerable(false);
-        level.addFreshEntity(z);
-        for (int i = 0; i < 3; i++) level.tick(() -> true);
-        // Full recharge: step() is the only thing that advances the FakePlayer's ticker.
-        fp.resetAttackStrengthTicker();
-        for (int i = 0; i < 30; i++) driver.avatar().step();
-        float before = z.getHealth();
-        driver.avatar().attackEntity(z);
-        float lost = before - z.getHealth();
-        z.discard();
-        return lost;
+        return net.magicterra.agent.bot.testkit.SimProbes.probeSwing(level, driver, fp, weapon, cx, floorY, cz);
     }
 
     /** A fixed 10-point generic hit, with and without a full set of diamond armor; returns health lost.
      *  <p>Promoted {@code private}→{@code public static} (body unchanged) for the migrated
-     *  {@code ad.gearScope} scene — same cross-package promotion rationale as {@link #probeSwing}. */
+     *  {@code ad.gearScope} scene — same cross-package promotion rationale as {@link #probeSwing}.
+     *  <p>P1.6 Task 2: body moved to common
+     *  {@link net.magicterra.agent.bot.testkit.SimProbes#probeHurt}; one-line delegate keeping
+     *  the original {@code FakePlayer} signature. */
     public static float probeHurt(FakePlayer fp, boolean armored) {
-        fp.getInventory().clearContent();
-        if (armored) {
-            fp.getInventory().armor.set(3, new ItemStack(Items.DIAMOND_HELMET));
-            fp.getInventory().armor.set(2, new ItemStack(Items.DIAMOND_CHESTPLATE));
-            fp.getInventory().armor.set(1, new ItemStack(Items.DIAMOND_LEGGINGS));
-            fp.getInventory().armor.set(0, new ItemStack(Items.DIAMOND_BOOTS));
-        }
-        fp.setHealth(20.0f);
-        fp.invulnerableTime = 0;                       // no i-frames from a previous probe
-        fp.hurt(fp.damageSources().generic(), 10.0f);
-        return 20.0f - fp.getHealth();
+        return net.magicterra.agent.bot.testkit.SimProbes.probeHurt(fp, armored);
     }
 
     /**

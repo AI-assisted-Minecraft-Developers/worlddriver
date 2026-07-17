@@ -1,4 +1,4 @@
-package net.magicterra.agent.neoforge.testkit;
+package net.magicterra.agent.bot.testkit;
 
 import java.util.List;
 import java.util.Locale;
@@ -17,24 +17,22 @@ import net.magicterra.agent.bot.process.EntityLeash;
 import net.magicterra.agent.bot.process.Intent;
 import net.magicterra.agent.bot.process.IntentProcess;
 import net.magicterra.agent.bot.process.MineProcess;
+import net.magicterra.agent.bot.sim.ServerAgentDriver;
+import net.magicterra.agent.bot.sim.ServerAgentManager;
+import net.magicterra.agent.bot.sim.ServerPlayerAvatar;
 import net.magicterra.agent.bot.world.LevelWorldView;
-import net.magicterra.agent.neoforge.AgentGameTestServer;
-import net.magicterra.agent.neoforge.AgentGameTestSupport;
-import net.magicterra.agent.neoforge.sim.ServerAgentDriver;
-import net.magicterra.agent.neoforge.sim.ServerAgentManager;
-import net.magicterra.agent.neoforge.sim.ServerPlayerAvatar;
 import net.magicterra.testkit.scene.Scene;
 import net.magicterra.testkit.scene.SceneContext;
 import net.magicterra.testkit.scene.SceneProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
-import net.neoforged.neoforge.common.util.FakePlayer;
 
 /**
  * Dogfooded agent-driver scenes — first migration wave: the #85 swallowed trio,
@@ -183,9 +181,9 @@ public final class AgentDriverScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2; BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx - 9 + 0.5, baseY + 1, cz + 0.5);
-        FakePlayer fp = av.fakePlayer();
+        ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
-        AgentGameTestSupport.grantWaterEffects(fp);
+        SimProbes.grantWaterEffects(fp);
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
         walker.setGoal(new Goal.Block(goal));
@@ -216,7 +214,7 @@ public final class AgentDriverScenes implements SceneProvider {
             for (int dz = -2; dz <= 2; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, baseY, cz + dz), Blocks.STONE.defaultBlockState());
         ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, baseY + 1, cz + 0.5);
-        FakePlayer fp = av.fakePlayer();
+        ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         LevelWorldView w = new LevelWorldView(level, fp);
         final int giveUp = AscendMovement.DEADZONE_GIVEUP;
@@ -276,7 +274,7 @@ public final class AgentDriverScenes implements SceneProvider {
     }
 
     /** Direct copy of {@code AgentGameTestTerrain#ascendCtx} (:1099-1102). */
-    private static MovementContext ascendCtx(FakePlayer fp, LevelWorldView w, ServerPlayerAvatar av,
+    private static MovementContext ascendCtx(ServerPlayer fp, LevelWorldView w, ServerPlayerAvatar av,
                                              Move.Edge edge, BlockPos node, boolean digging) {
         return new MovementContext(fp, w, av, edge, fp.blockPosition(), node, 1, 1, null, null, digging);
     }
@@ -311,9 +309,9 @@ public final class AgentDriverScenes implements SceneProvider {
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx - 7 + 0.5, baseY + 1, cz + 0.5);
-        FakePlayer fp = av.fakePlayer();
+        ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
-        AgentGameTestSupport.grantWaterEffects(fp);
+        SimProbes.grantWaterEffects(fp);
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
         walker.setGoal(new Goal.Block(goal));
@@ -453,9 +451,9 @@ public final class AgentDriverScenes implements SceneProvider {
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, topY + 1, cz + 0.5);
-        FakePlayer fp = av.fakePlayer();
+        ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
-        AgentGameTestSupport.grantWaterEffects(fp);
+        SimProbes.grantWaterEffects(fp);
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
         walker.setGoal(new Goal.Block(goal));
@@ -617,7 +615,7 @@ public final class AgentDriverScenes implements SceneProvider {
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, baseY + 1, cz + 0.5);
-        FakePlayer fp = av.fakePlayer();
+        ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));  // pillar/plug stock; NO pickaxe (live parity)
@@ -712,17 +710,17 @@ public final class AgentDriverScenes implements SceneProvider {
 
         // createIsolated (NOT create) — sanctioned #48 deviation, own per-body FakePlayer.
         ServerAgentDriver driver = ServerAgentDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        FakePlayer fp = driver.fakePlayer();
+        ServerPlayer fp = driver.fakePlayer();
         // Targeted teardown (NOT ServerAgentManager.clear() — see class javadoc).
         ctx.cleanup(() -> { ServerAgentManager.unregister(driver); fp.discard(); });
 
         // --- (1) DAMAGE DEALT: bare hand vs iron sword, both at FULL attack strength. ---
-        float bare = AgentGameTestServer.probeSwing(level, driver, fp, ItemStack.EMPTY, cx, floorY, cz);
-        float sword = AgentGameTestServer.probeSwing(level, driver, fp, new ItemStack(Items.IRON_SWORD), cx, floorY, cz);
+        float bare = SimProbes.probeSwing(level, driver, fp, ItemStack.EMPTY, cx, floorY, cz);
+        float sword = SimProbes.probeSwing(level, driver, fp, new ItemStack(Items.IRON_SWORD), cx, floorY, cz);
 
         // --- (2) DAMAGE ABSORBED: bare vs full diamond armor, same 10-point generic hit. ---
-        float tookBare = AgentGameTestServer.probeHurt(fp, false);
-        float tookArmored = AgentGameTestServer.probeHurt(fp, true);
+        float tookBare = SimProbes.probeHurt(fp, false);
+        float tookArmored = SimProbes.probeHurt(fp, true);
 
         // --- (3) The attribute values behind those outcomes. ---
         fp.getInventory().clearContent();
@@ -861,7 +859,7 @@ public final class AgentDriverScenes implements SceneProvider {
 
         // createIsolated (NOT create) — sanctioned #48 deviation, own per-body FakePlayer.
         ServerAgentDriver driver = ServerAgentDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        FakePlayer fp = driver.fakePlayer();
+        ServerPlayer fp = driver.fakePlayer();
         // Targeted teardown (NOT ServerAgentManager.clear() — see class javadoc). Unlike
         // gearScope's no-op, this unregister is the REAL teardown: this scene registers.
         // Also carries the legacy finally-block rig clear (DIRT strip + STONE cube +
@@ -1057,7 +1055,7 @@ public final class AgentDriverScenes implements SceneProvider {
         Intent intent = new Intent(new Goal.Near(goal, 1), List.of(), CapabilityProfile.ALL, List.of(), leash);
         // createIsolated (NOT create) — sanctioned #48 deviation, own per-body FakePlayer.
         final ServerAgentDriver driver = ServerAgentDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        final FakePlayer fp = driver.fakePlayer();
+        final ServerPlayer fp = driver.fakePlayer();
         // Targeted teardown (NOT ServerAgentManager.clear() — see class javadoc). This scene
         // registers, so unregister is the REAL teardown. Also carries the legacy finally's
         // stand.discard() (the legacy finally has NO rig block-clear, so there is none to

@@ -13,6 +13,14 @@ dependencies {
     // Provides the @Environment annotation; do NOT use other Fabric Loader classes from common
     modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
 
+    // testkit-common (P1.6 Task 2) — the dogfood scenes (AgentDriverScenes) + the
+    // SceneProvider service now live in this common module, so the testkit scene SPI
+    // (Scene/SceneContext/SceneProvider) is needed on the common COMPILE classpath.
+    // architectury common→common consumption idiom = plain namedElements project dep
+    // (the loom `common()`/`shadowBundle` transform pair is for PLATFORM modules only;
+    // runtime bundling of testkit-common into the loader jars stays in neoforge/fabric).
+    implementation project(path: ':testkit-common', configuration: 'namedElements')
+
     // Rhino JS engine (KubeJS fork) — common because both platforms use it
     implementation "dev.latvian.mods:rhino:$rootProject.rhino_version"
 
