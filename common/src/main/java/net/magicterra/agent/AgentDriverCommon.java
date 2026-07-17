@@ -160,38 +160,24 @@ public final class AgentDriverCommon {
                 // requireSchemasFor convergence guard below (so its route already has a schema).
                 TestResetVerb.register();
             }
-            if (rpcServer == null) {
-                int wantPort = Integer.getInteger("agent.rpcPort", 0);
-                String bindHost = System.getProperty("agent.rpcHost", "127.0.0.1");
-                try {
-                    rpcServer = new RpcServer(api, bindHost, wantPort);
-                } catch (Exception bindFail) {
-                    // A pinned port already held (e.g. another instance's runClient)
-                    // used to be a hard ERROR with no server at all; consumers only
-                    // saw a mid-log BindException (docs/feedback/2026-06-04). Fall
-                    // back to an ephemeral port — run/agent-rpc.port records the
-                    // real one, which is how well-behaved clients resolve it anyway.
-                    if (wantPort == 0) throw bindFail;
-                    LOG.warn("[{}] RPC port {} unavailable ({}); falling back to an ephemeral port",
-                            MOD_ID, wantPort, bindFail.getMessage());
-                    rpcServer = new RpcServer(api, bindHost, 0);
-                }
-                rpcPort = rpcServer.port();
-                LOG.info("[{}] RPC server listening on ws://{}:{}/rpc", MOD_ID, urlHost(bindHost), rpcPort);
-                writePortFile("agent-rpc.port", rpcPort);
-            }
         } catch (Exception e) {
             LOG.error("[{}] failed to start RPC server", MOD_ID, e);
         }
-        // Convergence guard, OUTSIDE the catch so it hard-fails: a route with no MCP
-        // ToolSchema is a programming error (see AgentApi.requireSchemasFor / ToolCatalog),
-        // not a recoverable startup hiccup — let it abort mod init rather than limp on
-        // with a half-specified tool surface. This block runs on the first successful
-        // ensureRpcUp() pass only — the method early-returns above once api/rpcServer
-        // exist, so it does NOT re-run on later calls. Verb registrations that happen
-        // after this point (optional subsystems, mods) are covered instead by the
-        // dispatch-time throw in setParamsValidator below plus registerExtra's own
-        // cache invalidation — not by this guard re-running.
+        // Params validator + convergence guard — installed BEFORE the RpcServer
+        // constructor below so no listening socket ever exists without param
+        // validation in place (task#89 boot-window close). This block used to run
+        // AFTER the server was already listening, leaving a boot window in which a
+        // client that connected fast enough had its params dispatched with NO schema
+        // validation — the exact #280-shaped hole. It sits OUTSIDE the catch above so
+        // it hard-fails: a route with no MCP ToolSchema is a programming error (see
+        // AgentApi.requireSchemasFor / ToolCatalog), not a recoverable startup hiccup
+        // — let it abort mod init rather than limp on with a half-specified tool
+        // surface. It runs on the first successful ensureRpcUp() pass only — the
+        // method early-returns above once api/rpcServer exist, so it does NOT re-run
+        // on later calls. Verb registrations that happen after this point (optional
+        // subsystems, mods) are covered instead by the dispatch-time throw in
+        // setParamsValidator below plus registerExtra's own cache invalidation — not
+        // by this guard re-running.
         if (api != null) {
             api.requireSchemasFor(ToolCatalog.declaredMethodNames());
             // Route-layer schema validation — same typed Schema the catalog renders
@@ -215,6 +201,37 @@ public final class AgentDriverCommon {
                 }
                 SchemaValidator.validate(method, s, params);
             });
+        }
+
+        // RpcServer construction opens the listening socket. Sequenced AFTER the
+        // validator install above so a live socket never exists without validation
+        // (task#89 invariant: validator installed before any socket listens).
+        // Guarded by api != null: a failed API init above leaves api null and must
+        // not yield a live socket — mirroring the pre-split behavior, where an init
+        // exception skipped this block entirely.
+        try {
+            if (api != null && rpcServer == null) {
+                int wantPort = Integer.getInteger("agent.rpcPort", 0);
+                String bindHost = System.getProperty("agent.rpcHost", "127.0.0.1");
+                try {
+                    rpcServer = new RpcServer(api, bindHost, wantPort);
+                } catch (Exception bindFail) {
+                    // A pinned port already held (e.g. another instance's runClient)
+                    // used to be a hard ERROR with no server at all; consumers only
+                    // saw a mid-log BindException (docs/feedback/2026-06-04). Fall
+                    // back to an ephemeral port — run/agent-rpc.port records the
+                    // real one, which is how well-behaved clients resolve it anyway.
+                    if (wantPort == 0) throw bindFail;
+                    LOG.warn("[{}] RPC port {} unavailable ({}); falling back to an ephemeral port",
+                            MOD_ID, wantPort, bindFail.getMessage());
+                    rpcServer = new RpcServer(api, bindHost, 0);
+                }
+                rpcPort = rpcServer.port();
+                LOG.info("[{}] RPC server listening on ws://{}:{}/rpc", MOD_ID, urlHost(bindHost), rpcPort);
+                writePortFile("agent-rpc.port", rpcPort);
+            }
+        } catch (Exception e) {
+            LOG.error("[{}] failed to start RPC server", MOD_ID, e);
         }
     }
 
