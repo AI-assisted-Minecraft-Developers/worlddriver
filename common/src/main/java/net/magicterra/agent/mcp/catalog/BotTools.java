@@ -2,6 +2,8 @@ package net.magicterra.agent.mcp.catalog;
 
 import java.util.List;
 
+import net.magicterra.agent.bot.SettingsRegistry;
+import net.magicterra.agent.mcp.schema.Schema;
 import net.magicterra.agent.mcp.schema.ToolSchema;
 
 import static net.magicterra.agent.mcp.schema.Schemas.*;
@@ -19,6 +21,40 @@ import static net.magicterra.agent.mcp.schema.Schemas.*;
  */
 public final class BotTools {
     private BotTools() {}
+
+    /**
+     * The CLOSED {@code mc.bot.setting} input schema, built from the single-source
+     * {@link SettingsRegistry} — one prop per known key ({@code additionalProperties(false)}), so
+     * {@code SchemaValidator} rejects an unknown key at route() for every transport (#280). The key
+     * set + types come from the registry (derived from BotConfig's settable fields), so this schema
+     * can never lag a newly-declared flag the way the old hand-written prop list did.
+     */
+    private static Schema.Obj settingSchema() {
+        Schema.Obj obj = object();
+        SettingsRegistry.schemaProps().forEach((key, type) -> obj.prop(key, schemaFor(type)));
+        return obj
+            .additionalProperties(false)
+            .desc("Closed key bag: keys are validated against the single-source SettingsRegistry "
+                + "(derived from BotConfig's settable fields). ALL-OR-NOTHING — a call containing "
+                + "ANY unknown key is rejected outright and NOTHING is applied, so an A/B script "
+                + "fails loudly instead of silently half-applying. Out-of-range values are "
+                + "soft-rejected into rejected[] with ok:true, so numeric bounds are documented in "
+                + "the description above, not enforced here.");
+    }
+
+    /** Maps a registry key {@link SettingsRegistry.Type} to its typed {@link Schema} node. */
+    private static Schema schemaFor(SettingsRegistry.Type type) {
+        return switch (type) {
+            case BOOLEAN     -> bool();
+            case INTEGER     -> integer();
+            case NUMBER      -> number();
+            case STRING      -> string();
+            case STRING_LIST -> array(string());
+            case POINT_LIST  -> array(object()
+                                    .req("x", number()).req("y", number()).req("z", number())
+                                    .prop("radius", number()));
+        };
+    }
 
     public static List<ToolSchema> tools() {
         return List.of(
@@ -430,168 +466,10 @@ public final class BotTools {
                 "  pathfinderQuickNodes      [0,10000]      dflt 600    — progressive quick-start stub: while a big re-plan is still slicing in the background, spend this many nodes SYNCHRONOUSLY on a short toward-goal segment and walk it immediately instead of standing through the search gap (fixes 段间空窗停顿). 0=off\n" +
                 "  pathfinderMaxDryFall      [3,5]           dflt 3      — max DRY (no-water) fall the planner takes as a plain Fall move. 3=Baritone no-damage cap (current). Raise (4-5) to descend a steep jungle slope by a small-damage drop instead of building a dirt 天梯 with BridgePlace (the 丝滑-descent lever). Survival-sensitive: the bot takes the fall damage (4≈1.5♥, 5≈2♥)\n" +
                 "  pathfinder.axisHeight     [-64,320]      dflt 120    — Y plane for goto{axis:true} (GoalAxis)\n" +
-                "Returns {ok, settings, applied?, rejected?}.",
-                object()
-                    .prop("paused",                     bool())
-                    .prop("autoEat",                    bool())
-                    .prop("autoEatFoodThreshold",       integer())
-                    .prop("autoRespawn",                bool())
-                    .prop("autoRetreat",                bool())
-                    .prop("retreatHpThreshold",         number())
-                    .prop("autoBunker",                 bool())
-                    .prop("bunkerHpThreshold",          number())
-                    .prop("bunkerTriggerRadius",        number())
-                    .prop("bunkerMinHostiles",          integer())
-                    .prop("bunkerDepth",                integer())
-                    .prop("autoFight",                  bool())
-                    .prop("autoFightThreatThreshold",   number())
-                    .prop("combatReach",                number())
-                    .prop("kiteDistance",               number())
-                    .prop("autoDodge",                  bool())
-                    .prop("creeperKeepDistance",        number())
-                    .prop("projectileDodgeRadius",      number())
-                    .prop("autoShield",                 bool())
-                    .prop("autoHeal",                   bool())
-                    .prop("healHpThreshold",            number())
-                    .prop("autoTotem",                  bool())
-                    .prop("autoEquip",                  bool())
-                    .prop("equipDurabilityThreshold",   number())
-                    .prop("combatCrit",                 bool())
-                    .prop("autoSwim",                   bool())
-                    .prop("antiSuffocate",              bool())
-                    .prop("autoFloatWhenDrowning",      bool())
-                    .prop("drownFloatAirThreshold",     integer())
-                    .prop("autoDrownEscape",            bool())
-                    .prop("drownEscapeAirThreshold",    integer())
-                    .prop("drownEscapeReleaseAir",      integer())
-                    .prop("autoTool",                   bool())
-                    .prop("autoBackfill",               bool())
-                    .prop("autoBackfillBlock",          string())
-                    .prop("autoBackfillRadius",         integer())
-                    .prop("allowParkour4",              bool())
-                    .prop("allowBreak",                 bool())
-                    .prop("allowSwimEscapeBreak",       bool())
-                    .prop("allowSwimEscapePlace",       bool())
-                    .prop("allowPlace",                 bool())
-                    .prop("allowParkourPlace",          bool())
-                    .prop("allowWaterBucketFall",       bool())
-                    .prop("maxWaterBucketFall",         integer())
-                    .prop("waterBucketScoop",           bool())
-                    .prop("avoidDanger",                bool())
-                    .prop("autoSecureAtDusk",           bool())
-                    .prop("hazardGridRadius",           integer())
-                    .prop("hazardGridDecimateTicks",    integer())
-                    .prop("deepWaterMax",               integer())
-                    .prop("swimBankClimbMaxHeight",     integer())
-                    .prop("sceneQueryMaxRadius",        integer())
-                    .prop("pathfinder.dangerPenalty",   number())
-                    .prop("pathfinder.lavaDangerPenalty",   number())
-                    .prop("pathfinder.contactDangerPenalty", number())
-                    .prop("pathfinder.ledgeDangerPenalty",  number())
-                    .prop("pathfinder.ledgeDangerMinDrop",  integer())
-                    .prop("pathfinder.waterDangerPenalty",  number())
-                    .prop("pathfinder.sliceMs",             integer())
-                    .prop("avoidMobs",                  bool())
-                    .prop("pathfinder.mobAvoidRadius",  number())
-                    .prop("pathfinder.mobAvoidPenalty", number())
-                    .prop("rangedAvoidRadius",          integer())
-                    .prop("fleeDangerBoost",            number())
-                    .prop("lowHealthCareful",           number())
-                    .prop("smoothLook",                 bool())
-                    .prop("smoothLookDegPerTick",       number())
-                    .prop("walkerDebug",                bool())
-                    .prop("walkerVerticalResync",       bool())
-                    .prop("walkerLevelRiserJump",       bool())
-                    .prop("walkerPadRamBreak",          bool())
-                    .prop("walkerParkourAscendHold",    bool())
-                    .prop("walkerDeepWaterDriftBrake",  bool())
-                    .prop("walkerSteepDescentLatch",    bool())
-                    .prop("craftReclaimTable",          bool())
-                    .prop("walkerDescentStepSkipBrake", bool())
-                    .prop("walkerDescentFlipHold",      bool())
-                    .prop("walkerWaterStepDownFloat",   bool())
-                    .prop("walkerStepUpCrestReach",     bool())
-                    .prop("walkerWaterWalkReach",       bool())
-                    .prop("walkerAscentRamJitterImmune", bool())
-                    .prop("walkerArcLengthShadow", bool())
-                    .prop("walkerArcLengthAdvance", bool())
-                    .prop("walkerTangentAim", bool())
-                    .prop("walkerArcLengthWedge", bool())
-                    .prop("walkerArcProgressWedge", bool())
-                    .prop("walkerFellBelowAlign",   bool())
-                    .prop("walkerAscentRamBobBreak",    bool())
-                    .prop("walkerFutileBankDigRelease", bool())
-                    .prop("walkerBankDigSkipOverhang", bool())
-                    .prop("walkerBuoyantSearchFromSurface", bool())
-                    .prop("walkerBankDigForwardExit", bool())
-                    .prop("walkerPillarReachGoalNoSnap", bool())
-                    .prop("walkerBankDigSkipWhenCwpSwims", bool())
-                    .prop("walkerTraverseBreakOvershootResync", bool())
-                    .prop("walkerSwimAshorePillarDespiteDeepDig", bool())
-                    .prop("walkerFloatingBankBobFreeze", bool())
-                    .prop("walkerFloatingBankFollow", bool())
-                    .prop("walkerFasterChurnRepath", bool())
-                    .prop("walkerDeepWaterFloatBeeline", bool())
-                    .prop("pathfinderForbidParkourIntoDeepWater", bool())
-                    .prop("pathfinderForbidParkourFromFloatingWater", bool())
-                    .prop("pathfinderForbidParkourOverWaterGap", bool())
-                    .prop("pathfinderParkourAscendNeedRunway", bool())
-                    .prop("pathfinderFloatingSurfaceCross", bool())
-                    .prop("pathfinderVineOverWaterTax", bool())
-                    .prop("pathfinderPadOverWaterTax",  bool())
-                    .prop("pathfinderPadClusterTax",    bool())
-                    .prop("walkerVineFreeHangClimb",    bool())
-                    .prop("walkerVineLandGrab",         bool())
-                    .prop("walkerVineDescentDrop",      bool())
-                    .prop("elytraDebug",                bool())
-                    .prop("pathDebug",                  bool())
-                    .prop("pathArchive",                bool())
-                    .prop("pathChartAutoDump",          bool())
-                    .prop("pathDebugMaxNodes",          integer())
-                    .prop("pathDebugMaxSamples",        integer())
-                    .prop("blocksToAvoid",              array(string()))
-                    .prop("buildBlockWhitelist",        array(string()))
-                    .prop("mutedEvents",                array(string()))
-                    .prop("pathfinder.avoidZonePenalty", number())
-                    .prop("avoidPoints", array(object()
-                            .req("x", number())
-                            .req("y", number())
-                            .req("z", number())
-                            .prop("radius", number())))
-                    .prop("walker.repathEveryTicks",    integer())
-                    .prop("walker.totalTickBudget",     integer())
-                    .prop("walker.yawHysteresisDeg",    number())
-                    .prop("mine.searchVerticalRadius",  integer())
-                    .prop("breakTimeoutTicks",          integer())
-                    .prop("pathfinder.maxNodes",        integer())
-                    .prop("pathfinder.maxMs",           integer())
-                    .prop("pathfinder.heuristicWeight", number())
-                    .prop("pathfinderCacheEnabled",     bool())
-                    .prop("collisionAwarePathing",      bool())
-                    .prop("pathfinderGoalField",        bool())
-                    .prop("goalFieldCellSize",          integer())
-                    .prop("goalFieldRadius",            integer())
-                    .prop("goalFieldVerticalRadius",    integer())
-                    .prop("pathfinderDepthPenalty",     number())
-                    .prop("pathfinderDepthSlack",       integer())
-                    .prop("pathfinderDescendCost",      number())
-                    .prop("pathfinderWaterCellCost",    number())
-                    .prop("pathfinderWaterClimbOutCost", number())
-                    .prop("pathfinderSubmergedWaterCost", number())
-                    .prop("pathfinderBridgeCost",       number())
-                    .prop("pathfinderThinObstacleHeight", number())
-                    .prop("pathfinderFrontierCommit",   bool())
-                    .prop("pathfinderProgressive",      bool())
-                    .prop("pathfinderHorizonBlocks",    integer())
-                    .prop("pathfinderMaxDryFall",       integer())
-                    .prop("pathfinderSoftCommitNodes",  integer())
-                    .prop("pathfinderQuickNodes",       integer())
-                    .prop("pathfinder.axisHeight",      integer())
-                    .additionalProperties(true)
-                    .desc("Open key bag: any public static volatile primitive BotConfig field is "
-                        + "settable by exact name via the reflective fallback (unknown keys are "
-                        + "ignored). Out-of-range values are soft-rejected into rejected[] with "
-                        + "ok:true, so numeric bounds are documented above, not enforced here.")
+                "Returns {ok, settings, applied?, rejected?}. Unknown keys are REJECTED " +
+                "(all-or-nothing: a call carrying any key not in the schema applies NOTHING and " +
+                "errors, so an A/B script fails loudly instead of silently half-applying).",
+                settingSchema()
                 ),
 
             wrTool("mc.bot.clearArea",

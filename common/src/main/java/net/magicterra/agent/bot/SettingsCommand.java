@@ -26,11 +26,27 @@ public final class SettingsCommand {
     private SettingsCommand() {}
 
     public static Map<String, Object> apply(BotApiImpl bot, Map<String, Object> params) {
-        // Write path: any params keys that match a known setting + are in range
-        // are applied to BotConfig immediately. Unknown keys ignored with a
-        // diagnostic; out-of-range keys rejected.
+        // Write path: any params keys that match a known setting + are in range are applied to
+        // BotConfig immediately. #280 fix: an UNKNOWN key (one not in the single-source
+        // SettingsRegistry) is REJECTED, not silently ignored. All-or-nothing — a call carrying
+        // ANY unknown key throws BEFORE mutating anything, so nothing is half-applied. This is the
+        // apply-side guard that backstops the closed mc.bot.setting schema (SchemaValidator already
+        // rejects unknown keys at route() for every transport); direct callers hit this instead.
+        // Out-of-range keys are still soft-rejected into rejected[] with ok:true.
         List<String> applied = new ArrayList<>();
         List<String> rejected = new ArrayList<>();
+        if (params != null && !params.isEmpty()) {
+            List<String> unknown = new ArrayList<>();
+            for (String k : params.keySet()) {
+                if (!SettingsRegistry.isKnown(k)) unknown.add(k);
+            }
+            if (!unknown.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "mc.bot.setting: unknown key(s) " + unknown
+                        + "; known keys: " + SettingsRegistry.knownKeys().size()
+                        + ", see mc.bot.setting schema (all-or-nothing: nothing was applied)");
+            }
+        }
         if (params != null) {
             // Boolean toggle: paused absorbs the former mc.bot.pause / .resume —
             // {paused:true} stops all processes from advancing; {paused:false}
@@ -767,6 +783,24 @@ public final class SettingsCommand {
                 // unknown key → ignored, same contract as before
             }
         }
+        // Runtime apply-keys ⊆ registry self-check: a param key that is KNOWN to the registry yet
+        // was matched by NO branch above (not applied, not rejected) is INERT — a registry key with
+        // no live write path (e.g. a hand-written setter that expects a different value type than
+        // the schema advertised, or a reflected key whose reflective write silently no-op'd). It is
+        // NOT an unknown key (those already threw), so we surface it honestly rather than drop it.
+        // In a correct build this list is empty; it fires only on real drift and is logged loudly.
+        List<String> inert = new ArrayList<>();
+        if (params != null) {
+            for (String k : params.keySet()) {
+                if (applied.contains(k)) continue;
+                if (rejected.stream().anyMatch(r -> r.startsWith(k))) continue;
+                inert.add(k);   // known (unknown keys threw earlier) but no branch consumed it
+            }
+        }
+        if (!inert.isEmpty()) {
+            LOG.warn("[mc.bot.setting] inert key(s) {} — known to SettingsRegistry but matched no "
+                    + "apply branch (drift: a registry key lost its write path)", inert);
+        }
         Map<String, Object> snap = SettingsSnapshot.build(bot);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("ok", true);
@@ -776,6 +810,7 @@ public final class SettingsCommand {
             BotConfig.save();   // persist so these settings survive a client restart
         }
         if (!rejected.isEmpty()) out.put("rejected", rejected);
+        if (!inert.isEmpty()) out.put("inert", inert);
         return out;
     }
 }
