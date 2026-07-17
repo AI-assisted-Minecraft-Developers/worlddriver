@@ -1,9 +1,11 @@
 package net.magicterra.agent.bot.sim;
 
 import java.util.OptionalInt;
+import java.util.Set;
 
 import com.mojang.authlib.GameProfile;
 import net.minecraft.network.Connection;
+import net.minecraft.network.DisconnectionDetails;
 import net.minecraft.network.PacketSendListener;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
@@ -19,6 +21,7 @@ import net.minecraft.world.Container;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.RelativeMovement;
 import net.minecraft.world.entity.animal.horse.AbstractHorse;
 import net.minecraft.world.entity.player.Player;
 import org.jetbrains.annotations.Nullable;
@@ -89,10 +92,16 @@ public class AgentFakePlayer extends ServerPlayer {
     @Override public boolean startRiding(Entity entity, boolean force) { return false; }
 
     /**
-     * Bodyless game-packet listener — mirrors {@code FakePlayer$FakePlayerNetHandler}
-     * but only stubs the outbound path ({@link #send}) plus {@link #tick()}. It is wired
-     * onto a dummy SERVERBOUND {@link Connection} so nothing touches a real socket. See the
-     * class javadoc for why the inbound {@code handle*} no-ops are deferred to Task 3.
+     * Bodyless game-packet listener — mirrors {@code FakePlayer$FakePlayerNetHandler}:
+     * the outbound path ({@link #send}), {@link #tick()}, and the server-invocable
+     * LIFECYCLE hooks ({@code resetPosition}/{@code disconnect}/{@code onDisconnect}/
+     * {@code teleport}×2/{@code ackBlockChangesUpTo}) are all no-ops, so a code-driven
+     * body can never diverge from NeoForge's FakePlayer when some future caller routes
+     * through {@code connection} (e.g. {@code ServerPlayer.teleportTo} → connection
+     * teleport sets await-position state in the REAL listener — P1.6 final review,
+     * T1-M2). The ~60 inbound {@code handle*} no-ops remain deliberately unmirrored:
+     * inbound packets are never dispatched to a never-connected body. It is wired
+     * onto a dummy SERVERBOUND {@link Connection} so nothing touches a real socket.
      */
     private static final class AgentFakePlayerNetHandler extends ServerGamePacketListenerImpl {
         private static final Connection DUMMY_CONNECTION = new AgentFakeConnection();
@@ -106,6 +115,18 @@ public class AgentFakePlayer extends ServerPlayer {
         @Override public void send(Packet<?> packet) { }
 
         @Override public void send(Packet<?> packet, @Nullable PacketSendListener sendListener) { }
+
+        @Override public void resetPosition() { }
+
+        @Override public void disconnect(Component reason) { }
+
+        @Override public void onDisconnect(DisconnectionDetails details) { }
+
+        @Override public void teleport(double x, double y, double z, float yaw, float pitch) { }
+
+        @Override public void teleport(double x, double y, double z, float yaw, float pitch, Set<RelativeMovement> relativeSet) { }
+
+        @Override public void ackBlockChangesUpTo(int sequence) { }
     }
 
     /** Dummy never-connected {@link Connection} (SERVERBOUND), as in {@code FakePlayer$FakeConnection}. */

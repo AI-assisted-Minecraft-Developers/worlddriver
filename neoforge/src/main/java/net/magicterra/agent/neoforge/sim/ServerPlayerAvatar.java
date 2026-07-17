@@ -29,7 +29,8 @@ import net.neoforged.neoforge.common.util.FakePlayer;
 public class ServerPlayerAvatar extends net.magicterra.agent.bot.sim.ServerPlayerAvatar {
 
     /** Per-arena body sequence for {@link #createUnique} — the neoforge side owns this counter
-     *  (the common one is fabric's), so the "agent-body-N" name stream is identical to today. */
+     *  (the common one serves the migrated scenes on BOTH loaders), so this shim's
+     *  legacy-caller "agent-body-N" name stream is identical to today. */
     private static final java.util.concurrent.atomic.AtomicInteger BODY_SEQ =
             new java.util.concurrent.atomic.AtomicInteger();
 

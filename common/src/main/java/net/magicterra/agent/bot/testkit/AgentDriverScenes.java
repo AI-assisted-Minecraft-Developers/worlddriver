@@ -992,8 +992,10 @@ public final class AgentDriverScenes implements SceneProvider {
      * kept in the task-5 report (crash-2026-07-17_01.15.58-server.txt). Re-entrancy
      * safety was real but irrelevant — the persistent world's chunk-unload processing is
      * what livelocks. So the brief's SANCTIONED fallback was taken: the two manual-tick
-     * blocks are replaced by {@code ctx.await(<entity queryable>).within(60)} real-tick
-     * waits and the two phases are split into await steps. The natural dogfood server
+     * blocks are replaced by {@code ctx.await(<entity queryable>)} real-tick waits
+     * (bounded {@code within(60)} at the time; widened to {@code within(120)} by the
+     * P1.6 tick-debt adjudication, see the variance paragraph above / task#88) and the
+     * two phases are split into await steps. The natural dogfood server
      * tick (the level IS ticked every frame by {@code MinecraftServer.tickServer}) does
      * the entity indexing the legacy forced — {@code await-1} waits until
      * {@code EntityFind.nearest} (the leash's own scan) can see the fresh stand;
