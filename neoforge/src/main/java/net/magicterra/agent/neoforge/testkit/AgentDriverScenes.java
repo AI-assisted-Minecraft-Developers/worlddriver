@@ -502,16 +502,20 @@ public final class AgentDriverScenes implements SceneProvider {
      *
      * <p>Rather than stay optional forever, this scene is a <b>required
      * signature gate</b>: it PASSES only while the walker fails in EXACTLY the
-     * known #86 way — {@code worstBackslide > 15.0} — a tolerance band around
-     * the golden {@code 20.252203415101263}, wide enough to absorb incidental
-     * drift from unrelated walker changes but tight enough that it cannot be
-     * satisfied by a much smaller (or absent) backslide. {@code reached} is
-     * NOT part of the gate condition (the golden run reaches anyway); it is
-     * carried in the fail message purely for diagnostics. Any outcome outside
-     * the band is a loud RED:
+     * known #86 way — {@code reached && worstBackslide > 15.0}. The
+     * {@code > 15.0} half is a tolerance band around the golden
+     * {@code 20.252203415101263}, wide enough to absorb incidental drift from
+     * unrelated walker changes but tight enough that it cannot be satisfied by
+     * a much smaller (or absent) backslide. The {@code reached} half is NOT
+     * incidental — the golden run recovers and reaches the target despite the
+     * backslide, and pinning that fact closes a real hole: without it, a future
+     * regression where the walker gets PERMANENTLY stuck (never reaches) while
+     * also backsliding &gt;15 would silently satisfy a backslide-only condition
+     * and pass as "the known #86 signature", masking a strictly worse failure
+     * mode. Any outcome outside the band is a loud RED:
      * <ul>
-     *   <li>small backslide (regardless of {@code reached}) ⇒ #86 is FIXED (or
-     *       the defect no longer manifests) — flip the assertion below to the
+     *   <li>small backslide (with {@code reached=true}) ⇒ #86 is FIXED (or the
+     *       defect no longer manifests) — flip the assertion below to the
      *       true (strict) form:
      *       <pre>
      *   if (worstBackslide &gt; BotConfig.pathfinderMaxDryFall + 1)
@@ -523,10 +527,11 @@ public final class AgentDriverScenes implements SceneProvider {
      *               + fp.getY() + "," + fp.getZ() + ") step=" + s + " maxY=" + maxY);
      *       </pre>
      *       then delete this javadoc's signature-gate section and close task#86;</li>
-     *   <li>a large backslide that never recovers, or any other shape outside
-     *       the band ⇒ still worth a look before touching the pin — confirm it
-     *       is the same underlying defect (not a new regression) before
-     *       recording an updated golden baseline.</li>
+     *   <li>{@code reached=false} (never recovers) ⇒ REDs immediately —
+     *       {@code reached=false} breaks the signature regardless of
+     *       {@code worstBackslide}; this is a different, worse failure mode
+     *       than the pinned #86 signature, investigate before touching the
+     *       pin.</li>
      * </ul>
      * Keeping the scene required (rather than optional) means the CI gate goes
      * loud the instant either of those things happens, instead of silently
@@ -583,20 +588,21 @@ public final class AgentDriverScenes implements SceneProvider {
                 s, fp.getX(), fp.getY(), fp.getZ(), maxY, worstBackslide);
         // task#86 golden-failure pin: while the bug is open, this scene PASSES
         // only when the walker fails in EXACTLY the known way (deterministic
-        // backslide, byte-stable across slots). Note the golden run DOES
-        // eventually reach the target (recovers after the fall) — the bug is
-        // the backslide itself, not a permanent stall, so the gate keys on
-        // worstBackslide alone; reached is carried only for diagnostics. Any
-        // outcome outside the known band is loud RED:
-        //   - small backslide (regardless of reached) => #86 FIXED (or the
-        //     defect no longer manifests): flip this scene to the true
-        //     assertion (see javadoc) and close the task.
-        //   - large backslide that never recovers, or any other shape =>
-        //     still worth a look before touching the pin (record the new
-        //     reached/worstBackslide pair as the updated golden baseline if
-        //     it is genuinely the same underlying defect).
+        // backslide, byte-stable across slots). The golden run DOES eventually
+        // reach the target (recovers after the fall) — the bug is the mid-climb
+        // backslide, not a permanent stall — so reached=true IS part of the
+        // pinned signature, not incidental: it closes the hole where a future
+        // "permanently stuck AND backslide>15" regression would otherwise
+        // silently match the >15 term alone and PASS as the known signature.
+        // Any outcome outside the known band is loud RED:
+        //   - small backslide (with reached=true) => #86 FIXED (or the defect
+        //     no longer manifests): flip this scene to the true assertion
+        //     (see javadoc) and close the task.
+        //   - reached=false (never recovers) => REDs immediately, regardless
+        //     of worstBackslide — a different, worse failure mode than the
+        //     pinned #86 signature; investigate before touching the pin.
         boolean reached = fp.getY() >= targetY - 1.5;
-        boolean knownSignature = worstBackslide > 15.0;
+        boolean knownSignature = reached && worstBackslide > 15.0;
         if (!knownSignature) {
             ctx.fail("task#86 signature broke: reached=" + reached
                     + " worstBackslide=" + worstBackslide
