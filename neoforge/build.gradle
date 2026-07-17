@@ -135,9 +135,36 @@ loom {
             runDir 'run-dogfood'
             vmArg '-Xmx2g'
         }
+        // P2c Task 4 (T1 topology, neoforge parity): a real CLIENT JVM with the
+        // mc-testkit harness armed (-Dtestkit.autorun=true), mirroring fabric's
+        // testkitClient. When t1.py --loader neoforge drives it into a singleplayer
+        // world, the INTEGRATED server's SERVER_STARTED fires the same TestkitCommon
+        // hook the dedicated dogfoodServer uses — so the 9 ad.* scenes run on an
+        // integrated neoforge server = the client-topology parity this task closes
+        // (T0 dedicated already ran on both loaders; P1.6 proved fabric==neoforge
+        // byte-identity there). Autorun defaults ON; t1.py launches once with
+        // -Pt1Autorun=false to MINT a pristine (scene-free) template world, archives
+        // it, then launches normally (autorun ON) on a fresh COPY — keeping the
+        // reused world byte-clean for the ad.selfShaftDigUp inverted-lottery signature.
+        // Ephemeral agent ports (0 = random) so it never competes with a live dev
+        // client; the orchestrator discovers the port via run-t1/agent-rpc.port.
+        // DISPLAY is supplied by t1.py's environment (self-managed Xvfb), NOT here.
+        // Excluded from the configureEach guard below (like contractServer) so it
+        // manages its own -Xmx heap cap.
+        testkitClient {
+            client()
+            property 'testkit.autorun', project.findProperty('t1Autorun') ?: 'true'
+            property 'agent.rpcPort', '0'
+            property 'agent.mcpPort', '0'
+            runDir 'run-t1'
+            vmArg '-Xmx2g'
+        }
     }
     runConfigs.configureEach {
-        if (it.name == 'contractServer') return
+        // contractServer and testkitClient manage their own -Xmx (contractServer 1g;
+        // testkitClient a client run with its own 2g cap), so exclude them from the
+        // guard's default heap/runValidation pinning below.
+        if (it.name == 'contractServer' || it.name == 'testkitClient') return
         property 'agent.runValidation', project.findProperty('agentRunValidation') ?: 'false'
         // Cap heap so dedicated server + gametest don't trigger system OOM.
         vmArg '-Xmx2g'
