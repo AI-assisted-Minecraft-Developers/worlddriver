@@ -1202,6 +1202,12 @@ public final class AgentGameTestTerrain {
      * Metric = total |Δyaw| accumulated over the descent (a clean spin gauge: a steady heading
      * sums to ~the one initial turn; a carrot-chase winds up hundreds of degrees). Logs it + asserts
      * the bot reaches the bottom and the thrash stays under a regression ceiling.
+     *
+     * <p><b>Migrated to the testkit T0 harness (dogfood wave 2a, task#4)</b> as
+     * scene {@code ad.descentYaw} in {@code AgentDriverScenes} — pinned to a fixed
+     * origin slot (4000) + chunk radius 2 because the yaw metric is byte-determinism-
+     * sensitive (P0 probe-accident victim). This {@code @GameTest} twin stays
+     * registered until three consecutive dual-gate greens (spec §85 dual-gate A/B).
      */
     // batch: solo — diagnostic isolation (2026-07-06): failed twice in defaultBatch
     // alongside wall-clock-hungry peers; a solo batch separates real regression

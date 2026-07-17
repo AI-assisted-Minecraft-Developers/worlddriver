@@ -26,8 +26,10 @@ import net.neoforged.neoforge.common.util.FakePlayer;
 
 /**
  * Dogfooded agent-driver scenes — first migration wave: the #85 swallowed trio,
- * plus dogfood wave 2a (the lottery walker family, starting with #53 self-shaft
- * dig-up). Ported from {@code AgentGameTestTerrain} with identical in-body
+ * plus dogfood wave 2a (the lottery walker family: #53 self-shaft dig-up and the
+ * byte-determinism-sensitive {@code ad.descentYaw} yaw-thrash gauge — the latter
+ * pinned to a fixed origin slot + radius 2, see its own javadoc). Ported from
+ * {@code AgentGameTestTerrain} with identical in-body
  * synchronous loop semantics (scene bodies run synchronously on their first RUN
  * tick, same as the legacy GameTest shell) so the old/new-shell A/B compares
  * like with like.
@@ -38,9 +40,10 @@ import net.neoforged.neoforge.common.util.FakePlayer;
  *   <li>absolute {@code cx/cz/baseY} → derived from {@link SceneContext#origin()}
  *       so the arena math is byte-identical, just relocated to the harness grid
  *       cell (each origin sits on a chunk boundary far from spawn; every arena
- *       footprint fits inside the forced 3×3 chunk neighborhood — noop dx −10..+24,
+ *       footprint fits inside its forced chunk neighborhood — noop dx −10..+24,
  *       diagonal dx/dz −8..+16, watchdog ±2, self-shaft dig-up ±3, all within the
- *       −16..+31 window);</li>
+ *       3×3 window's −16..+31; descentYaw dx −6..+26 / dz −3..+26 rides the wider
+ *       radius-2 window −32..+47);</li>
  *   <li>per-key config save/restore → {@link BotConfig#pinnedBaseline()} +
  *       {@code ctx.cleanup(pin::close)} registered FIRST (LIFO → closes LAST, after
  *       the avatar discard) then the SAME explicit key set the legacy body flipped;</li>
@@ -58,12 +61,28 @@ import net.neoforged.neoforge.common.util.FakePlayer;
  */
 public final class AgentDriverScenes implements SceneProvider {
 
+    /**
+     * Fixed origin slot for {@code ad.descentYaw} — a byte-determinism-sensitive
+     * scene (dogfood wave 2a). Auto slots are assignment-order dependent, so suite
+     * growth would relocate this arena and double-precision physics differs by
+     * position; pinning freezes the origin. This scene was a victim of the P0 probe
+     * accident (server-thread synchronous IO broke descentYaw's byte-level
+     * determinism — A/B-convicted, fixed by the async writer), so its coordinates
+     * are load-bearing. <b>Once published this slot MUST NOT change</b> — a moved
+     * origin silently changes the recorded yaw baseline. Chosen high (4000 → origin
+     * x = 100000 + 4000·512 = 2_148_000, a chunk boundary) to sit far above the auto
+     * slot range so it never collides with registry growth.
+     */
+    private static final int DESCENT_YAW_SLOT = 4000;
+
     @Override
     public List<Scene> scenes() {
         return List.of(
                 Scene.of("ad.ascendDeadZoneWatchdog", 200, AgentDriverScenes::ascendDeadZoneWatchdog),
                 Scene.of("ad.ascendMovementNoop", 200, AgentDriverScenes::ascendMovementNoop),
                 Scene.of("ad.diagonalAscentSpeed", 200, AgentDriverScenes::diagonalAscentSpeed),
+                Scene.of("ad.descentYaw", 200, AgentDriverScenes::descentYaw)
+                        .withOriginSlot(DESCENT_YAW_SLOT).withChunkRadius(2),
                 Scene.of("ad.selfShaftDigUp", 200, AgentDriverScenes::selfShaftDigUp).withRequired(false));
     }
 
@@ -265,6 +284,167 @@ public final class AgentDriverScenes implements SceneProvider {
         // A/B-disproven 2026-06-20). Floor guards against a real collapse below it.
         if (ascBps < 2.5)
             ctx.fail("diagonalAscentSpeed: diagonal ascent collapsed to " + ascBps + " b/s");
+    }
+
+    /**
+     * Ported from {@code AgentGameTestTerrain#descentYawArena} (:1197-1330) — the
+     * DIAGONAL DESCENT yaw-thrash gauge (live "下山转圈"): a 45° staircase descends −2
+     * every diagonal step; the bot walks down it and the loop sums total {@code |Δyaw|}
+     * over the descent (a clean spin gauge — a steady heading sums to ~the one initial
+     * turn; a carrot-chase winds up hundreds of degrees). Asserts reached-bottom,
+     * {@code sumAbsDyaw} under a 1200° ceiling (deterministic baseline 993°), and
+     * backward-hops under 90 (baseline 67). Sampling, ceilings and tolerances are the
+     * legacy originals, byte-for-byte.
+     *
+     * <p><b>Byte-determinism-sensitive — canary sentinel.</b> The yaw metric is
+     * double-precision-physics-sensitive: it was the victim of the P0 probe accident
+     * (a server-thread synchronous IO write perturbed tick timing enough to shift the
+     * descentYaw trajectory byte-for-byte — A/B-convicted, fixed by moving to an async
+     * writer). Because of that sensitivity this scene is <b>pinned to a fixed origin
+     * slot</b> ({@link #DESCENT_YAW_SLOT}, {@code .withOriginSlot(4000)}) and given
+     * {@code .withChunkRadius(2)} (its footprint fits the default 3×3 window, but the
+     * arena is deliberately generous and radius 2 buys headroom — see the footprint
+     * table below). After ANY harness change that touches tick ordering, IO, or scene
+     * scheduling, treat this scene as a <b>golden-master canary</b>: a shifted
+     * {@code sumAbsDyaw}/{@code backSteps} here is the first alarm that determinism
+     * broke, before it silently corrupts every walker scene.
+     *
+     * <p><b>Footprint audit</b> (origin-relative dx/dz; radius-2 window = dx/dz
+     * [−32,+47]):
+     * <ul>
+     *   <li>start pad: dx [−6,0], dz [−3,3];</li>
+     *   <li>diagonal slope + run-out plateau: dx [0,26], dz [0,26]
+     *       ({@code span+8 = 26});</li>
+     *   <li>full envelope: dx [−6,+26], dz [−3,+26] — inside [−32,+47] with wide
+     *       margin (would even fit radius-1's [−16,+31]; radius 2 is spec-mandated
+     *       headroom).</li>
+     * </ul>
+     *
+     * <p><b>Vertical mapping</b> — legacy {@code topY=240} is ABSOLUTE; scene origin
+     * y = {@code GRID_Y} = 200, so {@code topY} maps to {@code origin.y + 40}. Every
+     * vertical quantity is expressed relative to {@code topY} exactly as legacy, so
+     * all vertical relationships (step drops, plateau depth, spawn/goal offsets) are
+     * preserved identically. Because 200 + 40 = 240, the mapped ABSOLUTE y equals the
+     * legacy absolute y — the vertical geometry is literally unchanged; only x/z
+     * relocate to the grid cell. (Physics is y-invariant in this range regardless;
+     * that assumption is documented but not even load-bearing here.)
+     * <pre>
+     *   element        legacy(abs)   origin-rel      mapped(abs, origin.y=200)
+     *   topY             240         origin.y+40        240
+     *   start pad y      240         +40                240
+     *   slope surf   240 .. 204      +40 .. +4      240 .. 204
+     *   slope blocks 237 .. 201      +37 .. +1      237 .. 201
+     *   goalSurf         204         +4                 204
+     *   goal y           205         +5                 205
+     *   spawn y          241         +41                241
+     * </pre>
+     */
+    private static void descentYaw(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
+        final int topY = ctx.origin().getY() + 40, steps = 9;   // topY: legacy 240 = origin.y(200)+40
+        final int span = 2 * steps;                 // dx,dz 0..18
+        // Flat start pad at the SW (high) corner.
+        for (int dx = -6; dx <= 0; dx++)
+            for (int dz = -3; dz <= 3; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, topY, cz + dz), Blocks.STONE.defaultBlockState());
+        // Diagonal slope DESCENDING NE, STEEP: surface = topY - (dx+dz) (-2 every diagonal step) so
+        // the bot drops fast — that speed is what makes the close-node bearing sweep (the carrot
+        // chase). A gentle slope walks down controlled and never reproduces it.
+        // dx/dz are CLAMPED to span so the plane continues FLAT past the slope for 8 cells on
+        // the east/north faces (run-out plateau) — without it the sprint-momentum zigzag walked
+        // off the built strip into the void and the metric became a fall-timing lottery.
+        for (int dx = 0; dx <= span + 8; dx++)
+            for (int dz = 0; dz <= span + 8; dz++) {
+                int surf = topY - (Math.min(dx, span) + Math.min(dz, span));
+                for (int y = surf - 3; y <= surf; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+            }
+        final int goalSurf = topY - 2 * span;       // NE corner surface (surf = topY-(dx+dz))
+        BlockPos goal = new BlockPos(cx + span, goalSurf + 1, cz + span);
+
+        // pin FIRST → closes LAST (after the avatar discard); then the SAME keys legacy set.
+        // The yaw metric is config-sensitive — pinnedBaseline() snapshots EVERY mutable key so no
+        // leaked flag from a neighbour scene can shift the trajectory (the legacy "flaky P0.9"
+        // signature was exactly such leaks landing on byte-identical-but-different baselines).
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+
+        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, topY + 1, cz + 0.5);
+        FakePlayer fp = av.fakePlayer();
+        ctx.cleanup(() -> fp.discard());
+        AgentGameTestSupport.grantWaterEffects(fp);
+        LevelWorldView w = new LevelWorldView(level, fp);
+        Walker walker = new Walker();
+        walker.setGoal(new Goal.Block(goal));
+
+        double prevYaw = Double.NaN, sumAbsDyaw = 0, maxDyaw = 0;
+        int onSlope = 0, reversals = 0;
+        double lastSign = 0;
+        // Backward-hop (原地后跳) metric: the goal is the NE corner, so EVERY tick's net horizontal
+        // motion should project >=0 onto the NE direction. A tick that projects NEGATIVE = the bot
+        // drove AWAY from the goal (the overshoot-node drive flip). Count those + the worst single
+        // backward projection (≈ blocks). Deterministic post-hardening baseline = 67, worst ≈ -0.25.
+        final double gdx = 1.0 / Math.sqrt(2.0), gdz = 1.0 / Math.sqrt(2.0);
+        double prevX = fp.getX(), prevZ = fp.getZ();
+        int backSteps = 0;
+        double worstBack = 0;
+        Walker.Step s = Walker.Step.WALKING;
+        for (int t = 0; t < 700 && s == Walker.Step.WALKING; t++) {
+            s = walker.tick(av, w);
+            av.step();
+            double ddx = fp.getX() - prevX, ddz = fp.getZ() - prevZ;
+            if (fp.getX() >= cx && ddx * ddx + ddz * ddz > 1e-4) {   // moved, on the slope
+                double proj = ddx * gdx + ddz * gdz;
+                if (proj < -0.02) { backSteps++; worstBack = Math.min(worstBack, proj); }
+            }
+            prevX = fp.getX();
+            prevZ = fp.getZ();
+            if (fp.getX() >= cx) {                          // on the descending slope
+                double yaw = fp.getYRot();
+                if (!Double.isNaN(prevYaw)) {
+                    double d = ((yaw - prevYaw + 540) % 360) - 180;
+                    sumAbsDyaw += Math.abs(d);
+                    if (Math.abs(d) > maxDyaw) maxDyaw = Math.abs(d);
+                    if (Math.abs(d) > 2) {
+                        double sg = Math.signum(d);
+                        if (lastSign != 0 && sg != lastSign) reversals++;
+                        lastSign = sg;
+                    }
+                }
+                prevYaw = yaw;
+                onSlope++;
+            }
+        }
+        // Lower y bound matters: before the run-out plateau existed, a bot that fell off the strip
+        // into the void still counted "reached" whenever its x/z had crossed the corner thresholds
+        // mid-air (terminal y=-60 runs read as PASS).
+        boolean reached = fp.getX() > cx + span - 3 && fp.getZ() > cz + span - 3
+                && fp.getY() <= goalSurf + 2 && fp.getY() >= goalSurf - 1;
+        double thrashPerTick = onSlope > 0 ? sumAbsDyaw / onSlope : 0;
+        AgentDriverCommon.LOG.info(
+                "[ad.descentYaw] step={} pos=({},{},{}) reached={} sumAbsDyaw={}° maxDyaw={}° reversals={} onSlope={} thrash/tick={} backSteps={} worstBack={}",
+                s, String.format(Locale.ROOT, "%.1f", fp.getX()), String.format(Locale.ROOT, "%.1f", fp.getY()),
+                String.format(Locale.ROOT, "%.1f", fp.getZ()), reached,
+                String.format(Locale.ROOT, "%.0f", sumAbsDyaw), String.format(Locale.ROOT, "%.0f", maxDyaw),
+                reversals, onSlope, String.format(Locale.ROOT, "%.1f", thrashPerTick),
+                backSteps, String.format(Locale.ROOT, "%.2f", worstBack));
+        if (!reached)
+            ctx.fail("descentYaw: did not reach the bottom: pos=("
+                    + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + s);
+        // ⚠ 993° is the UNSOLVED carrot-swing baseline, NOT a smoothness pass: a steep dry descent
+        // still winds the yaw badly (the live "下山转圈"; the real fix is pending). Since the
+        // 2026-07-09 rig hardening (run-out plateau + baseline re-pin) the run is DETERMINISTIC
+        // (ARRIVED@~299t, 993°, byte-identical across solo runs), so this ceiling is a real
+        // regression gate, not flake headroom.
+        if (sumAbsDyaw > 1200)
+            ctx.fail("descentYaw: yaw thrash blew up to " + sumAbsDyaw + "° (deterministic baseline 993°)");
+        // Backward-hop guard: deterministic post-hardening baseline 67. Gross-regression gate.
+        if (backSteps > 90)
+            ctx.fail("descentYaw: backward-hops regressed to " + backSteps + " (deterministic baseline 67)");
     }
 
     /**
