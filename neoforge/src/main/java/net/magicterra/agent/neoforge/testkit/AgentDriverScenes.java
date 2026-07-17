@@ -75,6 +75,21 @@ public final class AgentDriverScenes implements SceneProvider {
      */
     private static final int DESCENT_YAW_SLOT = 4000;
 
+    /**
+     * Fixed origin slot for {@code ad.selfShaftDigUp} — the task#86 gap #53
+     * evidence-anchor scene. Auto slots are assignment-order dependent, so suite
+     * growth would relocate this arena; the recorded golden failure
+     * ({@code worstBackslide=20.252203415101263}) was measured at a specific
+     * position, and double-precision physics differs by position, so an
+     * unpinned slot would silently break byte-identity with that evidence chain
+     * on the next scene added upstream of it. Pinning freezes the origin.
+     * <b>Once published this slot MUST NOT change</b> — a moved origin silently
+     * invalidates the recorded task#86 baseline. Chosen adjacent to
+     * {@link #DESCENT_YAW_SLOT} (4000), same high-slot rationale: sits far above
+     * the auto slot range so it never collides with registry growth.
+     */
+    private static final int SELF_SHAFT_DIG_UP_SLOT = 4001;
+
     @Override
     public List<Scene> scenes() {
         return List.of(
@@ -83,7 +98,8 @@ public final class AgentDriverScenes implements SceneProvider {
                 Scene.of("ad.diagonalAscentSpeed", 200, AgentDriverScenes::diagonalAscentSpeed),
                 Scene.of("ad.descentYaw", 200, AgentDriverScenes::descentYaw)
                         .withOriginSlot(DESCENT_YAW_SLOT).withChunkRadius(2),
-                Scene.of("ad.selfShaftDigUp", 200, AgentDriverScenes::selfShaftDigUp).withRequired(false));
+                Scene.of("ad.selfShaftDigUp", 200, AgentDriverScenes::selfShaftDigUp)
+                        .withOriginSlot(SELF_SHAFT_DIG_UP_SLOT).withRequired(false));
     }
 
     /** Ported from {@code AgentGameTestTerrain#ascendMovementNoopArena} (:969-1020). */
@@ -470,15 +486,24 @@ public final class AgentDriverScenes implements SceneProvider {
      * scene's {@link ServerPlayerAvatar#createUnique} body, and the legacy arena's
      * own solo {@code AGENT_GT_ONLY} run) the walk deterministically REDs:
      * {@code worstBackslide=20.252203415101263}, reproduced byte-identically
-     * across two independent legacy-solo runs plus this scene's new-shell run —
-     * i.e. the port is faithful and the failure is real, not a porting delta. The
-     * legacy arena's historical full-suite GREEN is suspected to be a gap #48
-     * shared-body false-green (neighbour-interference mask — see
-     * {@link ServerPlayerAvatar#create}'s javadoc: "a solo-RED arena can ride a
-     * neighbour's shove to a full-suite false green", proven twice already for
-     * other arenas). This scene stays optional — a faithful sensor recording the
-     * real gap #53 stride-floor-guard defect on every run — until task#86 closes
-     * it; flip back to required (drop {@code .withRequired(false)}) at that point.
+     * across two independent legacy-solo runs plus this scene's new-shell run
+     * (measured at the former auto slot) — i.e. the port is faithful and the
+     * failure is real, not a porting delta. The legacy arena's historical
+     * full-suite GREEN is suspected to be a gap #48 shared-body false-green
+     * (neighbour-interference mask — see {@link ServerPlayerAvatar#create}'s
+     * javadoc: "a solo-RED arena can ride a neighbour's shove to a full-suite
+     * false green", proven twice already for other arenas). This scene stays
+     * optional — a faithful sensor recording the real gap #53 stride-floor-guard
+     * defect on every run — until task#86 closes it; flip back to required
+     * (drop {@code .withRequired(false)}) at that point.
+     *
+     * <p><b>Re-measured at the pinned slot (2026-07-17, final-review fix wave).</b>
+     * After pinning this scene to {@link #SELF_SHAFT_DIG_UP_SLOT} (4001,
+     * adjacent to {@link #DESCENT_YAW_SLOT}), the run was repeated once:
+     * {@code worstBackslide=20.252203415101263} — byte-identical to the former
+     * auto-slot measurement above. The task#86 evidence chain is unaffected by
+     * the slot pin; this value is now the frozen golden-failure baseline going
+     * forward at slot 4001.
      */
     private static void selfShaftDigUp(SceneContext ctx) {
         ServerLevel level = ctx.level();
