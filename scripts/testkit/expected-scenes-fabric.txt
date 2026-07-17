@@ -1,0 +1,15 @@
+# Canonical expected-scene manifest for the fabric dogfood suite (t0 --expect-file).
+# One name per line. The ad.* scenes live in common (net.magicterra.agent.bot.testkit)
+# and are registered for BOTH loaders via the same common SceneProvider service file, so
+# this list is identical to expected-scenes-neoforge.txt by construction — any scene added
+# to common MUST be added to BOTH manifests in the same commit. A name missing from BOTH
+# this file and registered[] is exactly the silent-composition hole this gate exists to
+# close (P1c final review; P1.6 Task 3 for fabric).
+ad.ascendMovementNoop
+ad.ascendDeadZoneWatchdog
+ad.diagonalAscentSpeed
+ad.selfShaftDigUp
+ad.descentYaw
+ad.gearScope
+ad.buriedOre
+ad.entityLeash

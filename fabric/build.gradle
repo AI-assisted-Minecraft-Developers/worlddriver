@@ -36,6 +36,12 @@ dependencies {
     common(project(path: ':common', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':common', configuration: 'transformProductionFabric')
 
+    // testkit-common (P1.6 dogfood wiring) — same two-line idiom as :common above,
+    // adapted to fabric's transformProductionFabric configuration; identical to how
+    // mc-testkit/fabric/build.gradle already consumes it.
+    common(project(path: ':testkit-common', configuration: 'namedElements')) { transitive false }
+    shadowBundle project(path: ':testkit-common', configuration: 'transformProductionFabric')
+
     // Rhino (KubeJS fork) — a full mod jar (ships fabric.mod.json), so we nest it
     // via Jar-in-Jar instead of shadowing its classes. Fabric Loader discovers
     // the nested mod and dedupes it by version against any other mod that
@@ -98,12 +104,26 @@ loom {
             runDir 'run-contract'
             vmArg '-Xmx1g'
         }
+        // P1.6 Task 3: dogfood run — a plain dedicated server with BOTH agent_driver
+        // and the mc-testkit harness loaded, autorun gate ON, mirroring
+        // neoforge/build.gradle's dogfoodServer. Proves the testkit orchestrator
+        // (t0.py) generalizes to the feature-loaded fabric loader. Ephemeral agent
+        // ports (0 = random) so it never competes with a live dev client on 39800/39801
+        // — and it is excluded from the configureEach port-pinning guard below (P1b lesson).
+        dogfoodServer {
+            server()
+            property 'testkit.autorun', 'true'
+            property 'agent.rpcPort', '0'
+            property 'agent.mcpPort', '0'
+            runDir 'run-dogfood'
+            vmArg '-Xmx2g'
+        }
     }
     runConfigs.configureEach {
-        // contractServer pins its own ephemeral ports (agent.rpcPort/mcpPort='0')
-        // so the headless contract suite never competes with a live dev client on
-        // 39800/39801. Without this guard the defaults below would clobber that.
-        if (it.name == 'contractServer') return
+        // contractServer and dogfoodServer pin their own ephemeral ports
+        // (agent.rpcPort/mcpPort='0') so the headless suites never compete with a live
+        // dev client on 39800/39801. Without this guard the defaults below would clobber that.
+        if (it.name == 'contractServer' || it.name == 'dogfoodServer') return
         property 'agent.runValidation', project.findProperty('agentRunValidation') ?: 'false'
         // Pin the MCP / RPC ports so the external driver (Claude harness, docs
         // example, rpc.py) always finds the mod at a known address. Default to
