@@ -309,6 +309,18 @@ public final class AgentDriverScenes implements SceneProvider {
      * {@code sumAbsDyaw}/{@code backSteps} here is the first alarm that determinism
      * broke, before it silently corrupts every walker scene.
      *
+     * <p><b>Golden values (migration-time measurement, 2026-07-16).</b> This
+     * isolated-body + pinned-slot run measures {@code sumAbsDyaw=871°}/
+     * {@code backSteps=53}, byte-identical across three independent runs (legacy
+     * solo GREEN + this new shell ×3, same numbers every time) — the first
+     * confirmation of the isolated-body+pinned-slot hypothesis. This sits
+     * alongside, and does not replace, the historic {@code 993°}/{@code 67}
+     * figures carried by the legacy {@code AgentGameTestTerrain#descentYawArena}
+     * twin (that body is a differently-isolated run — shared GameTest-server body
+     * vs this scene's own {@code createUnique} body — so the two numbers are not
+     * expected to match; both are golden references for their own body/isolation
+     * combination, not for each other).
+     *
      * <p><b>Footprint audit</b> (origin-relative dx/dz; radius-2 window = dx/dz
      * [−32,+47]):
      * <ul>

@@ -1208,6 +1208,16 @@ public final class AgentGameTestTerrain {
      * origin slot (4000) + chunk radius 2 because the yaw metric is byte-determinism-
      * sensitive (P0 probe-accident victim). This {@code @GameTest} twin stays
      * registered until three consecutive dual-gate greens (spec §85 dual-gate A/B).
+     *
+     * <p><b>Golden values (migration-time re-measurement, 2026-07-16).</b> The
+     * {@code ad.descentYaw} twin's isolated-body + pinned-slot run (this scene's
+     * own new-shell double) measured {@code sumAbsDyaw=871°}/{@code backSteps=53},
+     * byte-identical across three independent runs (legacy solo GREEN + new-shell
+     * ×3, same numbers every time). This does not replace the 993°/67 historic
+     * ceiling figures below (those remain the regression gates on THIS legacy
+     * body); it is a second reference point on a differently-isolated body, so a
+     * future drift investigation can tell "moved off 871/53" (new-shell path)
+     * apart from "moved off 993/67" (this legacy path) instead of conflating them.
      */
     // batch: solo — diagnostic isolation (2026-07-06): failed twice in defaultBatch
     // alongside wall-clock-hungry peers; a solo batch separates real regression
