@@ -118,12 +118,37 @@ loom {
             runDir 'run-dogfood'
             vmArg '-Xmx2g'
         }
+        // P2b Task 1 (T1 topology): a real CLIENT JVM with the mc-testkit harness
+        // armed (-Dtestkit.autorun=true). When t1.py drives it into a singleplayer
+        // world, the INTEGRATED server's SERVER_STARTED fires the same TestkitCommon
+        // hook the dedicated dogfoodServer uses — so the 9 ad.* scenes run on an
+        // integrated server for the first time = topology proof. Ephemeral agent
+        // ports (0 = random) so it never competes with a live dev client on
+        // 39800/39801; the orchestrator discovers the port via run-t1/agent-rpc.port.
+        // DISPLAY is supplied by t1.py's environment (self-managed Xvfb), NOT here.
+        // Excluded from the configureEach port-pinning guard below (same as the
+        // dedicated dogfood/contract runs) so the ephemeral ports stick.
+        testkitClient {
+            client()
+            // Autorun defaults ON (scenes run when the integrated server starts). t1.py
+            // launches once with -Pt1Autorun=false to MINT a pristine template world (no
+            // scenes ever run in it → no arena-chunk pollution) and archive it, then
+            // launches normally (autorun ON) on a fresh COPY of that clean template. This
+            // keeps the reused world byte-clean, which the inverted-lottery signature
+            // scene ad.selfShaftDigUp is sensitive to (a template archived AFTER scenes
+            // ran flips its outcome — the "禁复用脏世界" world-discipline rule).
+            property 'testkit.autorun', project.findProperty('t1Autorun') ?: 'true'
+            property 'agent.rpcPort', '0'
+            property 'agent.mcpPort', '0'
+            runDir 'run-t1'
+            vmArg '-Xmx2g'
+        }
     }
     runConfigs.configureEach {
-        // contractServer and dogfoodServer pin their own ephemeral ports
+        // contractServer, dogfoodServer and testkitClient pin their own ephemeral ports
         // (agent.rpcPort/mcpPort='0') so the headless suites never compete with a live
         // dev client on 39800/39801. Without this guard the defaults below would clobber that.
-        if (it.name == 'contractServer' || it.name == 'dogfoodServer') return
+        if (it.name == 'contractServer' || it.name == 'dogfoodServer' || it.name == 'testkitClient') return
         property 'agent.runValidation', project.findProperty('agentRunValidation') ?: 'false'
         // Pin the MCP / RPC ports so the external driver (Claude harness, docs
         // example, rpc.py) always finds the mod at a known address. Default to

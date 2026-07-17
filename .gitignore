@@ -6,10 +6,13 @@ run-gametest/
 run-testkit/
 run-dogfood/
 run-contract/
+run-t1/
+scripts/testkit/.t1-world-template/
 .idea/
 *.log
 
 scripts/__pycache__/
+scripts/**/__pycache__/
 
 # path-debug chart output (runtime, never commit)
 **/config/agent_driver/debug/
