@@ -119,12 +119,32 @@ public final class ToolCatalog {
      * is deliberately unsupported, because deferring only the route half would split the
      * atomic (schema+route) pair and could mask a mod registering before boot.
      *
-     * <p><b>Duplicate names</b> follow {@code AgentApi.addRoute} last-wins semantics for
-     * the route; the schema supplier is appended (last entry for a name wins in
-     * {@code schemaByName()}), so re-registering a verb replaces its route and its
-     * effective schema.
+     * <p><b>Baseline guard.</b> After the namespace policy passes, the name is checked
+     * against the driver-owned baseline — every name in the curated fixed sections
+     * ({@code SystemTools} … {@code BotTools}) plus {@link #HIDDEN_TOOLS}. A match
+     * throws {@link IllegalArgumentException}: it closes the hole where a caller
+     * granted the {@code mc.test.*} namespace (or, before this guard, any {@code mc.*}
+     * name it could otherwise slip past a looser check) could pick a name equal to a
+     * driver-owned verb — e.g. {@code mc.test.yaml} — and last-wins shadow it, both in
+     * the route sink and in {@code schemaByName()}. The baseline is fixed at class-load
+     * (the fixed sections + {@code HIDDEN_TOOLS} never change at runtime, and
+     * {@link #registerExtra} — including the extras this method itself feeds — never
+     * contributes to it by construction), so the guard cannot be bypassed by first
+     * registering something to grow the baseline.
      *
-     * @throws IllegalArgumentException if {@code schema.name()} violates the namespace policy
+     * <p><b>Duplicate names within the extra space</b> (i.e. names NOT in the driver-owned
+     * baseline) still follow {@code AgentApi.addRoute} last-wins semantics for the route;
+     * the schema supplier is appended (last entry for a name wins in
+     * {@code schemaByName()}), so re-registering the SAME extra verb name replaces its
+     * route and its effective schema. This residual last-wins is a same-classpath trust
+     * boundary, not a hardened one: any code running in this JVM can call
+     * {@code registerVerb} again with a third party's already-registered extra name and
+     * silently replace it. The baseline guard above only protects driver-owned names —
+     * it does not arbitrate between two third-party mods that collide on the same
+     * {@code <modid>.<verb>} name.
+     *
+     * @throws IllegalArgumentException if {@code schema.name()} violates the namespace policy,
+     *                                  or names a driver-owned baseline verb
      * @throws IllegalStateException    if the route sink is not yet wired (pre-boot), or the
      *                                  self-check finds the pair torn
      */
@@ -133,6 +153,13 @@ public final class ToolCatalog {
         Objects.requireNonNull(handler, "handler");
         String name = schema.name();
         enforceNamespacePolicy(name);
+        if (baselineNames().contains(name)) {
+            throw new IllegalArgumentException(
+                    "verb name '" + name + "' is driver-owned (registered via the curated catalog or "
+                    + "HIDDEN_TOOLS) and cannot be re-registered through registerVerb — the paired entry "
+                    + "point does not arbitrate ownership of the driver's own verbs, it only extends the "
+                    + "namespace granted to third parties.");
+        }
         BiConsumer<String, Function<Map<String, Object>, Object>> sink = routeSink;
         if (sink == null) {
             throw new IllegalStateException(
@@ -189,8 +216,13 @@ public final class ToolCatalog {
         byNameCache = null;   // extras registered after boot wiring must still validate
     }
 
-    /** The curated, hand-written tool schemas in their fixed section order (+ registered extras). */
-    private static List<ToolSchema> curated() {
+    /**
+     * The curated, hand-written tool schemas in their fixed section order — NO extras.
+     * This is the fixed half of {@link #curated()}, split out so the driver-owned
+     * {@linkplain #baselineNames() baseline} can be computed without folding in
+     * {@link #EXTRA} (registerVerb's own paired schemas among them).
+     */
+    private static List<ToolSchema> fixedCurated() {
         ArrayList<ToolSchema> all = new ArrayList<>();
         all.addAll(SystemTools.tools());
         all.addAll(ScriptTools.tools());
@@ -199,8 +231,38 @@ public final class ToolCatalog {
         all.addAll(WaitTools.tools());
         all.addAll(ClientTools.tools());
         all.addAll(BotTools.tools());
+        return all;
+    }
+
+    /** The curated, hand-written tool schemas in their fixed section order (+ registered extras). */
+    private static List<ToolSchema> curated() {
+        ArrayList<ToolSchema> all = new ArrayList<>(fixedCurated());
         for (Supplier<List<ToolSchema>> s : EXTRA) all.addAll(s.get());
         return all;
+    }
+
+    private static volatile Set<String> baselineNamesCache;
+
+    /**
+     * The driver-owned baseline name set: every name in the fixed curated sections
+     * ({@link #fixedCurated()}) plus {@link #HIDDEN_TOOLS} — deliberately WITHOUT
+     * {@link #EXTRA}, so names registered through {@link #registerExtra} (including
+     * {@link #registerVerb}'s own paired schemas) never join the baseline. This is
+     * what {@link #registerVerb} guards: a third-party caller cannot pick a name equal
+     * to a driver-owned verb and last-wins shadow it. Immutable after class init (the
+     * fixed sections and {@code HIDDEN_TOOLS} never change at runtime, and extras never
+     * feed the baseline by construction) — cached lazily on first use.
+     */
+    private static Set<String> baselineNames() {
+        Set<String> c = baselineNamesCache;
+        if (c == null) {
+            LinkedHashSet<String> names = new LinkedHashSet<>();
+            for (ToolSchema s : fixedCurated()) names.add(s.name());
+            for (ToolSchema s : HIDDEN_TOOLS) names.add(s.name());
+            c = Collections.unmodifiableSet(names);
+            baselineNamesCache = c;
+        }
+        return c;
     }
 
     /** Every declared tool: the visible curated set + the hidden ones. */

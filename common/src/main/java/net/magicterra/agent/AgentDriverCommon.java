@@ -177,8 +177,12 @@ public final class AgentDriverCommon {
         // Convergence guard, OUTSIDE the catch so it hard-fails: a route with no MCP
         // ToolSchema is a programming error (see AgentApi.requireSchemasFor / ToolCatalog),
         // not a recoverable startup hiccup — let it abort mod init rather than limp on
-        // with a half-specified tool surface. Cheap + idempotent, so re-running across
-        // ensureRpcUp calls (incl. after optional subsystems register) is harmless.
+        // with a half-specified tool surface. This block runs on the first successful
+        // ensureRpcUp() pass only — the method early-returns above once api/rpcServer
+        // exist, so it does NOT re-run on later calls. Verb registrations that happen
+        // after this point (optional subsystems, mods) are covered instead by the
+        // dispatch-time throw in setParamsValidator below plus registerExtra's own
+        // cache invalidation — not by this guard re-running.
         if (api != null) {
             api.requireSchemasFor(ToolCatalog.declaredMethodNames());
             // Route-layer schema validation — same typed Schema the catalog renders
