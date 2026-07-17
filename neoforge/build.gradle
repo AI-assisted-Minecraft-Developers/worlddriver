@@ -160,12 +160,30 @@ loom {
             runDir 'run-t1'
             vmArg '-Xmx2g'
         }
+        // P3a Task 2 (T2 production topology, neoforge parity): a plain DEDICATED server
+        // carrying agent_driver + the mc-testkit harness with autorun DEFAULT OFF
+        // (-Pt2Autorun ?: 'false'), mirroring fabric's t2Server. Arms the harness
+        // armed-awaiting (registers mc.test.* verbs via the now-unconditional loader
+        // forwarding) so a real testkitClient (run-t1) can direct-connect over multiplayer
+        // and t2.py can drive the dual-end probe. Ephemeral agent ports (0 = random); the
+        // multiplayer listen socket is pinned in run-t2/server.properties (25596, distinct
+        // from fabric's 25597 and dogfood's 25599) which t2.py generates-and-pins. Excluded
+        // from the configureEach guard below (like contractServer/testkitClient) so it
+        // manages its own -Xmx and ephemeral ports.
+        t2Server {
+            server()
+            property 'testkit.autorun', project.findProperty('t2Autorun') ?: 'false'
+            property 'agent.rpcPort', '0'
+            property 'agent.mcpPort', '0'
+            runDir 'run-t2'
+            vmArg '-Xmx2g'
+        }
     }
     runConfigs.configureEach {
-        // contractServer and testkitClient manage their own -Xmx (contractServer 1g;
-        // testkitClient a client run with its own 2g cap), so exclude them from the
-        // guard's default heap/runValidation pinning below.
-        if (it.name == 'contractServer' || it.name == 'testkitClient') return
+        // contractServer, testkitClient and t2Server manage their own -Xmx (contractServer 1g;
+        // testkitClient/t2Server their own 2g cap), so exclude them from the guard's default
+        // heap/runValidation pinning below.
+        if (it.name == 'contractServer' || it.name == 'testkitClient' || it.name == 't2Server') return
         property 'agent.runValidation', project.findProperty('agentRunValidation') ?: 'false'
         // Cap heap so dedicated server + gametest don't trigger system OOM.
         vmArg '-Xmx2g'

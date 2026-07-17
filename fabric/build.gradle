@@ -143,12 +143,32 @@ loom {
             runDir 'run-t1'
             vmArg '-Xmx2g'
         }
+        // P3a Task 2 (T2 production topology): a plain DEDICATED server carrying BOTH
+        // agent_driver and the mc-testkit harness, but with autorun DEFAULT OFF
+        // (-Pt2Autorun ?: 'false'). Unlike dogfoodServer (autorun ON, scenes at boot),
+        // t2Server arms the harness armed-awaiting (TestkitCommon logs "awaiting mc.test.run"
+        // and registers the mc.test.* verbs — now that loader forwarding is unconditional)
+        // and a REAL client (testkitClient in run-t1) direct-connects to it over multiplayer.
+        // t2.py orchestrates both processes and drives the dual-end probe. Ephemeral agent
+        // ports (0 = random) so it never competes with a live dev client or a dogfood run;
+        // the server-port (the multiplayer listen socket) is pinned in run-t2/server.properties
+        // (25597, distinct from dogfood's 25599) which t2.py generates-and-pins. Excluded from
+        // the configureEach guard below like the other testkit runs so its ephemeral ports stick.
+        t2Server {
+            server()
+            property 'testkit.autorun', project.findProperty('t2Autorun') ?: 'false'
+            property 'agent.rpcPort', '0'
+            property 'agent.mcpPort', '0'
+            runDir 'run-t2'
+            vmArg '-Xmx2g'
+        }
     }
     runConfigs.configureEach {
-        // contractServer, dogfoodServer and testkitClient pin their own ephemeral ports
-        // (agent.rpcPort/mcpPort='0') so the headless suites never compete with a live
+        // contractServer, dogfoodServer, testkitClient and t2Server pin their own ephemeral
+        // ports (agent.rpcPort/mcpPort='0') so the headless suites never compete with a live
         // dev client on 39800/39801. Without this guard the defaults below would clobber that.
-        if (it.name == 'contractServer' || it.name == 'dogfoodServer' || it.name == 'testkitClient') return
+        if (it.name == 'contractServer' || it.name == 'dogfoodServer'
+                || it.name == 'testkitClient' || it.name == 't2Server') return
         property 'agent.runValidation', project.findProperty('agentRunValidation') ?: 'false'
         // Pin the MCP / RPC ports so the external driver (Claude harness, docs
         // example, rpc.py) always finds the mod at a known address. Default to
