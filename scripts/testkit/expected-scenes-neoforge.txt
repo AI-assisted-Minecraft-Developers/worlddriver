@@ -9,3 +9,4 @@ ad.selfShaftDigUp
 ad.descentYaw
 ad.gearScope
 ad.buriedOre
+ad.entityLeash

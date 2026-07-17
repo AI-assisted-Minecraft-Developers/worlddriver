@@ -10,7 +10,12 @@ import net.magicterra.agent.bot.movement.AscendMovement;
 import net.magicterra.agent.bot.movement.MovementContext;
 import net.magicterra.agent.bot.movement.MovementStatus;
 import net.magicterra.agent.bot.movement.Walker;
+import net.magicterra.agent.bot.pathfinder.CapabilityProfile;
 import net.magicterra.agent.bot.pathfinder.Move;
+import net.magicterra.agent.bot.process.EntityFind;
+import net.magicterra.agent.bot.process.EntityLeash;
+import net.magicterra.agent.bot.process.Intent;
+import net.magicterra.agent.bot.process.IntentProcess;
 import net.magicterra.agent.bot.process.MineProcess;
 import net.magicterra.agent.bot.world.LevelWorldView;
 import net.magicterra.agent.neoforge.AgentGameTestServer;
@@ -24,9 +29,11 @@ import net.magicterra.testkit.scene.SceneProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.common.util.FakePlayer;
 
 /**
@@ -137,7 +144,8 @@ public final class AgentDriverScenes implements SceneProvider {
                 Scene.of("ad.selfShaftDigUp", 200, AgentDriverScenes::selfShaftDigUp)
                         .withOriginSlot(SELF_SHAFT_DIG_UP_SLOT),
                 Scene.of("ad.gearScope", 200, AgentDriverScenes::gearScope),
-                Scene.of("ad.buriedOre", 200, AgentDriverScenes::buriedOre));
+                Scene.of("ad.buriedOre", 200, AgentDriverScenes::buriedOre),
+                Scene.of("ad.entityLeash", 200, AgentDriverScenes::entityLeash));
     }
 
     /** Ported from {@code AgentGameTestTerrain#ascendMovementNoopArena} (:969-1020). */
@@ -882,5 +890,254 @@ public final class AgentDriverScenes implements SceneProvider {
         if (!driver.finished() || ServerAgentManager.activeCount() != 0)
             ctx.fail("buriedOre: buried-ore MineProcess did not finish+unregister: finished="
                     + driver.finished() + " active=" + ServerAgentManager.activeCount());
+    }
+
+    /**
+     * Ported from {@code AgentGameTestServer#entityLeashRepathArena} (:931-1041) —
+     * the A3a dynamic {@link EntityLeash} anchor gate: the SERVER runs a real
+     * {@link IntentProcess} whose leash centres on an {@code entity:'armor_stand'}
+     * anchor, proving the whole re-solve chain (find → dirty → rebuild profile →
+     * forceRepath), not just the static leash math. This is the THIRD driver-class
+     * scene (dogfood wave 2b) and the last driver-family arena; it follows the driver
+     * porting pattern established by {@code ad.gearScope} and {@code ad.buriedOre}
+     * (see the class javadoc: {@link ServerAgentDriver#createIsolated} not
+     * {@code create}, targeted {@code unregister}+{@code discard} cleanup not
+     * {@code clear()}, {@code "entityLeash: "}-prefixed failures, constant-faithful
+     * assertions). Like {@code ad.buriedOre} it REALLY
+     * {@code ServerAgentManager.register(driver)}s and pumps
+     * {@code ServerAgentManager.tickAll()} in bounded loops until the process
+     * unregisters itself, so its cleanup {@code unregister} is the REAL teardown (and
+     * a backstop for the early-abort path). Unlike the other driver scenes it does NOT
+     * run everything on the first RUN tick — the two phases are split into
+     * {@code ctx.await(...)} steps (the sanctioned manual-tick fallback, see below), so
+     * each phase's synchronous {@code tickAll} loop runs on its own scene tick.
+     *
+     * <p><b>The two-phase gate (legacy javadoc, verbatim intent).</b> Phase 1: an
+     * armor stand spawns AT the bot's start; the goal is 24 blocks away but the HARD
+     * leash (radius 8) prunes every route node farther than 8 blocks from the
+     * (stationary) stand, so the pathfinder's best-effort fallback can only reach the
+     * radius edge and the {@link net.magicterra.agent.bot.movement.Walker} holds at
+     * the edge (never declares ARRIVED on a best-effort partial path) — so the process
+     * stays registered/un-finished for the whole 200-tick window. Phase 2: the stand
+     * teleports 4 blocks PAST the goal; within the leash's 20-tick re-solve rate limit
+     * {@link IntentProcess} notices the anchor moved &gt; 2 blocks, rebuilds the
+     * {@link net.magicterra.agent.bot.pathfinder.SearchProfile} centred on the NEW
+     * anchor and force-repaths — now the true goal is inside the radius, so the bot
+     * ARRIVES for real within 600 more ticks. Both assertions (phase1 held + not
+     * finished, phase2 reached + finished+unregistered) are the legacy originals,
+     * byte-for-byte after the {@code "entityLeash: "} prefix.
+     *
+     * <p><b>Manual-tick decision — DIRECT PORT TRIED, then SANCTIONED FALLBACK
+     * (the {@code level.tick(() -> true)} blocks REPLACED by {@code ctx.await} steps).</b>
+     * The legacy body force-indexes a freshly-added armor stand into the entity-section
+     * lookup with two {@code for (i&lt;3) level.tick(() -&gt; true)} blocks (a fresh
+     * entity is not scannable by {@code EntityFind.nearest} — the leash's entity scan —
+     * until the level processes it; and {@code ServerAgentManager.tickAll()} drives the
+     * bot but NOT the level). The direct port (keeping those manual ticks, on the theory
+     * that {@code ServerTickEvent.Post} runs OUTSIDE the level's own tick loop so the
+     * re-entrant call is re-entrancy-safe) was TRIED FIRST and <b>MISBEHAVED IN
+     * PRACTICE</b>: on the PERSISTENT dogfood world (not GameTest's throwaway world) a
+     * re-entrant {@code level.tick()} drives {@code ServerChunkCache.tick →
+     * ChunkMap.tick → processUnloads → scheduleUnload}, which single-tick-livelocks —
+     * the documented killed-run/processUnloads hang class — and the
+     * {@code ServerHangWatchdog} crashed the run (a single tick reported as
+     * 60000072 s), stack rooted at this scene's first {@code level.tick} call. Evidence
+     * kept in the task-5 report (crash-2026-07-17_01.15.58-server.txt). Re-entrancy
+     * safety was real but irrelevant — the persistent world's chunk-unload processing is
+     * what livelocks. So the brief's SANCTIONED fallback was taken: the two manual-tick
+     * blocks are replaced by {@code ctx.await(<entity queryable>).within(20)} real-tick
+     * waits and the two phases are split into await steps. The natural dogfood server
+     * tick (the level IS ticked every frame by {@code MinecraftServer.tickServer}) does
+     * the entity indexing the legacy forced — {@code await-1} waits until
+     * {@code EntityFind.nearest} (the leash's own scan) can see the fresh stand;
+     * {@code await-2} waits until a section query finds the teleported stand at its NEW
+     * anchor — no re-entrant ticking anywhere.
+     *
+     * <p><b>Fallback sub-deviation — driver registration is BRACKETED around each await.</b>
+     * The platform's own {@code AgentDriverNeoForge.onServerTick(ServerTickEvent.Post)}
+     * calls {@code ServerAgentManager.tickAll()} EVERY server tick (before the testkit
+     * harness advances the scene). In the other driver scenes the driver is registered
+     * and fully driven+unregistered inside ONE synchronous body tick, so the platform
+     * loop never sees it mid-flight. Here the scene spans multiple ticks (the await
+     * waits), so a driver left registered across an await would be driven UNCONTROLLED by
+     * the platform loop — corrupting the phase-1 "leash held" experiment (bot driven
+     * with no anchor before the stand is indexed). The fix: the driver is
+     * {@code register}ed only at the START of each phase's synchronous {@code tickAll}
+     * loop and {@code unregister}ed at its END (before yielding to the next await), so
+     * the controlled phase loops remain the SOLE driver of the bot — exactly the
+     * invariant the legacy GameTest body had for free (nothing else drove its manager).
+     * This deviation is behaviour-preserving for the leash gate; it is recorded here and
+     * in the task-5 porting map.
+     *
+     * <p><b>Legacy-twin divergence — adjudicated (A), environment (task#87).</b> The
+     * legacy {@code entityLeashRepathArena} twin is a MASTER-INHERITED solo-RED (ledger
+     * "master-inherited red"; clean master-HEAD worktree solo RED 2/2, 07-14, TODO.md
+     * line 79) — its phase 2 fails at the GameTest "empty" template's y≈−60 placement
+     * (near the −64 world floor; the void-fall rig-disease family). This scene at the
+     * grid's y=200 is GREEN (phase 2 reaches the goal). The failure predates any drive
+     * change, so the GREEN is NOT masking a regression; the divergence is adjudicated as
+     * legacy rig ENVIRONMENT and tracked as task#87 (later low-y root-cause). Phase 1
+     * proves mechanism fidelity across both shells (leash HELD: standDist 2.805 legacy /
+     * 4.188 scene, both {@code < radius+3}, both {@code !finished}). Scene stays
+     * {@code required=true}.
+     *
+     * <p><b>Anchor semantics.</b> Legacy anchors on
+     * {@code helper.absolutePos(BlockPos.ZERO)} — this test's own (entity-ticking)
+     * chunk column — because {@code EntityFind.nearest} needs the armor stand to
+     * actually appear in {@code Level.getEntities}. The port anchors on
+     * {@link SceneContext#origin()} instead: grid origins are ALWAYS chunk-aligned and
+     * their forced chunk neighborhood is entity-ticking, so it is the equivalent
+     * this-chunk anchor with no behavioural change.
+     *
+     * <p><b>Footprint audit</b> (origin-relative dx/dz; default 3×3 window = dx/dz
+     * [−16,+31]). {@code goalDz = 24}: the stone lane floor spans dx [−2,+2] /
+     * dz [−1,+26] ({@code goalDz+2}); the side rails ride the same dz range at
+     * dx ±2; the goal is at dx 0, dz +24; the armor stand starts at dx 0, dz 0 and
+     * TELEPORTS to dx 0, dz +28 ({@code goalDz+4}) in phase 2 — the farthest point of
+     * the whole scene. Full envelope dx [−2,+2], dz [−1,+28] — the max dz +28 sits
+     * inside the +31 edge of the DEFAULT window, so NO {@code withChunkRadius(2)}
+     * widening is needed (auto slot, default radius): the teleported stand still lands
+     * in a forced/entity-ticking chunk and stays scannable.
+     *
+     * <p><b>Vertical mapping.</b> Unlike {@code ad.gearScope}/{@code ad.buriedOre}
+     * (legacy {@code floorY=220}, a hardcoded ABSOLUTE) the legacy leash arena's
+     * {@code floorY} is {@code helper.absolutePos(BlockPos.ZERO).getY()} — a
+     * HELPER-relative floor, not a fixed constant. It therefore maps directly to
+     * {@code origin.getY()} with NO offset. Every vertical quantity in the body is
+     * already {@code floorY}-relative ({@code floorY}, {@code floorY+1},
+     * {@code floorY+dy}), so the geometry is byte-identical; only x/z (and the floor's
+     * absolute y) relocate to the grid cell, which the leash math is invariant to.
+     */
+    private static void entityLeash(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        // ctx.origin() replaces legacy helper.absolutePos(BlockPos.ZERO) — chunk-aligned,
+        // entity-ticking, so the equivalent this-chunk anchor (see javadoc).
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY();
+        final int goalDz = 24;
+        final double leashRadius = 8.0;
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -1; dz <= goalDz + 2; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+        // Side rails: keep the walker ON the lane so the arena tests the leash, not
+        // edge-clipping churn.
+        for (int dz = -1; dz <= goalDz + 2; dz++) {
+            level.setBlockAndUpdate(new BlockPos(cx - 2, floorY + 1, cz + dz), Blocks.STONE.defaultBlockState());
+            level.setBlockAndUpdate(new BlockPos(cx + 2, floorY + 1, cz + dz), Blocks.STONE.defaultBlockState());
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dy = 1; dy <= 3; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+        }
+        BlockPos goal = new BlockPos(cx, floorY + 1, cz + goalDz);
+
+        final ArmorStand stand = new ArmorStand(level, cx + 0.5, floorY + 1, cz + 0.5);   // AT the bot's start
+        stand.setNoGravity(true);
+        level.addFreshEntity(stand);
+        // NO manual level.tick() here — the DIRECT PORT of the legacy for(i<3) level.tick()
+        // livelocks ChunkMap.processUnloads on the persistent dogfood world (see javadoc).
+        // The fresh stand is indexed by the NATURAL dogfood server tick; await-1 (below)
+        // waits until EntityFind — the leash's own scan — can actually see it.
+
+        // pin FIRST → closes LAST (after the driver unregister + avatar + stand discard);
+        // then the SAME keys the legacy body flipped.
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+
+        EntityLeash leash = new EntityLeash("minecraft:armor_stand", leashRadius, 0, true);
+        // Near(1), not Block: 带路 semantics are "reach the destination AREA" — exact-cell
+        // parking is a walker trait, not this arena's gate (run-e evidence: reached=true
+        // ±1.5 but the exact cell never latched → finished=false forever).
+        Intent intent = new Intent(new Goal.Near(goal, 1), List.of(), CapabilityProfile.ALL, List.of(), leash);
+        // createIsolated (NOT create) — sanctioned #48 deviation, own per-body FakePlayer.
+        final ServerAgentDriver driver = ServerAgentDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+        final FakePlayer fp = driver.fakePlayer();
+        // Targeted teardown (NOT ServerAgentManager.clear() — see class javadoc). This scene
+        // registers, so unregister is the REAL teardown. Also carries the legacy finally's
+        // stand.discard() (the legacy finally has NO rig block-clear, so there is none to
+        // translate); grid isolation makes any leftover carved block harmless regardless.
+        ctx.cleanup(() -> {
+            ServerAgentManager.unregister(driver);
+            fp.discard();
+            stand.discard();
+        });
+        driver.runProcess(new IntentProcess(intent));
+        // NOTE: NOT registered with ServerAgentManager yet — registration is bracketed
+        // around each phase's drive loop so the platform's own ServerTickEvent.Post
+        // tickAll() cannot drive the bot during the await waits (see javadoc).
+
+        // The phase-2 anchor: 4 blocks PAST the goal (NoGravity, floats past the lane end).
+        final BlockPos p2anchor = new BlockPos(goal.getX(), floorY + 1, goal.getZ() + 4);
+
+        // AWAIT-1 — fallback for the legacy first for(i<3) level.tick(): wait until the fresh
+        // stand is queryable by the leash's own EntityFind scan, then drive phase 1. On the
+        // dogfood world the fresh entity takes ~18 natural server ticks to be promoted into
+        // the entity-section lookup (measured), so the budget is generous (within 60, well
+        // under the scene's 200-tick budget); the wait tick-count varies but the outcome does
+        // not — the synchronous phase loops read a deterministic world once the stand appears.
+        ctx.await(() -> EntityFind.nearest(level, fp, "minecraft:armor_stand") != null)
+                .within(60)
+                .then(() -> {
+                    // Phase 1: stand stationary at start — the hard leash must hold the bot back.
+                    // Register ONLY for this synchronous loop, then unregister before the next await.
+                    ServerAgentManager.register(driver);
+                    for (int t = 0; t < 200 && ServerAgentManager.activeCount() > 0; t++)
+                        ServerAgentManager.tickAll();
+
+                    double sdx = fp.getX() - (cx + 0.5), sdz = fp.getZ() - (cz + 0.5);
+                    double standDist1 = Math.sqrt(sdx * sdx + sdz * sdz);
+                    boolean arrivedTrueGoal1 = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
+                            && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
+                    AgentDriverCommon.LOG.info(
+                            "[ad.entityLeash] phase1 pos=({},{},{}) finished={} active={} standDist={} arrivedTrueGoal={}",
+                            fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAgentManager.activeCount(),
+                            standDist1, arrivedTrueGoal1);
+                    if (driver.finished() || arrivedTrueGoal1)
+                        ctx.fail("entityLeash: phase1: process reached the true goal before the anchor moved — "
+                                + "the hard leash did not hold the bot back: pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ()
+                                + ") finished=" + driver.finished());
+                    if (standDist1 > leashRadius + 3.0)
+                        ctx.fail("entityLeash: phase1: bot strayed beyond the leash radius+slack: standDist="
+                                + standDist1 + " radius=" + leashRadius);
+
+                    // Phase 2 setup: teleport the anchor 4 PAST the goal — the sphere still covers
+                    // the goal, but the stand sits beyond the walker's overshoot band (run-e: a +2
+                    // stand was rammed by the carrot-drive overshoot, and its collision shoved the
+                    // bot onto the rails). NoGravity, so floating past the lane end is fine.
+                    stand.teleportTo(p2anchor.getX() + 0.5, floorY + 1, p2anchor.getZ() + 0.5);
+                    // Unregister so the platform tickAll() cannot drive the bot during the re-index
+                    // wait; phase 2 re-registers.
+                    ServerAgentManager.unregister(driver);
+
+                    // AWAIT-2 — fallback for the legacy second for(i<3) level.tick(): wait until a
+                    // section query finds the teleported stand at its NEW anchor (the re-index the
+                    // legacy forced), then drive phase 2.
+                    ctx.await(() -> !level.getEntitiesOfClass(ArmorStand.class,
+                                    new AABB(p2anchor).inflate(2.0)).isEmpty())
+                            .within(60)
+                            .then(() -> {
+                                ServerAgentManager.register(driver);
+                                for (int t = 0; t < 600 && ServerAgentManager.activeCount() > 0; t++) {
+                                    ServerAgentManager.tickAll();
+                                    if (t % 150 == 0) {
+                                        AgentDriverCommon.LOG.info("[ad.entityLeash] p2 t={} pos=({},{},{}) standPos={}",
+                                                t, fp.getX(), fp.getY(), fp.getZ(), stand.blockPosition().toShortString());
+                                    }
+                                }
+
+                                boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
+                                        && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
+                                AgentDriverCommon.LOG.info(
+                                        "[ad.entityLeash] phase2 pos=({},{},{}) finished={} active={} reached={}",
+                                        fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAgentManager.activeCount(), reached);
+                                if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                                    ctx.fail("entityLeash: phase2: leash re-solve process did not finish+unregister after "
+                                            + "the anchor moved: finished=" + driver.finished() + " active=" + ServerAgentManager.activeCount());
+                                if (!reached)
+                                    ctx.fail("entityLeash: phase2: bot did not ARRIVE at the goal after the anchor moved: pos=("
+                                            + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ")");
+                            });
+                });
     }
 }

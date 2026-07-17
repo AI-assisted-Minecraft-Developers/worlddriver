@@ -908,6 +908,17 @@ public final class AgentGameTestServer {
     }
 
     /**
+     * Migrated to testkit scene "ad.entityLeash" (dogfood wave 2b — the third and last
+     * driver-class scene, following the driver porting pattern established by
+     * {@code ad.gearScope}/{@code ad.buriedOre}). NOTE the two manual entity-indexing
+     * {@code for (i&lt;3) level.tick(() -> true)} blocks did NOT survive as a direct port:
+     * on the testkit's PERSISTENT dogfood world a re-entrant {@code level.tick()} livelocks
+     * {@code ChunkMap.processUnloads} (ServerHangWatchdog crash) — so the scene took the
+     * brief's sanctioned fallback (the manual ticks became {@code ctx.await(entity-queryable)}
+     * real-tick waits, the two phases split into await steps; see the scene's javadoc).
+     * The GameTest world here is throwaway so this twin's manual ticks are fine as-is.
+     * Kept for dual-gate A/B — delete after 3 consecutive dual-gate greens.
+     * <p>
      * A3a Task 3 proof: the SERVER runs a real {@link IntentProcess} with a DYNAMIC
      * {@link EntityLeash} anchor — the {@code entity:'name-or-type'} form of
      * {@code mc.bot.goto leashHard} — proving the whole re-solve chain (find → dirty
