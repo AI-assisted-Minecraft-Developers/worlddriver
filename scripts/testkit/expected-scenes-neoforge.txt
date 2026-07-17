@@ -7,3 +7,4 @@ ad.ascendDeadZoneWatchdog
 ad.diagonalAscentSpeed
 ad.selfShaftDigUp
 ad.descentYaw
+ad.gearScope

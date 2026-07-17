@@ -2241,6 +2241,10 @@ public final class AgentGameTestServer {
     }
 
     /**
+     * Migrated to testkit scene "ad.gearScope" (dogfood wave 2b — the driver-class porting
+     * pattern established here for the remaining {@code ServerAgentDriver} scenes); kept for
+     * dual-gate A/B — delete after 3 consecutive dual-gate greens.
+     * <p>
      * Gap #46 SCOPE PROBE — how much of the server avatar's gear is actually inert?
      *
      * <p>Established by the #45 arena: {@code detectEquipmentUpdates()} is private and only
@@ -2503,8 +2507,13 @@ public final class AgentGameTestServer {
         helper.succeed();
     }
 
-    /** One full-strength swing at a fresh NoAI zombie; returns the health it lost. */
-    private static float probeSwing(ServerLevel level, ServerAgentDriver driver, FakePlayer fp,
+    /** One full-strength swing at a fresh NoAI zombie; returns the health it lost.
+     *  <p>Promoted {@code private}→{@code public static} (body unchanged) so the migrated
+     *  {@code ad.gearScope} testkit scene in the {@code .testkit} subpackage can share this
+     *  exact probe across the package boundary instead of re-implementing it (same
+     *  cross-package promotion rationale as {@link AgentGameTestSupport#grantWaterEffects};
+     *  single source — the scene must drive the identical measurement). */
+    public static float probeSwing(ServerLevel level, ServerAgentDriver driver, FakePlayer fp,
                                     ItemStack weapon, int cx, int floorY, int cz) {
         fp.getInventory().clearContent();
         if (!weapon.isEmpty()) { fp.getInventory().setItem(0, weapon); }
@@ -2528,8 +2537,10 @@ public final class AgentGameTestServer {
         return lost;
     }
 
-    /** A fixed 10-point generic hit, with and without a full set of diamond armor; returns health lost. */
-    private static float probeHurt(FakePlayer fp, boolean armored) {
+    /** A fixed 10-point generic hit, with and without a full set of diamond armor; returns health lost.
+     *  <p>Promoted {@code private}→{@code public static} (body unchanged) for the migrated
+     *  {@code ad.gearScope} scene — same cross-package promotion rationale as {@link #probeSwing}. */
+    public static float probeHurt(FakePlayer fp, boolean armored) {
         fp.getInventory().clearContent();
         if (armored) {
             fp.getInventory().armor.set(3, new ItemStack(Items.DIAMOND_HELMET));

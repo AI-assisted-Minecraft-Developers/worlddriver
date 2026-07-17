@@ -12,13 +12,17 @@ import net.magicterra.agent.bot.movement.MovementStatus;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.world.LevelWorldView;
+import net.magicterra.agent.neoforge.AgentGameTestServer;
 import net.magicterra.agent.neoforge.AgentGameTestSupport;
+import net.magicterra.agent.neoforge.sim.ServerAgentDriver;
+import net.magicterra.agent.neoforge.sim.ServerAgentManager;
 import net.magicterra.agent.neoforge.sim.ServerPlayerAvatar;
 import net.magicterra.testkit.scene.Scene;
 import net.magicterra.testkit.scene.SceneContext;
 import net.magicterra.testkit.scene.SceneProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -41,9 +45,9 @@ import net.neoforged.neoforge.common.util.FakePlayer;
  *       so the arena math is byte-identical, just relocated to the harness grid
  *       cell (each origin sits on a chunk boundary far from spawn; every arena
  *       footprint fits inside its forced chunk neighborhood — noop dx −10..+24,
- *       diagonal dx/dz −8..+16, watchdog ±2, self-shaft dig-up ±3, all within the
- *       3×3 window's −16..+31; descentYaw dx −6..+26 / dz −3..+26 rides the wider
- *       radius-2 window −32..+47);</li>
+ *       diagonal dx/dz −8..+16, watchdog ±2, self-shaft dig-up ±3, gearScope ±6,
+ *       all within the 3×3 window's −16..+31; descentYaw dx −6..+26 / dz −3..+26
+ *       rides the wider radius-2 window −32..+47);</li>
  *   <li>per-key config save/restore → {@link BotConfig#pinnedBaseline()} +
  *       {@code ctx.cleanup(pin::close)} registered FIRST (LIFO → closes LAST, after
  *       the avatar discard) then the SAME explicit key set the legacy body flipped;</li>
@@ -56,7 +60,38 @@ import net.neoforged.neoforge.common.util.FakePlayer;
  *   <li>the {@code gtOnlySkips} probe first line → deleted (the testkit gate reconciles
  *       itself).</li>
  * </ul>
- * The legacy {@code @GameTest} twins stay registered until three consecutive
+ *
+ * <p><b>Driver-class porting pattern</b> (dogfood wave 2b, established by
+ * {@code ad.gearScope}; the remaining {@code ServerAgentDriver} scenes follow it):
+ * a legacy body that drives a {@link ServerAgentDriver} (not a raw
+ * {@link ServerPlayerAvatar}) ports with two extra substitutions on top of the map
+ * above:
+ * <ul>
+ *   <li>{@code ServerAgentDriver.create(level, x, y, z)} →
+ *       {@link ServerAgentDriver#createIsolated} — the sanctioned #48 deviation
+ *       (same {@code create}→{@code createUnique} precedent as the raw-avatar scenes:
+ *       an isolated per-body FakePlayer, so a shared singleton can no longer make the
+ *       suite a lottery). {@code create} would reintroduce the shared body; NEVER use
+ *       it in a scene.</li>
+ *   <li>legacy {@code ServerAgentManager.clear()} teardown →
+ *       {@code ctx.cleanup(() -> { ServerAgentManager.unregister(driver); fp.discard(); })}
+ *       — <b>targeted</b>, not {@code clear()}. The FakePlayer for discard comes from
+ *       {@code driver.fakePlayer()} (the {@link ServerAgentDriver#avatar} accessor's
+ *       shortcut). {@code clear()} would nuke EVERY registered driver, i.e. sibling
+ *       agents from other parallel scenes; the dogfood harness runs one scene at a
+ *       time so {@code clear()} would happen to work, but targeted unregister is the
+ *       pattern that survives future parallelism. {@code unregister} of a never-
+ *       registered driver (these probe scenes never {@code register}) is a harmless
+ *       no-op, so the line is uniform across driver scenes regardless.</li>
+ * </ul>
+ *
+ * <p><b>Failure-message prefix convention</b> (P1.5a review carry-over): a ported
+ * {@code ctx.fail(...)} message is prefixed with the scene's short name (e.g.
+ * {@code "gearScope: ..."}, {@code "descentYaw: ..."}) — a DELIBERATE divergence from
+ * the legacy assertion strings, for log attribution when many scenes share one run.
+ * The text after the prefix stays faithful to the legacy message.
+ *
+ * <p>The legacy {@code @GameTest} twins stay registered until three consecutive
  * dual-gate greens (spec §85 dual-gate A/B).
  */
 public final class AgentDriverScenes implements SceneProvider {
@@ -99,7 +134,8 @@ public final class AgentDriverScenes implements SceneProvider {
                 Scene.of("ad.descentYaw", 200, AgentDriverScenes::descentYaw)
                         .withOriginSlot(DESCENT_YAW_SLOT).withChunkRadius(2),
                 Scene.of("ad.selfShaftDigUp", 200, AgentDriverScenes::selfShaftDigUp)
-                        .withOriginSlot(SELF_SHAFT_DIG_UP_SLOT));
+                        .withOriginSlot(SELF_SHAFT_DIG_UP_SLOT),
+                Scene.of("ad.gearScope", 200, AgentDriverScenes::gearScope));
     }
 
     /** Ported from {@code AgentGameTestTerrain#ascendMovementNoopArena} (:969-1020). */
@@ -609,5 +645,121 @@ public final class AgentDriverScenes implements SceneProvider {
                     + " (known-bad: backslide>15; if this is the fix landing,"
                     + " flip ad.selfShaftDigUp to the strict assertion and close #86)");
         }
+    }
+
+    /**
+     * Ported from {@code AgentGameTestServer#serverAvatarGearScopeProbeArena} (:2259-2339)
+     * — the gap #46 gear-scope probe: measures how much of a server avatar's held/worn
+     * gear is actually inert. Drives a {@link ServerAgentDriver} (this scene establishes
+     * the driver-class porting pattern — see the class javadoc): a bare fist vs an iron
+     * sword against a fresh NoAI zombie ({@link AgentGameTestServer#probeSwing}, promoted
+     * to public for this scene), then a fixed 10-point hit bare vs full diamond armor
+     * ({@link AgentGameTestServer#probeHurt}). Asserts sword damage ≥ 3× fist,
+     * ATTACK_SPEED 1.6, ATTACK_DAMAGE 6.0 — outcomes, not mirrored attributes (a test
+     * that reads back the attribute a fix writes proves only that the fix calls its own
+     * API). The probe values (bare/sword damage, tookBare/tookArmored) are logged verbatim.
+     *
+     * <p><b>Auto slot, default radius-1 footprint.</b> Unlike the byte-determinism-
+     * sensitive walker scenes this gauge is position-invariant (attack/hurt outcomes are
+     * computed from attributes, not double-precision trajectory), so it takes an auto
+     * slot. Footprint audit (origin-relative dx/dz; default 3×3 window = dx/dz [−16,+31]):
+     * the {@code clearBox(cx, floorY+1, cz, 6, 6)} air box spans dx/dz [−6,+6] (height 6),
+     * the stone floor spans dx [−2,+4] / dz [−2,+2], and the target zombie stands at
+     * dx +2 — full envelope dx/dz [−6,+6], well inside [−16,+31], so no
+     * {@code withChunkRadius} widening is needed.
+     *
+     * <p><b>Vertical mapping</b> — legacy {@code floorY=220} is ABSOLUTE; scene origin
+     * y = {@code GRID_Y} = 200, so {@code floorY} maps to {@code origin.y + 20}
+     * (200 + 20 = 220 = legacy absolute — vertical geometry literally unchanged, only
+     * x/z relocate). The mapping is not even load-bearing here (the probe is
+     * y-invariant), but it keeps the arena byte-identical to legacy for the A/B.
+     */
+    private static void gearScope(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
+        final int floorY = ctx.origin().getY() + 20;   // legacy floorY 220 = origin.y(200)+20
+
+        // pin FIRST → closes LAST (after the driver unregister + avatar discard); then the
+        // SAME single key the legacy body flipped (walkerDebug).
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        BotConfig.walkerDebug = false;
+
+        // clearBox(cx, floorY+1, cz, 6, 6) inlined (the legacy helper is private to
+        // AgentGameTestServer): 13×13 air box, height 6.
+        for (int dx = -6; dx <= 6; dx++)
+            for (int dy = 0; dy < 6; dy++)
+                for (int dz = -6; dz <= 6; dz++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 1 + dy, cz + dz), Blocks.AIR.defaultBlockState());
+        for (int dx = -2; dx <= 4; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+
+        // createIsolated (NOT create) — sanctioned #48 deviation, own per-body FakePlayer.
+        ServerAgentDriver driver = ServerAgentDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+        FakePlayer fp = driver.fakePlayer();
+        // Targeted teardown (NOT ServerAgentManager.clear() — see class javadoc).
+        ctx.cleanup(() -> { ServerAgentManager.unregister(driver); fp.discard(); });
+
+        // --- (1) DAMAGE DEALT: bare hand vs iron sword, both at FULL attack strength. ---
+        float bare = AgentGameTestServer.probeSwing(level, driver, fp, ItemStack.EMPTY, cx, floorY, cz);
+        float sword = AgentGameTestServer.probeSwing(level, driver, fp, new ItemStack(Items.IRON_SWORD), cx, floorY, cz);
+
+        // --- (2) DAMAGE ABSORBED: bare vs full diamond armor, same 10-point generic hit. ---
+        float tookBare = AgentGameTestServer.probeHurt(fp, false);
+        float tookArmored = AgentGameTestServer.probeHurt(fp, true);
+
+        // --- (3) The attribute values behind those outcomes. ---
+        fp.getInventory().clearContent();
+        fp.getInventory().setItem(0, new ItemStack(Items.IRON_SWORD));
+        fp.getInventory().selected = 0;
+        driver.avatar().step();   // the gear must land through the NORMAL tick, not a special API
+        double atk = fp.getAttributeValue(Attributes.ATTACK_DAMAGE);
+        double spd = fp.getAttributeValue(Attributes.ATTACK_SPEED);
+        double arm = fp.getAttributeValue(Attributes.ARMOR);
+
+        AgentDriverCommon.LOG.warn("[ad.gearScope] dealt: bareHand={} ironSword={} (iron sword should hit HARDER)",
+                bare, sword);
+        AgentDriverCommon.LOG.warn("[ad.gearScope] taken(10pt hit): noArmor={} fullDiamond={} (armor should ABSORB)",
+                tookBare, tookArmored);
+        AgentDriverCommon.LOG.warn("[ad.gearScope] attrs while HOLDING iron sword: ATTACK_DAMAGE={} ATTACK_SPEED={} ARMOR={}",
+                atk, spd, arm);
+
+        // Is the avatar hurtable AT ALL? If a FakePlayer is invulnerable by construction, then
+        // "armor does nothing" is moot for it and the blast radius is offense-only — a very
+        // different fix than a survivability bug. Measure it rather than assume either way.
+        fp.getInventory().clearContent();
+        fp.getInventory().armor.set(3, new ItemStack(Items.DIAMOND_HELMET));
+        fp.getInventory().armor.set(2, new ItemStack(Items.DIAMOND_CHESTPLATE));
+        fp.getInventory().armor.set(1, new ItemStack(Items.DIAMOND_LEGGINGS));
+        fp.getInventory().armor.set(0, new ItemStack(Items.DIAMOND_BOOTS));
+        driver.avatar().step();
+        double armWorn = fp.getAttributeValue(Attributes.ARMOR);
+        AgentDriverCommon.LOG.warn("[ad.gearScope] WEARING full diamond: ARMOR attr={} getArmorValue={} "
+                        + "(vanilla full diamond = 20) | invulnerable={} isInvulnerableTo(generic)={} creative={}",
+                armWorn, fp.getArmorValue(), fp.isInvulnerable(),
+                fp.isInvulnerableTo(fp.damageSources().generic()), fp.isCreative());
+
+        if (bare <= 0f)
+            ctx.fail("gearScope: rig broken: a bare-handed swing dealt no damage at all");
+
+        // THE assertion (gap #46): an OUTCOME, not a mirrored attribute. Reading back the
+        // attribute the fix writes would only prove the fix calls its own API; a zombie losing
+        // more health to a sword than to a fist is the thing an agent actually pays for.
+        // Vanilla: fist = 1 damage, iron sword = 7 — so a 3x floor is far below the real gap
+        // (measured 0.94 vs 0.94 before the fix: the sword was worth exactly nothing).
+        if (sword < bare * 3.0f)
+            ctx.fail("gearScope: an iron sword deals no more than a bare fist (bare=" + bare
+                    + " sword=" + sword + "): the avatar's held item never reaches its attributes, so"
+                    + " server-mode melee swings a weapon it does not benefit from");
+        // The other half of the same staleness: the recharge the swing rhythm is built on.
+        if (Math.round(spd * 10) != 16)   // iron sword = 1.6 attacks/s; bare hand = 4.0
+            ctx.fail("gearScope: ATTACK_SPEED with an iron sword should be 1.6, got " + spd
+                    + " — CombatProcess would pace its swings by the wrong weapon");
+        // 1.21 iron sword = 6 total attack damage (1.0 player base + a +5 modifier). Asserting the
+        // OUTCOME first caught my own wrong constant here: the swing already proved the fix works
+        // (0.94 -> 5.90) while this line still expected the diamond sword's 7.
+        if (Math.abs(atk - 6.0) > 0.001)
+            ctx.fail("gearScope: ATTACK_DAMAGE with an iron sword should be 6.0, got " + atk);
     }
 }
