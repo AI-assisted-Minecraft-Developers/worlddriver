@@ -84,10 +84,17 @@ public final class AgentDriverNeoForge {
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
         AgentDriverCommon.onServerStarted(event.getServer());
+        // Testkit forwarding is UNCONDITIONAL (P3a controller adjudication): TestkitCommon
+        // implements the autorun-vs-armed split internally — with -Dtestkit.autorun unset it
+        // only logs "armed, awaiting mc.test.run" and registers the mc.test.* verb hooks, which
+        // the T2 on-demand topology (mc.test.run against a non-autorun dedicated server) needs.
+        // applyGameTestBaseline STAYS gated on autorun: it pins the legacy default-OFF flag
+        // baseline the arenas were authored against and must NOT mutate a production server's
+        // live bot defaults — it only matters where the suite auto-runs its scenes at boot.
         if (TESTKIT_AUTORUN) {
             BotConfig.applyGameTestBaseline();
-            TestkitCommon.onServerStarted(event.getServer(), "neoforge");
         }
+        TestkitCommon.onServerStarted(event.getServer(), "neoforge");
     }
 
     @SubscribeEvent
@@ -103,7 +110,9 @@ public final class AgentDriverNeoForge {
     public void onServerTick(ServerTickEvent.Post event) {
         AgentEvents.fireTick();
         net.magicterra.agent.neoforge.sim.ServerAgentManager.tickAll();   // Phase 2: drive server-side FakePlayer agents
-        if (TESTKIT_AUTORUN) TestkitCommon.onServerTick(event.getServer());
+        // Unconditional (P3a): a no-op until the harness is built (autorun at boot OR mc.test.run
+        // on-demand), so the armed-awaiting T2 server advances its suite once triggered.
+        TestkitCommon.onServerTick(event.getServer());
     }
 
     // LOWEST priority: run after all other handlers so cancellations have settled

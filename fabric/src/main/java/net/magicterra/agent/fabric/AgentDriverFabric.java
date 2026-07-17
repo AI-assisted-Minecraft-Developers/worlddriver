@@ -46,10 +46,17 @@ public final class AgentDriverFabric implements ModInitializer {
         ServerLifecycleEvents.SERVER_STARTING.register(server -> AgentDriverCommon.onServerStarting());
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             AgentDriverCommon.onServerStarted(server);
+            // Testkit forwarding is UNCONDITIONAL (P3a controller adjudication): TestkitCommon
+            // implements the autorun-vs-armed split internally — with -Dtestkit.autorun unset it
+            // only logs "armed, awaiting mc.test.run" and registers the mc.test.* verb hooks, which
+            // the T2 on-demand topology (mc.test.run against a non-autorun dedicated server) needs.
+            // applyGameTestBaseline STAYS gated on autorun: it pins the legacy default-OFF flag
+            // baseline the arenas were authored against and must NOT mutate a production server's
+            // live bot defaults — it only matters where the suite auto-runs its scenes at boot.
             if (TESTKIT_AUTORUN) {
                 BotConfig.applyGameTestBaseline();
-                TestkitCommon.onServerStarted(server, "fabric");
             }
+            TestkitCommon.onServerStarted(server, "fabric");
         });
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> AgentDriverCommon.onServerStopping());
         // Order mirrors AgentDriverNeoForge.onServerTick exactly: fireTick, then
@@ -58,7 +65,9 @@ public final class AgentDriverFabric implements ModInitializer {
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             AgentEvents.fireTick();
             ServerAgentManager.tickAll();
-            if (TESTKIT_AUTORUN) TestkitCommon.onServerTick(server);
+            // Unconditional (P3a): a no-op until the harness is built (autorun at boot OR
+            // mc.test.run on-demand), so the armed-awaiting T2 server advances its suite once triggered.
+            TestkitCommon.onServerTick(server);
         });
         CommandRegistrationCallback.EVENT.register((dispatcher, ctx, env) ->
                 AgentDriverCommon.registerCommands(dispatcher));
