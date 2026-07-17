@@ -1,0 +1,9 @@
+# Canonical expected-scene manifest for the neoforge dogfood suite (t0 --expect-file).
+# One name per line. Every migrated ad.* scene MUST be listed here in its migration commit —
+# a name missing from BOTH this file and registered[] is exactly the silent-composition
+# hole this gate exists to close (P1c final review).
+ad.ascendMovementNoop
+ad.ascendDeadZoneWatchdog
+ad.diagonalAscentSpeed
+ad.selfShaftDigUp
+ad.descentYaw
