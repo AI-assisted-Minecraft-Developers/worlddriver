@@ -7,7 +7,7 @@ run-testkit/
 run-dogfood/
 run-contract/
 run-t1/
-scripts/testkit/.t1-world-template/
+scripts/testkit/.t1-world-template-*/
 .idea/
 *.log
 
