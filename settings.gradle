@@ -15,6 +15,8 @@ include 'neoforge'
 include 'testkit-common'
 include 'testkit-fabric'
 include 'testkit-neoforge'
+include 'testkit-junit'
 project(':testkit-common').projectDir = file('mc-testkit/common')
 project(':testkit-fabric').projectDir = file('mc-testkit/fabric')
 project(':testkit-neoforge').projectDir = file('mc-testkit/neoforge')
+project(':testkit-junit').projectDir = file('mc-testkit/junit')

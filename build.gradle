@@ -14,6 +14,12 @@ allprojects {
 }
 
 subprojects {
+    // testkit-junit is a pure-JVM JUnit 5 attach module (out-of-process RPC consumer):
+    // no Minecraft, no loader, no loom. It provides its own java-library setup in
+    // mc-testkit/junit/build.gradle. Scope it out of the loom/architectury/MC pipeline
+    // that every other subproject shares. (group/version still come from allprojects.)
+    if (project.name == 'testkit-junit') return
+
     apply plugin: 'dev.architectury.loom'
     apply plugin: 'architectury-plugin'
     apply plugin: 'maven-publish'
