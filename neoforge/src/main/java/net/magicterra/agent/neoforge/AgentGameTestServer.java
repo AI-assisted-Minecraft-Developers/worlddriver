@@ -3236,6 +3236,10 @@ public final class AgentGameTestServer {
     }
 
     /**
+     * Migrated to testkit scene "ad.buriedOre" (dogfood wave 2b — the second driver-class
+     * scene, following the MineProcess/manager-loop pattern); kept for dual-gate A/B —
+     * delete after 3 consecutive dual-gate greens.
+     * <p>
      * gap#60 — buried-ore reachability: an ore fully encased in harvestable stone has
      * NO standable adjacent cell, so the geometric stand test alone rejects it and
      * MineProcess aborts "no reachable target" — even though the bot holds a pickaxe

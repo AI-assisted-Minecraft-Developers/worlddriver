@@ -11,6 +11,7 @@ import net.magicterra.agent.bot.movement.MovementContext;
 import net.magicterra.agent.bot.movement.MovementStatus;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
+import net.magicterra.agent.bot.process.MineProcess;
 import net.magicterra.agent.bot.world.LevelWorldView;
 import net.magicterra.agent.neoforge.AgentGameTestServer;
 import net.magicterra.agent.neoforge.AgentGameTestSupport;
@@ -135,7 +136,8 @@ public final class AgentDriverScenes implements SceneProvider {
                         .withOriginSlot(DESCENT_YAW_SLOT).withChunkRadius(2),
                 Scene.of("ad.selfShaftDigUp", 200, AgentDriverScenes::selfShaftDigUp)
                         .withOriginSlot(SELF_SHAFT_DIG_UP_SLOT),
-                Scene.of("ad.gearScope", 200, AgentDriverScenes::gearScope));
+                Scene.of("ad.gearScope", 200, AgentDriverScenes::gearScope),
+                Scene.of("ad.buriedOre", 200, AgentDriverScenes::buriedOre));
     }
 
     /** Ported from {@code AgentGameTestTerrain#ascendMovementNoopArena} (:969-1020). */
@@ -761,5 +763,113 @@ public final class AgentDriverScenes implements SceneProvider {
         // (0.94 -> 5.90) while this line still expected the diamond sword's 7.
         if (Math.abs(atk - 6.0) > 0.001)
             ctx.fail("gearScope: ATTACK_DAMAGE with an iron sword should be 6.0, got " + atk);
+    }
+
+    /**
+     * Ported from {@code AgentGameTestServer#serverMineBuriedOreArena} (:3238-3316)
+     * — the gap #60 buried-ore reachability gate: an IRON_ORE fully encased in
+     * harvestable stone has NO standable adjacent cell, so the geometric stand test
+     * alone rejects it and {@link MineProcess} aborts "no reachable target" — even
+     * though the bot holds a pickaxe and the Walker's break-route A* digs tunnels for
+     * every other verb. Reachability through diggable cover is A*'s job, not a
+     * pre-filter's. This is the SECOND driver-class scene (dogfood wave 2b); it
+     * follows the driver porting pattern established by {@code ad.gearScope} (see the
+     * class javadoc: {@link ServerAgentDriver#createIsolated} not {@code create},
+     * targeted {@code unregister}+{@code discard} cleanup not {@code clear()},
+     * {@code "buriedOre: "}-prefixed failures, constant-faithful assertions). Rig: a
+     * DIRT clearing strip, a 5×3×3 STONE cube 3 blocks east of the bot, one IRON_ORE
+     * at the cube's centre (stone on all 6 faces), a stone pickaxe. Asserts the ore
+     * gets mined AND the {@link MineProcess} finishes+unregisters cleanly — the two
+     * legacy assertions verbatim (minus the prefix).
+     *
+     * <p><b>DIFFERENCE from {@code ad.gearScope} — this scene REALLY registers and
+     * drives the manager loop.</b> gearScope only pokes probe helpers on an
+     * unregistered driver, so its cleanup {@code ServerAgentManager.unregister} is a
+     * harmless no-op. This scene genuinely
+     * {@code ServerAgentManager.register(driver)}s and pumps
+     * {@code ServerAgentManager.tickAll()} in a bounded in-body loop until the process
+     * unregisters itself — so here the cleanup {@code unregister} is the REAL
+     * teardown (and a backstop for the early-abort path where the process never
+     * self-unregisters). The synchronous loop runs on the scene's first RUN tick —
+     * sanctioned, identical to the legacy GameTest shell's synchronous body — so the
+     * old/new-shell A/B compares like with like.
+     *
+     * <p><b>tickAll assumption.</b> {@code ServerAgentManager.tickAll()} ticks EVERY
+     * registered driver, not just this scene's. The port relies on the dogfood
+     * harness running ONE scene at a time (no other agents registered concurrently),
+     * so {@code tickAll} effectively drives only {@code driver} here — the same
+     * assumption the legacy body made (it {@code clear()}ed the manager on entry).
+     * Were the harness ever to run driver scenes in parallel, this loop would also
+     * pump sibling drivers and the {@code activeCount() > 0} exit condition would need
+     * revisiting; the targeted {@code unregister} teardown (not {@code clear()}) is
+     * already the pattern that survives that transition.
+     *
+     * <p><b>Footprint audit</b> (origin-relative dx/dz; default 3×3 window = dx/dz
+     * [−16,+31]): the DIRT floor spans dx [−1,+9] / dz [−2,+2]; the STONE cube spans
+     * dx [+3,+7] / dz [−1,+1] (dy +1..+3); the IRON_ORE sits at dx +5, dy +2. Full
+     * built envelope dx [−1,+9], dz [−2,+2] — well inside [−16,+31], so no
+     * {@code withChunkRadius} widening is needed (auto slot, default radius). The bot
+     * may carve a short break-route tunnel toward the ore, but grid isolation makes
+     * any leftover blocks harmless — the legacy {@code finally} rig-clear becomes a
+     * {@code ctx.cleanup}, kept for symmetry per the plan, not for correctness.
+     *
+     * <p><b>Vertical mapping</b> — legacy {@code floorY=220} is ABSOLUTE; scene origin
+     * y = {@code GRID_Y} = 200, so {@code floorY} maps to {@code origin.y + 20}
+     * (200 + 20 = 220 = legacy absolute — vertical geometry literally unchanged, only
+     * x/z relocate). The gate is y-invariant, so the mapping is not load-bearing, but
+     * it keeps the arena byte-identical to legacy for the A/B.
+     */
+    private static void buriedOre(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
+        final int floorY = ctx.origin().getY() + 20;   // legacy floorY 220 = origin.y(200)+20
+        // DIRT floor under the whole strip (clearing + under the cube).
+        for (int dx = -1; dx <= 9; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.DIRT.defaultBlockState());
+        // Solid stone cube dx 3..7, dy +1..+3, dz -1..1 — then bury the ore at its
+        // centre so every face neighbour is stone (no stand survives the geometric test).
+        for (int dx = 3; dx <= 7; dx++)
+            for (int dy = 1; dy <= 3; dy++)
+                for (int dz = -1; dz <= 1; dz++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.STONE.defaultBlockState());
+        BlockPos ore = new BlockPos(cx + 5, floorY + 2, cz);
+        level.setBlockAndUpdate(ore, Blocks.IRON_ORE.defaultBlockState());
+
+        // pin FIRST → closes LAST (after the driver unregister + avatar discard); then the
+        // SAME keys the legacy body flipped.
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = false;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+
+        // createIsolated (NOT create) — sanctioned #48 deviation, own per-body FakePlayer.
+        ServerAgentDriver driver = ServerAgentDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+        FakePlayer fp = driver.fakePlayer();
+        // Targeted teardown (NOT ServerAgentManager.clear() — see class javadoc). Unlike
+        // gearScope's no-op, this unregister is the REAL teardown: this scene registers.
+        ctx.cleanup(() -> { ServerAgentManager.unregister(driver); fp.discard(); });
+
+        // Stone pickaxe harvests iron_ore AND digs the stone cover.
+        fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));
+        fp.getInventory().selected = 0;
+        driver.runProcess(new MineProcess(List.of("minecraft:iron_ore"), 1, 16));
+        ServerAgentManager.register(driver);
+
+        for (int t = 0; t < 800 && ServerAgentManager.activeCount() > 0; t++)
+            ServerAgentManager.tickAll();
+
+        boolean oreMined = !level.getBlockState(ore).is(Blocks.IRON_ORE);
+        String err = driver.botState().mine.lastError;
+        AgentDriverCommon.LOG.info("[ad.buriedOre] pos=({},{},{}) finished={} active={} oreMined={} lastError={}",
+                fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAgentManager.activeCount(), oreMined, err);
+        if (!oreMined)
+            ctx.fail("buriedOre: buried ore not mined (gap#60: stand pre-filter rejected a dig-reachable target): lastError=" + err);
+        if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+            ctx.fail("buriedOre: buried-ore MineProcess did not finish+unregister: finished="
+                    + driver.finished() + " active=" + ServerAgentManager.activeCount());
     }
 }

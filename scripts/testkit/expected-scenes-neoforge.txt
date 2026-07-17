@@ -8,3 +8,4 @@ ad.diagonalAscentSpeed
 ad.selfShaftDigUp
 ad.descentYaw
 ad.gearScope
+ad.buriedOre
