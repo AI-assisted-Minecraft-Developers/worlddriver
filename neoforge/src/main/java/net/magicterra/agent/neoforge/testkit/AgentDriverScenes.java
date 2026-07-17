@@ -851,7 +851,18 @@ public final class AgentDriverScenes implements SceneProvider {
         FakePlayer fp = driver.fakePlayer();
         // Targeted teardown (NOT ServerAgentManager.clear() — see class javadoc). Unlike
         // gearScope's no-op, this unregister is the REAL teardown: this scene registers.
-        ctx.cleanup(() -> { ServerAgentManager.unregister(driver); fp.discard(); });
+        // Also carries the legacy finally-block rig clear (DIRT strip + STONE cube +
+        // any break-route tunnel the bot carved) — grid isolation makes leftover blocks
+        // harmless, but the clear is retained for symmetry with the legacy body per the
+        // porting plan (see footprint-audit javadoc above).
+        ctx.cleanup(() -> {
+            ServerAgentManager.unregister(driver);
+            fp.discard();
+            for (int dx = -1; dx <= 9; dx++)
+                for (int dy = 0; dy <= 4; dy++)
+                    for (int dz = -2; dz <= 2; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+        });
 
         // Stone pickaxe harvests iron_ore AND digs the stone cover.
         fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));
