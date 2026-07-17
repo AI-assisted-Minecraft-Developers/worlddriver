@@ -84,13 +84,18 @@ import net.neoforged.neoforge.common.util.FakePlayer;
  *   <li>legacy {@code ServerAgentManager.clear()} teardown →
  *       {@code ctx.cleanup(() -> { ServerAgentManager.unregister(driver); fp.discard(); })}
  *       — <b>targeted</b>, not {@code clear()}. The FakePlayer for discard comes from
- *       {@code driver.fakePlayer()} (the {@link ServerAgentDriver#avatar} accessor's
- *       shortcut). {@code clear()} would nuke EVERY registered driver, i.e. sibling
- *       agents from other parallel scenes; the dogfood harness runs one scene at a
- *       time so {@code clear()} would happen to work, but targeted unregister is the
- *       pattern that survives future parallelism. {@code unregister} of a never-
- *       registered driver (these probe scenes never {@code register}) is a harmless
- *       no-op, so the line is uniform across driver scenes regardless.</li>
+ *       {@code driver.fakePlayer()} (its own accessor, delegating to
+ *       {@code avatar.fakePlayer()}). {@code clear()} would nuke EVERY registered
+ *       driver, i.e. sibling agents from other parallel scenes; the dogfood harness
+ *       runs one scene at a time so {@code clear()} would happen to work, but targeted
+ *       unregister is the pattern that survives future parallelism. {@code unregister}
+ *       of a never-registered driver (these probe scenes never {@code register}) is a
+ *       harmless no-op, so the line is uniform across driver scenes regardless.
+ *       Legacy's defensive <b>entry-time</b> {@code clear()} is likewise dropped (not
+ *       just the teardown one): serial harness execution + every scene's teardown
+ *       unregister guarantee a clean registry at scene entry, and the failure
+ *       direction of a hypothetical leak is a loud false-RED (inflated
+ *       {@code activeCount()}), never a silent false-GREEN.</li>
  * </ul>
  *
  * <p><b>Failure-message prefix convention</b> (P1.5a review carry-over): a ported
@@ -945,7 +950,7 @@ public final class AgentDriverScenes implements SceneProvider {
      * kept in the task-5 report (crash-2026-07-17_01.15.58-server.txt). Re-entrancy
      * safety was real but irrelevant — the persistent world's chunk-unload processing is
      * what livelocks. So the brief's SANCTIONED fallback was taken: the two manual-tick
-     * blocks are replaced by {@code ctx.await(<entity queryable>).within(20)} real-tick
+     * blocks are replaced by {@code ctx.await(<entity queryable>).within(60)} real-tick
      * waits and the two phases are split into await steps. The natural dogfood server
      * tick (the level IS ticked every frame by {@code MinecraftServer.tickServer}) does
      * the entity indexing the legacy forced — {@code await-1} waits until
