@@ -783,6 +783,8 @@ public final class AgentGameTestTerrain {
     }
 
     /**
+     * Migrated to testkit scene "ad.selfShaftDigUp" (dogfood wave 2a); kept for dual-gate A/B — delete after 3 consecutive dual-gate greens.
+     * <p>
      * SELF-SHAFT dig-up gate (gap #53, the 2026-07-12 survival DEATH): a bare-hand
      * {@code goto Goal.YLevel(top)} from a SEALED chamber must climb its stair/pillar shaft
      * WITHOUT ever falling back down the hollow columns it digs behind itself. Live, the

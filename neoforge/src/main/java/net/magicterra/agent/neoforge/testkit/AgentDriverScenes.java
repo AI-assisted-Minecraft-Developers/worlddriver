@@ -19,14 +19,18 @@ import net.magicterra.testkit.scene.SceneContext;
 import net.magicterra.testkit.scene.SceneProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.common.util.FakePlayer;
 
 /**
- * Dogfooded agent-driver scenes — first migration wave: the #85 swallowed trio.
- * Ported from {@code AgentGameTestTerrain} with identical in-body synchronous loop
- * semantics (scene bodies run synchronously on their first RUN tick, same as the
- * legacy GameTest shell) so the old/new-shell A/B compares like with like.
+ * Dogfooded agent-driver scenes — first migration wave: the #85 swallowed trio,
+ * plus dogfood wave 2a (the lottery walker family, starting with #53 self-shaft
+ * dig-up). Ported from {@code AgentGameTestTerrain} with identical in-body
+ * synchronous loop semantics (scene bodies run synchronously on their first RUN
+ * tick, same as the legacy GameTest shell) so the old/new-shell A/B compares
+ * like with like.
  *
  * <p>Porting map (per scene, legacy {@code AgentGameTestTerrain} lines):
  * <ul>
@@ -35,12 +39,15 @@ import net.neoforged.neoforge.common.util.FakePlayer;
  *       so the arena math is byte-identical, just relocated to the harness grid
  *       cell (each origin sits on a chunk boundary far from spawn; every arena
  *       footprint fits inside the forced 3×3 chunk neighborhood — noop dx −10..+24,
- *       diagonal dx/dz −8..+16, watchdog ±2, all within the −16..+31 window);</li>
+ *       diagonal dx/dz −8..+16, watchdog ±2, self-shaft dig-up ±3, all within the
+ *       −16..+31 window);</li>
  *   <li>per-key config save/restore → {@link BotConfig#pinnedBaseline()} +
  *       {@code ctx.cleanup(pin::close)} registered FIRST (LIFO → closes LAST, after
  *       the avatar discard) then the SAME explicit key set the legacy body flipped;</li>
  *   <li>{@code ServerPlayerAvatar.create(...)} → {@link ServerPlayerAvatar#createUnique}
- *       (per-profile body, #48) + {@code ctx.cleanup(() -> fp.discard())};</li>
+ *       (per-profile body, #48) + {@code ctx.cleanup(() -> fp.discard())} (the legacy
+ *       self-shaft-dig-up body never discarded its avatar at all — the port closes
+ *       that leak, matching every other migrated scene);</li>
  *   <li>{@code throw new GameTestAssertException(msg)} → {@link SceneContext#fail(String)};</li>
  *   <li>{@code helper.succeed()} → normal return;</li>
  *   <li>the {@code gtOnlySkips} probe first line → deleted (the testkit gate reconciles
@@ -56,7 +63,8 @@ public final class AgentDriverScenes implements SceneProvider {
         return List.of(
                 Scene.of("ad.ascendDeadZoneWatchdog", 200, AgentDriverScenes::ascendDeadZoneWatchdog),
                 Scene.of("ad.ascendMovementNoop", 200, AgentDriverScenes::ascendMovementNoop),
-                Scene.of("ad.diagonalAscentSpeed", 200, AgentDriverScenes::diagonalAscentSpeed));
+                Scene.of("ad.diagonalAscentSpeed", 200, AgentDriverScenes::diagonalAscentSpeed),
+                Scene.of("ad.selfShaftDigUp", 200, AgentDriverScenes::selfShaftDigUp));
     }
 
     /** Ported from {@code AgentGameTestTerrain#ascendMovementNoopArena} (:969-1020). */
@@ -257,5 +265,66 @@ public final class AgentDriverScenes implements SceneProvider {
         // A/B-disproven 2026-06-20). Floor guards against a real collapse below it.
         if (ascBps < 2.5)
             ctx.fail("diagonalAscentSpeed: diagonal ascent collapsed to " + ascBps + " b/s");
+    }
+
+    /**
+     * Ported from {@code AgentGameTestTerrain#selfShaftDigUpArena} (:800-859) — the
+     * gap #53 self-shaft dig-up gate: a bare-hand {@code Goal.YLevel} climb from a
+     * sealed chamber must not fall back down the hollow columns it digs behind
+     * itself (stride floor-guard under test). Footprint dx/dz [-3,3] (7×7 slab,
+     * base..top+6 air) — well inside the default 3×3 forced-chunk window.
+     */
+    private static void selfShaftDigUp(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), baseY = ctx.origin().getY();
+        final int top = baseY + 20, targetY = top + 2;
+        // Solid 7x7 stone slab base..top, air above, sealed 2-high chamber at the centre.
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = -3; dz <= 3; dz++) {
+                for (int y = baseY; y <= top; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+                for (int dy = 1; dy <= 6; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, top + dy, cz + dz), Blocks.AIR.defaultBlockState());
+            }
+        level.setBlockAndUpdate(new BlockPos(cx, baseY + 1, cz), Blocks.AIR.defaultBlockState());
+        level.setBlockAndUpdate(new BlockPos(cx, baseY + 2, cz), Blocks.AIR.defaultBlockState());
+
+        // pin FIRST → closes LAST (after the avatar discard); then the SAME keys legacy set.
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;
+        BotConfig.walkerDebug = true;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+
+        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, baseY + 1, cz + 0.5);
+        FakePlayer fp = av.fakePlayer();
+        ctx.cleanup(() -> fp.discard());
+        fp.getInventory().clearContent();
+        fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));  // pillar/plug stock; NO pickaxe (live parity)
+        fp.getInventory().selected = 0;
+        LevelWorldView w = new LevelWorldView(level, fp);
+        Walker walker = new Walker();
+        walker.setGoal(new Goal.YLevel(targetY));
+
+        Walker.Step s = Walker.Step.WALKING;
+        double maxY = fp.getY();
+        double worstBackslide = 0;
+        for (int t = 0; t < 4000 && s == Walker.Step.WALKING; t++) {
+            s = walker.tick(av, w);
+            av.step();
+            maxY = Math.max(maxY, fp.getY());
+            worstBackslide = Math.max(worstBackslide, maxY - fp.getY());
+        }
+        AgentDriverCommon.LOG.info("[ad.selfShaftDigUp] step={} pos=({},{},{}) maxY={} worstBackslide={}",
+                s, fp.getX(), fp.getY(), fp.getZ(), maxY, worstBackslide);
+        if (worstBackslide > BotConfig.pathfinderMaxDryFall + 1)
+            ctx.fail("selfShaftDigUp: dig-up FELL back down its own shaft: worstBackslide="
+                    + worstBackslide + " (> maxDryFall+1=" + (BotConfig.pathfinderMaxDryFall + 1)
+                    + ") — the gap #53 death, reproduced");
+        if (fp.getY() < targetY - 1.5)
+            ctx.fail("selfShaftDigUp: did not reach the level: pos=(" + fp.getX() + ","
+                    + fp.getY() + "," + fp.getZ() + ") step=" + s + " maxY=" + maxY);
     }
 }
