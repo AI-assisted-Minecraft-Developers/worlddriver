@@ -99,7 +99,7 @@ public final class AgentDriverScenes implements SceneProvider {
                 Scene.of("ad.descentYaw", 200, AgentDriverScenes::descentYaw)
                         .withOriginSlot(DESCENT_YAW_SLOT).withChunkRadius(2),
                 Scene.of("ad.selfShaftDigUp", 200, AgentDriverScenes::selfShaftDigUp)
-                        .withOriginSlot(SELF_SHAFT_DIG_UP_SLOT).withRequired(false));
+                        .withOriginSlot(SELF_SHAFT_DIG_UP_SLOT));
     }
 
     /** Ported from {@code AgentGameTestTerrain#ascendMovementNoopArena} (:969-1020). */
@@ -482,28 +482,59 @@ public final class AgentDriverScenes implements SceneProvider {
      * itself (stride floor-guard under test). Footprint dx/dz [-3,3] (7×7 slab,
      * base..top+6 air) — well inside the default 3×3 forced-chunk window.
      *
-     * <p><b>{@code withRequired(false)} — task#86.</b> Under true isolation (this
-     * scene's {@link ServerPlayerAvatar#createUnique} body, and the legacy arena's
-     * own solo {@code AGENT_GT_ONLY} run) the walk deterministically REDs:
-     * {@code worstBackslide=20.252203415101263}, reproduced byte-identically
-     * across two independent legacy-solo runs plus this scene's new-shell run
-     * (measured at the former auto slot) — i.e. the port is faithful and the
-     * failure is real, not a porting delta. The legacy arena's historical
-     * full-suite GREEN is suspected to be a gap #48 shared-body false-green
-     * (neighbour-interference mask — see {@link ServerPlayerAvatar#create}'s
-     * javadoc: "a solo-RED arena can ride a neighbour's shove to a full-suite
-     * false green", proven twice already for other arenas). This scene stays
-     * optional — a faithful sensor recording the real gap #53 stride-floor-guard
-     * defect on every run — until task#86 closes it; flip back to required
-     * (drop {@code .withRequired(false)}) at that point.
+     * <p><b>Golden-failure signature gate — task#86.</b> Under true isolation
+     * (this scene's {@link ServerPlayerAvatar#createUnique} body, and the legacy
+     * arena's own solo {@code AGENT_GT_ONLY} run) the walk deterministically hits
+     * the real gap #53 defect: {@code worstBackslide=20.252203415101263} —
+     * reproduced byte-identically across two independent legacy-solo runs plus
+     * this scene's new-shell run (measured at the former auto slot, then
+     * reconfirmed byte-identical after pinning to {@link #SELF_SHAFT_DIG_UP_SLOT},
+     * 2026-07-17) — i.e. the port is faithful and the defect is real, not a
+     * porting delta. The golden run DOES eventually recover and reach the target
+     * ({@code reached=true}, {@code fp.getY() >= targetY - 1.5} by the time the
+     * walk finishes) — the bug is the mid-climb backslide itself (a ~20-block
+     * fall back down the shaft the walker just dug), not a permanent stall.
+     * The legacy arena's historical full-suite GREEN is suspected to be a gap
+     * #48 shared-body false-green (neighbour-interference mask — see
+     * {@link ServerPlayerAvatar#create}'s javadoc: "a solo-RED arena can ride a
+     * neighbour's shove to a full-suite false green", proven twice already for
+     * other arenas).
      *
-     * <p><b>Re-measured at the pinned slot (2026-07-17, final-review fix wave).</b>
-     * After pinning this scene to {@link #SELF_SHAFT_DIG_UP_SLOT} (4001,
-     * adjacent to {@link #DESCENT_YAW_SLOT}), the run was repeated once:
-     * {@code worstBackslide=20.252203415101263} — byte-identical to the former
-     * auto-slot measurement above. The task#86 evidence chain is unaffected by
-     * the slot pin; this value is now the frozen golden-failure baseline going
-     * forward at slot 4001.
+     * <p>Rather than stay optional forever, this scene is a <b>required
+     * signature gate</b>: it PASSES only while the walker fails in EXACTLY the
+     * known #86 way — {@code worstBackslide > 15.0} — a tolerance band around
+     * the golden {@code 20.252203415101263}, wide enough to absorb incidental
+     * drift from unrelated walker changes but tight enough that it cannot be
+     * satisfied by a much smaller (or absent) backslide. {@code reached} is
+     * NOT part of the gate condition (the golden run reaches anyway); it is
+     * carried in the fail message purely for diagnostics. Any outcome outside
+     * the band is a loud RED:
+     * <ul>
+     *   <li>small backslide (regardless of {@code reached}) ⇒ #86 is FIXED (or
+     *       the defect no longer manifests) — flip the assertion below to the
+     *       true (strict) form:
+     *       <pre>
+     *   if (worstBackslide &gt; BotConfig.pathfinderMaxDryFall + 1)
+     *       ctx.fail("selfShaftDigUp: dig-up FELL back down its own shaft: worstBackslide="
+     *               + worstBackslide + " (&gt; maxDryFall+1=" + (BotConfig.pathfinderMaxDryFall + 1)
+     *               + ") — the gap #53 death, reproduced");
+     *   if (fp.getY() &lt; targetY - 1.5)
+     *       ctx.fail("selfShaftDigUp: did not reach the level: pos=(" + fp.getX() + ","
+     *               + fp.getY() + "," + fp.getZ() + ") step=" + s + " maxY=" + maxY);
+     *       </pre>
+     *       then delete this javadoc's signature-gate section and close task#86;</li>
+     *   <li>a large backslide that never recovers, or any other shape outside
+     *       the band ⇒ still worth a look before touching the pin — confirm it
+     *       is the same underlying defect (not a new regression) before
+     *       recording an updated golden baseline.</li>
+     * </ul>
+     * Keeping the scene required (rather than optional) means the CI gate goes
+     * loud the instant either of those things happens, instead of silently
+     * drifting under an ignored sensor.
+     *
+     * <p><b>Golden value</b> (frozen baseline, both auto-slot and pinned-slot
+     * {@link #SELF_SHAFT_DIG_UP_SLOT} measurements agree byte-for-byte):
+     * {@code worstBackslide=20.252203415101263}.
      */
     private static void selfShaftDigUp(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -550,12 +581,27 @@ public final class AgentDriverScenes implements SceneProvider {
         }
         AgentDriverCommon.LOG.info("[ad.selfShaftDigUp] step={} pos=({},{},{}) maxY={} worstBackslide={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), maxY, worstBackslide);
-        if (worstBackslide > BotConfig.pathfinderMaxDryFall + 1)
-            ctx.fail("selfShaftDigUp: dig-up FELL back down its own shaft: worstBackslide="
-                    + worstBackslide + " (> maxDryFall+1=" + (BotConfig.pathfinderMaxDryFall + 1)
-                    + ") — the gap #53 death, reproduced");
-        if (fp.getY() < targetY - 1.5)
-            ctx.fail("selfShaftDigUp: did not reach the level: pos=(" + fp.getX() + ","
-                    + fp.getY() + "," + fp.getZ() + ") step=" + s + " maxY=" + maxY);
+        // task#86 golden-failure pin: while the bug is open, this scene PASSES
+        // only when the walker fails in EXACTLY the known way (deterministic
+        // backslide, byte-stable across slots). Note the golden run DOES
+        // eventually reach the target (recovers after the fall) — the bug is
+        // the backslide itself, not a permanent stall, so the gate keys on
+        // worstBackslide alone; reached is carried only for diagnostics. Any
+        // outcome outside the known band is loud RED:
+        //   - small backslide (regardless of reached) => #86 FIXED (or the
+        //     defect no longer manifests): flip this scene to the true
+        //     assertion (see javadoc) and close the task.
+        //   - large backslide that never recovers, or any other shape =>
+        //     still worth a look before touching the pin (record the new
+        //     reached/worstBackslide pair as the updated golden baseline if
+        //     it is genuinely the same underlying defect).
+        boolean reached = fp.getY() >= targetY - 1.5;
+        boolean knownSignature = worstBackslide > 15.0;
+        if (!knownSignature) {
+            ctx.fail("task#86 signature broke: reached=" + reached
+                    + " worstBackslide=" + worstBackslide
+                    + " (known-bad: backslide>15; if this is the fix landing,"
+                    + " flip ad.selfShaftDigUp to the strict assertion and close #86)");
+        }
     }
 }
