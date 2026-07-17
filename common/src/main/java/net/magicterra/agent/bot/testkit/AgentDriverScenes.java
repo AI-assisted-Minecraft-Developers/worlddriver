@@ -2,10 +2,16 @@ package net.magicterra.agent.bot.testkit;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import net.magicterra.agent.AgentDriverCommon;
 import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.Goal;
+import net.magicterra.agent.bot.SettingsRegistry;
+import net.magicterra.agent.mcp.ToolCatalog;
+import net.magicterra.agent.mcp.schema.Schema;
+import net.magicterra.agent.mcp.schema.SchemaValidator;
+import net.magicterra.agent.mcp.schema.Schemas;
 import net.magicterra.agent.bot.movement.AscendMovement;
 import net.magicterra.agent.bot.movement.MovementContext;
 import net.magicterra.agent.bot.movement.MovementStatus;
@@ -187,7 +193,100 @@ public final class AgentDriverScenes implements SceneProvider {
                         .withOriginSlot(SELF_SHAFT_DIG_UP_SLOT),
                 Scene.of("ad.gearScope", 200, AgentDriverScenes::gearScope),
                 Scene.of("ad.buriedOre", 200, AgentDriverScenes::buriedOre),
-                Scene.of("ad.entityLeash", 200, AgentDriverScenes::entityLeash));
+                Scene.of("ad.entityLeash", 200, AgentDriverScenes::entityLeash),
+                Scene.of("ad.settingRegistryClosed", 200, AgentDriverScenes::settingRegistryClosed));
+    }
+
+    /**
+     * P2a verb-pipeline regression net — the SPI's own dogfood gate. A pure-function
+     * assertion scene (no world ops: it never spawns an avatar or edits blocks, so the body
+     * is cheap and position-invariant — auto slot, default radius, {@code required=true}).
+     * It pins the #280 root fix ({@link SettingsRegistry} single-source + closed
+     * {@code mc.bot.setting} schema) AND the paired verb-registration SPI ({@code mc.test.reset}
+     * route + schema present on THIS loader's boot path — the assertion that catches a
+     * mis-placed registration hook RED on either loader).
+     *
+     * <p><b>Assertions</b> (failure prefix {@code "settingRegistry: "}):
+     * <ol>
+     *   <li>{@code knownKeys().size() >= 200} — a {@code >=} FLOOR, not the exact 229, on
+     *       purpose: the reflective completion pass legitimately grows the registry as new
+     *       {@code public static volatile} {@link BotConfig} flags are declared, so an exact
+     *       equality would false-RED on every future flag. 200 is a generous floor well below
+     *       today's 229 that still catches a wholesale registry collapse.</li>
+     *   <li>sentinel keys present — {@code paused} (apply-special, no BotConfig field),
+     *       {@code autoEat} (hand boolean), {@code walker.repathEveryTicks} (dotted hand key
+     *       aliasing {@code walkerRepathEveryTicks}), {@code debugFly} (apply-only affordance):
+     *       one of each provenance, so a regression that drops any single key class trips.</li>
+     *   <li>{@code isKnown("definitelyNotAKnob") == false} — the unknown-key gate still says no.</li>
+     *   <li>{@code mc.bot.setting} schema is CLOSED and one-prop-per-key: closure is asserted via
+     *       the {@link SchemaValidator} public entry (the #280 gate itself rejects the bogus key)
+     *       because {@code Schema.Obj.additionalProperties()/properties()} are package-private to
+     *       the schema package and unreachable here; the prop COUNT is read off the public MCP
+     *       render ({@link Schemas#render}) and must equal {@code knownKeys().size()}.</li>
+     *   <li>{@code mc.test.reset} is registered: the route exists ({@code AgentApi.methods()}
+     *       contains it) AND its schema resolves ({@code ToolCatalog.schemaByName()} has it) —
+     *       the paired registration held. This is the leg that goes RED on a loader whose boot
+     *       path never called the registration hook.</li>
+     * </ol>
+     */
+    private static void settingRegistryClosed(SceneContext ctx) {
+        // (1) Registry non-trivially populated. >= floor, NOT exact 229 — reflective completion
+        //     grows it as new BotConfig flags land (an exact check would false-RED on every flag).
+        int known = SettingsRegistry.knownKeys().size();
+        if (known < 200)
+            ctx.fail("settingRegistry: knownKeys().size()=" + known + " < 200 floor (expected ~229; "
+                    + "floor is a >= not exact because reflective completion legitimately grows it "
+                    + "as new BotConfig flags are declared)");
+
+        // (2) Sentinel keys — one per provenance class (apply-special / hand / dotted-alias / apply-only).
+        for (String k : List.of("paused", "autoEat", "walker.repathEveryTicks", "debugFly")) {
+            if (!SettingsRegistry.isKnown(k))
+                ctx.fail("settingRegistry: sentinel key '" + k + "' missing from the registry "
+                        + "(knownKeys().size()=" + known + ")");
+        }
+
+        // (3) A bogus key is NOT known.
+        if (SettingsRegistry.isKnown("definitelyNotAKnob"))
+            ctx.fail("settingRegistry: bogus key 'definitelyNotAKnob' reported known — the "
+                    + "unknown-key gate regressed");
+
+        // (4) mc.bot.setting schema: closed + one prop per known key.
+        Schema setting = ToolCatalog.schemaByName().get("mc.bot.setting");
+        if (setting == null)
+            ctx.fail("settingRegistry: mc.bot.setting has no declared schema");
+        // 4a closure: the validator refuses an unknown key (additionalProperties(false)). The
+        //     Obj closure flag is package-private to the schema package, so assert closure through
+        //     SchemaValidator's public entry — the #280 gate itself — rather than reading the flag.
+        boolean closed = false;
+        try {
+            SchemaValidator.validate("mc.bot.setting", setting, Map.of("definitelyNotAKnob", true));
+        } catch (IllegalArgumentException e) {
+            closed = e.getMessage() != null && e.getMessage().contains("unexpected key");
+        }
+        if (!closed)
+            ctx.fail("settingRegistry: mc.bot.setting schema is not closed — an unknown key was "
+                    + "accepted (additionalProperties(false) regressed; #280 would silently return)");
+        // 4b prop count == knownKeys size, read off the public MCP render (Schemas.render).
+        Object props = Schemas.render(setting).get("properties");
+        int propCount = (props instanceof Map<?, ?> m) ? m.size() : -1;
+        if (propCount != known)
+            ctx.fail("settingRegistry: mc.bot.setting schema prop count " + propCount
+                    + " != knownKeys().size() " + known + " — the closed schema is not "
+                    + "one-prop-per-registry-key (BotTools drifted from SettingsRegistry)");
+
+        // (5) mc.test.reset registered — the SPI's regression net: route present AND schema resolves.
+        var api = AgentDriverCommon.api();
+        if (api == null)
+            ctx.fail("settingRegistry: AgentApi not booted — cannot check mc.test.reset registration");
+        if (!api.methods().contains("mc.test.reset"))
+            ctx.fail("settingRegistry: mc.test.reset route missing from AgentApi.methods() — the "
+                    + "paired verb-registration hook did not run on this loader's boot path");
+        if (ToolCatalog.schemaByName().get("mc.test.reset") == null)
+            ctx.fail("settingRegistry: mc.test.reset has a route but no resolvable schema — the "
+                    + "paired registration is torn");
+
+        AgentDriverCommon.LOG.info("[ad.settingRegistryClosed] knownKeys={} settingProps={} "
+                + "closed={} mc.test.reset registered=true", known, propCount, closed);
     }
 
     /** Ported from {@code AgentGameTestTerrain#ascendMovementNoopArena} (:969-1020). */

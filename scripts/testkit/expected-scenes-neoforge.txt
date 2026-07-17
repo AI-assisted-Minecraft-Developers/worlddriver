@@ -10,3 +10,4 @@ ad.descentYaw
 ad.gearScope
 ad.buriedOre
 ad.entityLeash
+ad.settingRegistryClosed

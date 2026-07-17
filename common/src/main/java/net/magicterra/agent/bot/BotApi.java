@@ -70,6 +70,16 @@ public interface BotApi {
     Map<String, Object> status();
     Map<String, Object> setting(Map<String, Object> params);
     /**
+     * {@code mc.test.reset} client-pool entry reset (testkit P2b). Runs on the
+     * client thread and brings the entry back to a neutral state between pooled
+     * reuse runs: releases held movement keys, closes any open screen
+     * ({@code setScreen(null)}), clears the chat readback log, and cancels a
+     * residual smooth-look process if the {@code look} slot is active. Returns
+     * {@code {ok:true, reset:[...]}} listing what it actually did. Client-only —
+     * the verb throws loudly on a dedicated server (no bot impl registered).
+     */
+    Map<String, Object> resetClientEntry();
+    /**
      * Manage named in-memory waypoints. {@code op} = {@code save|list|get|delete|clear}.
      * Stored for the lifetime of the bot impl (no disk persistence); a saved
      * name can be reused as {@code mc.bot.goto{waypoint:"name"}}. With

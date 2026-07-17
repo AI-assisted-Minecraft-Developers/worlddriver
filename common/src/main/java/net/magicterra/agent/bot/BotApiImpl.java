@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
+import net.magicterra.agent.client.internal.ClientChatLog;
 
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.process.*;
@@ -849,6 +850,39 @@ public final class BotApiImpl implements BotApi {
     @Override
     public Map<String, Object> setting(Map<String, Object> params) {
         return SettingsCommand.apply(this, params);
+    }
+
+    /**
+     * {@code mc.test.reset} client-pool entry reset — see {@link BotApi#resetClientEntry()}.
+     * Reuses the existing client primitives (no new behaviour): {@link BotInteract#releaseKeys()},
+     * the {@code mc.client.screen.close} {@code setScreen(null)} path, {@link ClientChatLog#clear()}
+     * and the scheduler's user-slot cancel. The {@code reset[]} list names exactly what changed so
+     * P2b's reuse acceptance can diff it. Kept minimal — completeness is P2b's acceptance concern.
+     */
+    @Override
+    public Map<String, Object> resetClientEntry() {
+        List<String> reset = new ArrayList<>();
+        // Cancel a residual smooth-look process FIRST (scheduler state, no client thread needed) so
+        // the key release below is not re-driven by a live LookProcess on the next client tick.
+        // The look slot is the user-task slot (mc.bot.lookAt{smoothLook:true} starts a LookProcess
+        // there); UserTaskChain.heldProcessKind() is deliberately null (cancel's own routing leg),
+        // so read the held process directly and cancel through the same path mc.bot.cancel uses.
+        BotProcess held = userTask.process();
+        if (held != null && "look".equals(held.kind())) {
+            cancelCurrent("mc.test.reset");
+            reset.add("look");
+        }
+        // releaseKeys + screen close both touch the render thread → one client-thread hop.
+        onClient(() -> {
+            releaseKeys();
+            reset.add("keys");
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.screen != null) { mc.setScreen(null); reset.add("screen"); }
+            return Map.of();
+        });
+        int chatCleared = ClientChatLog.clear();   // pure JVM buffer, no client thread needed
+        reset.add("chat:" + chatCleared);
+        return Map.of("ok", true, "reset", reset);
     }
 
     /** Driver→agent client-tick push-event detection (threat/hurt/death, fluid

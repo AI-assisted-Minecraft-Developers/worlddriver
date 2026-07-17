@@ -5,6 +5,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.magicterra.agent.api.AgentApi;
 import net.magicterra.agent.bot.BotConfig;
+import net.magicterra.agent.bot.testkit.TestResetVerb;
 import net.magicterra.agent.mcp.McpServer;
 import net.magicterra.agent.mcp.ToolCatalog;
 import net.magicterra.agent.mcp.schema.Schema;
@@ -150,6 +151,14 @@ public final class AgentDriverCommon {
                 // routes on this api instance without importing it (Hard Rule #1 — only the
                 // (name, handler) data-flow crosses the seam, mirroring setParamsValidator).
                 ToolCatalog.wireRouteSink(api::addRoute);
+                // First runtime consumer of the paired SPI: the hidden mc.test.reset client-pool
+                // entry reset. Registered here on the COMMON boot path (not client-only
+                // ClientHooks, unlike PathDebugBootstrap) because a dedicated server must carry the
+                // route + schema too — the dogfood ad.settingRegistryClosed scene asserts it there,
+                // and on a server the verb throws client-only rather than doing anything. MUST come
+                // after wireRouteSink (a pre-boot registerVerb throws) and before the
+                // requireSchemasFor convergence guard below (so its route already has a schema).
+                TestResetVerb.register();
             }
             if (rpcServer == null) {
                 int wantPort = Integer.getInteger("agent.rpcPort", 0);
