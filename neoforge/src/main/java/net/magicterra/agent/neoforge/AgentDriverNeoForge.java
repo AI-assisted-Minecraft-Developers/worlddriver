@@ -1,12 +1,17 @@
 package net.magicterra.agent.neoforge;
 
+import com.mojang.authlib.GameProfile;
 import net.magicterra.agent.AgentDriverCommon;
 import net.magicterra.agent.api.AgentApi;
 import net.magicterra.agent.bot.BotConfig;
+import net.magicterra.agent.bot.sim.ServerAgentBodies;
 import net.minecraft.core.BlockPos;
 import net.magicterra.agent.script.AgentEvents;
 import net.magicterra.testkit.TestkitCommon;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.neoforged.neoforge.common.util.FakePlayerFactory;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -38,6 +43,15 @@ public final class AgentDriverNeoForge {
     private static final boolean TESTKIT_AUTORUN = Boolean.getBoolean("testkit.autorun");
 
     public AgentDriverNeoForge(IEventBus modBus, ModContainer container) {
+        // P1.6 Task 1: inject the loader body factory behind the common ServerAgentBodies
+        // seam. Backed by FakePlayerFactory (getMinecraft/get), so the server-agent sim core
+        // — now in common — mints the SAME cached FakePlayer instances as before the migration
+        // (byte-level metric gates unchanged). Installed once, at mod construction, before any
+        // scene/GameTest/agentserver body is created.
+        ServerAgentBodies.install(new ServerAgentBodies.BodyFactory() {
+            @Override public ServerPlayer shared(ServerLevel level) { return FakePlayerFactory.getMinecraft(level); }
+            @Override public ServerPlayer unique(ServerLevel level, GameProfile profile) { return FakePlayerFactory.get(level, profile); }
+        });
         NeoForge.EVENT_BUS.register(this);
         modBus.addListener((RegisterGameTestsEvent event) -> {
             // AgentGameTest was split by arena family for file-size hygiene; every
