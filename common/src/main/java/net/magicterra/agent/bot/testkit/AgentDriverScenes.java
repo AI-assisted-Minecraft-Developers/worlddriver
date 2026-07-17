@@ -92,17 +92,19 @@ import net.minecraft.world.phys.AABB;
  *
  * <p><b>Sole variance — {@code ad.entityLeash} await tick count (timing, not outcome).</b>
  * The one non-byte-identical quantity is {@code ad.entityLeash}'s TOTAL scene-tick count
- * (the sum of its two {@code ctx.await(...).within(60)} entity-indexing waits, which poll
+ * (the sum of its two {@code ctx.await(...).within(120)} entity-indexing waits, which poll
  * once per scene tick): across the six clean runs it was fabric {64,28,30} / neoforge {68,30,57}
- * (Task-3 seeds fabric 27 / neoforge 61). Every clean run PASSED. The count is a poll count,
- * not game-time: when the harness await loop spins faster than the ~50 ms server tick under
- * scheduler pressure it burns more polls for the same wall-clock entity-promotion delay
- * (~190 ms fast-poll runs vs ~1.4 s tick-cadence runs). <b>The Task-3 neoforge
- * {@code TIMEOUT} at 61 ticks (await-1 exceeding {@code within(60)} — no phase1 line emitted)
- * did NOT recur in any of the six clean sequential runs</b>, consistent with the controller's
- * load-contamination hypothesis (that Task-3 rerun overlapped concurrent JVMs). The thin
- * within(60) headroom under contention is a latent-flake risk flagged for adjudication in the
- * Task-4 report — NOT self-widened here.
+ * (Task-3 seeds fabric 27 / neoforge 61). Every clean run PASSED. The tick count decouples
+ * from wall-clock: the harness advances exactly once per REAL server tick (single driver =
+ * {@code TestkitCommon.onServerTick}), but a freshly-started server carries tick DEBT and runs
+ * unthrottled ~3 ms catch-up ticks until caught up — in that burst regime the wall-clock-bound
+ * async entity promotion costs 2-2.3x more ticks for the same delay (~190 ms burst runs vs
+ * ~1.4 s tick-cadence runs). <b>The Task-3 neoforge {@code TIMEOUT} at 61 ticks (await-1
+ * exceeding the then-{@code within(60)} — no phase1 line emitted) did NOT recur in any of the
+ * six clean sequential runs</b> (load contamination stacked promotion delay onto the burst
+ * regime). Controller adjudication (P1.6 Task 4): bounds widened 60→120 as the scene-local
+ * stopgap (~2x worst clean total); the harness-level root fix — drain tick debt before arming
+ * scenes, or give {@code within} wall-clock meaning — is task#88.
  *
  * <p><b>Driver-class porting pattern</b> (dogfood wave 2b, established by
  * {@code ad.gearScope}; the remaining {@code ServerAgentDriver} scenes follow it):
@@ -1118,11 +1120,16 @@ public final class AgentDriverScenes implements SceneProvider {
         // AWAIT-1 — fallback for the legacy first for(i<3) level.tick(): wait until the fresh
         // stand is queryable by the leash's own EntityFind scan, then drive phase 1. On the
         // dogfood world the fresh entity takes ~18 natural server ticks to be promoted into
-        // the entity-section lookup (measured), so the budget is generous (within 60, well
+        // the entity-section lookup (measured), so the budget is generous (within 120, well
         // under the scene's 200-tick budget); the wait tick-count varies but the outcome does
         // not — the synchronous phase loops read a deterministic world once the stand appears.
+        // within was 60 until P1.6 Task 4: entity promotion is WALL-CLOCK bound while the
+        // server can run ~3ms catch-up ticks right after startup (tick-debt burst), so the
+        // same promotion delay costs 2-2.3x more ticks in that regime — one contaminated-load
+        // TIMEOUT observed at 61. 120 = ~2x the worst clean-run total. Root fix = task#88
+        // (harness-level: drain tick debt before arming scenes, or wall-clock-aware within).
         ctx.await(() -> EntityFind.nearest(level, fp, "minecraft:armor_stand") != null)
-                .within(60)
+                .within(120)
                 .then(() -> {
                     // Phase 1: stand stationary at start — the hard leash must hold the bot back.
                     // Register ONLY for this synchronous loop, then unregister before the next await.
@@ -1160,7 +1167,7 @@ public final class AgentDriverScenes implements SceneProvider {
                     // legacy forced), then drive phase 2.
                     ctx.await(() -> !level.getEntitiesOfClass(ArmorStand.class,
                                     new AABB(p2anchor).inflate(2.0)).isEmpty())
-                            .within(60)
+                            .within(120)
                             .then(() -> {
                                 ServerAgentManager.register(driver);
                                 for (int t = 0; t < 600 && ServerAgentManager.activeCount() > 0; t++) {
