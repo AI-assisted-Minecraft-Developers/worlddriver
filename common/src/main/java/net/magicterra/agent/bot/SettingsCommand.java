@@ -799,7 +799,7 @@ public final class SettingsCommand {
         }
         if (!inert.isEmpty()) {
             LOG.warn("[mc.bot.setting] inert key(s) {} — known to SettingsRegistry but matched no "
-                    + "apply branch (drift: a registry key lost its write path)", inert);
+                    + "apply branch (drift: a registry key lost its write path — or a direct in-JVM caller passed a wrong-typed value, which bypasses the route-layer validator)", inert);
         }
         Map<String, Object> snap = SettingsSnapshot.build(bot);
         Map<String, Object> out = new LinkedHashMap<>();

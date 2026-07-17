@@ -199,7 +199,7 @@ Movement/automation processes. The async ones take `awaitMs?` — see [Async](#a
 | `mc.bot.waypoint` | `op:save\|get\|list\|delete\|clear` (req), `name?`, `pos?` | in-memory named positions (no disk); use names in `goto{waypoint}`. |
 | `mc.bot.status` | — | every process slot + `lastPath:{expanded,ms,goalReached,finalCost,pathLen}`. The primary "why isn't it moving" probe. |
 | `mc.bot.cancel` | `process?:all\|goto\|mine\|builder\|follow\|explore\|runAway\|look\|combat\|…` | stop processes, release keys. Default all. |
-| `mc.bot.setting` | many keys (empty=read all) | read/write tuning + reflex/Baritone toggles → `{ok, settings:{…}, applied?, rejected?}`. See below. |
+| `mc.bot.setting` | many keys (empty=read all) | read/write tuning + reflex/Baritone toggles → `{ok, settings:{…}, applied?, rejected?, inert?}`. See below. |
 
 ### `mc.bot.setting` keys
 The full set lives in `BotConfig.java` (this list reflects it; grep there if a key

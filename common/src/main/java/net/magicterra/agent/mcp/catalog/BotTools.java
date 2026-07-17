@@ -466,7 +466,7 @@ public final class BotTools {
                 "  pathfinderQuickNodes      [0,10000]      dflt 600    — progressive quick-start stub: while a big re-plan is still slicing in the background, spend this many nodes SYNCHRONOUSLY on a short toward-goal segment and walk it immediately instead of standing through the search gap (fixes 段间空窗停顿). 0=off\n" +
                 "  pathfinderMaxDryFall      [3,5]           dflt 3      — max DRY (no-water) fall the planner takes as a plain Fall move. 3=Baritone no-damage cap (current). Raise (4-5) to descend a steep jungle slope by a small-damage drop instead of building a dirt 天梯 with BridgePlace (the 丝滑-descent lever). Survival-sensitive: the bot takes the fall damage (4≈1.5♥, 5≈2♥)\n" +
                 "  pathfinder.axisHeight     [-64,320]      dflt 120    — Y plane for goto{axis:true} (GoalAxis)\n" +
-                "Returns {ok, settings, applied?, rejected?}. Unknown keys are REJECTED " +
+                "Returns {ok, settings, applied?, rejected?, inert?}. Unknown keys are REJECTED " +
                 "(all-or-nothing: a call carrying any key not in the schema applies NOTHING and " +
                 "errors, so an A/B script fails loudly instead of silently half-applying).",
                 settingSchema()

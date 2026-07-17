@@ -5,7 +5,8 @@ import dev.latvian.mods.rhino.ContextFactory;
 import dev.latvian.mods.rhino.util.ClassVisibilityContext;
 
 /**
- * Rhino ContextFactory that returns a sandboxed Context. The Context
+ * Rhino ContextFactory for agent script Contexts (class filtering is OFF by
+ * default — see AgentClassFilter; -Dagent.sandbox=on opts in). The Context
  * delegates {@link Context#visibleToScripts} to {@link AgentClassFilter}
  * so any LiveConnect class lookup goes through our denylist.
  */
