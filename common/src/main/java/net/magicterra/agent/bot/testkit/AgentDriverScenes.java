@@ -67,6 +67,43 @@ import net.minecraft.world.phys.AABB;
  *       itself).</li>
  * </ul>
  *
+ * <p><b>Fabric dogfood golden baseline — dual-loader ×3 determinism matrix (2026-07-17, P1.6 Task 4).</b>
+ * fabric's first-ever dogfood run (Task 3) was 8/8 ad.* GREEN; Task 4 re-qualified it with a
+ * six-run determinism matrix — fabric dogfood ×3 AND neoforge dogfood ×3, run SEQUENTIALLY
+ * (never two servers at once), each on a freshly wiped {@code run-dogfood/world}. <b>Every
+ * ad.* scene metric VALUE is byte-identical across both loaders and all six runs</b> (fabric
+ * matches neoforge to the last digit — the P1a byte-identity precedent, previously proven only
+ * for builtin scenes, now holds for the whole ad.* driver/walker family):
+ * <ul>
+ *   <li>{@code ad.ascendMovementNoop}: {@code reachedTop=true ctxAllocated=0};</li>
+ *   <li>{@code ad.diagonalAscentSpeed}: {@code diagBps=3.00 ascSprint%=43 ascHcol%=5 ascTicks=149};</li>
+ *   <li>{@code ad.descentYaw}: {@code sumAbsDyaw=871° maxDyaw=30° reversals=9 onSlope=279
+ *       thrash/tick=3.1 backSteps=53 worstBack=-0.25};</li>
+ *   <li>{@code ad.selfShaftDigUp}: {@code maxY=222.25220341510126 worstBackslide=20.252203415101263};</li>
+ *   <li>{@code ad.gearScope}: {@code bareHand=0.94000053 ironSword=5.9040003
+ *       ATTACK_DAMAGE=6.0 ATTACK_SPEED=1.5999999046325684}, full-diamond {@code ARMOR=20.0};</li>
+ *   <li>{@code ad.buriedOre}: {@code oreMined=true finished=true};</li>
+ *   <li>{@code ad.entityLeash}: phase1 {@code standDist=4.187857529833143 !finished}, phase2
+ *       {@code reached=true finished=true} — leash geometry byte-identical on both shells.</li>
+ * </ul>
+ * The ascend trio, gearScope, buriedOre, descentYaw and selfShaftDigUp are thus dual-loader
+ * goldens with a SINGLE value each (no fabric/neoforge split — unlike the descentYaw
+ * body-vs-body split below, which is a different-isolation artifact, not a loader artifact).
+ *
+ * <p><b>Sole variance — {@code ad.entityLeash} await tick count (timing, not outcome).</b>
+ * The one non-byte-identical quantity is {@code ad.entityLeash}'s TOTAL scene-tick count
+ * (the sum of its two {@code ctx.await(...).within(60)} entity-indexing waits, which poll
+ * once per scene tick): across the six clean runs it was fabric {64,28,30} / neoforge {68,30,57}
+ * (Task-3 seeds fabric 27 / neoforge 61). Every clean run PASSED. The count is a poll count,
+ * not game-time: when the harness await loop spins faster than the ~50 ms server tick under
+ * scheduler pressure it burns more polls for the same wall-clock entity-promotion delay
+ * (~190 ms fast-poll runs vs ~1.4 s tick-cadence runs). <b>The Task-3 neoforge
+ * {@code TIMEOUT} at 61 ticks (await-1 exceeding {@code within(60)} — no phase1 line emitted)
+ * did NOT recur in any of the six clean sequential runs</b>, consistent with the controller's
+ * load-contamination hypothesis (that Task-3 rerun overlapped concurrent JVMs). The thin
+ * within(60) headroom under contention is a latent-flake risk flagged for adjudication in the
+ * Task-4 report — NOT self-widened here.
+ *
  * <p><b>Driver-class porting pattern</b> (dogfood wave 2b, established by
  * {@code ad.gearScope}; the remaining {@code ServerAgentDriver} scenes follow it):
  * a legacy body that drives a {@link ServerAgentDriver} (not a raw
@@ -384,7 +421,10 @@ public final class AgentDriverScenes implements SceneProvider {
      * twin (that body is a differently-isolated run — shared GameTest-server body
      * vs this scene's own {@code createUnique} body — so the two numbers are not
      * expected to match; both are golden references for their own body/isolation
-     * combination, not for each other).
+     * combination, not for each other). <b>Dual-loader confirmation (P1.6 Task 4,
+     * 2026-07-17):</b> the fabric loader measures the SAME {@code 871°}/{@code 53},
+     * byte-identical to neoforge across fabric ×3 + neoforge ×3 — so this golden is a
+     * single value for both loaders (see the class-level dual-loader matrix javadoc).
      *
      * <p><b>Footprint audit</b> (origin-relative dx/dz; radius-2 window = dx/dz
      * [−32,+47]):
@@ -588,7 +628,9 @@ public final class AgentDriverScenes implements SceneProvider {
      *
      * <p><b>Golden value</b> (frozen baseline, both auto-slot and pinned-slot
      * {@link #SELF_SHAFT_DIG_UP_SLOT} measurements agree byte-for-byte):
-     * {@code worstBackslide=20.252203415101263}.
+     * {@code worstBackslide=20.252203415101263}. <b>Dual-loader (P1.6 Task 4,
+     * 2026-07-17):</b> fabric measures the identical {@code 20.252203415101263}
+     * across fabric ×3 + neoforge ×3 — one golden for both loaders.
      */
     private static void selfShaftDigUp(SceneContext ctx) {
         ServerLevel level = ctx.level();
