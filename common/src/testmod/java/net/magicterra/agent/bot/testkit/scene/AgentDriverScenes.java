@@ -98,7 +98,7 @@ import net.minecraft.world.phys.AABB;
  *
  * <p><b>Sole variance — {@code ad.entityLeash} await tick count (timing, not outcome).</b>
  * The one non-byte-identical quantity is {@code ad.entityLeash}'s TOTAL scene-tick count
- * (the sum of its two {@code ctx.await(...).within(120)} entity-indexing waits, which poll
+ * (the sum of its two {@code ctx.await(...).within(180)} entity-indexing waits, which poll
  * once per scene tick): across the six clean runs it was fabric {64,28,30} / neoforge {68,30,57}
  * (Task-3 seeds fabric 27 / neoforge 61). Every clean run PASSED. The tick count decouples
  * from wall-clock: the harness advances exactly once per REAL server tick (single driver =
@@ -1229,8 +1229,12 @@ public final class AgentDriverScenes implements SceneProvider {
         // same promotion delay costs 2-2.3x more ticks in that regime — one contaminated-load
         // TIMEOUT observed at 61. 120 = ~2x the worst clean-run total. Root fix = task#88
         // (harness-level: drain tick debt before arming scenes, or wall-clock-aware within).
+        // Second recorded stop-bleed (P4c wave 8 acceptance): 120 exceeded by exactly 1 tick
+        // in 2/4 neoforge runs under external box load; baseline A/B proved pre-existing
+        // (identical pattern on the pre-wave-8 tree). 180 = 3x worst clean-run; task#88 stays
+        // the root fix — do not widen again without it.
         ctx.await(() -> EntityFind.nearest(level, fp, "minecraft:armor_stand") != null)
-                .within(120)
+                .within(180)
                 .then(() -> {
                     // Phase 1: stand stationary at start — the hard leash must hold the bot back.
                     // Register ONLY for this synchronous loop, then unregister before the next await.
@@ -1268,7 +1272,7 @@ public final class AgentDriverScenes implements SceneProvider {
                     // legacy forced), then drive phase 2.
                     ctx.await(() -> !level.getEntitiesOfClass(ArmorStand.class,
                                     new AABB(p2anchor).inflate(2.0)).isEmpty())
-                            .within(120)
+                            .within(180)  // widened with AWAIT-1 (second stop-bleed, see comment there)
                             .then(() -> {
                                 ServerAgentManager.register(driver);
                                 for (int t = 0; t < 600 && ServerAgentManager.activeCount() > 0; t++) {
