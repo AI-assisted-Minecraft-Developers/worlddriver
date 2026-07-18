@@ -15,7 +15,8 @@ import net.neoforged.neoforge.event.RegisterGameTestsEvent;
  * — so this @EventBusSubscriber fires exactly as the old inline listener in
  * {@link AgentDriverNeoForge}'s constructor did. The per-class register calls are
  * copied from that listener (originally 7 classes; AgentGameTestTerrain retired in P4b
- * wave 2, so 6 remain): AgentGameTest was split by arena family for file-size hygiene,
+ * wave 2 and AgentGameTestWaterBank + AgentGameTestWaterCross in P4b wave 4, so 4 remain):
+ * AgentGameTest was split by arena family for file-size hygiene,
  * and AgentGameTestSupport / this class hold no @GameTest methods so they are
  * intentionally not registered here.
  *
@@ -36,8 +37,10 @@ public final class AgentGameTestRegistrar {
         // migrated to ad.* testkit scenes (12) or retired-without-scene (descentDriftArena) — the
         // class is empty and deleted, so no registration.
         event.register(AgentGameTestServer.class);
-        event.register(AgentGameTestWaterBank.class);
-        event.register(AgentGameTestWaterCross.class);
+        // AgentGameTestWaterBank + AgentGameTestWaterCross retired (P4b wave 4): all 21 Water arenas
+        // migrated to ad.* testkit scenes (WaterBank 11 + WaterCross 10; riverSheerBank + vineOverWaterClimb
+        // + vineClingFidelityProbe carried optional), the two classes deleted in this same commit — so no
+        // registration. See docs/testkit/migration-log.md wave-4.
         event.register(AgentGameTestCombatSense.class);
         event.register(AgentGameTestBuildBlock.class);
     }

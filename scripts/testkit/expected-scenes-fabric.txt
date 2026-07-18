@@ -41,3 +41,26 @@ ad.shorelineHug
 ad.shorelineSmoother
 ad.escapeFarthestNoRockDrill
 ad.budgetAwayTunnelChurn
+# P4b wave 4 — WaterBank family (11 migrated from AgentGameTestWaterBank; vineClingFidelityProbe + vineOverWaterClimb optional)
+ad.waterPhysicsParity
+ad.buoyantWall
+ad.vineClingFidelityProbe
+ad.vineOverWaterClimb
+ad.tallBankDigClimb
+ad.waterLowBank
+ad.riverSheerBank
+ad.deepWaterCross
+ad.deepWaterClimboutNoBlock
+ad.deepWaterClimboutDrift
+ad.waterFarAimBankCorner
+# P4b wave 4 — WaterCross family (10 migrated from AgentGameTestWaterCross; all deterministic)
+ad.goalSnapBuried
+ad.basin
+ad.waterClimbOutRoute
+ad.waterStepDownFloat
+ad.forbidDigPadRam
+ad.deepWaterSubmergedCross
+ad.vineOverWaterCross
+ad.padOverWaterCross
+ad.padClusterCross
+ad.deepWaterFloatBeeline

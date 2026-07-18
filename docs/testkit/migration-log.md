@@ -271,3 +271,95 @@ scenes**, and stay open:
 
 (Also still open and untouched by this wave: task#88 harness tick-debt within()
 fragility.)
+
+## Wave 4 (P4b Task 3) — the Water double-family (WaterBank 11 + WaterCross 10) migrate
+
+**Count arithmetic: legacy registered 96 → 75** (−21 `@GameTest` methods, two whole
+classes retired). `AgentGameTestWaterBank` (11) → `AgentDriverWaterBankScenes`;
+`AgentGameTestWaterCross` (10) → `AgentDriverWaterCrossScenes`; both classes DELETED and
+their two `AgentGameTestRegistrar` `event.register(...)` lines removed in this same commit
+(NeoForge `@GameTestHolder` auto-scan also drops them once the classes are gone). The
+reconcile (`scripts/gt_reconcile.py`) is fully dynamic (counts the manifest), so no script
+constant needed updating.
+
+| deleted legacy test method | legacy class | ad.* scene | migration commit | this deletion | notes (first-run A/B verdict) |
+|---|---|---|---|---|---|
+| `waterPhysicsParity` | AgentGameTestWaterBank | `ad.waterPhysicsParity` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (sink/rise/swim water-physics parity; `buildWaterColumn` inlined) |
+| `buoyantWallArena` | AgentGameTestWaterBank | `ad.buoyantWall` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (+5 sheer buoyant wall mount, bobTicks≤120) |
+| `vineClingFidelityProbe` | AgentGameTestWaterBank | `ad.vineClingFidelityProbe` | this commit (P4b wave 4) | this commit | legacy `required=false` → `.withRequired(false)`; PASS both loaders ×2 (wall-backed vine cling fidelity) |
+| `vineOverWaterClimbArena` | AgentGameTestWaterBank | `ad.vineOverWaterClimb` | this commit (P4b wave 4) | this commit | legacy `required=false` (live −711 bug) → `.withRequired(false)`; **optional-FAIL both loaders ×2 (pocketTicks=29, byte-identical) — the VISIBLE −711 repro, NOT tuned** |
+| `tallBankDigClimbArena` | AgentGameTestWaterBank | `ad.tallBankDigClimb` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (`faithfulBreak` slow stone-mine dig-climb; ~440 ms/scene, well under the 60 s watchdog — the descentDrift open-void-churn hazard does not recur here) |
+| `waterLowBankArena` | AgentGameTestWaterBank | `ad.waterLowBank` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (+2 low-bank foothold-place; `isUsableBuildBlock` sand/gravel/mud guards) |
+| `riverSheerBankArena` | AgentGameTestWaterBank | `ad.riverSheerBank` | this commit (P4b wave 4) | this commit | **`.withRequired(false)` — gap #48 shared-body FALSE-GREEN surfaced by isolation (task#91). Deterministic optional-FAIL both loaders ×2 (step=FAILED, wallPressTicks=51, byte-identical). Config byte-identical to legacy (both apply `applyGameTestBaseline()`); the ONLY variable is shared→unique body. NOT tuned.** |
+| `deepWaterCrossArena` | AgentGameTestWaterBank | `ad.deepWaterCross` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (deep 8-block surface swim + Fall/FallIntoWater submerged-bed predicate) |
+| `deepWaterClimboutNoBlockArena` | AgentGameTestWaterBank | `ad.deepWaterClimboutNoBlock` | this commit (P4b wave 4) | this commit | gap #48 shared-body lottery member → **deterministic GREEN in the createUnique isolated shell** (PASS both loaders ×2). Shell difference (body isolation removes the flake mechanism), NOT a threshold rebaseline |
+| `deepWaterClimboutDriftArena` | AgentGameTestWaterBank | `ad.deepWaterClimboutDrift` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (drift-entry +2 bank latched dig, ashoreTick≤120) |
+| `waterFarAimBankCornerArena` | AgentGameTestWaterBank | `ad.waterFarAimBankCorner` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (in-water divider round-the-gap smoke; legacy `batch="solo…"` dropped — createUnique isolates) |
+| `goalSnapBuriedArena` | AgentGameTestWaterCross | `ad.goalSnapBuried` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (goal-snap to a standable cell; legacy `floorY=64` kept → mapped `origin.y−136`) |
+| `basinArena` | AgentGameTestWaterCross | `ad.basin` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2; **`.withChunkRadius(2)`** (plateau dz `0..44` > +31 edge; radius-2 window `[−32,+47]`) (`pathfinderDepthPenalty` anti-basin-dive) |
+| `waterClimbOutRouteArena` | AgentGameTestWaterCross | `ad.waterClimbOutRoute` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (floating-water +1 climb-out structural gate, both A/B legs flush) |
+| `waterStepDownFloatArena` | AgentGameTestWaterCross | `ad.waterStepDownFloat` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (`walkerWaterStepDownFloat` OFF-wedge/ON-advance A/B; `beginReplay`) |
+| `forbidDigPadRamArena` | AgentGameTestWaterCross | `ad.forbidDigPadRam` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (per-goto `forbidDig` lily-pad head-on-break leak; `NoBreak` A/B; `runPadLeg` inlined) |
+| `deepWaterSubmergedCrossArena` | AgentGameTestWaterCross | `ad.deepWaterSubmergedCross` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (`pathfinderFloatingSurfaceCross` — a deterministic planner A/B, NOT subject to the shared-body flake despite the `deepwater*` name) |
+| `vineOverWaterCrossArena` | AgentGameTestWaterCross | `ad.vineOverWaterCross` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (`pathfinderVineOverWaterTax` center-lane detour) |
+| `padOverWaterCrossArena` | AgentGameTestWaterCross | `ad.padOverWaterCross` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (`pathfinderPadOverWaterTax` Y-aware sparse-pad detour) |
+| `padClusterCrossArena` | AgentGameTestWaterCross | `ad.padClusterCross` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (`pathfinderPadClusterTax` 3-region A/B: wall / lone / full-width) |
+| `deepWaterFloatBeelineArena` | AgentGameTestWaterCross | `ad.deepWaterFloatBeeline` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2; **`.withChunkRadius(4)`** (`spanX=56` → basin/clear box reach dx `+72` > radius-2 `+47` and radius-3 `+63`; radius-4 window `[−64,+79]`) (`Walker.adoptForTest` anchor-gate accept/reject) |
+
+**Lottery / optional governance — three optionals this wave (the phase's heaviest `required`-discipline wave).**
+- **`ad.vineOverWaterClimb`** (legacy `required=false`, the live −711 bug): migrated `.withRequired(false)`
+  with a javadoc citing the −711 record. It FAILs deterministically (pocketTicks=29, byte-identical
+  ×2×2) — the bot detaches off the wall-less vine into the pocket. That optional-FAIL IS the proof it
+  reproduces the live bug against the clean (walkerVineFreeHangClimb-OFF) baseline; its RED stays
+  VISIBLE, never tuned.
+- **`ad.deepWaterClimboutNoBlock`** (gap #48 shared-body lottery member, solo-GREEN proven this phase,
+  full-run flaky in the OLD shared-body suite): in the createUnique isolated body the shared-body flake
+  mechanism disappears, so it runs **deterministically GREEN** (kept `required=true`). Per the brief this
+  is the *expected outcome of body isolation* — a shell difference recorded here, NOT a rebaseline of
+  thresholds. The `deepwatercross*` family names (also flagged as candidate lottery members) were
+  characterised the same way from observed ×2×2 behaviour: `ad.deepWaterCross` (WaterBank integration,
+  GREEN), `ad.deepWaterClimboutDrift` (GREEN), and the pure-planner `ad.deepWaterSubmergedCross` (GREEN)
+  are all deterministic — none flaky, none marked optional.
+- **`ad.riverSheerBank`** (the gap #48 false-green this wave SURFACED, task#91): it is the one WaterBank
+  scene isolation flips legacy-GREEN → deterministic RED. The config is byte-identical to legacy — the
+  legacy GameTestServer applies `BotConfig.applyGameTestBaseline()` at boot (zeroing the walker
+  water-escape flag family: walkerBankDig*, walkerBuoyantSearchFromSurface,
+  walkerSwimAshorePillarDespiteDeepDig, walkerFloatingBankBobFreeze, …), the exact baseline
+  `pinnedBaseline()` re-applies. Geometry and start pose are byte-identical; the SOLE differentiator is
+  the legacy shared body (concurrent GameTest batches shove/teleport the per-level singleton ashore) vs
+  the serial createUnique body — precisely the `descentDriftArena` / `descentOvershootResyncArena`
+  false-green mechanism. So the free-drift open-river sheer-bank climb-out genuinely wedges under the
+  authored default-OFF baseline (a real executor gap); its legacy green was a shared-body artefact.
+  Migrated `.withRequired(false)` with a javadoc + task#91 — RED stays VISIBLE, **NOT tuned** (per the
+  wave brief's "flaky/false-green → optional + file, never tune" rule; here deterministic-RED, not flaky).
+
+**Helper decisions (promote/inline only what this wave needs).**
+- `AgentGameTestSupport.buildWaterColumn` → inlined private static in `AgentDriverWaterBankScenes`
+  (only `ad.waterPhysicsParity` needs it), faithful copy.
+- `AgentGameTestSupport.runSearch` + `maxPathY` → inlined private statics in
+  `AgentDriverWaterCrossScenes` (used by `ad.basin` / `ad.waterClimbOutRoute`). The sibling wave-3
+  `AgentDriverBiasScenes.maxPathY` is PRIVATE (not a promoted shared symbol), so it cannot be reused
+  across the source-set — this is the "each provider self-contains its needed helpers" precedent
+  (wave-2 inlined `buildFloor`, wave-3 inlined `maxPathY`), NOT a third stray copy of a promoted API.
+  `AgentGameTestSupport` keeps all three (still used by surviving Server-family arenas), so nothing was
+  orphaned.
+- `grantWaterEffects` → `SimProbes.grantWaterEffects` (the common single source), as waves 2-3.
+- `ServerPlayerAvatar.faithfulBreak` is a static field NOT covered by `pinnedBaseline()`; `ad.tallBankDigClimb`
+  saves/restores it via its own `ctx.cleanup`. Legacy shared-body parking / anti-contamination `finally`
+  blocks and `batch="solo…"` isolation batches were DROPPED — a createUnique body cannot bleed into
+  another scene.
+
+**Dual-loader determinism (first-run A/B, 2026-07-18).** neoforge dogfood ×2 and fabric dogfood ×2 (each
+on the wiped `run-dogfood/world`, servers run one at a time): all four runs GREEN; the `(name, outcome)`
+result set is **byte-identical across both runs of each loader AND across loaders**. The two optional-FAILs
+(`ad.vineOverWaterClimb` pocketTicks=29; `ad.riverSheerBank` step=FAILED wallPressTicks=51) reproduce to the
+exact coordinate on every run and both loaders. The existing 34 `ad.*` scenes (9 original + 12 Terrain + 13
+Bias) stayed PASS (goldens intact). No scene was flaky; no threshold was tuned.
+
+**Post-deletion legacy reconcile (2026-07-18).** `scripts/run_gametests.sh` reconciled
+`registered=75 entered=75` with **0 swallowed / 0 drifted**, build_success=True, **"All 75 required tests
+passed :)"**, and **ZERO failures** (`required_failed=False`; the permitted survivor set after this wave is
+just `{ agentrpcsmoke }`, which itself PASSED). No deleted Water name reappears (the count fell exactly
+96→75 = −21; the `forbiddig` substring in the manifest now belongs only to the surviving Server-class
+`serverForbidDigWallArena`, since the migrated `forbidDigPadRamArena` left with WaterCross). No livelock
+this run (9.264 s for all 75). VERDICT: GREEN.
