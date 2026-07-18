@@ -80,3 +80,20 @@ ad.threatScanHurtAttacker
 # P4b wave 5 — BuildBlock family (2 migrated from AgentGameTestBuildBlock; planner/API-only predicate probes)
 ad.buildBlockRejectsInteractive
 ad.valuablePlacementBlockMatrix
+
+# P4c wave 6 — Station family (15 migrated from AgentGameTestServer; craft/smelt/recipe/observe)
+ad.serverCraft
+ad.serverRecipeSpecies
+ad.serverCraftTableInject
+ad.serverRecipeShortfallSpecies
+ad.serverCraftTableReclaim
+ad.serverObservePlayerInventory
+ad.serverPlanHaveDefaultsToBag
+ad.serverSmeltCliff
+ad.serverCraftTableHoleRim
+ad.serverSmeltFurnaceHoleRim
+ad.smeltFuelPolicy
+ad.serverCraftGridClearHelper
+ad.serverCraftGridConservation
+ad.serverCraftFailTelemetry
+ad.serverCraftFailGridReturn

@@ -538,3 +538,111 @@ topology guard** (`!isDedicatedServer()` → early PASS with a `SceneContext.pas
 marker in the results-JSONL reason, citing **task#92**); the real fix (topology-aware
 checks / a signature gate pinning the 8 known divergences) is **task#92**. The
 `agent_driver-testkit-*` artifactId naming residual is unchanged.
+
+## Wave 6 (P4c Task 1) — the Station family: craft / smelt / recipe / observe, 15 migrated + deleted
+
+**Count arithmetic: legacy registered 59 → 44** (−15 `@GameTest` methods, all migrated twins
+deleted; **no** retired-without-scene this wave). This is the FIRST P4c Server-family wave: unlike
+P4b (whole-class families) the `AgentGameTestServer` giant is cut by THEME, so this wave migrates a
+15-name Station subset to a new `AgentDriverStationScenes` provider and deletes the twins IN PLACE —
+`AgentGameTestServer` survives with its remaining 44 tests and `AgentGameTestRegistrar` is untouched
+(still registers `Server`). The reconcile (`scripts/gt_reconcile.py`) is fully dynamic (counts the
+manifest), so no script constant needed updating. One provider service line appended to the common
+`SceneProvider` file; the 15 `ad.*` names added to BOTH `expected-scenes-{neoforge,fabric}.txt` in
+this commit.
+
+**Driver / body substitution.** The Station tests drive real `CraftProcess` / `SmeltProcess`
+instances headless over a FakePlayer via `ServerAgentDriver.create` + `ServerAgentManager`
+register/tickAll. The canonical `create → createUnique` substitution maps to
+`ServerAgentDriver.create → ServerAgentDriver.createIsolated` (which delegates to
+`ServerPlayerAvatar.createUnique`, the #48 per-scene isolated body); the common
+`ServerAgentDriver.fakePlayer()` returns a plain `ServerPlayer` (a FakePlayer IS a ServerPlayer),
+and every station call used — `getInventory()`, `containerMenu`, `inventoryMenu`, `offhand`,
+`setItemSlot` — is a `ServerPlayer` member, so the port is type-faithful on both loaders (fabric has
+no `ServerAgentDriver`/`ServerAgentManager` shim — it uses the common ones directly). These are
+process-outcome / block-state / resolver gates, not `Walker`-flakiness lotteries, so body isolation
+does not change any verdict (confirmed byte-identical ×2×2).
+
+**Rig cleanup (#40 persistent-world lesson).** The dogfood world PERSISTS across the ×2 runs, so
+every stone floor, furnace, crafting table and avatar a scene spawns is scrubbed in `ctx.cleanup`
+(LIFO, all-exit drain). Several legacy bodies wiped only a subset in their `finally` (relying on
+far-apart absolute coords in the sprawling GameTest world — e.g. `smeltFuelPolicyArena` cleared only
+the furnace, not its 5×5 floor); the ported scenes clear their WHOLE footprint. Verified clean: the
+×2 result sets are byte-identical, so no residue leaks between runs.
+
+**Furnace / grid state-machine tests (#64 lesson) — translated faithfully, not softened.**
+`ad.smeltFuelPolicy` hands the furnace menu to `fp.containerMenu` directly and injects the cooked
+result (the GameTest chunk never ticks the furnace); `ad.serverCraftFailGridReturn` stuffs
+`InventoryMenu.getCraftSlots()` and sets `containerMenu` to a `DummyMenu` (NOT `inventoryMenu`, so
+CraftProcess's trailing `closeContainer()` lands on a no-op and cannot mask the :133 grid-clear).
+Both workarounds were already encoded in the legacy bodies (a synchronous FakePlayer cannot produce
+a genuine "placed but never resulted" grid straddle, and `ServerPlayer.doCloseContainer` would
+fake-green the grid tests) and are carried over verbatim. The two GameTest-only nested helpers
+`CraftLogCatcher` (log4j2 in-memory appender for `ad.serverCraftFailTelemetry`) and `DummyMenu` were
+inlined into the provider (private static nested types — not reached across the testmod source-set
+boundary), the wave-2/3 "each provider self-contains its needed helpers" precedent.
+
+**Config pinning.** The 11 scenes whose legacy body saved/restored `BotConfig` (all touch
+`walkerDebug`; `ad.serverCraftTableReclaim` also `craftReclaimTable=true`,
+`ad.serverCraftTableHoleRim` also `craftReclaimTable=false`) use `BotConfig.pinnedBaseline()` +
+`ctx.cleanup(pin::close)`. The 4 that touched no config are ported without a pin — 3 are pure
+`RecipeResolver` tests (`ad.serverRecipeSpecies`, `ad.serverCraftTableInject`,
+`ad.serverRecipeShortfallSpecies`, no world/avatar at all) and 2 grid tests
+(`ad.smeltFuelPolicy`, `ad.serverCraftGridClearHelper`) that mutate no config; safe because every
+config-mutating scene restores baseline on exit, so non-pinning scenes see clean defaults.
+
+**Origin slots / footprints.** All 15 take AUTO slots at the default `chunkRadius=1` window
+(`dx/dz ∈ [−16,+31]`). The only two-sub-rig scene is `ad.serverCraftTableReclaim`: its second,
+independent sub-rig (a borrowed pre-existing table) is relocated from the legacy +40/+40 diagonal to
+a compact **+16 X offset** so both sub-rigs fit one origin window — each sub-rig's INTERNAL geometry
+is byte-unchanged, and both gates are position-invariant process OUTCOMEs (placed table reclaimed /
+borrowed table spared), so the relocation cannot flip them. No `withChunkRadius`, no pinned slot. ⛔
+No Station scene calls `level.tick()` (the family has none — the re-entrant `level.tick()` mines are
+all in the Process wave, P4c Task 4).
+
+| deleted legacy test method | legacy class | ad.* scene | migration commit | this deletion | notes (first-run A/B verdict) |
+|---|---|---|---|---|---|
+| `serverCraftArena` | AgentGameTestServer | `ad.serverCraft` | this commit (P4c wave 6) | this commit | identical — PASS both loaders ×2 (real CraftProcess 2×2 inventory-grid, ≥4 planks + finish) |
+| `serverRecipeSpeciesArena` | AgentGameTestServer | `ad.serverRecipeSpecies` | this commit (P4c wave 6) | this commit | identical — PASS both loaders ×2 (pure RecipeResolver species-follows-presence, gap #274) |
+| `serverCraftTableInjectArena` | AgentGameTestServer | `ad.serverCraftTableInject` | this commit (P4c wave 6) | this commit | identical — PASS both loaders ×2 (crafting_table injection dep-first/dedup/suppression, gap #275) |
+| `serverRecipeShortfallSpeciesArena` | AgentGameTestServer | `ad.serverRecipeShortfallSpecies` | this commit (P4c wave 6) | this commit | identical — PASS both loaders ×2 (gap #67-①② committed-species snapshot + raw-leaf route) |
+| `serverCraftTableReclaimArena` | AgentGameTestServer | `ad.serverCraftTableReclaim` | this commit (P4c wave 6) | this commit | identical — PASS both loaders ×2 (gap #276 placed-table reclaimed / borrowed-table spared; sub-rig B relocated +40/+40 → +16 X, internal geometry unchanged) |
+| `serverObservePlayerInventoryArena` | AgentGameTestServer | `ad.serverObservePlayerInventory` | this commit (P4c wave 6) | this commit | identical — PASS both loaders ×2 (gap #41 full 36-slot snapshot + #42 tool wear + namespaced `items` as `have`) |
+| `serverPlanHaveDefaultsToBagArena` | AgentGameTestServer | `ad.serverPlanHaveDefaultsToBag` | this commit (P4c wave 6) | this commit | identical — PASS both loaders ×2 (gap #44 omitted `have`→bag / explicit `{}`→hypothesis / verbatim / null-safe) |
+| `serverSmeltCliffArena` | AgentGameTestServer | `ad.serverSmeltCliff` | this commit (P4c wave 6) | this commit | identical — PASS both loaders ×2 (SmeltProcess capability-cliff graceful degrade, "熔炉" error) |
+| `serverCraftTableHoleRimArena` | AgentGameTestServer | `ad.serverCraftTableHoleRim` | this commit (P4c wave 6) | this commit | identical — PASS both loaders ×2 (gap#61 placeTable searches hole rim dy=+1; craftReclaimTable pinned OFF) |
+| `serverSmeltFurnaceHoleRimArena` | AgentGameTestServer | `ad.serverSmeltFurnaceHoleRim` | this commit (P4c wave 6) | this commit | identical — PASS both loaders ×2 (gap#62 placeFurnace shares placeTable's candidate scan) |
+| `smeltFuelPolicyArena` | AgentGameTestServer | `ad.smeltFuelPolicy` | this commit (P4c wave 6) | this commit | identical — PASS both loaders ×2 (gap#64 ①coal-not-table / ②reload / ③take back all 3 slots; #64 manual containerMenu + injected result) |
+| `serverCraftGridClearHelperArena` | AgentGameTestServer | `ad.serverCraftGridClearHelper` | this commit (P4c wave 6) | this commit | identical — PASS both loaders ×2 (gap#67-③ clearInventoryCraftGrid returns stranded 2×2-grid material; getCraftSlots stuffing) |
+| `serverCraftGridConservationArena` | AgentGameTestServer | `ad.serverCraftGridConservation` | this commit (P4c wave 6) | this commit | identical — PASS both loaders ×2 (gap#67-③ happy-path 2×2 conservation: log −1, planks +4, grid empty) |
+| `serverCraftFailTelemetryArena` | AgentGameTestServer | `ad.serverCraftFailTelemetry` | this commit (P4c wave 6) | this commit | identical — PASS both loaders ×2 (gap#67-⑥ `[craft] plan` + fail-path log lines; inlined CraftLogCatcher log4j2 appender) |
+| `serverCraftFailGridReturnArena` | AgentGameTestServer | `ad.serverCraftFailGridReturn` | this commit (P4c wave 6) | this commit | identical — PASS both loaders ×2 (gap#67-③ FAIL-exit :133 grid-return; DummyMenu unmasks the trailing closeContainer) |
+
+**Orphaned helpers deleted in the same commit (no registered-count effect).** `CraftLogCatcher`
+(private nested log4j2 appender, sole caller `serverCraftFailTelemetryArena`) and `DummyMenu`
+(private nested menu stand-in, sole caller `serverCraftFailGridReturnArena`) were deleted from
+`AgentGameTestServer` (both reproduced inside `AgentDriverStationScenes`). `countItem` (private
+static) was deleted — its only callers were the four grid/smelt tests migrated this wave (verified
+by grep: zero remaining references). `clearBox` was **kept** — still used by surviving Server-family
+arenas (`serverBunker*`, etc.). Eight now-orphaned imports were removed from `AgentGameTestServer`
+(`CraftProcess`, `RecipeManager`, `HolderLookup`, `Params`, `RecipeApi`, `RecipeResolver`,
+`AbstractContainerMenu`, `InventoryMenu`); `AgentApi` was kept (still used by a surviving arena). One
+dangling `{@link #serverObservePlayerInventoryArena}` in the surviving `serverObserveAirSupplyArena`
+javadoc (gap#70) was repointed to plain text "the migrated `ad.serverObservePlayerInventory` scene".
+
+**Dual-loader determinism (first-run A/B, 2026-07-18).** neoforge dogfood ×2 and fabric dogfood ×2
+(each on a freshly wiped `run-dogfood/world`, servers run one at a time): all four runs GREEN; the
+`(name, outcome)` result set is **byte-identical across both runs of each loader AND across loaders**
+(90 scene records = 2 builtin + 2 canaries recorded (`canaryMustFail`→FAIL / `canaryMustTimeout`→
+TIMEOUT, `canaryMustSwallow` correctly omitted) + 86 `ad.*` (71 existing + 15 new)). All 15 new
+scenes PASS on both loaders ×2. The pre-existing 71 `ad.*` scenes were unchanged (the two expected
+optional-FAIL sensors `ad.vineOverWaterClimb` and `ad.riverSheerBank` reproduced; the optional-PASS
+`ad.vineClingFidelityProbe` stayed PASS). Suite wall-clock: neoforge 70 s / 64 s, fabric 68 s / 63 s
+(86-scene growth well within budget). No new scene was flaky; no threshold was tuned.
+
+**Post-deletion legacy reconcile (2026-07-18).** `scripts/run_gametests.sh` (fresh `run-gametest`
+world) reconciled `registered=44 entered=44` with **0 swallowed / 0 drifted**, build_success=True,
+**"All 44 required tests passed :)"**, `required_failed=False`, VERDICT GREEN. The surviving Server
+failure family is empty (unchanged since P4b wave 5), so the empty failure set held. No deleted
+Station name reappears anywhere in the manifest (the count fell exactly 59→44 = −15). No livelock
+this run.

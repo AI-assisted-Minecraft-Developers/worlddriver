@@ -6,3 +6,4 @@ net.magicterra.agent.bot.testkit.scene.AgentDriverWaterCrossScenes
 net.magicterra.agent.bot.testkit.scene.AgentDriverCoreScenes
 net.magicterra.agent.bot.testkit.scene.AgentDriverCombatScenes
 net.magicterra.agent.bot.testkit.scene.AgentDriverBuildScenes
+net.magicterra.agent.bot.testkit.scene.AgentDriverStationScenes
