@@ -106,6 +106,75 @@ fully green for the first time. (A first launch hit the documented intermittent
 `serverForbidDigWallArena` — recovered by explicit-PID kill + world wipe + rerun;
 full evidence and thread dump in `.superpowers/sdd/task-4-report.md` §3b.)
 
+## Wave 2 (P4b Task 1) — the Terrain family: 12 migrated + deleted, 1 retired-without-scene
+
+**Count arithmetic: legacy registered 122 → 110** (−12 `@GameTest` methods). This is
+the FIRST P4b family wave and defines the wave protocol Tasks 2–4 replicate: per-name
+direct translation + A/B → dual-loader ×2 dogfood result-set identity → same-commit
+twin deletion + this log row → legacy reconcile. The reconcile (`gt_reconcile.py`)
+is fully dynamic (counts the manifest), so no script constant needed updating.
+
+**Deviation from the plan's 122→109: this wave lands at 110, not 109.** One of the
+13 Terrain tests, `descentDriftArena`, is **retired-without-scene, pending controller
+adjudication** (P4b escape hatch) — it is NOT migrated and its legacy twin is NOT
+deleted. Rationale (full evidence in `.superpowers/sdd/task-1-report.md`):
+
+- `descentDriftArena` is a legacy `required = false` **PROVEN FALSE GREEN** (gap #49):
+  it "passed" the shared-body suite only because a concurrent arena shoved the shared
+  FakePlayer out of the wedge; SOLO it is deterministically RED (the fix-ON leg still
+  LAUNCHES off the stair into open void, minY≈−60). Its own javadoc records that "the
+  fix's gate is the LIVE A/B" — the arena is superseded and carries no reliable
+  regression signal.
+- It is **unmigratable as a faithful synchronous-body scene**: the RED path is an
+  open-void A* churn needing ~110 s of compute, and the dogfood harness runs a scene
+  body in ONE server tick, so it blows the 60 s `ServerHangWatchdog` and CRASHES the
+  whole suite (first-run evidence: `neoforge/run-dogfood/crash-reports/crash-2026-07-18_12.58.53-server.txt`,
+  stack rooted at `AgentDriverTerrainScenes.descentDrift → Walker.tick → PathFinder.advance`).
+  Its determinism-critical config (`pathfinderMaxNodes` node budget, `sliceMs/maxMs=MAX`)
+  cannot be trimmed to fit without rebaselining the search of an already-broken rig, and
+  a wall-clock cap would be non-deterministic (breaking the ×2 result-set identity gate).
+
+So this wave migrates **12 of 13** and holds `descentDriftArena` in
+`AgentGameTestTerrain` for the controller to adjudicate (accept full retirement +
+delete the twin → 109, or require a bounded migration).
+
+| deleted legacy test method | legacy class | ad.* scene | migration commit | this deletion | notes (first-run A/B verdict) |
+|---|---|---|---|---|---|
+| `summitArena` | AgentGameTestTerrain | `ad.summit` | this commit (P4b wave 2) | this commit | identical — PASS both loaders ×2 (canopy `toBreak` fix + pillar-to-goal) |
+| `sheerWallArena` | AgentGameTestTerrain | `ad.sheerWall` | this commit (P4b wave 2) | this commit | identical — PASS both loaders ×2 (+5 sheer wall climb) |
+| `bridgeGapArena` | AgentGameTestTerrain | `ad.bridgeGap` | this commit (P4b wave 2) | this commit | identical — PASS both loaders ×2 (3-cell void bridge) |
+| `parkourAscendArena` | AgentGameTestTerrain | `ad.parkourAscend` | this commit (P4b wave 2) | this commit | identical — PASS both loaders ×2 (sprint-jump +1 landing, no pit) |
+| `ridgeOvershootArena` | AgentGameTestTerrain | `ad.ridgeOvershoot` | this commit (P4b wave 2) | this commit | identical — PASS both loaders ×2 (fall-overshoot smoothness, maxNoProgress≤80) |
+| `stepUpCrestOrbitArena` | AgentGameTestTerrain | `ad.stepUpCrestOrbit` | this commit (P4b wave 2) | this commit | identical — PASS both loaders ×2 (held-pose A/B: OFF wedges, ON advances) |
+| `descentArena` | AgentGameTestTerrain | `ad.descent` | this commit (P4b wave 2) | this commit | identical — PASS both loaders ×2 (12-step 1-wide descent, no pit) |
+| `ascentSpeedArena` | AgentGameTestTerrain | `ad.ascentSpeed` | this commit (P4b wave 2) | this commit | identical — PASS both loaders ×2 (ascent b/s floor 1.5) |
+| `ledgeOvershootArena` | AgentGameTestTerrain | `ad.ledgeOvershoot` | this commit (P4b wave 2) | this commit | identical — PASS both loaders ×2; `.withChunkRadius(2)` (runway+terrace dx→+44) |
+| `wallCollisionProbe` | AgentGameTestTerrain | `ad.wallCollisionProbe` | this commit (P4b wave 2) | this commit | identical — PASS both loaders ×2 (avatar stops at 2-tall wall; `commandForward`, not Walker) |
+| `bridgeDescendArena` | AgentGameTestTerrain | `ad.bridgeDescend` | this commit (P4b wave 2) | this commit | identical — PASS both loaders ×2 (descending bridge smoke) |
+| `bareHandDigCadenceArena` | AgentGameTestTerrain | `ad.bareHandDigCadence` | this commit (P4b wave 2) | this commit | identical — PASS both loaders ×2 (gap #66 dig cadence, dropsWhileSolid≤2) |
+
+**Retired-without-scene (NOT deleted; controller adjudication):**
+
+| legacy test method | legacy class | status | rationale |
+|---|---|---|---|
+| `descentDriftArena` | AgentGameTestTerrain | **KEPT — retired-without-scene candidate** | superseded PROVEN FALSE GREEN (gap #49); unmigratable as synchronous body (>60 s single-tick open-void A* churn → `ServerHangWatchdog` crash); see report §descentDrift |
+
+**No helpers orphaned by name-collision this wave** (unlike wave 1): the shared
+`AgentGameTestSupport` helpers the migrated scenes needed (`buildFloor`,
+`grantWaterEffects`) are still used by the surviving `descentDriftArena` and other
+legacy families, so nothing was deleted from `AgentGameTestSupport`. `buildFloor` was
+**inlined** into `AgentDriverTerrainScenes` (origin-relative, promoted-into-class, not
+imported across the neoforge testmod source-set boundary); `grantWaterEffects` was
+reused from the common `SimProbes` single source.
+
+**Dual-loader determinism (first-run A/B, 2026-07-18).** neoforge dogfood ×2 and fabric
+dogfood ×2 (each on a freshly wiped `run-dogfood/world`, servers run sequentially): all
+four runs GREEN; the `(name, outcome)` result set is **byte-identical across both runs of
+each loader AND across loaders** (23 PASS = 2 builtin + 9 existing `ad.*` + 12 new; plus
+the two expected canaries `canaryMustFail`→FAIL / `canaryMustTimeout`→TIMEOUT, and
+`canaryMustSwallow` correctly omitted). The existing 9 `ad.*` goldens stayed PASS (golden
+bytes intact). No new scene was flaky; no threshold was tuned.
+
 ## Non-closure note — deleting a twin does NOT close its engine task
 
 Retiring a legacy twin is a *test-suite* bookkeeping action, not an engine fix.

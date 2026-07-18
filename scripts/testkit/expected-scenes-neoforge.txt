@@ -11,3 +11,16 @@ ad.gearScope
 ad.buriedOre
 ad.entityLeash
 ad.settingRegistryClosed
+# P4b wave 2 — Terrain family (12 migrated from AgentGameTestTerrain; descentDrift retired-without-scene, pending adjudication)
+ad.summit
+ad.sheerWall
+ad.bridgeGap
+ad.parkourAscend
+ad.ridgeOvershoot
+ad.stepUpCrestOrbit
+ad.descent
+ad.ascentSpeed
+ad.ledgeOvershoot
+ad.wallCollisionProbe
+ad.bridgeDescend
+ad.bareHandDigCadence
