@@ -174,6 +174,83 @@ the two expected canaries `canaryMustFail`→FAIL / `canaryMustTimeout`→TIMEOU
 `canaryMustSwallow` correctly omitted). The existing 9 `ad.*` goldens stayed PASS (golden
 bytes intact). No new scene was flaky; no threshold was tuned.
 
+## Wave 3 (P4b Task 2) — the Bias family: 13 migrated + deleted
+
+**Count arithmetic: legacy registered 109 → 96** (−13 `@GameTest` methods, all migrated
+twins deleted; **no** retired-without-scene this wave). The reconcile (`gt_reconcile.py`) is
+fully dynamic (counts the manifest), so no script constant needed updating.
+`AgentGameTestBias` is now empty and was DELETED (class file removed). It self-registered via
+`@GameTestHolder` auto-scan **only** — it was **never** in `AgentGameTestRegistrar`'s explicit
+list (wave-1 precedent; the Registrar's own class javadoc records this), so no Registrar line
+needed removing. New provider: `AgentDriverBiasScenes` (append line to the common
+`SceneProvider` service file; `ad.*` names added to BOTH `expected-scenes-{neoforge,fabric}.txt`
+in this commit).
+
+**All 13 are PLANNER-ONLY — the brief's "driver-mode (createIsolated)" hypothesis did not
+hold.** Unlike wave 2 (Terrain, which drove the real `Walker`), no Bias arena drives a
+`Walker` or a registered driver: each builds an immutable `LevelWorldView` over a
+`createUnique` avatar and runs one/two `PathFinder` searches, then asserts on the returned
+`Result` (constraint/bias gates). So there is no executor flakiness, no per-tick stepping, no
+`SimProbes.grantWaterEffects` (nothing moves or takes damage), and the body resolves on the
+first RUN tick. The dense `AgentGameTestSupport` coupling flagged in the brief (21 refs) was
+20× `gtOnlySkips` (deleted — the testkit gate self-reconciles) + `maxPathY` (inlined faithfully
+into the scene class, not imported across the neoforge testmod boundary). The per-arena private
+geometry helpers (`pathEntersZone`, `minPathY`, `maxPathXZDist`, `pathEntersWater`,
+`minPathZRelative`, `distToWaterLE`, `firstOutOfBand[Smoothed]`) were carried over verbatim.
+
+**Config-pin faithfulness.** Only the 7 scenes whose legacy body had a `try/finally`
+`BotConfig` save/restore use `pinnedBaseline()` + `ctx.cleanup(pin::close)` (registered FIRST →
+LIFO closes LAST, after avatar discard): `digUpY`, `digDownY`, `columnRadius`, `forbidDig`,
+`escapeFarthestNoRockDrill`, `budgetAwayTunnelChurn` (break/place ± walkerDebug), and
+`shorelineSmoother` (walkerDiagonalStringPull). The 6 pure-constraint scenes that touched no
+config are ported without a pin — faithful, and safe because the harness restores baseline
+between scenes so every planner sees clean defaults.
+
+**Origin slots.** 11 take AUTO slots at the default radius; 2 widened to `.withChunkRadius(2)`
+because their footprint exceeds the default window's +31 edge: `ad.shorelineHug` (clear span
+reaches dx +41) and `ad.shorelineSmoother` (basin reaches dx/dz +32). No scene is pinned to a
+fixed slot — every Bias gate is a discrete, integer-cell, position-invariant planner OUTCOME, so
+registry-growth relocation cannot flip it (the `ad.buriedOre` auto-slot precedent applies).
+
+| deleted legacy test method | legacy class | ad.* scene | migration commit | this deletion | notes (first-run A/B verdict) |
+|---|---|---|---|---|---|
+| `avoidRegionDetourArena` | AgentGameTestBias | `ad.avoidRegionDetour` | this commit (P4b wave 3) | this commit | identical — PASS both loaders ×2 (A4b `AvoidRegion` mid-lane detour) |
+| `digUpYArena` | AgentGameTestBias | `ad.digUpY` | this commit (P4b wave 3) | this commit | identical — PASS both loaders ×2 (A2b chained PillarUp dig-up to YLevel) |
+| `digDownYArena` | AgentGameTestBias | `ad.digDownY` | this commit (P4b wave 3) | this commit | identical — PASS both loaders ×2 (A2b DownBreak straight-shaft dig-down) |
+| `columnRadiusArena` | AgentGameTestBias | `ad.columnRadius` | this commit (P4b wave 3) | this commit | identical — PASS both loaders ×2 (`ColumnRadius` ascent containment vs drift) |
+| `parkourGateArena` | AgentGameTestBias | `ad.parkourGate` | this commit (P4b wave 3) | this commit | identical — PASS both loaders ×2 (A2a `CapabilityProfile` PARKOUR gate) |
+| `yFloorConstraintArena` | AgentGameTestBias | `ad.yFloorConstraint` | this commit (P4b wave 3) | this commit | identical — PASS both loaders ×2 (A2a `YFloor` prunes pit descent) |
+| `leashHardArena` | AgentGameTestBias | `ad.leashHard` | this commit (P4b wave 3) | this commit | identical — PASS both loaders ×2 (A2a `LeashHardRadius` inside/outside) |
+| `forbidWaterArena` | AgentGameTestBias | `ad.forbidWater` | this commit (P4b wave 3) | this commit | identical — PASS both loaders ×2 (A2b-c `NoWater` prunes wading) |
+| `forbidDigArena` | AgentGameTestBias | `ad.forbidDig` | this commit (P4b wave 3) | this commit | identical — PASS both loaders ×2 (A2b-c `NoBreak` prunes DownBreak, allowBreak ON) |
+| `shorelineHugArena` | AgentGameTestBias | `ad.shorelineHug` | this commit (P4b wave 3) | this commit | identical — PASS both loaders ×2; `.withChunkRadius(2)` (A3b `ShorelineHug` receding-shore dip) |
+| `shorelineSmootherArena` | AgentGameTestBias | `ad.shorelineSmoother` | this commit (P4b wave 3) | this commit | identical — PASS both loaders ×2; `.withChunkRadius(2)` (A3b bias-aware `stringPull` discrimination) |
+| `escapeFarthestNoRockDrillArena` | AgentGameTestBias | `ad.escapeFarthestNoRockDrill` | this commit (P4b wave 3) | this commit | identical — PASS both loaders ×2 (gap #59 no downward rock-drill best-effort) |
+| `budgetAwayTunnelChurnArena` | AgentGameTestBias | `ad.budgetAwayTunnelChurn` | this commit (P4b wave 3) | this commit | identical — PASS both loaders ×2 (gap #63 no away-tunnel drift best-effort) |
+
+**No helpers orphaned this wave.** The shared `AgentGameTestSupport` helpers the scenes needed
+(`maxPathY`) were **inlined** into `AgentDriverBiasScenes` rather than deleted from
+`AgentGameTestSupport` — `maxPathY` is still used by surviving Server-family arenas, and
+`grantWaterEffects`/`buildFloor`/`clearBox` remain in use by other families. `AgentGameTestBias`
+carried no helpers of its own beyond the per-arena private geometry checkers (which moved into
+the scene class), so its deletion orphaned nothing.
+
+**Dual-loader determinism (first-run A/B, 2026-07-18).** neoforge dogfood ×2 and fabric
+dogfood ×2 (each on the wiped `run-dogfood/world`, servers run sequentially): all four runs
+GREEN; the `(name, outcome)` result set is **byte-identical across both runs of each loader AND
+across loaders** (38 entries = 2 builtin + 21 existing `ad.*` (9 original + 12 Terrain) + 13 new,
+plus canaries `canaryMustFail`→FAIL / `canaryMustTimeout`→TIMEOUT and `canaryMustSwallow`
+correctly omitted). The existing 21 `ad.*` scenes stayed PASS (goldens intact). No new scene was
+flaky; no threshold was tuned.
+
+**Post-deletion legacy reconcile (2026-07-18).** `scripts/run_gametests.sh` reconciled
+`registered=96 entered=96` with **0 swallowed / 0 drifted**, **All 96 required tests passed**,
+and a **single optional failure `vineoverwaterclimbarena`** (the −711 live bug, in the permitted
+survivor set `⊆ { vineoverwaterclimbarena (optional), deepwatercross*, agentrpcsmoke,
+deepwaterclimboutnoblockarena }`). No deleted Bias name reappears (the `forbiddig` substring in
+the manifest belongs to the surviving Server-class `serverForbidDigWallArena` /
+`forbidDigPadRamArena`, not the retired Bias `forbidDigArena`). No livelock this run.
+
 ## Non-closure note — deleting a twin does NOT close its engine task
 
 Retiring a legacy twin is a *test-suite* bookkeeping action, not an engine fix.

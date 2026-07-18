@@ -1,2 +1,3 @@
 net.magicterra.agent.bot.testkit.scene.AgentDriverScenes
 net.magicterra.agent.bot.testkit.scene.AgentDriverTerrainScenes
+net.magicterra.agent.bot.testkit.scene.AgentDriverBiasScenes

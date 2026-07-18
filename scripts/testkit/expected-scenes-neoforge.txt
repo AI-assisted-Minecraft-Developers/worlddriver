@@ -24,3 +24,17 @@ ad.ledgeOvershoot
 ad.wallCollisionProbe
 ad.bridgeDescend
 ad.bareHandDigCadence
+# P4b wave 3 — Bias family (13 migrated from AgentGameTestBias; all planner-only)
+ad.avoidRegionDetour
+ad.digUpY
+ad.digDownY
+ad.columnRadius
+ad.parkourGate
+ad.yFloorConstraint
+ad.leashHard
+ad.forbidWater
+ad.forbidDig
+ad.shorelineHug
+ad.shorelineSmoother
+ad.escapeFarthestNoRockDrill
+ad.budgetAwayTunnelChurn
