@@ -363,3 +363,101 @@ just `{ agentrpcsmoke }`, which itself PASSED). No deleted Water name reappears 
 96→75 = −21; the `forbiddig` substring in the manifest now belongs only to the surviving Server-class
 `serverForbidDigWallArena`, since the migrated `forbidDigPadRamArena` left with WaterCross). No livelock
 this run (9.264 s for all 75). VERDICT: GREEN.
+
+## Wave 5 (P4b Task 4) — the Core (main `AgentGameTest`) + CombatSense + BuildBlock families migrate
+
+**Count arithmetic: legacy registered 75 → 59** (−16 `@GameTest` methods, all migrated twins deleted;
+**no** retired-without-scene this wave). Three whole classes retired: `AgentGameTest` (main, 12) →
+`AgentDriverCoreScenes`; `AgentGameTestCombatSense` (2) → `AgentDriverCombatScenes`;
+`AgentGameTestBuildBlock` (2) → `AgentDriverBuildScenes`. All three self-registered via BOTH
+`@GameTestHolder` auto-scan AND an explicit `AgentGameTestRegistrar` `event.register(...)` line; all three
+class files were DELETED and all three Registrar lines removed in this same commit — **after this wave the
+Registrar registers ONLY `AgentGameTestServer`** (the P4c Server family). The reconcile
+(`scripts/gt_reconcile.py`) is fully dynamic (counts the manifest), so no script constant needed updating.
+Three provider service lines appended to the common `SceneProvider` file; the 16 `ad.*` names added to BOTH
+`expected-scenes-{neoforge,fabric}.txt` in this commit.
+
+**`agentRpcSmoke` — migrated to a scene (count/placement note).** The wave brief noted "agentRpcSmoke itself
+is in Server, NOT yours (P4c)". That is reconciled against the explicit provider spec "AgentDriverCoreScenes
+(main class 12)" and the hard arithmetic: `AgentGameTestServer` already holds exactly 59 tests, so the target
+`75 → 59` is only reachable if ALL 16 non-Server tests leave the legacy suite (keeping/moving `agentRpcSmoke`
+into Server would make 60, failing the `registered==59` gate). `agentRpcSmoke` is therefore migrated as
+`ad.agentRpcSmoke` — it drives the full JS validation suite (`AgentDriverCommon.runValidation()`) on a worker
+thread and polls completion via `SceneContext.await`, the faithful analogue of the legacy
+`startSequence().thenWaitUntil`. The dogfood server starts the RPC server unconditionally on a random port, so
+the suite's `RpcBridge`/`McpBridge` round-trips have a live endpoint and drain through `server.execute()` on
+the ticks the harness advances between polls. It runs GREEN and deterministic on both loaders (145/156 ticks
+neoforge, 174 ticks fabric — tick count wobbles with the suite's real-time RPC latency, but the outcome is
+invariant, and the determinism gate is on `(name, outcome)`). The deep RPC-parity FAMILY coverage continues
+in the Server suite for P4c; this scene is the faithful port of the main-class smoke gate. **Flagged for
+controller review** (task-4-report.md §agentRpcSmoke) since it resolves a stated tension in the brief.
+
+| deleted legacy test method | legacy class | ad.* scene | migration commit | this deletion | notes (first-run A/B verdict) |
+|---|---|---|---|---|---|
+| `agentRpcSmoke` | AgentGameTest | `ad.agentRpcSmoke` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (full JS validation suite on a worker thread; `await` poll replaces `thenWaitUntil`; RPC/MCP round-trips drain on harness ticks) |
+| `pinchArena` | AgentGameTest | `ad.pinch` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (pure-CPU `PinchArena` vertical-escape budget matrix) |
+| `horizonArena` | AgentGameTest | `ad.horizon` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (pure-CPU `HorizonArena` receding-horizon + soft-commit; `HorizonArenaMinReach` inlined) |
+| `inputReleaseGate` | AgentGameTest | `ad.inputReleaseGate` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (pure-CPU `InputReleaseGate` manual-input-clobber guard) |
+| `schemaUnionRendering` | AgentGameTest | `ad.schemaUnionRendering` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (pure-CPU gap#67-④ `ToolCatalog` union-type render matrix; `assertUnionType` inlined) |
+| `physicsParity` | AgentGameTest | `ad.physicsParity` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (`ServerPlayerAvatar` travel/jump/step-up parity; `create`→`createUnique` ×3) |
+| `buildBlockWhitelistArena` | AgentGameTest | `ad.buildBlockWhitelist` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (`isUsableBuildBlock` + `LevelWorldView.placeableBlockCount` bamboo/sand/whitelist matrix) |
+| `pathArchiveJsonArena` | AgentGameTest | `ad.pathArchiveJson` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (pure-CPU `PathArchive` JSON round-trip + v2 SNBT/NBT) |
+| `nodePhysicsArena` | AgentGameTest | `ad.nodePhysics` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (`NodePhysics.compute` pose-fit/hazard + edit-aware toBreak/toPlace flips; floorY `origin.y−21`) |
+| `pathArchiveCaptureArena` | AgentGameTest | `ad.pathArchiveCapture` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (real Walker goto capture; `Thread.sleep` file-write wait → `await` continuation) |
+| `replayRoundTripArena` | AgentGameTest | `ad.replayRoundTrip` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (record→rebuild→replay round-trip; two sequential file waits → chained `await`s; walker loops stay synchronous) |
+| `clientChatLogSemantics` | AgentGameTest | `ad.clientChatLogSemantics` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (pure-JVM `ClientChatLog.Buffer` seq/since/tail/eviction; loads on dedicated server as the legacy twin did) |
+| `threatScanZombieArena` | AgentGameTestCombatSense | `ad.threatScanZombie` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (Enemy-mob scan control; `makeMockPlayer` reproduced + entity-visibility `await`) |
+| `threatScanHurtAttackerArena` | AgentGameTestCombatSense | `ad.threatScanHurtAttacker` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (gap#55 neutral-attacker `attackedMe` scan; `makeMockPlayer` + entity-visibility `await`) |
+| `buildBlockRejectsInteractiveArena` | AgentGameTestBuildBlock | `ad.buildBlockRejectsInteractive` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (gap#57 interactive-block rejection predicate probe) |
+| `valuablePlacementBlockMatrix` | AgentGameTestBuildBlock | `ad.valuablePlacementBlockMatrix` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (gap#81 valuable/throwaway predicate matrix; dist-neutral `isThrowawaySupportBlock` core, not client-only `BotInteract`) |
+
+**Classification (honest, per deletion source).** The main class was a mix, not one pattern:
+- **Pure-CPU / in-memory** (resolve on the first RUN tick, no world): `ad.pinch`, `ad.horizon`,
+  `ad.inputReleaseGate`, `ad.schemaUnionRendering`, `ad.pathArchiveJson`, `ad.clientChatLogSemantics`.
+- **Level-only** (build blocks + assert, no avatar): `ad.nodePhysics`.
+- **Avatar-driven** (`ServerPlayerAvatar.createUnique`): `ad.physicsParity`, `ad.buildBlockWhitelist`,
+  `ad.pathArchiveCapture`, `ad.replayRoundTrip`.
+- **Worker-thread poll**: `ad.agentRpcSmoke`.
+- **CombatSense** are single-tick sensing probes; **BuildBlock** are pure `BotConfig` predicate probes
+  (planner/API-only).
+
+**CombatSense — time-handling + entity-visibility findings (per brief).** Both threatScan scenes are
+single-tick sensing probes with `setNoAi(true)` + `setPersistenceRequired()` mobs, so the documented
+"daytime zombie auto-burn false-signal" hazard CANNOT fire (no ticks elapse for the mob to catch fire before
+the scan). Neither `TestkitHarness` nor `BotConfig.applyGameTestBaseline` pins world time, and the dogfood
+world is a flat survival world (doDaylightCycle default) — but that is **irrelevant** here because the scenes
+are time-independent (verified: byte-identical outcome across both loaders ×2). The legacy rig carried NO
+roof/helmet/night protection; the only protection it needed (NoAI + persistence) is copied verbatim, so no
+`withRequired(false)` and no citation are warranted. The GameTest-only `helper.makeMockPlayer(GameType)` was
+reproduced byte-for-byte as a private helper (a plain **vulnerable** `Player` — a `ServerPlayerAvatar`
+FakePlayer is `isInvulnerableTo`→true and would defeat the `hurt()` attacker test). **One environmental
+adaptation, faithful, not a semantic change:** on a real dedicated server a freshly force-loaded arena chunk
+is not yet ENTITY_TICKING when the scene body runs, so a mob added by `addFreshEntity` is alive in the level
+but not yet in the queryable section index (measured: `getEntitiesOfClass`→0 with the mob alive at its exact
+coords; visible ~tick 9). `ThreatScanner` scans via `Level.getEntities`, so the scene polls (bounded, `await`,
+no manual `level.tick()`) until the mob is indexed, then runs the byte-identical scan+assert. The legacy
+GameTestServer placed its arena in an already-ticking template, masking this.
+
+**Origin slots.** All 16 take AUTO slots at the default radius — every arena's footprint fits the default
+window `dx/dz ∈ [−16,+31]` (widest are `ad.pathArchiveCapture`/`ad.replayRoundTrip` at dx +20), and every gate
+is a discrete OUTCOME / pure-CPU assertion / wide-tolerance metric (no byte-determinism pin), so registry-
+growth relocation cannot flip them. No `withChunkRadius`, no `withOriginSlot`.
+
+**Helper decisions (promote/inline only what this wave needs).** `AgentGameTestSupport.buildFloor` → inlined
+private static in each of `AgentDriverCoreScenes` and `AgentDriverCombatScenes` (faithful copy; not imported
+across the neoforge testmod boundary). `HorizonArenaMinReach` was used ONLY by the main class `horizonArena`;
+it is now orphaned, so it was DELETED from `AgentGameTestSupport` (inlined into `ad.horizon` as
+`HorizonArena.CORRIDOR_LEN − 20`). `AgentGameTestSupport` otherwise stays intact — `buildFloor`, `clearBox`,
+`grantWaterEffects`, `gtOnlySkips`/`gtSkip` remain in use by the surviving Server family. `assertUnionType`
+(was a private static in the main class) moved into `AgentDriverCoreScenes`, adapted to `SceneContext.fail`.
+`grantWaterEffects` was not needed by any wave-5 scene. The GameTest-only `makeMockPlayer` was reproduced in
+`AgentDriverCombatScenes` (vanilla `GameTestHelper.makeMockPlayer` has no scene-side equivalent).
+
+**Dual-loader determinism (first-run A/B, 2026-07-18).** neoforge dogfood ×2 and fabric dogfood ×2 (each on a
+wiped `run-dogfood/world`, servers run one at a time): all four runs GREEN; the `(name, outcome)` result set
+is **byte-identical across both runs of each loader AND across loaders** (75 scene records = 2 builtin + 2
+canaries recorded (`canaryMustFail`→FAIL / `canaryMustTimeout`→TIMEOUT, `canaryMustSwallow` correctly omitted)
++ 71 `ad.*`). All 16 new scenes PASS on both loaders ×2. The pre-existing 55 `ad.*` scenes were unchanged
+(the two expected optional-FAIL sensors `ad.vineOverWaterClimb` pocketTicks=29 and `ad.riverSheerBank`
+wallPressTicks=51 reproduced to the coordinate; `ad.vineClingFidelityProbe` stayed optional-PASS). No new
+scene was flaky; no threshold was tuned.

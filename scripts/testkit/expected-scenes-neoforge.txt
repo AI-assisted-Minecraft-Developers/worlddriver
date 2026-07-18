@@ -61,3 +61,22 @@ ad.vineOverWaterCross
 ad.padOverWaterCross
 ad.padClusterCross
 ad.deepWaterFloatBeeline
+# P4b wave 5 — Core family (12 migrated from AgentGameTest, main class)
+ad.agentRpcSmoke
+ad.pinch
+ad.horizon
+ad.inputReleaseGate
+ad.schemaUnionRendering
+ad.physicsParity
+ad.buildBlockWhitelist
+ad.pathArchiveJson
+ad.nodePhysics
+ad.pathArchiveCapture
+ad.replayRoundTrip
+ad.clientChatLogSemantics
+# P4b wave 5 — CombatSense family (2 migrated from AgentGameTestCombatSense; single-tick NoAI, time-independent)
+ad.threatScanZombie
+ad.threatScanHurtAttacker
+# P4b wave 5 — BuildBlock family (2 migrated from AgentGameTestBuildBlock; planner/API-only predicate probes)
+ad.buildBlockRejectsInteractive
+ad.valuablePlacementBlockMatrix

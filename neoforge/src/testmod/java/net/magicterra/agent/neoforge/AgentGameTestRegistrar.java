@@ -13,18 +13,17 @@ import net.neoforged.neoforge.event.RegisterGameTestsEvent;
  * <p>Discovered by FML's annotation scan because the testmod source set is attached
  * to the {@code agent_driver} mod via {@code loom.mods} in {@code neoforge/build.gradle}
  * — so this @EventBusSubscriber fires exactly as the old inline listener in
- * {@link AgentDriverNeoForge}'s constructor did. The per-class register calls are
- * copied from that listener (originally 7 classes; AgentGameTestTerrain retired in P4b
- * wave 2 and AgentGameTestWaterBank + AgentGameTestWaterCross in P4b wave 4, so 4 remain):
- * AgentGameTest was split by arena family for file-size hygiene,
- * and AgentGameTestSupport / this class hold no @GameTest methods so they are
- * intentionally not registered here.
+ * {@link AgentDriverNeoForge}'s constructor did. After P4b wave 5 the legacy suite is
+ * Server-only: {@code AgentGameTest} (main class, 12 tests), {@code AgentGameTestCombatSense}
+ * (2) and {@code AgentGameTestBuildBlock} (2) were all migrated to {@code ad.*} testkit
+ * scenes and their classes deleted — together with the earlier-retired Terrain (wave 2),
+ * WaterBank + WaterCross (wave 4) and Bias (wave 3, @GameTestHolder-only) families. So the
+ * ONLY class carrying @GameTest methods left in this source set is {@code AgentGameTestServer};
+ * {@code AgentGameTestSupport} / this class hold none and are intentionally not registered.
  *
- * <p>These explicit registrations are belt-and-suspenders alongside NeoForge's
- * @GameTestHolder auto-scan (which — with {@code neoforge.enableGameTest=true} — also
- * registers all @GameTestHolder classes, including AgentGameTestBias which was never in
- * this list); GameTestRegistry dedupes, so keeping the exact original wiring preserves
- * the registered set byte-for-byte across the move.
+ * <p>This explicit registration is belt-and-suspenders alongside NeoForge's @GameTestHolder
+ * auto-scan (with {@code neoforge.enableGameTest=true}); GameTestRegistry dedupes, so keeping
+ * the single Server registration preserves the registered set byte-for-byte across the move.
  */
 @EventBusSubscriber(modid = AgentDriverCommon.MOD_ID)
 public final class AgentGameTestRegistrar {
@@ -32,16 +31,11 @@ public final class AgentGameTestRegistrar {
 
     @SubscribeEvent
     public static void onRegisterGameTests(RegisterGameTestsEvent event) {
-        event.register(AgentGameTest.class);
-        // AgentGameTestTerrain retired (P4b wave 2 close, controller-adjudicated): all 13 arenas
-        // migrated to ad.* testkit scenes (12) or retired-without-scene (descentDriftArena) — the
-        // class is empty and deleted, so no registration.
+        // Server-only after P4b wave 5. The main class AgentGameTest (12) + AgentGameTestCombatSense (2)
+        // + AgentGameTestBuildBlock (2) migrated to ad.* testkit scenes (AgentDriverCoreScenes /
+        // AgentDriverCombatScenes / AgentDriverBuildScenes) and were deleted this wave; the Terrain
+        // (wave 2), Bias (wave 3, @GameTestHolder-only), and WaterBank + WaterCross (wave 4) families
+        // retired earlier. See docs/testkit/migration-log.md wave-5. AgentGameTestServer (P4c) remains.
         event.register(AgentGameTestServer.class);
-        // AgentGameTestWaterBank + AgentGameTestWaterCross retired (P4b wave 4): all 21 Water arenas
-        // migrated to ad.* testkit scenes (WaterBank 11 + WaterCross 10; riverSheerBank + vineOverWaterClimb
-        // + vineClingFidelityProbe carried optional), the two classes deleted in this same commit — so no
-        // registration. See docs/testkit/migration-log.md wave-4.
-        event.register(AgentGameTestCombatSense.class);
-        event.register(AgentGameTestBuildBlock.class);
     }
 }

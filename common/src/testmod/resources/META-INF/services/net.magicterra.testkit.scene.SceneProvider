@@ -3,3 +3,6 @@ net.magicterra.agent.bot.testkit.scene.AgentDriverTerrainScenes
 net.magicterra.agent.bot.testkit.scene.AgentDriverBiasScenes
 net.magicterra.agent.bot.testkit.scene.AgentDriverWaterBankScenes
 net.magicterra.agent.bot.testkit.scene.AgentDriverWaterCrossScenes
+net.magicterra.agent.bot.testkit.scene.AgentDriverCoreScenes
+net.magicterra.agent.bot.testkit.scene.AgentDriverCombatScenes
+net.magicterra.agent.bot.testkit.scene.AgentDriverBuildScenes

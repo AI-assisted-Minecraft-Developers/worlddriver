@@ -92,10 +92,6 @@ public final class AgentGameTestSupport {
         return true;
     }
 
-    static int HorizonArenaMinReach() {
-        return net.magicterra.agent.bot.debug.HorizonArena.CORRIDOR_LEN - 20;
-    }
-
     /** 5x5 stone-walled tank, 3x3 water core {@code depth} tall, air above. */
     static void buildWaterColumn(ServerLevel level, int cx, int cz, int floorY, int depth) {
         for (int dx = -2; dx <= 2; dx++)
