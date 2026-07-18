@@ -524,4 +524,12 @@ engine/harness tasks tracked in the surviving scenes stay open: **task#86**
 verb), **task#91** (`ad.riverSheerBank`). `agentRpcSmoke` migrated to `ad.agentRpcSmoke`
 in wave 5 (count-forced: `AgentGameTestServer` already holds exactly 59, so all 16
 non-Server tests had to leave to reach `registered==59`) — flagged as a required
-watch-item. The `agent_driver-testkit-*` artifactId naming residual is unchanged.
+watch-item. **Task-5 acceptance found its 259-check JS validation suite is not
+portable to the integrated-client (T1/T2) topology** (8 client-face checks diverge —
+`observe…player` / `Agent.bot.tunnel` / `blocks_to_avoid` JS bindings + a couple of
+behavioural checks — while all 259 PASS on the dedicated path). Per controller
+adjudication the scene keeps REQUIRED dedicated-server coverage and carries a **visible
+topology guard** (`!isDedicatedServer()` → early PASS with a `SceneContext.passNote`
+marker in the results-JSONL reason, citing **task#92**); the real fix (topology-aware
+checks / a signature gate pinning the 8 known divergences) is **task#92**. The
+`agent_driver-testkit-*` artifactId naming residual is unchanged.
