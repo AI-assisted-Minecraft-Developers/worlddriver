@@ -11,6 +11,7 @@ run-t2/
 scripts/testkit/.t1-world-template-*/
 scripts/testkit/.t2-world-template-*/
 scripts/testkit/.pool-state.json
+scripts/testkit/.pool-state.lock
 .idea/
 *.log
 
