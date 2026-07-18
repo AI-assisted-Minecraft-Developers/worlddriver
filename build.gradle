@@ -13,6 +13,18 @@ architectury {
     minecraft = project.minecraft_version
 }
 
+// Dogfood consumer configuration for the mc-testkit gradle plugin. The plugin's
+// only loader-override mechanism is the `testkit { loader }` extension (there is
+// no built-in `-P` binding); this bridge threads the `testkit.loader` project
+// property onto it so the documented gate-1 command works —
+//   ./gradlew testkitServer -Ptestkit.loader=neoforge
+// selects the neoforge dogfood — while the fabric convention stays the default
+// (so `./gradlew testkitClient` remains fabric T1). Loader-invalid values are
+// left for the orchestrator (t0/t1/t2.py) to reject at its --loader boundary.
+testkit {
+    loader = (findProperty('testkit.loader') ?: 'fabric')
+}
+
 allprojects {
     group = rootProject.maven_group
     version = rootProject.mod_version
