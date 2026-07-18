@@ -132,3 +132,21 @@ ad.serverAvatarTickFidelity
 ad.serverAttackCooldown
 ad.serverCapability
 ad.serverElytra
+
+# P4c wave 9 — Process-core family (15 migrated from AgentGameTestServer; the FINAL wave, legacy suite 15→0)
+# driver/mine/process/flee/mineProcess/mineNoTool/walkerDeepslate/forbidDigWall/build/lookRaycast/follow/combat/look/mineCanopyRadius/bridgePillar
+ad.serverDriver
+ad.serverMine
+ad.serverProcess
+ad.serverFlee
+ad.serverMineProcess
+ad.serverMineNoTool
+ad.serverWalkerDeepslateNoTool
+ad.serverForbidDigWall
+ad.serverBuild
+ad.serverLookRaycast
+ad.serverFollow
+ad.serverCombat
+ad.serverLook
+ad.serverMineCanopyRadius
+ad.serverBridgePillarStart

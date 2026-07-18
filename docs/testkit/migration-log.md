@@ -877,3 +877,122 @@ world, auto-wiped by the runner) reconciled `registered=15 entered=15` with **0 
 build_success=True, `required_failed=False`, **VERDICT GREEN** (23 s, no livelock). The surviving Server
 suite is now exactly the 15-name Process-core family; no deleted Survival/Avatar name reappears anywhere
 in the manifest (the count fell exactly 33→15 = −18).
+
+---
+
+## P4c wave 9 — the Process-core family (15 scenes; legacy suite 15 → 0; three legacy classes DELETED) — 2026-07-18
+
+**The FINAL migration wave of the whole legacy-retirement campaign.** The last 15 `AgentGameTestServer`
+tests — the headless server-side driver / process / avatar arenas — are migrated verbatim to a new
+`AgentDriverProcessScenes` provider, and the three legacy class files (`AgentGameTestServer` whole class,
+`AgentGameTestRegistrar`, `AgentGameTestSupport`) are DELETED in the same commit. After this wave the
+legacy `@GameTest` suite is **EMPTY**: `grep -rn "@GameTest(" neoforge/src fabric/src common/src` returns
+**ZERO** test-method call sites, and the neoforge testmod source set holds no `.java` files at all. ONE
+provider service line appended to the common `SceneProvider` file; the 15 `ad.*` names added to BOTH
+`expected-scenes-{neoforge,fabric}.txt` in this commit (**130** `ad.*` each, byte-identical). `GameTestManifest`
+and the `gameTestServer` run config STAY (machinery retirement is P4-final, not this wave).
+
+**Canonical substitutions (wave-6/7/8 set)** applied verbatim: `helper.getLevel()` → `ctx.level()`;
+absolute `cx/cz` → origin X/Z; absolute `floorY=220` → `origin.y + 20`, ground-anchored
+`floorY=anchor.getY()` (`serverForbidDigWall`) → `origin.y`; the hardcoded far anchors
+(`380/460/540/…/2600/1300`, hand-picked ONLY to dodge the shared persistent world's coordinate
+collisions) → `ctx.origin()` AUTO slots (the harness allocates a fresh non-colliding slot per scene — the
+collision-avoidance the legacy did by hand is now structural); ground-anchored `helper.absolutePos(ZERO)`
+→ `ctx.origin()`; `ServerAgentDriver.create` → `ServerAgentDriver.createIsolated` (#48 per-scene body);
+legacy NeoForge `FakePlayer` → common `ServerPlayer`; `try/finally` config save/restore →
+`BotConfig.pinnedBaseline()` + `ctx.cleanup(pin::close)` (snapshots EVERY mutable field, so
+`fleeActive`/`walkerWallDigFallback`/… restore for free); `throw new GameTestAssertException` → `ctx.fail`;
+`helper.succeed()` → return; `gtOnlySkips(...)` → deleted. `ServerPlayerAvatar.faithfulBreak` (a static NOT
+covered by `pinnedBaseline`) is saved/restored by its own `ctx.cleanup` in `ad.serverWalkerDeepslateNoTool`.
+
+### ⚡ THE THREE RE-ENTRANT `level.tick()` MINES — before/after (the documented ChunkMap-livelock triggers)
+
+Each legacy arena hand-forced a fresh entity into the queryable section index with a
+`for (int i = 0; i < 3; i++) level.tick(() -> true);` loop — the ⛔ persistent-world ChunkMap-livelock
+trigger that MUST NOT be copied into a scene. Each is translated to the established wave-5
+**bounded entity-visibility await** (loud STEP_TIMEOUT on non-appearance). Everything downstream of the
+await — `ServerAgentManager.register`, the `tickAll()` drive loop, and every assertion — is kept VERBATIM.
+
+1. **`serverForbidDigWallArena` (legacy :639)**
+   - BEFORE: `for (int i = 0; i < 3; i++) level.tick(() -> true);   // index the fresh entity so EntityFind sees it`
+   - AFTER: `ctx.await(() -> !level.getEntitiesOfClass(ArmorStand.class, entityBox(cx, floorY, cz)).isEmpty()).within(100).then(() -> { …Phase A (NoBreak give-up) + Phase B (precision dig-through) VERBATIM… });`
+   - Live: PASS both loaders, await resolved in 11–12 harness ticks (stand indexed), both phases reproduce (`plugRemaining==2 & !gotPast` under NoBreak; `reached & plugRemaining==0` without).
+
+2. **`serverFollowArena` (legacy :841)**
+   - BEFORE: `for (int i = 0; i < 3; i++) level.tick(() -> true);`
+   - AFTER: `ctx.await(() -> !level.getEntitiesOfClass(ArmorStand.class, entityBox(cx, floorY, cz)).isEmpty()).within(100).then(() -> { …FollowProcess drive loop + `dist<=3.0` assertion VERBATIM… });`
+   - Live: PASS both loaders, await resolved in 9–11 harness ticks, bot closes on the stand.
+
+3. **`serverCombatArena` (legacy :917)**
+   - BEFORE: `for (int i = 0; i < 3; i++) level.tick(() -> true);   // index into getEntities`
+   - AFTER: `ctx.await(() -> !level.getEntitiesOfClass(Zombie.class, entityBox(cx, floorY, cz)).isEmpty()).within(100).then(() -> { …CombatProcess KILL loop + zombie kill assertion VERBATIM… });`
+   - The drive loop still ticks the **zombie DIRECTLY** (`zombie.tick()` — NOT `level.tick()`) each iteration to clear its hurt-cooldown, and re-pins it — the exact legacy actuation, and safe (a direct entity tick has no ChunkMap re-entry).
+   - Live: PASS both loaders, await resolved in 7–12 harness ticks, zombie killed, process finishes+unregisters.
+
+**`ad.serverCombat` controlled-combat rig — daytime auto-burn protection copied VERBATIM.** The zombie is
+`setNoAi(true)` + `setPersistenceRequired()` + max `KNOCKBACK_RESISTANCE` and the level is pinned to
+`setDayTime(18000)` (night → no sun-burn false fire-kill); re-pinned to its cell each iteration. Nothing
+tuned. Proven time-insensitive: PASS byte-identical across neoforge ×2 + fabric ×2 (no `level.tick()`
+elapses for the zombie in daylight; the direct `zombie.tick()` at night cannot ignite).
+
+**Support-helper promotion audit.** Only ONE `AgentGameTestSupport` static was still referenced by the 15
+surviving tests — `buildFloor` (from `serverMineArena`). It is reproduced as a private static inside
+`AgentDriverProcessScenes` (the wave-2/3/8 "each provider self-contains its needed helpers" precedent —
+`buildFloor` is likewise already inlined in `AgentDriverCombatScenes`/`AgentDriverAvatarScenes`/`…Terrain…`/
+`…Core…`; the promotion is a faithful copy, not a shared new dependency). The private `bridgePillarLeg`
+helper (sole-called by `serverBridgePillarStartArena`) is ported into the provider (now origin-relative +
+`ctx`-driven cleanup). No other `AgentGameTestSupport`/`AgentGameTestServer` helper had a live (non-comment)
+reference: `gtOnlySkips`/`gtSkip`/`buildWaterColumn`/`grantWaterEffects`/`maxPathY`/`runSearch` were all
+either scene-inlined in prior waves or moved to `SimProbes` (P1.6) — verified by grep (all remaining hits
+are javadoc `{@code …}` mentions).
+
+**Deletion audit.** `AgentGameTestServer.java` (1230 lines, 15 `@GameTest`), `AgentGameTestRegistrar.java`
+(the sole `RegisterGameTestsEvent` subscriber — registered only `Server` after wave-8) and
+`AgentGameTestSupport.java` all deleted. Cross-repo grep confirmed the ONLY remaining references to the
+three class names are javadoc/comment mentions (in the migrated scenes, `SimProbes`, `BunkerChain`,
+`AgentDriverNeoForge` :57, `GameTestManifest` :24) — ZERO `import`/`extends`/call-site references, so the
+delete dangles nothing. Gate (a) (`:common:compileTestmodJava :neoforge:compileTestmodJava :fabric:build
+:neoforge:build`) is **BUILD SUCCESSFUL** post-deletion (`:neoforge:compileTestmodJava` = NO-SOURCE, the
+empty source set compiles clean). `GameTestManifest` (production main) and `neoforge/build.gradle`'s
+`gameTestServer` run config are intentionally UNTOUCHED (P4-final).
+
+| deleted legacy test method | legacy class | ad.* scene | migration commit | this deletion | notes (first-run A/B verdict) |
+|---|---|---|---|---|---|
+| `serverDriverArena` | AgentGameTestServer | `ad.serverDriver` | this commit (P4c wave 9) | this commit | identical — PASS both loaders (headless ServerAgentDriver walks + steps up a +1 ledge to a Block goal; reached+finished+auto-unregister) |
+| `serverMineArena` | AgentGameTestServer | `ad.serverMine` | this commit (P4c wave 9) | this commit | identical — PASS both loaders (navigate + MINE a target block; uses the promoted `buildFloor`) |
+| `serverProcessArena` | AgentGameTestServer | `ad.serverProcess` | this commit (P4c wave 9) | this commit | identical — PASS both loaders (the SERVER runs the REAL IntentProcess to a Block goal) |
+| `serverFleeArena` | AgentGameTestServer | `ad.serverFlee` | this commit (P4c wave 9) | this commit | identical — PASS both loaders (REAL RunAwayProcess, stateful `fleeActive`; fled ≥ minDist) |
+| `serverMineProcessArena` | AgentGameTestServer | `ad.serverMineProcess` | this commit (P4c wave 9) | this commit | identical — PASS both loaders (REAL MineProcess mines a 3-stone quota holding a pickaxe) |
+| `serverMineNoToolArena` | AgentGameTestServer | `ad.serverMineNoTool` | this commit (P4c wave 9) | this commit | identical — PASS both loaders (gap#2 tool gate: toolless bot mines NONE, aborts clean with a signal naming "pickaxe") |
+| `serverWalkerDeepslateNoToolArena` | AgentGameTestServer | `ad.serverWalkerDeepslateNoTool` | this commit (P4c wave 9) | this commit | identical — PASS both loaders (Walker EXECUTOR clears a bare-hand deepslate plug; `faithfulBreak` ON, saved/restored via ctx.cleanup; reached+plugRemaining==0) |
+| `serverForbidDigWallArena`⚡ | AgentGameTestServer | `ad.serverForbidDigWall` | this commit (P4c wave 9) | this commit | **`for(3) level.tick()` → bounded ArmorStand await** — PASS both loaders (Phase A NoBreak give-up: plug survives, no tunnel; Phase B precision: digs through + reaches stand) |
+| `serverBuildArena` | AgentGameTestServer | `ad.serverBuild` | this commit (P4c wave 9) | this commit | identical — PASS both loaders (REAL BuildProcess places both cobble on a dirt floor) |
+| `serverLookRaycastArena` | AgentGameTestServer | `ad.serverLookRaycast` | this commit (P4c wave 9) | this commit | identical — PASS both loaders (`Avatar.lookingAtBlock()` eye→view raycast resolves the aimed cell) |
+| `serverFollowArena`⚡ | AgentGameTestServer | `ad.serverFollow` | this commit (P4c wave 9) | this commit | **`for(3) level.tick()` → bounded ArmorStand await** — PASS both loaders (REAL FollowProcess closes on the stand, dist≤3) |
+| `serverCombatArena`⚡ | AgentGameTestServer | `ad.serverCombat` | this commit (P4c wave 9) | this commit | **`for(3) level.tick()` → bounded Zombie await** — PASS both loaders (REAL CombatProcess KILLs a NoAI night-pinned zombie; daytime-burn rig copied verbatim; `zombie.tick()` per-iter kept, NOT level.tick) |
+| `serverLookArena` | AgentGameTestServer | `ad.serverLook` | this commit (P4c wave 9) | this commit | identical — PASS both loaders (REAL LookProcess aligns yaw/pitch to the target, err≤2°) |
+| `serverMineCanopyRadiusArena` | AgentGameTestServer | `ad.serverMineCanopyRadius` | this commit (P4c wave 9) | this commit | identical — PASS both loaders (gap#67-⑤ scan budget: MineProcess finds a dy=+4 canopy log at radius 16 AND 32) |
+| `serverBridgePillarStartArena` | AgentGameTestServer | `ad.serverBridgePillarStart` | this commit (P4c wave 9) | this commit | identical — PASS both loaders (gap#75-a death#24: BridgeProcess leg A sneak-overhang+yaw-90° / leg B centered; feet never drop, 4 laid, ends `done`; `bridgePillarLeg` promoted origin-relative) |
+
+**Origin slots / footprints.** All 15 take AUTO slots at the default `chunkRadius=1` window
+(`dx/dz ∈ [−16,+31]`). Widest reaches fit: `ad.serverFollow` slab dx +12; `ad.serverForbidDigWall`
+shell dz +11 (standDz+2); `ad.serverMineCanopyRadius` dx +11; `ad.serverBridgePillarStart` two legs
+(leg B at dz +16, footprint dz +13..+19). Every assertion is a discrete process OUTCOME / golden metric,
+so registry-growth relocation cannot flip any — no `withChunkRadius`, no pinned slot.
+
+**Dual-loader determinism (first-run A/B, 2026-07-18).** neoforge dogfood ×2 + fabric dogfood ×2 (each on
+a freshly wiped `run-dogfood/world`, servers run ONE AT A TIME): **all 15 new scenes PASS on every run of
+both loaders, and the full `(name, outcome)` set is byte-identical run1==run2 AND cross-loader
+neoforge==fabric** (verified programmatically — zero diffs). The two expected optional-FAIL sensors
+(`ad.vineOverWaterClimb` −711, `ad.riverSheerBank` task#91) + the `canaryMustFail`/`canaryMustTimeout`
+canaries reproduce exactly; ZERO required failures. Suite wall-clock (130-scene suite): **neoforge
+83 s / 83 s, fabric 81 s / 81 s** (growth within budget). The three ⚡ awaits resolve in 7–12 harness ticks
+each (entity indexing), far inside the `within(100)` budget. **No new scene was flaky; no threshold was
+tuned; no scene was rebaselined or escape-hatched** — every one of the three legacy classes is deletable
+with the suite fully GREEN.
+
+**Post-deletion replacement gate (legacy suite now VACUOUS).** With the suite empty, `run_gametests.sh`
+is NOT run (vacuous). The brief's replacement gate holds: `grep -rn "@GameTest(" neoforge/src fabric/src
+common/src` = **ZERO** test-method call sites; the three class files **do not exist**; the testmod compiles
+GREEN (gate a). **Campaign count chain: 59 → 44 (wave 6) → 33 (wave 7) → 15 (wave 8) → 0 (wave 9).**
+The legacy `AgentGameTestServer` family — and with it the last `@GameTest` in the repo — is retired.
