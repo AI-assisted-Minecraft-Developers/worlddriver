@@ -23,7 +23,6 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
-import net.neoforged.neoforge.event.RegisterGameTestsEvent;
 import net.neoforged.neoforge.event.ServerChatEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
@@ -53,19 +52,11 @@ public final class AgentDriverNeoForge {
             @Override public ServerPlayer unique(ServerLevel level, GameProfile profile) { return FakePlayerFactory.get(level, profile); }
         });
         NeoForge.EVENT_BUS.register(this);
-        modBus.addListener((RegisterGameTestsEvent event) -> {
-            // AgentGameTest was split by arena family for file-size hygiene; every
-            // @GameTestHolder class must be registered explicitly (NeoForge does not
-            // auto-discover them here). AgentGameTestSupport holds only shared helpers
-            // (no @GameTest methods) so it is intentionally not registered.
-            event.register(AgentGameTest.class);
-            event.register(AgentGameTestTerrain.class);
-            event.register(AgentGameTestServer.class);
-            event.register(AgentGameTestWaterBank.class);
-            event.register(AgentGameTestWaterCross.class);
-            event.register(AgentGameTestCombatSense.class);
-            event.register(AgentGameTestBuildBlock.class);
-        });
+        // P4a Task 1: the legacy @GameTest classes moved OUT of the production jar into
+        // the neoforge testmod source set. Their RegisterGameTestsEvent registration moved
+        // with them — testmod's AgentGameTestRegistrar (@EventBusSubscriber) now carries the
+        // per-class event.register calls verbatim. Nothing gametest-related is registered
+        // from main any more, so the production jar carries no AgentGameTest* classes.
         AgentDriverCommon.LOG.info("[{}] NeoForge entry constructed", AgentDriverCommon.MOD_ID);
     }
 

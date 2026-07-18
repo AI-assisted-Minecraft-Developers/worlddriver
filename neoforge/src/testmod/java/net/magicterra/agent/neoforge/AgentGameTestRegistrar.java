@@ -1,0 +1,41 @@
+package net.magicterra.agent.neoforge;
+
+import net.magicterra.agent.AgentDriverCommon;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.RegisterGameTestsEvent;
+
+/**
+ * P4a Task 1: RegisterGameTestsEvent seam for the legacy @GameTest suite, moved
+ * here (neoforge testmod source set) together with the arena classes so no test
+ * code remains in the production jar.
+ *
+ * <p>Discovered by FML's annotation scan because the testmod source set is attached
+ * to the {@code agent_driver} mod via {@code loom.mods} in {@code neoforge/build.gradle}
+ * — so this @EventBusSubscriber fires exactly as the old inline listener in
+ * {@link AgentDriverNeoForge}'s constructor did. The per-class register calls are
+ * copied verbatim from that listener (same 7 classes, same order): AgentGameTest was
+ * split by arena family for file-size hygiene, and AgentGameTestSupport / this class
+ * hold no @GameTest methods so they are intentionally not registered here.
+ *
+ * <p>These explicit registrations are belt-and-suspenders alongside NeoForge's
+ * @GameTestHolder auto-scan (which — with {@code neoforge.enableGameTest=true} — also
+ * registers all @GameTestHolder classes, including AgentGameTestBias which was never in
+ * this list); GameTestRegistry dedupes, so keeping the exact original wiring preserves
+ * the registered set byte-for-byte across the move.
+ */
+@EventBusSubscriber(modid = AgentDriverCommon.MOD_ID)
+public final class AgentGameTestRegistrar {
+    private AgentGameTestRegistrar() {}
+
+    @SubscribeEvent
+    public static void onRegisterGameTests(RegisterGameTestsEvent event) {
+        event.register(AgentGameTest.class);
+        event.register(AgentGameTestTerrain.class);
+        event.register(AgentGameTestServer.class);
+        event.register(AgentGameTestWaterBank.class);
+        event.register(AgentGameTestWaterCross.class);
+        event.register(AgentGameTestCombatSense.class);
+        event.register(AgentGameTestBuildBlock.class);
+    }
+}

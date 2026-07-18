@@ -71,6 +71,21 @@ dependencies {
     forgeRuntimeLibrary "org.yaml:snakeyaml:$rootProject.snakeyaml_version"
 }
 
+// P4a Task 1: testmod source set — the legacy @GameTest classes (8 arena classes +
+// AgentGameTestSupport) live here so they are compiled and loaded ONLY in dev runs
+// (attached to the mod via the loom mods{} block below), never baked into the
+// remapped production jar. Classpath wiring mirrors the mc-testkit gradle-plugin's
+// testmod convention (testmod sees main's OUTPUT plus main's own compile/runtime
+// classpaths — so testmod code can reach main classes AND main's dependencies,
+// including common's SimProbes), but wired by hand: the plugin's testmodSourceSet
+// flag only takes effect on the root project (P4a plan §Architecture).
+sourceSets {
+    testmod {
+        compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
+        runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
+    }
+}
+
 processResources {
     inputs.property 'version', project.version
 
@@ -99,6 +114,20 @@ remapJar {
 }
 
 loom {
+    // P4a Task 1: attach the testmod source set to the mod FML scans for annotations, so
+    // the moved @GameTestHolder / @EventBusSubscriber testmod classes are discovered as
+    // part of agent_driver (no separate mods.toml). architectury-loom EAGERLY registers a
+    // default dev-run mod named "main" (the main source set) during plugin apply, before
+    // this script body runs — so we must CONFIGURE that existing "main" mod, not create a
+    // second one. (Declaring a new `agent_driver` mod instead produces two MOD_CLASSES
+    // groups — main-only "main" + main+testmod "agent_driver" — and FML resolves the
+    // duplicate mods.toml to the main-only group, silently dropping testmod. Verified via
+    // the launch MOD_CLASSES env + "Found mod file main" in the boot log.)
+    mods {
+        named('main') {
+            sourceSet sourceSets.testmod
+        }
+    }
     runs {
         server { server() }
         // NeoForge's userdev moddev-config.json exposes a "gameTestServer" template
@@ -116,6 +145,11 @@ loom {
             property 'neoforge.enableGameTest', 'true'
             property 'neoforge.gameTestServer', 'true'
             runDir 'run-gametest'
+            // P4a Task 1: run against the testmod source set. testmod's runtimeClasspath
+            // extends main's (see sourceSets block above), so main classes stay present;
+            // this adds the moved @GameTest arenas + AgentGameTestRegistrar to the run so
+            // the legacy suite still auto-runs. (Task 2/3 wire dogfood/testkitClient/t2Server.)
+            source sourceSets.testmod
         }
         contractServer {
             server()
