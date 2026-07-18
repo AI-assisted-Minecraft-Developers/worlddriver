@@ -646,3 +646,106 @@ world) reconciled `registered=44 entered=44` with **0 swallowed / 0 drifted**, b
 failure family is empty (unchanged since P4b wave 5), so the empty failure set held. No deleted
 Station name reappears anywhere in the manifest (the count fell exactly 59→44 = −15). No livelock
 this run.
+
+## Wave 7 (P4c Task 2) — the Scheduler-semantics matrix family: 11 migrated + deleted
+
+**Count arithmetic: legacy registered 44 → 33** (−11 `@GameTest` methods, all migrated twins deleted;
+**no** retired-without-scene this wave). Second P4c Server-family wave: the `AgentGameTestServer` giant
+is cut by THEME again, so this wave migrates the 11-name Scheduler-semantics subset (the #54P1
+regression guards — hurt-entry / frail gate / DUSK_URGENT90 / death-clears-table / terminal honesty /
+AutoTool grace / cancel routing / episode lifecycle) to a new `AgentDriverSchedulerScenes` provider and
+deletes the twins IN PLACE — `AgentGameTestServer` survives with its remaining 33 tests and
+`AgentGameTestRegistrar` is untouched (still registers `Server`). The reconcile (`gt_reconcile.py`) is
+fully dynamic (counts the manifest), so no script constant needed updating. One provider service line
+appended to the common `SceneProvider` file; the 11 `ad.*` names added to BOTH
+`expected-scenes-{neoforge,fabric}.txt` in this commit (scene lists byte-identical, 97 each).
+
+**Matrix-row fidelity is the wave's #1 risk — every row survived one-for-one (per-scene counts,
+legacy == scene).** Each legacy body drove a `BiConsumer<Boolean,String> check` lambda; the helpers were
+copied byte-for-byte and the scene supplies the SceneContext analogue
+`(ok,msg) -> { if (!ok) ctx.fail(msg); }`. No row was dropped, reordered, or merged (row structure
+unchanged — a straight `check.accept(...)` / `if(...)ctx.fail(...)` sequence per legacy body).
+
+| ad.* scene | legacy twin | matrix rows (legacy = scene) | classification | first-run A/B verdict |
+|---|---|---|---|---|
+| `ad.retreatGateMatrix` | `retreatGateMatrixArena` | **43** | world (Skeleton+Zombie refs + `enclosed` geometry leg) | identical — PASS both loaders ×2 (gap#65/#68-①/#71/#72-③④ RetreatChain enter/release/reason matrix) |
+| `ad.walkerTerminalReportMatrix` | `walkerTerminalReportMatrixArena` | **5** | pure (Walker.classifyArrival) | identical — PASS both loaders ×2 (gap#68-R2a ARRIVED honest terminal report) |
+| `ad.antiSuffocateShouldTriggerMatrix` | `antiSuffocateShouldTriggerMatrixArena` | **8** | pure (AntiSuffocateGate) | identical — PASS both loaders ×2 (gap#69 death-#16 desync + M1 proximity-fallback hurtTime gate) |
+| `ad.chainEpisodeCancelMatrix` | `chainEpisodeCancelMatrixArena` | **3** | pure (BunkerChain in-memory) | identical — PASS both loaders ×2 (gap#68-R1a sealed-anchor episode state reset) |
+| `ad.combatGraceMatrix` | `combatGraceMatrixArena` | **2** | pure (CombatChain + BotState) | identical — PASS both loaders ×2 (gap#68-③/⑧ death-grace autoFight suppression decay) |
+| `ad.frailBlockedMatrix` | `frailBlockedMatrixArena` | **3** | pure (CombatChain.frailBlocked) | identical — PASS both loaders ×2 (gap#68-② frail-HP fight gate + force override) |
+| `ad.urgentBidMatrix` | `urgentBidMatrixArena` | **10** (urgentBid 5 + wouldEscalate 5) | pure (DuskSecureChain) | identical — PASS both loaders ×2 (gap#68-④⑨ DUSK_URGENT90 escalation + finding#3 dry-run canary predicate) |
+| `ad.duskSecureHeldProcessLifecycle` | `duskSecureHeldProcessLifecycleArena` | **33** (matrix 26 + world leg 7) | pure matrix + REAL BunkerProcess world leg | identical — PASS both loaders ×2 (gap#72-① held-process interrupt/cancel lifecycle + gap#75-b re-arm-after-preemption over a `createIsolated` FakePlayer) |
+| `ad.cancelRouting` | `cancelRoutingArena` | **19** | pure (CancelRouting + chains in-memory) | identical — PASS both loaders ×2 (gap#72-② named-cancel resolution: user-slot/episode/held-kind, honest labels + no-active-target) |
+| `ad.manualSlotGraceMatrix` | `manualSlotGraceMatrixArena` | **8** | pure (AutoTool) | identical — PASS both loaders ×2 (gap#68-⑪ external-selection grace + stepGrace clamp-no-wedge) |
+| `ad.nearestFirstScanMatrix` | `nearestFirstScanMatrixArena` | **5** | pure (NearestFirstScan) | identical — PASS both loaders ×2 (gap#67-⑤ nearest-first offset ordering: coverage/near-high-rank/sorted/origin-first/r64) |
+
+**Total matrix rows migrated this wave: 139** (43+5+8+3+2+3+10+33+19+8+5), one-for-one with the legacy
+bodies.
+
+**Classification (honest, per deletion source).** **Nine are PURE LOGIC — no world, no avatar, no
+walker** (static gate / classifier / in-memory chain-state): `ad.walkerTerminalReportMatrix`,
+`ad.antiSuffocateShouldTriggerMatrix`, `ad.chainEpisodeCancelMatrix`, `ad.combatGraceMatrix`,
+`ad.frailBlockedMatrix`, `ad.urgentBidMatrix`, `ad.cancelRouting`, `ad.manualSlotGraceMatrix`,
+`ad.nearestFirstScanMatrix`. Their body runs the matrix once on the first RUN tick and resolves the same
+tick (measured 1 tick / ~30–160 ms) — no `await`, nothing spawned/placed, so no cleanup and the persistent
+dogfood world is untouched. **Two touch the world:** `ad.retreatGateMatrix` creates a real `Skeleton`
+(RangedAttackMob — the `instanceof RangedAttackMob` gap#71 discrimination requires the true type) + a
+`Zombie` as `ThreatScanner.Threat` references (used ONLY for entity identity, NOT scanned via
+`getEntitiesOfClass`, so — unlike the CombatSense wave — **no entity-visibility await is needed**), and
+plants a 1×1 stone pocket for the `BunkerProcess.enclosed` geometry leg (rows x/y);
+`ad.duskSecureHeldProcessLifecycle` runs the 26-row lifecycle matrix, then the gap#75-b re-arm **world
+leg** — a REAL `BunkerProcess` dug to genuinely SEALED over a `createIsolated` FakePlayer driven
+synchronously by `driver.tick()` loops inside the body (measured 1 tick / 60 ms — the whole dig runs
+server-logic-fast, no real-time, no `level.tick()`). ⛔ No scene calls `level.tick()` (this family has
+none — the re-entrant `level.tick()` mines are all in the Process wave, P4c Task 4).
+
+**Canonical substitutions (wave-6 Station set).** `helper.getLevel()` → `ctx.level()`; absolute
+`cx/cz` → origin X/Z; absolute `floorY=220` → `origin.y + 20`; `ServerAgentDriver.create` →
+`ServerAgentDriver.createIsolated` (#48 per-scene isolated body); legacy NeoForge `FakePlayer` → common
+`ServerPlayer` (a FakePlayer IS a ServerPlayer; every call used — `getInventory()`, `blockPosition()`,
+`getHealth()` — is a `ServerPlayer` member, type-faithful on both loaders); `try/finally` config
+save/restore → `BotConfig.pinnedBaseline()` + `ctx.cleanup(pin::close)`; `throw new
+GameTestAssertException` → `ctx.fail`; `helper.succeed()` → return; the `gtOnlySkips(...)` probe →
+deleted. The two world scenes register `ctx.cleanup` to discard their avatar/mobs and scrub every block
+they place (#40 persistent-world lesson — the dusk world leg scrubs its whole dirt slab + dig shaft
+`dx/dz∈[−4,4]`, `dy∈[−8,8]`; retreat scrubs its stone pocket `dx/dz∈[7,9]`, `dy∈[20,24]`). The dusk world
+leg's private helper `duskSecureRearmWorldLeg` was carried into the provider verbatim (adapted to
+`SceneContext`).
+
+**Origin slots / footprints.** All 11 take AUTO slots at the default `chunkRadius=1` window
+(`dx/dz ∈ [−16,+31]`). The two world scenes fit trivially: `ad.retreatGateMatrix`'s widest reach is the
+geometry pocket at `dx/dz=+8`; `ad.duskSecureHeldProcessLifecycle`'s dirt slab is `dx/dz∈[−3,3]`. Every
+gate is a discrete boolean/label OUTCOME or pure-CPU assertion (no byte-determinism pin), so
+registry-growth relocation cannot flip any of them. No `withChunkRadius`, no pinned slot.
+
+**Orphaned helpers + imports deleted in the same commit (no registered-count effect).** All 11
+per-family `xxxMatrix(BiConsumer)` helpers + `wouldEscalateMatrix` + `duskSecureRearmWorldLeg` +
+`indexOfOffset` were sole-called by the deleted arenas and were deleted from `AgentGameTestServer`
+(reproduced inside `AgentDriverSchedulerScenes`). The sibling `antiSuffocateSuffocatesBlockMatrix` /
+`antiSuffocateWaterNotSuffocatingArena` (Survival wave, P4c Task 3) and `serverMineCanopyRadiusArena`
+(also gap#67-⑤, but the end-to-end MineProcess leg, Process wave P4c Task 4) were **kept** — they sat in
+the middle of the deletion span and were preserved verbatim. Nine now-orphaned imports were removed
+(`scheduler.RetreatChain`, `scheduler.CombatChain`, `scheduler.DuskSecureChain`, `scheduler.CancelRouting`,
+`scheduler.ChainProcessLifecycle`, `world.HazardField`, `world.SurvivalFacts`, `world.SurvivalMath`,
+`world.WorldModel`); `BunkerChain` / `BunkerProcess` / `RunAwayProcess` / `AntiSuffocateGate` / `Walker` /
+`Chain` / `Priorities` / `BotState` / `BotProcess` / `LevelWorldView` were **kept** (still used by surviving
+Server-family arenas). One dangling prose reference in the surviving `drownEscapeChainLifecycleMatrix`
+comment (`same split as chainEpisodeCancelMatrix`) was repointed to `the migrated ad.chainEpisodeCancel
+scene`.
+
+**Dual-loader determinism (first-run A/B, 2026-07-18).** neoforge dogfood ×2 and fabric dogfood ×2 (each
+on a freshly wiped `run-dogfood/world`, servers run one at a time): all four runs GREEN; the
+`(name, outcome)` result set is **byte-identical across both runs of each loader AND across loaders** (102
+records = 2 builtin (`floorAssert`/`awaitTicks`) + 2 canaries recorded (`canaryMustFail`→FAIL /
+`canaryMustTimeout`→TIMEOUT, `canaryMustSwallow` correctly omitted) + 1 summary + 97 `ad.*` (86 existing +
+11 new)). All 11 new scenes PASS on both loaders ×2. The pre-existing 86 `ad.*` were unchanged (the two
+expected optional-FAIL sensors `ad.vineOverWaterClimb` −711 and `ad.riverSheerBank` task#91 reproduced;
+`ad.vineClingFidelityProbe` stayed optional-PASS). Suite wall-clock: neoforge 72 s / 73 s, fabric 70 s /
+69 s (97-scene suite; growth well within budget). No new scene was flaky; no threshold was tuned.
+
+**Post-deletion legacy reconcile (2026-07-18).** `scripts/run_gametests.sh` (fresh `run-gametest` world)
+reconciled `registered=33 entered=33` with **0 swallowed / 0 drifted**, build_success=True, **"All 33
+required tests passed :)"**, `required_failed=False`, VERDICT GREEN (25 s, no livelock). The surviving
+Server failure family is empty (unchanged since P4b wave 5), so the empty failure set held. No deleted
+Scheduler name reappears anywhere in the manifest (the count fell exactly 44→33 = −11).

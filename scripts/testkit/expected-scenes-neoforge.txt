@@ -97,3 +97,16 @@ ad.serverCraftGridClearHelper
 ad.serverCraftGridConservation
 ad.serverCraftFailTelemetry
 ad.serverCraftFailGridReturn
+
+# P4c wave 7 — Scheduler-semantics matrix family (11 migrated from AgentGameTestServer; #54P1 regression guards)
+ad.retreatGateMatrix
+ad.walkerTerminalReportMatrix
+ad.antiSuffocateShouldTriggerMatrix
+ad.chainEpisodeCancelMatrix
+ad.combatGraceMatrix
+ad.frailBlockedMatrix
+ad.urgentBidMatrix
+ad.duskSecureHeldProcessLifecycle
+ad.cancelRouting
+ad.manualSlotGraceMatrix
+ad.nearestFirstScanMatrix

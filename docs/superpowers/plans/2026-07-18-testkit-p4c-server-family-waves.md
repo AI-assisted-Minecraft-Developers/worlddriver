@@ -31,7 +31,7 @@
 **Files:** Create `AgentDriverSchedulerScenes.java`;其余同波次协议(+11)。
 **名单:** retreatGateMatrix / walkerTerminalReportMatrix / antiSuffocateShouldTriggerMatrix / chainEpisodeCancelMatrix / combatGraceMatrix / frailBlockedMatrix / urgentBidMatrix / duskSecureHeldProcessLifecycle / cancelRouting / manualSlotGraceMatrix / nearestFirstScanMatrix（各 Arena 后缀）。
 **注意:** 这批是 #54P1 调度语义十任务的回归卫士（hurt-entry/frail 门/DUSK_URGENT90/终态诚实等）——断言密集,矩阵行一条不许丢（评审逐行核）;多为纯逻辑无 walker。
-- [ ] Step 1-4 同协议,Commit `feat(testkit): P4c wave 7 — Scheduler-semantics matrices migrated (11 scenes), legacy 44→33`
+- [x] Step 1-4 同协议,Commit `feat(testkit): P4c wave 7 — Scheduler-semantics matrices migrated (11 scenes), legacy 44→33` — DONE (139 matrix rows one-for-one; dogfood 86→97 ×2×2 byte-identical both loaders; legacy reconcile registered=33 entered=33 0-swallowed GREEN)
 
 ### Task 3: Survival+Avatar 波——18 名（33→15）
 
