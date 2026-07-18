@@ -593,7 +593,8 @@ public final class AgentGameTestServer {
 
     /**
      * Per-goto {@code forbidDig} against a SOLID WALL — proof of the clean planner give-up (NOT a
-     * wallDig RED; that lives in {@link AgentGameTestWaterCross#forbidDigPadRamArena}).
+     * wallDig RED; that case migrated to the {@code ad.forbidDigPadRam} scene when the WaterCross
+     * family was retired — see the wave-4 row in {@code docs/testkit/migration-log.md}).
      *
      * <p><b>Key finding (empirically established, do not re-derive):</b> {@code NoBreak} prunes
      * BREAK edges only. A solid wall needs a break edge to pass → pruned → A* returns an EMPTY
@@ -2134,8 +2135,9 @@ public final class AgentGameTestServer {
      * surface the suite's OTHER cross-arena couplings — shared world regions and server-thread
      * load — as drifting required failures ({@code entityLeashRepath} 3/3, {@code agentRpcSmoke}
      * 2/3, {@code horizonArena} 1/3, all solo-green), plus it unmasked {@code descentDriftArena}
-     * as a deterministic solo-RED false green. Suite-wide isolation therefore waits on the test
-     * framework rework, not on this factory.
+     * as a deterministic solo-RED false green (that arena was since retired-without-scene in P4b
+     * wave 2 on exactly this false-green finding — see {@code docs/testkit/migration-log.md}).
+     * Suite-wide isolation therefore waits on the test framework rework, not on this factory.
      */
     @GameTest(template = "empty", timeoutTicks = 100000)
     public static void serverAgentDistinctBodiesArena(GameTestHelper helper) {
@@ -4062,7 +4064,8 @@ public final class AgentGameTestServer {
         if (AgentGameTestSupport.gtOnlySkips("serverMineCanopyRadiusArena")) { helper.succeed(); return; } // gt-filter
         ServerLevel level = helper.getLevel();
         // 2600: unused across all gametest classes (max prior pick was 2500,2500
-        // in AgentGameTestTerrain) — the shared world persists between runs, so a
+        // in the former AgentGameTestTerrain, since migrated to ad.* Terrain scenes
+        // in P4b wave 2) — the shared world persists between runs, so a
         // coordinate collision would leave this arena's lone log buried inside
         // another arena's structure (gap#60's exact "assumption falsified" trap).
         final int cx = 2600, cz = 2600, floorY = 220;

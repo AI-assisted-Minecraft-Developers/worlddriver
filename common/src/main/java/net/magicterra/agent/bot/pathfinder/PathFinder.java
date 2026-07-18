@@ -126,7 +126,8 @@ public final class PathFinder {
         this(world, BotConfig.pathfinderMaxNodes, BotConfig.pathfinderMaxMs, profile);
     }
     /** Back-compat: bias-only convenience ctor for callers that just want a cost
-     *  bias without a full profile (e.g. {@code AgentGameTestBias}). */
+     *  bias without a full profile (e.g. the {@code ad.*} Bias scenes in
+     *  {@code AgentDriverBiasScenes}). */
     public PathFinder(WorldView world, List<CostModifier> bias) {
         this(world, BotConfig.pathfinderMaxNodes, BotConfig.pathfinderMaxMs,
                 new SearchProfile(bias, CapabilityProfile.ALL, List.of()));

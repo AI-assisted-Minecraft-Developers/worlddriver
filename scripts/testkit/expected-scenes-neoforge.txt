@@ -38,7 +38,7 @@ ad.shorelineHug
 ad.shorelineSmoother
 ad.escapeFarthestNoRockDrill
 ad.budgetAwayTunnelChurn
-# P4b wave 4 — WaterBank family (11 migrated from AgentGameTestWaterBank; vineClingFidelityProbe + vineOverWaterClimb optional)
+# P4b wave 4 — WaterBank family (11 migrated from AgentGameTestWaterBank; 3 optional sensors: vineClingFidelityProbe (optional-PASS), vineOverWaterClimb (optional-FAIL, live −711 bug), riverSheerBank (optional-FAIL, task#91 shared-body false-green))
 ad.waterPhysicsParity
 ad.buoyantWall
 ad.vineClingFidelityProbe

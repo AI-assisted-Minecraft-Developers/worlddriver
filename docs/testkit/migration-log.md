@@ -461,3 +461,67 @@ canaries recorded (`canaryMustFail`→FAIL / `canaryMustTimeout`→TIMEOUT, `can
 (the two expected optional-FAIL sensors `ad.vineOverWaterClimb` pocketTicks=29 and `ad.riverSheerBank`
 wallPressTicks=51 reproduced to the coordinate; `ad.vineClingFidelityProbe` stayed optional-PASS). No new
 scene was flaky; no threshold was tuned.
+
+## P4b closing summary (Task 5) — non-Server families fully migrated
+
+**The whole-phase count chain, audited against git history.** P4b migrated every
+non-Server legacy `@GameTest` family off the legacy suite in four bounded
+migrate-then-delete waves, each wave a single feat/chore commit whose subject line
+carries its own arithmetic. Reading the chain end to end:
+
+| wave | family | migrated → scenes | retired-without-scene | legacy count | commit(s) |
+|---|---|---|---|---|---|
+| — (P4a wave 1) | 8 already-migrated twins | 8 | 0 | 130 → 122 | `1f30322` |
+| P4b wave 2 | Terrain (`AgentGameTestTerrain`) | 12 | 1 (`descentDrift`) | 122 → 110 → **109** | `3eb6d62` + `159f202` |
+| P4b wave 3 | Bias (`AgentGameTestBias`) | 13 | 0 | 109 → **96** | `1d2f748` |
+| P4b wave 4 | WaterBank (11) + WaterCross (10) | 21 | 0 | 96 → **75** | `84ffea5` |
+| P4b wave 5 | Core (12) + CombatSense (2) + BuildBlock (2) | 16 | 0 | 75 → **59** | `3fc846f` |
+
+**Chain: 122 → 109 → 96 → 75 → 59.** Every arrow above matches the `Count
+arithmetic` line of its wave section and the `feat/chore(testkit): … (X→Y)` subject
+of its commit. The four P4b waves removed **63** legacy `@GameTest` methods total
+(**62 migrated** to `ad.*` scenes + **1 retired-without-scene**, `descentDriftArena`,
+controller-adjudicated in wave 2), taking the legacy suite from 122 to 59.
+
+**Legacy suite is now Server-only.** After wave 5 the `AgentGameTestRegistrar`
+registers **only** `AgentGameTestServer` — the surviving 59 tests are exactly the
+Server family, the P4c cut. `AgentGameTestTerrain`, `AgentGameTestBias`,
+`AgentGameTestWaterBank`, `AgentGameTestWaterCross`, `AgentGameTest` (main),
+`AgentGameTestCombatSense`, and `AgentGameTestBuildBlock` are all DELETED;
+`AgentGameTestSupport` survives (its `buildFloor`/`clearBox`/`grantWaterEffects`/
+`gtOnlySkips` helpers are still used by the Server family).
+
+**Dogfood suite is now 71 `ad.*` scenes** across seven providers (all in
+`common/src/testmod/.../scene/`, one common `SceneProvider` service file, both loaders):
+`AgentDriverScenes` (9 original) + `AgentDriverTerrainScenes` (12) +
+`AgentDriverBiasScenes` (13) + `AgentDriverWaterBankScenes` (11) +
+`AgentDriverWaterCrossScenes` (10) + `AgentDriverCoreScenes` (12) +
+`AgentDriverCombatScenes` (2) + `AgentDriverBuildScenes` (2) = **71**
+(9 + 62 migrated). The plan estimated 72; the actual is 71 because `descentDrift`
+retired without a scene.
+
+**Three deliberate optional-FAIL sensors** carry live-bug / false-green signatures
+forward as VISIBLE, never-tuned gates (each `.withRequired(false)` with a task
+citation in its scene javadoc):
+
+- `ad.vineClingFidelityProbe` — legacy `required=false`; optional-**PASS** (wall-backed
+  vine cling fidelity; kept optional to match legacy).
+- `ad.vineOverWaterClimb` — the live **−711** bug (`walkerVineFreeHangClimb`-OFF baseline);
+  optional-**FAIL** deterministically (pocketTicks=29). Its RED IS the repro proof.
+- `ad.riverSheerBank` — **task#91**: a gap #48 shared-body FALSE-GREEN that isolation
+  (shared→`createUnique` body) flipped to a deterministic RED (step=FAILED,
+  wallPressTicks=51). Config byte-identical to legacy; the only variable is the body.
+  optional-**FAIL**, NOT tuned.
+
+**Residuals (open, unchanged by P4b).** The surviving legacy family is **P4c** —
+`AgentGameTestServer`'s 59 tests, which include the four re-entrant manual
+`level.tick()` sites (notably the livelock-prone `serverForbidDigWallArena` /
+`serverCombat*` arenas) that are the migration mines. **P4-final** then retires the
+`GameTestServer` + `solo*` batch mechanism and switches `run_gametests.sh`. Open
+engine/harness tasks tracked in the surviving scenes stay open: **task#86**
+(`ad.selfShaftDigUp` required signature gate), **task#87** (`entityLeash` low-y rig),
+**task#88** (`ad.entityLeash` harness tick-debt), **task#90** (instrument-face dual
+verb), **task#91** (`ad.riverSheerBank`). `agentRpcSmoke` migrated to `ad.agentRpcSmoke`
+in wave 5 (count-forced: `AgentGameTestServer` already holds exactly 59, so all 16
+non-Server tests had to leave to reach `registered==59`) — flagged as a required
+watch-item. The `agent_driver-testkit-*` artifactId naming residual is unchanged.
