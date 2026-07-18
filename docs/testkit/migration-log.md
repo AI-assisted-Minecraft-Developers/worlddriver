@@ -462,6 +462,11 @@ canaries recorded (`canaryMustFail`→FAIL / `canaryMustTimeout`→TIMEOUT, `can
 wallPressTicks=51 reproduced to the coordinate; `ad.vineClingFidelityProbe` stayed optional-PASS). No new
 scene was flaky; no threshold was tuned.
 
+**Post-deletion legacy reconcile (2026-07-18).** `scripts/run_gametests.sh` reconciled
+`registered=59 entered=59` with **0 swallowed / 0 drifted**, build_success=True, **All 59 required tests
+passed**, VERDICT GREEN — the legacy suite is now Server-only and its surviving-failure family is empty
+(`agentrpcsmoke` migrated out this wave). No deleted name reappeared; no livelock this run.
+
 ## P4b closing summary (Task 5) — non-Server families fully migrated
 
 **The whole-phase count chain, audited against git history.** P4b migrated every
@@ -491,7 +496,7 @@ Server family, the P4c cut. `AgentGameTestTerrain`, `AgentGameTestBias`,
 `AgentGameTestSupport` survives (its `buildFloor`/`clearBox`/`grantWaterEffects`/
 `gtOnlySkips` helpers are still used by the Server family).
 
-**Dogfood suite is now 71 `ad.*` scenes** across seven providers (all in
+**Dogfood suite is now 71 `ad.*` scenes** across eight providers (all in
 `common/src/testmod/.../scene/`, one common `SceneProvider` service file, both loaders):
 `AgentDriverScenes` (9 original) + `AgentDriverTerrainScenes` (12) +
 `AgentDriverBiasScenes` (13) + `AgentDriverWaterBankScenes` (11) +
