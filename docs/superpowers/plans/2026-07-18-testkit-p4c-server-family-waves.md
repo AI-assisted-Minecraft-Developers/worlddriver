@@ -38,7 +38,7 @@
 **Files:** Create `AgentDriverSurvivalScenes.java`(13)+`AgentDriverAvatarScenes.java`(5);其余同协议(+18)。
 **名单:** Survival=serverEscape / serverBunker / serverBunkerAnchorRatchet / serverEscapeSealedShelter / serverLowHpEdgePin / serverBunkerSlope / surfaceDive / underwaterBase⚡ / drowningFloatShouldFloatMatrix / drownEscapeGateMatrix / drownEscapePreempt / serverObserveAirSupply / antiSuffocateWaterNotSuffocating;Avatar=serverAgentDistinctBodies / serverAvatarTickFidelity / serverAttackCooldown / serverCapability / serverElytra。
 **注意:** underwaterBase=挂死惯犯（病历见 Global Constraints,escape-hatch 候选优先于硬迁）;水柱 rig 居中+air 守护病历;avatar 五名对应 #45/#46/#47 病历=永久断言,阈值一个不动。
-- [ ] Step 1-4 同协议,Commit `feat(testkit): P4c wave 8 — Survival+Avatar families migrated (18 scenes), legacy 33→15`
+- [x] Step 1-4 同协议,Commit `feat(testkit): P4c wave 8 — Survival+Avatar families migrated (18 scenes), legacy 33→15` — DONE (18 scenes: Survival 13 + Avatar 5; dogfood neoforge ×4 + fabric ×2 my-18 all-PASS byte-identical, 115 scenes each; underwaterBase PORTED — pollution-recidivist not inherent, deterministic 52ms/1tick ×6 zero hang; legacy reconcile registered=15 entered=15 0-swallowed GREEN; entityLeash TIMEOUT proven pre-existing task#88 via baseline A/B)
 
 ### Task 4: Process 核心波——15 名（15→0）+ 三类全删
 

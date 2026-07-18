@@ -113,3 +113,25 @@ ad.duskSecureHeldProcessLifecycle
 ad.cancelRouting
 ad.manualSlotGraceMatrix
 ad.nearestFirstScanMatrix
+
+# P4c wave 8 — Survival family (13 migrated from AgentGameTestServer; escape/bunker/dive/drown/anti-suffocate)
+ad.serverEscape
+ad.serverBunker
+ad.serverBunkerAnchorRatchet
+ad.serverEscapeSealedShelter
+ad.serverLowHpEdgePin
+ad.serverBunkerSlope
+ad.surfaceDive
+ad.underwaterBase
+ad.drowningFloatShouldFloatMatrix
+ad.drownEscapeGateMatrix
+ad.drownEscapePreempt
+ad.serverObserveAirSupply
+ad.antiSuffocateWaterNotSuffocating
+
+# P4c wave 8 — Avatar family (5 migrated from AgentGameTestServer; #45/#46/#47/#48 golden regression guards)
+ad.serverAgentDistinctBodies
+ad.serverAvatarTickFidelity
+ad.serverAttackCooldown
+ad.serverCapability
+ad.serverElytra

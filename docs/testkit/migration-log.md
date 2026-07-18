@@ -749,3 +749,131 @@ reconciled `registered=33 entered=33` with **0 swallowed / 0 drifted**, build_su
 required tests passed :)"**, `required_failed=False`, VERDICT GREEN (25 s, no livelock). The surviving
 Server failure family is empty (unchanged since P4b wave 5), so the empty failure set held. No deleted
 Scheduler name reappears anywhere in the manifest (the count fell exactly 44→33 = −11).
+
+## Wave 8 (P4c Task 3) — the Survival + Avatar families: 18 migrated + deleted
+
+**Count arithmetic: legacy registered 33 → 15** (−18 `@GameTest` methods, all migrated twins
+deleted; **no** retired-without-scene this wave). Third/fourth P4c Server-family cut by THEME: the
+`AgentGameTestServer` giant sheds a 13-name Survival subset (escape / bunker shelter / low-HP flee /
+surface-dive / underwater-base traverse / drowning-escape / anti-suffocate / air-supply) to a new
+`AgentDriverSurvivalScenes` provider and a 5-name Avatar subset (the #45/#46/#47/#48 fidelity guards)
+to a new `AgentDriverAvatarScenes` provider, deleting the twins IN PLACE — `AgentGameTestServer`
+survives with its remaining **15** tests (exactly the Process-core family, P4c Task 4) and
+`AgentGameTestRegistrar` is untouched (still registers `Server`). The reconcile (`gt_reconcile.py`)
+is fully dynamic (counts the manifest), so no script constant needed updating. TWO provider service
+lines appended to the common `SceneProvider` file; the 18 `ad.*` names added to BOTH
+`expected-scenes-{neoforge,fabric}.txt` in this commit (115 `ad.*` each, byte-identical).
+
+**Canonical substitutions (wave-6/7 set).** `helper.getLevel()` → `ctx.level()`; absolute `cx/cz`
+→ origin X/Z; absolute `floorY=220` → `origin.y + 20`, `floorY=200` → `origin.y`; ground-anchored
+`helper.absolutePos(ZERO)` (surfaceDive / underwaterBase / drownEscapePreempt / antiSuffocate) →
+`ctx.origin()` at `origin.y` (`GRID_Y=200`, sky clearance both ways — internal geometry byte-unchanged);
+`ServerAgentDriver.create` → `ServerAgentDriver.createIsolated` and `ServerPlayerAvatar.create` →
+`ServerPlayerAvatar.createUnique` (#48 per-scene body); legacy NeoForge `FakePlayer` → common
+`ServerPlayer`; `try/finally` config save/restore → `BotConfig.pinnedBaseline()` +
+`ctx.cleanup(pin::close)` (the escape/bunker/dive scenes then re-set the flags they want —
+`allowBreak`/`allowPlace`/`pathfinderSliceMs`/… — over the pinned baseline); `throw new
+GameTestAssertException` → `ctx.fail`; `helper.succeed()` → return; `gtOnlySkips(...)` → deleted. The
+real `EscapeProcess`/`BunkerProcess`/`RunAwayProcess`/`IntentProcess`/`ElytraProcess` legs run over
+the bounded `ServerAgentManager.register`+`tickAll()` loop (finish auto-unregisters), and
+`ad.drownEscapePreempt` drives a real `DrownEscapeChain` + `ProcessScheduler`. ⛔ **No Survival or
+Avatar scene calls `level.tick()`** (this family has none — the re-entrant `level.tick()` mines are
+all in the Process wave, P4c Task 4).
+
+**Cleanup discipline (#40 persistent-world lesson).** Every world-touching scene registers
+`ctx.cleanup` (LIFO) to (a) discard its avatar(s) (`fakePlayer().discard()`), (b) `ServerAgentManager.clear()`,
+and (c) air-scrub its whole footprint box — draining every dug AND placed block. The two water tanks
+(`ad.surfaceDive`, `ad.underwaterBase`) scrub all water + stone so no fluid leaks into a neighbouring
+slot; `ad.drownEscapePreempt`/`ad.serverObserveAirSupply`/`ad.antiSuffocateWaterNotSuffocating` restore
+their planted blocks. Verified clean: the `(name, outcome)` sets are byte-identical run-to-run.
+
+**⚡ `ad.underwaterBase` — the HANG RECIDIVIST: mechanism analysed, PORTED (not escape-hatched).**
+The legacy `underwaterBaseArena` is the documented hang recidivist (`kill+rm-world` self-heal history).
+**Mechanism, characterised honestly from the source:** the historical hang is the
+`ChunkMap.processUnloads` single-tick livelock that afflicts the persistent `run-gametest` world after
+a *killed* run (a world-pollution recidivist — the same class `run_gametests.sh` auto-heals by wiping
+the world at start), NOT anything inherent to this test's own actuation. The test's actuation is
+BOUNDED on every axis: the planner precheck runs `pathfinderSliceMs=1` / `pathfinderMaxMs=∞` so the
+search is *node-budget*-deterministic (not wall-clock), the executor is capped at 600 ticks, and ⛔ it
+never calls `level.tick()` (it ticks only the avatar via `ServerAgentManager.tickAll()`, which cannot
+re-enter the `serverForbidDigWall`-style `ChunkMap` livelock). Because the hang is not inherent to the
+actuation, the wave PORTS it (rather than taking the escape-hatch) — with the brief-mandated **extra
+neoforge validation for this scene specifically (×3+ total)**. Result: `ad.underwaterBase` runs
+**deterministically GREEN in 52 ms / 1 harness tick across FOUR neoforge dogfood runs + TWO fabric
+runs — zero hang, zero flake** (the whole synchronous dive+traverse resolves inside a single harness
+tick). The scene shell (no persistent `GameTestServer` scheduler, no killed-run world pollution)
+removes the recidivist mechanism entirely.
+
+**Avatar five = golden regression guards (#45/#46/#47/#48), no number moved.** The load-bearing golden
+values are translated one-for-one: iron-sword recharge `period==13 && cooldownTicks==13`
+(`ceil(20/1.6)`), `readyAt==period`, axe `fullCooldownTicks > 13`; cooked-beef `beefLeft==1` +
+`foodLevel>6`; the 10-tick item cooldown expiring after 15 ticks; the recharge bar `charged>=1.0` then
+`afterSwap<=0.5` on a weapon swap; distinct-body `bDrift<=0.01`. The `create → createIsolated` /
+`ServerPlayerAvatar.create → createUnique` substitution is the #48 shell these five were promoted to a
+REQUIRED guard on — it changes GameProfile identity only, not the body physics the goldens measure —
+confirmed by all five passing byte-identically ×4 neoforge + ×2 fabric with no threshold touched.
+
+| deleted legacy test method | legacy class | ad.* scene | matrix rows (legacy = scene) | migration commit | this deletion | notes (first-run A/B verdict) |
+|---|---|---|---|---|---|---|
+| `serverEscapeArena` | AgentGameTestServer | `ad.serverEscape` | — | this commit (P4c wave 8) | this commit | identical — PASS both loaders (real EscapeProcess climbs out of a 1-wide stone pit) |
+| `serverBunkerArena` | AgentGameTestServer | `ad.serverBunker` | — | this commit (P4c wave 8) | this commit | identical — PASS both loaders (real BunkerProcess seals a 挖三填一 shaft) |
+| `serverBunkerAnchorRatchetArena` | AgentGameTestServer | `ad.serverBunkerAnchorRatchet` | — | this commit (P4c wave 8) | this commit | identical — PASS both loaders (PURE BunkerAnchor state machine, gap#29 anti-ratchet, no world) |
+| `serverEscapeSealedShelterArena` | AgentGameTestServer | `ad.serverEscapeSealedShelter` | — | this commit (P4c wave 8) | this commit | identical — PASS both loaders (EscapeProcess carves out of a sealed 1×2 pocket, no STEP_UP ping-pong) |
+| `serverLowHpEdgePinArena` | AgentGameTestServer | `ad.serverLowHpEdgePin` | — | this commit (P4c wave 8) | this commit | identical — PASS both loaders (2-HP RunAwayProcess lethal-edge discipline, DEATH #3; lowHealthCareful=6.0) |
+| `serverBunkerSlopeArena` | AgentGameTestServer | `ad.serverBunkerSlope` | — | this commit (P4c wave 8) | this commit | identical — PASS both loaders (BunkerProcess must enclose the niche, not punch a cliff face, death#2) |
+| `surfaceDiveArena` | AgentGameTestServer | `ad.surfaceDive` | — | this commit (P4c wave 8) | this commit | identical — PASS both loaders (A5 opt-in SurfaceDive: planner emits swimDownSurface + executor lands ≤2) |
+| `underwaterBaseArena`⚡ | AgentGameTestServer | `ad.underwaterBase` | — | this commit (P4c wave 8) | this commit | **HANG RECIDIVIST — PORTED (mechanism analysed: pollution-recidivist, not inherent; bounded actuation). Deterministic GREEN 52 ms/1 tick ×4 neoforge + ×2 fabric, zero hang** (A5 dive+traverse into an air-pocket chamber; finalCost<640 tax-relief gate) |
+| `drowningFloatShouldFloatMatrixArena` | AgentGameTestServer | `ad.drowningFloatShouldFloatMatrix` | **4** | this commit (P4c wave 8) | this commit | identical — PASS both loaders (gap#70 DrowningFloatGate.shouldFloat, PURE) |
+| `drownEscapeGateMatrixArena` | AgentGameTestServer | `ad.drownEscapeGateMatrix` | **26** (gate 18 + chain-lifecycle 8) | this commit (P4c wave 8) | this commit | identical — PASS both loaders (gap#76 DrownEscapeGate entry/hold/release + DrownEscapeChain episode lifecycle, PURE) |
+| `drownEscapePreemptArena` | AgentGameTestServer | `ad.drownEscapePreempt` | — | this commit (P4c wave 8) | this commit | identical — PASS both loaders (gap#76 live death #25: real DrownEscapeChain+ProcessScheduler preempts an active "user" chain in a flooded shaft, floats up, minAir>0, exactly user→drownEscape→user) |
+| `serverObserveAirSupplyArena` | AgentGameTestServer | `ad.serverObserveAirSupply` | — | this commit (P4c wave 8) | this commit | identical — PASS both loaders (gap#70 observe.player carries air=42 / maxAir over a FakePlayer) |
+| `antiSuffocateWaterNotSuffocatingArena` | AgentGameTestServer | `ad.antiSuffocateWaterNotSuffocating` | **3** | this commit (P4c wave 8) | this commit | identical — PASS both loaders (gap#80 AntiSuffocateGate.suffocates: stone yes / water,air no; plants 3 real blocks; helper `antiSuffocateSuffocatesBlockMatrix` moved into the provider) |
+| `serverAgentDistinctBodiesArena` | AgentGameTestServer | `ad.serverAgentDistinctBodies` | — | this commit (P4c wave 8) | this commit | identical — PASS both loaders (gap#48 two createIsolated agents are two bodies: A walks, B drift≤0.01) |
+| `serverAvatarTickFidelityArena` | AgentGameTestServer | `ad.serverAvatarTickFidelity` | — | this commit (P4c wave 8) | this commit | identical — PASS both loaders (gap#47 Player.tick mirror GOLDENS: eat beefLeft==1, cooldown expiry, recharge-bar reset on swap) |
+| `serverAttackCooldownArena` | AgentGameTestServer | `ad.serverAttackCooldown` | — | this commit (P4c wave 8) | this commit | identical — PASS both loaders (gap#45 GOLDEN recharge period==13=ceil(20/1.6), readyAt==period, axe>sword; equipMainHand moved into provider) |
+| `serverCapabilityArena` | AgentGameTestServer | `ad.serverCapability` | — | this commit (P4c wave 8) | this commit | identical — PASS both loaders (a ServerPlayer avatar BREAKS and PLACES blocks headless via createUnique) |
+| `serverElytraArena` | AgentGameTestServer | `ad.serverElytra` | — | this commit (P4c wave 8) | this commit | identical — PASS both loaders (migrated ElytraProcess enters fall-flying server-side without crashing the tick) |
+
+**Total matrix rows migrated this wave: 33** (drowningFloat 4 + drownEscapeGate 26 + antiSuffocate 3),
+one-for-one with the legacy bodies.
+
+**Orphaned helpers + imports deleted in the same commit (no registered-count effect).** `clearBox`
+(private static — its only callers were the three deleted Avatar arenas; verified 0 remaining refs)
+and `equipMainHand` (private static — sole callers the deleted `serverAttackCooldownArena`) were
+deleted from `AgentGameTestServer` (both reproduced inside the Avatar provider). The four Survival
+helpers `antiSuffocateSuffocatesBlockMatrix` / `drowningFloatShouldFloatMatrix` / `drownEscapeGateMatrix`
+/ `drownEscapeChainLifecycleMatrix` were sole-called by the deleted arenas and moved into the Survival
+provider. `buildFloor` was **KEPT** (still called by the surviving `serverMineArena`, Process wave).
+Nineteen now-orphaned imports were removed (`BunkerAnchor`, `DrownEscapeGate`, `DrowningFloatGate`,
+`DrownEscapeChain`, `AntiSuffocateGate`, `ProcessScheduler`, `Chain`, `Priorities`, `WorldView`,
+`Minecraft`, `EscapeProcess`, `AgentApi`, `Capability`, `Constraint`, `SearchProfile`, `PathFinder`,
+`Move`, `FluidTags`, `EquipmentSlot` — each verified to have only the import line as its remaining
+reference). No surviving arena references any deleted method name (verified by grep).
+
+**Origin slots / footprints.** All 18 take AUTO slots at the default `chunkRadius=1` window
+(`dx/dz ∈ [−16,+31]`). The widest reaches fit: `ad.serverLowHpEdgePin` base slab dx +18;
+`ad.serverAgentDistinctBodies` two sub-rigs (B at +20/+20, clearBox r=6 → max +26); `ad.underwaterBase`
+tank+chamber dx +8. Every gate is a discrete process OUTCOME / golden metric / pure boolean, so
+registry-growth relocation cannot flip any of them. No `withChunkRadius`, no pinned slot.
+
+**Dual-loader determinism (first-run A/B, 2026-07-18).** neoforge dogfood ×4 (the ×3 underwaterBase
+requirement plus one) and fabric dogfood ×2 (each on a freshly wiped `run-dogfood/world`, servers run
+one at a time): **all 18 new scenes PASS on every run of both loaders, byte-identical**; the fabric
+`(name, outcome)` set is byte-identical run1==run2, and the two expected optional-FAIL sensors
+(`ad.vineOverWaterClimb` −711, `ad.riverSheerBank` task#91) + canaries reproduce exactly.
+`ad.underwaterBase` is deterministic 52 ms/1 tick every run — **no hang, no flake**. Suite wall-clock:
+neoforge 73/80/78/79 s, fabric 77/76 s (115-scene suite; growth within budget). **No new scene was
+flaky; no threshold was tuned.** One PRE-EXISTING flake surfaced and was ATTRIBUTED, not blamed on the
+wave: the required scene `ad.entityLeash` (a Terrain-era migration that runs BEFORE any wave-8 scene)
+TIMED OUT (`await step exceeded within=120 ticks`, ticks=121 — exceeded by exactly one tick) in
+neoforge runs 3–4. A baseline A/B (this wave's tracked changes `git stash`ed + the two providers moved
+aside → 97-scene pre-wave-8 build, rebuilt) reproduced the **identical** pattern (baseline neoforge
+PASS/PASS/TIMEOUT), proving `ad.entityLeash` is the documented **task#88** harness within()-tick-budget
+fragility (task#87 lottery family), aggravated by heavy competing CPU load on the box — NOT a wave-8
+regression. The wave does not own or rebaseline `ad.entityLeash`.
+
+**Post-deletion legacy reconcile (2026-07-18).** `scripts/run_gametests.sh` (fresh `run-gametest`
+world, auto-wiped by the runner) reconciled `registered=15 entered=15` with **0 swallowed / 0 drifted**,
+build_success=True, `required_failed=False`, **VERDICT GREEN** (23 s, no livelock). The surviving Server
+suite is now exactly the 15-name Process-core family; no deleted Survival/Avatar name reappears anywhere
+in the manifest (the count fell exactly 33→15 = −18).
