@@ -2,6 +2,31 @@ architectury {
     common rootProject.enabled_platforms.split(',')
 }
 
+// P4a Task 2: testmod source set — the ad.* dogfood scenes (AgentDriverScenes) +
+// the sim probe helpers (SimProbes) + the SceneProvider service file live here so
+// they are compiled ONLY for dev/test runs and NEVER baked into the remapped
+// production jar (common's transformProductionNeoForge/Fabric transforms only the
+// `main` output). The loader modules (neoforge/fabric) attach THIS source set's
+// OUTPUT to their dev runs; :common itself never runs, so no loom mods{} wiring is
+// needed here. Classpath mirrors the neoforge testmod convention: testmod sees
+// main's OUTPUT plus main's own compile/runtime classpaths — so scene/probe code
+// can reach main classes (Walker, ServerAgentDriver, …) AND main's dependencies
+// (Minecraft, netty/snakeyaml compileOnly), while the testkit scene SPI
+// (Scene/SceneContext/SceneProvider) comes from :testkit-common namedElements
+// (added explicitly below AND already transitively present in main.compileClasspath).
+sourceSets {
+    testmod {
+        compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
+        runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
+    }
+}
+
+dependencies {
+    // testkit scene SPI (Scene/SceneContext/SceneProvider) for the moved scenes —
+    // same architectury common→common namedElements idiom as main's testkit-common dep.
+    testmodImplementation project(path: ':testkit-common', configuration: 'namedElements')
+}
+
 repositories {
     maven {
         name = 'latvian-releases'

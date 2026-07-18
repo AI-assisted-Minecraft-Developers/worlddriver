@@ -115,11 +115,11 @@ public final class AgentGameTestSupport {
      *  water-breathing/resistance/regen/fire-resistance keep baseTick survival
      *  mechanics from skewing the physics — none of these alter movement.
      *  <p>P1.6 Task 2: body moved to common
-     *  {@link net.magicterra.agent.bot.testkit.SimProbes#grantWaterEffects}; this static is
+     *  {@link net.magicterra.agent.bot.testkit.scene.SimProbes#grantWaterEffects}; this static is
      *  now a one-line delegate keeping its ORIGINAL {@code Player} signature so every legacy
      *  GameTest caller compiles untouched. */
     public static void grantWaterEffects(net.minecraft.world.entity.player.Player p) {
-        net.magicterra.agent.bot.testkit.SimProbes.grantWaterEffects(p);
+        net.magicterra.agent.bot.testkit.scene.SimProbes.grantWaterEffects(p);
     }
 
     /** Highest Y of any cell on the planned path (−1 for an empty path). */

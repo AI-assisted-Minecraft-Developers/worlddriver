@@ -1,4 +1,4 @@
-package net.magicterra.agent.bot.testkit;
+package net.magicterra.agent.bot.testkit.scene;
 
 import java.util.List;
 import java.util.Locale;

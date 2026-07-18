@@ -79,9 +79,28 @@ dependencies {
 // classpaths — so testmod code can reach main classes AND main's dependencies,
 // including common's SimProbes), but wired by hand: the plugin's testmodSourceSet
 // flag only takes effect on the root project (P4a plan §Architecture).
+// P4a Task 2: neoforge testmod must COMPILE against :common's testmod OUTPUT. The
+// ad.* scene + probe helpers moved there (SimProbes, referenced by
+// AgentGameTestSupport:122 and AgentGameTestServer:~2534/~2544; AgentDriverScenes'
+// SceneProvider service file too), so they are NO LONGER in :common namedElements
+// (main output) that testmod's main-classpath extension already sees. We add
+// :common's testmod output to the COMPILE classpath only (classesDirs so javac
+// resolves SimProbes). evaluationDependsOn forces :common to configure first so its
+// sourceSets.testmod is resolvable here.
+//
+// It is DELIBERATELY NOT on runtimeClasspath: at RUNTIME :common's testmod is
+// delivered by the loom `mods { named('main') { sourceSet ..., project(':common') } }`
+// block below, which folds its output into agent_driver's fml.modFolders group (one
+// module, unioned with the moved-package's siblings in :common main). Putting it on
+// runtimeClasspath too would ALSO expose it as a bare -classpath dir that FML's
+// userdev locator re-packages into a second synthetic module (generated_XXX) — and
+// two modules exporting net.magicterra.agent.bot.testkit is a hard
+// java.lang.module.ResolutionException at boot (diagnosed live: run-dogfood ModuleLayerHandler).
+// Compile-only stays dev-only and never reaches any jar/publication.
+evaluationDependsOn(':common')
 sourceSets {
     testmod {
-        compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
+        compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output + project(':common').sourceSets.testmod.output
         runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
     }
 }
@@ -126,6 +145,30 @@ loom {
     mods {
         named('main') {
             sourceSet sourceSets.testmod
+            // P4a Task 2: the ad.* dogfood scenes + SimProbes + SceneProvider service moved
+            // to :common's testmod. Two facts force the exact wiring here:
+            //   1. DISCOVERY. A bare -classpath dir is auto-moduled by FML on the game/library
+            //      layer, which agent_driver does NOT read — so ServiceLoader(SceneProvider),
+            //      run on the server thread in the mod's context, can't see the service file
+            //      (verified live: run-dogfood registered NO ad.* scenes). Attaching the
+            //      cross-project source set to THIS mod entry (loom's `sourceSet(SourceSet,
+            //      Project)` overload) folds :common's testmod OUTPUT into agent_driver's
+            //      fml.modFolders group — the same module the scenes are discovered from —
+            //      exactly as the line above does for neoforge's own testmod.
+            //   2. NO SPLIT PACKAGE. The moved classes live in package
+            //      net.magicterra.agent.bot.testkit.SCENE, DISJOINT from
+            //      net.magicterra.agent.bot.testkit (TestResetVerb/TestRunVerb, which stay in
+            //      :common MAIN and are delivered as their own dev module). FML wires broad
+            //      `reads` edges between mod modules, so two modules exporting the SAME package
+            //      is a hard java.lang.module.ResolutionException at boot (diagnosed live:
+            //      agent_driver + the common-main dev module both exporting the un-suffixed
+            //      package). The `.scene` sub-package keeps each package owned by exactly one
+            //      module — see the report for why the brief's identical-package layout is
+            //      unsatisfiable under JPMS and this is the minimal deviation.
+            // Per-run scoping holds: loom emits modFolders only for source sets on a run's
+            // classpath, so contractServer/server (no `source testmod`) never receive the
+            // scenes — the scene-independence of the instrument contract stands.
+            sourceSet project(':common').sourceSets.testmod, project(':common')
         }
     }
     runs {
@@ -168,6 +211,13 @@ loom {
             property 'testkit.autorun', 'true'
             runDir 'run-dogfood'
             vmArg '-Xmx2g'
+            // P4a Task 2: the ad.* dogfood scenes + SceneProvider service moved to
+            // :common's testmod, routed onto neoforge testmod's runtimeClasspath
+            // above. `source sourceSets.testmod` puts that output+resources on this
+            // run so ServiceLoader discovers AgentDriverScenes and the 9 scenes run.
+            // (contractServer is deliberately NOT given this — the instrument
+            // contract is scene-independent by design.)
+            source sourceSets.testmod
         }
         // P2c Task 4 (T1 topology, neoforge parity): a real CLIENT JVM with the
         // mc-testkit harness armed (-Dtestkit.autorun=true), mirroring fabric's
@@ -193,6 +243,10 @@ loom {
             property 'agent.mcpPort', '0'
             runDir 'run-t1'
             vmArg '-Xmx2g'
+            // P4a Task 2: integrated-server topology needs the moved ad.* scenes +
+            // SceneProvider too (t1.py drives this client into a world whose
+            // integrated server autoruns them). Same testmod attach as dogfoodServer.
+            source sourceSets.testmod
         }
         // P3a Task 2 (T2 production topology, neoforge parity): a plain DEDICATED server
         // carrying agent_driver + the mc-testkit harness with autorun DEFAULT OFF
@@ -211,6 +265,10 @@ loom {
             property 'agent.mcpPort', '0'
             runDir 'run-t2'
             vmArg '-Xmx2g'
+            // P4a Task 2: T2 production-topology dedicated server exposes mc.test.run
+            // which registers builtin + SceneProvider scenes; the ad.* scenes moved
+            // to :common testmod, so attach it here (like dogfoodServer/testkitClient).
+            source sourceSets.testmod
         }
     }
     runConfigs.configureEach {

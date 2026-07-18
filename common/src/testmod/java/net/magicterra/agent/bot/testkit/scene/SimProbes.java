@@ -1,4 +1,4 @@
-package net.magicterra.agent.bot.testkit;
+package net.magicterra.agent.bot.testkit.scene;
 
 import net.magicterra.agent.bot.sim.ServerAgentDriver;
 import net.minecraft.server.level.ServerLevel;

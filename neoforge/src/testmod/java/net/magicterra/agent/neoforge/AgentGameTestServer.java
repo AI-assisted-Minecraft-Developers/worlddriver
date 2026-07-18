@@ -2525,23 +2525,23 @@ public final class AgentGameTestServer {
      *  cross-package promotion rationale as {@link AgentGameTestSupport#grantWaterEffects};
      *  single source — the scene must drive the identical measurement).
      *  <p>P1.6 Task 2: the body moved to common
-     *  {@link net.magicterra.agent.bot.testkit.SimProbes#probeSwing}; this static is now a
+     *  {@link net.magicterra.agent.bot.testkit.scene.SimProbes#probeSwing}; this static is now a
      *  one-line delegate keeping its ORIGINAL signature (neoforge-shim {@code ServerAgentDriver}
      *  + {@code FakePlayer}), so every legacy caller compiles untouched — the shim's covariant
      *  types widen to the common {@code ServerAgentDriver}/{@code ServerPlayer} params. */
     public static float probeSwing(ServerLevel level, ServerAgentDriver driver, FakePlayer fp,
                                     ItemStack weapon, int cx, int floorY, int cz) {
-        return net.magicterra.agent.bot.testkit.SimProbes.probeSwing(level, driver, fp, weapon, cx, floorY, cz);
+        return net.magicterra.agent.bot.testkit.scene.SimProbes.probeSwing(level, driver, fp, weapon, cx, floorY, cz);
     }
 
     /** A fixed 10-point generic hit, with and without a full set of diamond armor; returns health lost.
      *  <p>Promoted {@code private}→{@code public static} (body unchanged) for the migrated
      *  {@code ad.gearScope} scene — same cross-package promotion rationale as {@link #probeSwing}.
      *  <p>P1.6 Task 2: body moved to common
-     *  {@link net.magicterra.agent.bot.testkit.SimProbes#probeHurt}; one-line delegate keeping
+     *  {@link net.magicterra.agent.bot.testkit.scene.SimProbes#probeHurt}; one-line delegate keeping
      *  the original {@code FakePlayer} signature. */
     public static float probeHurt(FakePlayer fp, boolean armored) {
-        return net.magicterra.agent.bot.testkit.SimProbes.probeHurt(fp, armored);
+        return net.magicterra.agent.bot.testkit.scene.SimProbes.probeHurt(fp, armored);
     }
 
     /**
