@@ -106,37 +106,35 @@ fully green for the first time. (A first launch hit the documented intermittent
 `serverForbidDigWallArena` — recovered by explicit-PID kill + world wipe + rerun;
 full evidence and thread dump in `.superpowers/sdd/task-4-report.md` §3b.)
 
-## Wave 2 (P4b Task 1) — the Terrain family: 12 migrated + deleted, 1 retired-without-scene
+## Wave 2 (P4b Task 1) — the Terrain family: 12 migrated + deleted, 1 retired-without-scene (controller-adjudicated)
 
-**Count arithmetic: legacy registered 122 → 110** (−12 `@GameTest` methods). This is
-the FIRST P4b family wave and defines the wave protocol Tasks 2–4 replicate: per-name
-direct translation + A/B → dual-loader ×2 dogfood result-set identity → same-commit
-twin deletion + this log row → legacy reconcile. The reconcile (`gt_reconcile.py`)
-is fully dynamic (counts the manifest), so no script constant needed updating.
+**Count arithmetic: legacy registered 122 → 109** (−13 `@GameTest` methods — 12 migrated
+twins deleted + 1 retired-without-scene deleted). This is the FIRST P4b family wave and
+defines the wave protocol Tasks 2–4 replicate: per-name direct translation + A/B →
+dual-loader ×2 dogfood result-set identity → same-commit twin deletion + this log row →
+legacy reconcile. The reconcile (`gt_reconcile.py`) is fully dynamic (counts the manifest),
+so no script constant needed updating. `AgentGameTestTerrain` is now empty and was DELETED
+(class file removed, its `AgentGameTestRegistrar` line removed — it self-registered via both
+`@GameTestHolder` auto-scan AND the explicit Registrar list).
 
-**Deviation from the plan's 122→109: this wave lands at 110, not 109.** One of the
-13 Terrain tests, `descentDriftArena`, is **retired-without-scene, pending controller
-adjudication** (P4b escape hatch) — it is NOT migrated and its legacy twin is NOT
-deleted. Rationale (full evidence in `.superpowers/sdd/task-1-report.md`):
+**`descentDriftArena` — FULL RETIREMENT, controller-adjudicated (2026-07-18).** 12 of the 13
+Terrain tests migrated to `ad.*` scenes; the 13th, `descentDriftArena`, was raised as a
+retired-without-scene candidate (P4b escape hatch) and the controller **accepted full
+retirement and directed deletion of the twin**. Grounds (verbatim):
 
-- `descentDriftArena` is a legacy `required = false` **PROVEN FALSE GREEN** (gap #49):
-  it "passed" the shared-body suite only because a concurrent arena shoved the shared
-  FakePlayer out of the wedge; SOLO it is deterministically RED (the fix-ON leg still
-  LAUNCHES off the stair into open void, minY≈−60). Its own javadoc records that "the
-  fix's gate is the LIVE A/B" — the arena is superseded and carries no reliable
-  regression signal.
-- It is **unmigratable as a faithful synchronous-body scene**: the RED path is an
-  open-void A* churn needing ~110 s of compute, and the dogfood harness runs a scene
-  body in ONE server tick, so it blows the 60 s `ServerHangWatchdog` and CRASHES the
-  whole suite (first-run evidence: `neoforge/run-dogfood/crash-reports/crash-2026-07-18_12.58.53-server.txt`,
-  stack rooted at `AgentDriverTerrainScenes.descentDrift → Walker.tick → PathFinder.advance`).
-  Its determinism-critical config (`pathfinderMaxNodes` node budget, `sliceMs/maxMs=MAX`)
-  cannot be trimmed to fit without rebaselining the search of an already-broken rig, and
-  a wall-clock cap would be non-deterministic (breaking the ×2 result-set identity gate).
-
-So this wave migrates **12 of 13** and holds `descentDriftArena` in
-`AgentGameTestTerrain` for the controller to adjudicate (accept full retirement +
-delete the twin → 109, or require a bounded migration).
+1. **Documented PROVEN FALSE GREEN (gap #49) superseded by its own live A/B** — its green
+   asserts nothing; negative-value coverage. (Legacy `required = false`; it "passed" the
+   shared-body suite only because a concurrent arena shoved the shared FakePlayer out of the
+   wedge. SOLO it is deterministically RED — fix-ON leg still LAUNCHES off the stair into open
+   void, minY≈−60. Its own javadoc: "the fix's gate is the LIVE A/B".)
+2. **Faithful migration physically impossible** — the RED path is a >60 s single-tick A* churn
+   that trips the `ServerHangWatchdog` and kills the dogfood harness (crash archived:
+   `neoforge/run-dogfood/crash-reports/crash-2026-07-18_12.58.53-server.txt`, stack rooted at
+   `AgentDriverTerrainScenes.descentDrift → Walker.tick → PathFinder$Search.advance`). Any
+   bounded rewrite either breaks determinism (wall-clock ms cap → non-deterministic, fails the
+   ×2 result-set identity gate) or silently rebaselines a broken rig (trimming
+   `pathfinderMaxNodes`), both banned.
+3. **Descent-behaviour coverage remains guarded** by `ad.descentYaw`'s golden signature gate.
 
 | deleted legacy test method | legacy class | ad.* scene | migration commit | this deletion | notes (first-run A/B verdict) |
 |---|---|---|---|---|---|
@@ -153,19 +151,20 @@ delete the twin → 109, or require a bounded migration).
 | `bridgeDescendArena` | AgentGameTestTerrain | `ad.bridgeDescend` | this commit (P4b wave 2) | this commit | identical — PASS both loaders ×2 (descending bridge smoke) |
 | `bareHandDigCadenceArena` | AgentGameTestTerrain | `ad.bareHandDigCadence` | this commit (P4b wave 2) | this commit | identical — PASS both loaders ×2 (gap #66 dig cadence, dropsWhileSolid≤2) |
 
-**Retired-without-scene (NOT deleted; controller adjudication):**
+**Retired-without-scene (DELETED — controller adjudicated FULL RETIREMENT):**
 
 | legacy test method | legacy class | status | rationale |
 |---|---|---|---|
-| `descentDriftArena` | AgentGameTestTerrain | **KEPT — retired-without-scene candidate** | superseded PROVEN FALSE GREEN (gap #49); unmigratable as synchronous body (>60 s single-tick open-void A* churn → `ServerHangWatchdog` crash); see report §descentDrift |
+| `descentDriftArena` | AgentGameTestTerrain (deleted) | **RETIRED-WITHOUT-SCENE — controller adjudicated, twin DELETED** | (1) documented PROVEN FALSE GREEN (gap #49) superseded by its own live A/B — negative-value coverage; (2) faithful migration physically impossible (>60 s single-tick A* churn → `ServerHangWatchdog` kills the dogfood harness, crash archived; bounded rewrites either break determinism or rebaseline a broken rig, both banned); (3) descent coverage remains via `ad.descentYaw`'s golden signature gate |
 
 **No helpers orphaned by name-collision this wave** (unlike wave 1): the shared
 `AgentGameTestSupport` helpers the migrated scenes needed (`buildFloor`,
-`grantWaterEffects`) are still used by the surviving `descentDriftArena` and other
-legacy families, so nothing was deleted from `AgentGameTestSupport`. `buildFloor` was
-**inlined** into `AgentDriverTerrainScenes` (origin-relative, promoted-into-class, not
-imported across the neoforge testmod source-set boundary); `grantWaterEffects` was
-reused from the common `SimProbes` single source.
+`grantWaterEffects`) are still used by OTHER surviving legacy families (Water/Bias/Core),
+so nothing was deleted from `AgentGameTestSupport` even though `AgentGameTestTerrain`
+itself is now gone. `buildFloor` was **inlined** into `AgentDriverTerrainScenes`
+(origin-relative, promoted-into-class, not imported across the neoforge testmod
+source-set boundary); `grantWaterEffects` was reused from the common `SimProbes` single
+source.
 
 **Dual-loader determinism (first-run A/B, 2026-07-18).** neoforge dogfood ×2 and fabric
 dogfood ×2 (each on a freshly wiped `run-dogfood/world`, servers run sequentially): all

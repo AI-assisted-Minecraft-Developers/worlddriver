@@ -88,10 +88,11 @@ import net.minecraft.world.level.block.Blocks;
  * {@code descentDrift → Walker.tick → PathFinder.advance}). The determinism-critical config
  * ({@code pathfinderMaxNodes} node budget, sliceMs/maxMs=MAX) cannot be trimmed to fit without
  * rebaselining the search of an already-broken rig, and a wall-clock cap would be non-deterministic.
- * Per the P4b escape hatch this test is reported as a <b>retired-without-scene candidate</b> and its
- * legacy twin {@code descentDriftArena} is KEPT in {@code AgentGameTestTerrain} pending controller
- * adjudication — so this wave migrates 12 of 13 (count 122→110, not →109). See task-1-report.md
- * and the migration-log wave-2 note.
+ * Per the P4b escape hatch this was raised as a retired-without-scene candidate and the controller
+ * <b>adjudicated FULL RETIREMENT</b>: the legacy {@code descentDriftArena} twin was DELETED (its
+ * class {@code AgentGameTestTerrain} emptied and was removed), with descent-behaviour coverage
+ * continuing through {@code ad.descentYaw}'s golden signature gate. So this wave migrates 12 of 13
+ * and retires the 13th (count 122 to 109). See task-1-report.md and the migration-log wave-2 note.
  */
 public final class AgentDriverTerrainScenes implements SceneProvider {
 
@@ -538,11 +539,12 @@ public final class AgentDriverTerrainScenes implements SceneProvider {
                     + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + s);
     }
 
-    // NOTE: descentDriftArena is deliberately NOT ported (retired-without-scene, pending controller
-    // adjudication). See the class javadoc: its RED path is an open-void A* churn that exceeds the
-    // 60 s ServerHangWatchdog when run as a single-server-tick synchronous body, crashing the whole
-    // dogfood suite; and the legacy twin is a documented PROVEN FALSE GREEN (gap #49) whose real gate
-    // is the live A/B. Its legacy twin stays in AgentGameTestTerrain for now.
+    // NOTE: descentDriftArena is deliberately NOT ported — controller-adjudicated FULL RETIREMENT
+    // (retired-without-scene). See the class javadoc: its RED path is an open-void A* churn that
+    // exceeds the 60 s ServerHangWatchdog when run as a single-server-tick synchronous body,
+    // crashing the whole dogfood suite; and the legacy twin is a documented PROVEN FALSE GREEN
+    // (gap #49) whose real gate is the live A/B. The legacy twin (and its empty class
+    // AgentGameTestTerrain) were DELETED in this same wave.
 
     /** Ported from {@code AgentGameTestTerrain#ascentSpeedArena}: SMOOTHNESS gate measuring the real
      *  {@link Walker}'s average horizontal speed UP a gentle staircase vs across flat ground (6 steps,

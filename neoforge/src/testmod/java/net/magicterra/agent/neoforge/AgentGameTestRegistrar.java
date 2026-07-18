@@ -14,9 +14,10 @@ import net.neoforged.neoforge.event.RegisterGameTestsEvent;
  * to the {@code agent_driver} mod via {@code loom.mods} in {@code neoforge/build.gradle}
  * — so this @EventBusSubscriber fires exactly as the old inline listener in
  * {@link AgentDriverNeoForge}'s constructor did. The per-class register calls are
- * copied verbatim from that listener (same 7 classes, same order): AgentGameTest was
- * split by arena family for file-size hygiene, and AgentGameTestSupport / this class
- * hold no @GameTest methods so they are intentionally not registered here.
+ * copied from that listener (originally 7 classes; AgentGameTestTerrain retired in P4b
+ * wave 2, so 6 remain): AgentGameTest was split by arena family for file-size hygiene,
+ * and AgentGameTestSupport / this class hold no @GameTest methods so they are
+ * intentionally not registered here.
  *
  * <p>These explicit registrations are belt-and-suspenders alongside NeoForge's
  * @GameTestHolder auto-scan (which — with {@code neoforge.enableGameTest=true} — also
@@ -31,7 +32,9 @@ public final class AgentGameTestRegistrar {
     @SubscribeEvent
     public static void onRegisterGameTests(RegisterGameTestsEvent event) {
         event.register(AgentGameTest.class);
-        event.register(AgentGameTestTerrain.class);
+        // AgentGameTestTerrain retired (P4b wave 2 close, controller-adjudicated): all 13 arenas
+        // migrated to ad.* testkit scenes (12) or retired-without-scene (descentDriftArena) — the
+        // class is empty and deleted, so no registration.
         event.register(AgentGameTestServer.class);
         event.register(AgentGameTestWaterBank.class);
         event.register(AgentGameTestWaterCross.class);
