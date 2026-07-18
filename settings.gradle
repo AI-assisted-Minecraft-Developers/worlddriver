@@ -1,4 +1,11 @@
 pluginManagement {
+    // Standalone included build for the mc-testkit gradle plugin (id
+    // net.magicterra.mc-testkit). Being an included build it lives entirely
+    // outside the root subprojects{} / loom pipeline; the root build applies it
+    // below as the first dogfood consumer. Zero cost when a consumer does not
+    // apply the plugin.
+    includeBuild('mc-testkit/gradle-plugin')
+
     repositories {
         maven { url "https://maven.fabricmc.net/" }
         maven { url "https://maven.architectury.dev/" }

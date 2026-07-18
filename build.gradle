@@ -2,6 +2,11 @@ plugins {
     id 'dev.architectury.loom' version '1.11-SNAPSHOT' apply false
     id 'architectury-plugin' version '3.4-SNAPSHOT'
     id 'com.gradleup.shadow' version '8.3.6' apply false
+    // First dogfood consumer of the mc-testkit gradle plugin (included build wired
+    // in settings.gradle). Registers testkitServer/testkitClient/testkitE2E on the
+    // ROOT project, each shelling the frozen python orchestration contract. Applying
+    // it is negligible at configuration time (lazy task registration).
+    id 'net.magicterra.mc-testkit'
 }
 
 architectury {
