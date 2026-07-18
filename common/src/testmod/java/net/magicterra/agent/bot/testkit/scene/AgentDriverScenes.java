@@ -808,9 +808,9 @@ public final class AgentDriverScenes implements SceneProvider {
      * — the gap #46 gear-scope probe: measures how much of a server avatar's held/worn
      * gear is actually inert. Drives a {@link ServerAgentDriver} (this scene establishes
      * the driver-class porting pattern — see the class javadoc): a bare fist vs an iron
-     * sword against a fresh NoAI zombie ({@link AgentGameTestServer#probeSwing}, promoted
-     * to public for this scene), then a fixed 10-point hit bare vs full diamond armor
-     * ({@link AgentGameTestServer#probeHurt}). Asserts sword damage ≥ 3× fist,
+     * sword against a fresh NoAI zombie ({@link SimProbes#probeSwing}), then a fixed
+     * 10-point hit bare vs full diamond armor
+     * ({@link SimProbes#probeHurt}). Asserts sword damage ≥ 3× fist,
      * ATTACK_SPEED 1.6, ATTACK_DAMAGE 6.0 — outcomes, not mirrored attributes (a test
      * that reads back the attribute a fix writes proves only that the fix calls its own
      * API). The probe values (bare/sword damage, tookBare/tookArmored) are logged verbatim.
