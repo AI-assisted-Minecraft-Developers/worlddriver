@@ -52,15 +52,15 @@ final class WalkerTickRepath {
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
-        // ---- rehydrate shared per-tick locals (mechanical; see WalkerTickCtx) ----
-        Player p = cx.p;
-        BlockPos foot = cx.foot;
-        BlockPos searchFoot = cx.searchFoot;
-        boolean offPath = cx.offPath;
-        boolean breakingEdge = cx.breakingEdge;
-        boolean wedged = cx.wedged;
-        boolean fellOffPath = cx.fellOffPath;
-        boolean fellBelowRoute = cx.fellBelowRoute;
+        // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
+        Player p = cx.frame.p;
+        BlockPos foot = cx.frame.foot;
+        BlockPos searchFoot = cx.frame.searchFoot;
+        boolean offPath = cx.stall.offPath;
+        boolean breakingEdge = cx.stall.breakingEdge;
+        boolean wedged = cx.stall.wedged;
+        boolean fellOffPath = cx.stall.fellOffPath;
+        boolean fellBelowRoute = cx.stall.fellBelowRoute;
         // ---- original body (byte-identical modulo member prefixes) ----
         boolean safetyRepath = (wk.path == null) || (wk.stuckTicks > STUCK_TICKS) || wedged
                 || ((offPath || fellOffPath) && !fellBelowRoute);
@@ -252,10 +252,7 @@ final class WalkerTickRepath {
             p.setSprinting(false);
             return Walker.Step.WALKING;
         }
-        // ---- persist shared per-tick locals (mechanical; see WalkerTickCtx) ----
-        cx.p = p;
-        cx.foot = foot;
-        cx.breakingEdge = breakingEdge;
+        // ---- publish: write this phase's products for the downstream phases (WalkerTickCtx) ----
         return null;
     }
 }

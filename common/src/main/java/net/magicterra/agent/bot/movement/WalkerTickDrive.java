@@ -52,32 +52,32 @@ final class WalkerTickDrive {
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
-        // ---- rehydrate shared per-tick locals (mechanical; see WalkerTickCtx) ----
-        Player p = cx.p;
-        BlockPos foot = cx.foot;
-        boolean breakingEdge = cx.breakingEdge;
-        Move.Edge edge = cx.edge;
-        BlockPos wp = cx.wp;
-        boolean parkourEdge = cx.parkourEdge;
-        boolean bridging = cx.bridging;
-        boolean placingEdge = cx.placingEdge;
-        boolean steppingOffFall = cx.steppingOffFall;
-        boolean steppingOffWaterFall = cx.steppingOffWaterFall;
-        boolean aimAtWaypoint = cx.aimAtWaypoint;
-        boolean reCentre = cx.reCentre;
-        String aimSrc = cx.aimSrc;
-        float descentNodeYaw = cx.descentNodeYaw;
-        boolean dryDescent = cx.dryDescent;
-        boolean flatWaterTrend = cx.flatWaterTrend;
-        boolean trendCam = cx.trendCam;
-        float aimYaw = cx.aimYaw;
-        boolean diveUnderCap = cx.diveUnderCap;
-        boolean diving = cx.diving;
-        double stepColDx = cx.stepColDx;
-        double stepColDz = cx.stepColDz;
-        boolean stepUpFreeze = cx.stepUpFreeze;
-        boolean pivotForStepUp = cx.pivotForStepUp;
-        boolean descendBrake = cx.descendBrake;
+        // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
+        Player p = cx.frame.p;
+        BlockPos foot = cx.frame.foot;
+        boolean breakingEdge = cx.stall.breakingEdge;
+        Move.Edge edge = cx.edges.edge;
+        BlockPos wp = cx.edges.wp;
+        boolean parkourEdge = cx.edges.parkourEdge;
+        boolean bridging = cx.edges.bridging;
+        boolean placingEdge = cx.edges.placingEdge;
+        boolean steppingOffFall = cx.edges.steppingOffFall;
+        boolean steppingOffWaterFall = cx.edges.steppingOffWaterFall;
+        boolean aimAtWaypoint = cx.aim.aimAtWaypoint;
+        boolean reCentre = cx.aim.reCentre;
+        String aimSrc = cx.aim.aimSrc;
+        float descentNodeYaw = cx.aim.descentNodeYaw;
+        boolean dryDescent = cx.aim.dryDescent;
+        boolean flatWaterTrend = cx.aim.flatWaterTrend;
+        boolean trendCam = cx.aim.trendCam;
+        float aimYaw = cx.aim.aimYaw;
+        boolean diveUnderCap = cx.aim.diveUnderCap;
+        boolean diving = cx.aim.diving;
+        double stepColDx = cx.aim.stepColDx;
+        double stepColDz = cx.aim.stepColDz;
+        boolean stepUpFreeze = cx.aim.stepUpFreeze;
+        boolean pivotForStepUp = cx.aim.pivotForStepUp;
+        boolean descendBrake = cx.aim.descendBrake;
         // ---- original body (byte-identical modulo member prefixes) ----
         // Lateral lane-keeping STRAFE: on a flat cardinal walk, hold the cross-axis
         // at the lane centre with a sideways strafe so the body clears a flush 1-wide

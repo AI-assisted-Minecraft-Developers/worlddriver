@@ -244,10 +244,10 @@ final class WalkerTickPrelude {
                 return Walker.Step.WALKING;
             }
         }
-        // ---- persist shared per-tick locals (mechanical; see WalkerTickCtx) ----
-        cx.p = p;
-        cx.foot = foot;
-        cx.searchFoot = searchFoot;
+        // ---- publish: write this phase's products for the downstream phases (WalkerTickCtx) ----
+        cx.frame.p = p;
+        cx.frame.foot = foot;
+        cx.frame.searchFoot = searchFoot;
         return null;
     }
 }

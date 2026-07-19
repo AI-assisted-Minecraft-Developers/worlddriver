@@ -52,16 +52,16 @@ final class WalkerTickAim {
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
-        // ---- rehydrate shared per-tick locals (mechanical; see WalkerTickCtx) ----
-        Player p = cx.p;
-        BlockPos foot = cx.foot;
-        Move.Edge edge = cx.edge;
-        BlockPos wp = cx.wp;
-        boolean parkourEdge = cx.parkourEdge;
-        boolean bridging = cx.bridging;
-        boolean placingEdge = cx.placingEdge;
-        boolean steppingOffFall = cx.steppingOffFall;
-        boolean steppingOffWaterFall = cx.steppingOffWaterFall;
+        // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
+        Player p = cx.frame.p;
+        BlockPos foot = cx.frame.foot;
+        Move.Edge edge = cx.edges.edge;
+        BlockPos wp = cx.edges.wp;
+        boolean parkourEdge = cx.edges.parkourEdge;
+        boolean bridging = cx.edges.bridging;
+        boolean placingEdge = cx.edges.placingEdge;
+        boolean steppingOffFall = cx.edges.steppingOffFall;
+        boolean steppingOffWaterFall = cx.edges.steppingOffWaterFall;
         // ---- original body (byte-identical modulo member prefixes) ----
 
         // Aim at a line-of-sight carrot further along the (now string-pulled)
@@ -740,31 +740,22 @@ final class WalkerTickAim {
         double landDz = (wp.getZ() + 0.5) - p.getZ();
         boolean descendBrake = descendLeap && !p.onGround()
                 && (landDx * landDx + landDz * landDz) < 1.4;   // within ~1.2 block of landing center
-        // ---- persist shared per-tick locals (mechanical; see WalkerTickCtx) ----
-        cx.p = p;
-        cx.foot = foot;
-        cx.edge = edge;
-        cx.wp = wp;
-        cx.parkourEdge = parkourEdge;
-        cx.bridging = bridging;
-        cx.placingEdge = placingEdge;
-        cx.steppingOffFall = steppingOffFall;
-        cx.steppingOffWaterFall = steppingOffWaterFall;
-        cx.aimAtWaypoint = aimAtWaypoint;
-        cx.reCentre = reCentre;
-        cx.aimSrc = aimSrc;
-        cx.descentNodeYaw = descentNodeYaw;
-        cx.dryDescent = dryDescent;
-        cx.flatWaterTrend = flatWaterTrend;
-        cx.trendCam = trendCam;
-        cx.aimYaw = aimYaw;
-        cx.diveUnderCap = diveUnderCap;
-        cx.diving = diving;
-        cx.stepColDx = stepColDx;
-        cx.stepColDz = stepColDz;
-        cx.stepUpFreeze = stepUpFreeze;
-        cx.pivotForStepUp = pivotForStepUp;
-        cx.descendBrake = descendBrake;
+        // ---- publish: write this phase's products for the downstream phases (WalkerTickCtx) ----
+        cx.aim.aimAtWaypoint = aimAtWaypoint;
+        cx.aim.reCentre = reCentre;
+        cx.aim.aimSrc = aimSrc;
+        cx.aim.descentNodeYaw = descentNodeYaw;
+        cx.aim.dryDescent = dryDescent;
+        cx.aim.flatWaterTrend = flatWaterTrend;
+        cx.aim.trendCam = trendCam;
+        cx.aim.aimYaw = aimYaw;
+        cx.aim.diveUnderCap = diveUnderCap;
+        cx.aim.diving = diving;
+        cx.aim.stepColDx = stepColDx;
+        cx.aim.stepColDz = stepColDz;
+        cx.aim.stepUpFreeze = stepUpFreeze;
+        cx.aim.pivotForStepUp = pivotForStepUp;
+        cx.aim.descendBrake = descendBrake;
         return null;
     }
 }

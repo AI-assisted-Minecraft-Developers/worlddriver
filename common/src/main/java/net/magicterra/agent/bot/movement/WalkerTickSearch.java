@@ -52,10 +52,10 @@ final class WalkerTickSearch {
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
-        // ---- rehydrate shared per-tick locals (mechanical; see WalkerTickCtx) ----
-        Player p = cx.p;
-        BlockPos foot = cx.foot;
-        double d = cx.d;
+        // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
+        Player p = cx.frame.p;
+        BlockPos foot = cx.frame.foot;
+        double d = cx.stall.d;
         // ---- original body (byte-identical modulo member prefixes) ----
         // Advance any in-flight search by one tick-slice so a big search never
         // blocks the render thread in a single tick (fixes the stutter).
@@ -301,9 +301,7 @@ final class WalkerTickSearch {
             }
             // else: search failed but we still have the previous path — keep it.
         }
-        // ---- persist shared per-tick locals (mechanical; see WalkerTickCtx) ----
-        cx.p = p;
-        cx.foot = foot;
+        // ---- publish: write this phase's products for the downstream phases (WalkerTickCtx) ----
         return null;
     }
 }

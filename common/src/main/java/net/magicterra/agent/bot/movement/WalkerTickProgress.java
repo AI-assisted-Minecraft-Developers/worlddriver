@@ -52,9 +52,9 @@ final class WalkerTickProgress {
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
-        // ---- rehydrate shared per-tick locals (mechanical; see WalkerTickCtx) ----
-        Player p = cx.p;
-        BlockPos foot = cx.foot;
+        // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
+        Player p = cx.frame.p;
+        BlockPos foot = cx.frame.foot;
         // ---- original body (byte-identical modulo member prefixes) ----
         // First path still computing (no path to follow yet). PROGRESSIVE
         // QUICK-START: instead of holding frozen for the whole background
@@ -757,9 +757,7 @@ final class WalkerTickProgress {
                 // stub adopted (path replaced, step=1) → fall through and walk it
             }
         }
-        // ---- persist shared per-tick locals (mechanical; see WalkerTickCtx) ----
-        cx.p = p;
-        cx.foot = foot;
+        // ---- publish: write this phase's products for the downstream phases (WalkerTickCtx) ----
         return null;
     }
 }

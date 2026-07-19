@@ -52,10 +52,10 @@ final class WalkerTickEdgeGuards {
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
-        // ---- rehydrate shared per-tick locals (mechanical; see WalkerTickCtx) ----
-        Player p = cx.p;
-        BlockPos foot = cx.foot;
-        Move.Edge edge = cx.edge;
+        // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
+        Player p = cx.frame.p;
+        BlockPos foot = cx.frame.foot;
+        Move.Edge edge = cx.edges.edge;
         // ---- original body (byte-identical modulo member prefixes) ----
 
         BlockPos wp = wk.path.get(wk.step);
@@ -282,16 +282,13 @@ final class WalkerTickEdgeGuards {
                     ? wp : wk.path.get(wk.step + 1);
             if (land != null) CLUTCH.armPlanned(land.getX(), land.getZ());
         }
-        // ---- persist shared per-tick locals (mechanical; see WalkerTickCtx) ----
-        cx.p = p;
-        cx.foot = foot;
-        cx.edge = edge;
-        cx.wp = wp;
-        cx.parkourEdge = parkourEdge;
-        cx.bridging = bridging;
-        cx.placingEdge = placingEdge;
-        cx.steppingOffFall = steppingOffFall;
-        cx.steppingOffWaterFall = steppingOffWaterFall;
+        // ---- publish: write this phase's products for the downstream phases (WalkerTickCtx) ----
+        cx.edges.wp = wp;
+        cx.edges.parkourEdge = parkourEdge;
+        cx.edges.bridging = bridging;
+        cx.edges.placingEdge = placingEdge;
+        cx.edges.steppingOffFall = steppingOffFall;
+        cx.edges.steppingOffWaterFall = steppingOffWaterFall;
         return null;
     }
 }

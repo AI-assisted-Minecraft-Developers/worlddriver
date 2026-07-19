@@ -52,9 +52,9 @@ final class WalkerTickStallDetect {
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
-        // ---- rehydrate shared per-tick locals (mechanical; see WalkerTickCtx) ----
-        Player p = cx.p;
-        BlockPos foot = cx.foot;
+        // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
+        Player p = cx.frame.p;
+        BlockPos foot = cx.frame.foot;
         // ---- original body (byte-identical modulo member prefixes) ----
 
         // Hard tick budget: prevents infinite walking when A* returns a partial path
@@ -431,15 +431,13 @@ final class WalkerTickStallDetect {
             wk.edges = null;
             wk.step = 0;
         }
-        // ---- persist shared per-tick locals (mechanical; see WalkerTickCtx) ----
-        cx.p = p;
-        cx.foot = foot;
-        cx.d = d;
-        cx.offPath = offPath;
-        cx.breakingEdge = breakingEdge;
-        cx.wedged = wedged;
-        cx.fellOffPath = fellOffPath;
-        cx.fellBelowRoute = fellBelowRoute;
+        // ---- publish: write this phase's products for the downstream phases (WalkerTickCtx) ----
+        cx.stall.d = d;
+        cx.stall.offPath = offPath;
+        cx.stall.breakingEdge = breakingEdge;
+        cx.stall.wedged = wedged;
+        cx.stall.fellOffPath = fellOffPath;
+        cx.stall.fellBelowRoute = fellBelowRoute;
         return null;
     }
 }

@@ -52,9 +52,9 @@ final class WalkerTickClimb {
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
-        // ---- rehydrate shared per-tick locals (mechanical; see WalkerTickCtx) ----
-        Player p = cx.p;
-        BlockPos foot = cx.foot;
+        // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
+        Player p = cx.frame.p;
+        BlockPos foot = cx.frame.foot;
         // ---- original body (byte-identical modulo member prefixes) ----
 
         Move.Edge edge = wk.edgeAt(wk.step);
@@ -988,10 +988,8 @@ final class WalkerTickClimb {
             p.setSprinting(false);
             return Walker.Step.WALKING;
         }
-        // ---- persist shared per-tick locals (mechanical; see WalkerTickCtx) ----
-        cx.p = p;
-        cx.foot = foot;
-        cx.edge = edge;
+        // ---- publish: write this phase's products for the downstream phases (WalkerTickCtx) ----
+        cx.edges.edge = edge;
         return null;
     }
 }
