@@ -2430,6 +2430,12 @@ public final class BotConfig {
         Object v = f.get(null);
         if (v == null) return null;
         if (v instanceof Set<?> set) {
+            // ADVISORY (task#93 review): Set.of(...) iteration order is SALTED per JVM run,
+            // so a NON-EMPTY compiled Set default would serialize differently each boot and
+            // false-flag the value-vs-current-default comparisons (stale-snapshot check +
+            // legacy drift WARN) into churn. All persistable Set defaults are empty today
+            // (SALT-immune, "" either way). If a Set default ever becomes non-empty, sort
+            // the elements here (or compare as parsed sets) before relying on text equality.
             StringBuilder sb = new StringBuilder();
             for (Object o : set) { if (sb.length() > 0) sb.append(','); sb.append(o); }
             return sb.toString();
