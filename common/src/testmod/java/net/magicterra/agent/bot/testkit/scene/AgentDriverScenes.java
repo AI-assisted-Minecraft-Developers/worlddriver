@@ -98,7 +98,7 @@ import net.minecraft.world.phys.AABB;
  *
  * <p><b>Sole variance — {@code ad.entityLeash} await tick count (timing, not outcome).</b>
  * The one non-byte-identical quantity is {@code ad.entityLeash}'s TOTAL scene-tick count
- * (the sum of its two {@code ctx.await(...).within(180)} entity-indexing waits, which poll
+ * (the sum of its two {@code ctx.await(...).within(120)} entity-indexing waits, which poll
  * once per scene tick): across the six clean runs it was fabric {64,28,30} / neoforge {68,30,57}
  * (Task-3 seeds fabric 27 / neoforge 61). Every clean run PASSED. The tick count decouples
  * from wall-clock: the harness advances exactly once per REAL server tick (single driver =
@@ -109,8 +109,14 @@ import net.minecraft.world.phys.AABB;
  * exceeding the then-{@code within(60)} — no phase1 line emitted) did NOT recur in any of the
  * six clean sequential runs</b> (load contamination stacked promotion delay onto the burst
  * regime). Controller adjudication (P1.6 Task 4): bounds widened 60→120 as the scene-local
- * stopgap (~2x worst clean total); the harness-level root fix — drain tick debt before arming
- * scenes, or give {@code within} wall-clock meaning — is task#88.
+ * stopgap (~2x worst clean total). <b>Root fix landed (task#88, D1-T1):</b>
+ * {@code TestkitCommon.onServerTick} now gates {@code harness.tick()} behind a startup
+ * settle barrier — it forwards nothing until 10 consecutive server ticks are spaced
+ * &gt;=40 ms apart (tick debt drained), so scenes are only ever armed at the real ~50 ms
+ * cadence and awaits never run in the catch-up burst regime. A 6-run cold-boot A/B under the
+ * settle barrier measured both entity-index awaits &lt;=60 ticks on 6/6 runs (worst AWAIT-1
+ * = 41), so the two {@code within} bounds were re-tightened 180→120 (2x the post-settle
+ * worst). Widening past 120 again would signal a regressed settle barrier, not a scene bound.
  *
  * <p><b>Driver-class porting pattern</b> (dogfood wave 2b, established by
  * {@code ad.gearScope}; the remaining {@code ServerAgentDriver} scenes follow it):
@@ -1224,17 +1230,19 @@ public final class AgentDriverScenes implements SceneProvider {
         // the entity-section lookup (measured), so the budget is generous (within 120, well
         // under the scene's 200-tick budget); the wait tick-count varies but the outcome does
         // not — the synchronous phase loops read a deterministic world once the stand appears.
-        // within was 60 until P1.6 Task 4: entity promotion is WALL-CLOCK bound while the
-        // server can run ~3ms catch-up ticks right after startup (tick-debt burst), so the
-        // same promotion delay costs 2-2.3x more ticks in that regime — one contaminated-load
-        // TIMEOUT observed at 61. 120 = ~2x the worst clean-run total. Root fix = task#88
-        // (harness-level: drain tick debt before arming scenes, or wall-clock-aware within).
-        // Second recorded stop-bleed (P4c wave 8 acceptance): 120 exceeded by exactly 1 tick
-        // in 2/4 neoforge runs under external box load; baseline A/B proved pre-existing
-        // (identical pattern on the pre-wave-8 tree). 180 = 3x worst clean-run; task#88 stays
-        // the root fix — do not widen again without it.
+        // root fix task#88 landed (D1-T1): TestkitCommon.onServerTick now drains startup tick
+        // debt behind a settle barrier (10 consecutive server ticks spaced >=40ms) BEFORE the
+        // harness ticks any scene, so awaits never run in the ~3ms catch-up burst regime again.
+        // within history 60→120→180→120: within was 60 until P1.6 Task 4 (entity promotion is
+        // WALL-CLOCK bound; a contaminated-load TIMEOUT hit 61 in the burst), 120 as the scene-
+        // local stopgap, then 180 after a P4c wave-8 stop-bleed (120 exceeded by 1 tick under box
+        // load, baseline A/B proved pre-existing). Now the root fix removes the burst regime: a
+        // 6-run cold-boot A/B post-settle measured AWAIT-1 {nf 38,31,41 / fb 14,9,10} and AWAIT-2
+        // {nf 29,22,18 / fb 22,21,16} — 6/6 both awaits <=60 — so re-tightened to 120 = 2x the
+        // post-settle worst (41). Do NOT widen again: past 120 the fault is a regressed settle
+        // barrier, not this bound.
         ctx.await(() -> EntityFind.nearest(level, fp, "minecraft:armor_stand") != null)
-                .within(180)
+                .within(120)
                 .then(() -> {
                     // Phase 1: stand stationary at start — the hard leash must hold the bot back.
                     // Register ONLY for this synchronous loop, then unregister before the next await.
@@ -1246,10 +1254,12 @@ public final class AgentDriverScenes implements SceneProvider {
                     double standDist1 = Math.sqrt(sdx * sdx + sdz * sdz);
                     boolean arrivedTrueGoal1 = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                             && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
+                    // await1Ticks (task#88 A/B telemetry, log-only — no results-JSONL byte touched):
+                    // ctx.ticks() here == the ticks AWAIT-1 waited for the fresh stand to be indexed.
                     AgentDriverCommon.LOG.info(
-                            "[ad.entityLeash] phase1 pos=({},{},{}) finished={} active={} standDist={} arrivedTrueGoal={}",
+                            "[ad.entityLeash] phase1 pos=({},{},{}) finished={} active={} standDist={} arrivedTrueGoal={} await1Ticks={}",
                             fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAgentManager.activeCount(),
-                            standDist1, arrivedTrueGoal1);
+                            standDist1, arrivedTrueGoal1, ctx.ticks());
                     if (driver.finished() || arrivedTrueGoal1)
                         ctx.fail("entityLeash: phase1: process reached the true goal before the anchor moved — "
                                 + "the hard leash did not hold the bot back: pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ()
@@ -1272,7 +1282,7 @@ public final class AgentDriverScenes implements SceneProvider {
                     // legacy forced), then drive phase 2.
                     ctx.await(() -> !level.getEntitiesOfClass(ArmorStand.class,
                                     new AABB(p2anchor).inflate(2.0)).isEmpty())
-                            .within(180)  // widened with AWAIT-1 (second stop-bleed, see comment there)
+                            .within(120)  // re-tightened with AWAIT-1 (task#88 root fix landed, see comment there)
                             .then(() -> {
                                 ServerAgentManager.register(driver);
                                 for (int t = 0; t < 600 && ServerAgentManager.activeCount() > 0; t++) {
@@ -1285,9 +1295,11 @@ public final class AgentDriverScenes implements SceneProvider {
 
                                 boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                                         && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
+                                // sceneTicks (task#88 A/B telemetry, log-only): total ctx.ticks() at
+                                // phase2 == AWAIT-1 + AWAIT-2 waits; AWAIT-2 = sceneTicks - await1Ticks.
                                 AgentDriverCommon.LOG.info(
-                                        "[ad.entityLeash] phase2 pos=({},{},{}) finished={} active={} reached={}",
-                                        fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAgentManager.activeCount(), reached);
+                                        "[ad.entityLeash] phase2 pos=({},{},{}) finished={} active={} reached={} sceneTicks={}",
+                                        fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAgentManager.activeCount(), reached, ctx.ticks());
                                 if (!driver.finished() || ServerAgentManager.activeCount() != 0)
                                     ctx.fail("entityLeash: phase2: leash re-solve process did not finish+unregister after "
                                             + "the anchor moved: finished=" + driver.finished() + " active=" + ServerAgentManager.activeCount());
