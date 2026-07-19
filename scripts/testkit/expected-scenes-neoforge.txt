@@ -151,3 +151,8 @@ ad.serverCombat
 ad.serverLook
 ad.serverMineCanopyRadius
 ad.serverBridgePillarStart
+ad.debugSweepCourse
+ad.expectAlarmBlockedJump
+ad.drownEscapeSurface
+ad.bestEffortSpliceCourse
+ad.ascendMovementStairs

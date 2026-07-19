@@ -18,7 +18,12 @@ import static net.magicterra.agent.AgentDriverCommon.LOG;
  *  sentinel state and never influences movement. {@link Walker} holds one instance and forwards
  *  {@link #tick} (once per tick when the flag is on), {@link #notePlace} (right after a place
  *  click) and {@link #noteRepathFlip} (on a U-turn route adoption). */
-final class WalkerExpectAlarms {
+public final class WalkerExpectAlarms {
+    /** Total alarms EMITTED (post-throttle) since JVM start — test-visible telemetry so
+     *  coverage scenes can assert an alarm actually fired instead of trusting logs
+     *  (task#95b). Monotonic; scenes diff before/after. */
+    public static final java.util.concurrent.atomic.AtomicInteger FIRED = new java.util.concurrent.atomic.AtomicInteger();
+
     private boolean exPrevBreakHeld;   // was the break action held last tick (DIG-dropped edge)
     private BlockPos exPrevAimBlock;   // block the crosshair pointed at last tick
     private int exDigHoldTicks;        // consecutive held ticks on the SAME aim block (DIG-slow)
@@ -51,6 +56,7 @@ final class WalkerExpectAlarms {
     void noteRepathFlip(long pfTickCounter, BlockPos foot) {
         if (pfTickCounter - exRepathFlipTick < 200) {
             exRepathFlipCount++;
+            FIRED.incrementAndGet();
             LOG.warn("[expect] REPATH-flip #{}: adopted a route whose near-term direction reverses the current one "
                     + "({}t since last flip) — planner oscillating between near-equal routes at {},{},{}",
                     exRepathFlipCount, pfTickCounter - exRepathFlipTick,
@@ -70,6 +76,7 @@ final class WalkerExpectAlarms {
         BlockPos aim = a.lookingAtBlock();
         if (exPrevBreakHeld && !held && exPrevAimBlock != null && world.isSolid(exPrevAimBlock)) {
             if (exThrottle == 0 && exDigHoldTicks >= 5) {
+                FIRED.incrementAndGet();
                 LOG.warn("[expect] DIG-dropped: breakHold released after {}t while {},{},{} still solid — progress reset",
                         exDigHoldTicks, exPrevAimBlock.getX(), exPrevAimBlock.getY(), exPrevAimBlock.getZ());
                 exThrottle = 40;
@@ -78,6 +85,7 @@ final class WalkerExpectAlarms {
         } else if (held && aim != null && aim.equals(exPrevAimBlock)) {
             exDigHoldTicks++;
             if (exDigHoldTicks == 200 && exThrottle == 0) {
+                FIRED.incrementAndGet();
                 LOG.warn("[expect] DIG-slow: {},{},{} held 200t and still solid (tool? water 25x? aim drift?)",
                         aim.getX(), aim.getY(), aim.getZ());
                 exThrottle = 40;
@@ -97,6 +105,7 @@ final class WalkerExpectAlarms {
             // ascending step-ups flagged 0.02 under the gate. A truly blocked jump peaks
             // ≤+0.5 (hCol cap); 0.75 keeps that signal and drops the ascent false floor.
             if (--exJumpTicksLeft == 0 && exJumpPeakY < exJumpBaseY + 0.75 && !p.isInWater() && exThrottle == 0) {
+                FIRED.incrementAndGet();
                 LOG.warn("[expect] JUMP-noRise: launched at y={} peaked {} (<+0.75) hCol={} — blocked/in-place jump",
                         String.format(Locale.ROOT, "%.2f", exJumpBaseY),
                         String.format(Locale.ROOT, "%.2f", exJumpPeakY), p.horizontalCollision);
@@ -114,6 +123,7 @@ final class WalkerExpectAlarms {
         boolean fwdPressed = Math.abs(p.zza) > 0.4;
         if (fwdPressed && p.onGround() && moved < 0.03) {
             if (++exFwdNoMoveTicks == 10 && exThrottle == 0) {
+                FIRED.incrementAndGet();
                 LOG.warn("[expect] MOVE-noMove: forward held 10t, displacement<0.3 at {},{},{} hCol={}",
                         String.format(Locale.ROOT, "%.1f", p.getX()),
                         String.format(Locale.ROOT, "%.1f", p.getY()),
@@ -135,6 +145,7 @@ final class WalkerExpectAlarms {
             float tear = Math.abs(angleDiff(p.getYRot(), bearNode));
             if (tear > 90 && moved < 0.03) {
                 if (++exDriveTearTicks == 40 && exThrottle == 0) {
+                    FIRED.incrementAndGet();
                     LOG.warn("[expect] DRIVE-tear: heading {}° off the committed node for 40t while pinned "
                             + "(yaw={} bearNode={} node={},{},{} hCol={}) — carrot/recovery steering away from the path",
                             String.format(Locale.ROOT, "%.0f", tear),
@@ -153,6 +164,7 @@ final class WalkerExpectAlarms {
             if (cur2 > 0.45 && cur2 < 4.0 && Math.abs(node.getY() - p.getY()) < 1.0
                     && noStepProgressTicks > 60) {
                 if (exThrottle == 0) {
+                    FIRED.incrementAndGet();
                     LOG.warn("[expect] ADVANCE-deadzone: cur2={} at node {},{},{} noStepProg={} — within/passed both starved",
                             String.format(Locale.ROOT, "%.2f", cur2),
                             node.getX(), node.getY(), node.getZ(), noStepProgressTicks);
@@ -169,6 +181,7 @@ final class WalkerExpectAlarms {
             if (world.isSolid(exPlacePos)) {
                 exPlaceTicksLeft = 0;
             } else if (--exPlaceTicksLeft == 0 && exThrottle == 0) {
+                FIRED.incrementAndGet();
                 LOG.warn("[expect] PLACE-noBlock: cell {},{},{} still passable 8t after the place click "
                         + "(allowPlace? build block held? reach? falling block in water?)",
                         exPlacePos.getX(), exPlacePos.getY(), exPlacePos.getZ());
@@ -180,15 +193,31 @@ final class WalkerExpectAlarms {
         // Sampled every 100t; only meaningful for a LocalPlayer with an Items-based check.
         if (++exGearCheckTicks >= 100) {
             exGearCheckTicks = 0;
-            if (p instanceof net.minecraft.client.player.LocalPlayer lp) {
-                boolean bucket = net.magicterra.agent.bot.util.BotInteract.hotbarSlotOf(lp, net.minecraft.world.item.Items.WATER_BUCKET) >= 0;
-                boolean pick = net.magicterra.agent.bot.util.BotInteract.hotbarSlotOf(lp, net.minecraft.world.item.Items.DIAMOND_PICKAXE) >= 0
-                        || net.magicterra.agent.bot.util.BotInteract.hotbarSlotOf(lp, net.minecraft.world.item.Items.IRON_PICKAXE) >= 0;
-                if (!bucket || !pick) {
-                    LOG.warn("[expect] GEAR-degraded: hotbar missing {}{} — pickups crowded the gear out (MLG dead / hand-mining)",
-                            bucket ? "" : "water_bucket ", pick ? "" : "pickaxe");
-                }
+            // Side guard is load-bearing: LocalPlayer does not exist in a DEDICATED-server
+            // environment and even the instanceof resolves the class — walkerExpectAlarm=true
+            // on a dedicated server crashed the walker tick with "Cannot load class
+            // net.minecraft.client.player.LocalPlayer" (ad.expectAlarmWallRam, 2026-07-19).
+            // Every LocalPlayer reference lives in ClientGearCheck so the server JVM never
+            // loads it; the sentinel is a client-body concern anyway (hotbar gear).
+            String missing = p.level().isClientSide() ? ClientGearCheck.missing(p) : null;
+            if (missing != null) {
+                FIRED.incrementAndGet();
+                LOG.warn("[expect] GEAR-degraded: hotbar missing {}— pickups crowded the gear out (MLG dead / hand-mining)",
+                        missing);
             }
+        }
+    }
+
+    /** Client-only holder for the GEAR sentinel — see the side guard above. */
+    private static final class ClientGearCheck {
+        /** @return the missing-gear description ("water_bucket ", "pickaxe", …) or null if OK / not a LocalPlayer. */
+        static String missing(Player p) {
+            if (!(p instanceof net.minecraft.client.player.LocalPlayer lp)) return null;
+            boolean bucket = net.magicterra.agent.bot.util.BotInteract.hotbarSlotOf(lp, net.minecraft.world.item.Items.WATER_BUCKET) >= 0;
+            boolean pick = net.magicterra.agent.bot.util.BotInteract.hotbarSlotOf(lp, net.minecraft.world.item.Items.DIAMOND_PICKAXE) >= 0
+                    || net.magicterra.agent.bot.util.BotInteract.hotbarSlotOf(lp, net.minecraft.world.item.Items.IRON_PICKAXE) >= 0;
+            if (bucket && pick) return null;
+            return (bucket ? "" : "water_bucket ") + (pick ? "" : "pickaxe ");
         }
     }
 }
