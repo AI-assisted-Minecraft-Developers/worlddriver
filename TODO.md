@@ -2,6 +2,23 @@
 
 > 镜像 Task 跟踪器的长期工作。重要根因写进 memory(reference/project)。
 
+## 2026-07-19 ✅ D1 债务修复阶段**收官**(D1-T4 终验 + 文档)→ 三债 task#88/#90/#92 全闭,八门全绿;`ad.agentRpcSmoke` 两拓扑门 + `ad.entityLeash` within(180) liveness 为本阶段仅有的两处受制裁参数改动 — commit chain `fe3e236`/`948a11f`/`11db945`/`d6c00ec`/`919703b`/`a09494b`/`77cd002` + 本 docs 收官(branch `feature/executor-permove-ascend`,详录 `.superpowers/sdd/task-4-report.md`)
+
+- **三债根因一句话 + 修法 + 证据指针**:
+  - **task#88 收案(D1-T1,`fe3e236`+`948a11f` 审修+`d6c00ec` 裁决+`919703b` 审修)**:根因=harness 启动 tick 债 catch-up **突发**使 `within()` 墙钟界脆弱(A/B 证既存非回归)。修=**settle 屏障**(在 arm 场景前把启动 tick 债排干,落在 `TestkitCommon` 转发层——不动 tick-pure `SceneContext`,免打乱 PREP 预算)=突发病的结构门;`ad.entityLeash` within **裁决**:第一次 wild 跑 `TIMEOUT@121` 证伪 120 → **回到 180 作纯 liveness 守卫**(settle 屏障已治根,180 只兜活性,**禁第三次加宽**)。证据 `task-1-report.md`。
+  - **task#90 收案(D1-T2,`11db945`)**:根因=仪表面缺**持键回读**+**世界右键**两 verb → `ContainerFurnaceTest` 开不了炉屏(要世界右键,仅有行为面 `mc.bot.useItem` 可用=模块纪律禁依赖)、`instrument_client` 的 heldKeys 子断言是空。修=**`mc.test.input.heldKeys`**(client 线程持键回读)+**`mc.test.input.useOnBlock`**(合成 `BlockHitResult` 直调 `gameMode`=仪表面非行为面)+ `instrument_client.py` `reset.heldKeys` 真断言 + `ContainerFurnaceTest` 启用 + live `exec()` 形状钉。证据 `task-2-report.md`。
+  - **task#92 收案(D1-T3,`a09494b`+`77cd002` 审修)**:根因=`ad.agentRpcSmoke` 的 JS 验证套件按专服 RPC 面编写,**毯式 early-PASS 门**在非专服拓扑掩盖 9 处 client-face 分歧;`AgentScriptManager` 内联了 `prelude.js` 的**陈旧子集**(缺 `observe.player`+整个 `Agent.bot.*`)。修=套件**拓扑可移植**(两拓扑都满跑,专服 147/集成 259)、毯式门拆除、`AgentScriptManager` **单源到规范 `prelude.js`**、一处**具名 `SKIP(task#92)`**(42_combat melee,offence 由 `ad.serverCombat*` 确定性覆盖)、prelude tunnel 死守卫修(缺 distance 现拒绝而非静默挖 1 格)。证据 `task-3-report.md` + `migration-log.md` task#92 段。
+- **✅ D1-T4 终验矩阵(前台有界顺序,ONE server/client at a time;详录 `.superpowers/sdd/task-4-report.md`)——八门全绿**:
+  - ①**dogfood neoforge GREEN**(agentRpcSmoke 147/0 专服,金三件 descentYaw 871°/53·selfShaftDigUp worstBackslide 20.252203415101263·gearScope 0.94000053/5.9040003/1.5999999046325684/6.0 PASS,entityLeash within(180) PASS)+②**dogfood fabric GREEN**(同上)。**基线字节比对**:129 个非 leash/非 rpcSmoke 场景 `(outcome,reason)` 金字节与 P4-final 基线**逐字恒等**(两 loader);唯二受制裁改动=`ad.entityLeash`(within 180 liveness,tick 数在 box 负载下漂移属预期,PASS)+`ad.agentRpcSmoke`(147-check 新断言,reason 串恒等);约 5 个 await-bounded 场景(threatScan/forbidDigWall/follow/combat)仅 **tick 采样**随外部 box 负载漂移,零 reason/outcome 字节改。3 个 `withRequired(false)` 水传感器不变。
+  - ③**instrument neoforge 23/23 GREEN**+④**instrument fabric 23/23 GREEN**(canary mustFail/mustSwallow 门存活)。
+  - ⑤**t1.py(集成)GREEN**——`ad.agentRpcSmoke` PASS **812 tick/35s**(证真跑非 early-PASS),passNote "integrated — 259 checks, 0 failures, 1 named task#92 skip",client log `TOTAL 259/PASS 259/FAIL 0`;entityLeash PASS 28t。
+  - ⑥**t2.py(生产拓扑:专服+客户端)GREEN**(138s)。
+  - ⑦**instrument_client.py --attach GREEN**(8 check + 2 canary;task#90 `reset.heldKeys` 真断言 PASS)。
+  - ⑧**`./gradlew :testkit-junit:test --rerun-tasks` GREEN**(经 `t1.py --hold` 导出 `TESTKIT_ENDPOINT` attach):17 测试全过,**live UI 真跑非跳过**——`ContainerFurnaceTest` PASS 0.38s(task#90 `useOnBlock` 真开炉屏)、`ChatScreenTest`/`InventoryScreenTest`/`CanaryTest` 全 PASS;仅 2 个 `SelfTest` 负路径("no endpoint")在有端点时如期反向跳过。**⚠️坑**:junit test 任务对 env 改动不失效(`UP-TO-DATE`),必须 `--rerun-tasks` 才真跑 live。
+- **tunnel-guard 影响面清扫(T3 reviewer watch item)**:全仓库 `.tunnel(` 调用仅 `25_phase_d3.js` 三行(验证脚本本身),其一缺 distance 是**故意**测"拒绝缺 distance";skill 库(`48_skill.js` + 各 run-* skills 目录)与所有 repo 脚本**零** `bot.tunnel` 依赖,无一依赖旧 floor-to-1 行为;instrument 套件(走 script.eval 路径)双 loader GREEN。**结论:prelude tunnel 语义改动无回归面**。
+- **文档**:本 TODO 三债收案条目;`mc-testkit/README.md` 治理面三改(agentRpcSmoke 拓扑门条目**改写为两拓扑满跑 147/259 + 具名 skip 约定**、entityLeash within(180) 注改为 **task#88 settle 屏障收案**、containerFurnace 注从 `@Disabled` 延后改为 **task#90 收案启用**);`migration-log.md` **无需改**(T3 的 task#92 段已完整含 Acceptance 块,append-only 政策下不追加)。commit `docs(testkit): D1 — task#88/#90/#92 closed`。
+- **残余**:开放 task **task#86/#87/#91** 不变待修;**user 待决**:`artifactId`(`agent_driver-testkit-*` 发布坐标)/ merge / 远端仓库。
+
 ## 2026-07-19 ✅ D1-T3 task#92 收案 → `ad.agentRpcSmoke` 拓扑可移植,毯式 early-PASS 门**拆除**;JS 验证套件在专服(T0)+集成客户端(T1)双拓扑都真跑 REQUIRED — commit `a09494b`(branch `feature/executor-permove-ascend`,详录 `.superpowers/sdd/task-3-report.md` + `docs/testkit/migration-log.md` task#92 段)
 
 - **取证(T1 `/agent test` 裸 RPC,不重编译)**:`TOTAL 259/PASS 250/FAIL 9`(tracker 记的 8 少一个=42_combat 行为项)。九分歧定性 + 修:
