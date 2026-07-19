@@ -1229,3 +1229,42 @@ adjudication paths for the controller:
 
 The probe scene, expect-file entries, and this record are committed; the scene remains `required=false`
 pending the controller's choice above.
+
+### Resolution — path (i) void-moat isolation → task#87 **CLOSED** (2026-07-19, D2 Task 2 cont.)
+
+**Controller adjudication: path (i).** Replicate the `y=200` twin's pure-void condition at low Y so
+absolute-Y becomes the ONLY variable — the off-lane grass footing was a confound, not low-Y. Rig
+completion of the reproduce-or-close experiment, not a deviation.
+
+**What changed (rig only, no engine touch).** Before building the lane, the scene now captures and clears a
+**void-isolation moat** around the whole footprint: `dx∈[cx−8,cx+8]`, `dz∈[cz−7,cz+goalDz+8]` (≥6 blocks
+beyond lane+rails on every side), `y∈[−64, floorY+5]` (world floor up past head height) — every block set
+to air, so the lane is the ONLY standable surface, exactly like the twin over void. The moat box supersets
+the lane fill and is the capture-and-restore footprint (cleanup byte-restores all ~6.8k blocks). The scene
+gained `.withChunkRadius(2)` (moat reaches `dz+32`, 1 past the default `+31` window edge). Pre-clear +
+post-clear INFO lines document the confound and its removal:
+`westOffLaneFooting@(dx=−3,floorY−1)` reads `grass_block` **before** the moat and `air` **after**.
+
+**Verdict = GREEN ×6, byte-identical, engine behaves identically to y=200.**
+
+| loader | runs | `ad.entityLeashLowY` | phase1 pos (x,y,z) / standDist | phase2 pos / reached / finished |
+|--------|------|----------------------|-------------------------------|----------------------------------|
+| neoforge | 1,2,3 | **PASS** ×3 | 105635.10102737811,−58.0,100003.7822 / **4.187857529833143** | 105632.88169748495,−59.0,100023.6452 / true / true |
+| fabric   | 1,2,3 | **PASS** ×3 | 105635.10102737811,−58.0,100003.7822 / **4.187857529833143** | 105632.88169748495,−59.0,100023.6452 / true / true |
+
+All 6 runs byte-identical (only AWAIT tick-count jitters: sceneTicks 1–6). The `phase1 standDist` and the
+relative phase1/phase2 positions **exactly match the `y=200` twin** (twin: standDist `4.187857529833143`,
+phase1 `…,202.0,100003.78219549517`, phase2 `…,201.0,100023.64520769159`) — only the slot-X offset and the
+absolute Y differ. So at low Y in the SAME void condition, the leash re-solve → ARRIVE chain is
+**bit-for-bit** the y=200 behaviour: **the engine has no low-Y leash defect.**
+
+**Cleanup verified (empirical).** Each loader's 3rd consecutive run still read the ORIGINAL `grass_block` at
+`below-floor` and `westOffLaneFooting` in its pre-clear probe — proving runs 1–2 fully byte-restored the
+~6.8k-block moat footprint (else stale air/stone would show). No `cleanup failed` in either log. The `y=200`
+twin `ad.entityLeash` stayed PASS on both loaders (no regression).
+
+**task#87 CLOSED — legacy rig-disease CONFIRMED.** The deleted `entityLeashRepathArena`'s low-Y phase-2 RED
+was terrain-adjacency (off-lane footing at the GameTest placement Y), NOT an engine low-Y gap. The probe is
+promoted to `required=true` as the permanent low-Y regression guard. Files: `AgentDriverScenes.java` (moat
+build + `withChunkRadius(2)` + `required` flip + javadoc closure). Expect-files unchanged (name already
+listed; required-ness is not tracked there).

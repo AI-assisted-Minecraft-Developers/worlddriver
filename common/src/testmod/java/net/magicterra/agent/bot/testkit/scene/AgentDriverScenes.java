@@ -210,9 +210,15 @@ public final class AgentDriverScenes implements SceneProvider {
                 Scene.of("ad.gearScope", 200, AgentDriverScenes::gearScope),
                 Scene.of("ad.buriedOre", 200, AgentDriverScenes::buriedOre),
                 Scene.of("ad.entityLeash", 200, AgentDriverScenes::entityLeash),
-                // task#87 low-Y leash probe — investigation sensor, starts required=false
-                // until the 3×2-loader + full-suite verdict adjudicates (see javadoc).
-                Scene.of("ad.entityLeashLowY", 200, AgentDriverScenes::entityLeashLowY).withRequired(false),
+                // task#87 CLOSED (2026-07-19) — permanent low-Y regression guard. The void-
+                // isolated probe is GREEN ×6 (nf×3 + fb×3, byte-identical, phase1 standDist ==
+                // the y=200 twin's 4.188), so the engine has NO low-Y leash defect and the deleted
+                // legacy arena's RED was rig disease. required=true. withChunkRadius(2): the
+                // void-isolation moat reaches dz +32 (goalDz+8), 1 past the default window's +31
+                // edge — widen so every moat block + the teleported stand (dz +28) sit in
+                // forced/entity-ticking chunks.
+                Scene.of("ad.entityLeashLowY", 200, AgentDriverScenes::entityLeashLowY)
+                        .withChunkRadius(2),
                 Scene.of("ad.settingRegistryClosed", 200, AgentDriverScenes::settingRegistryClosed));
     }
 
@@ -1289,7 +1295,17 @@ public final class AgentDriverScenes implements SceneProvider {
     }
 
     /**
-     * task#87 — LOW-Y leash probe (investigation sensor, starts {@code withRequired(false)}).
+     * task#87 — LOW-Y leash probe, CLOSED 2026-07-19: permanent low-Y regression guard
+     * ({@code required=true}).
+     *
+     * <p><b>Verdict (closure).</b> After the void-isolation moat (below) made absolute-Y the SOLE
+     * variable, the probe is GREEN ×6 (neoforge×3 + fabric×3, full dogfood), byte-identical every
+     * run — {@code phase1 standDist=4.187857529833143} equals the {@code y=200} twin's 4.188 to the
+     * last digit, {@code phase2 finished=true reached=true}. The engine therefore has NO low-Y
+     * leash defect: at low Y in the SAME void condition as the grid the leash re-solve → ARRIVE
+     * behaves identically. task#87 is adjudicated CLOSED — the deleted legacy
+     * {@code entityLeashRepathArena}'s low-Y RED was rig disease (terrain-adjacency, see the moat
+     * paragraph), not an engine gap. This scene now stands as the permanent low-Y guard.
      *
      * <p><b>Why this scene exists.</b> The deleted legacy {@code entityLeashRepathArena}
      * was a MASTER-INHERITED deterministic solo-RED (TODO.md line 79; clean master-HEAD
@@ -1305,25 +1321,41 @@ public final class AgentDriverScenes implements SceneProvider {
      * defect ⇒ the legacy RED was rig disease (this scene then flips to a permanent low-Y
      * regression guard); RED here ⇒ a real engine low-Y gap, characterized and reported.
      *
-     * <p><b>World-pollution containment + capture-and-restore.</b> Unlike {@link #entityLeash}
-     * (floor at {@code origin.getY()} = grid plane 200, over air) this probe fills near the
-     * {@code −64} world floor, where the originals are bedrock/deepslate-adjacent, NOT air/stone.
-     * The XZ footprint stays inside this scene's own origin-slot column (chunk-aligned, so the
-     * default 3×3 forced/entity-ticking neighbourhood covers the full-height column — the stand
-     * at {@code y=−59} is scannable exactly as at y=200). The fill footprint's original
-     * blockstates are SNAPSHOT before filling and restored in cleanup (registered FIRST so it
-     * drains LAST — after the driver unregister + avatar + stand discard), leaving the
-     * persistent dogfood world byte-restored. A pre-fill INFO line records the actual
-     * world-floor blocks at the column (the buildability/evidence probe the brief asked for):
-     * {@code setBlockAndUpdate} overwrites bedrock programmatically, so the lane is buildable at
-     * any Y ≥ −64 regardless of what is there — {@code −60} is chosen to mirror the legacy twin.
+     * <p><b>VOID-ISOLATION MOAT — the "sole variable" fix (path (i), controller-adjudicated
+     * 2026-07-19).</b> The FIRST attempt (bare lane at {@code y=−60}, no moat) reproduced the RED
+     * deterministically and cross-loader-identically — but the scene's own world-floor probe
+     * DISPROVED the "void-fall near bedrock" model: at this column {@code y=−60} is the natural
+     * terrain SURFACE ({@code grass_block} at {@code −61}, air above), NOT the void/bedrock floor.
+     * So the {@code 5}-wide carved lane was EMBEDDED in generated terrain, and the bot stepped off
+     * the lane's WEST edge onto that grass ({@code dx=−2.3, y=−60}, pressed against the rail) and
+     * never re-centred on the goal X column — a terrain-ADJACENCY confound, not a low-Y engine
+     * defect. The {@code y=200} twin floats in pure VOID, so absolute-Y was NOT the sole variable.
+     * FIX: before building, clear an air MOAT around the whole lane footprint — {@code ≥6} blocks
+     * laterally beyond lane+rails on every side ({@code dx [−8,8]}, {@code dz [−7, goalDz+8]}),
+     * from the world floor {@code −64} up past head height ({@code floorY+5}) — so the lane is the
+     * ONLY standable surface anywhere near the bot, exactly replicating the twin's void-float.
+     * Now absolute-Y IS the sole difference from {@link #entityLeash}.
      *
-     * <p><b>Auto slot, default radius (choice noted).</b> This scene WALKS entities (leash
-     * re-solve → ARRIVE); it records no byte-metric, so it is NOT position-determinism-
+     * <p><b>World-pollution containment + capture-and-restore.</b> The ENTIRE moat box (which
+     * supersets the lane fill footprint) is SNAPSHOT before clearing and restored in cleanup
+     * (registered FIRST so it drains LAST — after the driver unregister + avatar + stand discard),
+     * leaving the persistent dogfood world byte-restored. The XZ footprint stays inside this
+     * scene's own origin-slot column region (chunk-aligned, so the default 3×3 forced/entity-
+     * ticking neighbourhood covers the full-height column — the stand at {@code y=−59} is
+     * scannable exactly as at y=200; the moat's {@code ±8} dx / {@code −7..32} dz reach stays
+     * inside the default window's {@code [−16,31]} edge). Pre-clear + post-clear INFO lines record
+     * the world-floor originals (including the WEST off-lane footing cell the moat removes) and
+     * confirm the moat is now void — the buildability/confound-removal evidence.
+     * {@code setBlockAndUpdate} overwrites bedrock programmatically, so the lane is buildable at
+     * any {@code Y ≥ −64} regardless of what is there — {@code −60} is chosen to mirror the twin.
+     *
+     * <p><b>Auto slot, {@code withChunkRadius(2)} (choice noted).</b> This scene WALKS entities
+     * (leash re-solve → ARRIVE); it records no byte-metric, so it is NOT position-determinism-
      * sensitive — an auto slot is acceptable (unlike {@code ad.descentYaw}/{@code ad.selfShaftDigUp}
-     * which pin for byte-golden reasons). Footprint envelope is identical to {@link #entityLeash}
-     * (dx [−2,+2], dz [−1,+28]), inside the default window's +31 edge, so no
-     * {@code withChunkRadius(2)} widening is needed.
+     * which pin for byte-golden reasons). Unlike {@link #entityLeash} it DOES widen the forced
+     * window: the void-isolation moat reaches {@code dz +32} ({@code goalDz+8}), 1 past the default
+     * window's {@code +31} edge, so {@code withChunkRadius(2)} keeps every moat block and the
+     * teleported stand ({@code dz +28}) in forced/entity-ticking chunks.
      *
      * <p><b>Everything else is {@link #entityLeash} verbatim</b> — the bracketed
      * register/tickAll/unregister phase loops, the two {@code ctx.await(entity-visible)}
@@ -1340,27 +1372,51 @@ public final class AgentDriverScenes implements SceneProvider {
         final int goalDz = 24;
         final double leashRadius = 8.0;
 
-        // Capture-and-restore: snapshot the full fill footprint (floor dy=0 .. carve/rails dy=3)
-        // BEFORE overwriting it, so cleanup byte-restores the deep-underground originals
-        // (bedrock/deepslate-adjacent, not stone) in the persistent dogfood world. Registered
-        // FIRST → drains LAST (after unregister + discard). Also LOGS the world-floor originals
-        // at three probe points as the buildability/evidence record (brief precondition).
+        // VOID-ISOLATION MOAT (path (i), controller-adjudicated 2026-07-19). The first RED run
+        // proved the low-Y RED was a terrain-adjacency CONFOUND, not a low-Y engine defect: at
+        // this column y=−60 is the natural terrain SURFACE (grass_block at −61), so the bot
+        // stepped off the lane's WEST edge onto that grass (dx=−2.3, y=−60) and never re-centred.
+        // The y=200 twin floats in pure VOID, so absolute-Y was NOT the sole variable. Fix: clear
+        // an air moat around the WHOLE lane footprint — ≥6 blocks laterally beyond lane+rails on
+        // every side, from the world floor (−64) up past head height — so the lane is the ONLY
+        // standable surface, exactly replicating the twin's void-float. Now absolute-Y IS the sole
+        // difference from ad.entityLeash.
+        final int moatDxMin = -8, moatDxMax = 8;               // lane+rails dx[−2,2] + 6 each side
+        final int moatDzMin = -7, moatDzMax = goalDz + 8;      // lane dz[−1,26] + 6 each side (→ −7..32)
+        final int moatYBottom = -64;                           // world floor — nothing standable below
+        final int moatYTop = floorY + 5;                       // a few blocks above the bot's head (−58)
+
+        // Capture-and-restore: snapshot the ENTIRE moat box (which SUPERSETS the lane footprint)
+        // BEFORE clearing it, so cleanup byte-restores every original block (terrain, not stone)
+        // in the persistent dogfood world. Registered FIRST → drains LAST (after unregister +
+        // discard). Also LOGS the pre-clear world-floor originals — including the WEST off-lane
+        // footing cell that the moat removes — as the confound evidence + buildability record.
         Map<BlockPos, BlockState> saved = new HashMap<>();
-        for (int dx = -2; dx <= 2; dx++)
-            for (int dz = -1; dz <= goalDz + 2; dz++)
-                for (int dy = 0; dy <= 3; dy++) {
-                    BlockPos p = new BlockPos(cx + dx, floorY + dy, cz + dz);
+        for (int x = cx + moatDxMin; x <= cx + moatDxMax; x++)
+            for (int z = cz + moatDzMin; z <= cz + moatDzMax; z++)
+                for (int y = moatYBottom; y <= moatYTop; y++) {
+                    BlockPos p = new BlockPos(x, y, z);
                     saved.put(p, level.getBlockState(p));
                 }
         AgentDriverCommon.LOG.info(
-                "[ad.entityLeashLowY] world-floor probe @({},{}) floorY={} : floor@start={} floor@goal={} below-floor={} carve@start={}",
+                "[ad.entityLeashLowY] world-floor probe @({},{}) floorY={} : floor@start={} floor@goal={} below-floor={} carve@start={} westOffLaneFooting@(dx=-3,floorY-1)={}",
                 cx, cz, floorY,
                 level.getBlockState(new BlockPos(cx, floorY, cz)),
                 level.getBlockState(new BlockPos(cx, floorY, cz + goalDz)),
                 level.getBlockState(new BlockPos(cx, floorY - 1, cz)),
-                level.getBlockState(new BlockPos(cx, floorY + 1, cz)));
+                level.getBlockState(new BlockPos(cx, floorY + 1, cz)),
+                level.getBlockState(new BlockPos(cx - 3, floorY - 1, cz)));
         ctx.cleanup(() -> saved.forEach(level::setBlockAndUpdate));
 
+        // 1) Clear the whole moat box to AIR — removes ALL off-lane footing (terrain + anything
+        //    below the lane floor), so the bot cannot leave the lane onto adjacent ground.
+        for (int x = cx + moatDxMin; x <= cx + moatDxMax; x++)
+            for (int z = cz + moatDzMin; z <= cz + moatDzMax; z++)
+                for (int y = moatYBottom; y <= moatYTop; y++)
+                    level.setBlockAndUpdate(new BlockPos(x, y, z), Blocks.AIR.defaultBlockState());
+        // 2) Build the lane floor + rails INTO the void (verbatim ad.entityLeash geometry). The
+        //    lane floor now floats over the cleared moat, exactly like the y=200 twin over void;
+        //    the interior above the floor is already air from the clear (no carve step needed).
         for (int dx = -2; dx <= 2; dx++)
             for (int dz = -1; dz <= goalDz + 2; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
@@ -1369,10 +1425,12 @@ public final class AgentDriverScenes implements SceneProvider {
         for (int dz = -1; dz <= goalDz + 2; dz++) {
             level.setBlockAndUpdate(new BlockPos(cx - 2, floorY + 1, cz + dz), Blocks.STONE.defaultBlockState());
             level.setBlockAndUpdate(new BlockPos(cx + 2, floorY + 1, cz + dz), Blocks.STONE.defaultBlockState());
-            for (int dx = -1; dx <= 1; dx++)
-                for (int dy = 1; dy <= 3; dy++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
         }
+        // Evidence: confirm the moat is now void — the WEST off-lane footing cell is AIR post-clear.
+        AgentDriverCommon.LOG.info(
+                "[ad.entityLeashLowY] post-moat void check : westOffLaneFooting@(dx=-3,floorY-1)={} belowLaneFloor@(dx=0,floorY-1)={}",
+                level.getBlockState(new BlockPos(cx - 3, floorY - 1, cz)),
+                level.getBlockState(new BlockPos(cx, floorY - 1, cz)));
         BlockPos goal = new BlockPos(cx, floorY + 1, cz + goalDz);
 
         final ArmorStand stand = new ArmorStand(level, cx + 0.5, floorY + 1, cz + 0.5);   // AT the bot's start
