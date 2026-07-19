@@ -2,6 +2,13 @@
 
 > 镜像 Task 跟踪器的长期工作。重要根因写进 memory(reference/project)。
 
+## 2026-07-19 ✅ artifactId 修名 + rootProject.name 纠错(user 拍板 `mc_testkit-*`)
+
+- **artifactId 根修**:root `build.gradle` `subprojects{}` 发布块的 `artifactId = base.archivesName.get()` 是配置期 eager 求值,抢在子脚本 `archivesName='mc_testkit-*'` 覆盖之前捕获 → 改为 `afterEvaluate` 延迟读取,子模块意图生效。发布坐标现为 **`mc_testkit-{common,fabric,neoforge}`**(与既有 `mc_testkit-junit` 成一族;`agent_driver-{common,fabric,neoforge}` 驱动 mod 件不变)。`publishToMavenLocal` 复验:新坐标齐全、mod 族 POM 全零依赖、junit 3 依赖照旧、agent_driver 发布 jar 双向字节门过(`scene/SceneProvider` 接口属 testkit 框架面合法打包,非场景实现;服务文件与 `AgentDriver*Scenes` 实现零条目)。`~/.m2` 陈旧 `agent_driver-testkit-*` 三目录已删(仅 mavenLocal 存在过,零远端消费者=零迁移成本)。`testkit-junit` 有 early-return 剖出不受 afterEvaluate 影响(保留自己的显式 publication)。
+- **rootProject.name 纠错**:`settings.gradle` 的 `rootProject.name = 'noteblockapi'` 是模板 fork 残渣(全仓零引用)→ 改为 `agent-driver-mod`。子项目名 `testkit-*` 审查后保留(纯内部 gradle 路径,全仓引用+文档一致,artifactId 已由子模块 archivesName 决定,与项目名解耦)。
+- **README** maven 节/artifact 表/字节门注记同步为新坐标;历史条目(P3b/P4 各期"artifactId 残余"记录)照豁免规则不改写。
+- **user 待决余项**:merge 策略 / 真远端 maven 仓库(推远端前坐标已定型)。
+
 ## 2026-07-19 ✅ task#93 收案 → config-persistence 陷阱修复(**SHADOW-DEFAULT 持久化**)— 本条目所在 fix commit(plan 见 `7965f1c`;branch `feature/executor-permove-ascend`,详录 `.superpowers/sdd/task-1-report.md` + `docs/testkit/migration-log.md` task#93 段)
 
 - **根因(D2 发现)**:`BotConfig.save()` 反射落盘**每个**字段、`load()` 启动**无条件**逐字段 `assign` → 持有旧 properties 文件的客户端把**旧版本默认值快照**当"用户设置"应用,**压制后续版本默认翻转**(实证:`walkerWaterClimbLateralGate` 新默认 `true` 被上一 session 陈旧 `false` 覆写)。

@@ -14,7 +14,10 @@ pluginManagement {
     }
 }
 
-rootProject.name = 'noteblockapi'
+// Root gradle project name. Was 'noteblockapi' — a leftover from the repo's
+// original template fork, referenced nowhere; renamed 2026-07-19 to match the
+// repository. mod id / archives_name ('agent_driver') live in gradle.properties.
+rootProject.name = 'agent-driver-mod'
 
 include 'common'
 include 'fabric'

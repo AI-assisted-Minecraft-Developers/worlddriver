@@ -81,7 +81,6 @@ subprojects {
     publishing {
         publications {
             mavenJava(MavenPublication) {
-                artifactId = base.archivesName.get()
                 from components.java
                 // Everything a consumer needs at runtime (Rhino, netty-codec-http,
                 // snakeyaml) is nested in the jar via Jar-in-Jar, so the published
@@ -92,6 +91,19 @@ subprojects {
                     def deps = asNode().dependencies
                     if (!deps.isEmpty()) asNode().remove(deps.first())
                 }
+            }
+        }
+
+        // artifactId must be resolved AFTER the subproject's own build script has
+        // run: this subprojects{} block executes BEFORE child scripts, so an eager
+        // `base.archivesName.get()` here captured the root default and the
+        // mc-testkit modules' own `archivesName = 'mc_testkit-*'` overrides never
+        // reached the publication (P3b finding: they published as
+        // agent_driver-testkit-* instead). afterEvaluate defers the read until the
+        // child's overrides are in place.
+        afterEvaluate {
+            publishing.publications.named('mavenJava') {
+                artifactId = base.archivesName.get()
             }
         }
 
