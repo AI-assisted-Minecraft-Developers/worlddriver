@@ -2554,8 +2554,14 @@ public final class BotConfig {
             LOG.info("[config] loaded {} persisted bot setting(s) ({} snapshot key(s) followed current default) from {}",
                     applied, skipped, path.toAbsolutePath());
             if (!legacyDrift.isEmpty()) {
+                // NOTE the permanence: the upgrade re-save stamps each legacy drift key with
+                // shadow = CURRENT compiled default while keeping its stale value, so from then
+                // on value != shadow and the key is treated as user-set FOREVER. Only files
+                // written by shadow-aware code get true snapshot-follows-default semantics;
+                // this WARN list is the operator's one chance to spot and hand-fix stale keys.
                 LOG.warn("[config] legacy config file (no shadow defaults) — applied as-is;"
-                        + " {} key(s) differ from this build's compiled default and were preserved: {}."
+                        + " {} key(s) differ from this build's compiled default and were preserved"
+                        + " (they will remain user-set after the upgrade): {}."
                         + " Upgrading file to shadow-default format.", legacyDrift.size(), legacyDrift);
             }
             if (needsUpgrade) save();   // best-effort upgrade re-save (IO failure logged, not fatal)

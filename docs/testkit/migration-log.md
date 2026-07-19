@@ -1379,6 +1379,9 @@ then-default, so the *current* compiled default wins — the trap fix); **value 
 listing the keys that differ from the current compiled default, and **upgrade-re-save** the file to
 shadow format. A stale snapshot (SKIP where the stored value no longer equals the current default)
 also triggers the upgrade re-save; steady state (fresh shadows, no legacy, no stale) re-saves nothing.
+Permanence caveat: the upgrade stamps a legacy drift key with shadow = CURRENT default while keeping
+its stale value, so it reads as user-set forever after — only files written by shadow-aware code get
+true snapshot-follows-default semantics; the WARN drift list is the operator's window to hand-fix.
 Setting a key explicitly back to its default counts as following the default (documented in javadoc).
 Backward-compat is automatic: legacy `load()` only ever looked keys up **by field name**, so a
 `.default` line (a `.` can't appear in a Java identifier) was — and still is — silently ignored by
