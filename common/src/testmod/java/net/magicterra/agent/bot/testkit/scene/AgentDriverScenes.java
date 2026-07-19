@@ -674,7 +674,7 @@ public final class AgentDriverScenes implements SceneProvider {
      *
      * <p><b>Golden-failure signature gate — task#86.</b> Under true isolation
      * (this scene's {@link ServerPlayerAvatar#createUnique} body, and the legacy
-     * arena's own solo {@code AGENT_GT_ONLY} run) the walk deterministically hits
+     * arena's own single-arena isolated run) the walk deterministically hits
      * the real gap #53 defect: {@code worstBackslide=20.252203415101263} —
      * reproduced byte-identically across two independent legacy-solo runs plus
      * this scene's new-shell run (measured at the former auto slot, then

@@ -71,12 +71,16 @@ dependencies {
     forgeRuntimeLibrary "org.yaml:snakeyaml:$rootProject.snakeyaml_version"
 }
 
-// P4a Task 1: testmod source set — the legacy @GameTest classes (8 arena classes +
-// AgentGameTestSupport) lived here P4a-P4c so they were compiled and loaded ONLY in
-// dev runs (attached via the loom mods{} block below), never baked into the production
-// jar. Since P4c wave 9 the migration emptied it (all scenes live in :common testmod);
-// the source set + gameTestServer run config are retained solely for P4-final retirement.
-// remapped production jar. Classpath wiring mirrors the mc-testkit gradle-plugin's
+// testmod source set — EMPTY-SOURCE BRIDGE (P4-final). The legacy @GameTest classes
+// once lived here (P4a-P4c) so they compiled/loaded ONLY in dev runs, never in the
+// production jar; P4b/P4c migrated every arena to a dogfooded ad.* testkit scene under
+// :common's testmod and P4-final retired the GameTestServer run machinery. This source
+// set now carries NO test java of its own — it survives purely as the delivery vehicle
+// that folds :common's testmod OUTPUT+resources into agent_driver's dev-run module (via
+// the loom mods{} block below) and onto the `source sourceSets.testmod` runs
+// (runDogfoodServer / testkitClient / t2Server) so ServiceLoader discovers the ad.*
+// scenes. Deleting it would silently drop all scene delivery — keep it.
+// Classpath wiring mirrors the mc-testkit gradle-plugin's
 // testmod convention (testmod sees main's OUTPUT plus main's own compile/runtime
 // classpaths — so testmod code can reach main classes AND main's dependencies,
 // including common's SimProbes), but wired by hand: the plugin's testmodSourceSet
@@ -175,28 +179,6 @@ loom {
     }
     runs {
         server { server() }
-        // NeoForge's userdev moddev-config.json exposes a "gameTestServer" template
-        // that is byte-identical to "server" except for two system properties.
-        // architectury-loom already generates the argFile; we just need to declare
-        // the run and flip the two flags. After this, `gradlew :neoforge:runGameTestServer`
-        // boots a dev server, auto-runs every @GameTest discovered in
-        // RegisterGameTestsEvent, and exits non-zero on failure — CI-friendly.
-        //
-        // AgentGameTest defers runValidation() to a worker thread and polls via
-        // helper.succeedWhen, so RPC/MCP round-trips no longer deadlock against
-        // the server tick path (see AgentGameTest.java for the rationale).
-        gameTestServer {
-            server()
-            property 'neoforge.enableGameTest', 'true'
-            property 'neoforge.gameTestServer', 'true'
-            runDir 'run-gametest'
-            // P4a Task 1: run against the testmod source set. testmod's runtimeClasspath
-            // extends main's (see sourceSets block above), so main classes stay present.
-            // The legacy arenas this run once auto-ran were fully migrated and deleted by
-            // P4c wave 9 — the source set is now empty and the run loads no tests; the
-            // config survives only until P4-final retires the GameTestServer machinery.
-            source sourceSets.testmod
-        }
         contractServer {
             server()
             property 'agent.contractRun', 'true'

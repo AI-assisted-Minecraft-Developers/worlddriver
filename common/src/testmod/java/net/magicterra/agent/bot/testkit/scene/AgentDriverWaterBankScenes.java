@@ -51,7 +51,7 @@ import net.minecraft.world.level.block.state.BlockState;
  *       (per-scene body, #48) + {@code ctx.cleanup(() -> fp.discard())}. In the ISOLATED
  *       per-scene body model the legacy shared-FakePlayer parking / anti-contamination
  *       finally blocks (e.g. {@code vineOverWaterClimbArena}'s {@code cleanupFp} re-park, the
- *       {@code batch = "solo…"} isolation batches) become dead weight and are DROPPED —
+ *       legacy per-arena isolation batches) become dead weight and are DROPPED —
  *       the createUnique body cannot bleed into another scene, so those guards had nothing
  *       left to protect;</li>
  *   <li>{@code AgentGameTestSupport.grantWaterEffects} → {@link SimProbes#grantWaterEffects}

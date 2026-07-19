@@ -2,7 +2,6 @@ build/
 .gradle/
 */build/
 run/
-run-gametest/
 run-testkit/
 run-dogfood/
 run-contract/

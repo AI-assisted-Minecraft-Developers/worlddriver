@@ -57,13 +57,18 @@ string in text), so multimodal models receive the framebuffer as vision input.
 ### 1. Build & run the integration suite (no client needed)
 
 ```bash
-./gradlew :neoforge:runGameTestServer
-# → all tests pass (exits non-zero on any failure)
+python3 scripts/testkit/t0.py --loader neoforge \
+  --run-task :neoforge:runDogfoodServer \
+  --results neoforge/run-dogfood/testkit-results.jsonl \
+  --expect-file scripts/testkit/expected-scenes-neoforge.txt
+# → GREEN (exits non-zero on any failed scene)
 ```
 
-This boots a dedicated server inside the NeoForge GameTest harness, runs every
-`*.js` validation script under `common/src/main/resources/data/agent_driver/scripts/agent_validation/`,
-and exits non-zero on any failure. Use it as CI.
+This dogfoods a dedicated server with the mc-testkit harness, autoruns the ad.*
+scenes (`common/src/testmod/.../scene/`) plus the `*.js` validation suite, and
+verifies the results stream against the expect-file. The mc-testkit orchestrators
+under `scripts/testkit/` (`t0`/`t1`/`t2` + `instrument.py`) are the CI gates — the
+legacy `@GameTest`/GameTestServer path was retired in P4-final.
 
 ### 2. Run the client and connect an MCP client
 
@@ -144,7 +149,7 @@ agent-driver-mod/
 │       │   └── client/            ClientHooks broker (impl lives in fabric/neoforge)
 │       └── resources/data/agent_driver/scripts/agent_validation/  *.js suite
 ├── fabric/                Fabric loader entrypoint + client-side impl
-├── neoforge/              NeoForge entrypoint + GameTest hook
+├── neoforge/              NeoForge entrypoint + client-side impl
 ├── docs/                  Connection guides (see docs/mcp-clients.md)
 └── scripts/               One-shot helper scripts (smoke tests, harness aids)
 ```
@@ -176,7 +181,7 @@ agent-driver-mod/
 
 **Phase 1 (perceive + act + minimal client driving) is complete and verified end-to-end:**
 
-- All validation scripts pass under `runGameTestServer` (CI)
+- All validation scripts + ad.* scenes pass under the mc-testkit gates (`scripts/testkit/t0.py`, CI)
 - Every MCP tool reachable from Claude Code via `.mcp.json` with no extra wiring
 - Title-screen → world-load → tree-discovery loop demonstrated entirely through MCP
   (TitleScreen click → SelectWorldScreen click → world loads → `mc.query q='blocks'`

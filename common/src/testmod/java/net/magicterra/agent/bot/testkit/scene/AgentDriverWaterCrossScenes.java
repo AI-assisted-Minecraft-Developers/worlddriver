@@ -53,7 +53,7 @@ import net.minecraft.world.level.block.state.BlockState;
  *       avatar discard) then the SAME keys the legacy body flipped;</li>
  *   <li>{@code ServerPlayerAvatar.create(...)} → {@link ServerPlayerAvatar#createUnique}
  *       (per-scene body, #48) + {@code ctx.cleanup(() -> fp.discard())}. The legacy
- *       {@code batch = "solo…"} isolation batches drop out — a createUnique body cannot bleed
+ *       per-arena isolation batches drop out — a createUnique body cannot bleed
  *       into another scene;</li>
  *   <li>{@code AgentGameTestSupport.grantWaterEffects} → {@link SimProbes#grantWaterEffects};</li>
  *   <li>{@code AgentGameTestSupport.runSearch}/{@code maxPathY} → the inlined

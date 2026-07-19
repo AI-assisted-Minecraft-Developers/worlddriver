@@ -57,13 +57,17 @@
 ### 1. 跑集成测试（不需要客户端）
 
 ```bash
-./gradlew :neoforge:runGameTestServer
-# → 全部测试通过（任何一个挂掉就非零退出）
+python3 scripts/testkit/t0.py --loader neoforge \
+  --run-task :neoforge:runDogfoodServer \
+  --results neoforge/run-dogfood/testkit-results.jsonl \
+  --expect-file scripts/testkit/expected-scenes-neoforge.txt
+# → GREEN（任何一个场景挂掉就非零退出）
 ```
 
-这会在 NeoForge GameTest 框架里起一个 dedicated server，跑完
-`common/src/main/resources/data/agent_driver/scripts/agent_validation/` 下所有
-`*.js` 校验脚本，任何一个挂掉就非零退出。可以直接当 CI 跑。
+这会用 mc-testkit harness dogfood 一个 dedicated server，autorun ad.* 场景
+（`common/src/testmod/.../scene/`）加上 `*.js` 校验套件，并把结果流对照 expect-file
+校验。`scripts/testkit/` 下的编排器族（`t0`/`t1`/`t2` + `instrument.py`）是 CI 正门
+—— 旧的 `@GameTest`/GameTestServer 路径已在 P4-final 退役。
 
 ### 2. 跑客户端，接 MCP 客户端
 
@@ -143,7 +147,7 @@ agent-driver-mod/
 │       │   └── client/            ClientHooks 中介（impl 在 fabric/neoforge 下）
 │       └── resources/data/agent_driver/scripts/agent_validation/  *.js 校验套件
 ├── fabric/                Fabric 入口 + 客户端实现
-├── neoforge/              NeoForge 入口 + GameTest 钩子
+├── neoforge/              NeoForge 入口 + 客户端实现
 ├── docs/                  各客户端接入指南（重点看 docs/mcp-clients.md）
 └── scripts/               一次性辅助脚本（烟雾测试、harness 工具）
 ```
@@ -173,7 +177,7 @@ agent-driver-mod/
 
 **Phase 1（感知 + 行动 + 最小客户端驱动）已端到端跑通：**
 
-- `runGameTestServer` 全套校验脚本绿（用作 CI）
+- mc-testkit 正门（`scripts/testkit/t0.py`）全套校验脚本 + ad.* 场景绿（用作 CI）
 - 全部 MCP 工具，Claude Code 走 `.mcp.json` 就能接通，无需额外配置
 - 完整闭环演示：TitleScreen 点击 → SelectWorldScreen 点击 → 世界加载 →
   `mc.query q='blocks'` 扫到 17 棵树 → 锁定出生点旁那棵 `(0, 67, 1)` 的橡木 →

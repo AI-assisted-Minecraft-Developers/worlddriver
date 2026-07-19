@@ -1,14 +1,20 @@
 # YAML → GameTest 转译器 — 技术设计
 
-> 状态：设计稿（未实现）
+> ⚠️ **交付机制已更新（P4-final）**：本文原按「@GameTest 内联 + GameTestServer 跑套件」
+> 设计并落地（§7.1 / §10）。P4-final 退役了 GameTestServer 运行机器——`mc.test.yaml`
+> 路由本身**保留**（它走 `AgentApi.route()`，与 GameTestServer 无关），现由 mc-testkit
+> 正门（`scripts/testkit/` 的 t0/t1/t2 + `instrument.py`）与 JS 校验套件驱动。下文对
+> `@GameTest`/GameTestServer 交付形态的描述属于**历史设计记录**，保留以存档实现脉络。
+>
+> 状态：已落地（§10 进度表）；yaml 转译器面 = `mc.test.yaml` verb。
 > 对应 proposal §4.1 C「GameTest Adapter」/ §5 Phase 2
 > 前置依赖：`mc.world.snapshot` / `mc.world.restore`（已落地，commit 5255082）
 
 ## 0. 目标与非目标
 
 **目标**：把声明式的 YAML 测试用例转译成 Mojang GameTest，使整合包/模组组合的回归测试可以
-*声明而非编码*，并在 `gradlew :neoforge:runGameTestServer`（CI）和 `/test runall`（开发期）里
-逐用例报告 PASS/FAIL。
+*声明而非编码*，并在 CI（P4-final 后 = mc-testkit 正门 `scripts/testkit/`）和 `/test runall`
+（开发期）里逐用例报告 PASS/FAIL。
 
 **一句话契约**（沿用 addendum §3.1 的验证理念）：
 > YAML 用例里只有「场景 + 动作 + 断言」三段业务语义，没有任何序列化/网络/线程的杂音——
@@ -170,7 +176,7 @@ runSpec(spec):
 不要再写第二个「巨型单 `@GameTest` 内部跑全套」的方法——那样所有 YAML 用例会挤进一个
 sub-test，失败定位差。改用 Mojang 原生的 `@GameTestGenerator`：一个返回
 `Collection<TestFunction>` 的方法，运行期为每个 YAML spec 生成一个独立 `TestFunction`，于是
-`/test runall` 和 `runGameTestServer` 里**每个 YAML 各占一个 sub-test**。
+`/test runall`（历史上也含 GameTestServer 跑批，该机器已于 P4-final 退役）里**每个 YAML 各占一个 sub-test**。
 
 ```java
 // neoforge/.../AgentGameTest.java （新增方法，与 agentRpcSmoke 并存）
@@ -265,8 +271,8 @@ classpath 上目前**没有** YAML 解析器。引入 `org.yaml:snakeyaml`（~30
   'net.magicterra.agent.shaded.snakeyaml'`。注意：现有的 Rhino/netty 其实**并没有** relocate
   （Rhino 是独有包名的 fork、netty 与 MC 自带版本兼容），snakeyaml 是本工程**唯一**被 relocate 的
   依赖，因为它是高撞包风险库。relocate 对源码透明（照常 `import org.yaml.snakeyaml`）；dev 运行
-  （含 `runGameTestServer`）用未 relocate 的 `forgeRuntimeLibrary`/`implementation`，所以
-  **relocation 不被 GameTest CI 覆盖**，只在 remap 后的 prod jar 里生效。
+  用未 relocate 的 `forgeRuntimeLibrary`/`implementation`，所以
+  **relocation 不被 dev CI 覆盖**，只在 remap 后的 prod jar 里生效。
 - 用 `SafeConstructor` 读成 `List<Map<String,Object>>`（只产出标准类型，绝不实例化任意 Java 对象），
   再手写映射到 `YamlTestSpec`——不接 snakeyaml 的反射式 bean 绑定。
 
@@ -280,7 +286,7 @@ classpath 上目前**没有** YAML 解析器。引入 `org.yaml:snakeyaml`（~30
    后区域复原）。把 `runValidation()` 名单从 33 → 34，套件 sub-test 数随之 +1。
 2. 一个真实样例 YAML：`data/agent_driver/gametests/smoke_place_observe.yaml`——
    `place` 一个 cobblestone → `block_present` 断言它在 → restore 还原。端到端跑通
-   `runGameTestServer`，确认它作为独立 sub-test 出现且 PASS。
+   校验套件，确认它作为独立 sub-test 出现且 PASS。
 
 ## 10. 落地顺序与实际进度
 
@@ -291,8 +297,8 @@ classpath 上目前**没有** YAML 解析器。引入 `org.yaml:snakeyaml`（~30
    `entity_present`。`mc.test.yaml` 路由（`inline`/`file`/`all`）作为对外入口。
 4. ✅ **未走 `@GameTestGenerator`**（§7.1：已确认同批 gametest 并发 + 绝对 ORIGIN 会撞）。改由
    `34_yaml_gametest.js`（5 个 sub-test：inline / region-restore / file / all-index / 失败上报）
-   在现有 `agentRpcSmoke` 内串行跑 `mc.test.yaml`。`runGameTestServer` **65/65 PASS**（含
-   `smoke_place_observe.yaml` 经 file/all 路径端到端跑通）。
+   在现有 `agentRpcSmoke` 内串行跑 `mc.test.yaml`。校验套件 **65/65 PASS**（当时经已退役的
+   GameTestServer 跑批；含 `smoke_place_observe.yaml` 经 file/all 路径端到端跑通）。
 5. ⏳ 待办：`tps`（cheap，需 `MinecraftServer.getAverageTickTimeNanos()`）、`no_exception_in_log`
    （log4j appender）、`block_changed_within`（microtiming，Phase 3）——当前为「识别但抛
    `UnsupportedOperationException`」，用到即响亮失败。
@@ -310,7 +316,7 @@ microtiming、magic-server 回归集、headlessmc CI 仍留 ❌，是 Phase 2 �
 
 ## 12. 可靠 gameplay 断言写作指南（来自外部消费者反馈 2026-06-04，坑均为实测）
 
-写 headless（`runServer` / `runGameTestServer` / 无人登录的专服）测试脚本时，下面每一条都
+写 headless（`runServer` / 测试用专服 / 无人登录的专服）测试脚本时，下面每一条都
 曾让真实消费者烧掉数小时——世界**看起来**活着（命令能跑、实体能召唤、query 有返回），
 但静默地**不在模拟**，所有症状都像被测 mod 的 bug。
 

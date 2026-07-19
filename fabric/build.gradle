@@ -64,12 +64,13 @@ dependencies {
     implementation "org.yaml:snakeyaml:$rootProject.snakeyaml_version"
 }
 
-// P4a Task 3: testmod source set — the fabric counterpart of neoforge's testmod
-// wiring, but fabric carries NO test java of its own: the 144 legacy @GameTest classes
-// are neoforge-only (Task 1), and the ad.* dogfood scenes + SimProbes + SceneProvider
-// service moved to :common's testmod (Task 2). This source set is therefore empty of
-// sources — it exists purely as the run `source` carrier so dogfoodServer/testkitClient/
-// t2Server keep main's full runtimeClasspath AND gain :common's testmod OUTPUT+resources.
+// testmod source set — EMPTY-SOURCE BRIDGE, the fabric counterpart of neoforge's testmod
+// wiring. Fabric never carried test java of its own, and post-campaign (P4b/P4c migrated
+// every legacy @GameTest arena to a dogfooded ad.* scene, P4-final retired the GameTestServer
+// machinery) all scenes + SimProbes + the SceneProvider service live in :common's testmod.
+// This source set is therefore empty of sources — it exists purely as the run `source`
+// carrier so dogfoodServer/testkitClient/t2Server keep main's full runtimeClasspath AND
+// gain :common's testmod OUTPUT+resources.
 //
 // Fabric-vs-neoforge difference (documented honestly per the brief): fabric has NO JPMS
 // module layer — every mod + loose classpath entry shares Knot's single flat classloader.

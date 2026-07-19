@@ -15,7 +15,6 @@ import net.neoforged.neoforge.common.util.FakePlayerFactory;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.gametest.framework.GameTestServer;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -52,26 +51,17 @@ public final class AgentDriverNeoForge {
             @Override public ServerPlayer unique(ServerLevel level, GameProfile profile) { return FakePlayerFactory.get(level, profile); }
         });
         NeoForge.EVENT_BUS.register(this);
-        // P4c (campaign close): the legacy @GameTest suite is fully retired — every arena was
-        // migrated to a dogfooded ad.* testkit scene (common testmod source set) and the three
-        // legacy classes (AgentGameTestServer / AgentGameTestRegistrar / AgentGameTestSupport)
-        // were deleted. The neoforge testmod source set now holds NO test classes; scenes live
-        // in the common testmod (net.magicterra.agent.bot.testkit.scene). Nothing gametest-related
-        // is registered from main, so the production jar carries no AgentGameTest* classes.
-        // GameTestManifest (below) is retained for P4-final, which retires the GameTestServer
-        // machinery itself. See docs/testkit/migration-log.md for the full retirement record.
+        // P4-final (campaign close): the legacy @GameTest suite and its dedicated-server run
+        // machinery are fully retired — every arena was migrated to a dogfooded ad.* testkit
+        // scene (common testmod source set) and the legacy test classes/scripts/run config were
+        // removed. Scenes are now delivered by the testkit harness (dogfood autorun / mc.test.run).
+        // See docs/testkit/migration-log.md for the full retirement record. Nothing test-related
+        // is registered from main, so the production jar carries no test classes.
         AgentDriverCommon.LOG.info("[{}] NeoForge entry constructed", AgentDriverCommon.MOD_ID);
     }
 
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
-        // GameTest suite runs on a dedicated GameTestServer: pin the legacy default-OFF
-        // flag baseline the arenas were authored against (BotConfig.applyGameTestBaseline
-        // doc). Live/integrated servers keep the new defaults.
-        if (event.getServer() instanceof GameTestServer) {
-            BotConfig.applyGameTestBaseline();
-            GameTestManifest.reset();
-        }
         AgentDriverCommon.onServerStarting();
     }
 
