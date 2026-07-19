@@ -1075,3 +1075,44 @@ client, task#92); ③ production-jar byte gates GREEN both loaders + `publishToM
 assertions (zero AgentGameTest*/Scenes/SimProbes/SceneProvider-impl; `TestResetVerb`/`TestRunVerb` +
 `TestkitVerbHook` present); ④ this count-chain audit; ⑤ `@GameTest(` = 0 tree-wide, three deleted
 classes absent, neoforge testmod source set empty. **The legacy GameTest suite is fully retired.**
+
+---
+
+## P4-final — GameTestServer machinery retirement (append-only note)
+
+P4c retired the last legacy `@GameTest` *scene content* (130 → 0). **P4-final retires the
+GameTestServer run *machinery* itself** — the plumbing that once discovered, launched, and
+reconciled the arena suite. With the suite gone, that plumbing had no remaining consumer; leaving it
+in-tree would only be a false signpost to a run path that no longer exists.
+
+**Machinery inventory (deleted / rewritten):**
+
+| item | kind | disposition | commit |
+|---|---|---|---|
+| `neoforge/.../GameTestManifest.java` | production main (task#85 suite-integrity manifest: async enter-writer + JSONL reconcile feed) | **deleted** | `9f506d1` |
+| `scripts/run_gametests.sh` | canonical `runGameTestServer` run wrapper | **deleted** | `9f506d1` |
+| `scripts/gt_reconcile.py` | manifest `registered==entered` reconciler | **deleted** | `9f506d1` |
+| `gameTestServer { … }` loom run config (neoforge + fabric `build.gradle`) | run configuration | **deleted** | `9f506d1` |
+| `.gitignore` `run-gametest/` line | ignore rule for the deleted run's world dir | **removed** | `9f506d1` |
+| `AgentDriverNeoForge` `onServerStarting` gametest hook + `GameTestManifest.reset()` | production wiring | **removed** (the server-listener is kept; `applyGameTestBaseline()` survives, now gated on `-Dtestkit.autorun` at server start) | `9f506d1` |
+| `BotConfig.java:2533` `applyGameTestBaseline` javadoc ("GameTestServer startup calls this…") | doc | **rewritten** to the post-retirement truth (mc-testkit dogfood server calls it under `-Dtestkit.autorun`) | *this docs close* |
+| `mc-testkit/README.md` "Realized wiring" / "Migrate-then-delete" sections | doc | **retirement notes added** (history kept; neoforge/fabric testmod sets flagged as empty-source bridges) | *this docs close* |
+
+**Retained on purpose (NOT machinery):** the `neoforge` + `fabric` `testmod` source sets remain as
+**empty-source bridges** — they hold no `.java` any more but still carry `:common`'s scenes into the
+`runDogfoodServer` loom runs; deleting either would silently drop all scene delivery. The production
+verbs `TestResetVerb` / `TestRunVerb` and the `TestkitVerbHook` service entry ship in the mod jars
+(byte-gated). `AgentGameTestServer` (and the other deleted class names) survive only as **migration
+provenance** in scene javadocs / this log / expect-files, and the vanilla `GameTestServer` class is
+still named in a couple of behavioral javadocs — none is run machinery.
+
+**Task-2 acceptance (four gates, `.superpowers/sdd/task-2-report.md`):** ① dogfood ×1 per loader
+(with Task-1's ×1 = ×2 each) — both GREEN, `(name,outcome)` byte-identical within & cross-loader
+(md5 `5b0e44f4350f69502ee8253bd24174b3`, 134 rows), 3 optional sensors + `ad.entityLeash` PASS (no
+flake, threshold untouched); ② production-jar byte gates both loaders + `publishToMavenLocal`
+maven-face (zero test-class/SceneProvider-impl/service entry; `TestResetVerb`/`TestRunVerb` +
+`TestkitVerbHook` present); ③ tree grep audit — 6 machinery tokens + run-config `gameTestServer` = 0
+live, `@GameTest(` = 0, 13 provider service lines, 130 scenes per expect-file; ④ `./gradlew tasks
+--all | grep -i gametest` empty (no `runGameTestServer`). **Campaign closed: legacy 130 → 0 across
+P4a/P4b/P4c; dogfood = 130 `ad.*` scenes / 13 providers / 3 sensors / 1 topology gate. mc-testkit is
+the sole test gate.**

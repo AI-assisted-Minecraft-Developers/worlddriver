@@ -2530,9 +2530,13 @@ public final class BotConfig {
      *  against the historical default-OFF flag set; when the #47-validated combo was
      *  flipped to default-ON for live play, 14 required arenas broke because flags the
      *  tests never touch (allowBreak/allowPlace/DrowningEscape/...) changed the bot's
-     *  behavior mid-arena. GameTestServer startup calls this to pin the suite back to
-     *  the baseline it was written for; tests that WANT a flag still set it explicitly.
-     *  Live clients (integrated server) never call this. */
+     *  behavior mid-arena. The mc-testkit dogfood server calls this once at server
+     *  start under {@code -Dtestkit.autorun} (AgentDriverNeoForge / AgentDriverFabric,
+     *  gated on {@code TESTKIT_AUTORUN}) to pin the suite back to the baseline the
+     *  scenes were written for; scenes that WANT a flag still set it explicitly. Live
+     *  clients (integrated server, autorun unset) never call this. (The GameTestServer
+     *  delivery this note once described was retired in P4-final; the baseline pin
+     *  survives, now driven by the testkit-autorun path.) */
     public static void applyGameTestBaseline() {
         allowBreak = false;
         allowPlace = false;
