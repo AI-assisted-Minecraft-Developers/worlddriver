@@ -1106,7 +1106,8 @@ public final class AgentDriverScenes implements SceneProvider {
      * what livelocks. So the brief's SANCTIONED fallback was taken: the two manual-tick
      * blocks are replaced by {@code ctx.await(<entity queryable>)} real-tick waits
      * (bounded {@code within(60)} at the time; widened to {@code within(120)} by the
-     * P1.6 tick-debt adjudication, see the variance paragraph above / task#88) and the
+     * P1.6 tick-debt adjudication, finally {@code within(180)} as a pure liveness guard
+     * by the D1 adjudication — see the variance paragraph above / task#88) and the
      * two phases are split into await steps. The natural dogfood server
      * tick (the level IS ticked every frame by {@code MinecraftServer.tickServer}) does
      * the entity indexing the legacy forced — {@code await-1} waits until
