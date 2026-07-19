@@ -757,7 +757,7 @@ public final class AgentDriverScenes implements SceneProvider {
         }
         AgentDriverCommon.LOG.info("[ad.selfShaftDigUp] step={} pos=({},{},{}) maxY={} worstBackslide={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), maxY, worstBackslide);
-        // task#86 FIXED (2026-07-19, commit — pathfinderParkourAscendNeedRunway default ON):
+        // task#86 FIXED (2026-07-19, commit 5aedb81 — pathfinderParkourAscendNeedRunway default ON):
         // the walker now tops out by pillaring STRAIGHT UP instead of re-planning an
         // unexecutable parkourAscend2 leap off its 1-wide pillar top, so it no longer
         // free-falls down the shaft it just built. This is the true (strict) assertion:
