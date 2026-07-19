@@ -27,12 +27,12 @@ Three natural products: **StallVerdict** (StallDetect → Repath/Search),
 
 ## Step plan (each step: compile + t0-fabric; milestone: all three gates)
 
-- **Step A (first)**: replace the flat ctx with the four typed products above.
+- **Step A ✅ (`ee815ed`)**: replace the flat ctx with the four typed products above.
   Only the per-phase boundary blocks change (rehydrate/persist ↔ product
   construction/reads); bodies keep their locals. Per-tick data flow is fully
   exercised by the suite every tick — the net covers this step well.
-- **Step B (deferred, per-field audit required)**: migrate phase-private Walker
-  fields into per-phase state holders (`wk.stallState.*`). The 2026-07-19
+- **Step B (pilot ✅ `03ee665` — SearchGovernors; continue family-by-family)**:
+  migrate phase-private Walker fields into per-phase state holders. The 2026-07-19
   census found ~31 candidates BUT spot-checks showed false positives
   (`hColRamTicks` is read by Walker's carrot logic; `churnBase` has a
   goal-reset site in Walker.java). Every move must audit Walker's reset blocks
