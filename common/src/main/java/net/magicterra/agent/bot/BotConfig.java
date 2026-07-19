@@ -2271,8 +2271,22 @@ public final class BotConfig {
      *  diagnosis this is the single highest-leverage lever on the bank-crest ascending-mount class — but it can
      *  SHIFT thrash onto the substitute chain at a true +2 gap with no stepUp alternative, and totStuck is
      *  A*-route-bimodal (unprovable by clean A/B), so validate by committed-plan + video (no-runway
-     *  parkourAscend2 gone, smooth stepUp climb-out), NOT totStuck. Default OFF pending that live validation. */
-    public static volatile boolean pathfinderParkourAscendNeedRunway = false;
+     *  parkourAscend2 gone, smooth stepUp climb-out), NOT totStuck.
+     *
+     *  <p><b>Default ON (task#86, 2026-07-19).</b> The gap #53 self-shaft dig-up backslide
+     *  ({@code ad.selfShaftDigUp}) is the same class of bug on the ASCENT side: a bare-hand
+     *  {@code Goal.YLevel} climb pillars a 1-wide free-standing column up beside the slab, and
+     *  near the top A* re-plans a {@code parkourAscend2} leap from the pillar TOP onto the slab
+     *  (cheaper than 2 more pillars) — but a stationary 1-wide pillar top has no run-up, so the
+     *  executor launches into the void and free-falls ~20 blocks straight down its own column
+     *  (strideFloorGuard cannot arrest an airborne straight-down fall — there is no face to place
+     *  a floor against). The launch cell's below-neighbour is the pillar (so the coarse
+     *  {@link net.magicterra.agent.bot.pathfinder.Move#hasRunway} passes); only THIS approach-runway
+     *  gate — the cell BEHIND the launch must be {@code canStandAt} — rejects the leap, so A*
+     *  substitutes the straight-up pillar and tops out clean. Dogfood A/B (neoforge, byte-identical
+     *  ×3): OFF ⇒ {@code worstBackslide=20.252203415101263}; ON ⇒ {@code 1.2522034151012633}
+     *  (the normal pillar-jump-arc settle), {@code reached=true}, NO required scene regressed. */
+    public static volatile boolean pathfinderParkourAscendNeedRunway = true;
 
     /** Agent-supplied danger zones to route AROUND — each row is
      *  {@code [x, y, z, radius]}. Set via {@code mc.bot.setting{avoidPoints:[...]}}

@@ -85,7 +85,8 @@ import net.minecraft.world.phys.AABB;
  *   <li>{@code ad.diagonalAscentSpeed}: {@code diagBps=3.00 ascSprint%=43 ascHcol%=5 ascTicks=149};</li>
  *   <li>{@code ad.descentYaw}: {@code sumAbsDyaw=871° maxDyaw=30° reversals=9 onSlope=279
  *       thrash/tick=3.1 backSteps=53 worstBack=-0.25};</li>
- *   <li>{@code ad.selfShaftDigUp}: {@code maxY=222.25220341510126 worstBackslide=20.252203415101263};</li>
+ *   <li>{@code ad.selfShaftDigUp}: {@code maxY=222.25220341510126 worstBackslide=1.2522034151012633}
+ *       (task#86 FIXED 2026-07-19 — was {@code 20.252203415101263}; runway gate default ON);</li>
  *   <li>{@code ad.gearScope}: {@code bareHand=0.94000053 ironSword=5.9040003
  *       ATTACK_DAMAGE=6.0 ATTACK_SPEED=1.5999999046325684}, full-diamond {@code ARMOR=20.0};</li>
  *   <li>{@code ad.buriedOre}: {@code oreMined=true finished=true};</li>
@@ -685,66 +686,31 @@ public final class AgentDriverScenes implements SceneProvider {
      * itself (stride floor-guard under test). Footprint dx/dz [-3,3] (7×7 slab,
      * base..top+6 air) — well inside the default 3×3 forced-chunk window.
      *
-     * <p><b>Golden-failure signature gate — task#86.</b> Under true isolation
-     * (this scene's {@link ServerPlayerAvatar#createUnique} body, and the legacy
-     * arena's own single-arena isolated run) the walk deterministically hits
-     * the real gap #53 defect: {@code worstBackslide=20.252203415101263} —
-     * reproduced byte-identically across two independent legacy-solo runs plus
-     * this scene's new-shell run (measured at the former auto slot, then
-     * reconfirmed byte-identical after pinning to {@link #SELF_SHAFT_DIG_UP_SLOT},
-     * 2026-07-17) — i.e. the port is faithful and the defect is real, not a
-     * porting delta. The golden run DOES eventually recover and reach the target
-     * ({@code reached=true}, {@code fp.getY() >= targetY - 1.5} by the time the
-     * walk finishes) — the bug is the mid-climb backslide itself (a ~20-block
-     * fall back down the shaft the walker just dug), not a permanent stall.
-     * The legacy arena's historical full-suite GREEN is suspected to be a gap
-     * #48 shared-body false-green (neighbour-interference mask — see
-     * {@link ServerPlayerAvatar#create}'s javadoc: "a solo-RED arena can ride a
-     * neighbour's shove to a full-suite false green", proven twice already for
-     * other arenas).
+     * <p><b>task#86 FIXED (strict gate) — 2026-07-19.</b> This scene was a required
+     * <i>golden-failure signature gate</i> while the gap #53 defect was open: under
+     * true isolation ({@link ServerPlayerAvatar#createUnique} body) the walk
+     * deterministically fell {@code worstBackslide=20.252203415101263} back down the
+     * shaft it dug (byte-identical across slots and both loaders, fabric×3 + neoforge×3
+     * — see git history / task-1-report for the signature-gate rationale). <b>Root
+     * cause:</b> the climb pillars a 1-wide free-standing cobblestone column up beside
+     * the slab, and near the top A* re-plans a {@code parkourAscend2} leap from the
+     * pillar TOP onto the slab (cheaper than 2 more pillars); a stationary 1-wide
+     * pillar top has no run-up, so the executor launches into the void and free-falls
+     * ~20 blocks straight down its own hollow column — a fall {@code strideFloorGuard}
+     * structurally cannot arrest (an airborne body has no adjacent face to place a
+     * floor against). <b>Fix:</b> {@link BotConfig#pathfinderParkourAscendNeedRunway}
+     * flipped default ON — {@code ParkourAscend.valid} now requires the cell BEHIND the
+     * launch to be {@code canStandAt} (a real run-up), so A* rejects the runway-less
+     * leap and substitutes a straight-up pillar that tops out clean. Dogfood A/B
+     * (byte-identical ×3 both loaders): OFF ⇒ {@code 20.252203415101263};
+     * ON ⇒ {@code worstBackslide=1.2522034151012633} (the normal pillar-jump-arc settle),
+     * {@code reached=true}, no required scene regressed.
      *
-     * <p>Rather than stay optional forever, this scene is a <b>required
-     * signature gate</b>: it PASSES only while the walker fails in EXACTLY the
-     * known #86 way — {@code reached && worstBackslide > 15.0}. The
-     * {@code > 15.0} half is a tolerance band around the golden
-     * {@code 20.252203415101263}, wide enough to absorb incidental drift from
-     * unrelated walker changes but tight enough that it cannot be satisfied by
-     * a much smaller (or absent) backslide. The {@code reached} half is NOT
-     * incidental — the golden run recovers and reaches the target despite the
-     * backslide, and pinning that fact closes a real hole: without it, a future
-     * regression where the walker gets PERMANENTLY stuck (never reaches) while
-     * also backsliding &gt;15 would silently satisfy a backslide-only condition
-     * and pass as "the known #86 signature", masking a strictly worse failure
-     * mode. Any outcome outside the band is a loud RED:
-     * <ul>
-     *   <li>small backslide (with {@code reached=true}) ⇒ #86 is FIXED (or the
-     *       defect no longer manifests) — flip the assertion below to the
-     *       true (strict) form:
-     *       <pre>
-     *   if (worstBackslide &gt; BotConfig.pathfinderMaxDryFall + 1)
-     *       ctx.fail("selfShaftDigUp: dig-up FELL back down its own shaft: worstBackslide="
-     *               + worstBackslide + " (&gt; maxDryFall+1=" + (BotConfig.pathfinderMaxDryFall + 1)
-     *               + ") — the gap #53 death, reproduced");
-     *   if (fp.getY() &lt; targetY - 1.5)
-     *       ctx.fail("selfShaftDigUp: did not reach the level: pos=(" + fp.getX() + ","
-     *               + fp.getY() + "," + fp.getZ() + ") step=" + s + " maxY=" + maxY);
-     *       </pre>
-     *       then delete this javadoc's signature-gate section and close task#86;</li>
-     *   <li>{@code reached=false} (never recovers) ⇒ REDs immediately —
-     *       {@code reached=false} breaks the signature regardless of
-     *       {@code worstBackslide}; this is a different, worse failure mode
-     *       than the pinned #86 signature, investigate before touching the
-     *       pin.</li>
-     * </ul>
-     * Keeping the scene required (rather than optional) means the CI gate goes
-     * loud the instant either of those things happens, instead of silently
-     * drifting under an ignored sensor.
-     *
-     * <p><b>Golden value</b> (frozen baseline, both auto-slot and pinned-slot
-     * {@link #SELF_SHAFT_DIG_UP_SLOT} measurements agree byte-for-byte):
-     * {@code worstBackslide=20.252203415101263}. <b>Dual-loader (P1.6 Task 4,
-     * 2026-07-17):</b> fabric measures the identical {@code 20.252203415101263}
-     * across fabric ×3 + neoforge ×3 — one golden for both loaders.
+     * <p><b>Golden value</b> (frozen post-fix baseline, pinned slot
+     * {@link #SELF_SHAFT_DIG_UP_SLOT}, both loaders byte-identical):
+     * {@code maxY=222.25220341510126 worstBackslide=1.2522034151012633}. The strict
+     * gate below (bound = {@code pathfinderMaxDryFall + 1} = 5, the planner-unplannable
+     * fall floor) RED-s loudly if the ~20-block shaft fall ever returns.
      */
     private static void selfShaftDigUp(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -791,29 +757,24 @@ public final class AgentDriverScenes implements SceneProvider {
         }
         AgentDriverCommon.LOG.info("[ad.selfShaftDigUp] step={} pos=({},{},{}) maxY={} worstBackslide={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), maxY, worstBackslide);
-        // task#86 golden-failure pin: while the bug is open, this scene PASSES
-        // only when the walker fails in EXACTLY the known way (deterministic
-        // backslide, byte-stable across slots). The golden run DOES eventually
-        // reach the target (recovers after the fall) — the bug is the mid-climb
-        // backslide, not a permanent stall — so reached=true IS part of the
-        // pinned signature, not incidental: it closes the hole where a future
-        // "permanently stuck AND backslide>15" regression would otherwise
-        // silently match the >15 term alone and PASS as the known signature.
-        // Any outcome outside the known band is loud RED:
-        //   - small backslide (with reached=true) => #86 FIXED (or the defect
-        //     no longer manifests): flip this scene to the true assertion
-        //     (see javadoc) and close the task.
-        //   - reached=false (never recovers) => REDs immediately, regardless
-        //     of worstBackslide — a different, worse failure mode than the
-        //     pinned #86 signature; investigate before touching the pin.
-        boolean reached = fp.getY() >= targetY - 1.5;
-        boolean knownSignature = reached && worstBackslide > 15.0;
-        if (!knownSignature) {
-            ctx.fail("task#86 signature broke: reached=" + reached
-                    + " worstBackslide=" + worstBackslide
-                    + " (known-bad: backslide>15; if this is the fix landing,"
-                    + " flip ad.selfShaftDigUp to the strict assertion and close #86)");
-        }
+        // task#86 FIXED (2026-07-19, commit — pathfinderParkourAscendNeedRunway default ON):
+        // the walker now tops out by pillaring STRAIGHT UP instead of re-planning an
+        // unexecutable parkourAscend2 leap off its 1-wide pillar top, so it no longer
+        // free-falls down the shaft it just built. This is the true (strict) assertion:
+        // the climb must REACH the level with NO fall back down its own column.
+        //   worstBackslide bound = pathfinderMaxDryFall + 1 (= 5): the planner-unplannable
+        //   fall floor. The post-fix run measures worstBackslide=1.2522034151012633 — the
+        //   normal pillar-jump-ARC settle (the jump apex sits ~1.25 above the freshly-placed
+        //   rung before the body lands on it; inherent to EVERY pillar rung, not a shaft
+        //   fall) — comfortably under the bound (margin ~3.75). A real backslide down the
+        //   hollow column (the gap #53 death) is >=20 and blows the bound loudly.
+        if (worstBackslide > BotConfig.pathfinderMaxDryFall + 1)
+            ctx.fail("selfShaftDigUp: dig-up FELL back down its own shaft: worstBackslide="
+                    + worstBackslide + " (> maxDryFall+1=" + (BotConfig.pathfinderMaxDryFall + 1)
+                    + ") — the gap #53 death, reproduced");
+        if (fp.getY() < targetY - 1.5)
+            ctx.fail("selfShaftDigUp: did not reach the level: pos=(" + fp.getX() + ","
+                    + fp.getY() + "," + fp.getZ() + ") step=" + s + " maxY=" + maxY);
     }
 
     /**
