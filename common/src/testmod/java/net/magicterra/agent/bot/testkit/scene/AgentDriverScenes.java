@@ -115,8 +115,9 @@ import net.minecraft.world.phys.AABB;
  * &gt;=40 ms apart (tick debt drained), so scenes are only ever armed at the real ~50 ms
  * cadence and awaits never run in the catch-up burst regime. A 6-run cold-boot A/B under the
  * settle barrier measured both entity-index awaits &lt;=60 ticks on 6/6 runs (worst AWAIT-1
- * = 41), so the two {@code within} bounds were re-tightened 180→120 (2x the post-settle
- * worst). Widening past 120 again would signal a regressed settle barrier, not a scene bound.
+ * = 41), so the two {@code within} bounds were re-tightened 180→120 (2x the pre-burst
+ * within(60) baseline, ~3x the post-settle worst of 41). Widening past 120 again would
+ * signal a regressed settle barrier, not a scene bound.
  *
  * <p><b>Driver-class porting pattern</b> (dogfood wave 2b, established by
  * {@code ad.gearScope}; the remaining {@code ServerAgentDriver} scenes follow it):
@@ -1239,8 +1240,8 @@ public final class AgentDriverScenes implements SceneProvider {
         // load, baseline A/B proved pre-existing). Now the root fix removes the burst regime: a
         // 6-run cold-boot A/B post-settle measured AWAIT-1 {nf 38,31,41 / fb 14,9,10} and AWAIT-2
         // {nf 29,22,18 / fb 22,21,16} — 6/6 both awaits <=60 — so re-tightened to 120 = 2x the
-        // post-settle worst (41). Do NOT widen again: past 120 the fault is a regressed settle
-        // barrier, not this bound.
+        // pre-burst within(60) baseline (~3x the post-settle worst of 41). Do NOT widen again:
+        // past 120 the fault is a regressed settle barrier, not this bound.
         ctx.await(() -> EntityFind.nearest(level, fp, "minecraft:armor_stand") != null)
                 .within(120)
                 .then(() -> {
