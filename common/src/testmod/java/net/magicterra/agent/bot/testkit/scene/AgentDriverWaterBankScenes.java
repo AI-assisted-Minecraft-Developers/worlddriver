@@ -84,12 +84,15 @@ import net.minecraft.world.level.block.state.BlockState;
  *       DETERMINISTICALLY GREEN (observed ×2×2) — kept {@code required=true}; the determinism
  *       is the expected outcome of body isolation (a shell difference), NOT a rebaseline of
  *       thresholds.</li>
- *   <li>{@code ad.riverSheerBank} → {@code .withRequired(false)}: the gap #48 shared-body
- *       false-green this wave <b>surfaced</b>. Legacy-GREEN only because concurrent GameTest
- *       batches shoved the shared body ashore; isolated it deterministically REDs (step=FAILED)
- *       under the identical authored default-OFF baseline (the walker water-escape flags the
- *       legacy GameTestServer + this pin both zero). NOT tuned — its RED stays visible, tracked
- *       by task#91. See its method javadoc for the full config-identity argument.</li>
+ *   <li>{@code ad.riverSheerBank} → <b>required</b> (task#91 CLOSED). The gap #48 shared-body
+ *       false-green this wave surfaced was a REAL executor gap, now fixed structurally: A* always
+ *       routed the correct far-lateral exit (the low bank +5 EAST across open water), but the
+ *       climb-out executor misread that laterally-distant, only-+1-higher waypoint as a climb-here
+ *       intent and trenched the SHEER wall the bot was merely passing. The
+ *       {@code walkerWaterClimbLateralGate} invariant (default ON, baseline-EXEMPT) gates the
+ *       climb-out on lateral adjacency, so the bot swims the corridor to the real walk-out. K≥6 A/B
+ *       both loaders: gate OFF 6/6 wedge (wallPressTicks 51), gate ON 6/6 ashore (byte-identical
+ *       ARRIVED); the other 10 water families are byte-unchanged. See its method javadoc.</li>
  * </ul>
  *
  * <p><b>Origin slots.</b> All 11 take AUTO slots at the default radius — every WaterBank
@@ -111,8 +114,7 @@ public final class AgentDriverWaterBankScenes implements SceneProvider {
                         .withRequired(false),
                 Scene.of("ad.tallBankDigClimb", 200, AgentDriverWaterBankScenes::tallBankDigClimb),
                 Scene.of("ad.waterLowBank", 200, AgentDriverWaterBankScenes::waterLowBank),
-                Scene.of("ad.riverSheerBank", 200, AgentDriverWaterBankScenes::riverSheerBank)
-                        .withRequired(false),   // gap #48 shared-body false-green — see javadoc + task#91
+                Scene.of("ad.riverSheerBank", 200, AgentDriverWaterBankScenes::riverSheerBank),   // required (task#91 structural fix: walkerWaterClimbLateralGate)
                 Scene.of("ad.deepWaterCross", 200, AgentDriverWaterBankScenes::deepWaterCross),
                 Scene.of("ad.deepWaterClimboutNoBlock", 200, AgentDriverWaterBankScenes::deepWaterClimboutNoBlock),
                 Scene.of("ad.deepWaterClimboutDrift", 200, AgentDriverWaterBankScenes::deepWaterClimboutDrift),
@@ -705,21 +707,29 @@ public final class AgentDriverWaterBankScenes implements SceneProvider {
      * only climb-out is a LOW (+1) bank far EAST, goal diagonally SE. No flanking walls pin the body onto a
      * pillar — the buoyant drift is free, as on the real river. Break+place ON. Asserts the bot gets ashore.
      *
-     * <p><b>{@code .withRequired(false)} — gap #48 shared-body FALSE-GREEN (task#91).</b> This is the ONE
-     * WaterBank scene the createUnique isolation flips from (legacy) GREEN to (isolated) deterministic RED,
-     * and it is NOT a threshold to tune. The legacy twin ran under the identical config — the legacy
-     * GameTestServer applies {@code BotConfig.applyGameTestBaseline()} at boot (AgentDriverNeoForge
-     * onServerStarting), which zeroes the whole walker water-escape flag family (walkerBankDig*,
-     * walkerBuoyantSearchFromSurface, walkerSwimAshorePillarDespiteDeepDig, walkerFloatingBankBobFreeze, …),
-     * the exact baseline {@code pinnedBaseline()} re-applies here. Config, geometry and start pose are
-     * byte-identical to legacy; the SOLE differentiator is the legacy shared body (concurrent GameTest
-     * batches can shove/teleport the per-level singleton ashore) vs this scene's serial createUnique body.
-     * So the legacy green was a shared-body artefact, exactly like {@code descentDriftArena} /
-     * {@code descentOvershootResyncArena} (both free-drift water/descent arenas proven false-green under the
-     * gap #48 audit). Isolated, the free-drift sheer-bank climb-out genuinely wedges (step=FAILED,
-     * wallPressTicks≈51 — it presses the +5 face and never slides east) under the authored default-OFF
-     * baseline: a real executor gap. Its RED stays VISIBLE (optional-fail reported each run), tracked by
-     * task#91; the fix is a walker water-escape lever validated live, not an arena tweak.
+     * <p><b>required — task#91 CLOSED (structural fix).</b> The gap #48 shared-body false-green this
+     * scene surfaced was a REAL executor gap. Config, geometry and start pose are byte-identical to the
+     * legacy twin, which ran green only because concurrent GameTest batches shoved the shared singleton
+     * ashore; this scene's serial createUnique body has no such helper and, under the authored default-OFF
+     * baseline {@code pinnedBaseline()} zeroes (walkerBankDig*, walkerBuoyantSearchFromSurface,
+     * walkerSwimAshorePillarDespiteDeepDig, walkerFloatingBankBobFreeze, …), it wedged (step=FAILED,
+     * wallPressTicks≈51 — pressing the +5 face, never sliding east).
+     *
+     * <p><b>Investigation verdict = EXECUTOR-root.</b> Telemetry (committed-path endpoint + climb-engage
+     * cwp, ×3 runs) showed A* ALWAYS returns the correct path: {@code goalReached=true}, endpoint the low
+     * bank +5 EAST across open water. But at the wall the committed waypoint {@code cwp} sat +5 east / +2
+     * south / only +1 UP, and the old {@code cwp.y>foot.y} climb intent fired — so the block-less bank dig
+     * trenched the SHEER wall directly beside the bot (risers z=cz+2, y climbing surface→wallTop) instead
+     * of swimming the last few cells to the flat low walk-out. Root: a laterally-DISTANT higher waypoint
+     * misread as a climb-HERE intent.
+     *
+     * <p><b>Fix = {@code walkerWaterClimbLateralGate}</b> (default ON, deliberately NOT in
+     * {@code applyGameTestBaseline()} — a correctness invariant, not a tunable): the floating climb-out
+     * (pillar + block-less dig) engages only when the climb waypoint is horizontally BESIDE the bot
+     * ({@code WATER_CLIMB_LATERAL_MAX}=2, Chebyshev); a farther higher waypoint is the routed corridor
+     * exit, reached by the swim-drive (climb re-arms once adjacent). K≥6 A/B, both loaders: gate OFF 6/6
+     * wedge (wallPressTicks 51, ashore=false), gate ON 6/6 ashore (byte-identical ARRIVED, wallPressTicks
+     * 54); the other 10 WaterBank+WaterCross families are byte-unchanged. Now asserts the bot gets ashore.
      */
     private static void riverSheerBank(SceneContext ctx) {
         ServerLevel level = ctx.level();

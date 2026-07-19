@@ -2506,7 +2506,19 @@ public final class Walker {
             boolean floatingBankRam = BotConfig.walkerFloatingBankBobFreeze
                     && !p.onGround() && p.horizontalCollision
                     && (world.isWater(foot) || world.isWater(foot.below()));
-            boolean wantClimbNow = edge != null && (cwp.getY() > foot.getY() || floatingBankRam);
+            // Water climb-out LATERAL gate (walkerWaterClimbLateralGate, task#91 structural, default ON,
+            // baseline-EXEMPT): a floating bot climbs a bank ONLY when the climb waypoint sits horizontally
+            // BESIDE it. A higher waypoint that is laterally distant is the routed exit further down an open
+            // corridor (riverSheerBank: the low bank +5 EAST across open water, only +1 up) — honoring its
+            // +height as a climb-here intent made the block-less dig trench the SHEER wall the bot was merely
+            // passing. Reached instead by the swim-drive carrying the body along the corridor; the climb
+            // re-arms once swum adjacent. A genuine bank climb-out has cwp directly beside/below the float
+            // (Chebyshev 0-1) so it is unchanged. floatingBankRam (a real in-place wall-ram) is exempt.
+            int cwpLatDist = Math.max(Math.abs(cwp.getX() - foot.getX()), Math.abs(cwp.getZ() - foot.getZ()));
+            boolean climbTargetBeside = !BotConfig.walkerWaterClimbLateralGate
+                    || cwpLatDist <= WATER_CLIMB_LATERAL_MAX;
+            boolean wantClimbNow = edge != null
+                    && ((cwp.getY() > foot.getY() && climbTargetBeside) || floatingBankRam);
             boolean touchingWater = p.isInWater() || world.isWater(foot) || world.isWater(foot.below());
             if (touchingWater) waterTouchRecent = WATER_TOUCH_STICKY;
             else if (waterTouchRecent > 0) waterTouchRecent--;

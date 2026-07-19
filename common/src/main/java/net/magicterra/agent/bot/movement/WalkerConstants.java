@@ -507,6 +507,16 @@ final class WalkerConstants {
      *  Well under {@code walkerTotalTickBudget}, comfortably past a normal flush /
      *  staircase climb-out (grounds in <10 ticks, never stalls). */
     public static final int WATER_CLIMB_STALL = 30;
+    /** Max horizontal (Chebyshev) distance from the floating foot to the climb waypoint for the
+     *  water climb-out to engage ({@link net.magicterra.agent.bot.BotConfig#walkerWaterClimbLateralGate},
+     *  task#91). A genuine bank climb-out has its waypoint directly beside/below the float
+     *  (Chebyshev 0-1); a HIGHER waypoint that is laterally farther is the routed exit further
+     *  down an open corridor (riverSheerBank: the low bank +5 EAST across open water, only +1
+     *  up) and must be reached by SWIMMING to it, not by trenching the sheer wall the bot is
+     *  merely passing. 2 admits a diagonal-adjacent bank / +2 staircase step while still
+     *  excluding the ≥5-cell lateral exits; the swim-drive carries the body along the corridor
+     *  and the climb re-arms once it swims adjacent (self-healing). */
+    public static final int WATER_CLIMB_LATERAL_MAX = 2;
     /** Stall threshold for the LAST-RESORT block-less bank DIG (vs the with-block
      *  pillar takeover at {@link #WATER_CLIMB_STALL}). Much higher so the dig is a
      *  genuine deadlock-breaker, not a first response: a buoyant climb-out that the

@@ -2150,6 +2150,26 @@ public final class BotConfig {
      *  counter). Default OFF (byte-identical). Validate via the -638,418 reproducible case + journeys. */
     public static volatile boolean walkerFloatingBankFollow = false;
 
+    /** Water climb-out LATERAL gate (task#91, structural). A floating bot engages the bank climb-out
+     *  (pillar takeover + block-less bank dig) ONLY when the climb waypoint sits horizontally BESIDE
+     *  it ({@link net.magicterra.agent.bot.movement.WalkerConstants#WATER_CLIMB_LATERAL_MAX} cells,
+     *  Chebyshev). A higher waypoint that is laterally DISTANT is the routed exit further down an open
+     *  corridor, not a bank to climb here: the open-river sheer-bank wedge (riverSheerBank) has the bot
+     *  float against a +5 SHEER wall while A* correctly routes the committed exit +5 EAST across open
+     *  water to a LOW (+1) bank — but the exit node is +1 higher, so the old {@code cwp.y>foot.y} climb
+     *  intent fired and the block-less dig trenched the sheer wall the bot was merely PASSING
+     *  (wallPressTicks) instead of swimming the last few cells to the walk-out. Gating the climb on
+     *  lateral adjacency lets the swim-drive carry the body along the corridor to the real exit, where
+     *  the climb re-arms once adjacent (self-healing). A genuine bank climb-out has its node directly
+     *  beside/below the float (Chebyshev 0-1) so it is unaffected.
+     *  <p><b>Default ON and deliberately NOT in {@link #applyGameTestBaseline()}'s zero list.</b> This
+     *  is a CORRECTNESS invariant (follow the committed path; do not climb a bank that isn't beside
+     *  you), not a tunable heuristic — so it must stay active even under the test baseline the water
+     *  scenes are pinned to, which is exactly what promotes riverSheerBank from a false-green/wedge to
+     *  a genuine climb-out. The 9 sibling water scenes float directly below their banks (adjacent) and
+     *  are byte-unchanged. */
+    public static volatile boolean walkerWaterClimbLateralGate = true;
+
     /** Faster anti-churn repath: shorten the net-displacement churn-detection window from 400 ticks
      *  (≈20 s) to 240 (≈12 s) so a path-state churn (planner committed a suboptimal segment the
      *  executor grinds on — dry steep-ascent backtrack, boxed-pinch) arms its escalation/charge sooner,

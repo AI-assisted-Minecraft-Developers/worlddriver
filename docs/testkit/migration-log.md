@@ -1268,3 +1268,45 @@ was terrain-adjacency (off-lane footing at the GameTest placement Y), NOT an eng
 promoted to `required=true` as the permanent low-Y regression guard. Files: `AgentDriverScenes.java` (moat
 build + `withChunkRadius(2)` + `required` flip + javadoc closure). Expect-files unchanged (name already
 listed; required-ness is not tracked there).
+
+---
+
+## task#91 CLOSED — open-river sheer-bank climb-out wedge (structural fix), `ad.riverSheerBank` → required
+
+**Verdict: EXECUTOR-root (not planner).** Step-1 telemetry (committed-path endpoint + climb-engage
+`cwp`, ×3 deterministic runs) proved A* ALWAYS returns the correct path — every adopted path had
+`goalReached=true` and endpoint the low bank +5 EAST across open water (`eastReach=28`, `end=(cx+27,
+surface, cz+16)`). The wedge is purely in the executor: at the wall the committed waypoint sat +5 east
+/ +2 south / only **+1 UP** (`cwpWater=false`), so the old `cwp.y>foot.y` climb intent fired and the
+block-less bank dig trenched the SHEER wall directly beside the bot (risers `z=cz+2`, y climbing
+surface→wallTop) instead of swimming the last few cells to the flat low walk-out. Mechanism: a
+laterally-DISTANT higher waypoint misread as a climb-HERE intent.
+
+**Fix = `walkerWaterClimbLateralGate`** (BotConfig, default **ON**, deliberately **NOT** in
+`applyGameTestBaseline()`'s zero list — a CORRECTNESS invariant, not a tunable, so it survives the
+authored default-OFF baseline the water scenes are pinned to). The floating climb-out (pillar takeover +
+block-less dig) engages only when the climb waypoint is horizontally BESIDE the bot
+(`WATER_CLIMB_LATERAL_MAX=2`, Chebyshev); a farther higher waypoint is the routed corridor exit, reached
+by the swim-drive (the climb re-arms once swum adjacent — self-healing). A genuine bank climb-out floats
+directly below its bank (Chebyshev 0-1) so it is unaffected. Wired in `Walker.wantClimbNow`.
+
+**K≥6 A/B (gate OFF ≡ HEAD~, byte-identical to pre-fix since the flag fully gates the delta; gate ON ≡ HEAD):**
+
+| loader | gate OFF (HEAD~) | gate ON (HEAD) |
+|--------|------------------|----------------|
+| neoforge | 6/6 wedge — `step=FAILED wallPressTicks=51 ashore=false` (byte-identical) | 6/6 ashore — `step=ARRIVED wallPressTicks=54 ashore=true` (byte-identical) |
+| fabric   | 6/6 wedge — same bytes as neoforge | 6/6 ashore — same bytes as neoforge |
+
+Zero bistability; the fix flips 6/6 deterministically on both loaders, and the RED and the fixed ARRIVED
+are each byte-identical across loaders.
+
+**Water-family regression (byte-metric diff, gate OFF vs ON, both loaders):** the ONLY changed scene metric
+is `ad.riverSheerBank` (FAILED→ARRIVED). All other WaterBank + WaterCross family detail lines
+(deepWaterCross / deepWaterClimbout* / deepWaterSubmergedCross / deepWaterFloatBeeline / waterLowBank /
+tallBankDigClimb / waterClimbOutRoute / waterStepDownFloat / waterFarAimBankCorner / vineOverWater* /
+padOverWaterCross / shorelineHug / shorelineSmoother / forbidWater / waterPhysicsParity) are byte-identical.
+
+Files: `Walker.java` (`wantClimbNow` lateral gate), `BotConfig.java` (`walkerWaterClimbLateralGate=true`,
+NOT baseline-zeroed, javadoc), `WalkerConstants.java` (`WATER_CLIMB_LATERAL_MAX=2`),
+`AgentDriverWaterBankScenes.java` (required flip + javadoc closure), `expected-scenes-{neoforge,fabric}.txt`
+(header comment), `mc-testkit/README.md` (carve-out → closed).
