@@ -45,7 +45,13 @@ public final class AgentDriverCoverageScenes implements SceneProvider {
                 Scene.of("ad.expectAlarmBlockedJump", 600, AgentDriverCoverageScenes::expectAlarmBlockedJump),
                 Scene.of("ad.drownEscapeSurface", 400, AgentDriverCoverageScenes::drownEscapeSurface),
                 Scene.of("ad.bestEffortSpliceCourse", 600, AgentDriverCoverageScenes::bestEffortSpliceCourse),
-                Scene.of("ad.ascendMovementStairs", 400, AgentDriverCoverageScenes::ascendMovementStairs));
+                Scene.of("ad.ascendMovementStairs", 400, AgentDriverCoverageScenes::ascendMovementStairs),
+                Scene.of("ad.boxedChurnEscalate", 1400, AgentDriverCoverageScenes::boxedChurnEscalate),
+                Scene.of("ad.quickStartStub", 600, AgentDriverCoverageScenes::quickStartStub),
+                Scene.of("ad.ascentRamSlideBack", 700, AgentDriverCoverageScenes::ascentRamSlideBack),
+                Scene.of("ad.aboveNodeStallPitFill", 700, AgentDriverCoverageScenes::aboveNodeStallPitFill),
+                Scene.of("ad.verticalResyncSlideBack", 700, AgentDriverCoverageScenes::verticalResyncSlideBack),
+                Scene.of("ad.stepUpBackoffCeiling", 700, AgentDriverCoverageScenes::stepUpBackoffCeiling));
     }
 
     /** 11×11 stone floor at {@code floorY}, cleared air +1..+18 above (the standard
@@ -346,5 +352,452 @@ public final class AgentDriverCoverageScenes implements SceneProvider {
         if (!reached)
             ctx.fail("ascendMovementStairs: AscendMovement-delegated staircase failed: step=" + s
                     + " pos=" + fp.position());
+    }
+
+    // ---------------------------------------------------------------- wave 3 ----
+
+    /** Boxed-pocket churn + blacklist/escalation arming (WalkerTickStallDetect anti-churn
+     *  block + WalkerTickPrelude steep-barrier arming + the escalated BotConfig.pf*
+     *  getters + both window-shortening flags): the goal sits behind a bedrock pocket
+     *  that is COMPLETELY sealed except its west mouth — no around-route exists — so the
+     *  horizon-committed search drives the bot in and it churns at the dead end until the
+     *  anti-churn escape fires (blacklist charge + sticky escalation, observed via
+     *  {@link Walker#progressProbe}). Once TWO churn windows have fired (charge widened,
+     *  escalation re-armed), the east wall is OPENED and the run must still end ARRIVED
+     *  through it. The mutation gate is deliberate: three self-escape geometries (v3-v6)
+     *  were each defeated by the stack itself — an around-corridor within ~3 blocks of
+     *  the pocket snaps the adopted escape path's carrot THROUGH the thin wall (adoption
+     *  and fast-forward measure euclidean "near the feet", not connectivity), and any
+     *  sharp convex bedrock corner on the way out pins the drive in a reCentre/carrot
+     *  dead-zone micro-orbit (the same §39 wall-corner family the churn windows exist
+     *  for). A straight-line release has neither failure mode, and the churn machinery —
+     *  the coverage target — has provably fired before it opens. */
+    private static void boxedChurnEscalate(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
+        final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
+        for (int dx = -8; dx <= 13; dx++)
+            for (int dz = -8; dz <= 8; dz++) {
+                for (int dy = 1; dy <= 8; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+            }
+        // Bedrock mass dx 0..5 across the full floor width, pocket interior dx 0..3 /
+        // dz -2..2 carved out, mouth open west. No route past dx 5 until the release.
+        for (int dy = 1; dy <= 4; dy++)
+            for (int dx = 0; dx <= 5; dx++)
+                for (int dz = -8; dz <= 8; dz++) {
+                    if (dx <= 3 && dz >= -2 && dz <= 2) continue;   // pocket interior
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.BEDROCK.defaultBlockState());
+                }
+        BlockPos goal = new BlockPos(cx + 9, standY, cz);
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        BotConfig.walkerDebug = true;
+        // Horizon soft-commit (the live boxed-pocket mechanism): a short receding horizon
+        // best-effort-commits INTO the pocket (nearest-to-goal frontier is the dead end).
+        // maxNodes starvation was tried and starves the escape too (v1/v2 postmortems).
+        BotConfig.pathfinderHorizonBlocks = 8;
+        BotConfig.walkerFasterChurnRepath = true; // 240t churn window
+        BotConfig.walkerWallCornerFastChurn = true; // hCol-pinned press → 160t window
+        // In a TRULY sealed pocket the futile-search cap (5 consecutive no-progress
+        // searches → FAILED, gap#49-③) races the churn windows and won in v6 (t=279).
+        // This scene is about the churn machinery, so give the cap headroom.
+        BotConfig.walkerFutileSearchCap = 60;
+        BotConfig.allowBreak = false;
+        BotConfig.allowPlace = false;
+
+        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx - 7 + 0.5, standY, cz + 0.5);
+        ServerPlayer fp = av.fakePlayer();
+        ctx.cleanup(() -> fp.discard());
+        fp.getInventory().clearContent();
+        LevelWorldView w = new LevelWorldView(level, fp);
+
+        Walker walker = new Walker();
+        walker.setGoal(new Goal.Block(goal));
+        Walker.Step s = Walker.Step.WALKING;
+        int t = 0;
+        boolean enteredPocket = false;
+        boolean released = false;
+        int churnSeen = 0;
+        StringBuilder trace = new StringBuilder();
+        for (; t < 1400 && s == Walker.Step.WALKING; t++) {
+            s = walker.tick(av, w);
+            av.step();
+            if (fp.getX() > cx + 1 && Math.abs(fp.getZ() - (cz + 0.5)) < 2.5)
+                enteredPocket = true;
+            // The churn counter is package-private; the probe string is the sensor.
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("churnEsc=(\\d+)")
+                    .matcher(walker.progressProbe());
+            if (m.find()) churnSeen = Math.max(churnSeen, Integer.parseInt(m.group(1)));
+            if (!released && churnSeen >= 2) {
+                // Two churn windows fired (charge widened + escalation re-armed) — open
+                // the dead-end wall so the escalated search can finish the run.
+                for (int dx = 4; dx <= 5; dx++)
+                    for (int dz = -2; dz <= 2; dz++)
+                        for (int dy = 1; dy <= 4; dy++)
+                            level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+                released = true;
+            }
+            if (t % 100 == 0)
+                trace.append(String.format(java.util.Locale.ROOT, " t%d:(%.1f,%.1f,%.1f)[%s]",
+                        t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, walker.progressProbe()));
+        }
+        boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
+                && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
+        AgentDriverCommon.LOG.warn("[ad.boxedChurnEscalate] step={} ticks={} enteredPocket={} churnSeen={} pos={}",
+                s, t, enteredPocket, churnSeen, fp.position());
+        if (!enteredPocket)
+            ctx.fail("boxedChurnEscalate: rig broken — the horizon-committed search never entered the pocket: "
+                    + "origin=" + cx + "," + cz + " step=" + s + " t=" + t + " pos=" + fp.position()
+                    + " lastError=" + walker.lastError + " endReason=" + walker.lastEndReason
+                    + " lastStats=" + Walker.lastStats + " trace=" + trace);
+        if (churnSeen < 2)
+            ctx.fail("boxedChurnEscalate: churn escape fired " + churnSeen + "×(<2) in a sealed pocket: "
+                    + "origin=" + cx + "," + cz + " step=" + s + " t=" + t + " pos=" + fp.position()
+                    + " lastError=" + walker.lastError + " endReason=" + walker.lastEndReason
+                    + " lastStats=" + Walker.lastStats + " trace=" + trace);
+        if (!reached)
+            ctx.fail("boxedChurnEscalate: walker never finished after the wall release: churnSeen=" + churnSeen
+                    + " released=" + released + " origin=" + cx + "," + cz + " step=" + s + " t=" + t
+                    + " pos=" + fp.position() + " lastError=" + walker.lastError
+                    + " endReason=" + walker.lastEndReason + " trace=" + trace);
+    }
+
+    /** Progressive quick-start stub (Walker.tryQuickStart + the tryLandBeeline REJECT
+     *  path): a 2-cell-away bedrock wall kills the same-Y land bee-line (< BEELINE_MIN_STEPS
+     *  before the wall), and {@code pathfinderSliceMs=0} keeps the big sliced search in
+     *  flight across ticks — so the pre-path branch must fall through the bee-line to the
+     *  synchronous mini-A*, adopt its stub through the wall gap, and walk it while the big
+     *  search lands and supersedes it. Outcome gate: ARRIVED at the far end. */
+    private static void quickStartStub(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
+        final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
+        for (int dx = -8; dx <= 13; dx++)
+            for (int dz = -4; dz <= 4; dz++) {
+                for (int dy = 1; dy <= 6; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+            }
+        // 1-deep water trench across the course at dx -4..-3 (stone shell below — void
+        // under the slot). The same-Y land bee-line REJECTS water cells, so the pre-path
+        // branch falls through to tryQuickStart, whose mini-A* happily swims the trench.
+        // (v2-v5 used a bedrock wall+gap instead: the bot corner-wedged on the gap edge
+        // in a reCentre/carrot micro-orbit for 500+ ticks every run — walls give the
+        // drive corners to catch on; water doesn't.)
+        for (int dx = -4; dx <= -3; dx++)
+            for (int dz = -4; dz <= 4; dz++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY - 1, cz + dz), Blocks.STONE.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.WATER.defaultBlockState());
+            }
+        BlockPos goal = new BlockPos(cx + 12, standY, cz);
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        BotConfig.walkerDebug = true;
+        // BOTH slice knobs must be pinned: with path==null the search runs at
+        // max(pathfinderSliceMs, pathfinderIdleSliceMs) — v1-v4 pinned only the walking
+        // slice, the 30ms idle slice finished the big search ON TICK 1 and the
+        // quick-start branch never executed.
+        BotConfig.pathfinderSliceMs = 0;
+        BotConfig.pathfinderIdleSliceMs = 0;
+        BotConfig.allowBreak = false;
+        BotConfig.allowPlace = false;
+
+        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx - 7 + 0.5, standY, cz + 0.5);
+        ServerPlayer fp = av.fakePlayer();
+        ctx.cleanup(() -> fp.discard());
+        fp.getInventory().clearContent();
+        LevelWorldView w = new LevelWorldView(level, fp);
+
+        Walker walker = new Walker();
+        walker.setGoal(new Goal.Block(goal));
+        Walker.Step s = Walker.Step.WALKING;
+        int t = 0;
+        StringBuilder trace = new StringBuilder();
+        for (; t < 600 && s == Walker.Step.WALKING; t++) {
+            // The pre-path quick-start branch runs while the big search is in flight; 40
+            // pinned ticks are ample for it (stub adoption is tick-1). Then restore the
+            // slice budgets so the big search can actually LAND and supersede the stub.
+            if (t == 40) { BotConfig.pathfinderSliceMs = 6; BotConfig.pathfinderIdleSliceMs = 30; }
+            s = walker.tick(av, w);
+            av.step();
+            if (t % 60 == 0)
+                trace.append(String.format(java.util.Locale.ROOT, " t%d:(%.1f,%.1f,%.1f)[%s]",
+                        t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, walker.progressProbe()));
+        }
+        boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
+                && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
+        AgentDriverCommon.LOG.warn("[ad.quickStartStub] step={} ticks={} pos={}", s, t, fp.position());
+        if (!reached)
+            ctx.fail("quickStartStub: sliced-search course failed (quick-start/beeline pre-path family): origin="
+                    + cx + "," + cz + " step=" + s + " t=" + t + " pos=" + fp.position()
+                    + " lastError=" + walker.lastError + " endReason=" + walker.lastEndReason
+                    + " lastStats=" + Walker.lastStats + " trace=" + trace);
+    }
+
+    /** Shared slide-back rig: the bot climbs a committed narrow staircase (dz −1..1);
+     *  mid-climb the risers are cut out under it, dropping it to the base with the
+     *  committed stepUp node 2–3 above its feet — the ram-slide/vertical-dead-zone blind
+     *  spot (the base fell-off test needs > maxJumpUp+2, `within` needs |Δy| < 1.2). The
+     *  enabled recovery flag must fold into fellOffPath and the fresh foot-search re-route
+     *  over the intact 2-wide side staircase (dz 3..4). Returns an error string or null. */
+    private static String slideBackCourse(SceneContext ctx, int budget) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
+        final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
+        buildFloor(level, cx, cz, floorY);
+        // FULL-WIDTH main staircase dz -5..5 (v2-v4 postmortem: any partial-width stair
+        // set left a floor gutter lane the drive's z drift slid the bot into, where it
+        // corner-rammed stair side faces for the rest of the run; and a merely SEALED
+        // side staircase was still enterable from its open east flank, so the initial A*
+        // route smeared across both staircases): +1 at dx=1, +2 at dx=2, +3 at dx=3;
+        // plateau (+3) at dx 4..5. The recovery staircase does NOT exist yet — it is
+        // BUILT by the cut mutation, so pre-cut and post-cut each have exactly one route.
+        for (int i = 1; i <= 3; i++)
+            for (int dz = -5; dz <= 5; dz++)
+                for (int dy = 1; dy <= i; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + i, floorY + dy, cz + dz), Blocks.STONE.defaultBlockState());
+        for (int dx = 4; dx <= 5; dx++)
+            for (int dz = -5; dz <= 5; dz++)
+                for (int dy = 1; dy <= 3; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.STONE.defaultBlockState());
+        // Goal on the plateau ALIGNED with the recovery staircase (dz+4): v5's centre goal
+        // dragged the post-cut climb diagonally south off the 2-wide recovery stairs' edge
+        // every attempt (probe: bot looping fall-offs at dz 2.2-3.7 for 500t).
+        BlockPos goal = new BlockPos(cx + 5, standY + 3, cz + 4);
+
+        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx - 4 + 0.5, standY, cz + 0.5);
+        ServerPlayer fp = av.fakePlayer();
+        ctx.cleanup(() -> fp.discard());
+        fp.getInventory().clearContent();
+        LevelWorldView w = new LevelWorldView(level, fp);
+
+        Walker walker = new Walker();
+        walker.setGoal(new Goal.Block(goal));
+        Walker.Step s = Walker.Step.WALKING;
+        int t = 0;
+        boolean cut = false;
+        StringBuilder trace = new StringBuilder();
+        for (; t < budget && s == Walker.Step.WALKING; t++) {
+            if (!cut && fp.getY() >= standY + 1.5 && fp.getX() > cx + 0.5
+                    && fp.getZ() < cz + 2.5) {
+                // Mid-climb — cut the full-width stairs out from under the bot (its feet
+                // column included) and build the 3-wide recovery staircase at dz 3..5 in
+                // the same tick (bot gated < dz+3 so the new blocks never intersect it).
+                for (int i = 1; i <= 3; i++)
+                    for (int dz = -5; dz <= 5; dz++)
+                        for (int dy = 1; dy <= i; dy++)
+                            level.setBlockAndUpdate(new BlockPos(cx + i, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+                for (int i = 1; i <= 3; i++)
+                    for (int dz = 3; dz <= 5; dz++)
+                        for (int dy = 1; dy <= i; dy++)
+                            level.setBlockAndUpdate(new BlockPos(cx + i, floorY + dy, cz + dz), Blocks.STONE.defaultBlockState());
+                cut = true;
+            }
+            s = walker.tick(av, w);
+            av.step();
+            if (t % 100 == 0)
+                trace.append(String.format(java.util.Locale.ROOT, " t%d:(%.1f,%.1f,%.1f)[%s]",
+                        t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, walker.progressProbe()));
+        }
+        boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
+                && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5
+                && fp.getY() >= standY + 3 - 0.4;
+        if (!cut)
+            return "rig broken — the bot never climbed the narrow stairs (no cut): step=" + s
+                    + " t=" + t + " pos=" + fp.position() + " lastError=" + walker.lastError
+                    + " endReason=" + walker.lastEndReason + " trace=" + trace;
+        if (!reached)
+            return "no recovery to the side staircase after the slide-back: step=" + s
+                    + " t=" + t + " pos=" + fp.position() + " lastError=" + walker.lastError
+                    + " endReason=" + walker.lastEndReason + " lastStats=" + Walker.lastStats
+                    + " trace=" + trace;
+        AgentDriverCommon.LOG.warn("[ad.slideBackCourse] step={} ticks={} pos={}", s, t, fp.position());
+        return null;
+    }
+
+    /** walkerAscentRamJitterImmune fold on the slide-back rig: the committed stepUp node
+     *  sits ≥2 above the dropped bot, rawStepDwell passes RAM_JITTER_RECOVER_TICKS (30)
+     *  long before the 100t wedge burst → fold → re-route → ARRIVED on the plateau. */
+    private static void ascentRamSlideBack(SceneContext ctx) {
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        BotConfig.walkerDebug = true;
+        BotConfig.walkerAscentRamJitterImmune = true;
+        BotConfig.allowBreak = false;
+        BotConfig.allowPlace = false;
+        String err = slideBackCourse(ctx, 900);
+        if (err != null) ctx.fail("ascentRamSlideBack: " + err);
+    }
+
+    /** Shared pit-crossing rig for the above-node stall family: a 2-deep stepped trench
+     *  (entry/exit half-steps) crosses the course; once the bot commits the descending
+     *  route and closes on the west rim, the trench is FILLED flush with the rim, so the
+     *  bot walks level ground while its step pointer holds a node 2 below the new surface
+     *  (`within` needs |Δy| < 1.2). Returns an error string or null; the caller asserts. */
+    private static String pitFillCourse(SceneContext ctx, int budget) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
+        final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
+        // Floor + shell: the trench digs to floorY-2, and below the slot is void.
+        for (int dx = -8; dx <= 8; dx++)
+            for (int dz = -3; dz <= 3; dz++) {
+                for (int dy = 1; dy <= 6; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+                for (int dy = 0; dy >= -3; dy--)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.STONE.defaultBlockState());
+            }
+        // Stepped trench dx 0..4: entry/exit feet at floorY (dx 0 and 4), deep feet at
+        // floorY-1 (dx 1..3). Carve the air cells accordingly.
+        for (int dz = -3; dz <= 3; dz++) {
+            level.setBlockAndUpdate(new BlockPos(cx, floorY, cz + dz), Blocks.AIR.defaultBlockState());
+            level.setBlockAndUpdate(new BlockPos(cx + 4, floorY, cz + dz), Blocks.AIR.defaultBlockState());
+            for (int dx = 1; dx <= 3; dx++)
+                for (int dy = 0; dy >= -1; dy--)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+        }
+        BlockPos goal = new BlockPos(cx + 7, standY, cz);
+
+        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx - 7 + 0.5, standY, cz + 0.5);
+        ServerPlayer fp = av.fakePlayer();
+        ctx.cleanup(() -> fp.discard());
+        fp.getInventory().clearContent();
+        LevelWorldView w = new LevelWorldView(level, fp);
+
+        Walker walker = new Walker();
+        walker.setGoal(new Goal.Block(goal));
+        Walker.Step s = Walker.Step.WALKING;
+        int t = 0;
+        boolean filled = false;
+        for (; t < budget && s == Walker.Step.WALKING; t++) {
+            if (!filled && fp.getX() >= cx - 1.6 && fp.getX() < cx - 0.4) {
+                // Bot on the west rim, route committed through the trench — fill it flush.
+                for (int dz = -3; dz <= 3; dz++) {
+                    level.setBlockAndUpdate(new BlockPos(cx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+                    level.setBlockAndUpdate(new BlockPos(cx + 4, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+                    for (int dx = 1; dx <= 3; dx++)
+                        for (int dy = 0; dy >= -1; dy--)
+                            level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.STONE.defaultBlockState());
+                }
+                filled = true;
+            }
+            s = walker.tick(av, w);
+            av.step();
+        }
+        boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
+                && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
+        if (!filled)
+            return "rig broken — the bot never reached the west rim (no fill): step=" + s + " t=" + t
+                    + " pos=" + fp.position() + " lastError=" + walker.lastError
+                    + " endReason=" + walker.lastEndReason + " lastStats=" + Walker.lastStats;
+        if (!reached)
+            return "no recovery off the buried node: step=" + s + " t=" + t + " pos=" + fp.position()
+                    + " lastError=" + walker.lastError + " endReason=" + walker.lastEndReason;
+        AgentDriverCommon.LOG.warn("[ad.pitFillCourse] step={} ticks={} pos={}", s, t, fp.position());
+        return null;
+    }
+
+    /** walkerAboveNodeStallRecover fold (C26-J3 blind spot): the pit-fill course leaves the
+     *  bot grounded EXACTLY 2 above its committed node with no hCol ram; the fold must fire
+     *  at noStepProg>90 (before the 100t wedge burst) and the re-route must finish the
+     *  crossing. walkerVerticalResync stays at its default OFF so this scene pins the
+     *  above-node branch alone. */
+    private static void aboveNodeStallPitFill(SceneContext ctx) {
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        BotConfig.walkerDebug = true;
+        BotConfig.walkerAboveNodeStallRecover = true;   // pinnedBaseline turns it off
+        BotConfig.allowBreak = false;
+        BotConfig.allowPlace = false;
+        String err = pitFillCourse(ctx, 700);
+        if (err != null) ctx.fail("aboveNodeStallPitFill: " + err);
+    }
+
+    /** walkerVerticalResync fold (vertical dead zone, |Δy| ≥ 2 EITHER sign): the
+     *  slide-back rig with ONLY the resync flag on — after the cut the bot stands on
+     *  open floor (no hCol; v1's 1×1-hole pit rig failed because the bot simply dove
+     *  into the hole and futile-search FAILED), its committed node 2–3 above, horizontal
+     *  cur2 wandering through the (REACH_DIST_SQ, OVERSHOOT_RESYNC_SQ) band as it presses
+     *  toward the vanished riser — the exact dead-zone signature; fires at noStepProg>24.
+     *  walkerAscentRamJitterImmune stays default-OFF so the resync branch is the one that
+     *  folds. */
+    private static void verticalResyncSlideBack(SceneContext ctx) {
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        BotConfig.walkerDebug = true;
+        BotConfig.walkerVerticalResync = true;
+        BotConfig.allowBreak = false;
+        BotConfig.allowPlace = false;
+        String err = slideBackCourse(ctx, 900);
+        if (err != null) ctx.fail("verticalResyncSlideBack: " + err);
+    }
+
+    /** walkerStepUpBackoffRetry (grind-press signature): the blocked-jump ceiling rig with
+     *  the backoff flag ON instead of the alarms — under the cap every step-up jump is
+     *  height-killed, the bot ends grounded + momentum-less pressed at the riser
+     *  (stuckTicks>15, flatDist<1.1) → the 12t straight-back drive arms and executes
+     *  (WalkerTickRepath backoff branch). The ceiling lifts on a tick countdown (the
+     *  backoff state is package-private) and the run must still end ARRIVED on the
+     *  plateau. */
+    private static void stepUpBackoffCeiling(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
+        final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
+        buildFloor(level, cx, cz, floorY);
+        for (int dx = 1; dx <= 5; dx++)
+            for (int dz = -5; dz <= 5; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 1, cz + dz), Blocks.STONE.defaultBlockState());
+        BlockPos goal = new BlockPos(cx + 4, standY + 1, cz);
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        BotConfig.walkerDebug = true;
+        BotConfig.walkerStepUpBackoffRetry = true;   // pinnedBaseline turns it off
+        BotConfig.allowBreak = false;
+        BotConfig.allowPlace = false;
+
+        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx - 4 + 0.5, standY, cz + 0.5);
+        ServerPlayer fp = av.fakePlayer();
+        ctx.cleanup(() -> fp.discard());
+        fp.getInventory().clearContent();
+        LevelWorldView w = new LevelWorldView(level, fp);
+
+        Walker walker = new Walker();
+        walker.setGoal(new Goal.Block(goal));
+        Walker.Step s = Walker.Step.WALKING;
+        int t = 0;
+        boolean capped = false;
+        int cappedTicks = 0;
+        for (; t < 700 && s == Walker.Step.WALKING; t++) {
+            if (!capped && fp.getX() > cx - 1.5) {
+                for (int dz = -5; dz <= 5; dz++)
+                    for (int dx = -1; dx <= 0; dx++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 3, cz + dz), Blocks.BEDROCK.defaultBlockState());
+                capped = true;
+            }
+            if (capped && ++cappedTicks == 120) {
+                // Long past the backoff trigger window (stuck>15 → arm at ~16t, 12t drive,
+                // 60t cooldown lets a second arm happen) — open the way and let it finish.
+                for (int dz = -5; dz <= 5; dz++)
+                    for (int dx = -1; dx <= 0; dx++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 3, cz + dz), Blocks.AIR.defaultBlockState());
+            }
+            s = walker.tick(av, w);
+            av.step();
+        }
+        boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
+                && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5
+                && fp.getY() >= standY + 1 - 0.4;
+        AgentDriverCommon.LOG.warn("[ad.stepUpBackoffCeiling] step={} ticks={} capped={} pos={}", s, t, capped, fp.position());
+        if (!capped)
+            ctx.fail("stepUpBackoffCeiling: rig broken — the bot never approached the riser: step=" + s
+                    + " t=" + t + " pos=" + fp.position());
+        if (!reached)
+            ctx.fail("stepUpBackoffCeiling: walker never finished after the ceiling lifted: step=" + s
+                    + " t=" + t + " cappedTicks=" + cappedTicks + " pos=" + fp.position()
+                    + " lastError=" + walker.lastError + " endReason=" + walker.lastEndReason);
     }
 }

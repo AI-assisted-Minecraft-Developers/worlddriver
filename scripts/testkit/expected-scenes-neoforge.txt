@@ -156,3 +156,9 @@ ad.expectAlarmBlockedJump
 ad.drownEscapeSurface
 ad.bestEffortSpliceCourse
 ad.ascendMovementStairs
+ad.boxedChurnEscalate
+ad.quickStartStub
+ad.ascentRamSlideBack
+ad.aboveNodeStallPitFill
+ad.verticalResyncSlideBack
+ad.stepUpBackoffCeiling

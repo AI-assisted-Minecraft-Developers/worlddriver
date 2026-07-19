@@ -274,6 +274,20 @@ public final class Walker {
      *  standable cell — arrival then means "arrived NEAR", not "arrived AT". */
     boolean goalSnapped;
 
+    /** Read-only one-line probe of the follow state (step pointer, carrot node,
+     *  best-effort/burst/churn/escalation counters) for test-scene diagnostics —
+     *  the package-private fields are invisible to testmod scene classes and the
+     *  log stream drops lines under load, so failures embed this in ctx.fail. */
+    public String progressProbe() {
+        BlockPos wp = path != null && step < path.size() ? path.get(step) : null;
+        return (path == null ? "path=null" : "step=" + step + "/" + path.size()
+                + " wp=" + (wp == null ? "-" : wp.getX() + "," + wp.getY() + "," + wp.getZ())
+                + (pathBestEffort ? " bestEffort" : ""))
+                + " unstuck=" + unstuckTicks + " churnEsc=" + churnEscapes
+                + " escal=" + (pfTickCounter < boxedEscalateUntilTick ? "ON" : "off")
+                + " noStep=" + noStepProgressTicks;
+    }
+
     public void setGoal(Goal g) {
         this.goal = g;
         this.goalSnapChecked = false;

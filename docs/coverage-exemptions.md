@@ -20,17 +20,42 @@ unreachable in the arena topology — "hard to rig" is not an exemption.
 
 ## Known-untestable-today, candidates for future rigs (NOT exempt)
 
-- Boxed-pocket churn escalation (`pathfinderBoxedEscalate` arming): needs a
-  CHURN_WINDOW (~400t) of confirmed net-zero displacement in a sealed pocket —
-  rig is possible (bedrock box + far goal) but slow; scene budget ~1200 ticks.
-- Progressive quick-start (`tryQuickStart` stub adoption): needs a search that
-  stays in flight across ticks (`pathfinderSliceMs` pinned ~0–1) while the bot
-  holds; rig possible with a large far-goal arena.
-- Steep-ascent ram recovery folds (`walkerAscentRamJitterImmune`,
-  `walkerVerticalResync`, `walkerStepUpBackoffRetry`, `walkerAboveNodeStallRecover`):
-  need sustained physical ram geometry; candidate rig = mid-run world mutation
-  (the `ad.expectAlarmBlockedJump` ceiling pattern) that invalidates a committed
-  climb without opening a reroute.
 - Deep-water bank-dig sub-branches (`walkerFutileBankDigRelease`,
   `walkerBankDigForwardExit`, `walkerPillarSurfacePlace`): the waterbank family
   covers the happy paths; the futile/overhang releases need overhang rigs.
+  Note for the futile-release rig: the riser scan latches on `isSolid` only (no
+  harvestability check), so a BEDROCK riser survives the dedicated server's
+  instant digs and can accumulate the 200 afloat ticks.
+
+## Wave-3 closures (2026-07-19) + rig-design constraints they exposed
+
+Covered by `ad.boxedChurnEscalate`, `ad.quickStartStub`, `ad.ascentRamSlideBack`,
+`ad.aboveNodeStallPitFill`, `ad.verticalResyncSlideBack`, `ad.stepUpBackoffCeiling`:
+the anti-churn window family (+ both window-shortening flags + sticky escalation +
+escalated `pf*` getters), the pre-path stub family (land bee-line reject →
+`tryQuickStart`), and all four steep-ascent ram/stall recovery folds.
+
+Constraints any future arena rig must respect (each defeated 2–3 rig versions,
+probe-proven via `Walker.progressProbe()` embedded in ctx.fail):
+
+1. **Adoption-radius wall-snap**: `adoptPath`/fast-forward measure euclidean
+   "near the feet", not connectivity — any alternate route within ~3–4 blocks
+   THROUGH a thin wall snaps the carrot across the bedrock and pins the bot on
+   the wrong side indefinitely. Walls between "inside" and "the route out" must
+   be thicker than that radius, or the route must not exist until a mutation
+   opens it.
+2. **Convex-corner dead zone**: a sharp bedrock corner between the bot and its
+   next node puts the drive in a reCentre/carrot micro-orbit (§39 family) that
+   outlives scene budgets. Prefer water (no corners to catch) or straight-line
+   releases over wall gaps.
+3. **Idle-slice floor**: with `path==null` the search runs at
+   `max(pathfinderSliceMs, pathfinderIdleSliceMs)` — pinning only `sliceMs`
+   does NOT keep a search in flight (the 30 ms idle slice finishes small arena
+   graphs in one tick).
+4. **Futile-search cap races slow mechanisms**: in a sealed rig the gap#49-③
+   5-search cap FAILs the run before a 240t churn window fires; scenes probing
+   slow machinery must raise `walkerFutileSearchCap`.
+5. **Partial-width stairs shed the bot**: the drive's lateral drift slides the
+   body off a stair strip's side face into gutter lanes; staircases the bot MUST
+   climb should span the full approach width, and post-mutation recovery stairs
+   should be goal-aligned so the climb isn't dragged diagonally off an edge.
