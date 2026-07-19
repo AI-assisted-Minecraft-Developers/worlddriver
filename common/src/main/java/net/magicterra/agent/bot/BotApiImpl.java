@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
+import net.magicterra.agent.client.internal.ClientChatLog;
 
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.process.*;
@@ -849,6 +850,116 @@ public final class BotApiImpl implements BotApi {
     @Override
     public Map<String, Object> setting(Map<String, Object> params) {
         return SettingsCommand.apply(this, params);
+    }
+
+    /**
+     * {@code mc.test.reset} client-pool entry reset — see {@link BotApi#resetClientEntry()}.
+     * Reuses the existing client primitives (no new behaviour): {@link BotInteract#releaseKeys()},
+     * the {@code mc.client.screen.close} {@code setScreen(null)} path, {@link ClientChatLog#clear()}
+     * and the scheduler's user-slot cancel. The {@code reset[]} list names exactly what changed so
+     * P2b's reuse acceptance can diff it. Kept minimal — completeness is P2b's acceptance concern.
+     */
+    @Override
+    public Map<String, Object> resetClientEntry() {
+        List<String> reset = new ArrayList<>();
+        // One client-thread hop for everything that touches scheduler or render state.
+        // The look-cancel MUST be inside the hop: the scheduler (userTask) is ticked and
+        // mutated from clientTick(), and every sibling mutation (mc.bot.cancel's own leg
+        // included) marshals via onClient — an off-thread cancel here would race the tick
+        // (P2a Task 3 review, Important). Cancelling FIRST, same-thread, also guarantees no
+        // client tick can interleave between the cancel and the key release, so a live
+        // LookProcess can never re-drive the keys we are about to release.
+        // The look slot is the user-task slot (mc.bot.lookAt{smoothLook:true} starts a
+        // LookProcess there); UserTaskChain.heldProcessKind() is deliberately null
+        // (cancel's own routing leg), so read the held process directly and cancel
+        // through the same path mc.bot.cancel uses.
+        onClient(() -> {
+            BotProcess held = userTask.process();
+            if (held != null && "look".equals(held.kind())) {
+                cancelCurrent("mc.test.reset");
+                reset.add("look");
+            }
+            releaseKeys();
+            reset.add("keys");
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.screen != null) { mc.setScreen(null); reset.add("screen"); }
+            return Map.of();
+        });
+        int chatCleared = ClientChatLog.clear();   // pure JVM buffer, no client thread needed
+        reset.add("chat:" + chatCleared);
+        return Map.of("ok", true, "reset", reset);
+    }
+
+    /**
+     * {@code mc.test.input.heldKeys} — see {@link BotApi#heldKeys()}. Reads
+     * {@link KeyMapping#isDown()} on the client thread for exactly the eight keymappings
+     * {@link net.magicterra.agent.bot.util.BotInteract#releaseKeys()} clears, in the same
+     * order, under the reply names {@code up/down/left/right/jump/sprint/attack/shift}.
+     * Pure observation — mutates nothing.
+     */
+    @Override
+    public Map<String, Object> heldKeys() {
+        return onClient(() -> {
+            Minecraft mc = Minecraft.getInstance();
+            Map<String, Object> keys = new LinkedHashMap<>();
+            if (mc.options == null) {
+                return Map.of("ok", false, "error", "no client options");
+            }
+            keys.put("up", mc.options.keyUp.isDown());
+            keys.put("down", mc.options.keyDown.isDown());
+            keys.put("left", mc.options.keyLeft.isDown());
+            keys.put("right", mc.options.keyRight.isDown());
+            keys.put("jump", mc.options.keyJump.isDown());
+            keys.put("sprint", mc.options.keySprint.isDown());
+            keys.put("attack", mc.options.keyAttack.isDown());
+            keys.put("shift", mc.options.keyShift.isDown());
+            return Map.of("ok", true, "keys", keys);
+        });
+    }
+
+    /**
+     * {@code mc.test.input.useOnBlock} — see {@link BotApi#useOnBlock(Map)}. Instrument-grade:
+     * the ONLY state change is the {@code gameMode.useItemOn} right-click itself. The face is
+     * the one nearest the player's eye ({@code pickFaceTowardsPlayer}) and the hit Vec3 is that
+     * face's centre — the exact synthetic-hit shape {@code mc.bot.useItemOn} builds — but unlike
+     * the behaviour verb it does NOT aim (no yaw/pitch write), NOT move, and NOT toggle sneak, so
+     * nothing in the path/aim pipeline runs. Opening a block-entity container (empty hand +
+     * right-click) does not need any of those.
+     */
+    @Override
+    public Map<String, Object> useOnBlock(Map<String, Object> params) {
+        if (params == null) return Map.of("ok", false, "error", "x,y,z required");
+        Object ox = params.get("x"), oy = params.get("y"), oz = params.get("z");
+        if (!(ox instanceof Number) || !(oy instanceof Number) || !(oz instanceof Number)) {
+            return Map.of("ok", false, "error", "x,y,z required (int)");
+        }
+        final int x = ((Number) ox).intValue();
+        final int y = ((Number) oy).intValue();
+        final int z = ((Number) oz).intValue();
+        Object oh = params.get("hand");
+        final InteractionHand hand = (oh != null && "off".equalsIgnoreCase(String.valueOf(oh)))
+                ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
+        return onClient(() -> {
+            Minecraft mc = Minecraft.getInstance();
+            LocalPlayer p = mc.player;
+            if (p == null || mc.gameMode == null) {
+                return Map.of("ok", false, "error", "no local player");
+            }
+            BlockPos block = new BlockPos(x, y, z);
+            Direction face = pickFaceTowardsPlayer(block, p);
+            double cx = block.getX() + 0.5 + face.getStepX() * 0.5;
+            double cy = block.getY() + 0.5 + face.getStepY() * 0.5;
+            double cz = block.getZ() + 0.5 + face.getStepZ() * 0.5;
+            BlockHitResult hit = new BlockHitResult(new Vec3(cx, cy, cz), face, block, false);
+            InteractionResult r = mc.gameMode.useItemOn(p, hand, hit);
+            if (r.consumesAction()) p.swing(hand);
+            return Map.of(
+                    "ok", true,
+                    "result", r.name(),
+                    "consumed", r.consumesAction(),
+                    "hand", hand == InteractionHand.MAIN_HAND ? "main" : "off",
+                    "face", face.getName());
+        });
     }
 
     /** Driver→agent client-tick push-event detection (threat/hurt/death, fluid

@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * worker thread from a cached pool (off the server thread, so AgentApi
  * routes that bounce through {@code server.execute()} don't deadlock), and
  * is bounded by a wall-clock deadline enforced via Rhino's instruction-count
- * observer. The standard {@link AgentClassFilter} sandbox applies.
+ * observer. The optional {@link AgentClassFilter} class filter applies only when opted in (-Dagent.sandbox=on; off by default — scripts are first-party capability).
  *
  * The script body runs through {@code eval()} so its last expression is the
  * completion value; the wrapper captures result/error/log and JSON-encodes
@@ -40,7 +40,7 @@ public final class ScriptEvaluator {
     private static final int DEFAULT_TIMEOUT_MS = 3000;
     private static final int MAX_TIMEOUT_MS = 30_000;
     /** Cap for {@link #evaluateOnThread} — boss playbooks run minutes, not the 30 s
-     *  ad-hoc {@code mc.script.eval} budget. Same sandbox, longer deadline. */
+     *  ad-hoc {@code mc.script.eval} budget. Same script context, longer deadline. */
     private static final int PLAYBOOK_MAX_TIMEOUT_MS = 20 * 60_000;
     private static final int MAX_SOURCE_CHARS = 64 * 1024;
     private static final int INSTRUCTION_THRESHOLD = 10_000;
@@ -110,7 +110,7 @@ public final class ScriptEvaluator {
     /**
      * Evaluate a long-running script (a boss playbook) on the CALLING thread —
      * the {@link PlaybookRunner}'s background worker — with a generous budget and a
-     * cooperative {@code abort} flag, reusing the exact same Rhino sandbox as
+     * cooperative {@code abort} flag, reusing the exact same Rhino script context as
      * {@link #evaluate}. The abort/deadline are enforced via Rhino's instruction
      * observer, so they bite at the next script instruction (typically the next
      * loop turn). Returns the same {result, error, log, ms} envelope.
@@ -141,7 +141,7 @@ public final class ScriptEvaluator {
      * Parse-only syntax check (compiles, never executes) — the cheap "does it
      * even parse" gate the skill library runs before persisting a new skill
      * (Phase H / Voyager). Returns {@code null} if the source is syntactically
-     * valid, else the parser's error message. Uses the same sandboxed context
+     * valid, else the parser's error message. Uses the same script context
      * (no deadline — compilation doesn't run instructions).
      */
     public String checkSyntax(String source) {
@@ -244,7 +244,7 @@ public final class ScriptEvaluator {
     }
 
     /**
-     * Context that combines the standard {@link AgentClassFilter} sandbox
+     * Context that combines the optional {@link AgentClassFilter} class filter (off by default)
      * with a wall-clock deadline enforced via Rhino's instruction-count hook.
      */
     private static final class FilteredObservedContext extends Context {

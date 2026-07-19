@@ -1,0 +1,153 @@
+# Canonical expected-scene manifest for the neoforge dogfood suite (t0 --expect-file).
+# One name per line. Every migrated ad.* scene MUST be listed here in its migration commit —
+# a name missing from BOTH this file and registered[] is exactly the silent-composition
+# hole this gate exists to close (P1c final review).
+ad.ascendMovementNoop
+ad.ascendDeadZoneWatchdog
+ad.diagonalAscentSpeed
+ad.selfShaftDigUp
+ad.descentYaw
+ad.gearScope
+ad.buriedOre
+ad.entityLeash
+ad.entityLeashLowY
+ad.settingRegistryClosed
+# P4b wave 2 — Terrain family (12 migrated from AgentGameTestTerrain; descentDrift retired-without-scene, pending adjudication)
+ad.summit
+ad.sheerWall
+ad.bridgeGap
+ad.parkourAscend
+ad.ridgeOvershoot
+ad.stepUpCrestOrbit
+ad.descent
+ad.ascentSpeed
+ad.ledgeOvershoot
+ad.wallCollisionProbe
+ad.bridgeDescend
+ad.bareHandDigCadence
+# P4b wave 3 — Bias family (13 migrated from AgentGameTestBias; all planner-only)
+ad.avoidRegionDetour
+ad.digUpY
+ad.digDownY
+ad.columnRadius
+ad.parkourGate
+ad.yFloorConstraint
+ad.leashHard
+ad.forbidWater
+ad.forbidDig
+ad.shorelineHug
+ad.shorelineSmoother
+ad.escapeFarthestNoRockDrill
+ad.budgetAwayTunnelChurn
+# P4b wave 4 — WaterBank family (11 migrated from AgentGameTestWaterBank; 2 optional sensors: vineClingFidelityProbe (optional-PASS), vineOverWaterClimb (optional-FAIL, live −711 bug); riverSheerBank now required — task#91 structural fix walkerWaterClimbLateralGate)
+ad.waterPhysicsParity
+ad.buoyantWall
+ad.vineClingFidelityProbe
+ad.vineOverWaterClimb
+ad.tallBankDigClimb
+ad.waterLowBank
+ad.riverSheerBank
+ad.deepWaterCross
+ad.deepWaterClimboutNoBlock
+ad.deepWaterClimboutDrift
+ad.waterFarAimBankCorner
+# P4b wave 4 — WaterCross family (10 migrated from AgentGameTestWaterCross; all deterministic)
+ad.goalSnapBuried
+ad.basin
+ad.waterClimbOutRoute
+ad.waterStepDownFloat
+ad.forbidDigPadRam
+ad.deepWaterSubmergedCross
+ad.vineOverWaterCross
+ad.padOverWaterCross
+ad.padClusterCross
+ad.deepWaterFloatBeeline
+# P4b wave 5 — Core family (12 migrated from AgentGameTest, main class)
+ad.agentRpcSmoke
+ad.pinch
+ad.horizon
+ad.inputReleaseGate
+ad.schemaUnionRendering
+ad.physicsParity
+ad.buildBlockWhitelist
+ad.pathArchiveJson
+ad.nodePhysics
+ad.pathArchiveCapture
+ad.replayRoundTrip
+ad.clientChatLogSemantics
+# P4b wave 5 — CombatSense family (2 migrated from AgentGameTestCombatSense; single-tick NoAI, time-independent)
+ad.threatScanZombie
+ad.threatScanHurtAttacker
+# P4b wave 5 — BuildBlock family (2 migrated from AgentGameTestBuildBlock; planner/API-only predicate probes)
+ad.buildBlockRejectsInteractive
+ad.valuablePlacementBlockMatrix
+
+# P4c wave 6 — Station family (15 migrated from AgentGameTestServer; craft/smelt/recipe/observe)
+ad.serverCraft
+ad.serverRecipeSpecies
+ad.serverCraftTableInject
+ad.serverRecipeShortfallSpecies
+ad.serverCraftTableReclaim
+ad.serverObservePlayerInventory
+ad.serverPlanHaveDefaultsToBag
+ad.serverSmeltCliff
+ad.serverCraftTableHoleRim
+ad.serverSmeltFurnaceHoleRim
+ad.smeltFuelPolicy
+ad.serverCraftGridClearHelper
+ad.serverCraftGridConservation
+ad.serverCraftFailTelemetry
+ad.serverCraftFailGridReturn
+
+# P4c wave 7 — Scheduler-semantics matrix family (11 migrated from AgentGameTestServer; #54P1 regression guards)
+ad.retreatGateMatrix
+ad.walkerTerminalReportMatrix
+ad.antiSuffocateShouldTriggerMatrix
+ad.chainEpisodeCancelMatrix
+ad.combatGraceMatrix
+ad.frailBlockedMatrix
+ad.urgentBidMatrix
+ad.duskSecureHeldProcessLifecycle
+ad.cancelRouting
+ad.manualSlotGraceMatrix
+ad.nearestFirstScanMatrix
+
+# P4c wave 8 — Survival family (13 migrated from AgentGameTestServer; escape/bunker/dive/drown/anti-suffocate)
+ad.serverEscape
+ad.serverBunker
+ad.serverBunkerAnchorRatchet
+ad.serverEscapeSealedShelter
+ad.serverLowHpEdgePin
+ad.serverBunkerSlope
+ad.surfaceDive
+ad.underwaterBase
+ad.drowningFloatShouldFloatMatrix
+ad.drownEscapeGateMatrix
+ad.drownEscapePreempt
+ad.serverObserveAirSupply
+ad.antiSuffocateWaterNotSuffocating
+
+# P4c wave 8 — Avatar family (5 migrated from AgentGameTestServer; #45/#46/#47/#48 golden regression guards)
+ad.serverAgentDistinctBodies
+ad.serverAvatarTickFidelity
+ad.serverAttackCooldown
+ad.serverCapability
+ad.serverElytra
+
+# P4c wave 9 — Process-core family (15 migrated from AgentGameTestServer; the FINAL wave, legacy suite 15→0)
+# driver/mine/process/flee/mineProcess/mineNoTool/walkerDeepslate/forbidDigWall/build/lookRaycast/follow/combat/look/mineCanopyRadius/bridgePillar
+ad.serverDriver
+ad.serverMine
+ad.serverProcess
+ad.serverFlee
+ad.serverMineProcess
+ad.serverMineNoTool
+ad.serverWalkerDeepslateNoTool
+ad.serverForbidDigWall
+ad.serverBuild
+ad.serverLookRaycast
+ad.serverFollow
+ad.serverCombat
+ad.serverLook
+ad.serverMineCanopyRadius
+ad.serverBridgePillarStart

@@ -39,6 +39,11 @@ dependencies {
     common(project(path: ':common', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':common', configuration: 'transformProductionNeoForge')
 
+    // testkit-common (P1c dogfood wiring) — same two-line idiom as :common above,
+    // and identical to how mc-testkit/neoforge/build.gradle already consumes it.
+    common(project(path: ':testkit-common', configuration: 'namedElements')) { transitive false }
+    shadowBundle project(path: ':testkit-common', configuration: 'transformProductionNeoForge')
+
     // Rhino (KubeJS fork) — a full mod jar (ships neoforge.mods.toml), so we
     // nest it via Jar-in-Jar instead of shadowing its classes. FML discovers the
     // nested mod and DEDUPES it by version against any other mod that JiJ's the
@@ -64,6 +69,46 @@ dependencies {
     // dropped — JiJ avoids the class-collision it was guarding against).
     include("org.yaml:snakeyaml:$rootProject.snakeyaml_version") { transitive = false }
     forgeRuntimeLibrary "org.yaml:snakeyaml:$rootProject.snakeyaml_version"
+}
+
+// testmod source set — EMPTY-SOURCE BRIDGE (P4-final). The legacy @GameTest classes
+// once lived here (P4a-P4c) so they compiled/loaded ONLY in dev runs, never in the
+// production jar; P4b/P4c migrated every arena to a dogfooded ad.* testkit scene under
+// :common's testmod and P4-final retired the GameTestServer run machinery. This source
+// set now carries NO test java of its own — it survives purely as the delivery vehicle
+// that folds :common's testmod OUTPUT+resources into agent_driver's dev-run module (via
+// the loom mods{} block below) and onto the `source sourceSets.testmod` runs
+// (runDogfoodServer / testkitClient / t2Server) so ServiceLoader discovers the ad.*
+// scenes. Deleting it would silently drop all scene delivery — keep it.
+// Classpath wiring mirrors the mc-testkit gradle-plugin's
+// testmod convention (testmod sees main's OUTPUT plus main's own compile/runtime
+// classpaths — so testmod code can reach main classes AND main's dependencies,
+// including common's SimProbes), but wired by hand: the plugin's testmodSourceSet
+// flag only takes effect on the root project (P4a plan §Architecture).
+// P4a Task 2: neoforge testmod must COMPILE against :common's testmod OUTPUT. The
+// ad.* scene + probe helpers moved there (SimProbes, referenced by
+// AgentGameTestSupport:122 and AgentGameTestServer:~2534/~2544; AgentDriverScenes'
+// SceneProvider service file too), so they are NO LONGER in :common namedElements
+// (main output) that testmod's main-classpath extension already sees. We add
+// :common's testmod output to the COMPILE classpath only (classesDirs so javac
+// resolves SimProbes). evaluationDependsOn forces :common to configure first so its
+// sourceSets.testmod is resolvable here.
+//
+// It is DELIBERATELY NOT on runtimeClasspath: at RUNTIME :common's testmod is
+// delivered by the loom `mods { named('main') { sourceSet ..., project(':common') } }`
+// block below, which folds its output into agent_driver's fml.modFolders group (one
+// module, unioned with the moved-package's siblings in :common main). Putting it on
+// runtimeClasspath too would ALSO expose it as a bare -classpath dir that FML's
+// userdev locator re-packages into a second synthetic module (generated_XXX) — and
+// two modules exporting net.magicterra.agent.bot.testkit is a hard
+// java.lang.module.ResolutionException at boot (diagnosed live: run-dogfood ModuleLayerHandler).
+// Compile-only stays dev-only and never reaches any jar/publication.
+evaluationDependsOn(':common')
+sourceSets {
+    testmod {
+        compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output + project(':common').sourceSets.testmod.output
+        runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
+    }
 }
 
 processResources {
@@ -94,28 +139,130 @@ remapJar {
 }
 
 loom {
+    // P4a Task 1: attach the testmod source set to the mod FML scans, so :common's
+    // testkit scene classes and their SceneProvider service entries are discovered as
+    // part of agent_driver (no separate mods.toml). architectury-loom EAGERLY registers a
+    // default dev-run mod named "main" (the main source set) during plugin apply, before
+    // this script body runs — so we must CONFIGURE that existing "main" mod, not create a
+    // second one. (Declaring a new `agent_driver` mod instead produces two MOD_CLASSES
+    // groups — main-only "main" + main+testmod "agent_driver" — and FML resolves the
+    // duplicate mods.toml to the main-only group, silently dropping testmod. Verified via
+    // the launch MOD_CLASSES env + "Found mod file main" in the boot log.)
+    mods {
+        named('main') {
+            sourceSet sourceSets.testmod
+            // P4a Task 2: the ad.* dogfood scenes + SimProbes + SceneProvider service moved
+            // to :common's testmod. Two facts force the exact wiring here:
+            //   1. DISCOVERY. A bare -classpath dir is auto-moduled by FML on the game/library
+            //      layer, which agent_driver does NOT read — so ServiceLoader(SceneProvider),
+            //      run on the server thread in the mod's context, can't see the service file
+            //      (verified live: run-dogfood registered NO ad.* scenes). Attaching the
+            //      cross-project source set to THIS mod entry (loom's `sourceSet(SourceSet,
+            //      Project)` overload) folds :common's testmod OUTPUT into agent_driver's
+            //      fml.modFolders group — the same module the scenes are discovered from —
+            //      exactly as the line above does for neoforge's own testmod.
+            //   2. NO SPLIT PACKAGE. The moved classes live in package
+            //      net.magicterra.agent.bot.testkit.SCENE, DISJOINT from
+            //      net.magicterra.agent.bot.testkit (TestResetVerb/TestRunVerb, which stay in
+            //      :common MAIN and are delivered as their own dev module). FML wires broad
+            //      `reads` edges between mod modules, so two modules exporting the SAME package
+            //      is a hard java.lang.module.ResolutionException at boot (diagnosed live:
+            //      agent_driver + the common-main dev module both exporting the un-suffixed
+            //      package). The `.scene` sub-package keeps each package owned by exactly one
+            //      module — see the report for why the brief's identical-package layout is
+            //      unsatisfiable under JPMS and this is the minimal deviation.
+            // Per-run scoping holds: loom emits modFolders only for source sets on a run's
+            // classpath, so contractServer/server (no `source testmod`) never receive the
+            // scenes — the scene-independence of the instrument contract stands.
+            sourceSet project(':common').sourceSets.testmod, project(':common')
+        }
+    }
     runs {
         server { server() }
-        // NeoForge's userdev moddev-config.json exposes a "gameTestServer" template
-        // that is byte-identical to "server" except for two system properties.
-        // architectury-loom already generates the argFile; we just need to declare
-        // the run and flip the two flags. After this, `gradlew :neoforge:runGameTestServer`
-        // boots a dev server, auto-runs every @GameTest discovered in
-        // RegisterGameTestsEvent, and exits non-zero on failure — CI-friendly.
-        //
-        // AgentGameTest defers runValidation() to a worker thread and polls via
-        // helper.succeedWhen, so RPC/MCP round-trips no longer deadlock against
-        // the server tick path (see AgentGameTest.java for the rationale).
-        gameTestServer {
+        contractServer {
             server()
-            property 'neoforge.enableGameTest', 'true'
-            property 'neoforge.gameTestServer', 'true'
-            runDir 'run-gametest'
+            property 'agent.contractRun', 'true'
+            property 'agent.rpcPort', '0'
+            property 'agent.mcpPort', '0'
+            runDir 'run-contract'
+            vmArg '-Xmx1g'
+        }
+        // P1c: dogfood run — boots a professional dedicated server with BOTH
+        // agent_driver and the mc-testkit harness loaded, autorun gate ON. This
+        // is what proves the testkit orchestrator (t0.py) generalizes beyond its
+        // own bare-bones testkit-neoforge module to a real, feature-loaded mod.
+        dogfoodServer {
+            server()
+            property 'testkit.autorun', 'true'
+            runDir 'run-dogfood'
+            vmArg '-Xmx2g'
+            // P4a Task 2: the ad.* dogfood scenes + SceneProvider service moved to
+            // :common's testmod, routed onto neoforge testmod's runtimeClasspath
+            // above. `source sourceSets.testmod` puts that output+resources on this
+            // run so ServiceLoader discovers AgentDriverScenes and the 9 scenes run.
+            // (contractServer is deliberately NOT given this — the instrument
+            // contract is scene-independent by design.)
+            source sourceSets.testmod
+        }
+        // P2c Task 4 (T1 topology, neoforge parity): a real CLIENT JVM with the
+        // mc-testkit harness armed (-Dtestkit.autorun=true), mirroring fabric's
+        // testkitClient. When t1.py --loader neoforge drives it into a singleplayer
+        // world, the INTEGRATED server's SERVER_STARTED fires the same TestkitCommon
+        // hook the dedicated dogfoodServer uses — so the 9 ad.* scenes run on an
+        // integrated neoforge server = the client-topology parity this task closes
+        // (T0 dedicated already ran on both loaders; P1.6 proved fabric==neoforge
+        // byte-identity there). Autorun defaults ON; t1.py launches once with
+        // -Pt1Autorun=false to MINT a pristine (scene-free) template world, archives
+        // it, then launches normally (autorun ON) on a fresh COPY — keeping the
+        // reused world byte-clean for the ad.selfShaftDigUp inverted-lottery signature.
+        // Ephemeral agent ports (0 = random) so it never competes with a live dev
+        // client; the orchestrator discovers the port via run-t1/agent-rpc.port.
+        // DISPLAY is supplied by t1.py's environment (self-managed Xvfb), NOT here.
+        // Excluded from the configureEach guard below (like contractServer) so it
+        // manages its own -Xmx and agent.runValidation (neoforge's guard, unlike
+        // fabric's, pins no agent ports — the exclusion is heap/validation only).
+        testkitClient {
+            client()
+            property 'testkit.autorun', project.findProperty('t1Autorun') ?: 'true'
+            property 'agent.rpcPort', '0'
+            property 'agent.mcpPort', '0'
+            runDir 'run-t1'
+            vmArg '-Xmx2g'
+            // P4a Task 2: integrated-server topology needs the moved ad.* scenes +
+            // SceneProvider too (t1.py drives this client into a world whose
+            // integrated server autoruns them). Same testmod attach as dogfoodServer.
+            source sourceSets.testmod
+        }
+        // P3a Task 2 (T2 production topology, neoforge parity): a plain DEDICATED server
+        // carrying agent_driver + the mc-testkit harness with autorun DEFAULT OFF
+        // (-Pt2Autorun ?: 'false'), mirroring fabric's t2Server. Arms the harness
+        // armed-awaiting (registers mc.test.* verbs via the now-unconditional loader
+        // forwarding) so a real testkitClient (run-t1) can direct-connect over multiplayer
+        // and t2.py can drive the dual-end probe. Ephemeral agent ports (0 = random); the
+        // multiplayer listen socket is pinned in run-t2/server.properties (25596, distinct
+        // from fabric's 25597 and dogfood's 25599) which t2.py generates-and-pins. Excluded
+        // from the configureEach guard below (like contractServer/testkitClient) so it
+        // manages its own -Xmx and ephemeral ports.
+        t2Server {
+            server()
+            property 'testkit.autorun', project.findProperty('t2Autorun') ?: 'false'
+            property 'agent.rpcPort', '0'
+            property 'agent.mcpPort', '0'
+            runDir 'run-t2'
+            vmArg '-Xmx2g'
+            // P4a Task 2: T2 production-topology dedicated server exposes mc.test.run
+            // which registers builtin + SceneProvider scenes; the ad.* scenes moved
+            // to :common testmod, so attach it here (like dogfoodServer/testkitClient).
+            source sourceSets.testmod
         }
     }
     runConfigs.configureEach {
+        // contractServer, testkitClient and t2Server manage their own -Xmx (contractServer 1g;
+        // testkitClient/t2Server their own 2g cap), so exclude them from the guard's default
+        // heap/runValidation pinning below.
+        if (it.name == 'contractServer' || it.name == 'testkitClient' || it.name == 't2Server') return
         property 'agent.runValidation', project.findProperty('agentRunValidation') ?: 'false'
-        // Cap heap so dedicated server + gametest don't trigger system OOM.
+        // Cap heap so the dogfood/testkit server runs don't trigger system OOM.
         vmArg '-Xmx2g'
     }
 }

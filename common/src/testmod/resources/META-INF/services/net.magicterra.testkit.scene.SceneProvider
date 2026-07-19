@@ -1,0 +1,13 @@
+net.magicterra.agent.bot.testkit.scene.AgentDriverScenes
+net.magicterra.agent.bot.testkit.scene.AgentDriverTerrainScenes
+net.magicterra.agent.bot.testkit.scene.AgentDriverBiasScenes
+net.magicterra.agent.bot.testkit.scene.AgentDriverWaterBankScenes
+net.magicterra.agent.bot.testkit.scene.AgentDriverWaterCrossScenes
+net.magicterra.agent.bot.testkit.scene.AgentDriverCoreScenes
+net.magicterra.agent.bot.testkit.scene.AgentDriverCombatScenes
+net.magicterra.agent.bot.testkit.scene.AgentDriverBuildScenes
+net.magicterra.agent.bot.testkit.scene.AgentDriverStationScenes
+net.magicterra.agent.bot.testkit.scene.AgentDriverSchedulerScenes
+net.magicterra.agent.bot.testkit.scene.AgentDriverSurvivalScenes
+net.magicterra.agent.bot.testkit.scene.AgentDriverAvatarScenes
+net.magicterra.agent.bot.testkit.scene.AgentDriverProcessScenes

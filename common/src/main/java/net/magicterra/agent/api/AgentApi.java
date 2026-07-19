@@ -450,6 +450,16 @@ public final class AgentApi {
      * subsystems (e.g. the path-debug package) so core never compile-depends on them.
      * Idempotent-safe: a duplicate name overwrites. Thread-safe via the concurrent map.
      * Routes added here are reachable identically through every transport (Hard Rule #1).
+     *
+     * <p><b>This is the low-level seam.</b> A route added here still MUST have a declared
+     * MCP {@code ToolSchema} (register one via {@code ToolCatalog.registerExtra}), or the
+     * boot invariant {@link #requireSchemasFor} refuses to start. As of the paired-registration
+     * change, a route reached at dispatch time with no schema is a <b>loud
+     * {@link IllegalStateException}</b> in {@link #route} — schema-less dispatch is no longer
+     * silently skipped. For game-affecting verbs prefer the paired
+     * {@code ToolCatalog.registerVerb(schema, handler)}, which registers the schema and this
+     * route together (atomically) and enforces the verb namespace policy; use raw {@code addRoute}
+     * only for internal driver routes whose schema you register separately (path-debug pattern).
      */
     public void addRoute(String method, Function<Map<String, Object>, Object> handler) {
         Objects.requireNonNull(method, "method");

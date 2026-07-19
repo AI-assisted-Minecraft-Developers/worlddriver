@@ -2,10 +2,27 @@ plugins {
     id 'dev.architectury.loom' version '1.11-SNAPSHOT' apply false
     id 'architectury-plugin' version '3.4-SNAPSHOT'
     id 'com.gradleup.shadow' version '8.3.6' apply false
+    // First dogfood consumer of the mc-testkit gradle plugin (included build wired
+    // in settings.gradle). Registers testkitServer/testkitClient/testkitE2E on the
+    // ROOT project, each shelling the frozen python orchestration contract. Applying
+    // it is negligible at configuration time (lazy task registration).
+    id 'net.magicterra.mc-testkit'
 }
 
 architectury {
     minecraft = project.minecraft_version
+}
+
+// Dogfood consumer configuration for the mc-testkit gradle plugin. The plugin's
+// only loader-override mechanism is the `testkit { loader }` extension (there is
+// no built-in `-P` binding); this bridge threads the `testkit.loader` project
+// property onto it so the documented gate-1 command works —
+//   ./gradlew testkitServer -Ptestkit.loader=neoforge
+// selects the neoforge dogfood — while the fabric convention stays the default
+// (so `./gradlew testkitClient` remains fabric T1). Loader-invalid values are
+// left for the orchestrator (t0/t1/t2.py) to reject at its --loader boundary.
+testkit {
+    loader = (findProperty('testkit.loader') ?: 'fabric')
 }
 
 allprojects {
@@ -14,6 +31,12 @@ allprojects {
 }
 
 subprojects {
+    // testkit-junit is a pure-JVM JUnit 5 attach module (out-of-process RPC consumer):
+    // no Minecraft, no loader, no loom. It provides its own java-library setup in
+    // mc-testkit/junit/build.gradle. Scope it out of the loom/architectury/MC pipeline
+    // that every other subproject shares. (group/version still come from allprojects.)
+    if (project.name == 'testkit-junit') return
+
     apply plugin: 'dev.architectury.loom'
     apply plugin: 'architectury-plugin'
     apply plugin: 'maven-publish'
@@ -58,7 +81,6 @@ subprojects {
     publishing {
         publications {
             mavenJava(MavenPublication) {
-                artifactId = base.archivesName.get()
                 from components.java
                 // Everything a consumer needs at runtime (Rhino, netty-codec-http,
                 // snakeyaml) is nested in the jar via Jar-in-Jar, so the published
@@ -69,6 +91,19 @@ subprojects {
                     def deps = asNode().dependencies
                     if (!deps.isEmpty()) asNode().remove(deps.first())
                 }
+            }
+        }
+
+        // artifactId must be resolved AFTER the subproject's own build script has
+        // run: this subprojects{} block executes BEFORE child scripts, so an eager
+        // `base.archivesName.get()` here captured the root default and the
+        // mc-testkit modules' own `archivesName = 'mc_testkit-*'` overrides never
+        // reached the publication (P3b finding: they published as
+        // agent_driver-testkit-* instead). afterEvaluate defers the read until the
+        // child's overrides are in place.
+        afterEvaluate {
+            publishing.publications.named('mavenJava') {
+                artifactId = base.archivesName.get()
             }
         }
 

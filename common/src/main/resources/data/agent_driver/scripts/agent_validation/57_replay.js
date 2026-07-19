@@ -26,14 +26,19 @@ if (!routeAvailable()) {
                 "failure carries an error string");
             return;
         }
-        // Success path: the documented fields must be present and well-typed.
-        t.assertTrue(typeof r.segments === "number" && r.segments >= 1,
-            "segments is a positive number");
-        t.assertTrue(typeof r.plannedNodes === "number" && r.plannedNodes >= 1,
-            "plannedNodes is a positive number");
-        t.assertTrue(typeof r.restoredBlocks === "number" && r.restoredBlocks >= 0,
-            "restoredBlocks is a non-negative number");
+        // Success path: the documented fields of the DEFAULT replan mode must be
+        // present and well-typed. task#92: `segments`/`plannedNodes` were the OLD
+        // rigid-replay shape; the replan path (restoreBlocks:false ⇒ replan:true)
+        // returns file / mode / envelopeCells / restoredBlocks / blockStateFidelity
+        // (ReplayTool.replan branch). Assert the CURRENT contract, never the stale one.
+        t.assertEqual(r.mode, "replan", "default mode is replan");
         t.assertTrue(typeof r.file === "string" && r.file.length > 0,
             "file names the replayed archive");
+        t.assertTrue(typeof r.envelopeCells === "number" && r.envelopeCells >= 0,
+            "envelopeCells is a non-negative number");
+        t.assertTrue(typeof r.restoredBlocks === "number" && r.restoredBlocks >= 0,
+            "restoredBlocks is a non-negative number");
+        t.assertTrue(typeof r.blockStateFidelity === "string" && r.blockStateFidelity.length > 0,
+            "blockStateFidelity describes the restore fidelity");
     });
 }

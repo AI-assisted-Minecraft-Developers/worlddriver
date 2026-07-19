@@ -246,6 +246,16 @@ final class WalkerConstants {
      *  in <12 ticks so it never trips, yet this breaks a freeze far sooner than the ~6 s
      *  anti-stuck burst (which yanks the bot BACKWARD off the very step it needs). */
     public static final int STEPUP_FREEZE_TICKS = 24;
+    /** task#82 dead-zone watchdog (AscendMovement, plan B1): delegated ascent-episode ticks with NO
+     *  progress — no dy high-water gain, no horizontal gap-close beyond the episode's best, no active
+     *  dig — before the machine returns UNREACHABLE and routes into the fellOffPath re-route. A
+     *  healthy stepUp closes in well under STEPUP_FREEZE_TICKS (~1.2 s); 3× gives slow approaches and
+     *  jump arcs full margin, while the task#82 pose (cur2 wedged in (0.45,4.0), no hCol, riser
+     *  unbroken — every legacy gate misses it) times out in ~3.6 s instead of churning forever. Both
+     *  progress marks are MONOTONIC high-waters, so a jump-land-slideback bob cannot keep resetting
+     *  the clock (the crestOrbitTicks trick). Digging is exempt: bare-hand stone is 150 t+/block
+     *  (#66) and an active BREAK is progress by definition. */
+    public static final int ASCEND_DEADZONE_GIVEUP = STEPUP_FREEZE_TICKS * 3;
     /** Lateral-bank-follow: how many cells to scan along the bank (each way) for a mountable exit lip.
      *  Widened 6→10 (2026-06-28): tall +2 walls (e.g. -722 boxed-pinch) have their nearest steppable
      *  +1/flat exit further along the bank; a 6-cell reach missed it → 3-min floating deadlock. */
@@ -497,6 +507,19 @@ final class WalkerConstants {
      *  Well under {@code walkerTotalTickBudget}, comfortably past a normal flush /
      *  staircase climb-out (grounds in <10 ticks, never stalls). */
     public static final int WATER_CLIMB_STALL = 30;
+    /** Max horizontal (Chebyshev) distance from the floating foot to the climb waypoint for the
+     *  water climb-out to engage ({@link net.magicterra.agent.bot.BotConfig#walkerWaterClimbLateralGate},
+     *  task#91). A genuine bank climb-out has its waypoint directly beside/below the float
+     *  (Chebyshev 0-1); a HIGHER waypoint that is laterally farther is the routed exit further
+     *  down an open corridor (riverSheerBank: the low bank +5 EAST across open water, only +1
+     *  up) and must be reached by SWIMMING to it, not by trenching the sheer wall the bot is
+     *  merely passing. 2 admits a diagonal-adjacent bank / +2 staircase step while still
+     *  excluding the ≥5-cell lateral exits; the swim-drive carries the body along the corridor
+     *  and the climb re-arms once it swims adjacent (self-healing). NOTE: 2 is a judgment
+     *  floor, not an A/B-measured boundary — the task#91 wedge sits at Chebyshev 5 and any
+     *  value in [2,4] passes the scene; the water family is byte-identical at 2. If a future
+     *  wedge appears at Chebyshev 3-4, re-derive this bound with a K>=6 A/B, don't nudge it. */
+    public static final int WATER_CLIMB_LATERAL_MAX = 2;
     /** Stall threshold for the LAST-RESORT block-less bank DIG (vs the with-block
      *  pillar takeover at {@link #WATER_CLIMB_STALL}). Much higher so the dig is a
      *  genuine deadlock-breaker, not a first response: a buoyant climb-out that the

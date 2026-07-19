@@ -25,19 +25,24 @@ Artifacts land under `<platform>/build/libs/`.
 
 ## Test
 
-The validation suite is the source of truth — 12 JS scripts under
+The validation suite is the source of truth — JS scripts under
 `common/src/main/resources/data/agent_driver/scripts/agent_validation/` that
 exercise the AgentApi across all three transports (in-JVM, RPC, MCP). They are
-driven end-to-end inside a NeoForge dedicated server via the GameTest harness:
+driven end-to-end by the mc-testkit orchestrators (`scripts/testkit/`), which
+dogfood a dedicated server with the harness and autorun the ad.* scenes + JS
+suite (the legacy `@GameTest`/GameTestServer path was retired in P4-final):
 
 ```bash
-./gradlew :neoforge:runGameTestServer
-# → 37/37 PASS, BUILD SUCCESSFUL in ~20s on warm cache
+python3 scripts/testkit/t0.py --loader neoforge \
+  --run-task :neoforge:runDogfoodServer \
+  --results neoforge/run-dogfood/testkit-results.jsonl \
+  --expect-file scripts/testkit/expected-scenes-neoforge.txt
+# → GREEN (exits non-zero on any failed scene)
 ```
 
-This is the only test that needs to pass before a PR is mergeable. Any new
-behavior should add a corresponding `*.js` validation script and an assertion
-in the existing tests.
+`t0.py` (dogfood) plus `instrument.py` are the gates that need to pass before a
+PR is mergeable. Any new behavior should add a corresponding `*.js` validation
+script and an assertion in the existing tests.
 
 ## Run a client (interactive)
 
@@ -61,7 +66,7 @@ through TitleScreen → CreateWorld → in-world via the WebSocket RPC. Outputs
 ```
 common/   Architectury shared sources — AgentApi, MCP/RPC servers, Rhino glue
 fabric/   Fabric loader entry point + client-side impl of mc.client.*
-neoforge/ NeoForge entry point + GameTest hook
+neoforge/ NeoForge entry point + client-side impl of mc.client.*
 docs/     Client connection guides
 scripts/  Smoke tests + harness helpers
 ```
@@ -97,7 +102,7 @@ never committed:
 |---|---|
 | Fabric client / server logs        | `fabric/run/logs/` |
 | NeoForge client logs               | `neoforge/run/logs/` |
-| NeoForge GameTest server logs      | `neoforge/run-gametest/logs/` |
+| Dogfood (T0) server logs           | `<loader>/run-dogfood/logs/` |
 | Smoke-test screenshots + traces    | `fabric/run/smoke/` |
 | Gradle build output                | `<platform>/build/` |
 
@@ -107,7 +112,7 @@ Never write logs to the project root or to a top-level `logs/` directory.
 
 1. Branch from `main`.
 2. Make the change. Add or update a validation script if behavior changed.
-3. `./gradlew :neoforge:runGameTestServer` must be green.
+3. The testkit gates (`scripts/testkit/t0.py` + `instrument.py`) must be green.
 4. Open a PR with:
    - A one-line summary of *what* and *why*.
    - The validation script(s) that prove it.

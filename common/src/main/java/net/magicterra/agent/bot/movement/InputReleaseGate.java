@@ -18,7 +18,7 @@ package net.magicterra.agent.bot.movement;
  * presses (manual play, no agent), nothing is ever dirtied, so the human's keys are
  * never cleared.
  *
- * <p>Pure logic, no client classes — unit-tested headless (AgentGameTest.inputReleaseGate).
+ * <p>Pure logic, no client classes — unit-tested headless (testkit scene {@code ad.inputReleaseGate}).
  */
 public final class InputReleaseGate {
     private boolean dirty;

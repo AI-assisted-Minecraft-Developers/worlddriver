@@ -2,6 +2,31 @@ architectury {
     common rootProject.enabled_platforms.split(',')
 }
 
+// P4a Task 2: testmod source set — the ad.* dogfood scenes (AgentDriverScenes) +
+// the sim probe helpers (SimProbes) + the SceneProvider service file live here so
+// they are compiled ONLY for dev/test runs and NEVER baked into the remapped
+// production jar (common's transformProductionNeoForge/Fabric transforms only the
+// `main` output). The loader modules (neoforge/fabric) attach THIS source set's
+// OUTPUT to their dev runs; :common itself never runs, so no loom mods{} wiring is
+// needed here. Classpath mirrors the neoforge testmod convention: testmod sees
+// main's OUTPUT plus main's own compile/runtime classpaths — so scene/probe code
+// can reach main classes (Walker, ServerAgentDriver, …) AND main's dependencies
+// (Minecraft, netty/snakeyaml compileOnly), while the testkit scene SPI
+// (Scene/SceneContext/SceneProvider) comes from :testkit-common namedElements
+// (added explicitly below AND already transitively present in main.compileClasspath).
+sourceSets {
+    testmod {
+        compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
+        runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
+    }
+}
+
+dependencies {
+    // testkit scene SPI (Scene/SceneContext/SceneProvider) for the moved scenes —
+    // same architectury common→common namedElements idiom as main's testkit-common dep.
+    testmodImplementation project(path: ':testkit-common', configuration: 'namedElements')
+}
+
 repositories {
     maven {
         name = 'latvian-releases'
@@ -12,6 +37,14 @@ repositories {
 dependencies {
     // Provides the @Environment annotation; do NOT use other Fabric Loader classes from common
     modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
+
+    // testkit-common (P1.6 Task 2) — the dogfood scenes (AgentDriverScenes) + the
+    // SceneProvider service now live in this common module, so the testkit scene SPI
+    // (Scene/SceneContext/SceneProvider) is needed on the common COMPILE classpath.
+    // architectury common→common consumption idiom = plain namedElements project dep
+    // (the loom `common()`/`shadowBundle` transform pair is for PLATFORM modules only;
+    // runtime bundling of testkit-common into the loader jars stays in neoforge/fabric).
+    implementation project(path: ':testkit-common', configuration: 'namedElements')
 
     // Rhino JS engine (KubeJS fork) — common because both platforms use it
     implementation "dev.latvian.mods:rhino:$rootProject.rhino_version"

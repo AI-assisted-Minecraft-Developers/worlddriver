@@ -59,16 +59,34 @@ public final class AgentScriptManager {
             ScriptableObject.putProperty(scope, "__mcp", cx.javaToJS(mcpBridge, scope), cx);
         }
 
-        // Prelude: defines Agent global + invoke/invokeRpc + convenience accessors
-        String prelude =
+        // Prelude — the CANONICAL prelude.js (the SAME Agent surface the live
+        // mc.script.eval scope loads), read from the classpath so the validation
+        // harness can never drift from the runtime prelude again. task#92: the
+        // hand-inlined copy that used to live here had gone STALE — it lacked
+        // Agent.observe.player() and the entire Agent.bot.* sugar (tunnel/…) that
+        // prelude.js grew over time. On the dedicated GameTest path every
+        // client-face script self-skips (no client api), so the sugar was never
+        // exercised and the drift stayed hidden; the first time the suite ran on
+        // an integrated (client-hosted) topology those scripts took their REAL
+        // branch, called the missing sugar, and threw "… of undefined". Loading the
+        // real prelude fixes the whole family at the source (single source of truth).
+        String canonical;
+        try (java.io.InputStream in = AgentScriptManager.class.getResourceAsStream(
+                "/data/agent_driver/scripts/prelude.js")) {
+            if (in == null) throw new IOException("prelude.js missing from classpath");
+            canonical = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        }
+        cx.evaluateString(scope, canonical, "prelude.js", 1, null);
+
+        // Harness-only extras the runtime prelude has no reason to carry: the
+        // RPC/MCP transport round-trip bridges the transport-parity checks call
+        // (Agent.invokeRpc/invokeMcp + Agent.system.rpcRoundtrip/mcpRoundtrip),
+        // Agent.world.* read/snapshot/restore, and a console that prints to the
+        // server log instead of prelude.js's in-scope __log buffer.
+        String harnessExtras =
             "var console = {" +
             "  log:   function(m){ System.out.println('[js] ' + m); }," +
             "  error: function(m){ System.err.println('[js] ' + m); }" +
-            "};" +
-            "var Agent = {};" +
-            "Agent.invoke = function(method, params) {" +
-            "  var json = __api.invokeJson(method, JSON.stringify(params || {}));" +
-            "  return JSON.parse(json);" +
             "};" +
             "Agent.invokeRpc = function(method, params) {" +
             "  if (typeof __rpc === 'undefined') throw 'RPC bridge not installed';" +
@@ -80,44 +98,14 @@ public final class AgentScriptManager {
             "  var json = __mcp.callJson(method, JSON.stringify(params || {}));" +
             "  return JSON.parse(json);" +
             "};" +
-            "Agent.system = {" +
-            "  version:    function()        { return Agent.invoke('mc.system.version',    {}); }," +
-            "  testOrigin: function()        { return Agent.invoke('mc.system.testOrigin', {}); }," +
-            "  waitTicks:  function(n)       { return Agent.invoke('mc.system.waitTicks',  {ticks: n}); }," +
-            "  rpcRoundtrip: function(m, p)  { return Agent.invokeRpc(m, p); }," +
-            "  mcpRoundtrip: function(m, p)  { return Agent.invokeMcp(m, p); }" +
-            "};" +
-            "Agent.observe = {" +
-            // area is sugar over mc.query q='blocks' — returns {blocks:[...]}
-            // to match the legacy shape callers expect.
-            "  area: function (p) {" +
-            "    var q = { q:'blocks', filter:{ in_radius:(p && p.radius)|0 } };" +
-            "    if (p && p.center) q.center = p.center;" +
-            "    if (p && p.filter && p.filter.type) q.filter.type = p.filter.type;" +
-            "    var rows = Agent.invoke('mc.query', q);" +
-            "    return { blocks: rows || [] };" +
-            "  }," +
-            "  cursor:       function()      { return Agent.invoke('mc.observe.cursor', {}); }," +
-            "  eventsSince:  function(c)     { return Agent.invoke('mc.observe.eventsSince', {cursor: c}); }" +
-            "};" +
-            "Agent.action = {" +
-            // placeBlock is sugar over mc.action.placeMany with a single entry.
-            "  placeBlock: function (p) {" +
-            "    var args = { blocks: [{ pos: p.pos, type: p.type }] };" +
-            "    if (p && p.returnEvents) args.returnEvents = true;" +
-            "    return Agent.invoke('mc.action.placeMany', args);" +
-            "  }," +
-            "  runCommand:   function(c)     { return Agent.invoke('mc.action.runCommand', {cmd: c}); }" +
-            "};" +
-            "Agent.query = function(p)      { return Agent.invoke('mc.query', p); };" +
-            // Read-only world inspection + snapshot/restore, so scripts can verify
-            // their own edits (blockstate, light, BE NBT) without scratch-cell hacks.
+            "Agent.system.rpcRoundtrip = function(m, p) { return Agent.invokeRpc(m, p); };" +
+            "Agent.system.mcpRoundtrip = function(m, p) { return Agent.invokeMcp(m, p); };" +
             "Agent.world = {" +
-            "  block:    function(p)        { return Agent.invoke('mc.world.block',    p); }," +
-            "  snapshot: function(p)        { return Agent.invoke('mc.world.snapshot', p); }," +
-            "  restore:  function(p)        { return Agent.invoke('mc.world.restore',  p); }" +
+            "  block:    function(p) { return Agent.invoke('mc.world.block',    p); }," +
+            "  snapshot: function(p) { return Agent.invoke('mc.world.snapshot', p); }," +
+            "  restore:  function(p) { return Agent.invoke('mc.world.restore',  p); }" +
             "};";
-        cx.evaluateString(scope, prelude, "<prelude>", 1, null);
+        cx.evaluateString(scope, harnessExtras, "<harness-extras>", 1, null);
 
         List<Path> files = new ArrayList<>();
         try (Stream<Path> s = Files.list(scriptsDir)) {

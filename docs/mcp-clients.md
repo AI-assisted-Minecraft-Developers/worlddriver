@@ -265,10 +265,10 @@ emitted event then rides the same push stream. Predicate: `value` (equals),
   after Minecraft's resource pack stage), so you can connect from the title
   screen — no world required. If you still see refused, check that the
   process actually wrote `agent-mcp.port` to its working directory and that
-  your client is hitting that port. On a `runGameTestServer` JVM, MCP comes
+  your client is hitting that port. On a dedicated-server JVM, MCP comes
   up in `onServerStarting` instead.
-- **"mc.client.* not available"**: you're on a dedicated server / GameTest
-  JVM. Those tools only exist when the Minecraft client classes are loaded.
+- **"mc.client.* not available"**: you're on a dedicated server JVM. Those
+  tools only exist when the Minecraft client classes are loaded.
 - **`tools/list` succeeds but `tools/call` returns isError**: the world
   isn't loaded yet, or the tool needs a player (e.g. `mc.bot.useItem` needs a
   local player) and there's none.

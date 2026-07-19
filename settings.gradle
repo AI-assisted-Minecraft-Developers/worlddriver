@@ -1,4 +1,11 @@
 pluginManagement {
+    // Standalone included build for the mc-testkit gradle plugin (id
+    // net.magicterra.mc-testkit). Being an included build it lives entirely
+    // outside the root subprojects{} / loom pipeline; the root build applies it
+    // below as the first dogfood consumer. Zero cost when a consumer does not
+    // apply the plugin.
+    includeBuild('mc-testkit/gradle-plugin')
+
     repositories {
         maven { url "https://maven.fabricmc.net/" }
         maven { url "https://maven.architectury.dev/" }
@@ -7,8 +14,19 @@ pluginManagement {
     }
 }
 
-rootProject.name = 'noteblockapi'
+// Root gradle project name. Was 'noteblockapi' — a leftover from the repo's
+// original template fork, referenced nowhere; renamed 2026-07-19 to match the
+// repository. mod id / archives_name ('agent_driver') live in gradle.properties.
+rootProject.name = 'agent-driver-mod'
 
 include 'common'
 include 'fabric'
 include 'neoforge'
+include 'testkit-common'
+include 'testkit-fabric'
+include 'testkit-neoforge'
+include 'testkit-junit'
+project(':testkit-common').projectDir = file('mc-testkit/common')
+project(':testkit-fabric').projectDir = file('mc-testkit/fabric')
+project(':testkit-neoforge').projectDir = file('mc-testkit/neoforge')
+project(':testkit-junit').projectDir = file('mc-testkit/junit')

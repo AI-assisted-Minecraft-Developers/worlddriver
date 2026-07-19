@@ -104,6 +104,18 @@ public final class ClientChatLog {
             return out;
         }
 
+        /** Drop every retained entry, returning how many were discarded. The
+         *  monotonic {@code seq} is deliberately NOT rewound (the class contract:
+         *  seq never rewinds) — a cleared buffer keeps handing out strictly
+         *  increasing seqs, so any cursor a caller still holds stays valid and
+         *  simply finds nothing at/after it. Used by the client-pool entry reset
+         *  ({@code mc.test.reset}) to wipe cross-run chat readback. */
+        public synchronized int clear() {
+            int n = log.size();
+            log.clear();
+            return n;
+        }
+
         /** Up to {@code cap} newest entries with {@code seq >= sinceSeq},
          *  NEWEST first — the chat.history shape, sliced straight off the tail
          *  without materializing the older retained entries the cap would
@@ -128,6 +140,12 @@ public final class ClientChatLog {
 
     public static long nextSeq() {
         return GLOBAL.nextSeq();
+    }
+
+    /** Wipe the live session's retained chat readback (seq preserved, never rewinds).
+     *  Returns the number of entries discarded. See {@link Buffer#clear()}. */
+    public static int clear() {
+        return GLOBAL.clear();
     }
 
     public static List<Entry> since(long sinceSeq) {

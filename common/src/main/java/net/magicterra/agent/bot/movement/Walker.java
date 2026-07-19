@@ -160,6 +160,8 @@ public final class Walker {
     private BlockPos pillarRecoverCell; // the (grounded) feet cell the recovery is filling this rung
     private int pillarRecoverPeakY;      // highest foot Y this pillar-recovery has reached (no-rise give-up tracking)
     private int pillarRecoverStallTicks; // consecutive recovery ticks with no height gain → PILLAR_NORISE_GIVEUP re-routes
+    private final AscendMovement ascendMovement = new AscendMovement();   // task#82 per-move machine (drives only when walkerAscendMovement is ON)
+    private boolean forceFellOffPath;   // task#82: AscendMovement returned UNREACHABLE/FAILED last delegated tick → OR into fellOffPath (line 1042) so the proven re-route fires
     private int stepRamStuckTicks;       // GROUNDED ticks ramming an above-node riser (bob-immune; dry OR shallow water) → STEPUP_FREEZE_TICKS engages stepUpFreeze
     private int ascentRamBobTicks;       // foot-below-node + lateral-close ticks IGNORING onGround (bob-resettable; steep-bank +1 mount) → ORs into stepUpFreeze (gated walkerAscentRamBobBreak)
     private int floatingBankBobTicks;    // FLOATING +1 water-bank: !onGround + foot-below-node + lateral-ram, IGNORING the in/out-water bob → ORs into stepUpFreeze (gated walkerFloatingBankBobFreeze)
@@ -1039,8 +1041,9 @@ public final class Walker {
         if (aboveNodeStall && BotConfig.walkerDebug)
             LOG.info("[walker] above-node-stall RECOVER step={}/{} node={} dyAbove={} noStepProg={}",
                     step, path.size(), path.get(step), foot.getY() - path.get(step).getY(), noStepProgressTicks);
-        boolean fellOffPath = arcWedge || arcProgWedge || ascentRamSlide || ascentRamSlideJitterImmune || descentRamStuck || verticalResync || aboveNodeStall || (path != null && step < path.size()
+        boolean fellOffPath = forceFellOffPath || arcWedge || arcProgWedge || ascentRamSlide || ascentRamSlideJitterImmune || descentRamStuck || verticalResync || aboveNodeStall || (path != null && step < path.size()
                 && Math.abs(path.get(step).getY() - foot.getY()) > world.maxJumpUpBlocks() + 2);
+        forceFellOffPath = false;   // task#82: consume — one fold per UNREACHABLE/FAILED from the delegated tick
         if (arcWedge && BotConfig.walkerDebug)
             LOG.info("[walker] arc-wedge RECOVER step={}/{} node={} nodeDy={} wedgeT={} (bob-immune ram → fellOffPath)",
                     step, path.size(), path.get(step), path.get(step).getY() - foot.getY(), arcWedgeTicks);
@@ -2503,7 +2506,19 @@ public final class Walker {
             boolean floatingBankRam = BotConfig.walkerFloatingBankBobFreeze
                     && !p.onGround() && p.horizontalCollision
                     && (world.isWater(foot) || world.isWater(foot.below()));
-            boolean wantClimbNow = edge != null && (cwp.getY() > foot.getY() || floatingBankRam);
+            // Water climb-out LATERAL gate (walkerWaterClimbLateralGate, task#91 structural, default ON,
+            // baseline-EXEMPT): a floating bot climbs a bank ONLY when the climb waypoint sits horizontally
+            // BESIDE it. A higher waypoint that is laterally distant is the routed exit further down an open
+            // corridor (riverSheerBank: the low bank +5 EAST across open water, only +1 up) — honoring its
+            // +height as a climb-here intent made the block-less dig trench the SHEER wall the bot was merely
+            // passing. Reached instead by the swim-drive carrying the body along the corridor; the climb
+            // re-arms once swum adjacent. A genuine bank climb-out has cwp directly beside/below the float
+            // (Chebyshev 0-1) so it is unchanged. floatingBankRam (a real in-place wall-ram) is exempt.
+            int cwpLatDist = Math.max(Math.abs(cwp.getX() - foot.getX()), Math.abs(cwp.getZ() - foot.getZ()));
+            boolean climbTargetBeside = !BotConfig.walkerWaterClimbLateralGate
+                    || cwpLatDist <= WATER_CLIMB_LATERAL_MAX;
+            boolean wantClimbNow = edge != null
+                    && ((cwp.getY() > foot.getY() && climbTargetBeside) || floatingBankRam);
             boolean touchingWater = p.isInWater() || world.isWater(foot) || world.isWater(foot.below());
             if (touchingWater) waterTouchRecent = WATER_TOUCH_STICKY;
             else if (waterTouchRecent > 0) waterTouchRecent--;
@@ -4284,6 +4299,28 @@ public final class Walker {
             }
             return Step.WALKING;
         }
+        // task#82 per-move ASCENT machine (plan B1 2026-07-16). Flag FIRST so OFF short-circuits with
+        // no allocation. isMigratedAscent is a cheap string check; !isInWater keeps water ascents on
+        // legacy dig-recovery. B1 weave: the machine NEVER early-returns — PREP/RUNNING/SUCCESS fall
+        // through so the legacy jump-timing + drive below stays the single actuation source (an early
+        // return here skips the shared drive and forces a re-implementation — the disproven Option-A
+        // trap). The machine owns only the per-edge episode + dead-zone watchdog; step advancement
+        // stays with the legacy advance loop (~line 2265) so there is no double-advance race.
+        if (BotConfig.walkerAscendMovement && edge != null && isMigratedAscent(edge.move) && !p.isInWater()) {
+            MovementContext ctx = new MovementContext(
+                    p, world, a, edge, foot, path.get(step),
+                    world.maxJumpUpBlocks(), world.maxStepUpBlocks(),
+                    step >= 1 ? path.get(step - 1) : null,
+                    step >= 2 ? path.get(step - 2) : null, breakingEdge);
+            switch (ascendMovement.updateState(ctx)) {
+                case UNREACHABLE, FAILED -> {                          // fold into the existing re-route (consumed next tick at line 1042)
+                    forceFellOffPath = true;
+                    LOG.info("[walker] ascend dead-zone UNREACHABLE move={} node={} foot={} pos=({},{},{}) → re-route (task#82)",
+                            edge.move, path.get(step), foot, p.getX(), p.getY(), p.getZ());
+                }
+                case PREP, RUNNING, SUCCESS -> { }                     // fall through — legacy drive actuates this tick
+            }
+        }
         // Baritone MovementAscend jump-timing applies whenever we actually JUMP a
         // cardinal step within reach (+1, or +2 for a horse/jump-boost) — align +
         // approach before the jump. A horse auto-walk-up needs no jump; water/parkour
@@ -5712,6 +5749,14 @@ public final class Walker {
 
     private Move.Edge edgeAt(int i) {
         return (edges != null && i >= 0 && i < edges.size()) ? edges.get(i) : null;
+    }
+
+    /** task#82 migrated ascent move-names (spec §3.3): exactly the three the recovery gates already
+     *  test — a plain stepUp, its break-carrying sibling stairUpBreak, and the diagonal diagUp.
+     *  stepUp2 (+2, horse) and parkourAscend* are excluded (spec §10). Cheap string check so the OFF
+     *  delegation short-circuit costs nothing. */
+    static boolean isMigratedAscent(String move) {
+        return "stepUp".equals(move) || "stairUpBreak".equals(move) || "diagUp".equals(move);
     }
 
     /** Phase-0 SHADOW arc-length pursuit (walkerArcLengthShadow). Projects the continuous foot XZ onto the

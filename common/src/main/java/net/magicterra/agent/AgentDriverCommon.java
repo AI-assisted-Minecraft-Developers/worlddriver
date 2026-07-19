@@ -5,6 +5,8 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.magicterra.agent.api.AgentApi;
 import net.magicterra.agent.bot.BotConfig;
+import net.magicterra.agent.bot.testkit.TestInputVerbs;
+import net.magicterra.agent.bot.testkit.TestResetVerb;
 import net.magicterra.agent.mcp.McpServer;
 import net.magicterra.agent.mcp.ToolCatalog;
 import net.magicterra.agent.mcp.schema.Schema;
@@ -146,8 +148,74 @@ public final class AgentDriverCommon {
                 // Phase H — persistent skill library (Voyager) under scripts/skills/.
                 SkillLibrary skillLibrary = new SkillLibrary(evaluator, userScriptsDir().resolve("skills"));
                 api.setSkillHandler(skillLibrary::dispatch);
+                // Wire the paired-verb route sink so ToolCatalog.registerVerb can install
+                // routes on this api instance without importing it (Hard Rule #1 — only the
+                // (name, handler) data-flow crosses the seam, mirroring setParamsValidator).
+                ToolCatalog.wireRouteSink(api::addRoute);
+                // First runtime consumer of the paired SPI: the hidden mc.test.reset client-pool
+                // entry reset. Registered here on the COMMON boot path (not client-only
+                // ClientHooks, unlike PathDebugBootstrap) because a dedicated server must carry the
+                // route + schema too — the dogfood ad.settingRegistryClosed scene asserts it there,
+                // and on a server the verb throws client-only rather than doing anything. MUST come
+                // after wireRouteSink (a pre-boot registerVerb throws) and before the
+                // requireSchemasFor convergence guard below (so its route already has a schema).
+                TestResetVerb.register();
+                // task#90 instrument-face gap closers: hidden mc.test.input.heldKeys (KeyMapping
+                // readback) + mc.test.input.useOnBlock (instrument-grade world right-click). Same
+                // paired-SPI / common-boot / client-only contract as TestResetVerb above.
+                TestInputVerbs.register();
             }
-            if (rpcServer == null) {
+        } catch (Exception e) {
+            LOG.error("[{}] failed to start RPC server", MOD_ID, e);
+        }
+        // Params validator + convergence guard — installed BEFORE the RpcServer
+        // constructor below so no listening socket ever exists without param
+        // validation in place (task#89 boot-window close). This block used to run
+        // AFTER the server was already listening, leaving a boot window in which a
+        // client that connected fast enough had its params dispatched with NO schema
+        // validation — the exact #280-shaped hole. It sits OUTSIDE the catch above so
+        // it hard-fails: a route with no MCP ToolSchema is a programming error (see
+        // AgentApi.requireSchemasFor / ToolCatalog), not a recoverable startup hiccup
+        // — let it abort mod init rather than limp on with a half-specified tool
+        // surface. It runs on the first successful ensureRpcUp() pass only — the
+        // method early-returns above once api/rpcServer exist, so it does NOT re-run
+        // on later calls. Verb registrations that happen after this point (optional
+        // subsystems, mods) are covered instead by the dispatch-time throw in
+        // setParamsValidator below plus registerExtra's own cache invalidation — not
+        // by this guard re-running.
+        if (api != null) {
+            api.requireSchemasFor(ToolCatalog.declaredMethodNames());
+            // Route-layer schema validation — same typed Schema the catalog renders
+            // for tools/list (single source; see SchemaValidator). schemaByName() is
+            // looked up per call: it is a cached volatile read, and registerExtra
+            // invalidates the cache so late-registered extras validate too.
+            api.setParamsValidator((method, params) -> {
+                Schema s = ToolCatalog.schemaByName().get(method);
+                // Schema-less dispatch is now a loud programming error, not a silent skip.
+                // requireSchemasFor (above) guarantees every route has a schema at boot;
+                // post-boot the only route additions are the paired ToolCatalog.registerVerb
+                // (self-checked) — so a missing schema here means a raw AgentApi.addRoute was
+                // used WITHOUT a matching declared ToolSchema. Refuse to dispatch rather than
+                // run an unvalidated verb (the #280-shaped hole: no schema ⇒ no param check).
+                if (s == null) {
+                    throw new IllegalStateException(
+                            "agent-driver: route '" + method + "' has no MCP ToolSchema — schema-less "
+                            + "dispatch is refused. Register game-affecting verbs via the paired "
+                            + "ToolCatalog.registerVerb(schema, handler); a raw AgentApi.addRoute must "
+                            + "be matched by a declared ToolSchema (see AgentApi.requireSchemasFor).");
+                }
+                SchemaValidator.validate(method, s, params);
+            });
+        }
+
+        // RpcServer construction opens the listening socket. Sequenced AFTER the
+        // validator install above so a live socket never exists without validation
+        // (task#89 invariant: validator installed before any socket listens).
+        // Guarded by api != null: a failed API init above leaves api null and must
+        // not yield a live socket — mirroring the pre-split behavior, where an init
+        // exception skipped this block entirely.
+        try {
+            if (api != null && rpcServer == null) {
                 int wantPort = Integer.getInteger("agent.rpcPort", 0);
                 String bindHost = System.getProperty("agent.rpcHost", "127.0.0.1");
                 try {
@@ -169,22 +237,6 @@ public final class AgentDriverCommon {
             }
         } catch (Exception e) {
             LOG.error("[{}] failed to start RPC server", MOD_ID, e);
-        }
-        // Convergence guard, OUTSIDE the catch so it hard-fails: a route with no MCP
-        // ToolSchema is a programming error (see AgentApi.requireSchemasFor / ToolCatalog),
-        // not a recoverable startup hiccup — let it abort mod init rather than limp on
-        // with a half-specified tool surface. Cheap + idempotent, so re-running across
-        // ensureRpcUp calls (incl. after optional subsystems register) is harmless.
-        if (api != null) {
-            api.requireSchemasFor(ToolCatalog.declaredMethodNames());
-            // Route-layer schema validation — same typed Schema the catalog renders
-            // for tools/list (single source; see SchemaValidator). schemaByName() is
-            // looked up per call: it is a cached volatile read, and registerExtra
-            // invalidates the cache so late-registered extras validate too.
-            api.setParamsValidator((method, params) -> {
-                Schema s = ToolCatalog.schemaByName().get(method);
-                if (s != null) SchemaValidator.validate(method, s, params);
-            });
         }
     }
 

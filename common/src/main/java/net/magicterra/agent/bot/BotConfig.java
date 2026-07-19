@@ -1816,6 +1816,12 @@ public final class BotConfig {
      *  gate. Default OFF. */
     public static volatile boolean walkerChainMount = false;
 
+    /** task#82: route ascent/climb edges (stepUp/stairUpBreak/diagUp) through the per-move
+     *  AscendMovement state machine (own PREP→BREAK→ASCEND→CONFIRM + bounded timeout→cancel).
+     *  Default OFF = the tickInner delegation branch is skipped and legacy ascent handling runs
+     *  byte-identically (spec §5). Flip ON only on a clean live A/B (Unit 6). Wired to mc.bot.setting. */
+    public static volatile boolean walkerAscendMovement = false;
+
     /** §93 commit-tail platform retreat (#15 final lane). Best-effort segments whose
      *  tail lands mid-slope (fewer than 2 same-Y standable cardinal neighbours) retreat
      *  up to 8 nodes to the nearest platform node — the half-mounted commit tail plus
@@ -2144,6 +2150,26 @@ public final class BotConfig {
      *  counter). Default OFF (byte-identical). Validate via the -638,418 reproducible case + journeys. */
     public static volatile boolean walkerFloatingBankFollow = false;
 
+    /** Water climb-out LATERAL gate (task#91, structural). A floating bot engages the bank climb-out
+     *  (pillar takeover + block-less bank dig) ONLY when the climb waypoint sits horizontally BESIDE
+     *  it ({@link net.magicterra.agent.bot.movement.WalkerConstants#WATER_CLIMB_LATERAL_MAX} cells,
+     *  Chebyshev). A higher waypoint that is laterally DISTANT is the routed exit further down an open
+     *  corridor, not a bank to climb here: the open-river sheer-bank wedge (riverSheerBank) has the bot
+     *  float against a +5 SHEER wall while A* correctly routes the committed exit +5 EAST across open
+     *  water to a LOW (+1) bank — but the exit node is +1 higher, so the old {@code cwp.y>foot.y} climb
+     *  intent fired and the block-less dig trenched the sheer wall the bot was merely PASSING
+     *  (wallPressTicks) instead of swimming the last few cells to the walk-out. Gating the climb on
+     *  lateral adjacency lets the swim-drive carry the body along the corridor to the real exit, where
+     *  the climb re-arms once adjacent (self-healing). A genuine bank climb-out has its node directly
+     *  beside/below the float (Chebyshev 0-1) so it is unaffected.
+     *  <p><b>Default ON and deliberately NOT in {@link #applyGameTestBaseline()}'s zero list.</b> This
+     *  is a CORRECTNESS invariant (follow the committed path; do not climb a bank that isn't beside
+     *  you), not a tunable heuristic — so it must stay active even under the test baseline the water
+     *  scenes are pinned to, which is exactly what promotes riverSheerBank from a false-green/wedge to
+     *  a genuine climb-out. The 9 sibling water scenes float directly below their banks (adjacent) and
+     *  are byte-unchanged. */
+    public static volatile boolean walkerWaterClimbLateralGate = true;
+
     /** Faster anti-churn repath: shorten the net-displacement churn-detection window from 400 ticks
      *  (≈20 s) to 240 (≈12 s) so a path-state churn (planner committed a suboptimal segment the
      *  executor grinds on — dry steep-ascent backtrack, boxed-pinch) arms its escalation/charge sooner,
@@ -2265,8 +2291,22 @@ public final class BotConfig {
      *  diagnosis this is the single highest-leverage lever on the bank-crest ascending-mount class — but it can
      *  SHIFT thrash onto the substitute chain at a true +2 gap with no stepUp alternative, and totStuck is
      *  A*-route-bimodal (unprovable by clean A/B), so validate by committed-plan + video (no-runway
-     *  parkourAscend2 gone, smooth stepUp climb-out), NOT totStuck. Default OFF pending that live validation. */
-    public static volatile boolean pathfinderParkourAscendNeedRunway = false;
+     *  parkourAscend2 gone, smooth stepUp climb-out), NOT totStuck.
+     *
+     *  <p><b>Default ON (task#86, 2026-07-19).</b> The gap #53 self-shaft dig-up backslide
+     *  ({@code ad.selfShaftDigUp}) is the same class of bug on the ASCENT side: a bare-hand
+     *  {@code Goal.YLevel} climb pillars a 1-wide free-standing column up beside the slab, and
+     *  near the top A* re-plans a {@code parkourAscend2} leap from the pillar TOP onto the slab
+     *  (cheaper than 2 more pillars) — but a stationary 1-wide pillar top has no run-up, so the
+     *  executor launches into the void and free-falls ~20 blocks straight down its own column
+     *  (strideFloorGuard cannot arrest an airborne straight-down fall — there is no face to place
+     *  a floor against). The launch cell's below-neighbour is the pillar (so the coarse
+     *  {@link net.magicterra.agent.bot.pathfinder.Move#hasRunway} passes); only THIS approach-runway
+     *  gate — the cell BEHIND the launch must be {@code canStandAt} — rejects the leap, so A*
+     *  substitutes the straight-up pillar and tops out clean. Dogfood A/B (neoforge, byte-identical
+     *  ×3): OFF ⇒ {@code worstBackslide=20.252203415101263}; ON ⇒ {@code 1.2522034151012633}
+     *  (the normal pillar-jump-arc settle), {@code reached=true}, NO required scene regressed. */
+    public static volatile boolean pathfinderParkourAscendNeedRunway = true;
 
     /** Agent-supplied danger zones to route AROUND — each row is
      *  {@code [x, y, z, radius]}. Set via {@code mc.bot.setting{avoidPoints:[...]}}
@@ -2373,36 +2413,111 @@ public final class BotConfig {
                 && !Boolean.getBoolean("agent.runValidation");
     }
 
-    /** Write every persistable field to disk. Called after a successful
-     *  {@code mc.bot.setting} apply. Best-effort: a failure is logged, not thrown. */
+    /** Suffix of the SHADOW-DEFAULT companion line written next to every persisted
+     *  key: {@code <key>.default=<compiled default when the file was saved>}. A '.'
+     *  can never collide with a field name (Java identifiers have no dots), so a
+     *  {@code .default} line is never mistaken for an unknown field — and legacy
+     *  code (which only ever looks up keys by field name) simply ignores it, so a
+     *  new-format file stays readable by an older build. */
+    private static final String SHADOW_SUFFIX = ".default";
+
+    /** Serialize a field's current value to the persisted string form (the Set is
+     *  comma-joined; scalars via {@code String.valueOf}). Returns {@code null} for a
+     *  null value so save can skip it. The ONE encoder shared by {@link #save()} and
+     *  {@link #COMPILED_DEFAULTS} capture, so a value and its shadow default are
+     *  byte-for-byte comparable. */
+    private static String serialize(Field f) throws IllegalAccessException {
+        Object v = f.get(null);
+        if (v == null) return null;
+        if (v instanceof Set<?> set) {
+            // ADVISORY (task#93 review): Set.of(...) iteration order is SALTED per JVM run,
+            // so a NON-EMPTY compiled Set default would serialize differently each boot and
+            // false-flag the value-vs-current-default comparisons (stale-snapshot check +
+            // legacy drift WARN) into churn. All persistable Set defaults are empty today
+            // (SALT-immune, "" either way). If a Set default ever becomes non-empty, sort
+            // the elements here (or compare as parsed sets) before relying on text equality.
+            StringBuilder sb = new StringBuilder();
+            for (Object o : set) { if (sb.length() > 0) sb.append(','); sb.append(o); }
+            return sb.toString();
+        }
+        return String.valueOf(v);
+    }
+
+    /** The compiled-in default of every persistable field, captured at class
+     *  initialization — which completes BEFORE {@link #load()} (a method call) can
+     *  apply any persisted value, so these are the true defaults baked into THIS
+     *  build. The shadow-default scheme leans on this map twice: {@link #save()}
+     *  writes it as the {@code <key>.default} line, and {@link #load()} re-saves a
+     *  file whose stored snapshot no longer matches the current compiled default.
+     *  Assigned in a static block at the very END of the class so every field it
+     *  reads (all the volatiles above, and {@link #NON_PERSISTED} which
+     *  {@link #persistable} consults) is already class-initialized. */
+    private static final Map<String, String> COMPILED_DEFAULTS;
+
+    private static Map<String, String> captureCompiledDefaults() {
+        Map<String, String> m = new LinkedHashMap<>();
+        for (Field f : persistableFields()) {
+            try { String s = serialize(f); if (s != null) m.put(f.getName(), s); }
+            catch (Exception ignored) { /* own field — cannot happen */ }
+        }
+        return m;
+    }
+
+    /** Write every persistable field to disk in SHADOW-DEFAULT format. Called after
+     *  a successful {@code mc.bot.setting} apply (and by {@link #load()} to upgrade a
+     *  stale/legacy file). For each field two lines are emitted:
+     *  <pre>  &lt;key&gt;=&lt;current value&gt;
+     *  &lt;key&gt;.default=&lt;compiled default of THIS build&gt;</pre>
+     *  On the next {@link #load()} a key whose value equals its shadow default is a
+     *  mere snapshot of the-then default and yields to the current compiled default;
+     *  a key whose value differs was set by the user and is preserved. Setting a key
+     *  explicitly back to its default therefore counts as following the default (its
+     *  value will equal the freshly-written shadow), which is the intended semantics:
+     *  "I want the default" and "I never touched it" persist identically.
+     *  Best-effort: a failure is logged, not thrown — persistence never blocks. */
     public static synchronized void save() {
         if (!persistEnabled()) return;
         try {
             Properties props = new Properties();
             for (Field f : persistableFields()) {
-                Object v = f.get(null);
+                String v = serialize(f);
                 if (v == null) continue;
-                if (v instanceof Set<?> set) {
-                    StringBuilder sb = new StringBuilder();
-                    for (Object o : set) { if (sb.length() > 0) sb.append(','); sb.append(o); }
-                    props.setProperty(f.getName(), sb.toString());
-                } else {
-                    props.setProperty(f.getName(), String.valueOf(v));
-                }
+                props.setProperty(f.getName(), v);
+                String def = COMPILED_DEFAULTS.get(f.getName());
+                if (def != null) props.setProperty(f.getName() + SHADOW_SUFFIX, def);
             }
             Path path = persistPath();
             if (path.getParent() != null) Files.createDirectories(path.getParent());
             try (var w = Files.newBufferedWriter(path)) {
-                props.store(w, "agent-driver bot settings — auto-saved by mc.bot.setting");
+                props.store(w, "agent-driver bot settings — auto-saved by mc.bot.setting"
+                        + " (<key>.default = compiled default at save time; a key equal to its"
+                        + " default is a snapshot and follows the current build's default)");
             }
         } catch (Exception e) {
             LOG.warn("[config] save failed: {}", e.toString());
         }
     }
 
-    /** Reload persisted settings at startup, before any tick reads them. Missing
-     *  file → defaults stand; a malformed individual key is skipped (a partial/old
-     *  file still applies what it can). */
+    /** Reload persisted settings at startup, before any tick reads them, applying
+     *  SHADOW-DEFAULT semantics per key. Missing file → defaults stand; a malformed
+     *  individual key is skipped (a partial/old file still applies what it can).
+     *  <ul>
+     *    <li><b>shadow present, value == shadow</b> → SKIP: the persisted value was
+     *        just a snapshot of the default when the file was saved, so the current
+     *        compiled default wins (this is the fix for the config-persistence trap —
+     *        a stale snapshot no longer crushes a later default flip).</li>
+     *    <li><b>shadow present, value != shadow</b> → APPLY: the user changed it;
+     *        preserve their value.</li>
+     *    <li><b>no shadow (legacy file)</b> → APPLY conservatively, then emit ONE
+     *        WARN listing the keys that differ from the current compiled default, and
+     *        upgrade-re-save the file in shadow format.</li>
+     *  </ul>
+     *  {@code .default} lines are looked up deliberately as each key's companion; the
+     *  loop iterates the field set (never the raw property keys), so a shadow line is
+     *  never treated as an unknown field. A stale snapshot (SKIP where the stored
+     *  value no longer equals the current compiled default) also triggers an upgrade
+     *  re-save so the file reflects the winning default. Any re-save is best-effort —
+     *  an IO failure is logged, never fatal to startup. */
     public static synchronized void load() {
         if (!persistEnabled()) return;
         try {
@@ -2410,14 +2525,46 @@ public final class BotConfig {
             if (!Files.exists(path)) return;
             Properties props = new Properties();
             try (var r = Files.newBufferedReader(path)) { props.load(r); }
-            int n = 0;
+            int applied = 0, skipped = 0;
+            boolean needsUpgrade = false;          // any legacy key, or any stale snapshot
+            List<String> legacyDrift = new ArrayList<>();
             for (Field f : persistableFields()) {
-                String s = props.getProperty(f.getName());
+                String key = f.getName();
+                String s = props.getProperty(key);
                 if (s == null) continue;
-                try { assign(f, s); n++; }
-                catch (Exception ex) { LOG.warn("[config] skip {}: {}", f.getName(), ex.toString()); }
+                String shadow = props.getProperty(key + SHADOW_SUFFIX);
+                String curDefault = COMPILED_DEFAULTS.get(key);
+                if (shadow == null) {
+                    // Legacy line (no shadow): keep the user's value conservatively.
+                    try {
+                        assign(f, s); applied++;
+                        if (curDefault != null && !s.trim().equals(curDefault.trim())) legacyDrift.add(key);
+                    } catch (Exception ex) { LOG.warn("[config] skip {}: {}", key, ex.toString()); }
+                    needsUpgrade = true;
+                } else if (s.trim().equals(shadow.trim())) {
+                    // Snapshot of the-then default → the current compiled default wins.
+                    skipped++;
+                    if (curDefault != null && !s.trim().equals(curDefault.trim())) needsUpgrade = true;
+                } else {
+                    // User set it away from the saved default → preserve.
+                    try { assign(f, s); applied++; }
+                    catch (Exception ex) { LOG.warn("[config] skip {}: {}", key, ex.toString()); }
+                }
             }
-            LOG.info("[config] loaded {} persisted bot setting(s) from {}", n, path.toAbsolutePath());
+            LOG.info("[config] loaded {} persisted bot setting(s) ({} snapshot key(s) followed current default) from {}",
+                    applied, skipped, path.toAbsolutePath());
+            if (!legacyDrift.isEmpty()) {
+                // NOTE the permanence: the upgrade re-save stamps each legacy drift key with
+                // shadow = CURRENT compiled default while keeping its stale value, so from then
+                // on value != shadow and the key is treated as user-set FOREVER. Only files
+                // written by shadow-aware code get true snapshot-follows-default semantics;
+                // this WARN list is the operator's one chance to spot and hand-fix stale keys.
+                LOG.warn("[config] legacy config file (no shadow defaults) — applied as-is;"
+                        + " {} key(s) differ from this build's compiled default and were preserved"
+                        + " (they will remain user-set after the upgrade): {}."
+                        + " Upgrading file to shadow-default format.", legacyDrift.size(), legacyDrift);
+            }
+            if (needsUpgrade) save();   // best-effort upgrade re-save (IO failure logged, not fatal)
         } catch (Exception e) {
             LOG.warn("[config] load failed: {}", e.toString());
         }
@@ -2524,9 +2671,13 @@ public final class BotConfig {
      *  against the historical default-OFF flag set; when the #47-validated combo was
      *  flipped to default-ON for live play, 14 required arenas broke because flags the
      *  tests never touch (allowBreak/allowPlace/DrowningEscape/...) changed the bot's
-     *  behavior mid-arena. GameTestServer startup calls this to pin the suite back to
-     *  the baseline it was written for; tests that WANT a flag still set it explicitly.
-     *  Live clients (integrated server) never call this. */
+     *  behavior mid-arena. The mc-testkit dogfood server calls this once at server
+     *  start under {@code -Dtestkit.autorun} (AgentDriverNeoForge / AgentDriverFabric,
+     *  gated on {@code TESTKIT_AUTORUN}) to pin the suite back to the baseline the
+     *  scenes were written for; scenes that WANT a flag still set it explicitly. Live
+     *  clients (integrated server, autorun unset) never call this. (The GameTestServer
+     *  delivery this note once described was retired in P4-final; the baseline pin
+     *  survives, now driven by the testkit-autorun path.) */
     public static void applyGameTestBaseline() {
         allowBreak = false;
         allowPlace = false;
@@ -2568,4 +2719,8 @@ public final class BotConfig {
         pathfinderFloatingBreakTax = false;
         pathfinderLogBreakTax = 1.0;
     }
+
+    // Capture the compiled-in defaults LAST — after every persistable volatile and
+    // NON_PERSISTED are initialized, and (being class init) before load() runs.
+    static { COMPILED_DEFAULTS = captureCompiledDefaults(); }
 }

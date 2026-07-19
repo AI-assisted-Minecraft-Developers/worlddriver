@@ -22,6 +22,26 @@ function clientAvailable() {
 function resetScheduler() {
     Agent.invoke("mc.bot.cancel", { process: "all" });
     Agent.invoke("mc.bot.setting", { autoRetreat: false, retreatHpThreshold: 6 });
+    // task#92: clear any hostile summoned by a preempt/outbid check so the next
+    // check sees a clean channel (idle-defaults asserts retreat bids 0).
+    Agent.invoke("mc.action.runCommand", { cmd: "kill @e[type=!minecraft:player]" });
+}
+
+// task#92: RetreatChain only bids when there is an actual hostile to flee FROM —
+// the gap#65/#68 threat gate. The old comment's premise (threshold == max HP ⇒
+// retreat bids "every tick regardless of health") is stale: on a clean world with
+// no ambient mobs there is nothing to retreat from, so the reflex correctly stays
+// idle. Summon a stationary hostile near the player — exactly like 41_defense — so
+// the forced-retreat/preempt checks exercise the real scheduler path deterministically.
+function summonRetreatThreat() {
+    var me = Agent.invoke("mc.observe.player", {});
+    if (!me || !me.present || !me.pos) return false;
+    var x = Math.round(me.pos.x), y = Math.round(me.pos.y), z = Math.round(me.pos.z);
+    Agent.invoke("mc.action.runCommand", {
+        cmd: "summon zombie " + x + " " + y + " " + (z + 3) + " {NoAI:1b,PersistenceRequired:1b}"
+    });
+    Agent.system.waitTicks(4);
+    return true;
 }
 
 if (!clientAvailable()) {
@@ -62,7 +82,8 @@ if (!clientAvailable()) {
 
     AgentTest.run("40_scheduler: forced retreat outbids and holds the movement channel", function(t) {
         resetScheduler();
-        // Force retreat permanently active (threshold == max HP).
+        summonRetreatThreat();   // task#92: a hostile to flee, so RetreatChain bids
+        // Force retreat permanently active (threshold == max HP) with a threat present.
         Agent.invoke("mc.bot.setting", { autoRetreat: true, retreatHpThreshold: 20 });
         Agent.system.waitTicks(3);
         var s = Agent.invoke("mc.bot.status", {});
@@ -97,6 +118,7 @@ if (!clientAvailable()) {
         }
         // While the goto runs, force retreat — it must take the channel and the
         // user task must report suspended (but still held as activeProcess).
+        summonRetreatThreat();   // task#92: a hostile to flee, so RetreatChain bids
         Agent.invoke("mc.bot.setting", { autoRetreat: true, retreatHpThreshold: 20 });
         Agent.system.waitTicks(3);
         var preempted = Agent.invoke("mc.bot.status", {});

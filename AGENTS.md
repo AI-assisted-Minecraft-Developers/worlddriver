@@ -11,8 +11,20 @@ etc.) working in this project. Keep it short and authoritative.
   Every transport (MCP HTTP, WebSocket RPC, in-JVM Rhino) routes through
   `AgentApi.route(method, params)`. Do **not** add game-affecting behavior
   in a transport — add it in AgentApi, expose it through all three.
-- **Tests**: `./gradlew :neoforge:runGameTestServer` is the canonical
-  integration suite. 60 cases must pass.
+- **Tests**: the mc-testkit orchestrators under `scripts/testkit/` are the
+  canonical integration gates (the legacy `@GameTest` suite and its
+  GameTestServer machinery were retired in P4-final). The gates:
+  - `t0.py` — dogfood a dedicated server, autorun the ad.* scenes, and verify
+    the results stream against an expect-file (`--loader <fabric|neoforge>
+    --run-task :<loader>:runDogfoodServer --results <loader>/run-dogfood/testkit-results.jsonl
+    --expect-file scripts/testkit/expected-scenes-<loader>.txt`).
+  - `t1.py` — integrated-server (client-topology) parity run.
+  - `t2.py` — production topology: a plain dedicated server driven on-demand via
+    `mc.test.run` over multiplayer.
+  - `instrument.py --loader <loader>` — the 23/23 instrument contract.
+
+  Verdict = each orchestrator exits 0 (GREEN). The scenes live in `:common`'s
+  testmod source set and are delivered into dev runs via the testmod bridge.
 
 ## Hard rules
 
@@ -52,7 +64,9 @@ Runtime output is local-only and must never appear at the project root:
 |---|---|
 | Fabric client / server logs            | `fabric/run/logs/` |
 | NeoForge client logs                   | `neoforge/run/logs/` |
-| NeoForge GameTest server logs          | `neoforge/run-gametest/logs/` |
+| Dogfood (T0) server logs               | `<loader>/run-dogfood/logs/` |
+| Testkit T0 server run results          | `mc-testkit/<loader>/run-testkit/` |
+| Instrument contract server run          | `<loader>/run-contract/` |
 | Smoke-test screenshots, traces, logs   | `fabric/run/smoke/` |
 | Gradle compile output                  | `<platform>/build/` |
 
@@ -65,16 +79,13 @@ unexpected location, treat it as a leftover and delete it — do not commit it.
 # Build everything
 ./gradlew build
 
-# Integration tests (use as CI)
-./gradlew :neoforge:runGameTestServer
-
-# Single-arena fast run (~20s vs ~25min) — every @GameTest starts with a
-# gt-filter guard line; with AGENT_GT_ONLY set, all other tests succeed
-# immediately. For bisects/repros ONLY: a solo arena sees the baseline
-# BotConfig, not the global flag side effects earlier arenas apply in a full
-# run, so results can differ (descentYawArena burns unbounded searches solo).
-# Acceptance is ALWAYS the full run (REGRESSION.md §94).
-AGENT_GT_ONLY=waterFarAimBankCornerArena ./gradlew :neoforge:runGameTestServer
+# Integration tests (use as CI) — mc-testkit orchestrators, see scripts/testkit/
+python3 scripts/testkit/t0.py --loader neoforge \
+  --run-task :neoforge:runDogfoodServer \
+  --results neoforge/run-dogfood/testkit-results.jsonl \
+  --expect-file scripts/testkit/expected-scenes-neoforge.txt
+python3 scripts/testkit/instrument.py --loader neoforge   # 23/23 instrument contract
+python3 scripts/testkit/t1.py                             # integrated-server parity
 
 # Interactive client (pin ports so .mcp.json keeps working)
 JAVA_TOOL_OPTIONS="-Dagent.mcpPort=39800 -Dagent.rpcPort=39801" \
@@ -92,7 +103,7 @@ scripts/smoke-test-react.sh
 3. Add a corresponding validation script under `agent_validation/` that
    exercises it through all three transports and asserts byte-identical
    results (see `06_rpc_parity.js` / `07_mcp_parity.js` for the pattern).
-4. Re-run `./gradlew :neoforge:runGameTestServer` — it must stay green.
+4. Re-run the testkit gates (`scripts/testkit/t0.py` + `instrument.py`) — they must stay green.
 
 ## When you remove or merge a tool
 
