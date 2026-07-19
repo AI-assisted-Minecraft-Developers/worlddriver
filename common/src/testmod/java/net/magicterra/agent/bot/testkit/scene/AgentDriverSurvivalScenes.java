@@ -725,8 +725,8 @@ public final class AgentDriverSurvivalScenes implements SceneProvider {
     }
 
     // ==================================================================================
-    // ad.drownEscapeGateMatrix — gap#76 DrownEscapeGate entry/hold/release matrix (17 rows)
-    // + DrownEscapeChain episode lifecycle (10 rows), PURE.
+    // ad.drownEscapeGateMatrix — gap#76 DrownEscapeGate entry/hold/release matrix (18 rows)
+    // + DrownEscapeChain episode lifecycle (8 rows), PURE.
     // ==================================================================================
 
     static void drownEscapeGateMatrix(BiConsumer<Boolean, String> check) {

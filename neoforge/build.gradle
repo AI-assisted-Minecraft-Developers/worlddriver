@@ -72,8 +72,10 @@ dependencies {
 }
 
 // P4a Task 1: testmod source set — the legacy @GameTest classes (8 arena classes +
-// AgentGameTestSupport) live here so they are compiled and loaded ONLY in dev runs
-// (attached to the mod via the loom mods{} block below), never baked into the
+// AgentGameTestSupport) lived here P4a-P4c so they were compiled and loaded ONLY in
+// dev runs (attached via the loom mods{} block below), never baked into the production
+// jar. Since P4c wave 9 the migration emptied it (all scenes live in :common testmod);
+// the source set + gameTestServer run config are retained solely for P4-final retirement.
 // remapped production jar. Classpath wiring mirrors the mc-testkit gradle-plugin's
 // testmod convention (testmod sees main's OUTPUT plus main's own compile/runtime
 // classpaths — so testmod code can reach main classes AND main's dependencies,
@@ -189,9 +191,10 @@ loom {
             property 'neoforge.gameTestServer', 'true'
             runDir 'run-gametest'
             // P4a Task 1: run against the testmod source set. testmod's runtimeClasspath
-            // extends main's (see sourceSets block above), so main classes stay present;
-            // this adds the moved @GameTest arenas + AgentGameTestRegistrar to the run so
-            // the legacy suite still auto-runs. (Task 2/3 wire dogfood/testkitClient/t2Server.)
+            // extends main's (see sourceSets block above), so main classes stay present.
+            // The legacy arenas this run once auto-ran were fully migrated and deleted by
+            // P4c wave 9 — the source set is now empty and the run loads no tests; the
+            // config survives only until P4-final retires the GameTestServer machinery.
             source sourceSets.testmod
         }
         contractServer {
