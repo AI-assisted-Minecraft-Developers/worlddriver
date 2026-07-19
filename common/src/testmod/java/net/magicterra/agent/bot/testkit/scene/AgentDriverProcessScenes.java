@@ -874,6 +874,12 @@ public final class AgentDriverProcessScenes implements SceneProvider {
         if (kbr != null) kbr.setBaseValue(1.0);
         level.addFreshEntity(zombie);
         ctx.cleanup(() -> zombie.discard());
+        // Post-review hygiene (P4c wave-9): restore the pre-scene dayTime on exit so this scene
+        // leaves the shared persistent world's clock untouched (the scene's own run still pins
+        // 18000 below — behaviour unchanged; this is cleanup-hygiene only, future-proofing against
+        // a later day-sensitive neighbour).
+        long savedDayTime = level.getDayTime();
+        ctx.cleanup(() -> level.setDayTime(savedDayTime));
         level.setDayTime(18000);              // night → the zombie won't sun-burn (no false fire-kill)
 
         BotConfig.walkerDebug = false;

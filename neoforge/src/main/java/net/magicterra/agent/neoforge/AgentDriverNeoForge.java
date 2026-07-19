@@ -52,11 +52,14 @@ public final class AgentDriverNeoForge {
             @Override public ServerPlayer unique(ServerLevel level, GameProfile profile) { return FakePlayerFactory.get(level, profile); }
         });
         NeoForge.EVENT_BUS.register(this);
-        // P4a Task 1: the legacy @GameTest classes moved OUT of the production jar into
-        // the neoforge testmod source set. Their RegisterGameTestsEvent registration moved
-        // with them — testmod's AgentGameTestRegistrar (@EventBusSubscriber) now carries the
-        // per-class event.register calls verbatim. Nothing gametest-related is registered
-        // from main any more, so the production jar carries no AgentGameTest* classes.
+        // P4c (campaign close): the legacy @GameTest suite is fully retired — every arena was
+        // migrated to a dogfooded ad.* testkit scene (common testmod source set) and the three
+        // legacy classes (AgentGameTestServer / AgentGameTestRegistrar / AgentGameTestSupport)
+        // were deleted. The neoforge testmod source set now holds NO test classes; scenes live
+        // in the common testmod (net.magicterra.agent.bot.testkit.scene). Nothing gametest-related
+        // is registered from main, so the production jar carries no AgentGameTest* classes.
+        // GameTestManifest (below) is retained for P4-final, which retires the GameTestServer
+        // machinery itself. See docs/testkit/migration-log.md for the full retirement record.
         AgentDriverCommon.LOG.info("[{}] NeoForge entry constructed", AgentDriverCommon.MOD_ID);
     }
 

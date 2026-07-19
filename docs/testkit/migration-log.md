@@ -996,3 +996,82 @@ is NOT run (vacuous). The brief's replacement gate holds: `grep -rn "@GameTest("
 common/src` = **ZERO** test-method call sites; the three class files **do not exist**; the testmod compiles
 GREEN (gate a). **Campaign count chain: 59 → 44 (wave 6) → 33 (wave 7) → 15 (wave 8) → 0 (wave 9).**
 The legacy `AgentGameTestServer` family — and with it the last `@GameTest` in the repo — is retired.
+
+---
+
+## Campaign close (P4c Task 5) — the whole legacy `@GameTest` retirement, end to end
+
+**The migrate-then-delete campaign is complete: the legacy `@GameTest` suite is empty and the dogfood
+`ad.*` suite is the sole integration gate.** This closing section reconciles the whole campaign against
+git and states the final arithmetic; every wave above carries its own row-level evidence.
+
+### Full count chain (git-audited, P4a → P4c)
+
+| phase | wave(s) | legacy `@GameTest` methods | migrated → scenes | retired-without-scene |
+|---|---|---|---|---|
+| P4a | wave 1 (`1f30322`) | 130 → **122** | 8 (already-migrated seed twins) | 0 |
+| P4b | waves 2–5 (`3eb6d62`…`3fc846f`) | 122 → **59** | 62 | 1 (`descentDrift`, `159f202`) |
+| P4c | waves 6–9 (`2003a64`…`e47e873`) | 59 → **0** | 59 | 0 |
+
+**Chain: 130 → 122 → 59 → 0.** The tracked drift chain begins at 130 — the `@GameTest`-**method**
+count that held from before the first `ad.*` scene existed through the P4a source-set relocation
+(git-verified: `git grep -c "@GameTest(" e11294c` over the neoforge testmod sums to **130**). Across
+P4a–P4c, **129** legacy methods migrated 1:1 to `ad.*` scenes and exactly **1** (`descentDrift`)
+retired without a scene (controller-adjudicated, P4b wave 2), so 129 + 1 = 130.
+
+**The "144" campaign framing (reconciled).** The P4a Task-1 record moved "144 legacy tests" into the
+neoforge testmod source set by pure `git mv`. That 144 is the total count of **`@GameTest`-family
+annotations** grep'd across the 9 legacy source files at that commit (`git grep -c "@GameTest"
+e8f123f~1` over the neoforge legacy files sums to 15+14+3+3+64+2+20+12+11 = **144**) — it includes the
+class-level `@GameTestHolder` / generator / batch annotations, not just the `@GameTest(` **test
+methods**. The test-**method** count — the number this drift log tracks retirement-by-retirement — is
+**130**. Both numbers are correct for what they count; the campaign is stated as **130 legacy
+`@GameTest` methods → 0** with the 144 annotation-move noted for continuity with the P4a record.
+
+### Final suite composition
+
+**Dogfood suite = 130 `ad.*` scenes** across **13 `SceneProvider` classes** (all in
+`common/src/testmod/.../scene/`, one common `SceneProvider` service file, both loaders):
+`AgentDriverScenes` (9 seed) + `Terrain` (12) + `Bias` (13) + `WaterBank` (11) + `WaterCross` (10) +
+`Core` (12) + `CombatSense` (2) + `BuildBlock` (2) + `Station` (15) + `Scheduler` (11) + `Survival`
+(13) + `Avatar` (5) + `Process` (15) = **130**. Provenance: **129 migrated 1:1** (8 seed twins retired
+in P4a wave 1 + 121 family twins across P4b/P4c) + **1 net-new** (`ad.settingRegistryClosed`, P2a,
+0 legacy twin). The 130 scenes and the 130 legacy methods coincide because the one net-new scene
+exactly offsets the one retired-without-scene.
+
+**Retired-without-scene — the complete verified list is ONE: `descentDrift`** (P4b wave 2,
+controller-adjudicated FULL RETIREMENT — documented PROVEN-FALSE-GREEN gap #49, faithful migration
+physically impossible as its >60 s single-tick A* churn trips `ServerHangWatchdog` and crashes the
+dogfood harness; descent coverage remains via `ad.descentYaw`'s golden signature gate). No P4c wave
+retired any test without a scene. (Plan Task-5 self-review estimated "2 retired-without-scene"; the
+git-audited actual is **1** — the second candidate the plan anticipated did not materialize, every
+P4c arena migrated with a scene.)
+
+**Legacy classes — all deleted.** `AgentGameTestServer`, `AgentGameTestRegistrar`,
+`AgentGameTestSupport`, and the seven whole-family classes retired in P4b (`AgentGameTestTerrain`,
+`AgentGameTestBias`, `AgentGameTestWaterBank`, `AgentGameTestWaterCross`, `AgentGameTest`,
+`AgentGameTestCombatSense`, `AgentGameTestBuildBlock`) no longer exist. `grep -rn "@GameTest("` is
+**0 tree-wide**; the neoforge testmod source set holds no `.java` files. `GameTestManifest` (production
+main) and the `gameTestServer` run config are intentionally retained for **P4-final**, which retires
+the GameTestServer machinery itself.
+
+### Post-review hygiene addendum (dayTime restore in `ad.serverCombat`)
+
+Folded into this close (NOT a behavior change): `AgentDriverProcessScenes.serverCombatScene` now captures
+`level.getDayTime()` before its `setDayTime(18000)` night-pin and registers
+`ctx.cleanup(() -> level.setDayTime(saved))`. The scene's own run still pins 18000 (the daytime auto-burn
+protection is unchanged) — this only restores the shared persistent world's clock on scene exit, future-proofing
+against a later day-sensitive neighbouring scene. Verified GREEN by re-running the neoforge dogfood suite after
+the change (result set byte-identical to baseline).
+
+### P4c Task-5 acceptance (five gates)
+
+Recorded in full in `.superpowers/sdd/task-5-report.md`. Summary: ① dogfood both loaders ×2 —
+all GREEN, `(name, outcome)` set byte-identical within each loader and cross-loader (neoforge == fabric);
+the 3 optional-FAIL sensors (`ad.vineOverWaterClimb`, `ad.riverSheerBank`, + optional-PASS
+`ad.vineClingFidelityProbe`) reproduce exactly; ② `instrument.py` 23/23 both loaders + `t1.py` GREEN
+(130-scene client face; `ad.agentRpcSmoke` topology-guards to a visible passNote on the integrated
+client, task#92); ③ production-jar byte gates GREEN both loaders + `publishToMavenLocal` maven-face same
+assertions (zero AgentGameTest*/Scenes/SimProbes/SceneProvider-impl; `TestResetVerb`/`TestRunVerb` +
+`TestkitVerbHook` present); ④ this count-chain audit; ⑤ `@GameTest(` = 0 tree-wide, three deleted
+classes absent, neoforge testmod source set empty. **The legacy GameTest suite is fully retired.**

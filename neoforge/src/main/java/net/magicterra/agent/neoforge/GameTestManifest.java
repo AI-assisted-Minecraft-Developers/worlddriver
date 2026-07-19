@@ -21,10 +21,13 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  *   {"type":"registered","name":..,"batch":..,"required":..}
  *     — every TestFunction in GameTestRegistry, dumped once at server starting.
  *   {"type":"enter","name":..}
- *     — appended by AgentGameTestSupport.gtOnlySkips(), the first line of every
- *       test body. A registered test with no enter record was silently swallowed
- *       by the vanilla scheduler (#85); scripts/gt_reconcile.py turns that into
- *       a hard failure.
+ *     — was appended at the first line of every legacy test body (via the former
+ *       AgentGameTestSupport.gtOnlySkips helper). A registered test with no enter
+ *       record was silently swallowed by the vanilla scheduler (#85);
+ *       scripts/gt_reconcile.py turns that into a hard failure. The legacy
+ *       @GameTest suite is now fully retired (P4c) so no enter records are
+ *       produced any more; this manifest machinery is kept for P4-final, which
+ *       retires the GameTestServer path itself. See docs/testkit/migration-log.md.
  *
  * enter() runs on the SERVER THREAD at every test body's first line, and a
  * controller A/B measured that synchronous open/append/close there perturbs
