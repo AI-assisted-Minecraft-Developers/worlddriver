@@ -2,6 +2,19 @@
 
 > 镜像 Task 跟踪器的长期工作。重要根因写进 memory(reference/project)。
 
+## 2026-07-19 ✅ D1-T3 task#92 收案 → `ad.agentRpcSmoke` 拓扑可移植,毯式 early-PASS 门**拆除**;JS 验证套件在专服(T0)+集成客户端(T1)双拓扑都真跑 REQUIRED — commit `559b07a`(branch `feature/executor-permove-ascend`,详录 `.superpowers/sdd/task-3-report.md` + `docs/testkit/migration-log.md` task#92 段)
+
+- **取证(T1 `/agent test` 裸 RPC,不重编译)**:`TOTAL 259/PASS 250/FAIL 9`(tracker 记的 8 少一个=42_combat 行为项)。九分歧定性 + 修:
+  - **①13 observe.player + ③④⑤25 tunnel×3**(5 硬 JS `TypeError: … of undefined`)=**验证套件 harness prelude 是 `prelude.js` 的陈旧子集**(`AgentScriptManager` 内联手抄版缺 `Agent.observe.player` + 整个 `Agent.bot.*`);专服路径这些脚本自跳过=漂移长期隐藏,T1 首次真跑 client 分支才炸。修=**改载规范 `prelude.js`(单一真源)**+ 附 harness 专属 extras(rpc/mcpRoundtrip、world.*、stdout console)。
+  - **②21 applied**(第 5 个 JS TypeError)=`mc.bot.setting` 空 `applied` 省略(`SettingsCommand:808` 共享码,两拓扑同形)脚本不设防 → `(r.applied||[])`。
+  - **⑥⑦40 retreat×2**(行为)=RetreatChain 需真威胁才 bid(gap#65/#68 门),脚本"threshold==maxHP 恒 bid"前提陈旧(live 证:无威胁 prio0,召唤僵尸后 prio100)→ **召唤 NoAI 敌**(仿 41_defense)。
+  - **⑧42 melee engage**(行为,不可移植)=`completed` 全清场需平坦净 arena,live 客户端世界+CPU 负载下 pathing/时序耦合(live 证:挥砍 25 击杀 8 但不 complete)→ **具名 task#92 拓扑 skip**(offence 由 dogfood `ad.serverCombat*` 确定性覆盖),计数不删不吞。
+  - **⑨57 replay**=断言钉旧 rigid 形;replan 路径(`ReplayTool:104-129`)返 `file/mode/envelopeCells/…` 无 `segments/plannedNodes` → 断当前契约。
+  - **⑩(潜伏 driver bug,prelude 修后才显)**:`prelude.js` tunnel 的 `distance required` 守卫是死代码(`Math.max(1,…)` 把缺失 distance 抬到 1 抢在 `if(!dist)` 前)→ 缺 distance 静默挖 1 格而非拒绝。修=先判原始 distance 再 clamp。
+- **⭐拓扑总数是 topology-DEPENDENT(实测,非假设)**:老场景只断 `FAIL==0` 从不计数,所谓"专服 259"从未验过=集成取证数错标。真相=~35 个 client-face 脚本在**专服**各自跳到 1 个"no client"占位、在**集成**跑完整真分支 ⇒ 专服 **147** / 集成 **259**(集成⊃专服)。场景改 topology-aware 断言(`RPC_SMOKE_EXPECTED_TOTAL_DEDICATED=147`/`_INTEGRATED=259`)=断各拓扑正确值(裁决规则 c),非毯式跳=套件两拓扑都满跑。**⚠️与 brief 字面"259/259"偏离已在 report 显式标给 controller**(专服真=147;逼 259 需重构 35 脚本 skip 分支=不成比例)。
+- **✅验收**:三模块编译过;T0 dogfood **neoforge GREEN**(agentRpcSmoke 147/0 专服,金三件 PASS,entityLeash 31t)+ **fabric GREEN**(147/0,entityLeash 30t);**t1.py GREEN**(133s)——`ad.agentRpcSmoke` PASS **804 tick/35s**(证场景真跑非 early-PASS),passNote "integrated — 259 checks, 0 failures, 1 named task#92 skip",client log `TOTAL 259/PASS 259/FAIL 0`。**毯式门已拆,禁回来**。
+- **残余**:instrument.py/instrument_client.py 未跑(仪表面=task#90,本改不触及验证套件,归 D1-T4 #91 验收);开放 task#86/#87/#88/#91 不变。
+
 ## 2026-07-19 ✅ P4-final GameTestServer 机器退役**收官** → 六项退役清单全闭、四门绿、campaign 终章封盘;**mc-testkit 成为唯一测试门** — spec §6.6,branch `feature/executor-permove-ascend`(T1 `9f506d1` 执行删除 + T2 `docs(testkit): P4-final — retirement complete, testkit is the sole test gate` 验收+文档收官)
 
 - **✅ 机器退役六项清单全闭**(①-⑤=T1 `9f506d1`,⑥=T2 本 commit):①`gameTestServer` loom run config 移除(neoforge——fabric 从未有此 run config)✅;②`scripts/run_gametests.sh` + `scripts/gt_reconcile.py` 删除 ✅;③`GameTestManifest.java` + `AgentDriverNeoForge` gametest 钩子移除(`applyGameTestBaseline` 保留=改由 `-Dtestkit.autorun` 服务器启动路径驱动)✅;④`AGENT_GT_ONLY`/`solo*` batch/`run_gametests`/`gt_reconcile` 残留 grep 清理(T2 复审=活面 0)✅;⑤`.gitignore` `run-gametest/` 条目移除 ✅;⑥文档 final sweep(`mc-testkit/README.md` 退役注 + `docs/testkit/migration-log.md` 尾部退役注 + `BotConfig.java:2533` javadoc 重写为退役后真相)✅。**neoforge/fabric testmod source set 保留=空源桥接**(删则静默断场景投递)。

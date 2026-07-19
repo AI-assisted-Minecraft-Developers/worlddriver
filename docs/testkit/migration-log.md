@@ -1116,3 +1116,50 @@ live, `@GameTest(` = 0, 13 provider service lines, 130 scenes per expect-file; �
 --all | grep -i gametest` empty (no `runGameTestServer`). **Campaign closed: legacy 130 → 0 across
 P4a/P4b/P4c; dogfood = 130 `ad.*` scenes / 13 providers / 3 sensors / 1 topology gate. mc-testkit is
 the sole test gate.**
+
+---
+
+## task#92 — agentRpcSmoke validation suite made topology-portable (blanket guard removed)
+
+**What changed.** The `ad.agentRpcSmoke` scene used to early-PASS on any non-dedicated topology
+(`!isDedicatedServer()` → `passNote` + return) — a blanket guard hiding 9 checks that failed the first
+time the 259-check JS validation suite ran on the integrated (client-hosted) T1 topology. The guard is
+**removed**; the suite now runs as REQUIRED coverage on **both** topologies and the scene asserts
+`TOTAL == <topology's count> ∧ FAIL == 0 ∧ every SKIP(task#92) ∈ named allow-list`.
+
+**Forensic capture (T1 integrated, `/agent test` over RPC, verbatim):** TOTAL 259 / PASS 250 / FAIL 9.
+
+| # | check | verbatim error | root cause | class | fix |
+|---|-------|----------------|-----------|-------|-----|
+| 1 | `13_set_hotbar_slot: switches slot … observe.player` | `TypeError: Cannot find function player in object` | validation harness prelude was a STALE subset of `prelude.js` (no `Agent.observe.player`) | harness gap | load canonical `prelude.js` |
+| 2 | `21_blocks_to_avoid: invalid id rejects whole write` | `TypeError: Cannot call method "indexOf" of undefined` | `mc.bot.setting` omits `applied` when empty (SettingsCommand:808, both topologies) — script non-defensive | script | `(r.applied || [])` |
+| 3-5 | `25_phase_d3: Agent.bot.tunnel …` ×3 | `TypeError: Cannot call method "tunnel" of undefined` | harness prelude had no `Agent.bot.*` sugar | harness gap | load canonical `prelude.js` |
+| 6,7 | `40_scheduler: forced retreat …` / `retreat preempts a goto …` | `not equal: retreat chain holds the channel` | stale determinism trick — RetreatChain needs a real threat to bid (gap#65/#68), not just threshold==maxHP | behavioural | summon a NoAI hostile (as 41_defense does) |
+| 8 | `42_combat: melee engage clears a zombie pack` | `not equal: engage ran to completion` | full area-clear needs a flat, entity-clean arena; on a live client world under CPU load `completed` is pathing/timing-coupled | behavioural (unportable) | **NAMED task#92 topology-skip** — offence covered by `ad.serverCombat*` |
+| 9 | `57_replay: return shape is well-typed` | `not equal: segments is a positive number` | assertion pinned the OLD rigid-replay shape; the replan path returns `file/mode/envelopeCells/restoredBlocks/blockStateFidelity` | script (stale shape) | assert the current contract |
+
+**A latent driver bug surfaced by the same run** (10th, revealed after the harness prelude fix): the
+`prelude.js` `tunnel` helper's `distance-required` guard was DEAD CODE — `Math.max(1, …)` floored a
+missing distance up to 1 *before* the `if(!dist)` check, so `tunnel({direction})` silently tunnelled 1
+cell instead of rejecting. Fixed by checking the raw distance before clamping (`prelude.js`).
+
+**Root-fix vs skip philosophy.** 8 of 9 are root-caused (harness prelude → single source of truth;
+non-defensive/stale scripts corrected; the retreat determinism trick fixed to match the real gate).
+Only 1 (`42_combat: melee engage`) is a **named, cited topology-skip**, counted (not deleted, not a
+swallow), pinned by the scene's `RPC_SMOKE_NAMED_SKIPS` allow-list.
+
+**Topology-dependent total (measured, not assumed).** The old scene only asserted `FAIL==0` and never
+counted, so the "259 on dedicated" in earlier notes was never verified — it was the integrated
+forensic number. Reality: the ~35 client-face scripts each self-skip to ONE "no client" placeholder on
+the **dedicated** path (real branch needs a client) but run their FULL real branch on **integrated**,
+so the suite is **147** checks on dedicated and **259** on integrated (integrated ⊃ dedicated). The
+scene asserts each topology's own count (`RPC_SMOKE_EXPECTED_TOTAL_DEDICATED=147` /
+`_INTEGRATED=259`) — a topology-aware assertion of the correct value, NOT a blanket skip; the suite
+executes in full on both.
+
+**Acceptance.** 3 modules compile. T0 dogfood **neoforge GREEN** (agentRpcSmoke 147/0 dedicated) +
+**fabric GREEN** (147/0); golden trio (descentYaw/selfShaftDigUp/gearScope) PASS, entityLeash 30-31t.
+t1.py **GREEN** — `ad.agentRpcSmoke` PASS, scene ACTUALLY ran the suite (804 ticks / 35 s wall),
+`passNote` = "259 checks, 0 failures, 1 named task#92 topology-skip"; client log `TOTAL 259 / PASS 259
+/ FAIL 0`. Files: `AgentScriptManager.java` (prelude load), `prelude.js` (tunnel guard),
+`21/40/42/57_*.js`, `AgentDriverCoreScenes.java` (guard removed + topology-aware gate).

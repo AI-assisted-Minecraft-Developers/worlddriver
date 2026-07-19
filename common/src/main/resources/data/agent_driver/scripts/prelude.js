@@ -194,8 +194,12 @@ Agent.bot = {
     tunnel: function (opts) {
         opts = opts || {};
         var dir = String(opts.direction || 'forward');
-        var dist = Math.max(1, Math.min(64, (opts.distance | 0) || 0));
+        // Reject a missing/zero distance BEFORE clamping — Math.max(1, …) would
+        // otherwise floor a missing distance up to 1 and silently tunnel one cell,
+        // defeating the 'distance required' contract (task#92).
+        var dist = (opts.distance | 0) || 0;
         if (!dist) return { ok: false, error: 'distance required (1..64)' };
+        dist = Math.max(1, Math.min(64, dist));
         var width = Math.max(1, Math.min(8, (opts.width | 0) || 1));
         var height = Math.max(1, Math.min(8, (opts.height | 0) || 2));
         var pl = Agent.invoke('mc.observe.player', {});

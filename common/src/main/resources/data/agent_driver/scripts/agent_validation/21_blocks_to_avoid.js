@@ -41,7 +41,11 @@ if (!clientAvailable()) {
         t.assertEqual(r.ok, true, "envelope ok");
         t.assertTrue(Array.isArray(r.rejected) && r.rejected.length > 0,
             "must report rejected");
-        t.assertEqual(r.applied.indexOf("blocksToAvoid"), -1,
+        // mc.bot.setting omits `applied` entirely when nothing was applied — the
+        // compact shape both topologies share (SettingsCommand: applied added only
+        // when non-empty). Read it defensively; a whole-list rejection means the key
+        // is simply absent from applied. (task#92)
+        t.assertEqual((r.applied || []).indexOf("blocksToAvoid"), -1,
             "must NOT be in applied — whole-list rejection");
     });
 

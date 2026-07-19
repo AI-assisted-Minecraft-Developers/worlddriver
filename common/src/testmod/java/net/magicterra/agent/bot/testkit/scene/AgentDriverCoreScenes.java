@@ -28,6 +28,7 @@ import net.magicterra.agent.bot.sim.ServerPlayerAvatar;
 import net.magicterra.agent.bot.world.LevelWorldView;
 import net.magicterra.agent.client.internal.ClientChatLog;
 import net.magicterra.agent.mcp.ToolCatalog;
+import net.magicterra.agent.test.AgentTest;
 import net.magicterra.testkit.scene.Scene;
 import net.magicterra.testkit.scene.SceneContext;
 import net.magicterra.testkit.scene.SceneProvider;
@@ -126,23 +127,33 @@ public final class AgentDriverCoreScenes implements SceneProvider {
      *  The harness ticks the server between polls, so the suite's {@code server.execute()}-marshalled
      *  RPC/MCP round-trips drain exactly as under the GameTest tick loop.
      *
-     *  <p><b>Topology guard (task#92).</b> The JS RPC/YAML validation suite is authored against the
-     *  DEDICATED-server RPC surface. On an integrated (client-hosted) topology (T1/T2) several
-     *  client-face JS bindings are absent or shaped differently ({@code observe…player},
-     *  {@code Agent.bot.tunnel}, {@code blocks_to_avoid}) plus a couple of behavioural checks diverge —
-     *  8 of 259 fail. That divergence is REAL and tracked as <b>task#92</b> (the fix — topology-aware
-     *  checks, or a signature gate pinning exactly the known divergences — is task#92's scope). Until
-     *  then this scene runs the FULL suite as REQUIRED coverage on the dedicated path (T0), and off the
-     *  dedicated topology it skips the suite <i>visibly</i> via {@link SceneContext#passNote} — counted
-     *  entered, reason recorded in the results JSONL, evidence in task#92/TODO. This is a guard, not a
-     *  swallow. */
+     *  <p><b>Topology-portable (task#92).</b> The JS RPC/YAML validation suite runs on BOTH the
+     *  dedicated (T0) and the integrated / client-hosted (T1/T2) topologies as REQUIRED coverage.
+     *  task#92 removed the old blanket dedicated-only early-PASS: the divergences it papered over were
+     *  a STALE validation-harness prelude (missing {@code Agent.observe.player}/{@code Agent.bot.*}
+     *  sugar — now loaded from the canonical {@code prelude.js}), a couple of non-defensive script
+     *  shapes ({@code applied} compact array; the {@code mc.debug.replay} replan shape), and a stale
+     *  scheduler determinism trick (RetreatChain needs a real threat to bid — the scripts now summon
+     *  one). One check ({@code 42_combat: melee engage}) is a NAMED, cited topology-skip on the
+     *  integrated path (it needs the flat GameTest arena the dedicated dogfood provides; its offence is
+     *  covered by {@code ad.serverCombat*}) — it records a {@code SKIP(task#92)} PASS, still counted.
+     *
+     *  <p>The gate here is: the suite MUST run (no early return), TOTAL must equal the topology's
+     *  expected count (coverage-drift guard), FAIL must be 0, and every {@code SKIP(task#92)} entry must
+     *  match the {@link #RPC_SMOKE_NAMED_SKIPS} allow-list — anything else skipping is a regression.
+     *  {@link SceneContext#passNote} reports the topology, TOTAL, and skip count, so the run's shape is
+     *  visible in the results JSONL.
+     *
+     *  <p><b>Why the total is topology-dependent</b> (measured, not assumed — the old scene only asserted
+     *  FAIL==0 and never counted): the ~35 client-face scripts each register ONE "skipped (no client)"
+     *  placeholder on the DEDICATED path (no client to drive the real branch) but their FULL real branch
+     *  on the INTEGRATED path — so the dedicated suite is {@value #RPC_SMOKE_EXPECTED_TOTAL_DEDICATED}
+     *  checks and the integrated suite is {@value #RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED} (the integrated
+     *  set is a strict superset). Both run REQUIRED with FAIL==0; the count guard just pins each
+     *  topology's own number so a silently-dropped check (a stale-prelude script-load failure, an #85
+     *  swallow) still trips. This is a topology-aware assertion of each topology's correct value, NOT a
+     *  blanket skip — the suite executes in full on both. */
     private static void agentRpcSmoke(SceneContext ctx) {
-        if (!ctx.level().getServer().isDedicatedServer()) {
-            ctx.passNote("agentRpcSmoke: RPC/YAML validation suite is DEDICATED-ONLY; skipped on this "
-                    + "integrated (client-hosted) topology pending topology-aware checks (task#92). The "
-                    + "full 259-check suite still runs as REQUIRED coverage on the dedicated-server path.");
-            return;
-        }
         if (AgentDriverCommon.api() == null) {
             ctx.fail("agentRpcSmoke: AgentApi not initialized — was the mod loaded?");
             return;
@@ -160,12 +171,65 @@ public final class AgentDriverCoreScenes implements SceneProvider {
 
         ctx.await(() -> crash.get() != null || result.get() != null).within(12000).then(() -> {
             Throwable c = crash.get();
-            if (c != null) ctx.fail("agentRpcSmoke: validation crashed: " + c.getMessage());
+            if (c != null) { ctx.fail("agentRpcSmoke: validation crashed: " + c.getMessage()); return; }
             Integer v = result.get();
-            if (v == null) ctx.fail("agentRpcSmoke: validation still running");   // cond guarantees non-null
-            else if (v != 0) ctx.fail("agentRpcSmoke: validation reported " + v + " failure(s); see server log");
+            if (v == null) { ctx.fail("agentRpcSmoke: validation still running"); return; } // cond guarantees non-null
+
+            // Read the per-check results the worker just recorded (single source:
+            // AgentTest's static snapshot, set by runValidation()). Assert the full
+            // suite ran with the expected coverage, zero failures, and only NAMED
+            // task#92 topology-skips — on WHICHEVER topology this scene is running.
+            List<AgentTest.Result> results = AgentTest.snapshot();
+            List<String> failures = new ArrayList<>();
+            List<String> skips = new ArrayList<>();
+            List<String> unexpectedSkips = new ArrayList<>();
+            for (AgentTest.Result r : results) {
+                if (!r.passed) { failures.add(r.name); continue; }
+                if (r.name.contains("SKIP(task#92)")) {
+                    skips.add(r.name);
+                    if (RPC_SMOKE_NAMED_SKIPS.stream().noneMatch(r.name::contains)) unexpectedSkips.add(r.name);
+                }
+            }
+            boolean dedicated = ctx.level().getServer().isDedicatedServer();
+            int expectedTotal = dedicated ? RPC_SMOKE_EXPECTED_TOTAL_DEDICATED
+                                          : RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED;
+            if (v != 0 || !failures.isEmpty()) {
+                ctx.fail("agentRpcSmoke: " + failures.size() + " failure(s): " + failures + " (see server log)");
+                return;
+            }
+            if (results.size() != expectedTotal) {
+                ctx.fail("agentRpcSmoke: expected " + expectedTotal + " checks on the "
+                        + (dedicated ? "dedicated" : "integrated") + " topology, ran " + results.size()
+                        + " — suite coverage drifted");
+                return;
+            }
+            if (!unexpectedSkips.isEmpty()) {
+                ctx.fail("agentRpcSmoke: un-named topology skip(s) outside the task#92 allow-list: "
+                        + unexpectedSkips);
+                return;
+            }
+            ctx.passNote("agentRpcSmoke: full RPC/YAML validation suite ran on the "
+                    + (dedicated ? "dedicated" : "integrated") + " topology — " + results.size()
+                    + " checks, 0 failures"
+                    + (skips.isEmpty() ? " (no topology skips)"
+                            : ", " + skips.size() + " named task#92 topology-skip(s): " + skips));
         });
     }
+
+    /** task#92 — the RPC/YAML validation suite's check count on the INTEGRATED (client-hosted) topology,
+     *  where every client-face script runs its full real branch. Coverage-drift guard. */
+    private static final int RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED = 259;
+
+    /** task#92 — the same suite's check count on the DEDICATED topology, where the ~35 client-face
+     *  scripts each self-skip to a single "no client" placeholder (their real branch needs a client).
+     *  The integrated set is a strict superset; both run REQUIRED with FAIL==0. Coverage-drift guard. */
+    private static final int RPC_SMOKE_EXPECTED_TOTAL_DEDICATED = 147;
+
+    /** task#92 — allow-list of check-name substrings permitted to record a {@code SKIP(task#92)} PASS on
+     *  a topology whose precondition isn't met. Every skipped check MUST match one of these; any other
+     *  skip fails the scene. Keep each entry paired with a citation in the skipping script. */
+    private static final List<String> RPC_SMOKE_NAMED_SKIPS = List.of(
+            "42_combat: melee engage clears a zombie pack");
 
     // ==================================================================================
     // Pure-CPU / in-memory arenas (no world, no avatar) — resolve on the first RUN tick.
