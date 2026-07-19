@@ -1109,7 +1109,7 @@ public final class Walker {
         PathTraceHolder.SINK.onWalkerTick(new PathTrace.WalkerSample(
                 p.tickCount, p.getX(), p.getY(), p.getZ(), p.getYRot(),
                 tx, tz, step, mv, p.onGround(), p.isInWater(),
-                p.getPose().name(), overlap));
+                p.getPose().name(), overlap, p.getId()));
     }
 
 

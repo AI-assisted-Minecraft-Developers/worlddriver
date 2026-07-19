@@ -687,12 +687,15 @@ public final class AgentDriverCoreScenes implements SceneProvider {
             BlockPos lastNode = plan.get(plan.size() - 1);
 
             // ---- Phase 3: REPLAY via a fresh Walker.beginReplay + armed capture. ----
-            archive.armReplay(plan, Path.of(planPath).getFileName().toString());
+            // Avatar FIRST, then arm: the armed session is identity-pinned to the replay
+            // avatar so concurrent walkers (the T1 client bot — see PathArchiveRecorder
+            // replayEntityId) can't leak foreign samples into the deviation gate.
             ServerPlayerAvatar rav = ServerPlayerAvatar.createUnique(
                     level, startFoot.getX() + 0.5, startFoot.getY(), startFoot.getZ() + 0.5);
             ServerPlayer rfp = rav.fakePlayer();
             ctx.cleanup(() -> rfp.discard());
             LevelWorldView rw = new LevelWorldView(level, rfp);
+            archive.armReplay(plan, Path.of(planPath).getFileName().toString(), rfp.getId());
 
             Walker replay = new Walker();
             replay.beginReplay(rw, plan, edges, new Goal.Block(lastNode), startFoot);
