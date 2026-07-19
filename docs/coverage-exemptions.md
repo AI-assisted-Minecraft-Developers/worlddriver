@@ -23,9 +23,31 @@ unreachable in the arena topology — "hard to rig" is not an exemption.
 - Deep-water bank-dig sub-branches (`walkerFutileBankDigRelease`,
   `walkerBankDigForwardExit`, `walkerPillarSurfacePlace`): the waterbank family
   covers the happy paths; the futile/overhang releases need overhang rigs.
-  Note for the futile-release rig: the riser scan latches on `isSolid` only (no
-  harvestability check), so a BEDROCK riser survives the dedicated server's
-  instant digs and can accumulate the 200 afloat ticks.
+  **Six rig versions were attempted and each was defeated by a different real
+  mechanism (2026-07-19, wave-4)** — the engage signature ("planner routes a
+  climb-out the body can't execute") is structurally hard to pin on a dedicated
+  server:
+  1. Stone shell + `allowBreak` → the escalated searches planned dig-dives
+     THROUGH the pool floor (52k-node best-efforts); instant digs breached the
+     basin and the bot fell to y=−280. *Everything structural must be bedrock.*
+  2. Open pool rim → the bot climbed the rim and walked off the slot into the
+     void (arena void-fall family). *Fence every rig bordering void.*
+  3. Mutating the bank to an unroutable bedrock overhang → no climb edge in any
+     path → `wantClimb` never held → the bank-dig never engaged; the bot just
+     swim-churned.
+  4. Static routable +2 bank (riser scan latches `isSolid` bedrock, which does
+     survive instant digs) → the server body simply MOUNTS +2 from water
+     (ARRIVED in 139t) — "routable" and "mountable" coincide in this topology.
+  5. 1-wide canal + unroutable +3 bank (floatingBankRam arm) → the DRY
+     futile-search cap FAILED the run on the west shore in 93t (the water
+     exemption only applies once afloat).
+  6. Same + cap headroom → the walker machine-gunned 60 exhausted searches on
+     the 17-cell graph and never entered the water at all.
+  The live signature (−784: drift under an overhang while the path climbs
+  elsewhere) is execution-drift-born; a deterministic arena reproduction likely
+  needs either a scripted-path harness (bypass A*) or the client body (hold-to-
+  mine + weaker swim-jump). Until then these branches are live/replay-covered
+  only.
 
 ## Wave-3 closures (2026-07-19) + rig-design constraints they exposed
 

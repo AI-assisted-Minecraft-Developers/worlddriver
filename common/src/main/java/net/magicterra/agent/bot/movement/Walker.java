@@ -285,7 +285,8 @@ public final class Walker {
                 + (pathBestEffort ? " bestEffort" : ""))
                 + " unstuck=" + unstuckTicks + " churnEsc=" + churnEscapes
                 + " escal=" + (pfTickCounter < boxedEscalateUntilTick ? "ON" : "off")
-                + " noStep=" + noStepProgressTicks;
+                + " noStep=" + noStepProgressTicks
+                + " digFloat=" + waterClimbDigFloatTicks + " gaveUp=" + climbPillarGaveUp;
     }
 
     public void setGoal(Goal g) {
