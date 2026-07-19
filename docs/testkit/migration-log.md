@@ -1353,6 +1353,9 @@ steep 631 vs 602 — neither arrives under heavy box load), and `parkourAscend*`
 churn-free in BOTH — so the runway gate introduces no parkour-specific stall the baseline lacks. The
 over-forbid failure mode (thrash at a makeable gap) did **not** reproduce.
 
-Files: `BotConfig.java` (`pathfinderParkourAscendNeedRunway=true` default), `ParkourAscend.java`
-(runway gate, javadoc), `AgentDriverScenes.java` (`ad.selfShaftDigUp` strict-gate flip + closure
-javadoc), `BotTools.java` (setting description), `expected-scenes-{neoforge,fabric}.txt` (comment).
+Files: `BotConfig.java` (`pathfinderParkourAscendNeedRunway=true` default; the `ParkourAscend.java`
+runway gate itself pre-existed unchanged), `AgentDriverScenes.java` (`ad.selfShaftDigUp` strict-gate
+flip + closure javadoc), `expected-scenes-{neoforge,fabric}.txt` (comment). [Correction, D2 final
+review: this line originally over-claimed `ParkourAscend.java`/`BotTools.java` edits in `5aedb81`;
+the `BotTools.java` setting-description update ("Off by default"→"On by default") actually landed in
+the D2 final-review fix commit.]
