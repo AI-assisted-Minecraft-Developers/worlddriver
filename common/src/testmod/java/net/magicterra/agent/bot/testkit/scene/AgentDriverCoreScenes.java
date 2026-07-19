@@ -183,6 +183,11 @@ public final class AgentDriverCoreScenes implements SceneProvider {
             List<String> failures = new ArrayList<>();
             List<String> skips = new ArrayList<>();
             List<String> unexpectedSkips = new ArrayList<>();
+            // CONVENTION PIN: a topology-skip is only recognized by the literal marker
+            // "SKIP(task#92)" in the check name. The TOTAL guard catches dropped checks and
+            // the allow-list catches marked skips, but a check silently converted to a
+            // passing no-op WITHOUT this marker escapes both gates — any new skip MUST
+            // carry the marker (and a task citation) or it is dishonest coverage.
             for (AgentTest.Result r : results) {
                 if (!r.passed) { failures.add(r.name); continue; }
                 if (r.name.contains("SKIP(task#92)")) {

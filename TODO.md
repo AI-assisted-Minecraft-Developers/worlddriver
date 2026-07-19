@@ -2,7 +2,7 @@
 
 > 镜像 Task 跟踪器的长期工作。重要根因写进 memory(reference/project)。
 
-## 2026-07-19 ✅ D1-T3 task#92 收案 → `ad.agentRpcSmoke` 拓扑可移植,毯式 early-PASS 门**拆除**;JS 验证套件在专服(T0)+集成客户端(T1)双拓扑都真跑 REQUIRED — commit `559b07a`(branch `feature/executor-permove-ascend`,详录 `.superpowers/sdd/task-3-report.md` + `docs/testkit/migration-log.md` task#92 段)
+## 2026-07-19 ✅ D1-T3 task#92 收案 → `ad.agentRpcSmoke` 拓扑可移植,毯式 early-PASS 门**拆除**;JS 验证套件在专服(T0)+集成客户端(T1)双拓扑都真跑 REQUIRED — commit `a09494b`(branch `feature/executor-permove-ascend`,详录 `.superpowers/sdd/task-3-report.md` + `docs/testkit/migration-log.md` task#92 段)
 
 - **取证(T1 `/agent test` 裸 RPC,不重编译)**:`TOTAL 259/PASS 250/FAIL 9`(tracker 记的 8 少一个=42_combat 行为项)。九分歧定性 + 修:
   - **①13 observe.player + ③④⑤25 tunnel×3**(5 硬 JS `TypeError: … of undefined`)=**验证套件 harness prelude 是 `prelude.js` 的陈旧子集**(`AgentScriptManager` 内联手抄版缺 `Agent.observe.player` + 整个 `Agent.bot.*`);专服路径这些脚本自跳过=漂移长期隐藏,T1 首次真跑 client 分支才炸。修=**改载规范 `prelude.js`(单一真源)**+ 附 harness 专属 extras(rpc/mcpRoundtrip、world.*、stdout console)。
