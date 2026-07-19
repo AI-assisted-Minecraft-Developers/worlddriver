@@ -2413,36 +2413,105 @@ public final class BotConfig {
                 && !Boolean.getBoolean("agent.runValidation");
     }
 
-    /** Write every persistable field to disk. Called after a successful
-     *  {@code mc.bot.setting} apply. Best-effort: a failure is logged, not thrown. */
+    /** Suffix of the SHADOW-DEFAULT companion line written next to every persisted
+     *  key: {@code <key>.default=<compiled default when the file was saved>}. A '.'
+     *  can never collide with a field name (Java identifiers have no dots), so a
+     *  {@code .default} line is never mistaken for an unknown field — and legacy
+     *  code (which only ever looks up keys by field name) simply ignores it, so a
+     *  new-format file stays readable by an older build. */
+    private static final String SHADOW_SUFFIX = ".default";
+
+    /** Serialize a field's current value to the persisted string form (the Set is
+     *  comma-joined; scalars via {@code String.valueOf}). Returns {@code null} for a
+     *  null value so save can skip it. The ONE encoder shared by {@link #save()} and
+     *  {@link #COMPILED_DEFAULTS} capture, so a value and its shadow default are
+     *  byte-for-byte comparable. */
+    private static String serialize(Field f) throws IllegalAccessException {
+        Object v = f.get(null);
+        if (v == null) return null;
+        if (v instanceof Set<?> set) {
+            StringBuilder sb = new StringBuilder();
+            for (Object o : set) { if (sb.length() > 0) sb.append(','); sb.append(o); }
+            return sb.toString();
+        }
+        return String.valueOf(v);
+    }
+
+    /** The compiled-in default of every persistable field, captured at class
+     *  initialization — which completes BEFORE {@link #load()} (a method call) can
+     *  apply any persisted value, so these are the true defaults baked into THIS
+     *  build. The shadow-default scheme leans on this map twice: {@link #save()}
+     *  writes it as the {@code <key>.default} line, and {@link #load()} re-saves a
+     *  file whose stored snapshot no longer matches the current compiled default.
+     *  Assigned in a static block at the very END of the class so every field it
+     *  reads (all the volatiles above, and {@link #NON_PERSISTED} which
+     *  {@link #persistable} consults) is already class-initialized. */
+    private static final Map<String, String> COMPILED_DEFAULTS;
+
+    private static Map<String, String> captureCompiledDefaults() {
+        Map<String, String> m = new LinkedHashMap<>();
+        for (Field f : persistableFields()) {
+            try { String s = serialize(f); if (s != null) m.put(f.getName(), s); }
+            catch (Exception ignored) { /* own field — cannot happen */ }
+        }
+        return m;
+    }
+
+    /** Write every persistable field to disk in SHADOW-DEFAULT format. Called after
+     *  a successful {@code mc.bot.setting} apply (and by {@link #load()} to upgrade a
+     *  stale/legacy file). For each field two lines are emitted:
+     *  <pre>  &lt;key&gt;=&lt;current value&gt;
+     *  &lt;key&gt;.default=&lt;compiled default of THIS build&gt;</pre>
+     *  On the next {@link #load()} a key whose value equals its shadow default is a
+     *  mere snapshot of the-then default and yields to the current compiled default;
+     *  a key whose value differs was set by the user and is preserved. Setting a key
+     *  explicitly back to its default therefore counts as following the default (its
+     *  value will equal the freshly-written shadow), which is the intended semantics:
+     *  "I want the default" and "I never touched it" persist identically.
+     *  Best-effort: a failure is logged, not thrown — persistence never blocks. */
     public static synchronized void save() {
         if (!persistEnabled()) return;
         try {
             Properties props = new Properties();
             for (Field f : persistableFields()) {
-                Object v = f.get(null);
+                String v = serialize(f);
                 if (v == null) continue;
-                if (v instanceof Set<?> set) {
-                    StringBuilder sb = new StringBuilder();
-                    for (Object o : set) { if (sb.length() > 0) sb.append(','); sb.append(o); }
-                    props.setProperty(f.getName(), sb.toString());
-                } else {
-                    props.setProperty(f.getName(), String.valueOf(v));
-                }
+                props.setProperty(f.getName(), v);
+                String def = COMPILED_DEFAULTS.get(f.getName());
+                if (def != null) props.setProperty(f.getName() + SHADOW_SUFFIX, def);
             }
             Path path = persistPath();
             if (path.getParent() != null) Files.createDirectories(path.getParent());
             try (var w = Files.newBufferedWriter(path)) {
-                props.store(w, "agent-driver bot settings — auto-saved by mc.bot.setting");
+                props.store(w, "agent-driver bot settings — auto-saved by mc.bot.setting"
+                        + " (<key>.default = compiled default at save time; a key equal to its"
+                        + " default is a snapshot and follows the current build's default)");
             }
         } catch (Exception e) {
             LOG.warn("[config] save failed: {}", e.toString());
         }
     }
 
-    /** Reload persisted settings at startup, before any tick reads them. Missing
-     *  file → defaults stand; a malformed individual key is skipped (a partial/old
-     *  file still applies what it can). */
+    /** Reload persisted settings at startup, before any tick reads them, applying
+     *  SHADOW-DEFAULT semantics per key. Missing file → defaults stand; a malformed
+     *  individual key is skipped (a partial/old file still applies what it can).
+     *  <ul>
+     *    <li><b>shadow present, value == shadow</b> → SKIP: the persisted value was
+     *        just a snapshot of the default when the file was saved, so the current
+     *        compiled default wins (this is the fix for the config-persistence trap —
+     *        a stale snapshot no longer crushes a later default flip).</li>
+     *    <li><b>shadow present, value != shadow</b> → APPLY: the user changed it;
+     *        preserve their value.</li>
+     *    <li><b>no shadow (legacy file)</b> → APPLY conservatively, then emit ONE
+     *        WARN listing the keys that differ from the current compiled default, and
+     *        upgrade-re-save the file in shadow format.</li>
+     *  </ul>
+     *  {@code .default} lines are looked up deliberately as each key's companion; the
+     *  loop iterates the field set (never the raw property keys), so a shadow line is
+     *  never treated as an unknown field. A stale snapshot (SKIP where the stored
+     *  value no longer equals the current compiled default) also triggers an upgrade
+     *  re-save so the file reflects the winning default. Any re-save is best-effort —
+     *  an IO failure is logged, never fatal to startup. */
     public static synchronized void load() {
         if (!persistEnabled()) return;
         try {
@@ -2450,14 +2519,40 @@ public final class BotConfig {
             if (!Files.exists(path)) return;
             Properties props = new Properties();
             try (var r = Files.newBufferedReader(path)) { props.load(r); }
-            int n = 0;
+            int applied = 0, skipped = 0;
+            boolean needsUpgrade = false;          // any legacy key, or any stale snapshot
+            List<String> legacyDrift = new ArrayList<>();
             for (Field f : persistableFields()) {
-                String s = props.getProperty(f.getName());
+                String key = f.getName();
+                String s = props.getProperty(key);
                 if (s == null) continue;
-                try { assign(f, s); n++; }
-                catch (Exception ex) { LOG.warn("[config] skip {}: {}", f.getName(), ex.toString()); }
+                String shadow = props.getProperty(key + SHADOW_SUFFIX);
+                String curDefault = COMPILED_DEFAULTS.get(key);
+                if (shadow == null) {
+                    // Legacy line (no shadow): keep the user's value conservatively.
+                    try {
+                        assign(f, s); applied++;
+                        if (curDefault != null && !s.trim().equals(curDefault.trim())) legacyDrift.add(key);
+                    } catch (Exception ex) { LOG.warn("[config] skip {}: {}", key, ex.toString()); }
+                    needsUpgrade = true;
+                } else if (s.trim().equals(shadow.trim())) {
+                    // Snapshot of the-then default → the current compiled default wins.
+                    skipped++;
+                    if (curDefault != null && !s.trim().equals(curDefault.trim())) needsUpgrade = true;
+                } else {
+                    // User set it away from the saved default → preserve.
+                    try { assign(f, s); applied++; }
+                    catch (Exception ex) { LOG.warn("[config] skip {}: {}", key, ex.toString()); }
+                }
             }
-            LOG.info("[config] loaded {} persisted bot setting(s) from {}", n, path.toAbsolutePath());
+            LOG.info("[config] loaded {} persisted bot setting(s) ({} snapshot key(s) followed current default) from {}",
+                    applied, skipped, path.toAbsolutePath());
+            if (!legacyDrift.isEmpty()) {
+                LOG.warn("[config] legacy config file (no shadow defaults) — applied as-is;"
+                        + " {} key(s) differ from this build's compiled default and were preserved: {}."
+                        + " Upgrading file to shadow-default format.", legacyDrift.size(), legacyDrift);
+            }
+            if (needsUpgrade) save();   // best-effort upgrade re-save (IO failure logged, not fatal)
         } catch (Exception e) {
             LOG.warn("[config] load failed: {}", e.toString());
         }
@@ -2612,4 +2707,8 @@ public final class BotConfig {
         pathfinderFloatingBreakTax = false;
         pathfinderLogBreakTax = 1.0;
     }
+
+    // Capture the compiled-in defaults LAST — after every persistable volatile and
+    // NON_PERSISTED are initialized, and (being class init) before load() runs.
+    static { COMPILED_DEFAULTS = captureCompiledDefaults(); }
 }

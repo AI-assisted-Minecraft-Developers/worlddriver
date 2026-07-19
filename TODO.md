@@ -2,6 +2,16 @@
 
 > 镜像 Task 跟踪器的长期工作。重要根因写进 memory(reference/project)。
 
+## 2026-07-19 ✅ task#93 收案 → config-persistence 陷阱修复(**SHADOW-DEFAULT 持久化**)— 本条目所在 fix commit(plan 见 `7965f1c`;branch `feature/executor-permove-ascend`,详录 `.superpowers/sdd/task-1-report.md` + `docs/testkit/migration-log.md` task#93 段)
+
+- **根因(D2 发现)**:`BotConfig.save()` 反射落盘**每个**字段、`load()` 启动**无条件**逐字段 `assign` → 持有旧 properties 文件的客户端把**旧版本默认值快照**当"用户设置"应用,**压制后续版本默认翻转**(实证:`walkerWaterClimbLateralGate` 新默认 `true` 被上一 session 陈旧 `false` 覆写)。
+- **修 = SHADOW-DEFAULT**(`BotConfig.java` 持久化段 + 类尾 `static{}` 捕获编译默认):`save()` 每键写两行 `<key>=<值>` + `<key>.default=<本 build 编译默认>`;`load()` 每键判等——**值==影子→SKIP**(仅是当时默认的快照,当前编译默认胜出=陷阱修复本体)/**值!=影子→APPLY**(用户改过,保留)/**无影子(legacy)→保守 APPLY + 一行 WARN 漂移清单 + 升级重存**。陈旧快照亦触发升级重存;稳态零 churn。**设回默认=跟随默认**(javadoc 写明)。向后兼容天然:旧代码只按字段名反查,`.default` 行(`.` 非合法标识符字符)静默忽略。
+- **Step 1 现实现观测**:旧 `load()` 只 `for field → props.getProperty(field.name)`,**从不遍历文件 key** → 未知键(含 `.default`)静默跳过、不抛不警;单键解析失败 WARN+跳过、整体失败 WARN 不阻断——两条容错语义保留,升级重存亦 best-effort。
+- **Live 四向验证**(`:fabric:runServer` + `:fabric:runClient`,`-Dagent.persistConfig=true`;**RPC 读回须走 CLIENT**——`mc.bot.setting` 路由 `requireBot()`,bot impl 仅 client 入口注册,裸专服返回 "bot impl not registered",title-screen 即可读不需进世界):**(a)** `walkerWaterClimbLateralGate=false`+`.default=false`→RPC 读 `true`(当前默认胜);**(b)** `autoSwim=false`+`.default=true`→RPC 读 `false`(用户保留);**(c)** legacy `autoFight=true`→RPC 读 `true` + WARN `[autoFight]` + 文件升级;**(d)** `mc.bot.setting{autoHeal:true}`→save→重启→RPC 读 `true`(round-trip)。两次快照 229 键**零 `.default` 泄漏**进 settings 面。
+- **Step 4**:`fabric/run/config/agent_driver_bot.properties`(手工刷过两键的 live prefs)恢复原内容后 boot 一次自动升级到 shadow 格式(206 影子行),**有效值逐行 diff 与备份一致**,末态留升级态。
+- **✅ Armor**:opt-in 门(dogfood/testkit/contract/t2 不设 `persistConfig` → `load/save` early-return,改动**证明性 inert**);dogfood **双 loader GREEN**(各 131 场景/137 行,goldens 未改)+ instrument **23/23 双 loader**(#280 门证 `.default` 不进 schema)+ **t1 GREEN**(agentRpcSmoke 799t/35s 真跑;唯一 optional fail=既有 `ad.vineOverWaterClimb` −711,非回归);**testkit runDir 零新落盘**(opt-in 门完好)。⚠️环境:早段外部 Touhou 客户端 ~900% CPU + killed-run 端口 25599 释放竞态致两次假超时,拆 leftover + 清 world + 加 `--wall` 后全绿一跑过。
+- **残余**:无(task#93 全闭);**user 待决**(不变):`artifactId` 发布坐标 / merge / 远端仓库。
+
 ## 2026-07-19 ✅ D2 债务修复阶段**收官**(D2-T4 终验 + 文档)→ 三债 task#86/#87/#91 全闭,场景 130→131,治理面下调至 2 optional sensor;八门全绿 + 一处 live over-forbid 反证 — commit chain `70310eb`(plan)/`5aedb81`(task#86)/`99cf2b1`(T1审修)/`250d55b`(task#87 RED)/`a1ce629`(task#87 CLOSED)/`6da1798`(task#91)/`32c136d`(T3审修)+ 本 docs 收官(branch `feature/executor-permove-ascend`,详录 `.superpowers/sdd/task-4-report.md`)
 
 - **三债根因一句话 + 修法 + 证据指针**:

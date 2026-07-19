@@ -1359,3 +1359,48 @@ flip + closure javadoc), `expected-scenes-{neoforge,fabric}.txt` (comment). [Cor
 review: this line originally over-claimed `ParkourAscend.java`/`BotTools.java` edits in `5aedb81`;
 the `BotTools.java` setting-description update ("Off by default"→"On by default") actually landed in
 the D2 final-review fix commit.]
+
+## task#93 CLOSED — config-persistence trap: SHADOW-DEFAULT persistence — 2026-07-19 (D2-tail structural fix)
+
+**Not a scene migration — a structural fix to the persistence layer surfaced by the D2-T1 live run.**
+Recorded here for continuity: the D2-T1 over-forbid live check hit a stale-config side-effect and
+opened this tracker. The Mountains-save client read `walkerWaterClimbLateralGate` as `false` even
+though the source default is `true` — a *previous session's persisted `properties` file* silently
+overrode a later default flip. Root cause: `BotConfig.save()` wrote **every** persistable field and
+`load()` **unconditionally** re-applied each one, so an old file's snapshot of a bygone default was
+indistinguishable from a deliberate user setting and crushed the new compiled default on every start.
+
+**Fix = SHADOW-DEFAULT persistence** (`BotConfig.java`, persistence section + a class-tail `static{}`
+that captures every field's compiled-in default at class-init, before `load()` runs). `save()` now
+writes two lines per key — `<key>=<value>` and `<key>.default=<compiled default at save time>`.
+`load()` decides per key: **value == shadow → SKIP** (the persisted value was only a snapshot of the
+then-default, so the *current* compiled default wins — the trap fix); **value != shadow → APPLY**
+(the user changed it, preserve); **no shadow (legacy file) → APPLY conservatively**, emit one WARN
+listing the keys that differ from the current compiled default, and **upgrade-re-save** the file to
+shadow format. A stale snapshot (SKIP where the stored value no longer equals the current default)
+also triggers the upgrade re-save; steady state (fresh shadows, no legacy, no stale) re-saves nothing.
+Setting a key explicitly back to its default counts as following the default (documented in javadoc).
+Backward-compat is automatic: legacy `load()` only ever looked keys up **by field name**, so a
+`.default` line (a `.` can't appear in a Java identifier) was — and still is — silently ignored by
+older builds; new code reads legacy files fine.
+
+**Opt-in gate intact:** the fix lives entirely behind `agent.persistConfig`, which the
+dogfood/testkit/contract/t2 runs deliberately do **not** set (`persistEnabled()` early-returns), so
+persistence is provably inert in every suite; the only always-on addition is the read-only
+compiled-defaults capture. Confirmed: no `agent_driver_bot.properties` appears in any testkit runDir.
+
+**Live four-direction verification** (dedicated `:fabric:runServer` + `:fabric:runClient`, both with
+`-Dagent.persistConfig=true`; RPC readback needs a CLIENT because `mc.bot.setting` routes
+`requireBot()` and the bot impl only registers in the client entrypoint — a bare dedicated server
+returns "bot impl not registered"): (a) crafted `walkerWaterClimbLateralGate=false`+`.default=false`
+→ RPC reads `true` (current default wins); (b) `autoSwim=false`+`.default=true` → RPC reads `false`
+(user preserved); (c) legacy `autoFight=true` (no shadow) → RPC reads `true` + WARN drift list
+`[autoFight]` + file upgraded; (d) `mc.bot.setting{autoHeal:true}`→save→restart → RPC reads `true`
+(round-trip). Both RPC snapshots carried 229 keys with **zero `.default` key leaking** into the
+settings surface (instrument `catalog.settingSchemaClosed` / `route.settingUnknownKey` #280 checks
+green on both loaders back this up). `fabric/run/config/agent_driver_bot.properties` was left upgraded
+to shadow format with byte-identical effective values (206 value lines diff-clean vs the pre-run backup).
+
+Files: `BotConfig.java` (persistence `save`/`load` rewrite, `serialize` extraction, `COMPILED_DEFAULTS`
+capture). No scene, expect-file, or golden change. Armor: dogfood GREEN both loaders (131 scenes,
+137-line results, goldens unchanged), instrument 23/23 both loaders, t1 GREEN.
