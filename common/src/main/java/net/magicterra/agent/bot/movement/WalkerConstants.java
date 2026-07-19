@@ -515,7 +515,10 @@ final class WalkerConstants {
      *  up) and must be reached by SWIMMING to it, not by trenching the sheer wall the bot is
      *  merely passing. 2 admits a diagonal-adjacent bank / +2 staircase step while still
      *  excluding the ≥5-cell lateral exits; the swim-drive carries the body along the corridor
-     *  and the climb re-arms once it swims adjacent (self-healing). */
+     *  and the climb re-arms once it swims adjacent (self-healing). NOTE: 2 is a judgment
+     *  floor, not an A/B-measured boundary — the task#91 wedge sits at Chebyshev 5 and any
+     *  value in [2,4] passes the scene; the water family is byte-identical at 2. If a future
+     *  wedge appears at Chebyshev 3-4, re-derive this bound with a K>=6 A/B, don't nudge it. */
     public static final int WATER_CLIMB_LATERAL_MAX = 2;
     /** Stall threshold for the LAST-RESORT block-less bank DIG (vs the with-block
      *  pillar takeover at {@link #WATER_CLIMB_STALL}). Much higher so the dig is a
