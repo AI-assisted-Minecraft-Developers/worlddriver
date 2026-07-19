@@ -1,5 +1,6 @@
 package net.magicterra.agent.bot.testkit.scene;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -38,6 +39,7 @@ import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 
 /**
@@ -208,6 +210,9 @@ public final class AgentDriverScenes implements SceneProvider {
                 Scene.of("ad.gearScope", 200, AgentDriverScenes::gearScope),
                 Scene.of("ad.buriedOre", 200, AgentDriverScenes::buriedOre),
                 Scene.of("ad.entityLeash", 200, AgentDriverScenes::entityLeash),
+                // task#87 low-Y leash probe — investigation sensor, starts required=false
+                // until the 3×2-loader + full-suite verdict adjudicates (see javadoc).
+                Scene.of("ad.entityLeashLowY", 200, AgentDriverScenes::entityLeashLowY).withRequired(false),
                 Scene.of("ad.settingRegistryClosed", 200, AgentDriverScenes::settingRegistryClosed));
     }
 
@@ -1278,6 +1283,173 @@ public final class AgentDriverScenes implements SceneProvider {
                                             + "the anchor moved: finished=" + driver.finished() + " active=" + ServerAgentManager.activeCount());
                                 if (!reached)
                                     ctx.fail("entityLeash: phase2: bot did not ARRIVE at the goal after the anchor moved: pos=("
+                                            + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ")");
+                            });
+                });
+    }
+
+    /**
+     * task#87 — LOW-Y leash probe (investigation sensor, starts {@code withRequired(false)}).
+     *
+     * <p><b>Why this scene exists.</b> The deleted legacy {@code entityLeashRepathArena}
+     * was a MASTER-INHERITED deterministic solo-RED (TODO.md line 79; clean master-HEAD
+     * worktree solo RED 2/2, 07-14): its phase 2 fails at the GameTest "empty" template's
+     * {@code y≈−60} placement (near the −64 world floor) — after the anchor teleports past
+     * the goal, the bot never ARRIVEs. Its migrated twin {@link #entityLeash} at the grid's
+     * {@code y=200} is GREEN. The divergence was ADJUDICATED (A) as legacy-rig ENVIRONMENT
+     * (void-fall rig-disease family) rather than an engine low-Y defect — but no engine-level
+     * low-Y proof existed either way. This probe is that proof: {@link #entityLeash}'s
+     * geometry, assertions, and two-phase structure copied VERBATIM, with the SOLE difference
+     * that the stone lane floor sits at ABSOLUTE {@code y=−60} (walking surface {@code −59}),
+     * mirroring the legacy arena's placement. GREEN here ⇒ the engine has no low-Y leash
+     * defect ⇒ the legacy RED was rig disease (this scene then flips to a permanent low-Y
+     * regression guard); RED here ⇒ a real engine low-Y gap, characterized and reported.
+     *
+     * <p><b>World-pollution containment + capture-and-restore.</b> Unlike {@link #entityLeash}
+     * (floor at {@code origin.getY()} = grid plane 200, over air) this probe fills near the
+     * {@code −64} world floor, where the originals are bedrock/deepslate-adjacent, NOT air/stone.
+     * The XZ footprint stays inside this scene's own origin-slot column (chunk-aligned, so the
+     * default 3×3 forced/entity-ticking neighbourhood covers the full-height column — the stand
+     * at {@code y=−59} is scannable exactly as at y=200). The fill footprint's original
+     * blockstates are SNAPSHOT before filling and restored in cleanup (registered FIRST so it
+     * drains LAST — after the driver unregister + avatar + stand discard), leaving the
+     * persistent dogfood world byte-restored. A pre-fill INFO line records the actual
+     * world-floor blocks at the column (the buildability/evidence probe the brief asked for):
+     * {@code setBlockAndUpdate} overwrites bedrock programmatically, so the lane is buildable at
+     * any Y ≥ −64 regardless of what is there — {@code −60} is chosen to mirror the legacy twin.
+     *
+     * <p><b>Auto slot, default radius (choice noted).</b> This scene WALKS entities (leash
+     * re-solve → ARRIVE); it records no byte-metric, so it is NOT position-determinism-
+     * sensitive — an auto slot is acceptable (unlike {@code ad.descentYaw}/{@code ad.selfShaftDigUp}
+     * which pin for byte-golden reasons). Footprint envelope is identical to {@link #entityLeash}
+     * (dx [−2,+2], dz [−1,+28]), inside the default window's +31 edge, so no
+     * {@code withChunkRadius(2)} widening is needed.
+     *
+     * <p><b>Everything else is {@link #entityLeash} verbatim</b> — the bracketed
+     * register/tickAll/unregister phase loops, the two {@code ctx.await(entity-visible)}
+     * liveness waits at {@code within(180)} (a gate, not a metric — copied, NOT tightened),
+     * the {@code createIsolated} driver + targeted teardown, and the phase-1-held /
+     * phase-2-ARRIVE assertions (failure prefix {@code "entityLeashLowY: "}).
+     */
+    private static void entityLeashLowY(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        // XZ from the origin slot (chunk-aligned, entity-ticking column) — but Y is OVERRIDDEN
+        // to an ABSOLUTE near-world-floor value: this is the ONE difference from ad.entityLeash.
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
+        final int floorY = -60;   // absolute; walking surface floorY+1 = -59 (legacy twin's y≈−60)
+        final int goalDz = 24;
+        final double leashRadius = 8.0;
+
+        // Capture-and-restore: snapshot the full fill footprint (floor dy=0 .. carve/rails dy=3)
+        // BEFORE overwriting it, so cleanup byte-restores the deep-underground originals
+        // (bedrock/deepslate-adjacent, not stone) in the persistent dogfood world. Registered
+        // FIRST → drains LAST (after unregister + discard). Also LOGS the world-floor originals
+        // at three probe points as the buildability/evidence record (brief precondition).
+        Map<BlockPos, BlockState> saved = new HashMap<>();
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -1; dz <= goalDz + 2; dz++)
+                for (int dy = 0; dy <= 3; dy++) {
+                    BlockPos p = new BlockPos(cx + dx, floorY + dy, cz + dz);
+                    saved.put(p, level.getBlockState(p));
+                }
+        AgentDriverCommon.LOG.info(
+                "[ad.entityLeashLowY] world-floor probe @({},{}) floorY={} : floor@start={} floor@goal={} below-floor={} carve@start={}",
+                cx, cz, floorY,
+                level.getBlockState(new BlockPos(cx, floorY, cz)),
+                level.getBlockState(new BlockPos(cx, floorY, cz + goalDz)),
+                level.getBlockState(new BlockPos(cx, floorY - 1, cz)),
+                level.getBlockState(new BlockPos(cx, floorY + 1, cz)));
+        ctx.cleanup(() -> saved.forEach(level::setBlockAndUpdate));
+
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -1; dz <= goalDz + 2; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+        // Side rails: keep the walker ON the lane so the arena tests the leash, not
+        // edge-clipping churn.
+        for (int dz = -1; dz <= goalDz + 2; dz++) {
+            level.setBlockAndUpdate(new BlockPos(cx - 2, floorY + 1, cz + dz), Blocks.STONE.defaultBlockState());
+            level.setBlockAndUpdate(new BlockPos(cx + 2, floorY + 1, cz + dz), Blocks.STONE.defaultBlockState());
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dy = 1; dy <= 3; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+        }
+        BlockPos goal = new BlockPos(cx, floorY + 1, cz + goalDz);
+
+        final ArmorStand stand = new ArmorStand(level, cx + 0.5, floorY + 1, cz + 0.5);   // AT the bot's start
+        stand.setNoGravity(true);
+        level.addFreshEntity(stand);
+        // NO manual level.tick() — direct port livelocks ChunkMap.processUnloads on the
+        // persistent dogfood world (see ad.entityLeash javadoc); await-1 waits for the natural
+        // server tick to index the fresh stand.
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+
+        EntityLeash leash = new EntityLeash("minecraft:armor_stand", leashRadius, 0, true);
+        Intent intent = new Intent(new Goal.Near(goal, 1), List.of(), CapabilityProfile.ALL, List.of(), leash);
+        final ServerAgentDriver driver = ServerAgentDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+        final ServerPlayer fp = driver.fakePlayer();
+        ctx.cleanup(() -> {
+            ServerAgentManager.unregister(driver);
+            fp.discard();
+            stand.discard();
+        });
+        driver.runProcess(new IntentProcess(intent));
+
+        final BlockPos p2anchor = new BlockPos(goal.getX(), floorY + 1, goal.getZ() + 4);
+
+        ctx.await(() -> EntityFind.nearest(level, fp, "minecraft:armor_stand") != null)
+                .within(180)  // liveness gate copied from ad.entityLeash — NOT tightened (task#88)
+                .then(() -> {
+                    ServerAgentManager.register(driver);
+                    for (int t = 0; t < 200 && ServerAgentManager.activeCount() > 0; t++)
+                        ServerAgentManager.tickAll();
+
+                    double sdx = fp.getX() - (cx + 0.5), sdz = fp.getZ() - (cz + 0.5);
+                    double standDist1 = Math.sqrt(sdx * sdx + sdz * sdz);
+                    boolean arrivedTrueGoal1 = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
+                            && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
+                    AgentDriverCommon.LOG.info(
+                            "[ad.entityLeashLowY] phase1 pos=({},{},{}) finished={} active={} standDist={} arrivedTrueGoal={} await1Ticks={}",
+                            fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAgentManager.activeCount(),
+                            standDist1, arrivedTrueGoal1, ctx.ticks());
+                    if (driver.finished() || arrivedTrueGoal1)
+                        ctx.fail("entityLeashLowY: phase1: process reached the true goal before the anchor moved — "
+                                + "the hard leash did not hold the bot back: pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ()
+                                + ") finished=" + driver.finished());
+                    if (standDist1 > leashRadius + 3.0)
+                        ctx.fail("entityLeashLowY: phase1: bot strayed beyond the leash radius+slack: standDist="
+                                + standDist1 + " radius=" + leashRadius);
+
+                    stand.teleportTo(p2anchor.getX() + 0.5, floorY + 1, p2anchor.getZ() + 0.5);
+                    ServerAgentManager.unregister(driver);
+
+                    ctx.await(() -> !level.getEntitiesOfClass(ArmorStand.class,
+                                    new AABB(p2anchor).inflate(2.0)).isEmpty())
+                            .within(180)  // liveness bound, moves with AWAIT-1 (copied, not tightened)
+                            .then(() -> {
+                                ServerAgentManager.register(driver);
+                                for (int t = 0; t < 600 && ServerAgentManager.activeCount() > 0; t++) {
+                                    ServerAgentManager.tickAll();
+                                    if (t % 150 == 0) {
+                                        AgentDriverCommon.LOG.info("[ad.entityLeashLowY] p2 t={} pos=({},{},{}) standPos={}",
+                                                t, fp.getX(), fp.getY(), fp.getZ(), stand.blockPosition().toShortString());
+                                    }
+                                }
+
+                                boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
+                                        && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
+                                AgentDriverCommon.LOG.info(
+                                        "[ad.entityLeashLowY] phase2 pos=({},{},{}) finished={} active={} reached={} sceneTicks={}",
+                                        fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAgentManager.activeCount(), reached, ctx.ticks());
+                                if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                                    ctx.fail("entityLeashLowY: phase2: leash re-solve process did not finish+unregister after "
+                                            + "the anchor moved: finished=" + driver.finished() + " active=" + ServerAgentManager.activeCount());
+                                if (!reached)
+                                    ctx.fail("entityLeashLowY: phase2: bot did not ARRIVE at the goal after the anchor moved: pos=("
                                             + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ")");
                             });
                 });

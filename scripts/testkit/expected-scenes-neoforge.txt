@@ -10,6 +10,7 @@ ad.descentYaw
 ad.gearScope
 ad.buriedOre
 ad.entityLeash
+ad.entityLeashLowY
 ad.settingRegistryClosed
 # P4b wave 2 — Terrain family (12 migrated from AgentGameTestTerrain; descentDrift retired-without-scene, pending adjudication)
 ad.summit

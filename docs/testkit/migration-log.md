@@ -1163,3 +1163,69 @@ t1.py **GREEN** — `ad.agentRpcSmoke` PASS, scene ACTUALLY ran the suite (804 t
 `passNote` = "259 checks, 0 failures, 1 named task#92 topology-skip"; client log `TOTAL 259 / PASS 259
 / FAIL 0`. Files: `AgentScriptManager.java` (prelude load), `prelude.js` (tunnel guard),
 `21/40/42/57_*.js`, `AgentDriverCoreScenes.java` (guard removed + topology-aware gate).
+
+## task#87 — low-Y leash probe (`ad.entityLeashLowY`): RED reproduced, **BLOCKED on adjudication** — 2026-07-19 (D2 Task 2)
+
+**Mission.** The deleted legacy `entityLeashRepathArena` was a master-inherited deterministic solo-RED at
+its GameTest "empty" placement `y≈−60` (phase 2: after the leash anchor teleports past the goal, the bot
+never ARRIVEs); its migrated twin `ad.entityLeash` at grid `y=200` is GREEN. The divergence was adjudicated
+(A) as legacy-rig ENVIRONMENT (void-fall rig-disease family) — but **no engine-level low-Y proof existed
+either way**. This task built `ad.entityLeashLowY`: `ad.entityLeash`'s geometry / assertions / two-phase
+structure copied **verbatim**, sole difference = the stone lane floor at **absolute `y=−60`** (walking
+surface `−59`), XZ kept inside the scene's own origin-slot column, full footprint capture-and-restore in
+cleanup. Registered `withRequired(false)` (investigation sensor). Scene name added to both expect-files
+(130→131 each).
+
+**Verdict = RED, deterministic, cross-loader-identical.** `ad.entityLeashLowY` FAILs phase 2 on **every**
+run — `entityLeashLowY: phase2: leash re-solve process did not finish+unregister after the anchor moved:
+finished=false active=1`. Positions are **byte-identical** across neoforge×2 and fabric×1 (only the AWAIT
+tick-count jitters, timing-not-outcome, exactly as documented for the twin):
+
+| loader | run | phase1 pos (x,y,z) | standDist1 | phase2 final pos (x,y,z) | reached | finished | outcome |
+|--------|-----|--------------------|-----------|--------------------------|---------|----------|---------|
+| neoforge | 1 | 105629.69999998808, −60.0, 100000.1550 | 2.82117 | 105629.69999998808, −60.0, 100025.5331 | false | false | FAIL |
+| neoforge | 2 | 105629.69999998808, −60.0, 100000.1550 | 2.82117 | 105629.69999998808, −60.0, 100025.5331 | false | false | FAIL |
+| fabric | 1 | 105629.69999998808, −60.0, 100000.1550 | 2.82117 | 105629.69999998808, −60.0, 100025.5331 | false | false | FAIL |
+
+Suite VERDICT stayed **GREEN** on all 3 (scene is `required=false`); the `y=200` twin `ad.entityLeash`
+stayed **PASS** on both loaders (no regression). Cleanup verified empirically: run 2's pre-fill world-floor
+probe read **identical** originals to run 1 (air + grass_block) — proving run 1 fully byte-restored the
+footprint — and no `cleanup failed` line in either loader's log.
+
+**Root — NOT the hypothesized low-Y engine branch; the world-floor probe DISPROVES "void-fall near
+bedrock."** The scene's own pre-fill probe at the column `(105632,100000)` reads
+`floor@y=−60 = air`, `below-floor@y=−61 = grass_block[snowy=false]`, `carve@y=−59 = air`. So in the
+persistent dogfood world **`y=−60` is the NATURAL TERRAIN SURFACE, not the void/bedrock world floor** the
+brief modeled — `setBlockAndUpdate` overwrites anything so the lane is buildable, but the 5-wide carved
+lane is now **embedded in generated terrain**, unlike the `y=200` twin which floats in pure void. The
+failure telemetry shows the bot standing at **x=105629.7 (dx=−2.3, WEST of the dx=−2 rail at x=105630),
+y=−60.0** — i.e. **off the lane's west edge, one block down on the natural grass** (grass top −60), pressed
+against the rail's west face. It reaches the goal's Z (final z≈100025.5 vs goal z=100024.5) but never its X
+column (x-error 2.8 > the 1.5 arrival band), and the process never finishes. At `y=200` west-of-lane is
+VOID (no footing → rails+leash keep the bot on the lane); at low-Y-in-terrain the grass gives off-lane
+footing and the walker cannot climb back over the 1-block rail to re-center. **None** of the brief's
+candidate engine roots apply: no dig (leash gate never digs), no scan/entity-index defect (the stand was
+found, both awaits completed), no despawn (the stand is present throughout). The cause is
+**environmental / rig — adjacent natural terrain at this world Y**, the SAME class as the deleted legacy
+arena's failure.
+
+**Why BLOCKED (not auto-closed).** The finding CONFIRMS the *direction* of the (A) adjudication — the low-Y
+RED is environmental, the engine shows no low-Y-branch defect in play here — **but the probe as-built does
+not cleanly isolate "engine low-Y behavior" from "natural-terrain adjacency,"** because the dogfood world
+has terrain (not void) at `y=−60`. It therefore cannot be flipped to a `required` "permanent low-Y
+regression guard" as-is: it would guard terrain-adjacency, not the engine's low-Y math. Per the D2 Task-2
+RED protocol (record signature, characterize root, **STOP → report BLOCKED for controller adjudication; do
+NOT attempt an engine fix without instruction; do NOT silently leave optional**) this is escalated. Two
+adjudication paths for the controller:
+- **(i) Redesign the probe to isolate the variable** — clear a void moat around the low-Y lane (or place
+  it in a guaranteed-void low-Y pocket) so the ONLY difference from `y=200` is the absolute Y. If that runs
+  GREEN → engine has no low-Y defect → **close task#87**, flip this probe to `required` as a clean low-Y
+  guard. If still RED → a genuine engine low-Y defect → open a fix task. (This is a scene/rig change, not
+  an engine fix, but it materially changes the brief's "ONE difference" experiment, so it is the
+  controller's call.)
+- **(ii) Accept the finding as-is** — low-Y in a terrained dogfood world is inherently rig-contaminated;
+  adjudicate task#87 = legacy rig-disease **environmental-confirmed**, and retire this probe or keep it a
+  cited `required=false` sensor of the terrain-adjacency confound.
+
+The probe scene, expect-file entries, and this record are committed; the scene remains `required=false`
+pending the controller's choice above.
