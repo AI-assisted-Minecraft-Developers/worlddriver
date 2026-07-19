@@ -139,8 +139,8 @@ remapJar {
 }
 
 loom {
-    // P4a Task 1: attach the testmod source set to the mod FML scans for annotations, so
-    // the moved @GameTestHolder / @EventBusSubscriber testmod classes are discovered as
+    // P4a Task 1: attach the testmod source set to the mod FML scans, so :common's
+    // testkit scene classes and their SceneProvider service entries are discovered as
     // part of agent_driver (no separate mods.toml). architectury-loom EAGERLY registers a
     // default dev-run mod named "main" (the main source set) during plugin apply, before
     // this script body runs — so we must CONFIGURE that existing "main" mod, not create a
@@ -262,7 +262,7 @@ loom {
         // heap/runValidation pinning below.
         if (it.name == 'contractServer' || it.name == 'testkitClient' || it.name == 't2Server') return
         property 'agent.runValidation', project.findProperty('agentRunValidation') ?: 'false'
-        // Cap heap so dedicated server + gametest don't trigger system OOM.
+        // Cap heap so the dogfood/testkit server runs don't trigger system OOM.
         vmArg '-Xmx2g'
     }
 }

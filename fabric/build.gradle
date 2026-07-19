@@ -244,12 +244,12 @@ loom {
         // Persist mc.bot.setting changes to config/agent_driver_bot.properties so
         // survival toggles (autoSwim, autoRetreat, …) survive a client restart and
         // don't have to be re-applied every relaunch. Opt-in (set only on the dev
-        // runClient/runServer launch, NOT the headless GameTest task) so the
+        // runClient/runServer launch, NOT the dogfood/testkit runs) so the
         // validation suites stay deterministic on pure defaults. Override with
         // -PagentPersistConfig=false.
         property 'agent.persistConfig', project.findProperty('agentPersistConfig') ?: 'true'
         // Cap heap so a stuck client/server can't trigger system OOM when run
-        // alongside the dedicated server + gametest. MC 1.21.1 fits comfortably.
+        // alongside the dogfood/testkit server. MC 1.21.1 fits comfortably.
         vmArg '-Xmx2g'
     }
 }

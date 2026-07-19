@@ -1092,7 +1092,7 @@ in-tree would only be a false signpost to a run path that no longer exists.
 | `neoforge/.../GameTestManifest.java` | production main (task#85 suite-integrity manifest: async enter-writer + JSONL reconcile feed) | **deleted** | `9f506d1` |
 | `scripts/run_gametests.sh` | canonical `runGameTestServer` run wrapper | **deleted** | `9f506d1` |
 | `scripts/gt_reconcile.py` | manifest `registered==entered` reconciler | **deleted** | `9f506d1` |
-| `gameTestServer { … }` loom run config (neoforge + fabric `build.gradle`) | run configuration | **deleted** | `9f506d1` |
+| `gameTestServer { … }` loom run config (neoforge `build.gradle`; fabric never had one) | run configuration | **deleted** | `9f506d1` |
 | `.gitignore` `run-gametest/` line | ignore rule for the deleted run's world dir | **removed** | `9f506d1` |
 | `AgentDriverNeoForge` `onServerStarting` gametest hook + `GameTestManifest.reset()` | production wiring | **removed** (the server-listener is kept; `applyGameTestBaseline()` survives, now gated on `-Dtestkit.autorun` at server start) | `9f506d1` |
 | `BotConfig.java:2533` `applyGameTestBaseline` javadoc ("GameTestServer startup calls this…") | doc | **rewritten** to the post-retirement truth (mc-testkit dogfood server calls it under `-Dtestkit.autorun`) | *this docs close* |
