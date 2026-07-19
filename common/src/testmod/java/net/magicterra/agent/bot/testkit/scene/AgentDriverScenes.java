@@ -1234,8 +1234,8 @@ public final class AgentDriverScenes implements SceneProvider {
         // AWAIT-1 — fallback for the legacy first for(i<3) level.tick(): wait until the fresh
         // stand is queryable by the leash's own EntityFind scan, then drive phase 1. On the
         // dogfood world the fresh entity takes ~18 natural server ticks to be promoted into
-        // the entity-section lookup (measured), so the budget is generous (within 120, well
-        // under the scene's 200-tick budget); the wait tick-count varies but the outcome does
+        // the entity-section lookup (measured), so the budget is generous (within 180, still
+        // under the scene's overall budget); the wait tick-count varies but the outcome does
         // not — the synchronous phase loops read a deterministic world once the stand appears.
         // root fix task#88 landed (D1-T1): TestkitCommon.onServerTick now drains startup tick
         // debt behind a settle barrier (10 consecutive server ticks spaced >=40ms) BEFORE the
