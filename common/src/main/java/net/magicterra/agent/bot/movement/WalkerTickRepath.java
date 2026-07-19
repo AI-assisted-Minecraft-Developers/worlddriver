@@ -157,9 +157,9 @@ final class WalkerTickRepath {
         // Futile-cycle backoff (gap #49-③): while cooling down after a futile search,
         // don't kick off another one — the churn loop otherwise relaunches a full-budget
         // A* every tick from the same foot toward the same unreachable goal.
-        if (wk.searchBackoffTicks > 0) wk.searchBackoffTicks--;
+        if (wk.searchGov.searchBackoffTicks > 0) wk.searchGov.searchBackoffTicks--;
         if (!wk.replayMode && (safetyRepath || fullPeriodic) && wk.activeSearch == null
-                && wk.searchBackoffTicks == 0) {
+                && wk.searchGov.searchBackoffTicks == 0) {
             // Stuck too long on a move the Walker can't execute (a steep stepUp it
             // slides off, a pillar it can't ground)? Blacklist that node so this
             // re-search routes AROUND the wedge instead of re-planning into it —
@@ -211,7 +211,7 @@ final class WalkerTickRepath {
             wk.ticksSinceRepath = 0;
         } else if (!wk.replayMode && wk.pathBestEffort && wk.commitEnd != null
                 && wk.activeSearch == null && wk.pendingSegment == null
-                && wk.searchBackoffTicks == 0) {
+                && wk.searchGov.searchBackoffTicks == 0) {
             // Eagerly precompute the next best-effort segment from the committed end.
             wk.activeSearch = new PathFinder(world, wk.profile).withOwner(wk.owner).newSearch(wk.commitEnd, wk.goal);
             wk.searchFromEnd = true;

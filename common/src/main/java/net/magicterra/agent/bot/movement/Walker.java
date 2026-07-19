@@ -253,12 +253,24 @@ public final class Walker {
     int unstuckCountCooldown;                       // anti-stuck: min ticks between counted repath events (debounce)
     int unstuckTicks;                               // anti-stuck: ticks left driving the forced displacement
     float unstuckYaw;                               // anti-stuck: fixed heading for the displacement burst
-    // Unreachable-goal churn guard (gap #49-③): consecutive completed searches that
-    // neither improved the best goal distance nor followed any bot displacement.
-    double futileBestDist = Double.POSITIVE_INFINITY;  // bestDistToGoal snapshot at last counted search
-    BlockPos futileFoot;                                // foot snapshot at last counted search
-    int futileSearches;                                 // consecutive futile completions
-    int searchBackoffTicks;                             // no new search kickoff while >0
+    /** Search-stage governors (task#96 step B): the unreachable-goal churn guard
+     *  (gap #49-③) and its kickoff backoff, owned by WalkerTickSearch (backoff is
+     *  honored by WalkerTickRepath's kickoff gates). Reset per journey via
+     *  {@link SearchGovernors#reset()}; the water anti-spin's churnResets deliberately
+     *  lives OUTSIDE (it persists across goals — see its field doc). */
+    final SearchGovernors searchGov = new SearchGovernors();
+    static final class SearchGovernors {
+        double futileBestDist = Double.POSITIVE_INFINITY;  // bestDistToGoal snapshot at last counted search
+        BlockPos futileFoot;                                // foot snapshot at last counted search
+        int futileSearches;                                 // consecutive futile completions
+        int searchBackoffTicks;                             // no new search kickoff while >0
+        void reset() {
+            futileBestDist = Double.POSITIVE_INFINITY;
+            futileFoot = null;
+            futileSearches = 0;
+            searchBackoffTicks = 0;
+        }
+    }
     int dbgPrevStep = -1;     // walkerDebug: detect step changes for per-step timing
     int dbgTicksOnStep = 0;   // walkerDebug: ticks spent on the current step
     boolean replayMode;   // executing a fixed archived plan: no repath/quick-start/splice/anti-stuck repath
@@ -330,10 +342,7 @@ public final class Walker {
         this.activeSearch = null;
         this.bestDistToGoal = Double.POSITIVE_INFINITY;
         this.bestGoalDist = Double.POSITIVE_INFINITY;
-        this.futileBestDist = Double.POSITIVE_INFINITY;
-        this.futileFoot = null;
-        this.futileSearches = 0;
-        this.searchBackoffTicks = 0;
+        this.searchGov.reset();
         this.repathsNoProgress = 0;
         this.churnBase = null;
         this.churnWindowTicks = 0;

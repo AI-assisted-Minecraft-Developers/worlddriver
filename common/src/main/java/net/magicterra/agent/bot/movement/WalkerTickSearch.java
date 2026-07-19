@@ -116,21 +116,21 @@ final class WalkerTickSearch {
             if (BotConfig.walkerFutileSearchCap > 0 && !res.goalReached()
                     && !a.breakHeld() && !wk.waterClimbDigging && !world.isWater(foot)
                     && !(!res.hasPath() && world.hasStuckPenalties())) {
-                boolean gotCloser = wk.bestDistToGoal < wk.futileBestDist - 0.5;
-                boolean moved = wk.futileFoot == null || wk.futileFoot.distSqr(foot) > 4;
+                boolean gotCloser = wk.bestDistToGoal < wk.searchGov.futileBestDist - 0.5;
+                boolean moved = wk.searchGov.futileFoot == null || wk.searchGov.futileFoot.distSqr(foot) > 4;
                 if (gotCloser || moved) {
-                    wk.futileSearches = 0;
-                    wk.futileBestDist = wk.bestDistToGoal;
-                    wk.futileFoot = foot;
-                } else if (++wk.futileSearches >= BotConfig.walkerFutileSearchCap) {
-                    wk.lastError = "no route progress after " + wk.futileSearches
+                    wk.searchGov.futileSearches = 0;
+                    wk.searchGov.futileBestDist = wk.bestDistToGoal;
+                    wk.searchGov.futileFoot = foot;
+                } else if (++wk.searchGov.futileSearches >= BotConfig.walkerFutileSearchCap) {
+                    wk.lastError = "no route progress after " + wk.searchGov.futileSearches
                             + " consecutive searches — goal unreachable from here (best dist="
                             + Math.round(wk.bestDistToGoal) + ")";
                     return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.NO_PATH, wk.lastError, "failed:" + wk.lastError, p.blockPosition());
                 } else {
                     // Cool down before the next kickoff so the wait between futile cycles
                     // stops burning full search budgets (4→8→16→32-tick backoff).
-                    wk.searchBackoffTicks = Math.min(40, 4 << Math.min(wk.futileSearches, 3));
+                    wk.searchGov.searchBackoffTicks = Math.min(40, 4 << Math.min(wk.searchGov.futileSearches, 3));
                 }
             }
             if (wasFromEnd && wk.path != null && wk.step < wk.path.size()) {
