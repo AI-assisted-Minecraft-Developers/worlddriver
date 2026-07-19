@@ -1310,3 +1310,49 @@ Files: `Walker.java` (`wantClimbNow` lateral gate), `BotConfig.java` (`walkerWat
 NOT baseline-zeroed, javadoc), `WalkerConstants.java` (`WATER_CLIMB_LATERAL_MAX=2`),
 `AgentDriverWaterBankScenes.java` (required flip + javadoc closure), `expected-scenes-{neoforge,fabric}.txt`
 (header comment), `mc-testkit/README.md` (carve-out → closed).
+
+## task#86 CLOSED — self-shaft dig-up backslide (gap #53), `ad.selfShaftDigUp` signature gate → strict — 2026-07-19 (D2 Task 1)
+
+**Verdict: PLANNER-root (not executor / not the strideFloorGuard).** Under true isolation
+(`ServerPlayerAvatar.createUnique` body, no pickaxe — live parity) the dig-up climb deterministically
+fell `worstBackslide=20.252203415101263` back down the shaft it had just dug (byte-identical across
+pinned slots and both loaders, fabric×3 + neoforge×3). **Root cause:** the climb pillars a 1-wide
+free-standing cobblestone column up beside the slab, and near the top A* re-plans a `parkourAscend2`
+leap from the pillar TOP onto the slab (cheaper than 2 more pillar rungs); a stationary 1-wide pillar
+top has NO run-up, so the executor launches into the void and free-falls ~20 blocks straight down its
+own hollow column — a fall the `strideFloorGuard` structurally cannot arrest (an airborne body has no
+adjacent face to place a floor against). The defect was in the planner *admitting* a runway-less
+parkour, not in the fall recovery.
+
+**Fix = `BotConfig.pathfinderParkourAscendNeedRunway` flipped default ON** (commit `5aedb81`).
+`ParkourAscend.valid` now requires the cell BEHIND the launch (`from.offset(-sx,0,-sz)`, opposite the
+leap, same Y) to be `canStandAt` — a real flat run-up. With the flag ON, A* rejects the runway-less
+pillar-top leap and substitutes a straight-up pillar that tops out clean. `WalkerConstants` /
+recovery untouched — the fix is a single planner-admissibility gate.
+
+**Scene flipped from golden-FAILURE-signature gate to a STRICT gate.** While gap #53 was open,
+`ad.selfShaftDigUp` was a *required signature gate* that asserted the ~20-block fall still reproduced
+(`worstBackslide > 15`). Post-fix it asserts the true correctness invariant: the climb REACHES the
+level with NO fall back down its own column — `worstBackslide ≤ pathfinderMaxDryFall + 1 (= 5)`, the
+planner-unplannable dry-fall floor. The residual `1.2522034151012633` is the inherent pillar-jump-arc
+settle (the jump apex sits ~1.25 above the freshly-placed rung before the body lands on it — present
+on EVERY pillar rung, not a shaft fall), margin ~3.75 under the bound; a real gap #53 backslide is
+≥20 and blows the bound loudly.
+
+**Dogfood A/B (byte-identical ×3 both loaders):** flag OFF ⇒ `worstBackslide=20.252203415101263`;
+flag ON ⇒ `maxY=222.25220341510126 worstBackslide=1.2522034151012633 reached=true`. No required
+scene regressed on either loader.
+
+**D2-T4 live over-forbid check (does the runway gate now over-forbid legit parkour?).** Live Fabric
+client on the Mountains save, gate ON: a purpose-built runway-backed +1 gap (5-long runway → 2-block
+gap → +1 landing) was crossed via 6× `parkourAscend2` moves, `goalReached=true endReason=arrived
+finalDist=0 ms=1401 totStuck=2` — the gate ALLOWS a runway-backed parkour. Replay A/B on the
+`high-crest` / `steep-diagUp` ascent corpora (gate ON vs OFF, identical host load): both flag states
+churn identically in water-bank / steep-wedge structural areas (crest maxStuck 1115 ON vs 598 OFF;
+steep 631 vs 602 — neither arrives under heavy box load), and `parkourAscend*` moves executed
+churn-free in BOTH — so the runway gate introduces no parkour-specific stall the baseline lacks. The
+over-forbid failure mode (thrash at a makeable gap) did **not** reproduce.
+
+Files: `BotConfig.java` (`pathfinderParkourAscendNeedRunway=true` default), `ParkourAscend.java`
+(runway gate, javadoc), `AgentDriverScenes.java` (`ad.selfShaftDigUp` strict-gate flip + closure
+javadoc), `BotTools.java` (setting description), `expected-scenes-{neoforge,fabric}.txt` (comment).
