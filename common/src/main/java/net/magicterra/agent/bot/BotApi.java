@@ -80,6 +80,31 @@ public interface BotApi {
      */
     Map<String, Object> resetClientEntry();
     /**
+     * {@code mc.test.input.heldKeys} — instrument-grade held-key readback (task#90).
+     * Reads {@link net.minecraft.client.KeyMapping#isDown()} on the client thread for
+     * exactly the eight movement/action keymappings {@code BotInteract.releaseKeys()}
+     * clears — {@code keyUp/Down/Left/Right/Jump/Sprint/Attack/Shift} — and returns
+     * {@code {ok:true, keys:{up,down,left,right,jump,sprint,attack,shift:bool}}}. Pure
+     * observation (touches no player/world state); the readback the {@code reset.behavior}
+     * keys sub-assertion lacked (the unconditional {@code reset[]} "keys" token proves
+     * {@code releaseKeys()} RAN, not that any key was actually down and got cleared).
+     * Client-only — the verb throws loudly on a dedicated server.
+     */
+    Map<String, Object> heldKeys();
+    /**
+     * {@code mc.test.input.useOnBlock} — instrument-grade world right-click (task#90).
+     * Synthesizes a {@link net.minecraft.world.phys.BlockHitResult} at the given block
+     * coords (face nearest the player's eye, hit at that face's centre — same shape as
+     * {@code mc.bot.useItemOn}) and calls {@code gameMode.useItemOn(player, hand, hit)}
+     * on the client thread. Deliberately NOT the behaviour face: no movement, no aiming
+     * (no yaw/pitch mutation), no sneak toggle — just the single right-click, so a test
+     * can open a block-entity container screen (e.g. a furnace) with no path/aim pipeline.
+     * Params {@code {x:int, y:int, z:int, hand?:"main"|"off"}}; returns
+     * {@code {ok:bool, result:string(InteractionResult), hand, face}}. Client-only —
+     * throws loudly on a dedicated server.
+     */
+    Map<String, Object> useOnBlock(Map<String, Object> params);
+    /**
      * Manage named in-memory waypoints. {@code op} = {@code save|list|get|delete|clear}.
      * Stored for the lifetime of the bot impl (no disk persistence); a saved
      * name can be reused as {@code mc.bot.goto{waypoint:"name"}}. With

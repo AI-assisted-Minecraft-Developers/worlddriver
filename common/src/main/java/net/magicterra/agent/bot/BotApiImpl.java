@@ -890,6 +890,78 @@ public final class BotApiImpl implements BotApi {
         return Map.of("ok", true, "reset", reset);
     }
 
+    /**
+     * {@code mc.test.input.heldKeys} — see {@link BotApi#heldKeys()}. Reads
+     * {@link KeyMapping#isDown()} on the client thread for exactly the eight keymappings
+     * {@link net.magicterra.agent.bot.util.BotInteract#releaseKeys()} clears, in the same
+     * order, under the reply names {@code up/down/left/right/jump/sprint/attack/shift}.
+     * Pure observation — mutates nothing.
+     */
+    @Override
+    public Map<String, Object> heldKeys() {
+        return onClient(() -> {
+            Minecraft mc = Minecraft.getInstance();
+            Map<String, Object> keys = new LinkedHashMap<>();
+            if (mc.options == null) {
+                return Map.of("ok", false, "error", "no client options");
+            }
+            keys.put("up", mc.options.keyUp.isDown());
+            keys.put("down", mc.options.keyDown.isDown());
+            keys.put("left", mc.options.keyLeft.isDown());
+            keys.put("right", mc.options.keyRight.isDown());
+            keys.put("jump", mc.options.keyJump.isDown());
+            keys.put("sprint", mc.options.keySprint.isDown());
+            keys.put("attack", mc.options.keyAttack.isDown());
+            keys.put("shift", mc.options.keyShift.isDown());
+            return Map.of("ok", true, "keys", keys);
+        });
+    }
+
+    /**
+     * {@code mc.test.input.useOnBlock} — see {@link BotApi#useOnBlock(Map)}. Instrument-grade:
+     * the ONLY state change is the {@code gameMode.useItemOn} right-click itself. The face is
+     * the one nearest the player's eye ({@code pickFaceTowardsPlayer}) and the hit Vec3 is that
+     * face's centre — the exact synthetic-hit shape {@code mc.bot.useItemOn} builds — but unlike
+     * the behaviour verb it does NOT aim (no yaw/pitch write), NOT move, and NOT toggle sneak, so
+     * nothing in the path/aim pipeline runs. Opening a block-entity container (empty hand +
+     * right-click) does not need any of those.
+     */
+    @Override
+    public Map<String, Object> useOnBlock(Map<String, Object> params) {
+        if (params == null) return Map.of("ok", false, "error", "x,y,z required");
+        Object ox = params.get("x"), oy = params.get("y"), oz = params.get("z");
+        if (!(ox instanceof Number) || !(oy instanceof Number) || !(oz instanceof Number)) {
+            return Map.of("ok", false, "error", "x,y,z required (int)");
+        }
+        final int x = ((Number) ox).intValue();
+        final int y = ((Number) oy).intValue();
+        final int z = ((Number) oz).intValue();
+        Object oh = params.get("hand");
+        final InteractionHand hand = (oh != null && "off".equalsIgnoreCase(String.valueOf(oh)))
+                ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
+        return onClient(() -> {
+            Minecraft mc = Minecraft.getInstance();
+            LocalPlayer p = mc.player;
+            if (p == null || mc.gameMode == null) {
+                return Map.of("ok", false, "error", "no local player");
+            }
+            BlockPos block = new BlockPos(x, y, z);
+            Direction face = pickFaceTowardsPlayer(block, p);
+            double cx = block.getX() + 0.5 + face.getStepX() * 0.5;
+            double cy = block.getY() + 0.5 + face.getStepY() * 0.5;
+            double cz = block.getZ() + 0.5 + face.getStepZ() * 0.5;
+            BlockHitResult hit = new BlockHitResult(new Vec3(cx, cy, cz), face, block, false);
+            InteractionResult r = mc.gameMode.useItemOn(p, hand, hit);
+            if (r.consumesAction()) p.swing(hand);
+            return Map.of(
+                    "ok", true,
+                    "result", r.name(),
+                    "consumed", r.consumesAction(),
+                    "hand", hand == InteractionHand.MAIN_HAND ? "main" : "off",
+                    "face", face.getName());
+        });
+    }
+
     /** Driver→agent client-tick push-event detection (threat/hurt/death, fluid
      *  entry, day-phase, item pickup, advancements, chat/title, scene edges).
      *  Owns its own cross-tick edge state; {@link #clientTick()} drives it. */

@@ -5,6 +5,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.magicterra.agent.api.AgentApi;
 import net.magicterra.agent.bot.BotConfig;
+import net.magicterra.agent.bot.testkit.TestInputVerbs;
 import net.magicterra.agent.bot.testkit.TestResetVerb;
 import net.magicterra.agent.mcp.McpServer;
 import net.magicterra.agent.mcp.ToolCatalog;
@@ -159,6 +160,10 @@ public final class AgentDriverCommon {
                 // after wireRouteSink (a pre-boot registerVerb throws) and before the
                 // requireSchemasFor convergence guard below (so its route already has a schema).
                 TestResetVerb.register();
+                // task#90 instrument-face gap closers: hidden mc.test.input.heldKeys (KeyMapping
+                // readback) + mc.test.input.useOnBlock (instrument-grade world right-click). Same
+                // paired-SPI / common-boot / client-only contract as TestResetVerb above.
+                TestInputVerbs.register();
             }
         } catch (Exception e) {
             LOG.error("[{}] failed to start RPC server", MOD_ID, e);
