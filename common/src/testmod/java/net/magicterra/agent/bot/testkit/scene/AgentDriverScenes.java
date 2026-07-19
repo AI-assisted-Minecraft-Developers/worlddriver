@@ -98,7 +98,7 @@ import net.minecraft.world.phys.AABB;
  *
  * <p><b>Sole variance — {@code ad.entityLeash} await tick count (timing, not outcome).</b>
  * The one non-byte-identical quantity is {@code ad.entityLeash}'s TOTAL scene-tick count
- * (the sum of its two {@code ctx.await(...).within(120)} entity-indexing waits, which poll
+ * (the sum of its two {@code ctx.await(...).within(180)} entity-indexing waits, which poll
  * once per scene tick): across the six clean runs it was fabric {64,28,30} / neoforge {68,30,57}
  * (Task-3 seeds fabric 27 / neoforge 61). Every clean run PASSED. The tick count decouples
  * from wall-clock: the harness advances exactly once per REAL server tick (single driver =
@@ -115,9 +115,15 @@ import net.minecraft.world.phys.AABB;
  * &gt;=40 ms apart (tick debt drained), so scenes are only ever armed at the real ~50 ms
  * cadence and awaits never run in the catch-up burst regime. A 6-run cold-boot A/B under the
  * settle barrier measured both entity-index awaits &lt;=60 ticks on 6/6 runs (worst AWAIT-1
- * = 41), so the two {@code within} bounds were re-tightened 180→120 (2x the pre-burst
- * within(60) baseline, ~3x the post-settle worst of 41). Widening past 120 again would
- * signal a regressed settle barrier, not a scene bound.
+ * = 41) and the bounds were briefly re-tightened to 120 — <b>falsified by the very first
+ * wild run</b> (D1-T2 armor: await TIMEOUT at 121 ticks, same binary PASSing runs before and
+ * after, under this dev box's constant ~280% external CPU load). Post-settle the await
+ * distribution keeps a load-coupled long tail (entity-index promotion is wall-clock-bound;
+ * CPU contention stretches it independently of tick cadence), which a 6-run sample missed —
+ * exactly the P4c 2/4-timeouts-at-120 signature. Controller adjudication (D1): the bounds
+ * stay at {@code within(180)} as a pure liveness/hang guard — this await is a gate, not a
+ * metric, and widening it can no longer mask the burst disease because the settle barrier +
+ * its INFO log line are the structural guard for that.
  *
  * <p><b>Driver-class porting pattern</b> (dogfood wave 2b, established by
  * {@code ad.gearScope}; the remaining {@code ServerAgentDriver} scenes follow it):
@@ -1239,11 +1245,15 @@ public final class AgentDriverScenes implements SceneProvider {
         // local stopgap, then 180 after a P4c wave-8 stop-bleed (120 exceeded by 1 tick under box
         // load, baseline A/B proved pre-existing). Now the root fix removes the burst regime: a
         // 6-run cold-boot A/B post-settle measured AWAIT-1 {nf 38,31,41 / fb 14,9,10} and AWAIT-2
-        // {nf 29,22,18 / fb 22,21,16} — 6/6 both awaits <=60 — so re-tightened to 120 = 2x the
-        // pre-burst within(60) baseline (~3x the post-settle worst of 41). Do NOT widen again:
-        // past 120 the fault is a regressed settle barrier, not this bound.
+        // {nf 29,22,18 / fb 22,21,16} — 6/6 both awaits <=60 — briefly re-tightened to 120, which
+        // the very FIRST wild run falsified (D1-T2 armor: TIMEOUT at 121, same binary green before
+        // and after, constant ~280% external box load): post-settle the await keeps a load-coupled
+        // long tail a 6-run sample missed (P4c saw 2/4 timeouts at 120 the same way). D1 controller
+        // adjudication: 180 stays as a pure liveness/hang guard — this await is a gate, not a
+        // metric; the settle barrier + its INFO line are the structural guard for the burst disease,
+        // so widening here can no longer mask it.
         ctx.await(() -> EntityFind.nearest(level, fp, "minecraft:armor_stand") != null)
-                .within(120)
+                .within(180)
                 .then(() -> {
                     // Phase 1: stand stationary at start — the hard leash must hold the bot back.
                     // Register ONLY for this synchronous loop, then unregister before the next await.
@@ -1283,7 +1293,7 @@ public final class AgentDriverScenes implements SceneProvider {
                     // legacy forced), then drive phase 2.
                     ctx.await(() -> !level.getEntitiesOfClass(ArmorStand.class,
                                     new AABB(p2anchor).inflate(2.0)).isEmpty())
-                            .within(120)  // re-tightened with AWAIT-1 (task#88 root fix landed, see comment there)
+                            .within(180)  // liveness bound, moves with AWAIT-1 (see adjudication comment there)
                             .then(() -> {
                                 ServerAgentManager.register(driver);
                                 for (int t = 0; t < 600 && ServerAgentManager.activeCount() > 0; t++) {
