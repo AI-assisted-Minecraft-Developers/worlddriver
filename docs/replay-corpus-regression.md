@@ -32,7 +32,9 @@
 (空 —— 机制刚建好;任何 flip 由接受门 + 用户决定。)
 
 ## 4. Baseline 矩阵(= 当前 validated fix-stack,**非** all-OFF)
-**重要**:runtime 有 ~20 个往期 validated walker/pathfinder fix 是 ON(快照 = `baseline-flags.json`):
+**重要**:runtime 有 ~20 个往期 validated walker/pathfinder fix 是 ON(快照 = `baseline-flags.json`;
+2026-07-20 追加 `walkerAscendMovement:false` 钉住 06-28 矩阵的采集栈——该 flag 已在 B1-3 后默认 ON,
+复现下表旧基线数字时必须按快照回钉):
 walkerParkourAscendHold / walkerArcLength{Advance,Wedge} / walkerTangentAim / walkerDeepWater{DriftBrake,FloatBeeline} /
 walkerWaterStepDownFloat / walkerDescentFlipHold / walkerFutileBankDigRelease / walkerBankDigSkipOverhang /
 walkerVine{FreeHangClimb,LandGrab,DescentDrop} / pathfinder{ForbidParkourIntoDeepWater,FloatingSurfaceCross,VineOverWaterTax,PadOverWaterTax,PadClusterTax} 等。

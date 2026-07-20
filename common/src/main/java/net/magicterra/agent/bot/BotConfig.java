@@ -1816,11 +1816,17 @@ public final class BotConfig {
      *  gate. Default OFF. */
     public static volatile boolean walkerChainMount = false;
 
-    /** task#82: route ascent/climb edges (stepUp/stairUpBreak/diagUp) through the per-move
-     *  AscendMovement state machine (own PREP→BREAK→ASCEND→CONFIRM + bounded timeout→cancel).
-     *  Default OFF = the tickInner delegation branch is skipped and legacy ascent handling runs
-     *  byte-identically (spec §5). Flip ON only on a clean live A/B (Unit 6). Wired to mc.bot.setting. */
-    public static volatile boolean walkerAscendMovement = false;
+    /** task#82: weave the thin per-move AscendMovement episode tracker over ascent edges
+     *  (stepUp/stairUpBreak/diagUp; B1 adjudication — the machine never actuates, PREP/RUNNING/
+     *  SUCCESS fall through to the legacy drive; it owns only the per-edge episode + the dig-aware
+     *  72t dead-zone watchdog whose UNREACHABLE folds into forceFellOffPath→re-route).
+     *  Default ON since 2026-07-20 (B1-3): replay A/B 2×2 over the ascent-heavy corpus subset —
+     *  the only arrival in 16 case-runs was an ON leg (steep-822, lowest peak stuck of its four),
+     *  10 watchdog fires all landed on genuine dead-zone poses (zero false trips on progressing
+     *  climbs), churn deltas stayed inside the identical-flag chaos envelope (×4-5 per-archive
+     *  swings), and every ON-leg churn pocket was a pre-existing OFF family. OFF restores the
+     *  byte-identical legacy branch. Wired to mc.bot.setting. */
+    public static volatile boolean walkerAscendMovement = true;
 
     /** §93 commit-tail platform retreat (#15 final lane). Best-effort segments whose
      *  tail lands mid-slope (fewer than 2 same-Y standable cardinal neighbours) retreat

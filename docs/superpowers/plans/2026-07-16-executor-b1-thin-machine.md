@@ -58,8 +58,21 @@ behavior — the timeout→UNREACHABLE conversion. Live/arena verification watch
   UNREACHABLE. New buried-bot rig in AgentGameTestTerrain (deep-stone shaft, bare-hand, assert the
   churn converts to a re-route/futile terminal instead of infinite dead-zone). **CLOSES task#82.**
   Gate: new arena RED on legacy semantics (flag OFF or watchdog off) → GREEN armed; full suite.
-- [ ] **B1-3 — live A/B + default-ON flip:** replay/controlled live buried scenario, screen-watch
-  on; then flip `walkerAscendMovement` default (prerequisite: task#83 baseline-flags refresh).
+- [x] **B1-3 (2026-07-20) — replay A/B + default-ON flip:** 2×2 A/B over the ascent-heavy corpus
+  subset (steep-822/steep-878/crest-815/rev-897; both legs run fresh the same day, screen-watch on,
+  current default stack, only `walkerAscendMovement` toggled). Verdict GREEN: the only arrival in
+  16 case-runs was an ON leg (B2 steep-822, also its lowest peak stuck); best progress on crest-815
+  and rev-897 were ON legs; 10 watchdog UNREACHABLE fires all landed on genuine dead-zone
+  stepUp/diagUp poses (a 3-fire re-route loop broke via the existing blacklist backbone in ~15s;
+  zero false trips on progressing climbs); every ON churn pocket was a pre-existing OFF-family
+  (water-bank/dig/wall-corner — machine-exempt domains); maxStuck sum deltas sat inside the
+  identical-flag chaos envelope (per-archive ×4-5 swings between same-flag runs; peak-stuck is
+  terminal-behavior-confounded — an early futile FAIL idles the bot and reads as a low score).
+  Flipped `walkerAscendMovement` default → ON (baseline-EXEMPT per the lateralGate precedent:
+  arenas run the live truth; the noop scene pins OFF explicitly). The 06-28 corpus baseline was
+  decoupled from the flip by running both A/B legs fresh; `baseline-flags.json` gained
+  `walkerAscendMovement:false` so the archived 06-28 matrix stays reproducible (full task#83
+  re-baseline remains separate debt).
 
 ## What happens to the old plans
 

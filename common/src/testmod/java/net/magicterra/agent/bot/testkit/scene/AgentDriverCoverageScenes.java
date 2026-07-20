@@ -311,8 +311,9 @@ public final class AgentDriverCoverageScenes implements SceneProvider {
                     + "(best-effort/splice machinery): step=" + s + " pos=" + fp.position());
     }
 
-    /** task#82 per-move delegation course: {@code walkerAscendMovement=true} (default OFF
-     *  pending B1-3) over a 4-rung +1 staircase — the AscendMovement machine drives every
+    /** task#82 per-move delegation course: {@code walkerAscendMovement=true} (the live default
+     *  since B1-3 2026-07-20; pinned ON here explicitly because the scene rides the arena
+     *  baseline) over a 4-rung +1 staircase — the AscendMovement machine drives every
      *  dry step-up while the legacy drive stays in place, and the run must end ARRIVED on
      *  the top landing. Covers the WalkerTickDrive delegation branch + the AscendMovement
      *  machine body (3/16 branches before this scene). */
