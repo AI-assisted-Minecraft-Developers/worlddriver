@@ -318,7 +318,7 @@ final class WalkerTickStallDetect {
         // bot against the wall until the wedge timer fired — up to 15 s with the
         // breaking-edge leash. offPath is folded in: a 4-block fall puts the 3D
         // distSqr over its gate too, and that re-search would steal the recovery.
-        if (wk.unstuckCountCooldown > 0) wk.unstuckCountCooldown--;
+        if (wk.unstuck.countCooldown > 0) wk.unstuck.countCooldown--;
         // BOXED-POCKET churn escape (time-windowed net displacement). Catches a pocket
         // where the bot pillars a goal-ward dead-end wall and limit-cycles (round73:
         // 1416↔1454, pillaring to XZ-closer columns that RESET a goal-distance counter,
@@ -356,7 +356,7 @@ final class WalkerTickStallDetect {
             // never on a genuine upward climb (cdy > CHURN_MIN_Y is real vertical progress).
             // ...but NEVER while actively MINING (breakingEdge): a slow climb-out stone dig makes
             // zero XZ progress for ~750 ticks BY DESIGN, tripping this window — and the burst
-            // below turns the camera (unstuckYaw) + shoves the bot OFF the riser, RESETTING the
+            // below turns the camera (unstuck.burstYaw) + shoves the bot OFF the riser, RESETTING the
             // vanilla break progress. That is the live climb-out's core failure the user watched:
             // "almost broke it, then suddenly gave up, turned the view, moved 2 steps, progress
             // reset, all wasted" — and the shove toward deep water is what then sank the bot. A
@@ -400,8 +400,8 @@ final class WalkerTickStallDetect {
                 if (wp != null) {
                     double bdx = p.getX() - (wp.getX() + 0.5), bdz = p.getZ() - (wp.getZ() + 0.5);
                     if (bdx * bdx + bdz * bdz > 0.01)
-                        wk.unstuckYaw = (float) Math.toDegrees(Math.atan2(-bdx, bdz));   // away from the goal-ward wp
-                    wk.unstuckTicks = 16;
+                        wk.unstuck.burstYaw = (float) Math.toDegrees(Math.atan2(-bdx, bdz));   // away from the goal-ward wp
+                    wk.unstuck.burstTicks = 16;
                 }
                 if (BotConfig.walkerDebug)
                     LOG.info("[walker] anti-churn({}): net XZ move <{} blocks in {} ticks at {} (escapes={}) → charge r={} pocket + back off",

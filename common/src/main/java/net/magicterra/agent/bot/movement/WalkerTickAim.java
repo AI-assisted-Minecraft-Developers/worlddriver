@@ -603,14 +603,14 @@ final class WalkerTickAim {
         // buoyant FLAT crossing (the foot rides one above the water node) with AIR
         // above: pitching down there sabotages the flat swim and sinks the bot to the
         // pool floor instead of crossing to the node. Without the cap test, a bot that
-        // bumps a pocket wall while reversing toward a 1-SW surface node arms diveLatch
+        // bumps a pocket wall while reversing toward a 1-SW surface node arms dive.latch
         // → pitch 50 → dives → bobs forever (live 2026-06-15 (2358,1863) canyon-pocket
         // north tip: N/E walls, exit SW over open water, totStuck 1400+, ~3 min hard
         // deadlock). wp.offset(0,1,0) is exactly the lip the original tunnel fix targets.
         boolean cappedDescent = world.isSolid(foot.offset(0, 2, 0)) || world.isSolid(wp.offset(0, 1, 0));
-        if (p.isInWater() && wp.getY() < foot.getY() && p.horizontalCollision && cappedDescent) wk.diveLatch = 12;
-        else if (wk.diveLatch > 0) wk.diveLatch--;
-        boolean diveUnderCap = p.isInWater() && wp.getY() < foot.getY() && wk.diveLatch > 0;
+        if (p.isInWater() && wp.getY() < foot.getY() && p.horizontalCollision && cappedDescent) wk.dive.latch = 12;
+        else if (wk.dive.latch > 0) wk.dive.latch--;
+        boolean diveUnderCap = p.isInWater() && wp.getY() < foot.getY() && wk.dive.latch > 0;
         // ACTIVE dive for a submerged target ≥2 below a floating body (computed here,
         // before the pitch/sneak actuators that need it). Merely releasing the float
         // (the old "diving" = no jump) NEVER sinks a surface swimmer — buoyancy +
@@ -627,10 +627,10 @@ final class WalkerTickAim {
         // the surface and the well column looped forever (20 anti-stuck bursts).
         // Once armed, hold the dive while the bot is still in water with the
         // waypoint below its feet; surfacing routes (wp at/above foot) clear it.
-        if (diveTarget) wk.diveHold = 30;
-        else if (wk.diveHold > 0 && p.isInWater() && wp.getY() < foot.getY()) wk.diveHold--;
-        else wk.diveHold = 0;
-        boolean diving = diveTarget || (wk.diveHold > 0 && p.isInWater());
+        if (diveTarget) wk.dive.hold = 30;
+        else if (wk.dive.hold > 0 && p.isInWater() && wp.getY() < foot.getY()) wk.dive.hold--;
+        else wk.dive.hold = 0;
+        boolean diving = diveTarget || (wk.dive.hold > 0 && p.isInWater());
         // CAMERA-THRASH fix (bridge "镜头上下剧烈跳变"): while bridging, each place tick
         // does aimAtBlockSnap → requestSnap, instantly pitching the camera DOWN onto the
         // block being placed; pulling pitch back to the horizon (0) on every non-place

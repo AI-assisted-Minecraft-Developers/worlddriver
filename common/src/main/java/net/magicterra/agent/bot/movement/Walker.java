@@ -138,13 +138,38 @@ public final class Walker {
     boolean climbPillarGaveUp;     // latched once the pillar takeover proves futile (drifted off its locked column, or bob peak never clears the surface fill cell) → block pillar re-engage + let the bank-DIG take over even with a place block in hand; cleared when the climb context ends
     BlockPos climbGaveUpPos;       // where the pillar proved futile (walkerClimbGaveUpSticky) — while the foot stays within 3 blocks and the TTL runs, the gave-up latch survives climb-context resets (repath node swaps) so the proven-futile pillar can't re-engage in a loop
     int climbGaveUpTtl;            // ticks left on the sticky gave-up latch (walkerClimbGaveUpSticky); decremented per tick, 0 = expired
-    boolean drowningEscapeLatch;   // walkerDrowningEscape: air critically low while submerged → surface-for-air override active until air recovers
-    int stepUpBackoffTicks;        // walkerStepUpBackoffRetry: ticks left driving straight BACK from a grind-locked stepUp riser to open sprint runway
-    float stepUpBackoffYaw;        // heading of that back-off drive (bearing away from the riser), camera-frame decoupled
-    int stepUpBackoffCooldown;     // ticks before the back-off may trigger again (prevents oscillating retreat at a genuinely unmountable riser)
-    int drowningEscapeTurnTicks;   // walkerDrowningEscape pocket probe: ticks left holding the current escape heading
-    float drowningEscapeHeading;   // current pocket-escape heading (deg)
-    int drowningEscapeProbe;       // rotating probe start index so a falsely-open direction is not re-picked forever
+    /** Drowning-escape override (task#96 step B): walkerDrowningEscape — air critically
+     *  low while submerged → surface-for-air until air recovers. Owned by WalkerTickClimb.
+     *  {@link DrownGuard#reset()} clears only the latch and the heading-hold timer (exactly
+     *  what both journey resets cleared): heading is scratch (only read while turnTicks>0)
+     *  and probe deliberately PERSISTS across goals so a falsely-open pocket direction is
+     *  not re-picked forever. */
+    final DrownGuard drownGuard = new DrownGuard();
+    static final class DrownGuard {
+        boolean latch;     // surface-for-air override active until air recovers
+        int turnTicks;     // pocket probe: ticks left holding the current escape heading
+        float heading;     // current pocket-escape heading (deg)
+        int probe;         // rotating probe start index so a falsely-open direction is not re-picked forever
+        void reset() {
+            latch = false;
+            turnTicks = 0;
+        }
+    }
+    /** Grind-locked stepUp back-off (task#96 step B): walkerStepUpBackoffRetry — drive
+     *  straight BACK from a grind-locked riser to open sprint runway. Armed by
+     *  WalkerTickDrive, driven/decayed by WalkerTickRepath. {@link StepUpBackoff#reset()}
+     *  clears the drive and cooldown timers (exactly what both journey resets cleared);
+     *  yaw is scratch (only read while ticks>0). */
+    final StepUpBackoff stepUpBackoff = new StepUpBackoff();
+    static final class StepUpBackoff {
+        int ticks;         // ticks left driving straight BACK from the riser
+        float yaw;         // heading of the back-off drive (bearing away from the riser), camera-frame decoupled
+        int cooldown;      // ticks before the back-off may trigger again (prevents oscillating retreat at a genuinely unmountable riser)
+        void reset() {
+            ticks = 0;
+            cooldown = 0;
+        }
+    }
     int digGroundedStreak;         // consecutive grounded ticks during a committed bank dig — a bob bottom-blip (<=5) must not break the dig commit (walkerBankDigGroundBlip)
     // --- expectation alarms (walkerExpectAlarm): live actual-vs-expected divergence detectors ---
     // Extracted to WalkerExpectAlarms (all the ex* sentinel state + the observers) — purely
@@ -154,8 +179,17 @@ public final class Walker {
     int waterClimbTargetY;         // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
     int waterClimbColX, waterClimbColZ; // LOCKED column the takeover pillars in (don't chase repathing nodes)
     float waterClimbYaw;           // LOCKED heading toward the bank at engage (no horizontal chase → no wander)
-    int diveLatch;            // ticks left forcing a dive-under-cap (set on a blocked submerged descent; holds the dive through the sink so it doesn't flip-flop)
-    int diveHold;             // ticks left holding an ACTIVE descent (diving) across repaths — a mid-sink repath re-plans from the buoyancy point with a dy=1 first hop, which alone never re-arms diving, so the bot pops back up (round45 water-well live)
+    /** Submerged-descent dive latches (task#96 step B), owned by WalkerTickAim; both
+     *  cleared on every journey reset via {@link DiveLatches#reset()}. */
+    final DiveLatches dive = new DiveLatches();
+    static final class DiveLatches {
+        int latch;         // ticks left forcing a dive-under-cap (set on a blocked submerged descent; holds the dive through the sink so it doesn't flip-flop)
+        int hold;          // ticks left holding an ACTIVE descent (diving) across repaths — a mid-sink repath re-plans from the buoyancy point with a dy=1 first hop, which alone never re-arms diving, so the bot pops back up (round45 water-well live)
+        void reset() {
+            latch = 0;
+            hold = 0;
+        }
+    }
     int pillarRecoverLatch;   // ticks left driving an in-place pillar-up recovery (bot fell below the climb path beyond jump reach) — latched across the jump's airborne phase so a place can land
     BlockPos pillarRecoverCell; // the (grounded) feet cell the recovery is filling this rung
     int pillarRecoverPeakY;      // highest foot Y this pillar-recovery has reached (no-rise give-up tracking)
@@ -248,11 +282,34 @@ public final class Walker {
     PathFinder.Result pendingSegment;              // a finished continuation segment awaiting splice at the current segment's end
     int quickCooldown;                              // ticks before the next quick-start stub attempt (a useless stub backs off)
     int noPathWaitTicks;                            // ticks spent holding a "no path" verdict while self-inflicted stuck-penalties decay
-    BlockPos lastWedgeFoot;                         // anti-stuck: where the last wedge/stuck repath fired
-    int wedgeRepathsHere;                           // anti-stuck: consecutive wedge repaths from (about) the same foot
-    int unstuckCountCooldown;                       // anti-stuck: min ticks between counted repath events (debounce)
-    int unstuckTicks;                               // anti-stuck: ticks left driving the forced displacement
-    float unstuckYaw;                               // anti-stuck: fixed heading for the displacement burst
+    /** Anti-stuck forced displacement (task#96 step B): the wedge-repath counter anchored
+     *  at lastWedgeFoot (WalkerTickRepath is the ONLY setter of the anchor) and the
+     *  displacement burst it fires (burst driven by WalkerTickRepath; also armed directly
+     *  by WalkerTickStallDetect's riser-shove). Deliberately NOT touched by forceRepath:
+     *  the wedge memory must survive a process resume, else a resume loop at the same
+     *  wedge never escalates to the burst. {@link Unstuck#resetForNewGoal()} runs in
+     *  setGoal only (burstYaw is scratch — read only while burstTicks>0);
+     *  {@link Unstuck#dropWedgeAnchor()} is the full anchor drop (progressive-stub
+     *  adoption, post-burst displacement) — WalkerTickClimb's dig-start clear is a
+     *  PARTIAL one (count only, anchor retained) and stays a direct field write. */
+    final Unstuck unstuck = new Unstuck();
+    static final class Unstuck {
+        BlockPos lastWedgeFoot;   // where the last wedge/stuck repath fired
+        int wedgeRepathsHere;     // consecutive wedge repaths from (about) the same foot
+        int countCooldown;        // min ticks between counted repath events (debounce)
+        int burstTicks;           // ticks left driving the forced displacement
+        float burstYaw;           // fixed heading for the displacement burst
+        void resetForNewGoal() {
+            lastWedgeFoot = null;
+            wedgeRepathsHere = 0;
+            countCooldown = 0;
+            burstTicks = 0;
+        }
+        void dropWedgeAnchor() {
+            wedgeRepathsHere = 0;
+            lastWedgeFoot = null;
+        }
+    }
     /** Search-stage governors (task#96 step B): the unreachable-goal churn guard
      *  (gap #49-③) and its kickoff backoff, owned by WalkerTickSearch (backoff is
      *  honored by WalkerTickRepath's kickoff gates). Reset per journey via
@@ -295,7 +352,7 @@ public final class Walker {
         return (path == null ? "path=null" : "step=" + step + "/" + path.size()
                 + " wp=" + (wp == null ? "-" : wp.getX() + "," + wp.getY() + "," + wp.getZ())
                 + (pathBestEffort ? " bestEffort" : ""))
-                + " unstuck=" + unstuckTicks + " churnEsc=" + churnEscapes
+                + " unstuck=" + unstuck.burstTicks + " churnEsc=" + churnEscapes
                 + " escal=" + (pfTickCounter < boxedEscalateUntilTick ? "ON" : "off")
                 + " noStep=" + noStepProgressTicks
                 + " digFloat=" + waterClimbDigFloatTicks + " gaveUp=" + climbPillarGaveUp;
@@ -322,18 +379,15 @@ public final class Walker {
         this.climbPillarGaveUp = false;
         this.climbGaveUpPos = null;
         this.climbGaveUpTtl = 0;
-        this.drowningEscapeLatch = false;
-        this.stepUpBackoffTicks = 0;
-        this.stepUpBackoffCooldown = 0;
-        this.drowningEscapeTurnTicks = 0;
+        this.drownGuard.reset();
+        this.stepUpBackoff.reset();
         this.pillarNoPlaceTicks = 0;
         this.lastDigRiser = null;
         this.waterClimbDigRiser = null;
         this.waterClimbDigCommitTicks = 0;
         this.waterClimbDigFloatTicks = 0;
         this.futileBankDigCooldown = 0;
-        this.diveLatch = 0;
-        this.diveHold = 0;
+        this.dive.reset();
         this.deepWaterDriftLatch = 0;
         this.steepDescentLatch = 0;
         this.pillarRecoverLatch = 0;
@@ -363,10 +417,7 @@ public final class Walker {
         this.pendingSegment = null;
         this.quickCooldown = 0;
         this.noPathWaitTicks = 0;
-        this.lastWedgeFoot = null;
-        this.wedgeRepathsHere = 0;
-        this.unstuckCountCooldown = 0;
-        this.unstuckTicks = 0;
+        this.unstuck.resetForNewGoal();
         this.replayMode = false;
         this.lastError = null;
     }
@@ -467,18 +518,15 @@ public final class Walker {
         this.climbPillarGaveUp = false;
         this.climbGaveUpPos = null;
         this.climbGaveUpTtl = 0;
-        this.drowningEscapeLatch = false;
-        this.stepUpBackoffTicks = 0;
-        this.stepUpBackoffCooldown = 0;
-        this.drowningEscapeTurnTicks = 0;
+        this.drownGuard.reset();
+        this.stepUpBackoff.reset();
         this.pillarNoPlaceTicks = 0;
         this.lastDigRiser = null;
         this.waterClimbDigRiser = null;
         this.waterClimbDigCommitTicks = 0;
         this.waterClimbDigFloatTicks = 0;
         this.futileBankDigCooldown = 0;
-        this.diveLatch = 0;
-        this.diveHold = 0;
+        this.dive.reset();
         this.deepWaterDriftLatch = 0;
         this.steepDescentLatch = 0;
         this.pillarRecoverLatch = 0;
@@ -1091,10 +1139,7 @@ public final class Walker {
         // counter simply re-arms and bursts as before. The big-search continuation
         // (foot != null) keeps its burst intact — that's the deterministic
         // same-segment deadlock breaker and must not be reset away.
-        if (foot == null) {
-            wedgeRepathsHere = 0;
-            lastWedgeFoot = null;
-        }
+        if (foot == null) unstuck.dropWedgeAnchor();
         bestStepDist = Double.POSITIVE_INFINITY;
         stuckStepHigh = step - 1;   // new path, new index semantics: one fresh window on the first tick, then high-water applies
         actionTicks = 0;

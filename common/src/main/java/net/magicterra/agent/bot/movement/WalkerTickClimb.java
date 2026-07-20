@@ -133,16 +133,16 @@ final class WalkerTickClimb {
                 boolean reallyInWater = p.getHealth() > 0
                         && (world.isWater(foot) || world.isWater(foot.above()));
                 if (reallyInWater && p.isUnderWater() && p.getAirSupply() <= 60) {
-                    if (!wk.drowningEscapeLatch && BotConfig.walkerDebug)
+                    if (!wk.drownGuard.latch && BotConfig.walkerDebug)
                         LOG.info("[walker] DROWNING-ESCAPE engaged: air={} foot={},{},{} → surface for air",
                                 p.getAirSupply(), foot.getX(), foot.getY(), foot.getZ());
-                    wk.drowningEscapeLatch = true;
+                    wk.drownGuard.latch = true;
                 } else if (!reallyInWater || !p.isInWater() || p.getAirSupply() >= 240) {
-                    if (wk.drowningEscapeLatch && BotConfig.walkerDebug)
+                    if (wk.drownGuard.latch && BotConfig.walkerDebug)
                         LOG.info("[walker] DROWNING-ESCAPE released: air={} → resume", p.getAirSupply());
-                    wk.drowningEscapeLatch = false;
+                    wk.drownGuard.latch = false;
                 }
-                if (wk.drowningEscapeLatch && reallyInWater && p.isInWater()) {
+                if (wk.drownGuard.latch && reallyInWater && p.isInWater()) {
                     Walker.agentJump(a, true);
                     a.breakHold(false);
                     p.setSprinting(false);
@@ -157,25 +157,25 @@ final class WalkerTickClimb {
                         // falsely-open direction can't be re-picked forever. Re-pick every 25
                         // ticks (or first tick); between picks hold the heading so the body
                         // actually crosses cells instead of jittering.
-                        if (wk.drowningEscapeTurnTicks <= 0) {
-                            wk.drowningEscapeTurnTicks = 25;
+                        if (wk.drownGuard.turnTicks <= 0) {
+                            wk.drownGuard.turnTicks = 25;
                             float pick = p.getYRot() + 180f;   // fallback: straight back
                             for (int i = 0; i < 8; i++) {
-                                float cand = ((wk.drowningEscapeProbe + i) % 8) * 45f;
+                                float cand = ((wk.drownGuard.probe + i) % 8) * 45f;
                                 int dx = (int) Math.round(-Math.sin(Math.toRadians(cand)));
                                 int dz = (int) Math.round(Math.cos(Math.toRadians(cand)));
                                 BlockPos out = foot.offset(dx * 2, 0, dz * 2);
                                 if (world.isWater(out.above()) && !world.isSolid(out.offset(0, 2, 0))) {
                                     pick = cand;
-                                    wk.drowningEscapeProbe = (wk.drowningEscapeProbe + i + 1) % 8;
+                                    wk.drownGuard.probe = (wk.drownGuard.probe + i + 1) % 8;
                                     break;
                                 }
                             }
-                            wk.drowningEscapeHeading = pick;
+                            wk.drownGuard.heading = pick;
                         }
-                        wk.drowningEscapeTurnTicks--;
-                        p.setYRot(wk.drowningEscapeHeading);
-                        p.yHeadRot = wk.drowningEscapeHeading; p.yBodyRot = wk.drowningEscapeHeading;
+                        wk.drownGuard.turnTicks--;
+                        p.setYRot(wk.drownGuard.heading);
+                        p.yHeadRot = wk.drownGuard.heading; p.yBodyRot = wk.drownGuard.heading;
                         p.setXRot(0f);
                         Walker.agentForward(a, true);
                     } else {
@@ -662,7 +662,7 @@ final class WalkerTickClimb {
                     // Clear any burst count accrued during the pre-dig bob-stall so the
                     // very first dig tick can't fire a stale burst before the exemption.
                     wk.waterClimbDigging = true;
-                    wk.wedgeRepathsHere = 0;
+                    wk.unstuck.wedgeRepathsHere = 0;
                     // Aim-stabilisation, BALANCE half — the jump (space) is corrected, not
                     // held flat-out and not bang-banged to the riser. Both extremes bob:
                     // holding jump CONTINUOUSLY over-swims the bot up; bang-banging to the

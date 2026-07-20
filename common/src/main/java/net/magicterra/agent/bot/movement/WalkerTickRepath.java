@@ -118,16 +118,16 @@ final class WalkerTickRepath {
             // ONLY when (re)starting the count; a bot that travels >2 blocks off the
             // anchor lands in the else branch, resets, and re-anchors — so only a bot
             // that genuinely stays within 2 blocks for 3 cooldowns (6 s) ever bursts.
-            if (wk.lastWedgeFoot != null && foot.distSqr(wk.lastWedgeFoot) <= 4) {
+            if (wk.unstuck.lastWedgeFoot != null && foot.distSqr(wk.unstuck.lastWedgeFoot) <= 4) {
                 // Count EVENTS, not ticks (40-tick cooldown): a trivial search
                 // completing same-tick makes every tick a safety repath while
                 // the bot is still accelerating from standstill — three such
                 // ticks (150 ms, 0.2 blocks of motion) are NOT three stuck
                 // loops. A genuinely wedged bot stays put well past 6 s.
-                if (wk.unstuckCountCooldown <= 0) {
-                    wk.unstuckCountCooldown = 40;
-                    if (++wk.wedgeRepathsHere >= 3) {
-                        wk.unstuckTicks = 14;
+                if (wk.unstuck.countCooldown <= 0) {
+                    wk.unstuck.countCooldown = 40;
+                    if (++wk.unstuck.wedgeRepathsHere >= 3) {
+                        wk.unstuck.burstTicks = 14;
                         // Burst AWAY from the waypoint, not yaw+150°: in a concave
                         // pocket (three walls + water) a fixed rotation just grinds
                         // the next wall — live: yaw wound 11 full turns at a mud-
@@ -137,11 +137,10 @@ final class WalkerTickRepath {
                         BlockPos bwp = (wk.path != null && wk.step < wk.path.size()) ? wk.path.get(wk.step) : null;
                         double bdx = bwp != null ? p.getX() - (bwp.getX() + 0.5) : 0;
                         double bdz = bwp != null ? p.getZ() - (bwp.getZ() + 0.5) : 0;
-                        wk.unstuckYaw = (bdx * bdx + bdz * bdz) > 0.01
+                        wk.unstuck.burstYaw = (bdx * bdx + bdz * bdz) > 0.01
                                 ? (float) Math.toDegrees(Math.atan2(-bdx, bdz))
                                 : p.getYRot() + 150f;
-                        wk.wedgeRepathsHere = 0;
-                        wk.lastWedgeFoot = null;   // displaced → drop the anchor; next wedge re-anchors fresh
+                        wk.unstuck.dropWedgeAnchor();   // displaced → next wedge re-anchors fresh
                         if (BotConfig.walkerDebug)
                             LOG.info("[walker] anti-stuck: repeated safety repaths at {} → forced displacement burst", foot);
                     }
@@ -150,8 +149,8 @@ final class WalkerTickRepath {
                 // First wedge here, or the bot has TRAVELLED >2 blocks off the old
                 // anchor (genuine progress) — (re)anchor at the current foot and
                 // restart the count. This is the ONLY place lastWedgeFoot is set.
-                wk.wedgeRepathsHere = 0;
-                wk.lastWedgeFoot = foot;
+                wk.unstuck.wedgeRepathsHere = 0;
+                wk.unstuck.lastWedgeFoot = foot;
             }
         }
         // Futile-cycle backoff (gap #49-③): while cooling down after a futile search,
@@ -196,7 +195,7 @@ final class WalkerTickRepath {
                 // Soft+decaying → a sole route is still taken; gated to repeated
                 // water wedges so it can't misfire on legitimate slow progress
                 // (the foot must stay put across repaths to grow the counter).
-                int chargeR = world.isWater(foot) ? Math.min(wk.wedgeRepathsHere, 2) : 0;
+                int chargeR = world.isWater(foot) ? Math.min(wk.unstuck.wedgeRepathsHere, 2) : 0;
                 for (int dx = -chargeR; dx <= chargeR; dx++)
                     for (int dz = -chargeR; dz <= chargeR; dz++) {
                         BlockPos c = nose.offset(dx, 0, dz);
@@ -227,26 +226,26 @@ final class WalkerTickRepath {
         // slam, no jump) for a few ticks to open sprint runway, then let the normal
         // approach re-launch the early jump WITH momentum. Mirrors the anti-stuck burst's
         // commandMove decoupling one block above.
-        if (wk.stepUpBackoffTicks > 0) {
-            wk.stepUpBackoffTicks--;
-            double sbd = Math.toRadians(angleDiff(p.getYRot(), wk.stepUpBackoffYaw));
+        if (wk.stepUpBackoff.ticks > 0) {
+            wk.stepUpBackoff.ticks--;
+            double sbd = Math.toRadians(angleDiff(p.getYRot(), wk.stepUpBackoff.yaw));
             a.commandMove((float) -Math.sin(sbd), (float) Math.cos(sbd));
             Walker.agentJump(a, false);
             p.setSprinting(false);
             return Walker.Step.WALKING;
         }
-        if (wk.stepUpBackoffCooldown > 0) wk.stepUpBackoffCooldown--;
-        if (wk.unstuckTicks > 0) {
-            wk.unstuckTicks--;
+        if (wk.stepUpBackoff.cooldown > 0) wk.stepUpBackoff.cooldown--;
+        if (wk.unstuck.burstTicks > 0) {
+            wk.unstuck.burstTicks--;
             // Drive the displacement in the CAMERA frame instead of slamming yaw:
             // p.setYRot here wound the camera 8+ full turns in a water-cave wedge
             // cluster (bursts every ~6 s, each with a different escape bearing,
             // every one yanking the view — raw yaw hit -3109°). commandMove pushes
             // the body along the escape bearing with ZERO camera motion: AgentInput
             // pre-rotates the impulse by Δ = bearing − cameraYaw and vanilla
-            // travel() rotates it back, so the net push is along unstuckYaw exactly
+            // travel() rotates it back, so the net push is along unstuck.burstYaw exactly
             // as before — the same decoupling the main walk branch already uses.
-            double bd = Math.toRadians(angleDiff(p.getYRot(), wk.unstuckYaw));
+            double bd = Math.toRadians(angleDiff(p.getYRot(), wk.unstuck.burstYaw));
             a.commandMove((float) -Math.sin(bd), (float) Math.cos(bd));
             Walker.agentJump(a, true);
             p.setSprinting(false);
