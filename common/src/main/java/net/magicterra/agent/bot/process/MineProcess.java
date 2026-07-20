@@ -91,6 +91,31 @@ public final class MineProcess implements BotProcess {
     // True when currentTarget is a leaf being cleared to open access to a real
     // target (not itself a quota block) — see findClearingTarget.
     private boolean currentTargetClearing;
+    // death#26-followup (07-20 live): per-target no-progress watchdog. The walker
+    // never returns FAILED for a log up a sheer DRY face — arc-wedge→fellOffPath just
+    // repaths (the known-UNSOLVED steep-dry-climb execution churn, see
+    // reference_steep_mountain_limit_cycle_revisit_detection). It rams the wall and
+    // takes fall damage forever, and MINE — which blacklists ONLY on FAILED — pins on
+    // that one log draining HP (live: HP 20→5.3, 0 logs harvested). Bound it here: if
+    // the bot makes no net progress TOWARD the stand for GOING_STALL_TICKS, treat the
+    // target as unreachable-in-practice (blacklist + re-scan for a reachable log).
+    // Tracks the closest the foot has ever gotten to the stand; a real walk keeps
+    // improving that (watchdog never fires), only a churn plateaus it.
+    private double goingBestDist = Double.MAX_VALUE;
+    private int goingStallTicks;
+    private static final int GOING_STALL_TICKS = 100;   // ~5 s of zero net approach
+    private static final double GOING_PROGRESS_EPS = 0.5;  // blocks closer = real progress
+    // death#26-followup: cumulative-damage abort. The per-target watchdog bounds ONE
+    // unreachable log, but a hillside/cliff forest offers MANY high logs (dy 6-8); the
+    // bot cycles through them, each dry-steep-climb attempt costing fall damage, and
+    // dies CUMULATIVELY (live repro: HP 20→9→dead over 135 s, only 2 logs harvested).
+    // A bot must not DIE trying to mine: if HP falls MINE_DAMAGE_ABORT below its peak
+    // this command (or reaches MINE_HP_CRITICAL), abort ALIVE — the strategy layer
+    // then relocates to flatter terrain. Reachable mining takes no fall damage, so a
+    // steady-HP flat mine never trips this (full-HP scenes stay at peak == current).
+    private float minePeakHp;                            // max HP seen this command (0 → set on first tick)
+    private static final float MINE_DAMAGE_ABORT = 8f;   // net HP lost from peak → abort
+    private static final float MINE_HP_CRITICAL = 4f;    // absolute floor backstop
     private int breakingTicks;
     private String breakStartId = "";
     private Phase phase = Phase.SEARCH;
@@ -164,6 +189,24 @@ public final class MineProcess implements BotProcess {
             return true;
         }
 
+        // death#26-followup: cumulative-damage abort (see minePeakHp javadoc). Don't
+        // die cycling unreachable cliff logs — bail alive once mining has clearly cost
+        // health. Skipped once COLLECT is underway (quota met; the harvest succeeded).
+        float hpNow = p.getHealth();
+        if (hpNow > minePeakHp) minePeakHp = hpNow;
+        if (phase != Phase.COLLECT
+                && (minePeakHp - hpNow >= MINE_DAMAGE_ABORT || hpNow <= MINE_HP_CRITICAL)) {
+            a.breakHold(false);
+            a.commandForward(0);
+            a.commandJump(false);
+            p.setSprinting(false);
+            st.mine.lastError = "aborted: taking damage with no safely-reachable target (hp "
+                    + String.format("%.0f", hpNow) + ", peak " + String.format("%.0f", minePeakHp)
+                    + ", broken=" + broken + "/" + desiredQty + ")";
+            st.mine.reset();
+            return true;
+        }
+
         switch (phase) {
             case SEARCH -> {
                 Target t = scanForTarget(lvl, p);
@@ -183,6 +226,8 @@ public final class MineProcess implements BotProcess {
                 st.mine.target = currentTarget;
                 walker.setGoal(new Goal.Block(t.stand));
                 phase = Phase.GOING;
+                goingBestDist = Double.MAX_VALUE;      // arm the no-progress watchdog
+                goingStallTicks = 0;
             }
             case GOING -> {
                 // Make sure attack isn't lingering from the previous block.
@@ -230,6 +275,8 @@ public final class MineProcess implements BotProcess {
                             st.mine.target = currentTarget;
                             walker.setGoal(new Goal.Block(clear.stand()));
                             phase = Phase.GOING;
+                            goingBestDist = Double.MAX_VALUE;   // re-arm for the new (clearing) stand
+                            goingStallTicks = 0;
                             return false;
                         }
                     }
@@ -247,6 +294,29 @@ public final class MineProcess implements BotProcess {
                     // to air then back, indicating a rejected predicted destroy).
                     breakStartId = currentBlockId(lvl);
                     phase = Phase.BREAKING;
+                } else if (currentStand != null) {
+                    // Still walking — no-progress watchdog (see goingBestDist javadoc).
+                    // The walker repaths forever against an unclimbable dry face rather
+                    // than reporting FAILED, so track net approach to the stand: a real
+                    // walk keeps setting a new closest distance; a churn plateaus, and
+                    // after GOING_STALL_TICKS with no fresh approach we give up on this
+                    // target (blacklist + re-scan) instead of draining HP on it.
+                    double dx = p.getX() - (currentStand.getX() + 0.5);
+                    double dy = p.getY() - currentStand.getY();
+                    double dz = p.getZ() - (currentStand.getZ() + 0.5);
+                    double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                    if (dist < goingBestDist - GOING_PROGRESS_EPS) {
+                        goingBestDist = dist;
+                        goingStallTicks = 0;
+                    } else if (++goingStallTicks >= GOING_STALL_TICKS) {
+                        if (BotConfig.walkerDebug)
+                            LOG.info("[mine] no approach to stand {} for {}t (best {}m) -> unreachable-in-practice, blacklist {}",
+                                    currentStand, GOING_STALL_TICKS, String.format("%.1f", goingBestDist), currentTarget);
+                        blacklist.add(currentTarget);
+                        currentTarget = null;
+                        phase = Phase.SEARCH;
+                        return false;
+                    }
                 }
             }
             case BREAKING -> {

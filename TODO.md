@@ -2,6 +2,18 @@
 
 > 镜像 Task 跟踪器的长期工作。重要根因写进 memory(reference/project)。
 
+## 2026-07-20 ✅ mine #logs 上悬崖树 nodeDy=7 wedge → 连坠伤致死候选gap — 已修(planning-layer 两界:no-progress 看门狗 + 累伤中止)【commit 4e85543 branch fix/mine-unreachable-target-watchdog;t0 fabric+neoforge+t1 全 GREEN + live 三性质全证;未合master(暂留分支)】
+
+- **gate infra 教训(本轮踩)**:t0 用 `--run-task :<loader>:runDogfoodServer` **必须**配 `--results <loader>/run-dogfood/testkit-results.jsonl`(AGENTS.md L87-89);漏了 → t0 poll 默认空路径 → 900s 超时假装挂死(其实 suite 早完成)。可 `verdict.judge(verdict.parse(<真实results>))` 直判免重跑。
+- **neoforge 彩票警示**:`selfShaftDigUp`+`bridgeFootholdPlace` 在 neoforge 一跑 RED(backslide 13.25/stepUp越+2面)、clean 重跑全 PASS,fabric 同 build 恒 GREEN → arc-wedge 极限环族固有非确定,**未来这俩 neoforge RED 先重跑一次再认罪**(差点误判成 task#6 loader 分歧)。
+
+- **症状**:死亡#26 修复合 master 后恢复生存,`mine{blocks:["#minecraft:logs"],radius:28}` 从地表采树。walker 路由到 node `(-4,88,-48) nodeDy=7`(单节点竖爬 7 格=悬崖/树干高处的 log),`[walker] arc-wedge RECOVER ... bob-immune ram → fellOffPath` **连续复触**,bot 反复坠落取 ~15 fall damage(HP 20→5.3),**净得 0 log**。
+- **根因**:执行层 arc-wedge 干地陡爬 wedge(见 [[reference_steep_mountain_limit_cycle_revisit_detection]] 已知未解族)——walker 在悬崖高处 log 前**永不返回 `Step.FAILED`**,`fellOffPath` 只是无限 repath;而 MineProcess **只在 `Walker.Step.FAILED` 时 blacklist target** → bot 永远钉在不可达 log 上撞脸连坠。
+- **修(planning-layer 两界,不动执行层 churn)**(`MineProcess.java`):① **per-target no-progress 看门狗**:track 脚到 target-stand 的最近距离;`GOING_STALL_TICKS`(~5s)内无净接近 → 视为实际不可达 → blacklist + re-scan。真行走最近距离持续改善故不误触;只有 churn 会 plateau。② **累伤中止**:HP 掉 `MINE_DAMAGE_ABORT`(8)低于本命令峰值 或 ≤`MINE_HP_CRITICAL`(4)→ **活着**中止(让策略层重定位);COLLECT(配额已达)后跳过。可达采矿零坠伤故平地稳 HP 挖不误触。执行层 arc-wedge churn 本体不动(每次快修都在 replay corpus 回归;真修需 A/B corpus)。
+- **验证**:t0 fabric GREEN(6 mine 场景全 PASS,可达目标无误中止)。live 三性质全证:(a) 看门狗在 dy~9 悬崖 log 触发(`no approach ... 100t -> blacklist`)后 bot 采到 12 可达 log 存活 HP13;(b) 正常采矿不受影响(6/12-log 采集无中止);(c) 累伤中止**活着**端到端触发(active mine 中 HP 20→8 → `aborted: taking damage`,bot 活 HP8)。t0 neoforge + t1 gate 跑中待绿即合 master。
+- **⚠️残余**:执行层 arc-wedge 干地陡爬 churn 仍是已知未解族;这两界只把它从**致死/无限**降级为**可恢复**(blacklist 换目标 / 活着中止)。真解需 replay A/B(别在超长上下文诊断)。
+- **live 现状**:测试平台残留在 y108-150(远离 bot,无害);gamerules 已复原(daylight/regen/mobSpawning=true)。survival Stage-1 待起。
+
 ## 2026-07-20 ✅ 死亡#26(live survival resume)修复 — Skeleton 开阔地射死空手 bot;两修：① retreat 'safe' 释放加低HP威胁记忆地板 + ② BunkerChain 远程钉扎升级破 LOS —【t0 fabric+neoforge GREEN,matrix 新断言 PASS,① live 证震荡消】
 
 - **修 ①**(`RetreatChain.java`)：新 `THREAT_MEMORY_TICKS=100`+`lastThreatSeenGameTime`（每 tick 按 sealed-filtered scan level-stamp）；"safe" 释放支加 `!(hp<thr && ticksSinceThreat<100)`——低 HP bot 近 5s 见过威胁≠safe，杀死 release("safe")↔enter("lowHp") 震荡。只动低 HP "safe" 支（recovered 支不变）；sealed 豁免（gap#72）保留（记忆按 filtered scan stamp）。旧 overload 委托 `ticksSinceThreat=MAX`→地板 inert→全部既有 matrix 保结果。
