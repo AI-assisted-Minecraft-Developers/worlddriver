@@ -82,7 +82,7 @@ final class WalkerTickProgress {
             // No DIVE opt-in → allowsOptIn false → byte-identical.
             boolean diveIntentWaterHold = p.isInWater()
                     && wk.profile.capability().allowsOptIn(Capability.DIVE);
-            if (wk.replayMode || wk.activeSearch == null || diveIntentWaterHold
+            if (wk.replayMode || wk.seg.activeSearch == null || diveIntentWaterHold
                     || (!wk.tryLandBeeline(world, foot, wk.goal)
                         && !wk.tryQuickStart(world, foot, wk.goal) && !wk.tryWaterBeeline(world, foot, wk.goal))) {
                 // replayMode: a fixed plan was adopted at beginReplay, so path is
@@ -491,7 +491,7 @@ final class WalkerTickProgress {
                         || se.move.equals("stepDown"));
             boolean tailDroppedPast = !p.isInWater() && descendTail
                     && p.getY() < w.getY() - 2.0;
-            boolean tailConsumed = !within && wk.step + 1 == wk.path.size() && wk.pathBestEffort
+            boolean tailConsumed = !within && wk.step + 1 == wk.path.size() && wk.seg.pathBestEffort
                     && (cur2 > OVERSHOOT_RESYNC_SQ || tailDroppedPast);
             // DESCENT OVERSHOOT-ADVANCE (the 原地后跳 back-hop fix the in-place-hop comment
             // points to): on a dry descent step the body drives the IMMEDIATE node
@@ -701,20 +701,20 @@ final class WalkerTickProgress {
             else break;
         }
         if (wk.step >= wk.path.size()) {
-            if (!wk.pathBestEffort || wk.goal.reached(foot)) {
+            if (!wk.seg.pathBestEffort || wk.goal.reached(foot)) {
                 // A path that actually reaches the goal (or we ended up standing in
                 // the goal cell): the journey is done.
                 return wk.terminalReport(Walker.Step.ARRIVED, PathTrace.Outcome.SUCCESS, null,
-                        Walker.classifyArrival(wk.pathBestEffort, wk.goal.reached(foot), wk.goalSnapped), foot);
+                        Walker.classifyArrival(wk.seg.pathBestEffort, wk.goal.reached(foot), wk.goalSnapped), foot);
             }
             // Best-effort segment consumed but the goal is still ahead. DON'T give
             // up — this is the long-distance splice point. Adopt the continuation
             // if its background search has landed; otherwise hold here (keys
             // released) until it does. The total-tick budget above still bounds a
             // goal we can never make real progress toward, so this can't hang.
-            if (wk.pendingSegment != null) {
-                PathFinder.Result next = wk.pendingSegment;
-                wk.pendingSegment = null;
+            if (wk.seg.pendingSegment != null) {
+                PathFinder.Result next = wk.seg.pendingSegment;
+                wk.seg.pendingSegment = null;
                 if (next.hasPath() && next.path().size() > 1) {
                     if (!wk.adoptPath(next, world, foot)) {
                         // Mis-anchored continuation (the bot never made it to the
@@ -724,7 +724,7 @@ final class WalkerTickProgress {
                         wk.path = null;
                         wk.edges = null;
                         wk.step = 0;
-                        wk.commitEnd = null;
+                        wk.seg.commitEnd = null;
                         Walker.agentForward(a, false);
                         Walker.agentJump(a, false);
                         p.setSprinting(false);
@@ -738,15 +738,15 @@ final class WalkerTickProgress {
                     return wk.frontierHoldOrArrive(a, world, p);
                 }
             } else {
-                if (!wk.replayMode && wk.activeSearch == null && wk.commitEnd != null) {
-                    wk.activeSearch = new PathFinder(world, wk.profile).withOwner(wk.owner).newSearch(wk.commitEnd, wk.goal);
-                    wk.searchFromEnd = true;
+                if (!wk.replayMode && wk.seg.activeSearch == null && wk.seg.commitEnd != null) {
+                    wk.seg.activeSearch = new PathFinder(world, wk.profile).withOwner(wk.owner).newSearch(wk.seg.commitEnd, wk.goal);
+                    wk.seg.searchFromEnd = true;
                 }
                 // PROGRESSIVE QUICK-START at the splice gap: the continuation
                 // search hasn't landed yet (eager precompute missed this one) —
                 // walk a synchronous stub toward the goal instead of holding
                 // at the segment end until it does.
-                if (wk.replayMode || wk.activeSearch == null
+                if (wk.replayMode || wk.seg.activeSearch == null
                         || (!wk.tryLandBeeline(world, foot, wk.goal)
                             && !wk.tryQuickStart(world, foot, wk.goal) && !wk.tryWaterBeeline(world, foot, wk.goal))) {
                     Walker.agentForward(a, false);

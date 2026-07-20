@@ -78,7 +78,7 @@ final class WalkerTickRepath {
             bridgingNow = (cbE != null && "bridgePlace".equals(cbE.move))
                     || (nbE != null && "bridgePlace".equals(nbE.move));
         }
-        boolean fullPeriodic = !wk.pathBestEffort && wk.path != null && !bridgingNow
+        boolean fullPeriodic = !wk.seg.pathBestEffort && wk.path != null && !bridgingNow
                 && wk.ticksSinceRepath > BotConfig.walkerRepathEveryTicks;
         // ANTI-STUCK (forced displacement, Baritone-UnstuckChain-style): a
         // re-search from the SAME foot is deterministic — when the blocker is
@@ -104,7 +104,7 @@ final class WalkerTickRepath {
         // slowly (foot stays within the 4-blk cell) — the event counter filled in
         // exactly 3 cooldowns (6 s) and burst the bot away from the search origin,
         // chaining rejects (round29 swamp: bursts every 6 s while cruising at 1.5 b/s).
-        if (safetyRepath && !breakingEdge && !(wk.path == null && wk.activeSearch != null)) {
+        if (safetyRepath && !breakingEdge && !(wk.path == null && wk.seg.activeSearch != null)) {
             // lastWedgeFoot ANCHORS the spot where this wedge began — it must NOT be
             // re-stamped to `foot` every tick. A buoyant bot CRUISING across open
             // water bobs ±0.04 vertically and so keeps failing the tight node-reach
@@ -157,7 +157,7 @@ final class WalkerTickRepath {
         // don't kick off another one — the churn loop otherwise relaunches a full-budget
         // A* every tick from the same foot toward the same unreachable goal.
         if (wk.searchGov.searchBackoffTicks > 0) wk.searchGov.searchBackoffTicks--;
-        if (!wk.replayMode && (safetyRepath || fullPeriodic) && wk.activeSearch == null
+        if (!wk.replayMode && (safetyRepath || fullPeriodic) && wk.seg.activeSearch == null
                 && wk.searchGov.searchBackoffTicks == 0) {
             // Stuck too long on a move the Walker can't execute (a steep stepUp it
             // slides off, a pillar it can't ground)? Blacklist that node so this
@@ -203,18 +203,18 @@ final class WalkerTickRepath {
                         world.penalizeStuckNode(c.above());
                     }
             }
-            wk.activeSearch = new PathFinder(world, wk.profile).withOwner(wk.owner).newSearch(searchFoot, wk.goal);
-            wk.searchFromEnd = false;
-            wk.searchSuppressedPlace = false;    // normal search: placing allowed; budget re-checked on result
-            wk.pendingSegment = null;            // a foot-search supersedes any stashed continuation
+            wk.seg.activeSearch = new PathFinder(world, wk.profile).withOwner(wk.owner).newSearch(searchFoot, wk.goal);
+            wk.seg.searchFromEnd = false;
+            wk.seg.searchSuppressedPlace = false;    // normal search: placing allowed; budget re-checked on result
+            wk.seg.pendingSegment = null;            // a foot-search supersedes any stashed continuation
             wk.ticksSinceRepath = 0;
-        } else if (!wk.replayMode && wk.pathBestEffort && wk.commitEnd != null
-                && wk.activeSearch == null && wk.pendingSegment == null
+        } else if (!wk.replayMode && wk.seg.pathBestEffort && wk.seg.commitEnd != null
+                && wk.seg.activeSearch == null && wk.seg.pendingSegment == null
                 && wk.searchGov.searchBackoffTicks == 0) {
             // Eagerly precompute the next best-effort segment from the committed end.
-            wk.activeSearch = new PathFinder(world, wk.profile).withOwner(wk.owner).newSearch(wk.commitEnd, wk.goal);
-            wk.searchFromEnd = true;
-            wk.searchSuppressedPlace = false;
+            wk.seg.activeSearch = new PathFinder(world, wk.profile).withOwner(wk.owner).newSearch(wk.seg.commitEnd, wk.goal);
+            wk.seg.searchFromEnd = true;
+            wk.seg.searchSuppressedPlace = false;
             wk.ticksSinceRepath = 0;
         }
         // ANTI-STUCK displacement burst: drive a fixed turned heading + jump for a

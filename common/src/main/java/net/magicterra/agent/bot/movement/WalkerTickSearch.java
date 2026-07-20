@@ -60,7 +60,7 @@ final class WalkerTickSearch {
         // Advance any in-flight search by one tick-slice so a big search never
         // blocks the render thread in a single tick (fixes the stutter).
         boolean searchDone = false;
-        if (wk.activeSearch != null) {
+        if (wk.seg.activeSearch != null) {
             long sb = System.nanoTime();
             // IDLE-SLICE: if there's no walkable path this tick (segment consumed or
             // none yet), the bot is FROZEN until the search lands — so frame-smoothness
@@ -71,17 +71,17 @@ final class WalkerTickSearch {
             long slice = idleNoPath
                     ? Math.max(BotConfig.pathfinderSliceMs, BotConfig.pathfinderIdleSliceMs)
                     : BotConfig.pathfinderSliceMs;
-            searchDone = wk.activeSearch.advance(slice);
+            searchDone = wk.seg.activeSearch.advance(slice);
             if (BotConfig.walkerDebug && !searchDone)
                 LOG.info(
                         "[walker] search slice {}ms expanded={} (still running)",
-                        (System.nanoTime() - sb) / 1_000_000, wk.activeSearch.expanded());
+                        (System.nanoTime() - sb) / 1_000_000, wk.seg.activeSearch.expanded());
         }
         if (searchDone) {
-            PathFinder.Result res = wk.activeSearch.result();
-            wk.activeSearch = null;
-            boolean wasFromEnd = wk.searchFromEnd;
-            wk.searchFromEnd = false;
+            PathFinder.Result res = wk.seg.activeSearch.result();
+            wk.seg.activeSearch = null;
+            boolean wasFromEnd = wk.seg.searchFromEnd;
+            wk.seg.searchFromEnd = false;
             Walker.lastStats = new Walker.PathStats(res.expanded(), res.ms(), res.goalReached(),
                     res.finalCost(), res.path().size());
             PathTraceHolder.SINK.onSearchResult(res.path(), res.edges(), res.goalReached(),
@@ -89,7 +89,7 @@ final class WalkerTickSearch {
             if (BotConfig.walkerDebug)
                 LOG.info(
                         "[walker] repath from {} → goalReached={} pathLen={} expanded={} ms={}",
-                        wasFromEnd ? wk.commitEnd : foot, res.goalReached(), res.path().size(), res.expanded(), res.ms());
+                        wasFromEnd ? wk.seg.commitEnd : foot, res.goalReached(), res.path().size(), res.expanded(), res.ms());
             // Unreachable-goal churn guard (gap #49-③): a best-effort result landing while
             // the bot has neither moved nor gotten any closer to the goal is a FUTILE cycle
             // — repath → reject/no progress → identical repath — and each cycle burns a full
@@ -114,18 +114,18 @@ final class WalkerTickSearch {
             // resumes on the first clean-view failure. Partial results still count — the
             // penalties didn't blind the search enough to matter.
             if (BotConfig.walkerFutileSearchCap > 0 && !res.goalReached()
-                    && !a.breakHeld() && !wk.waterClimbDigging && !world.isWater(foot)
+                    && !a.breakHeld() && !wk.waterClimb.digging && !world.isWater(foot)
                     && !(!res.hasPath() && world.hasStuckPenalties())) {
-                boolean gotCloser = wk.bestDistToGoal < wk.searchGov.futileBestDist - 0.5;
+                boolean gotCloser = wk.goalSpin.bestDistToGoal < wk.searchGov.futileBestDist - 0.5;
                 boolean moved = wk.searchGov.futileFoot == null || wk.searchGov.futileFoot.distSqr(foot) > 4;
                 if (gotCloser || moved) {
                     wk.searchGov.futileSearches = 0;
-                    wk.searchGov.futileBestDist = wk.bestDistToGoal;
+                    wk.searchGov.futileBestDist = wk.goalSpin.bestDistToGoal;
                     wk.searchGov.futileFoot = foot;
                 } else if (++wk.searchGov.futileSearches >= BotConfig.walkerFutileSearchCap) {
                     wk.lastError = "no route progress after " + wk.searchGov.futileSearches
                             + " consecutive searches — goal unreachable from here (best dist="
-                            + Math.round(wk.bestDistToGoal) + ")";
+                            + Math.round(wk.goalSpin.bestDistToGoal) + ")";
                     return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.NO_PATH, wk.lastError, "failed:" + wk.lastError, p.blockPosition());
                 } else {
                     // Cool down before the next kickoff so the wait between futile cycles
@@ -140,7 +140,7 @@ final class WalkerTickSearch {
                 // Stash even an empty (no-path) result: the segment-end handler
                 // reads that as "no further progress" and ends cleanly, rather than
                 // letting the kickoff re-launch the same boxed-in search forever.
-                wk.pendingSegment = res;
+                wk.seg.pendingSegment = res;
             } else if (wasFromEnd && !res.hasPath()) {
                 // Already at/over the segment end and no onward route. With frontier
                 // planning this may be a STALE continuation (computed before we
@@ -166,15 +166,15 @@ final class WalkerTickSearch {
                 // CHURN_REPATH_CAP) so the churn stops winding the camera while the bot
                 // keeps pressing toward the climb-out; only after a long stall with no
                 // progress at all do we give up best-effort instead of pressing forever.
-                if (d < wk.bestGoalDist - 5.0) { wk.bestGoalDist = d; wk.repathsNoProgress = 0; wk.churnResets = 0; }
-                else wk.repathsNoProgress++;
+                if (d < wk.goalSpin.bestGoalDist - 5.0) { wk.goalSpin.bestGoalDist = d; wk.goalSpin.repathsNoProgress = 0; wk.goalSpin.churnResets = 0; }
+                else wk.goalSpin.repathsNoProgress++;
                 // Only a body actually AFLOAT counts as a water repath: the old
                 // `|| isWater(foot.below())` arm also matched a bot standing on dry
                 // ground beside a waterfall, so a canyon pacing loop was misread as
                 // water churn and the goto ended in a FAKE ARRIVED at (420,-349)
                 // (live 2026-06-09, "anti-spin: 13/15 water repaths" on dry land).
                 boolean overWaterRepath = p.isInWater() && !p.onGround();
-                if (overWaterRepath && !res.goalReached() && wk.repathsNoProgress > CHURN_GIVEUP_CAP) {
+                if (overWaterRepath && !res.goalReached() && wk.goalSpin.repathsNoProgress > CHURN_GIVEUP_CAP) {
                     // A LEGITIMATE go-around also reads as "no progress" here: rounding a
                     // lava arm via the river pushed d above the pre-detour best for 13+
                     // repaths and the give-up fired mid-journey with 440 blocks to go
@@ -184,17 +184,17 @@ final class WalkerTickSearch {
                     // detour soon improves on the new baseline (and any true progress
                     // resets churnResets); only a churn that stalls through several fresh
                     // baselines is the genuine unwinnable spin.
-                    if (wk.churnResets < CHURN_MAX_RESETS) {
-                        wk.churnResets++;
-                        wk.bestGoalDist = d;
-                        wk.repathsNoProgress = 0;
+                    if (wk.goalSpin.churnResets < CHURN_MAX_RESETS) {
+                        wk.goalSpin.churnResets++;
+                        wk.goalSpin.bestGoalDist = d;
+                        wk.goalSpin.repathsNoProgress = 0;
                         if (BotConfig.walkerDebug)
                             LOG.info("[walker] anti-spin: stalled in water (d={}) → re-baseline {}/{}",
-                                    String.format(Locale.ROOT, "%.0f", d), wk.churnResets, CHURN_MAX_RESETS);
+                                    String.format(Locale.ROOT, "%.0f", d), wk.goalSpin.churnResets, CHURN_MAX_RESETS);
                     } else {
                         if (BotConfig.walkerDebug)
                             LOG.info("[walker] anti-spin: {} water repaths w/o progress after {} re-baselines (d={}) → end best-effort",
-                                    wk.repathsNoProgress, wk.churnResets, String.format(Locale.ROOT, "%.0f", d));
+                                    wk.goalSpin.repathsNoProgress, wk.goalSpin.churnResets, String.format(Locale.ROOT, "%.0f", d));
                         Walker.agentForward(a, false);
                         Walker.agentJump(a, false);
                         p.setSprinting(false);
@@ -207,16 +207,16 @@ final class WalkerTickSearch {
                 // placing OFF so A* digs through / routes around (break moves need no
                 // blocks). Guard with searchSuppressedPlace so the place-off result is
                 // adopted as-is (no second reroute / loop).
-                if (!wk.replayMode && !wk.searchSuppressedPlace) {
+                if (!wk.replayMode && !wk.seg.searchSuppressedPlace) {
                     int placesNeeded = countPlaceEdges(res.edges());
                     if (placesNeeded > world.placeableBlockCount()) {
                         if (BotConfig.walkerDebug)
                             LOG.info("[walker] path needs {} placed blocks, have {} → re-search place-off (dig/around)",
                                     placesNeeded, world.placeableBlockCount());
-                        wk.activeSearch = new PathFinder(world, wk.profile).withOwner(wk.owner).newSearch(foot, wk.goal, true);
-                        wk.searchFromEnd = false;
-                        wk.searchSuppressedPlace = true;
-                        wk.pendingSegment = null;
+                        wk.seg.activeSearch = new PathFinder(world, wk.profile).withOwner(wk.owner).newSearch(foot, wk.goal, true);
+                        wk.seg.searchFromEnd = false;
+                        wk.seg.searchSuppressedPlace = true;
+                        wk.seg.pendingSegment = null;
                         return Walker.Step.WALKING;
                     }
                 }
@@ -250,11 +250,11 @@ final class WalkerTickSearch {
                 // actually held, keep the current path; the futile-dig release still abandons
                 // a hopeless dig, which drops the hold and lets the next repath adopt normally.
                 if (!keepCurrent && BotConfig.walkerDigCommitHoldRepath
-                        && wk.waterClimbDigRiser != null && a.breakHeld()) {
+                        && wk.waterClimb.digRiser != null && a.breakHeld()) {
                     keepCurrent = true;
                     if (BotConfig.walkerDebug)
                         LOG.info("[walker] dig-commit-hold: KEEP current path (committed bank dig at {},{},{} in progress)",
-                                wk.waterClimbDigRiser.getX(), wk.waterClimbDigRiser.getY(), wk.waterClimbDigRiser.getZ());
+                                wk.waterClimb.digRiser.getX(), wk.waterClimb.digRiser.getY(), wk.waterClimb.digRiser.getZ());
                 }
                 if (!keepCurrent) {
                     if (BotConfig.walkerExpectAlarm && uTurnLeg) {
@@ -286,11 +286,11 @@ final class WalkerTickSearch {
                 // segments from the same foot). Penalties decay in 15 s; hold and
                 // let the regular path==null kickoff retry instead of failing the
                 // whole goto. Bounded so a genuinely walled-in bot still fails.
-                if (world.hasStuckPenalties() && wk.noPathWaitTicks < NO_PATH_WAIT_CAP) {
-                    wk.noPathWaitTicks++;
-                    if (BotConfig.walkerDebug && wk.noPathWaitTicks % 100 == 1)
+                if (world.hasStuckPenalties() && wk.searchGov.noPathWaitTicks < NO_PATH_WAIT_CAP) {
+                    wk.searchGov.noPathWaitTicks++;
+                    if (BotConfig.walkerDebug && wk.searchGov.noPathWaitTicks % 100 == 1)
                         LOG.info("[walker] no path but stuck-penalties still live → waiting out decay ({}/{})",
-                                wk.noPathWaitTicks, NO_PATH_WAIT_CAP);
+                                wk.searchGov.noPathWaitTicks, NO_PATH_WAIT_CAP);
                     Walker.agentForward(a, false);
                     Walker.agentJump(a, false);
                     p.setSprinting(false);

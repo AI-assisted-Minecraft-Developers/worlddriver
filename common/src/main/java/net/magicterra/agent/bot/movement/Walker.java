@@ -148,20 +148,51 @@ public final class Walker {
             sinceJump = -1;
         }
     }
-    int waterClimbStall;      // armed flag (>WATER_CLIMB_STALL) once net-displacement window shows a bob-stall climbing out of water
-    int waterTouchRecent;     // sticky countdown: >0 while in a water climb-out, kept latched through bob-peak surface breaches (see WATER_TOUCH_STICKY)
-    int wantClimbRecent;      // sticky countdown: >0 while a higher node sits ahead, latched through bob-peak/repath flicker (see WANT_CLIMB_STICKY)
-    boolean waterClimbPillaring;   // latched: pillaring up the bot's column to bank stand level
-    boolean waterClimbDigging;     // set the tick the block-less bank-dig actuator swings; OR'd into breakingEdge next tick so the anti-stuck burst can't yank the bot off the riser mid-dig (it has no planned toBreak edge of its own)
-    BlockPos lastDigRiser;         // the riser the dig last aimed at; re-snap the look ONLY when it changes (not every tick) so the camera holds steady instead of juddering off the bobbing eye — the bob keeps the crosshair on the 1-tall block between re-aims
-    double lastDigAimEyeY = Double.NaN;   // eye-Y at the last dig aim-snap; re-snap once the buoyant bob has moved the eye far enough (DIG_REAIM_EYE_DY) that the fixed ray would drift OFF the 1-tall riser face (the ±0.5 once-only assumption fails for a ±1.5 deep-water bob → break never lands, 30s bob-stall)
-    BlockPos waterClimbDigRiser;   // LATCHED bank-dig riser cell — held while still solid so a buoyant bob (foot.y flickering ±1) or lateral drift (foot.z wandering) can't re-target a LOWER block of the same column or a neighbouring column mid-dig; cleared once the block breaks so the next +1 step is chosen fresh (drift-arena over-dig fix)
-    int waterClimbDigCommitTicks;  // ticks spent committed to the CURRENT latched riser; while >0 and <CAP the climb-out won't disengage on a transient wantClimb flicker, so a slow stone-bank break (~750 ticks by hand) finishes instead of being abandoned mid-dig → wander/sink; reset per riser
-    int waterClimbDigFloatTicks;   // consecutive ticks committed to the current latched riser while the bot stayed AFLOAT (onGround=false); reset to 0 on any ground contact. Feeds the futile-overhang early-release (walkerFutileBankDigRelease): a high count + a >=2-above-foot riser that breaks NOTHING = an unreachable overhang, not a legit grounded climb-out (which touches ground and resets this)
-    int futileBankDigCooldown;      // ticks left during which the bank-DIG must NOT re-engage after a futile-overhang early-release (walkerFutileBankDigRelease) — gives the reactive back-off burst time to physically move the bot off the unreachable riser before any dig can re-latch it; decremented per tick
-    boolean climbPillarGaveUp;     // latched once the pillar takeover proves futile (drifted off its locked column, or bob peak never clears the surface fill cell) → block pillar re-engage + let the bank-DIG take over even with a place block in hand; cleared when the climb context ends
-    BlockPos climbGaveUpPos;       // where the pillar proved futile (walkerClimbGaveUpSticky) — while the foot stays within 3 blocks and the TTL runs, the gave-up latch survives climb-context resets (repath node swaps) so the proven-futile pillar can't re-engage in a loop
-    int climbGaveUpTtl;            // ticks left on the sticky gave-up latch (walkerClimbGaveUpSticky); decremented per tick, 0 = expired
+    /** Water climb-out machine (task#96 step B10), owned by WalkerTickClimb (digging is
+     *  read by Search/StallDetect for the breakingEdge OR). {@link WaterClimb#reset()}
+     *  clears the fourteen fields both journey resets cleared (a resume mid climb-out
+     *  otherwise carries a stale window base-Y / armed stall). NOT in the reset — all
+     *  latch-gated or self-managing: lastDigAimEyeY (re-snaps per dig aim), the LOCKED
+     *  engage column/heading (targetY/colX/colZ/yaw — only read while pillaring), and
+     *  digGroundedStreak (per-commit blip counter). */
+    final WaterClimb waterClimb = new WaterClimb();
+    static final class WaterClimb {
+        int stall;                // armed flag (>WATER_CLIMB_STALL) once net-displacement window shows a bob-stall climbing out of water
+        int touchRecent;          // sticky countdown: >0 while in a water climb-out, kept latched through bob-peak surface breaches (see WATER_TOUCH_STICKY)
+        int wantClimbRecent;      // sticky countdown: >0 while a higher node sits ahead, latched through bob-peak/repath flicker (see WANT_CLIMB_STICKY)
+        boolean pillaring;        // latched: pillaring up the bot's column to bank stand level
+        boolean digging;          // set the tick the block-less bank-dig actuator swings; OR'd into breakingEdge next tick so the anti-stuck burst can't yank the bot off the riser mid-dig (it has no planned toBreak edge of its own)
+        BlockPos lastDigRiser;    // the riser the dig last aimed at; re-snap the look ONLY when it changes (not every tick) so the camera holds steady instead of juddering off the bobbing eye — the bob keeps the crosshair on the 1-tall block between re-aims
+        double lastDigAimEyeY = Double.NaN;   // eye-Y at the last dig aim-snap; re-snap once the buoyant bob has moved the eye far enough (DIG_REAIM_EYE_DY) that the fixed ray would drift OFF the 1-tall riser face (the ±0.5 once-only assumption fails for a ±1.5 deep-water bob → break never lands, 30s bob-stall)
+        BlockPos digRiser;        // LATCHED bank-dig riser cell — held while still solid so a buoyant bob (foot.y flickering ±1) or lateral drift (foot.z wandering) can't re-target a LOWER block of the same column or a neighbouring column mid-dig; cleared once the block breaks so the next +1 step is chosen fresh (drift-arena over-dig fix)
+        int digCommitTicks;       // ticks spent committed to the CURRENT latched riser; while >0 and <CAP the climb-out won't disengage on a transient wantClimb flicker, so a slow stone-bank break (~750 ticks by hand) finishes instead of being abandoned mid-dig → wander/sink; reset per riser
+        int digFloatTicks;        // consecutive ticks committed to the current latched riser while the bot stayed AFLOAT (onGround=false); reset to 0 on any ground contact. Feeds the futile-overhang early-release (walkerFutileBankDigRelease): a high count + a >=2-above-foot riser that breaks NOTHING = an unreachable overhang, not a legit grounded climb-out (which touches ground and resets this)
+        int futileBankDigCooldown;    // ticks left during which the bank-DIG must NOT re-engage after a futile-overhang early-release (walkerFutileBankDigRelease) — gives the reactive back-off burst time to physically move the bot off the unreachable riser before any dig can re-latch it; decremented per tick
+        boolean pillarGaveUp;     // latched once the pillar takeover proves futile (drifted off its locked column, or bob peak never clears the surface fill cell) → block pillar re-engage + let the bank-DIG take over even with a place block in hand; cleared when the climb context ends
+        BlockPos gaveUpPos;       // where the pillar proved futile (walkerClimbGaveUpSticky) — while the foot stays within 3 blocks and the TTL runs, the gave-up latch survives climb-context resets (repath node swaps) so the proven-futile pillar can't re-engage in a loop
+        int gaveUpTtl;            // ticks left on the sticky gave-up latch (walkerClimbGaveUpSticky); decremented per tick, 0 = expired
+        int pillarNoPlaceTicks;   // ticks the pillar takeover has been engaged without a successful place / height gain — buoyant bob can't lift feet above a surface fill cell, so beyond PILLAR_FUTILE_TICKS the place is hopeless and we fall to the dig
+        int targetY;              // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
+        int colX, colZ;           // LOCKED column the takeover pillars in (don't chase repathing nodes)
+        float yaw;                // LOCKED heading toward the bank at engage (no horizontal chase → no wander)
+        int digGroundedStreak;    // consecutive grounded ticks during a committed bank dig — a bob bottom-blip (<=5) must not break the dig commit (walkerBankDigGroundBlip)
+        void reset() {
+            stall = 0;
+            touchRecent = 0;
+            wantClimbRecent = 0;
+            pillaring = false;
+            digging = false;
+            pillarGaveUp = false;
+            gaveUpPos = null;
+            gaveUpTtl = 0;
+            pillarNoPlaceTicks = 0;
+            lastDigRiser = null;
+            digRiser = null;
+            digCommitTicks = 0;
+            digFloatTicks = 0;
+            futileBankDigCooldown = 0;
+        }
+    }
     /** Drowning-escape override (task#96 step B): walkerDrowningEscape — air critically
      *  low while submerged → surface-for-air until air recovers. Owned by WalkerTickClimb.
      *  {@link DrownGuard#reset()} clears only the latch and the heading-hold timer (exactly
@@ -194,15 +225,10 @@ public final class Walker {
             cooldown = 0;
         }
     }
-    int digGroundedStreak;         // consecutive grounded ticks during a committed bank dig — a bob bottom-blip (<=5) must not break the dig commit (walkerBankDigGroundBlip)
     // --- expectation alarms (walkerExpectAlarm): live actual-vs-expected divergence detectors ---
     // Extracted to WalkerExpectAlarms (all the ex* sentinel state + the observers) — purely
     // observational, never drives movement. Fed via exAlarms.tick / .notePlace / .noteRepathFlip.
     final WalkerExpectAlarms exAlarms = new WalkerExpectAlarms();
-    int pillarNoPlaceTicks;        // ticks the pillar takeover has been engaged without a successful place / height gain — buoyant bob can't lift feet above a surface fill cell, so beyond PILLAR_FUTILE_TICKS the place is hopeless and we fall to the dig
-    int waterClimbTargetY;         // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
-    int waterClimbColX, waterClimbColZ; // LOCKED column the takeover pillars in (don't chase repathing nodes)
-    float waterClimbYaw;           // LOCKED heading toward the bank at engage (no horizontal chase → no wander)
     /** Submerged-descent dive latches (task#96 step B), owned by WalkerTickAim; both
      *  cleared on every journey reset via {@link DiveLatches#reset()}. */
     final DiveLatches dive = new DiveLatches();
@@ -243,16 +269,27 @@ public final class Walker {
         int bankFollowRamTicks;      // FLOATING water-bank lateral ram (ANY node-Y) → drives a slide ALONG the bank toward a mountable exit (gated walkerFloatingBankFollow)
     }
     boolean descending;       // ending creative flight; wait to land before pathing
-    PathFinder.Search activeSearch;  // in-flight time-sliced A* (null = none)
-    double bestDistToGoal = Double.POSITIVE_INFINITY;
-    double bestGoalDist = Double.POSITIVE_INFINITY;  // anti-spin: best goal-estimate across repaths (5-block margin ignores micro-lunges)
-    int repathsNoProgress;                           // anti-spin: consecutive in-water repaths that didn't improve bestGoalDist
-    int churnResets;                                 // anti-spin: fresh baselines granted after a stall (tolerates water go-arounds; real progress clears it)
+    /** Water anti-spin governor (task#96 step B9): consumed by the search/stall gates.
+     *  {@link GoalSpin#resetForNewGoal()} (setGoal only) clears the baselines;
+     *  goalSpin.churnResets deliberately PERSISTS across goals (fresh-baseline grants are a
+     *  per-body budget, not per-journey — do NOT add it to the reset). */
+    final GoalSpin goalSpin = new GoalSpin();
+    static final class GoalSpin {
+        double bestDistToGoal = Double.POSITIVE_INFINITY;
+        double bestGoalDist = Double.POSITIVE_INFINITY;  // anti-spin: best goal-estimate across repaths (5-block margin ignores micro-lunges)
+        int repathsNoProgress;                           // anti-spin: consecutive in-water repaths that didn't improve goalSpin.bestGoalDist
+        int churnResets;                                 // anti-spin: fresh baselines granted after a stall (tolerates water go-arounds; real progress clears it)
+        void resetForNewGoal() {
+            bestDistToGoal = Double.POSITIVE_INFINITY;
+            bestGoalDist = Double.POSITIVE_INFINITY;
+            repathsNoProgress = 0;
+        }
+    }
     /** Land boxed-pocket churn window (task#96 step B4), owned by WalkerTickStallDetect;
      *  Walker's carrot logic reads hColRamTicks (walkerCarrotHColShrink).
      *  {@link BoxedChurn#resetForNewGoal()} runs in setGoal only (forceRepath never
      *  cleared this window); hColRamTicks has NO reset site anywhere — it self-zeroes
-     *  on every collision-free tick. The water anti-spin's churnResets stays a loose
+     *  on every collision-free tick. The water anti-spin's goalSpin.churnResets stays a loose
      *  field (cross-goal persistence — see its doc). */
     final BoxedChurn churn = new BoxedChurn();
     static final class BoxedChurn {
@@ -359,7 +396,6 @@ public final class Walker {
         int progWindowTicks;          // ticks elapsed in the current arc-progress window
         boolean progStall;            // last completed window made < ARC_PROG_MIN net arc-s progress → stuck (consumed by fellOffPath)
     }
-    boolean searchSuppressedPlace;                  // the in-flight search dropped placing moves (block-budget reroute) → adopt its result without re-checking
     float freeHangDriveYaw = Float.NaN;             // slew-limited world heading of the free-hang vine DRIVE (NaN = resync); smooths the step-jitter ±180° flips that would circle the body off a narrow column — EdgeGuards-owned, self-resyncing (no journey reset)
     int surfaceWaterLatch = 0;                      // ticks the open-water swim stays latched after a surface bob lifts the foot out of the fluid (rides out the isInWater blink) — read across Aim/Climb/Progress; belongs to a future water-state family
     /** Aim/heading smoothing state (task#96 step B5), owned by WalkerTickAim
@@ -400,13 +436,28 @@ public final class Walker {
             steepDescentLatch = 0;
         }
     }
-    boolean pathBestEffort;                         // current path is a best-effort partial (goal NOT reached) → commit to it before re-searching
-    BlockPos commitEnd;                             // last node of the current best-effort segment (null for a full path) → where continuation searches launch from
-    boolean searchFromEnd;                          // activeSearch is a continuation launched from commitEnd (deferred splice) vs a foot-search (splice immediately)
-    int frontierWaitTicks;                          // bounded retries re-searching at a loaded-chunk frontier before giving up (pathfinderFrontierCommit)
-    PathFinder.Result pendingSegment;              // a finished continuation segment awaiting splice at the current segment's end
-    int quickCooldown;                              // ticks before the next quick-start stub attempt (a useless stub backs off)
-    int noPathWaitTicks;                            // ticks spent holding a "no path" verdict while self-inflicted stuck-penalties decay
+    /** Async search + best-effort segment commit (task#96 step B9): the in-flight
+     *  time-sliced A* and the partial-segment plumbing around it, driven by
+     *  WalkerTickSearch/Repath and Walker's adopt/splice/frontier logic.
+     *  {@link SegmentCommit#reset()} clears the search + continuation state (exactly
+     *  what both journey resets cleared); seg.pathBestEffort/seg.searchSuppressedPlace follow
+     *  path adoption, and seg.frontierWaitTicks resets on adoption progress only. */
+    final SegmentCommit seg = new SegmentCommit();
+    static final class SegmentCommit {
+        PathFinder.Search activeSearch;             // in-flight time-sliced A* (null = none)
+        boolean pathBestEffort;                     // current path is a best-effort partial (goal NOT reached) → commit to it before re-searching
+        BlockPos commitEnd;                         // last node of the current best-effort segment (null for a full path) → where continuation searches launch from
+        boolean searchFromEnd;                      // seg.activeSearch is a continuation launched from seg.commitEnd (deferred splice) vs a foot-search (splice immediately)
+        PathFinder.Result pendingSegment;           // a finished continuation segment awaiting splice at the current segment's end
+        boolean searchSuppressedPlace;              // the in-flight search dropped placing moves (block-budget reroute) → adopt its result without re-checking
+        int frontierWaitTicks;                      // bounded retries re-searching at a loaded-chunk frontier before giving up (pathfinderFrontierCommit)
+        void reset() {
+            activeSearch = null;
+            commitEnd = null;
+            searchFromEnd = false;
+            pendingSegment = null;
+        }
+    }
     /** Anti-stuck forced displacement (task#96 step B): the wedge-repath counter anchored
      *  at lastWedgeFoot (WalkerTickRepath is the ONLY setter of the anchor) and the
      *  displacement burst it fires (burst driven by WalkerTickRepath; also armed directly
@@ -438,19 +489,23 @@ public final class Walker {
     /** Search-stage governors (task#96 step B): the unreachable-goal churn guard
      *  (gap #49-③) and its kickoff backoff, owned by WalkerTickSearch (backoff is
      *  honored by WalkerTickRepath's kickoff gates). Reset per journey via
-     *  {@link SearchGovernors#reset()}; the water anti-spin's churnResets deliberately
+     *  {@link SearchGovernors#reset()}; the water anti-spin's goalSpin.churnResets deliberately
      *  lives OUTSIDE (it persists across goals — see its field doc). */
     final SearchGovernors searchGov = new SearchGovernors();
     static final class SearchGovernors {
-        double futileBestDist = Double.POSITIVE_INFINITY;  // bestDistToGoal snapshot at last counted search
+        double futileBestDist = Double.POSITIVE_INFINITY;  // goalSpin.bestDistToGoal snapshot at last counted search
         BlockPos futileFoot;                                // foot snapshot at last counted search
         int futileSearches;                                 // consecutive futile completions
         int searchBackoffTicks;                             // no new search kickoff while >0
+        int quickCooldown;                                  // ticks before the next quick-start stub attempt (a useless stub backs off)
+        int noPathWaitTicks;                                // ticks spent holding a "no path" verdict while self-inflicted stuck-penalties decay
         void reset() {
             futileBestDist = Double.POSITIVE_INFINITY;
             futileFoot = null;
             futileSearches = 0;
             searchBackoffTicks = 0;
+            quickCooldown = 0;
+            noPathWaitTicks = 0;
         }
     }
     int dbgPrevStep = -1;     // walkerDebug: detect step changes for per-step timing
@@ -476,11 +531,11 @@ public final class Walker {
         BlockPos wp = path != null && step < path.size() ? path.get(step) : null;
         return (path == null ? "path=null" : "step=" + step + "/" + path.size()
                 + " wp=" + (wp == null ? "-" : wp.getX() + "," + wp.getY() + "," + wp.getZ())
-                + (pathBestEffort ? " bestEffort" : ""))
+                + (seg.pathBestEffort ? " bestEffort" : ""))
                 + " unstuck=" + unstuck.burstTicks + " churnEsc=" + churn.escapes
                 + " escal=" + (escal.armed() ? "ON" : "off")
                 + " noStep=" + stepProg.noStepProgressTicks
-                + " digFloat=" + waterClimbDigFloatTicks + " gaveUp=" + climbPillarGaveUp;
+                + " digFloat=" + waterClimb.digFloatTicks + " gaveUp=" + waterClimb.pillarGaveUp;
     }
 
     public void setGoal(Goal g) {
@@ -496,41 +551,21 @@ public final class Walker {
         this.totalTicks = 0;
         this.actionTicks = 0;
         this.pillar.reset();
-        this.waterClimbStall = 0;
-        this.waterTouchRecent = 0;
-        this.waterClimbPillaring = false;
-        this.waterClimbDigging = false;
-        this.climbPillarGaveUp = false;
-        this.climbGaveUpPos = null;
-        this.climbGaveUpTtl = 0;
+        this.waterClimb.reset();
         this.drownGuard.reset();
         this.stepUpBackoff.reset();
-        this.pillarNoPlaceTicks = 0;
-        this.lastDigRiser = null;
-        this.waterClimbDigRiser = null;
-        this.waterClimbDigCommitTicks = 0;
-        this.waterClimbDigFloatTicks = 0;
-        this.futileBankDigCooldown = 0;
         this.dive.reset();
         this.driveLatch.reset();
         this.pillarRecover.reset();
-        this.wantClimbRecent = 0;
         this.descending = false;
-        this.activeSearch = null;
-        this.bestDistToGoal = Double.POSITIVE_INFINITY;
-        this.bestGoalDist = Double.POSITIVE_INFINITY;
+        this.seg.reset();
+        this.goalSpin.resetForNewGoal();
         this.searchGov.reset();
-        this.repathsNoProgress = 0;
         this.churn.resetForNewGoal();
         this.escal.disarm();
         BotConfig.pathfinderBoxedEscalate = false;          // never leak the steep-barrier escalation into the next goto
         this.stepProg.restartWindows();
         this.aimSmooth.reset();
-        this.commitEnd = null;
-        this.searchFromEnd = false;
-        this.pendingSegment = null;
-        this.quickCooldown = 0;
-        this.noPathWaitTicks = 0;
         this.unstuck.resetForNewGoal();
         this.replayMode = false;
         this.lastError = null;
@@ -606,36 +641,20 @@ public final class Walker {
         this.stuckTicks = 0;
         this.actionTicks = 0;
         this.pillar.reset();
-        this.activeSearch = null;
+        this.seg.reset();
         this.stepProg.restartWindows();
         this.aimSmooth.reset();
-        this.commitEnd = null;
-        this.searchFromEnd = false;
-        this.pendingSegment = null;
-        this.quickCooldown = 0;
+        this.searchGov.quickCooldown = 0;
         // Clear the water-climb-out / descent state too (setGoal resets these): a
         // resume mid water-climb otherwise carries a stale window base-Y / armed
         // stall, so the next tick either fires a spurious foothold-place takeover
         // (stall already past threshold) or suppresses a legitimate stall.
-        this.waterClimbStall = 0;
-        this.waterTouchRecent = 0;
-        this.waterClimbPillaring = false;
-        this.waterClimbDigging = false;
-        this.climbPillarGaveUp = false;
-        this.climbGaveUpPos = null;
-        this.climbGaveUpTtl = 0;
+        this.waterClimb.reset();
         this.drownGuard.reset();
         this.stepUpBackoff.reset();
-        this.pillarNoPlaceTicks = 0;
-        this.lastDigRiser = null;
-        this.waterClimbDigRiser = null;
-        this.waterClimbDigCommitTicks = 0;
-        this.waterClimbDigFloatTicks = 0;
-        this.futileBankDigCooldown = 0;
         this.dive.reset();
         this.driveLatch.reset();
         this.pillarRecover.reset();
-        this.wantClimbRecent = 0;
         this.descending = false;
         this.escal.disarm();
         BotConfig.pathfinderBoxedEscalate = false;          // never leak the steep-barrier escalation across a forced repath
@@ -871,9 +890,9 @@ public final class Walker {
     /** Splice in a freshly-searched route: string-pull it, reset the per-path
      *  follow state, and record whether it's a best-effort partial (so the next
      *  segment is precomputed from its end — see the kickoff/splice logic in
-     *  {@link #tick}). {@code commitEnd} is the segment's last node, the launch
+     *  {@link #tick}). {@code seg.commitEnd} is the segment's last node, the launch
      *  point for that continuation search. */
-    /** At a loaded-chunk frontier the (stale) eager continuation from commitEnd —
+    /** At a loaded-chunk frontier the (stale) eager continuation from seg.commitEnd —
      *  computed before the bot arrived — found no onward route. Re-search FRESH from
      *  the frontier: now that the bot stands there, chunks ~render-distance further
      *  have loaded and the next segment is visible. Bounded by {@link #FRONTIER_WAIT_CAP}
@@ -881,12 +900,12 @@ public final class Walker {
      *  so a genuine box-in still terminates. Holds (keys released) and returns
      *  WALKING while retrying; ARRIVED when out of retries or the feature is off. */
     Step frontierHoldOrArrive(Avatar a, WorldView world, Player p) {
-        if (!replayMode && BotConfig.pathfinderFrontierCommit && commitEnd != null
-                && frontierWaitTicks < FRONTIER_WAIT_CAP) {
-            frontierWaitTicks++;
-            if (activeSearch == null) {
-                activeSearch = new PathFinder(world, profile).withOwner(owner).newSearch(commitEnd, goal);
-                searchFromEnd = true;
+        if (!replayMode && BotConfig.pathfinderFrontierCommit && seg.commitEnd != null
+                && seg.frontierWaitTicks < FRONTIER_WAIT_CAP) {
+            seg.frontierWaitTicks++;
+            if (seg.activeSearch == null) {
+                seg.activeSearch = new PathFinder(world, profile).withOwner(owner).newSearch(seg.commitEnd, goal);
+                seg.searchFromEnd = true;
             }
             agentForward(a, false);
             agentJump(a, false);
@@ -906,8 +925,8 @@ public final class Walker {
      *  to {@link BotConfig#pathfinderProgressive} (default OFF → behaviour unchanged). */
     void maybeArmPinchEscalation(BlockPos foot, PathFinder.Result res) {
         if (!BotConfig.pathfinderProgressive) return;
-        if (res.goalReached() || commitEnd == null) return;      // healthy full route → no escalation
-        double progress = goal.estimate(foot) - goal.estimate(commitEnd);
+        if (res.goalReached() || seg.commitEnd == null) return;      // healthy full route → no escalation
+        double progress = goal.estimate(foot) - goal.estimate(seg.commitEnd);
         if (progress >= PINCH_MIN_PROGRESS) return;              // real headway → not a pinch
         boolean wasArmed = escal.armed();
         escal.arm(BOXED_ESCALATE_STICKY_TICKS);
@@ -929,7 +948,7 @@ public final class Walker {
      *  @return true if a stub segment was adopted (path != null, step = 1). */
     boolean tryQuickStart(WorldView world, BlockPos foot, Goal goal) {
         if (BotConfig.pathfinderQuickNodes <= 0) return false;
-        if (quickCooldown > 0) { quickCooldown--; return false; }
+        if (searchGov.quickCooldown > 0) { searchGov.quickCooldown--; return false; }
         PathFinder.Search q = new PathFinder(world, BotConfig.pathfinderQuickNodes, QUICK_MAX_MS, profile).withOwner(owner)
                 .newSearch(foot, goal);
         while (!q.advance(QUICK_MAX_MS)) { /* bounded by the node cap / QUICK_MAX_MS */ }
@@ -938,7 +957,7 @@ public final class Walker {
                 && goal.estimate(foot)
                    - goal.estimate(res.path().get(res.path().size() - 1)) >= 2.0;
         if (!useful) {
-            quickCooldown = QUICK_RETRY_TICKS;
+            searchGov.quickCooldown = QUICK_RETRY_TICKS;
             return false;
         }
         if (BotConfig.walkerDebug)
@@ -1046,7 +1065,7 @@ public final class Walker {
 
     /** @return false if the segment was REJECTED because its start is nowhere
      *  near the feet. A continuation is computed from the previous segment's
-     *  commitEnd; when the bot never actually made it there (fumbled the climb,
+     *  seg.commitEnd; when the bot never actually made it there (fumbled the climb,
      *  fell off the route) the spliced path STARTS in mid-air several blocks
      *  away — step 1 is unreachable, fast-forward finds nothing near, and the
      *  bot just hangs against the wall until the wedge timer fires (live
@@ -1062,7 +1081,7 @@ public final class Walker {
             // path[0] turns that drift into a reject→re-search→drift-again
             // oscillation (live 2026-06-10: 6 rejects in 18 s, 35 min circling a
             // water-shore pocket, the 75-node highland exit killed twice). A
-            // truly mis-anchored continuation (computed from a commitEnd the bot
+            // truly mis-anchored continuation (computed from a seg.commitEnd the bot
             // never reached) has its WHOLE prefix far/high, so it still rejects.
             List<BlockPos> raw = res.path();
             int anchor = 0;
@@ -1085,7 +1104,7 @@ public final class Walker {
             // tight gate only exists for dry falls/jumps that aren't.
             double rejectGate = world.isWater(foot) ? 64 : 16;
             // DEEP-WATER-FLOAT BEE-LINE EXEMPTION (live #47 deterministic dead-stop): a bot floating in
-            // deep open water commits a best-effort segment whose continuation (from commitEnd) starts a
+            // deep open water commits a best-effort segment whose continuation (from seg.commitEnd) starts a
             // long clear-LOS open-water WALK node tens of blocks ahead — the only intermediate node is an
             // IN-PLACE swimUp (same XZ as the foot), so the anchor finds NO near forward node and rejects
             // (d2≈2300). The reject drops the path, the foot-search returns the SAME swimUp+far-walk
@@ -1102,7 +1121,7 @@ public final class Walker {
             //     body swims up+across to (the live foot bobs y58↔61 under a y62 surface node, dy up to 4),
             //     never an impossible bank climb (a real climb-out has a solid bank IN the line → the
             //     open-water LOS already rejects it, so this band only bounds the swim-up reach).
-            // A genuinely fumbled continuation (computed from a commitEnd behind a wall / up a cliff the
+            // A genuinely fumbled continuation (computed from a seg.commitEnd behind a wall / up a cliff the
             // bot never reached) fails the open-water LOS or the ±4 Y band, so it still rejects.
             // The exemption suppresses BOTH reject conditions (the d2 distance gate AND the |Δy| jump gate):
             // for an open-water bee-line the Y difference is a buoyant swim-UP to the surface node, not a dry
@@ -1132,7 +1151,7 @@ public final class Walker {
         SmoothResult sm = stringPull(world, res.path(), res.edges(), profile.bias());
         path = sm.path;
         edges = sm.edges;
-        pathBestEffort = !res.goalReached();
+        seg.pathBestEffort = !res.goalReached();
         // §93 commit-tail platform retreat (#15 final lane). A best-effort segment's
         // tail is wherever the node budget ran out — often MID-SLOPE on complex steep
         // terrain. The bot then climbs to a half-mounted ledge, the periodic repath
@@ -1142,7 +1161,7 @@ public final class Walker {
         // a platform (fewer than 2 same-Y standable cardinal neighbours), retreat the
         // commit up to 8 nodes to the nearest platform node so the segment ends on
         // ground the executor can stand square on while the next search runs.
-        if (BotConfig.walkerCommitTailPlatform && pathBestEffort && path.size() > 4) {
+        if (BotConfig.walkerCommitTailPlatform && seg.pathBestEffort && path.size() > 4) {
             int cut = -1;
             for (int k = path.size() - 1; k >= Math.max(2, path.size() - 8); k--) {
                 BlockPos n = path.get(k);
@@ -1159,9 +1178,9 @@ public final class Walker {
                 edges = Collections.unmodifiableList(new ArrayList<>(edges.subList(0, cut + 1)));
             }
         }
-        commitEnd = (pathBestEffort && !path.isEmpty()) ? path.get(path.size() - 1) : null;
+        seg.commitEnd = (seg.pathBestEffort && !path.isEmpty()) ? path.get(path.size() - 1) : null;
         step = 1;
-        noPathWaitTicks = 0;            // a segment was found → the no-path wait starts over
+        searchGov.noPathWaitTicks = 0;            // a segment was found → the no-path wait starts over
         // A segment that ends FARTHER from the goal than it starts can only be
         // the last-resort ESCAPE (every other selector is strictly goal-ward):
         // its start is a PROVEN dead pocket. Charge it now so subsequent searches
@@ -1228,7 +1247,7 @@ public final class Walker {
             if (nearest > step && nearestD <= accept) step = nearest;
         }
         stuckTicks = 0;
-        frontierWaitTicks = 0;          // progress made → reset the frontier re-search budget
+        seg.frontierWaitTicks = 0;          // progress made → reset the frontier re-search budget
         stepProg.stuckStep = -1;        // new path geometry → restart the progress window
         stepProg.noStepProgressTicks = 0;   // new path → restart the wedge timer (else a same-index step re-triggers instantly)
         stepProg.noProgressStep = -1;

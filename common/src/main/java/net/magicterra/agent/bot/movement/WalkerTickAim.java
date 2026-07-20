@@ -555,7 +555,7 @@ final class WalkerTickAim {
         // spin is rarer (only on an actual nav stall) and better fixed at the stall itself than by
         // freezing the camera here, so keep the overWater scope.
         boolean overWater = p.isInWater() || world.isWater(foot.offset(0, -1, 0));
-        boolean spinFreeze = !launch && overWater && wk.repathsNoProgress > CHURN_REPATH_CAP && targetFlipping;
+        boolean spinFreeze = !launch && overWater && wk.goalSpin.repathsNoProgress > CHURN_REPATH_CAP && targetFlipping;
         if (!spinFreeze && Math.abs(angleDiff(p.getYRot(), aimYaw)) > BotConfig.walkerYawHysteresisDeg) {
             float ny;
             if (snapLaunch) {

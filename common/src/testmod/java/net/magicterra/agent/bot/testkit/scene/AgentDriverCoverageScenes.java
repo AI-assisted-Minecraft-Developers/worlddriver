@@ -390,6 +390,22 @@ public final class AgentDriverCoverageScenes implements SceneProvider {
                     if (dx <= 3 && dz >= -2 && dz <= 2) continue;   // pocket interior
                     level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.BEDROCK.defaultBlockState());
                 }
+        // Perimeter rim (iron rule #2: fence every rig bordering void): in an unlucky
+        // run a best-effort route wraps around the mass exterior and the drive walks
+        // the bot off the platform edge into the void (seen live 2026-07-19: z-drift to
+        // dz-8.6 → fell to the dogfood ground at y=-60 → goal unreachable → timeout).
+        // 3-tall so it can't be jumped; ≥6 blocks from the pocket interior so it stays
+        // outside the adoption/carrot wall-snap radius (iron rule #1).
+        for (int dy = 1; dy <= 3; dy++) {
+            for (int dx = -8; dx <= 13; dx++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz - 8), Blocks.BEDROCK.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + 8), Blocks.BEDROCK.defaultBlockState());
+            }
+            for (int dz = -8; dz <= 8; dz++) {
+                level.setBlockAndUpdate(new BlockPos(cx - 8, floorY + dy, cz + dz), Blocks.BEDROCK.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + 13, floorY + dy, cz + dz), Blocks.BEDROCK.defaultBlockState());
+            }
+        }
         BlockPos goal = new BlockPos(cx + 9, standY, cz);
 
         var pin = BotConfig.pinnedBaseline();

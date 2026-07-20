@@ -61,10 +61,10 @@ final class WalkerTickStallDetect {
         // for an unreachable goal (best-effort fallback path > 1 node satisfies ok()).
         // Reset on real progress (closer to goal) so legitimate long walks aren't killed.
         double d = wk.goal.estimate(foot);
-        if (d < wk.bestDistToGoal - 0.5) {
-            wk.bestDistToGoal = d;
+        if (d < wk.goalSpin.bestDistToGoal - 0.5) {
+            wk.goalSpin.bestDistToGoal = d;
             wk.totalTicks = 0;
-        } else if (a.breakHeld() || wk.waterClimbDigging) {
+        } else if (a.breakHeld() || wk.waterClimb.digging) {
             // Actively mining a block — a planned break edge swinging (breakHeld) OR the
             // block-less climb-out dig from last tick (waterClimbDigging, still set; reset
             // below at line ~755). The bot IS progressing: slowly breaking a riser, not
@@ -76,7 +76,7 @@ final class WalkerTickStallDetect {
             // breakTimeoutTicks wedge watchdog, and the fact that each completed break lifts
             // Y toward the goal → bestDistToGoal drops → totalTicks resets on the next step.
         } else if (++wk.totalTicks > BotConfig.walkerTotalTickBudget) {
-            wk.lastError = "no progress for " + BotConfig.walkerTotalTickBudget + " ticks (best dist=" + Math.round(wk.bestDistToGoal) + ")";
+            wk.lastError = "no progress for " + BotConfig.walkerTotalTickBudget + " ticks (best dist=" + Math.round(wk.goalSpin.bestDistToGoal) + ")";
             return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.STUCK, wk.lastError, "failed:" + wk.lastError, p.blockPosition());
         }
 
@@ -121,8 +121,8 @@ final class WalkerTickStallDetect {
         // or the burst yanks the buoyant bot off the riser mid-dig and it never tops out
         // (the live continuous-context churn the clean single-bank arena can't reproduce).
         boolean breakingEdge = (wedgeEdge != null && !wedgeEdge.toBreak.isEmpty() && a.breakHeld())
-                || wk.waterClimbDigging;
-        wk.waterClimbDigging = false;   // re-armed below only if the block-less dig actuator runs this tick
+                || wk.waterClimb.digging;
+        wk.waterClimb.digging = false;   // re-armed below only if the block-less dig actuator runs this tick
         int wedgeLimit = breakingEdge ? WEDGE_TICKS + BotConfig.breakTimeoutTicks : WEDGE_TICKS;
         boolean wedged = wk.stepProg.noStepProgressTicks > wedgeLimit;
         // Fell off the committed climb path VERTICALLY (the current node is more than a jump
@@ -268,9 +268,9 @@ final class WalkerTickStallDetect {
         if (arcWedge && BotConfig.walkerDebug)
             LOG.info("[walker] arc-wedge RECOVER step={}/{} node={} nodeDy={} wedgeT={} (bob-immune ram → fellOffPath)",
                     wk.step, wk.path.size(), wk.path.get(wk.step), wk.path.get(wk.step).getY() - foot.getY(), wk.arc.wedgeTicks);
-        if (fellOffPath && wk.activeSearch != null && wk.searchFromEnd) {
-            wk.activeSearch = null;
-            wk.searchFromEnd = false;
+        if (fellOffPath && wk.seg.activeSearch != null && wk.seg.searchFromEnd) {
+            wk.seg.activeSearch = null;
+            wk.seg.searchFromEnd = false;
         }
         // Fell BELOW a still-valid route with blocks in hand → PILLAR BACK UP to
         // it instead of re-searching. A fresh foot-search from down here (a cave
@@ -362,7 +362,7 @@ final class WalkerTickStallDetect {
             // reset, all wasted" — and the shove toward deep water is what then sank the bot. A
             // dig in progress IS progress; let it finish (the per-riser commit cap bounds a truly
             // stuck dig).
-            if ((cdx * cdx + cdz * cdz) < CHURN_MIN_MOVE_SQ && (wk.pathBestEffort || cdy <= CHURN_MIN_Y)
+            if ((cdx * cdx + cdz * cdz) < CHURN_MIN_MOVE_SQ && (wk.seg.pathBestEffort || cdy <= CHURN_MIN_Y)
                     && !breakingEdge) {
                 wk.churn.escapes++;
                 // Arm the sticky steep-barrier planner escalation (see top of tick()): the
@@ -425,7 +425,7 @@ final class WalkerTickStallDetect {
         // path==null burst guard skips the shove. Near a bank the bee-line march is
         // short (< MIN, not adopted) so this can't strand a real climb-out.
         if (!wk.replayMode && wedged && wk.path != null && wk.step < wk.path.size() && !breakingEdge
-                && wk.activeSearch != null && world.isWater(foot)
+                && wk.seg.activeSearch != null && world.isWater(foot)
                 && foot.distSqr(wk.path.get(wk.step)) > BEELINE_OVERSHOOT_SQ) {
             wk.path = null;
             wk.edges = null;

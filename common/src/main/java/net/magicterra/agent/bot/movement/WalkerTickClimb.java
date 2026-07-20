@@ -186,13 +186,13 @@ final class WalkerTickClimb {
             }
             // walkerClimbGaveUpSticky: run down the sticky gave-up TTL; expire the anchor once
             // the foot leaves the futile bank (>3 blocks) or the TTL runs out.
-            if (wk.climbGaveUpTtl > 0) {
-                wk.climbGaveUpTtl--;
-                if (wk.climbGaveUpTtl == 0 || wk.climbGaveUpPos == null
-                        || Math.abs(foot.getX() - wk.climbGaveUpPos.getX()) > 3
-                        || Math.abs(foot.getZ() - wk.climbGaveUpPos.getZ()) > 3) {
-                    wk.climbGaveUpTtl = 0;
-                    wk.climbGaveUpPos = null;
+            if (wk.waterClimb.gaveUpTtl > 0) {
+                wk.waterClimb.gaveUpTtl--;
+                if (wk.waterClimb.gaveUpTtl == 0 || wk.waterClimb.gaveUpPos == null
+                        || Math.abs(foot.getX() - wk.waterClimb.gaveUpPos.getX()) > 3
+                        || Math.abs(foot.getZ() - wk.waterClimb.gaveUpPos.getZ()) > 3) {
+                    wk.waterClimb.gaveUpTtl = 0;
+                    wk.waterClimb.gaveUpPos = null;
                 }
             }
             // Detecting a stalled climb-out must survive confounders that reset the old
@@ -231,12 +231,12 @@ final class WalkerTickClimb {
             boolean wantClimbNow = edge != null
                     && ((cwp.getY() > foot.getY() && climbTargetBeside) || floatingBankRam);
             boolean touchingWater = p.isInWater() || world.isWater(foot) || world.isWater(foot.below());
-            if (touchingWater) wk.waterTouchRecent = WATER_TOUCH_STICKY;
-            else if (wk.waterTouchRecent > 0) wk.waterTouchRecent--;
-            boolean nearWater = touchingWater || wk.waterTouchRecent > 0;
-            if (wantClimbNow) wk.wantClimbRecent = WANT_CLIMB_STICKY;
-            else if (wk.wantClimbRecent > 0) wk.wantClimbRecent--;
-            boolean wantClimb = wantClimbNow || wk.wantClimbRecent > 0;
+            if (touchingWater) wk.waterClimb.touchRecent = WATER_TOUCH_STICKY;
+            else if (wk.waterClimb.touchRecent > 0) wk.waterClimb.touchRecent--;
+            boolean nearWater = touchingWater || wk.waterClimb.touchRecent > 0;
+            if (wantClimbNow) wk.waterClimb.wantClimbRecent = WANT_CLIMB_STICKY;
+            else if (wk.waterClimb.wantClimbRecent > 0) wk.waterClimb.wantClimbRecent--;
+            boolean wantClimb = wantClimbNow || wk.waterClimb.wantClimbRecent > 0;
             // Durable dig-commit: while we're still mid-breaking a LATCHED riser that is
             // solid and right beside the bot, STAY committed even if A* transiently repaths
             // the climb away (wantClimb flicker). A buoyant bot mines a STONE bank by hand at
@@ -247,14 +247,14 @@ final class WalkerTickClimb {
             // capped per-riser (WATER_CLIMB_DIG_COMMIT_CAP, reset on each fresh riser) so a
             // genuinely stuck dig still releases to repath. Held only while afloat and still
             // beside the riser — grounding out (climbed) or drifting >2 off it ends it.
-            if (p.onGround()) wk.digGroundedStreak++; else wk.digGroundedStreak = 0;
+            if (p.onGround()) wk.waterClimb.digGroundedStreak++; else wk.waterClimb.digGroundedStreak = 0;
             boolean digGroundBlipOk = !p.onGround()
-                    || (BotConfig.walkerBankDigGroundBlip && wk.digGroundedStreak <= 5);
-            boolean digCommitted = wk.waterClimbDigRiser != null
-                    && world.isSolid(wk.waterClimbDigRiser) && digGroundBlipOk
-                    && Math.abs(foot.getX() - wk.waterClimbDigRiser.getX()) <= 2
-                    && Math.abs(foot.getZ() - wk.waterClimbDigRiser.getZ()) <= 2
-                    && wk.waterClimbDigCommitTicks < WATER_CLIMB_DIG_COMMIT_CAP;
+                    || (BotConfig.walkerBankDigGroundBlip && wk.waterClimb.digGroundedStreak <= 5);
+            boolean digCommitted = wk.waterClimb.digRiser != null
+                    && world.isSolid(wk.waterClimb.digRiser) && digGroundBlipOk
+                    && Math.abs(foot.getX() - wk.waterClimb.digRiser.getX()) <= 2
+                    && Math.abs(foot.getZ() - wk.waterClimb.digRiser.getZ()) <= 2
+                    && wk.waterClimb.digCommitTicks < WATER_CLIMB_DIG_COMMIT_CAP;
             boolean waterClimbing = (wantClimb && nearWater && !p.onGround()) || digCommitted;
             // Floating over DEEP water (water directly below the foot) with the dig
             // available: a buoyant bot can't swim-jump a +1 bank AND can't clear a surface
@@ -280,23 +280,23 @@ final class WalkerTickClimb {
                 // that swaps the climb node resets this context every ~2.5s, and clearing the
                 // latch here is what let the proven-futile pillar re-engage 26× until the bot
                 // drowned (live 2026-06-29). While the foot is still at the futile bank, keep it.
-                wk.waterClimbStall = 0;
-                if (!(BotConfig.walkerClimbGaveUpSticky && wk.climbGaveUpTtl > 0)) wk.climbPillarGaveUp = false;
-                wk.pillarNoPlaceTicks = 0;
-                wk.lastDigRiser = null;
-                wk.waterClimbDigRiser = null;
-                wk.waterClimbDigCommitTicks = 0;
-                wk.waterClimbDigFloatTicks = 0;
+                wk.waterClimb.stall = 0;
+                if (!(BotConfig.walkerClimbGaveUpSticky && wk.waterClimb.gaveUpTtl > 0)) wk.waterClimb.pillarGaveUp = false;
+                wk.waterClimb.pillarNoPlaceTicks = 0;
+                wk.waterClimb.lastDigRiser = null;
+                wk.waterClimb.digRiser = null;
+                wk.waterClimb.digCommitTicks = 0;
+                wk.waterClimb.digFloatTicks = 0;
             } else {
-                wk.waterClimbStall++;
-                if (digCommitted) wk.waterClimbDigCommitTicks++;
+                wk.waterClimb.stall++;
+                if (digCommitted) wk.waterClimb.digCommitTicks++;
                 // Track how long this dig has run while the bot stayed AFLOAT. Any ground
                 // contact resets it: a LEGIT climb-out bob-jumps onto the freed +1 notch and
                 // grounds, so it never accumulates; only a perpetual float on an unreachable
                 // riser does (live -784: onGround=false for all ~1000 stall ticks).
                 if (digCommitted) {
-                    if (p.onGround()) wk.waterClimbDigFloatTicks = 0;
-                    else wk.waterClimbDigFloatTicks++;
+                    if (p.onGround()) wk.waterClimb.digFloatTicks = 0;
+                    else wk.waterClimb.digFloatTicks++;
                 }
                 // FUTILE-OVERHANG early-release (BotConfig.walkerFutileBankDigRelease, default
                 // OFF → byte-identical no-op). The dig has committed to one still-fully-solid
@@ -313,22 +313,22 @@ final class WalkerTickClimb {
                 // gate), it grounds (resets floatTicks), and the riser breaks (resets the
                 // counter via the fresh-riser path).
                 if (BotConfig.walkerFutileBankDigRelease && digCommitted
-                        && wk.waterClimbDigRiser != null && world.isSolid(wk.waterClimbDigRiser)
-                        && wk.waterClimbDigFloatTicks > FUTILE_BANK_DIG_TICKS
-                        && wk.waterClimbDigRiser.getY() - foot.getY() >= FUTILE_BANK_DIG_MIN_RISE) {
+                        && wk.waterClimb.digRiser != null && world.isSolid(wk.waterClimb.digRiser)
+                        && wk.waterClimb.digFloatTicks > FUTILE_BANK_DIG_TICKS
+                        && wk.waterClimb.digRiser.getY() - foot.getY() >= FUTILE_BANK_DIG_MIN_RISE) {
                     if (BotConfig.walkerDebug)
                         LOG.info("[walker] futile bank-dig release: riser {},{},{} (+{} above foot) unbroken for {} afloat ticks → drop dig, hand to recovery",
-                                wk.waterClimbDigRiser.getX(), wk.waterClimbDigRiser.getY(), wk.waterClimbDigRiser.getZ(),
-                                wk.waterClimbDigRiser.getY() - foot.getY(), wk.waterClimbDigFloatTicks);
+                                wk.waterClimb.digRiser.getX(), wk.waterClimb.digRiser.getY(), wk.waterClimb.digRiser.getZ(),
+                                wk.waterClimb.digRiser.getY() - foot.getY(), wk.waterClimb.digFloatTicks);
                     world.penalizeStuckNode(foot);
                     world.penalizeStuckNode(foot.above());
-                    wk.climbPillarGaveUp = true;
-                    wk.waterClimbDigRiser = null;
-                    wk.lastDigRiser = null;
-                    wk.waterClimbDigCommitTicks = 0;
-                    wk.waterClimbDigFloatTicks = 0;
-                    wk.waterClimbDigging = false;
-                    wk.futileBankDigCooldown = FUTILE_BANK_DIG_COOLDOWN;
+                    wk.waterClimb.pillarGaveUp = true;
+                    wk.waterClimb.digRiser = null;
+                    wk.waterClimb.lastDigRiser = null;
+                    wk.waterClimb.digCommitTicks = 0;
+                    wk.waterClimb.digFloatTicks = 0;
+                    wk.waterClimb.digging = false;
+                    wk.waterClimb.futileBankDigCooldown = FUTILE_BANK_DIG_COOLDOWN;
                 }
             }
             // Trigger once bob-stalled below a bank we can't mount, with a placeable in
@@ -341,14 +341,14 @@ final class WalkerTickClimb {
             // ~4 s dig window with NO dig swinging, fall back to the pillar despite deepDig so the
             // placeable lifts the bot onto the bank. Flag-gated; default OFF keeps this byte-identical.
             boolean swimAshorePillarFallback = BotConfig.walkerSwimAshorePillarDespiteDeepDig
-                    && deepDig && !wk.waterClimbDigging && wk.waterClimbStall > WATER_CLIMB_DIG_STALL;
-            if (waterClimbing && wk.waterClimbStall > WATER_CLIMB_STALL && !wk.climbPillarGaveUp
+                    && deepDig && !wk.waterClimb.digging && wk.waterClimb.stall > WATER_CLIMB_DIG_STALL;
+            if (waterClimbing && wk.waterClimb.stall > WATER_CLIMB_STALL && !wk.waterClimb.pillarGaveUp
                     && (!deepDig || swimAshorePillarFallback)
                     && BotConfig.allowSwimEscapePlace && a.holdPlaceable()) {
-                if (!wk.waterClimbPillaring && BotConfig.walkerDebug)
+                if (!wk.waterClimb.pillaring && BotConfig.walkerDebug)
                     LOG.info("[walker] water climb-out: pillar takeover engaged (bob-stalled) toward bank node {},{},{}",
                             cwp.getX(), cwp.getY(), cwp.getZ());
-                wk.waterClimbPillaring = true;
+                wk.waterClimb.pillaring = true;
                 // LOCK the column + heading at engage. The takeover pillars the bot's
                 // own column STRAIGHT UP, pinned to this one bank, until it tops out of
                 // the water onto dry ground. Following the live (repathing) node instead
@@ -356,15 +356,15 @@ final class WalkerTickClimb {
                 // other-column pillar nodes A* kept replanning — and lose the
                 // wall-supported foothold (live round76c: engaged toward y145 pool
                 // floor + x2438→2441 drift, never climbed out).
-                wk.waterClimbColX = foot.getX();
-                wk.waterClimbColZ = foot.getZ();
+                wk.waterClimb.colX = foot.getX();
+                wk.waterClimb.colZ = foot.getZ();
                 double ex = (cwp.getX() + 0.5) - p.getX();
                 double ez = (cwp.getZ() + 0.5) - p.getZ();
-                wk.waterClimbYaw = (ex * ex + ez * ez > 1e-4)
+                wk.waterClimb.yaw = (ex * ex + ez * ez > 1e-4)
                         ? (float) Math.toDegrees(Math.atan2(-ex, ez)) : p.getYRot();
                 // Safety ceiling: a sane bank is +1..+3; never pillar more than +5 above
                 // the engage foot, then bail to the fallback actuators.
-                wk.waterClimbTargetY = foot.getY() + 5;
+                wk.waterClimb.targetY = foot.getY() + 5;
             }
             // PILLAR-UP climb-out: place support blocks in the bot's OWN column up to the
             // bank stand level, so the final move onto the bank is a flush WALK — not a
@@ -372,7 +372,7 @@ final class WalkerTickClimb {
             // bank then left an un-runnable +1 step (no running room, water behind) the
             // bot pogo-bobbed forever (live round69: jumped to bank height but z frozen,
             // never translated across). Reading-only — the pathfinder is unchanged.
-            if (wk.waterClimbPillaring) {
+            if (wk.waterClimb.pillaring) {
                 boolean haveBlock = BotConfig.allowSwimEscapePlace && a.holdPlaceable();
                 // Done when we've topped out onto DRY solid ground (grounded, clear of
                 // water). The old `foot.y >= targetY` test fired the instant targetY was
@@ -389,7 +389,7 @@ final class WalkerTickClimb {
                         // still ≥2 above the foot the wall continues up; only a node at ~foot
                         // level is the real bank top.
                         && !(wantClimbNow && cwp.getY() - foot.getY() >= 2);
-                boolean tooHigh = foot.getY() > wk.waterClimbTargetY;
+                boolean tooHigh = foot.getY() > wk.waterClimb.targetY;
                 // Self-correction: the latch pins the bot to ONE locked column +
                 // heading, which goes stale two ways in a live crossing — (a) the bot
                 // DRIFTS off the column (swimming along a continuous bank), so the place
@@ -402,19 +402,19 @@ final class WalkerTickClimb {
                 // pillar re-engaging into the same hopeless bob. (live 2026-06-15:
                 // latched col z1954, bot drifted to z1940 while the path went diagDown —
                 // 90 s deadlock bobbing at an unreachable column.)
-                boolean drifted = Math.abs(foot.getX() - wk.waterClimbColX) > 2
-                        || Math.abs(foot.getZ() - wk.waterClimbColZ) > 2;
+                boolean drifted = Math.abs(foot.getX() - wk.waterClimb.colX) > 2
+                        || Math.abs(foot.getZ() - wk.waterClimb.colZ) > 2;
                 boolean staleClimb = !wantClimb;
-                boolean placeFutile = wk.pillarNoPlaceTicks > PILLAR_FUTILE_TICKS;
+                boolean placeFutile = wk.waterClimb.pillarNoPlaceTicks > PILLAR_FUTILE_TICKS;
                 if (dryGrounded || tooHigh || !haveBlock || drifted || staleClimb || placeFutile) {
-                    wk.waterClimbPillaring = false;
-                    wk.pillarNoPlaceTicks = 0;
+                    wk.waterClimb.pillaring = false;
+                    wk.waterClimb.pillarNoPlaceTicks = 0;
                     if (dryGrounded) {
                         // Out of the water on solid ground → re-plan; a flush walk now.
                         wk.path = null;
                         wk.stuckTicks = 0;
                         wk.totalTicks = 0;
-                        wk.waterClimbStall = 0;
+                        wk.waterClimb.stall = 0;
                         if (BotConfig.walkerDebug)
                             LOG.info("[walker] water climb-out: topped out dry at y={} → flush walk, repath", foot.getY());
                         return Walker.Step.WALKING;
@@ -430,12 +430,12 @@ final class WalkerTickClimb {
                     // self-correcting latch regressed: waterLowBankArena went red for ~5 days).
                     boolean digFallbackHere = wk.mayBreak() && BotConfig.allowSwimEscapeBreak;   // mayBreak(): honor per-goto forbidDig, not just the global switch
                     if ((drifted || placeFutile || tooHigh) && digFallbackHere) {
-                        wk.climbPillarGaveUp = true;
+                        wk.waterClimb.pillarGaveUp = true;
                         // walkerClimbGaveUpSticky: anchor the latch to THIS bank so repath-driven
                         // context resets can't clear it while the bot is still here (15s TTL).
                         if (BotConfig.walkerClimbGaveUpSticky) {
-                            wk.climbGaveUpPos = foot;
-                            wk.climbGaveUpTtl = 300;
+                            wk.waterClimb.gaveUpPos = foot;
+                            wk.waterClimb.gaveUpTtl = 300;
                         }
                     }
                     if (BotConfig.walkerDebug)
@@ -446,7 +446,7 @@ final class WalkerTickClimb {
                     // fall through to the normal actuators / bank-dig
                 } else {
                     // Pin to the LOCKED bank heading + column; look down to aim the place.
-                    p.setYRot(wk.waterClimbYaw); p.yHeadRot = wk.waterClimbYaw; p.yBodyRot = wk.waterClimbYaw;
+                    p.setYRot(wk.waterClimb.yaw); p.yHeadRot = wk.waterClimb.yaw; p.yBodyRot = wk.waterClimb.yaw;
                     p.setXRot(40f);
                     Walker.agentForward(a, true);
                     p.setSprinting(false);
@@ -454,7 +454,7 @@ final class WalkerTickClimb {
                     // Fill the top water cell of the LOCKED column (floating) or the feet
                     // cell (grounded on the fresh rung) — not the live foot column, which
                     // drifts off the wall-supported pillar.
-                    BlockPos colFoot = new BlockPos(wk.waterClimbColX, foot.getY(), wk.waterClimbColZ);
+                    BlockPos colFoot = new BlockPos(wk.waterClimb.colX, foot.getY(), wk.waterClimb.colZ);
                     BlockPos fillCell = world.isWater(colFoot) ? colFoot : foot;
                     while (world.isWater(fillCell.above())) fillCell = fillCell.above();
                     boolean fcSolid = world.isSolid(fillCell);
@@ -462,14 +462,14 @@ final class WalkerTickClimb {
                     boolean fcCleared = p.getY() >= fillCell.getY() + 0.9;
                     if (BotConfig.walkerDebug)
                         LOG.info("[walker] climbout-place col={},{} fill={} fcSolid={} support={} cleared={}(p.y={} need={}) dryG={} foot.y={} ceil={}",
-                                wk.waterClimbColX, wk.waterClimbColZ, fillCell.getY(), fcSolid, fcSupport, fcCleared,
+                                wk.waterClimb.colX, wk.waterClimb.colZ, fillCell.getY(), fcSolid, fcSupport, fcCleared,
                                 String.format("%.2f", p.getY()), fillCell.getY() + 0.9,
-                                dryGrounded, foot.getY(), wk.waterClimbTargetY);
+                                dryGrounded, foot.getY(), wk.waterClimb.targetY);
                     if (!fcSolid && fcSupport && fcCleared) {     // feet cleared the cell
                         a.place(world, fillCell);
-                        wk.pillarNoPlaceTicks = 0;                    // made a place → progressing
+                        wk.waterClimb.pillarNoPlaceTicks = 0;                    // made a place → progressing
                     } else {
-                        wk.pillarNoPlaceTicks++;                      // bobbing, can't clear the cell
+                        wk.waterClimb.pillarNoPlaceTicks++;                      // bobbing, can't clear the cell
                     }
                     return Walker.Step.WALKING;
                 }
@@ -492,7 +492,7 @@ final class WalkerTickClimb {
             // neither swimAshore nor the floating-pocket break engaged; bob peak y63.56
             // sat 0.44 below the y64 ledge, hCol ramming the riser every tick.)
             int digStall = deepDig ? WATER_CLIMB_DIG_DEEP_STALL : WATER_CLIMB_DIG_STALL;
-            if (wk.futileBankDigCooldown > 0) wk.futileBankDigCooldown--;   // post-release dig lockout (walkerFutileBankDigRelease)
+            if (wk.waterClimb.futileBankDigCooldown > 0) wk.waterClimb.futileBankDigCooldown--;   // post-release dig lockout (walkerFutileBankDigRelease)
             // walkerBankDigSkipWhenCwpSwims: the committed path's NEXT node (cwp) being a WATER cell
             // means the bot should SWIM into it, not dig — the real climb-out (a stepUp onto land)
             // sits FURTHER along the path, not here. Digging at a water-routed waypoint is premature:
@@ -506,10 +506,10 @@ final class WalkerTickClimb {
             // A genuine climb-out HERE routes cwp to a LAND/stepUp node (not water) so the dig still
             // fires for it. Default OFF; validate via replay A/B on the archived deadlock.
             boolean cwpSwims = BotConfig.walkerBankDigSkipWhenCwpSwims && world.isWater(cwp);
-            if (!wk.waterClimbPillaring && waterClimbing && wk.waterClimbStall > digStall
-                    && wk.futileBankDigCooldown <= 0 && !cwpSwims
+            if (!wk.waterClimb.pillaring && waterClimbing && wk.waterClimb.stall > digStall
+                    && wk.waterClimb.futileBankDigCooldown <= 0 && !cwpSwims
                     && wk.mayBreak() && BotConfig.allowSwimEscapeBreak   // mayBreak(): honor per-goto forbidDig, not just the global switch
-                    && (!a.holdPlaceable() || wk.climbPillarGaveUp || deepDig)) {
+                    && (!a.holdPlaceable() || wk.waterClimb.pillarGaveUp || deepDig)) {
                 // Keep digging the LATCHED riser while it's still solid — a buoyant bob
                 // (foot.y flickering ±1) or lateral drift (foot.z wandering) must NOT
                 // re-target a lower block of the same column or a neighbouring column
@@ -524,7 +524,7 @@ final class WalkerTickClimb {
                 // the bank digging a fresh column each time and never tops out (live
                 // 2026-06-20: 4545 digs across 10+ columns x2320-2342, never grounded). The
                 // pillar takeover locks its column the same way; the toolless dig now does too.
-                BlockPos riser = wk.waterClimbDigRiser;
+                BlockPos riser = wk.waterClimb.digRiser;
                 // walkerBankDigForwardExit, latch re-validation: a LATCHED riser is only re-chosen
                 // when it goes null/non-solid (below), but the 25× underwater mining penalty means a
                 // backward riser can NEVER break — so it stays latched and the forward-hemisphere
@@ -619,8 +619,8 @@ final class WalkerTickClimb {
                         boolean overhang = BotConfig.walkerBankDigSkipOverhang && !world.isSolid(riserCand.below());
                         if (ry <= surfY + 5 && world.isSolid(riserCand) && !overhang) { riser = riserCand; break; }
                     }
-                    wk.waterClimbDigRiser = riser;
-                    wk.waterClimbDigCommitTicks = 0;   // fresh riser → fresh per-block commit budget
+                    wk.waterClimb.digRiser = riser;
+                    wk.waterClimb.digCommitTicks = 0;   // fresh riser → fresh per-block commit budget
                 }
                 if (riser != null) {
                     if (BotConfig.walkerDebug)
@@ -654,14 +654,14 @@ final class WalkerTickClimb {
                     // the eye near the riser → near-horizontal ray), the residual camera
                     // motion stays small. Reliable digging is the priority at a climb-out.
                     a.aimAtBlock(riser);
-                    wk.lastDigRiser = riser;
-                    wk.lastDigAimEyeY = p.getEyeY();
+                    wk.waterClimb.lastDigRiser = riser;
+                    wk.waterClimb.lastDigAimEyeY = p.getEyeY();
                     a.breakHold(true);
                     // Mark the dig active: next tick's breakingEdge holds the leash and
                     // exempts the burst so the dig can finish (see the breakingEdge note).
                     // Clear any burst count accrued during the pre-dig bob-stall so the
                     // very first dig tick can't fire a stale burst before the exemption.
-                    wk.waterClimbDigging = true;
+                    wk.waterClimb.digging = true;
                     wk.unstuck.wedgeRepathsHere = 0;
                     // Aim-stabilisation, BALANCE half — the jump (space) is corrected, not
                     // held flat-out and not bang-banged to the riser. Both extremes bob:

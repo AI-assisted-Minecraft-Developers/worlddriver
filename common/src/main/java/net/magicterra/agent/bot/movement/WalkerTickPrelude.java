@@ -184,7 +184,7 @@ final class WalkerTickPrelude {
                     && ("pillarUp".equals(ce.move) || ce.move.startsWith("parkourPlace")
                         || ce.move.startsWith("parkourDescend"));
             if (!midAirEdge) return wk.terminalReport(Walker.Step.ARRIVED, PathTrace.Outcome.SUCCESS, null,
-                    Walker.classifyArrival(wk.pathBestEffort, wk.goal.reached(foot), wk.goalSnapped), foot);
+                    Walker.classifyArrival(wk.seg.pathBestEffort, wk.goal.reached(foot), wk.goalSnapped), foot);
         }
 
         // walkerStickyDig: a planned break, once started, OWNS the tick until the block
