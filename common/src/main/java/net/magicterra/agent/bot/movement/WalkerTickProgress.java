@@ -264,8 +264,8 @@ final class WalkerTickProgress {
                 && wk.path != null && wk.step < wk.path.size() && foot != null) {
             wk.arcShadowTick(world, foot, p.getX(), p.getZ(), p.getYRot(), p.isInWater(), p.horizontalCollision);
         } else {
-            wk.arcWedgeTicks = 0;   // no projection this tick → don't carry a stale ram count into the next path
-            wk.arcProgBaseS = Double.NaN; wk.arcProgWindowTicks = 0; wk.arcProgStall = false;   // reset the net-progress window too
+            wk.arc.wedgeTicks = 0;   // no projection this tick → don't carry a stale ram count into the next path
+            wk.arc.progBaseS = Double.NaN; wk.arc.progWindowTicks = 0; wk.arc.progStall = false;   // reset the net-progress window too
         }
 
         while (wk.step < wk.path.size()) {
@@ -677,7 +677,7 @@ final class WalkerTickProgress {
             boolean legacyAdvance = within || passed || tailConsumed || crossedDescendNode || crossedWalkNode
                     || waterStepDownFloat || stepUpCrestReach || waterWalkReach;
             boolean doAdvance = legacyAdvance
-                    || (BotConfig.walkerArcLengthAdvance && wk.arcProj.segIdx > wk.step);
+                    || (BotConfig.walkerArcLengthAdvance && wk.arc.proj.segIdx > wk.step);
             if (doAdvance) {
                 // Don't CONSUME the final node of a disk goal while it sits inside the goal
                 // radius but the bot's FOOT cell is still one block short of it. The node-reach

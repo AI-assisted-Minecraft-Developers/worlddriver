@@ -333,7 +333,7 @@ final class WalkerTickAim {
         if (BotConfig.walkerTangentAim && !launch && aim2 >= aimDeadzone
                 && wk.path != null && wk.step < wk.path.size()
                 && wk.path.get(wk.step).getY() <= foot.getY()) {
-            targetYaw = wk.arcProj.tangentYaw;
+            targetYaw = wk.arc.proj.tangentYaw;
             // walkerWallCornerNodeAim: the tangent steers along the path TREND, but at a CORNER where the
             // immediate node sits well off the tangent AND a wall is on the tangent heading, the body RAMS
             // the wall (horizontalCollision) instead of turning the corner toward the node — it then only
@@ -345,7 +345,7 @@ final class WalkerTickAim {
                 BlockPos wn3 = wk.path.get(wk.step);
                 float nodeBear = (float) Math.toDegrees(Math.atan2(
                         -((wn3.getX() + 0.5) - p.getX()), (wn3.getZ() + 0.5) - p.getZ()));
-                if (Math.abs(angleDiff(wk.arcProj.tangentYaw, nodeBear)) > WALL_CORNER_AIM_DEG)
+                if (Math.abs(angleDiff(wk.arc.proj.tangentYaw, nodeBear)) > WALL_CORNER_AIM_DEG)
                     targetYaw = nodeBear;
             }
         }

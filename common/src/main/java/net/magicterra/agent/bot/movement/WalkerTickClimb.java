@@ -742,7 +742,7 @@ final class WalkerTickClimb {
             p.setSprinting(false);
             wk.totalTicks = 0;
             wk.stuckTicks = 0;   // pillaring stays on one cell while placing — not "stuck"
-            if (wk.step != wk.pillarStep) { wk.pillarStep = wk.step; wk.pillarSinceJump = -1; }
+            if (wk.step != wk.pillar.step) { wk.pillar.step = wk.step; wk.pillar.sinceJump = -1; }
             if (++wk.actionTicks > BotConfig.breakTimeoutTicks) {
                 a.breakHold(false);
                 Walker.agentJump(a, false);
@@ -813,10 +813,10 @@ final class WalkerTickClimb {
             p.setXRot(89.5f);                                        // look straight down (snap)
             if (p.onGround()) {
                 Walker.agentJump(a, true);
-                wk.pillarSinceJump = 0;
+                wk.pillar.sinceJump = 0;
             } else {
                 Walker.agentJump(a, false);
-                if (wk.pillarSinceJump >= 0) wk.pillarSinceJump++;
+                if (wk.pillar.sinceJump >= 0) wk.pillar.sinceJump++;
                 // Place only once the feet have actually risen clear of the cell
                 // being filled. The target IS the old feet cell, so vanilla's
                 // entity-collision check (Level#isUnobstructed) silently rejects
@@ -825,7 +825,7 @@ final class WalkerTickClimb {
                 // vanilla jump (peak ~+1.25) only crosses +1.0 around tick 4, so
                 // the old fixed 3-tick delay fired at ~+0.99 and the place
                 // no-op'd against the player's own body. Gate on real height.
-                if (wk.pillarSinceJump >= PILLAR_PLACE_DELAY && p.getY() >= place.getY() + 1.0) {
+                if (wk.pillar.sinceJump >= PILLAR_PLACE_DELAY && p.getY() >= place.getY() + 1.0) {
                     a.placeOn(support, Direction.UP);
                     wk.exAlarms.notePlace(place);
                 }

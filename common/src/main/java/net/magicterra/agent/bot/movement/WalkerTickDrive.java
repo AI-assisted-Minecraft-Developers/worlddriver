@@ -326,7 +326,7 @@ final class WalkerTickDrive {
         // active stall owner (its arcProgStall has fired), defer to it — apw's repath resolves the cycle, and a GENUINE
         // water bank with apw OFF is unaffected (the && walkerArcProgressWedge guard).
         boolean bankFollow = BotConfig.walkerFloatingBankFollow && wk.ramFold.bankFollowRamTicks > 2 * STEPUP_FREEZE_TICKS
-                && !(BotConfig.walkerArcProgressWedge && wk.arcProgStall);
+                && !(BotConfig.walkerArcProgressWedge && wk.arc.progStall);
         if (!descendBrake && !parkourEdge && !steppingOffFall && (wp.getY() == foot.getY() || waterClimb || cardinalUp || diagUp || bankFollow)) {
             int ddx = wp.getX() - foot.getX();
             int ddz = wp.getZ() - foot.getZ();
@@ -941,7 +941,7 @@ final class WalkerTickDrive {
         // suppressed too → regressed corpus-dry-627 (194 → 280; added a diagUp churn). A single jump clears ~1.25,
         // so only a node ≥2 ABOVE the foot is genuinely UNreachable by one jump = a real fell-below worth settling
         // for. Require that depth; a +1 climb keeps its jump. (wp-below-foot descents are handled by below-node-ram.)
-        boolean fellBelowMisaligned = BotConfig.walkerFellBelowAlign && wk.arcProgStall
+        boolean fellBelowMisaligned = BotConfig.walkerFellBelowAlign && wk.arc.progStall
                 && (wp.getY() - foot.getY()) >= 2 && !fellBelowNearWater;
         if (BotConfig.walkerDebug && fellBelowMisaligned) {
             LOG.info("[walker] FELL-BELOW-ALIGN wp={},{},{} foot={},{},{} dY={} arcProgStall=true → suppress jump, settle to ground",

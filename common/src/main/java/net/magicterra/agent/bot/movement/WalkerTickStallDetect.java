@@ -239,12 +239,12 @@ final class WalkerTickStallDetect {
         // descentRamStuck's exact case, yet it bobbed >34 t with no recovery). s is immune to that vertical noise,
         // so it folds into the SAME proven recovery (fresh foot-search blacklists the un-advanceable node + re-
         // routes from here) at ~1.5 s instead of the 5 s wedge burst. Default-OFF behind walkerArcLengthWedge.
-        boolean arcWedge = BotConfig.walkerArcLengthWedge && wk.arcWedgeTicks > Walker.ARC_WEDGE_TICKS
+        boolean arcWedge = BotConfig.walkerArcLengthWedge && wk.arc.wedgeTicks > Walker.ARC_WEDGE_TICKS
                 && wk.path != null && wk.step < wk.path.size();
         // Phase-3b: an OSCILLATING limit cycle (net arc-s ≈ 0 over a window) the per-tick ram wedge + anti-churn miss.
-        boolean arcProgWedge = BotConfig.walkerArcProgressWedge && wk.arcProgStall
+        boolean arcProgWedge = BotConfig.walkerArcProgressWedge && wk.arc.progStall
                 && wk.path != null && wk.step < wk.path.size();
-        if (arcProgWedge) wk.arcProgStall = false;   // consume once so the recovery isn't re-fired before the next window
+        if (arcProgWedge) wk.arc.progStall = false;   // consume once so the recovery isn't re-fired before the next window
         // walkerAboveNodeStallRecover: the CLIMBED-PAST-THE-NODE blind spot (C26-J3
         // 2026-07-02, the steep-mountain churn's core): the bot grinds UP a slope past
         // its committed stepUp node and ends grounded 2-3 blocks ABOVE it (dY exactly
@@ -267,7 +267,7 @@ final class WalkerTickStallDetect {
         wk.forceFellOffPath = false;   // task#82: consume — one fold per UNREACHABLE/FAILED from the delegated tick
         if (arcWedge && BotConfig.walkerDebug)
             LOG.info("[walker] arc-wedge RECOVER step={}/{} node={} nodeDy={} wedgeT={} (bob-immune ram → fellOffPath)",
-                    wk.step, wk.path.size(), wk.path.get(wk.step), wk.path.get(wk.step).getY() - foot.getY(), wk.arcWedgeTicks);
+                    wk.step, wk.path.size(), wk.path.get(wk.step), wk.path.get(wk.step).getY() - foot.getY(), wk.arc.wedgeTicks);
         if (fellOffPath && wk.activeSearch != null && wk.searchFromEnd) {
             wk.activeSearch = null;
             wk.searchFromEnd = false;

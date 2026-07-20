@@ -137,8 +137,17 @@ public final class Walker {
         BlockPos pos;         // walkerStickyDig: planned-break cell being mined
         int ticks;            // watchdog for pos
     }
-    int pillarStep = -1;      // path index of the pillar edge in progress
-    int pillarSinceJump = -1; // ticks since the pillar jump press (-1 = grounded)
+    /** In-progress pillarUp edge (task#96 step B8), owned by WalkerTickClimb; both
+     *  fields cleared to -1 by both journey resets via {@link PillarEdge#reset()}. */
+    final PillarEdge pillar = new PillarEdge();
+    static final class PillarEdge {
+        int step = -1;        // path index of the pillar edge in progress
+        int sinceJump = -1;   // ticks since the pillar jump press (-1 = grounded)
+        void reset() {
+            step = -1;
+            sinceJump = -1;
+        }
+    }
     int waterClimbStall;      // armed flag (>WATER_CLIMB_STALL) once net-displacement window shows a bob-stall climbing out of water
     int waterTouchRecent;     // sticky countdown: >0 while in a water climb-out, kept latched through bob-peak surface breaches (see WATER_TOUCH_STICKY)
     int wantClimbRecent;      // sticky countdown: >0 while a higher node sits ahead, latched through bob-peak/repath flicker (see WANT_CLIMB_STICKY)
@@ -320,28 +329,36 @@ public final class Walker {
     static final int ARC_PROG_WINDOW = 40;
     static final double ARC_PROG_MIN = 2.0;
     // ===== Phase-0 SHADOW arc-length pursuit (walkerArcLengthShadow) — DRIVES NOTHING, logged only =====
-    List<BlockPos> arcShadowPath;                   // path identity the shadow s tracks (reset s/ds when the path object changes)
-    double arcShadowS = Double.NaN;                 // last tick's cumulative arc-length (XZ, from path[0] to the foot's polyline projection); for ds/dt + monotonic-violation detection
-    long arcShadowMonoViol;                         // count of backward-snap events (ds < -0.5) — must stay ~0 on clean runs for the projection to be trustworthy enough to drive in Phase 1
-    final PathProjection arcProj = new PathProjection();  // reusable arc-length projector (the carved-out, fully-readable core; the executor only holds onto its result)
-    // Phase-3 (walkerArcLengthWedge): GROUNDED-RAM wedge timer measured in ARC-LENGTH, not 3D-new-low. The legacy
-    // descentRamStuck/ascentRamSlide recoveries hang on noStepProgressTicks (a 3D-new-low counter) which the
-    // buoyancy bob AND the sub-block ram-jitter (the bot sliding a few cm against a wall) ZERO every tick → the
-    // gate never fills and the ram bobs ~5 s until the slow 100-tick wedge fires. The horizontal arc projection s
-    // is immune to that vertical/jitter noise (a wall-ram makes no forward arc progress regardless of bob), so
-    // ticks of |ds|<ARC_WEDGE_DS while horizontalCollision accumulate reliably → fold into fellOffPath far sooner.
-    int arcWedgeTicks;                              // consecutive ticks of ~zero arc-progress while ramming (bob/jitter-immune); reset on any real ds or path change
-    // Phase-3b (walkerArcProgressWedge): NET arc-length progress over a WINDOW — catches an OSCILLATING limit cycle
-    // the per-tick ram wedge (arcWedgeTicks, needs hCol + per-tick |ds|<0.05) and the anti-churn net-XZ both miss.
-    // A steep-face diagUp churn (live 2026-06-28 -815, replay-0006) has the bot bob-jumping airborne (no hCol), making
-    // small per-tick FORWARD ds then sliding back — net arc-s ≈ 0 over the cycle yet per-tick |ds| > 0.05 (so the ram
-    // wedge resets) and net-XZ swings 35 blocks laterally (so the anti-churn is fooled). arc-s is the projection ONTO
-    // the path, immune to the lateral swing AND the vertical bob, so net arc-s over a window cleanly flags "no path
-    // progress despite motion". Folds into the SAME fellOffPath recovery (fresh foot-search blacklists the
-    // un-advanceable node + re-routes). Window-based so it does NOT need hCol or onGround.
-    double arcProgBaseS = Double.NaN;               // arcProj.s at the start of the current progress window
-    int arcProgWindowTicks;                         // ticks elapsed in the current arc-progress window
-    boolean arcProgStall;                           // last completed window made < ARC_PROG_MIN net arc-s progress → stuck (consumed by fellOffPath)
+    /** Arc-length shadow pursuit (task#96 step B8): updated ONLY by {@link #arcShadowTick}
+     *  (called per tick from WalkerTickProgress); the wedge/stall verdicts are consumed by
+     *  StallDetect/Drive, the projection by Aim/Progress. NO journey reset — everything
+     *  self-resets on a path-identity change (shadowPath != path), and Progress clears the
+     *  windows on a no-projection tick. */
+    final ArcShadow arc = new ArcShadow();
+    static final class ArcShadow {
+        final PathProjection proj = new PathProjection();  // reusable arc-length projector (the carved-out, fully-readable core; the executor only holds onto its result)
+        List<BlockPos> shadowPath;    // path identity the shadow s tracks (reset s/ds when the path object changes)
+        double shadowS = Double.NaN;  // last tick's cumulative arc-length (XZ, from path[0] to the foot's polyline projection); for ds/dt + monotonic-violation detection
+        long monoViol;                // count of backward-snap events (ds < -0.5) — must stay ~0 on clean runs for the projection to be trustworthy enough to drive in Phase 1
+        // Phase-3 (walkerArcLengthWedge): GROUNDED-RAM wedge timer measured in ARC-LENGTH, not 3D-new-low. The legacy
+        // descentRamStuck/ascentRamSlide recoveries hang on noStepProgressTicks (a 3D-new-low counter) which the
+        // buoyancy bob AND the sub-block ram-jitter (the bot sliding a few cm against a wall) ZERO every tick → the
+        // gate never fills and the ram bobs ~5 s until the slow 100-tick wedge fires. The horizontal arc projection s
+        // is immune to that vertical/jitter noise (a wall-ram makes no forward arc progress regardless of bob), so
+        // ticks of |ds|<ARC_WEDGE_DS while horizontalCollision accumulate reliably → fold into fellOffPath far sooner.
+        int wedgeTicks;               // consecutive ticks of ~zero arc-progress while ramming (bob/jitter-immune); reset on any real ds or path change
+        // Phase-3b (walkerArcProgressWedge): NET arc-length progress over a WINDOW — catches an OSCILLATING limit cycle
+        // the per-tick ram wedge (wedgeTicks, needs hCol + per-tick |ds|<0.05) and the anti-churn net-XZ both miss.
+        // A steep-face diagUp churn (live 2026-06-28 -815, replay-0006) has the bot bob-jumping airborne (no hCol), making
+        // small per-tick FORWARD ds then sliding back — net arc-s ≈ 0 over the cycle yet per-tick |ds| > 0.05 (so the ram
+        // wedge resets) and net-XZ swings 35 blocks laterally (so the anti-churn is fooled). arc-s is the projection ONTO
+        // the path, immune to the lateral swing AND the vertical bob, so net arc-s over a window cleanly flags "no path
+        // progress despite motion". Folds into the SAME fellOffPath recovery (fresh foot-search blacklists the
+        // un-advanceable node + re-routes). Window-based so it does NOT need hCol or onGround.
+        double progBaseS = Double.NaN;  // proj.s at the start of the current progress window
+        int progWindowTicks;          // ticks elapsed in the current arc-progress window
+        boolean progStall;            // last completed window made < ARC_PROG_MIN net arc-s progress → stuck (consumed by fellOffPath)
+    }
     boolean searchSuppressedPlace;                  // the in-flight search dropped placing moves (block-budget reroute) → adopt its result without re-checking
     float freeHangDriveYaw = Float.NaN;             // slew-limited world heading of the free-hang vine DRIVE (NaN = resync); smooths the step-jitter ±180° flips that would circle the body off a narrow column — EdgeGuards-owned, self-resyncing (no journey reset)
     int surfaceWaterLatch = 0;                      // ticks the open-water swim stays latched after a surface bob lifts the foot out of the fluid (rides out the isInWater blink) — read across Aim/Climb/Progress; belongs to a future water-state family
@@ -478,8 +495,7 @@ public final class Walker {
         this.stuckTicks = 0;
         this.totalTicks = 0;
         this.actionTicks = 0;
-        this.pillarStep = -1;
-        this.pillarSinceJump = -1;
+        this.pillar.reset();
         this.waterClimbStall = 0;
         this.waterTouchRecent = 0;
         this.waterClimbPillaring = false;
@@ -589,8 +605,7 @@ public final class Walker {
         this.ticksSinceRepath = 0;
         this.stuckTicks = 0;
         this.actionTicks = 0;
-        this.pillarStep = -1;
-        this.pillarSinceJump = -1;
+        this.pillar.reset();
         this.activeSearch = null;
         this.stepProg.restartWindows();
         this.aimSmooth.reset();
@@ -1293,47 +1308,47 @@ public final class Walker {
      *  (via replay) that s is monotonic and the projected segment tracks the live {@code step} on clean runs,
      *  the precondition for Phase 1 driving the step pointer off the projection. */
     void arcShadowTick(WorldView world, BlockPos foot, double px, double pz, float liveYaw, boolean inW, boolean hCol) {
-        arcProj.compute(path, edges, world, step, foot.getY(), px, pz, 16, 2.5);
+        arc.proj.compute(path, edges, world, step, foot.getY(), px, pz, 16, 2.5);
         // Monotonic / backward-snap check vs the previous tick (reset on a fresh path object).
-        boolean reset = (path != arcShadowPath);
-        double ds = (reset || Double.isNaN(arcShadowS)) ? 0.0 : arcProj.s - arcShadowS;
-        if (!reset && ds < -0.5) arcShadowMonoViol++;
+        boolean reset = (path != arc.shadowPath);
+        double ds = (reset || Double.isNaN(arc.shadowS)) ? 0.0 : arc.proj.s - arc.shadowS;
+        if (!reset && ds < -0.5) arc.monoViol++;
         // Phase-3 arc-wedge accumulator: a grounded DRY forward-RAM that makes no arc progress. Excluded when the
-        // forward window is blocked by a pending vertical edge (arcProj.barrierHit = a legit pillar/bridge/parkour
+        // forward window is blocked by a pending vertical edge (arc.proj.barrierHit = a legit pillar/bridge/parkour
         // hold where zero ds is expected) or on a fresh path. The horizontalCollision gate keeps it off deliberate
         // non-ramming pauses (brakes, goal-dwell). EXCLUDES water: in water |ds|≈0 while hCol is the NORMAL state of
         // a swim-into-bank / climb-out, which owns its own dedicated recovery (waterCellTax / swimBankClimb / dig);
         // firing the wedge there repath-storms the climb-out and resets its aim every reroute (live -665 water-gap:
         // 7× arc-wedge at step 1 in water, dYaw stuck 95°, 频繁回头/横跳). The targeted ram is the DRY mountain
         // wall-ram. Bob/jitter-immune: vertical motion doesn't move the XZ projection.
-        if (reset || inW || arcProj.barrierHit || !hCol || Math.abs(ds) > ARC_WEDGE_DS) arcWedgeTicks = 0;
-        else arcWedgeTicks++;
+        if (reset || inW || arc.proj.barrierHit || !hCol || Math.abs(ds) > ARC_WEDGE_DS) arc.wedgeTicks = 0;
+        else arc.wedgeTicks++;
         // Phase-3b NET arc-progress window: an oscillating limit cycle makes per-tick |ds| > ARC_WEDGE_DS (so the ram
         // counter above resets) yet zero NET path progress. Measure s over a whole window instead. Excludes water
         // (own recovery) and a legit pending-vertical-edge hold (barrierHit = expected zero ds). No hCol/onGround gate
         // — a bob-jumping airborne churn has neither.
-        if (reset || inW) { arcProgBaseS = arcProj.s; arcProgWindowTicks = 0; arcProgStall = false; }
-        else if (++arcProgWindowTicks >= ARC_PROG_WINDOW) {
-            arcProgStall = !arcProj.barrierHit && (arcProj.s - arcProgBaseS) < ARC_PROG_MIN;
-            if (arcProgStall && BotConfig.walkerDebug)
+        if (reset || inW) { arc.progBaseS = arc.proj.s; arc.progWindowTicks = 0; arc.progStall = false; }
+        else if (++arc.progWindowTicks >= ARC_PROG_WINDOW) {
+            arc.progStall = !arc.proj.barrierHit && (arc.proj.s - arc.progBaseS) < ARC_PROG_MIN;
+            if (arc.progStall && BotConfig.walkerDebug)
                 LOG.info("[walker] arc-progress-wedge: net s={} < {} over {} ticks at step={} node={} → fellOffPath",
-                        String.format("%.2f", arcProj.s - arcProgBaseS), ARC_PROG_MIN, ARC_PROG_WINDOW, step,
+                        String.format("%.2f", arc.proj.s - arc.progBaseS), ARC_PROG_MIN, ARC_PROG_WINDOW, step,
                         (step < path.size() ? path.get(step) : null));
-            arcProgBaseS = arcProj.s;
-            arcProgWindowTicks = 0;
+            arc.progBaseS = arc.proj.s;
+            arc.progWindowTicks = 0;
         }
-        arcShadowPath = path;
-        arcShadowS = arcProj.s;
-        float dYaw = liveYaw - arcProj.tangentYaw;    // wrap to [-180,180] for the camera-vs-tangent gap
+        arc.shadowPath = path;
+        arc.shadowS = arc.proj.s;
+        float dYaw = liveYaw - arc.proj.tangentYaw;    // wrap to [-180,180] for the camera-vs-tangent gap
         while (dYaw > 180) dYaw -= 360;
         while (dYaw < -180) dYaw += 360;
         if (BotConfig.walkerDebug)
             LOG.info("[walker] arc-shadow step={} projSeg={} segFrac={} s={} ds={} perp={} tanYaw={} liveYaw={} dYaw={} monoViol={} inW={}",
-                    step, arcProj.segIdx, String.format("%.2f", arcProj.segFrac), String.format("%.2f", arcProj.s),
-                    String.format("%.2f", ds), String.format("%.2f", arcProj.perp),
-                    String.format("%.1f", arcProj.tangentYaw), String.format("%.1f", liveYaw),
+                    step, arc.proj.segIdx, String.format("%.2f", arc.proj.segFrac), String.format("%.2f", arc.proj.s),
+                    String.format("%.2f", ds), String.format("%.2f", arc.proj.perp),
+                    String.format("%.1f", arc.proj.tangentYaw), String.format("%.1f", liveYaw),
                     String.format("%.1f", Math.abs(dYaw)),
-                    arcShadowMonoViol, inW);
+                    arc.monoViol, inW);
     }
 
 
