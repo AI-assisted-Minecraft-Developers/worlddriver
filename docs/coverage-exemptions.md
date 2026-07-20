@@ -81,3 +81,10 @@ probe-proven via `Walker.progressProbe()` embedded in ctx.fail):
    body off a stair strip's side face into gutter lanes; staircases the bot MUST
    climb should span the full approach width, and post-mutation recovery stairs
    should be goal-aligned so the climb isn't dragged diagonally off an edge.
+6. **Rim every floor that borders void — even after consecutive green runs**
+   (2026-07-19, ad.boxedChurnEscalate lottery RED): in an unlucky run a
+   best-effort route wrapped the bedrock mass exterior and the drive walked the
+   bot off the platform edge (dz-8.6), falling to the dogfood ground at y=-60 —
+   after five straight green runs. The lottery tail is real; a 3-tall bedrock
+   perimeter rim (placed outside the carrot wall-snap radius, rule 1) makes the
+   scene deterministic against it.

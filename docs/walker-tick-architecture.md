@@ -74,15 +74,40 @@ Three natural products: **StallVerdict** (StallDetect → Repath/Search),
   - `RamFold`, `PhysicalStall`, `StickyDig`: fully self-managing families —
     no journey reset ever touched them (stickyDig release is world-state-driven).
 
-  Remaining loose-field queue (each still needs its own audit): the waterClimb
-  climb-out mega-family (~19 fields, Climb), the arc-length shadow
-  (`arcShadow*`/`arcProj`/`arcWedge*`/`arcProg*`, Walker+Progress+StallDetect),
-  the search/commit family (`pathBestEffort`, `commitEnd`, `searchFromEnd`,
-  `frontierWaitTicks`, `quickCooldown`, `noPathWaitTicks`, `pendingSegment`,
-  `searchSuppressedPlace`), the water anti-spin trio
-  (`bestGoalDist`/`repathsNoProgress`/`churnResets` — cross-goal!), pillar-edge
-  (`pillarStep`/`pillarSinceJump`), and the core follow spine
-  (`path`/`edges`/`step`/`stuckTicks`/... — likely stays on Walker).
+- **Step B8–B10 ✅ (2026-07-19, per-batch t0-fabric-gated)** — the queue is drained:
+  - `ArcShadow` (B8): projection + monotonic shadow + ram-wedge + net-progress
+    window; updated only by `arcShadowTick`, NO journey reset (self-resets on
+    path-identity change). `PillarEdge` (B8): the in-progress pillarUp pair.
+  - `GoalSpin` (B9): the water anti-spin — `churnResets` now lives IN the family
+    but OUT of its reset (cross-goal budget, documented on the holder).
+  - `SegmentCommit` (B9): in-flight sliced A* + best-effort segment plumbing
+    (activeSearch/pathBestEffort/commitEnd/searchFromEnd/pendingSegment/
+    searchSuppressedPlace/frontierWaitTicks); `reset()` = the four fields both
+    journey resets cleared. `SearchGovernors` grew quickCooldown/noPathWaitTicks
+    (setGoal-only reset preserved — verified the method has exactly one call
+    site; forceRepath's quickCooldown-only clear stays a direct write).
+  - `WaterClimb` (B10): the 20-field climb-out machine in one holder (Climb-owned;
+    `digging` read by Search/StallDetect). `reset()` = the 14 fields both journey
+    resets cleared; the LOCKED engage column/heading (targetY/colX/colZ/yaw),
+    lastDigAimEyeY and digGroundedStreak stay out (latch-gated/self-managing).
+
+  **End state**: Walker.java 1409 lines (was 5849 pre-task#94), 19 typed state
+  holders; 29 loose declarations remain and all are deliberate — the follow
+  spine (path/edges/step/stuckTicks/tick counters), goal/status reporting, and
+  true singletons (descending, forceFellOffPath, freeHangDriveYaw,
+  surfaceWaterLatch, dbg pair).
+
+## Incident log
+
+- 2026-07-19 t0 RED `ad.boxedChurnEscalate` on the B9 tree: bot drifted to
+  dz-8.6 in the WEST chamber, off the unfenced platform edge, fell to the
+  dogfood ground (y=-60) before the churn release could fire → timeout.
+  Attribution: identical-tree rerun GREEN + B9 proven write-equivalent (reset
+  call-site audit) → known arena void-fall lottery, not the refactor. Fix: 3-tall
+  bedrock perimeter rim on the scene (≥6 blocks from the pocket, outside the
+  carrot wall-snap radius). Rule: a coverage scene whose floor borders void MUST
+  be rimmed even when five consecutive runs never wandered — the lottery tail is
+  real.
 - **Step C (optional)**: further splitting of Drive/Climb/Aim bodies — only if
   a natural seam presents; task#54 proved the aim pipeline's cross-tick field
   web does not survive hard extraction.
