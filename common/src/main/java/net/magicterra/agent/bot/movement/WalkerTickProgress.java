@@ -101,13 +101,13 @@ final class WalkerTickProgress {
         // Euclidean 2.0 window (rig-metric parity): the first cut used |dx|+|dz|>1.5,
         // which a reCentre/carrot tug-of-war micro-orbit (1-2 block circles at a pinned
         // corner, C98-J2 replay) reset continuously — the clock never reached its gate.
-        double sdxA = p.getX() - wk.stallAnchorX, sdzA = p.getZ() - wk.stallAnchorZ;
-        if (Double.isNaN(wk.stallAnchorX) || sdxA * sdxA + sdzA * sdzA > 4.0) {
-            wk.stallAnchorX = p.getX();
-            wk.stallAnchorZ = p.getZ();
-            wk.physicalStallTicks = 0;
+        double sdxA = p.getX() - wk.physStall.anchorX, sdzA = p.getZ() - wk.physStall.anchorZ;
+        if (Double.isNaN(wk.physStall.anchorX) || sdxA * sdxA + sdzA * sdzA > 4.0) {
+            wk.physStall.anchorX = p.getX();
+            wk.physStall.anchorZ = p.getZ();
+            wk.physStall.stallTicks = 0;
         } else {
-            wk.physicalStallTicks++;
+            wk.physStall.stallTicks++;
         }
         // "Stuck" = no PROGRESS toward the current node — NOT a foot block that has
         // not changed. A bot creeping forward (water ≈ 0.08 b/tick, a place-bridge
@@ -139,22 +139,22 @@ final class WalkerTickProgress {
         // re-bases the closest-approach reference on the CURRENT distance (not +INF, which
         // would fake a new-low next tick and zero the clock through the progress branch).
         boolean npStepFresh = (wk.path == null || wk.step >= wk.path.size()
-                || (BotConfig.walkerStuckStepMonotonic ? wk.step > wk.noProgressStep : wk.step != wk.noProgressStep));
+                || (BotConfig.walkerStuckStepMonotonic ? wk.step > wk.stepProg.noProgressStep : wk.step != wk.stepProg.noProgressStep));
         if (!npStepFresh && BotConfig.walkerStuckStepMonotonic
-                && wk.path != null && wk.step < wk.path.size() && wk.step < wk.noProgressStep) {
-            wk.noProgressStep = wk.step;
+                && wk.path != null && wk.step < wk.path.size() && wk.step < wk.stepProg.noProgressStep) {
+            wk.stepProg.noProgressStep = wk.step;
             BlockPos rn = wk.path.get(wk.step);
             double rdx = (rn.getX() + 0.5) - p.getX();
             double rdy = rn.getY() - p.getY();
             double rdz = (rn.getZ() + 0.5) - p.getZ();
-            wk.noProgressBestD2 = rdx * rdx + rdy * rdy + rdz * rdz;
+            wk.stepProg.noProgressBestD2 = rdx * rdx + rdy * rdy + rdz * rdz;
         }
         if (npStepFresh) {
-            wk.noProgressStep = wk.step;
-            wk.noStepProgressTicks = 0;
-            wk.noProgressBestD2 = Double.POSITIVE_INFINITY;
-            wk.rawStepDwellTicks = 0;
-            wk.ramRecoverLastFireDwell = -1;   // step/path changed → re-arm the ascent-ram-jitter recover
+            wk.stepProg.noProgressStep = wk.step;
+            wk.stepProg.noStepProgressTicks = 0;
+            wk.stepProg.noProgressBestD2 = Double.POSITIVE_INFINITY;
+            wk.stepProg.rawStepDwellTicks = 0;
+            wk.stepProg.ramRecoverLastFireDwell = -1;   // step/path changed → re-arm the ascent-ram-jitter recover
         } else {
             // Raw step dwell — this `else` is reached ONLY when the step is unchanged, so the counter
             // accumulates pure ticks-on-the-same-step and resets only via the step-change branch above,
@@ -163,7 +163,7 @@ final class WalkerTickProgress {
             // jitter-defeating the ram-recovery stall gates that hang on it (live J3b -877,75: diagUp node
             // 3 above the foot, 156 t / 7.8 s before recovery). This gives walkerAscentRamJitterImmune a
             // bob-immune wedge timer so it recovers on time.
-            wk.rawStepDwellTicks++;
+            wk.stepProg.rawStepDwellTicks++;
             // Genuinely closing in on the current node is progress, not a wedge: a
             // water cruise crosses 20+-block string-pulled edges at ~1.5 b/s (260
             // ticks on ONE step — far over WEDGE_TICKS) and used to trip safety
@@ -196,17 +196,17 @@ final class WalkerTickProgress {
             double wd2 = p.isInWater()
                     ? wdx * wdx + wdz * wdz
                     : wdx * wdx + wdyEff * wdyEff + wdz * wdz;
-            if (wd2 < wk.noProgressBestD2 - 0.05) {   // any real new-low counts; 0.05 is float-noise margin (1.0 starved a 1.5 b/s approach inside ~7 blocks: 2·d·v < 1)
-                wk.noProgressBestD2 = wd2;
-                wk.noStepProgressTicks = 0;
+            if (wd2 < wk.stepProg.noProgressBestD2 - 0.05) {   // any real new-low counts; 0.05 is float-noise margin (1.0 starved a 1.5 b/s approach inside ~7 blocks: 2·d·v < 1)
+                wk.stepProg.noProgressBestD2 = wd2;
+                wk.stepProg.noStepProgressTicks = 0;
             } else {
-                wk.noStepProgressTicks++;
+                wk.stepProg.noStepProgressTicks++;
             }
         }
         if (onBridge) {
             wk.stuckTicks = 0;
-            wk.bestStepDist = Double.POSITIVE_INFINITY;
-            wk.stuckStep = wk.step;
+            wk.stepProg.bestStepDist = Double.POSITIVE_INFINITY;
+            wk.stepProg.stuckStep = wk.step;
         } else if (wk.path != null && wk.step >= 0 && wk.step < wk.path.size()) {
             BlockPos sn = wk.path.get(wk.step);
             double sdx = (sn.getX() + 0.5) - p.getX();
@@ -225,25 +225,25 @@ final class WalkerTickProgress {
             // pond lip, 1200t) still cleared the clock on every "advance" of the pair.
             // Only a step beyond the highest index EVER seen on this path is fresh.
             boolean stepWindowFresh = BotConfig.walkerStuckStepMonotonic
-                    ? wk.step > wk.stuckStepHigh : wk.step != wk.stuckStep;
-            if (BotConfig.walkerStuckStepMonotonic && !stepWindowFresh && wk.step != wk.stuckStep) {
+                    ? wk.step > wk.stepProg.stuckStepHigh : wk.step != wk.stepProg.stuckStep;
+            if (BotConfig.walkerStuckStepMonotonic && !stepWindowFresh && wk.step != wk.stepProg.stuckStep) {
                 // Retreat OR revisit inside the seen range: keep the stall clock running
                 // but re-base the progress reference on the new node, else its
                 // naturally-different sd2 would fake "real progress" through the side door.
-                wk.stuckStep = wk.step;
-                wk.bestStepDist = sd2;
+                wk.stepProg.stuckStep = wk.step;
+                wk.stepProg.bestStepDist = sd2;
             }
             if (stepWindowFresh) {                         // new node → fresh progress window
-                wk.stuckStep = wk.step;
-                wk.stuckStepHigh = wk.step;
-                wk.bestStepDist = sd2;
+                wk.stepProg.stuckStep = wk.step;
+                wk.stepProg.stuckStepHigh = wk.step;
+                wk.stepProg.bestStepDist = sd2;
                 wk.stuckTicks = 0;
-            } else if (sd2 < wk.bestStepDist
+            } else if (sd2 < wk.stepProg.bestStepDist
                     // Medium-split margin (§94): the dry 0.05 margin (C40-J1 wall-creep
                     // starvation fix) starves water's naturally slow rounding manoeuvres
                     // and the tripped recovery pins the bot on the obstacle corner.
                     - (p.isInWater() ? STUCK_PROGRESS_EPS_WATER : STUCK_PROGRESS_EPS)) {
-                wk.bestStepDist = sd2;                        // closer than ever to this node → real progress
+                wk.stepProg.bestStepDist = sd2;                        // closer than ever to this node → real progress
                 wk.stuckTicks = 0;
             } else {
                 wk.stuckTicks++;                              // no closer this tick → maybe stalled
@@ -396,7 +396,7 @@ final class WalkerTickProgress {
             // swimDown dive (diveEdge) keeps the tight -2.5 + give-up so a real descent isn't skipped.
             double floatOverFloor = diveEdge ? -2.5 : -FLOATOVER_NONDIVE_MAX_DROP;
             boolean floatOverSubmerged = p.isInWater() && dyNode < -0.5 && dyNode > floatOverFloor
-                    && (!diveEdge || wk.noStepProgressTicks > WATER_DESCEND_GIVEUP);
+                    && (!diveEdge || wk.stepProg.noStepProgressTicks > WATER_DESCEND_GIVEUP);
             boolean within = cur2 < REACH_DIST_SQ
                     && (Math.abs(dyNode) < 1.2 || floatOverSubmerged)
                     && !(p.isInWater() && dyNode > 0.5);
@@ -534,7 +534,7 @@ final class WalkerTickProgress {
                     && se != null && se.move != null
                     && (se.move.equals("walk")
                         || (BotConfig.walkerTraverseBreakOvershootResync && se.move.equals("traverseBreak")))
-                    && !p.isInWater() && wk.noStepProgressTicks > WALK_OVERSHOOT_STUCK_TICKS
+                    && !p.isInWater() && wk.stepProg.noStepProgressTicks > WALK_OVERSHOOT_STUCK_TICKS
                     && wk.step + 1 < wk.path.size()) {
                 BlockPos nxw = wk.path.get(wk.step + 1);
                 double segx = nxw.getX() - w.getX(), segz = nxw.getZ() - w.getZ();
@@ -561,7 +561,7 @@ final class WalkerTickProgress {
                     && se != null && se.move != null
                     && (se.move.equals("stepDown") || se.move.startsWith("fall") || se.move.startsWith("diagDown"))
                     && (p.isInWater() || wk.surfaceWaterLatch > 0)
-                    && wk.noStepProgressTicks > WATER_STEPDOWN_STALL_TICKS
+                    && wk.stepProg.noStepProgressTicks > WATER_STEPDOWN_STALL_TICKS
                     && cur2 < WATER_STEPDOWN_REACH_SQ
                     && Math.abs(dyNode) < 1.2
                     && world.isWater(w) && world.isSolid(w.below()) && !world.isWater(w.above())) {
@@ -569,7 +569,7 @@ final class WalkerTickProgress {
                 if (BotConfig.walkerDebug)
                     LOG.info("[walker] water-stepdown-float ADVANCE step={}/{} node={} move={} cur2={} dyNode={} stall={}",
                             wk.step, wk.path.size(), w, se.move, String.format(Locale.ROOT, "%.3f", cur2),
-                            String.format(Locale.ROOT, "%.2f", dyNode), wk.noStepProgressTicks);
+                            String.format(Locale.ROOT, "%.2f", dyNode), wk.stepProg.noStepProgressTicks);
             }
             // STEPUP-CREST float-and-advance: a +1 stepUp/diagUp CREST node (a diagonal-staircase plateau
             // lip) that the buoyancy-free body has TOPPED OUT on but ORBITS — it reaches the node's Y at
@@ -600,11 +600,11 @@ final class WalkerTickProgress {
             // tick, so this never advances a node the foot hasn't risen to (no skip-node strand).
             boolean onAscentCrest = se != null && se.move != null
                     && (se.move.equals("stepUp") || se.move.equals("diagUp")) && !p.isInWater();
-            if (wk.step != wk.crestOrbitStep) {
-                wk.crestOrbitStep = wk.step;
-                wk.crestOrbitTicks = 0;
+            if (wk.step != wk.stepProg.crestOrbitStep) {
+                wk.stepProg.crestOrbitStep = wk.step;
+                wk.stepProg.crestOrbitTicks = 0;
             } else if (onAscentCrest && !within && !passed) {
-                wk.crestOrbitTicks++;
+                wk.stepProg.crestOrbitTicks++;
             }
             boolean stepUpCrestReach = false;
             if (BotConfig.walkerStepUpCrestReach && !within && !passed
@@ -612,14 +612,14 @@ final class WalkerTickProgress {
                     && se != null && se.move != null
                     && (se.move.equals("stepUp") || se.move.equals("diagUp"))
                     && !p.isInWater()
-                    && wk.crestOrbitTicks > STEPUP_CREST_STALL_TICKS
+                    && wk.stepProg.crestOrbitTicks > STEPUP_CREST_STALL_TICKS
                     && cur2 < STEPUP_CREST_REACH_SQ
                     && Math.abs(dyNode) < 0.5) {
                 stepUpCrestReach = true;
                 if (BotConfig.walkerDebug)
                     LOG.info("[walker] stepup-crest-reach ADVANCE step={}/{} node={} move={} cur2={} dyNode={} crestStall={} noStep={}",
                             wk.step, wk.path.size(), w, se.move, String.format(Locale.ROOT, "%.3f", cur2),
-                            String.format(Locale.ROOT, "%.2f", dyNode), wk.crestOrbitTicks, wk.noStepProgressTicks);
+                            String.format(Locale.ROOT, "%.2f", dyNode), wk.stepProg.crestOrbitTicks, wk.stepProg.noStepProgressTicks);
             }
             // WATER-SURFACE WALK relaxed-advance (the turn / wall-corner FREEZE breaker): a flat `walk`
             // water-surface node the buoyant body sits ~0.67 b out from (cur2 floor ~0.455, just over
@@ -639,19 +639,19 @@ final class WalkerTickProgress {
                     && !crossedDescendNode && !crossedWalkNode && !waterStepDownFloat && !stepUpCrestReach
                     && se != null && se.move != null && se.move.equals("walk")
                     && p.isInWater()
-                    && wk.noStepProgressTicks > WATER_WALK_STALL_TICKS
+                    && wk.stepProg.noStepProgressTicks > WATER_WALK_STALL_TICKS
                     && cur2 < WATER_WALK_REACH_SQ
                     && wk.step + 1 < wk.path.size()
                     && Math.abs(wk.path.get(wk.step + 1).getY() - p.getY()) < 1.2) {
                 waterWalkReach = true;
                 if (BotConfig.walkerDebug)
                     LOG.info("[walker] water-walk-reach ADVANCE step={}/{} node={} cur2={} stall={}",
-                            wk.step, wk.path.size(), w, String.format(Locale.ROOT, "%.3f", cur2), wk.noStepProgressTicks);
+                            wk.step, wk.path.size(), w, String.format(Locale.ROOT, "%.3f", cur2), wk.stepProg.noStepProgressTicks);
             }
             // [STEP-ADV-DIAG temp — remove before commit] why a grounded grossly-overshot node won't
             // advance (-823 dimple churn): logs which advance fired + the descend-geometry sub-conditions.
             if (BotConfig.walkerDebug && !within && p.onGround() && cur2 > OVERSHOOT_RESYNC_SQ
-                    && wk.noStepProgressTicks > 6 && wk.step + 1 < wk.path.size()) {
+                    && wk.stepProg.noStepProgressTicks > 6 && wk.step + 1 < wk.path.size()) {
                 BlockPos dN = wk.path.get(wk.step + 1);
                 double dsegx = dN.getX() - w.getX(), dsegz = dN.getZ() - w.getZ();
                 double doffx = p.getX() - (w.getX() + 0.5), doffz = p.getZ() - (w.getZ() + 0.5);

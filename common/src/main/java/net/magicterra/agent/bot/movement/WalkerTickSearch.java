@@ -236,10 +236,10 @@ final class WalkerTickSearch {
                     double cax = curAhead.getX() + 0.5 - p.getX(), caz = curAhead.getZ() + 0.5 - p.getZ();
                     double nax = newAhead.getX() + 0.5 - p.getX(), naz = newAhead.getZ() + 0.5 - p.getZ();
                     uTurnLeg = (cax * nax + caz * naz) < 0;
-                    keepCurrent = BotConfig.walkerRouteHysteresis && uTurnLeg && wk.noStepProgressTicks < 20;
+                    keepCurrent = BotConfig.walkerRouteHysteresis && uTurnLeg && wk.stepProg.noStepProgressTicks < 20;
                     if (keepCurrent && BotConfig.walkerDebug)
                         LOG.info("[walker] route-hysteresis: KEEP current path (new route U-turns behind a healthy walk, noStepProg={})",
-                                wk.noStepProgressTicks);
+                                wk.stepProg.noStepProgressTicks);
                 }
                 // Dig-commit hold (walkerDigCommitHoldRepath): an underwater bank dig takes
                 // 100-200t (25x mining penalty) but the periodic repath re-routes faster than
@@ -258,7 +258,7 @@ final class WalkerTickSearch {
                 }
                 if (!keepCurrent) {
                     if (BotConfig.walkerExpectAlarm && uTurnLeg) {
-                        wk.exAlarms.noteRepathFlip(wk.pfTickCounter, foot);
+                        wk.exAlarms.noteRepathFlip(wk.escal.tick, foot);
                     }
                     wk.adoptPath(res, world, foot);
                     wk.maybeArmPinchEscalation(foot, res);

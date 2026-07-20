@@ -116,12 +116,27 @@ public final class Walker {
      *  (§71 wall-pin, §80 pin were the first two, masked there because the path
      *  happened to be stable). Anchor resets on >1.5 XZ blocks moved; vertical
      *  bob (jump-ram) deliberately does not count as movement. */
-    double stallAnchorX = Double.NaN, stallAnchorZ;
-    int physicalStallTicks;
+    /** Physical-stall anchor (task#96 step B7), owned by WalkerTickProgress; the stall
+     *  verdict is read by the aim/drive gates. Self-managing (re-anchors on real motion)
+     *  — no journey reset ever touched it. */
+    final PhysicalStall physStall = new PhysicalStall();
+    static final class PhysicalStall {
+        double anchorX = Double.NaN, anchorZ;
+        int stallTicks;
+    }
     int totalTicks;
     int actionTicks;          // ticks spent on the current break/place edge
-    BlockPos stickyDigPos;    // walkerStickyDig: planned-break cell being mined — held across ticks so an interleaved travel tick can't release attack (a single released tick resets vanilla mining progress to zero; C28-J1 DIG-slow @-258,81,338: 200t of dig ticks interleaved with attack=false travel ticks never completed one block)
-    int stickyDigTicks;       // watchdog for stickyDigPos
+    /** Sticky planned-break dig (task#96 step B7): held across ticks so an interleaved
+     *  travel tick can't release attack (a single released tick resets vanilla mining
+     *  progress to zero; C28-J1 DIG-slow @-258,81,338: 200t of dig ticks interleaved with
+     *  attack=false travel ticks never completed one block). Engaged by Climb/Drive,
+     *  released by WalkerTickPrelude when the planned break is gone; deliberately NO
+     *  journey reset (release is world-state-driven). */
+    final StickyDig stickyDig = new StickyDig();
+    static final class StickyDig {
+        BlockPos pos;         // walkerStickyDig: planned-break cell being mined
+        int ticks;            // watchdog for pos
+    }
     int pillarStep = -1;      // path index of the pillar edge in progress
     int pillarSinceJump = -1; // ticks since the pillar jump press (-1 = grounded)
     int waterClimbStall;      // armed flag (>WATER_CLIMB_STALL) once net-displacement window shows a bob-stall climbing out of water
@@ -190,39 +205,106 @@ public final class Walker {
             hold = 0;
         }
     }
-    int pillarRecoverLatch;   // ticks left driving an in-place pillar-up recovery (bot fell below the climb path beyond jump reach) — latched across the jump's airborne phase so a place can land
-    BlockPos pillarRecoverCell; // the (grounded) feet cell the recovery is filling this rung
-    int pillarRecoverPeakY;      // highest foot Y this pillar-recovery has reached (no-rise give-up tracking)
-    int pillarRecoverStallTicks; // consecutive recovery ticks with no height gain → PILLAR_NORISE_GIVEUP re-routes
+    /** Fell-below-route pillar-up recovery (task#96 step B4): engaged by
+     *  WalkerTickStallDetect, driven (place + latch decay) by WalkerTickDrive, latch read
+     *  by WalkerTickClimb's edge gate. {@link PillarRecover#reset()} clears only the
+     *  latch (exactly what both journey resets cleared) — cell/peakY/stallTicks are
+     *  latch-gated and re-initialized by StallDetect on each fresh engage. */
+    final PillarRecover pillarRecover = new PillarRecover();
+    static final class PillarRecover {
+        int latch;             // ticks left driving an in-place pillar-up recovery (bot fell below the climb path beyond jump reach) — latched across the jump's airborne phase so a place can land
+        BlockPos cell;         // the (grounded) feet cell the recovery is filling this rung
+        int peakY;             // highest foot Y this pillar-recovery has reached (no-rise give-up tracking)
+        int stallTicks;        // consecutive recovery ticks with no height gain → PILLAR_NORISE_GIVEUP re-routes
+        void reset() {
+            latch = 0;
+        }
+    }
     final AscendMovement ascendMovement = new AscendMovement();   // task#82 per-move machine (drives only when walkerAscendMovement is ON)
     boolean forceFellOffPath;   // task#82: AscendMovement returned UNREACHABLE/FAILED last delegated tick → OR into fellOffPath (line 1042) so the proven re-route fires
-    int stepRamStuckTicks;       // GROUNDED ticks ramming an above-node riser (bob-immune; dry OR shallow water) → STEPUP_FREEZE_TICKS engages stepUpFreeze
-    int ascentRamBobTicks;       // foot-below-node + lateral-close ticks IGNORING onGround (bob-resettable; steep-bank +1 mount) → ORs into stepUpFreeze (gated walkerAscentRamBobBreak)
-    int floatingBankBobTicks;    // FLOATING +1 water-bank: !onGround + foot-below-node + lateral-ram, IGNORING the in/out-water bob → ORs into stepUpFreeze (gated walkerFloatingBankBobFreeze)
-    int bankFollowRamTicks;      // FLOATING water-bank lateral ram (ANY node-Y) → drives a slide ALONG the bank toward a mountable exit (gated walkerFloatingBankFollow)
+    /** Riser-ram fold counters (task#96 step B7): the four stepUpFreeze/bank-follow
+     *  feeders, counted by WalkerTickAim (bankFollowRamTicks also driven in Drive).
+     *  All self-zero on their own disengage conditions — no journey reset ever
+     *  touched them. */
+    final RamFold ramFold = new RamFold();
+    static final class RamFold {
+        int stepRamStuckTicks;       // GROUNDED ticks ramming an above-node riser (bob-immune; dry OR shallow water) → STEPUP_FREEZE_TICKS engages stepUpFreeze
+        int ascentRamBobTicks;       // foot-below-node + lateral-close ticks IGNORING onGround (bob-resettable; steep-bank +1 mount) → ORs into stepUpFreeze (gated walkerAscentRamBobBreak)
+        int floatingBankBobTicks;    // FLOATING +1 water-bank: !onGround + foot-below-node + lateral-ram, IGNORING the in/out-water bob → ORs into stepUpFreeze (gated walkerFloatingBankBobFreeze)
+        int bankFollowRamTicks;      // FLOATING water-bank lateral ram (ANY node-Y) → drives a slide ALONG the bank toward a mountable exit (gated walkerFloatingBankFollow)
+    }
     boolean descending;       // ending creative flight; wait to land before pathing
     PathFinder.Search activeSearch;  // in-flight time-sliced A* (null = none)
     double bestDistToGoal = Double.POSITIVE_INFINITY;
     double bestGoalDist = Double.POSITIVE_INFINITY;  // anti-spin: best goal-estimate across repaths (5-block margin ignores micro-lunges)
     int repathsNoProgress;                           // anti-spin: consecutive in-water repaths that didn't improve bestGoalDist
     int churnResets;                                 // anti-spin: fresh baselines granted after a stall (tolerates water go-arounds; real progress clears it)
-    BlockPos churnBase;                              // land boxed-pocket: foot at the start of the current net-displacement window
-    int churnWindowTicks;                            // land boxed-pocket: ticks elapsed in the current window
-    int churnEscapes;                                // land boxed-pocket: consecutive windows that detected churn (escalates the charge radius)
-    int hColRamTicks;                                // wall-corner: consecutive ticks of sustained horizontalCollision (the §39 贴墙卡住 ram signature)
-    long pfTickCounter;                               // monotonic per-tick counter (drives the sticky boxed-escalation timer)
-    long boxedEscalateUntilTick;                     // steep-barrier escalation armed until this tick (sticky so a few net-progress windows mid-climb don't drop it)
-    double bestStepDist = Double.POSITIVE_INFINITY; // closest approach² to the current node (drives the progress-based stuckTicks)
-    int stuckStep = -1;                             // path index bestStepDist tracks; a step change starts a fresh progress window
-    int stuckStepHigh = -1;                         // walkerStuckStepMonotonic HIGH-WATER mark: the stall clock only resets when step exceeds this (C33-J2: an oscillating pointer 5↔6 cleared the clock on every "advance" because the retreat re-base LOWERED stuckStep — the high-water mark never goes down within one path)
-    int noStepProgressTicks;                        // jitter-immune ticks on the SAME step (resets only when step advances/path changes) → wedge detector
-    int underwaterTicks;                            // consecutive eyes-under ticks → debounces the swim-up jump (surface bob ≠ sinking)
-    int noProgressStep = -1;                        // path index noStepProgressTicks tracks (independent of bridge/progress resets)
-    double noProgressBestD2 = Double.POSITIVE_INFINITY; // closest-ever approach² to the tracked step; monotonic, so a bob can't reset the wedge timer but a slow water cruise along a long string-pulled edge does
-    int crestOrbitTicks;                            // BOB-IMMUNE dwell on a dry stepUp/diagUp CREST step: resets ONLY on step-advance/path-change, never on the 3D new-low the vertical bob fakes on dry land → lets walkerStepUpCrestReach fire on a WIDE bob orbit where noStepProgressTicks keeps zeroing
-    int crestOrbitStep = -1;                        // path index crestOrbitTicks tracks
-    int rawStepDwellTicks;                          // PURELY step-tracked dwell (resets ONLY on step-change/path-change, NEVER on a 3D new-low) → jitter-immune wedge gate for the steep-ascent slide-back recovery (walkerAscentRamJitterImmune)
-    int ramRecoverLastFireDwell = -1;              // rawStepDwellTicks at the last walkerAscentRamJitterImmune fold (-1 = none this episode); a RAM_RECOVER_DEBOUNCE gap caps the fold rate AND re-attempts a stubborn same-step ram; cleared on step/path change
+    /** Land boxed-pocket churn window (task#96 step B4), owned by WalkerTickStallDetect;
+     *  Walker's carrot logic reads hColRamTicks (walkerCarrotHColShrink).
+     *  {@link BoxedChurn#resetForNewGoal()} runs in setGoal only (forceRepath never
+     *  cleared this window); hColRamTicks has NO reset site anywhere — it self-zeroes
+     *  on every collision-free tick. The water anti-spin's churnResets stays a loose
+     *  field (cross-goal persistence — see its doc). */
+    final BoxedChurn churn = new BoxedChurn();
+    static final class BoxedChurn {
+        BlockPos base;         // foot at the start of the current net-displacement window
+        int windowTicks;       // ticks elapsed in the current window
+        int escapes;           // consecutive windows that detected churn (escalates the charge radius)
+        int hColRamTicks;      // wall-corner: consecutive ticks of sustained horizontalCollision (the §39 贴墙卡住 ram signature)
+        void resetForNewGoal() {
+            base = null;
+            windowTicks = 0;
+            escapes = 0;
+        }
+    }
+    /** Sticky steep-barrier escalation clock (task#96 step B4): tick is the monotonic
+     *  per-walker tick counter (incremented by WalkerTickPrelude, NEVER reset — the
+     *  sticky timer compares against it); armed by the churn window (WalkerTickStallDetect)
+     *  and the proactive pinch check ({@link #maybeArmPinchEscalation}); read each tick by
+     *  WalkerTickPrelude to publish BotConfig.pathfinderBoxedEscalate. Both journey resets
+     *  {@link EscalationClock#disarm()} so the escalation never leaks into the next goto. */
+    final EscalationClock escal = new EscalationClock();
+    static final class EscalationClock {
+        long tick;             // monotonic per-tick counter (drives the sticky boxed-escalation timer)
+        long untilTick;        // escalation armed until this tick (sticky so a few net-progress windows mid-climb don't drop it)
+        boolean armed() {
+            return tick < untilTick;
+        }
+        void arm(long stickyTicks) {
+            untilTick = tick + stickyTicks;
+        }
+        void disarm() {
+            untilTick = 0;
+        }
+    }
+    /** Per-step progress clocks (task#96 step B6), owned by WalkerTickProgress (the
+     *  per-tick updater); their verdicts feed StallDetect's wedge/ram folds and the
+     *  aim/drive stall gates, and WalkerTickPrelude forwards noStepProgressTicks to the
+     *  expectation alarms. {@link StepProgress#restartWindows()} is the journey reset
+     *  (setGoal + forceRepath — exactly the five fields both cleared); adoptPath and
+     *  beginScriptedFollow keep their DIFFERENT partial restarts as direct writes
+     *  (adoptPath re-bases stuckStepHigh to step-1, not -1). The dwell/orbit counters
+     *  self-manage on step/path change inside WalkerTickProgress. */
+    final StepProgress stepProg = new StepProgress();
+    static final class StepProgress {
+        double bestStepDist = Double.POSITIVE_INFINITY; // closest approach² to the current node (drives the progress-based stuckTicks)
+        int stuckStep = -1;                         // path index bestStepDist tracks; a step change starts a fresh progress window
+        int stuckStepHigh = -1;                     // walkerStuckStepMonotonic HIGH-WATER mark: the stall clock only resets when step exceeds this (C33-J2: an oscillating pointer 5↔6 cleared the clock on every "advance" because the retreat re-base LOWERED stuckStep — the high-water mark never goes down within one path)
+        int noStepProgressTicks;                    // jitter-immune ticks on the SAME step (resets only when step advances/path changes) → wedge detector
+        int noProgressStep = -1;                    // path index noStepProgressTicks tracks (independent of bridge/progress resets)
+        double noProgressBestD2 = Double.POSITIVE_INFINITY; // closest-ever approach² to the tracked step; monotonic, so a bob can't reset the wedge timer but a slow water cruise along a long string-pulled edge does
+        int crestOrbitTicks;                        // BOB-IMMUNE dwell on a dry stepUp/diagUp CREST step: resets ONLY on step-advance/path-change, never on the 3D new-low the vertical bob fakes on dry land → lets walkerStepUpCrestReach fire on a WIDE bob orbit where noStepProgressTicks keeps zeroing
+        int crestOrbitStep = -1;                    // path index crestOrbitTicks tracks
+        int rawStepDwellTicks;                      // PURELY step-tracked dwell (resets ONLY on step-change/path-change, NEVER on a 3D new-low) → jitter-immune wedge gate for the steep-ascent slide-back recovery (walkerAscentRamJitterImmune)
+        int ramRecoverLastFireDwell = -1;           // rawStepDwellTicks at the last walkerAscentRamJitterImmune fold (-1 = none this episode); a RAM_RECOVER_DEBOUNCE gap caps the fold rate AND re-attempts a stubborn same-step ram; cleared on step/path change
+        void restartWindows() {
+            bestStepDist = Double.POSITIVE_INFINITY;
+            stuckStep = -1;
+            stuckStepHigh = -1;
+            noStepProgressTicks = 0;
+            noProgressStep = -1;
+        }
+    }
     /** Phase-3: |ds| (blocks of arc-length per tick) at/under which the bot counts as making NO forward
      *  path progress. A normal walk is ~1.0/tick, the slowest legit water-creep still clears ~0.1, so 0.05
      *  flags a true wall-ram (literally pinned) without misfiring on slow-but-moving travel. */
@@ -261,20 +343,46 @@ public final class Walker {
     int arcProgWindowTicks;                         // ticks elapsed in the current arc-progress window
     boolean arcProgStall;                           // last completed window made < ARC_PROG_MIN net arc-s progress → stuck (consumed by fellOffPath)
     boolean searchSuppressedPlace;                  // the in-flight search dropped placing moves (block-budget reroute) → adopt its result without re-checking
-    float smoothTargetYaw = Float.NaN;              // EMA-low-passed target heading (NaN = uninitialised; resync on launch/new goal)
-    float smoothWaterDriveYaw = Float.NaN;          // EMA-low-passed water DRIVE heading (separate from the camera trend)
-    float freeHangDriveYaw = Float.NaN;             // slew-limited world heading of the free-hang vine DRIVE (NaN = resync); smooths the step-jitter ±180° flips that would circle the body off a narrow column
-    int surfaceWaterLatch = 0;                      // ticks the open-water swim stays latched after a surface bob lifts the foot out of the fluid (rides out the isInWater blink)
-    int deepWaterDriftLatch = 0;                    // ticks the deep-water drift sprint-brake stays latched after firing while grounded, so sprint stays OFF through the airborne sub-arcs of a step-down descent toward a deep pocket (otherwise sprint re-arms each airborne tick and the accumulated forward momentum still overshoots into the water)
-    int steepDescentLatch = 0;                      // DRY sibling of deepWaterDriftLatch (task#36): ticks the steep-descent sprint-brake stays latched across the airborne sub-arcs of a step-down, so sprint can't re-arm mid-fall and accumulate forward momentum off a survivable-deep lip (live 2026-07-11 Mountains massif: onG=false→sprint=true walked the body off a 19-block lip to death)
-    int climbPressConsec = 0;                       // consecutive ticks the buoyant-climb-press raw condition has held (debounces the surface-bob false trigger)
-    int waterDriveRejectStreak = 0;                 // consecutive flip-rejections of the water drive heading (escape-hatch snaps after WATER_DRIVE_MAX_REJECT)
-    int descentDriveRejectStreak = 0;               // consecutive back-hop rejections on a dry diagDown slope (escape-hatch snaps to the real node after WATER_DRIVE_MAX_REJECT)
-    float lastCarrotBearing = Float.NaN;            // previous tick's raw carrot bearing — feeds the in-water yaw-thrash detector
-    int lastCarrotBearingSign = 0;                  // sign of the last meaningful carrot-bearing turn (for reversal detection)
-    int yawThrashTicks = 0;                         // decaying score: +4 per carrot-bearing reversal in water (cap 12), −1/tick → steady turn winds to 0, oscillation holds high
-    float lastAimYaw = Float.NaN;                   // previous tick's smoothed aim heading — feeds the anti-spin target-stability gate (a flipping target winds; a stable one converges)
-    int aimStableTicks = 0;                         // consecutive ticks the smoothed aim target barely moved; once past AIM_STABLE_TICKS the anti-spin freeze releases (a stable target can't wind the camera)
+    float freeHangDriveYaw = Float.NaN;             // slew-limited world heading of the free-hang vine DRIVE (NaN = resync); smooths the step-jitter ±180° flips that would circle the body off a narrow column — EdgeGuards-owned, self-resyncing (no journey reset)
+    int surfaceWaterLatch = 0;                      // ticks the open-water swim stays latched after a surface bob lifts the foot out of the fluid (rides out the isInWater blink) — read across Aim/Climb/Progress; belongs to a future water-state family
+    /** Aim/heading smoothing state (task#96 step B5), owned by WalkerTickAim
+     *  (smoothWaterDriveYaw is also read by WalkerTickDrive; lastAimYaw by
+     *  WalkerTickClimb's dig telemetry). {@link AimSmoothing#reset()} resyncs the EMA
+     *  chain + the yaw-thrash detector — exactly the four fields both journey resets
+     *  cleared; the remaining fields self-manage (NaN resync / decay / streak logic). */
+    final AimSmoothing aimSmooth = new AimSmoothing();
+    static final class AimSmoothing {
+        float smoothTargetYaw = Float.NaN;          // EMA-low-passed target heading (NaN = uninitialised; resync on launch/new goal)
+        float smoothWaterDriveYaw = Float.NaN;      // EMA-low-passed water DRIVE heading (separate from the camera trend)
+        float lastCarrotBearing = Float.NaN;        // previous tick's raw carrot bearing — feeds the in-water yaw-thrash detector
+        int lastCarrotBearingSign = 0;              // sign of the last meaningful carrot-bearing turn (for reversal detection)
+        int yawThrashTicks = 0;                     // decaying score: +4 per carrot-bearing reversal in water (cap 12), −1/tick → steady turn winds to 0, oscillation holds high
+        float lastAimYaw = Float.NaN;               // previous tick's smoothed aim heading — feeds the anti-spin target-stability gate (a flipping target winds; a stable one converges)
+        int aimStableTicks = 0;                     // consecutive ticks the smoothed aim target barely moved; once past AIM_STABLE_TICKS the anti-spin freeze releases (a stable target can't wind the camera)
+        int waterDriveRejectStreak = 0;             // consecutive flip-rejections of the water drive heading (escape-hatch snaps after WATER_DRIVE_MAX_REJECT)
+        void reset() {
+            smoothTargetYaw = Float.NaN;
+            lastCarrotBearing = Float.NaN;
+            lastCarrotBearingSign = 0;
+            yawThrashTicks = 0;
+        }
+    }
+    /** Descent/water sprint-brake latches + drive debouncers (task#96 step B5), owned by
+     *  WalkerTickDrive. {@link DriveLatches#reset()} clears only the two sprint-brake
+     *  latches (exactly what both journey resets cleared); the debounce counters
+     *  self-manage per tick. */
+    final DriveLatches driveLatch = new DriveLatches();
+    static final class DriveLatches {
+        int deepWaterDriftLatch = 0;                // ticks the deep-water drift sprint-brake stays latched after firing while grounded, so sprint stays OFF through the airborne sub-arcs of a step-down descent toward a deep pocket (otherwise sprint re-arms each airborne tick and the accumulated forward momentum still overshoots into the water)
+        int steepDescentLatch = 0;                  // DRY sibling of deepWaterDriftLatch (task#36): ticks the steep-descent sprint-brake stays latched across the airborne sub-arcs of a step-down, so sprint can't re-arm mid-fall and accumulate forward momentum off a survivable-deep lip (live 2026-07-11 Mountains massif: onG=false→sprint=true walked the body off a 19-block lip to death)
+        int climbPressConsec = 0;                   // consecutive ticks the buoyant-climb-press raw condition has held (debounces the surface-bob false trigger)
+        int descentDriveRejectStreak = 0;           // consecutive back-hop rejections on a dry diagDown slope (escape-hatch snaps to the real node after WATER_DRIVE_MAX_REJECT)
+        int underwaterTicks;                        // consecutive eyes-under ticks → debounces the swim-up jump (surface bob ≠ sinking)
+        void reset() {
+            deepWaterDriftLatch = 0;
+            steepDescentLatch = 0;
+        }
+    }
     boolean pathBestEffort;                         // current path is a best-effort partial (goal NOT reached) → commit to it before re-searching
     BlockPos commitEnd;                             // last node of the current best-effort segment (null for a full path) → where continuation searches launch from
     boolean searchFromEnd;                          // activeSearch is a continuation launched from commitEnd (deferred splice) vs a foot-search (splice immediately)
@@ -352,9 +460,9 @@ public final class Walker {
         return (path == null ? "path=null" : "step=" + step + "/" + path.size()
                 + " wp=" + (wp == null ? "-" : wp.getX() + "," + wp.getY() + "," + wp.getZ())
                 + (pathBestEffort ? " bestEffort" : ""))
-                + " unstuck=" + unstuck.burstTicks + " churnEsc=" + churnEscapes
-                + " escal=" + (pfTickCounter < boxedEscalateUntilTick ? "ON" : "off")
-                + " noStep=" + noStepProgressTicks
+                + " unstuck=" + unstuck.burstTicks + " churnEsc=" + churn.escapes
+                + " escal=" + (escal.armed() ? "ON" : "off")
+                + " noStep=" + stepProg.noStepProgressTicks
                 + " digFloat=" + waterClimbDigFloatTicks + " gaveUp=" + climbPillarGaveUp;
     }
 
@@ -388,9 +496,8 @@ public final class Walker {
         this.waterClimbDigFloatTicks = 0;
         this.futileBankDigCooldown = 0;
         this.dive.reset();
-        this.deepWaterDriftLatch = 0;
-        this.steepDescentLatch = 0;
-        this.pillarRecoverLatch = 0;
+        this.driveLatch.reset();
+        this.pillarRecover.reset();
         this.wantClimbRecent = 0;
         this.descending = false;
         this.activeSearch = null;
@@ -398,20 +505,11 @@ public final class Walker {
         this.bestGoalDist = Double.POSITIVE_INFINITY;
         this.searchGov.reset();
         this.repathsNoProgress = 0;
-        this.churnBase = null;
-        this.churnWindowTicks = 0;
-        this.churnEscapes = 0;
-        this.boxedEscalateUntilTick = 0;
+        this.churn.resetForNewGoal();
+        this.escal.disarm();
         BotConfig.pathfinderBoxedEscalate = false;          // never leak the steep-barrier escalation into the next goto
-        this.bestStepDist = Double.POSITIVE_INFINITY;
-        this.stuckStep = -1;
-        this.stuckStepHigh = -1;
-        this.noStepProgressTicks = 0;
-        this.noProgressStep = -1;
-        this.smoothTargetYaw = Float.NaN;
-        this.lastCarrotBearing = Float.NaN;
-        this.lastCarrotBearingSign = 0;
-        this.yawThrashTicks = 0;
+        this.stepProg.restartWindows();
+        this.aimSmooth.reset();
         this.commitEnd = null;
         this.searchFromEnd = false;
         this.pendingSegment = null;
@@ -494,15 +592,8 @@ public final class Walker {
         this.pillarStep = -1;
         this.pillarSinceJump = -1;
         this.activeSearch = null;
-        this.bestStepDist = Double.POSITIVE_INFINITY;
-        this.stuckStep = -1;
-        this.stuckStepHigh = -1;
-        this.noStepProgressTicks = 0;
-        this.noProgressStep = -1;
-        this.smoothTargetYaw = Float.NaN;
-        this.lastCarrotBearing = Float.NaN;
-        this.lastCarrotBearingSign = 0;
-        this.yawThrashTicks = 0;
+        this.stepProg.restartWindows();
+        this.aimSmooth.reset();
         this.commitEnd = null;
         this.searchFromEnd = false;
         this.pendingSegment = null;
@@ -527,12 +618,11 @@ public final class Walker {
         this.waterClimbDigFloatTicks = 0;
         this.futileBankDigCooldown = 0;
         this.dive.reset();
-        this.deepWaterDriftLatch = 0;
-        this.steepDescentLatch = 0;
-        this.pillarRecoverLatch = 0;
+        this.driveLatch.reset();
+        this.pillarRecover.reset();
         this.wantClimbRecent = 0;
         this.descending = false;
-        this.boxedEscalateUntilTick = 0;
+        this.escal.disarm();
         BotConfig.pathfinderBoxedEscalate = false;          // never leak the steep-barrier escalation across a forced repath
     }
 
@@ -561,8 +651,8 @@ public final class Walker {
         this.replayMode = false;
         adoptPath(new PathFinder.Result(plan, planEdges, false, 0, 0L, 0.0), world, null);
         this.step = Math.max(0, Math.min(startStep, (path == null ? 1 : path.size())));
-        this.noProgressStep = -1;          // force a fresh noStepProgressTicks baseline at the injected step
-        this.noStepProgressTicks = 0;
+        this.stepProg.noProgressStep = -1;          // force a fresh noStepProgressTicks baseline at the injected step
+        this.stepProg.noStepProgressTicks = 0;
     }
 
     public int pathLen() { return path == null ? 0 : path.size(); }
@@ -804,8 +894,8 @@ public final class Walker {
         if (res.goalReached() || commitEnd == null) return;      // healthy full route → no escalation
         double progress = goal.estimate(foot) - goal.estimate(commitEnd);
         if (progress >= PINCH_MIN_PROGRESS) return;              // real headway → not a pinch
-        boolean wasArmed = pfTickCounter < boxedEscalateUntilTick;
-        boxedEscalateUntilTick = pfTickCounter + BOXED_ESCALATE_STICKY_TICKS;
+        boolean wasArmed = escal.armed();
+        escal.arm(BOXED_ESCALATE_STICKY_TICKS);
         if (BotConfig.walkerDebug && !wasArmed)
             LOG.info("[walker] proactive pinch escalation ARMED: best-effort commit gained only {} blocks toward goal → deepen next search",
                     String.format("%.1f", progress));
@@ -1124,9 +1214,9 @@ public final class Walker {
         }
         stuckTicks = 0;
         frontierWaitTicks = 0;          // progress made → reset the frontier re-search budget
-        stuckStep = -1;                 // new path geometry → restart the progress window
-        noStepProgressTicks = 0;        // new path → restart the wedge timer (else a same-index step re-triggers instantly)
-        noProgressStep = -1;
+        stepProg.stuckStep = -1;        // new path geometry → restart the progress window
+        stepProg.noStepProgressTicks = 0;   // new path → restart the wedge timer (else a same-index step re-triggers instantly)
+        stepProg.noProgressStep = -1;
         // A freshly adopted PROGRESSIVE stub (quick-start / open-water bee-line —
         // the only adopts with foot==null) is a brand-new runway in a NEW
         // direction, so the wedge-burst counter accrued against the stale segment
@@ -1140,8 +1230,8 @@ public final class Walker {
         // (foot != null) keeps its burst intact — that's the deterministic
         // same-segment deadlock breaker and must not be reset away.
         if (foot == null) unstuck.dropWedgeAnchor();
-        bestStepDist = Double.POSITIVE_INFINITY;
-        stuckStepHigh = step - 1;   // new path, new index semantics: one fresh window on the first tick, then high-water applies
+        stepProg.bestStepDist = Double.POSITIVE_INFINITY;
+        stepProg.stuckStepHigh = step - 1;   // new path, new index semantics: one fresh window on the first tick, then high-water applies
         actionTicks = 0;
         if (BotConfig.walkerDebug) {
             StringBuilder sbp = new StringBuilder();
@@ -1259,7 +1349,7 @@ public final class Walker {
         // Sustained wall collision → the far carrot is steering the body at a gap only
         // the LOS ray fits (jungle trunks). Collapse pursuit to the immediate node —
         // the A* chain is body-walkable by construction (walkerCarrotHColShrink).
-        if (BotConfig.walkerCarrotHColShrink && hColRamTicks >= 8) remaining = 0.01;
+        if (BotConfig.walkerCarrotHColShrink && churn.hColRamTicks >= 8) remaining = 0.01;
         double cx = px, cz = pz, tx = px, tz = pz;
         for (int i = step; i < path.size() && i - step <= CARROT_MAX_NODES; i++) {
             BlockPos node = path.get(i);

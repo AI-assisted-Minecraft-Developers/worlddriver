@@ -219,23 +219,23 @@ final class WalkerTickAim {
             // monotonically (no reversals) AND is suppressed by the look-ahead, so the +1-exit
             // mount keeps its exact carrot (waterClimbOutRouteArena).
             float carrotBearing = (float) Math.toDegrees(Math.atan2(-adx, adz));
-            if (p.isInWater() && !Float.isNaN(wk.lastCarrotBearing)) {
-                float db = angleDiff(wk.lastCarrotBearing, carrotBearing);
+            if (p.isInWater() && !Float.isNaN(wk.aimSmooth.lastCarrotBearing)) {
+                float db = angleDiff(wk.aimSmooth.lastCarrotBearing, carrotBearing);
                 if (Math.abs(db) > 10f) {
                     int sign = db > 0 ? 1 : -1;
-                    if (wk.lastCarrotBearingSign != 0 && sign != wk.lastCarrotBearingSign)
-                        wk.yawThrashTicks = Math.min(wk.yawThrashTicks + 4, 12);
-                    wk.lastCarrotBearingSign = sign;
+                    if (wk.aimSmooth.lastCarrotBearingSign != 0 && sign != wk.aimSmooth.lastCarrotBearingSign)
+                        wk.aimSmooth.yawThrashTicks = Math.min(wk.aimSmooth.yawThrashTicks + 4, 12);
+                    wk.aimSmooth.lastCarrotBearingSign = sign;
                 }
             } else {
-                wk.lastCarrotBearingSign = 0;
+                wk.aimSmooth.lastCarrotBearingSign = 0;
             }
-            wk.lastCarrotBearing = carrotBearing;
-            if (wk.yawThrashTicks > 0) wk.yawThrashTicks--;
+            wk.aimSmooth.lastCarrotBearing = carrotBearing;
+            if (wk.aimSmooth.yawThrashTicks > 0) wk.aimSmooth.yawThrashTicks--;
             boolean climbAhead = false;
             for (int q = wk.step; q < Math.min(wk.path.size(), wk.step + WATER_FAR_AIM_LOOKAHEAD + 1); q++)
                 if (wk.path.get(q).getY() > foot.getY()) { climbAhead = true; break; }
-            if (p.isInWater() && wk.yawThrashTicks >= WATER_YAW_THRASH_SCORE && !climbAhead) {
+            if (p.isInWater() && wk.aimSmooth.yawThrashTicks >= WATER_YAW_THRASH_SCORE && !climbAhead) {
                 BlockPos far = wk.path.get(Math.min(wk.step + WATER_FAR_AIM_LOOKAHEAD, wk.path.size() - 1));
                 adx = (far.getX() + 0.5) - p.getX();
                 adz = (far.getZ() + 0.5) - p.getZ();
@@ -308,7 +308,7 @@ final class WalkerTickAim {
         }
         double aim2 = adx * adx + adz * adz;
         boolean climbAim = aimAtWaypoint && p.isInWater() && wpAimDy > 0.5;
-        boolean waterThrash = p.isInWater() && wk.noStepProgressTicks > WATER_YAW_HOLD_STALL;
+        boolean waterThrash = p.isInWater() && wk.stepProg.noStepProgressTicks > WATER_YAW_HOLD_STALL;
         double aimDeadzone = (climbAim || waterThrash) ? CLIMB_AIM_DEADZONE_SQ : YAW_DEADZONE_SQ;
         float targetYaw = (aim2 < aimDeadzone)
                 ? p.getYRot()   // essentially on the aim column — hold heading, don't thrash atan2
@@ -360,7 +360,7 @@ final class WalkerTickAim {
         if (BotConfig.walkerRamNodeAimRelease && !p.isInWater()
                 && p.horizontalCollision
                 && (wk.stuckTicks > 40
-                    || (BotConfig.walkerPhysicalStallClock && wk.physicalStallTicks > 60))
+                    || (BotConfig.walkerPhysicalStallClock && wk.physStall.stallTicks > 60))
                 && wk.path != null && wk.step < wk.path.size()) {
             BlockPos rn = wk.path.get(wk.step);
             double rndx = (rn.getX() + 0.5) - p.getX(), rndz = (rn.getZ() + 0.5) - p.getZ();
@@ -454,25 +454,25 @@ final class WalkerTickAim {
             // end) — the immediate node bearing as a fallback.
             float driveSrcYaw = (cdx * cdx + cdz * cdz > 1.0)
                     ? (float) Math.toDegrees(Math.atan2(-cdx, cdz)) : descentNodeYaw;
-            if (Float.isNaN(wk.smoothWaterDriveYaw)) {
-                wk.smoothWaterDriveYaw = driveSrcYaw;
-                wk.waterDriveRejectStreak = 0;
+            if (Float.isNaN(wk.aimSmooth.smoothWaterDriveYaw)) {
+                wk.aimSmooth.smoothWaterDriveYaw = driveSrcYaw;
+                wk.aimSmooth.waterDriveRejectStreak = 0;
             } else {
-                float turn = angleDiff(wk.smoothWaterDriveYaw, driveSrcYaw);
+                float turn = angleDiff(wk.aimSmooth.smoothWaterDriveYaw, driveSrcYaw);
                 if (Math.abs(turn) <= WATER_DRIVE_MAX_TURN) {
                     // Gradual (real) turn — track it; the EMA damps the carrot's re-plan / wall jumps.
-                    wk.smoothWaterDriveYaw = angleDiff(0f, wk.smoothWaterDriveYaw + WATER_DRIVE_ALPHA * turn);
-                    wk.waterDriveRejectStreak = 0;
-                } else if (++wk.waterDriveRejectStreak > WATER_DRIVE_MAX_REJECT) {
+                    wk.aimSmooth.smoothWaterDriveYaw = angleDiff(0f, wk.aimSmooth.smoothWaterDriveYaw + WATER_DRIVE_ALPHA * turn);
+                    wk.aimSmooth.waterDriveRejectStreak = 0;
+                } else if (++wk.aimSmooth.waterDriveRejectStreak > WATER_DRIVE_MAX_REJECT) {
                     // Persistent reversal — not a transient flip. Snap so the swim can't strand itself
                     // pointing the wrong way (see WATER_DRIVE_MAX_REJECT).
-                    wk.smoothWaterDriveYaw = driveSrcYaw;
-                    wk.waterDriveRejectStreak = 0;
+                    wk.aimSmooth.smoothWaterDriveYaw = driveSrcYaw;
+                    wk.aimSmooth.waterDriveRejectStreak = 0;
                 }
                 // else: reject this tick's flip — HOLD the forward heading.
             }
         } else {
-            wk.smoothWaterDriveYaw = Float.NaN;
+            wk.aimSmooth.smoothWaterDriveYaw = Float.NaN;
         }
         if (trendCam) {
             // Aim the CAMERA at the CENTROID of the lookahead window (see DESCENT_CAM_LOOKAHEAD):
@@ -502,13 +502,13 @@ final class WalkerTickAim {
         // SLEW smoothly through the turn over the airborne ticks instead of snapping ~180° (the
         // 下落转圈). Snapping stays for ascending leaps / water-falls where the leap aims via yaw.
         boolean snapLaunch = launch && !dryDescent;
-        if (Float.isNaN(wk.smoothTargetYaw) || snapLaunch) {
-            wk.smoothTargetYaw = targetYaw;
+        if (Float.isNaN(wk.aimSmooth.smoothTargetYaw) || snapLaunch) {
+            wk.aimSmooth.smoothTargetYaw = targetYaw;
         } else {
             float alpha = trendCam ? YAW_SMOOTH_ALPHA_DESCENT : YAW_SMOOTH_ALPHA;
-            wk.smoothTargetYaw = angleDiff(0f, wk.smoothTargetYaw + alpha * angleDiff(wk.smoothTargetYaw, targetYaw));
+            wk.aimSmooth.smoothTargetYaw = angleDiff(0f, wk.aimSmooth.smoothTargetYaw + alpha * angleDiff(wk.aimSmooth.smoothTargetYaw, targetYaw));
         }
-        float aimYaw = snapLaunch ? targetYaw : wk.smoothTargetYaw;
+        float aimYaw = snapLaunch ? targetYaw : wk.aimSmooth.smoothTargetYaw;
         // ── 原地后跳 (in-place backward hop) fix ───────────────────────────────────────────────
         // The decoupled descent drive rides the IMMEDIATE node (descentNodeYaw). When the bot
         // OVERSHOOTS that node on a fall landing or a step (lands a hair past it), the node is now
@@ -542,12 +542,12 @@ final class WalkerTickAim {
         // steady bearing pointed ~150° off and the foot never moved. Count ticks the smoothed
         // aim barely moved; a flip resets it, so the freeze re-arms instantly on the next
         // swing yet releases once the target has been steady ~0.5 s, letting the bot turn.
-        if (!Float.isNaN(wk.lastAimYaw) && Math.abs(angleDiff(aimYaw, wk.lastAimYaw)) < AIM_STABLE_DEG)
-            wk.aimStableTicks = Math.min(wk.aimStableTicks + 1, AIM_STABLE_TICKS + 1);
+        if (!Float.isNaN(wk.aimSmooth.lastAimYaw) && Math.abs(angleDiff(aimYaw, wk.aimSmooth.lastAimYaw)) < AIM_STABLE_DEG)
+            wk.aimSmooth.aimStableTicks = Math.min(wk.aimSmooth.aimStableTicks + 1, AIM_STABLE_TICKS + 1);
         else
-            wk.aimStableTicks = 0;
-        wk.lastAimYaw = aimYaw;
-        boolean targetFlipping = wk.aimStableTicks < AIM_STABLE_TICKS;
+            wk.aimSmooth.aimStableTicks = 0;
+        wk.aimSmooth.lastAimYaw = aimYaw;
+        boolean targetFlipping = wk.aimSmooth.aimStableTicks < AIM_STABLE_TICKS;
         // The anti-spin freeze stays WATER-gated: a dry-land extension (to catch the dry-churn
         // cliff-stall spin) spuriously engaged during a slow dry pillar-up — the goal-XZ barely
         // moves while pillaring, so repathsNoProgress climbs and the placement aim flips, tripping
@@ -676,8 +676,8 @@ final class WalkerTickAim {
         // against an above-node (the actual ram) → immune to the bob, so the freeze-breaker engages
         // on time for BOTH dry and shallow-water banks (the dryStepUp ascendJumpReady path is water-
         // excluded, and waterClimbing's pillar takeover needs !onGround so it misses the shallow bank).
-        if (p.horizontalCollision && p.onGround() && wp.getY() > foot.getY()) wk.stepRamStuckTicks++;
-        else wk.stepRamStuckTicks = 0;
+        if (p.horizontalCollision && p.onGround() && wp.getY() > foot.getY()) wk.ramFold.stepRamStuckTicks++;
+        else wk.ramFold.stepRamStuckTicks = 0;
         // Bob-immune ascent-ram (walkerAscentRamBobBreak): the steep-bank +1 mount that jumps off the diagonal
         // corner & slides back keeps the foot >0.3 BELOW the node while laterally close, but its airborne apex
         // zeroes BOTH stepRamStuckTicks (onGround-gated) and noStepProgressTicks (3D new-low). Tick a counter
@@ -688,8 +688,8 @@ final class WalkerTickAim {
         boolean ascentNotTopped = wp.getY() > foot.getY() && p.getY() < wp.getY() - 0.3
                 && !parkourEdge && !p.isInWater()
                 && (stepColDx * stepColDx + stepColDz * stepColDz) < 1.6;
-        if (BotConfig.walkerAscentRamBobBreak && ascentNotTopped) wk.ascentRamBobTicks++;
-        else wk.ascentRamBobTicks = 0;
+        if (BotConfig.walkerAscentRamBobBreak && ascentNotTopped) wk.ramFold.ascentRamBobTicks++;
+        else wk.ramFold.ascentRamBobTicks = 0;
         // FLOATING water-bank bob (walkerFloatingBankBobFreeze): a buoyant bot at a +1..+3 water bank bobs
         // y(water)↔(air) every 2-3 t with onGround NEVER true, alternating stepUp/climbUp at the riser but
         // frozen in XZ. All other freeze counters miss it: stepRamStuck/shallowBank need onGround (floating
@@ -703,8 +703,8 @@ final class WalkerTickAim {
         boolean floatingBankNotTopped = atWaterBank && !p.onGround()
                 && wp.getY() > foot.getY() && (wp.getY() - foot.getY()) <= 3
                 && (stepColDx * stepColDx + stepColDz * stepColDz) < 1.6;
-        if (BotConfig.walkerFloatingBankBobFreeze && floatingBankNotTopped) wk.floatingBankBobTicks++;
-        else wk.floatingBankBobTicks = 0;
+        if (BotConfig.walkerFloatingBankBobFreeze && floatingBankNotTopped) wk.ramFold.floatingBankBobTicks++;
+        else wk.ramFold.floatingBankBobTicks = 0;
         // Lateral-bank-follow (walkerFloatingBankFollow): a FLOATING bot ramming a water bank at
         // ANY node-Y — including the walk-ram facet the ascending freeze counter above misses (node
         // AT/BELOW the foot across a 1-block lip). The dominant residual is NON-DETERMINISTIC: the
@@ -714,14 +714,14 @@ final class WalkerTickAim {
         // sweeps to the nearest mountable exit instead of grinding/digging the dead spot. Self-
         // terminating: any climb-out progress drops onGround/hCol → counter resets → normal mount.
         boolean bankFollowRam = atWaterBank && !p.onGround() && p.horizontalCollision;
-        if (BotConfig.walkerFloatingBankFollow && bankFollowRam) wk.bankFollowRamTicks++;
-        else wk.bankFollowRamTicks = 0;
+        if (BotConfig.walkerFloatingBankFollow && bankFollowRam) wk.ramFold.bankFollowRamTicks++;
+        else wk.ramFold.bankFollowRamTicks = 0;
         boolean stepUpFreeze = wp.getY() > foot.getY() && !parkourEdge
                 && (!p.isInWater() || shallowBankStep
-                    || (BotConfig.walkerFloatingBankBobFreeze && wk.floatingBankBobTicks > 2 * STEPUP_FREEZE_TICKS))
-                && (wk.noStepProgressTicks > STEPUP_FREEZE_TICKS || wk.stepRamStuckTicks > STEPUP_FREEZE_TICKS
-                    || wk.ascentRamBobTicks > STEPUP_FREEZE_TICKS
-                    || wk.floatingBankBobTicks > 2 * STEPUP_FREEZE_TICKS)
+                    || (BotConfig.walkerFloatingBankBobFreeze && wk.ramFold.floatingBankBobTicks > 2 * STEPUP_FREEZE_TICKS))
+                && (wk.stepProg.noStepProgressTicks > STEPUP_FREEZE_TICKS || wk.ramFold.stepRamStuckTicks > STEPUP_FREEZE_TICKS
+                    || wk.ramFold.ascentRamBobTicks > STEPUP_FREEZE_TICKS
+                    || wk.ramFold.floatingBankBobTicks > 2 * STEPUP_FREEZE_TICKS)
                 && (stepColDx * stepColDx + stepColDz * stepColDz) < 1.6;
         boolean pivotForStepUp = wp.getY() > foot.getY() && !parkourEdge && !p.isInWater()
                 && stepHeadingErr > STEPUP_AIM_TOLERANCE_DEG && !stepUpFreeze;

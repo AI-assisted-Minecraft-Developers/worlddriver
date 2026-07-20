@@ -62,17 +62,17 @@ final class WalkerTickPrelude {
         // reads through their escalated values so A* commits a climb-OVER route instead of
         // re-committing a cheap shallow/cave segment. Off (back to configured defaults)
         // once the timer lapses, so easy-terrain searches are never slowed.
-        wk.pfTickCounter++;
+        wk.escal.tick++;
         boolean wasEscalating = BotConfig.pathfinderBoxedEscalate;
-        boolean escalating = wk.pfTickCounter < wk.boxedEscalateUntilTick;
+        boolean escalating = wk.escal.armed();
         BotConfig.pathfinderBoxedEscalate = escalating;
         if (escalating && !wasEscalating && BotConfig.walkerDebug)
             LOG.info("[walker] steep-barrier escalation ARMED (boxed churn) → horizon=0 depthPenalty>=25 softCommit>=35000 for {} ticks",
-                    wk.boxedEscalateUntilTick - wk.pfTickCounter);
+                    wk.escal.untilTick - wk.escal.tick);
 
         // Expectation alarms read LAST tick's pressed state vs THIS tick's world response —
         // run before the per-tick input baseline below clears anything.
-        if (BotConfig.walkerExpectAlarm) wk.exAlarms.tick(a, world, p, wk.path, wk.step, wk.noStepProgressTicks);
+        if (BotConfig.walkerExpectAlarm) wk.exAlarms.tick(a, world, p, wk.path, wk.step, wk.stepProg.noStepProgressTicks);
 
         // Per-tick baseline for the jump/sneak channel: default to "not jumping / not
         // sneaking" so any path that returns without setting them can't leak a stale
@@ -202,17 +202,17 @@ final class WalkerTickPrelude {
         // (drive, recovery, repath), then digAimReassert at the end of walkTick re-holds
         // ONLY crosshair+attack — a human holding W+LMB against the wall being dug.
         // Here we just expire the latch; the re-assert happens after the tick body.
-        if (BotConfig.walkerDigAimPriority && wk.stickyDigPos != null
-                && (!world.isSolid(wk.stickyDigPos)
-                    || ++wk.stickyDigTicks > Math.min(BotConfig.breakTimeoutTicks, 300)
-                    || wk.stickyDigPos.distToCenterSqr(p.position()) > 20)) {
+        if (BotConfig.walkerDigAimPriority && wk.stickyDig.pos != null
+                && (!world.isSolid(wk.stickyDig.pos)
+                    || ++wk.stickyDig.ticks > Math.min(BotConfig.breakTimeoutTicks, 300)
+                    || wk.stickyDig.pos.distToCenterSqr(p.position()) > 20)) {
             if (BotConfig.walkerDebug)
                 LOG.info("[walker] dig-aim RELEASE {} solid={} ticks={}",
-                        wk.stickyDigPos, world.isSolid(wk.stickyDigPos), wk.stickyDigTicks);
-            wk.stickyDigPos = null;
-            wk.stickyDigTicks = 0;
+                        wk.stickyDig.pos, world.isSolid(wk.stickyDig.pos), wk.stickyDig.ticks);
+            wk.stickyDig.pos = null;
+            wk.stickyDig.ticks = 0;
         }
-        if (BotConfig.walkerStickyDig && !BotConfig.walkerDigAimPriority && wk.stickyDigPos != null) {
+        if (BotConfig.walkerStickyDig && !BotConfig.walkerDigAimPriority && wk.stickyDig.pos != null) {
             // Tightened after C31-J1 (-325,64,-47): the 25 (5-block) drift radius held the
             // latch on a cell 5 below the bot — OUTSIDE mining reach (~4.5) — so the latch
             // owned every tick swinging at an unreachable block until the full break
@@ -222,24 +222,24 @@ final class WalkerTickPrelude {
             // underwater dirt with a tool) completes well inside that.
             // gap#66: this legacy EXCLUSIVE latch must not run alongside its successor
             // walkerDigAimPriority — with both on, the two release checks each ran
-            // ++stickyDigTicks on the same counter, so the 150t watchdog fired at ~75
+            // ++stickyDig.ticks on the same counter, so the 150t watchdog fired at ~75
             // REAL ticks. A bare-hand stone dig needs 150 CONSECUTIVE held ticks
             // (vanilla zeroes progress on any released tick), so every wall-dig
             // fallback swing was dropped mid-dig ("DIG-dropped after 76t") and the
             // stuck recovery piling up behind the starved actuator shoved the bot off
             // its own stairs. digAimPriority alone re-holds crosshair+attack at the
             // end of every travel tick — the dig survives without owning the tick.
-            if (!world.isSolid(wk.stickyDigPos)
-                    || ++wk.stickyDigTicks > Math.min(BotConfig.breakTimeoutTicks, 150)
-                    || wk.stickyDigPos.distToCenterSqr(p.position()) > 20) {
+            if (!world.isSolid(wk.stickyDig.pos)
+                    || ++wk.stickyDig.ticks > Math.min(BotConfig.breakTimeoutTicks, 150)
+                    || wk.stickyDig.pos.distToCenterSqr(p.position()) > 20) {
                 if (BotConfig.walkerDebug)
                     LOG.info("[walker] sticky-dig RELEASE {} solid={} ticks={}",
-                            wk.stickyDigPos, world.isSolid(wk.stickyDigPos), wk.stickyDigTicks);
-                wk.stickyDigPos = null;
-                wk.stickyDigTicks = 0;
+                            wk.stickyDig.pos, world.isSolid(wk.stickyDig.pos), wk.stickyDig.ticks);
+                wk.stickyDig.pos = null;
+                wk.stickyDig.ticks = 0;
             } else {
-                a.selectTool(wk.stickyDigPos);
-                a.aimAtBlock(wk.stickyDigPos);
+                a.selectTool(wk.stickyDig.pos);
+                a.aimAtBlock(wk.stickyDig.pos);
                 a.breakHold(true);
                 return Walker.Step.WALKING;
             }

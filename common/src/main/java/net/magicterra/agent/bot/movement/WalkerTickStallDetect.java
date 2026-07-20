@@ -124,7 +124,7 @@ final class WalkerTickStallDetect {
                 || wk.waterClimbDigging;
         wk.waterClimbDigging = false;   // re-armed below only if the block-less dig actuator runs this tick
         int wedgeLimit = breakingEdge ? WEDGE_TICKS + BotConfig.breakTimeoutTicks : WEDGE_TICKS;
-        boolean wedged = wk.noStepProgressTicks > wedgeLimit;
+        boolean wedged = wk.stepProg.noStepProgressTicks > wedgeLimit;
         // Fell off the committed climb path VERTICALLY (the current node is more than a jump
         // above/below the feet — a fumbled pillar/parkour dropped the bot below the route, or
         // it slid down). A CONTINUATION search (launched from commitEnd, not the foot) can
@@ -152,7 +152,7 @@ final class WalkerTickStallDetect {
                 && wedgeEdge != null && !"pillarUp".equals(wedgeEdge.move)
                 && (wedgeEdge.move == null || !wedgeEdge.move.startsWith("parkour"))
                 && wk.path.get(wk.step).getY() - foot.getY() >= 2
-                && wk.noStepProgressTicks > ASCENT_SLIDE_RECOVER_TICKS;
+                && wk.stepProg.noStepProgressTicks > ASCENT_SLIDE_RECOVER_TICKS;
         // JITTER-IMMUNE +2/+3 ascent-ram recovery (the steep-climb-failure deep fix): ascentRamSlide above
         // hangs on noStepProgressTicks, which a slide-back's re-approach / vertical bob zeroes on every 3D
         // new-low — so on a WIDE steep ram the gate never fills and the bot bob-rams 150+ ticks before the
@@ -174,14 +174,14 @@ final class WalkerTickStallDetect {
                 && wedgeEdge != null && wedgeEdge.move != null
                 && (wedgeEdge.move.equals("stepUp") || wedgeEdge.move.equals("diagUp"))
                 && wk.path.get(wk.step).getY() - foot.getY() >= 2
-                && wk.rawStepDwellTicks > RAM_JITTER_RECOVER_TICKS
-                && (wk.ramRecoverLastFireDwell < 0 || wk.rawStepDwellTicks - wk.ramRecoverLastFireDwell >= RAM_RECOVER_DEBOUNCE);
+                && wk.stepProg.rawStepDwellTicks > RAM_JITTER_RECOVER_TICKS
+                && (wk.stepProg.ramRecoverLastFireDwell < 0 || wk.stepProg.rawStepDwellTicks - wk.stepProg.ramRecoverLastFireDwell >= RAM_RECOVER_DEBOUNCE);
         if (ascentRamSlideJitterImmune) {
-            wk.ramRecoverLastFireDwell = wk.rawStepDwellTicks;   // next fold ≥RAM_RECOVER_DEBOUNCE later; the line-1640 step/path reset clears it
+            wk.stepProg.ramRecoverLastFireDwell = wk.stepProg.rawStepDwellTicks;   // next fold ≥RAM_RECOVER_DEBOUNCE later; the line-1640 step/path reset clears it
             if (BotConfig.walkerDebug)
                 LOG.info("[walker] ascent-ram-jitter RECOVER step={}/{} node={} move={} nodeDy={} dwell={} noStep={}",
                         wk.step, wk.path.size(), wk.path.get(wk.step), wedgeEdge.move,
-                        wk.path.get(wk.step).getY() - foot.getY(), wk.rawStepDwellTicks, wk.noStepProgressTicks);
+                        wk.path.get(wk.step).getY() - foot.getY(), wk.stepProg.rawStepDwellTicks, wk.stepProg.noStepProgressTicks);
         }
         // +1 DESCENT-RAM blind spot (mirror of ascentRamSlide above): the bot drifted 1 block ABOVE
         // the planned y-level onto a dead-end platform whose only forward exit is a step-down the
@@ -201,7 +201,7 @@ final class WalkerTickStallDetect {
                 && (wedgeEdge.move == null || !wedgeEdge.move.startsWith("parkour"))
                 && foot.getY() - wk.path.get(wk.step).getY() == 1
                 && p.horizontalCollision
-                && wk.noStepProgressTicks > STEPUP_FREEZE_TICKS;
+                && wk.stepProg.noStepProgressTicks > STEPUP_FREEZE_TICKS;
         // VERTICAL step-pointer re-sync dead-zone (the descent-OVERSHOOT blind spot; mirror also
         // covers an ascent SLIDE-BACK). The bot is GROUNDED but its step-pointer node sits ≥2
         // blocks off VERTICALLY (|foot.y − node.y| ≥ 2, either sign) while the foot is in the
@@ -230,7 +230,7 @@ final class WalkerTickStallDetect {
                 && wedgeEdge != null && !"pillarUp".equals(wedgeEdge.move)
                 && (wedgeEdge.move == null || !wedgeEdge.move.startsWith("parkour"))
                 && Math.abs(foot.getY() - wk.path.get(wk.step).getY()) >= 2
-                && wk.noStepProgressTicks > STEPUP_FREEZE_TICKS
+                && wk.stepProg.noStepProgressTicks > STEPUP_FREEZE_TICKS
                 && deadZoneCur2(wk.path.get(wk.step), p);   // horizontal cur2 ∈ (REACH_DIST_SQ, OVERSHOOT_RESYNC_SQ)
         // Phase-3 bob/jitter-immune ram wedge: the arc-length s has not advanced for ARC_WEDGE_TICKS while
         // horizontalCollision (the count lives in arcShadowTick). This is the STRUCTURAL replacement for the
@@ -258,10 +258,10 @@ final class WalkerTickStallDetect {
                 && wk.path != null && wk.step < wk.path.size() && p.onGround() && !p.isInWater()
                 && (foot.getY() - wk.path.get(wk.step).getY()) >= 2
                 && (foot.getY() - wk.path.get(wk.step).getY()) <= world.maxJumpUpBlocks() + 2
-                && wk.noStepProgressTicks > 90;
+                && wk.stepProg.noStepProgressTicks > 90;
         if (aboveNodeStall && BotConfig.walkerDebug)
             LOG.info("[walker] above-node-stall RECOVER step={}/{} node={} dyAbove={} noStepProg={}",
-                    wk.step, wk.path.size(), wk.path.get(wk.step), foot.getY() - wk.path.get(wk.step).getY(), wk.noStepProgressTicks);
+                    wk.step, wk.path.size(), wk.path.get(wk.step), foot.getY() - wk.path.get(wk.step).getY(), wk.stepProg.noStepProgressTicks);
         boolean fellOffPath = wk.forceFellOffPath || arcWedge || arcProgWedge || ascentRamSlide || ascentRamSlideJitterImmune || descentRamStuck || verticalResync || aboveNodeStall || (wk.path != null && wk.step < wk.path.size()
                 && Math.abs(wk.path.get(wk.step).getY() - foot.getY()) > world.maxJumpUpBlocks() + 2);
         wk.forceFellOffPath = false;   // task#82: consume — one fold per UNREACHABLE/FAILED from the delegated tick
@@ -289,7 +289,7 @@ final class WalkerTickStallDetect {
         boolean fellBelowRoute = fellOffPath
                 && wk.path.get(wk.step).getY() > foot.getY()
                 && wk.path.get(wk.step).getY() - foot.getY() <= PILLAR_RECOVER_MAX_DY
-                && wk.pillarRecoverStallTicks <= PILLAR_NORISE_GIVEUP   // a no-rise pillar-trap (canopy/overhang) gives up → foot-search re-routes
+                && wk.pillarRecover.stallTicks <= PILLAR_NORISE_GIVEUP   // a no-rise pillar-trap (canopy/overhang) gives up → foot-search re-routes
                 && BotConfig.allowPlace && a.holdPillarBlock();
         // DEEP-PIT ESCAPE (last resort, see DEEP_PIT_ESCAPE_TICKS): a sheer pit DEEPER than the
         // recover cap leaves fellBelowRoute false (gap > cap) so only the foot-search runs, and in
@@ -302,16 +302,16 @@ final class WalkerTickStallDetect {
         boolean deepPitEscape = fellOffPath && p.onGround()
                 && wk.path.get(wk.step).getY() > foot.getY()
                 && wk.path.get(wk.step).getY() - foot.getY() > PILLAR_RECOVER_MAX_DY
-                && wk.noStepProgressTicks > DEEP_PIT_ESCAPE_TICKS
+                && wk.stepProg.noStepProgressTicks > DEEP_PIT_ESCAPE_TICKS
                 && BotConfig.allowPlace && a.holdPillarBlock();
         if ((fellBelowRoute || deepPitEscape) && p.onGround()) {
-            if (wk.pillarRecoverLatch <= 0) { wk.pillarRecoverPeakY = foot.getY(); wk.pillarRecoverStallTicks = 0; }   // new recovery → fresh peak
-            else if (foot.getY() > wk.pillarRecoverPeakY) { wk.pillarRecoverPeakY = foot.getY(); wk.pillarRecoverStallTicks = 0; } // rose a rung → reset stall
-            else wk.pillarRecoverStallTicks++;                          // bobbing under a ceiling, no height gain
-            wk.pillarRecoverLatch = PILLAR_RECOVER_TICKS;
-            wk.pillarRecoverCell = foot;
+            if (wk.pillarRecover.latch <= 0) { wk.pillarRecover.peakY = foot.getY(); wk.pillarRecover.stallTicks = 0; }   // new recovery → fresh peak
+            else if (foot.getY() > wk.pillarRecover.peakY) { wk.pillarRecover.peakY = foot.getY(); wk.pillarRecover.stallTicks = 0; } // rose a rung → reset stall
+            else wk.pillarRecover.stallTicks++;                          // bobbing under a ceiling, no height gain
+            wk.pillarRecover.latch = PILLAR_RECOVER_TICKS;
+            wk.pillarRecover.cell = foot;
         } else if (!fellOffPath) {
-            wk.pillarRecoverStallTicks = 0;                             // back on the route → clear the give-up for the next genuine recovery
+            wk.pillarRecover.stallTicks = 0;                             // back on the route → clear the give-up for the next genuine recovery
         }
         // fellOffPath (when NOT recoverable) forces a fresh foot-search: with only
         // the continuation cancelled, the stale path's far carrot kept driving the
@@ -340,17 +340,17 @@ final class WalkerTickStallDetect {
         // healthy crossing nets ≫8 blocks / 20 s, so legit swims never trip it.
         // Wall-corner ram signature: count consecutive sustained-hCol ticks (§39). A clean walk brushes
         // a wall for a tick or two; only a genuine wall-corner stall pins hCol true for seconds.
-        if (p.horizontalCollision) wk.hColRamTicks++; else wk.hColRamTicks = 0;
+        if (p.horizontalCollision) wk.churn.hColRamTicks++; else wk.churn.hColRamTicks = 0;
         int effChurnWindow = BotConfig.walkerFasterChurnRepath ? 240 : CHURN_WINDOW;
         // A sustained ram shortens the net-displacement window so the existing blacklist+escalate
         // (below) fires in ~8s instead of 20s — but ONLY while genuinely wall-pinned, so legitimate
         // slow-but-moving terrain keeps the full window (no false-fire). Default OFF.
-        if (BotConfig.walkerWallCornerFastChurn && wk.hColRamTicks >= HCOL_RAM_TICKS)
+        if (BotConfig.walkerWallCornerFastChurn && wk.churn.hColRamTicks >= HCOL_RAM_TICKS)
             effChurnWindow = Math.min(effChurnWindow, WALL_CHURN_WINDOW);
-        if (wk.churnBase == null) { wk.churnBase = foot; wk.churnWindowTicks = 0; }
-        else if (++wk.churnWindowTicks >= effChurnWindow) {
-            int cdx = foot.getX() - wk.churnBase.getX(), cdz = foot.getZ() - wk.churnBase.getZ();
-            int cdy = foot.getY() - wk.churnBase.getY();
+        if (wk.churn.base == null) { wk.churn.base = foot; wk.churn.windowTicks = 0; }
+        else if (++wk.churn.windowTicks >= effChurnWindow) {
+            int cdx = foot.getX() - wk.churn.base.getX(), cdz = foot.getZ() - wk.churn.base.getZ();
+            int cdy = foot.getY() - wk.churn.base.getY();
             // Fire on a best-effort churn (existing cases — all net ≈0 Y, unchanged) OR on a
             // GOAL-REACHING limit-cycle that gained no altitude (steep-mountain base / cave),
             // never on a genuine upward climb (cdy > CHURN_MIN_Y is real vertical progress).
@@ -364,7 +364,7 @@ final class WalkerTickStallDetect {
             // stuck dig).
             if ((cdx * cdx + cdz * cdz) < CHURN_MIN_MOVE_SQ && (wk.pathBestEffort || cdy <= CHURN_MIN_Y)
                     && !breakingEdge) {
-                wk.churnEscapes++;
+                wk.churn.escapes++;
                 // Arm the sticky steep-barrier planner escalation (see top of tick()): the
                 // planner suppresses its receding horizon and grinds deeper so it can find a
                 // climb-OVER route instead of re-committing the cheap shallow/cave segment
@@ -379,7 +379,7 @@ final class WalkerTickStallDetect {
                 // dig is now gated to the water surface (SwimTraverseBreak), so the dive
                 // route is gone. LIVE end-to-end: a ~9-deep bay before a y64-74 bank was
                 // crossed AT THE SURFACE (no dive) → climbed the far bank → ARRIVED.
-                wk.boxedEscalateUntilTick = wk.pfTickCounter + BOXED_ESCALATE_STICKY_TICKS;
+                wk.escal.arm(BOXED_ESCALATE_STICKY_TICKS);
                 // Widen the priced-out zone each repeat. In WATER a boxed pocket is far
                 // costlier to sit in — a buoyant bot can't even hold position, it bob-
                 // churns and burns minutes (live z1864: the slow r=2→3→4 land ramp took
@@ -388,8 +388,8 @@ final class WalkerTickStallDetect {
                 // safe to jump straight to a wide blacklist there: grow by 2 per window
                 // (cap 5) so one or two 20 s windows price the pocket out.
                 int r = p.isInWater()
-                        ? Math.min(2 + 2 * wk.churnEscapes, 5)
-                        : Math.min(1 + wk.churnEscapes, 4);     // widen the priced-out zone each repeat
+                        ? Math.min(2 + 2 * wk.churn.escapes, 5)
+                        : Math.min(1 + wk.churn.escapes, 4);     // widen the priced-out zone each repeat
                 for (int dx = -r; dx <= r; dx++)
                     for (int dz = -r; dz <= r; dz++) {
                         BlockPos c = foot.offset(dx, 0, dz);
@@ -406,12 +406,12 @@ final class WalkerTickStallDetect {
                 if (BotConfig.walkerDebug)
                     LOG.info("[walker] anti-churn({}): net XZ move <{} blocks in {} ticks at {} (escapes={}) → charge r={} pocket + back off",
                             p.isInWater() ? "water" : "land",
-                            (int) Math.sqrt(CHURN_MIN_MOVE_SQ), CHURN_WINDOW, foot, wk.churnEscapes, r);
+                            (int) Math.sqrt(CHURN_MIN_MOVE_SQ), CHURN_WINDOW, foot, wk.churn.escapes, r);
             } else {
-                wk.churnEscapes = 0;
+                wk.churn.escapes = 0;
             }
-            wk.churnBase = foot;
-            wk.churnWindowTicks = 0;
+            wk.churn.base = foot;
+            wk.churn.windowTicks = 0;
         }
         // OPEN-WATER bee-line preempt: a wide deep-water crossing wedges MID-segment.
         // The bot sprint-swims PAST its short committed segment faster than the

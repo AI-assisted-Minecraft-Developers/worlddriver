@@ -91,7 +91,7 @@ final class WalkerTickClimb {
                     String.format(Locale.ROOT, "%.0f", bearing),
                     String.format(Locale.ROOT, "%.0f", yawErr),
                     p.horizontalCollision,
-                    String.format(Locale.ROOT, "%.0f", wk.lastAimYaw),
+                    String.format(Locale.ROOT, "%.0f", wk.aimSmooth.lastAimYaw),
                     String.format(Locale.ROOT, "%.3f", cur2), REACH_DIST_SQ,
                     String.format(Locale.ROOT, "%.2f", Math.abs(dY)), within,
                     p.onGround(), p.isInWater(), p.isUnderWater(),
@@ -756,7 +756,7 @@ final class WalkerTickClimb {
                     a.selectTool(b);
                     a.aimAtBlock(b);
                     a.breakHold(true);
-                    if (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority) { wk.stickyDigPos = b; wk.stickyDigTicks = 0; }
+                    if (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority) { wk.stickyDig.pos = b; wk.stickyDig.ticks = 0; }
                     return Walker.Step.WALKING;
                 }
             }
@@ -901,8 +901,8 @@ final class WalkerTickClimb {
         // before walking into the cell. Functional aim SNAPS (same-tick),
         // independent of smoothLook. Returns each tick until the edge is
         // clear, then falls through to the normal walk below.
-        if (edge != null && wk.pillarRecoverLatch <= 0 && hasPendingEdge(world, edge)) {
-            // pillarRecoverLatch gate: while a fall-below-route recovery is active,
+        if (edge != null && wk.pillarRecover.latch <= 0 && hasPendingEdge(world, edge)) {
+            // pillarRecover.latch gate: while a fall-below-route recovery is active,
             // this actuator would otherwise grab the edge's HIGH toBreak cell
             // (unreachable from down here) and hold a futile dig until its own
             // timeout — starving the recovery block below that actually climbs.
@@ -950,7 +950,7 @@ final class WalkerTickClimb {
                     a.selectTool(b);
                     a.aimAtBlock(b);
                     a.breakHold(true);
-                    if (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority) { wk.stickyDigPos = b; wk.stickyDigTicks = 0; }
+                    if (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority) { wk.stickyDig.pos = b; wk.stickyDig.ticks = 0; }
                     boolean climbBreak = floatingPocket && b.getY() >= foot.getY();
                     if ((swimEscapeBreak && p.isInWater() && !p.isUnderWater()) || climbBreak) {
                         Walker.agentForward(a, true);     // press into the aimed bank (surface only)

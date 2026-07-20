@@ -156,13 +156,13 @@ final class WalkerTickDrive {
         // the freeze-breaker's first attempt; dy==1 keeps it disjoint from the ≥2 ascentRamSlide.
         boolean slowDiagUpPillar = "diagUp".equals(edge != null ? edge.move : null)
                 && diagUp && upDy == 1 && p.onGround() && !p.isInWater()
-                && wk.noStepProgressTicks > DIAGUP_PILLAR_TICKS;
+                && wk.stepProg.noStepProgressTicks > DIAGUP_PILLAR_TICKS;
         if ((overJump || slowDiagUpPillar) && BotConfig.allowPlace && a.holdPillarBlock()) {
-            wk.pillarRecoverLatch = PILLAR_RECOVER_TICKS;
-            wk.pillarRecoverCell = foot;                 // grounded feet cell = the rung we fill
+            wk.pillarRecover.latch = PILLAR_RECOVER_TICKS;
+            wk.pillarRecover.cell = foot;                 // grounded feet cell = the rung we fill
         }
-        if (wk.pillarRecoverLatch > 0 && wk.pillarRecoverCell != null) {
-            wk.pillarRecoverLatch--;
+        if (wk.pillarRecover.latch > 0 && wk.pillarRecover.cell != null) {
+            wk.pillarRecover.latch--;
             Walker.agentForward(a, false);
             p.setSprinting(false);
             Walker.agentSneak(a, false);
@@ -172,11 +172,11 @@ final class WalkerTickDrive {
             // height, can't place, and wedges ("树下 pillar-up 撞树叶卡死", bug#1). The planned
             // pillarUp actuator clears its toBreak the same way; this recovery path had none.
             // Only with allowBreak, and only the single head cell, so it digs no more than the
-            // one block needed to rise this rung (re-checked each rung as pillarRecoverCell rises).
+            // one block needed to rise this rung (re-checked each rung as pillarRecover.cell rises).
             // DELIBERATELY on the global allowBreak switch, NOT mayBreak(): this is the
             // anti-suffocation safety dig, and it is EXEMPT from per-goto forbidDig — suffocation is
             // death, forbidDig is only a navigation preference, so safety wins over the constraint.
-            BlockPos recCeiling = wk.pillarRecoverCell.offset(0, 2, 0);
+            BlockPos recCeiling = wk.pillarRecover.cell.offset(0, 2, 0);
             if (BotConfig.allowBreak && world.isSolid(recCeiling)) {
                 Walker.agentJump(a, false);
                 a.selectTool(recCeiling);
@@ -192,9 +192,9 @@ final class WalkerTickDrive {
                 Walker.agentJump(a, false);
                 // Place into the feet cell once risen clear of it (vanilla rejects the place
                 // while the player AABB still overlaps the target cell — gate on real height).
-                if (p.getY() >= wk.pillarRecoverCell.getY() + 1.0) {
-                    a.placeOn(wk.pillarRecoverCell.offset(0, -1, 0), Direction.UP);
-                    wk.exAlarms.notePlace(wk.pillarRecoverCell);
+                if (p.getY() >= wk.pillarRecover.cell.getY() + 1.0) {
+                    a.placeOn(wk.pillarRecover.cell.offset(0, -1, 0), Direction.UP);
+                    wk.exAlarms.notePlace(wk.pillarRecover.cell);
                 }
             }
             return Walker.Step.WALKING;
@@ -325,7 +325,7 @@ final class WalkerTickDrive {
         // drags the bot down a non-existent "bank exit" (FBA+apw 1530 → +FloatingBankFollow 2198). When apw is the
         // active stall owner (its arcProgStall has fired), defer to it — apw's repath resolves the cycle, and a GENUINE
         // water bank with apw OFF is unaffected (the && walkerArcProgressWedge guard).
-        boolean bankFollow = BotConfig.walkerFloatingBankFollow && wk.bankFollowRamTicks > 2 * STEPUP_FREEZE_TICKS
+        boolean bankFollow = BotConfig.walkerFloatingBankFollow && wk.ramFold.bankFollowRamTicks > 2 * STEPUP_FREEZE_TICKS
                 && !(BotConfig.walkerArcProgressWedge && wk.arcProgStall);
         if (!descendBrake && !parkourEdge && !steppingOffFall && (wp.getY() == foot.getY() || waterClimb || cardinalUp || diagUp || bankFollow)) {
             int ddx = wp.getX() - foot.getX();
@@ -357,9 +357,9 @@ final class WalkerTickDrive {
                     int dir = Integer.signum(bestK);
                     latX = pdx * dir; latZ = pdz * dir;    // steer along the bank toward the mountable lip
                 }
-                if (BotConfig.walkerDebug && wk.bankFollowRamTicks % 20 == 0)
+                if (BotConfig.walkerDebug && wk.ramFold.bankFollowRamTicks % 20 == 0)
                     LOG.info("[walker] bank-follow scan foot={} normal=({},{}) bestK={} ramT={} → {}",
-                            foot, ndx, ndz, bestK, wk.bankFollowRamTicks,
+                            foot, ndx, ndz, bestK, wk.ramFold.bankFollowRamTicks,
                             bestK != 0 ? "STEER to lip" : "NO LIP in range (dig/repath)");
             }
             else if (waterClimb) { latX = (wp.getX() + 0.5) - p.getX(); latZ = (wp.getZ() + 0.5) - p.getZ(); } // centre on the target column
@@ -424,7 +424,7 @@ final class WalkerTickDrive {
         // every flicker tick was one tick of full impulse at a bearing that swings ±90° when the
         // node is nearly underfoot. The latch alone decides; driveF=0 makes the bearing moot.
         boolean descentAirborneDriftClamp = BotConfig.walkerDescentStepSkipBrake
-                && !p.onGround() && wk.steepDescentLatch > 0 && !parkourEdge;
+                && !p.onGround() && wk.driveLatch.steepDescentLatch > 0 && !parkourEdge;
         double driveF = (!descendBrake && !pivotForStepUp && !descentAirborneDriftClamp) ? 1.0 : 0.0;
         double driveL = strafeL ? 1.0 : (strafeR ? -1.0 : 0.0);
         // Drive heading: normally aimYaw (decoupled from the slewing camera). EXCEPTION —
@@ -450,7 +450,7 @@ final class WalkerTickDrive {
         // is a separate node-following heading that the tangent supersedes. The flip-rejection block below is
         // skipped when this is on (the tangent already never reverses, so there is no back-hop to reject).
         float driveTargetYaw = BotConfig.walkerTangentAim ? aimYaw
-                : flatWaterTrend ? wk.smoothWaterDriveYaw
+                : flatWaterTrend ? wk.aimSmooth.smoothWaterDriveYaw
                 : trendCam ? descentNodeYaw : aimYaw;
         // Dry diagDown SLOPE back-hop damping (the visible "雪山横跳" jitter). On a continuous
         // diagonal descent the decoupled drive rides the IMMEDIATE node (descentNodeYaw); each time
@@ -486,21 +486,21 @@ final class WalkerTickDrive {
             // bounded escape (it rides the immediate node for trend smoothing and could strand). */
             boolean discreteDrop = BotConfig.walkerDescentFlipHold
                     && (edge.move.startsWith("fall") || edge.move.startsWith("stepDown"));
-            if (discreteDrop || ++wk.descentDriveRejectStreak <= WATER_DRIVE_MAX_REJECT) {
+            if (discreteDrop || ++wk.driveLatch.descentDriveRejectStreak <= WATER_DRIVE_MAX_REJECT) {
                 driveTargetYaw = aimYaw;
             } else {
-                wk.descentDriveRejectStreak = 0;   // escape: drive the real node this tick to re-sync
+                wk.driveLatch.descentDriveRejectStreak = 0;   // escape: drive the real node this tick to re-sync
             }
         } else {
-            wk.descentDriveRejectStreak = 0;
+            wk.driveLatch.descentDriveRejectStreak = 0;
         }
         boolean rawClimbPress = p.isInWater() && !p.onGround() && !parkourEdge
                 && wp.getY() > foot.getY()
                 && (stepColDx * stepColDx + stepColDz * stepColDz) < 2.5;
         // Debounce the surface bob (see CLIMB_PRESS_DEBOUNCE): only a PERSISTENT wp-above-foot is a
         // real bank mount; a 1-tick down-bob under a same-level surface node is not.
-        wk.climbPressConsec = rawClimbPress ? wk.climbPressConsec + 1 : 0;
-        boolean buoyantClimbPress = rawClimbPress && wk.climbPressConsec >= CLIMB_PRESS_DEBOUNCE;
+        wk.driveLatch.climbPressConsec = rawClimbPress ? wk.driveLatch.climbPressConsec + 1 : 0;
+        boolean buoyantClimbPress = rawClimbPress && wk.driveLatch.climbPressConsec >= CLIMB_PRESS_DEBOUNCE;
         if (buoyantClimbPress) {
             driveF = 1.0;
             driveL = 0.0;
@@ -624,17 +624,17 @@ final class WalkerTickDrive {
         boolean steepDescentRaw = p.onGround()
                 && ((plannedDescent && dropAdjacentExceeds(world, foot, 4))   // local >4 cliff neighbour
                     || steepDescentPathAhead);                                // NEW: cumulative slope ahead
-        if (steepDescentRaw) wk.steepDescentLatch = STEEP_DESCENT_DRIFT_LATCH;
+        if (steepDescentRaw) wk.driveLatch.steepDescentLatch = STEEP_DESCENT_DRIFT_LATCH;
         // Release ONLY when GROUNDED at/above the node. The old instantaneous wp-vs-foot check
         // flickered true MID-ARC (gap #51 trace t=43: foot 233.7 falls past wp 234 for one tick)
         // and zeroed the latch in the air — re-enabling full drive at a swinging bearing and
         // re-arming sprint mid-fall, which is exactly the sideways kick that walked the body off
         // the 1-wide stair (landed x=301 on a corner, slid off, fell to -60). A latch armed for
         // an airborne descent arc must survive the whole arc; landing is the only sane release.
-        else if (wk.steepDescentLatch > 0
-                && (!BotConfig.walkerSteepDescentLatch || (p.onGround() && wp.getY() >= foot.getY()))) wk.steepDescentLatch = 0;
-        else if (wk.steepDescentLatch > 0) wk.steepDescentLatch--;
-        boolean steepDescentNear = steepDescentRaw || wk.steepDescentLatch > 0;
+        else if (wk.driveLatch.steepDescentLatch > 0
+                && (!BotConfig.walkerSteepDescentLatch || (p.onGround() && wp.getY() >= foot.getY()))) wk.driveLatch.steepDescentLatch = 0;
+        else if (wk.driveLatch.steepDescentLatch > 0) wk.driveLatch.steepDescentLatch--;
+        boolean steepDescentNear = steepDescentRaw || wk.driveLatch.steepDescentLatch > 0;
         if (steepDescentPathAhead && BotConfig.walkerDebug)
             LOG.info("[walker] STEEP-DESCENT path-arm: foot y={} pathDrop={}>{} over {} nodes → latch {} (noSprint{})",
                     foot.getY(), steepDescentPathDrop, BotConfig.pathfinderMaxDryFall,
@@ -682,11 +682,11 @@ final class WalkerTickDrive {
         // once the bot stops re-triggering (moved away from the deep edge / finished the descent).
         // Released the instant the path turns to deliberately ENTER the water (wp is deep water),
         // so a real crossing isn't slowed. Off entirely when the flag is off (byte-identical).
-        if (deepWaterEdgeRaw) wk.deepWaterDriftLatch = DEEP_WATER_DRIFT_LATCH;
-        else if (wk.deepWaterDriftLatch > 0
-                && (!BotConfig.walkerDeepWaterDriftBrake || world.isFloatingWater(wp))) wk.deepWaterDriftLatch = 0;
-        else if (wk.deepWaterDriftLatch > 0) wk.deepWaterDriftLatch--;
-        boolean deepWaterDriftNear = deepWaterEdgeRaw || wk.deepWaterDriftLatch > 0;
+        if (deepWaterEdgeRaw) wk.driveLatch.deepWaterDriftLatch = DEEP_WATER_DRIFT_LATCH;
+        else if (wk.driveLatch.deepWaterDriftLatch > 0
+                && (!BotConfig.walkerDeepWaterDriftBrake || world.isFloatingWater(wp))) wk.driveLatch.deepWaterDriftLatch = 0;
+        else if (wk.driveLatch.deepWaterDriftLatch > 0) wk.driveLatch.deepWaterDriftLatch--;
+        boolean deepWaterDriftNear = deepWaterEdgeRaw || wk.driveLatch.deepWaterDriftLatch > 0;
         // DYNAMIC fall-correction while bridging (user: 动态纠偏防止跌落,而不是一直蹲着牺
         // 牲速度). A 1-wide place-bridge has void on BOTH sides, so the lethal-edge pin
         // (edgeBrake) AND the old blanket bridge-sneak BOTH held shift for the ENTIRE
@@ -807,8 +807,8 @@ final class WalkerTickDrive {
         // A genuine sink keeps the eyes under for many consecutive ticks, so a
         // 3-tick (150 ms) gate costs real buoyancy nothing; swimColumn (water at
         // head height) still rises a true column un-debounced.
-        wk.underwaterTicks = (p.isInWater() && p.isUnderWater()) ? wk.underwaterTicks + 1 : 0;
-        boolean swimUp = wk.underwaterTicks >= 3 && !diving;
+        wk.driveLatch.underwaterTicks = (p.isInWater() && p.isUnderWater()) ? wk.driveLatch.underwaterTicks + 1 : 0;
+        boolean swimUp = wk.driveLatch.underwaterTicks >= 3 && !diving;
         // The stuck-wiggle hop unsticks a corner on DRY land, but in shallow water
         // on a flat walk it just bobs the bot off the floor into the buoyant drift
         // (it floats off its cell and slides — the very stall it's meant to break).
@@ -884,13 +884,13 @@ final class WalkerTickDrive {
         // fires, no bunny-hop), and any non-walk edge are all byte-identical INERT.
         boolean levelRiserRam = edge != null && "walk".equals(edge.move) && upDy == 1
                 && p.onGround() && !p.isInWater() && !parkourEdge && !bridging && !placingEdge
-                && !descendBrake && p.horizontalCollision && wk.stepRamStuckTicks >= 2
+                && !descendBrake && p.horizontalCollision && wk.ramFold.stepRamStuckTicks >= 2
                 && (stepColDx * stepColDx + stepColDz * stepColDz) < 2.6
                 && forwardRiserMountable(world, foot, stepColDx, stepColDz);
         if (BotConfig.walkerDebug && levelRiserRam) {
             LOG.info("[walker] LEVEL-RISER-RAM wp={},{},{} foot={},{},{} upDy={} stepRam={} stepCol2={} act={}",
                     wp.getX(), wp.getY(), wp.getZ(), foot.getX(), foot.getY(), foot.getZ(), upDy,
-                    wk.stepRamStuckTicks,
+                    wk.ramFold.stepRamStuckTicks,
                     String.format(Locale.ROOT, "%.2f", (stepColDx * stepColDx + stepColDz * stepColDz)),
                     BotConfig.walkerLevelRiserJump);
         }
@@ -984,7 +984,7 @@ final class WalkerTickDrive {
         if (BotConfig.walkerDebug && p.isInWater() && p.isUnderWater() && wk.stuckTicks > 20 && wk.stuckTicks % 20 == 1) {
             LOG.info("[walker] JUMP-DIAG jump={} swimUp={} swimCol={} dwRise={} capped={} diving={} descBrake={} fbMis={} belowRam={} stepUpJump={} wiggle={} uwT={} wp={},{},{} foot={},{},{}",
                     jump, swimUp, swimColumn, deepWaterRise, cappedHead, diving, descendBrake, fellBelowMisaligned,
-                    (p.horizontalCollision && p.onGround() && wp.getY() < foot.getY()), stepUpJump, wiggle, wk.underwaterTicks,
+                    (p.horizontalCollision && p.onGround() && wp.getY() < foot.getY()), stepUpJump, wiggle, wk.driveLatch.underwaterTicks,
                     wp.getX(), wp.getY(), wp.getZ(), foot.getX(), foot.getY(), foot.getZ());
         }
         Walker.agentJump(a, jump);
@@ -1079,7 +1079,7 @@ final class WalkerTickDrive {
             // is instabreak-by-hand only (pad/surface plant, destroySpeed 0) so a real wall is never
             // touched, and !isInWater / pad-free crossings never reach here.
             if (pad == null && BotConfig.walkerPadRamBreak
-                    && wk.noStepProgressTicks > PAD_RAM_STALL_TICKS) {
+                    && wk.stepProg.noStepProgressTicks > PAD_RAM_STALL_TICKS) {
                 pad = nearestBodyPad(world, p);
                 if (pad != null && BotConfig.walkerDebug)
                     LOG.info("[walker] lateral pad-ram break: pad={},{},{} pos={},{},{} wp={},{},{} noStepProg={}",
@@ -1087,7 +1087,7 @@ final class WalkerTickDrive {
                             String.format(Locale.ROOT, "%.2f", p.getX()),
                             String.format(Locale.ROOT, "%.2f", p.getY()),
                             String.format(Locale.ROOT, "%.2f", p.getZ()),
-                            wp.getX(), wp.getY(), wp.getZ(), wk.noStepProgressTicks);
+                            wp.getX(), wp.getY(), wp.getZ(), wk.stepProg.noStepProgressTicks);
             }
             if (pad != null) {
                 a.aimAtBlock(pad);
@@ -1115,7 +1115,7 @@ final class WalkerTickDrive {
         if (BotConfig.walkerWallDigFallback && wk.mayBreak() && !p.isInWater()   // mayBreak(): honor per-goto forbidDig (day6 tunnel), not just the global switch
                 && p.horizontalCollision
                 && (wk.stuckTicks > 40
-                    || (BotConfig.walkerPhysicalStallClock && wk.physicalStallTicks > 60))
+                    || (BotConfig.walkerPhysicalStallClock && wk.physStall.stallTicks > 60))
                 && !a.breakHeld()) {
             double fdx = (wp.getX() + 0.5) - p.getX(), fdz = (wp.getZ() + 0.5) - p.getZ();
             double fl = Math.sqrt(fdx * fdx + fdz * fdz);
@@ -1148,7 +1148,7 @@ final class WalkerTickDrive {
                     a.selectTool(tgt);
                     a.aimAtBlock(tgt);
                     a.breakHold(true);
-                    if (BotConfig.walkerDigAimPriority) { wk.stickyDigPos = tgt; wk.stickyDigTicks = 0; }
+                    if (BotConfig.walkerDigAimPriority) { wk.stickyDig.pos = tgt; wk.stickyDig.ticks = 0; }
                     if (BotConfig.walkerDebug)
                         LOG.info("[walker] wall-dig FALLBACK {},{},{} stuckT={}",
                                 tgt.getX(), tgt.getY(), tgt.getZ(), wk.stuckTicks);
@@ -1160,9 +1160,9 @@ final class WalkerTickDrive {
         // the committed dig cell so the interleaved travel tick can't zero vanilla mining
         // progress (the C36-J1 cave-dig replay slowdown). Movement keys stay whatever the
         // travel logic chose: a human holding W+LMB against the wall being dug.
-        if (BotConfig.walkerDigAimPriority && wk.stickyDigPos != null && world.isSolid(wk.stickyDigPos)) {
-            a.selectTool(wk.stickyDigPos);
-            a.aimAtBlock(wk.stickyDigPos);
+        if (BotConfig.walkerDigAimPriority && wk.stickyDig.pos != null && world.isSolid(wk.stickyDig.pos)) {
+            a.selectTool(wk.stickyDig.pos);
+            a.aimAtBlock(wk.stickyDig.pos);
             a.breakHold(true);
         }
         if (BotConfig.walkerDebug) {
