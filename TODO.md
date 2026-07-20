@@ -2,6 +2,23 @@
 
 > 镜像 Task 跟踪器的长期工作。重要根因写进 memory(reference/project)。
 
+## 2026-07-20 ✅ 死亡#26(live survival resume)修复 — Skeleton 开阔地射死空手 bot;两修：① retreat 'safe' 释放加低HP威胁记忆地板 + ② BunkerChain 远程钉扎升级破 LOS —【t0 fabric+neoforge GREEN,matrix 新断言 PASS,① live 证震荡消】
+
+- **修 ①**(`RetreatChain.java`)：新 `THREAT_MEMORY_TICKS=100`+`lastThreatSeenGameTime`（每 tick 按 sealed-filtered scan level-stamp）；"safe" 释放支加 `!(hp<thr && ticksSinceThreat<100)`——低 HP bot 近 5s 见过威胁≠safe，杀死 release("safe")↔enter("lowHp") 震荡。只动低 HP "safe" 支（recovered 支不变）；sealed 豁免（gap#72）保留（记忆按 filtered scan stamp）。旧 overload 委托 `ticksSinceThreat=MAX`→地板 inert→全部既有 matrix 保结果。
+- **修 ②**(`BunkerChain.java`)：新静态 `shouldRangedBunker(hp,retreatThr,scan,sealed)=!sealed && hp<=retreatThr && underRangedFire(scan)`；priority() 改 `cornered||rangedPinned`。低 HP bot 被远程怪射中即升级 bunker 破 LOS（封顶 occlude 箭），即便 HP 高于 bunkerHpThreshold 且射手在 bunkerTriggerRadius 外。`!sealed` 防 gap#29 重挖棘轮。BUNKER=300>SURVIVAL=100 抢占 retreat；gated on autoBunker（默认 off，生存世界 on）。
+- **验证**：t0 fabric GREEN + t0 neoforge GREEN（`ad.retreatGateMatrix` PASS，新增 death#26 断言 x/y/z/aa/bb（①）+ cc/dd/ee/ff/gg（②）=矩阵门确定性证）。① **live 实证**：受控骷髅战 bot 连续 flee `retreat=True` 41s **零震荡**（旧码此处翻转）。② trigger matrix 证 + 下游 dig+seal 是**今夜已 live 证的同一 wiring**（bot 自主 autoBunker SEALED 过夜）+ 既有 serverBunker 场景。
+- **⭐live combat rig 教训**：平坦竞技场无法确定复现"骷髅远程狙低 HP bot"——骷髅总贴脸 melee（三次 live rig 全失败）。反射门验证靠**确定性 matrix + 组件分解**，别靠 flaky live combat。memory: `project_survival_death26_ranged_safe_release_los`。
+- **⚠️残余边缘（未修）**：② 在桥/窄道/邻 void 会挖穿坠落（bunker tick 无 void 检查）——自然地面安全，gated on autoBunker。
+- **待**：t1 gate（运行中）；提交（feature 分支）。
+
+- **背景**:task#6 合 master(1e3acac,ff `81926cb..1e3acac`)后按 user "合并→恢复生存线" 恢复生存。SurvivalTest 存档(fabric integrated client)载入,bot 在 5 天前搁浅的 y67 石袋。
+- **当前引擎正面收获(全 live 无缺口)**:① `stairUpBreak` 从石袋逃出到地表(**task#82 无镐上升 gap 在当前引擎不再阻塞**——A* 规划 + 执行全对,只是徒手挖石 151t/块慢)② 夜落 autoBunker 正确 SEALED,零伤过夜到黎明 ③ `mine #minecraft:logs` 自主寻树采 10 acacia_log ④ craft 链正常。
+- **死亡#26**:采木后 **被 Skeleton 在开阔地射死**("was shot by Skeleton")。链:HP 13.7→5.7(~8伤)→ `[retreat] enter reason=lowHp thr=10 threats=1-2 combatEngaged=false` → **~35s 钉 HP5.7**:release(reason=**safe** hp=5.7) ↔ enter(lowHp) 每 tick 震荡 + `preempted by=dodge`(躲箭)→ 空手无还手 + 食物6无回血 → 一箭 hp=0。autoRespawn 回出生点满血满食,白天骷髅自燃止损。
+- **根因(代码确认 `RetreatChain.releaseReason` L292-301)**:"safe" 分支 `!hostileWithin && !underRangedFire && !hurtByAnyone && !visibleRanged && !recentHurt` **完全不查 HP**(只 "recovered" 分支查 `hp>=thr+margin`)。开阔地骷髅在 threat-scan **闪进闪出**(走位破 LOS/射程边界/volley 节奏),HP5.7 时每个闪出窗口判 safe 释放 → bot 站原地暴露被重射。autoBunker 阈值 HP≤3(<5.7)从未升级到封 LOS 掩体。
+- **gap 分类**:≠ gap#65(ranged **探测**失明,此处探测正常);≠ gap#73/task#77(panic reachability)。这是 **retreat 对持续远程火力的策略缺口**。两个子病:① "safe" release 缺 HP 地板(闪出 gap≠真安全);② 持续 ranged + 低 HP 应升级 bunker/掩体破 LOS 而非开阔奔逃。
+- **修法风险**:改 retreat 释放门=极易回归 gap#65/#68/#71/#72 那串对称门(见 RetreatChain 那段 javadoc);需 replay/live A/B。**禁**长上下文冻结态无监督塞 if。memory: `project_survival_death26_ranged_safe_release_los`。
+- **live 现状**:空手 bot idle 于出生点 ~(-0.5,79,-22.8),满血满食,白天 0 敌 passive 安全;Stage-1 木料随死亡掉光需重采。
+
 ## 2026-07-20 ✅ task#6 独木桥战役收官:18 场景全族 + wedge 三阶段 aim-clobber 根治 + guard-plug 语义分族 — 四门全绿(t0 fabric 161/161 ×2 + t0 neoforge 161/161 + t1 GREEN 132s,唯一 fail=既有 optional vineOverWaterClimb)
 
 - **需求(user verbatim 契约)**:长条单宽独木桥全族——1 格/1.5 格/2 格障碍±旁路、挡头/挡脚±旁路、无路径停最远不掉落、阶梯升降、中断跌落(安全/损伤/致命±水桶)、垫脚方块(有/无材料)、两格阶梯旁路零消耗、破坏抉择(挖 vs 绕)。落 `AgentDriverBridgeScenes.java` 18 场景(fabric+neoforge expect 各 +18);"预期停在最远处但不掉下去"=引擎契约,全族 no-fall 不变式守住。

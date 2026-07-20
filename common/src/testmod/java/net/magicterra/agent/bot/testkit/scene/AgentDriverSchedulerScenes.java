@@ -333,6 +333,61 @@ public final class AgentDriverSchedulerScenes implements SceneProvider {
         if (RetreatChain.shouldRelease(8f, 10f, pocket.apply(false, false), Long.MAX_VALUE, /*sealed*/ false))
             ctx.fail("gap#72-③(w): not sealed + hostile at 11 at low hp must NOT release (existing semantics preserved)");
 
+        // death#26 (07-20 live, open-terrain skeleton): the "safe" release branch
+        // ignored HP entirely, so a CRITICALLY-HURT bot (hp<thr) released on every
+        // tick the pursuing skeleton flickered out of scan (LoS break / >18 blocks /
+        // the >60t lull between volleys — wider than gap#71's 60t hurt-cooldown):
+        // stood still, got shot, 35s of release("safe")↔enter("lowHp") flapping then
+        // dead. Fix = a low-HP threat-PRESENCE floor (THREAT_MEMORY_TICKS) on the
+        // "safe" branch ONLY, isolated on the 5-arg releaseReason (ticksSinceThreat).
+        // (x) THE incident: hp 5.7 (<thr 10), threat flickered out THIS tick (empty),
+        // 100t since the last hit (past the 60t cooldown — old gate said "safe"), but
+        // a threat was present 20t ago -> must NOT release (keep fleeing).
+        if (RetreatChain.releaseReason(5.7f, 10f, empty, 100L, 20L) != null)
+            ctx.fail("death#26(x): low HP + threat seen 20t ago must NOT release in a scan-flicker gap (was: 'safe')");
+        // (y) genuinely broken contact: same, but no threat for 150t (>100 memory) ->
+        // a low-HP no-food bot resumes its task instead of fleeing forever.
+        if (!"safe".equals(RetreatChain.releaseReason(5.7f, 10f, empty, 100L, 150L)))
+            ctx.fail("death#26(y): low HP + no threat for 150t (>memory) must release safe (resume, don't flee forever)");
+        // (z) the floor is LOW-HP only: a recovered bot (hp>=thr) with a threat seen
+        // 20t ago releases exactly as before — healthy proactive flees unaffected.
+        if (!"safe".equals(RetreatChain.releaseReason(20f, 10f, empty, 100L, 20L)))
+            ctx.fail("death#26(z): recovered HP must release regardless of recent-threat memory (floor is low-HP only)");
+        // (aa) boundary: threat 99t ago (<100) at low HP still blocked; exactly 100t releases.
+        if (RetreatChain.releaseReason(9.9f, 10f, empty, 100L, 99L) != null)
+            ctx.fail("death#26(aa): 99t since threat (<100 memory) at low HP must NOT release");
+        if (!"safe".equals(RetreatChain.releaseReason(9.9f, 10f, empty, 100L, 100L)))
+            ctx.fail("death#26(aa'): exactly 100t since threat must release (memory boundary)");
+        // (bb) sealed composition: an unreachable roof-mob is filtered out, so the
+        // caller never stamps recent-threat (ticksSinceThreat large) -> a sealed
+        // low-HP bot still releases; gap#72's don't-dig-out-of-your-bunker intact.
+        if (!"safe".equals(RetreatChain.releaseReason(8f, 10f, pocket.apply(false, false), Long.MAX_VALUE, Long.MAX_VALUE, /*sealed*/ true)))
+            ctx.fail("death#26(bb): sealed + unreachable threat (large ticksSinceThreat) at low HP must still release (gap#72 intact under the new floor)");
+
+        // death#26 sub-fix ② (BunkerChain ranged-pin escalation): ① stops the release
+        // oscillation but a low-HP bot SHOT from range in the open still can't escape
+        // by fleeing (controlled-live: skeleton holds bow range and whittles 6→4→2, or
+        // closes to melee — rig-non-deterministic). Escalate to a bunker to break LoS.
+        // Deterministic gate test (retreatThr=6; skeleton=RangedAttackMob, zombie not).
+        // (cc) THE incident: hp 5 (<=thr 6) + a skeleton whose arrow CONNECTED
+        // (attackedMe) at 13, not sealed -> must escalate to bunker.
+        if (!BunkerChain.shouldRangedBunker(5f, 6f, skel.apply(13.0, new boolean[]{false, true}), /*sealed*/ false))
+            ctx.fail("death#26②(cc): low HP + connected ranged hit in the open must escalate to bunker");
+        // (dd) healthy bot (hp>thr) being shot -> no bunker; retreat/flee handles it.
+        if (BunkerChain.shouldRangedBunker(8f, 6f, skel.apply(13.0, new boolean[]{false, true}), false))
+            ctx.fail("death#26②(dd): hp above retreatThr must NOT escalate to bunker (only a low-HP pin does)");
+        // (ee) skeleton aiming but no hit landed (charging, !attackedMe) -> a mere aim
+        // is retreat's proactive-flee job; the bunker escalation needs a CONNECTED shot.
+        if (BunkerChain.shouldRangedBunker(5f, 6f, skel.apply(13.0, new boolean[]{true, false}), false))
+            ctx.fail("death#26②(ee): charging-but-not-hit must NOT bunker (needs a connected shot)");
+        // (ff) already sealed -> must NOT re-trigger (gap#29 re-dig ratchet guard).
+        if (BunkerChain.shouldRangedBunker(5f, 6f, skel.apply(13.0, new boolean[]{false, true}), /*sealed*/ true))
+            ctx.fail("death#26②(ff): already sealed must NOT re-escalate (no deeper re-dig once capped)");
+        // (gg) a MELEE hit (zombie attackedMe, not RangedAttackMob) -> not a ranged
+        // pin; the swarm 'cornered' path (bunkerHpThreshold) governs melee, not this.
+        if (BunkerChain.shouldRangedBunker(5f, 6f, meleeHit.apply(5.0), false))
+            ctx.fail("death#26②(gg): a melee (non-ranged) hit must NOT trigger the ranged-pin bunker");
+
         // gap#72-④: the telemetry REASON CLASSIFIERS are the same single source
         // as the boolean gates (shouldEnter == enterReason!=null and shouldRelease
         // == releaseReason!=null by construction — the booleans delegate to the

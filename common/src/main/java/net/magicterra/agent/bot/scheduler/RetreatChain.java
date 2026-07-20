@@ -60,6 +60,21 @@ public final class RetreatChain implements Chain {
      *  restamped for the whole ~40t {@code attackedMe} window, so this constant means
      *  literally "60 ticks after the hit landed", not ~100.) */
     private static final long HURT_RELEASE_COOLDOWN_TICKS = 60;
+    /** death#26 (07-20 live, open-terrain skeleton): how long a THREAT last seen in
+     *  scan keeps a CRITICALLY-HURT ({@code hp < thr}) bot from declaring itself
+     *  "safe". gap#71's {@link #visibleRangedThreatWithin} only holds while the mob
+     *  is CURRENTLY visible within {@link #RANGED_RADIUS}; a pursuing skeleton on
+     *  open ground flickers out of that (LoS break rounding terrain, range boundary,
+     *  the &gt;60t lulls between volleys) — and the "safe" branch ignores HP, so a
+     *  5.7-HP bot released in every flicker-gap, stood still, and got shot (35s of
+     *  release("safe")↔enter("lowHp") flapping, then dead). This is a threat-PRESENCE
+     *  memory (wider than {@link #HURT_RELEASE_COOLDOWN_TICKS}, which only spans the
+     *  gap after a CONNECTED hit): 5s comfortably bridges shot cadence + brief LoS
+     *  breaks, yet a low-HP bot that has truly broken contact still resumes ~5s later.
+     *  Only gates the low-HP "safe" branch — a recovered bot (the "recovered" branch,
+     *  {@code hp >= thr + margin}) is unaffected, so healthy proactive flees release
+     *  as before. */
+    private static final long THREAT_MEMORY_TICKS = 100;
 
     private final BotState state;
     private RunAwayProcess process;
@@ -86,6 +101,13 @@ public final class RetreatChain implements Chain {
      *  {@link #priority} can detect the false→true rising edge instead of restamping
      *  {@link #lastHurtGameTime} on every tick the level stays true. */
     private boolean prevHurtByAnyone;
+    /** death#26: game-time a THREAT was last present in the (sealed-filtered) scan —
+     *  any hostile in melee/bow range, aiming, or firing. Level-stamped every tick
+     *  the signal holds (see {@link #priority}); {@code Long.MIN_VALUE} = none seen
+     *  (or reset since the last flee ended). Feeds {@link #THREAT_MEMORY_TICKS}'s
+     *  low-HP "safe"-release floor so an open-terrain skeleton's scan flicker can no
+     *  longer look "safe" to a critically-hurt bot. */
+    private long lastThreatSeenGameTime = Long.MIN_VALUE;
 
     public RetreatChain(BotState state) {
         this.state = state;
@@ -112,6 +134,18 @@ public final class RetreatChain implements Chain {
         // with BunkerProcess so the reflex and the bunker agree on what "sealed"
         // means. Live block reads, so a breached pocket stops exempting instantly.
         boolean sealed = BunkerProcess.enclosed(w, mc.player.blockPosition());
+        // death#26: level-stamp "a threat is present" every tick the signal holds, on
+        // the SAME sealed-filtered scan the release gate uses — so a sealed bot whose
+        // only "threat" is an unreachable mob pacing the roof does NOT keep its
+        // threat-memory alive (that would dig it out of its own bunker, gap#72). The
+        // stamp bridges the open-terrain skeleton's LoS/range flicker for the low-HP
+        // "safe" floor below; a genuinely-escaped low-HP bot re-stamps nothing and
+        // resumes once THREAT_MEMORY_TICKS lapses.
+        ThreatScanner.Scan effScan = sealed ? seenOrConnectedOnly(scan) : scan;
+        if (hostileWithin(effScan) || visibleRangedThreatWithin(effScan, RANGED_RADIUS)
+                || rangedThreatAiming(effScan) || underRangedFire(effScan)) {
+            lastThreatSeenGameTime = now;
+        }
         if (!retreating) {
             // st.combat.active mirrors CombatChain.engaged(), refreshed every tick by
             // CombatChain.priority() (called for every registered chain, not just the
@@ -129,10 +163,12 @@ public final class RetreatChain implements Chain {
                     sealed ? sealedFilteredCount(scan) : 0, combatEngaged);
         } else {
             long ticksSinceHurt = (lastHurtGameTime == Long.MIN_VALUE) ? Long.MAX_VALUE : (now - lastHurtGameTime);
-            String release = releaseReason(hp, thr, scan, ticksSinceHurt, sealed);
+            long ticksSinceThreat = (lastThreatSeenGameTime == Long.MIN_VALUE) ? Long.MAX_VALUE : (now - lastThreatSeenGameTime);
+            String release = releaseReason(hp, thr, scan, ticksSinceHurt, ticksSinceThreat, sealed);
             if (release != null) {
-                LOG.info("[retreat] release reason={} hp={} ticksSinceHurt={} sealed={}",
-                        release, hp, ticksSinceHurt == Long.MAX_VALUE ? "never" : ticksSinceHurt, sealed);
+                LOG.info("[retreat] release reason={} hp={} ticksSinceHurt={} ticksSinceThreat={} sealed={}",
+                        release, hp, ticksSinceHurt == Long.MAX_VALUE ? "never" : ticksSinceHurt,
+                        ticksSinceThreat == Long.MAX_VALUE ? "never" : ticksSinceThreat, sealed);
                 return idle();
             }
         }
@@ -290,10 +326,31 @@ public final class RetreatChain implements Chain {
      *  the safe branch this tick and re-enters via hurtByAnyone the next: a per-tick
      *  enter/release flap. Like attackedMe itself, this decays once we break contact. */
     public static String releaseReason(float hp, float thr, ThreatScanner.Scan scan, long ticksSinceHurt) {
+        // Back-compat (existing matrix tests + the 3-arg overload): no threat-memory =
+        // pre-death#26 semantics. ticksSinceThreat=MAX_VALUE → recentThreatLowHp false.
+        return releaseReason(hp, thr, scan, ticksSinceHurt, Long.MAX_VALUE);
+    }
+
+    /** death#26: adds a low-HP threat-PRESENCE floor to the "safe" branch. A bot
+     *  still below the trigger ({@code hp < thr}) that saw ANY threat within the last
+     *  {@link #THREAT_MEMORY_TICKS} is NOT "safe" merely because the threat flickered
+     *  out of scan THIS tick — the open-terrain skeleton bleed-out (release("safe")↔
+     *  enter("lowHp") flapping while standing still). Only the "safe" branch is
+     *  affected: the "recovered" branch requires {@code hp >= thr + margin}, so a bot
+     *  there is above the floor by construction and behaves exactly as before. When
+     *  the bot has genuinely broken contact the caller stops re-stamping, {@code
+     *  ticksSinceThreat} grows past the window, and a low-HP no-food bot resumes its
+     *  task instead of fleeing forever (the reason "safe" ignored HP in the first
+     *  place). All other guards (gap#65/#68/#71/#72) are untouched.
+     *  @param ticksSinceThreat ticks since a threat was last present in scan;
+     *                          {@code Long.MAX_VALUE} if none (or long enough ago). */
+    public static String releaseReason(float hp, float thr, ThreatScanner.Scan scan,
+                                       long ticksSinceHurt, long ticksSinceThreat) {
         boolean visibleRanged = visibleRangedThreatWithin(scan, RANGED_RADIUS);
         boolean recentHurt = ticksSinceHurt < HURT_RELEASE_COOLDOWN_TICKS;
+        boolean recentThreatLowHp = hp < thr && ticksSinceThreat < THREAT_MEMORY_TICKS;
         if (!hostileWithin(scan) && !underRangedFire(scan) && !hurtByAnyone(scan)
-                && !visibleRanged && !recentHurt) return "safe";
+                && !visibleRanged && !recentHurt && !recentThreatLowHp) return "safe";
         boolean recovered = hp >= thr + RELEASE_HP_MARGIN;
         if (recovered && !rangedThreatAiming(scan) && !underRangedFire(scan) && !hurtByAnyone(scan)
                 && !visibleRanged && !recentHurt) return "recovered";
@@ -317,6 +374,16 @@ public final class RetreatChain implements Chain {
     public static String releaseReason(float hp, float thr, ThreatScanner.Scan scan, long ticksSinceHurt,
                                        boolean sealedPocket) {
         return releaseReason(hp, thr, sealedPocket ? seenOrConnectedOnly(scan) : scan, ticksSinceHurt);
+    }
+
+    /** death#26: sealed-aware {@link #releaseReason} carrying the threat-memory floor.
+     *  Same sealed filter as the other sealed overloads (the caller stamps {@code
+     *  ticksSinceThreat} off the SAME {@link #seenOrConnectedOnly} scan, so a sealed
+     *  bot's unreachable roof-mob never keeps the low-HP floor armed — gap#72). */
+    public static String releaseReason(float hp, float thr, ThreatScanner.Scan scan, long ticksSinceHurt,
+                                       long ticksSinceThreat, boolean sealedPocket) {
+        return releaseReason(hp, thr, sealedPocket ? seenOrConnectedOnly(scan) : scan,
+                ticksSinceHurt, ticksSinceThreat);
     }
 
     /** gap#72-④ telemetry: how many scanned threats the sealed-pocket filter
@@ -352,6 +419,7 @@ public final class RetreatChain implements Chain {
     private float idle() {
         retreating = false;
         lastHurtGameTime = Long.MIN_VALUE;   // gap#71: fresh cooldown bookkeeping next flee
+        lastThreatSeenGameTime = Long.MIN_VALUE;  // death#26: fresh threat-memory next flee
         prevHurtByAnyone = false;            // final-review L1: fresh edge-detection next flee
         if (state.retreat.active) state.retreat.reset();
         return 0f;
@@ -488,6 +556,7 @@ public final class RetreatChain implements Chain {
             LOG.info("[retreat] release reason=cancelled ({})", reason);
         retreating = false;
         lastHurtGameTime = Long.MIN_VALUE;   // gap#71: fresh cooldown bookkeeping next flee
+        lastThreatSeenGameTime = Long.MIN_VALUE;  // death#26: fresh threat-memory next flee
         prevHurtByAnyone = false;            // final-review L1: fresh edge-detection next flee
         // gap#72-①: drop the held process through the unified lifecycle (onCancelled +
         // honest endReason=CANCELLED + slot reset) instead of a bare `process = null` —

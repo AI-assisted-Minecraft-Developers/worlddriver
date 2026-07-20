@@ -5,9 +5,11 @@ import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.combat.ThreatScanner;
 import net.magicterra.agent.bot.combat.ClientThreatScanner;
 import net.magicterra.agent.bot.pathfinder.WorldView;
+import net.magicterra.agent.bot.process.BunkerProcess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.monster.RangedAttackMob;
 
 import static net.magicterra.agent.bot.util.BotInteract.aimAtBlockSnap;
 import static net.magicterra.agent.bot.util.BotInteract.ensureHoldingPlaceableAny;
@@ -63,7 +65,46 @@ public final class BunkerChain implements Chain {
         // non-grounded start gracefully (waits to settle before digging).
         boolean cornered = mc.player.getHealth() <= BotConfig.bunkerHpThreshold
                 && near >= BotConfig.bunkerMinHostiles;
-        return cornered ? Priorities.BUNKER : 0f;
+        // death#26 (07-20 live): a ranged attacker (skeleton) pins a low-HP bot in
+        // the OPEN — controlled-live proof: a 6-HP naked bot fled continuously for
+        // 41s yet the skeleton held bow range (skelDist ~13, never the >18 needed to
+        // break contact) and whittled it 6→4→2→dead. Open-ground flight can't break
+        // line-of-sight; a bunker CAN (the roof block occludes the shot). So escalate
+        // to the bunker when a low-HP bot is actually being SHOT, even though HP is
+        // above the swarm threshold and the shooter sits well outside
+        // bunkerTriggerRadius. The !sealed guard stops the gap#29 re-dig ratchet once
+        // the pocket is capped (near=0 for a range-13 shooter would otherwise reset
+        // the sealed latch and re-trigger a deeper dig every tick attackedMe holds).
+        boolean sealed = BunkerProcess.enclosed(w, mc.player.blockPosition());
+        boolean rangedPinned = shouldRangedBunker(mc.player.getHealth(),
+                BotConfig.retreatHpThreshold, ClientThreatScanner.current(mc), sealed);
+        return (cornered || rangedPinned) ? Priorities.BUNKER : 0f;
+    }
+
+    /** death#26 (07-20 live): the ranged-pin escalation as a static, scan-fed gate so
+     *  it is matrix-testable without a client (live combat is too non-deterministic
+     *  to reproduce "shot from range at low HP" — the skeleton either closes to melee
+     *  and can't shoot, or holds range and whittles). Fire a bunker (break line-of-
+     *  sight by sealing a roof) when a low-HP bot is actually being SHOT by a ranged
+     *  mob, even though HP is above the swarm {@link BotConfig#bunkerHpThreshold} and
+     *  the shooter sits outside {@link BotConfig#bunkerTriggerRadius}. {@code !sealed}
+     *  stops the gap#29 re-dig ratchet once the pocket is capped.
+     *  @param hp current health; @param retreatThr {@link BotConfig#retreatHpThreshold}
+     *  @param sealed block-level enclosure ground truth ({@link BunkerProcess#enclosed}). */
+    public static boolean shouldRangedBunker(float hp, float retreatThr, ThreatScanner.Scan scan,
+                                             boolean sealed) {
+        return !sealed && hp <= retreatThr && underRangedFire(scan);
+    }
+
+    /** death#26: a ranged attacker whose shot actually CONNECTED (scan {@code
+     *  attackedMe} = vanilla last-damager, ~2s window). Mirrors
+     *  {@code RetreatChain.underRangedFire} — being shot by a skeleton/witch is the
+     *  precise "pinned in the open" signal that a plain flee can't answer. */
+    private static boolean underRangedFire(ThreatScanner.Scan scan) {
+        for (ThreatScanner.Threat t : scan.threats()) {
+            if (t.attackedMe() && t.entity() instanceof RangedAttackMob) return true;
+        }
+        return false;
     }
 
     @Override public void tick(Minecraft mc, WorldView w, BotState st) {
