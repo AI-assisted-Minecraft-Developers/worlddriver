@@ -2,7 +2,10 @@
 
 > 镜像 Task 跟踪器的长期工作。重要根因写进 memory(reference/project)。
 
-## 2026-07-20 ✅ mine #logs 上悬崖树 nodeDy=7 wedge → 连坠伤致死候选gap — 已修(planning-layer 两界:no-progress 看门狗 + 累伤中止)【commit 4e85543 fix/mine-unreachable-target-watchdog;t0 fabric GREEN + live 三性质全证;t0 neoforge/t1 gate 跑中】
+## 2026-07-20 ✅ mine #logs 上悬崖树 nodeDy=7 wedge → 连坠伤致死候选gap — 已修(planning-layer 两界:no-progress 看门狗 + 累伤中止)【commit 4e85543 branch fix/mine-unreachable-target-watchdog;t0 fabric+neoforge+t1 全 GREEN + live 三性质全证;未合master(暂留分支)】
+
+- **gate infra 教训(本轮踩)**:t0 用 `--run-task :<loader>:runDogfoodServer` **必须**配 `--results <loader>/run-dogfood/testkit-results.jsonl`(AGENTS.md L87-89);漏了 → t0 poll 默认空路径 → 900s 超时假装挂死(其实 suite 早完成)。可 `verdict.judge(verdict.parse(<真实results>))` 直判免重跑。
+- **neoforge 彩票警示**:`selfShaftDigUp`+`bridgeFootholdPlace` 在 neoforge 一跑 RED(backslide 13.25/stepUp越+2面)、clean 重跑全 PASS,fabric 同 build 恒 GREEN → arc-wedge 极限环族固有非确定,**未来这俩 neoforge RED 先重跑一次再认罪**(差点误判成 task#6 loader 分歧)。
 
 - **症状**:死亡#26 修复合 master 后恢复生存,`mine{blocks:["#minecraft:logs"],radius:28}` 从地表采树。walker 路由到 node `(-4,88,-48) nodeDy=7`(单节点竖爬 7 格=悬崖/树干高处的 log),`[walker] arc-wedge RECOVER ... bob-immune ram → fellOffPath` **连续复触**,bot 反复坠落取 ~15 fall damage(HP 20→5.3),**净得 0 log**。
 - **根因**:执行层 arc-wedge 干地陡爬 wedge(见 [[reference_steep_mountain_limit_cycle_revisit_detection]] 已知未解族)——walker 在悬崖高处 log 前**永不返回 `Step.FAILED`**,`fellOffPath` 只是无限 repath;而 MineProcess **只在 `Walker.Step.FAILED` 时 blacklist target** → bot 永远钉在不可达 log 上撞脸连坠。
