@@ -124,3 +124,22 @@ subprojects {
         }
     }
 }
+
+// ---- Coverage hook (task#95a): opt-in jacoco agent for every loom game JVM. ----
+// Pass the FULL -javaagent value via the project property `testkitCoverageAgent`
+// (normally through the env var ORG_GRADLE_PROJECT_testkitCoverageAgent, which the
+// gradle CLIENT forwards into the build regardless of daemon staleness — a plain
+// JAVA_TOOL_OPTIONS on the orchestrator does NOT reach game JVMs forked by an
+// already-running daemon; that null-measured as 0% across the board on 2026-07-19).
+// Example value:
+//   /abs/.local/jacoco/org.jacoco.agent-0.8.12-runtime.jar=destfile=/abs/coverage-out/t0.exec,includes=net.magicterra.*
+subprojects {
+    plugins.withId('dev.architectury.loom') {
+        def cov = providers.gradleProperty('testkitCoverageAgent')
+        if (cov.isPresent()) {
+            loom.runs.configureEach {
+                vmArg "-javaagent:${cov.get()}"
+            }
+        }
+    }
+}

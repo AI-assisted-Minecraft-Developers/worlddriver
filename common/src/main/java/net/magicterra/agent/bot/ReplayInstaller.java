@@ -75,7 +75,7 @@ final class ReplayInstaller {
             // (which calls beginReplay) is captured against this session.
             net.magicterra.agent.bot.debug.PathArchiveRecorder rec =
                     net.magicterra.agent.bot.debug.PathDebugBootstrap.archiveRecorder();
-            if (rec != null) rec.armReplay(plan, archiveName);
+            if (rec != null) rec.armReplay(plan, archiveName, player.getId());
 
             bot.startProcess(new ReplayProcess(plan, edges, endGoal, startFoot));
 

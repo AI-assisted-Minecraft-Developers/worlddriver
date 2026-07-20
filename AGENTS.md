@@ -55,6 +55,10 @@ etc.) working in this project. Keep it short and authoritative.
    `net.magicterra.agent.bot.util.BlockMatch.of(...)` or
    `java.util.function.Predicate<…>` are only allowed to disambiguate a genuine
    name collision in that file.
+8. **No Java source file over 3000 lines.** Gate:
+   `python3 scripts/check_source_budget.py`. When a file approaches the cap,
+   split it (the `WalkerTick*` per-tick phase classes are the reference
+   pattern for carving up a big sequential method without semantic drift).
 
 ## Log locations
 

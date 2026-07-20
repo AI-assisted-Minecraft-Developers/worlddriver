@@ -76,6 +76,16 @@ public final class PathArchiveRecorder implements PathTrace {
      *  so {@link #onSearchBegin} can't clobber it and {@link #onTerminal} writes a
      *  {@code replay-run-*.json} (kind="replay") instead of a plan archive. */
     private boolean replayArmed;
+    /** Entity id the armed replay run belongs to (null = unpinned). The trace SINK is a
+     *  GLOBAL static shared by every Walker on every thread — in the integrated (T1)
+     *  topology the client bot's walker ticks CONCURRENTLY with a server-side scene
+     *  walker (live 2026-07-19: the JS validation suite's {@code mc.debug.replay} drove
+     *  the HOST player at the same arena while {@code ad.replayRoundTrip} had its replay
+     *  session armed — one client-thread sample of the falling host (y=126, 95 blocks
+     *  under the floor) landed inside the armed session and blew the 4.0 deviation gate
+     *  while the replay walk itself was byte-identical). Pinning the session to the
+     *  replaying avatar's entity id drops foreign-walker samples at the source. */
+    private Integer replayEntityId;
     /** Plan nodes the replay executes — used to compute per-tick deviation. */
     private List<BlockPos> replayPlan = List.of();
     /** Archive file the replay plan came from (header/segments live there). */
@@ -110,9 +120,10 @@ public final class PathArchiveRecorder implements PathTrace {
      * {@link #onTerminal} writes a {@code replay-run-*.json}. Ignores
      * {@link BotConfig#pathArchive} (the replay tool always wants the run captured).</p>
      */
-    public void armReplay(List<BlockPos> planNodes, String planRefFile) {
+    public void armReplay(List<BlockPos> planNodes, String planRefFile, int replayEntityId) {
         sessionOpen = true;
         replayArmed = true;
+        this.replayEntityId = replayEntityId;
         replayPlan = (planNodes == null) ? List.of() : List.copyOf(planNodes);
         replayPlanRef = planRefFile;
 
@@ -269,6 +280,9 @@ public final class PathArchiveRecorder implements PathTrace {
         // when pathArchive is on. Either way a session must be open.
         if (!sessionOpen) return;
         if (!replayArmed && !BotConfig.pathArchive) return;
+        // Identity pin (see replayEntityId): a replay run captures ONLY the replaying
+        // avatar's ticks — concurrent walkers (client bot, other scenes) are foreign.
+        if (replayArmed && replayEntityId != null && s.entityId() != replayEntityId) return;
 
         // deviation: NaN for plan archives (no reference trajectory); for replay it is
         // the min distance from this tick's position to the nearest plan node center.
@@ -302,6 +316,7 @@ public final class PathArchiveRecorder implements PathTrace {
         if (!replay && !BotConfig.pathArchive) return;
         sessionOpen = false;
         replayArmed = false;
+        replayEntityId = null;
 
         // Snapshot all mutable state before handing off to the background thread.
         PathArchive.Header header = new PathArchive.Header(

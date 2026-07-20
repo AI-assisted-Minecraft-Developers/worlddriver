@@ -11,3 +11,4 @@ net.magicterra.agent.bot.testkit.scene.AgentDriverSchedulerScenes
 net.magicterra.agent.bot.testkit.scene.AgentDriverSurvivalScenes
 net.magicterra.agent.bot.testkit.scene.AgentDriverAvatarScenes
 net.magicterra.agent.bot.testkit.scene.AgentDriverProcessScenes
+net.magicterra.agent.bot.testkit.scene.AgentDriverCoverageScenes
