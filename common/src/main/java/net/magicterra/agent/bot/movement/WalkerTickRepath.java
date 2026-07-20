@@ -247,7 +247,15 @@ final class WalkerTickRepath {
             // as before — the same decoupling the main walk branch already uses.
             double bd = Math.toRadians(angleDiff(p.getYRot(), wk.unstuck.burstYaw));
             a.commandMove((float) -Math.sin(bd), (float) Math.cos(bd));
-            Walker.agentJump(a, true);
+            // Floor-gated hop (walkerRecoveryHopFloorGate): the burst's jump is an UNAIMED
+            // ballistic arc — on narrow footing beside a lethal drop it clears the deck
+            // where the stride floor-guard (grounded-velocity only) can no longer help.
+            // The grounded displacement is kept: drift toward a lip stays covered by the
+            // guard's sneak-pin; only the airborne launch is unguarded, so only it is cut.
+            boolean burstJump = !(BotConfig.walkerRecoveryHopFloorGate
+                    && lethalDropWithinHopRange(world, p, foot));
+            if (burstJump) wk.jumpTag = "unstuckBurst";
+            Walker.agentJump(a, burstJump);
             p.setSprinting(false);
             return Walker.Step.WALKING;
         }

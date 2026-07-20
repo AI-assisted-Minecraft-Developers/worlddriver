@@ -3,16 +3,23 @@
 Every method the JSON-RPC websocket (`ws://127.0.0.1:39801/rpc`) accepts. Most
 are also MCP tools (`mcp__agent-driver__*`) with `.`→`_` names (`mc.bot.goto` ⇄
 `mc_bot_goto`); both go through one dispatcher (`AgentApi.route`), so behaviour is
-identical. **71 methods across 14 namespaces.** A few are **RPC-route-only** (they
-have a registered route but no MCP tool schema — e.g. `mc.bot.elytraFly`,
-`mc.test.yaml`); over RPC they work like any other method, which is one of the
-reasons this skill exists.
+identical. **72 methods across 14 namespaces** — 71 exposed as MCP tools plus one
+**RPC-route-only** verb, `mc.test.yaml` (it has a registered route and a *hidden*
+`ToolSchema`, so it's reachable over RPC and internally but kept out of MCP
+`tools/list`). Every route is asserted at boot to carry a schema
+(`AgentApi.requireSchemasFor`), so "route with no schema" can't drift in; an
+intentional RPC-only verb is the hidden-schema case above. Over RPC the hidden verb
+works like any other method — one of the reasons this skill exists.
 
 Source of truth: `common/.../api/AgentApi.java` (the route table — the canonical
-list of *which* methods exist), `common/.../mcp/catalog/*Tools.java` (MCP schemas +
-inline param docs), `common/.../bot/BotConfig.java` (the `mc.bot.setting` keys),
-`.../rpc/RpcServer.java` (envelope). When in doubt, grep `AgentApi.java` for the
-route then the matching `*Tools.java` for its param list.
+list of *which* methods exist), `common/.../mcp/catalog/*Tools.java` (visible MCP
+schemas + inline param docs) and `common/.../mcp/ToolCatalog.java` (`HIDDEN_TOOLS`,
+the RPC-only verbs), `common/.../bot/SettingsRegistry.java` (the canonical ordered
+`mc.bot.setting` key list + its single-source schema) backed by
+`common/.../bot/BotConfig.java` (the fields + their ranges),
+`.../rpc/RpcServer.java` (envelope; binds `127.0.0.1` on port 39801, WS path
+`/rpc`). When in doubt, grep `AgentApi.java` for the route then the matching
+`*Tools.java` for its param list.
 
 ## Contents
 - [Envelope & errors](#envelope--errors)
@@ -21,7 +28,7 @@ route then the matching `*Tools.java` for its param list.
 - [`mc.system.*`](#mcsystem) — version, testOrigin, waitTicks
 - [`mc.observe.*`](#mcobserve) — cursor, eventsSince, player, threats, boss, scene, map, container
 - [`mc.action.*`](#mcaction) — runCommand, fill, placeMany
-- [`mc.world.*`](#mcworld) — snapshot, restore
+- [`mc.world.*`](#mcworld) — block, snapshot, restore
 - [`mc.query`](#mcquery) — block/entity scan
 - [`mc.events`](#mcevents) — emit / watch / unwatch / list
 - [`mc.wait.*`](#mcwait) — event, worldReady, condition, result
@@ -56,17 +63,19 @@ the result instead, so check `ok`, not just transport success.
   then also returns `inventory`, `effects`, `time`, `hit`).
 
 ## Async & `awaitMs`
-These return immediately with `{started:true}` and run as a bot process:
-`mc.bot.goto`, `mine`, `bunker`, `escape`, `craft`, `smelt`, `combat`, `build`,
-`clearArea`, `follow`, `explore`, `runAway`, `farm`, `sleep`, `construct`,
+These return immediately with `{started:true}` and run as a bot process, and
+accept `awaitMs`: `mc.bot.goto`, `mine`, `bunker`, `craft`, `smelt`, `combat`,
+`build`, `clearArea`, `follow`, `explore`, `runAway`, `farm`, `sleep`, `construct`,
 `elytraFly`. Pass `awaitMs:N` (1–600000) to block until the process slot goes idle
 (it polls `mc.bot.status`), folding the final status in:
 `{ok, started, awaited:true, completed:bool, ms, status:{…}}`. **`completed:true`
 only means the slot went idle — a no-path *failure* also reports completed.**
 Confirm real success via `status.<slot>.lastError` and `status.lastPath`
-(`goalReached`, `finalCost`), or re-observe the player. `mc.bot.equip` is
-**synchronous** (returns its result directly, no `awaitMs`); `mc.bot.playbook`
-runs on a **background thread** (poll `op:"status"`).
+(`goalReached`, `finalCost`), or re-observe the player. **`mc.bot.escape` is also a
+bot process but takes NO `awaitMs`** (its schema has only `targetY`) — fire it and
+poll `mc.bot.status`/`mc.observe.player`. `mc.bot.equip` is **synchronous** (returns
+its result directly, no `awaitMs`); `mc.bot.playbook` runs on a **background thread**
+(poll `op:"status"`).
 
 ---
 
@@ -121,7 +130,7 @@ Long-poll primitives (block server-side; respect `timeoutMs`, default 5000/30000
 | method | params | returns / notes |
 |---|---|---|
 | `mc.wait.event` | `cursor` (req), `types?[]`, `limit?`, `timeoutMs?`, `pollMs?`, `background?` | returns as soon as ≥1 matching event arrives, else `{timedOut:true}`. `{events[], timedOut, cursor, ms}`; chain `cursor`. |
-| `mc.wait.worldReady` | `timeoutMs?`, `pollMs?` | block until client has player+world → `{ready, ms, info:{hasScreen,worldOpen,hasPlayer,…}}`. No server needed. |
+| `mc.wait.worldReady` | `timeoutMs?`, `pollMs?`, `background?` | block until client has player+world → `{ready, ms, info:{hasScreen,worldOpen,hasPlayer,…}}`. No server needed. `background:true` returns a `{waitId}` at once (fetch via `mc.wait.result`). |
 | `mc.wait.condition` | `invoke` (req), `params?`, `field?`, `value?`, `timeoutMs?`, `pollMs?`, `background?` | call `invoke(params)` every `pollMs`, walk dotted `field` (e.g. `slots.2.count`) into the result, succeed when truthy (or deep-equals `value`) → `{satisfied, value, ms}`. |
 | `mc.wait.result` | `waitId` (req), `consume?` (dflt true) | fetch the result of a `background:true` wait → `{pending:true}` while still running, else the full original result (`satisfied`/`timedOut`/`value`/`events`/`ms`/…). `consume:false` leaves it readable again. |
 
@@ -175,42 +184,55 @@ Movement/automation processes. The async ones take `awaitMs?` — see [Async](#a
 
 | method | params | returns / notes |
 |---|---|---|
-| `mc.bot.goto` | one goal: `pos?`/`xz?`/`y?`/`block?`/`entity?`/`entityId?`/`direction?`+`distance?`/`waypoint?`/`axis?`; mods: `near?`, `goalMode?:"in"\|"two"\|"adjacent"`, `strict?`, `invert?`; `radius?` (block selector); `awaitMs?` | pathfind+walk. `{ok, started, goal, awaited?, completed?, ms?, status?}`. |
+| `mc.bot.goto` | **one goal**: `pos?`/`xz?`/`y?`/`block?`(+`radius?` scan 1–64)/`entity?`/`entityId?`/`direction?`(+`distance?`)/`waypoint?`/`axis?`; **goal mods**: `near?`, `goalMode?:"in"\|"two"\|"adjacent"`, `strict?`, `invert?`; **bias (soft cost)**: `avoid?:[{x,y,z,radius?,penalty?}]`, `preferY?:{min,max,weight?}`, `leash?:{x,y,z,radius,weight?}\|{entity,radius,weight?}`, `hugShore?:true\|{weight}`; **hard constraints (pruned)**: `forbidParkour?` / `capability?:"walk"`, `yFloor?`/`yCeil?`, `leashHard?:{x,y,z,radius}\|{entity,radius}`, `column?:{x,z,radius}`, `forbidWater?`, `forbidDig?`, `requireTool?:id`, `dive?`; `awaitMs?` | pathfind+walk. `{ok, started, goal, awaited?, completed?, ms?, status?}` or `{ok:false, error}`. `column`+vertical goal = reliable-ascent pillar; `hugShore`+`forbidWater` = 沿岸走; `dive` = planned surface dive to an underwater goal. |
 | `mc.bot.mine` | `blocks:[id]` (req), `quantity?` (1–256), `radius?` (1–64), `awaitMs?` | mine matching blocks then collect drops. `broken` counts breaks, not inventory. `blocks` accept `#tag` selectors. |
 | `mc.bot.bunker` | `depth?` (1–5, dflt 2), `awaitMs?` | dig straight down and seal the roof for a panic shelter; needs hand-mineable blocks below → `{ok, started, depth}`. |
-| `mc.bot.escape` | `targetY?` (-64–320, dflt current+32), `awaitMs?` | carve a staircase up out of a pit/shaft; needs `allowBreak:true` → `{ok, started, targetY}`. |
+| `mc.bot.escape` | `targetY?` (-64–320, dflt current Y+32) | carve a staircase up the driest dry wall out of a pit/shaft (inverse of `bunker`; sidesteps A*). **No `awaitMs`** — needs `allowBreak` ON + a solid non-falling wall → `{ok, started, targetY}`; poll status. |
 | `mc.bot.craft` | `item` (req), `count?` (1–256, dflt 1), `awaitMs?` | resolve the recipe tree and craft (auto-uses/needs a crafting table for 3×3) → `{ok, started, item, count}`; watch `status.craft`. |
 | `mc.bot.smelt` | `item` (req), `count?` (1–256, dflt 1), `fuel?`, `awaitMs?` | smelt in a furnace; auto-finds fuel or uses `fuel` → `{ok, started, item, count, fuel}`; watch `status.smelt`. |
-| `mc.bot.combat` | `mode?:"engage"\|"defend"\|"kill"` (dflt engage), `target?:{id}\|{type}`, `awaitMs?` | close to range and land cooldown-gated hits → `{ok, started, mode, targetId?, targetType?}`; watch `status.combat`. |
+| `mc.bot.combat` | `mode?:"engage"\|"defend"\|"kill"` (dflt engage), `target?:{id}\|{type}`, `force?`, `awaitMs?` | close to range and land cooldown-gated hits → `{ok, started, mode, targetId?, targetType?}`; watch `status.combat` (`{active,swings,wellTimed,crits,kills,lastError?}`). Refuses to enter at HP≤`combatFrailThreshold` (dflt 6) → `lastError:"frail-abort"`; `force:true` fights anyway. |
 | `mc.bot.equip` | `profile?:"best"\|"combat"\|"armor"` (dflt best), `armorOnly?` (dflt false) | **synchronous**: score armor tier+enchants, swap via inventory clicks → `{ok, profile, equipped:[ids], loadout:{head,chest,legs,feet,mainHand}, lowDurability:[ids], missing:[slots]}`. |
 | `mc.bot.build` | `origin` (req), `schematic?:{w,h,d,palette[],data[[dx,dy,dz,idx]]}` or `schematicBase64?` (Sponge .schem), `awaitMs?` | place a schematic bottom-up; cap 4096; failures skip+count. |
 | `mc.bot.clearArea` | `from,to` (req), `fill?:id` or `replace?:{from,to}`, `awaitMs?` | clear/fill/replace an AABB (cap 4096); needs a block in inventory for fill/replace. |
 | `mc.bot.farm` | `from,to` (req), `crops?:[id]`, `replant?`, `awaitMs?` | harvest+replant wheat/carrot/potato/beetroot over a field (cap 4096 XZ). |
 | `mc.bot.construct` | `mode:"tower"\|"bridge"` (req); tower: `height?` or `targetY?`; bridge: `direction?`,`distance?`; `block?`, `awaitMs?` | pillar up / sneak-bridge forward. |
 | `mc.bot.sleep` | `pos?`, `radius?`, `awaitMs?` | find+enter nearest bed (vanilla night/safety gates). |
-| `mc.bot.follow` | `entityType?` or `name?` (≥1 req), `radius?` (1–16), `maxIdleTicks?`, `awaitMs?` | follow an entity; recomputes ~1.5s. |
+| `mc.bot.follow` | `entityType?` or `name?` (≥1 req), `radius?` (1–16), `maxIdleTicks?`, `awaitMs?`; also accepts the `goto` bias/hard-constraint modifiers (`avoid`, `leash`, `hugShore`, `forbidParkour`, `capability`, `yFloor`/`yCeil`, `leashHard`, `column`, `forbidWater`, `forbidDig`, `dive`) | follow an entity; recomputes ~1.5s. |
 | `mc.bot.explore` | `centerX,centerZ` (req), `maxChunks?` (1–64), `awaitMs?` | spiral to unvisited chunk centers. |
 | `mc.bot.runAway` | `from?`, `minDist?` (4–64), `awaitMs?` | flee to a point ≥minDist from `from`/player (hazard-aware). |
 | `mc.bot.lookAt` | `pos?` or (`yaw`+`pitch`) | aim view; instant, or a 'look' process if `smoothLook` is on → `{ok, yaw, pitch}`. |
-| `mc.bot.useItem` | `pos?`, `face?`, `hand?:"main"\|"off"`, `lookAt?` | right-click held item: no `pos`=use in air (eat/throw); +`pos`=use on a block face (place/bucket/bonemeal). `{ok, hand, result, consumed}`. |
+| `mc.bot.useItem` | `pos?`, `entityId?`, `face?`, `hand?:"main"\|"off"`, `lookAt?`, `sneak?` | right-click held item, **three modes**: no `pos`/`entityId` = use in air (eat/throw/draw bow); +`pos` = use on a block face (place/bucket/bonemeal/shears); +`entityId` = use ON an entity (mount with EMPTY hand, trade, shear/milk/feed, leash — `entityId` wins over `pos`). `sneak` = entity-mode shift-interact. Synchronous → `{ok, hand, result, consumed}` (+`pos,face` in pos-mode; +`entityId,type,distance,riding,screen` in entity-mode). Out-of-reach rejected server-side (check `distance`). |
 | `mc.bot.attackEntity` | `entityId` (req) | one left-click attack via the game mode (server applies damage/cooldown). Out-of-reach silently ignored. |
-| `mc.bot.elytraFly` | `pos?`, `yaw?`, `pitch?`, `reactive?`, `fireworks?`, `fireworkEveryTicks?` (5–400), `ticks?` (1–20000), `stopXZDist?`, `groundFallback?`, `near?` (0–64), `awaitMs?` | **RPC-route-only (no MCP tool)**: elytra glide to a target. With `pos` and no `pitch` → reactive sim-lookahead flight + firework boosts; `pitch` pins a fixed-heading glide. No usable elytra + `groundFallback:true` falls back to the pathfinder. → `{ok, started, mode:"reactive"\|"goal"\|"glide"\|"groundFallback", …}`. |
-| `mc.bot.playbook` | `name?:"dragon"\|"wither"`, `op?:"start"\|"status"\|"cancel"` (dflt start), `summon?`, `maxRounds?` | **background thread**: run a boss-fight Rhino playbook. `start`→`{ok, started, name}`; `status`→`{ok, active, name?, aborting, lastResult?, lastError?}`; `cancel`→stop. |
+| `mc.bot.elytraFly` | `pos?`, `yaw?`, `pitch?`, `reactive?`, `fireworks?`, `fireworkEveryTicks?` (5–400), `ticks?` (1–20000), `stopXZDist?`, `groundFallback?`, `near?` (0–64), `awaitMs?` | elytra glide to a target (needs to already be airborne). With `pos` and no `pitch` → reactive sim-lookahead flight + firework boosts; `pitch` pins a fixed-heading glide; no `pos` → glide on the current heading. No usable elytra + `groundFallback:true` falls back to the pathfinder. → `{ok, started, mode:"reactive"\|"goal"\|"glide"\|"groundFallback", pitch?, fireworks?}`. |
+| `mc.bot.playbook` | `name?:"dragon"\|"wither"` (any hot-reloadable `[a-z][a-z0-9_]*` playbook body), `op?:"start"\|"status"\|"cancel"` (dflt start), `summon?` (wither), `maxRounds?`, `budgetMs?` (min 1, dflt 600000) | **background thread**: run a boss-fight Rhino playbook. `start`→`{ok, started, name}`; `status`→`{ok, active, name?, aborting, lastResult?, lastError?}`; `cancel`→stop. One at a time. |
 | `mc.bot.waypoint` | `op:save\|get\|list\|delete\|clear` (req), `name?`, `pos?` | in-memory named positions (no disk); use names in `goto{waypoint}`. |
 | `mc.bot.status` | — | every process slot + `lastPath:{expanded,ms,goalReached,finalCost,pathLen}`. The primary "why isn't it moving" probe. |
-| `mc.bot.cancel` | `process?:all\|goto\|mine\|builder\|follow\|explore\|runAway\|look\|combat\|…` | stop processes, release keys. Default all. |
+| `mc.bot.cancel` | `process?` — one of `all, goto, mine, craft, smelt, combat, builder, follow, explore, runAway, look, elytra, escape, bunker, sleep, replay, retreat, duskSecure` | stop processes, release keys, leave `lastError='user-cancel'`. Default `all`. Besides process kinds, a reflex chain's own name (`retreat`/`duskSecure`/`bunker`/`combat`) targets that chain's internal episode, and a process KIND also reaches a process held inside a reflex chain. → `{ok, cancelled}` naming what was cancelled, or `{ok:false, reason:"no-active-target", requested}`. |
 | `mc.bot.setting` | many keys (empty=read all) | read/write tuning + reflex/Baritone toggles → `{ok, settings:{…}, applied?, rejected?, inert?}`. See below. |
 
 ### `mc.bot.setting` keys
-The full set lives in `BotConfig.java` (this list reflects it; grep there if a key
-seems missing). Out-of-range numeric keys land in `rejected`, applied ones in
-`applied`; an **unknown** key is now **rejected loudly, all-or-nothing** (post-#280:
-the `mc.bot.setting` schema is CLOSED and validated at `route()` from the single-source
-`SettingsRegistry`, so a call carrying ANY key not in the registry errors and applies
-NOTHING — the mod no longer silently drops it). The MCP-client stale-schema caveat still
-holds (see the SKILL.md note — the harness's frozen MCP tool schema strips a brand-new
-key *client-side* before it reaches the mod, which is the #1 reason to drive a
-just-added setting over RPC).
+Single source: **`SettingsRegistry.java`** — the ordered `HAND` list (canonical key
+names, some with a `dotted.name` ⇄ `botConfigField` remap like
+`walker.repathEveryTicks`→`walkerRepathEveryTicks`) **plus a reflective pass that
+auto-includes every `public static volatile` primitive/String field of
+`BotConfig`.** So the *field is the schema*: adding a settable `BotConfig` field
+makes it a valid key with no second edit. Ranges live in `BotConfig`'s apply logic.
+The set is large — **on the order of 200 keys** (currently ~120 boolean, ~70
+numeric, plus a handful of list/string keys); the great majority are `walker*` /
+`pathfinder*` movement-research toggles.
+
+**Read the live full set with `mc.bot.setting {}`** (empty params ⇒ read-all → every
+current key and its value) — that is the authoritative, never-stale list. The tables
+below are a **curated highlight** of the commonly-used keys, not the whole surface;
+grep `SettingsRegistry.HAND` for the canonical ordered names.
+
+Out-of-range numeric keys land in `rejected`, applied ones in `applied`; an
+**unknown** key is **rejected loudly, all-or-nothing** (post-#280: the schema is
+CLOSED and validated at `route()` from `SettingsRegistry`, so a call carrying ANY key
+not in the registry errors and applies NOTHING — never a silent drop). The MCP-client
+stale-schema caveat still holds (see the SKILL.md note — the harness's frozen MCP tool
+schema strips a brand-new key *client-side* before it reaches the mod, which is the #1
+reason to drive a just-added setting over RPC).
 
 **Booleans** — reflexes & toggles: `paused, autoEat, autoRespawn, autoRetreat,
 autoBunker, autoFight, autoDodge, autoShield, autoHeal, autoTotem, autoEquip,
@@ -219,7 +241,21 @@ avoidDanger, avoidMobs, smoothLook`. Pathfinder/walker move toggles: `allowParko
 allowBreak, allowPlace, allowParkourPlace, allowSwimEscapeBreak, allowSwimEscapePlace,
 allowWaterBucketFall, waterBucketScoop, collisionAwarePathing, pathfinderCacheEnabled,
 pathfinderGoalField, pathfinderFrontierCommit`. Debug: `walkerDebug, elytraDebug,
-pathDebug, pathChartAutoDump`.
+pathDebug, pathArchive, pathChartAutoDump`.
+
+Beyond those, `SettingsRegistry.HAND` carries a **large family of per-move walker/
+pathfinder research flags** (all boolean) — e.g. `walkerVerticalResync,
+walkerLevelRiserJump, walkerParkourAscendHold, walkerSteepDescentLatch,
+walkerDescentFlipHold, walkerStepUpCrestReach, walkerWaterWalkReach, walkerTangentAim,
+walkerArcLengthWedge, walkerArcProgressWedge, walkerFellBelowAlign,
+walkerFutileBankDigRelease, walkerBankDigForwardExit, walkerFloatingBankFollow,
+walkerFasterChurnRepath, walkerDeepWaterFloatBeeline, walkerVineFreeHangClimb,
+walkerVineDescentDrop, walkerAscendMovement, walkerEdgeBrakeVelocityProbe,
+craftReclaimTable` and parkour/water forbid-gates `pathfinderForbidParkourIntoDeepWater,
+pathfinderForbidParkourFromFloatingWater, pathfinderForbidParkourOverWaterGap,
+pathfinderParkourAscendNeedRunway, pathfinderFloatingSurfaceCross,
+pathfinderVineOverWaterTax, pathfinderPadOverWaterTax, pathfinderPadClusterTax`. This
+list is illustrative — read live for the current complete set and defaults.
 
 **Numbers (integer, [min,max])** — survival/combat: `autoEatFoodThreshold[0,20],
 bunkerMinHostiles[1,10], bunkerDepth[1,5], bunkerTriggerRadius[1,16],
@@ -229,9 +265,10 @@ rangedAvoidRadius[4,48], autoBackfillRadius[1,16], maxWaterBucketFall[4,256],
 walker.repathEveryTicks[20,10000], walker.totalTickBudget[200,36000],
 mine.searchVerticalRadius[1,32], breakTimeoutTicks[20,2000],
 pathfinder.maxNodes[1000,1000000], pathfinder.maxMs[100,30000],
-pathfinder.sliceMs[1,50], pathfinder.ledgeDangerMinDrop[1,64],
+pathfinder.sliceMs[1,50], pathfinder.idleSliceMs, pathfinder.ledgeDangerMinDrop[1,64],
 pathfinder.axisHeight[-64,320], goalFieldCellSize[1,16], goalFieldRadius[8,192],
-goalFieldVerticalRadius[4,128], pathfinderDepthSlack[0,64],
+goalFieldVerticalRadius[4,128], pathfinderDepthSlack[0,64], pathfinderHorizonBlocks,
+pathfinderMaxDryFall, pathfinderSoftCommitNodes, pathfinderQuickNodes,
 pathDebugMaxNodes[100,200000], pathDebugMaxSamples[100,200000]`.
 
 **Numbers (double, [min,max])** — survival/combat: `retreatHpThreshold[0,20],
@@ -244,11 +281,13 @@ pathfinder.ledgeDangerPenalty[0,1000], pathfinder.waterDangerPenalty[0,1000],
 pathfinder.mobAvoidRadius[0,64], pathfinder.mobAvoidPenalty[0,1000],
 pathfinder.avoidZonePenalty[0,5000], pathfinder.heuristicWeight[1.0,3.0],
 pathfinderDepthPenalty[0,100], pathfinderDescendCost[0,200],
-pathfinderBridgeCost[0,1000], pathfinderThinObstacleHeight[0,1],
+pathfinderWaterCellCost, pathfinderWaterClimbOutCost, pathfinderSubmergedWaterCost,
+pathfinderBridgeCost[0,1000], pathfinderPillarCost, pathfinderThinObstacleHeight[0,1],
 smoothLookDegPerTick[1,180], walker.yawHysteresisDeg[0,30]`.
 
-**Other** — `autoBackfillBlock:id`, `blocksToAvoid:[id]`, `mutedEvents:[type]`,
-`avoidPoints:[{x,y,z,radius?}]`.
+**Other** — `autoBackfillBlock:id`, `blocksToAvoid:[id]`, `buildBlockWhitelist:[id]`,
+`mutedEvents:[type]`, `avoidPoints:[{x,y,z,radius?}]`; `debugFly:bool` (apply-only
+creative-flight test toggle, no snapshot field).
 
 ## mc.script.eval / mc.skill
 | method | params | returns / notes |
@@ -260,4 +299,4 @@ smoothLookDegPerTick[1,180], walker.yawHysteresisDeg[0,30]`.
 ## mc.test.yaml
 | method | params | returns / notes |
 |---|---|---|
-| `mc.test.yaml` | `file?` (classpath path) or `inline?` (spec string) or `all?:true` | **RPC-route-only**: run YAML GameTest specs on demand → `{results:[{name,pass,failures}], passed, failed}`. See `docs/yaml-gametest.md`. Server-side. |
+| `mc.test.yaml` | `file?` (classpath path) or `inline?` (spec string) or `all?:true` | **The one RPC-route-only verb** (declared as a *hidden* `ToolSchema` in `ToolCatalog.HIDDEN_TOOLS`, so it's out of MCP `tools/list` but reachable over RPC): run YAML GameTest specs on demand → `{results:[{name,pass,failures}], passed, failed}`. See `docs/yaml-gametest.md`. Server-side. |

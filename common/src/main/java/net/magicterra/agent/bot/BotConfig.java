@@ -57,6 +57,58 @@ public final class BotConfig {
      *  (waypoint below foot in the stride column) and parkour launches are exempt. */
     public static volatile boolean walkerStrideFloorGuard = true;
 
+    /** Floor-gate the UNAIMED recovery hops (stuck-wiggle jump, unstuck displacement-burst
+     *  jump): skip the jump when a LETHAL drop column sits within hop range (Chebyshev ≤2)
+     *  of the foot — {@code WalkerGeometry.lethalDropWithinHopRange}. Those hops launch a
+     *  ballistic arc along whatever the current (often mid-slew) heading is; on 1-wide
+     *  elevated footing that arc clears the deck and the stride floor-guard cannot help
+     *  (it only sees GROUNDED velocity — the jump rewrites the trajectory after launch).
+     *  Bridge-battery t0 2026-07-20: every shed (breach@t=81/609) was a wiggle-window
+     *  sprint-jump from a floored cell one stride inside the rim. AIMED jumps (stepUp,
+     *  parkour, riser breakers) are untouched — hurdle-on-a-bridge legitimately jumps.
+     *  Suppression degrades to a grounded stall → futile cap → honest repath/FAILED. */
+    public static volatile boolean walkerRecoveryHopFloorGate = true;
+
+    /** Discard a FROM-END best-effort continuation that makes no goal progress past the
+     *  committed end (its best node's estimate doesn't beat commitEnd's): with the goal
+     *  sealed, that continuation is the escape-farthest fallback walking BACKWARD from
+     *  commitEnd, and adopting it U-turns the bot into a forward/backward ping-pong at
+     *  the segment start (bridge stop-family livelock, t0 2026-07-20: maxX 3.9 of a
+     *  reachable 11). Discarding degrades it to the empty-continuation path, which ends
+     *  the journey cleanly at the farthest reachable point. Genuine detours survive
+     *  (some node beats commitEnd); water is exempt (anti-spin owns afloat churn).
+     *  <p>Default OFF pending a replay A/B: the clean give-up preempts the churn-escape /
+     *  planner-escalation machinery that BOXED pockets rely on to physically get out
+     *  (t0 2026-07-20: boxedChurnEscalate ended "frontier-giveup" inside its pocket with
+     *  zero escapes). The bridge battery's sealed-goal scenes opt in per-scene. */
+    public static volatile boolean walkerFromEndNoProgressDiscard = false;
+
+    /** Directional best-effort tail consumption: the tail-overshoot resync used a raw
+     *  distance gate (cur2 > overshoot), which cannot tell a tail the bot BLEW PAST from
+     *  a tail still FAR AHEAD — and string-pulled best-effort segments routinely end in
+     *  a >10-block final leg (the land quick-start stub is literally [start, far-tail]),
+     *  so segments self-consumed on their first tick and journeys ended at their start
+     *  (bridge stop-family livelock, t0 2026-07-20). When ON, overshoot also requires
+     *  the foot to be beyond the tail along the incoming leg's direction (while step
+     *  progress is healthy; a stalled approach falls back to the distance consume).
+     *  <p>Default OFF pending a replay A/B: the r14 t0 net showed the distance-consume is
+     *  LOAD-BEARING in coupled machinery — entityLeash's hold rides on segment
+     *  truncation, boxedChurn's escapes feed on the consume/repath cycle, descentYaw
+     *  stalled — flipping this needs its own corpus campaign, not a drive-by. The
+     *  bridge battery's scenes opt in per-scene (their quick-start stub is the
+     *  canonical far-ahead-tail victim). */
+    public static volatile boolean walkerTailConsumeDirectional = false;
+
+    /** Corner-clearance repulsion in the walk drive: pure-pursuit cuts corners by design,
+     *  and the 0.6-wide body then grazes solid corners the carrot line passes within
+     *  half-width of — the flat wall-corner wedge (§39's corner-cut variant; bridge
+     *  battery bypass trio wedged on a barrier corner at z offset 0.91 with recovery
+     *  hops floor-gated). Blends a small capped push away from any solid body-height
+     *  cell whose closest face point is within 0.45 of the body centre — PREVENTING the
+     *  graze instead of escaping the wedge. Self-limiting: cell-centred walking beside a
+     *  wall sits at ≥0.5 (no push) and corridor pushes cancel. */
+    public static volatile boolean walkerCornerClearance = true;
+
     /** Yaw delta below this is not written each tick — reduces jitter when already aligned. */
     public static volatile float walkerYawHysteresisDeg = 5f;
 
@@ -675,6 +727,20 @@ public final class BotConfig {
      *  so basin-dive protection is unchanged. Old hard-coded value was 30 (walk 10 +
      *  {@link net.magicterra.agent.bot.pathfinder.Move#PLACE_COST 20}). Default {@value}. */
     public static volatile double pathfinderBridgeCost = 80;
+
+    /** Base cost of a {@link net.magicterra.agent.bot.pathfinder.moves.PillarUp} rung
+     *  (was the hard-coded {@code Move.PILLAR_COST} 30). Placement consumes inventory,
+     *  and the old price made a single pillar rung BEAT a ~6-walk stair detour — the
+     *  bot spent build blocks where a free walk route existed (ad.bridgeStepTwoBypassNoPlace,
+     *  2026-07-20; the 独木桥 battery's "bypass exists → don't spend materials" contract).
+     *  150 prices in material scarcity AND execution reality the way
+     *  {@link #pathfinderBridgeCost} does for horizontal bridging: a pillar rung live
+     *  is a failure-prone jump-place (deep-water takeovers measured ~27s) plus a spent
+     *  block, so a ~10-walk stair detour should win; a pillar with NO walkable
+     *  alternative (water climb-outs, sealed pits) is still far cheaper than futile.
+     *  Live-tunable via mc.bot.setting. */
+    public static volatile double pathfinderPillarCost = 150;
+
 
     /** Max DRY (no-water) fall the planner will take as a plain {@code Fall} move,
      *  in blocks. Default 3 = Baritone's no-fall-damage cap (current behaviour;
@@ -2573,6 +2639,21 @@ public final class BotConfig {
             if (needsUpgrade) save();   // best-effort upgrade re-save (IO failure logged, not fatal)
         } catch (Exception e) {
             LOG.warn("[config] load failed: {}", e.toString());
+        }
+    }
+
+    /** Reset every persistable field to THIS build's compiled default — the live
+     *  truth stack. Testkit scenes whose contract is live behaviour (not the §78
+     *  legacy arena baseline) call this right after {@link #pinnedBaseline()}: the
+     *  pin still restores the pre-scene state on close; this only changes what the
+     *  scene body runs. Scenes must re-assert any flag they need OFF (allowBreak /
+     *  allowPlace default ON live). */
+    public static synchronized void applyCompiledDefaults() {
+        for (Field f : persistableFields()) {
+            String s = COMPILED_DEFAULTS.get(f.getName());
+            if (s == null) continue;
+            try { assign(f, s); }
+            catch (Exception ex) { LOG.warn("[config] default reset skip {}: {}", f.getName(), ex.toString()); }
         }
     }
 

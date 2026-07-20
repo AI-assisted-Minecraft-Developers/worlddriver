@@ -146,6 +146,38 @@ final class WalkerGeometry {
         return false;
     }
 
+    /** True if a LETHAL drop column sits anywhere within HOP RANGE (Chebyshev ≤2) of the
+     *  foot — the landing footprint of an UNAIMED recovery hop (stuck-wiggle, unstuck
+     *  displacement burst). Those hops launch a full sprint-jump arc along whatever the
+     *  current (often mid-slew) heading is, which travels ~3 blocks: a foot-ADJACENT scan
+     *  is blind to it — the bridge-battery sheds launched from one cell INSIDE a safe pad
+     *  rim, every neighbour floored, and sailed clean over the deck edge (t0 2026-07-20,
+     *  breach@t=81/609). Radius 2 covers the arc's reachable columns; lethal-only
+     *  (survivableFall at current HP) so ordinary rough terrain keeps its recovery hops —
+     *  suppressing a hop near a killer edge degrades to a grounded stall, which the
+     *  futile-search cap converts into an honest repath/FAILED instead of a corpse. */
+    public static boolean lethalDropWithinHopRange(WorldView world, Player p, BlockPos foot) {
+        int threshold = SurvivalMath.survivableFall(p.getHealth());
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= 2; dz++) {
+                if (dx == 0 && dz == 0) continue;
+                BlockPos n = foot.offset(dx, 0, dz);
+                if (world.isSolid(n) || world.isWater(n)) continue;
+                BlockPos below = n.below();
+                if (world.isHazard(below)) return true;
+                if (world.isSolid(below) || world.isWater(below)) continue;
+                int fall = 1;
+                BlockPos pr = below.below();
+                while (fall <= threshold + 2 && !world.isSolid(pr) && !world.isWater(pr)) {
+                    if (world.isHazard(pr)) return true;
+                    fall++;
+                    pr = pr.below();
+                }
+                if (fall > threshold) return true;
+            }
+        return false;
+    }
+
     /** Y-MISLABELED-RISER RAM detector (executor-side, see {@code levelRiserJump} below).
      *  A* can label an edge a LEVEL {@code walk} (Move dy=0) whose DESTINATION floor is actually
      *  +1 — a mislabeled ridge step. The bot, expecting level ground, sprints in, walks off the

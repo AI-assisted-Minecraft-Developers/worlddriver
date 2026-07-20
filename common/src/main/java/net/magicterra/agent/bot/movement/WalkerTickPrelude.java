@@ -55,6 +55,9 @@ final class WalkerTickPrelude {
         Player p = a.player();
         if (p == null) { wk.lastError = "player vanished"; return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.ERROR, wk.lastError, "failed:" + wk.lastError, null); }
         wk.guardParkourTick = false;
+        wk.jumpTag = null;
+        wk.aimTag = null;
+        wk.driveTag = null;
         // AgentInput install (client) is handled inside the Avatar implementation.
 
         // Steep-barrier planner escalation: a confirmed boxed churn (below) arms a sticky

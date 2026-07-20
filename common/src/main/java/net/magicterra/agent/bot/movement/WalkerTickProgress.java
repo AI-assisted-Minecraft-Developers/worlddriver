@@ -50,6 +50,12 @@ import static net.magicterra.agent.bot.movement.WalkerGeometry.*;
 final class WalkerTickProgress {
     private WalkerTickProgress() {}
 
+    /** Ticks of stalled step progress after which a far-ahead best-effort tail stops being
+     *  held (walkerTailConsumeDirectional) and the legacy distance-consume applies — a
+     *  wedge-scale window: long enough to ride out a slow but real approach, short enough
+     *  that walled pockets re-enter the repath/churn machinery promptly. */
+    static final int TAIL_HOLD_STALL_TICKS = 30;
+
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
@@ -491,8 +497,33 @@ final class WalkerTickProgress {
                         || se.move.equals("stepDown"));
             boolean tailDroppedPast = !p.isInWater() && descendTail
                     && p.getY() < w.getY() - 2.0;
+            // DIRECTIONAL (walkerTailConsumeDirectional): the raw cur2 gate is blind to which
+            // SIDE of the tail the bot is on — a smoothed best-effort segment whose tail
+            // waypoint is still FAR AHEAD (string-pulling routinely leaves the last leg >10
+            // blocks: the land quick-start stub is literally [start, far-tail]) reads exactly
+            // like a blown-past tail, so the segment self-consumed on its FIRST tick and the
+            // segment-end handler ended the journey at the start (bridge stop-family: stub
+            // [( -2,0)→(11,0)] "consumed" at t1, frontier-giveup ARRIVED at spawn, maxX -1.4
+            // of a reachable 11). Overshoot now requires the foot to be BEYOND the tail along
+            // the incoming leg's direction; a genuine overshoot still projects positive and
+            // consumes as before, and the vertical drop-past case is unchanged.
+            // ...but only while the tail is actually being APPROACHED: the old consume-on-
+            // distance was load-bearing for walled pockets — consuming the unreachable tail
+            // is what fed the repath/churn-escalation cycle (r14 regression net: boxedChurn
+            // asserted churnEsc≥2 and got a tail-held frontier-giveup instead; descentYaw +
+            // both entityLeash legs stalled the same way). A stalled approach (no step
+            // progress for a wedge-scale window) means the far tail is stale or walled —
+            // fall back to the distance consume so the downstream machinery runs unchanged.
+            boolean tailOvershot = cur2 > OVERSHOOT_RESYNC_SQ;
+            if (BotConfig.walkerTailConsumeDirectional && tailOvershot && wk.step > 0
+                    && wk.stepProg.noStepProgressTicks <= TAIL_HOLD_STALL_TICKS) {
+                BlockPos pv = wk.path.get(wk.step - 1);
+                double sgx = w.getX() - pv.getX(), sgz = w.getZ() - pv.getZ();
+                double ofx = p.getX() - (w.getX() + 0.5), ofz = p.getZ() - (w.getZ() + 0.5);
+                tailOvershot = (ofx * sgx + ofz * sgz) > 0;
+            }
             boolean tailConsumed = !within && wk.step + 1 == wk.path.size() && wk.seg.pathBestEffort
-                    && (cur2 > OVERSHOOT_RESYNC_SQ || tailDroppedPast);
+                    && (tailOvershot || tailDroppedPast);
             // DESCENT OVERSHOOT-ADVANCE (the 原地后跳 back-hop fix the in-place-hop comment
             // points to): on a dry descent step the body drives the IMMEDIATE node
             // (driveTargetYaw = descentNodeYaw). The instant the foot crosses PAST that node

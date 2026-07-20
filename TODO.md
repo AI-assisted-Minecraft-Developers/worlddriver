@@ -2,6 +2,18 @@
 
 > 镜像 Task 跟踪器的长期工作。重要根因写进 memory(reference/project)。
 
+## 2026-07-20 ✅ task#6 独木桥战役收官:18 场景全族 + wedge 三阶段 aim-clobber 根治 + guard-plug 语义分族 — 四门全绿(t0 fabric 161/161 ×2 + t0 neoforge 161/161 + t1 GREEN 132s,唯一 fail=既有 optional vineOverWaterClimb)
+
+- **需求(user verbatim 契约)**:长条单宽独木桥全族——1 格/1.5 格/2 格障碍±旁路、挡头/挡脚±旁路、无路径停最远不掉落、阶梯升降、中断跌落(安全/损伤/致命±水桶)、垫脚方块(有/无材料)、两格阶梯旁路零消耗、破坏抉择(挖 vs 绕)。落 `AgentDriverBridgeScenes.java` 18 场景(fabric+neoforge expect 各 +18);"预期停在最远处但不掉下去"=引擎契约,全族 no-fall 不变式守住。
+- **Wedge 真根(bypass trio 1200-tick 位相同签名,36 轮 t0 打磨)**:aim 管线三阶段各自把 recovery bearing 覆盖回"直线巡航"——①tangent override(WalkerTickAim ~349)②**trendCam centroid overwrite**(~508:dry flat 每 tick active,tangentAim 下 drive=aimYaw=EMA(centroid) **从来不是 tangent**,Phase-2 注释假设从未成立;dogleg 计划上 centroid 切角穿 void)③EMA 慢 alpha(0.08)。修=`pinnedRecovery=(hCol||guardSneakLatch)&&(reCentre||nodeAim)` 让①让位 + `recoverySnagAim` 同谓词 drop trendCam(②让位+α→0.5)。**验证纪律:as= 标签≠生效,必须看 pin-window 的 dr= 遥测**(三轮 bit-identical 失败都是只看了 as=)。
+- **Drive 源铁律(两次反证)**:tangentAim 下 `driveTargetYaw` 恒= aimYaw。r30 全局换 descentNodeYaw=9 回归(slide-back 族/stop 族/selfShaftDigUp/waterFarAimBankCorner);r31 guard-pin 窄门仍令 stop 族离轴漂移→futile-FAILED@137。正确架构=只改喂进 EMA 的输入。
+- **void-pin 恢复基建**:stride guard fire tick 会 `stuckTicks--`(护命设计不可动:防 recovery burst 把 pinned 身体推下崖)→void-pin 下所有 stuck-gated recovery 饿死(r29 StepTwo st0/117 livelock)。新=`guardPinClock`(guardSneakLatch?guardPinStreak:0)作替代 stall 钟(>5 解锁 reCentre/nodeAim);nodeAim pin-leg 带 `losWalkable` seatbelt(直线 aim 对 void 盲,r33/r34 平台东角 knife-edge 楔死)。
+- **guard-plug 语义分族**:plan 含 pillarUp/bridgePlace/parkourPlace 边=construction journey→**即时 plug**(buoyantWall 的 +5 水墙 mount 曾"意外依赖"guard plug 当基建,r29 gate 后连红 4 轮才定罪——17 fires 摊 3-4/cell 全没 arm);place-free plan→**12 同 cell fires** 才 arm(防 centroid 贴边巡航自建 causeway,StepTwo r28 6 dirt;ARM=12 因 corridor recovery(6 pinned ticks)必须赢 race)。`walkerRecoveryHopFloorGate`(unaimed hop 落点致命 gate)+guard pin 滞回(overhang 暂停/planned-descent 释放)为前段战果。
+- **新常驻观测基建**(scene drive(),全进 ctx.fail 消息=async log-loss 铁律):rolling trail(as=/dr=/jt=/st 探针)+journey(plan swap 快照)+pinWindow(15-tick 静止快照)+invEvents(库存 Δ 归因——r32 用它把"4 dirt"拆成 2 guard plug+2 planned construction)。
+- **场景 nondeterminism 仲裁法**:连败≥3 且同签名才实锤回归;"identical float"可能只是 rig 确定性常数(buoyantWall maxY=208.2522=rung1 跳顶 apex)不指纹共因。
+- **flag 挂账(维持 OFF,replay A/B campaign 待做)**:`walkerTailConsumeDirectional`/`walkerFromEndNoProgressDiscard`(bridge 场景 opt-in,默认 OFF——r14 反证 descentYaw/entityLeash/boxedChurn 依赖旧语义);`walkerCornerClearance`(drive 层 corner 斥力,wedge 上证明 inert,面上留防御);`pathfinderPillarCost=150`(PillarUp 材料稀缺定价)。parkour2d 经济学(cost 33 贴角捷径 vs 走廊 walk)+chained-parkour takeoff 对齐=独立 replay A/B campaign 待立项。
+- **豁免**:MLG bucket leg(lethalGapStop 有桶通过腿)=dedicated-topology 豁免(类 javadoc 记录);vineOverWaterClimb=既有 optional sensor 非本战役产物。
+
 ## 2026-07-19 ✅ artifactId 修名 + rootProject.name 纠错(user 拍板 `mc_testkit-*`)
 
 - **artifactId 根修**:root `build.gradle` `subprojects{}` 发布块的 `artifactId = base.archivesName.get()` 是配置期 eager 求值,抢在子脚本 `archivesName='mc_testkit-*'` 覆盖之前捕获 → 改为 `afterEvaluate` 延迟读取,子模块意图生效。发布坐标现为 **`mc_testkit-{common,fabric,neoforge}`**(与既有 `mc_testkit-junit` 成一族;`agent_driver-{common,fabric,neoforge}` 驱动 mod 件不变)。`publishToMavenLocal` 复验:新坐标齐全、mod 族 POM 全零依赖、junit 3 依赖照旧、agent_driver 发布 jar 双向字节门过(`scene/SceneProvider` 接口属 testkit 框架面合法打包,非场景实现;服务文件与 `AgentDriver*Scenes` 实现零条目)。`~/.m2` 陈旧 `agent_driver-testkit-*` 三目录已删(仅 mavenLocal 存在过,零远端消费者=零迁移成本)。`testkit-junit` 有 early-return 剖出不受 afterEvaluate 影响(保留自己的显式 publication)。

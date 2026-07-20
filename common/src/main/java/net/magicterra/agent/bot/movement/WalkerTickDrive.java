@@ -187,6 +187,7 @@ final class WalkerTickDrive {
             a.breakHold(false);
             p.setXRot(89.5f);                         // look straight down to aim the support
             if (p.onGround()) {
+                wk.jumpTag = "pillarRecoverRung";
                 Walker.agentJump(a, true);     // jump off the current rung
             } else {
                 Walker.agentJump(a, false);
@@ -449,6 +450,14 @@ final class WalkerTickDrive {
         // above set to the tangent) in ALL cases — including water, where the legacy smoothWaterDriveYaw EMA
         // is a separate node-following heading that the tangent supersedes. The flip-rejection block below is
         // skipped when this is on (the tangent already never reverses, so there is no back-hop to reject).
+        // NOTE (bridge battery r30/r31): do NOT swap the tangent-mode drive source off aimYaw. Driving the
+        // captured pre-centroid heading (descentNodeYaw) was tried twice against the dogleg corner-cut —
+        // unconditionally (r30: 9 regressions — slide-back pair, whole stop family, selfShaftDigUp,
+        // waterFarAimBankCorner) and guard-pin-scoped (r31: stop family drifted off the spine at the lip
+        // and spiralled into futile-FAILED@t137) — the EMA'd aimYaw drive is the suite's tuned
+        // equilibrium. Corner-cut recovery is fixed on the AIM side instead: recoverySnagAim (Aim) drops
+        // the trendCam centroid while a wall-pin OR guard-pin recovery owns the tree, so the corridor
+        // bearing flows through the same EMA into this unchanged drive.
         float driveTargetYaw = BotConfig.walkerTangentAim ? aimYaw
                 : flatWaterTrend ? wk.aimSmooth.smoothWaterDriveYaw
                 : trendCam ? descentNodeYaw : aimYaw;
@@ -530,9 +539,47 @@ final class WalkerTickDrive {
         }
         double driveDelta = Math.toRadians(angleDiff(p.getYRot(), driveTargetYaw));
         double driveCos = Math.cos(driveDelta), driveSin = Math.sin(driveDelta);
-        a.commandMove(
-                (float) (driveL * driveCos - driveF * driveSin),
-                (float) (driveL * driveSin + driveF * driveCos));
+        double cmdStrafe = driveL * driveCos - driveF * driveSin;
+        double cmdFwd = driveL * driveSin + driveF * driveCos;
+        // CORNER-CLEARANCE repulsion (walkerCornerClearance): pure-pursuit cuts corners by
+        // design, and the 0.6-wide body then GRAZES a solid corner the carrot line passes
+        // within half-width of — the flat §39 wedge (bridge bypass trio: side-step lane
+        // past a barrier, body wedged at the barrier's west face corner z=0.91, churn
+        // escapes floor-gated on the narrow deck → FAILED). PREVENT the graze instead of
+        // escaping the wedge: for each solid body-height cell whose closest face point is
+        // within BODY half-width + a grazing pad of the body centre, blend a small push
+        // away. Self-limiting: cell-centred walking beside a wall sits at ≥0.5 (no push),
+        // a 1-wide corridor pushes cancel, and the nudge is capped well under the drive
+        // impulse so it bends the line rather than steering it.
+        if (BotConfig.walkerCornerClearance && !p.isInWater() && (driveF != 0 || driveL != 0)) {
+            double rpx = 0, rpz = 0;
+            for (int cdx = -1; cdx <= 1; cdx++)
+                for (int cdz = -1; cdz <= 1; cdz++) {
+                    if (cdx == 0 && cdz == 0) continue;
+                    BlockPos n = foot.offset(cdx, 0, cdz);
+                    if (!world.isSolid(n) && !world.isSolid(n.above())) continue;
+                    double ncx = Math.max(n.getX(), Math.min(p.getX(), n.getX() + 1.0));
+                    double ncz = Math.max(n.getZ(), Math.min(p.getZ(), n.getZ() + 1.0));
+                    double ox = p.getX() - ncx, oz = p.getZ() - ncz;
+                    double d = Math.sqrt(ox * ox + oz * oz);
+                    if (d >= 0.45 || d < 1e-6) continue;
+                    double push = (0.45 - d) / 0.45;
+                    rpx += ox / d * push;
+                    rpz += oz / d * push;
+                }
+            double rMag = Math.sqrt(rpx * rpx + rpz * rpz);
+            if (rMag > 1e-6) {
+                double scale = Math.min(0.5, rMag) / rMag;   // cap the nudge at half impulse
+                // world → camera frame: forward = (−sinθ, cosθ), left = (cosθ, sinθ)
+                double cam = Math.toRadians(p.getYRot());
+                double camSin = Math.sin(cam), camCos = Math.cos(cam);
+                cmdStrafe += (rpx * camCos + rpz * camSin) * scale;
+                cmdFwd += (rpz * camCos - rpx * camSin) * scale;
+            }
+        }
+        wk.driveTag = String.format(Locale.ROOT, "y%.0f F%.2f L%.2f s%.2f f%.2f",
+                driveTargetYaw, driveF, driveL, cmdStrafe, cmdFwd);
+        a.commandMove((float) cmdStrafe, (float) cmdFwd);
         // TEMP FREEZE-DIAG (approach-freeze / pit-cascade phase-3 investigation): capture the exact
         // drive state when a dryDescent stalls (stuckTicks high) — which steering branch + driveF +
         // forward component + brakes — so the cur2-frozen hSpd~0 stall mechanism is identified, not guessed.
@@ -825,7 +872,14 @@ final class WalkerTickDrive {
         boolean flatWaterWalk = p.isInWater() && !diving
                 && (wp.getY() == foot.getY()
                     || (foot.getY() - wp.getY() == 1 && world.isWater(wp)));
-        boolean wiggle = !bridging && !flatWaterWalk && !pivotForStepUp && wk.stuckTicks > 10 && wk.stuckTicks < 18;
+        // Floor-gated (walkerRecoveryHopFloorGate): the "while bridging" carve-out above
+        // encodes edge TYPE, but the fatal case is footing GEOMETRY — walking an EXISTING
+        // 1-wide strip is not `bridging`, and the wiggle there launched a sprint-jump arc
+        // along a mid-slew heading clean over the deck (bridge battery, every shed).
+        // Hop-range (Chebyshev ≤2) because the arc travels ~3 blocks: the sheds launched
+        // from a floored cell one stride INSIDE the rim, so foot-adjacent scans stay blind.
+        boolean wiggle = !bridging && !flatWaterWalk && !pivotForStepUp && wk.stuckTicks > 10 && wk.stuckTicks < 18
+                && !(BotConfig.walkerRecoveryHopFloorGate && lethalDropWithinHopRange(world, p, foot));
         // Climbing a +1 ledge out of a SHALLOW water film needs a BALLISTIC,
         // GROUNDED jump: |Δy|=0.8 exceeds the 0.6 auto-step, and a *held* jump in
         // water just swims the bot up to bob at the surface (y+0.2, onGround=false)
@@ -986,6 +1040,11 @@ final class WalkerTickDrive {
                     jump, swimUp, swimColumn, deepWaterRise, cappedHead, diving, descendBrake, fellBelowMisaligned,
                     (p.horizontalCollision && p.onGround() && wp.getY() < foot.getY()), stepUpJump, wiggle, wk.driveLatch.underwaterTicks,
                     wp.getX(), wp.getY(), wp.getZ(), foot.getX(), foot.getY(), foot.getZ());
+        }
+        if (jump) {
+            wk.jumpTag = stepUpJump ? "stepUp" : parkourEdge ? "parkour"
+                    : stepUpFreeze && p.onGround() ? "stepUpFreeze"
+                    : levelRiserJump ? "levelRiser" : wiggle ? "wiggle" : "swim";
         }
         Walker.agentJump(a, jump);
         // Sprint in water ONLY on a FLAT crossing (flatWaterWalk: wp.y==foot.y). The

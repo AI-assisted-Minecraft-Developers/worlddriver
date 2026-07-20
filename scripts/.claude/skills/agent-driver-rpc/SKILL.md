@@ -2,14 +2,14 @@
 name: agent-driver-rpc
 description: >-
   Live-control the agent-driver Minecraft mod over its JSON-RPC websocket
-  (port 39801) with the bundled rpc.py client and a complete 71-method reference.
+  (port 39801) with the bundled rpc.py client and a complete 72-method reference.
   CONSULT THIS SKILL before doing anything with the agent-driver mod's runtime
   API: any mc.bot.* / mc.action.* / mc.observe.* / mc.world.* / mc.client.* /
   mc.query / mc.events / mc.wait.* / mc.recipe.* / mc.plan.acquire /
   mc.script.eval / mc.skill call, scripting a multi-step live setup
   (give→tp→fill→setting→goto), sending a raw method+params to the websocket,
   reaching an RPC-route-only method the MCP layer doesn't expose (e.g.
-  mc.bot.elytraFly / mc.test.yaml), or when an mcp__agent-driver__* tool won't
+  mc.test.yaml), or when an mcp__agent-driver__* tool won't
   apply a newly-added param/setting (the MCP tool schemas are frozen at session
   start, so new keys must be set over RPC). Don't hand-roll a websocket client or
   guess the wire format, method names, or params — they're all in this skill.
@@ -81,15 +81,16 @@ a local bot you never need `--host` — loopback is included in a wildcard bind.
 
 ## Method surface (overview)
 
-71 methods across 14 namespaces. Full per-method params + returns are in
-**`references/methods.md`** — read it before composing an unfamiliar call.
+72 methods across 14 namespaces (71 exposed as MCP tools + one RPC-route-only,
+`mc.test.yaml`). Full per-method params + returns are in **`references/methods.md`**
+— read it before composing an unfamiliar call.
 
 | namespace | what's there |
 |---|---|
 | `mc.system.*` | `version`, `testOrigin`, `waitTicks` |
 | `mc.observe.*` | `cursor`, `eventsSince`, `player`, `threats`, `boss`, `scene`, `map`, `container` (state snapshots) |
 | `mc.action.*` | `runCommand`, `fill`, `placeMany` (world mutations, `returnEvents?`) |
-| `mc.world.*` | `snapshot`, `restore` (in-memory block-box save/restore for clean A/B trials) |
+| `mc.world.*` | `block` (read-only single-cell inspect), `snapshot`, `restore` (in-memory block-box save/restore for clean A/B trials) |
 | `mc.query` | scan blocks / entities in a cube |
 | `mc.events` | `emit` / `watch` / `unwatch` / `list` (server-side event channel + watchers) |
 | `mc.wait.*` | `event`, `worldReady`, `condition`, `result` (long-poll, server-side blocking; `background?`) |

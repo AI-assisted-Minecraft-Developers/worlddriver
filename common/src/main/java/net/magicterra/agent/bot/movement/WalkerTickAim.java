@@ -106,7 +106,16 @@ final class WalkerTickAim {
         // drift-off case (foot no longer in the spine cell).
         boolean reCentre = false;
         double recX = 0, recZ = 0;
-        if (!aimAtWaypoint && wk.stuckTicks > 5 && wk.step > 0) {
+        // Guard-pin stall clock: while the stride floor-guard pins the body at an unplanned
+        // void edge, its fire ticks DECREMENT stuckTicks by design (the pin is a hold, not a
+        // stall, and recovery bursts at a lip have killed — Walker wrapper) — so every
+        // stuck-gated recovery branch below starves and the pin livelocks (r29 StepTwo:
+        // st0/117 at the dogleg edge, 1300 ticks). The guard's own pinStreak IS the stall
+        // clock for that state: it accumulates across fire/hold ticks by design. Use it as
+        // an alternate trigger while the pin is latched — the branches it enables (reCentre /
+        // nodeAim) steer along the corridor, which is exactly what releases the pin.
+        int guardPinClock = wk.guardSneakLatch ? wk.guardPinStreak : 0;
+        if (!aimAtWaypoint && (wk.stuckTicks > 5 || guardPinClock > 5) && wk.step > 0) {
             BlockPos sp = wk.path.get(wk.step - 1);
             boolean onSpine = foot.getX() == sp.getX() && foot.getZ() == sp.getZ();
             if (!onSpine && losWalkable(world, foot, sp)) {
@@ -122,7 +131,14 @@ final class WalkerTickAim {
                 // falls through to the carrot, which keeps pushing forward.
                 double fwx = (wp.getX() + 0.5) - p.getX();
                 double fwz = (wp.getZ() + 0.5) - p.getZ();
-                if (rcx * fwx + rcz * fwz >= 0) {
+                // NORMALIZED backward gate: the raw dot's >=0 cut also rejected the
+                // near-PERPENDICULAR re-centre — which is exactly the corner-resnag this
+                // branch exists for (bridge bypass trio: body pinned on the barrier's
+                // face at (11.7,0.91), spine node one lane over at (11.5,1.5), dot -0.01
+                // → rejected → 1200-tick wedge). Reject only a clearly BACKWARD steer
+                // (beyond ~107° off the waypoint direction); lateral regains stay in.
+                double rcm = Math.sqrt(rcx * rcx + rcz * rcz) * Math.sqrt(fwx * fwx + fwz * fwz);
+                if (rcm > 1e-6 && (rcx * fwx + rcz * fwz) / rcm >= -0.3) {
                     recX = rcx;
                     recZ = rcz;
                     reCentre = true;
@@ -191,7 +207,19 @@ final class WalkerTickAim {
         } else if (reCentre) {
             aimSrc = "recentre";
             adx = recX; adz = recZ;
-        } else if (wk.stuckTicks > APPROACH_NODE_AIM_TICKS) {
+        // Pin-clock threshold 5, not APPROACH_NODE_AIM_TICKS: guardPinStreak zeroes on every
+        // unpinned tick between pin cycles, so a 13-consecutive bar loses the race against
+        // same-cell plug arming (cell-sticky, survives cycles) — r32 spent 2 dirt before
+        // nodeAim ever engaged. 6 pinned ticks is already a held pin (hysteresis alone is 8).
+        // losWalkable seatbelt on the pin leg (r33: bypass trio + detourCheap all wedged at
+        // the platform's east reconvergence corner, knife-edged at (16.3,2.7) to FAILED):
+        // nodeAim is a straight-line aim, blind to void — engaged at a corner pin it aims
+        // diagonally across the missing corner cells and re-pins forever. Only engage when
+        // the straight line to the node is walkable (same check reCentre has always had);
+        // otherwise fall through to the carrot, which follows the path cell-by-cell. The
+        // plain stuckTicks leg keeps its historical unguarded form.
+        } else if (wk.stuckTicks > APPROACH_NODE_AIM_TICKS
+                || (guardPinClock > 5 && losWalkable(world, foot, wp))) {
             aimSrc = "nodeAim";
             // FLAT-node carrot-orbit fallback (see APPROACH_NODE_AIM_TICKS). On a flat walk the body
             // follows the look-ahead carrot; at a turn/corner node the carrot points ~60° off the close
@@ -330,7 +358,23 @@ final class WalkerTickAim {
         // and never mounts (live P2: a +1 riser at -750 churned with perp drifting to 4+). For an above-foot
         // immediate node, keep the legacy node bearing so pivotForStepUp/stepUpJump align onto the block —
         // the same reason the buoyant water-mount (buoyantClimbPress) keeps its column bearing, not the trend.
-        if (BotConfig.walkerTangentAim && !launch && aim2 >= aimDeadzone
+        // ...and never while a RECOVERY branch owns the aim AND the body is PINNED — by a
+        // wall (horizontalCollision) or by the stride floor-guard's void-edge sneak-pin
+        // (guardSneakLatch). The tangent presumes the body is ON the lane; a pinned
+        // recovery fires exactly because it is not. Before this guard the tangent
+        // overwrote the reCentre bearing right after the tree chose it (bridge bypass
+        // trio r26: 1200-tick barrier-face pin with as=recentre and the drive still
+        // pressing the tangent into the wall); r34 repeated the identical clobber at a
+        // VOID pin — as=nodeAim/-130° at the platform's east corner, drive frozen at the
+        // tangent's -90 east, hc=false so the old reCentre-only gate never yielded. The
+        // pin gate is load-bearing: an UNCONDITIONAL yield let transient stuck-wobbles
+        // divert the drive mid-ridge and r22's suite hung on a bot that walked off the
+        // ridge to bedrock. Plain stuckTicks-triggered nodeAim (no pin) keeps the
+        // historical tangent override.
+        boolean pinnedRecovery = (p.horizontalCollision || wk.guardSneakLatch)
+                && (reCentre || "nodeAim".equals(aimSrc));
+        if (BotConfig.walkerTangentAim && !launch && !pinnedRecovery
+                && aim2 >= aimDeadzone
                 && wk.path != null && wk.step < wk.path.size()
                 && wk.path.get(wk.step).getY() <= foot.getY()) {
             targetYaw = wk.arc.proj.tangentYaw;
@@ -357,6 +401,7 @@ final class WalkerTickAim {
         // Under the confirmed-stall gate, snap targetYaw back to the current-node bearing so
         // both the drive (descentNodeYaw capture below) and the camera follow. Aims at the
         // CURRENT node under a collision gate — not the §25 step-1 reanchor that bounced.
+        boolean ramReleaseAim = false;
         if (BotConfig.walkerRamNodeAimRelease && !p.isInWater()
                 && p.horizontalCollision
                 && (wk.stuckTicks > 40
@@ -368,11 +413,27 @@ final class WalkerTickAim {
                 float rnb = (float) Math.toDegrees(Math.atan2(-rndx, rndz));
                 if (Math.abs(angleDiff(p.getYRot(), rnb)) > 60) {
                     targetYaw = rnb;
+                    ramReleaseAim = true;
                     if (BotConfig.walkerDebug)
                         LOG.info("[walker] ram-release: node-aim {} (was yaw={}) node={},{},{} stuckT={}",
                                 String.format(Locale.ROOT, "%.0f", rnb),
                                 String.format(Locale.ROOT, "%.0f", p.getYRot()),
                                 rn.getX(), rn.getY(), rn.getZ(), wk.stuckTicks);
+                } else if (reCentre) {
+                    // CORNER-SNAG leg: the node bearing is within 60° of the pressed yaw —
+                    // i.e. the node sits BEHIND the same wall face and aiming at it keeps
+                    // ramming (bridge bypass trio: yaw −89 vs node bearing −72 into the
+                    // barrier's west face, every release valve gated out by the small
+                    // angle, 1200-tick pin). The spine-rejoin bearing (reCentre) is the
+                    // one direction that clears the corner — under THIS confirmed-stall
+                    // gate it is persistent, so the aim EMA actually converges on it
+                    // (the tree's own intermittent reCentre ticks were smoothed away).
+                    targetYaw = (float) Math.toDegrees(Math.atan2(-recX, recZ));
+                    ramReleaseAim = true;
+                    if (BotConfig.walkerDebug)
+                        LOG.info("[walker] ram-release: corner-snag spine-aim {} (was yaw={}) stuckT={}",
+                                String.format(Locale.ROOT, "%.0f", targetYaw),
+                                String.format(Locale.ROOT, "%.0f", p.getYRot()), wk.stuckTicks);
                 }
             }
         }
@@ -419,7 +480,32 @@ final class WalkerTickAim {
         boolean flatWaterTrend = BotConfig.descentCameraDecouple && inWaterLatched && !launch
                 && wp.getY() <= foot.getY() + 1
                 && !(edge != null && edge.move != null && edge.move.startsWith("swimDown"));
-        boolean trendCam = dryDescent || flatWaterTrend;
+        // WALL-PINNED RECOVERY OWNS THE AIM END-TO-END (bridge bypass trio, stage 3 of the same
+        // disease). The tree's reCentre bearing (and §80's ram-release) write targetYaw ABOVE, but
+        // on a dry FLAT walk trendCam is always true, and its centroid overwrite below replaced
+        // targetYaw every tick — r26 pin-window: 10 consecutive as=recentre ticks (spine bearing
+        // +19°) with the drive frozen at y-90, which is EXACTLY the lookahead centroid's bearing
+        // (nodes (13,1),(14,0),(26,0) → centroid (18.2,0.8), atan2 = −90.7°). Under tangent mode
+        // driveTargetYaw=aimYaw=EMA(targetYaw), so the centroid — not the recovery — drove the body
+        // into the barrier face for 1200 ticks; every aim-layer fix upstream was label-only, the
+        // same way the tangent override was before its reCentre guard. While a wall-pinned recovery
+        // owns the aim, drop trendCam entirely: the centroid overwrite yields AND the EMA switches
+        // from the slow descent alpha (0.08 — a 109° recovery swing would lag ~2 s) to the fast
+        // cruise alpha (0.5). Scoped to hCol exactly like the tangent guard (r22: an unconditional
+        // yield diverted transient wobbles and walked a ridge bot off to bedrock).
+        // Dry-only: a floating bank-ram has its own recovery set (bankFollow / floatingBankBob),
+        // so the water trend stays byte-identical. Two pin flavours:
+        //  - WALL-pin (hCol): reCentre / §80 own the aim (bridge bypass trio, r26).
+        //  - VOID-pin (guardSneakLatch, hc=false): the guard holds the body at an unplanned
+        //    lip the centroid keeps steering it over (StepTwo dogleg r29: centroid (15.75,3.0)
+        //    dead east, plan detours north; with allowPlace the bot causeway-plugged its own
+        //    shortcut — 6 dirt). The pin-clock-enabled reCentre/nodeAim branches above give
+        //    the corridor bearing; dropping trendCam here lets it reach the drive via the EMA.
+        //    (Swapping the DRIVE source instead was r30/r31-DISPROVEN — see Drive.)
+        boolean recoverySnagAim = !p.isInWater()
+                && ((p.horizontalCollision && (reCentre || ramReleaseAim))
+                    || (wk.guardSneakLatch && (reCentre || "nodeAim".equals(aimSrc))));
+        boolean trendCam = (dryDescent || flatWaterTrend) && !recoverySnagAim;
         // Smoothed water DRIVE: the raw immediate-node bearing flips ±180° when the slow buoyant body
         // overshoots a node, so driving it raw makes the body swim-wobble (live: 52% path efficiency,
         // "突然转身背离目标"). A light EMA damps the per-tick flip while still tracking the node. WATER
@@ -744,6 +830,7 @@ final class WalkerTickAim {
         cx.aim.aimAtWaypoint = aimAtWaypoint;
         cx.aim.reCentre = reCentre;
         cx.aim.aimSrc = aimSrc;
+        wk.aimTag = aimSrc;
         cx.aim.descentNodeYaw = descentNodeYaw;
         cx.aim.dryDescent = dryDescent;
         cx.aim.flatWaterTrend = flatWaterTrend;

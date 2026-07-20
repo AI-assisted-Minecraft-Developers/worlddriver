@@ -538,6 +538,36 @@ public final class Walker {
                 + " digFloat=" + waterClimb.digFloatTicks + " gaveUp=" + waterClimb.pillarGaveUp;
     }
 
+    /** Ultra-compact per-tick probe for scene kinematics trails: plan identity tag (the
+     *  list's identityHashCode mod 1000, so a trail exposes PLAN SWAPS mid-window — the
+     *  breach-time {@link #planProbe} is post-facto and fatal windows often straddle a
+     *  repath), step pointer, and the current waypoint. */
+    public String tickProbe() {
+        if (path == null) return "p#---";
+        BlockPos wp = step < path.size() ? path.get(step) : null;
+        return "p#" + String.format("%03d", Math.floorMod(System.identityHashCode(path), 1000))
+                + " s" + step + "/" + path.size()
+                + (wp == null ? "" : " w" + wp.getX() + "," + wp.getY() + "," + wp.getZ())
+                + " st" + stuckTicks + "/" + physStall.stallTicks;
+    }
+
+    /** Read-only compact dump of the CURRENT plan (nodes + move labels) for the same
+     *  post-mortem channel as {@link #progressProbe}: "which edge flung the body" is
+     *  unanswerable from the step pointer alone once the plan has been replaced, and
+     *  the [walker] path log line is droppable under end-of-suite load. */
+    public String planProbe() {
+        if (path == null) return "plan=null";
+        StringBuilder sb = new StringBuilder("plan=").append(step).append('/').append(path.size());
+        for (int i = 0; i < path.size(); i++) {
+            BlockPos n = path.get(i);
+            sb.append(' ').append(i).append(':')
+              .append(n.getX()).append(',').append(n.getY()).append(',').append(n.getZ());
+            if (edges != null && i < edges.size() && edges.get(i) != null)
+                sb.append('[').append(edges.get(i).move).append(']');
+        }
+        return sb.toString();
+    }
+
     public void setGoal(Goal g) {
         this.goal = g;
         this.goalSnapChecked = false;
@@ -567,6 +597,8 @@ public final class Walker {
         this.stepProg.restartWindows();
         this.aimSmooth.reset();
         this.unstuck.resetForNewGoal();
+        this.guardPlugCell = null;                          // plug arming is per-journey; a stale
+        this.guardPlugFires = 0;                            // cell must not pre-arm the next goal
         this.replayMode = false;
         this.lastError = null;
     }
@@ -730,11 +762,49 @@ public final class Walker {
         // stride floor-guard here, after EVERY decision path, before the avatar integrates.
         Step s = tickInner(a, world);
         boolean fired = strideFloorGuard(a, world);
-        // Self-releasing latch: the pin must last exactly as long as the hazard. A sneak
-        // that nothing releases turns a one-stride save into a permanent stall (ridge
-        // descent pinned at maxNoProgress=205 in the first full-suite run).
-        if (guardSneakLatch && !fired) agentSneak(a, false);
-        guardSneakLatch = fired;
+        // Pin HYSTERESIS: the guard's fire predicate needs translation (h ≥ 0.03), so the
+        // pin's own deceleration un-fires it the next tick — pin/release alternation. On a
+        // spinning-drive arc at a lip that alternation is fatal twice over: the release
+        // ticks let the creep resume (bridge stop-family: body slid off between pins,
+        // breach@t=94), and the streak reset below kept the ≥30 forced repath from ever
+        // firing. Hold the pin for a short tail after the last fire; held ticks count
+        // toward the streak. Parkour ticks stay exempt (a deliberate leap must launch).
+        if (fired) guardHoldTicks = GUARD_PIN_HOLD;
+        else if (guardHoldTicks > 0) {
+            Player hp = a.player();
+            BlockPos fc = hp == null ? null
+                    : BlockPos.containing(hp.getX(), hp.getY() + 0.05, hp.getZ());
+            // Planned-descent release (same exemption the fire predicate has): when the
+            // current waypoint is BELOW the foot the walker is deliberately descending,
+            // and steep descents stand on knife edges BY DESIGN — holding the pin there
+            // froze the whole descent at the crest (r10 regression: descentYaw never left
+            // the top; caught four rounds late behind bridge-filtered greps).
+            boolean plannedDescent = fc != null && path != null && step < path.size()
+                    && path.get(step).getY() < fc.getY();
+            if (guardParkourTick || plannedDescent || hp == null) guardHoldTicks = 0;
+            else {
+                // While the body OVERHANGS (grounded only by the epsilon face-contact of
+                // a neighbouring block — sneak lets it balance on such a knife edge —
+                // with a passable column under its own foot cell) the countdown pauses:
+                // releasing there drops the body straight down (stop-family r9: pin
+                // walked the body back toward the deck at +0.04/tick but the tail
+                // expired two blocks short). Gated on an ACTIVE hold so routine diagonal
+                // corner-crossing transients never stutter-sneak.
+                boolean overhang = hp.onGround() && !hp.isInWater()
+                        && world.isPassable(fc.below()) && !world.isWater(fc.below());
+                if (!overhang) guardHoldTicks--;
+                agentSneak(a, true);
+                a.commandJump(false);
+                hp.setSprinting(false);
+            }
+        } else guardHoldTicks = 0;
+        boolean pinned = fired || guardHoldTicks > 0;
+        // Self-releasing latch: the pin must last exactly as long as the hazard (plus the
+        // hold tail). A sneak that nothing releases turns a one-stride save into a
+        // permanent stall (ridge descent pinned at maxNoProgress=205 in the first
+        // full-suite run).
+        if (guardSneakLatch && !pinned) agentSneak(a, false);
+        guardSneakLatch = pinned;
         if (fired) {
             // A pin is a deliberate hold, not a stall: revert this tick's stuck accounting so
             // anti-stuck recovery bursts don't shove the body over the very lip the pin holds it
@@ -749,6 +819,13 @@ public final class Walker {
             // the new route may re-approach it; the streak then trips again — bounded churn that
             // the futile-search cap ultimately converts into an actionable FAILED.
             if (++guardPinStreak >= 30) { path = null; guardPinStreak = 0; }
+        } else if (pinned) {
+            // Held ticks keep the streak alive AND advancing: the pin/release alternation
+            // used to reset it every other tick, so a livelocked lip approach never reached
+            // the forced repath (stop-family creep: 10+ fires, streak never past 1). The
+            // repath drops the PLAN only — the hold itself must survive it (r9: clearing
+            // the hold here released the sneak mid-overhang and dropped the body).
+            if (++guardPinStreak >= 30) { path = null; guardPinStreak = 0; }
         } else guardPinStreak = 0;
         return s;
     }
@@ -756,14 +833,56 @@ public final class Walker {
     /** Consecutive ticks the stride floor-guard has pinned; sustained pinning forces a repath. */
     int guardPinStreak;
 
+    /** Remaining hold-tail ticks after the last guard fire (pin hysteresis). */
+    int guardHoldTicks;
+
+    /** Hold-tail length: long enough to outlast the drive re-acceleration between fires
+     *  (~3-5 ticks observed), short enough that a false pin costs under half a second. */
+    static final int GUARD_PIN_HOLD = 8;
+
     /** True while the stride floor-guard's sneak-pin is held; cleared (and the sneak
      *  released) on the first tick the hazard is gone. */
     boolean guardSneakLatch;
+
+    /** Plug arming: the stride cell the guard last fired on + accumulated fires on it.
+     *  Resets only when the fired-on CELL changes (not on quiet ticks — a pinned body's
+     *  velocity decays under 0.03 so fires on one cell arrive in bursts between pin
+     *  cycles, and a consecutive-streak would never accumulate). */
+    BlockPos guardPlugCell;
+    int guardPlugFires;
+
+    /** Fires on one stride cell before the plug placement arms. A genuine unplanned
+     *  crossing (gap#53 well-mouth ON the corridor) re-fires the same cell across 2-3
+     *  pin cycles and passes this quickly; a transient diagonal edge-graze on a normal
+     *  walk sweeps a NEW cell every few ticks and never arms (StepTwo bypass r28: six
+     *  dirt spent on plugs during a clean detour walk, every event at a different
+     *  position, st≈0 — the pin alone was the load-bearing safety, the grounded-sneak
+     *  edge clamp holds without any block). The pin itself stays instant. 12, not 7:
+     *  the guard-pin corridor recovery (Aim, guardPinClock) engages at ~6 pinned ticks
+     *  and must decisively win the race against plug arming on a place-free plan
+     *  (r32: 7 fires accumulated before the recovery steered off the cell — 2 dirt).
+     *  Construction plans (see canPlug) bypass this entirely. */
+    static final int GUARD_PLUG_ARM_FIRES = 12;
 
     /** True while this tick's edge is a parkour launch — the guard must not sneak-pin or
      *  jump-cancel a deliberate leap over void (its landing is the plan). Set inside
      *  {@link #tickInner}; reset each tick. */
     boolean guardParkourTick;
+
+    /** Which branch commanded THIS tick's jump (null = no jump commanded). Pure telemetry,
+     *  reset each tick in the prelude: fall post-mortems keep needing "who launched the
+     *  fatal arc?" (bridge battery: three different launchers over three rounds), and the
+     *  aggregated drive jump erases the answer by the time the body is airborne. */
+    public String jumpTag;
+
+    /** This tick's aim-tree owner ({@code aimSrc}) — same telemetry channel as
+     *  {@link #jumpTag}: wedge post-mortems need "who owned the heading". */
+    public String aimTag;
+
+    /** This tick's drive command (target yaw + impulse) as a compact string; null when
+     *  the tick never reached the drive tail (early-return branch) — which is itself
+     *  the answer a pinned-body autopsy is after. Reset each tick in the prelude. */
+    public String driveTag;
 
     /** Stride floor-guard (gap #53, the 2026-07-12 survival death; #51's stair-side void is
      *  the same invariant): while GROUNDED and dry, project the body's actual horizontal
@@ -818,7 +937,27 @@ public final class Walker {
         // Log the plug's REAL outcome: the 2026-07-13 live death log claimed "plug" eight ticks
         // running for the same cell — if the first placement had landed, the second scan would
         // have found floor and never fired. The place() result was being discarded.
-        boolean canPlug = BotConfig.allowPlace && !a.breakHeld();
+        if (strideCell.equals(guardPlugCell)) guardPlugFires++;
+        else { guardPlugCell = strideCell.immutable(); guardPlugFires = 1; }
+        // CONSTRUCTION plans plug instantly: when the current plan itself contains a
+        // place-family edge, the journey is a build (buoyantWall: swimUp→pillarUp×2→
+        // bridgePlace→pillarUp) and the guard's backfill is part of the same toolbox —
+        // gating it behind the dwell broke the mount (r29-r32: 17 fires spread 3-4 per
+        // cell, none armed, the shelf the route needed never existed, and the replan
+        // dead-ended in a valve-less centroid pin). A place-free plan means the planner
+        // judged walking cheaper — there the dwell keeps transient corner-cut grazes
+        // from spending blocks the contract says to keep (StepTwo r28: 6 dirt causeway).
+        boolean constructionPlan = false;
+        if (edges != null)
+            for (var e : edges)
+                if (e != null && e.move != null
+                        && ("pillarUp".equals(e.move) || "bridgePlace".equals(e.move)
+                            || e.move.startsWith("parkourPlace"))) {
+                    constructionPlan = true;
+                    break;
+                }
+        boolean canPlug = BotConfig.allowPlace && !a.breakHeld()
+                && (constructionPlan || guardPlugFires >= GUARD_PLUG_ARM_FIRES);
         boolean held = canPlug && a.holdPlaceable();
         if (held) a.place(world, strideCell.below());
         // place() has no return value, so read the WORLD for the outcome. A client-side place

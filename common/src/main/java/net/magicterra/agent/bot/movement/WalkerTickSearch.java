@@ -133,6 +133,31 @@ final class WalkerTickSearch {
                     wk.searchGov.searchBackoffTicks = Math.min(40, 4 << Math.min(wk.searchGov.futileSearches, 3));
                 }
             }
+            // FROM-END continuation that makes NO goal progress beyond the committed end
+            // (walkerFromEndNoProgressDiscard): with the goal SEALED, the continuation's
+            // best-effort degenerates to the escape-farthest fallback — a path walking
+            // BACKWARD from commitEnd (bridge stop-family: the continuation from the land
+            // stub's end (11,0) came back (11,0)→start pad; adopting it U-turned the bot
+            // into a forward/backward ping-pong livelock at the pad, maxX 3.9 of a
+            // reachable 11). An EMPTY continuation already means "no further progress" —
+            // degrade this one to that, so the segment-end handler ends the journey
+            // cleanly at the farthest reachable point. A genuine detour keeps at least
+            // one node that beats commitEnd's estimate, so it is never discarded; water
+            // is exempt (afloat churn is owned by the anti-spin governor).
+            if (BotConfig.walkerFromEndNoProgressDiscard
+                    && wasFromEnd && res.hasPath() && wk.seg.commitEnd != null && !world.isWater(foot)) {
+                double endEst = wk.goal.estimate(wk.seg.commitEnd);
+                double bestEst = Double.MAX_VALUE;
+                for (BlockPos n : res.path()) bestEst = Math.min(bestEst, wk.goal.estimate(n));
+                if (bestEst >= endEst - 0.5) {
+                    if (BotConfig.walkerDebug)
+                        LOG.info("[walker] from-end continuation makes no progress past {},{},{} (best {} vs end {}) → discard as no-onward-route",
+                                wk.seg.commitEnd.getX(), wk.seg.commitEnd.getY(), wk.seg.commitEnd.getZ(),
+                                String.format(Locale.ROOT, "%.1f", bestEst), String.format(Locale.ROOT, "%.1f", endEst));
+                    res = new PathFinder.Result(java.util.List.of(), java.util.List.of(), false,
+                            res.expanded(), res.ms(), res.finalCost());
+                }
+            }
             if (wasFromEnd && wk.path != null && wk.step < wk.path.size()) {
                 // Continuation finished while we're still walking the current
                 // segment — stash it and splice only once we reach the segment end

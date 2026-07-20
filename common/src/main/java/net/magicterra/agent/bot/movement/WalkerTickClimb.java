@@ -735,6 +735,7 @@ final class WalkerTickClimb {
                 a.breakHold(false);
                 p.setSprinting(false);
                 Walker.agentForward(a, true);
+                if (p.horizontalCollision) wk.jumpTag = "riserHop";
                 Walker.agentJump(a, p.horizontalCollision);   // hop only to clear a riser; flat-smooth otherwise
                 return Walker.Step.WALKING;
             }
