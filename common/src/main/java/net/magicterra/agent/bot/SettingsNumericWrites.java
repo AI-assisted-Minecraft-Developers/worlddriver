@@ -90,6 +90,10 @@ final class SettingsNumericWrites {
                         if (n.doubleValue() >= 0 && n.doubleValue() <= 1) { BotConfig.equipDurabilityThreshold = n.doubleValue(); applied.add(k); }
                         else rejected.add(k + " out of range [0,1]");
                         break;
+                    case "riskBias.scale":
+                        if (n.intValue() >= 0 && n.intValue() <= 400) { BotConfig.riskBiasScale = n.intValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [0,400]");
+                        break;
                     case "pathfinder.maxNodes":
                         if (n.intValue() >= 1000 && n.intValue() <= 1_000_000) { BotConfig.pathfinderMaxNodes = n.intValue(); applied.add(k); }
                         else rejected.add(k + " out of range [1000,1000000]");

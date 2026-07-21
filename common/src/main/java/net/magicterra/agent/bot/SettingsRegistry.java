@@ -178,6 +178,8 @@ public final class SettingsRegistry {
         field("elytraDebug"),
         field("smoothLook"),
         field("smoothLookDegPerTick"),
+        field("riskBias"),
+        field("riskBias.scale", "riskBiasScale"),
         field("pathfinder.maxNodes", "pathfinderMaxNodes"),
         field("pathfinder.maxMs", "pathfinderMaxMs"),
         field("pathfinder.sliceMs", "pathfinderSliceMs"),

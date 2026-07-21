@@ -385,6 +385,20 @@ public final class BotConfig {
      *  vanilla max 300 are clamped by the gate. gap#76. */
     public static volatile int drownEscapeReleaseAir = 280;
 
+    /** task#97c learned stuck-risk edge tax (ml/costmodel): when ON, A* adds
+     *  {@code risk(move,terrain) * riskBiasScale / 100} cost units to edges of
+     *  the table-listed move families (swim-, bridgePlace-, parkour-family), steering
+     *  around patterns that historically precede walker wedges. PURE additive
+     *  g-tax — no prune, no capability change; OFF = byte-identical search.
+     *  Default OFF until the journey+bench A/B goes GREEN (walkerAscendMovement
+     *  precedent). */
+    public static volatile boolean riskBias = false;
+
+    /** Max extra cost (in A* cost units, 10 = one walk block) a risk-100 edge
+     *  pays under {@link #riskBias}. 40 ≈ a 4-block detour breaks even against
+     *  a certain wedge — deliberately conservative; A/B sweeps {20,40,80}. */
+    public static volatile int riskBiasScale = 40;
+
     /** A* node cap surfaced as a tunable knob — Baritone's
      *  {@code pathTimeoutMS} analogue. Maps directly to
      *  {@link net.magicterra.agent.bot.pathfinder.PathFinder} default. */

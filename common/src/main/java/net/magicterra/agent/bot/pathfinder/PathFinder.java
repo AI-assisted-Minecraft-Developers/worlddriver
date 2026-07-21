@@ -337,6 +337,11 @@ public final class PathFinder {
             costModifiers.add((f, t, e, g, w) -> padCellTax(t));
             costModifiers.add((f, t, e, g, w) -> vineOverWaterTax(t));
             costModifiers.add((f, t, e, g, w) -> padOverWaterTax(t));
+            // task#97c learned stuck-risk tax — appended LAST so the legacy tax
+            // sum order (FP-sensitive) is untouched; contributes exactly 0.0
+            // when BotConfig.riskBias is OFF or the move isn't table-listed.
+            costModifiers.add((f, t, e, g, w)
+                    -> net.magicterra.agent.bot.pathfinder.modifiers.RiskCostTable.tax(f, e, w));
             costModifiers.add((f, t, e, g, w) -> climbOutTax(f, t));
             if (!diveRelief) costModifiers.add((f, t, e, g, w) -> submergedTax(f, t));
             // A4a: append this search's per-intent bias AFTER the legacy taxes.
