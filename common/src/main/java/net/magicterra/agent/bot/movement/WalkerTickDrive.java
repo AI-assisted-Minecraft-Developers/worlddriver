@@ -773,6 +773,24 @@ final class WalkerTickDrive {
                 wpHazard = world.isHazard(ca) || world.isHazard(ca.above())
                         || world.isHazard(cb) || world.isHazard(cb.above());
             }
+            // FALL-EDGE flow-front margin (iron ep-025 death #29): a ≥2-drop
+            // commit is irreversible — once airborne, the brake below fires
+            // into gravity (live: fall2 adopted at t=0, lava flowed into the
+            // landing during the 8-tick arc, brake fired at t=8 mid-air, dead
+            // one tick later). While still GROUNDED before such a drop, treat
+            // lava beside the landing column as hazardous too: a flow front
+            // one cell away arrives within ~1.5s, faster than the fall+walk.
+            if (!wpHazard && p.onGround() && wp.getY() <= foot.getY() - 2) {
+                BlockPos land = wp;
+                for (Direction d : new Direction[]{Direction.NORTH, Direction.EAST,
+                                                   Direction.SOUTH, Direction.WEST}) {
+                    BlockPos n1 = land.relative(d);
+                    if (world.isHazard(n1) || world.isHazard(n1.below())) {
+                        wpHazard = true;
+                        break;
+                    }
+                }
+            }
             if (wpHazard) {
                 if (BotConfig.walkerDebug)
                     LOG.info("[walker] path-hazard brake: waypoint {} column now hazardous "
