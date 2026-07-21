@@ -31,6 +31,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.decoration.ArmorStand;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -111,6 +112,7 @@ public final class AgentDriverProcessScenes implements SceneProvider {
                 Scene.of("ad.serverLookRaycast", 200, AgentDriverProcessScenes::serverLookRaycastScene),
                 Scene.of("ad.serverFollow", 400, AgentDriverProcessScenes::serverFollowScene),
                 Scene.of("ad.serverCombat", 400, AgentDriverProcessScenes::serverCombatScene),
+                Scene.of("ad.serverCombatCollectDrops", 400, AgentDriverProcessScenes::serverCombatCollectDropsScene),
                 Scene.of("ad.serverLook", 400, AgentDriverProcessScenes::serverLookScene),
                 Scene.of("ad.serverMineCanopyRadius", 600, AgentDriverProcessScenes::serverMineCanopyRadiusScene),
                 Scene.of("ad.serverBridgePillarStart", 400, AgentDriverProcessScenes::serverBridgePillarStartScene));
@@ -923,6 +925,112 @@ public final class AgentDriverProcessScenes implements SceneProvider {
             if (!driver.finished() || ServerAgentManager.activeCount() != 0)
                 ctx.fail("server CombatProcess did not finish+unregister: finished="
                         + driver.finished() + " active=" + ServerAgentManager.activeCount());
+        });
+    }
+
+    // ==================================================================================
+    // ad.serverCombatCollectDrops — after the kill, the combat loop must SWEEP the drops
+    // near the kill spot before terminating (BotConfig.combatCollectDrops; live 01:32
+    // 2026-07-21: six hunt kills banked one porkchop — melee kites away from the corpse
+    // and the old loop ended wherever it stood).
+    // ==================================================================================
+
+    /** Same rig as {@code ad.serverCombat}, plus a deterministic "drop": an ItemEntity
+     *  pre-placed 3 blocks BEYOND the zombie (cx+9; within the sweep's 8-block scan of the
+     *  kill spot cx+6, but a spot the pre-fix loop had no reason to ever visit — it fought
+     *  at reach range cx+4..5 and terminated in place). Pre-placed instead of relying on
+     *  the zombie's own RNG loot (0–2 rotten flesh — a zero-roll would flake the scene).
+     *  PASS = the process finishes AND the drop was swept: item picked up (dead / in
+     *  inventory) or the bot finished standing at it (pickup fidelity on a FakePlayer is
+     *  not this scene's contract — the walk-to-the-drop is). */
+    private static void serverCombatCollectDropsScene(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ServerAgentManager.clear();
+        ctx.cleanup(ServerAgentManager::clear);
+        ctx.cleanup(() -> {
+            for (int dx = -2; dx <= 10; dx++)
+                for (int dy = 0; dy <= 2; dy++)
+                    for (int dz = -2; dz <= 2; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+        });
+
+        for (int dx = -2; dx <= 10; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+        var zombie = new Zombie(level);
+        zombie.setPos(cx + 6 + 0.5, floorY + 1, cz + 0.5);
+        zombie.setNoAi(true);
+        zombie.setPersistenceRequired();
+        var kbr = zombie.getAttribute(Attributes.KNOCKBACK_RESISTANCE);
+        if (kbr != null) kbr.setBaseValue(1.0);
+        level.addFreshEntity(zombie);
+        ctx.cleanup(() -> zombie.discard());
+        var drop = new ItemEntity(level, cx + 9 + 0.5, floorY + 1, cz + 0.5,
+                new ItemStack(Items.PORKCHOP, 3));
+        drop.setDeltaMovement(Vec3.ZERO);
+        drop.setNoGravity(true);              // stays put without needing item ticks
+        level.addFreshEntity(drop);
+        ctx.cleanup(() -> drop.discard());
+        long savedDayTime = level.getDayTime();
+        ctx.cleanup(() -> level.setDayTime(savedDayTime));
+        level.setDayTime(18000);              // night → no zombie sun-burn false kill
+
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+
+        ctx.await(() -> !level.getEntitiesOfClass(Zombie.class, entityBox(cx, floorY, cz)).isEmpty()
+                        && !level.getEntitiesOfClass(ItemEntity.class, entityBox(cx, floorY, cz)).isEmpty())
+                .within(100).then(() -> {
+            ServerAgentDriver driver = ServerAgentDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+            ctx.cleanup(() -> driver.fakePlayer().discard());
+            driver.fakePlayer().getInventory().clearContent();
+            driver.fakePlayer().getInventory().add(new ItemStack(Items.IRON_SWORD));
+            driver.runProcess(new CombatProcess(CombatProcess.Mode.KILL, null, "minecraft:zombie"));
+            ServerAgentManager.register(driver);
+
+            // Diagnostics live in the FAIL MESSAGE, not LOG.info — late-suite async
+            // log lines are dropped wholesale on shutdown (task#95 lesson).
+            int killedAt = -1, endedAt = -1;
+            double killX = Double.NaN;
+            for (int t = 0; t < 1500 && ServerAgentManager.activeCount() > 0; t++) {
+                ServerAgentManager.tickAll();
+                if (killedAt < 0 && !zombie.isAlive()) {
+                    killedAt = t;
+                    killX = driver.fakePlayer().getX();
+                }
+                endedAt = t;
+                if (zombie.isAlive()) {
+                    zombie.tick();
+                    zombie.setPos(cx + 6 + 0.5, floorY + 1, cz + 0.5);
+                    zombie.setDeltaMovement(Vec3.ZERO);
+                }
+            }
+
+            ServerPlayer fp = driver.fakePlayer();
+            boolean dead = !zombie.isAlive();
+            boolean pickedUp = !drop.isAlive()
+                    || fp.getInventory().countItem(Items.PORKCHOP) > 0;
+            double distToDrop = Math.sqrt(fp.distanceToSqr(cx + 9 + 0.5, floorY + 1, cz + 0.5));
+            String diag = " [diag killedAt=" + killedAt + " endedAt=" + endedAt
+                    + " sweepTicks=" + (killedAt >= 0 ? endedAt - killedAt : -1)
+                    + " killX=" + killX + " endPos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ()
+                    + ") dropAlive=" + drop.isAlive()
+                    + " lastStep=" + driver.lastStep()
+                    + " goal=" + driver.botState().combat.goal + "]";
+            if (!dead)
+                ctx.fail("collectDrops rig: zombie not killed: hp=" + zombie.getHealth() + diag);
+            if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                ctx.fail("collectDrops: combat did not finish+unregister: finished="
+                        + driver.finished() + " active=" + ServerAgentManager.activeCount() + diag);
+            if (!pickedUp && distToDrop > 2.0)
+                ctx.fail("collectDrops: drop NOT swept — bot ended " + distToDrop
+                        + " blocks from the drop (pre-fix behaviour: terminate at the kill spot)"
+                        + diag);
         });
     }
 

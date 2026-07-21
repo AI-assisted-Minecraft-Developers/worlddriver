@@ -100,13 +100,20 @@ public final class EscapeProcess implements BotProcess {
         st.escape.pathStep = steps;
         st.escape.target = foot;
 
-        // Success: reached target height, or the bot can walk away laterally onto
-        // supported ground. NOTE: we deliberately do NOT use skyOpen-straight-up —
-        // the bottom of a deep open-top shaft can see sky directly overhead yet the
-        // bot is still trapped and can't walk out. canWalkOut only becomes true once
-        // a foot-level cardinal is passable AND supported, i.e. the bot has reached
-        // a rim it can step off onto, which is the real "escaped" condition.
-        if (foot.getY() >= targetY || (p.onGround() && canWalkOut(w, foot))) {
+        // Success: reached target height, or the bot stands at a walkable rim
+        // UNDER OPEN SKY. canWalkOut alone used to end the climb ("reached a rim
+        // it can step off onto") — but in a natural cave passage canWalkOut is
+        // true on the FIRST tick, so `mc.bot.ascend` no-opped exactly where the
+        // agent needed it most (death #15, live 2026-07-20: two ascends from y=8
+        // in an open cave ended instantly DONE without climbing; the 0.13-HP bot
+        // never got its staircase to the surface). The verb's contract is "carve
+        // UP to targetY": a lateral walk-out only counts as done when it is a
+        // SURFACE rim (skyOpen). The original deep-shaft caveat (sky visible
+        // straight up from a trapped shaft bottom) stays covered because that
+        // bottom still fails canWalkOut; an UNDERGROUND rim now keeps the climb
+        // going instead of stranding the bot in the cave it started in.
+        if (foot.getY() >= targetY
+                || (p.onGround() && canWalkOut(w, foot) && skyOpen(p.level(), foot))) {
             // Settle on the current cell centre with no residual momentum so the
             // bot can't coast into the un-carved wall beside it (suffocation).
             p.setPos(foot.getX() + 0.5, p.getY(), foot.getZ() + 0.5);

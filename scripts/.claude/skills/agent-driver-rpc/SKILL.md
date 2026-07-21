@@ -103,6 +103,43 @@ a local bot you never need `--host` — loopback is included in a wildcard bind.
 | `mc.script.eval` / `mc.skill` | sandboxed JS snippet (one round-trip) + persistent skill library (`save`/`list`/`get`/`run`/`delete`) |
 | `mc.test.yaml` | run YAML gametests on demand (RPC-route-only) |
 
+## Live event stream → Monitor (game-event notifications)
+
+Want real-time push of in-game events (a bot died, a chat/system line, a mob death)
+while something runs — the game-side complement to `live-screen-watch`? Don't
+hand-roll a websocket poller; the ready-made pattern is **rpc.py driving
+`mc.wait.event` in a loop**, seeded and chained by the cursor:
+
+- `mc.observe.cursor` → the latest event seq (a bare integer). Seed with it once.
+- `mc.wait.event {cursor, types?[], timeoutMs}` **long-polls**: it returns the moment
+  a matching event arrives (`{events[], cursor, ms}`), or `{timedOut:true, cursor}` at
+  the deadline. Either way you get a fresh `cursor` — feed it back in. That loop *is*
+  the stream; no polling interval to tune, no missed events between calls.
+
+**`event_tail.py`** (bundled next to `rpc.py`, pure Python — it imports rpc.py's
+resolvers + `call` and holds ONE persistent socket) is that loop, ready to run. It prints
+one compact line per event to stdout, so point a **Monitor** at it and each event becomes
+a chat notification:
+
+```
+Monitor:  python3 <this-dir>/event_tail.py     (persistent: true)
+```
+
+Default types are `entity.death, chat.message, player.join, player.leave` — the
+meaningful ones. Override with `AGENT_EVENT_TYPES` (a JSON array). **Keep `block.*` out**
+of the tail — every mined/placed block fires one and floods the channel. A player death
+surfaces two ways: an `entity.death` for the player entity *and* the vanilla death line
+as a `chat.message` (`"X was slain by …"`) — the latter is usually the clearest signal.
+
+Two related building blocks for conditions the raw event types don't cover:
+- **Health-drop / low-HP alarm** (no such event type exists): set a server-side watcher
+  with `mc.events {op:"watch", invoke:"mc.observe.player", field:"health", below:<hp>,
+  emitAs:"bot.lowhp", everyMs:500}` — it emits `bot.lowhp` into the same stream when
+  health crosses the threshold, so add that to `AGENT_EVENT_TYPES` and it rides the same
+  Monitor.
+- **One-shot "wait until X"** (not a stream): `mc.wait.condition` / `mc.wait.event` with
+  `background:true` returns a `{waitId}` immediately; fetch later with `mc.wait.result`.
+
 ## Gotchas (learned live)
 
 - **`completed:true` ≠ success.** Async bot methods (`goto`/`mine`/… with

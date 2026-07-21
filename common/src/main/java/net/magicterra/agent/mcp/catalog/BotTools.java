@@ -292,6 +292,18 @@ public final class BotTools {
                     .prop("pitch", number())
                 ),
 
+            wrTool("mc.bot.holdItem",
+                "Put a specific inventory item into the MAIN HAND: selects its hotbar slot, or " +
+                "swaps it up from the main inventory (the same ensureHolding reach every internal " +
+                "process uses — works wherever the item sits in the 36 slots). The survival prelude " +
+                "to useItem: hold water_bucket / flint_and_steel / a chosen food first, then useItem. " +
+                "Synchronous. Returns {ok, held} (held = item id actually in hand afterwards) or " +
+                "{ok:false, error, held} when the item is not in the inventory.",
+                object()
+                    .req("item", string()
+                        .desc("Item id to hold, e.g. 'minecraft:water_bucket'. A bare name gets the minecraft: prefix."))
+                ),
+
             wrTool("mc.bot.useItem",
                 "Right-click with the held item. Three modes:\n" +
                 "  no pos    — use in mid-air: eat, drink, draw bow, throw snowball/pearl.\n" +
@@ -359,6 +371,7 @@ public final class BotTools {
                 "  autoTotem                 bool      — keep a totem of undying in the offhand\n" +
                 "  autoEquip                 bool      — equip best armor/weapon when a fight starts\n" +
                 "  combatCrit                bool      — time jumps for critical melee hits (default on)\n" +
+                "  combatCollectDrops        bool      — after a KILL/ENGAGE combat clears, walk over the drops near the last kill spot (default on)\n" +
                 "  autoSwim                  bool      — hold jump while submerged so the bot rises to the surface\n" +
                 "  antiSuffocate             bool      — break the block choking the bot's head (falling sand in a dig pit); needs allowBreak; default on\n" +
                 "  autoFloatWhenDrowning     bool      — idle-only pure-vertical float reflex (hold jump, no movement) when air <= drownFloatAirThreshold; independent of autoSwim; default on (gap#70)\n" +

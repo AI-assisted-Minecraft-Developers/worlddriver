@@ -282,6 +282,15 @@ public final class BotConfig {
      *  doesn't stall the swing rhythm. */
     public static volatile boolean combatCrit = true;
 
+    /** Post-kill drop sweep (live 2026-07-21 01:32): melee kites away from the
+     *  kill spot, so a "successful" hunt left its meat rotting blocks behind the
+     *  bot — six kills banked one porkchop. When a KILL/ENGAGE combat ends with
+     *  the area clear, walk over the {@code ItemEntity} drops within 8 blocks of
+     *  the last kill position (vanilla pickup is automatic), hard-capped at 100
+     *  ticks so an unreachable drop can't wedge the suspended user task. DEFEND
+     *  skips the sweep — it exists to resume the task fast, not to loot. */
+    public static volatile boolean combatCollectDrops = true;
+
     /** A creeper within this many blocks (and swelling) makes PanicChain sprint
      *  the bot away from it. ~3.5 = just outside the lethal blast core. */
     public static volatile double creeperKeepDistance = 3.5;
@@ -302,6 +311,19 @@ public final class BotConfig {
      *  dig-out oscillating with no progress). Needs {@link #allowBreak}. Default ON.
      *  Read only by the {@code AntiSuffocate} client-tick reflex — never the planner. */
     public static volatile boolean antiSuffocate = true;
+
+    /** Contact-damage escape reflex (death #14, live 2026-07-20): a goto across
+     *  desert hugged a cactus cluster and contact damage ground a healthy bot
+     *  11→0 HP in ~20 s — the block re-damages every ~10 ticks, faster than any
+     *  LLM/planner turn, and the entity-attribution reflexes (hurt-entry
+     *  retreat, gap#55/#65) never fire for BLOCK damage sources. When the last
+     *  damage is a fresh step-away-able contact type (cactus / sweet berry /
+     *  in-fire / magma floor), the {@code ContactDamageEscape} client-tick
+     *  reflex faces away from the touching hazard block and walks out of
+     *  contact. Default ON. Read only by the reflex — never the planner. */
+    public static volatile boolean contactDamageEscape = true;
+    /** Walk away from an adjacent FLOWING lava front (devil-bench deaths #27/#29/#30). */
+    public static volatile boolean lavaProximityEscape = true;
 
     /** gap#70 (live death #18): an IDLE bot (no movement process) that sinks in
      *  deep water gets ZERO self-rescue — {@link #autoSwim}'s lift/beach steer is
@@ -1248,9 +1270,15 @@ public final class BotConfig {
 
     /** Cost added per <em>contact-damage</em> block (cactus, sweet-berry bush,
      *  wither rose, magma block, powder snow) adjacent to a candidate stand
-     *  position. Small — these only graze you on overlap, not from the next cell
-     *  — so it just discourages hugging them when an equal route exists. */
-    public static volatile double contactDangerPenalty = 12;
+     *  position. Raised 12 → 60 (death #14, live 2026-07-20): at 12 a desert
+     *  descent hugged a cactus cluster — the executor's body drift overlaps a
+     *  neighbouring cactus on a hugged edge, and repeated contact killed a
+     *  full-health bot. 60 ≈ a 6-block detour per hazard neighbour, so routes
+     *  stop skimming cacti wherever any alternative exists (same treatment as
+     *  {@link #lavaDangerPenalty}'s 80→300, scaled down because a graze is
+     *  survivable and the {@code ContactDamageEscape} reflex now backstops
+     *  actual contact). */
+    public static volatile double contactDangerPenalty = 60;
 
     /** Cost added when a candidate stand position sits at the lip of a drop
      *  deeper than the bot can survive (a lethal cliff / void edge), when
@@ -1937,6 +1965,21 @@ public final class BotConfig {
      *  When ON: a water shaft cell with air above is treated as the dry-crest case —
      *  jump and place the support at the bob peak. Default OFF. */
     public static volatile boolean walkerPillarSurfacePlace = true;
+
+    /** Descending-bridgePlace lip anchor (task#4, replay-0013, live 2026-07-20 23:11
+     *  badlands): a bridgePlace node BELOW the foot means the body stands at a lip
+     *  about to bridge DOWN into a gap. The drive-phase bridge sneak-brake is
+     *  deliberately gated {@code !plannedDescent} (a sneak pin across a planned
+     *  step-down deadlocks — vanilla's ledge-guard refuses every edge), and the
+     *  break/place actuator only zeroes the drive inputs — so residual walk momentum
+     *  slid the body off the lip during the 9 place-aim ticks (x 89.81→89.28), the
+     *  place never landed, and the climb-back/slide/repath loop wedged 74×/80 s.
+     *  When ON: while a descending place is still PENDING (support cell below the
+     *  foot not yet solid), hold sneak — the ledge-guard arrests the slide AT the
+     *  lip, the place lands, and the pin releases the moment the support exists, so
+     *  the planned step-down proceeds exactly as before ("place first, step second").
+     *  A same-level bridgePlace is byte-identical (cell not below the foot). */
+    public static volatile boolean walkerBridgeDescentPlaceAnchor = true;
 
     /** Monotonic stuck-window (the open-water step-jitter starvation, A-4 44s stall
      *  2026-07-02): buoyant drift on a straight water path jitters the step pointer back

@@ -10,6 +10,7 @@ import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.bot.BotState;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.auto.AntiSuffocateGate;
+import net.magicterra.agent.bot.auto.ContactEscapeGate;
 import net.magicterra.agent.bot.auto.DrownEscapeGate;
 import net.magicterra.agent.bot.auto.DrowningFloatGate;
 import net.magicterra.agent.bot.pathfinder.Capability;
@@ -106,6 +107,7 @@ public final class AgentDriverSurvivalScenes implements SceneProvider {
                 Scene.of("ad.underwaterBase", 400, AgentDriverSurvivalScenes::underwaterBaseScene),
                 Scene.of("ad.drowningFloatShouldFloatMatrix", 200, AgentDriverSurvivalScenes::drowningFloatShouldFloatMatrixScene),
                 Scene.of("ad.drownEscapeGateMatrix", 200, AgentDriverSurvivalScenes::drownEscapeGateMatrixScene),
+                Scene.of("ad.contactEscapeGateMatrix", 200, AgentDriverSurvivalScenes::contactEscapeGateMatrixScene),
                 Scene.of("ad.drownEscapePreempt", 400, AgentDriverSurvivalScenes::drownEscapePreemptScene),
                 Scene.of("ad.serverObserveAirSupply", 200, AgentDriverSurvivalScenes::serverObserveAirSupplyScene),
                 Scene.of("ad.antiSuffocateWaterNotSuffocating", 200, AgentDriverSurvivalScenes::antiSuffocateWaterNotSuffocatingScene));
@@ -753,6 +755,13 @@ public final class AgentDriverSurvivalScenes implements SceneProvider {
                 "gap#76(i): air >= release lets go even with the head still underwater");
         check.accept(!DrownEscapeGate.next(true, false, 154, 150, 100, 280, true),
                 "gap#76(j): head out + air recovering releases early");
+        check.accept(DrownEscapeGate.next(true, false, 72, 68, 100, 280, true),
+                "death#9(n): root-pocket bob — head out + air climbing but still in the "
+                + "entry band must STAY latched (released at 68 → resumed dive → drowned)");
+        check.accept(DrownEscapeGate.next(true, false, 140, 136, 100, 280, true),
+                "death#9(o): head out + climbing exactly at enter+margin boundary stays latched");
+        check.accept(!DrownEscapeGate.next(true, false, 141, 137, 100, 280, true),
+                "death#9(p): head out + climbing just past enter+margin releases");
         check.accept(!DrownEscapeGate.next(true, true, 60, 60, 100, 280, false),
                 "gap#76(k): flipping autoDrownEscape off drops an existing latch");
         check.accept(!DrownEscapeGate.next(true, true, 300, 299, 100, 999, true),
@@ -802,6 +811,38 @@ public final class AgentDriverSurvivalScenes implements SceneProvider {
     private static void drownEscapeGateMatrixScene(SceneContext ctx) {
         drownEscapeGateMatrix((ok, msg) -> { if (!ok) ctx.fail(msg); });
         drownEscapeChainLifecycleMatrix((ok, msg) -> { if (!ok) ctx.fail(msg); });
+    }
+
+    // ==================================================================================
+    // ad.contactEscapeGateMatrix — death#14 ContactEscapeGate.shouldTrigger truth table
+    // (9 rows, PURE). The actuation half (face-away walk) is client-side and live-verified.
+    // ==================================================================================
+
+    static void contactEscapeGateMatrix(BiConsumer<Boolean, String> check) {
+        // -------- fires: fresh damage from a step-away-able block --------
+        check.accept(ContactEscapeGate.shouldTrigger("cactus", 9, true),
+                "death#14(a): fresh cactus damage must trigger (the killer case)");
+        check.accept(ContactEscapeGate.shouldTrigger("sweetBerryBush", 5, true),
+                "death#14(b): berry bush contact must trigger");
+        check.accept(ContactEscapeGate.shouldTrigger("inFire", 8, true),
+                "death#14(c): standing in a fire block must trigger");
+        check.accept(ContactEscapeGate.shouldTrigger("hotFloor", 3, true),
+                "death#14(d): standing on magma must trigger");
+        // -------- must NOT fire --------
+        check.accept(!ContactEscapeGate.shouldTrigger("onFire", 9, true),
+                "death#14(e): burning AFTER leaving fire must NOT trigger (stepping away cannot help)");
+        check.accept(!ContactEscapeGate.shouldTrigger("mob", 9, true),
+                "death#14(f): entity damage must NOT trigger (belongs to hurt-entry retreat attribution)");
+        check.accept(!ContactEscapeGate.shouldTrigger("cactus", 0, true),
+                "death#14(g): stale attribution (hurtTime 0, ~40t last-damager tail) must NOT trigger");
+        check.accept(!ContactEscapeGate.shouldTrigger(null, 9, true),
+                "death#14(h): no damage source must NOT trigger");
+        check.accept(!ContactEscapeGate.shouldTrigger("cactus", 9, false),
+                "death#14(i): contactDamageEscape=false must suppress");
+    }
+
+    private static void contactEscapeGateMatrixScene(SceneContext ctx) {
+        contactEscapeGateMatrix((ok, msg) -> { if (!ok) ctx.fail(msg); });
     }
 
     // ==================================================================================

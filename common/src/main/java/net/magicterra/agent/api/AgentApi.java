@@ -335,6 +335,7 @@ public final class AgentApi {
             if (p != null && p.get("pos") != null) return requireBot().useItemOn(p);
             return requireBot().useItem(p);
         });
+        routes.put("mc.bot.holdItem",    p -> requireBot().holdItem(p));
         routes.put("mc.bot.attackEntity",p -> requireBot().attackEntity(p));
         // pause/resume are reachable through mc.bot.setting{paused:bool} —
         // same vol-toggle handler in BotApiImpl.setting absorbs both.

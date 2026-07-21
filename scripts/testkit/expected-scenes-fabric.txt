@@ -126,6 +126,7 @@ ad.surfaceDive
 ad.underwaterBase
 ad.drowningFloatShouldFloatMatrix
 ad.drownEscapeGateMatrix
+ad.contactEscapeGateMatrix
 ad.drownEscapePreempt
 ad.serverObserveAirSupply
 ad.antiSuffocateWaterNotSuffocating
@@ -151,6 +152,7 @@ ad.serverBuild
 ad.serverLookRaycast
 ad.serverFollow
 ad.serverCombat
+ad.serverCombatCollectDrops
 ad.serverLook
 ad.serverMineCanopyRadius
 ad.serverBridgePillarStart
@@ -174,6 +176,7 @@ ad.bridgeHeadBlockStop
 ad.bridgeFootBlockStop
 ad.bridgeStairUp
 ad.bridgeStairDown
+ad.bridgeDescendPlaceLip
 ad.bridgeStairDownGapSafe
 ad.bridgeStairDownGapDamage
 ad.bridgeLethalGapStop

@@ -132,7 +132,12 @@ public final class DrownEscapeChain implements Chain {
         // The eye cell itself is AntiSuffocate's job; this is one above it.
         BlockPos lid = p.blockPosition().above(2);
         boolean breaking = false;
-        if (BotConfig.allowBreak && w != null && w.isSolid(lid) && mc.level != null
+        // Collision-shape test, NOT isSolid: mangrove roots (death #9's ceiling)
+        // are a non-full block — isSolid misses them, so the float pinned the bot
+        // under an unbreakable-in-practice lid while air ran to −17.
+        boolean lidBlocksRise = mc.level != null
+                && !mc.level.getBlockState(lid).getCollisionShape(mc.level, lid).isEmpty();
+        if (BotConfig.allowBreak && lidBlocksRise
                 && mc.level.getBlockState(lid).getDestroySpeed(mc.level, lid) >= 0f) {
             selectBestToolFor(mc, lid);
             aimAtBlockSnap(p, lid);

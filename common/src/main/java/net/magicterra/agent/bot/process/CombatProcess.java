@@ -12,6 +12,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BowItem;
@@ -65,6 +66,11 @@ public final class CombatProcess implements BotProcess {
     private static final int STRAFE_FLIP = 16;
     /** Full bow draw (vanilla): 20 ticks of use = max power. */
     private static final int BOW_FULL_DRAW = 20;
+    /** Post-kill drop sweep: item scan radius around the last kill position. */
+    private static final double COLLECT_RADIUS = 8.0;
+    /** Post-kill drop sweep: hard tick budget so an unreachable drop can't wedge
+     *  the process open (the suspended user task must resume). */
+    private static final int COLLECT_BUDGET_TICKS = 100;
 
     private final Mode mode;
     private final Integer targetId;     // KILL by entity id (nullable)
@@ -77,6 +83,8 @@ public final class CombatProcess implements BotProcess {
     private BlockPos lastGoalBlock;
     private int ticks;
     private boolean approaching;        // currently driving the Walker
+    private BlockPos lastTargetPos;     // last seen position of a locked target
+    private int collectTicks;           // post-kill drop-sweep tick counter
 
     public CombatProcess(Mode mode, Integer targetId, String targetType) {
         this.mode = mode;
@@ -103,9 +111,21 @@ public final class CombatProcess implements BotProcess {
         Entity target = acquireTarget(p, st);
         if (target == null) {
             // KILL: target dead/gone → mission complete. ENGAGE/DEFEND: area clear.
+            // Before terminating, sweep the drops: melee kites away from the kill
+            // spot, so the loot (meat, rotten flesh) lands blocks behind us and a
+            // "successful" hunt puts nothing in the inventory (live 01:32: six
+            // kills, one porkchop banked). KILL/ENGAGE only end with the area
+            // clear, so the walk-back is safe; DEFEND stays snappy — it exists to
+            // get back to the suspended task, not to loot.
+            if (mode != Mode.DEFEND && lastTargetPos != null
+                    && BotConfig.combatCollectDrops
+                    && !collectSweep(a, p, w, st)) {
+                return false;
+            }
             cleanup(a);
             return true;
         }
+        lastTargetPos = target.blockPosition();
 
         double dist = Math.sqrt(p.distanceToSqr(target));
         if (isRanged(p)) {
@@ -304,6 +324,48 @@ public final class CombatProcess implements BotProcess {
     private static boolean isRanged(Player p) {
         ItemStack m = p.getMainHandItem();
         return m.getItem() instanceof BowItem || m.getItem() instanceof CrossbowItem;
+    }
+
+    // === post-kill drop sweep ===============================================
+
+    /** Walk over the item drops around the last kill position (vanilla pickup is
+     *  automatic on touch). Returns {@code true} when done: no live drops left in
+     *  {@link #COLLECT_RADIUS} of the kill spot, or the tick budget ran out
+     *  (unreachable drop — never wedge the suspended user task). */
+    private boolean collectSweep(Avatar a, Player p, WorldView w, BotState st) {
+        if (++collectTicks > COLLECT_BUDGET_TICKS) return true;
+        AABB box = new AABB(lastTargetPos).inflate(COLLECT_RADIUS);
+        ItemEntity nearest = null;
+        double bestD = Double.MAX_VALUE;
+        for (ItemEntity ie : p.level().getEntitiesOfClass(ItemEntity.class, box)) {
+            // NOTE: items with pickup delay still count — a just-dropped stack's
+            // ~10-tick delay expires while we walk to it; skipping delayed items
+            // would end the sweep instantly on the very drops we came for.
+            if (!ie.isAlive()) continue;
+            double d = ie.distanceToSqr(p);
+            if (d < bestD) { bestD = d; nearest = ie; }
+        }
+        if (nearest == null) return true;
+        if (collectTicks == 1) st.combat.goal = "combat collect-drops";
+        BlockPos ib = nearest.blockPosition();
+        if (lastGoalBlock == null || !lastGoalBlock.equals(ib)) {
+            walker.setGoal(new Goal.Near(ib, 1));
+            lastGoalBlock = ib;
+        }
+        Walker.Step s = walker.tick(a, w);
+        if (s != Walker.Step.WALKING) {
+            // The walker parked in a terminal (ARRIVED path-consumed short of the
+            // stack / FAILED) while the drop still exists: without a reset it
+            // no-ops every subsequent tick (setGoal is the only thing that clears
+            // a terminal — measured live in the t0 diag round: sweepTicks=101,
+            // 0.8 blocks moved, lastStep=ARRIVED). Same idiom as FollowProcess:
+            // drop the goal so next tick re-goals at the CURRENT nearest drop
+            // with a fresh path. Near radius 1 (not 0): pickup touch reaches an
+            // adjacent cell, and radius-0 exact-cell goals are the rarely-driven
+            // shape goto itself abandoned (near=2 default).
+            lastGoalBlock = null;
+        }
+        return false;
     }
 
     // === helpers =============================================================

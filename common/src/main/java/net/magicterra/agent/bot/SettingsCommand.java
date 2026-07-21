@@ -103,6 +103,10 @@ public final class SettingsCommand {
                 BotConfig.combatCrit = cc;
                 applied.add("combatCrit");
             }
+            if (params.get("combatCollectDrops") instanceof Boolean ccd) {
+                BotConfig.combatCollectDrops = ccd;
+                applied.add("combatCollectDrops");
+            }
             if (params.get("autoEquip") instanceof Boolean ae2) {
                 BotConfig.autoEquip = ae2;
                 applied.add("autoEquip");
@@ -114,6 +118,14 @@ public final class SettingsCommand {
             if (params.get("antiSuffocate") instanceof Boolean asf) {
                 BotConfig.antiSuffocate = asf;
                 applied.add("antiSuffocate");
+            }
+            if (params.get("contactDamageEscape") instanceof Boolean cde) {
+                BotConfig.contactDamageEscape = cde;
+                applied.add("contactDamageEscape");
+            }
+            if (params.get("lavaProximityEscape") instanceof Boolean lpe) {
+                BotConfig.lavaProximityEscape = lpe;
+                applied.add("lavaProximityEscape");
             }
             if (params.get("allowParkour4") instanceof Boolean ap4) {
                 BotConfig.allowParkour4 = ap4;

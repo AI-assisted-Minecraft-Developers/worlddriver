@@ -394,6 +394,25 @@ public final class BotInteract {
                 && inv.getSelected().getItem() == item;
     }
 
+    /** Predicate variant of {@link #ensureHolding(Minecraft, Item)} — same hotbar-then-
+     *  main-inventory reach, but matched by predicate so string-id callers
+     *  ({@code mc.bot.holdItem}) never need to resolve an {@link Item} object. */
+    public static boolean ensureHolding(Minecraft mc, java.util.function.Predicate<ItemStack> want) {
+        LocalPlayer p = mc.player;
+        if (p == null) return false;
+        Inventory inv = p.getInventory();
+        if (want.test(inv.getSelected())) return true;
+        for (int s = 0; s < 9; s++) {
+            if (want.test(inv.items.get(s))) {
+                inv.selected = s;
+                if (p.connection != null) p.connection.send(
+                        new ServerboundSetCarriedItemPacket(s));
+                return true;
+            }
+        }
+        return swapFromMainInv(mc, p, want) && want.test(inv.getSelected());
+    }
+
     /** Pull the first main-inventory stack matching {@code want} into the hotbar
      *  via a SWAP click and select it (the {@link #ensureHoldingPillarBlock}
      *  survival path, extracted). InventoryMenu slots: 9-35 = main inventory,

@@ -65,6 +65,7 @@ public final class AgentDriverBridgeScenes implements SceneProvider {
                 Scene.of("ad.bridgeFootBlockStop", 900, AgentDriverBridgeScenes::bridgeFootBlockStop),
                 Scene.of("ad.bridgeStairUp", 700, AgentDriverBridgeScenes::bridgeStairUp),
                 Scene.of("ad.bridgeStairDown", 700, AgentDriverBridgeScenes::bridgeStairDown),
+                Scene.of("ad.bridgeDescendPlaceLip", 900, AgentDriverBridgeScenes::bridgeDescendPlaceLip),
                 Scene.of("ad.bridgeStairDownGapSafe", 700, AgentDriverBridgeScenes::bridgeStairDownGapSafe),
                 Scene.of("ad.bridgeStairDownGapDamage", 700, AgentDriverBridgeScenes::bridgeStairDownGapDamage),
                 Scene.of("ad.bridgeLethalGapStop", 900, AgentDriverBridgeScenes::bridgeLethalGapStop),
@@ -424,6 +425,48 @@ public final class AgentDriverBridgeScenes implements SceneProvider {
         Run r = drive(ctx, spawn(ctx, -2, DECK + 6, 0), 2200, goal, DECK + 1);
         assertNeverFell(ctx, "bridgeStairDown", r, DECK + 1);
         assertArrived(ctx, "bridgeStairDown", r, goal);
+    }
+
+    /** 下行搭桥入竖井 — ROUTE regression cover for task#4 (replay-0013), NOT a wedge
+     *  repro: a step-up lip over a ceiling-sealed 2-wide shaft whose only continuation
+     *  is a DESCENDING bridgePlace (support cell below the lip's foot). Both A/B legs
+     *  of walkerBridgeDescentPlaceAnchor PASS here — the live wedge (74× climb-slide-
+     *  repath during the place-aim ticks) needs the async-search/escalation regime a
+     *  deterministic synchronous-search scene structurally cannot enter (same verdict
+     *  as the futileBankDig family / #52). This scene pins the descending-place ROUTE:
+     *  planner emits it, actuator executes it, body arrives without entering the
+     *  shaft, material is spent. The wedge itself is validated live via
+     *  mc.debug.replay{replay-0013} (bot must be idle — it teleports the body). */
+    private static void bridgeDescendPlaceLip(SceneContext ctx) {
+        liveStack(ctx);
+        BotConfig.allowPlace = true;
+        // Live shape (replay-0013): the lip is MOUNTED BY A STEP-UP right before the
+        // descending place — the wedge fired while the body was still climbing onto
+        // the lip (the actuator freeze mid-step-up dropped it back down the stair,
+        // x 89.81→89.28, 74× climb-slide-repath).
+        pad(ctx, -2, DECK + 2, 0);
+        strip(ctx, 0, 6, DECK + 2, 0);           // approach deck (stand DECK+3)
+        ctx.setBlock(7, DECK + 3, 0, Blocks.STONE);   // the LIP: one step UP (stand DECK+4)
+        ctx.setBlock(7, DECK + 2, 0, Blocks.STONE);   // solid column under the lip
+        // shaft columns x=8..9: open air straight down to the catch floor
+        strip(ctx, 10, 20, DECK + 2, 0);         // continuation deck (stand DECK+3)
+        // Ceiling over the lip and shaft: stand DECK+4 needs head DECK+5 clear — but
+        // any jump arc needs +1.25 (head into DECK+6). Sealing DECK+6 over x=6..11
+        // forbids parkour, leaving the descending bridgePlace as the only continuation.
+        for (int x = 6; x <= 11; x++) ctx.setBlock(x, DECK + 6, 0, Blocks.STONE);
+        pad(ctx, 22, DECK + 2, 0);
+        catchFloor(ctx, -6, 26, DECK - CATCH_DROP, -8, 8);
+        BlockPos goal = ctx.rel(22, DECK + 3, 0);
+        ServerPlayerAvatar av = spawn(ctx, -2, DECK + 3, 0);
+        av.fakePlayer().getInventory().add(new ItemStack(Items.DIRT, 16));
+        Run r = drive(ctx, av, 2200, goal, DECK + 3);
+        assertNeverFell(ctx, "bridgeDescendPlaceLip", r, DECK + 3);
+        assertArrived(ctx, "bridgeDescendPlaceLip", r, goal);
+        int left = av.fakePlayer().getInventory().countItem(Items.DIRT);
+        if (left >= 16)
+            ctx.fail("bridgeDescendPlaceLip: arrived but no block was consumed (dirt=" + left
+                    + "/16) — the shaft crossing should need a placed bridge support ;; "
+                    + "inv-events: " + r.invEvents() + " ;; journey: " + r.journey());
     }
 
     /** 阶梯下降有中断(安全): the descending strip breaks at x=12 with a drop-3 resume —

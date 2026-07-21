@@ -45,6 +45,11 @@ public interface BotApi {
      * bow, throw snowball/ender-pearl, etc. Synchronous, instant; no process slot.
      */
     Map<String, Object> useItem(Map<String, Object> params);
+
+    /** {@code mc.bot.holdItem} — put a specific inventory item ({@code item} id) into
+     *  the main hand: hotbar select or main-inventory swap. Synchronous;
+     *  returns {@code {ok, held}} or {@code {ok:false, error, held}}. */
+    Map<String, Object> holdItem(Map<String, Object> params);
     /**
      * Use the held item on a target block face — bone-meal grass, bucket
      * fill/empty, flint-and-steel, shears, dye, or simply place a block at the

@@ -33,6 +33,15 @@ public final class DrownEscapeGate {
      *  clamps to this. */
     public static final int MAX_AIR = 300;
 
+    /** Margin above {@code enterAir} the head-out-and-recovering release leg must
+     *  ALSO clear. Live death #9 (mangrove swamp): the bot's head bobbed into a
+     *  one-tick air pocket between mangrove roots, air ticked 68→72, the latch
+     *  released, and the preempted goto resumed its dive — three such flaps in
+     *  two minutes, the last one fatal (air reached −17 under a root ceiling).
+     *  Releasing with air still at/below the entry band means the very next
+     *  submerged tick would re-latch anyway; demand a real breather first. */
+    public static final int RECOVER_MARGIN = 40;
+
     /**
      * One latch transition: feed the previous latch state + this tick's readings,
      * get the new latch state. Pure function — the chain owns the mutable latch.
@@ -55,11 +64,13 @@ public final class DrownEscapeGate {
         if (!latched) return underwater && air <= enterAir;  // enter only from genuine submersion
         // Latched: release ONLY well clear of the entry threshold (hysteresis) …
         if (air >= Math.min(releaseAir, MAX_AIR)) return false;
-        // … or once the head is OUT and air is measurably climbing (surfaced and
-        // recovering — hand the channel back early so the task resumes sooner).
-        // A head-out tick with air merely EQUAL to last tick's (surface bob before
-        // the first +4 lands) keeps the latch: no flap from bobbing.
-        if (!underwater && air > prevAir) return false;
+        // … or once the head is OUT, air is measurably climbing, AND the reserve
+        // has cleared the entry band by a real margin (death #9: a one-tick air
+        // pocket between mangrove roots released the latch at air=68 and the
+        // resumed task dove straight back down). A head-out tick with air merely
+        // EQUAL to last tick's (surface bob before the first +4 lands) keeps the
+        // latch: no flap from bobbing.
+        if (!underwater && air > prevAir && air > enterAir + RECOVER_MARGIN) return false;
         return true;
     }
 }

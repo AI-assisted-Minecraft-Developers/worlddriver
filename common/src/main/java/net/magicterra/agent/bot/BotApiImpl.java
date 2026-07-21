@@ -1190,6 +1190,11 @@ public final class BotApiImpl implements BotApi {
         // idle-passivity carve-out as drowningSentinel/hurt-entry: reacting to
         // taking damage is a survival reflex, not uncommanded movement.
         if (mc.player != null) ContactDamageEscape.tick(mc, mc.player);
+        // Lava-front backstop (deaths #27/#29/#30): a FLOWING lava cell beside
+        // the feet means the front arrives within ~1.5s — walk away NOW. The
+        // path brakes prevent walking/falling INTO the flow; this one prevents
+        // dying in place while the planner deliberates.
+        if (mc.player != null) net.magicterra.agent.bot.auto.LavaProximityEscape.tick(mc, mc.player);
         // Keep the combat status slot's liveness in sync with the chain so the
         // awaitable mc.bot.combat route (which polls combat.active) completes the
         // moment the fight ends. Counters/goal/lastError persist for post-mortem.

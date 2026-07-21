@@ -61,6 +61,31 @@ final class InteractionCommands {
         });
     }
 
+    /** {@code mc.bot.holdItem} — put a specific inventory item into the main hand:
+     *  select its hotbar slot, else swap it up from the main inventory
+     *  (BotInteract.ensureHolding — the reach every process already trusts, #27/#56
+     *  family). First-class survival prelude to useItem: bucket scoops, flint &
+     *  steel, eating a chosen food. Matched by registry-key string so no Item
+     *  object resolution is needed. */
+    static Map<String, Object> holdItem(Map<String, Object> params) {
+        Object idRaw = params == null ? null : params.get("item");
+        String idIn = idRaw instanceof String s ? s : null;
+        if (idIn == null || idIn.isBlank()) return Map.of("ok", false, "error", "item required");
+        String id = idIn.contains(":") ? idIn : "minecraft:" + idIn;
+        return onClient(() -> {
+            Minecraft mc = Minecraft.getInstance();
+            LocalPlayer p = mc.player;
+            if (p == null) return Map.of("ok", false, "error", "no player");
+            boolean ok = ensureHolding(mc, stk -> !stk.isEmpty()
+                    && BuiltInRegistries.ITEM.getKey(stk.getItem()).toString().equals(id));
+            var held = p.getInventory().getSelected();
+            String heldId = held.isEmpty() ? "minecraft:air"
+                    : BuiltInRegistries.ITEM.getKey(held.getItem()).toString();
+            return ok ? Map.of("ok", true, "held", heldId)
+                      : Map.of("ok", false, "error", "not in inventory: " + id, "held", heldId);
+        });
+    }
+
     static Map<String, Object> useItem(Map<String, Object> params) {
         InteractionHand hand = parseHand(Params.of(params).get("hand"));
         return onClient(() -> {

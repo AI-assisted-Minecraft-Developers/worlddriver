@@ -964,6 +964,22 @@ final class WalkerTickClimb {
             a.breakHold(false);
             for (BlockPos b : edge.toPlace) {
                 if (!world.isSolid(b)) {
+                    // Descending-place LIP ANCHOR (task#4, replay-0013): the place
+                    // cell is BELOW the foot — the body stands at a lip bridging
+                    // DOWN. This actuator only zeroes the drive inputs; residual
+                    // walk momentum still slides the body off the lip during the
+                    // aim ticks (live: x 89.81→89.28 over 9 ticks, fall, 74×
+                    // climb-back/repath wedge). Hold sneak while the support is
+                    // pending: vanilla's ledge-guard arrests the slide AT the
+                    // edge, the place lands, and the moment the cell is solid
+                    // this branch stops firing — the normal (sneak-free) walk
+                    // performs the planned step-down. Same-level places are
+                    // byte-identical (cell not below the foot).
+                    if (BotConfig.walkerBridgeDescentPlaceAnchor
+                            && b.getY() < foot.getY() && p.onGround()) {
+                        Walker.agentSneak(a, true);
+                        p.setShiftKeyDown(true);
+                    }
                     if (BotConfig.walkerDebug)
                         LOG.info(
                                 "[walker] place-act foot={},{},{} y={} step={} placing={},{},{} onGround={} edge={}",
