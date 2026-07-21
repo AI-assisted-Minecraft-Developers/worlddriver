@@ -54,6 +54,7 @@ public final class SmeltProcess implements BotProcess {
     private BlockPos furnacePos;
     private int targetOut;
     private int inputTries;
+    private int fuelTries;
     private int waited;
     private int smeltWaitBudget;
     private String error;
@@ -194,11 +195,20 @@ public final class SmeltProcess implements BotProcess {
         st = St.SMELT_WAIT;
     }
 
-    /** Shift-click the best inventory fuel into the furnace. False if none usable. */
+    /** Move the best inventory fuel into the furnace FUEL slot. False if none
+     *  usable. Explicit pickup/place, NOT QUICK_MOVE: vanilla quickMoveStack
+     *  routes SMELTABLE items to the INGREDIENT slot first — and logs (→
+     *  charcoal) are both fuel and smeltable, so with ore already loaded the
+     *  shift-click silently no-oped, the furnace never lit, and the reload
+     *  branch spun forever with zero telemetry (iron ep-018/019/020 freeze). */
     private boolean loadFuel(Avatar a, AbstractContainerMenu menu) {
         int fuelSlot = pickFuelMenuSlot(menu, fuelId);
         if (fuelSlot < 0) return false;
-        a.containerClick(menu.containerId, fuelSlot, 0, ClickType.QUICK_MOVE);
+        a.containerClick(menu.containerId, fuelSlot, 0, ClickType.PICKUP);
+        a.containerClick(menu.containerId, AbstractFurnaceMenu.FUEL_SLOT, 0, ClickType.PICKUP);
+        // Return any remainder the fuel slot rejected; a no-op when the cursor
+        // is empty and the source slot was fully moved.
+        a.containerClick(menu.containerId, fuelSlot, 0, ClickType.PICKUP);
         return true;
     }
 
@@ -211,11 +221,26 @@ public final class SmeltProcess implements BotProcess {
         if (out.getCount() >= targetOut) { st = St.COLLECT; return; }
         // Fire died with input still to cook (gap#64②): reload fuel instead of
         // burning the whole timeout budget standing at a cold furnace. The reload
-        // resets the wait budget — fresh fuel restarts real progress.
+        // resets the wait budget — fresh fuel restarts real progress. BOUNDED:
+        // if the fuel never lands (slot rejects it, click race), this branch
+        // used to reset `waited` every tick and spin silently forever.
         if (!in.isEmpty() && fuel.isEmpty() && !fm.isLit()) {
-            if (loadFuel(a, menu)) { waited = 0; return; }
-            if (!out.isEmpty()) { error = "部分完成：只炼出 " + out.getCount() + "/" + targetOut + "（燃料耗尽）"; st = St.COLLECT; }
-            else fail(s, "燃料耗尽且背包无可续装燃料");
+            if (pickFuelMenuSlot(menu, fuelId) < 0) {
+                if (!out.isEmpty()) { error = "部分完成：只炼出 " + out.getCount() + "/" + targetOut + "（燃料耗尽）"; st = St.COLLECT; }
+                else fail(s, "燃料耗尽且背包无可续装燃料");
+                return;
+            }
+            if (++fuelTries > 8) {
+                fail(s, "燃料装不进熔炉（" + fuelTries + " 次装载后燃料槽仍空）");
+                return;
+            }
+            // Odd ticks click, even ticks let the server round-trip land.
+            if ((fuelTries & 1) == 1) {
+                LOG.info("[smelt] fuel reload attempt {} (in={} lit={})",
+                        fuelTries, in.getCount(), fm.isLit());
+                loadFuel(a, menu);
+                waited = 0;
+            }
             return;
         }
         // Input exhausted and something cooked → take what we got.
