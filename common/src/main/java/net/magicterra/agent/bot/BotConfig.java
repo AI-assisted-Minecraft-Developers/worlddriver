@@ -397,7 +397,7 @@ public final class BotConfig {
     /** Max extra cost (in A* cost units, 10 = one walk block) a risk-100 edge
      *  pays under {@link #riskBias}. 40 ≈ a 4-block detour breaks even against
      *  a certain wedge — deliberately conservative; A/B sweeps {20,40,80}. */
-    public static volatile int riskBiasScale = 40;
+    public static volatile int riskBiasScale = 15;
 
     /** A* node cap surfaced as a tunable knob — Baritone's
      *  {@code pathTimeoutMS} analogue. Maps directly to
