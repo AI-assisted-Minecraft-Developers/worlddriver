@@ -76,11 +76,16 @@ public final class LavaProximityEscape {
             dx = me.x - (lastLava.getX() + 0.5);
             dz = me.z - (lastLava.getZ() + 0.5);
         }
-        // Degenerate (standing in it / directly below) or the away cell is
-        // itself lava: fall back to the first clear cardinal.
+        // Degenerate (standing in it / directly below), the away cell is
+        // itself lava, or it has NO SOLID FLOOR (death #31: the escape run
+        // walked off a ledge into the pool below — trading a front for a
+        // fall): fall back to the first clear cardinal, which prefers floors.
+        BlockPos awayCell = BlockPos.containing(me.x + Math.signum(dx),
+                                                me.y, me.z + Math.signum(dz));
         boolean badVector = Math.hypot(dx, dz) < 0.35
-                || isLava(mc.level, BlockPos.containing(me.x + Math.signum(dx),
-                                                        me.y, me.z + Math.signum(dz)));
+                || isLava(mc.level, awayCell)
+                || isLava(mc.level, awayCell.below())
+                || !mc.level.getBlockState(awayCell.below()).blocksMotion();
         if (badVector) {
             Direction d = pickClearCardinal(mc.level, p);
             if (d != null) { dx = d.getStepX(); dz = d.getStepZ(); }
