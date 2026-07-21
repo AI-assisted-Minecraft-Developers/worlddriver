@@ -163,6 +163,33 @@ public final class Walker {
     static final class StickyDig {
         BlockPos pos;         // walkerStickyDig: planned-break cell being mined
         int ticks;            // watchdog for pos
+        // PROGRESS-AWARE release (2026-07-21, Mountains bank live + 23 RELEASE
+        // loops): the old fixed 150t cap assumed "any reachable block completes
+        // inside 150t", but vanilla stacks x5 (eye in water) and x5 (airborne)
+        // dig penalties MULTIPLICATIVELY — a swimAshoreClimb bank dig needs
+        // 450t (dirt) to 3750t (stone, wrong tool), so the cap released every
+        // dig at 151t with the block still solid, progress reset to zero, and
+        // the walker re-acquired the same cell forever. Track真实 destroy
+        // progress instead: hold while it climbs, release only on a true stall.
+        float lastProgress;   // last observed vanilla destroyProgress (0..1)
+        int stallTicks;       // consecutive ticks with no progress increase
+        // Bob-reset bypass (same live session): while the bot BOBS in water the
+        // eye/raycast dips behind the bank lip on some ticks, vanilla's
+        // continueAttack then targets a DIFFERENT cell and zeroes the progress
+        // — the dig can never finish no matter how long we hold. After a few
+        // raycast misses, latch DIRECT drive (gameMode.continueDestroyBlock on
+        // the exact cell — the AntiSuffocate gap#69 pattern), which decouples
+        // progress from the crosshair entirely.
+        int rayMiss;          // raycast-off-target ticks for this dig (cumulative)
+        boolean direct;       // latched: drive continueDestroyBlock directly
+        void engage(net.minecraft.core.BlockPos b) {
+            pos = b;
+            ticks = 0;
+            lastProgress = 0f;
+            stallTicks = 0;
+            rayMiss = 0;
+            direct = false;
+        }
     }
     /** In-progress pillarUp edge (task#96 step B8), owned by WalkerTickClimb; both
      *  fields cleared to -1 by both journey resets via {@link PillarEdge#reset()}. */

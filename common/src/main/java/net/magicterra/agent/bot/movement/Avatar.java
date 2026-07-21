@@ -83,6 +83,18 @@ public interface Avatar {
     void placeOn(BlockPos cell, Direction face);
     /** Hold/release the break action. */
     void breakHold(boolean v);
+
+    /** Vanilla mining progress of the block currently being destroyed, 0..1,
+     *  or -1 when unknown (no dig in flight / server-side avatar). Ground
+     *  truth for progress-aware dig watchdogs: fixed tick caps mis-time the
+     *  x5 (eye-in-water) x x5 (airborne) vanilla dig penalties, which stack
+     *  a bank dig to 450-3750t (2026-07-21 sticky-dig release loop). */
+    default float destroyProgress() { return -1f; }
+
+    /** Advance vanilla block destruction on {@code cell} directly, bypassing the
+     *  crosshair raycast (self-starts on first call — AntiSuffocate gap#69
+     *  pattern). No-op on avatars without a client game mode. */
+    default void continueDestroy(BlockPos cell) {}
     /** Melee-attack {@code target} — the vanilla left-click-on-entity path that
      *  applies weapon damage / sweep / knockback / crit. Client routes through
      *  {@code gameMode.attack}; server calls {@code Player.attack} directly. */

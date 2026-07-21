@@ -48,6 +48,18 @@ import static net.magicterra.agent.bot.movement.WalkerGeometry.*;
  * restructure here without live/testkit evidence (this file is state-machine surgery).
  */
 final class WalkerTickPrelude {
+
+    /** Progress-aware sticky-dig watchdog (see the release block): a dig may
+     *  legitimately need 450-3750 CONSECUTIVE ticks under vanilla's stacked
+     *  x5 water x5 airborne penalties, so time is bounded only by a generous
+     *  backstop; the real release signal is destroyProgress stalling. */
+    private static final int STICKY_DIG_STALL_TICKS = 60;
+    private static final int STICKY_DIG_ABS_CAP_TICKS = 4000;
+    /** Raycast-off-target ticks before latching direct continueDestroyBlock
+     *  drive (bob-reset bypass). Cumulative, not consecutive — intermittent
+     *  bob misses each zero the vanilla progress, so even sparse misses mean
+     *  the raycast path cannot finish the dig. */
+    private static final int STICKY_DIG_RAY_MISS_LATCH = 4;
     private WalkerTickPrelude() {}
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
@@ -220,30 +232,72 @@ final class WalkerTickPrelude {
             // latch on a cell 5 below the bot — OUTSIDE mining reach (~4.5) — so the latch
             // owned every tick swinging at an unreachable block until the full break
             // timeout while the travel drive was starved (the 85s badlands stall). Release
-            // at reach (20 ≈ 4.5²) and cap the watchdog at 150t: with the latch holding
-            // attack every tick, any REACHABLE block (worst realistic case ~25×-slow
-            // underwater dirt with a tool) completes well inside that.
+            // at reach (20 ≈ 4.5²).
             // gap#66: this legacy EXCLUSIVE latch must not run alongside its successor
             // walkerDigAimPriority — with both on, the two release checks each ran
             // ++stickyDig.ticks on the same counter, so the 150t watchdog fired at ~75
             // REAL ticks. A bare-hand stone dig needs 150 CONSECUTIVE held ticks
-            // (vanilla zeroes progress on any released tick), so every wall-dig
-            // fallback swing was dropped mid-dig ("DIG-dropped after 76t") and the
-            // stuck recovery piling up behind the starved actuator shoved the bot off
-            // its own stairs. digAimPriority alone re-holds crosshair+attack at the
-            // end of every travel tick — the dig survives without owning the tick.
+            // (vanilla zeroes progress on any released tick).
+            //
+            // PROGRESS-AWARE watchdog (2026-07-21 Mountains live, 23 RELEASE loops at
+            // one bank cell): the old fixed 150t cap assumed any reachable block
+            // completes inside it — but vanilla stacks x5 (eye in water) and x5
+            // (airborne) dig penalties multiplicatively, so a swimAshoreClimb bank
+            // dig needs 450t (dirt) to 3750t (stone/wrong tool). The cap released
+            // at 151t with the block still solid; vanilla zeroed the progress and
+            // the walker re-acquired the SAME cell forever — the exact
+            // proxy-metric disease family (time as a proxy for progress) as the
+            // descend/drive watchdogs fixed the same day. Now: hold while the
+            // REAL vanilla destroyProgress climbs, release on a true stall
+            // (STICKY_DIG_STALL_TICKS with no increase) or the absolute backstop
+            // (a cyclically-resetting aim never stalls but must not own forever).
+            // destroyProgress()==-1 (no reflection / server avatar) degrades to
+            // the stall counter alone, which then equals the legacy cap behavior.
+            float prog = a.destroyProgress();
+            if (prog > wk.stickyDig.lastProgress + 1e-4f) {
+                wk.stickyDig.lastProgress = prog;
+                wk.stickyDig.stallTicks = 0;
+            } else {
+                if (prog >= 0 && prog < wk.stickyDig.lastProgress - 0.05f)
+                    wk.stickyDig.lastProgress = prog;   // vanilla reset — re-baseline
+                wk.stickyDig.stallTicks++;
+            }
             if (!world.isSolid(wk.stickyDig.pos)
-                    || ++wk.stickyDig.ticks > Math.min(BotConfig.breakTimeoutTicks, 150)
+                    || wk.stickyDig.stallTicks > STICKY_DIG_STALL_TICKS
+                    || ++wk.stickyDig.ticks > STICKY_DIG_ABS_CAP_TICKS
                     || wk.stickyDig.pos.distToCenterSqr(p.position()) > 20) {
                 if (BotConfig.walkerDebug)
-                    LOG.info("[walker] sticky-dig RELEASE {} solid={} ticks={}",
-                            wk.stickyDig.pos, world.isSolid(wk.stickyDig.pos), wk.stickyDig.ticks);
-                wk.stickyDig.pos = null;
-                wk.stickyDig.ticks = 0;
+                    LOG.info("[walker] sticky-dig RELEASE {} solid={} ticks={} stall={} prog={}",
+                            wk.stickyDig.pos, world.isSolid(wk.stickyDig.pos), wk.stickyDig.ticks,
+                            wk.stickyDig.stallTicks, String.format("%.2f", wk.stickyDig.lastProgress));
+                wk.stickyDig.engage(null);
             } else {
                 a.selectTool(wk.stickyDig.pos);
                 a.aimAtBlock(wk.stickyDig.pos);
-                a.breakHold(true);
+                // Bob-reset bypass: while bobbing in water the eye raycast dips
+                // behind the bank lip on some ticks; vanilla continueAttack then
+                // retargets and ZEROES the progress (live: dig could never
+                // finish). Count off-target ticks and latch direct drive —
+                // continueDestroyBlock(cell, face) self-starts and advances the
+                // exact cell regardless of the crosshair (AntiSuffocate gap#69
+                // precedent). keyAttack must be UP in direct mode or vanilla's
+                // raycast-driven continueAttack double-drives a different cell.
+                if (!wk.stickyDig.direct) {
+                    BlockPos looking = a.lookingAtBlock();
+                    if (!wk.stickyDig.pos.equals(looking)
+                            && ++wk.stickyDig.rayMiss >= STICKY_DIG_RAY_MISS_LATCH) {
+                        wk.stickyDig.direct = true;
+                        if (BotConfig.walkerDebug)
+                            LOG.info("[walker] sticky-dig DIRECT-DRIVE {} (raycast off-target x{})",
+                                    wk.stickyDig.pos, wk.stickyDig.rayMiss);
+                    }
+                }
+                if (wk.stickyDig.direct) {
+                    a.breakHold(false);
+                    a.continueDestroy(wk.stickyDig.pos);
+                } else {
+                    a.breakHold(true);
+                }
                 return Walker.Step.WALKING;
             }
         }

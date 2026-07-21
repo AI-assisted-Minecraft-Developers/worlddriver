@@ -1272,7 +1272,7 @@ final class WalkerTickDrive {
                     a.selectTool(tgt);
                     a.aimAtBlock(tgt);
                     a.breakHold(true);
-                    if (BotConfig.walkerDigAimPriority) { wk.stickyDig.pos = tgt; wk.stickyDig.ticks = 0; }
+                    if (BotConfig.walkerDigAimPriority) wk.stickyDig.engage(tgt);
                     if (BotConfig.walkerDebug)
                         LOG.info("[walker] wall-dig FALLBACK {},{},{} stuckT={}",
                                 tgt.getX(), tgt.getY(), tgt.getZ(), wk.stuckTicks);

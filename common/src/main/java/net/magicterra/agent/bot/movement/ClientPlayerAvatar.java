@@ -59,6 +59,33 @@ public final class ClientPlayerAvatar implements Avatar {
     }
     @Override public boolean breakHeld() { return mc.options.keyAttack.isDown(); }
 
+    /** Mojmap-private {@code MultiPlayerGameMode.destroyProgress}, read via a
+     *  cached reflective Field (dev runtime is Mojmap; no mixin/AW plumbing in
+     *  this repo and one float read does not justify adding it). -1 when
+     *  reflection is unavailable — callers fall back to their tick caps. */
+    @Override public void continueDestroy(BlockPos cell) {
+        if (mc.gameMode == null || p == null) return;
+        mc.gameMode.continueDestroyBlock(cell,
+                net.magicterra.agent.bot.util.BotInteract.pickFaceTowardsPlayer(cell, p));
+    }
+
+    private static java.lang.reflect.Field destroyProgressField;
+    private static boolean destroyProgressLookupFailed;
+    @Override public float destroyProgress() {
+        if (mc.gameMode == null || destroyProgressLookupFailed) return -1f;
+        try {
+            if (destroyProgressField == null) {
+                destroyProgressField = net.minecraft.client.multiplayer.MultiPlayerGameMode.class
+                        .getDeclaredField("destroyProgress");
+                destroyProgressField.setAccessible(true);
+            }
+            return destroyProgressField.getFloat(mc.gameMode);
+        } catch (ReflectiveOperationException | SecurityException e) {
+            destroyProgressLookupFailed = true;
+            return -1f;
+        }
+    }
+
     @Override public net.minecraft.world.item.crafting.RecipeManager recipeManager() {
         return p != null && p.connection != null ? p.connection.getRecipeManager() : null;
     }

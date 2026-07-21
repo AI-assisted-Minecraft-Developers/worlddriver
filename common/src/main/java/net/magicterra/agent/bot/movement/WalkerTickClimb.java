@@ -757,7 +757,7 @@ final class WalkerTickClimb {
                     a.selectTool(b);
                     a.aimAtBlock(b);
                     a.breakHold(true);
-                    if (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority) { wk.stickyDig.pos = b; wk.stickyDig.ticks = 0; }
+                    if (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority) wk.stickyDig.engage(b);
                     return Walker.Step.WALKING;
                 }
             }
@@ -951,7 +951,7 @@ final class WalkerTickClimb {
                     a.selectTool(b);
                     a.aimAtBlock(b);
                     a.breakHold(true);
-                    if (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority) { wk.stickyDig.pos = b; wk.stickyDig.ticks = 0; }
+                    if (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority) wk.stickyDig.engage(b);
                     boolean climbBreak = floatingPocket && b.getY() >= foot.getY();
                     if ((swimEscapeBreak && p.isInWater() && !p.isUnderWater()) || climbBreak) {
                         Walker.agentForward(a, true);     // press into the aimed bank (surface only)
