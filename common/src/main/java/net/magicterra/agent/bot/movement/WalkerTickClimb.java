@@ -662,6 +662,17 @@ final class WalkerTickClimb {
                     wk.waterClimb.lastDigRiser = riser;
                     wk.waterClimb.lastDigAimEyeY = p.getEyeY();
                     a.breakHold(true);
+                    // Sticky-dig coverage gap (2026-07-21 live lake basin): the per-tick
+                    // re-aim above holds the CAMERA on the riser, but a bob that dips the
+                    // eye below the surface still makes the mining raycast MISS for those
+                    // ticks and vanilla zeroes destroyProgress — the exact disease the
+                    // break-actuator sites already cure via StickyDig's ray-miss latch →
+                    // direct continueDestroy (which bypasses the raycast entirely). This
+                    // dig site predates that machinery and never engaged it, so bank digs
+                    // kept resetting through the bob while actuator digs held fine. Engage
+                    // the same holder; it self-releases on break/stall/drift as everywhere.
+                    if (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority) wk.stickyDig.engage(riser);
+                    BotConfig.walkerDigActive = true;   // AutoSwim's backstop yields while air is healthy
                     // Mark the dig active: next tick's breakingEdge holds the leash and
                     // exempts the burst so the dig can finish (see the breakingEdge note).
                     // Clear any burst count accrued during the pre-dig bob-stall so the
