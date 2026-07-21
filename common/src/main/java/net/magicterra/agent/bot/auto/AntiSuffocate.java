@@ -153,7 +153,10 @@ public final class AntiSuffocate {
         if (directDrive) {
             if (held) { mc.options.keyAttack.setDown(false); held = false; }
             Direction face = pickFaceTowardsPlayer(head, p);
-            mc.gameMode.continueDestroyBlock(head, face);
+            // Swing like vanilla continueAttack does on a successful destroy tick —
+            // armless digging is an anticheat signature on third-party servers.
+            if (mc.gameMode.continueDestroyBlock(head, face))
+                p.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
         } else {
             mc.options.keyAttack.setDown(true);
             held = true;

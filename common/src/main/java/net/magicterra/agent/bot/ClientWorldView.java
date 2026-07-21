@@ -266,28 +266,12 @@ public final class ClientWorldView implements WorldView {
         return state(p).is(BlockTags.CLIMBABLE);
     }
     @Override public boolean isLeaves(BlockPos p) { return state(p).is(BlockTags.LEAVES); }
-    /** Break cells proven BREATH-INFEASIBLE by the executor (underwater dig whose
-     *  vanilla-estimated ticks exceed one full breath — progress resets on every
-     *  interruption, so such a dig can NEVER complete), mapped to expiry wall-clock ms.
-     *  Priced +INF in {@link #breakCost} so the very next search routes around instead
-     *  of re-adopting the same doomed carve (live 2026-07-21: quick-start stub kept
-     *  choosing a bare-hand submerged bank carve, 4000t sticky-dig churn per lap).
-     *  TTL-bounded so a later revisit (with tools / from dry ground) reprices honestly,
-     *  and {@link #escapeBreakCost} deliberately does NOT consult it — a drowning
-     *  escape must stay free to dig anything (MC-always-escapable contract). */
-    private static final java.util.concurrent.ConcurrentHashMap<BlockPos, Long> BREATH_POISON = new java.util.concurrent.ConcurrentHashMap<>();
-    public static void poisonBreathInfeasible(BlockPos p, long ttlMs) {
-        BREATH_POISON.put(p.immutable(), System.currentTimeMillis() + ttlMs);
-    }
-    private static boolean breathPoisoned(BlockPos p) {
-        if (BREATH_POISON.isEmpty()) return false;
-        Long e = BREATH_POISON.get(p);
-        if (e == null) return false;
-        if (System.currentTimeMillis() > e) { BREATH_POISON.remove(p); return false; }
-        return true;
-    }
     @Override public double breakCost(BlockPos p) {
-        if (breathPoisoned(p)) return Double.POSITIVE_INFINITY;
+        // Hopeless-dig poison (see BreakFeasibility): cells the executor proved
+        // unfinishable price +INF so the next search routes around (live 2026-07-21:
+        // quick-start stub kept re-adopting a bare-hand submerged bank carve,
+        // 4000t sticky-dig churn per lap).
+        if (net.magicterra.agent.bot.pathfinder.BreakFeasibility.isPoisoned(p)) return Double.POSITIVE_INFINITY;
         if (!BotConfig.allowBreak) {
             // Flee-escape exception: a fleeing bot enclosed by LEAVES must be able to
             // punch through them to escape (the canopy-snipe death — autoRetreat fired
@@ -360,6 +344,13 @@ public final class ClientWorldView implements WorldView {
         if (!nearOrigin && !risesFromWater(p, BotConfig.swimBankClimbMaxHeight + 2)) {
             return Double.POSITIVE_INFINITY;
         }
+        // Hopeless-dig poison applies HERE too (2026-07-21 live, minutes after the
+        // poison shipped): the swim-escape moves (SwimAshoreBreak &c.) price through
+        // this method, so a cell the executor just proved unfinishable was re-adopted
+        // by the very next quick search THROUGH the escape pricing — gate-trip →
+        // repath → same cell, several laps per second. See BreakFeasibility for why
+        // this cannot break the MC-always-escapable contract.
+        if (net.magicterra.agent.bot.pathfinder.BreakFeasibility.isPoisoned(p)) return Double.POSITIVE_INFINITY;
         return rawBreakCost(p);
     }
 

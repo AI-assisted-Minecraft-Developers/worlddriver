@@ -1,7 +1,7 @@
 package net.magicterra.agent.bot.movement;
 
 import net.magicterra.agent.bot.BotConfig;
-import net.magicterra.agent.bot.ClientWorldView;
+import net.magicterra.agent.bot.pathfinder.BreakFeasibility;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.debug.BotLevelHolder;
 import net.magicterra.agent.bot.movement.PathSmoothing.SmoothResult;
@@ -53,6 +53,13 @@ final class WalkerTickClimb {
      *  (~60 s): long enough that repeated repaths within the episode route around it,
      *  short enough that a later revisit with tools / from dry ground reprices it. */
     private static final long BREATH_POISON_TTL_MS = 60_000;
+    /** Effort ceiling for a single executor dig (~30 s of continuous mining): past
+     *  this a visible detour always wins, and in water the drift-release + progress
+     *  zeroing make the true cost effectively unbounded (live: bare-hand floating
+     *  stone ≈3750t estimated, 0.05 progress per 65-155t drift-released lap). Chosen
+     *  so a floating bare-hand DIRT climb-out (≈375t) stays allowed while any
+     *  bare-hand stone-family dig in/over water (≥750t) is refused. */
+    private static final int HOPELESS_DIG_TICKS = 600;
     private WalkerTickClimb() {}
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
@@ -622,10 +629,29 @@ final class WalkerTickClimb {
                         // swims the committed path to the real exit. The legit staircase-dig tunnels a
                         // SOLID massif (floor always solid) so it is unaffected.
                         boolean overhang = BotConfig.walkerBankDigSkipOverhang && !world.isSolid(riserCand.below());
-                        if (ry <= surfY + 5 && world.isSolid(riserCand) && !overhang) { riser = riserCand; break; }
+                        // Hopeless-dig rejection: skip candidates the current stance/tool
+                        // can never finish (bare-hand floating stone &c.) so the scan
+                        // falls through to a diggable column or to no dig at all —
+                        // the same gate the latched-riser check below applies.
+                        if (ry <= surfY + 5 && world.isSolid(riserCand) && !overhang
+                                && !breathInfeasibleDig(p, riserCand)) { riser = riserCand; break; }
                     }
                     wk.waterClimb.digRiser = riser;
                     wk.waterClimb.digCommitTicks = 0;   // fresh riser → fresh per-block commit budget
+                }
+                // Hopeless-dig gate on the LATCHED riser too: the latch predates the
+                // gate (or the stance changed — e.g. the bot sank into deep water), and
+                // a hopeless dig only burns drift-released zero-progress laps (live:
+                // prog 0.05 per 65-155t lap at a bare-hand stone riser). Poison it so
+                // searches route around, drop the latch, and let the scan above pick a
+                // diggable column next tick — or none, in which case the bot swims the
+                // committed path instead of mining a wall it can never break.
+                if (riser != null && breathInfeasibleDig(p, riser)) {
+                    BreakFeasibility.poison(riser, BREATH_POISON_TTL_MS);
+                    if (BotConfig.walkerDebug)
+                        LOG.info("[walker] hopeless bank dig {} — poisoned {}s, latch dropped", riser, BREATH_POISON_TTL_MS / 1000);
+                    wk.waterClimb.digRiser = null;
+                    riser = null;
                 }
                 if (riser != null) {
                     if (BotConfig.walkerDebug)
@@ -773,7 +799,7 @@ final class WalkerTickClimb {
                     a.selectTool(b);
                     if (breathInfeasibleDig(p, b)) {
                         a.breakHold(false);
-                        ClientWorldView.poisonBreathInfeasible(b, BREATH_POISON_TTL_MS);
+                        BreakFeasibility.poison(b, BREATH_POISON_TTL_MS);
                         if (BotConfig.walkerDebug)
                             LOG.info("[walker] breath-infeasible dig {} — poisoned {}s, repathing", b, BREATH_POISON_TTL_MS / 1000);
                         wk.lastError = "breath-infeasible dig at " + b;
@@ -977,7 +1003,7 @@ final class WalkerTickClimb {
                     a.selectTool(b);
                     if (breathInfeasibleDig(p, b)) {
                         a.breakHold(false);
-                        ClientWorldView.poisonBreathInfeasible(b, BREATH_POISON_TTL_MS);
+                        BreakFeasibility.poison(b, BREATH_POISON_TTL_MS);
                         if (BotConfig.walkerDebug)
                             LOG.info("[walker] breath-infeasible dig {} — poisoned {}s, repathing", b, BREATH_POISON_TTL_MS / 1000);
                         wk.lastError = "breath-infeasible dig at " + b;
@@ -1046,21 +1072,39 @@ final class WalkerTickClimb {
         return null;
     }
 
-    /** BREATH-FEASIBILITY GATE (2026-07-21 live, flooded Mountains channel): an
-     *  underwater dig lives inside a hard physics box — vanilla zeroes destroyProgress
-     *  on any interruption, and the only uninterruptible window is one breath
-     *  (maxAir − drownEscape floor − reserve ≈ 180t). Estimating with vanilla's own
-     *  {@code getDestroyProgress} (already includes eyes-in-water ÷5, off-ground ÷5,
-     *  and the currently held tool), a dig that can't fit that window can NEVER
-     *  complete — bare-hand submerged stone is ~750-3750t — so starting it only buys
-     *  the 4000t sticky-dig churn we watched live. Returns true when the dig is
-     *  provably unfinishable; caller poisons the cell (TTL) and repaths so the very
-     *  next search routes around. Dry / head-above-water digs are never gated. */
+    /** HOPELESS-DIG GATE (2026-07-21 live, flooded Mountains channel): estimate the
+     *  dig with vanilla's own {@code getDestroyProgress} (already includes
+     *  eyes-in-water ÷5, off-ground ÷5, and the currently held tool) and refuse to
+     *  start digs that provably cannot pay off. Two prongs:
+     *  <ol>
+     *  <li><b>Effort ceiling</b> (any stance): past {@link #HOPELESS_DIG_TICKS} a
+     *      single block costs more than any visible detour (bare-hand floating stone
+     *      ≈3750t; live: prog 0.05 per 65-155t lap, drift-released and zeroed every
+     *      lap — an unbounded sink). Mirrors the planner's wrong-tool aversion on the
+     *      executor side, where stub/escape adoptions used to sneak past pricing.</li>
+     *  <li><b>Breath box</b> (DEEP water only — water well above the head, same test
+     *      as AutoSwim's deep-ascent): vanilla zeroes destroyProgress on any
+     *      interruption and a fully-submerged dig gets one breath of uninterrupted
+     *      work (maxAir − drownEscape floor − reserve ≈ 180t); longer digs can NEVER
+     *      complete. Surface-bobbing digs refill air at the bob peaks, so they are
+     *      judged by the effort ceiling alone.</li>
+     *  </ol>
+     *  Callers poison the cell (TTL) so the very next search routes around.
+     *  <p>CLIENT-SIDE ONLY: the estimate models the vanilla client mining loop
+     *  (per-tick destroyProgress, zeroed on interruption). Server avatars break
+     *  through their own simplified fast path, so gating them on the vanilla
+     *  estimate refused digs their executor completes easily (t0 ad.buoyantWall
+     *  regression: bare-hand +5 stone wall the avatar mounts fine). */
     static boolean breathInfeasibleDig(net.minecraft.world.entity.player.Player p, BlockPos b) {
-        if (!p.isUnderWater()) return false;
+        if (!p.level().isClientSide()) return false;
         float dmg = p.level().getBlockState(b).getDestroyProgress(p, p.level(), b);
         if (dmg >= 1f) return false;                       // instant-mine — always fits
-        int fullBreathBudget = p.getMaxAirSupply() - BotConfig.drownEscapeAirThreshold - 20;
-        return dmg <= 0f || Math.ceil(1f / dmg) > fullBreathBudget;
+        if (dmg <= 0f) return true;                        // unbreakable from here
+        int est = (int) Math.ceil(1f / dmg);
+        if (est > HOPELESS_DIG_TICKS) return true;         // never worth it, any stance
+        if (!p.isUnderWater()) return false;
+        BlockPos foot = p.blockPosition();
+        boolean deep = p.level().getFluidState(foot.above(2)).is(net.minecraft.tags.FluidTags.WATER);
+        return deep && est > p.getMaxAirSupply() - BotConfig.drownEscapeAirThreshold - 20;
     }
 }

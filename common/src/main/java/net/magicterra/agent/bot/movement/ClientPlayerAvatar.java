@@ -65,8 +65,13 @@ public final class ClientPlayerAvatar implements Avatar {
      *  reflection is unavailable — callers fall back to their tick caps. */
     @Override public void continueDestroy(BlockPos cell) {
         if (mc.gameMode == null || p == null) return;
-        mc.gameMode.continueDestroyBlock(cell,
-                net.magicterra.agent.bot.util.BotInteract.pickFaceTowardsPlayer(cell, p));
+        // Mirror vanilla Minecraft.continueAttack exactly: it swings the main hand on
+        // every successful continueDestroyBlock tick. Direct-driven digs without the
+        // swing are visibly armless AND emit no ServerboundSwingPacket — third-party
+        // servers' anticheat flags "mining without swinging" (user report 2026-07-21).
+        if (mc.gameMode.continueDestroyBlock(cell,
+                net.magicterra.agent.bot.util.BotInteract.pickFaceTowardsPlayer(cell, p)))
+            p.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
     }
 
     private static java.lang.reflect.Field destroyProgressField;
