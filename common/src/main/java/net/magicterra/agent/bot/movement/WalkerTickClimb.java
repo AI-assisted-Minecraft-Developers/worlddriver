@@ -1100,11 +1100,29 @@ final class WalkerTickClimb {
         float dmg = p.level().getBlockState(b).getDestroyProgress(p, p.level(), b);
         if (dmg >= 1f) return false;                       // instant-mine — always fits
         if (dmg <= 0f) return true;                        // unbreakable from here
-        int est = (int) Math.ceil(1f / dmg);
-        if (est > HOPELESS_DIG_TICKS) return true;         // never worth it, any stance
+        // STANCE NORMALIZATION (2026-07-21 live, shoreline poison storm): the live
+        // estimate bakes in THIS tick's stance — a bobbing/jumping body eats vanilla's
+        // off-ground ÷5 and eyes-in-water ÷5 — but the poison it justifies lasts 60 s
+        // and outlives the stance. Live: the same stone bank cell is 150t dug grounded
+        // ashore yet 750-3750t sampled mid-bob, so the gate carpet-poisoned the whole
+        // climb-out shoreline while floating and the freshly-landed bot then had no
+        // priced route into the hill — it stopped digging and rammed the bank instead.
+        // Hopelessness must be judged from the best REACHABLE digging stance:
+        //  - off-ground ÷5 always undone (the bot can always ground — ashore or on
+        //    the basin floor);
+        //  - eyes-in-water ÷5 undone when the target sits ABOVE the waterline (a dry
+        //    stance beside it is reachable; if the player actually has aqua affinity
+        //    this overcorrects toward permissive, which is harmless).
+        float norm = 1f;
+        if (!p.onGround()) norm *= 5f;
+        boolean targetDry = !p.level().getFluidState(b.above()).is(net.minecraft.tags.FluidTags.WATER);
+        if (targetDry && p.isEyeInFluid(net.minecraft.tags.FluidTags.WATER)) norm *= 5f;
+        if (Math.ceil(1f / (dmg * norm)) > HOPELESS_DIG_TICKS) return true;   // never worth it from ANY stance
         if (!p.isUnderWater()) return false;
+        // Breath box uses the LIVE estimate: it asks "can THIS submerged dig finish
+        // on this breath", and down here the wet stance is the real one.
         BlockPos foot = p.blockPosition();
         boolean deep = p.level().getFluidState(foot.above(2)).is(net.minecraft.tags.FluidTags.WATER);
-        return deep && est > p.getMaxAirSupply() - BotConfig.drownEscapeAirThreshold - 20;
+        return deep && Math.ceil(1f / dmg) > p.getMaxAirSupply() - BotConfig.drownEscapeAirThreshold - 20;
     }
 }
