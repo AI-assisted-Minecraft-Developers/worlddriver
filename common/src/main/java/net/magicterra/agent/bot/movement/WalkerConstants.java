@@ -180,6 +180,25 @@ final class WalkerConstants {
      *  heading-freeze deadlock (live 2026-06-16: heldYaw frozen 500+ ticks pressing a bank
      *  while a stable bearing pointed ~150° away). */
     public static final int AIM_STABLE_TICKS = 10;
+    /** Degrees past which a target-vs-smooth gap counts as a COURSE REVERSAL, not a turn
+     *  the EMA may chase. At the ±180° antipode angleDiff's sign flips on sub-pixel body
+     *  jitter, so EMA-chasing oscillates forever and the stability gate never releases
+     *  the anti-spin freeze (Mountains notch live: raw target steady 700 ticks, smooth
+     *  never stable, heading pinned into a wall — the badlands-basin deadlock's true
+     *  root). Reversals are snapped (below), never smoothed. */
+    public static final float AIM_REVERSAL_DEG = 170f;
+    /** Consecutive reversal ticks before the smooth heading SNAPS to the live target —
+     *  rides out 1-2 tick transient flips (node overshoot sweep) exactly like
+     *  {@link #WATER_DRIVE_MAX_REJECT} does for the water drive heading. */
+    public static final int AIM_REVERSAL_SNAP_TICKS = 6;
+    /** Squared horizontal displacement (~0.15 b) under which a spin-frozen body counts as
+     *  PINNED — pressing a wall, not swimming/climbing. See the freeze deadlock valve. */
+    public static final double FREEZE_PRESS_MOVE_SQ = 0.15 * 0.15;
+    /** Consecutive pinned-while-frozen ticks (~3 s) before the valve releases the freeze
+     *  and snaps the heading to the live target. Long enough that every legitimate freeze
+     *  use (bodies that move/bob) never trips it; short enough to break the notch
+     *  deadlock ~200x faster than the 12000-tick goto budget it used to burn. */
+    public static final int FREEZE_PRESS_STALL_TICKS = 60;
     /** Heading tolerance for committing to a +1 step climb. A step is climbed by
      *  walking INTO the riser then jumping ONTO it, so the body must already FACE
      *  the step — if it arrived off the climb column or after a sharp path turn the

@@ -590,8 +590,16 @@ final class WalkerTickAim {
         boolean snapLaunch = launch && !dryDescent;
         if (Float.isNaN(wk.aimSmooth.smoothTargetYaw) || snapLaunch) {
             wk.aimSmooth.smoothTargetYaw = targetYaw;
+            wk.aimSmooth.reversalStreak = 0;
         } else {
             float alpha = trendCam ? YAW_SMOOTH_ALPHA_DESCENT : YAW_SMOOTH_ALPHA;
+            // (An antipode EMA-snap here — snap after 6 consecutive >170° ticks —
+            // was tried and REVERTED: it regressed ad.vineOverWaterClimb and
+            // ad.bridgeStepTwoBypassNoPlace, where per-repath ±180° target flips
+            // are NORMAL and must stay damped. The frozen-press deadlock is
+            // released by the physical-stall valve at the spinFreeze site
+            // instead, which keys on the deadlock's true signature: zero body
+            // displacement while frozen.)
             wk.aimSmooth.smoothTargetYaw = angleDiff(0f, wk.aimSmooth.smoothTargetYaw + alpha * angleDiff(wk.aimSmooth.smoothTargetYaw, targetYaw));
         }
         float aimYaw = snapLaunch ? targetYaw : wk.aimSmooth.smoothTargetYaw;
@@ -633,6 +641,26 @@ final class WalkerTickAim {
         else
             wk.aimSmooth.aimStableTicks = 0;
         wk.aimSmooth.lastAimYaw = aimYaw;
+        // RAW-target stability (antipode-proof twin of the gate above): the EMA
+        // output can be perpetually "unstable" while the RAW bearing has been
+        // rock-steady for hundreds of ticks (the ±180° oscillation described at
+        // the reversal fix). The freeze must release on EITHER signal being
+        // stable — the raw one is what actually proves "the world wants a fixed
+        // direction and it is not this one".
+        if (!Float.isNaN(wk.aimSmooth.rawLastTargetYaw)
+                && Math.abs(angleDiff(targetYaw, wk.aimSmooth.rawLastTargetYaw)) < AIM_STABLE_DEG)
+            wk.aimSmooth.rawStableTicks = Math.min(wk.aimSmooth.rawStableTicks + 1, AIM_STABLE_TICKS + 1);
+        else
+            wk.aimSmooth.rawStableTicks = 0;
+        wk.aimSmooth.rawLastTargetYaw = targetYaw;
+        // NOTE: rawStableTicks deliberately does NOT release the freeze — an
+        // A/B (t0) run with `|| rawStable` REGRESSED ad.vineOverWaterClimb
+        // (pocket wedge 49t): in a climb-out pocket the freeze legitimately
+        // holds a pressing heading against a steady-but-flipped node bearing.
+        // The antipode EMA snap above is the sufficient release path: once the
+        // smooth heading snaps to the persistent live target, the EXISTING
+        // stability gate sees it steady and releases. Raw tracking stays for
+        // telemetry (freeze forensics need "was the raw target stable?").
         boolean targetFlipping = wk.aimSmooth.aimStableTicks < AIM_STABLE_TICKS;
         // The anti-spin freeze stays WATER-gated: a dry-land extension (to catch the dry-churn
         // cliff-stall spin) spuriously engaged during a slow dry pillar-up — the goal-XZ barely
@@ -642,6 +670,35 @@ final class WalkerTickAim {
         // freezing the camera here, so keep the overWater scope.
         boolean overWater = p.isInWater() || world.isWater(foot.offset(0, -1, 0));
         boolean spinFreeze = !launch && overWater && wk.goalSpin.repathsNoProgress > CHURN_REPATH_CAP && targetFlipping;
+        // FROZEN-PRESS DEADLOCK VALVE (Mountains notch live, stuckT 720): the freeze
+        // exists to steady the bot PRESSING toward a climb-out — pressing implies the
+        // body moves (or bobs while the climb machinery works, as in the vine pocket).
+        // When the frozen heading points into a wall, the body is PINNED (horizontal
+        // displacement ~0 for seconds), repaths keep failing, and the freeze's own
+        // conditions self-sustain: raw target steady 180° away, EMA oscillating at the
+        // antipode, stability gate never releasing. Key the release on the deadlock's
+        // unique signature — zero displacement WHILE frozen — which no legitimate
+        // freeze use shows (vine-pocket / climb-out bodies keep moving). On trip:
+        // hard-snap the smooth heading to the live target and drop the freeze.
+        if (spinFreeze) {
+            double fdx = p.getX() - wk.aimSmooth.freezeAnchorX, fdz = p.getZ() - wk.aimSmooth.freezeAnchorZ;
+            if (wk.aimSmooth.frozenStallTicks == 0 || fdx * fdx + fdz * fdz > FREEZE_PRESS_MOVE_SQ) {
+                wk.aimSmooth.freezeAnchorX = p.getX();
+                wk.aimSmooth.freezeAnchorZ = p.getZ();
+                wk.aimSmooth.frozenStallTicks = 1;
+            } else if (++wk.aimSmooth.frozenStallTicks > FREEZE_PRESS_STALL_TICKS) {
+                if (BotConfig.walkerDebug)
+                    LOG.info("[walker] spin-freeze PRESS-DEADLOCK release: pinned {} ticks at ({},{}) — snap {} → {}",
+                            wk.aimSmooth.frozenStallTicks, String.format("%.1f", p.getX()), String.format("%.1f", p.getZ()),
+                            String.format("%.0f", wk.aimSmooth.smoothTargetYaw), String.format("%.0f", targetYaw));
+                wk.aimSmooth.smoothTargetYaw = targetYaw;
+                aimYaw = targetYaw;
+                wk.aimSmooth.frozenStallTicks = 0;
+                spinFreeze = false;
+            }
+        } else {
+            wk.aimSmooth.frozenStallTicks = 0;
+        }
         if (!spinFreeze && Math.abs(angleDiff(p.getYRot(), aimYaw)) > BotConfig.walkerYawHysteresisDeg) {
             float ny;
             if (snapLaunch) {
