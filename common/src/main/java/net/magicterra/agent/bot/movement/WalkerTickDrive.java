@@ -756,6 +756,32 @@ final class WalkerTickDrive {
         // strictly harder case), so apply it to every lethal-edge walk: full speed on
         // safe ticks, brake only on gapAhead/off-centre drift. Sprint stays OFF near
         // a lethal edge (below), bounding per-tick travel just like on the bridge.
+        // EXECUTION-TIME path hazard re-check (devil-bench iron ep-014 death #27):
+        // the plan was hazard-free, then LAVA FLOWED into the planned corridor at
+        // y8 — a breached pocket's flow front chased the tunnel — and the actuator
+        // walked the body into the flow (the hazardAhead brake below only SLOWS;
+        // it exists for lava-BESIDE-path passages). A hazard IN the path is not a
+        // creep-past case: when the waypoint column itself — or, on a diagonal
+        // step, either corner column the body sweeps — has BECOME hazardous, stop
+        // and replan around the new flow. A* never plans through hazard cells, so
+        // this can only fire on world change; static scenes never see it.
+        {
+            boolean wpHazard = world.isHazard(wp) || world.isHazard(wp.above());
+            if (!wpHazard && wp.getX() != foot.getX() && wp.getZ() != foot.getZ()) {
+                BlockPos ca = new BlockPos(wp.getX(), wp.getY(), foot.getZ());
+                BlockPos cb = new BlockPos(foot.getX(), wp.getY(), wp.getZ());
+                wpHazard = world.isHazard(ca) || world.isHazard(ca.above())
+                        || world.isHazard(cb) || world.isHazard(cb.above());
+            }
+            if (wpHazard) {
+                if (BotConfig.walkerDebug)
+                    LOG.info("[walker] path-hazard brake: waypoint {} column now hazardous "
+                            + "(flowed in after plan) → forceRepath", wp.toShortString());
+                a.releaseInputs();
+                wk.forceRepath();
+                return Walker.Step.WALKING;
+            }
+        }
         // HAZARD-AHEAD brake (lava ×4 live in two rounds): the danger ring only
         // PRICES a lava-hugging route — when no detour exists A* still commits
         // one, and the 0.6-wide body drifts into the neighbouring lava cell
@@ -776,7 +802,28 @@ final class WalkerTickDrive {
             }
         }
         boolean bridgeBrake = false;
-        if ((bridging || edgeBrake) && !plannedDescent) {
+        // Descending-place lip anchor (task#4, replay-0013): the !plannedDescent gate
+        // below exists because a sneak pin across a planned step-down deadlocks — but
+        // when the descent runs over a bridgePlace whose SUPPORT IS NOT PLACED YET,
+        // "refuse the edge" is exactly right: there is nothing to step down ONTO.
+        // Re-admit the dynamic brake for that one case (approach momentum control);
+        // the pending check self-releases the moment the support block lands, so the
+        // real step-down still proceeds pin-free. The actuator's own sneak hold
+        // (WalkerTickClimb place loop) covers the aim ticks; this covers the approach.
+        boolean descentPlacePending = false;
+        if (BotConfig.walkerBridgeDescentPlaceAnchor && bridging && plannedDescent) {
+            Move.Edge nextE = wk.edgeAt(wk.step + 1);
+            outer:
+            for (Move.Edge e : new Move.Edge[]{edge, nextE}) {
+                if (e == null) continue;
+                for (BlockPos b : e.toPlace)
+                    if (b.getY() < foot.getY() && !world.isSolid(b)) {
+                        descentPlacePending = true;
+                        break outer;
+                    }
+            }
+        }
+        if ((bridging || edgeBrake) && (!plannedDescent || descentPlacePending)) {
             double bdx = (wp.getX() + 0.5) - p.getX();
             double bdz = (wp.getZ() + 0.5) - p.getZ();
             double blen = Math.sqrt(bdx * bdx + bdz * bdz);
