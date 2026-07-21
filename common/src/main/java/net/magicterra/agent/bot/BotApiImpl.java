@@ -65,6 +65,7 @@ import net.magicterra.agent.bot.combat.ClientThreatScanner;
 import net.magicterra.agent.bot.auto.AutoTool;
 import net.magicterra.agent.bot.auto.AutoSwim;
 import net.magicterra.agent.bot.auto.AntiSuffocate;
+import net.magicterra.agent.bot.auto.ContactDamageEscape;
 import net.magicterra.agent.bot.auto.AutoRespawn;
 import net.magicterra.agent.bot.world.WorldModel;
 import java.util.concurrent.ConcurrentHashMap;
@@ -366,8 +367,14 @@ public final class BotApiImpl implements BotApi {
             // Climb until this Y (default: ~32 above current — far enough to clear
             // any pit; the skyOpen check ends it the moment it surfaces sooner).
             int targetY = p.getIntClamped("targetY", pl.blockPosition().getY() + 32, -64, 320);
-            startProcess(new EscapeProcess(targetY));
-            return Map.of("ok", true, "started", true, "targetY", targetY);
+            // A targetY below the feet means DIG DOWN: dispatch to the descent
+            // mirror (A*'s YLevel descent hunts distant cave mouths instead of
+            // digging and stalls in hill terrain — devil-bench day1_iron). Both
+            // report through the same escape slot, so await/status are unchanged.
+            boolean down = targetY < pl.blockPosition().getY();
+            startProcess(down ? new DescendProcess(targetY) : new EscapeProcess(targetY));
+            return Map.of("ok", true, "started", true, "targetY", targetY,
+                    "direction", down ? "down" : "up");
         });
     }
 
@@ -833,6 +840,11 @@ public final class BotApiImpl implements BotApi {
     }
 
     @Override
+    public Map<String, Object> holdItem(Map<String, Object> params) {
+        return InteractionCommands.holdItem(params);
+    }
+
+    @Override
     public Map<String, Object> attackEntity(Map<String, Object> params) {
         return InteractionCommands.attackEntity(params);
     }
@@ -1171,6 +1183,13 @@ public final class BotApiImpl implements BotApi {
         // runs after the scheduler so it overrides a digging process's aim ONLY while
         // the head is actually choking, then hands control straight back.
         if (mc.player != null) AntiSuffocate.tick(mc, mc.player);
+        // Contact-damage backstop (death #14, cactus): while a damaging BLOCK is
+        // grinding the hull (cactus/berry bush/fire/magma), face away and step out
+        // of contact. LLM latency can never beat a 2 Hz contact tick, and the
+        // entity-attribution reflexes never fire for block damage. Same
+        // idle-passivity carve-out as drowningSentinel/hurt-entry: reacting to
+        // taking damage is a survival reflex, not uncommanded movement.
+        if (mc.player != null) ContactDamageEscape.tick(mc, mc.player);
         // Keep the combat status slot's liveness in sync with the chain so the
         // awaitable mc.bot.combat route (which polls combat.active) completes the
         // moment the fight ends. Counters/goal/lastError persist for post-mortem.
