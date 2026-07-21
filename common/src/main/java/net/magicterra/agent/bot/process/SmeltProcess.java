@@ -22,6 +22,8 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
+import static net.magicterra.agent.AgentDriverCommon.LOG;
+
 /**
  * Phase E — smelt {@code count}× {@code input} in a furnace, the slot-simulation
  * way: open a furnace (one within reach, or placed from the hotbar), shift-click
@@ -86,7 +88,26 @@ public final class SmeltProcess implements BotProcess {
         }
 
         if (st == St.DONE) { a.closeContainer(); s.smelt.reset(); return true; }
-        if (st == St.FAIL) { a.closeContainer(); s.smelt.lastError = error; s.smelt.reset(); return true; }
+        if (st == St.FAIL) {
+            // Devil-bench iron ep-015: LOAD shift-clicks the ore in BEFORE the
+            // fuel check can fail, and the fail path closed the menu with the
+            // ore still inside — 3 raw iron stranded in the furnace, silently
+            // gone from the inventory, re-mined from scratch. On any failure
+            // with the furnace still open, sweep all three slots back first
+            // (same rationale as the COLLECT sweep, gap#64③).
+            if (p.containerMenu instanceof AbstractFurnaceMenu m) {
+                for (int slot : new int[]{AbstractFurnaceMenu.RESULT_SLOT,
+                                          AbstractFurnaceMenu.INGREDIENT_SLOT,
+                                          AbstractFurnaceMenu.FUEL_SLOT}) {
+                    if (!m.getSlot(slot).getItem().isEmpty()) {
+                        a.containerClick(m.containerId, slot, 0, ClickType.QUICK_MOVE);
+                    }
+                }
+            }
+            LOG.info("[smelt] FAIL: {} (furnace={} target={} input={})",
+                    error, furnacePos, targetOut, input);
+            a.closeContainer(); s.smelt.lastError = error; s.smelt.reset(); return true;
+        }
         return false;
     }
 
@@ -105,6 +126,8 @@ public final class SmeltProcess implements BotProcess {
         if (fz == null) fz = placeFurnace(a, p, lvl);
         if (fz == null) { fail(s, "需要熔炉（背包里没有可放置的熔炉）"); return; }
         furnacePos = fz;
+        LOG.info("[smelt] INIT ok: furnace={} target={}× {} (have={})",
+                fz.toShortString(), targetOut, shortId(input), have);
         // NOTE: a server FakePlayer can't open menus, so OPEN_WAIT times out there.
         a.aimAtBlock(fz);
         a.useBlock(fz, faceToward(fz, p));
@@ -129,6 +152,8 @@ public final class SmeltProcess implements BotProcess {
                     : "背包里没有可用燃料（工作方块不作燃料烧）");
             return;
         }
+        LOG.info("[smelt] LOAD ok: input slot {} + fuel loaded, waiting {}t for {} items",
+                inSlot, PER_ITEM_TIMEOUT * targetOut + 100, targetOut);
         smeltWaitBudget = PER_ITEM_TIMEOUT * targetOut + 100;
         waited = 0;
         st = St.SMELT_WAIT;
@@ -182,6 +207,7 @@ public final class SmeltProcess implements BotProcess {
             }
         }
         if (error != null) s.smelt.lastError = error;   // surface partial-completion note
+        LOG.info("[smelt] COLLECT done: furnace={} note={}", furnacePos, error);
         st = St.DONE;
     }
 
