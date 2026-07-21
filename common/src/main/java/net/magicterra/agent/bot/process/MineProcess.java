@@ -72,6 +72,14 @@ public final class MineProcess implements BotProcess {
     private final int desiredQty;
     private final int searchRadius;
     private final Walker walker = new Walker("mine");
+    {
+        // Approach stands live within the ≤64-block scan; embedded/unreachable
+        // candidates must price out fast (the 100t no-approach blacklist is the
+        // real gate). Full 50k/2s deep searches here only chopped the client
+        // (~25 fps for seconds after every block break) and delayed the
+        // blacklist — see Walker.setSearchBudget.
+        walker.setSearchBudget(8_000, 400);
+    }
     private final Set<BlockPos> blacklist = new HashSet<>();
     private int broken;
     // When the last SEARCH returned no usable target ONLY because every in-range
@@ -126,6 +134,7 @@ public final class MineProcess implements BotProcess {
     private final Deque<BlockPos> recentBreaks = new ArrayDeque<>();
     private int collectTicks;
     private final Walker collectWalker = new Walker("mine.collect");
+    { collectWalker.setSearchBudget(8_000, 400); }   // drops are even nearer
     private BlockPos currentCollectGoal;
     private static final int MAX_COLLECT_TICKS = 240;       // ~12 s @ 20 tps — long enough to walk to all 8 break spots
     private static final int COLLECT_SCAN_RADIUS = 8;       // matches vanilla item lifetime drift

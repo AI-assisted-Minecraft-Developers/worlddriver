@@ -203,7 +203,7 @@ final class WalkerTickRepath {
                         world.penalizeStuckNode(c.above());
                     }
             }
-            wk.seg.activeSearch = new PathFinder(world, wk.profile).withOwner(wk.owner).newSearch(searchFoot, wk.goal);
+            wk.seg.activeSearch = wk.newPathFinder(world).newSearch(searchFoot, wk.goal);
             wk.seg.searchFromEnd = false;
             wk.seg.searchSuppressedPlace = false;    // normal search: placing allowed; budget re-checked on result
             wk.seg.pendingSegment = null;            // a foot-search supersedes any stashed continuation
@@ -212,7 +212,7 @@ final class WalkerTickRepath {
                 && wk.seg.activeSearch == null && wk.seg.pendingSegment == null
                 && wk.searchGov.searchBackoffTicks == 0) {
             // Eagerly precompute the next best-effort segment from the committed end.
-            wk.seg.activeSearch = new PathFinder(world, wk.profile).withOwner(wk.owner).newSearch(wk.seg.commitEnd, wk.goal);
+            wk.seg.activeSearch = wk.newPathFinder(world).newSearch(wk.seg.commitEnd, wk.goal);
             wk.seg.searchFromEnd = true;
             wk.seg.searchSuppressedPlace = false;
             wk.ticksSinceRepath = 0;

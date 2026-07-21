@@ -238,7 +238,7 @@ final class WalkerTickSearch {
                         if (BotConfig.walkerDebug)
                             LOG.info("[walker] path needs {} placed blocks, have {} → re-search place-off (dig/around)",
                                     placesNeeded, world.placeableBlockCount());
-                        wk.seg.activeSearch = new PathFinder(world, wk.profile).withOwner(wk.owner).newSearch(foot, wk.goal, true);
+                        wk.seg.activeSearch = wk.newPathFinder(world).newSearch(foot, wk.goal, true);
                         wk.seg.searchFromEnd = false;
                         wk.seg.searchSuppressedPlace = true;
                         wk.seg.pendingSegment = null;

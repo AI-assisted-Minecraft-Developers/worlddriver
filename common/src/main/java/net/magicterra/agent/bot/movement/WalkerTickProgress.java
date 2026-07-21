@@ -770,7 +770,7 @@ final class WalkerTickProgress {
                 }
             } else {
                 if (!wk.replayMode && wk.seg.activeSearch == null && wk.seg.commitEnd != null) {
-                    wk.seg.activeSearch = new PathFinder(world, wk.profile).withOwner(wk.owner).newSearch(wk.seg.commitEnd, wk.goal);
+                    wk.seg.activeSearch = wk.newPathFinder(world).newSearch(wk.seg.commitEnd, wk.goal);
                     wk.seg.searchFromEnd = true;
                 }
                 // PROGRESSIVE QUICK-START at the splice gap: the continuation

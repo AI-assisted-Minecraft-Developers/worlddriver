@@ -77,6 +77,33 @@ public final class Walker {
      *  ({@link #mayBreak}) is a field read, not a per-tick constraint scan at every fallback site. */
     boolean profileForbidsBreak = false;
 
+    /** Optional per-Walker deep-search budget (nodes, ms); -1 = the global
+     *  {@link BotConfig#pathfinderMaxNodes}/{@link BotConfig#pathfinderMaxMs}.
+     *  For owners whose goals are always NEAR (mine's approach stands sit within
+     *  its ≤64-block scan): an ore stand embedded in a wall is proven unreachable
+     *  after a few thousand expansions, and grinding the full 50k/2s budget per
+     *  candidate is pure waste — sliced at {@link BotConfig#pathfinderIdleSliceMs}
+     *  it also chops the client to ~25 fps for seconds right after each block
+     *  break (the "挖完卡一下" report). The real gate for hopeless stands is the
+     *  mine process's 100t no-approach blacklist; a small budget just reaches it
+     *  sooner. Long-haul navigation (goto/escape) keeps the full defaults. */
+    int searchMaxNodes = -1;
+    long searchMaxMs = -1;
+    public void setSearchBudget(int nodes, long ms) {
+        this.searchMaxNodes = nodes;
+        this.searchMaxMs = ms;
+    }
+
+    /** Single construction point for this Walker's deep-search PathFinders so the
+     *  per-Walker budget override applies to every search launch site alike
+     *  (foot repath, commit-end continuation, place-suppressed re-plan). */
+    PathFinder newPathFinder(WorldView world) {
+        PathFinder pf = (searchMaxNodes > 0 && searchMaxMs > 0)
+                ? new PathFinder(world, searchMaxNodes, searchMaxMs, profile)
+                : new PathFinder(world, profile);
+        return pf.withOwner(owner);
+    }
+
     /** Set the per-intent search profile for subsequent searches. Null → {@link SearchProfile#NONE}. */
     public void setSearchProfile(SearchProfile p) {
         this.profile = (p == null) ? SearchProfile.NONE : p;
@@ -1043,7 +1070,7 @@ public final class Walker {
                 && seg.frontierWaitTicks < FRONTIER_WAIT_CAP) {
             seg.frontierWaitTicks++;
             if (seg.activeSearch == null) {
-                seg.activeSearch = new PathFinder(world, profile).withOwner(owner).newSearch(seg.commitEnd, goal);
+                seg.activeSearch = newPathFinder(world).newSearch(seg.commitEnd, goal);
                 seg.searchFromEnd = true;
             }
             agentForward(a, false);
