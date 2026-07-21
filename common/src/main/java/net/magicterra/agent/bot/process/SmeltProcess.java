@@ -57,6 +57,11 @@ public final class SmeltProcess implements BotProcess {
     private int waited;
     private int smeltWaitBudget;
     private String error;
+    /** Resuming a furnace that already holds the ingredient/result (a prior
+     *  smelt was interrupted after loading — ep-018: preempted smelt left 3
+     *  raw iron inside; the retry then failed "缺 raw_iron" while the loaded
+     *  furnace sat within reach). Skip LOAD's shift-clicks and adopt. */
+    private boolean adopt;
 
     public SmeltProcess(String input, int count, String fuelId) {
         this.input = input;
@@ -118,6 +123,22 @@ public final class SmeltProcess implements BotProcess {
         if (have <= 0) {
             // Wait for the client inventory to catch up before declaring it missing.
             if (++inputTries < INPUT_GRACE) return;   // stay in INIT, retry next tick
+            // Nothing in the bag — but a nearby furnace may hold a prior
+            // interrupted load. Open it and let SMELT_WAIT/COLLECT finish the
+            // job; a cold empty furnace fails fast there instead.
+            BlockPos fz = findFurnace(p, lvl);
+            if (fz != null) {
+                furnacePos = fz;
+                adopt = true;
+                targetOut = count;
+                LOG.info("[smelt] INIT adopt: bag empty, resuming furnace {} target={}× {}",
+                        fz.toShortString(), targetOut, shortId(input));
+                a.aimAtBlock(fz);
+                a.useBlock(fz, faceToward(fz, p));
+                waited = 0;
+                st = St.OPEN_WAIT;
+                return;
+            }
             fail(s, "缺 " + count + " 个 " + shortId(input)); return;
         }
         targetOut = Math.min(count, have);
@@ -142,6 +163,20 @@ public final class SmeltProcess implements BotProcess {
 
     private void load(Avatar a, Player p, BotState s) {
         AbstractContainerMenu menu = p.containerMenu;
+        if (adopt) {
+            // Furnace already holds the load (or is empty — SMELT_WAIT's cold
+            // check decides). targetOut caps at what is actually inside.
+            ItemStack aIn = menu.getSlot(AbstractFurnaceMenu.INGREDIENT_SLOT).getItem();
+            ItemStack aOut = menu.getSlot(AbstractFurnaceMenu.RESULT_SLOT).getItem();
+            int inside = aIn.getCount() + aOut.getCount();
+            if (inside > 0) targetOut = Math.min(targetOut, inside);
+            LOG.info("[smelt] LOAD adopt: in={} out={} → target={}",
+                    aIn.getCount(), aOut.getCount(), targetOut);
+            smeltWaitBudget = PER_ITEM_TIMEOUT * Math.max(1, targetOut) + 100;
+            waited = 0;
+            st = St.SMELT_WAIT;
+            return;
+        }
         // Shift-click the ingredient from the inventory → routes to the input slot.
         int inSlot = findInvMenuSlot(menu, st2 -> idOf(st2.getItem()).equals(input));
         if (inSlot < 0) { fail(s, "背包里找不到 " + shortId(input)); return; }
@@ -185,6 +220,14 @@ public final class SmeltProcess implements BotProcess {
         }
         // Input exhausted and something cooked → take what we got.
         if (in.isEmpty() && !out.isEmpty()) { st = St.COLLECT; return; }
+        // Cold empty furnace (adopt path found nothing inside): nothing will
+        // ever cook — fail fast instead of burning the whole wait budget.
+        // Adopt-only: the normal path's QUICK_MOVE round-trip can leave the
+        // slots briefly empty right after LOAD and must not trip this.
+        if (adopt && in.isEmpty() && out.isEmpty() && !fm.isLit()) {
+            fail(s, "缺 " + count + " 个 " + shortId(input) + "（熔炉也是空的）");
+            return;
+        }
         if (++waited > smeltWaitBudget) {
             if (!out.isEmpty()) { error = "部分完成：只炼出 " + out.getCount() + "/" + targetOut; st = St.COLLECT; }
             else fail(s, "冶炼超时（燃料不足？）");
