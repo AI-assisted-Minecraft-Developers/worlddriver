@@ -86,6 +86,14 @@ public final class ProcessScheduler {
             bestP = currentP;
         }
         if (best != current) {
+            // One line per handover — the movement channel deciding who owns the
+            // body is THE thing post-mortems need (iron ep-018/019: a user smelt
+            // froze for minutes with zero telemetry naming the chain that held
+            // the channel). Cheap: only on transitions, never per tick.
+            net.magicterra.agent.AgentDriverCommon.LOG.info(
+                    "[scheduler] chain {} -> {} (bids: {})",
+                    current == null ? "idle" : current.name(),
+                    best == null ? "idle" : best.name(), prios);
             if (current != null) current.onInterrupt(best);
             if (best != null) best.onResume();
         }
