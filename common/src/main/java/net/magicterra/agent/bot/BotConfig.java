@@ -1383,6 +1383,7 @@ public final class BotConfig {
     public static volatile int rangedAvoidRadius = 16;   // wider berth for ranged mobs (skeleton/witch) — Baritone Avoidance, AltoClef-style ranged split
     public static volatile double fleeDangerBoost = 8;   // during an active flee, water/ledge danger ×this so the flee won't dive into water or off a cliff (F2)
     public static volatile boolean fleeActive = false;   // RUNTIME flee-context flag (a RunAwayProcess ticked this frame); NOT persisted, NOT in MCP schema
+    public static volatile boolean walkerDigActive = false; // RUNTIME dig-context flag (the Walker held a block-break this frame); NOT persisted, NOT in MCP schema. Read by AutoSwim so the in-process drowning backstop yields to an active dig while air is healthy (2026-07-21 live: deep-ascent had NO air gate and fought every underwater dig from full lungs, resetting destroyProgress each bob).
 
     /** Walker sneak-brake guard: while walking, if a LETHAL drop (fall deeper than
      *  the bot can survive at its current HP) is one step ahead in the heading, hold
@@ -2719,7 +2720,7 @@ public final class BotConfig {
      *  a per-frame flee-context flag (set true by RunAwayProcess.tick, reset each
      *  clientTick) — if saved it would reload {@code true} and wrongly boost every
      *  goto's terrain cost. Keep this in sync with any other transient scalar. */
-    private static final Set<String> NON_PERSISTED = Set.of("fleeActive", "pathfinderBoxedEscalate");
+    private static final Set<String> NON_PERSISTED = Set.of("fleeActive", "walkerDigActive", "pathfinderBoxedEscalate");
 
     /** A static, non-final field of a scalar type (or the hazard-block Set) — the
      *  set we round-trip. Arrays (avoidZones), runtime-only flags ({@link

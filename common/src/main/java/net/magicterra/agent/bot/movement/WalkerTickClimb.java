@@ -1,6 +1,7 @@
 package net.magicterra.agent.bot.movement;
 
 import net.magicterra.agent.bot.BotConfig;
+import net.magicterra.agent.bot.ClientWorldView;
 import net.magicterra.agent.bot.Goal;
 import net.magicterra.agent.bot.debug.BotLevelHolder;
 import net.magicterra.agent.bot.movement.PathSmoothing.SmoothResult;
@@ -48,6 +49,10 @@ import static net.magicterra.agent.bot.movement.WalkerGeometry.*;
  * restructure here without live/testkit evidence (this file is state-machine surgery).
  */
 final class WalkerTickClimb {
+    /** TTL for a breath-infeasible break cell in {@link ClientWorldView}'s poison set
+     *  (~60 s): long enough that repeated repaths within the episode route around it,
+     *  short enough that a later revisit with tools / from dry ground reprices it. */
+    private static final long BREATH_POISON_TTL_MS = 60_000;
     private WalkerTickClimb() {}
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
@@ -755,6 +760,16 @@ final class WalkerTickClimb {
                 if (world.isSolid(b)) {
                     Walker.agentJump(a, false);
                     a.selectTool(b);
+                    if (breathInfeasibleDig(p, b)) {
+                        a.breakHold(false);
+                        ClientWorldView.poisonBreathInfeasible(b, BREATH_POISON_TTL_MS);
+                        if (BotConfig.walkerDebug)
+                            LOG.info("[walker] breath-infeasible dig {} — poisoned {}s, repathing", b, BREATH_POISON_TTL_MS / 1000);
+                        wk.lastError = "breath-infeasible dig at " + b;
+                        wk.path = null;
+                        return Walker.Step.WALKING;
+                    }
+                    BotConfig.walkerDigActive = true;
                     a.aimAtBlock(b);
                     a.breakHold(true);
                     if (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority) wk.stickyDig.engage(b);
@@ -949,6 +964,16 @@ final class WalkerTickClimb {
             for (BlockPos b : edge.toBreak) {
                 if (world.isSolid(b)) {
                     a.selectTool(b);
+                    if (breathInfeasibleDig(p, b)) {
+                        a.breakHold(false);
+                        ClientWorldView.poisonBreathInfeasible(b, BREATH_POISON_TTL_MS);
+                        if (BotConfig.walkerDebug)
+                            LOG.info("[walker] breath-infeasible dig {} — poisoned {}s, repathing", b, BREATH_POISON_TTL_MS / 1000);
+                        wk.lastError = "breath-infeasible dig at " + b;
+                        wk.path = null;
+                        return Walker.Step.WALKING;
+                    }
+                    BotConfig.walkerDigActive = true;
                     a.aimAtBlock(b);
                     a.breakHold(true);
                     if (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority) wk.stickyDig.engage(b);
@@ -1008,5 +1033,23 @@ final class WalkerTickClimb {
         // ---- publish: write this phase's products for the downstream phases (WalkerTickCtx) ----
         cx.edges.edge = edge;
         return null;
+    }
+
+    /** BREATH-FEASIBILITY GATE (2026-07-21 live, flooded Mountains channel): an
+     *  underwater dig lives inside a hard physics box — vanilla zeroes destroyProgress
+     *  on any interruption, and the only uninterruptible window is one breath
+     *  (maxAir − drownEscape floor − reserve ≈ 180t). Estimating with vanilla's own
+     *  {@code getDestroyProgress} (already includes eyes-in-water ÷5, off-ground ÷5,
+     *  and the currently held tool), a dig that can't fit that window can NEVER
+     *  complete — bare-hand submerged stone is ~750-3750t — so starting it only buys
+     *  the 4000t sticky-dig churn we watched live. Returns true when the dig is
+     *  provably unfinishable; caller poisons the cell (TTL) and repaths so the very
+     *  next search routes around. Dry / head-above-water digs are never gated. */
+    static boolean breathInfeasibleDig(net.minecraft.world.entity.player.Player p, BlockPos b) {
+        if (!p.isUnderWater()) return false;
+        float dmg = p.level().getBlockState(b).getDestroyProgress(p, p.level(), b);
+        if (dmg >= 1f) return false;                       // instant-mine — always fits
+        int fullBreathBudget = p.getMaxAirSupply() - BotConfig.drownEscapeAirThreshold - 20;
+        return dmg <= 0f || Math.ceil(1f / dmg) > fullBreathBudget;
     }
 }

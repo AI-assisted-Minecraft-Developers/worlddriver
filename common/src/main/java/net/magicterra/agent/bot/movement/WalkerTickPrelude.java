@@ -272,6 +272,7 @@ final class WalkerTickPrelude {
                             wk.stickyDig.stallTicks, String.format("%.2f", wk.stickyDig.lastProgress));
                 wk.stickyDig.engage(null);
             } else {
+                BotConfig.walkerDigActive = true;   // dig-priority: AutoSwim's backstop yields while this hold is live and air is healthy
                 a.selectTool(wk.stickyDig.pos);
                 a.aimAtBlock(wk.stickyDig.pos);
                 // Bob-reset bypass: while bobbing in water the eye raycast dips

@@ -54,6 +54,10 @@ public final class AutoSwim {
     private static final int SHORE_UP = 1;
     /** How far below (a shallow/beach exit). */
     private static final int SHORE_DOWN = 1;
+    /** Air ticks kept in reserve above the drownEscape threshold while yielding to an
+     *  active dig (~1 s): the backstop resumes lifting BEFORE the escape chain preempts,
+     *  so a dig that runs the lungs down hands over smoothly instead of at the wire. */
+    private static final int DIG_AIR_RESERVE = 20;
     /** Throttle counter for walkerDebug shore logging. */
     private static int DBG = 0;
 
@@ -125,6 +129,19 @@ public final class AutoSwim {
         // physics. The lift + shore-steer below run ONLY under an active process (the command's own
         // executor), as an in-process drowning backstop — never as an unprompted idle behavior.
         if (idle) return;
+        // DIG-PRIORITY YIELD (2026-07-21 live, flooded Mountains channel): while the
+        // Walker holds an active block-break this tick and air is still healthy, the
+        // whole in-process backstop stands down. Before this gate, deep-ascent had NO
+        // air condition — the moment the head was submerged it force-held jump and
+        // zeroed every horizontal key EVERY tick, from FULL lungs, bobbing the body
+        // off the dig cell so vanilla reset destroyProgress; the dig looped to the
+        // sticky-dig 4000t cap without ever finishing a single block. The Walker only
+        // starts underwater digs that fit one breath (breath-feasibility gate in
+        // WalkerTickClimb), so yielding down to the escape floor is safe: below
+        // threshold+reserve the backstop resumes, and DrownEscapeChain (bid 500,
+        // air<=drownEscapeAirThreshold) remains the untouched hard survival floor.
+        if (BotConfig.walkerDigActive
+                && p.getAirSupply() > BotConfig.drownEscapeAirThreshold + DIG_AIR_RESERVE) return;
         boolean inWater = p.isInWater();
         if (inWater && p.isUnderWater()) {
             mc.options.keyJump.setDown(true);

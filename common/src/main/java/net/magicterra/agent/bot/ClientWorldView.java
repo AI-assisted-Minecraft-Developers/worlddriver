@@ -266,7 +266,28 @@ public final class ClientWorldView implements WorldView {
         return state(p).is(BlockTags.CLIMBABLE);
     }
     @Override public boolean isLeaves(BlockPos p) { return state(p).is(BlockTags.LEAVES); }
+    /** Break cells proven BREATH-INFEASIBLE by the executor (underwater dig whose
+     *  vanilla-estimated ticks exceed one full breath — progress resets on every
+     *  interruption, so such a dig can NEVER complete), mapped to expiry wall-clock ms.
+     *  Priced +INF in {@link #breakCost} so the very next search routes around instead
+     *  of re-adopting the same doomed carve (live 2026-07-21: quick-start stub kept
+     *  choosing a bare-hand submerged bank carve, 4000t sticky-dig churn per lap).
+     *  TTL-bounded so a later revisit (with tools / from dry ground) reprices honestly,
+     *  and {@link #escapeBreakCost} deliberately does NOT consult it — a drowning
+     *  escape must stay free to dig anything (MC-always-escapable contract). */
+    private static final java.util.concurrent.ConcurrentHashMap<BlockPos, Long> BREATH_POISON = new java.util.concurrent.ConcurrentHashMap<>();
+    public static void poisonBreathInfeasible(BlockPos p, long ttlMs) {
+        BREATH_POISON.put(p.immutable(), System.currentTimeMillis() + ttlMs);
+    }
+    private static boolean breathPoisoned(BlockPos p) {
+        if (BREATH_POISON.isEmpty()) return false;
+        Long e = BREATH_POISON.get(p);
+        if (e == null) return false;
+        if (System.currentTimeMillis() > e) { BREATH_POISON.remove(p); return false; }
+        return true;
+    }
     @Override public double breakCost(BlockPos p) {
+        if (breathPoisoned(p)) return Double.POSITIVE_INFINITY;
         if (!BotConfig.allowBreak) {
             // Flee-escape exception: a fleeing bot enclosed by LEAVES must be able to
             // punch through them to escape (the canopy-snipe death — autoRetreat fired
