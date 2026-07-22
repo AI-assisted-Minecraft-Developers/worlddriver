@@ -2,7 +2,9 @@ package net.magicterra.agent.bot.testkit.scene;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
 import net.magicterra.agent.AgentDriverCommon;
@@ -808,9 +810,76 @@ public final class AgentDriverSurvivalScenes implements SceneProvider {
         }
     }
 
+    // Minimal WorldView over explicit solid/water cell sets (everything else is
+    // air/passable). Only the five abstract methods matter for the lateral-escape
+    // geometry decision; the rest keep their interface defaults.
+    private static WorldView gridWorld(Set<BlockPos> solid, Set<BlockPos> water) {
+        return new WorldView() {
+            @Override public boolean isSolid(BlockPos p)     { return solid.contains(p); }
+            @Override public boolean isPassable(BlockPos p)  { return !solid.contains(p); }
+            @Override public boolean isHazard(BlockPos p)    { return false; }
+            @Override public boolean isWater(BlockPos p)     { return water.contains(p); }
+            @Override public boolean isClimbable(BlockPos p) { return false; }
+        };
+    }
+
+    // gap#77 / live death #27 (2026-07-21 flooded Mountains): the overhang lateral
+    // escape decision (DrownEscapeChain.lateralEscapeDir), PURE. The bot drowned in a
+    // 1×1 water pocket capped by an undercut cliff shelf, ONE block from open water,
+    // because pure-vertical float can't surface under a solid lid and the no-horizontal
+    // contract forbade the sideways swim. lateralEscapeDir steers to open water when
+    // (and only when) the current column is capped — deep/open water still floats up.
+    static void drownEscapeLateralMatrix(BiConsumer<Boolean, String> check) {
+        // (a) the death#27 undercut: bot column capped by a solid shelf; the ONE open
+        // neighbour is +x. Every other ring-1 neighbour is capped, so +x must be chosen.
+        {
+            Set<BlockPos> solid = new HashSet<>(), water = new HashSet<>();
+            for (int y = 59; y <= 62; y++) water.add(new BlockPos(0, y, 0));   // bot column: water …
+            for (int y = 63; y <= 66; y++) solid.add(new BlockPos(0, y, 0));   // … capped by the shelf
+            for (int y = 59; y <= 62; y++) water.add(new BlockPos(1, y, 0));   // +x: water, air above (open)
+            for (int[] c : new int[][]{{-1,0},{0,1},{0,-1},{1,1},{1,-1},{-1,1},{-1,-1}}) {
+                for (int y = 59; y <= 62; y++) water.add(new BlockPos(c[0], y, c[1]));
+                for (int y = 63; y <= 66; y++) solid.add(new BlockPos(c[0], y, c[1])); // capped
+            }
+            int[] dir = DrownEscapeChain.lateralEscapeDir(gridWorld(solid, water), 0, 60, 0);
+            check.accept(dir != null && dir[0] == 1 && dir[1] == 0,
+                    "death#27(a): capped pocket, sole opening +x → lateral {+1,0} (got "
+                    + (dir == null ? "null" : dir[0] + "," + dir[1]) + ")");
+        }
+        // (b) deep OPEN water (no solid cap within scan) → null: bot floats straight up,
+        // the unchanged pure-vertical case. Regression guard against over-triggering.
+        {
+            Set<BlockPos> solid = new HashSet<>(), water = new HashSet<>();
+            for (int y = 50; y <= 62; y++) water.add(new BlockPos(0, y, 0));
+            check.accept(DrownEscapeChain.lateralEscapeDir(gridWorld(solid, water), 0, 55, 0) == null,
+                    "death#27(b): deep open water is NOT capped → null (float straight up)");
+        }
+        // (c) open sky directly above the bot → null: surface in place, never sideways.
+        {
+            Set<BlockPos> solid = new HashSet<>(), water = new HashSet<>();
+            for (int y = 59; y <= 62; y++) water.add(new BlockPos(0, y, 0));   // air at y63
+            check.accept(DrownEscapeChain.lateralEscapeDir(gridWorld(solid, water), 0, 60, 0) == null,
+                    "death#27(c): open surface directly above → null (surface in place)");
+        }
+        // (d) capped pocket, boxed in on all sides past the scan radius → null: no lateral
+        // escape exists, so the caller falls back to the lid-break (MC-always-escapable).
+        {
+            Set<BlockPos> solid = new HashSet<>(), water = new HashSet<>();
+            for (int y = 59; y <= 62; y++) water.add(new BlockPos(0, y, 0));
+            for (int y = 63; y <= 66; y++) solid.add(new BlockPos(0, y, 0));
+            for (int dx = -6; dx <= 6; dx++) for (int dz = -6; dz <= 6; dz++) {
+                if (dx == 0 && dz == 0) continue;
+                for (int y = 58; y <= 66; y++) solid.add(new BlockPos(dx, y, dz)); // solid all around
+            }
+            check.accept(DrownEscapeChain.lateralEscapeDir(gridWorld(solid, water), 0, 60, 0) == null,
+                    "death#27(d): capped with no open neighbour in range → null (lid-break fallback)");
+        }
+    }
+
     private static void drownEscapeGateMatrixScene(SceneContext ctx) {
         drownEscapeGateMatrix((ok, msg) -> { if (!ok) ctx.fail(msg); });
         drownEscapeChainLifecycleMatrix((ok, msg) -> { if (!ok) ctx.fail(msg); });
+        drownEscapeLateralMatrix((ok, msg) -> { if (!ok) ctx.fail(msg); });
     }
 
     // ==================================================================================

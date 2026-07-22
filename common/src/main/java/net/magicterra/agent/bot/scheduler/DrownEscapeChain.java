@@ -71,6 +71,17 @@ public final class DrownEscapeChain implements Chain {
      *  exactly our hold and the release path never touches client classes on a
      *  dedicated server (where tick(mc=null) never actuates). */
     private boolean keysHeld;
+    /** Throttle counter for the capped-lateral-escape debug line. */
+    private int dbg;
+
+    /** How far UP a column is scanned to decide "solid cap vs open surface" and to
+     *  find an air surface in a neighbour. A few blocks is enough — the overhang
+     *  shelf that drowned the bot (live death #27) sat one block above its head. */
+    private static final int SURFACE_SCAN_UP = 4;
+    /** Chebyshev-ring radius scanned for a neighbouring column the bot can surface
+     *  in. Bounded by one breath of underwater swim (~5 s ≈ a handful of blocks);
+     *  beyond that no lateral escape completes anyway. */
+    private static final int LATERAL_SCAN_R = 5;
 
     /** Headless-test sensor override ({@code null} in production): lets the
      *  dedicated-server arena feed the REAL FakePlayer's underwater/air readings
@@ -116,6 +127,45 @@ public final class DrownEscapeChain implements Chain {
         if (mc == null) return;                     // headless arena: decision-layer only
         LocalPlayer p = mc.player;
         if (p == null) return;
+        // OVERHANG LATERAL ESCAPE (live death #27, 2026-07-21 flooded Mountains
+        // channel). Pure-vertical float assumes "up = air". When the bot is under a
+        // SOLID cap — an undercut cliff shelf, where the lake tunnels beneath several
+        // blocks of stone — floating up is blocked and breaking straight through the
+        // lid can't chew a stone block underwater within one breath (~180 t bare-hand
+        // vs the ~100 t of air we enter at). The bot drowned in a 1×1 capped pocket
+        // ONE block from open water, because this reflex's no-horizontal contract
+        // forbade the lateral swim and its preempt had locked out AutoSwim's
+        // shore-steer. So: when THIS column cannot surface but an adjacent one can,
+        // swim toward it (buoyant, bounded) — the sanctioned survival exception, same
+        // class as PanicChain's sprint and AutoSwim's beach. Deep open water is NOT
+        // capped (cappedColumn scans for a solid, not merely far water), so ordinary
+        // dives still get the pure-vertical float below.
+        if (w != null && p.isUnderWater()) {
+            int bx = (int) Math.floor(p.getX());
+            int by = (int) Math.floor(p.getY());
+            int bz = (int) Math.floor(p.getZ());
+            int[] dir = lateralEscapeDir(w, bx, by, bz);
+            if (dir != null) {
+                float yaw = (float) Math.toDegrees(Math.atan2(-(double) dir[0], (double) dir[1]));
+                p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw; p.setXRot(0f);
+                mc.options.keyJump.setDown(true);   // stay buoyant crossing under the lid
+                mc.options.keyUp.setDown(true);     // swim toward open water
+                mc.options.keyDown.setDown(false);
+                mc.options.keyLeft.setDown(false);
+                mc.options.keyRight.setDown(false);
+                mc.options.keySprint.setDown(false);
+                mc.options.keyShift.setDown(false);
+                mc.options.keyAttack.setDown(false);
+                keysHeld = true;
+                if (BotConfig.walkerDebug && (dbg++ % 10 == 0))
+                    LOG.info("[drownEscape] CAPPED lid — lateral swim to open water dir={},{} pos={},{},{} air={}",
+                            dir[0], dir[1], bx, by, bz, p.getAirSupply());
+                return;
+            }
+            // dir == null: deep/open water (float vertically below) or capped-but-boxed-in
+            // (no open neighbour in range → fall through to vertical + lid-break, best
+            // effort — MC is always escapable by breaking upward even if slow).
+        }
         // PURE VERTICAL: hold jump, actively zero every horizontal/turn input the
         // preempted process may have left pressed (mirrors AutoSwim's deep-ascent
         // discipline). Yaw/pitch are left untouched — zero turning.
@@ -170,6 +220,62 @@ public final class DrownEscapeChain implements Chain {
     public void sensorForTest(BooleanSupplier underwater, IntSupplier air) {
         this.underwaterForTest = underwater;
         this.airForTest = air;
+    }
+
+    /** Decision core for the overhang lateral escape (live death #27) — pure and
+     *  {@link WorldView}-only, so the headless matrix test drives the exact logic
+     *  with no client (same seam philosophy as {@link DrownEscapeGate}). Returns
+     *  {dx,dz} toward the nearest column the bot can surface in WHEN the current
+     *  column is capped by a solid lid, else null: deep/open water (caller floats
+     *  pure-vertical) or capped-but-boxed-in with no open neighbour in range
+     *  (caller falls back to lid-break). */
+    public static int[] lateralEscapeDir(WorldView w, int bx, int by, int bz) {
+        if (!cappedColumn(w, bx, by, bz)) return null;
+        return nearestBreathable(w, bx, by, bz);
+    }
+
+    /** True iff a SOLID cap blocks this column's ascent to air: scanning up from
+     *  just above the foot, the first non-water cell is solid (or a hazard), not
+     *  open air. Deep water (all water within the scan) is deliberately NOT capped —
+     *  floating up still reaches the surface, which is the pure-vertical case. */
+    private static boolean cappedColumn(WorldView w, int x, int by, int z) {
+        for (int y = by + 1; y <= by + SURFACE_SCAN_UP; y++) {
+            BlockPos c = new BlockPos(x, y, z);
+            if (w.isWater(c)) continue;                 // still submerged: keep looking up
+            return !(w.isPassable(c) && !w.isHazard(c)); // first non-water: air ⇒ open, solid ⇒ capped
+        }
+        return false;                                    // all water up the scan: deep, not capped
+    }
+
+    /** True iff column (x,z) has a reachable open-air surface within the scan — the
+     *  first non-water cell scanning up from the bot's foot level is passable air.
+     *  Used to pick a lateral escape target the bot can actually breathe in. */
+    private static boolean breathableColumn(WorldView w, int x, int by, int z) {
+        for (int y = by; y <= by + SURFACE_SCAN_UP; y++) {
+            BlockPos c = new BlockPos(x, y, z);
+            if (w.isWater(c)) continue;
+            return w.isPassable(c) && !w.isHazard(c);
+        }
+        return false;
+    }
+
+    /** Nearest horizontal neighbour column (Chebyshev rings, nearest first) the bot
+     *  can surface in. Returns {dx,dz} toward it, or null within {@link #LATERAL_SCAN_R}. */
+    private static int[] nearestBreathable(WorldView w, int bx, int by, int bz) {
+        for (int r = 1; r <= LATERAL_SCAN_R; r++) {
+            int bestD = Integer.MAX_VALUE, bdx = 0, bdz = 0;
+            for (int dx = -r; dx <= r; dx++) {
+                for (int dz = -r; dz <= r; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue; // this ring only
+                    if (breathableColumn(w, bx + dx, by, bz + dz)) {
+                        int d = dx * dx + dz * dz;
+                        if (d < bestD) { bestD = d; bdx = dx; bdz = dz; }
+                    }
+                }
+            }
+            if (bestD != Integer.MAX_VALUE) return new int[]{bdx, bdz};
+        }
+        return null;
     }
 
     /** Release exactly the keys OUR tick() pressed. Guarded on {@link #keysHeld}
