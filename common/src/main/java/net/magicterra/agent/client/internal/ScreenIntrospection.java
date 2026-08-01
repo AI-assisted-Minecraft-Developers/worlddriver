@@ -3,6 +3,7 @@ package net.magicterra.agent.client.internal;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.AbstractSelectionList;
 import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.components.ObjectSelectionList;
 import net.minecraft.client.gui.components.events.ContainerEventHandler;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
@@ -17,8 +18,6 @@ import java.util.List;
 import java.util.Map;
 
 import static net.magicterra.agent.client.internal.ClientThread.runOnClient;
-import java.lang.reflect.Method;
-import java.lang.reflect.Field;
 import net.minecraft.network.chat.Component;
 import net.minecraft.client.gui.screens.DeathScreen;
 import net.minecraft.client.gui.screens.Overlay;
@@ -104,19 +103,10 @@ public final class ScreenIntrospection {
      *  the death-event detector can read it the moment the screen appears —
      *  the local combat tracker lacks this at the isDeadOrDying tick; the
      *  specific message arrives with the combat-kill packet that builds the
-     *  DeathScreen. Returns null if the screen field can't be read. */
+     *  DeathScreen. Returns null when the screen carries no cause. */
     public static String readDeathCause(DeathScreen ds) {
-        // Field is private and unobfuscated in dev mappings — fall back gracefully
-        // if a future MC rename breaks the reflection.
-        try {
-            Field f = DeathScreen.class
-                    .getDeclaredField("causeOfDeath");
-            f.setAccessible(true);
-            Object v = f.get(ds);
-            if (v instanceof Component c) return c.getString();
-        } catch (NoSuchFieldException | IllegalAccessException ignored) {
-        }
-        return null;
+        // Private in vanilla, opened by agent_driver.accesswidener.
+        return ds.causeOfDeath == null ? null : ds.causeOfDeath.getString();
     }
 
     private static List<Map<String, Object>> walk(GuiEventListener node) {
@@ -159,25 +149,16 @@ public final class ScreenIntrospection {
     }
 
     /** Project per-row bbox + display label for AbstractSelectionList entries.
-     *  Reads protected layout via reflection so we don't need access widening. */
+     *  {@code getRowTop}/{@code itemHeight} are protected in vanilla and opened by
+     *  agent_driver.accesswidener. */
     private static List<Map<String, Object>> listEntries(AbstractSelectionList<?> list) {
         List<Map<String, Object>> out = new ArrayList<>();
         // Vanilla layout: row x-span comes from public getRowLeft/getRowWidth.
         // Row y is index-dependent and includes scroll + header offsets, all
-        // baked into the protected getRowTop(int) method — read via reflection.
+        // baked into getRowTop(int).
         int rowLeft = list.getRowLeft();
         int rowWidth = list.getRowWidth();
-        Method getRowTop;
-        int itemHeight;
-        try {
-            getRowTop = AbstractSelectionList.class.getDeclaredMethod("getRowTop", int.class);
-            getRowTop.setAccessible(true);
-            Field f = AbstractSelectionList.class.getDeclaredField("itemHeight");
-            f.setAccessible(true);
-            itemHeight = f.getInt(list);
-        } catch (ReflectiveOperationException e) {
-            return out; // mapping drifted; emit nothing rather than wrong coords
-        }
+        int itemHeight = list.itemHeight;
         // children() returns List<? extends Entry> where Entry is protected,
         // so a typed var hides the runtime class. Cast to List<?> and treat
         // each entry as Object — the concrete subclass (e.g. WorldListEntry)
@@ -185,9 +166,7 @@ public final class ScreenIntrospection {
         List<?> children = list.children();
         for (int i = 0; i < children.size(); i++) {
             Object entry = children.get(i);
-            int rowTop;
-            try { rowTop = (int) getRowTop.invoke(list, i); }
-            catch (ReflectiveOperationException e) { continue; }
+            int rowTop = list.getRowTop(i);
             Map<String, Object> n = new LinkedHashMap<>();
             n.put("type", entry.getClass().getSimpleName());
             n.put("index", i);
@@ -202,6 +181,21 @@ public final class ScreenIntrospection {
         return out;
     }
 
+    /**
+     * Best-effort human label for an arbitrary list entry.
+     *
+     * <p>The name-based probes below are deliberate duck-typing: list entries have no
+     * common label interface, so we try the getters vanilla happens to use. That works
+     * in dev and is what every gate exercises — but the getter NAMES are Mojang-mapped
+     * string literals, so in the remapped fabric jar every probe misses and the whole
+     * screen comes back with no labels at all.
+     *
+     * <p>The typed fallbacks run AFTER the probes, never before: the probes decide the
+     * label in dev exactly as they always have (this method's dev output is unchanged
+     * by construction), and the fallbacks only get a turn in the case where the probes
+     * found nothing — which is precisely the remapped case. They are ordinary virtual
+     * calls on public API, so tiny-remapper rewrites them correctly.
+     */
     private static String entryLabel(Object entry) {
         for (String getter : new String[]{"getLevelName", "getDisplayName", "getMessage", "getName"}) {
             try {
@@ -213,9 +207,8 @@ public final class ScreenIntrospection {
                 if (!s.isBlank()) return s;
             } catch (ReflectiveOperationException ignored) { /* try next */ }
         }
-        // Last resort: probe a `getSummary().getLevelName()` chain (the
-        // WorldListEntry case). Wrapped in try so unrelated entry classes
-        // simply fall through without a label.
+        // Probe a `getSummary().getLevelName()` chain (the WorldListEntry case).
+        // Wrapped in try so unrelated entry classes simply fall through.
         try {
             var m = entry.getClass().getMethod("getSummary");
             Object summary = m.invoke(entry);
@@ -225,6 +218,19 @@ public final class ScreenIntrospection {
                 if (v != null) return v.toString();
             }
         } catch (ReflectiveOperationException ignored) { /* no summary */ }
+        // Typed fallbacks — the only branches that still work once the jar is remapped.
+        if (entry instanceof AbstractWidget w) {
+            String s = w.getMessage() == null ? "" : w.getMessage().getString();
+            if (!s.isBlank()) return s;
+        }
+        if (entry instanceof ObjectSelectionList.Entry<?> ose) {
+            // getNarration() is the accessibility label vanilla builds for every
+            // selectable row — wordier than getLevelName(), but a real label beats
+            // the null this method used to return.
+            Component n = ose.getNarration();
+            String s = n == null ? "" : n.getString();
+            if (!s.isBlank()) return s;
+        }
         return null;
     }
 
@@ -235,17 +241,8 @@ public final class ScreenIntrospection {
         // Container screens use leftPos/topPos as the inner-GUI origin; slot.x/y
         // are GUI-local. We expose absolute Screen coords so agents can pass
         // them straight to mc.client.input.click without doing arithmetic.
-        int leftPos, topPos;
-        try {
-            var fLeft = AbstractContainerScreen.class.getDeclaredField("leftPos");
-            var fTop  = AbstractContainerScreen.class.getDeclaredField("topPos");
-            fLeft.setAccessible(true); fTop.setAccessible(true);
-            leftPos = fLeft.getInt(acs); topPos = fTop.getInt(acs);
-        } catch (ReflectiveOperationException e) {
-            // Should never happen on vanilla 1.21.1 — bail rather than risk
-            // emitting nonsensical (0,0)-rooted coords.
-            return null;
-        }
+        // Both protected in vanilla, opened by agent_driver.accesswidener.
+        int leftPos = acs.leftPos, topPos = acs.topPos;
         List<Map<String, Object>> slotNodes = new ArrayList<>(menu.slots.size());
         for (int i = 0; i < menu.slots.size(); i++) {
             Slot slot = menu.slots.get(i);

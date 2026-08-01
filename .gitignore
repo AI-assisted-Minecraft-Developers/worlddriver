@@ -13,9 +13,19 @@ scripts/testkit/.pool-state.json
 scripts/testkit/.pool-state.lock
 .idea/
 *.log
+# log4j2 rolls latest.log into dated .gz archives, which *.log does not cover;
+# src/test/resources/log4j2-test.xml stops :common:test writing here at all, but
+# a stray logs/ from any other cwd must never be committable either (rule #5)
+logs/
 
-scripts/__pycache__/
-scripts/**/__pycache__/
+# Bytecode, repo-wide. These two lines used to be scoped to scripts/ and were
+# added AFTER the .pyc files had been committed — and .gitignore does nothing for
+# an already-tracked file, so 26 of them stayed in the index across three
+# interpreter generations (cpython-312 from the Linux host, 313/314 from a
+# Windows checkout). Every run on a different interpreter rewrote them, so
+# `git status` was permanently dirty with build output nobody edits.
+__pycache__/
+*.py[cod]
 
 # path-debug chart output (runtime, never commit)
 **/config/agent_driver/debug/

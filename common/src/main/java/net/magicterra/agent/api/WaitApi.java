@@ -86,7 +86,7 @@ public final class WaitApi {
             result.put("waitId", waitId);
             result.put("kind", kind);
             RESULTS.put(waitId, result);  // self-bounding via removeEldestEntry
-            api.emit("wait.done", null, JsonCodec.encode(result));
+            api.emit("wait.done", null, result);
         });
         Map<String, Object> ack = new LinkedHashMap<>();
         ack.put("waitId", waitId);

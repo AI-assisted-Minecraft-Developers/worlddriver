@@ -76,11 +76,14 @@ public final class EventsApi {
         String type = p.getString("type");
         if (type == null || type.isBlank()) throw new IllegalArgumentException("emit: type required");
         BlockPos pos = p.getPos("pos"); // may be null
+        // Pass the caller's value through untouched — a Map stays a Map and reaches
+        // the wire as an object. It used to be flattened to a JSON string here, so a
+        // script that emitted {hello:'world'} read it back as the text
+        // "{\"hello\":\"world\"}" and had to JSON.parse its own payload.
+        // Absent data stays "" rather than becoming null, so events emitted without
+        // a payload keep the shape every existing consumer already sees.
         Object data = p.get("data");
-        String dataStr = (data == null) ? ""
-                : (data instanceof String s) ? s
-                : JsonCodec.encode(data);
-        long n = api.emit(type, pos, dataStr);
+        long n = api.emit(type, pos, data == null ? "" : data);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("ok", true);
         out.put("seq", n);
@@ -143,7 +146,7 @@ public final class EventsApi {
         data.put("invoke", w.invoke);
         if (w.field != null) data.put("field", w.field);
         data.put("value", value);
-        api.emit(w.emitAs, null, JsonCodec.encode(data));
+        api.emit(w.emitAs, null, data);
         if (w.once) {
             watchers.remove(w.id);
             if (w.future != null) w.future.cancel(false);

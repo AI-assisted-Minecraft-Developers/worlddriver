@@ -35,12 +35,48 @@ import java.util.Set;
  * {@code build} now iterates for its hand values, so the snapshot's output stays byte-identical
  * (key order included) while the keys live in one place. A class-load self-check resolves every
  * {@code CONFIG_FIELD} name against {@link BotConfig} and throws on a typo.
+ *
+ * <p><b>The fourth side: consumers.</b> The checks above keep the key, the snapshot, the
+ * schema and the docs agreeing about which knobs EXIST. None of them asks whether a knob
+ * does anything. A field added here surfaces automatically, so a flag whose read site never
+ * landed — or whose behavior was later refactored away, leaving the knob — is accepted by
+ * {@code mc.bot.setting}, echoed back as set, and changes nothing; the caller, often an LLM,
+ * gets every signal that it worked. {@code SettingsConsumerTest} (common/src/test) closes
+ * that side: it takes the key set from {@link #reflectivePrimitiveFields()} — this method,
+ * not a re-parse — and fails if any key is unread outside the settings plumbing. All 218
+ * are consumed today.
  */
 public final class SettingsRegistry {
     private SettingsRegistry() {}
 
     /** Schema-facing type of a key, derived from the BotConfig field / snapshot value type. */
     public enum Type { BOOLEAN, INTEGER, NUMBER, STRING, STRING_LIST, POINT_LIST }
+
+    /**
+     * Fail class load if {@link SettingsDocs} documents a key this registry does not know.
+     *
+     * <p>The same anti-drift contract the {@code CONFIG_FIELD} self-check already gives the
+     * read path, now extended to the prose. Before the docs moved next to the keys they
+     * describe, they were an ASCII table inside the {@code mc.bot.setting} tool description
+     * with nothing tying the two together — which is how it ended up documenting 125 of 241
+     * keys with two rows whose "key" had swallowed its own range spec.
+     *
+     * <p>Deliberately one-directional: an UNDOCUMENTED key is allowed (116 have no row yet,
+     * and demanding one would block adding a flag), but an ORPHANED row is not, because that
+     * means a key was renamed or deleted and its prose was left pointing at nothing.
+     */
+    static void assertDocsResolve() {
+        List<String> orphans = new ArrayList<>();
+        Set<String> known = knownKeys();
+        for (String k : SettingsDocs.documentedKeys()) {
+            if (!known.contains(k)) orphans.add(k);
+        }
+        if (!orphans.isEmpty()) {
+            throw new IllegalStateException(
+                    "SettingsDocs documents key(s) unknown to SettingsRegistry: " + orphans
+                    + " — rename or delete the row alongside the setting it described");
+        }
+    }
 
     /** How {@link SettingsSnapshot#build} reads a hand-listed key's live value. */
     enum Read { CONFIG_FIELD, BOT_PAUSED, HAZARD_LIST, WHITELIST_LIST, MUTED_LIST, AVOID_POINTS }
@@ -251,6 +287,7 @@ public final class SettingsRegistry {
             SCHEMA_PROPS.putIfAbsent(f.getName(), typeOf(f.getType()));
         }
         SCHEMA_PROPS.putAll(APPLY_ONLY);
+        assertDocsResolve();   // LAST: needs the finished key set
     }
 
     private static Type handType(Hand h) {

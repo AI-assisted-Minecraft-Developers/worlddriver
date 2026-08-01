@@ -52,8 +52,13 @@ public final class RpcClient implements Closeable {
 
     public RpcClient(String host, int port) throws IOException {
         URI uri = URI.create("ws://" + host + ":" + port + "/rpc");
+        // The inbound limit matters at least as much here as on the server: responses
+        // are the big direction (mc.client.screenshot returns base64 image bytes), and
+        // Netty's 64 KiB default would drop such a frame with no error — the call would
+        // simply time out. Same ceiling as every other transport.
         WebSocketClientHandshaker hs = WebSocketClientHandshakerFactory.newHandshaker(
-                uri, WebSocketVersion.V13, null, false, new DefaultHttpHeaders());
+                uri, WebSocketVersion.V13, null, false, new DefaultHttpHeaders(),
+                TransportLimits.MAX_REQUEST_BYTES);
         this.handler = new ClientHandler(hs);
 
         Bootstrap b = new Bootstrap();
@@ -93,7 +98,7 @@ public final class RpcClient implements Closeable {
                 "method", method,
                 "params", params == null ? Map.of() : params
         ));
-        return parseEnvelope(send(req));
+        return parseEnvelope(send(req, id));
     }
 
     /** Returns the JSON-encoded {@code result} field as a String. */
@@ -105,26 +110,54 @@ public final class RpcClient implements Closeable {
         sb.append(",\"params\":");
         sb.append(paramsJson == null || paramsJson.isBlank() ? "{}" : paramsJson);
         sb.append('}');
-        Object result = parseEnvelope(send(sb.toString()));
+        Object result = parseEnvelope(send(sb.toString(), id));
         return JsonCodec.encode(result);
     }
 
-    private String send(String frameText) throws IOException {
+    /**
+     * Write one request and return ITS response frame.
+     *
+     * <p>Every frame the socket receives lands in one queue, including the
+     * unsolicited {@code notifications/message} events a connection gets after
+     * {@code mc.events.subscribe}. Taking "the next line" as the answer therefore
+     * only works while nobody subscribes: one pushed event would be returned as
+     * the call's response — {@code result} absent, so the call quietly yields null
+     * — and would leave the real response in the queue, shifting every later call
+     * by one frame for the life of the connection.
+     *
+     * <p>So demultiplex the way the server's own class doc specifies: a frame with
+     * a {@code method} is a notification, a frame with an {@code id} is a response.
+     * Calls are serialized by {@code synchronized}, so at most one is outstanding
+     * and an id-less error frame (the server could not parse the request well
+     * enough to echo an id) can only belong to it.
+     */
+    private Map<?, ?> send(String frameText, long id) throws IOException {
         if (!channel.isActive()) throw new EOFException("ws channel closed");
         channel.writeAndFlush(new TextWebSocketFrame(frameText));
-        try {
-            String line = handler.inbox.poll(CALL_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        long deadlineNs = System.nanoTime() + CALL_TIMEOUT_MS * 1_000_000L;
+        while (true) {
+            long remainMs = (deadlineNs - System.nanoTime()) / 1_000_000L;
+            String line;
+            try {
+                line = remainMs <= 0 ? null : handler.inbox.poll(remainMs, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("interrupted awaiting ws response", e);
+            }
             if (line == null) throw new IOException("ws response timeout after " + CALL_TIMEOUT_MS + "ms");
-            return line;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("interrupted awaiting ws response", e);
+            Object decoded = JsonCodec.decode(line);
+            if (!(decoded instanceof Map<?, ?> resp)) throw new IOException("malformed response: " + line);
+            if (resp.containsKey("method")) continue;          // server→client notification
+            Object rid = resp.get("id");
+            if (rid == null) return resp;                      // id-less server error: ours by elimination
+            if (rid instanceof Number n && n.longValue() == id) return resp;
+            // A different id can only be a response to an earlier call that already
+            // timed out. Dropping it is the recovery: keeping it would hand the wrong
+            // payload to this caller and leave the queue permanently one frame behind.
         }
     }
 
-    private Object parseEnvelope(String line) throws IOException {
-        Object decoded = JsonCodec.decode(line);
-        if (!(decoded instanceof Map<?, ?> resp)) throw new IOException("malformed response: " + line);
+    private Object parseEnvelope(Map<?, ?> resp) throws IOException {
         if (resp.containsKey("error")) throw new IOException("rpc error: " + resp.get("error"));
         return resp.get("result");
     }

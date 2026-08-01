@@ -22,12 +22,73 @@ FLAGS = {'pathArchive': False, 'allowBreak': True, 'allowPlace': True, 'allowWat
 
 def rpc(m, p): return asyncio.run(_rpc(m, p))
 
+
+def click_button(labels, gone_type=None, timeout=6.0):
+    """Click a screen button found by LABEL, and confirm the click took.
+
+    This replaces `click({'x': 318, 'y': 169})` + `sleep(3)` on the death screen.
+    That coordinate was only the Respawn button at one window size and one GUI
+    scale, and — worse — nothing checked the result: a miss went unnoticed and the
+    cycle carried on issuing /clear and /give to a player still lying on the death
+    screen, so the next journey started from a corpse and its verdict was garbage.
+
+    Nothing new is needed on the mod side. `mc.client.screen.tree` already reports
+    every widget's bbox, label, visible and active — its own comment says it exists
+    so agents can pick a widget "by label/index without resorting to pixel-
+    counting". Widget x/y are in the Screen's coordinate space, which is exactly
+    what `mc.client.input.click` feeds to `Screen.mouseClicked`, so the centre of
+    a reported bbox is the right place to click at any scale. `click` even returns
+    `handled` — whether a widget accepted it — which the old call discarded.
+
+    Raises rather than guessing. On the death screen the OTHER button is "Title
+    Screen": a fallback that clicked the first button it found would quit to the
+    main menu and take the whole acceptance run with it, so an unrecognised label
+    set is reported with the labels actually on screen, for the operator to add.
+
+    This is the sync sibling of `testkit/guidrive.py`'s `click_widget` +
+    `wait_until` — same centre-of-bbox, same poll-then-raise — kept separate only
+    because guidrive is async over its own RPC session. Every other script in here
+    already clicked widget centres; accept_cycle was the last pixel-counter. The
+    one thing added over guidrive is the `handled` check: guidrive catches a missed
+    click too, but only later and as a generic timeout.
+    """
+    tree = rpc('mc.client.screen.tree', {})
+    kids = tree.get('children') or []
+    want = {s.strip().lower() for s in labels}
+    hit = next((c for c in kids
+                if str(c.get('message', '')).strip().lower() in want
+                and c.get('visible') and c.get('active') and 'width' in c), None)
+    if hit is None:
+        seen = [c.get('message') for c in kids if c.get('message')]
+        raise RuntimeError(f'no active button matching {sorted(want)} on '
+                           f'{tree.get("type")}; labels present: {seen}')
+    r = rpc('mc.client.input.click', {'x': hit['x'] + hit['width'] // 2,
+                                      'y': hit['y'] + hit['height'] // 2})
+    if not r.get('handled'):
+        raise RuntimeError(f'click on {hit["message"]!r} at '
+                           f'({hit["x"]},{hit["y"]},{hit["width"]}x{hit["height"]}) '
+                           f'was not handled by any widget: {r}')
+    if gone_type is None:
+        return
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        time.sleep(0.25)
+        if rpc('mc.client.screen.info', {}).get('type') != gone_type:
+            return
+    raise RuntimeError(f'clicked {hit["message"]!r} but {gone_type} is still up '
+                       f'after {timeout}s')
+
+
+# Vanilla's respawn button, by locale. Add yours if click_button reports it.
+RESPAWN_LABELS = ('Respawn', '重生', 'deathScreen.respawn')
+
+
 def ensure_alive():
     p = rpc('mc.client.player', {})
     if p['health'] <= 0:
         r = rpc('mc.client.screen.info', {})
         if r.get('type') == 'DeathScreen':
-            rpc('mc.client.input.click', {'x': 318, 'y': 169}); time.sleep(3)
+            click_button(RESPAWN_LABELS, gone_type='DeathScreen')
         rpc('mc.client.chat.send', {'text': '/clear'}); time.sleep(0.3)   # full inventory silently drops gives AND buries the water bucket out of the hotbar (MLG scans hotbar only)
         for c in ['/give @p water_bucket', '/give @p diamond_pickaxe', '/give @p diamond_shovel', '/give @p cobblestone 192']:
             rpc('mc.client.chat.send', {'text': c}); time.sleep(0.3)
@@ -195,6 +256,95 @@ def archive_for(sx, sz, gx=None, gz=None):
             return f
         time.sleep(2)
     return None
+
+def _self_test():
+    """Exercise click_button against a scripted RPC, no game needed.
+
+    The point of this fix is that a failed click stops being silent, so the tests
+    that matter are the failing ones: every path below must RAISE. Run with
+    `python scripts/accept_cycle.py --self-test`.
+    """
+    global rpc
+    real_rpc, failures = rpc, []
+
+    def fake(tree, handled=True, after='InventoryScreen', calls=None):
+        def _rpc_stub(m, p):
+            if calls is not None:
+                calls.append((m, p))
+            if m == 'mc.client.screen.tree':
+                return tree
+            if m == 'mc.client.input.click':
+                return {'ok': True, 'handled': handled}
+            if m == 'mc.client.screen.info':
+                return {'type': after}
+            raise AssertionError('unexpected rpc ' + m)
+        return _rpc_stub
+
+    def button(msg, x=100, y=150, w=200, h=20, visible=True, active=True):
+        return {'type': 'Button', 'message': msg, 'x': x, 'y': y, 'width': w,
+                'height': h, 'visible': visible, 'active': active}
+
+    def check(name, fn, want_err=None):
+        try:
+            fn()
+        except Exception as e:                                  # noqa: BLE001
+            if want_err is None:
+                failures.append(f'{name}: unexpected {type(e).__name__}: {e}')
+            elif want_err not in str(e):
+                failures.append(f'{name}: wrong error, wanted {want_err!r}, got {e}')
+            return
+        if want_err is not None:
+            failures.append(f'{name}: expected a raise ({want_err!r}), got none')
+
+    death = {'type': 'DeathScreen',
+             'children': [button('Respawn'), button('Title Screen', y=175)]}
+
+    # 1. happy path — clicks the CENTRE of the matched bbox, not a fixed pixel
+    calls = []
+    rpc = fake(death, calls=calls)
+    check('respawn clicked', lambda: click_button(RESPAWN_LABELS, gone_type='DeathScreen'))
+    clicked = [p for m, p in calls if m == 'mc.client.input.click']
+    if clicked != [{'x': 200, 'y': 160}]:
+        failures.append(f'centre of (100,150,200x20) should be (200,160); got {clicked}')
+
+    # 2. the label is not on screen — must name what IS, never guess a neighbour
+    rpc = fake({'type': 'DeathScreen', 'children': [button('Title Screen')]})
+    check('unknown label', lambda: click_button(RESPAWN_LABELS, gone_type='DeathScreen'),
+          'labels present')
+
+    # 3. the click landed on nothing — the signal the old code discarded
+    rpc = fake(death, handled=False)
+    check('unhandled click', lambda: click_button(RESPAWN_LABELS, gone_type='DeathScreen'),
+          'not handled')
+
+    # 4. clicked, handled, screen still up: the exact case sleep(3) walked past
+    rpc = fake(death, after='DeathScreen')
+    check('screen stayed', lambda: click_button(RESPAWN_LABELS, gone_type='DeathScreen',
+                                                timeout=0.5), 'still up')
+
+    # 5. a disabled or hidden widget with the right label is not a target
+    for why, kw in (('inactive', {'active': False}), ('invisible', {'visible': False})):
+        rpc = fake({'type': 'DeathScreen', 'children': [button('Respawn', **kw)]})
+        check(why + ' button', lambda: click_button(RESPAWN_LABELS, gone_type='DeathScreen'),
+              'no active button')
+
+    # 6. a screen with no children at all (tree arrived before the widgets did)
+    rpc = fake({'type': 'DeathScreen'})
+    check('empty tree', lambda: click_button(RESPAWN_LABELS, gone_type='DeathScreen'),
+          'labels present')
+
+    rpc = real_rpc
+    if failures:
+        print('accept_cycle self-test FAILED:')
+        for f in failures:
+            print('   ', f)
+        sys.exit(1)
+    print('accept_cycle self-test OK: 8 checks (click_button raises on every miss)')
+    sys.exit(0)
+
+
+if '--self-test' in sys.argv:
+    _self_test()
 
 # Cycle start: spread to a FRESH area (escape any replay-restored corridor from
 # the previous cycle — restoreBlocks snapshots can desync planned climb blocks

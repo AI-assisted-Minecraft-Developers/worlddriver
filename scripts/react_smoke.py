@@ -173,8 +173,8 @@ async def park_cursor(rpc, x=2, y=2):
     title nor buttons live."""
     try:
         r = await rpc.call("mc.client.input.mouseMove", {"x": x, "y": y})
-        print(f"  [park] cursor → ({x},{y}) wx={r['wx']} wy={r['wy']} refl={r['refl']}")
-        trace("park", x=x, y=y, wx=r.get('wx'), wy=r.get('wy'), refl=r.get('refl'))
+        print(f"  [park] cursor → ({x},{y}) wx={r['wx']} wy={r['wy']}")
+        trace("park", x=x, y=y, wx=r.get('wx'), wy=r.get('wy'))
     except Exception as e:
         print(f"  [warn] park_cursor: {e}")
 

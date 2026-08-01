@@ -79,6 +79,37 @@ public final class BotState {
         return out;
     }
 
+    /**
+     * Name of the first slot reporting {@code active}, or null when every slot is idle.
+     * Ordered so the slot a human would call "what the bot is doing" wins: movement
+     * first, then the station work, then the reflex-owned slots.
+     *
+     * <p>Deliberately covers ALL slots — unlike the screen-watchdog's hand-listed subset
+     * in {@code BotApiImpl}, which excludes craft/smelt because those legitimately hold a
+     * station screen. This one answers "is the bot driving the body at all?", so a
+     * crafting bot counts. Slot fields are volatile; no lock needed for this read.
+     */
+    public String activeName() {
+        if (mc_goto.active) return mc_goto.name;
+        if (mine.active) return mine.name;
+        if (builder.active) return builder.name;
+        if (follow.active) return follow.name;
+        if (explore.active) return explore.name;
+        if (runAway.active) return runAway.name;
+        if (retreat.active) return retreat.name;
+        if (escape.active) return escape.name;
+        if (bunker.active) return bunker.name;
+        if (combat.active) return combat.name;
+        if (elytra.active) return elytra.name;
+        if (craft.active) return craft.name;
+        if (smelt.active) return smelt.name;
+        if (look.active) return look.name;
+        return null;
+    }
+
+    /** True when any process slot is running. See {@link #activeName()}. */
+    public boolean anyActive() { return activeName() != null; }
+
     /** Per-process slot. All fields read+written under {@link BotState}'s monitor. */
     public static final class ProcessSlot {
         public final String name;

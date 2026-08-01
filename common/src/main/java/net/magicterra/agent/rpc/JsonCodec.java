@@ -43,7 +43,7 @@ public final class JsonCodec {
               .append(",\"timestamp\":").append(ae.timestamp)
               .append(",\"type\":"); writeStr(sb, ae.type);
             sb.append(",\"pos\":"); write(sb, ae.pos);
-            sb.append(",\"data\":"); writeStr(sb, ae.data);
+            sb.append(",\"data\":"); write(sb, ae.data);
             sb.append("}");
             return;
         }
@@ -71,16 +71,60 @@ public final class JsonCodec {
             sb.append(']');
             return;
         }
-        // POJO with public final fields — best effort fallback
-        try {
+        // Enums BEFORE the reflection fallback: Class.getFields() on an enum returns its
+        // own constants, which are of the enum's own type, so the fallback recursed forever
+        // and blew the stack with a StackOverflowError that `catch (Exception)` cannot catch.
+        if (v instanceof Enum<?> en) { writeStr(sb, en.name()); return; }
+        if (v instanceof CharSequence cs) { writeStr(sb, cs.toString()); return; }
+        // Arrays: getFields() returns ZERO fields for any array type, so the reflection
+        // fallback silently encoded int[]/String[] as `{}` — the RPC/MCP transports lost the
+        // data outright while an in-JVM Rhino caller got the real array. Encode as a JSON
+        // array, which is what every caller means.
+        if (v.getClass().isArray()) {
+            sb.append('[');
+            int n = java.lang.reflect.Array.getLength(v);
+            for (int i = 0; i < n; i++) {
+                if (i > 0) sb.append(',');
+                write(sb, java.lang.reflect.Array.get(v, i));
+            }
+            sb.append(']');
+            return;
+        }
+        // Records: their components are PRIVATE final fields, so getFields() is empty here too
+        // and the fallback produced `{}`. Use the record components, which are always readable.
+        if (v.getClass().isRecord()) {
             Map<String, Object> bag = new LinkedHashMap<>();
-            for (Field f : v.getClass().getFields()) {
-                bag.put(f.getName(), f.get(v));
+            try {
+                for (java.lang.reflect.RecordComponent rc : v.getClass().getRecordComponents()) {
+                    bag.put(rc.getName(), rc.getAccessor().invoke(v));
+                }
+            } catch (ReflectiveOperationException ex) {
+                throw new IllegalArgumentException(
+                        "JsonCodec cannot encode record " + v.getClass().getName() + ": " + ex, ex);
             }
             write(sb, bag);
-        } catch (Exception ex) {
-            writeStr(sb, String.valueOf(v));
+            return;
         }
+        // POJO with public fields (e.g. a Vec3-shaped holder) — correct for that shape.
+        // Anything else is a bug at the HANDLER, not here: a route that returns a type this
+        // codec cannot represent produces a DIFFERENT result on the RPC/MCP transports than
+        // it does in-JVM, which silently violates the byte-identical parity invariant every
+        // transport is built on. Fail loudly instead — both transports already turn a thrown
+        // exception into an error response, so this surfaces at the offending route.
+        Map<String, Object> bag = new LinkedHashMap<>();
+        Field[] fields = v.getClass().getFields();
+        if (fields.length == 0) {
+            throw new IllegalArgumentException(
+                    "JsonCodec cannot encode " + v.getClass().getName()
+                    + " (no public fields) - return a Map/List/primitive from the route");
+        }
+        try {
+            for (Field f : fields) bag.put(f.getName(), f.get(v));
+        } catch (IllegalAccessException ex) {
+            throw new IllegalArgumentException(
+                    "JsonCodec cannot encode " + v.getClass().getName() + ": " + ex, ex);
+        }
+        write(sb, bag);
     }
 
     private static void writeStr(StringBuilder sb, String s) {
@@ -113,9 +157,26 @@ public final class JsonCodec {
         return v;
     }
 
+    /** Maximum container nesting {@link #decode} will accept.
+     *
+     *  <p>The parser is recursive descent, so nesting depth maps 1:1 onto JVM stack frames:
+     *  a 16 KB body of nothing but {@code [[[[…} blew the stack at ~8000 levels on a stock
+     *  1 MB stack. That is far below BOTH transport caps (MCP allows an 8 MiB body; the WS
+     *  frame cap is larger still), so an untrusted peer could reach it with a trivial payload.
+     *  The transports catch Throwable and answer with an error, but a caught StackOverflowError
+     *  leaves the worker thread in an undefined state — cheaper to refuse the input.
+     *  64 is far past anything our own schemas produce (the deepest is ~6). */
+    private static final int MAX_DEPTH = 64;
+
     private static final class Parser {
-        final String src; int pos;
+        final String src; int pos; int depth;
         Parser(String s) { this.src = s; }
+
+        void enter() {
+            if (++depth > MAX_DEPTH) {
+                throw new RuntimeException("JSON nested deeper than " + MAX_DEPTH + " at " + pos);
+            }
+        }
 
         Object parseValue() {
             skipWs();
@@ -137,9 +198,10 @@ public final class JsonCodec {
 
         Map<String, Object> parseObject() {
             expect("{");
+            enter();
             Map<String, Object> m = new LinkedHashMap<>();
             skipWs();
-            if (peek('}')) { pos++; return m; }
+            if (peek('}')) { pos++; depth--; return m; }
             while (true) {
                 skipWs();
                 String k = parseString();
@@ -148,21 +210,22 @@ public final class JsonCodec {
                 m.put(k, v);
                 skipWs();
                 if (peek(',')) { pos++; continue; }
-                if (peek('}')) { pos++; return m; }
+                if (peek('}')) { pos++; depth--; return m; }
                 throw new RuntimeException("expected , or } at " + pos);
             }
         }
 
         List<Object> parseArray() {
             expect("[");
+            enter();
             List<Object> l = new ArrayList<>();
             skipWs();
-            if (peek(']')) { pos++; return l; }
+            if (peek(']')) { pos++; depth--; return l; }
             while (true) {
                 l.add(parseValue());
                 skipWs();
                 if (peek(',')) { pos++; continue; }
-                if (peek(']')) { pos++; return l; }
+                if (peek(']')) { pos++; depth--; return l; }
                 throw new RuntimeException("expected , or ] at " + pos);
             }
         }
@@ -186,6 +249,16 @@ public final class JsonCodec {
                         case 'b' -> sb.append('\b');
                         case 'f' -> sb.append('\f');
                         case 'u' -> {
+                            // Bounds-check before substring: an escape truncated at end-of-input
+                            // (fewer than four hex digits left) otherwise surfaced as
+                            // StringIndexOutOfBoundsException, which the transports report
+                            // verbatim ("parse: begin 41, end 45, length 43") — a message that
+                            // names no JSON construct and helps nobody.
+                            // NB: do not write a backslash-u sequence in a comment; javac
+                            // decodes unicode escapes before parsing, even inside comments.
+                            if (pos + 4 > src.length()) {
+                                throw new RuntimeException("truncated \\u escape at " + pos);
+                            }
                             String h = src.substring(pos, pos + 4);
                             sb.append((char) Integer.parseInt(h, 16));
                             pos += 4;

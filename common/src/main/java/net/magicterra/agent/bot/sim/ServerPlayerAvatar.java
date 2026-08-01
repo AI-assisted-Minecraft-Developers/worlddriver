@@ -42,81 +42,43 @@ public class ServerPlayerAvatar implements Avatar {
 
     private final ServerPlayer fp;
 
-    /** {@code Player.attackStrengthTicker} (protected). {@link Player#tick()} — which we
-     *  deliberately do NOT run (only {@link Player#baseTick()}, to avoid double physics)
-     *  — increments it once per tick; {@link Player#getAttackStrengthScale} reads it.
-     *  Without the increment the scale stays pinned at 0 after {@code attack()} resets it,
-     *  so a server-driven CombatProcess could only ever land its FIRST swing. We mirror
-     *  the single increment in {@link #step()}. Resolved once (mojmapped at neoforge
-     *  runtime); null if the field name ever changes, in which case combat falls back to
-     *  one-shot (no crash). */
-    private static final java.lang.reflect.Field ATTACK_TICKER = resolveAttackTicker();
+    /* Three LivingEntity members this avatar must touch, all opened by
+     * common/src/main/resources/agent_driver.accesswidener (and its neoforge AT twin)
+     * rather than reflected. Each used to be a getDeclaredField/Method resolved once into
+     * a static, with a null check at every use site and a warn-and-degrade fallback; all
+     * three of those lookups threw in the shipped fabric jar, so the fallbacks were the
+     * REAL behaviour there, not a safety net. A widened member is an ordinary access that
+     * tiny-remapper rewrites with the rest of the code, so the null checks and the
+     * degraded paths are gone with them.
+     *
+     * attackStrengthTicker (protected, declared on LivingEntity not Player)
+     *   Player.tick() increments it once per tick and getAttackStrengthScale() reads it.
+     *   We deliberately do NOT run Player.tick() (only baseTick(), to avoid double
+     *   physics), so without mirroring the increment in step() the scale stays pinned at
+     *   0 after attack() resets it and a server-driven CombatProcess could only ever land
+     *   its FIRST swing.
+     *
+     * jumping (protected)
+     *   On a CLIMBABLE, handleRelativeFrictionAndCalculateMovement forces vy=+0.2 while
+     *   (horizontalCollision || jumping) — the ONLY upward drive on a WALL-LESS vine,
+     *   which by definition has no wall and so no horizontalCollision. A LocalPlayer gets
+     *   this set by aiStep from input.jumping; this avatar bypasses aiStep (it integrates
+     *   physics manually in step()), so without mirroring the bit each tick the FakePlayer
+     *   can NEVER climb a free-hanging vine and a wall-less vine arena cannot reproduce
+     *   the live -711 climb. Only travel()'s climbable branch reads it here (aiStep's
+     *   ground/fluid jump is not run), so this cannot double-jump.
+     *
+     * updatingUsingItem() (PRIVATE, called only from LivingEntity.tick())
+     *   The whole engine of a HELD use: decrements useItemRemaining each tick and at zero
+     *   calls completeUsingItem() — the swallow of a bite, the drink, the release of a
+     *   fully-drawn bow. commandUseItem(boolean) calls startUsingItem, which only ARMS
+     *   that countdown; with nothing advancing it a server-side use begins and never ends
+     *   (getTicksUsingItem() stays 0 forever, so a bow releases at zero charge and a
+     *   shield never reaches its 5-tick blocking threshold). Calling vanilla's own method
+     *   reproduces the entire chain including the protected completeUsingItem;
+     *   reimplementing it by hand would fork the eat/drink/release semantics.
+     */
 
-    private static java.lang.reflect.Field resolveAttackTicker() {
-        try {
-            // Declared in LivingEntity (a protected field), not Player — resolve from
-            // the declaring class (mojmapped at neoforge runtime).
-            java.lang.reflect.Field f = net.minecraft.world.entity.LivingEntity.class
-                    .getDeclaredField("attackStrengthTicker");
-            f.setAccessible(true);
-            return f;
-        } catch (ReflectiveOperationException | RuntimeException e) {
-            net.magicterra.agent.AgentDriverCommon.LOG.warn(
-                    "[ServerPlayerAvatar] attackStrengthTicker not resolvable; server melee falls back to one-shot", e);
-            return null;
-        }
-    }
-
-    /** {@code LivingEntity.jumping} (protected). On a CLIMBABLE, vanilla
-     *  {@code handleRelativeFrictionAndCalculateMovement} forces {@code vy=+0.2} while
-     *  {@code (horizontalCollision || jumping)} — the ONLY upward drive on a WALL-LESS vine (no
-     *  wall → no horizontalCollision). A LocalPlayer gets {@code jumping} set by {@code aiStep} from
-     *  {@code input.jumping}; this avatar bypasses {@code aiStep} (it integrates physics manually in
-     *  {@link #step()}), so without this the FakePlayer can NEVER climb a free-hanging vine and a
-     *  wall-less vine arena couldn't faithfully reproduce the live -711 climb. We mirror the bit each
-     *  tick so {@code travel()}'s climbable branch sees it. Only the climbable {@code vy=+0.2} reads
-     *  {@code jumping} inside {@code travel()} (the ground/fluid jump in {@code aiStep} is not run
-     *  here, so this can't double-jump). Null if the field name ever changes (climb falls back to the
-     *  wall-press path; wall-less climbs degrade, no crash). */
-    private static final java.lang.reflect.Field JUMPING_FIELD = resolveJumpingField();
-
-    private static java.lang.reflect.Field resolveJumpingField() {
-        try {
-            java.lang.reflect.Field f = net.minecraft.world.entity.LivingEntity.class
-                    .getDeclaredField("jumping");
-            f.setAccessible(true);
-            return f;
-        } catch (ReflectiveOperationException | RuntimeException e) {
-            net.magicterra.agent.AgentDriverCommon.LOG.warn(
-                    "[ServerPlayerAvatar] LivingEntity.jumping not resolvable; wall-less vine climbs unsupported in sim", e);
-            return null;
-        }
-    }
-
-    /** {@code LivingEntity.updatingUsingItem()} (PRIVATE, called only from {@code LivingEntity.tick()}).
-     *  It is the whole engine of a HELD use: it decrements {@code useItemRemaining} each tick and, at
-     *  zero, calls {@code completeUsingItem()} — the swallow of a bite, the drink, the release of a
-     *  fully-drawn bow. {@link #commandUseItem(boolean)} calls {@code startUsingItem}, which only ARMS
-     *  that countdown; with nothing advancing it, a server-side use begins and never ends
-     *  ({@code getTicksUsingItem()} stays 0 forever, so a bow also releases at zero charge and a shield
-     *  never reaches its 5-tick blocking threshold). One reflective call reproduces the entire vanilla
-     *  chain, including the protected {@code completeUsingItem}; reimplementing it by hand would fork
-     *  the eat/drink/release semantics. Null if the name ever changes — held uses then simply never
-     *  complete, exactly as before this fix, with no crash. */
-    private static final java.lang.reflect.Method USE_ITEM_TICK = resolveUseItemTick();
-
-    private static java.lang.reflect.Method resolveUseItemTick() {
-        try {
-            java.lang.reflect.Method m = net.minecraft.world.entity.LivingEntity.class
-                    .getDeclaredMethod("updatingUsingItem");
-            m.setAccessible(true);
-            return m;
-        } catch (ReflectiveOperationException | RuntimeException e) {
-            net.magicterra.agent.AgentDriverCommon.LOG.warn(
-                    "[ServerPlayerAvatar] updatingUsingItem not resolvable; server-side eat/drink/bow never complete", e);
-            return null;
-        }
-    }
 
     private float pendingLeft, pendingForward;
     private boolean pendingJump, pendingSneak;
@@ -435,9 +397,9 @@ public class ServerPlayerAvatar implements Avatar {
      * run in {@code LivingEntity.tick()} before {@code aiStep}; the ticker/cooldowns are the tail of
      * {@code Player.tick()}):
      * <ol>
-     *   <li>the held item-use countdown ({@link #USE_ITEM_TICK}) — without it eat/drink/bow never finish;</li>
+     *   <li>the held item-use countdown ({@code LivingEntity.updatingUsingItem}) — without it eat/drink/bow never finish;</li>
      *   <li>equipment → attribute modifiers ({@link #syncEquipmentAttributes()});</li>
-     *   <li>{@code attackStrengthTicker++} ({@link #ATTACK_TICKER}) — the melee recharge bar;</li>
+     *   <li>{@code attackStrengthTicker++} — the melee recharge bar;</li>
      *   <li>the main-hand SWAP reset: vanilla empties the recharge bar when the held ITEM changes
      *       (damage/NBT changes don't count — hence {@code isSameItem}, not {@code matches}). Without
      *       it an agent could bank a full bar on one weapon, switch to another and swing it at full
@@ -466,20 +428,14 @@ public class ServerPlayerAvatar implements Avatar {
      * </ul>
      */
     private void mirrorPlayerTick() {
-        if (USE_ITEM_TICK != null && fp.isUsingItem()) {
-            try { USE_ITEM_TICK.invoke(fp); }
-            catch (ReflectiveOperationException ignored) { /* held uses never complete; no crash */ }
-        }
+        if (fp.isUsingItem()) fp.updatingUsingItem();
         // Read the previous main-hand BEFORE the sync overwrites the memo: this is the same
         // `lastItemInMainHand` comparison vanilla makes, against the same per-entity record.
         java.util.EnumMap<EquipmentSlot, ItemStack> memo = EQUIP_MEMO.get(fp);
         ItemStack lastMain = memo == null ? ItemStack.EMPTY
                 : memo.getOrDefault(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
         syncEquipmentAttributes();
-        if (ATTACK_TICKER != null) {
-            try { ATTACK_TICKER.setInt(fp, ATTACK_TICKER.getInt(fp) + 1); }
-            catch (ReflectiveOperationException ignored) { /* fall back to one-shot */ }
-        }
+        fp.attackStrengthTicker++;
         // Vanilla order: the ticker is incremented first, then a swap zeroes it (Player.tick).
         if (!ItemStack.isSameItem(lastMain, fp.getMainHandItem())) fp.resetAttackStrengthTicker();
         fp.getCooldowns().tick();
@@ -559,11 +515,8 @@ public class ServerPlayerAvatar implements Avatar {
         fp.yya = 0f;
         fp.zza = pendingForward * mult;
         // Mirror the real LivingEntity.jumping bit so travel()'s climbable branch can drive the
-        // wall-less vine vy=+0.2 (see JUMPING_FIELD). Cleared/re-set every tick from pendingJump.
-        if (JUMPING_FIELD != null) {
-            try { JUMPING_FIELD.setBoolean(fp, pendingJump); }
-            catch (ReflectiveOperationException ignored) { /* wall-less climb degrades, no crash */ }
-        }
+        // wall-less vine vy=+0.2 (see the accesswidener entry for LivingEntity.jumping). Cleared/re-set every tick from pendingJump.
+        fp.jumping = pendingJump;
         // travel() rotates the impulse by getYRot(), applies friction + gravity
         // (or water drag + the wall auto-climb-out), and calls move() for
         // collision — the same pipeline LocalPlayer.aiStep runs on the client.

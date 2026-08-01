@@ -13,6 +13,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.block.Block;
@@ -49,6 +52,34 @@ public final class BotUtil {
 
     // === Threading bridge ====================================================
 
+    /** Default budget for waiting on a client-tick hop. Mirrors
+     *  {@code AgentApi.SERVER_THREAD_TIMEOUT_MS} — the server-side twin of this
+     *  bridge — so a stalled client surfaces as a clear error instead of parking
+     *  the calling RPC/MCP thread forever. Override with
+     *  {@code -Dagent.clientThreadTimeoutMs=N}. */
+    private static final long CLIENT_THREAD_TIMEOUT_MS =
+            Long.getLong("agent.clientThreadTimeoutMs", 8_000L);
+
+    /**
+     * Run {@code body} on the client thread and return its value.
+     *
+     * <p>Modelled on {@code AgentApi.onServerThread}, and deliberately identical to it
+     * in the two respects that are observable to a caller:
+     * <ul>
+     *   <li><b>Bounded.</b> {@code mc.execute} only runs when the client drains its task
+     *       queue; during shutdown, a hung level load, or a blocking modal it may never
+     *       do so. The old unbounded {@code fut.get()} then parked the calling transport
+     *       thread permanently — the request never returned and never errored.</li>
+     *   <li><b>Transparent to exceptions.</b> The old code wrapped everything in
+     *       {@code RuntimeException(e)}, so the same failure read as
+     *       {@code IllegalArgumentException: bad param} when invoked from the client
+     *       thread (the {@code isSameThread} fast path, which rethrows raw) but as
+     *       {@code RuntimeException: ExecutionException: IllegalArgumentException: bad
+     *       param} from any transport thread. Unwrapping the {@code ExecutionException}
+     *       makes both paths report the same text — which is what the three-transport
+     *       byte-identical parity assertion actually compares.</li>
+     * </ul>
+     */
     public static <T> T onClient(Supplier<T> body) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.isSameThread()) return body.get();
@@ -57,8 +88,19 @@ public final class BotUtil {
             try { fut.complete(body.get()); }
             catch (Throwable t) { fut.completeExceptionally(t); }
         });
-        try { return fut.get(); }
-        catch (Exception e) { throw new RuntimeException(e); }
+        try {
+            return fut.get(CLIENT_THREAD_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            throw new RuntimeException("client thread did not run task within "
+                    + CLIENT_THREAD_TIMEOUT_MS + "ms (client busy, loading or paused)");
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            if (cause instanceof RuntimeException re) throw re;
+            throw new RuntimeException(cause);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("interrupted while waiting on client thread");
+        }
     }
 
     // === Camera smoothing (mc.bot.setting{smoothLook}) =======================

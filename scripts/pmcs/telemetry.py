@@ -1,4 +1,15 @@
-"""解析 Walker 的 [walker] telemetry 行(Walker.java:2388 格式)。"""
+"""解析 Walker 的 [walker] telemetry 行。
+
+发射点是 WalkerTickClimb.java 里的 `LOG.info("[walker] t={} step=...")`
+——不再是 Walker.java(该类已按 docs/walker-tick-architecture.md 拆成 WalkerTick* 相
+位类),所以这里不再钉行号:行号会漂,类名不会。
+
+下面的正则与发射端的格式字符串是一份**没有编译期约束**的契约。
+`scripts/check_log_contract.py` 是唯一把两端拴在一起的东西:它拿真跑出来的日志
+喂这些正则,任何一条解析不了就红。没有它,改个字段名照样编译、照样过全部场景,
+只是这里从此匹配不到任何行——而正则匹配失败不抛异常,只是返回空迭代器,工具会
+安静地报告"没有 tick",看起来就像机器人根本没动过。
+"""
 import re
 from dataclasses import dataclass
 

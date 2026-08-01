@@ -54,20 +54,10 @@ public final class EventNotifications {
         };
     }
 
-    /** RFC 5424 severity rank (higher = more severe). Used to honor an MCP
-     *  client's {@code logging/setLevel} minimum. Unknown → info. */
-    public static int rank(String level) {
-        if (level == null) return 1;
-        return switch (level) {
-            case "debug" -> 0;
-            case "info" -> 1;
-            case "notice" -> 2;
-            case "warning" -> 3;
-            case "error" -> 4;
-            case "critical" -> 5;
-            case "alert" -> 6;
-            case "emergency" -> 7;
-            default -> 1;
-        };
-    }
+    // A rank(String) severity-ordering helper used to live here, existing solely to
+    // compare against the MCP client's logging/setLevel minimum. That comparison was
+    // removed deliberately (McpServer.onEvent explains why a client defaulting to
+    // `warning` must not silence info/notice driver events), which left the helper
+    // feeding a field that was written and never read. Both are gone; if severity
+    // ordering is ever needed again, it is eight lines.
 }

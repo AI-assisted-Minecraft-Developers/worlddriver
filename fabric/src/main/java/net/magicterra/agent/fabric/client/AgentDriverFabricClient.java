@@ -5,9 +5,11 @@ import java.time.Instant;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.magicterra.agent.AgentDriverCommon;
 import net.magicterra.agent.bot.BotApiImpl;
 import net.magicterra.agent.bot.BotHooks;
+import net.magicterra.agent.bot.MouseYieldHud;
 import net.magicterra.agent.client.ClientAgentApiImpl;
 import net.magicterra.agent.client.ClientHooks;
 import net.magicterra.agent.client.internal.ClientChat;
@@ -28,6 +30,10 @@ public final class AgentDriverFabricClient implements ClientModInitializer {
         BotApiImpl bot = new BotApiImpl();
         BotHooks.register(bot);
         ClientTickEvents.END_CLIENT_TICK.register(mc -> bot.clientTick());
+        // "Bot is driving" badge — the visible half of the mouse-yield handshake
+        // (BotConfig.mouseYield / mouseYieldHud). Drawing lives in common; this is
+        // only the loader's render hook. NeoForge subscribes RenderGuiEvent.Post.
+        HudRenderCallback.EVENT.register((gfx, tickCounter) -> MouseYieldHud.render(gfx));
         // Packet-level chat tap for mc.client.chat.history / awaitReplyMs —
         // GAME carries system lines (command feedback, /say, server broadcasts),
         // CHAT carries player chat. Capture policy (overlay exclusion, sender→

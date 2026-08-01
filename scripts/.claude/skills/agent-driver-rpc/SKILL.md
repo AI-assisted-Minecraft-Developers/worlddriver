@@ -48,7 +48,11 @@ Bundled next to this file. Wire format is a hand-rolled envelope (NOT JSON-RPC
 2.0): send `{"id":N,"method":"mc.x.y","params":{…}}`, receive
 `{"id":N,"result":…}` or `{"id":N,"error":"<string>"}`.
 
-Run it from the `scripts/` directory (cwd):
+**Interpreter.** Needs `websockets`. On the Linux host that's `python3 rpc.py …`;
+on a Windows/Git Bash checkout there is no `python3` — use `python` (or the
+workspace venv's `.venv/Scripts/python.exe`, note `Scripts/` not `bin/`). When in
+doubt, `uv run --with websockets rpc.py …` works everywhere. The examples below
+say `python3`; swap the name for your box. Run it from the `scripts/` directory (cwd):
 
 ```bash
 # probe first — errors until the client is up, then returns uptimeMs
@@ -149,8 +153,9 @@ Two related building blocks for conditions the raw event types don't cover:
   re-`mc.observe.player`. (`finalCost` even tells you *which* move was used.)
 - **Don't poll readiness with long curl/sleep loops** — it's slow and annoying.
   After a relaunch, probe `mc.system.version` once; it errors until up (~30–60s)
-  then returns a fresh `uptimeMs`. If you must wait on the port, a single
-  `until ss -ltnp | grep -q ':39801'; do sleep 3; done` is fine.
+  then returns a fresh `uptimeMs`. If you must wait on the port, one loop is fine:
+  `until ss -ltnp | grep -q ':39801'; do sleep 3; done` (Linux) — on Windows there
+  is no `ss`, use `netstat -ano | grep -q ':39801.*LISTENING'` instead.
 - **`mc.client.*` / `mc.bot.*` need a client.** On a dedicated server they error
   with "not available (client only …)". `mc.system/action/observe/query/wait`
   work server-side.
@@ -162,9 +167,12 @@ Two related building blocks for conditions the raw event types don't cover:
   place/bridge/parkour leaves a *real* block in the saved world; a follow-up
   "negative" test (feature off → expect no path) is contaminated if it's still
   there. `setblock <cell> air` first.
-- **Relaunch the client by PORT OWNER, not `pkill -f`** (the pattern matches its
-  own shell → exit 144). See the `reference_client_relaunch` memory and
-  `into_world.py` for the title→world drive.
+- **Relaunch the client by PORT OWNER, not by name-pattern kill** (a `pkill -f`
+  pattern matches its own shell → exit 144). Port-owner form: `ss -ltnp` → the PID
+  in the last column → `kill <pid>` (Linux); on Windows `netstat -ano | grep
+  ':39801.*LISTENING'` → trailing PID → `taskkill //PID <pid> //F` (Git Bash needs
+  the doubled slashes). See the
+  `reference_client_relaunch` memory and `into_world.py` for the title→world drive.
 
 ## Relationship to the other scripts here
 

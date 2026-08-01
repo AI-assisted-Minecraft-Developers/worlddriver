@@ -17,8 +17,9 @@ AgentTest.run("49_events: emit injects a custom event that replays via eventsSin
     t.assertTrue(page.length >= 1, "the custom event is replayable (got " + page.length + ")");
     var ev = page[page.length - 1];
     t.assertEqual(ev.type, "test.custom", "type matches");
-    var parsed = JSON.parse(ev.data);
-    t.assertEqual(parsed.hello, "world", "object data round-tripped as JSON (" + ev.data + ")");
+    // data is a real object on the wire now, not JSON escaped inside a string.
+    t.assertEqual(ev.data.hello, "world", "object data round-tripped as an object");
+    t.assertTrue(typeof ev.data === "object", "data must NOT arrive as a string");
 });
 
 AgentTest.run("49_events: emit requires a type; bad op rejected", function (t) {
@@ -49,8 +50,7 @@ AgentTest.run("49_events: a rising-edge watcher emits emitAs into the stream", f
 
     var page = Agent.invoke("mc.observe.eventsSince", { cursor: c0, types: ["watch.fired"] });
     t.assertTrue(page.length >= 1, "watcher emitted its event (got " + page.length + ")");
-    var parsed = JSON.parse(page[0].data);
-    t.assertEqual(parsed.watch, w.id, "event data carries the watcher id");
+    t.assertEqual(page[0].data.watch, w.id, "event data carries the watcher id");
 
     // once:true → it removed itself after firing.
     var ls = Agent.invoke("mc.events", { op: "list" });

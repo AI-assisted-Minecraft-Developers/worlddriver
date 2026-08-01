@@ -3,6 +3,7 @@ package net.magicterra.agent.neoforge.client;
 import net.magicterra.agent.AgentDriverCommon;
 import net.magicterra.agent.bot.BotApiImpl;
 import net.magicterra.agent.bot.BotHooks;
+import net.magicterra.agent.bot.MouseYieldHud;
 import net.magicterra.agent.client.ClientAgentApiImpl;
 import net.magicterra.agent.client.ClientHooks;
 import net.magicterra.agent.client.internal.ClientChat;
@@ -12,6 +13,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.ClientChatReceivedEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.RenderGuiEvent;
 
 /**
  * NeoForge client-side bootstrap. Dist-gated via {@link EventBusSubscriber} so
@@ -40,6 +42,15 @@ public final class AgentDriverNeoForgeClient {
     public static void onClientTick(ClientTickEvent.Post evt) {
         BotApiImpl b = BOT;
         if (b != null) b.clientTick();
+    }
+
+    /** "Bot is driving" badge — the visible half of the mouse-yield handshake
+     *  (BotConfig.mouseYield / mouseYieldHud). Post so it lands on top of the vanilla
+     *  HUD. Drawing lives in common; Fabric registers HudRenderCallback for the same
+     *  call, so the two loaders can't draw different badges. */
+    @SubscribeEvent
+    public static void onRenderGui(RenderGuiEvent.Post evt) {
+        MouseYieldHud.render(evt.getGuiGraphics());
     }
 
     /** Packet-level chat tap for mc.client.chat.history / awaitReplyMs. Fires

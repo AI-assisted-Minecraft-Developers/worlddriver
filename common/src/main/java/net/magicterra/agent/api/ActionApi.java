@@ -229,8 +229,7 @@ public final class ActionApi {
             boolean success = ok && cbState[0] && cbState[1];
             // Push a command.result event so subscribers see commands run by any
             // agent/transport (the synchronous return only reaches the caller).
-            api.emit("command.result", null,
-                    net.magicterra.agent.rpc.JsonCodec.encode(Map.of("cmd", finalCmd, "ok", ok, "success", success)));
+            api.emit("command.result", null, Map.of("cmd", finalCmd, "ok", ok, "success", success));
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("ok", ok);
             if (ok) {

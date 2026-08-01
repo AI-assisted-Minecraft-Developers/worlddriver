@@ -7,7 +7,202 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **BREAKING (wire): an event's `data` is now a value, not always a string.**
+  `AgentEvent.data` was declared `String`, so the 20 structured emitters all
+  pre-encoded with `JsonCodec.encode(map)` and the payload shipped as JSON escaped
+  inside a JSON string (`"data":"{\"phase\":\"sunset\"}"`). That made the field an
+  undiscriminated union — a scalar payload (`block.place` → a block id) and a
+  document (`time.phase` → `{phase, dayTime}`) were both just strings, and nothing
+  on the wire said which. Emitters now pass the value and the codec encodes it
+  once: structured events carry an object, scalar events keep their bare string.
+  Affects `mc.observe.eventsSince`, `mc.wait.event`, and the push notifications on
+  both transports. **If you `JSON.parse` an event's `data`, remove that call.**
+
+  This was not cosmetic. `gpt-player` detected nightfall with
+  `isinstance(e["data"], dict)`, which the escaped string made permanently false —
+  its dusk interrupt never fired, the failure its own comment calls "the #1
+  historical killer". That consumer now works unchanged; the one that compares
+  `data == "minecraft:player"` (a scalar payload) is unaffected.
+
+### Fixed
+- **26 `.pyc` files were tracked, so `git status` was never clean.** `.gitignore`
+  had covered `scripts/**/__pycache__/` for a long time, but it was added *after*
+  the bytecode had been committed and an ignore rule does nothing for a tracked
+  file. The cache spanned three interpreter generations (`cpython-312` from the
+  Linux host, `313`/`314` from a Windows checkout), so merely running the pmcs
+  scripts under a different Python rewrote them and they showed up as modified —
+  build output presenting itself as work (hard rule #5). Untracked with
+  `git rm --cached` (files left on disk) and the two `scripts/`-scoped globs
+  replaced by repo-wide `__pycache__/` + `*.py[cod]`, which also covers
+  `path-replay/` without relying on its nested `.gitignore`.
+- **`rpc.py` waited out its timeout on errors the server had already explained.**
+  `RpcServer` answers a request too malformed to carry an id with
+  `{"id": null, "error": "parse: …", "code": -32700}`, and its class doc states the
+  demux rule: the `id` **key** is on every response and absent from every
+  notification. `call()` matched with `msg.get("id") != rid`, so an id-less error
+  failed that test, hit the `continue`, and blocked on `recv()` until `--timeout`
+  — the tool reported a timeout while the server had sent the exact reason. It now
+  skips frames with no `id` key (notifications), accepts `id: null` as its own
+  (exactly one request is ever in flight on this client), and appends the JSON-RPC
+  `code` to the error line. `event_tail.py` goes through the same `call()`.
+- **A comment claimed a use-key ownership that does not exist.** `BotApiImpl`'s
+  `processOwnsUseKey` said "the only process contender is BuildProcess (PLACING) — it
+  owns the key then". Six process kinds answer `"builder"` (Build/Bridge/Tower/
+  Backfill/BboxFill/Farm), and none of them presses `keyUse` — they place through
+  `gameMode.useItemOn` directly, as the same comment says two lines earlier. The flag
+  suppresses the ambient reflexes so their `keyUse` cannot fire a second use-action on
+  the tick a builder places; renamed `builderSuppressesAmbients` to say that. Behavior
+  unchanged.
+- **`:common:test` was writing runtime logs into the source tree.** The test JVM
+  runs with the module directory as its working directory (the source-scanning
+  tests need that), so log4j2 — configured by Minecraft's own config off the test
+  classpath — created `common/logs/latest.log` plus a rolled `.log.gz` per run.
+  `.gitignore`'s `*.log` covered the former and not the archives, so they piled up
+  untracked and un-ignored, one per test run, inside `common/` (hard rule #5). A
+  console-only `common/src/test/resources/log4j2-test.xml` now takes precedence
+  over the game's config, so nothing is written at all; `logs/` is also ignored in
+  case another working directory produces one.
+- **A malformed `mc.events.subscribe` filter failed OPEN.** `types` was read with
+  `instanceof List`, so `{"types":"chat.message"}` simply did not match, the set
+  stayed empty, empty meant "no filter" — and the caller was subscribed to **every**
+  event while its ack said `types:[]`, which reads like the opposite. A non-string
+  entry was dropped just as quietly. Both now return `-32602`. The ack also carries
+  `allTypes`, because an empty `types` cannot say on its own whether it means "all"
+  or "none", and that ambiguity is what the silent path led into. Event type names
+  stay unvalidated on purpose — scripts mint their own via `mc.events{op:'emit'}`
+  and watcher `emitAs`, so the set is open-world and a typo still yields silence.
+- **The WebSocket transport silently dropped requests over 64 KiB.** `McpServer`
+  capped a POST body at 8 MiB and documented it; `RpcServer` never set a frame size
+  and inherited Netty's 64 KiB default, so the same `AgentApi` call succeeded on one
+  transport and killed the connection on the other at 128× less payload — with no
+  JSON error, because a frame that never assembles carries no id to answer. Both
+  limits now come from `TransportLimits.MAX_REQUEST_BYTES` (8 MiB, override with
+  `-Dagent.maxRequestBytes=N`, replacing the MCP-only `agent.mcp.maxBodyBytes`).
+  `RpcClient` gets the same ceiling on inbound frames, where it matters just as
+  much: responses are the big direction (`mc.client.screenshot` returns base64
+  image bytes) and the 64 KiB default would have turned an oversized reply into a
+  call timeout.
+- **One stalled MCP SSE client no longer freezes the whole event system.**
+  `McpServer.onEvent` wrote each SSE socket inline, on AgentApi's *single*
+  event-dispatch thread — the one every listener shares. A client whose TCP receive
+  window had filled parked that thread inside `os.write`, taking down every other
+  SSE subscriber, **the WebSocket push channel**, and letting the dispatch queue
+  (unbounded) grow for as long as the stall lasted. The WebSocket transport never
+  had this problem because Netty's `writeAndFlush` is async; the MCP side had no
+  equivalent. Each subscriber now has a bounded outbox drained by the HTTP worker
+  thread that was already parked on that connection — so the writes moved off the
+  shared thread without adding one. Overflow closes the stream instead of silently
+  discarding frames: a consumer that misses events cannot tell that it did, whereas
+  EOF is loud and recoverable via `mc.observe.eventsSince{cursor}` replay.
+  (Unchanged: a client that wedges and never closes its TCP connection still holds
+  its own HTTP worker thread — now only its own.)
+- **`mutedEvents` is applied once, in `AgentApi`, instead of once per transport.**
+  `RpcServer.onEvent` and `McpServer.onEvent` each carried their own copy of the
+  same `BotConfig.mutedEvents.contains(...)` line — a policy decision living in two
+  transport handlers, which AGENTS.md hard rule #1 exists to prevent, and the shape
+  where a third transport is muted only if its author remembers to be. The check
+  now runs on the dispatch thread before any listener is called, so the timing is
+  unchanged, and muting still suppresses the push only: the event is appended to
+  the replay ring first, so `mc.observe.eventsSince` returns it exactly as before.
+- **`logging/setLevel` no longer stores a value nothing reads.** The MCP server
+  deliberately does not gate driver events on the client's severity minimum (a
+  client defaulting to `warning` would silently drop every info/notice event, which
+  `onEvent` documents) — but it still recorded the level into a field that was
+  written and never read, and the class doc claimed the filter was "honored",
+  contradicting the two comments that said it was not. The request is still
+  accepted and acknowledged per spec; the dead field and the `EventNotifications
+  .rank()` helper that existed only to feed it are gone, and the doc now states the
+  actual behavior.
+
+- **WebSocket RPC: a pushed event could be returned as a call's response.** Every
+  frame the socket receives shares one queue, and `RpcClient` took whichever
+  arrived next as its answer. On a connection that had run `mc.events.subscribe`,
+  one pushed `notifications/message` was therefore returned in place of the
+  response — no `result` key, so the call quietly yielded `null` — and the real
+  response stayed queued, shifting **every subsequent call on that connection by
+  one frame**. The client now demultiplexes the way the transport's own class doc
+  specifies (a frame with a `method` is a notification; a frame with an `id` is a
+  response), matches responses by id, and drops stale ones. In-repo the only
+  caller (`RpcBridge`) never subscribes, so nothing shipped was mis-answering;
+  `gpt-player/driver.py` and the agent-driver-rpc skill's `rpc.py` already
+  correlated by id.
+- **WebSocket RPC error frames now always carry `id`, plus a JSON-RPC `code`.**
+  The two malformed-input paths (`request must be JSON object`, `parse: …`)
+  omitted the `id` key entirely, contradicting the demultiplexing rule the same
+  class documents and leaving an id-correlating client to wait out its timeout
+  instead of seeing the error; a frame whose id *had* been read lost it too. `id`
+  is now always present (explicitly `null` when unknowable) and `code` carries the
+  JSON-RPC 2.0 reserved code `McpServer` already emits for the same failure, so
+  the two transports finally agree on classification. `error` stays a bare string
+  — `gpt-player` and `rpc.py` both read it as one, and reshaping it into MCP's
+  `{code, message}` object would break them for nothing.
+
 ### Added
+- **The `keyUse` acquirer set is pinned.** `keyUse` is the one shared input
+  `releaseKeys()` deliberately does not clear — the idle release runs after the
+  shield/heal/eat reflexes set it, so a blanket clear would undo them every tick.
+  What replaces it is a hand-rolled arbitration (shield > heal > eat, losers release)
+  that nothing enforces membership in. A fifth acquirer skipping it either gets
+  clobbered mid-action or leaks, leaving the bot walking with right-click held —
+  placing blocks, eating its food, drawing a bow it never fires;
+  `CombatChain#releaseUseKey` exists because that leak already happened once on the
+  combat preempt path. `UseKeyOwnershipTest` fails on a new acquirer file and on
+  `keyUse` being added to the blanket release, each verified by injection.
+- **Every `mc.bot.setting` key is now checked to have a reader.** `SettingsRegistry`
+  already kept the key set, the snapshot, the schema and the docs agreeing about
+  which of the 218 knobs exist — nothing asked whether a knob does anything. Since a
+  new `BotConfig` field surfaces on the settings API automatically, a flag whose read
+  site never landed (or whose behavior was later refactored away, leaving the knob)
+  is accepted, echoed back as set, and changes nothing: success signalled all the way
+  to the caller. `SettingsConsumerTest` takes the key set from
+  `reflectivePrimitiveFields()` — the same enumerator the live surface is built from,
+  not a re-parse — and fails on any key nothing reads. All 218 are consumed today;
+  verified discriminating by adding an unread knob and by deleting the single reader
+  of a real one (`walkerChainMount`).
+- **The `WalkerTickCtx` handoff contract is now enforced by a test.** Nine phases
+  hand 31 fields to each other through a per-tick struct, in an order only
+  `Walker#tickInner` knows; the rule "a phase writes its own product group and
+  reads only what earlier phases produced" lived in a javadoc and a hand-derived
+  census in `docs/walker-tick-architecture.md`. `WalkerTickDataflowTest` re-derives
+  that census from source on every test run — reading the phase order out of
+  `tickInner` rather than hardcoding it — and fails on a read-before-write, on a
+  ctx field with no producer or no later consumer, and on the phase files and the
+  driver's call list disagreeing. Read-before-write is the one worth a gate: a
+  phase reading a later phase's product gets the zero value on every tick, with no
+  exception and no log. The pipeline is clean today; this keeps it that way.
+- **Pathfinder cost attribution** (`-Dagent.pathfinderTaxLog=true`). Up to ten cost
+  modifiers are summed into every A* edge, several pricing overlapping situations,
+  and the search reported one opaque `finalCost` — so when a route surprised you,
+  nothing said which tax produced it. Each search now logs a per-tax breakdown in
+  two columns: what the taxes charged **during the search** (what shaped the
+  decision) and what the **winning path** actually paid; the gap between them is
+  the avoidance a tax achieved. Registration goes through one `tax(name, modifier)`
+  helper so a new tax cannot be added without a name. The hot loop's arithmetic,
+  order and values are unchanged, and the counters sit behind a `static final` flag
+  the JIT folds away when off.
+
+  The first run over the 165-scene suite (925 searches) found something the obvious
+  version of this instrument would have missed: `submerged`, `vineOverWater` and
+  `climbOut` charge thousands of cost units during the search and **zero** on the
+  winning path — which is a correctly working avoidance tax, not a dead one.
+  Measuring only the final path, as the first cut did, called four of them dead.
+  `descendTax` and `padCellTax` by contrast charge nothing at all in any search:
+  their inner conditions never hold anywhere in the suite, so two tunable constants
+  (`pathfinderDescendCost=40`, `pathfinderLilyPadCellCost=20`), each added for a
+  cited live incident, have no test coverage at all.
+- **`common/src/test` — a JUnit 5 source set for game-free code**, wired into
+  `build`. 27 tests over the transports, all of them covering behavior that could
+  previously only be reached through a full dogfood boot — which is why every bug
+  in this section survived every existing gate.
+- **`scripts/check_scene_arena.py` — scene footprints must fit their forced-chunk
+  window.** `TestkitHarness` force-loads `(2r+1)²` chunks around each scene origin
+  (`Scene.withChunkRadius`, default 1 → usable `dx,dz ∈ [-16r, 16r+15]`); building
+  terrain outside it still succeeds, so the scene passes most of the time and
+  fails when it doesn't, reading as a bot bug. The relation was maintained purely
+  by hand in javadoc. Source-only gate: interval-evaluates each body's origin
+  offsets across all four terrain idioms in the corpus and reports UNRESOLVED —
+  never OK — when it cannot attribute a body's block writes. 164/164 scenes fit.
 - **`mc.world.block` — read-only single-cell inspection** `{pos, type, state?,
   light:{block,sky}, blockEntity?}`: blockstate property map (`lit`/`facing`/`half`
   as `/setblock`-style strings), light levels (previously unreadable through any

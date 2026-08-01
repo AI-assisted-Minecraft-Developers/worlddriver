@@ -1,5 +1,6 @@
 package net.magicterra.agent.bot.movement;
 
+import net.magicterra.agent.AgentDriverCommon;
 import net.magicterra.agent.bot.pathfinder.WorldView;
 import net.magicterra.agent.bot.util.BotInteract;
 import net.minecraft.client.Minecraft;
@@ -74,21 +75,18 @@ public final class ClientPlayerAvatar implements Avatar {
             p.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
     }
 
-    private static java.lang.reflect.Field destroyProgressField;
-    private static boolean destroyProgressLookupFailed;
+    /** {@code MultiPlayerGameMode.destroyProgress} (private in vanilla, opened by
+     *  {@code agent_driver.accesswidener}) — the only read of how far the current block break
+     *  has advanced; mining feedback and the walker's dig-progress stall detector both come
+     *  through here. −1f means "unknown", which callers treat as "no progress info".
+     *
+     *  <p>This was a {@code getDeclaredField("destroyProgress")} lookup, which resolved in dev
+     *  and threw in the shipped fabric jar (the owner is remapped to {@code class_636} while the
+     *  literal stays Mojang-named), latching a flag that made the sensor return −1 forever.
+     *  A widened field is an ordinary field read that tiny-remapper rewrites with everything
+     *  else, so there is no lookup left to fail and no degraded path to keep alive. */
     @Override public float destroyProgress() {
-        if (mc.gameMode == null || destroyProgressLookupFailed) return -1f;
-        try {
-            if (destroyProgressField == null) {
-                destroyProgressField = net.minecraft.client.multiplayer.MultiPlayerGameMode.class
-                        .getDeclaredField("destroyProgress");
-                destroyProgressField.setAccessible(true);
-            }
-            return destroyProgressField.getFloat(mc.gameMode);
-        } catch (ReflectiveOperationException | SecurityException e) {
-            destroyProgressLookupFailed = true;
-            return -1f;
-        }
+        return mc.gameMode == null ? -1f : mc.gameMode.destroyProgress;
     }
 
     @Override public net.minecraft.world.item.crafting.RecipeManager recipeManager() {

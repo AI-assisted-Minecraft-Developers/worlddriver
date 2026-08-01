@@ -1,5 +1,6 @@
 package net.magicterra.agent.api;
 
+import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.model.AgentEvent;
 import net.magicterra.agent.model.Params;
 import net.minecraft.core.BlockPos;
@@ -584,7 +585,7 @@ public final class AgentApi {
     /** Platform event hooks (and client-tick detectors) feed natural (non-API)
      *  signals — block changes, damage, death, chat, threats — into the event
      *  stream through here. */
-    public void emitExternal(String type, BlockPos pos, String data) {
+    public void emitExternal(String type, BlockPos pos, Object data) {
         emit(type, pos, data);
     }
 
@@ -593,7 +594,7 @@ public final class AgentApi {
      *  cheap; listener delivery is handed to the single-thread {@link #eventDispatch}
      *  so the calling thread (server tick / client tick / watcher) never blocks on a
      *  socket write. Returns the assigned sequence number. */
-    long emit(String type, BlockPos pos, String data) {
+    long emit(String type, BlockPos pos, Object data) {
         AgentEvent e = new AgentEvent(eventSeq.incrementAndGet(), type, pos, data);
         synchronized (eventsLock) {
             if (events.size() >= EVENT_BUFFER_CAP) events.pollFirst();
@@ -601,6 +602,16 @@ public final class AgentApi {
         }
         if (!eventListeners.isEmpty()) {
             eventDispatch.execute(() -> {
+                // The mc.bot.setting{mutedEvents} per-type opt-out is POLICY, so it
+                // belongs here rather than in each transport. Both the WebSocket and
+                // MCP-SSE push paths used to carry their own identical copy of this
+                // line — the arrangement where a third transport is muted only if its
+                // author remembers to be, and where the two can silently disagree.
+                // Muting suppresses the PUSH only: the event is already in the replay
+                // buffer above, so mc.observe.eventsSince still returns it, exactly as
+                // before. Evaluated here on the dispatch thread, the same moment the
+                // transports evaluated it, so the timing is unchanged too.
+                if (BotConfig.mutedEvents.contains(e.type)) return;
                 for (Consumer<AgentEvent> l : eventListeners) {
                     try { l.accept(e); } catch (Throwable ignored) { /* a bad listener never breaks emission */ }
                 }

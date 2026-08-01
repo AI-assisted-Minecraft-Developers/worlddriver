@@ -9,6 +9,7 @@
   ],
   "license": "MIT",
   "environment": "*",
+  "accessWidener": "agent_driver.accesswidener",
   "entrypoints": {
     "main": [
       "net.magicterra.agent.fabric.AgentDriverFabric"

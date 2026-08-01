@@ -139,6 +139,15 @@ remapJar {
 }
 
 loom {
+    // NeoForge uses access transformers, and architectury-loom 1.11 does NOT convert
+    // access wideners for it (ForgeExtensionAPI has convertAccessWideners /
+    // extraAccessWideners; NeoForgeExtensionAPI has neither — only accessTransformer).
+    // So the same members are declared a second time in AT form; the two files are
+    // kept in lockstep by scripts/check_remap_safety.py, not by the build.
+    neoForge {
+        accessTransformer file("src/main/resources/META-INF/accesstransformer.cfg")
+    }
+
     // P4a Task 1: attach the testmod source set to the mod FML scans, so :common's
     // testkit scene classes and their SceneProvider service entries are discovered as
     // part of agent_driver (no separate mods.toml). architectury-loom EAGERLY registers a

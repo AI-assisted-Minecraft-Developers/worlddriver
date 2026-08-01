@@ -113,6 +113,12 @@ remapJar {
 }
 
 loom {
+    // Share :common's access widener rather than declaring a second one, so the two
+    // loaders can never widen different sets of members. Loom remaps the file into the
+    // artifact's namespace during remapJar; fabric.mod.json's "accessWidener" key is
+    // what makes Fabric Loader apply it at runtime in production.
+    accessWidenerPath = project(":common").loom.accessWidenerPath
+
     // P4a Task 3: mark :common's testmod OUTPUT as belonging to the agent_driver mod so
     // the moved scene/probe classes are grouped under agent_driver for fabric's
     // classPathGroups (mixin/refmap ownership) and ServiceLoader(SceneProvider), run in
@@ -134,6 +140,15 @@ loom {
     mods {
         def mainMod = maybeCreate('main')
         mainMod.sourceSet sourceSets.main
+        // :common's MAIN, so the access widener declared in fabric.mod.json is inside
+        // the agent_driver mod container during DEV runs. The production jar was never
+        // the problem — shadowJar merges :common's resources, and the remapped jar does
+        // carry the widener. Dev is different: FabricLoaderImpl.loadAccessWideners()
+        // resolves the name against the MOD's own roots, not the run classpath, and
+        // those roots come from this block. Without this line the server dies at boot
+        // with "Missing accessWidener file agent_driver.accesswidener from mod
+        // agent_driver" and t0 sits on a dead JVM until the 900s wall timeout.
+        mainMod.sourceSet project(':common').sourceSets.main, project(':common')
         mainMod.sourceSet project(':common').sourceSets.testmod, project(':common')
     }
     runs {

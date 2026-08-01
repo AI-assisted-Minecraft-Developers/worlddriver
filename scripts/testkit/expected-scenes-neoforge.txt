@@ -67,6 +67,7 @@ ad.agentRpcSmoke
 ad.pinch
 ad.horizon
 ad.inputReleaseGate
+ad.mouseYieldGate
 ad.schemaUnionRendering
 ad.physicsParity
 ad.buildBlockWhitelist

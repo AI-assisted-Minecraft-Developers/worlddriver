@@ -6,6 +6,9 @@ import net.magicterra.agent.bot.process.BotProcess;
 import net.magicterra.agent.bot.process.BunkerProcess;
 import net.minecraft.client.Minecraft;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import static net.magicterra.agent.bot.util.BotInteract.releaseKeys;
 
 /**
@@ -47,8 +50,36 @@ public final class UserTaskChain implements Chain {
             slot.lastError = reason;
             slot.reset();
         }
+        recordEnd(c.kind(), reason);
         releaseKeys();
         process = null;
+    }
+
+    // === Last ending, for kinds with no BotState slot ========================
+    // `sleep` and `replay` have no ProcessSlot (see slotFor), so their error had
+    // nowhere to go: cancel()/tick() computed `reason`/`err`, found slot == null,
+    // and dropped it. The process then vanished (process = null) with activeProcess
+    // back to null and no lastError anywhere — exactly the failure BotState's own
+    // javadoc calls out as "ended with active:false and NO lastError —
+    // indistinguishable from success". Recorded for EVERY kind, not just the
+    // slot-less ones, so a reader never has to know which kinds own a slot.
+    private volatile String endKind;
+    private volatile String endError;
+
+    private void recordEnd(String kind, String error) {
+        endKind = kind;
+        endError = error;
+    }
+
+    /** {@code {kind, error}} of the last process ending, or null if none has ended
+     *  this session. Surfaced as {@code lastProcessEnd} in {@code mc.bot.status}. */
+    public Map<String, Object> lastEnd() {
+        String k = endKind;
+        if (k == null) return null;
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("kind", k);
+        m.put("error", endError);
+        return m;
     }
 
     /** The held process, or null when idle. Read by ambient-behaviour gating and
@@ -76,6 +107,7 @@ public final class UserTaskChain implements Chain {
         if (c == null) return;
         try {
             if (c.tick(mc, w, st)) {
+                recordEnd(c.kind(), null);   // ran to completion: kind with error == null
                 releaseKeys();
                 process = null;
             }
@@ -87,6 +119,7 @@ public final class UserTaskChain implements Chain {
                 slot.lastError = err;
                 slot.reset();
             }
+            recordEnd(c.kind(), err);
             releaseKeys();
             process = null;
         }

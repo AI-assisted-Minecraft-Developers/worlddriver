@@ -508,6 +508,11 @@ public final class BotApiImpl implements BotApi {
         // led to a working shelter being cancelled mid-seal. null for processes
         // with no sub-state.
         snap.put("activeProcessDetail", c == null ? null : c.statusDetail());
+        // Why the PREVIOUS process stopped: {kind, error} (error null = ran to
+        // completion). The per-verb slots already carry this for the kinds that own
+        // one, but `sleep` and `replay` have no slot, so their failure used to leave
+        // no trace at all once activeProcess went back to null.
+        snap.put("lastProcessEnd", userTask.lastEnd());
         snap.put("activeChain", scheduler.currentName());
         snap.put("userTaskSuspended", c != null && scheduler.current() != userTask);
         snap.put("chainPriorities", scheduler.lastPriorities());
@@ -979,9 +984,39 @@ public final class BotApiImpl implements BotApi {
      *  Owns its own cross-tick edge state; {@link #clientTick()} drives it. */
     private final ClientEventDetector eventDetector = new ClientEventDetector();
 
+    /**
+     * Whether a foreground builder process should silence the ambient use-key reflexes.
+     *
+     * <p><b>Not key ownership</b>, despite how it reads. Six process kinds answer
+     * {@code "builder"} (Build/Bridge/Tower/Backfill/BboxFill/Farm) and NONE of them
+     * presses {@code keyUse} — they place through {@link net.magicterra.agent.bot.util.BotInteract}
+     * → {@code gameMode.useItemOn} directly. What this suppresses is an ambient's
+     * {@code keyUse} firing a SECOND use-action on the tick a builder places, which is
+     * why it gates the reflexes instead of handing a key over. (Its previous name,
+     * {@code processOwnsUseKey}, claimed an ownership that never existed.)
+     *
+     * <p>{@code keyUse} is the one shared input {@code BotInteract.releaseKeys()}
+     * deliberately omits — the idle release runs AFTER the shield/heal/eat reflexes set
+     * it — so the arbitration below is the ONLY thing keeping the key from leaking, and
+     * every acquirer must join it or self-clear on every exit path. {@code
+     * UseKeyOwnershipTest} pins the acquirer set against exactly that drift.
+     */
+    private static boolean builderSuppressesAmbients(BotProcess c) {
+        return c != null && c.kind().equals("builder");
+    }
+
     /** Called from the platform client-tick hook every client tick. */
     public void clientTick() {
         Minecraft mc = Minecraft.getInstance();
+        // Human/bot mouse coexistence. Marked from the PREVIOUS tick's ownership
+        // (scheduler.current() is last tick's decision) — a 1-tick lag on a 20-tick
+        // linger, so it never flickers. Driven here at the very top, ahead of every
+        // early return below (no world, bot paused, clutch owning the tick), because
+        // the gate must be able to hand the cursor BACK on exactly those ticks too.
+        String mouseDriver = scheduler.currentName();
+        if (mouseDriver == null) mouseDriver = state.activeName();
+        if (mouseDriver != null && !paused) MouseYield.markDriving(mouseDriver);
+        MouseYield.tick(mc);
         // Death detection must run BEFORE autoRespawn: autoRespawn dismisses the
         // DeathScreen (setScreen(null)), and the screen is the only client-side
         // carrier of the SPECIFIC cause of death (slain by X / drowned / blown
@@ -1019,7 +1054,10 @@ public final class BotApiImpl implements BotApi {
         // allowWaterBucketFall INTERNALLY (not here) so a dangerous fall with the
         // flag off can still raise the CLUTCH-noArm alarm instead of vanishing.
         CLUTCH.armReactive(mc, world);
-        if (CLUTCH.tick(mc, world)) { releaseGate.markDirtied(); return; }
+        // The clutch owns the whole tick when it fires (look-down + place + return), so
+        // it is a bot drive in its own right — mark it for the mouse gate, which no
+        // process slot would report (the clutch is slot-less by design).
+        if (CLUTCH.tick(mc, world)) { releaseGate.markDirtied(); MouseYield.markDriving("clutch"); return; }
         // Screen watchdog (gap #58): an unexpectedly-open container GUI swallows
         // every movement input, paralysing the walker AND all reflex chains (live
         // death #3: a stray place-click opened a FurnaceScreen; the pinned walker's
@@ -1038,9 +1076,8 @@ public final class BotApiImpl implements BotApi {
                 mc.player.closeContainer();
                 mc.setScreen(null);
                 net.magicterra.agent.api.AgentApi api = net.magicterra.agent.AgentDriverCommon.api();
-                if (api != null) api.emitExternal("screen.autoClosed", mc.player.blockPosition(),
-                        net.magicterra.agent.rpc.JsonCodec.encode(java.util.Map.of(
-                                "screen", type, "blockedTicks", (double) screenBlockTicks)));
+                if (api != null) api.emitExternal("screen.autoClosed", mc.player.blockPosition(), java.util.Map.of(
+                                "screen", type, "blockedTicks", (double) screenBlockTicks));
                 net.magicterra.agent.AgentDriverCommon.LOG.warn(
                         "[screenWatchdog] closed stray {} after {} blocked ticks", type, screenBlockTicks);
                 screenBlockTicks = 0;
@@ -1063,12 +1100,10 @@ public final class BotApiImpl implements BotApi {
         // Ambient hand/equipment/hotbar gating reads the foreground user process
         // (a preempting survival/combat chain leaves it held but suspended).
         BotProcess c = userTask.process();
-        boolean processOwnsUseKey = c != null && c.kind().equals("builder");
-        // Use-key arbitration (Phase B): shield > heal > eat. Only one ambient
-        // may hold keyUse per tick; the losers release. useItem-based mining/
-        // placing goes through gameMode directly (not keyUse), so the only
-        // process contender is BuildProcess (PLACING) — it owns the key then.
-        if (processOwnsUseKey) {
+        // Use-key arbitration (Phase B): shield > heal > eat, one holder per tick,
+        // the losers release. Why a builder silences all three — and what keeps this
+        // protocol whole at all — is on builderSuppressesAmbients.
+        if (builderSuppressesAmbients(c)) {
             autoShield.release(mc); autoHeal.release(mc); autoEat.releaseIfActive(mc);
         } else {
             ThreatScanner.Scan scan = ClientThreatScanner.current(mc);

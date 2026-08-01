@@ -20,8 +20,12 @@ Reach for THIS script when the MCP tools can't express what you need:
 
 Wire format (NOT JSON-RPC 2.0 — a hand-rolled envelope):
     send {"id": N, "method": "mc.x.y", "params": {...}}
-    recv {"id": N, "result": <any>}   on success
-    recv {"id": N, "error": "<msg>"}  on failure
+    recv {"id": N,    "result": <any>}                    on success
+    recv {"id": N,    "error": "<msg>", "code": -326xx}   on failure
+    recv {"id": null, "error": "<msg>", "code": -32700}   too malformed to echo an id
+    recv {"method": "notifications/message", ...}         an event push, no "id" key
+The "id" KEY is on every response and absent from every notification — that, not
+the id's value, is how the two are told apart.
 
 Usage
 -----
@@ -63,8 +67,8 @@ from pathlib import Path
 try:
     import websockets
 except ImportError:
-    sys.exit("rpc.py needs the 'websockets' package (pip install websockets) — "
-             "it's already used by into_world.py, so the test venv has it.")
+    sys.exit("rpc.py needs the 'websockets' package — install it, or run without a "
+             "venv via: uv run --with websockets rpc.py …")
 
 
 def resolve_host(explicit):
@@ -125,10 +129,17 @@ async def call(ws, rid, method, params, timeout):
     await ws.send(json.dumps({"id": rid, "method": method, "params": params or {}}))
     while True:
         msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=timeout))
-        if msg.get("id") != rid:
+        if "id" not in msg:
+            continue  # a notification (mc.events.subscribe push), never a reply
+        # id=null means the server could not echo an id back (-32700 parse /
+        # -32600 invalid request). Exactly one request is ever in flight here,
+        # so it is unambiguously ours; skipping it would block until --timeout
+        # and report a timeout instead of the reason the server just sent.
+        if msg["id"] is not None and msg["id"] != rid:
             continue  # not our reply (shouldn't interleave, but be safe)
         if "error" in msg:
-            return False, msg["error"]
+            code = msg.get("code")
+            return False, f"{msg['error']} (code {code})" if code else msg["error"]
         return True, msg.get("result")
 
 

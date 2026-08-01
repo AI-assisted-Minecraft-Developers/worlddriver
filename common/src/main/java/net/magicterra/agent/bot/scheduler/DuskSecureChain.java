@@ -176,13 +176,12 @@ public final class DuskSecureChain implements Chain {
         AgentApi api = AgentDriverCommon.api();
         if (api == null || mc.player == null) return;
         BlockPos p = mc.player.blockPosition();
-        api.emitExternal("duskSecure.triggered", p,
-                JsonCodec.encode(Map.of(
+        api.emitExternal("duskSecure.triggered", p, Map.of(
                         "pos", Map.of("x", p.getX(), "y", p.getY(), "z", p.getZ()),
                         "depth", BotConfig.bunkerDepth,
                         // gap#75-b: distinguishes a re-arm after preemption from a fresh
                         // dusk trigger in the event stream.
-                        "rearm", rearm)));
+                        "rearm", rearm));
     }
 
     /** Observe-only canary for {@link BotConfig#duskUrgentDryRun}: pushes at most one
@@ -195,9 +194,8 @@ public final class DuskSecureChain implements Chain {
         AgentApi api = AgentDriverCommon.api();
         if (api == null || mc.player == null) return;
         BlockPos p = mc.player.blockPosition();
-        api.emitExternal("duskSecure.urgentDryRun", p,
-                JsonCodec.encode(Map.of(
-                        "pos", Map.of("x", p.getX(), "y", p.getY(), "z", p.getZ()))));
+        api.emitExternal("duskSecure.urgentDryRun", p, Map.of(
+                        "pos", Map.of("x", p.getX(), "y", p.getY(), "z", p.getZ())));
         dryRunCooldown = DRY_RUN_EMIT_COOLDOWN_TICKS;
     }
 

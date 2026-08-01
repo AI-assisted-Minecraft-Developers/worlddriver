@@ -13,10 +13,7 @@ import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.lang.reflect.Method;
-import java.lang.reflect.Field;
 import net.minecraft.world.inventory.ClickType;
-import net.minecraft.client.MouseHandler;
 import net.minecraft.client.KeyboardHandler;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.AbstractSliderButton;
@@ -116,23 +113,20 @@ public final class ClientInput {
             // 1) Move the real GLFW cursor — drives any "cursor visible"
             //    indicator and is what live users would experience.
             org.lwjgl.glfw.GLFW.glfwSetCursorPos(mc.getWindow().getWindow(), wx, wy);
-            // 2) On Xvfb, glfwSetCursorPos doesn't fire the cursor_pos callback,
-            //    so MouseHandler.xpos/ypos stay stale and tooltips render at
-            //    the *previous* hover spot. Write them directly via reflection.
-            String reflStatus = "ok";
-            try {
-                var mh = mc.mouseHandler;
-                Field fx = MouseHandler.class.getDeclaredField("xpos");
-                Field fy = MouseHandler.class.getDeclaredField("ypos");
-                fx.setAccessible(true);
-                fy.setAccessible(true);
-                fx.setDouble(mh, wx);
-                fy.setDouble(mh, wy);
-            } catch (ReflectiveOperationException e) {
-                reflStatus = "FAILED: " + e.getClass().getSimpleName() + " " + e.getMessage();
-            }
+            // 2) On Xvfb, glfwSetCursorPos doesn't fire the cursor_pos callback, so
+            //    MouseHandler.xpos/ypos stay stale and tooltips render at the *previous*
+            //    hover spot. These were written via getDeclaredField("xpos"/"ypos"), which
+            //    stopped working the moment the jar was remapped (the literals stay
+            //    Mojang-named while the fields become field_1795/field_1794); the access
+            //    widener in :common opens them instead, so this is a plain field write
+            //    that tiny-remapper rewrites like any other reference. The response used
+            //    to carry a "refl" status for that lookup — dropped with the lookup, since
+            //    a field write has no failure mode to report.
+            var mh = mc.mouseHandler;
+            mh.xpos = wx;
+            mh.ypos = wy;
             if (s != null) s.mouseMoved(x, y);
-            return Map.of("ok", true, "wx", wx, "wy", wy, "scale", scale, "refl", reflStatus);
+            return Map.of("ok", true, "wx", wx, "wy", wy, "scale", scale);
         });
     }
 
@@ -297,22 +291,14 @@ public final class ClientInput {
 
             double prev = readSliderValue(target);
             String prevLabel = target.getMessage().getString();
-            try {
-                Field fv = AbstractSliderButton.class.getDeclaredField("value");
-                fv.setAccessible(true);
-                fv.setDouble(target, f);
-                // applyValue() commits the new value to the backing Option; then
-                // refresh the displayed label. Both are protected → reflection.
-                Method apply = AbstractSliderButton.class.getDeclaredMethod("applyValue");
-                apply.setAccessible(true);
-                apply.invoke(target);
-                Method upd = AbstractSliderButton.class.getDeclaredMethod("updateMessage");
-                upd.setAccessible(true);
-                upd.invoke(target);
-            } catch (ReflectiveOperationException e) {
-                return Map.of("ok", false, "error",
-                        "slider reflection failed: " + e.getClass().getSimpleName() + " " + e.getMessage());
-            }
+            // value/applyValue/updateMessage are protected in vanilla and opened by
+            // agent_driver.accesswidener. applyValue() commits the new value to the
+            // backing Option; updateMessage() refreshes the displayed label. Both must
+            // run, and in that order, or the widget shows a stale caption for a value
+            // the Option already has.
+            target.value = f;
+            target.applyValue();
+            target.updateMessage();
             return Map.of("ok", true, "mode", "set",
                     "label", target.getMessage().getString(), "value", readSliderValue(target),
                     "previousLabel", prevLabel, "previousValue", prev);
@@ -320,13 +306,7 @@ public final class ClientInput {
     }
 
     private static double readSliderValue(AbstractSliderButton sb) {
-        try {
-            Field fv = AbstractSliderButton.class.getDeclaredField("value");
-            fv.setAccessible(true);
-            return fv.getDouble(sb);
-        } catch (ReflectiveOperationException e) {
-            return Double.NaN;
-        }
+        return sb.value;
     }
 
     /**
@@ -365,31 +345,23 @@ public final class ClientInput {
             // No screen open → dispatch as a raw GLFW key event through
             // KeyboardHandler.keyPress so in-game keybinds (F3 debug, F5
             // perspective, Q drop, F swap hands, T chat, etc.) fire exactly
-            // like a player pressing the key. Reflective because the method
-            // is package-private in vanilla.
+            // like a player pressing the key. The method is package-private in
+            // vanilla and opened by agent_driver.accesswidener.
             if (s == null) {
                 long window = mc.getWindow().getWindow();
                 int glfwPress = org.lwjgl.glfw.GLFW.GLFW_PRESS;
                 int glfwRelease = org.lwjgl.glfw.GLFW.GLFW_RELEASE;
-                try {
-                    Method m = KeyboardHandler.class
-                            .getDeclaredMethod("keyPress", long.class, int.class, int.class, int.class, int.class);
-                    m.setAccessible(true);
-                    boolean pressed = false, released = false;
-                    if (act.equals("press") || act.equals("click")) {
-                        m.invoke(mc.keyboardHandler, window, code, scan, glfwPress, 0);
-                        pressed = true;
-                    }
-                    if (act.equals("release") || act.equals("click")) {
-                        m.invoke(mc.keyboardHandler, window, code, scan, glfwRelease, 0);
-                        released = true;
-                    }
-                    return Map.of("ok", true, "key", kn, "code", code, "action", act,
-                        "pressed", pressed, "released", released, "via", "keybind");
-                } catch (ReflectiveOperationException e) {
-                    return Map.of("ok", false, "error",
-                        "keybind dispatch failed: " + e.getClass().getSimpleName() + " " + e.getMessage());
+                boolean pressed = false, released = false;
+                if (act.equals("press") || act.equals("click")) {
+                    mc.keyboardHandler.keyPress(window, code, scan, glfwPress, 0);
+                    pressed = true;
                 }
+                if (act.equals("release") || act.equals("click")) {
+                    mc.keyboardHandler.keyPress(window, code, scan, glfwRelease, 0);
+                    released = true;
+                }
+                return Map.of("ok", true, "key", kn, "code", code, "action", act,
+                    "pressed", pressed, "released", released, "via", "keybind");
             }
             boolean pressed = false, released = false;
             if (act.equals("press") || act.equals("click")) {

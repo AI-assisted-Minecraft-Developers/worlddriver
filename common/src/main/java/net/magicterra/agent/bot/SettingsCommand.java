@@ -60,132 +60,21 @@ public final class SettingsCommand {
                 bot.paused = pb;
                 applied.add("paused");
             }
-            // Baritone-style survival toggles. Off→on flips just write the
-            // flag; the live state is enforced on the next clientTick so we
-            // don't need to hop to the client thread here.
-            if (params.get("autoEat") instanceof Boolean ae) {
-                BotConfig.autoEat = ae;
-                applied.add("autoEat");
-            }
-            if (params.get("autoRespawn") instanceof Boolean ar) {
-                BotConfig.autoRespawn = ar;
-                applied.add("autoRespawn");
-            }
-            if (params.get("autoRetreat") instanceof Boolean art) {
-                BotConfig.autoRetreat = art;
-                applied.add("autoRetreat");
-            }
-            if (params.get("autoBunker") instanceof Boolean abk) {
-                BotConfig.autoBunker = abk;
-                applied.add("autoBunker");
-            }
-            if (params.get("autoTotem") instanceof Boolean ato) {
-                BotConfig.autoTotem = ato;
-                applied.add("autoTotem");
-            }
-            if (params.get("autoShield") instanceof Boolean ash) {
-                BotConfig.autoShield = ash;
-                applied.add("autoShield");
-            }
-            if (params.get("autoHeal") instanceof Boolean ah) {
-                BotConfig.autoHeal = ah;
-                applied.add("autoHeal");
-            }
-            if (params.get("autoDodge") instanceof Boolean ado) {
-                BotConfig.autoDodge = ado;
-                applied.add("autoDodge");
-            }
-            if (params.get("autoFight") instanceof Boolean af) {
-                BotConfig.autoFight = af;
-                applied.add("autoFight");
-            }
-            if (params.get("combatCrit") instanceof Boolean cc) {
-                BotConfig.combatCrit = cc;
-                applied.add("combatCrit");
-            }
-            if (params.get("combatCollectDrops") instanceof Boolean ccd) {
-                BotConfig.combatCollectDrops = ccd;
-                applied.add("combatCollectDrops");
-            }
-            if (params.get("autoEquip") instanceof Boolean ae2) {
-                BotConfig.autoEquip = ae2;
-                applied.add("autoEquip");
-            }
-            if (params.get("autoSwim") instanceof Boolean as) {
-                BotConfig.autoSwim = as;
-                applied.add("autoSwim");
-            }
-            if (params.get("antiSuffocate") instanceof Boolean asf) {
-                BotConfig.antiSuffocate = asf;
-                applied.add("antiSuffocate");
-            }
-            if (params.get("contactDamageEscape") instanceof Boolean cde) {
-                BotConfig.contactDamageEscape = cde;
-                applied.add("contactDamageEscape");
-            }
-            if (params.get("lavaProximityEscape") instanceof Boolean lpe) {
-                BotConfig.lavaProximityEscape = lpe;
-                applied.add("lavaProximityEscape");
-            }
-            if (params.get("allowParkour4") instanceof Boolean ap4) {
-                BotConfig.allowParkour4 = ap4;
-                applied.add("allowParkour4");
-            }
-            if (params.get("autoTool") instanceof Boolean at) {
-                BotConfig.autoTool = at;
-                applied.add("autoTool");
-            }
-            if (params.get("allowBreak") instanceof Boolean ab) {
-                BotConfig.allowBreak = ab;
-                applied.add("allowBreak");
-            }
-            if (params.get("allowSwimEscapeBreak") instanceof Boolean ase) {
-                BotConfig.allowSwimEscapeBreak = ase;
-                applied.add("allowSwimEscapeBreak");
-            }
-            if (params.get("allowSwimEscapePlace") instanceof Boolean asp) {
-                BotConfig.allowSwimEscapePlace = asp;
-                applied.add("allowSwimEscapePlace");
-            }
-            if (params.get("allowPlace") instanceof Boolean apl) {
-                BotConfig.allowPlace = apl;
-                applied.add("allowPlace");
-            }
-            if (params.get("allowParkourPlace") instanceof Boolean app) {
-                BotConfig.allowParkourPlace = app;
-                applied.add("allowParkourPlace");
-            }
-            if (params.get("allowWaterBucketFall") instanceof Boolean awb) {
-                BotConfig.allowWaterBucketFall = awb;
-                applied.add("allowWaterBucketFall");
-            }
-            if (params.get("waterBucketScoop") instanceof Boolean wbs) {
-                BotConfig.waterBucketScoop = wbs;
-                applied.add("waterBucketScoop");
-            }
-            if (params.get("avoidDanger") instanceof Boolean avd) {
-                BotConfig.avoidDanger = avd;
-                applied.add("avoidDanger");
-            }
-            if (params.get("lethalEdgeBrake") instanceof Boolean leb) {
-                BotConfig.lethalEdgeBrake = leb;
-                applied.add("lethalEdgeBrake");
-            }
+            // The ~100 plain boolean toggles that used to be spelled out here (autoEat,
+            // autoRespawn, allowBreak, every walker*/pathfinder* flag, …) are gone. Each was
+            // literally `if (params.get("K") instanceof Boolean v) { BotConfig.K = v;
+            // applied.add("K"); }` — byte-equivalent to the generic reflective write at the
+            // bottom of this method, which has handled them all along. They were kept, per
+            // that block's own comment, "for their side effects / legacy key aliases"; none
+            // of the deleted hundred had either. Off→on flips just write the flag; the live
+            // state is enforced on the next clientTick, so no client-thread hop is needed —
+            // which is exactly why they were mechanizable. What REMAINS below is only what
+            // the reflective path genuinely cannot do: range clamps, aliased keys whose wire
+            // name differs from the field name, list/registry validation, and the three
+            // side-effecting keys (paused, debugFly, autoBackfill).
             if (params.get("lowHealthCareful") instanceof Number lhc) {
                 BotConfig.lowHealthCareful = lhc.doubleValue();
                 applied.add("lowHealthCareful");
-            }
-            if (params.get("descentCameraDecouple") instanceof Boolean dcd) {
-                BotConfig.descentCameraDecouple = dcd;
-                applied.add("descentCameraDecouple");
-            }
-            if (params.get("descentDecoupleLaunches") instanceof Boolean ddl) {
-                BotConfig.descentDecoupleLaunches = ddl;
-                applied.add("descentDecoupleLaunches");
-            }
-            if (params.get("autoSecureAtDusk") instanceof Boolean asad) {
-                BotConfig.autoSecureAtDusk = asad;
-                applied.add("autoSecureAtDusk");
             }
             if (params.get("pathfinder.dangerPenalty") instanceof Number dp) {
                 double v = dp.doubleValue();
@@ -241,288 +130,20 @@ public final class SettingsCommand {
                     applied.add("pathfinder.waterDangerPenalty");
                 }
             }
-            // Pathfinder budget setters (were read-only; needed to make replay measurement
-            // DETERMINISTIC — a large sliceMs runs each A* search atomically so segment-commit
-            // timing no longer varies with CPU load, killing the run-to-run churn variance).
-            if (params.get("pathfinder.sliceMs") instanceof Number psm) {
-                BotConfig.pathfinderSliceMs = psm.longValue();
-                applied.add("pathfinder.sliceMs");
-            }
-            if (params.get("pathfinder.idleSliceMs") instanceof Number pism) {
-                BotConfig.pathfinderIdleSliceMs = pism.longValue();
-                applied.add("pathfinder.idleSliceMs");
-            }
-            if (params.get("pathfinder.maxMs") instanceof Number pmm) {
-                BotConfig.pathfinderMaxMs = pmm.longValue();
-                applied.add("pathfinder.maxMs");
-            }
-            if (params.get("pathfinder.maxNodes") instanceof Number pmn) {
-                BotConfig.pathfinderMaxNodes = pmn.intValue();
-                applied.add("pathfinder.maxNodes");
-            }
-            if (params.get("walkerDryWedgeFootY") instanceof Boolean dwfy) {
-                BotConfig.walkerDryWedgeFootY = dwfy;
-                applied.add("walkerDryWedgeFootY");
-            }
-            if (params.get("walkerWallCornerNodeAim") instanceof Boolean wcna) {
-                BotConfig.walkerWallCornerNodeAim = wcna;
-                applied.add("walkerWallCornerNodeAim");
-            }
-            if (params.get("walkerOvershootReaim") instanceof Boolean ora) {
-                BotConfig.walkerOvershootReaim = ora;
-                applied.add("walkerOvershootReaim");
-            }
-            if (params.get("walkerDryReanchor") instanceof Boolean dra) {
-                BotConfig.walkerDryReanchor = dra;
-                applied.add("walkerDryReanchor");
-            }
+            // Pathfinder budget setters (sliceMs / idleSliceMs / maxMs / maxNodes) are NOT
+            // handled here. They used to be, WITHOUT a range check, while SettingsNumericWrites
+            // also handles all four WITH one — and its loop has no `applied.contains(k)` guard,
+            // so both ran. An out-of-range value was therefore committed by this block, counted
+            // in `applied`, and only THEN range-rejected: the response carried the key in BOTH
+            // `applied` and `rejected` with ok:true while the illegal value stayed live. An
+            // in-range value was merely double-counted in `applied`. SettingsNumericWrites is
+            // the single write path now; its ranges are the ones methods.md documents
+            // (maxNodes[1000,1000000] maxMs[100,30000] sliceMs[1,50] idleSliceMs[1,50]).
+            // Scenes that want the determinism knob (a huge sliceMs so each A* search runs
+            // atomically) set the BotConfig field directly in Java and are unaffected.
             if (params.get("pathfinderDiagAscendPenalty") instanceof Number dap) {
                 BotConfig.pathfinderDiagAscendPenalty = dap.doubleValue();
                 applied.add("pathfinderDiagAscendPenalty");
-            }
-            if (params.get("walkerDiagDownCenter") instanceof Boolean ddc) {
-                BotConfig.walkerDiagDownCenter = ddc;
-                applied.add("walkerDiagDownCenter");
-            }
-            if (params.get("walkerWallCornerFastChurn") instanceof Boolean wcfc) {
-                BotConfig.walkerWallCornerFastChurn = wcfc;
-                applied.add("walkerWallCornerFastChurn");
-            }
-            if (params.get("walkerDrowningEscape") instanceof Boolean wde) {
-                BotConfig.walkerDrowningEscape = wde;
-                applied.add("walkerDrowningEscape");
-            }
-            if (params.get("walkerClimbGaveUpSticky") instanceof Boolean wcgs) {
-                BotConfig.walkerClimbGaveUpSticky = wcgs;
-                applied.add("walkerClimbGaveUpSticky");
-            }
-            if (params.get("walkerStepUpBackoffRetry") instanceof Boolean subr) {
-                BotConfig.walkerStepUpBackoffRetry = subr;
-                applied.add("walkerStepUpBackoffRetry");
-            }
-            if (params.get("walkerCarrotHColShrink") instanceof Boolean wchs) {
-                BotConfig.walkerCarrotHColShrink = wchs;
-                applied.add("walkerCarrotHColShrink");
-            }
-            if (params.get("walkerCarrotBodyLos") instanceof Boolean wcbl) {
-                BotConfig.walkerCarrotBodyLos = wcbl;
-                applied.add("walkerCarrotBodyLos");
-            }
-            if (params.get("walkerRouteHysteresis") instanceof Boolean wrhy) {
-                BotConfig.walkerRouteHysteresis = wrhy;
-                applied.add("walkerRouteHysteresis");
-            }
-            if (params.get("walkerBankDigGroundBlip") instanceof Boolean wbgb) {
-                BotConfig.walkerBankDigGroundBlip = wbgb;
-                applied.add("walkerBankDigGroundBlip");
-            }
-            if (params.get("walkerExpectAlarm") instanceof Boolean wea) {
-                BotConfig.walkerExpectAlarm = wea;
-                applied.add("walkerExpectAlarm");
-            }
-            if (params.get("avoidMobs") instanceof Boolean avm) {
-                BotConfig.avoidMobs = avm;
-                applied.add("avoidMobs");
-            }
-            if (params.get("walkerDebug") instanceof Boolean wd) {
-                BotConfig.walkerDebug = wd;
-                applied.add("walkerDebug");
-            }
-            if (params.get("walkerVerticalResync") instanceof Boolean wvr) {
-                BotConfig.walkerVerticalResync = wvr;
-                applied.add("walkerVerticalResync");
-            }
-            if (params.get("walkerLevelRiserJump") instanceof Boolean wlrj) {
-                BotConfig.walkerLevelRiserJump = wlrj;
-                applied.add("walkerLevelRiserJump");
-            }
-            if (params.get("walkerPadRamBreak") instanceof Boolean wprb) {
-                BotConfig.walkerPadRamBreak = wprb;
-                applied.add("walkerPadRamBreak");
-            }
-            if (params.get("walkerParkourAscendHold") instanceof Boolean wpah) {
-                BotConfig.walkerParkourAscendHold = wpah;
-                applied.add("walkerParkourAscendHold");
-            }
-            if (params.get("walkerDeepWaterDriftBrake") instanceof Boolean wdwd) {
-                BotConfig.walkerDeepWaterDriftBrake = wdwd;
-                applied.add("walkerDeepWaterDriftBrake");
-            }
-            if (params.get("walkerSteepDescentLatch") instanceof Boolean wsdl) {
-                BotConfig.walkerSteepDescentLatch = wsdl;
-                applied.add("walkerSteepDescentLatch");
-            }
-            if (params.get("craftReclaimTable") instanceof Boolean crt) {
-                BotConfig.craftReclaimTable = crt;
-                applied.add("craftReclaimTable");
-            }
-            if (params.get("walkerDescentStepSkipBrake") instanceof Boolean wdssb) {
-                BotConfig.walkerDescentStepSkipBrake = wdssb;
-                applied.add("walkerDescentStepSkipBrake");
-            }
-            if (params.get("walkerDescentFlipHold") instanceof Boolean wdfh) {
-                BotConfig.walkerDescentFlipHold = wdfh;
-                applied.add("walkerDescentFlipHold");
-            }
-            if (params.get("walkerWaterStepDownFloat") instanceof Boolean wwsf) {
-                BotConfig.walkerWaterStepDownFloat = wwsf;
-                applied.add("walkerWaterStepDownFloat");
-            }
-            if (params.get("walkerStepUpCrestReach") instanceof Boolean wscr) {
-                BotConfig.walkerStepUpCrestReach = wscr;
-                applied.add("walkerStepUpCrestReach");
-            }
-            if (params.get("walkerWaterWalkReach") instanceof Boolean wwwr) {
-                BotConfig.walkerWaterWalkReach = wwwr;
-                applied.add("walkerWaterWalkReach");
-            }
-            if (params.get("walkerAscentRamJitterImmune") instanceof Boolean warji) {
-                BotConfig.walkerAscentRamJitterImmune = warji;
-                applied.add("walkerAscentRamJitterImmune");
-            }
-            if (params.get("walkerAscendMovement") instanceof Boolean wam) {
-                BotConfig.walkerAscendMovement = wam;
-                applied.add("walkerAscendMovement");
-            }
-            if (params.get("walkerArcLengthShadow") instanceof Boolean wals) {
-                BotConfig.walkerArcLengthShadow = wals;
-                applied.add("walkerArcLengthShadow");
-            }
-            if (params.get("walkerArcLengthAdvance") instanceof Boolean wala) {
-                BotConfig.walkerArcLengthAdvance = wala;
-                applied.add("walkerArcLengthAdvance");
-            }
-            if (params.get("walkerTangentAim") instanceof Boolean wta) {
-                BotConfig.walkerTangentAim = wta;
-                applied.add("walkerTangentAim");
-            }
-            if (params.get("walkerArcLengthWedge") instanceof Boolean walw) {
-                BotConfig.walkerArcLengthWedge = walw;
-                applied.add("walkerArcLengthWedge");
-            }
-            if (params.get("walkerArcProgressWedge") instanceof Boolean wapw) {
-                BotConfig.walkerArcProgressWedge = wapw;
-                applied.add("walkerArcProgressWedge");
-            }
-            if (params.get("walkerFellBelowAlign") instanceof Boolean wfba) {
-                BotConfig.walkerFellBelowAlign = wfba;
-                applied.add("walkerFellBelowAlign");
-            }
-            if (params.get("walkerAscentRamBobBreak") instanceof Boolean warb) {
-                BotConfig.walkerAscentRamBobBreak = warb;
-                applied.add("walkerAscentRamBobBreak");
-            }
-            if (params.get("walkerFutileBankDigRelease") instanceof Boolean wfbd) {
-                BotConfig.walkerFutileBankDigRelease = wfbd;
-                applied.add("walkerFutileBankDigRelease");
-            }
-            if (params.get("walkerBankDigSkipOverhang") instanceof Boolean wbdso) {
-                BotConfig.walkerBankDigSkipOverhang = wbdso;
-                applied.add("walkerBankDigSkipOverhang");
-            }
-            if (params.get("walkerBuoyantSearchFromSurface") instanceof Boolean wbsfs) {
-                BotConfig.walkerBuoyantSearchFromSurface = wbsfs;
-                applied.add("walkerBuoyantSearchFromSurface");
-            }
-            if (params.get("walkerBankDigForwardExit") instanceof Boolean wbdfe) {
-                BotConfig.walkerBankDigForwardExit = wbdfe;
-                applied.add("walkerBankDigForwardExit");
-            }
-            if (params.get("walkerPillarReachGoalNoSnap") instanceof Boolean wprgns) {
-                BotConfig.walkerPillarReachGoalNoSnap = wprgns;
-                applied.add("walkerPillarReachGoalNoSnap");
-            }
-            if (params.get("walkerBankDigSkipWhenCwpSwims") instanceof Boolean wbdscs) {
-                BotConfig.walkerBankDigSkipWhenCwpSwims = wbdscs;
-                applied.add("walkerBankDigSkipWhenCwpSwims");
-            }
-            if (params.get("walkerTraverseBreakOvershootResync") instanceof Boolean wtbor) {
-                BotConfig.walkerTraverseBreakOvershootResync = wtbor;
-                applied.add("walkerTraverseBreakOvershootResync");
-            }
-            if (params.get("walkerSwimAshorePillarDespiteDeepDig") instanceof Boolean wsapddd) {
-                BotConfig.walkerSwimAshorePillarDespiteDeepDig = wsapddd;
-                applied.add("walkerSwimAshorePillarDespiteDeepDig");
-            }
-            if (params.get("walkerFloatingBankBobFreeze") instanceof Boolean wfbbf) {
-                BotConfig.walkerFloatingBankBobFreeze = wfbbf;
-                applied.add("walkerFloatingBankBobFreeze");
-            }
-            if (params.get("walkerFloatingBankFollow") instanceof Boolean wfbf) {
-                BotConfig.walkerFloatingBankFollow = wfbf;
-                applied.add("walkerFloatingBankFollow");
-            }
-            if (params.get("walkerFasterChurnRepath") instanceof Boolean wfcr) {
-                BotConfig.walkerFasterChurnRepath = wfcr;
-                applied.add("walkerFasterChurnRepath");
-            }
-            if (params.get("walkerDeepWaterFloatBeeline") instanceof Boolean wdfb) {
-                BotConfig.walkerDeepWaterFloatBeeline = wdfb;
-                applied.add("walkerDeepWaterFloatBeeline");
-            }
-            if (params.get("pathfinderForbidParkourIntoDeepWater") instanceof Boolean fpdw) {
-                BotConfig.pathfinderForbidParkourIntoDeepWater = fpdw;
-                applied.add("pathfinderForbidParkourIntoDeepWater");
-            }
-            if (params.get("pathfinderForbidParkourFromFloatingWater") instanceof Boolean fpfw) {
-                BotConfig.pathfinderForbidParkourFromFloatingWater = fpfw;
-                applied.add("pathfinderForbidParkourFromFloatingWater");
-            }
-            if (params.get("pathfinderForbidParkourOverWaterGap") instanceof Boolean fpowg) {
-                BotConfig.pathfinderForbidParkourOverWaterGap = fpowg;
-                applied.add("pathfinderForbidParkourOverWaterGap");
-            }
-            if (params.get("pathfinderParkourAscendNeedRunway") instanceof Boolean ppanr) {
-                BotConfig.pathfinderParkourAscendNeedRunway = ppanr;
-                applied.add("pathfinderParkourAscendNeedRunway");
-            }
-            if (params.get("pathfinderFloatingSurfaceCross") instanceof Boolean pfsc) {
-                BotConfig.pathfinderFloatingSurfaceCross = pfsc;
-                applied.add("pathfinderFloatingSurfaceCross");
-            }
-            if (params.get("pathfinderVineOverWaterTax") instanceof Boolean pvow) {
-                BotConfig.pathfinderVineOverWaterTax = pvow;
-                applied.add("pathfinderVineOverWaterTax");
-            }
-            if (params.get("pathfinderPadOverWaterTax") instanceof Boolean ppow) {
-                BotConfig.pathfinderPadOverWaterTax = ppow;
-                applied.add("pathfinderPadOverWaterTax");
-            }
-            if (params.get("pathfinderPadClusterTax") instanceof Boolean ppct) {
-                BotConfig.pathfinderPadClusterTax = ppct;
-                applied.add("pathfinderPadClusterTax");
-            }
-            if (params.get("walkerVineFreeHangClimb") instanceof Boolean vfh) {
-                BotConfig.walkerVineFreeHangClimb = vfh;
-                applied.add("walkerVineFreeHangClimb");
-            }
-            if (params.get("walkerVineLandGrab") instanceof Boolean vlg) {
-                BotConfig.walkerVineLandGrab = vlg;
-                applied.add("walkerVineLandGrab");
-            }
-            if (params.get("walkerVineDescentDrop") instanceof Boolean vdd) {
-                BotConfig.walkerVineDescentDrop = vdd;
-                applied.add("walkerVineDescentDrop");
-            }
-            if (params.get("pathDebug") instanceof Boolean pd) {
-                BotConfig.pathDebug = pd;
-                applied.add("pathDebug");
-            }
-            if (params.get("pathArchive") instanceof Boolean pa) {
-                BotConfig.pathArchive = pa;
-                applied.add("pathArchive");
-            }
-            if (params.get("pathfinderCacheEnabled") instanceof Boolean pce) {
-                BotConfig.pathfinderCacheEnabled = pce;
-                applied.add("pathfinderCacheEnabled");
-            }
-            if (params.get("collisionAwarePathing") instanceof Boolean cap) {
-                BotConfig.collisionAwarePathing = cap;
-                applied.add("collisionAwarePathing");
-            }
-            if (params.get("pathfinderGoalField") instanceof Boolean gf) {
-                BotConfig.pathfinderGoalField = gf;
-                applied.add("pathfinderGoalField");
             }
             if (params.get("goalFieldCellSize") instanceof Number gfc) {
                 BotConfig.goalFieldCellSize = Math.max(1, gfc.intValue());
@@ -568,14 +189,6 @@ public final class SettingsCommand {
                 BotConfig.pathfinderThinObstacleHeight = Math.max(0, ptoh.doubleValue());
                 applied.add("pathfinderThinObstacleHeight");
             }
-            if (params.get("pathfinderFrontierCommit") instanceof Boolean fc) {
-                BotConfig.pathfinderFrontierCommit = fc;
-                applied.add("pathfinderFrontierCommit");
-            }
-            if (params.get("pathfinderProgressive") instanceof Boolean pp) {
-                BotConfig.pathfinderProgressive = pp;
-                applied.add("pathfinderProgressive");
-            }
             if (params.get("pathfinderHorizonBlocks") instanceof Number phb) {
                 int v = phb.intValue();
                 if (v >= 0 && v <= 512) { BotConfig.pathfinderHorizonBlocks = v; applied.add("pathfinderHorizonBlocks"); }
@@ -595,14 +208,6 @@ public final class SettingsCommand {
                 int v = pqn.intValue();
                 if (v >= 0 && v <= 10_000) { BotConfig.pathfinderQuickNodes = v; applied.add("pathfinderQuickNodes"); }
                 else rejected.add("pathfinderQuickNodes out of range [0,10000]");
-            }
-            if (params.get("pathChartAutoDump") instanceof Boolean pcad) {
-                BotConfig.pathChartAutoDump = pcad;
-                applied.add("pathChartAutoDump");
-            }
-            if (params.get("elytraDebug") instanceof Boolean ed) {
-                BotConfig.elytraDebug = ed;
-                applied.add("elytraDebug");
             }
             if (params.get("debugFly") instanceof Boolean dfly) {
                 // Test affordance: toggle creative flight on the CLIENT thread
@@ -668,10 +273,6 @@ public final class SettingsCommand {
                     BotConfig.fleeDangerBoost = v;
                     applied.add("fleeDangerBoost");
                 }
-            }
-            if (params.get("smoothLook") instanceof Boolean sl) {
-                BotConfig.smoothLook = sl;
-                applied.add("smoothLook");
             }
             if (params.get("autoBackfill") instanceof Boolean abf) {
                 BotConfig.autoBackfill = abf;
@@ -769,17 +370,23 @@ public final class SettingsCommand {
             }
             SettingsNumericWrites.apply(params, applied, rejected);
         }
-        // Generic reflective fallback for every key the hand-written setters above did not
-        // consume: any `public static volatile` PRIMITIVE field on BotConfig is settable by
-        // its exact field name. This ends the copy-paste growth of this class — a new flag
-        // needs ONLY its BotConfig declaration (the ~96 boolean setters above predate this
-        // and are kept for their side effects / legacy key aliases; do not add more).
-        // volatile is required (marker that the field is designed for runtime flips);
-        // range-validated knobs keep their hand-written setters above, which win by running
-        // first and adding the key to `applied`.
-        for (Map.Entry<String, Object> e : params.entrySet()) {
+        // THE write path for every key the specialised setters above did not consume: any
+        // `public static volatile` PRIMITIVE field on BotConfig is settable by its exact
+        // field name. A new flag needs ONLY its BotConfig declaration — no branch here, no
+        // schema edit (BotTools builds the closed schema from SettingsRegistry, which reads
+        // the same fields). volatile is required, as the marker that a field is designed for
+        // runtime flips. Keys that DO need a specialised setter (clamp, alias, list, side
+        // effect) keep it above and win by running first and adding the key to `applied`.
+        //
+        // params may be null (a direct in-JVM caller with no arguments); the loop below used
+        // to dereference it unguarded while the inert report further down was guarded, so a
+        // null-params call NPE'd here.
+        Set<String> rejKeys = rejectedKeys(rejected);
+        for (Map.Entry<String, Object> e : (params == null
+                ? java.util.Collections.<String, Object>emptyMap()
+                : params).entrySet()) {
             String k = e.getKey();
-            if (applied.contains(k) || rejected.stream().anyMatch(r -> r.startsWith(k))) continue;
+            if (applied.contains(k) || rejKeys.contains(k)) continue;
             try {
                 java.lang.reflect.Field f = BotConfig.class.getField(k);
                 int mods = f.getModifiers();
@@ -803,9 +410,10 @@ public final class SettingsCommand {
         // In a correct build this list is empty; it fires only on real drift and is logged loudly.
         List<String> inert = new ArrayList<>();
         if (params != null) {
+            Set<String> rejKeys2 = rejectedKeys(rejected);
             for (String k : params.keySet()) {
                 if (applied.contains(k)) continue;
-                if (rejected.stream().anyMatch(r -> r.startsWith(k))) continue;
+                if (rejKeys2.contains(k)) continue;
                 inert.add(k);   // known (unknown keys threw earlier) but no branch consumed it
             }
         }
@@ -824,5 +432,36 @@ public final class SettingsCommand {
         if (!rejected.isEmpty()) out.put("rejected", rejected);
         if (!inert.isEmpty()) out.put("inert", inert);
         return out;
+    }
+
+    /**
+     * The KEY each rejection message is about — the two "has this key already been dealt
+     * with?" guards must ask about keys, not about message text.
+     *
+     * <p>Both guards used to be {@code rejected.stream().anyMatch(r -> r.startsWith(k))},
+     * which conflates a key with every key that has it as a PREFIX. Nine such prefix pairs
+     * exist on the 244-key surface (autoBackfill/autoBackfillBlock, autoEat/autoEatFoodThreshold,
+     * cameraSlew, duskUrgent, mouseYield, pathDebug, riskBias, smoothLook, autoFight). The
+     * live case was {@code {riskBias:true, "riskBias.scale":500}}: the out-of-range sibling
+     * produced {@code "riskBias.scale out of range [0,400]"}, whose prefix matched
+     * {@code riskBias} — so the perfectly valid boolean was skipped by the reflective write
+     * AND skipped by the inert report, leaving the caller an {@code ok:true} with no signal
+     * whatsoever that its flag never landed.
+     *
+     * <p>Rejection messages come in two shapes, {@code "key msg"} and {@code "key: msg"}, so
+     * take the first whitespace-delimited token and drop a trailing colon. Deriving the set
+     * here keeps every one of the ~30 {@code rejected.add(...)} sites (including those in
+     * {@link SettingsNumericWrites}) untouched.
+     */
+    private static Set<String> rejectedKeys(List<String> rejected) {
+        Set<String> keys = new LinkedHashSet<>();
+        for (String r : rejected) {
+            if (r == null || r.isEmpty()) continue;
+            int sp = r.indexOf(' ');
+            String k = (sp < 0) ? r : r.substring(0, sp);
+            if (k.endsWith(":")) k = k.substring(0, k.length() - 1);
+            if (!k.isEmpty()) keys.add(k);
+        }
+        return keys;
     }
 }

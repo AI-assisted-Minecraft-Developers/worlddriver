@@ -1,0 +1,39 @@
+accessWidener	v2	named
+
+# NOTE: the header above MUST be the first line — AccessWidenerReader rejects the file
+# outright if a comment precedes it ("Invalid access widener file header").
+#
+# The remediation for the reflection sites tracked by scripts/check_remap_safety.py.
+#
+# `named` = the Mojang names this repo compiles against (build.gradle:63
+# `mappings loom.officialMojangMappings()`). Loom remaps THIS FILE to whatever
+# namespace each artifact ships in, which is the whole point: the member reference in
+# the source becomes an ordinary field/method access that tiny-remapper rewrites like
+# any other, instead of a string constant it leaves alone.
+#
+# Every member here replaced a reflective lookup that broke in the remapped fabric jar.
+# Descriptors are in the NAMED namespace: tiny v2's descriptor column is OFFICIAL, so an
+# object type must be translated (causeOfDeath is `Lwz;` there, not `LComponent;`).
+#
+# Why these two cannot be fixed any other way: ClientInput WRITES them
+# (`fx.setDouble(mh, wx)`), and vanilla exposes only a getter (`xpos()`), so there is
+# no public API to call. On Xvfb `glfwSetCursorPos` does not fire the cursor_pos
+# callback, so without this write MouseHandler keeps stale coordinates and tooltips
+# render at the previous hover spot.
+
+accessible	field	net/minecraft/client/MouseHandler	xpos	D
+accessible	field	net/minecraft/client/MouseHandler	ypos	D
+
+accessible	field	net/minecraft/client/multiplayer/MultiPlayerGameMode	destroyProgress	F
+accessible	field	net/minecraft/world/entity/LivingEntity	attackStrengthTicker	I
+accessible	field	net/minecraft/world/entity/LivingEntity	jumping	Z
+accessible	method	net/minecraft/world/entity/LivingEntity	updatingUsingItem	()V
+accessible	field	net/minecraft/client/gui/components/AbstractSliderButton	value	D
+accessible	method	net/minecraft/client/gui/components/AbstractSliderButton	applyValue	()V
+accessible	method	net/minecraft/client/gui/components/AbstractSliderButton	updateMessage	()V
+accessible	method	net/minecraft/client/KeyboardHandler	keyPress	(JIIII)V
+accessible	field	net/minecraft/client/gui/screens/DeathScreen	causeOfDeath	Lnet/minecraft/network/chat/Component;
+accessible	method	net/minecraft/client/gui/components/AbstractSelectionList	getRowTop	(I)I
+accessible	field	net/minecraft/client/gui/components/AbstractSelectionList	itemHeight	I
+accessible	field	net/minecraft/client/gui/screens/inventory/AbstractContainerScreen	leftPos	I
+accessible	field	net/minecraft/client/gui/screens/inventory/AbstractContainerScreen	topPos	I

@@ -208,15 +208,23 @@ already consumes), **byte-identical on both transports**:
 {"jsonrpc":"2.0","method":"notifications/message","params":{
    "level":"warning","logger":"minecraft.events",
    "data":{"seq":42,"timestamp":1780400527904,"type":"threat.appeared","pos":{"x":3,"y":64,"z":1},
-           "data":"{\"type\":\"minecraft:zombie\",\"id\":3,\"distance\":1.0,\"score\":0.63}"}}}
+           "data":{"type":"minecraft:zombie","id":3,"distance":1.0,"score":0.63}}}}
 ```
 
 `params.level` is an RFC 5424 / MCP severity mapped from the type
 (`player.death`→error, `threat.appeared`/`player.hurt`→warning,
 `entity.death`→notice, else info); the full event object
-(`{seq,timestamp,type,pos,data}`; inner `data` is a string, often a small JSON
-object you `JSON.parse`) rides in `params.data`. No `id` field → it's a
+(`{seq,timestamp,type,pos,data}`) rides in `params.data`. No `id` field → it's a
 notification (demux: has `method`, no `id`).
+
+The inner `data` is the event's payload **as a value, not as text**: an object for
+structured events (`threat.appeared`, `time.phase`, `wait.done`, `command.result`,
+any `mc.events{op:'emit'}` payload) and a plain string for scalar ones
+(`block.place` carries a block id, `entity.death` an entity id, `chat.message` the
+`"<player>: <text>"` line). It used to always be a string — structured payloads
+shipped as JSON escaped inside a JSON string and had to be `JSON.parse`d — which
+made the field an undiscriminated union: nothing on the wire told you which of the
+two you had. If you still call `JSON.parse` on it, drop that call.
 
 **Over MCP (`http://127.0.0.1:<mcp>/mcp`)** — the spec's server→client SSE stream.
 After `initialize` (the server advertises the `logging` capability), open the

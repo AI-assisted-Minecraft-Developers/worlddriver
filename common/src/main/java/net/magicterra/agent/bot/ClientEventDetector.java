@@ -5,7 +5,10 @@ import net.magicterra.agent.bot.combat.ThreatScanner;
 import net.magicterra.agent.bot.world.WorldModel;
 import net.magicterra.agent.client.internal.ClientChatLog;
 import net.magicterra.agent.rpc.JsonCodec;
+import net.minecraft.advancements.AdvancementHolder;
+import net.minecraft.advancements.AdvancementProgress;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.ItemStack;
 
@@ -76,18 +79,16 @@ final class ClientEventDetector {
         if (wmSnap.present() && sceneApi != null) {
             net.minecraft.core.BlockPos scenePos = wmSnap.pos();
             if (wmSnap.exposedAtNight() && !prevExposedAtNight) {
-                sceneApi.emitExternal("duskExposed", scenePos,
-                        net.magicterra.agent.rpc.JsonCodec.encode(Map.of(
+                sceneApi.emitExternal("duskExposed", scenePos, Map.of(
                                 "pos", Map.of("x", scenePos.getX(),
                                               "y", scenePos.getY(),
-                                              "z", scenePos.getZ()))));
+                                              "z", scenePos.getZ())));
             }
             if (wmSnap.cornered() && !prevCornered) {
-                sceneApi.emitExternal("cornered", scenePos,
-                        net.magicterra.agent.rpc.JsonCodec.encode(Map.of(
+                sceneApi.emitExternal("cornered", scenePos, Map.of(
                                 "pos", Map.of("x", scenePos.getX(),
                                               "y", scenePos.getY(),
-                                              "z", scenePos.getZ()))));
+                                              "z", scenePos.getZ())));
             }
             prevExposedAtNight = wmSnap.exposedAtNight();
             prevCornered = wmSnap.cornered();
@@ -113,7 +114,7 @@ final class ClientEventDetector {
                 java.util.Map<String, Object> data = new java.util.HashMap<>();
                 data.put("health", mc.player != null ? (double) mc.player.getHealth() : 0.0);
                 if (cause != null && !cause.isEmpty()) data.put("cause", cause);
-                api.emitExternal("player.death", at, net.magicterra.agent.rpc.JsonCodec.encode(data));
+                api.emitExternal("player.death", at, data);
             }
             onDeathCancel.run();
         }
@@ -157,7 +158,7 @@ final class ClientEventDetector {
                     hurtData.put("attackerDistance", att.distanceTo(pl));
                 }
             }
-            api.emitExternal("player.hurt", at, net.magicterra.agent.rpc.JsonCodec.encode(hurtData));
+            api.emitExternal("player.hurt", at, hurtData);
         }
         evtLastHealth = hp;
 
@@ -165,9 +166,9 @@ final class ClientEventDetector {
         int topId = (top != null) ? top.id() : -1;
         if (topId != -1 && topId != evtLastThreatId) {
             net.minecraft.core.BlockPos tp = top.entity().blockPosition();
-            api.emitExternal("threat.appeared", tp, net.magicterra.agent.rpc.JsonCodec.encode(Map.of(
+            api.emitExternal("threat.appeared", tp, Map.of(
                     "type", top.type(), "id", topId,
-                    "distance", top.distance(), "score", top.score())));
+                    "distance", top.distance(), "score", top.score()));
         }
         evtLastThreatId = topId;
 
@@ -180,14 +181,14 @@ final class ClientEventDetector {
         // re-entering re-fires.
         boolean inWater = pl.isInWater();
         if (inWater && !evtInWater) {
-            api.emitExternal("player.enteredWater", at, net.magicterra.agent.rpc.JsonCodec.encode(Map.of(
-                    "submerged", pl.isUnderWater())));
+            api.emitExternal("player.enteredWater", at, Map.of(
+                    "submerged", pl.isUnderWater()));
         }
         evtInWater = inWater;
         boolean inLava = pl.isInLava();
         if (inLava && !evtInLava) {
-            api.emitExternal("player.enteredLava", at, net.magicterra.agent.rpc.JsonCodec.encode(Map.of(
-                    "health", (double) pl.getHealth())));
+            api.emitExternal("player.enteredLava", at, Map.of(
+                    "health", (double) pl.getHealth()));
         }
         evtInLava = inLava;
 
@@ -202,8 +203,8 @@ final class ClientEventDetector {
             String phase = tod < 12000 ? "day" : tod < 13000 ? "sunset" : tod < 23000 ? "night" : "sunrise";
             if (!phase.equals(evtLastPhase)) {
                 if (evtLastPhase != null) {
-                    api.emitExternal("time.phase", at, net.magicterra.agent.rpc.JsonCodec.encode(Map.of(
-                            "phase", phase, "prev", evtLastPhase, "dayTime", tod)));
+                    api.emitExternal("time.phase", at, Map.of(
+                            "phase", phase, "prev", evtLastPhase, "dayTime", tod));
                 }
                 evtLastPhase = phase;
             }
@@ -226,8 +227,8 @@ final class ClientEventDetector {
                 for (Map.Entry<String, Integer> e : cur.entrySet()) {
                     int delta = e.getValue() - evtInvCounts.getOrDefault(e.getKey(), 0);
                     if (delta > 0) {
-                        api.emitExternal("item.pickup", at, net.magicterra.agent.rpc.JsonCodec.encode(Map.of(
-                                "id", e.getKey(), "count", delta, "total", e.getValue())));
+                        api.emitExternal("item.pickup", at, Map.of(
+                                "id", e.getKey(), "count", delta, "total", e.getValue()));
                     }
                 }
             }
@@ -244,9 +245,9 @@ final class ClientEventDetector {
             if (evtInvInit && evtMainhandId != null
                     && evtMainhandDamage >= evtMainhandMax - 2
                     && cur.getOrDefault(evtMainhandId, 0) < evtInvCounts.getOrDefault(evtMainhandId, 0)) {
-                api.emitExternal("tool.broke", at, net.magicterra.agent.rpc.JsonCodec.encode(Map.of(
+                api.emitExternal("tool.broke", at, Map.of(
                         "id", evtMainhandId,
-                        "damage", evtMainhandDamage, "maxDamage", evtMainhandMax)));
+                        "damage", evtMainhandDamage, "maxDamage", evtMainhandMax));
             }
             ItemStack mh = pl.getMainHandItem();
             if (!mh.isEmpty() && mh.isDamageableItem()) {
@@ -265,8 +266,15 @@ final class ClientEventDetector {
         // Milestone signals (Getting Wood / Stone Age / Acquire Hardware=iron /
         // We Need to Go Deeper=nether). The client has no clean hook, so poll the
         // ClientAdvancements progress map (throttled ~1s) and emit newly-completed
-        // ids. Reflection is guarded — any mapping shift silently no-ops, never
-        // breaking the tick. First poll seeds the "already done" set without emitting.
+        // ids. First poll seeds the "already done" set without emitting.
+        //
+        // The progress map itself is still found reflectively, but BY TYPE (the first
+        // Map-typed field on ClientAdvancements) — no member-name string, so it is
+        // unaffected by remapping. The two calls on its entries used to go through
+        // getMethod("isDone")/getMethod("id"), which WERE name-based and therefore
+        // broke in the remapped fabric jar; AdvancementProgress and AdvancementHolder
+        // are public API, so a typed call is both correct after remap and checked by
+        // the compiler.
         if (++evtAdvThrottle >= 20 && pl.connection != null) {
             evtAdvThrottle = 0;
             try {
@@ -276,16 +284,11 @@ final class ClientEventDetector {
                     f.setAccessible(true);
                     Map<?, ?> prog = (Map<?, ?>) f.get(ca);
                     for (Map.Entry<?, ?> e : prog.entrySet()) {
-                        Object p = e.getValue();   // AdvancementProgress
-                        if (p == null) continue;
-                        Object doneObj = p.getClass().getMethod("isDone").invoke(p);
-                        if (!(doneObj instanceof Boolean b) || !b) continue;
-                        Object holder = e.getKey();   // AdvancementHolder
-                        Object id = holder.getClass().getMethod("id").invoke(holder);
-                        String key = String.valueOf(id);
+                        if (!(e.getValue() instanceof AdvancementProgress ap) || !ap.isDone()) continue;
+                        if (!(e.getKey() instanceof AdvancementHolder holder)) continue;
+                        String key = holder.id().toString();
                         if (evtDoneAdv.add(key) && evtAdvInit) {
-                            api.emitExternal("advancement", at,
-                                    net.magicterra.agent.rpc.JsonCodec.encode(Map.of("id", key)));
+                            api.emitExternal("advancement", at, Map.of("id", key));
                         }
                     }
                     break;   // first Map field is the progress map
@@ -325,7 +328,7 @@ final class ClientEventDetector {
                     // Entry.row() = the same {seq,kind,text,self} shape chat.history
                     // returns, so consumers can reconcile the two surfaces by seq
                     // and skip the bot's own echoed lines via self.
-                    api.emitExternal("client.message", at, JsonCodec.encode(e.row()));
+                    api.emitExternal("client.message", at, e.row());
                 }
             }
         } catch (Throwable ignored) { /* never break the tick */ }
@@ -334,8 +337,7 @@ final class ClientEventDetector {
         try {
             String ab = componentFieldText(gui, "overlayMessageString");
             if (ab != null && !ab.isEmpty() && !ab.equals(evtLastActionBar)) {
-                api.emitExternal("client.actionBar", at,
-                        net.magicterra.agent.rpc.JsonCodec.encode(Map.of("text", ab)));
+                api.emitExternal("client.actionBar", at, Map.of("text", ab));
             }
             evtLastActionBar = ab;
         } catch (Throwable ignored) { }
@@ -345,21 +347,27 @@ final class ClientEventDetector {
             String title = componentFieldText(gui, "title");
             if (title != null && !title.isEmpty() && !title.equals(evtLastTitle)) {
                 String sub = componentFieldText(gui, "subtitle");
-                api.emitExternal("client.title", at, net.magicterra.agent.rpc.JsonCodec.encode(
+                api.emitExternal("client.title", at,
                         sub != null && !sub.isEmpty()
-                                ? Map.of("text", title, "subtitle", sub) : Map.of("text", title)));
+                                ? Map.of("text", title, "subtitle", sub) : Map.of("text", title));
             }
             evtLastTitle = title;
         } catch (Throwable ignored) { }
     }
 
-    /** Read a named {@code Component} field's {@code getString()}, or null. */
+    /** Read a named {@code Component} field's {@code getString()}, or null.
+     *
+     *  <p>The FIELD is still located by name, so this method stays remap-unsafe until
+     *  {@code Gui.title/subtitle/overlayMessageString} are opened up (tracked in
+     *  {@code scripts/check_remap_safety.py}). The {@code getString()} call no longer
+     *  is: {@code Component} is public API, so a pattern-match reads the text through
+     *  a normal virtual call that tiny-remapper rewrites like any other. */
     private static String componentFieldText(Object obj, String name) {
         java.lang.reflect.Field f = findField(obj.getClass(), name);
         if (f == null) return null;
-        try { f.setAccessible(true); Object c = f.get(obj);
-            return c == null ? null
-                    : String.valueOf(c.getClass().getMethod("getString").invoke(c));
+        try {
+            f.setAccessible(true);
+            return f.get(obj) instanceof Component c ? c.getString() : null;
         } catch (Throwable t) { return null; }
     }
 

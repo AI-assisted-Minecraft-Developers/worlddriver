@@ -19,6 +19,7 @@ import net.magicterra.agent.bot.debug.PathArchive;
 import net.magicterra.agent.bot.debug.PathArchiveRecorder;
 import net.magicterra.agent.bot.debug.PinchArena;
 import net.magicterra.agent.bot.movement.InputReleaseGate;
+import net.magicterra.agent.bot.movement.MouseYieldGate;
 import net.magicterra.agent.bot.movement.Walker;
 import net.magicterra.agent.bot.pathfinder.Move;
 import net.magicterra.agent.bot.pathfinder.MultiTrace;
@@ -94,6 +95,7 @@ public final class AgentDriverCoreScenes implements SceneProvider {
                 Scene.of("ad.pinch", 200, AgentDriverCoreScenes::pinch),
                 Scene.of("ad.horizon", 200, AgentDriverCoreScenes::horizon),
                 Scene.of("ad.inputReleaseGate", 200, AgentDriverCoreScenes::inputReleaseGate),
+                Scene.of("ad.mouseYieldGate", 200, AgentDriverCoreScenes::mouseYieldGate),
                 Scene.of("ad.schemaUnionRendering", 200, AgentDriverCoreScenes::schemaUnionRendering),
                 Scene.of("ad.physicsParity", 200, AgentDriverCoreScenes::physicsParity),
                 Scene.of("ad.buildBlockWhitelist", 200, AgentDriverCoreScenes::buildBlockWhitelist),
@@ -310,6 +312,76 @@ public final class AgentDriverCoreScenes implements SceneProvider {
         g.markDirtied();
         if (!g.consumeRelease())
             ctx.fail("inputReleaseGate: gate did not re-arm for a second drive burst");
+    }
+
+    /** Pure-CPU guard for the mouse-side human/bot coexistence gate ({@link MouseYieldGate}):
+     *  release the cursor while the bot drives, keep re-releasing it (vanilla re-grabs on any
+     *  click), let a double-tap of ESC take it back for the rest of the burst, and hand it back
+     *  automatically when the burst ends. Mirrors {@code ad.inputReleaseGate} for the keybinds. */
+    private static void mouseYieldGate(SceneContext ctx) {
+        final int linger = 3;
+        MouseYieldGate g = new MouseYieldGate(linger);
+
+        // Idle: never touches a cursor nobody asked us to touch.
+        for (int t = 0; t < 50; t++)
+            if (g.tick(true, false, false, true) != MouseYieldGate.Action.NONE)
+                ctx.fail("mouseYieldGate: acted on an idle tick " + t + " (steals the human's cursor)");
+
+        // Drive → release once, then stay released without re-issuing.
+        g.markDriving();
+        if (g.tick(true, false, false, true) != MouseYieldGate.Action.RELEASE)
+            ctx.fail("mouseYieldGate: no release on the first driving tick");
+        if (!g.yielded()) ctx.fail("mouseYieldGate: yielded() false right after releasing");
+        g.markDriving();
+        if (g.tick(true, false, false, false) != MouseYieldGate.Action.NONE)
+            ctx.fail("mouseYieldGate: acted again while the cursor was already free");
+
+        // Sticky: a click re-grabbed the cursor (vanilla MouseHandler.onPress) → release again.
+        g.markDriving();
+        if (g.tick(true, false, false, true) != MouseYieldGate.Action.RELEASE)
+            ctx.fail("mouseYieldGate: did not re-release after a click re-grabbed the cursor");
+
+        // A screen owns the cursor: hands off entirely.
+        g.markDriving();
+        if (g.tick(true, false, true, false) != MouseYieldGate.Action.NONE)
+            ctx.fail("mouseYieldGate: touched the cursor while a screen was open");
+
+        // Burst ends → cursor handed back exactly once.
+        for (int t = 0; t <= linger; t++) g.tick(true, false, false, false);
+        if (g.yielded()) ctx.fail("mouseYieldGate: still yielded after the burst ended");
+        for (int t = 0; t < 20; t++)
+            if (g.tick(true, false, false, true) != MouseYieldGate.Action.NONE)
+                ctx.fail("mouseYieldGate: kept acting after handing the cursor back at tick " + t);
+
+        // Double-tap ESC: the human owns the cursor for the REST of this burst.
+        g.markDriving();
+        if (g.tick(true, false, false, true) != MouseYieldGate.Action.RELEASE)
+            ctx.fail("mouseYieldGate: gate did not re-arm for a second drive burst");
+        g.markDriving();
+        if (g.tick(true, true, false, false) != MouseYieldGate.Action.GRAB)
+            ctx.fail("mouseYieldGate: ESC double-tap did not grab the cursor back");
+        if (!g.reclaimed()) ctx.fail("mouseYieldGate: reclaimed() false after the ESC double-tap");
+        for (int t = 0; t < 20; t++) {
+            g.markDriving();
+            if (g.tick(true, false, false, true) != MouseYieldGate.Action.NONE)
+                ctx.fail("mouseYieldGate: stole the cursor back at tick " + t + " after the human reclaimed it");
+        }
+
+        // Next burst re-arms the yield.
+        for (int t = 0; t <= linger; t++) g.tick(true, false, false, true);
+        if (g.reclaimed()) ctx.fail("mouseYieldGate: reclaim latch survived the end of the burst");
+        g.markDriving();
+        if (g.tick(true, false, false, true) != MouseYieldGate.Action.RELEASE)
+            ctx.fail("mouseYieldGate: did not yield again on the burst after a reclaim");
+
+        // Setting off mid-yield → cursor returned, and never taken again.
+        if (g.tick(false, false, false, false) != MouseYieldGate.Action.GRAB)
+            ctx.fail("mouseYieldGate: disabling mouseYield did not hand the cursor back");
+        for (int t = 0; t < 20; t++) {
+            g.markDriving();
+            if (g.tick(false, false, false, true) != MouseYieldGate.Action.NONE)
+                ctx.fail("mouseYieldGate: acted with mouseYield off at tick " + t);
+        }
     }
 
     /** Ported from {@code AgentGameTest#schemaUnionRendering}: pure-CPU rendering matrix for

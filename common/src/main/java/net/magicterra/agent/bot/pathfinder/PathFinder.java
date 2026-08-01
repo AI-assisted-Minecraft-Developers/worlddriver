@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.PriorityQueue;
 import net.magicterra.agent.bot.BotConfig;
@@ -263,7 +264,28 @@ public final class PathFinder {
          *  A0 seeds it with the eight legacy taxes IN THEIR ORIGINAL ORDER so
          *  the floating-point sum is bit-identical to the old inline expression;
          *  later phases add/remove modifiers per intent. */
+        /** Tax attribution is a PER-SEARCH diagnostic, so it gets its own switch
+         *  ({@code -Dagent.pathfinderTaxLog=true}) rather than riding walkerDebug —
+         *  which scenes flip off to silence the per-TICK walker spam. Eight of the
+         *  ten WaterCross scenes do exactly that, i.e. the runs most likely to
+         *  exercise the water taxes are the ones that would have silenced their own
+         *  attribution. walkerDebug still enables it, so nothing that used to print
+         *  stops printing. */
+        private static final boolean TAX_LOG = Boolean.getBoolean("agent.pathfinderTaxLog");
+
         private final List<CostModifier> costModifiers = new ArrayList<>();
+        /** Display name per entry of {@link #costModifiers}, same index. Written only
+         *  through {@link #tax}, so the two lists cannot drift apart. */
+        private final List<String> costModifierNames = new ArrayList<>();
+        /** Tax charged during EXPANSION, per modifier — only populated under TAX_LOG.
+         *  Sized on first use, once the modifier list is complete. This is the number
+         *  that answers "did this tax do anything": an avoidance tax that works
+         *  correctly steers the route AWAY from the cells it prices, so it charges a
+         *  lot during the search and nothing at all on the path that wins. Measuring
+         *  only the final path (as the first cut of this instrument did) therefore
+         *  reports a working avoidance tax as dead. */
+        private double[] expandTax;
+        private int[] expandHits;
         private int expanded;
         private long elapsedNanos;     // cumulative compute time across slices
         private Result result;         // null until done
@@ -331,22 +353,26 @@ public final class PathFinder {
             // g-side tax keeps every edge cost ≥ its base, so the heuristic (which
             // never counted taxes) stays an underestimate — admissibility holds.
             diveRelief = this.capability.allowsOptIn(Capability.DIVE);
-            if (!diveRelief) costModifiers.add((f, t, e, g, w) -> descendTax(f, t, e));
-            if (!diveRelief) costModifiers.add((f, t, e, g, w) -> waterCellTax(t));
-            costModifiers.add((f, t, e, g, w) -> leafCellTax(t));
-            costModifiers.add((f, t, e, g, w) -> padCellTax(t));
-            costModifiers.add((f, t, e, g, w) -> vineOverWaterTax(t));
-            costModifiers.add((f, t, e, g, w) -> padOverWaterTax(t));
+            if (!diveRelief) tax("descend", (f, t, e, g, w) -> descendTax(f, t, e));
+            if (!diveRelief) tax("waterCell", (f, t, e, g, w) -> waterCellTax(t));
+            tax("leafCell", (f, t, e, g, w) -> leafCellTax(t));
+            tax("padCell", (f, t, e, g, w) -> padCellTax(t));
+            tax("vineOverWater", (f, t, e, g, w) -> vineOverWaterTax(t));
+            tax("padOverWater", (f, t, e, g, w) -> padOverWaterTax(t));
             // task#97c learned stuck-risk tax — appended LAST so the legacy tax
             // sum order (FP-sensitive) is untouched; contributes exactly 0.0
             // when BotConfig.riskBias is OFF or the move isn't table-listed.
-            costModifiers.add((f, t, e, g, w)
+            tax("riskTable", (f, t, e, g, w)
                     -> net.magicterra.agent.bot.pathfinder.modifiers.RiskCostTable.tax(f, e, w));
-            costModifiers.add((f, t, e, g, w) -> climbOutTax(f, t));
-            if (!diveRelief) costModifiers.add((f, t, e, g, w) -> submergedTax(f, t));
+            tax("climbOut", (f, t, e, g, w) -> climbOutTax(f, t));
+            if (!diveRelief) tax("submerged", (f, t, e, g, w) -> submergedTax(f, t));
             // A4a: append this search's per-intent bias AFTER the legacy taxes.
             // Empty for a plain search → byte-identical to the pre-A4a stack.
-            costModifiers.addAll(PathFinder.this.profile.bias());
+            for (CostModifier bias : PathFinder.this.profile.bias()) {
+                tax(bias.getClass().getSimpleName(), bias);
+            }
+            expandTax = new double[costModifiers.size()];
+            expandHits = new int[costModifiers.size()];
             // gap#72-④ (always-on telemetry): one compact line per SEARCH, tagged with
             // the chain/verb that owns the goal — the gap#72 live investigation spent a
             // whole section attributing "8 blocks of unlogged digging" because no
@@ -375,6 +401,18 @@ public final class PathFinder {
                         startInWater, world.isSubmergedFoot(start),
                         maxNodes, maxMs, BotConfig.pfSoftCommitNodes(), BotConfig.pathfinderBoxedEscalate,
                         constraints.size(), PathFinder.this.profile.bias().size());
+            }
+        }
+
+        /** Single sink for the search result — every completion path goes through
+         *  here so the tax attribution cannot be attached to some of them only. */
+        private void finish(Result r) {
+            this.result = r;
+            if ((TAX_LOG || BotConfig.walkerDebug) && !r.path().isEmpty()) {
+                LOG.info("[pathfinder] tax-breakdown owner={} reached={} steps={} finalCost={} onPath[{}] duringSearch[{}]",
+                        owner, r.goalReached(), r.path().size() - 1,
+                        String.format(Locale.ROOT, "%.1f", r.finalCost()),
+                        explainTaxes(r), explainExpansion());
             }
         }
 
@@ -425,6 +463,77 @@ public final class PathFinder {
         private boolean diveGoal() {
             BlockPos t = goal.targetPos();
             return t != null && world.isWater(t);
+        }
+
+        /** Register one cost modifier under a name. The ONLY way to add one — the
+         *  name list is what makes {@link #explainTaxes} possible, and pairing the
+         *  two adds here means a new tax cannot be added without one. */
+        private void tax(String name, CostModifier modifier) {
+            costModifiers.add(modifier);
+            costModifierNames.add(name);
+        }
+
+        /**
+         * Per-tax attribution along a FOUND path: which modifiers actually charged,
+         * and how much, summed over the path's edges.
+         *
+         * <p>Up to ten modifiers are summed into every edge, several of them pricing
+         * overlapping situations — an XZ-goal descent into submerged water is charged
+         * by {@code descend} (per block below the slack threshold), {@code waterCell}
+         * (per water cell entered) and {@code submerged} (per descending edge) at once.
+         * Whether that stack is deliberate defence-in-depth or accidental
+         * double-charging is a real question, and until now it was unanswerable: the
+         * search reported one opaque {@code finalCost} and nothing said which tax
+         * produced it. Every one of these was added to fix a specific live incident
+         * (the surrounding comments cite the replays), and their constants were tuned
+         * with all of them present — so the honest first move is to make the stack
+         * legible, not to start deleting charges.
+         *
+         * <p>Runs over the returned path only (tens of edges), never in the expansion
+         * loop (tens of thousands of edges), and only under {@code walkerDebug}. The
+         * hot loop and its arithmetic are untouched.
+         */
+        private String explainTaxes(Result r) {
+            double[] totals = new double[costModifiers.size()];
+            int[] hits = new int[costModifiers.size()];
+            for (int i = 1; i < r.path().size(); i++) {
+                BlockPos from = r.path().get(i - 1), to = r.path().get(i);
+                Move.Edge e = r.edges().get(i);
+                if (e == null) continue;
+                for (int m = 0; m < costModifiers.size(); m++) {
+                    double v = costModifiers.get(m).extraCost(from, to, e, goal, world);
+                    if (v != 0) { totals[m] += v; hits[m]++; }
+                }
+            }
+            StringBuilder sb = new StringBuilder();
+            double sum = 0;
+            for (int m = 0; m < totals.length; m++) {
+                if (hits[m] == 0) continue;
+                if (sb.length() > 0) sb.append(' ');
+                sb.append(costModifierNames.get(m)).append('=')
+                  .append(String.format(Locale.ROOT, "%.1f", totals[m]))
+                  .append('x').append(hits[m]);
+                sum += totals[m];
+            }
+            if (sb.length() == 0) sb.append("none");
+            return sb + " | taxTotal=" + String.format(Locale.ROOT, "%.1f", sum);
+        }
+
+        /** What each tax charged across the WHOLE search, not just the winning path.
+         *  Compare with {@link #explainTaxes}: a tax with a large duringSearch total
+         *  and zero onPath total is doing its job (it priced alternatives out); one
+         *  with zero in both never applied to anything this search touched. */
+        private String explainExpansion() {
+            if (expandTax == null) return "off";
+            StringBuilder sb = new StringBuilder();
+            for (int m = 0; m < expandTax.length; m++) {
+                if (expandHits[m] == 0) continue;
+                if (sb.length() > 0) sb.append(' ');
+                sb.append(costModifierNames.get(m)).append('=')
+                  .append(String.format(Locale.ROOT, "%.1f", expandTax[m]))
+                  .append('x').append(expandHits[m]);
+            }
+            return sb.length() == 0 ? "none" : sb.toString();
         }
 
         private double descendTax(BlockPos from, BlockPos to, Move.Edge edge) {
@@ -733,7 +842,7 @@ public final class PathFinder {
                     PathTraceHolder.SINK.onNodeExpanded(cur.pos, cur.g);
 
                     if (goal.reached(cur.pos)) {
-                        result = build(cur, true, expanded, totalMs(sliceStart), cur.g);
+                        finish(build(cur, true, expanded, totalMs(sliceStart), cur.g));
                         return true;
                     }
                     for (int i = 0; i < COEFFICIENTS.length; i++) {
@@ -762,7 +871,7 @@ public final class PathFinder {
                         // are excluded above so the bestAshore climb-out wins there.)
                         if (cur.h < startNode.h - MIN_FRONTIER_GAIN
                                 && cur.pos.distSqr(start) > (long) MIN_DIST_PATH * MIN_DIST_PATH) {
-                            result = build(cur, false, expanded, totalMs(sliceStart), cur.g);
+                            finish(build(cur, false, expanded, totalMs(sliceStart), cur.g));
                             return true;
                         }
                     }
@@ -796,7 +905,7 @@ public final class PathFinder {
                                 || isAshore(cur.pos)
                                 || (world.isWater(cur.pos)
                                     && !world.isWater(cur.pos.offset(0, 1, 0))))) {
-                        result = build(cur, false, expanded, totalMs(sliceStart), cur.g);
+                        finish(build(cur, false, expanded, totalMs(sliceStart), cur.g));
                         return true;
                     }
                     // Water escape: track the reachable ASHORE node (dry ground) closest
@@ -899,8 +1008,13 @@ public final class PathFinder {
                         // ≥ 0 so the heuristic stays admissible.
                         double ng = cur.g + edge.cost + world.dangerCost(npos)
                                 + world.directionalCost(cur.pos, npos);
-                        for (CostModifier mod : costModifiers) {
-                            ng += mod.extraCost(cur.pos, npos, edge, goal, world);
+                        for (int mi = 0; mi < costModifiers.size(); mi++) {
+                            double extra = costModifiers.get(mi).extraCost(cur.pos, npos, edge, goal, world);
+                            ng += extra;
+                            // TAX_LOG is a compile-time constant, so with it off the JIT
+                            // folds this away entirely. Indexed iteration replaces the
+                            // for-each: same list, same order, same doubles, same sum.
+                            if (TAX_LOG && extra != 0) { expandTax[mi] += extra; expandHits[mi]++; }
                         }
                         Node existing = nodes.get(npos);
                         if (existing != null && ng > existing.g - MIN_IMPROVEMENT) continue;
@@ -929,9 +1043,9 @@ public final class PathFinder {
                             bestClimb == null ? "null" : bestClimb.pos.getY(),
                             open.size());
                 }
-                result = (segment == null)
+                finish((segment == null)
                         ? new Result(List.of(), List.of(), false, expanded, totalMs(sliceStart), startNode.h)
-                        : build(segment, false, expanded, totalMs(sliceStart), segment.g);
+                        : build(segment, false, expanded, totalMs(sliceStart), segment.g));
                 return true;
             } finally {
                 world.cacheActive(false);

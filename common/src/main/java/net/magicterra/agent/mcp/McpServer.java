@@ -2,11 +2,12 @@ package net.magicterra.agent.mcp;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import net.magicterra.agent.AgentDriverCommon;
 import net.magicterra.agent.api.AgentApi;
-import net.magicterra.agent.bot.BotConfig;
 import net.magicterra.agent.model.AgentEvent;
 import net.magicterra.agent.rpc.EventNotifications;
 import net.magicterra.agent.rpc.JsonCodec;
+import net.magicterra.agent.rpc.TransportLimits;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -18,6 +19,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -49,7 +52,8 @@ import java.util.concurrent.TimeUnit;
  * text/event-stream); the server then sends server-initiated JSON-RPC messages on
  * it. We push each driver event as a {@code notifications/message} (the MCP logging
  * notification — we advertise the {@code logging} capability in {@code initialize},
- * and honor {@code logging/setLevel} as a minimum-severity filter). The frame is
+ * and accept {@code logging/setLevel}, though we deliberately do NOT apply it to the
+ * driver event stream; see {@link #onEvent} for why). The frame is
  * byte-identical to the one the WebSocket {@code /rpc} transport sends (shared
  * {@link EventNotifications}). Simplification: events fan out to ALL open GET
  * streams rather than being correlated to a session via {@code Mcp-Session-Id}
@@ -70,22 +74,16 @@ public final class McpServer implements Closeable {
     private static final String LATEST_PROTOCOL_VERSION = SUPPORTED_PROTOCOL_VERSIONS.get(0);
     private static final String SERVER_NAME = "agent_driver";
     private static final String SERVER_VERSION = "0.1.0-dev";
-    /** Maximum inbound POST body. 8 MiB is well above any reasonable tools/call
-     *  payload (largest is a screenshot upload, which we don't accept) but small
-     *  enough that an OOM is not a one-shot. Override with
-     *  {@code -Dagent.mcp.maxBodyBytes=N}. */
-    private static final long MAX_BODY_BYTES =
-            Long.getLong("agent.mcp.maxBodyBytes", 8L * 1024 * 1024);
+    /** Maximum inbound POST body — shared with the WebSocket transport's frame
+     *  limit so the two cannot disagree about what a request may weigh. See
+     *  {@link TransportLimits}. */
+    private static final long MAX_BODY_BYTES = TransportLimits.MAX_REQUEST_BYTES;
 
     private final AgentApi api;
     private final HttpServer http;
     /** Open server→client SSE streams (clients that issued {@code GET /mcp}).
      *  {@link #onEvent} fans each driver event out to all of them. */
     private final Set<SseSubscriber> sse = ConcurrentHashMap.newKeySet();
-    /** The client's {@code logging/setLevel} minimum, kept for MCP protocol compliance.
-     *  NO LONGER gates the driver event channel — {@link #onEvent} pushes every non-muted
-     *  event regardless of level, so an info/notice event is never silently dropped. */
-    private volatile int minLevelRank = 0;
 
     public McpServer(AgentApi api, int port) throws IOException {
         this(api, "127.0.0.1", port);
@@ -202,9 +200,10 @@ public final class McpServer implements Closeable {
                     sendNoBody(ex, isNotification ? 202 : 200);
                 }
                 case "logging/setLevel" -> {
-                    // Client sets the minimum severity it wants on the event stream.
-                    Object lvl = params.get("level");
-                    if (lvl instanceof String s) minLevelRank = EventNotifications.rank(s);
+                    // spec: 2025-06-18 §Logging — accept and acknowledge. The level is
+                    // deliberately NOT applied to the driver event stream (see onEvent),
+                    // and storing it did nothing but make the field look load-bearing:
+                    // it was written here and read nowhere.
                     sendJson(ex, 200, jsonRpcResult(id, Map.of()));
                 }
                 case "ping" -> sendJson(ex, 200, jsonRpcResult(id, Map.of()));
@@ -253,12 +252,13 @@ public final class McpServer implements Closeable {
 
         SseSubscriber sub = new SseSubscriber(ex.getResponseBody());
         sse.add(sub);
-        sub.raw(": connected\n\n"); // flushes headers; dies here if the client already left
+        sub.writeBlocking(": connected\n\n"); // flushes headers; dies here if the client already left
         try {
-            while (sub.alive) {
-                if (sub.done.await(15, TimeUnit.SECONDS)) break;
-                sub.raw(": ping\n\n");
-            }
+            // This thread is parked for the life of the connection anyway, so it does
+            // the writing. It used to only emit keepalives while the event dispatcher
+            // wrote the frames — see SseSubscriber.offer for why that was the wrong
+            // thread to do it on.
+            sub.pumpUntilClosed();
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
         } finally {
@@ -279,22 +279,72 @@ public final class McpServer implements Closeable {
      *  Runs on AgentApi's event-dispatch thread. */
     private void onEvent(AgentEvent e) {
         if (sse.isEmpty()) return;
-        if (BotConfig.mutedEvents.contains(e.type)) return; // per-type opt-out; all else pushes
+        // No mutedEvents check here: AgentApi applies the per-type opt-out before it
+        // calls any listener, so every transport gets the same policy for free.
         String frame = "data: " + EventNotifications.frame(e) + "\n\n";
-        for (SseSubscriber sub : sse) sub.raw(frame);
+        for (SseSubscriber sub : sse) sub.offer(frame);  // never blocks: see SseSubscriber.offer
     }
 
     /** One open SSE connection: its output stream + a latch the parked handler
      *  thread waits on. Writes are synchronized and fail-closed. */
-    private static final class SseSubscriber {
+    /** Package-private rather than private so {@code SseBackpressureTest} can drive one
+     *  against a deliberately-stalled stream; there is no other way to prove the event
+     *  dispatcher stops blocking without wedging a real TCP receive window. */
+    static final class SseSubscriber {
+        /** Frames buffered for this one client. Bounded on purpose — see {@link #offer}. */
+        static final int OUTBOX_CAP = 256;
+
         private final OutputStream os;
+        private final BlockingQueue<String> outbox = new ArrayBlockingQueue<>(OUTBOX_CAP);
         volatile boolean alive = true;
         final CountDownLatch done = new CountDownLatch(1);
 
         SseSubscriber(OutputStream os) { this.os = os; }
 
-        synchronized void raw(String s) {
+        /**
+         * Hand a frame to THIS subscriber's writer without touching the socket.
+         *
+         * <p>{@link #onEvent} runs on AgentApi's single event-dispatch thread, shared
+         * by every listener — the WebSocket transport included. Writing the socket
+         * there (which is what this class used to do) meant one SSE client whose TCP
+         * receive window had filled blocked that thread inside {@code os.write}, and
+         * with it every other SSE subscriber, the WebSocket push channel, and the
+         * dispatch queue, which is unbounded and would grow for as long as the stall
+         * lasted. The WebSocket side never had this problem: Netty's
+         * {@code writeAndFlush} is async. This closes that asymmetry.
+         *
+         * <p>Overflow closes the stream rather than dropping frames. A consumer that
+         * silently misses events is the worse failure — it cannot tell that it did.
+         * Closing is loud and recoverable: the client sees EOF, reconnects, and
+         * replays from its cursor with {@code mc.observe.eventsSince}, which is what
+         * the event ring buffer is for.
+         */
+        void offer(String s) {
             if (!alive) return;
+            if (!outbox.offer(s)) {
+                AgentDriverCommon.LOG.warn(
+                        "[mcp] SSE consumer fell more than {} frames behind — closing its stream; "
+                        + "reconnect and replay with mc.observe.eventsSince{cursor}", OUTBOX_CAP);
+                die();
+            }
+        }
+
+        /** Drain and write until the stream dies. Runs on the parked HTTP worker
+         *  thread that is already dedicated to this connection, so the blocking
+         *  writes cost nothing extra: no new thread, and the keepalive it used to
+         *  send is now just what happens when the outbox is idle. */
+        void pumpUntilClosed() throws InterruptedException {
+            while (alive) {
+                String frame = outbox.poll(15, TimeUnit.SECONDS);
+                if (!alive) break;
+                writeBlocking(frame == null ? ": ping\n\n" : frame);
+            }
+        }
+
+        /** Only ever called from this subscriber's own writer thread (or from
+         *  handleSse before the pump starts), never from the event dispatcher. */
+        synchronized void writeBlocking(String s) {
+            if (!alive || s.isEmpty()) return;
             try {
                 os.write(s.getBytes(StandardCharsets.UTF_8));
                 os.flush();
@@ -306,6 +356,8 @@ public final class McpServer implements Closeable {
         void die() {
             alive = false;
             done.countDown();
+            outbox.offer("");  // best-effort nudge so an idle pump notices at once
+                               // (a full outbox means the pump is stuck in write, not poll)
         }
     }
 

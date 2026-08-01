@@ -2,6 +2,13 @@ architectury {
     common rootProject.enabled_platforms.split(',')
 }
 
+loom {
+    // Access widener (see the file's header for why). Declared on :common and
+    // referenced by both platform modules, so one list of widened members serves
+    // every artifact and cannot drift between loaders.
+    accessWidenerPath = file("src/main/resources/agent_driver.accesswidener")
+}
+
 // P4a Task 2: testmod source set — the ad.* dogfood scenes (AgentDriverScenes) +
 // the sim probe helpers (SimProbes) + the SceneProvider service file live here so
 // they are compiled ONLY for dev/test runs and NEVER baked into the remapped
@@ -14,10 +21,26 @@ architectury {
 // (Minecraft, netty/snakeyaml compileOnly), while the testkit scene SPI
 // (Scene/SceneContext/SceneProvider) comes from :testkit-common namedElements
 // (added explicitly below AND already transitively present in main.compileClasspath).
+// The `test` source set is for PURE-JVM unit tests of code that needs no running
+// game — the transports (JsonCodec framing, RpcServer/RpcClient wire contract) are
+// the motivating case: they are plain Netty + java.util and were previously only
+// reachable through a full dogfood run, which is why their framing bugs (an error
+// frame with no `id`, a client that took "the next frame" as its response) survived
+// every gate. Anything that touches world state belongs in `testmod` as a scene,
+// not here.
+//
+// runtimeClasspath deliberately extends main's COMPILE classpath, not its runtime
+// one: netty-codec-http and snakeyaml are `compileOnly` for main (the loader modules
+// shadow-bundle them), so a test inheriting main.runtimeClasspath would compile and
+// then NoClassDefFoundError on the first WebSocket frame.
 sourceSets {
     testmod {
         compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
         runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
+    }
+    test {
+        compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
+        runtimeClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
     }
 }
 
@@ -25,6 +48,17 @@ dependencies {
     // testkit scene SPI (Scene/SceneContext/SceneProvider) for the moved scenes —
     // same architectury common→common namedElements idiom as main's testkit-common dep.
     testmodImplementation project(path: ':testkit-common', configuration: 'namedElements')
+
+    // Same pin as mc-testkit/junit — one JUnit version across the build.
+    testImplementation platform('org.junit:junit-bom:5.11.3')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    testLogging { events "failed" }
 }
 
 repositories {

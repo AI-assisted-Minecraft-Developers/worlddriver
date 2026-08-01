@@ -25,6 +25,44 @@ Three natural products: **StallVerdict** (StallDetect → Repath/Search),
 **EdgeState** (Climb/EdgeGuards → Aim/Drive), **AimPlan** (Aim → Drive), plus a
 **TickFrame** (p/foot/searchFoot from Prelude).
 
+### The census is now enforced, not just recorded (2026-07-27)
+
+That table above was hand-derived, and nothing stopped the code from drifting
+away from it. `common/src/test/.../movement/WalkerTickDataflowTest` re-derives it
+from source on every `:common:test` and fails if the flow stops being strictly
+forward. It reads the phase ORDER out of `Walker#tickInner` rather than hardcoding
+it, so reordering the pipeline re-checks every field against the new order instead
+of silently invalidating the test.
+
+What it catches, in the order the failures matter:
+
+- **read-before-write** — a phase reading a product an earlier phase never wrote.
+  This is the expensive one because it is silent: read `cx.aim.diving` from
+  EdgeGuards and you get `false` every tick forever. No exception, no log, just a
+  guard that never fires.
+- a ctx field **no phase writes** (every reader gets the zero value), or one **no
+  later phase reads** (it should be a local in its producer, not a ctx field).
+- the phase files on disk and the phases `tickInner` actually calls **disagreeing**.
+
+Verified 2026-07-27 by injecting each defect and confirming a red: the
+read-before-write control reports `aim.diving: read by EdgeGuards (phase 6) but
+first written by Aim (phase 7)`.
+
+**One value legitimately crosses a mid-pipeline path swap.** `WalkerTickProgress`
+can replace the whole path (`adoptPath` at the splice, or a `tryQuickStart` /
+`tryLandBeeline` / `tryWaterBeeline` stub) and fall through with `step=1` on the
+NEW path. Everything downstream re-derives: `edges.edge` comes from
+`wk.edgeAt(wk.step)` in Climb, `edges.wp` from EdgeGuards, both after the swap;
+`frame.foot` stays valid because no phase moves the body (the position only
+changes at the physics step after the pipeline). The exception is
+`stall.breakingEdge`, computed by StallDetect from the OLD path's edge and read by
+Drive, which pairs it with the new `edge`/`wk.path.get(wk.step)` in
+`MovementContext`. It feeds only the ascent dead-zone watchdog exemption, for one
+tick, at the start of a fresh episode — not enough to move that watchdog's verdict.
+Left alone deliberately: `WalkerTickDrive` is flagged state-machine surgery, and
+this is a one-boolean discrepancy with no live evidence behind it. Recorded here so
+it stays a known quantity rather than a rediscovery.
+
 ## Step plan (each step: compile + t0-fabric; milestone: all three gates)
 
 - **Step A ✅ (`ee815ed`)**: replace the flat ctx with the four typed products above.

@@ -197,15 +197,25 @@ public final class ToolCatalog {
     }
 
     /**
-     * Methods declared but deliberately kept out of MCP {@code tools/list}. Each is
-     * still reachable over RPC and still carries a {@code ToolSchema} (so the boot
-     * invariant passes) — hidden, not undeclared. Keep this list short and justified.
+     * Methods declared but deliberately kept out of MCP {@code tools/list}. Each still
+     * carries a {@code ToolSchema} (so the boot invariant passes) — hidden, not
+     * undeclared. Keep this list short and justified.
+     *
+     * <p><b>Hidden means unadvertised, not unreachable.</b> Hiding exists to save
+     * prompt tokens (hard rule #6: every listed tool ships its schema to every LLM
+     * client, every turn), and that is all it does. {@code tools/call} validates
+     * against {@code AgentApi.methods()} — the full route set — so a hidden verb is
+     * callable by name on every transport, MCP included. That is deliberate: the
+     * transports bind to loopback and {@code mc.action.runCommand} already runs
+     * arbitrary operator-level commands, so gating a harness verb would be theatre,
+     * and it would make the transports disagree about what a method does, which hard
+     * rule #1 exists to prevent. {@code ToolCatalogHiddenTest} pins both halves.
      */
     private static final List<ToolSchema> HIDDEN_TOOLS = List.of(
             // mc.test.yaml — run YAML gametests on demand; a harness verb, not an agent action.
             tool("mc.test.yaml",
-                    "Run YAML GameTest specs on demand (dev/test harness verb; reachable over RPC only). "
-                    + "Params: file | inline | all:true.",
+                    "Run YAML GameTest specs on demand (dev/test harness verb; declared but not "
+                    + "advertised in tools/list). Params: file | inline | all:true.",
                     object().additionalProperties(true)).asHidden()
     );
 

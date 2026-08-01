@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Console-only logging for :common:test.
+
+  Without this, log4j2 picks up Minecraft's own config from the test classpath and
+  writes logs/latest.log + rolled logs/*.log.gz relative to the JVM's working
+  directory — which for this task is the MODULE directory, so unit tests were
+  dropping runtime output into the source tree (hard rule #5). .gitignore's *.log
+  hid latest.log but not the .gz archives, so they sat there untracked and
+  un-ignored, one more per test run, waiting for a careless `git add -A`.
+
+  log4j2 prefers log4j2-test.xml over log4j2.xml on the classpath, so this file
+  alone fixes it — no working-directory change, which matters because the
+  source-scanning tests (WalkerTickDataflowTest, AgentEventWireTest) resolve
+  paths like src/main/java relative to that same module-dir cwd.
+
+  Level is warn: tests that deliberately provoke a warning (SseBackpressureTest's
+  overflow) still show it on stdout, without info-level game chatter.
+-->
+<Configuration status="WARN">
+    <Appenders>
+        <Console name="SysOut" target="SYSTEM_OUT">
+            <PatternLayout pattern="[%d{HH:mm:ss}] [%t/%level]: %msg%n"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <Root level="warn">
+            <AppenderRef ref="SysOut"/>
+        </Root>
+    </Loggers>
+</Configuration>
