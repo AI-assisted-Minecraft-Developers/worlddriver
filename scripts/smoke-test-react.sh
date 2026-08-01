@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke test driven entirely through the AgentDriver WS RPC: no xdotool, no key
+# Smoke test driven entirely through the WorldDriver WS RPC: no xdotool, no key
 # synthesis. Boots Xvfb + matchbox + runClient + a Python ReAct loop that
 # observes via mc.client.screen.tree, picks the right widget by label, then
 # clicks via mc.client.input.click. Screenshots come from mc.client.screenshot.
@@ -9,12 +9,12 @@
 
 set -uo pipefail
 
-REPO=/home/coder/AI-assisted-Minecraft-Developers/agent-driver-mod
+REPO=/home/coder/AI-assisted-Minecraft-Developers/worlddriver
 RUN=$REPO/fabric/run
 SHOTS=$RUN/smoke
 mkdir -p "$SHOTS"
 [ -f "$SHOTS/runclient.log" ] && mv "$SHOTS/runclient.log" "$SHOTS/runclient.prev.log"
-rm -f "$SHOTS"/*.png "$RUN/agent-rpc.port" "$RUN/agent-mcp.port"
+rm -f "$SHOTS"/*.png "$RUN/worlddriver-rpc.port" "$RUN/worlddriver-mcp.port"
 # Wipe saved worlds so we deterministically go TitleScreen → CreateWorld
 # (skipping SelectWorld) — keeps the ReAct trajectory short.
 rm -rf "$RUN/saves" 2>/dev/null

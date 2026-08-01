@@ -15,7 +15,7 @@
 - 不新增 MCP 工具、不新增 RPC 路由（AGENTS.md Hard Rule #6：扩展现有工具）。
 - 现有 bare / pos 两模式行为零变化。
 - 加 import 用简名不用 FQN（AGENTS.md #7）。
-- 本会话 harness 的 MCP schema 冻结：live 验证一律走 `scripts/.claude/skills/agent-driver-rpc/rpc.py`（ws 39801），不要用 `mcp__agent-driver__*` 调新参数（会被静默剥掉）。
+- 本会话 harness 的 MCP schema 冻结：live 验证一律走 `scripts/.claude/skills/worlddriver-rpc/rpc.py`（ws 39801），不要用 `mcp__worlddriver__*` 调新参数（会被静默剥掉）。
 - 长命令（gametest ~25min）用前台阻塞分段等（每段 ≤10min timeout），不要指望后台通知唤醒。
 - 提交时不要覆盖 git config（不传 `-c user.email` / gpgsign）。
 
@@ -24,10 +24,10 @@
 ### Task 1: `useItemOnEntity` 动词实现（InteractionCommands + BotApi + BotApiImpl + AgentApi）
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/InteractionCommands.java`（在 `attackEntity` 方法后加新方法）
-- Modify: `common/src/main/java/net/magicterra/agent/bot/BotApi.java`（`useItemOn` 声明后加一行接口方法，约 line 55 后）
-- Modify: `common/src/main/java/net/magicterra/agent/bot/BotApiImpl.java`（`useItemOn` delegate 后加 delegate，约 line 784 后）
-- Modify: `common/src/main/java/net/magicterra/agent/api/AgentApi.java:331-333`（路由三叉分发）
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/InteractionCommands.java`（在 `attackEntity` 方法后加新方法）
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/BotApi.java`（`useItemOn` 声明后加一行接口方法，约 line 55 后）
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/BotApiImpl.java`（`useItemOn` delegate 后加 delegate，约 line 784 后）
+- Modify: `common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java:331-333`（路由三叉分发）
 
 **Interfaces:**
 - Consumes: `BotUtil.onClient(Supplier)`、`BotInteract.parseHand(Object)`、`Params.of/get/getBool`（全部已存在）。
@@ -37,7 +37,7 @@
 
 - [ ] **Step 1: 写会失败的验证用例**（TDD——测试先落盘；js 套件要到 Task 4 起了新客户端才能跑，先写好并在旧客户端上确认「当前必失败」）
 
-在 `common/src/main/resources/data/agent_driver/scripts/agent_validation/12_use_item.js` 的
+在 `common/src/main/resources/data/worlddriver/scripts/agent_validation/12_use_item.js` 的
 `clientAvailable()` else 分支末尾（`pos-mode auto-picks face` 用例后、收尾 `}` 前）追加：
 
 ```js
@@ -59,8 +59,8 @@
 - [ ] **Step 2: 在旧客户端上确认现状确实不识别 entityId**（= 测试的 fail 基线）
 
 ```bash
-cd /root/source/minecraft/AI-assisted-Minecraft-Developers/agent-driver-mod/scripts
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.bot.useItem '{"entityId":1073741824}'
+cd /root/source/minecraft/AI-assisted-Minecraft-Developers/worlddriver/scripts
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.bot.useItem '{"entityId":1073741824}'
 ```
 
 预期：老代码把它当 bare 模式，返回 `{ok:true, hand:"main", ...}`（没有 error）——
@@ -172,7 +172,7 @@ python3 .claude/skills/agent-driver-rpc/rpc.py mc.bot.useItem '{"entityId":10737
 - [ ] **Step 5: 编译**
 
 ```bash
-cd /root/source/minecraft/AI-assisted-Minecraft-Developers/agent-driver-mod
+cd /root/source/minecraft/AI-assisted-Minecraft-Developers/worlddriver
 ./gradlew :common:compileJava
 ```
 
@@ -181,11 +181,11 @@ cd /root/source/minecraft/AI-assisted-Minecraft-Developers/agent-driver-mod
 - [ ] **Step 6: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/InteractionCommands.java \
-        common/src/main/java/net/magicterra/agent/bot/BotApi.java \
-        common/src/main/java/net/magicterra/agent/bot/BotApiImpl.java \
-        common/src/main/java/net/magicterra/agent/api/AgentApi.java \
-        common/src/main/resources/data/agent_driver/scripts/agent_validation/12_use_item.js
+git add common/src/main/java/net/magicterra/worlddriver/bot/InteractionCommands.java \
+        common/src/main/java/net/magicterra/worlddriver/bot/BotApi.java \
+        common/src/main/java/net/magicterra/worlddriver/bot/BotApiImpl.java \
+        common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java \
+        common/src/main/resources/data/worlddriver/scripts/agent_validation/12_use_item.js
 git commit -m "feat(bot): mc.bot.useItem entityId mode — right-click an entity (interactAt→interact, vanilla parity)"
 ```
 
@@ -194,7 +194,7 @@ git commit -m "feat(bot): mc.bot.useItem entityId mode — right-click an entity
 ### Task 2: BotTools 描述/schema（下个会话的 MCP 可发现性）
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/mcp/catalog/BotTools.java:231-248`（`mc.bot.useItem` 的 wrTool）
+- Modify: `common/src/main/java/net/magicterra/worlddriver/mcp/catalog/BotTools.java:231-248`（`mc.bot.useItem` 的 wrTool）
 
 **Interfaces:**
 - Consumes: Task 1 的返回键名（描述文本要与实际返回一致）。
@@ -246,7 +246,7 @@ git commit -m "feat(bot): mc.bot.useItem entityId mode — right-click an entity
 - [ ] **Step 3: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/mcp/catalog/BotTools.java
+git add common/src/main/java/net/magicterra/worlddriver/mcp/catalog/BotTools.java
 git commit -m "docs(mcp): mc.bot.useItem schema/description — entity-mode (entityId/sneak props, held-item caveat)"
 ```
 
@@ -284,16 +284,16 @@ git commit -m "docs: CHANGELOG for mc.bot.useItem entity-mode"
 
 **Interfaces:**
 - Consumes: Task 1 的返回键 `{ok,result,consumed,riding,screen,distance}`；
-  `scripts/.claude/skills/agent-driver-rpc/rpc.py`；`scripts/into_world.py`。
+  `scripts/.claude/skills/worlddriver-rpc/rpc.py`；`scripts/into_world.py`。
 
 - [ ] **Step 1: 重启客户端换新构建**（按端口杀，绝不 `pkill -f`）
 
 ```bash
-cd /root/source/minecraft/AI-assisted-Minecraft-Developers/agent-driver-mod
+cd /root/source/minecraft/AI-assisted-Minecraft-Developers/worlddriver
 PID=$(ss -ltnp | grep ':39800' | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2); kill "$PID"
 sleep 3
 DISPLAY=:99 XDG_RUNTIME_DIR=/tmp/xdg-runtime-$(id -u) \
-  JAVA_TOOL_OPTIONS="-Dagent.mcpPort=39800 -Dagent.rpcPort=39801" \
+  JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39800 -Dworlddriver.rpcPort=39801" \
   ./gradlew :fabric:runClient > fabric/run/rc-entityinteract.log 2>&1 & disown
 ```
 
@@ -310,8 +310,8 @@ cd scripts && python3 -u into_world.py
 - [ ] **Step 2: 负例两条**
 
 ```bash
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.bot.useItem '{"entityId":1073741824}'
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.bot.useItem '{"entityId":"abc"}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.bot.useItem '{"entityId":1073741824}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.bot.useItem '{"entityId":"abc"}'
 ```
 
 预期：第一条 `{ok:false, error:"no entity with id 1073741824"}`（对比 Task 1 Step 2
@@ -320,22 +320,22 @@ python3 .claude/skills/agent-driver-rpc/rpc.py mc.bot.useItem '{"entityId":"abc"
 - [ ] **Step 3: 正例① 骑乘（空手右键马——用户点名的场景）**
 
 ```bash
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.action.runCommand '{"cmd":"gamerule doMobSpawning false"}'
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.action.runCommand '{"cmd":"kill @e[type=!minecraft:player]"}'
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.action.runCommand '{"cmd":"tp @p 0 -60 0"}'
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.action.runCommand '{"cmd":"summon minecraft:horse 2 -60 0 {Tame:1b,SaddleItem:{id:\"minecraft:saddle\",Count:1b},NoAI:1b}"}'
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.action.runCommand '{"cmd":"item replace entity @p weapon.mainhand with minecraft:air"}'
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.query '{"q":"entities","center":{"x":0,"y":-60,"z":0},"filter":{"in_radius":8,"type":"horse"},"select":["id","type"]}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.action.runCommand '{"cmd":"gamerule doMobSpawning false"}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.action.runCommand '{"cmd":"kill @e[type=!minecraft:player]"}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.action.runCommand '{"cmd":"tp @p 0 -60 0"}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.action.runCommand '{"cmd":"summon minecraft:horse 2 -60 0 {Tame:1b,SaddleItem:{id:\"minecraft:saddle\",Count:1b},NoAI:1b}"}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.action.runCommand '{"cmd":"item replace entity @p weapon.mainhand with minecraft:air"}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.query '{"q":"entities","center":{"x":0,"y":-60,"z":0},"filter":{"in_radius":8,"type":"horse"},"select":["id","type"]}'
 # 用返回的 id：
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.bot.useItem '{"entityId":<HORSE_ID>}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.bot.useItem '{"entityId":<HORSE_ID>}'
 ```
 
 预期：`{ok:true, riding:"minecraft:horse", result:"SUCCESS", consumed:true, screen:"none"}`。
 佐证 + 收尾：
 
 ```bash
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.client.screenshot '{}'   # 视觉证据：马背视角
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.action.runCommand '{"cmd":"ride @p dismount"}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.client.screenshot '{}'   # 视觉证据：马背视角
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.action.runCommand '{"cmd":"ride @p dismount"}'
 ```
 
 （道具 mob 加 `NoAI:1b` 防溜达——arena 纪律；query 必须带 `center`，缺省是 ORIGIN 不是玩家。）
@@ -343,11 +343,11 @@ python3 .claude/skills/agent-driver-rpc/rpc.py mc.action.runCommand '{"cmd":"rid
 - [ ] **Step 4: 正例② 挤奶（手持物决定结果）**
 
 ```bash
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.action.runCommand '{"cmd":"summon minecraft:cow 2 -60 2 {NoAI:1b}"}'
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.action.runCommand '{"cmd":"item replace entity @p weapon.mainhand with minecraft:bucket"}'
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.query '{"q":"entities","center":{"x":0,"y":-60,"z":0},"filter":{"in_radius":8,"type":"cow"},"select":["id"]}'
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.bot.useItem '{"entityId":<COW_ID>}'
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.observe.player '{}' | grep -A3 mainHand
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.action.runCommand '{"cmd":"summon minecraft:cow 2 -60 2 {NoAI:1b}"}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.action.runCommand '{"cmd":"item replace entity @p weapon.mainhand with minecraft:bucket"}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.query '{"q":"entities","center":{"x":0,"y":-60,"z":0},"filter":{"in_radius":8,"type":"cow"},"select":["id"]}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.bot.useItem '{"entityId":<COW_ID>}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.observe.player '{}' | grep -A3 mainHand
 ```
 
 预期：`consumed:true`，mainHand 变 `minecraft:milk_bucket`。
@@ -355,12 +355,12 @@ python3 .claude/skills/agent-driver-rpc/rpc.py mc.observe.player '{}' | grep -A3
 - [ ] **Step 5: 正例③ 交易 UI**
 
 ```bash
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.action.runCommand '{"cmd":"item replace entity @p weapon.mainhand with minecraft:air"}'
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.action.runCommand '{"cmd":"summon minecraft:villager 2 -60 4 {NoAI:1b,VillagerData:{profession:\"minecraft:librarian\",level:1,type:\"minecraft:plains\"}}"}'
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.query '{"q":"entities","center":{"x":0,"y":-60,"z":0},"filter":{"in_radius":8,"type":"villager"},"select":["id"]}'
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.bot.useItem '{"entityId":<VILLAGER_ID>}'
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.client.screen.info '{}'
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.client.screen.close '{}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.action.runCommand '{"cmd":"item replace entity @p weapon.mainhand with minecraft:air"}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.action.runCommand '{"cmd":"summon minecraft:villager 2 -60 4 {NoAI:1b,VillagerData:{profession:\"minecraft:librarian\",level:1,type:\"minecraft:plains\"}}"}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.query '{"q":"entities","center":{"x":0,"y":-60,"z":0},"filter":{"in_radius":8,"type":"villager"},"select":["id"]}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.bot.useItem '{"entityId":<VILLAGER_ID>}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.client.screen.info '{}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.client.screen.close '{}'
 ```
 
 预期：useItem 返回 `screen:"MerchantScreen"`；screen.info 同名佐证；close 收尾。
@@ -368,9 +368,9 @@ python3 .claude/skills/agent-driver-rpc/rpc.py mc.client.screen.close '{}'
 - [ ] **Step 6: 客户端套件回归**
 
 ```bash
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.client.chat.send '{"text":"/agent test"}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.client.chat.send '{"text":"/agent test"}'
 # 等 ~60-90s（前台 sleep 分段），然后收割结果：
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.client.chat.history '{"limit":20}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.client.chat.history '{"limit":20}'
 ```
 
 预期：总数比上轮基线 +2（12_use_item 新增两用例），无新 FAIL
@@ -380,7 +380,7 @@ python3 .claude/skills/agent-driver-rpc/rpc.py mc.client.chat.history '{"limit":
 - [ ] **Step 7: 清场 + 记录**
 
 ```bash
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.action.runCommand '{"cmd":"kill @e[type=!minecraft:player]"}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.action.runCommand '{"cmd":"kill @e[type=!minecraft:player]"}'
 ```
 
 把 Step 2-6 的实际返回粘进任务记录（观测数据佐证，不许"应该没问题"）。
@@ -395,7 +395,7 @@ python3 .claude/skills/agent-driver-rpc/rpc.py mc.action.runCommand '{"cmd":"kil
 
 ```bash
 ps aux | grep TransformerRuntime | grep -v grep   # 必须为空，否则按 PID kill
-cd /root/source/minecraft/AI-assisted-Minecraft-Developers/agent-driver-mod
+cd /root/source/minecraft/AI-assisted-Minecraft-Developers/worlddriver
 ./gradlew :neoforge:runGameTestServer > /tmp/claude-0/-root-source-minecraft-AI-assisted-Minecraft-Developers/740d145d-e0fc-48b4-bc0f-024af56f492e/scratchpad/gt-entityinteract.log 2>&1 &
 ```
 

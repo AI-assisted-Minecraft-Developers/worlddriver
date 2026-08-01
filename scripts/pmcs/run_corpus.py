@@ -32,7 +32,7 @@ def run_corpus(corpus_path: str, flags: dict, baseline):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--corpus", default="config/agent_driver/replays/corpus.json")
+    ap.add_argument("--corpus", default="config/worlddriver/replays/corpus.json")
     ap.add_argument("--flags", default="{}")
     ap.add_argument("--baseline", default=None, help="baseline matrix JSON 文件(省略=只采集)")
     a = ap.parse_args()

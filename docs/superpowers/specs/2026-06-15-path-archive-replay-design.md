@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-15
 **Status:** Approved (pending spec review)
-**Author:** agent-driver maintainer
+**Author:** worlddriver maintainer
 
 ## 1. Problem & Goals
 
@@ -39,7 +39,7 @@ archive off-box.
 | Decision | Choice |
 | --- | --- |
 | Persistence | **On-disk JSON, one archive per `goto` session** (survives restart; offline-analyzable) |
-| Storage dir | `config/agent_driver/replays/` (mirrors `…/debug/` for pathCharts) |
+| Storage dir | `config/worlddriver/replays/` (mirrors `…/debug/` for pathCharts) |
 | Serialization | Reuse the hand-written `JsonCodec` (no new dependency) |
 | Replay semantics | **Force-restore block context, then Walker re-executes the stored plan** (deterministic wedge repro); a wedge is *recorded, not re-planned* |
 | Block extent | **Sparse envelope**: per route node, cells in X/Z ±2, Y −1..+2, deduplicated (routes are thin corridors; a dense AABB would be huge) |
@@ -75,7 +75,7 @@ at runtime and, for the static plan, store only what the terrain **allows/forces
 
 ## 4. Archive JSON schema
 
-`config/agent_driver/replays/replay-<counter>-<epochMs>.json`:
+`config/worlddriver/replays/replay-<counter>-<epochMs>.json`:
 
 ```jsonc
 {

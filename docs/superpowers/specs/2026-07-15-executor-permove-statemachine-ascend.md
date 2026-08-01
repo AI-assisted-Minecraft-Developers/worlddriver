@@ -93,7 +93,7 @@ guarantee: an ascent edge either completes or is declared `UNREACHABLE` within a
 
 ### 3.1 The `Movement` abstraction
 
-A new interface (package `net.magicterra.agent.bot.movement`, alongside `Walker`):
+A new interface (package `net.magicterra.worlddriver.bot.movement`, alongside `Walker`):
 
 ```java
 public interface Movement {
@@ -354,7 +354,7 @@ flips to default-ON only on a clean live A/B.
 
 ## 7. Prerequisites & dependencies
 
-- **task#83 — refresh `config/agent_driver/replays/baseline-flags.json` FIRST (blocking).** Verified
+- **task#83 — refresh `config/worlddriver/replays/baseline-flags.json` FIRST (blocking).** Verified
   stale: the file was committed **2026-06-28 13:09** (git), predating the 2026-07-04 batch flag-flip by
   6 days; it lists flags including `walkerAscentRamJitterImmune`, `walkerStepUpCrestReach`,
   `walkerVerticalResync`, `walkerLevelRiserJump`, `walkerPadRamBreak` (the DELETE set) plus KEEP flags

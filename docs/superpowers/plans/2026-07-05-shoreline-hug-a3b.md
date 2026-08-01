@@ -37,12 +37,12 @@
 
 - [ ] **Step 1: `ShorelineHug.java`**
 ```java
-package net.magicterra.agent.bot.pathfinder.modifiers;
+package net.magicterra.worlddriver.bot.pathfinder.modifiers;
 
-import net.magicterra.agent.bot.Goal;
-import net.magicterra.agent.bot.pathfinder.CostModifier;
-import net.magicterra.agent.bot.pathfinder.Move;
-import net.magicterra.agent.bot.pathfinder.WorldView;
+import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
+import net.magicterra.worlddriver.bot.pathfinder.Move;
+import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 
 /** 沿河岸走: tax every node that has NO water among its 4 cardinal neighbors

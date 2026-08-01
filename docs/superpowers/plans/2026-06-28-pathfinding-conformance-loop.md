@@ -38,7 +38,7 @@
 
 Run:
 ```bash
-cd /home/coder/AI-assisted-Minecraft-Developers/agent-driver-mod
+cd /home/coder/AI-assisted-Minecraft-Developers/worlddriver
 .venv/bin/python3 -m pip install -q pytest
 mkdir -p scripts/pmcs/tests
 touch scripts/pmcs/__init__.py scripts/pmcs/tests/__init__.py
@@ -51,7 +51,7 @@ Expected: pytest 安装成功(或已存在)。
 from scripts.pmcs.telemetry import parse_walker_line, parse_log, peak_totstuck
 
 # 真实 [walker] telemetry 行格式(Walker.java:2388)
-LINE = ("[12:00:01] [Render thread/INFO] (AgentDriver) [walker] t=5 step=3/12 move=stepUp "
+LINE = ("[12:00:01] [Render thread/INFO] (WorldDriver) [walker] t=5 step=3/12 move=stepUp "
         "node=-815,64,196 p=(-815.30,63.00,196.10) pitch=0 cur2=0.120 (gate 0.45) "
         "|dY|=1.00 (gate 1.2) within=false onG=true inW=false undW=false "
         "stuck=5 totStuck=42 pend=false break0=null")
@@ -389,7 +389,7 @@ git commit -m "feat(pmcs): acceptance gate evaluator (net-positive + zero-regres
 ### Task 4: corpus 清单 + 加载器
 
 **Files:**
-- Create: `config/agent_driver/replays/corpus.json`
+- Create: `config/worlddriver/replays/corpus.json`
 - Create: `scripts/pmcs/corpus.py`
 - Test: `scripts/pmcs/tests/test_corpus.py`
 
@@ -399,7 +399,7 @@ git commit -m "feat(pmcs): acceptance gate evaluator (net-positive + zero-regres
   - `load_corpus(path:str) -> list[CorpusEntry]`
   - `cmp` ∈ {"ge","le"}(`replay_regression_track.sh` 的到达判据约定)
 
-- [ ] **Step 1: 写 corpus 清单** — `config/agent_driver/replays/corpus.json`
+- [ ] **Step 1: 写 corpus 清单** — `config/worlddriver/replays/corpus.json`
 
 ```json
 {
@@ -422,7 +422,7 @@ from scripts.pmcs.corpus import load_corpus
 
 
 def test_load_seed_corpus():
-    entries = load_corpus("config/agent_driver/replays/corpus.json")
+    entries = load_corpus("config/worlddriver/replays/corpus.json")
     archives = {e.archive for e in entries}
     assert "replay-0004.json" in archives
     e4 = next(e for e in entries if e.archive == "replay-0004.json")
@@ -485,7 +485,7 @@ Expected: PASS(2 passed)
 - [ ] **Step 6: Commit**
 
 ```bash
-git add config/agent_driver/replays/corpus.json scripts/pmcs/corpus.py scripts/pmcs/tests/test_corpus.py
+git add config/worlddriver/replays/corpus.json scripts/pmcs/corpus.py scripts/pmcs/tests/test_corpus.py
 git commit -m "feat(pmcs): corpus manifest + loader (seed 3 archives, diversity-tagged)"
 ```
 
@@ -531,7 +531,7 @@ Expected: FAIL — `ModuleNotFoundError: scripts.pmcs.run_case`
 """驱动一个 (archive, flags) replay 并收集 maxStuck + per-Move conformance。
 
 live 链路(spec §7 工作流第1步):
-  1) 经 WS-RPC 设 flags(新 flag 会被 MCP 工具 schema strip,必须走 RPC——见 agent-driver-rpc skill)
+  1) 经 WS-RPC 设 flags(新 flag 会被 MCP 工具 schema strip,必须走 RPC——见 worlddriver-rpc skill)
   2) mc.debug.replay {file, restoreBlocks:true}
   3) 轮询 fabric/run/logs/latest.log 的 [walker] 行,到达 arrive_x 或超时即停
   4) 解析这段日志切片 → maxStuck + conformance
@@ -703,7 +703,7 @@ def run_corpus(corpus_path: str, flags: dict, baseline):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--corpus", default="config/agent_driver/replays/corpus.json")
+    ap.add_argument("--corpus", default="config/worlddriver/replays/corpus.json")
     ap.add_argument("--flags", default="{}")
     ap.add_argument("--baseline", default=None, help="baseline matrix JSON 文件(省略=只采集)")
     a = ap.parse_args()
@@ -743,8 +743,8 @@ git commit -m "feat(pmcs): corpus runner CLI — maxStuck matrix → acceptance 
 ### Task 7: corpus 种子归档提交 + REGRESSION.md 活文档重构
 
 **Files:**
-- Create: `config/agent_driver/replays/replay-0004.json`, `replay-0005.json`, `replay-0006.json`(从 runtime 复制精选)
-- Modify: `config/agent_driver/replays/REGRESSION.md`
+- Create: `config/worlddriver/replays/replay-0004.json`, `replay-0005.json`, `replay-0006.json`(从 runtime 复制精选)
+- Modify: `config/worlddriver/replays/REGRESSION.md`
 
 **Interfaces:**
 - Consumes: corpus.json(Task 4)的 archive 名
@@ -753,14 +753,14 @@ git commit -m "feat(pmcs): corpus runner CLI — maxStuck matrix → acceptance 
 
 Run:
 ```bash
-cd /home/coder/AI-assisted-Minecraft-Developers/agent-driver-mod
-ls -t fabric/run/config/agent_driver/replays/replay-*.json 2>/dev/null | head -20
+cd /home/coder/AI-assisted-Minecraft-Developers/worlddriver
+ls -t fabric/run/config/worlddriver/replays/replay-*.json 2>/dev/null | head -20
 ```
 Expected: 列出 runtime 录制的归档。挑出对应 -815 diagUp(0005/0006)与 water-corridor(0004)区域的 plan 归档(看 header.start/goal),复制为稳定名:
 ```bash
-cp fabric/run/config/agent_driver/replays/<选中的-0006>.json config/agent_driver/replays/replay-0006.json
-cp fabric/run/config/agent_driver/replays/<选中的-0005>.json config/agent_driver/replays/replay-0005.json
-cp fabric/run/config/agent_driver/replays/<选中的-0004>.json config/agent_driver/replays/replay-0004.json
+cp fabric/run/config/worlddriver/replays/<选中的-0006>.json config/worlddriver/replays/replay-0006.json
+cp fabric/run/config/worlddriver/replays/<选中的-0005>.json config/worlddriver/replays/replay-0005.json
+cp fabric/run/config/worlddriver/replays/<选中的-0004>.json config/worlddriver/replays/replay-0004.json
 ```
 > 若 runtime 已无这些归档:用 live client 重录(`mc.bot.setting{pathArchive:true}` → 从对应起点 `mc.bot.goto{xz:{x:-520,z:180}}` → 归档落到 fabric/run/.../replays/)。这是 corpus 多样性持续工作的一部分(spec §9 风险2)。
 
@@ -771,7 +771,7 @@ Expected: replay 启动,bot 在 -815 区开始走。
 
 - [ ] **Step 3: REGRESSION.md 重构为活文档**
 
-把 `config/agent_driver/replays/REGRESSION.md` 重构成固定章节(覆盖旧的临时记录):
+把 `config/worlddriver/replays/REGRESSION.md` 重构成固定章节(覆盖旧的临时记录):
 ```markdown
 # Replay-Corpus Regression Harness (living doc)
 
@@ -810,7 +810,7 @@ Expected: replay 启动,bot 在 -815 区开始走。
 - [ ] **Step 4: Commit**
 
 ```bash
-git add config/agent_driver/replays/replay-000*.json config/agent_driver/replays/REGRESSION.md
+git add config/worlddriver/replays/replay-000*.json config/worlddriver/replays/REGRESSION.md
 git commit -m "chore(corpus): seed 3 diverse archives + restructure REGRESSION.md as living doc"
 ```
 
@@ -836,7 +836,7 @@ git commit -m "chore(corpus): seed 3 diverse archives + restructure REGRESSION.m
 
 ## 设 flag(新 flag 必须走 RPC)
 - MCP 工具 schema 在 session 启动冻结 → 新加的 BotConfig key 被 strip。
-- 用 RPC(port 39801,见 agent-driver-rpc skill 的 rpc.py)或 `mc.script_eval` 里 `Agent.invoke('mc.bot.setting', {...})`。
+- 用 RPC(port 39801,见 worlddriver-rpc skill 的 rpc.py)或 `mc.script_eval` 里 `Agent.invoke('mc.bot.setting', {...})`。
 
 ## 三件套分层判别器(定 class A vs B)
 1. `mc.observe.map` / `mc.client.blocks` — 真几何(非假设)。
@@ -874,7 +874,7 @@ Run(经 RPC 设全 default 后):
 ```bash
 .venv/bin/python3 -m scripts.pmcs.run_corpus --flags '{}'
 ```
-把输出 matrix 存为 `config/agent_driver/replays/baseline.json`。
+把输出 matrix 存为 `config/worlddriver/replays/baseline.json`。
 Expected: 三归档 maxStuck 与 REGRESSION.md §4(579/840/1814)同量级(确定性复现,允许小幅波动)。
 
 - [ ] **Step 3: 产出首张 per-Move 发散表**
@@ -884,7 +884,7 @@ Expected: 三归档 maxStuck 与 REGRESSION.md §4(579/840/1814)同量级(确定
 from scripts.pmcs.corpus import load_corpus
 from scripts.pmcs.run_case import run_case
 from scripts.pmcs.run_corpus import divergent_moves
-entries = load_corpus("config/agent_driver/replays/corpus.json")
+entries = load_corpus("config/worlddriver/replays/corpus.json")
 results = [run_case(e.archive, {}, e.arrive_x, e.cmp) for e in entries]
 print("divergent moves:", divergent_moves(results))
 ```
@@ -894,14 +894,14 @@ Expected: 至少复现已知发散(steep diagUp 段的 stepUp2/diagUp churn;wate
 
 Run(经 RPC 设 apw-stack flags 后):
 ```bash
-.venv/bin/python3 -m scripts.pmcs.run_corpus --flags '{"walkerArcProgressWedge":true, ...apw-stack...}' --baseline config/agent_driver/replays/baseline.json
+.venv/bin/python3 -m scripts.pmcs.run_corpus --flags '{"walkerArcProgressWedge":true, ...apw-stack...}' --baseline config/worlddriver/replays/baseline.json
 ```
 Expected: 门输出 **REJECT**,`regressions` 含 `replay-0004`(复现 over-fit 被挡)。**这是机制有效的决定性证据**:它自动抓住了我此前靠人肉才发现的回归。
 
 - [ ] **Step 5: Commit 发现结果**
 
 ```bash
-git add config/agent_driver/replays/baseline.json config/agent_driver/replays/REGRESSION.md
+git add config/worlddriver/replays/baseline.json config/worlddriver/replays/REGRESSION.md
 git commit -m "feat(pmcs): first discovery run — baseline matrix + divergence table + gate REJECT on apw over-fit"
 ```
 

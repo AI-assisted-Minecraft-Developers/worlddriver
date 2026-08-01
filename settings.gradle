@@ -1,10 +1,10 @@
 pluginManagement {
-    // Standalone included build for the mc-testkit gradle plugin (id
-    // net.magicterra.mc-testkit). Being an included build it lives entirely
+    // Standalone included build for the stagewright gradle plugin (id
+    // net.magicterra.stagewright). Being an included build it lives entirely
     // outside the root subprojects{} / loom pipeline; the root build applies it
     // below as the first dogfood consumer. Zero cost when a consumer does not
     // apply the plugin.
-    includeBuild('mc-testkit/gradle-plugin')
+    includeBuild('stagewright/gradle-plugin')
 
     repositories {
         maven { url "https://maven.fabricmc.net/" }
@@ -16,17 +16,17 @@ pluginManagement {
 
 // Root gradle project name. Was 'noteblockapi' — a leftover from the repo's
 // original template fork, referenced nowhere; renamed 2026-07-19 to match the
-// repository. mod id / archives_name ('agent_driver') live in gradle.properties.
-rootProject.name = 'agent-driver-mod'
+// repository. mod id / archives_name ('worlddriver') live in gradle.properties.
+rootProject.name = 'worlddriver'
 
 include 'common'
 include 'fabric'
 include 'neoforge'
-include 'testkit-common'
-include 'testkit-fabric'
-include 'testkit-neoforge'
-include 'testkit-junit'
-project(':testkit-common').projectDir = file('mc-testkit/common')
-project(':testkit-fabric').projectDir = file('mc-testkit/fabric')
-project(':testkit-neoforge').projectDir = file('mc-testkit/neoforge')
-project(':testkit-junit').projectDir = file('mc-testkit/junit')
+include 'stagewright-common'
+include 'stagewright-fabric'
+include 'stagewright-neoforge'
+include 'stagewright-junit'
+project(':stagewright-common').projectDir = file('stagewright/common')
+project(':stagewright-fabric').projectDir = file('stagewright/fabric')
+project(':stagewright-neoforge').projectDir = file('stagewright/neoforge')
+project(':stagewright-junit').projectDir = file('stagewright/junit')

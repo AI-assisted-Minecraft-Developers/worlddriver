@@ -7,17 +7,17 @@ etc.) working in this project. Keep it short and authoritative.
 
 - **Stack**: Minecraft 1.21.1, Architectury (Fabric + NeoForge), JDK 21,
   Gradle wrapper. Rhino is the embedded JS engine.
-- **Source of truth**: `common/src/main/java/net/magicterra/agent/api/AgentApi.java`.
+- **Source of truth**: `common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java`.
   Every transport (MCP HTTP, WebSocket RPC, in-JVM Rhino) routes through
   `AgentApi.route(method, params)`. Do **not** add game-affecting behavior
   in a transport — add it in AgentApi, expose it through all three.
-- **Tests**: the mc-testkit orchestrators under `scripts/testkit/` are the
+- **Tests**: the stagewright orchestrators under `scripts/stagewright/` are the
   canonical integration gates (the legacy `@GameTest` suite and its
   GameTestServer machinery were retired in P4-final). The gates:
-  - `t0.py` — dogfood a dedicated server, autorun the ad.* scenes, and verify
+  - `t0.py` — dogfood a dedicated server, autorun the wd.* scenes, and verify
     the results stream against an expect-file (`--loader <fabric|neoforge>
     --run-task :<loader>:runDogfoodServer --results <loader>/run-dogfood/testkit-results.jsonl
-    --expect-file scripts/testkit/expected-scenes-<loader>.txt`).
+    --expect-file scripts/stagewright/expected-scenes-<loader>.txt`).
   - `t1.py` — integrated-server (client-topology) parity run.
   - `t2.py` — production topology: a plain dedicated server driven on-demand via
     `mc.test.run` over multiplayer.
@@ -52,7 +52,7 @@ etc.) working in this project. Keep it short and authoritative.
    server thread use the snapshot helpers in `AgentApi`, never `Level`
    directly.
 3. **Don't widen the Rhino sandbox** without adding a matching negative test
-   in `common/src/main/resources/data/agent_driver/scripts/agent_validation/08_sandbox.js`.
+   in `common/src/main/resources/data/worlddriver/scripts/agent_validation/08_sandbox.js`.
 4. **MCP spec citations are load-bearing.** When changing `McpServer.java`,
    keep the `// spec: 2025-06-18 §…` comments accurate. The spec lives at
    <https://modelcontextprotocol.io/specification/2025-06-18>.
@@ -68,7 +68,7 @@ etc.) working in this project. Keep it short and authoritative.
    already documents types.
 7. **No fully-qualified names when there's no conflict.** Add a normal `import`
    and use the simple name. Inline FQNs like
-   `net.magicterra.agent.bot.util.BlockMatch.of(...)` or
+   `net.magicterra.worlddriver.bot.util.BlockMatch.of(...)` or
    `java.util.function.Predicate<…>` are only allowed to disambiguate a genuine
    name collision in that file.
 8. **No Java source file over 3000 lines.** Gate:
@@ -87,7 +87,7 @@ etc.) working in this project. Keep it short and authoritative.
 
    To open a member, add it to **both** files and use it directly:
 
-   - `common/src/main/resources/agent_driver.accesswidener` — fabric + compile
+   - `common/src/main/resources/worlddriver.accesswidener` — fabric + compile
    - `neoforge/src/main/resources/META-INF/accesstransformer.cfg` — neoforge
 
    They are separate because architectury-loom 1.11 has no AW→AT conversion for
@@ -110,13 +110,13 @@ etc.) working in this project. Keep it short and authoritative.
 
 11. **A scene's terrain must fit its force-loaded arena.** Gate:
     `python3 scripts/check_scene_arena.py` (source-only — no build, no run).
-    `TestkitHarness` force-loads a (2r+1)² chunk window around the scene origin,
+    `StageWrightHarness` force-loads a (2r+1)² chunk window around the scene origin,
     where r is `Scene.withChunkRadius(r)` (default 1), so the usable offsets are
     `dx, dz ∈ [-16r, 16r+15]`. Build terrain outside it and nothing fails: the
     write succeeds by loading the chunk on demand, but PREP's `allChunksLoaded()`
     never waited for it, so the scene passes most of the time and fails when it
     doesn't — which reads as a bot bug, not an arena bug. Until this gate the
-    relation was maintained entirely by hand, in javadoc (`AgentDriverWaterCross
+    relation was maintained entirely by hand, in javadoc (`WorldDriverWaterCross
     Scenes`' class comment is the model: it derives every span and the radius it
     needs). Prefer `ctx.setBlock(dx, dy, dz, block)` for new terrain — it states
     the footprint as arguments, so the gate reads it directly instead of
@@ -131,7 +131,7 @@ Runtime output is local-only and must never appear at the project root:
 | Fabric client / server logs            | `fabric/run/logs/` |
 | NeoForge client logs                   | `neoforge/run/logs/` |
 | Dogfood (T0) server logs               | `<loader>/run-dogfood/logs/` |
-| Testkit T0 server run results          | `mc-testkit/<loader>/run-testkit/` |
+| StageWright T0 server run results          | `stagewright/<loader>/run-testkit/` |
 | Instrument contract server run          | `<loader>/run-contract/` |
 | Smoke-test screenshots, traces, logs   | `fabric/run/smoke/` |
 | Gradle compile output                  | `<platform>/build/` |
@@ -145,16 +145,16 @@ unexpected location, treat it as a leftover and delete it — do not commit it.
 # Build everything
 ./gradlew build
 
-# Integration tests (use as CI) — mc-testkit orchestrators, see scripts/testkit/
-python3 scripts/testkit/t0.py --loader neoforge \
+# Integration tests (use as CI) — stagewright orchestrators, see scripts/stagewright/
+python3 scripts/stagewright/t0.py --loader neoforge \
   --run-task :neoforge:runDogfoodServer \
   --results neoforge/run-dogfood/testkit-results.jsonl \
-  --expect-file scripts/testkit/expected-scenes-neoforge.txt
-python3 scripts/testkit/instrument.py --loader neoforge   # 23/23 instrument contract
-python3 scripts/testkit/t1.py                             # integrated-server parity
+  --expect-file scripts/stagewright/expected-scenes-neoforge.txt
+python3 scripts/stagewright/instrument.py --loader neoforge   # 23/23 instrument contract
+python3 scripts/stagewright/t1.py                             # integrated-server parity
 
 # Interactive client (pin ports so .mcp.json keeps working)
-JAVA_TOOL_OPTIONS="-Dagent.mcpPort=39800 -Dagent.rpcPort=39801" \
+JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39800 -Dworlddriver.rpcPort=39801" \
   ./gradlew :fabric:runClient
 
 # Headless smoke driving (Xvfb + matchbox, drives client via RPC)
@@ -165,11 +165,11 @@ scripts/smoke-test-react.sh
 
 0. **First**, re-read Hard Rule #6 — can you extend an existing tool instead?
 1. Add the underlying behavior to `AgentApi.route(...)`.
-2. Register the tool schema in `common/src/main/java/net/magicterra/agent/mcp/ToolCatalog.java`.
+2. Register the tool schema in `common/src/main/java/net/magicterra/worlddriver/mcp/ToolCatalog.java`.
 3. Add a corresponding validation script under `agent_validation/` that
    exercises it through all three transports and asserts byte-identical
    results (see `06_rpc_parity.js` / `07_mcp_parity.js` for the pattern).
-4. Re-run the testkit gates (`scripts/testkit/t0.py` + `instrument.py`) — they must stay green.
+4. Re-run the testkit gates (`scripts/stagewright/t0.py` + `instrument.py`) — they must stay green.
 
 ## When you remove or merge a tool
 

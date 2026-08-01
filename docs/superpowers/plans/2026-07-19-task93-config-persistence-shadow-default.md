@@ -6,7 +6,7 @@
 
 **Architecture:** **影子默认（shadow-default）方案**——save 时每键写两行：`<key>=<value>` + `<key>.default=<当时编译默认>`；load 时若影子存在且 `value == 影子默认` → 该键只是快照，**跳过**（让当前编译默认生效）；若 `value != 影子默认` → 用户显式改过，**应用**。选此方案因为它自包含在持久化层（不必在每条写路径埋「显式改动」追踪）、无需维护历史默认表、`.default` 后缀与字段名（java 标识符无点号）零冲突。**已拍板语义**：用户把某键显式设回默认值＝跟随默认（影子判等会视作快照）——文档写明。**Legacy 文件**（无影子行）：条目按用户意图保守保留（照常应用），但对「与当前默认不一致」的键打一条 WARN 漂移清单（可见不静默）；load 成功后立即**升级重存**（写出影子行），此后默认翻转对该文件生效。方案 (a)「只持久化显式改动」被弃：需要在 SettingsCommand/反射 fallback 等多条写路径埋点，且 legacy 文件同样无法区分意图，复杂度高收益同。
 
-**Tech Stack:** BotConfig 持久化段（纯 common Java）、live 双向验证（dedicated server + `-Dagent.persistConfig=true`）。
+**Tech Stack:** BotConfig 持久化段（纯 common Java）、live 双向验证（dedicated server + `-Dworlddriver.persistConfig=true`）。
 
 ## Global Constraints
 
@@ -19,21 +19,21 @@
 ### Task 1: 影子默认实现 + live 双向验证 + 文档
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/BotConfig.java`（:2393-2440 持久化段：save 写影子行；load 影子判等跳过/应用 + legacy WARN + 升级重存）
-- Modify: `TODO.md`（task#93 收案条目）、`docs/testkit/migration-log.md`（append 补记 D2 尾注的结构修落地）
-- 现存唯一落盘文件 `fabric/run/config/agent_driver_bot.properties`（两键已手工刷 true；本任务的升级重存会自然改写它——live 验证时确认升级后影子行齐全）
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/BotConfig.java`（:2393-2440 持久化段：save 写影子行；load 影子判等跳过/应用 + legacy WARN + 升级重存）
+- Modify: `TODO.md`（task#93 收案条目）、`docs/stagewright/migration-log.md`（append 补记 D2 尾注的结构修落地）
+- 现存唯一落盘文件 `fabric/run/config/worlddriver_bot.properties`（两键已手工刷 true；本任务的升级重存会自然改写它——live 验证时确认升级后影子行齐全）
 
 **Interfaces:**
-- Consumes: `persistableFields()` 反射名单；`persistPath()`=config/agent_driver_bot.properties；`persistEnabled()` opt-in。
+- Consumes: `persistableFields()` 反射名单；`persistPath()`=config/worlddriver_bot.properties；`persistEnabled()` opt-in。
 - Produces: 新文件格式（每键两行）；load 语义=影子判等。向后兼容：新代码读 legacy 文件不炸；旧代码读新文件会把 `.default` 行当未知键——`load` 按字段名反射查找，查不到的键现行为是什么？**实现前先读清楚**：若现行为是静默跳过则天然兼容，若会抛/警告则影子键须用现行为可容忍的形态（以实际代码为准，报告记录）。
 
 - [ ] **Step 1**: 读 :2393-2440 现实现（save/load 全文），确认未知键行为与 exception 处理，实现影子写入+判等加载+legacy WARN+升级重存。编译三模块。
-- [ ] **Step 2 live 双向验证**（dedicated server + `-Dagent.persistConfig=true`，临时 runDir，一次一服）：
+- [ ] **Step 2 live 双向验证**（dedicated server + `-Dworlddriver.persistConfig=true`，临时 runDir，一次一服）：
   - **(a) 快照跳过向**：手造 legacy 文件含 `walkerWaterClimbLateralGate=false`（无影子）→ 启动 → 断言运行时值=true？**不对**——legacy 无影子按「保守保留」应用=false+WARN。真正的快照跳过向要用新格式：手造 `walkerWaterClimbLateralGate=false` + `walkerWaterClimbLateralGate.default=false`（模拟旧版本快照）→ 启动 → **断言运行时值=true（当前默认胜出）** + 文件升级后该键消失或影子=true。
   - **(b) 用户意图保留向**：手造 `autoSwim=false` + `autoSwim.default=true`（用户显式关过）→ 启动 → **断言运行时值=false**（用户意图保留）。
   - **(c) legacy 兼容向**：手造纯 legacy 文件（无任何影子行,含一个与默认不一致键）→ 启动 → 断言该键被应用 + WARN 漂移清单出现 + 文件被升级重存（影子行齐全）。
   - **(d) round-trip**：运行时 `mc.bot.setting` 改一键 → save → 重启 → 键值保留。
-  - 断言途径=裸 RPC `mc.bot.setting` 快照读回（scripts/.claude/skills/agent-driver-rpc/rpc.py）+ server log WARN 行。
+  - 断言途径=裸 RPC `mc.bot.setting` 快照读回（scripts/.claude/skills/worlddriver-rpc/rpc.py）+ server log WARN 行。
 - [ ] **Step 3**: 全 armor（dogfood 双 loader + instrument ×2 + t1——同时证明 opt-in 门未被破坏：testkit 各 runDir 不得出现新落盘文件）。
 - [ ] **Step 4**: `fabric/run` 现存文件的升级确认（跑一次 runClient 或按 (c) 的方式离线验证亦可——若动 live 客户端须走 into_world/screen-watch 纪律；离线手动验证优先）。
 - [ ] **Step 5**: 文档 + Commit `fix(config): task#93 — shadow-default persistence (snapshot keys follow new defaults, explicit user changes preserved)`

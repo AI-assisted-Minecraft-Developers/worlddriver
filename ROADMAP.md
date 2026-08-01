@@ -1,6 +1,6 @@
 # ROADMAP
 
-> agent-driver 的演进路线图：把一个由外部 LLM（Claude）驱动的 Minecraft agent，做成能在
+> worlddriver 的演进路线图：把一个由外部 LLM（Claude）驱动的 Minecraft agent，做成能在
 > **无作弊生存**里活下来、并最终**搭下界门、进下界**。控制架构是手段，生存进度是北极星。
 >
 > 配套：架构设计见 [`docs/design/00`–`04`](docs/design/)；本路线图是它们的实现状态索引 + 前瞻。

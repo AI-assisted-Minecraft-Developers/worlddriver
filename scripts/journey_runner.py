@@ -8,10 +8,10 @@ arrived). pathArchive stays ON so each journey leaves a replayable archive.
 """
 import asyncio, json, sys, time
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent / ".claude/skills/agent-driver-rpc"))
+sys.path.insert(0, str(Path(__file__).parent / ".claude/skills/worlddriver-rpc"))
 import websockets
 
-PORT = int((Path(__file__).parent.parent / "fabric/run/agent-rpc.port").read_text().strip())
+PORT = int((Path(__file__).parent.parent / "fabric/run/worlddriver-rpc.port").read_text().strip())
 URI = f"ws://127.0.0.1:{PORT}/rpc"
 
 GOALS = json.loads(sys.argv[1]) if len(sys.argv) > 1 else [

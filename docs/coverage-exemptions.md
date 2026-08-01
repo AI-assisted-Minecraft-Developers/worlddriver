@@ -15,8 +15,8 @@ unreachable in the arena topology — "hard to rig" is not an exemption.
 | `GEAR-degraded` sentinel | `WalkerExpectAlarms.ClientGearCheck` | References `LocalPlayer` — the class does not exist in a dedicated-server JVM (running the flag server-side crashed until the side guard landed; see 2026-07-19 fix). | Live client runs with `walkerExpectAlarm=true`. |
 | `pathfinderFrontierCommit` wait/arrive branches | `Walker.frontierHoldOrArrive`, `WalkerTickSearch` | Needs a search that dies at an **unloaded-chunk frontier**; testkit slots force-load their whole grid window, so no frontier exists. | Live long-distance journeys (wjourney runs routinely cross load borders). |
 | Creative-flight descent (`descending` latch) | `WalkerTickPrelude` | Requires a player in creative flight; server avatars never fly (abilities off). | Live `mc.debug`/creative sessions. |
-| Replay-mode guards (`replayMode` skips) | several phases | `beginReplay` runs them, but the *guard-off* half of each branch pair only differs under live `mc.debug.replay` cadence; the arena replay (`ad.replayRoundTrip`) covers the ON side. | `mc.debug.replay` live tooling. |
-| `walkerDebug` log lines inside untriggered mechanisms | all phases | The log line is only reachable when its *enclosing mechanism* triggers; the debug flag itself is exercised (`ad.debugSweepCourse`, plus most water arenas run with debug on). Each such line is covered or exempted **with its mechanism**, not as "logging". | n/a (follows the mechanism's row) |
+| Replay-mode guards (`replayMode` skips) | several phases | `beginReplay` runs them, but the *guard-off* half of each branch pair only differs under live `mc.debug.replay` cadence; the arena replay (`wd.replayRoundTrip`) covers the ON side. | `mc.debug.replay` live tooling. |
+| `walkerDebug` log lines inside untriggered mechanisms | all phases | The log line is only reachable when its *enclosing mechanism* triggers; the debug flag itself is exercised (`wd.debugSweepCourse`, plus most water arenas run with debug on). Each such line is covered or exempted **with its mechanism**, not as "logging". | n/a (follows the mechanism's row) |
 
 ## Known-untestable-today, candidates for future rigs (NOT exempt)
 
@@ -51,8 +51,8 @@ unreachable in the arena topology — "hard to rig" is not an exemption.
 
 ## Wave-3 closures (2026-07-19) + rig-design constraints they exposed
 
-Covered by `ad.boxedChurnEscalate`, `ad.quickStartStub`, `ad.ascentRamSlideBack`,
-`ad.aboveNodeStallPitFill`, `ad.verticalResyncSlideBack`, `ad.stepUpBackoffCeiling`:
+Covered by `wd.boxedChurnEscalate`, `wd.quickStartStub`, `wd.ascentRamSlideBack`,
+`wd.aboveNodeStallPitFill`, `wd.verticalResyncSlideBack`, `wd.stepUpBackoffCeiling`:
 the anti-churn window family (+ both window-shortening flags + sticky escalation +
 escalated `pf*` getters), the pre-path stub family (land bee-line reject →
 `tryQuickStart`), and all four steep-ascent ram/stall recovery folds.
@@ -82,7 +82,7 @@ probe-proven via `Walker.progressProbe()` embedded in ctx.fail):
    climb should span the full approach width, and post-mutation recovery stairs
    should be goal-aligned so the climb isn't dragged diagonally off an edge.
 6. **Rim every floor that borders void — even after consecutive green runs**
-   (2026-07-19, ad.boxedChurnEscalate lottery RED): in an unlucky run a
+   (2026-07-19, wd.boxedChurnEscalate lottery RED): in an unlucky run a
    best-effort route wrapped the bedrock mass exterior and the drive walked the
    bot off the platform edge (dz-8.6), falling to the dogfood ground at y=-60 —
    after five straight green runs. The lottery tail is real; a 3-tall bedrock

@@ -1,26 +1,26 @@
-# Testkit P1a — mc-testkit 行走骨架 实现计划
+# StageWright P1a — stagewright 行走骨架 实现计划
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 建立 mc-testkit 多加载器项目骨架 + T0 harness（普通专服壳、自研串行调度）+ 最小编排器 + 金丝雀自测，在 neoforge 与 fabric 上各跑绿一条端到端竖切（2 个平凡场景 + 3 只金丝雀哨兵，编排器 JSONL 裁决）。
+**Goal:** 建立 stagewright 多加载器项目骨架 + T0 harness（普通专服壳、自研串行调度）+ 最小编排器 + 金丝雀自测，在 neoforge 与 fabric 上各跑绿一条端到端竖切（2 个平凡场景 + 3 只金丝雀哨兵，编排器 JSONL 裁决）。
 
-**Architecture:** mc-testkit 以三个新 gradle 子项目（`:testkit-common/:testkit-fabric/:testkit-neoforge`，目录在 `mc-testkit/` 下）加入**现有** architectury 构建（root `subprojects{}` 自动提供 loom/mojmap/Java21）。游戏内：显式场景注册表 + tick 驱动的串行 harness（forceload 分配坐标格→执行 body→continuation steps→预算超时→JSONL 落盘→halt）。进程外：`scripts/testkit/t0.py` 编排（预备 run 目录/eula/server.properties→gradle 起专服→墙钟看门狗→JSONL 对账+金丝雀裁决→退出码）。**P1a 的 testkit 对 agent_driver 零依赖**（仪表契约到 P1b 才接线），故骨架期两个 mod 互不加载。
+**Architecture:** stagewright 以三个新 gradle 子项目（`:stagewright-common/:stagewright-fabric/:stagewright-neoforge`，目录在 `stagewright/` 下）加入**现有** architectury 构建（root `subprojects{}` 自动提供 loom/mojmap/Java21）。游戏内：显式场景注册表 + tick 驱动的串行 harness（forceload 分配坐标格→执行 body→continuation steps→预算超时→JSONL 落盘→halt）。进程外：`scripts/stagewright/t0.py` 编排（预备 run 目录/eula/server.properties→gradle 起专服→墙钟看门狗→JSONL 对账+金丝雀裁决→退出码）。**P1a 的 testkit 对 worlddriver 零依赖**（仪表契约到 P1b 才接线），故骨架期两个 mod 互不加载。
 
 **Tech Stack:** Java 21 / MC 1.21.1 mojmap / architectury-loom 1.11（沿用现构建）/ Fabric API（tick 与生命周期事件）/ NeoForge 21.1.230 / Python 3 标准库。
 
-**Spec:** `docs/superpowers/specs/2026-07-16-mc-testkit-design.md` §2/§3(T0)/§5/§7 P1。
-**Spec 偏差声明**：①spec §9 写「本仓库平级新项目」——本计划落成**同一 gradle 构建内的独立子项目组**（目录独立于 agent-driver 三模块，maven 坐标独立，将来可整体拆库）；理由=spec 同条自陈的「共享坑史与迭代速度」，且父目录不是 git 仓库、独立构建会失去版本控制。②P1 被拆为 P1a（本计划）/P1b（最小仪表契约+verb 接线）/P1c（dogfood 迁移彩票家族）三份独立交付的 plan——writing-plans scope check 要求。③`@SceneTest` 注解扫描按 spec §10 决议先用**显式注册表**，注解本身 P1a 不引入（YAGNI，注册表即单一真源，对账门吃注册表）。
+**Spec:** `docs/superpowers/specs/2026-07-16-stagewright-design.md` §2/§3(T0)/§5/§7 P1。
+**Spec 偏差声明**：①spec §9 写「本仓库平级新项目」——本计划落成**同一 gradle 构建内的独立子项目组**（目录独立于 worlddriver 三模块，maven 坐标独立，将来可整体拆库）；理由=spec 同条自陈的「共享坑史与迭代速度」，且父目录不是 git 仓库、独立构建会失去版本控制。②P1 被拆为 P1a（本计划）/P1b（最小仪表契约+verb 接线）/P1c（dogfood 迁移彩票家族）三份独立交付的 plan——writing-plans scope check 要求。③`@SceneTest` 注解扫描按 spec §10 决议先用**显式注册表**，注解本身 P1a 不引入（YAGNI，注册表即单一真源，对账门吃注册表）。
 
 ## Global Constraints
 
 - MC 1.21.1 / JDK 21 / mojmap；所有 Java API 均经 javap 实证（`setChunkForced(int,int,boolean)`、`LevelReader.hasChunkAt(BlockPos)`、`MinecraftServer.halt(boolean)`、`overworld()`）。
 - ⛔ 禁 `pkill`；杀进程 = `ps` 列候选 → 显式 PID `kill`。testkit 专服 JVM 的 sweep 模式 = `[t]estkit.autorun`。
-- 运行时输出不进 git：`mc-testkit/*/run-testkit/` 需加 .gitignore；结果文件 `testkit-results.jsonl` 落在 runDir。
+- 运行时输出不进 git：`stagewright/*/run-testkit/` 需加 .gitignore；结果文件 `testkit-results.jsonl` 落在 runDir。
 - 无命名冲突不用 FQN（AGENTS.md 规则 7）。
 - ⭐**探针教训（P0 事故 926396d）内建为契约**：harness 的 JSONL 写盘只发生在**场景边界**（场景 start 前/结束后），绝不在场景 RUN 期间的 tick 内做文件 IO；P1c 迁入确定性 dogfood arena 前必须复核此约束（必要时改异步 writer，先例 `GameTestManifest`）。
 - **编排契约 v0 冻结**（Task 4 落文档，此后 gradle-plugin 复用）：JSONL schema、退出码 0/1/2/3、启动协议、文件位置——见 Task 4 契约文件全文。
 - 专服 `server-port=25599`（避让 live 会话与默认 25565）；`level-type=minecraft\:flat`。
-- mod id `mc_testkit`，包 `net.magicterra.testkit`；testkit 代码 P1a 禁 import `net.magicterra.agent.*`。
+- mod id `mc_testkit`，包 `net.magicterra.stagewright`；testkit 代码 P1a 禁 import `net.magicterra.worlddriver.*`。
 - 子代理跑 gradle 专服 run 的等待纪律：前台 Bash + 工具 timeout 参数（≤600000ms 一段，跑不完就再发一段）；**绝不带着自己的后台任务结束回合**。
 
 ---
@@ -30,29 +30,29 @@
 **Files:**
 - Modify: `settings.gradle`（尾部加 3 个 include + projectDir 映射）
 - Modify: `.gitignore`（加 run-testkit）
-- Create: `mc-testkit/common/build.gradle`
-- Create: `mc-testkit/fabric/build.gradle`
-- Create: `mc-testkit/neoforge/build.gradle`
-- Create: `mc-testkit/neoforge/gradle.properties`（单行 `loom.platform = neoforge`——architectury-loom 靠它在插件应用前认定平台并注册 `neoForge` 依赖配置；仓库 `neoforge/gradle.properties` 同款；fabric 是 loom 默认平台无需此文件。执行期 BLOCKED 实证补齐）
-- Create: `mc-testkit/common/src/main/java/net/magicterra/testkit/TestkitCommon.java`（stub，Task 3 长大）
-- Create: `mc-testkit/fabric/src/main/java/net/magicterra/testkit/fabric/TestkitFabric.java`
-- Create: `mc-testkit/neoforge/src/main/java/net/magicterra/testkit/neoforge/TestkitNeoForge.java`
-- Create: `mc-testkit/fabric/src/main/resources/fabric.mod.json`
-- Create: `mc-testkit/neoforge/src/main/resources/META-INF/neoforge.mods.toml`
+- Create: `stagewright/common/build.gradle`
+- Create: `stagewright/fabric/build.gradle`
+- Create: `stagewright/neoforge/build.gradle`
+- Create: `stagewright/neoforge/gradle.properties`（单行 `loom.platform = neoforge`——architectury-loom 靠它在插件应用前认定平台并注册 `neoForge` 依赖配置；仓库 `neoforge/gradle.properties` 同款；fabric 是 loom 默认平台无需此文件。执行期 BLOCKED 实证补齐）
+- Create: `stagewright/common/src/main/java/net/magicterra/stagewright/StageWrightCommon.java`（stub，Task 3 长大）
+- Create: `stagewright/fabric/src/main/java/net/magicterra/stagewright/fabric/StageWrightFabric.java`
+- Create: `stagewright/neoforge/src/main/java/net/magicterra/stagewright/neoforge/StageWrightNeoForge.java`
+- Create: `stagewright/fabric/src/main/resources/fabric.mod.json`
+- Create: `stagewright/neoforge/src/main/resources/META-INF/neoforge.mods.toml`
 
 **Interfaces:**
 - Consumes: root `build.gradle` 的 `subprojects{}`（自动施加 loom/architectury/mojmap/Java21/publishing——已核实其全文）。
-- Produces: `:testkit-common/:testkit-fabric/:testkit-neoforge` 三项目；`gradlew :testkit-fabric:build :testkit-neoforge:build` 绿；`runTestkitServer` run 配置（两 loader，runDir `run-testkit`，sysprop `testkit.autorun=true`）；入口调用 `TestkitCommon.onServerStarted(server, "<loader>")` / `TestkitCommon.onServerTick(server)`（Task 3 的接线契约）。
+- Produces: `:stagewright-common/:stagewright-fabric/:stagewright-neoforge` 三项目；`gradlew :stagewright-fabric:build :stagewright-neoforge:build` 绿；`runStageWrightServer` run 配置（两 loader，runDir `run-testkit`，sysprop `stagewright.autorun=true`）；入口调用 `StageWrightCommon.onServerStarted(server, "<loader>")` / `StageWrightCommon.onServerTick(server)`（Task 3 的接线契约）。
 
 - [ ] **Step 1: settings.gradle 尾部追加**
 
 ```gradle
-include 'testkit-common'
-include 'testkit-fabric'
-include 'testkit-neoforge'
-project(':testkit-common').projectDir = file('mc-testkit/common')
-project(':testkit-fabric').projectDir = file('mc-testkit/fabric')
-project(':testkit-neoforge').projectDir = file('mc-testkit/neoforge')
+include 'stagewright-common'
+include 'stagewright-fabric'
+include 'stagewright-neoforge'
+project(':stagewright-common').projectDir = file('stagewright/common')
+project(':stagewright-fabric').projectDir = file('stagewright/fabric')
+project(':stagewright-neoforge').projectDir = file('stagewright/neoforge')
 ```
 
 - [ ] **Step 2: .gitignore 追加一行**
@@ -61,7 +61,7 @@ project(':testkit-neoforge').projectDir = file('mc-testkit/neoforge')
 run-testkit/
 ```
 
-- [ ] **Step 3: mc-testkit/common/build.gradle**
+- [ ] **Step 3: stagewright/common/build.gradle**
 
 ```gradle
 architectury {
@@ -69,7 +69,7 @@ architectury {
 }
 
 base {
-    archivesName = 'mc_testkit-common'
+    archivesName = 'mc_stagewright-common'
 }
 
 dependencies {
@@ -78,7 +78,7 @@ dependencies {
 }
 ```
 
-- [ ] **Step 4: mc-testkit/fabric/build.gradle**
+- [ ] **Step 4: stagewright/fabric/build.gradle**
 
 ```gradle
 plugins {
@@ -91,7 +91,7 @@ architectury {
 }
 
 base {
-    archivesName = 'mc_testkit-fabric'
+    archivesName = 'mc_stagewright-fabric'
 }
 
 configurations {
@@ -113,8 +113,8 @@ dependencies {
     modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
     modImplementation "net.fabricmc.fabric-api:fabric-api:$rootProject.fabric_api_version"
 
-    common(project(path: ':testkit-common', configuration: 'namedElements')) { transitive false }
-    shadowBundle project(path: ':testkit-common', configuration: 'transformProductionFabric')
+    common(project(path: ':stagewright-common', configuration: 'namedElements')) { transitive false }
+    shadowBundle project(path: ':stagewright-common', configuration: 'transformProductionFabric')
 }
 
 processResources {
@@ -138,10 +138,10 @@ loom {
     runs {
         // T0 headless shell: a PLAIN dedicated server (no GameTestServer — its
         // scheduler is the disease the spec §3.1 removes by existence). The
-        // testkit harness arms on -Dtestkit.autorun and halts the server when done.
-        testkitServer {
+        // testkit harness arms on -Dstagewright.autorun and halts the server when done.
+        stagewrightServer {
             server()
-            property 'testkit.autorun', 'true'
+            property 'stagewright.autorun', 'true'
             runDir 'run-testkit'
         }
     }
@@ -151,7 +151,7 @@ loom {
 }
 ```
 
-- [ ] **Step 5: mc-testkit/neoforge/build.gradle**
+- [ ] **Step 5: stagewright/neoforge/build.gradle**
 
 ```gradle
 plugins {
@@ -164,7 +164,7 @@ architectury {
 }
 
 base {
-    archivesName = 'mc_testkit-neoforge'
+    archivesName = 'mc_stagewright-neoforge'
 }
 
 configurations {
@@ -192,8 +192,8 @@ repositories {
 dependencies {
     neoForge "net.neoforged:neoforge:$rootProject.neoforge_version"
 
-    common(project(path: ':testkit-common', configuration: 'namedElements')) { transitive false }
-    shadowBundle project(path: ':testkit-common', configuration: 'transformProductionNeoForge')
+    common(project(path: ':stagewright-common', configuration: 'namedElements')) { transitive false }
+    shadowBundle project(path: ':stagewright-common', configuration: 'transformProductionNeoForge')
 }
 
 processResources {
@@ -215,9 +215,9 @@ remapJar {
 
 loom {
     runs {
-        testkitServer {
+        stagewrightServer {
             server()
-            property 'testkit.autorun', 'true'
+            property 'stagewright.autorun', 'true'
             runDir 'run-testkit'
         }
     }
@@ -234,7 +234,7 @@ loom {
   "schemaVersion": 1,
   "id": "mc_testkit",
   "version": "${version}",
-  "name": "mc-testkit",
+  "name": "stagewright",
   "description": "Cross-loader Minecraft mod test framework: scene harness, assertions, orchestrated topologies.",
   "authors": [
     "AI-assisted-Minecraft-Developers"
@@ -243,7 +243,7 @@ loom {
   "environment": "*",
   "entrypoints": {
     "main": [
-      "net.magicterra.testkit.fabric.TestkitFabric"
+      "net.magicterra.stagewright.fabric.StageWrightFabric"
     ]
   },
   "depends": {
@@ -265,7 +265,7 @@ license="MIT"
 [[mods]]
 modId="mc_testkit"
 version="${version}"
-displayName="mc-testkit"
+displayName="stagewright"
 authors="AI-assisted-Minecraft-Developers"
 description='''Cross-loader Minecraft mod test framework: scene harness, assertions, orchestrated topologies.'''
 
@@ -284,25 +284,25 @@ description='''Cross-loader Minecraft mod test framework: scene harness, asserti
     side="BOTH"
 ```
 
-- [ ] **Step 8: TestkitCommon.java（stub）**
+- [ ] **Step 8: StageWrightCommon.java（stub）**
 
 ```java
-package net.magicterra.testkit;
+package net.magicterra.stagewright;
 
 import com.mojang.logging.LogUtils;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
 
-/** Common core of mc-testkit. Loader entries forward server lifecycle + tick here. */
-public final class TestkitCommon {
+/** Common core of stagewright. Loader entries forward server lifecycle + tick here. */
+public final class StageWrightCommon {
     public static final String MOD_ID = "mc_testkit";
     public static final Logger LOG = LogUtils.getLogger();
 
-    private TestkitCommon() {}
+    private StageWrightCommon() {}
 
     public static void onServerStarted(MinecraftServer server, String loader) {
         LOG.info("[{}] server started (loader={}, autorun={})", MOD_ID, loader,
-                Boolean.getBoolean("testkit.autorun"));
+                Boolean.getBoolean("stagewright.autorun"));
     }
 
     public static void onServerTick(MinecraftServer server) {
@@ -310,32 +310,32 @@ public final class TestkitCommon {
 }
 ```
 
-- [ ] **Step 9: TestkitFabric.java**
+- [ ] **Step 9: StageWrightFabric.java**
 
 ```java
-package net.magicterra.testkit.fabric;
+package net.magicterra.stagewright.fabric;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.magicterra.testkit.TestkitCommon;
+import net.magicterra.stagewright.StageWrightCommon;
 
-public final class TestkitFabric implements ModInitializer {
+public final class StageWrightFabric implements ModInitializer {
     @Override
     public void onInitialize() {
         ServerLifecycleEvents.SERVER_STARTED.register(server ->
-                TestkitCommon.onServerStarted(server, "fabric"));
-        ServerTickEvents.END_SERVER_TICK.register(TestkitCommon::onServerTick);
+                StageWrightCommon.onServerStarted(server, "fabric"));
+        ServerTickEvents.END_SERVER_TICK.register(StageWrightCommon::onServerTick);
     }
 }
 ```
 
-- [ ] **Step 10: TestkitNeoForge.java**
+- [ ] **Step 10: StageWrightNeoForge.java**
 
 ```java
-package net.magicterra.testkit.neoforge;
+package net.magicterra.stagewright.neoforge;
 
-import net.magicterra.testkit.TestkitCommon;
+import net.magicterra.stagewright.StageWrightCommon;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
@@ -343,33 +343,33 @@ import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 @Mod("mc_testkit")
-public final class TestkitNeoForge {
-    public TestkitNeoForge() {
+public final class StageWrightNeoForge {
+    public StageWrightNeoForge() {
         NeoForge.EVENT_BUS.register(this);
     }
 
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
-        TestkitCommon.onServerStarted(event.getServer(), "neoforge");
+        StageWrightCommon.onServerStarted(event.getServer(), "neoforge");
     }
 
     @SubscribeEvent
     public void onServerTick(ServerTickEvent.Post event) {
-        TestkitCommon.onServerTick(event.getServer());
+        StageWrightCommon.onServerTick(event.getServer());
     }
 }
 ```
 
 - [ ] **Step 11: 编译两 loader**
 
-Run: `./gradlew :testkit-fabric:build :testkit-neoforge:build -q`
+Run: `./gradlew :stagewright-fabric:build :stagewright-neoforge:build -q`
 Expected: BUILD SUCCESSFUL（首次会拉 loom 配置，几分钟）。
 
 - [ ] **Step 12: Commit**
 
 ```bash
-git add settings.gradle .gitignore mc-testkit/
-git commit -m "feat(testkit): P1a skeleton — three subprojects, loader entries, testkitServer run configs"
+git add settings.gradle .gitignore stagewright/
+git commit -m "feat(testkit): P1a skeleton — three subprojects, loader entries, stagewrightServer run configs"
 ```
 
 ---
@@ -377,12 +377,12 @@ git commit -m "feat(testkit): P1a skeleton — three subprojects, loader entries
 ### Task 2: 场景模型 + 初始场景注册表（2 平凡 + 3 金丝雀）
 
 **Files:**
-- Create: `mc-testkit/common/src/main/java/net/magicterra/testkit/scene/SceneOutcome.java`
-- Create: `mc-testkit/common/src/main/java/net/magicterra/testkit/scene/Canary.java`
-- Create: `mc-testkit/common/src/main/java/net/magicterra/testkit/scene/Scene.java`
-- Create: `mc-testkit/common/src/main/java/net/magicterra/testkit/scene/SceneFailure.java`
-- Create: `mc-testkit/common/src/main/java/net/magicterra/testkit/scene/SceneContext.java`
-- Create: `mc-testkit/common/src/main/java/net/magicterra/testkit/scene/Scenes.java`
+- Create: `stagewright/common/src/main/java/net/magicterra/stagewright/scene/SceneOutcome.java`
+- Create: `stagewright/common/src/main/java/net/magicterra/stagewright/scene/Canary.java`
+- Create: `stagewright/common/src/main/java/net/magicterra/stagewright/scene/Scene.java`
+- Create: `stagewright/common/src/main/java/net/magicterra/stagewright/scene/SceneFailure.java`
+- Create: `stagewright/common/src/main/java/net/magicterra/stagewright/scene/SceneContext.java`
+- Create: `stagewright/common/src/main/java/net/magicterra/stagewright/scene/Scenes.java`
 
 **Interfaces:**
 - Consumes: 无（纯 common 模型层）。
@@ -391,7 +391,7 @@ git commit -m "feat(testkit): P1a skeleton — three subprojects, loader entries
 - [ ] **Step 1: SceneOutcome.java**
 
 ```java
-package net.magicterra.testkit.scene;
+package net.magicterra.stagewright.scene;
 
 /** Terminal result of one scene. Wire values match the orchestration contract v0. */
 public enum SceneOutcome {
@@ -402,7 +402,7 @@ public enum SceneOutcome {
 - [ ] **Step 2: Canary.java**
 
 ```java
-package net.magicterra.testkit.scene;
+package net.magicterra.stagewright.scene;
 
 /**
  * Sentinel scenes that verify the framework can still CATCH failures (spec §5 金丝雀).
@@ -419,7 +419,7 @@ public enum Canary {
 - [ ] **Step 3: Scene.java**
 
 ```java
-package net.magicterra.testkit.scene;
+package net.magicterra.stagewright.scene;
 
 import java.util.function.Consumer;
 
@@ -440,7 +440,7 @@ public record Scene(String name, int budgetTicks, boolean required, Canary canar
 - [ ] **Step 4: SceneFailure.java**
 
 ```java
-package net.magicterra.testkit.scene;
+package net.magicterra.stagewright.scene;
 
 /** Assertion/explicit failure raised inside a scene body or step. */
 public final class SceneFailure extends RuntimeException {
@@ -451,7 +451,7 @@ public final class SceneFailure extends RuntimeException {
 - [ ] **Step 5: SceneContext.java**
 
 ```java
-package net.magicterra.testkit.scene;
+package net.magicterra.stagewright.scene;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -575,7 +575,7 @@ public final class SceneContext {
 - [ ] **Step 6: Scenes.java（初始注册表：2 平凡 + 3 金丝雀）**
 
 ```java
-package net.magicterra.testkit.scene;
+package net.magicterra.stagewright.scene;
 
 import java.util.List;
 import net.minecraft.world.level.block.Blocks;
@@ -618,13 +618,13 @@ public final class Scenes {
 
 - [ ] **Step 7: 编译**
 
-Run: `./gradlew :testkit-common:build -q`
+Run: `./gradlew :stagewright-common:build -q`
 Expected: BUILD SUCCESSFUL
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add mc-testkit/common/src/main/java/net/magicterra/testkit/scene/
+git add stagewright/common/src/main/java/net/magicterra/stagewright/scene/
 git commit -m "feat(testkit): scene model — origin-relative context, await continuations, explicit registry with canaries"
 ```
 
@@ -633,9 +633,9 @@ git commit -m "feat(testkit): scene model — origin-relative context, await con
 ### Task 3: T0 Harness + JSONL 结果 + 入口接线（neoforge 手动烟囱）
 
 **Files:**
-- Create: `mc-testkit/common/src/main/java/net/magicterra/testkit/harness/ResultsJsonl.java`
-- Create: `mc-testkit/common/src/main/java/net/magicterra/testkit/harness/TestkitHarness.java`
-- Modify: `mc-testkit/common/src/main/java/net/magicterra/testkit/TestkitCommon.java`（stub → 实体）
+- Create: `stagewright/common/src/main/java/net/magicterra/stagewright/harness/ResultsJsonl.java`
+- Create: `stagewright/common/src/main/java/net/magicterra/stagewright/harness/StageWrightHarness.java`
+- Modify: `stagewright/common/src/main/java/net/magicterra/stagewright/StageWrightCommon.java`（stub → 实体）
 
 **Interfaces:**
 - Consumes: Task 2 的 Scene/Scenes/SceneContext 契约；Task 1 的入口转发。
@@ -648,7 +648,7 @@ git commit -m "feat(testkit): scene model — origin-relative context, await con
 - [ ] **Step 1: ResultsJsonl.java**
 
 ```java
-package net.magicterra.testkit.harness;
+package net.magicterra.stagewright.harness;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -657,20 +657,20 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
-import net.magicterra.testkit.scene.Scene;
-import net.magicterra.testkit.scene.SceneOutcome;
+import net.magicterra.stagewright.scene.Scene;
+import net.magicterra.stagewright.scene.SceneOutcome;
 
 /**
  * Orchestration-contract-v0 results stream, one JSON object per line, written into
  * the server's working directory (the loom runDir).
  *
- * TIMING CONTRACT (P0 probe incident, agent-driver commit 926396d): file IO here
+ * TIMING CONTRACT (P0 probe incident, worlddriver commit 926396d): file IO here
  * happens ONLY at scene boundaries — suite start, after a scene completes, suite
  * end. Never write during a scene's RUN ticks: synchronous server-thread IO
  * measurably broke a byte-deterministic arena once already. Boundary writes still
  * shift wall-clock for the NEXT scene; before hosting determinism-sensitive
  * dogfood arenas (P1c) this must be revisited (async writer precedent:
- * agent-driver GameTestManifest).
+ * worlddriver GameTestManifest).
  *
  * Names/reasons are escaped minimally (quote+backslash) — scene names are Java
  * identifiers, reasons are free text we generate ourselves.
@@ -729,18 +729,18 @@ public final class ResultsJsonl {
 }
 ```
 
-- [ ] **Step 2: TestkitHarness.java**
+- [ ] **Step 2: StageWrightHarness.java**
 
 ```java
-package net.magicterra.testkit.harness;
+package net.magicterra.stagewright.harness;
 
 import java.util.List;
-import net.magicterra.testkit.TestkitCommon;
-import net.magicterra.testkit.scene.Canary;
-import net.magicterra.testkit.scene.Scene;
-import net.magicterra.testkit.scene.SceneContext;
-import net.magicterra.testkit.scene.SceneFailure;
-import net.magicterra.testkit.scene.SceneOutcome;
+import net.magicterra.stagewright.StageWrightCommon;
+import net.magicterra.stagewright.scene.Canary;
+import net.magicterra.stagewright.scene.Scene;
+import net.magicterra.stagewright.scene.SceneContext;
+import net.magicterra.stagewright.scene.SceneFailure;
+import net.magicterra.stagewright.scene.SceneOutcome;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -756,7 +756,7 @@ import net.minecraft.server.level.ServerLevel;
  * execution + per-scene origins is the whole isolation story at P1a (no shared
  * body yet; body reset arrives with dogfood migration).
  */
-public final class TestkitHarness {
+public final class StageWrightHarness {
     private static final int GRID_X0 = 100_000;
     private static final int GRID_Z0 = 100_000;
     private static final int GRID_Y = 200;
@@ -776,12 +776,12 @@ public final class TestkitHarness {
     private long sceneStartMs;
     private boolean finished;
 
-    public TestkitHarness(MinecraftServer server, String loader, List<Scene> scenes, ResultsJsonl out) {
+    public StageWrightHarness(MinecraftServer server, String loader, List<Scene> scenes, ResultsJsonl out) {
         this.server = server;
         this.scenes = scenes;
         this.out = out;
         out.writeSuiteHeader(loader, scenes);
-        TestkitCommon.LOG.info("[{}] harness armed: {} scenes", TestkitCommon.MOD_ID, scenes.size());
+        StageWrightCommon.LOG.info("[{}] harness armed: {} scenes", StageWrightCommon.MOD_ID, scenes.size());
     }
 
     public void tick() {
@@ -792,7 +792,7 @@ public final class TestkitHarness {
         if (scene.canary() == Canary.MUST_SWALLOW) {
             // Deliberately never executed and never recorded: the orchestrator must
             // flag exactly this omission, proving the swallow gate is alive (spec §5).
-            TestkitCommon.LOG.info("[{}] skipping swallow-canary '{}'", TestkitCommon.MOD_ID, scene.name());
+            StageWrightCommon.LOG.info("[{}] skipping swallow-canary '{}'", StageWrightCommon.MOD_ID, scene.name());
             nextScene();
             return;
         }
@@ -848,7 +848,7 @@ public final class TestkitHarness {
 
     private void record(Scene scene, SceneOutcome outcome, int ticks, String reason) {
         long wallMs = System.currentTimeMillis() - sceneStartMs;
-        TestkitCommon.LOG.info("[{}] scene '{}' -> {} ({} ticks, {} ms){}", TestkitCommon.MOD_ID,
+        StageWrightCommon.LOG.info("[{}] scene '{}' -> {} ({} ticks, {} ms){}", StageWrightCommon.MOD_ID,
                 scene.name(), outcome, ticks, wallMs, reason == null ? "" : " — " + reason);
         out.writeScene(scene.name(), outcome, ticks, wallMs, reason);
         phase = Phase.ADVANCE_DONE;
@@ -871,8 +871,8 @@ public final class TestkitHarness {
         finished = true;
         long executed = scenes.stream().filter(s -> s.canary() != Canary.MUST_SWALLOW).count();
         out.writeDone((int) executed);
-        TestkitCommon.LOG.info("[{}] suite complete ({} scenes executed) — halting server",
-                TestkitCommon.MOD_ID, executed);
+        StageWrightCommon.LOG.info("[{}] suite complete ({} scenes executed) — halting server",
+                StageWrightCommon.MOD_ID, executed);
         server.halt(false);
     }
 
@@ -889,41 +889,41 @@ public final class TestkitHarness {
 }
 ```
 
-- [ ] **Step 3: TestkitCommon.java（实体版，整文件替换）**
+- [ ] **Step 3: StageWrightCommon.java（实体版，整文件替换）**
 
 ```java
-package net.magicterra.testkit;
+package net.magicterra.stagewright;
 
 import com.mojang.logging.LogUtils;
 import java.nio.file.Path;
-import net.magicterra.testkit.harness.ResultsJsonl;
-import net.magicterra.testkit.harness.TestkitHarness;
-import net.magicterra.testkit.scene.Scenes;
+import net.magicterra.stagewright.harness.ResultsJsonl;
+import net.magicterra.stagewright.harness.StageWrightHarness;
+import net.magicterra.stagewright.scene.Scenes;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
 
-/** Common core of mc-testkit. Loader entries forward server lifecycle + tick here. */
-public final class TestkitCommon {
+/** Common core of stagewright. Loader entries forward server lifecycle + tick here. */
+public final class StageWrightCommon {
     public static final String MOD_ID = "mc_testkit";
     public static final Logger LOG = LogUtils.getLogger();
 
     /** Results file, relative to the server's working directory (the loom runDir). */
     private static final String OUT_FILE = "testkit-results.jsonl";
 
-    private static volatile TestkitHarness harness;
+    private static volatile StageWrightHarness harness;
 
-    private TestkitCommon() {}
+    private StageWrightCommon() {}
 
     public static void onServerStarted(MinecraftServer server, String loader) {
-        if (!Boolean.getBoolean("testkit.autorun")) {
-            LOG.info("[{}] present but idle (testkit.autorun not set)", MOD_ID);
+        if (!Boolean.getBoolean("stagewright.autorun")) {
+            LOG.info("[{}] present but idle (stagewright.autorun not set)", MOD_ID);
             return;
         }
-        harness = new TestkitHarness(server, loader, Scenes.all(), new ResultsJsonl(Path.of(OUT_FILE)));
+        harness = new StageWrightHarness(server, loader, Scenes.all(), new ResultsJsonl(Path.of(OUT_FILE)));
     }
 
     public static void onServerTick(MinecraftServer server) {
-        TestkitHarness h = harness;
+        StageWrightHarness h = harness;
         if (h != null) h.tick();
     }
 }
@@ -931,32 +931,32 @@ public final class TestkitCommon {
 
 - [ ] **Step 4: 编译**
 
-Run: `./gradlew :testkit-fabric:build :testkit-neoforge:build -q`
+Run: `./gradlew :stagewright-fabric:build :stagewright-neoforge:build -q`
 Expected: BUILD SUCCESSFUL
 
 - [ ] **Step 5: 手动预备 neoforge run 目录（编排器 Task 4 才自动化这步）**
 
 Run:
 ```bash
-mkdir -p mc-testkit/neoforge/run-testkit
-printf 'eula=true\n' > mc-testkit/neoforge/run-testkit/eula.txt
-printf 'server-port=25599\nlevel-type=minecraft\\:flat\nonline-mode=false\nspawn-protection=0\nsync-chunk-writes=false\nmotd=mc-testkit T0\n' > mc-testkit/neoforge/run-testkit/server.properties
+mkdir -p stagewright/neoforge/run-testkit
+printf 'eula=true\n' > stagewright/neoforge/run-testkit/eula.txt
+printf 'server-port=25599\nlevel-type=minecraft\\:flat\nonline-mode=false\nspawn-protection=0\nsync-chunk-writes=false\nmotd=stagewright T0\n' > stagewright/neoforge/run-testkit/server.properties
 ```
 
 - [ ] **Step 6: 烟囱跑（等待纪律：前台 Bash，工具 timeout 590000）**
 
-Run: `timeout 540 ./gradlew :testkit-neoforge:runTestkitServer 2>&1 | tail -25`
+Run: `timeout 540 ./gradlew :stagewright-neoforge:runStageWrightServer 2>&1 | tail -25`
 Expected: 日志含 `harness armed: 5 scenes`、`skipping swallow-canary`、4 条 `scene '...' ->` 行、`suite complete (4 scenes executed) — halting server`；进程自行退出（halt 是正常停机，gradle 退出码 0）。
 
 - [ ] **Step 7: 检查 JSONL**
 
-Run: `cat mc-testkit/neoforge/run-testkit/testkit-results.jsonl`
+Run: `cat stagewright/neoforge/run-testkit/testkit-results.jsonl`
 Expected: 1 条 suite 头（registered 5 项）；4 条 scene（floorAssert=PASS、awaitTicks=PASS、canaryMustFail=FAIL、canaryMustTimeout=TIMEOUT）；无 canaryMustSwallow 行；1 条 done(scenes=4)。任何偏差=本 Task 失败，逐项修到符合。
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add mc-testkit/common/src/main/java/net/magicterra/testkit/
+git add stagewright/common/src/main/java/net/magicterra/stagewright/
 git commit -m "feat(testkit): T0 harness — serial scheduler, grid forceload, budgets, contract-v0 JSONL, autorun+halt"
 ```
 
@@ -965,21 +965,21 @@ git commit -m "feat(testkit): T0 harness — serial scheduler, grid forceload, b
 ### Task 4: 编排器 t0.py（self-test 先行）+ 契约 v0 冻结
 
 **Files:**
-- Create: `scripts/testkit/t0.py`
-- Create: `docs/testkit/orchestration-contract-v0.md`
+- Create: `scripts/stagewright/t0.py`
+- Create: `docs/stagewright/orchestration-contract-v0.md`
 
 **Interfaces:**
-- Consumes: Task 3 的 JSONL 契约；loom run `:testkit-<loader>:runTestkitServer`。
-- Produces: `python3 scripts/testkit/t0.py --loader neoforge|fabric [--wall N]`，退出码 **0**=绿 / **1**=测试失败或对账失败 / **2**=门死（金丝雀判错）/ **3**=环境失败（起不来/缺产物）；`--self-test` 内嵌 fixture。**契约文档 v0 从此冻结**——gradle-plugin（P3）按同一契约实现。
+- Consumes: Task 3 的 JSONL 契约；loom run `:testkit-<loader>:runStageWrightServer`。
+- Produces: `python3 scripts/stagewright/t0.py --loader neoforge|fabric [--wall N]`，退出码 **0**=绿 / **1**=测试失败或对账失败 / **2**=门死（金丝雀判错）/ **3**=环境失败（起不来/缺产物）；`--self-test` 内嵌 fixture。**契约文档 v0 从此冻结**——gradle-plugin（P3）按同一契约实现。
 
 - [ ] **Step 1: 写 t0.py（完整）**
 
 ```python
 #!/usr/bin/env python3
-"""mc-testkit T0 orchestrator (contract v0).
+"""stagewright T0 orchestrator (contract v0).
 
 Provisions the loader's run-testkit dir, launches the plain dedicated server run
-(:testkit-<loader>:runTestkitServer, armed by -Dtestkit.autorun), wall-caps it,
+(:testkit-<loader>:runStageWrightServer, armed by -Dstagewright.autorun), wall-caps it,
 then judges testkit-results.jsonl:
 
   exit 0  GREEN  — footer present, registered==executed (swallow-canaries excepted),
@@ -1004,7 +1004,7 @@ CANARY_EXPECT = {"MUST_FAIL": "FAIL", "MUST_TIMEOUT": "TIMEOUT"}
 
 
 def run_dir(loader):
-    return os.path.join(REPO_ROOT, "mc-testkit", loader, "run-testkit")
+    return os.path.join(REPO_ROOT, "stagewright", loader, "run-testkit")
 
 
 def provision(loader):
@@ -1014,7 +1014,7 @@ def provision(loader):
         f.write("eula=true\n")
     with open(os.path.join(d, "server.properties"), "w") as f:
         f.write("server-port=25599\nlevel-type=minecraft\\:flat\nonline-mode=false\n"
-                "spawn-protection=0\nsync-chunk-writes=false\nmotd=mc-testkit T0\n")
+                "spawn-protection=0\nsync-chunk-writes=false\nmotd=stagewright T0\n")
     shutil.rmtree(os.path.join(d, "world"), ignore_errors=True)
     results = os.path.join(d, "testkit-results.jsonl")
     if os.path.exists(results):
@@ -1026,7 +1026,7 @@ def sweep():
     """Kill leftover testkit server JVMs by explicit PID (pkill is banned)."""
     out = subprocess.run(["ps", "-eo", "pid,args"], capture_output=True, text=True).stdout
     for line in out.splitlines():
-        if "testkit.autorun" in line and "java" in line:
+        if "stagewright.autorun" in line and "java" in line:
             pid = line.strip().split()[0]
             print(f"[t0] killing leftover testkit JVM pid={pid}")
             subprocess.run(["kill", "-9", pid])
@@ -1042,7 +1042,7 @@ def launch(loader, wall, results):
     short grace for final writes, then sweep whatever is left and move to judge.
     """
     import time
-    cmd = ["./gradlew", f":testkit-{loader}:runTestkitServer"]
+    cmd = ["./gradlew", f":testkit-{loader}:runStageWrightServer"]
     print(f"[t0] launching: {' '.join(cmd)} (wall={wall}s, waiting on done footer)")
     proc = subprocess.Popen(cmd, cwd=REPO_ROOT,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -1198,23 +1198,23 @@ if __name__ == "__main__":
 
 - [ ] **Step 2: 跑 self-test**
 
-Run: `python3 scripts/testkit/t0.py --self-test; echo "exit=$?"`
+Run: `python3 scripts/stagewright/t0.py --self-test; echo "exit=$?"`
 Expected: 8 行全 PASS，exit=0。
 
-- [ ] **Step 3: 写契约文档 docs/testkit/orchestration-contract-v0.md**
+- [ ] **Step 3: 写契约文档 docs/stagewright/orchestration-contract-v0.md**
 
 ```markdown
-# mc-testkit 编排契约 v0（冻结 2026-07-16）
+# stagewright 编排契约 v0（冻结 2026-07-16）
 
-本契约是编排器（现 Python `scripts/testkit/t0.py`，将来 gradle-plugin）与游戏内
+本契约是编排器（现 Python `scripts/stagewright/t0.py`，将来 gradle-plugin）与游戏内
 harness 之间的接口。**变更需升 v1 并保持 v0 解析兼容。**
 
 ## 启动协议
-- T0 壳 = 普通专用服务器 loom run `:testkit-<loader>:runTestkitServer`
-  （runDir `mc-testkit/<loader>/run-testkit`，JVM sysprop `testkit.autorun=true` 触发）。
+- T0 壳 = 普通专用服务器 loom run `:testkit-<loader>:runStageWrightServer`
+  （runDir `stagewright/<loader>/run-testkit`，JVM sysprop `stagewright.autorun=true` 触发）。
 - 编排器负责预备 runDir：`eula.txt`、`server.properties`（server-port=25599、
   level-type=minecraft\:flat、online-mode=false、spawn-protection=0）、删 `world/`
-  与旧结果文件；跑前按显式 PID 清扫命令行含 `testkit.autorun` 的残留 JVM（禁 pkill）。
+  与旧结果文件；跑前按显式 PID 清扫命令行含 `stagewright.autorun` 的残留 JVM（禁 pkill）。
 - harness 跑完注册表后自行 `MinecraftServer.halt(false)` 正常停机；
   **服务器进程退出码不是裁决依据**，裁决唯一来源是结果文件。
 - **编排器的完成信号 = 结果文件的 done 尾记录，不是 gradle 退出**（实证：halt 后
@@ -1238,19 +1238,19 @@ harness 之间的接口。**变更需升 v1 并保持 v0 解析兼容。**
 | 3 | ENV：起不来 / 缺结果文件 / 缺头 |
 
 ## 游戏内时序契约
-结果写盘只在场景边界（P0 探针事故教训，agent-driver 926396d）；
+结果写盘只在场景边界（P0 探针事故教训，worlddriver 926396d）；
 确定性敏感场景入驻（P1c）前须复核，必要时改异步 writer。
 ```
 
 - [ ] **Step 4: 全链路真跑（neoforge）**
 
-Run: `python3 scripts/testkit/t0.py --loader neoforge --wall 540; echo "exit=$?"`
+Run: `python3 scripts/stagewright/t0.py --loader neoforge --wall 540; echo "exit=$?"`
 Expected: 输出含 2 条 `pass:`、2 条 `canary ... (expected)`、1 条 `canary ... omitted`、`VERDICT: GREEN`、exit=0。
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add scripts/testkit/t0.py docs/testkit/orchestration-contract-v0.md
+git add scripts/stagewright/t0.py docs/stagewright/orchestration-contract-v0.md
 git commit -m "feat(testkit): T0 orchestrator + frozen orchestration contract v0 — provision, wall cap, canary-aware verdict"
 ```
 
@@ -1267,22 +1267,22 @@ git commit -m "feat(testkit): T0 orchestrator + frozen orchestration contract v0
 
 - [ ] **Step 1: fabric 全链路真跑**
 
-Run: `python3 scripts/testkit/t0.py --loader fabric --wall 540; echo "exit=$?"`
+Run: `python3 scripts/stagewright/t0.py --loader fabric --wall 540; echo "exit=$?"`
 Expected: `VERDICT: GREEN`，exit=0。首跑会为 fabric loom 拉配置（几分钟）。
 
 - [ ] **Step 2: 若红——按 BLOCKED 规则处理**
 
-fabric 侧失败先分类：testkit 自身代码问题（修，单列 commit `fix(testkit): fabric ...`）；loom/fabric-api 接线问题（修 build.gradle）；疑似 agent-driver 无关的 fabric 平台缺陷（记录并 BLOCKED 上报——不许硬编码绕过）。
+fabric 侧失败先分类：testkit 自身代码问题（修，单列 commit `fix(testkit): fabric ...`）；loom/fabric-api 接线问题（修 build.gradle）；疑似 worlddriver 无关的 fabric 平台缺陷（记录并 BLOCKED 上报——不许硬编码绕过）。
 
 - [ ] **Step 3: 双 loader 复跑各一次（确定性证据）**
 
-Run: `python3 scripts/testkit/t0.py --loader neoforge --wall 540 && python3 scripts/testkit/t0.py --loader fabric --wall 540; echo "exit=$?"`
+Run: `python3 scripts/stagewright/t0.py --loader neoforge --wall 540 && python3 scripts/stagewright/t0.py --loader fabric --wall 540; echo "exit=$?"`
 Expected: 两轮均 GREEN，exit=0。
 
 - [ ] **Step 4: Commit（若 Step 2 有修）**
 
 ```bash
-git add -u mc-testkit/
+git add -u stagewright/
 git commit -m "fix(testkit): fabric-side fixes from first cross-loader smoke"
 ```
 
@@ -1291,36 +1291,36 @@ git commit -m "fix(testkit): fabric-side fixes from first cross-loader smoke"
 ### Task 6: 文档与收尾
 
 **Files:**
-- Create: `mc-testkit/README.md`
+- Create: `stagewright/README.md`
 - Modify: `TODO.md`（P1a 落地条目）
 
 **Interfaces:**
 - Produces: 新会话/新代理可从 README 一步上手 T0。
 
-- [ ] **Step 1: mc-testkit/README.md**
+- [ ] **Step 1: stagewright/README.md**
 
 ```markdown
-# mc-testkit
+# stagewright
 
 Cross-loader (Fabric + NeoForge) Minecraft mod test framework. Spec:
-`../docs/superpowers/specs/2026-07-16-mc-testkit-design.md`. Orchestration
-contract: `../docs/testkit/orchestration-contract-v0.md`.
+`../docs/superpowers/specs/2026-07-16-stagewright-design.md`. Orchestration
+contract: `../docs/stagewright/orchestration-contract-v0.md`.
 
 ## T0: server-side scene suite
 
-    python3 scripts/testkit/t0.py --loader neoforge   # or fabric
+    python3 scripts/stagewright/t0.py --loader neoforge   # or fabric
 
 Exit codes: 0 GREEN / 1 RED / 2 DEAD (canary mis-judged — framework broken,
 results void) / 3 ENV. The orchestrator is the only verdict authority.
 
-Scenes live in `common/src/main/java/net/magicterra/testkit/scene/Scenes.java`
+Scenes live in `common/src/main/java/net/magicterra/stagewright/scene/Scenes.java`
 (explicit registry = single source for execution AND reconciliation). A scene
 body runs once on its first tick, builds an origin-relative arena, asserts, and
 may register `ctx.await(cond).within(ticks).then(action)` continuations. Bodies
 never block, never sleep, never touch absolute coordinates.
 
 Status: P1a walking skeleton (this). Next: P1b instrument-contract subset
-(agent_driver wiring), P1c dogfood migration of agent-driver arenas.
+(worlddriver wiring), P1c dogfood migration of worlddriver arenas.
 ```
 
 - [ ] **Step 2: TODO.md 头部追加 P1a 条目**
@@ -1330,7 +1330,7 @@ Status: P1a walking skeleton (this). Next: P1b instrument-contract subset
 - [ ] **Step 3: Commit**
 
 ```bash
-git add mc-testkit/README.md TODO.md
+git add stagewright/README.md TODO.md
 git commit -m "docs(testkit): P1a walking skeleton landed — README, TODO entry"
 ```
 
@@ -1340,5 +1340,5 @@ git commit -m "docs(testkit): P1a walking skeleton landed — README, TODO entry
 
 1. **Spec 覆盖（P1a 切片）**：项目骨架→Task 1；core 测试模型/断言→Task 2；T0 harness（普通专服壳/串行/坐标分配/预算/watchdog=编排器墙钟+场景预算）→Task 3；编排器最小版+契约冻结→Task 4；金丝雀→Task 2/3/4 贯穿（注册表→跳过语义→裁决）；fabric 冒烟→Task 5。P1 其余（最小仪表契约、dogfood 迁移、身体重置）明确划入 P1b/P1c——头部偏差声明②。
 2. **占位符扫描**：全部文件给出完整内容；无 TBD。
-3. **一致性**：JSONL 字段名（suite/registered/name/required/canary、scene/outcome/ticks/wallMs/reason、done/scenes）在 ResultsJsonl、t0.py judge()、契约文档三处逐字一致；`testkit.autorun` sysprop 在 run 配置/TestkitCommon/清扫模式三处一致；`Scenes.all()` 5 项与 Task 3 Step 7 的期望清单一致；`MUST_SWALLOW` 语义（无记录=正确、有记录=DEAD）在 harness、judge、契约三处一致。Java API 全部 javap 实证。
+3. **一致性**：JSONL 字段名（suite/registered/name/required/canary、scene/outcome/ticks/wallMs/reason、done/scenes）在 ResultsJsonl、t0.py judge()、契约文档三处逐字一致；`stagewright.autorun` sysprop 在 run 配置/StageWrightCommon/清扫模式三处一致；`Scenes.all()` 5 项与 Task 3 Step 7 的期望清单一致；`MUST_SWALLOW` 语义（无记录=正确、有记录=DEAD）在 harness、judge、契约三处一致。Java API 全部 javap 实证。
 4. **已知风险点入案**：flat 世界 y=200 高空 arena 无地形干扰；forceload 3×3 + hasChunkAt 等待覆盖 chunk 异步加载；25599 端口避让；探针教训以契约条款+代码注释双写；`halt(false)` 退出码不作裁决依据写进契约。

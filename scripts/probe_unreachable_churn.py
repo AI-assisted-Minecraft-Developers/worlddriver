@@ -11,7 +11,7 @@ Run from scripts/. Prints a verdict line: PROBE=RED|GREEN plus the raw numbers.
 """
 import asyncio, json, re, sys, time
 
-sys.path.insert(0, ".claude/skills/agent-driver-rpc")
+sys.path.insert(0, ".claude/skills/worlddriver-rpc")
 import websockets
 
 LOG = "../fabric/run/rc-gap49.log"

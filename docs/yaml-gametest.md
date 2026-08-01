@@ -2,8 +2,8 @@
 
 > ⚠️ **交付机制已更新（P4-final）**：本文原按「@GameTest 内联 + GameTestServer 跑套件」
 > 设计并落地（§7.1 / §10）。P4-final 退役了 GameTestServer 运行机器——`mc.test.yaml`
-> 路由本身**保留**（它走 `AgentApi.route()`，与 GameTestServer 无关），现由 mc-testkit
-> 正门（`scripts/testkit/` 的 t0/t1/t2 + `instrument.py`）与 JS 校验套件驱动。下文对
+> 路由本身**保留**（它走 `AgentApi.route()`，与 GameTestServer 无关），现由 stagewright
+> 正门（`scripts/stagewright/` 的 t0/t1/t2 + `instrument.py`）与 JS 校验套件驱动。下文对
 > `@GameTest`/GameTestServer 交付形态的描述属于**历史设计记录**，保留以存档实现脉络。
 >
 > 状态：已落地（§10 进度表）；yaml 转译器面 = `mc.test.yaml` verb。
@@ -13,7 +13,7 @@
 ## 0. 目标与非目标
 
 **目标**：把声明式的 YAML 测试用例转译成 Mojang GameTest，使整合包/模组组合的回归测试可以
-*声明而非编码*，并在 CI（P4-final 后 = mc-testkit 正门 `scripts/testkit/`）和 `/test runall`
+*声明而非编码*，并在 CI（P4-final 后 = stagewright 正门 `scripts/stagewright/`）和 `/test runall`
 （开发期）里逐用例报告 PASS/FAIL。
 
 **一句话契约**（沿用 addendum §3.1 的验证理念）：
@@ -35,7 +35,7 @@
 | 确定性竞技场 | `AgentApi.seedTestArea()`（y=200，`ORIGIN`） | 第一期所有 YAML 用例的坐标基准 |
 | 既有 GameTest 范本 | `neoforge/.../AgentGameTest.java`（`agentRpcSmoke`） | 复用 worker-thread + `startSequence().thenWaitUntil` 防死锁模式 |
 | 断言语义 | `common/.../test/TestContext.java`（throw `AssertionError`） | interpreter 的断言失败复用同一套异常归类 |
-| 结构资源 | `neoforge/.../data/agent_driver/structure/empty.nbt` | `@GameTest(template="empty")` 仍需要它（哪怕 body 不碰） |
+| 结构资源 | `neoforge/.../data/worlddriver/structure/empty.nbt` | `@GameTest(template="empty")` 仍需要它（哪怕 body 不碰） |
 
 **关键约束（来自 `AgentGameTest` 的注释，必须遵守）**：`@GameTest` body 跑在 server 线程上；
 而 YAML 动作里的 `mc.bot.*` 寻路、`mc.world.*` 都通过 `AgentApi.onServerThread()` 把活儿
@@ -44,12 +44,12 @@
 
 ## 2. 模块布局
 
-新增 `common/src/main/java/net/magicterra/agent/test/yaml/`：
+新增 `common/src/main/java/net/magicterra/worlddriver/test/yaml/`：
 
 ```
 yaml/
 ├── YamlTestSpec.java        # 一个用例的 POJO（name/structure/timeoutTicks/setup/asserts）
-├── YamlTestLoader.java      # data/agent_driver/gametests/*.yaml → List<YamlTestSpec>
+├── YamlTestLoader.java      # data/worlddriver/gametests/*.yaml → List<YamlTestSpec>
 ├── YamlTestInterpreter.java # 跑一个 spec：snapshot → setup → asserts → restore，收诊断
 └── AssertKind.java          # 断言动词枚举 + 每种的求值逻辑
 ```
@@ -57,7 +57,7 @@ yaml/
 GameTest 接入仍在 neoforge 模块（`@GameTestHolder`/`@GameTestGenerator` 是 NeoForge/Mojang 注解）：
 在 `AgentGameTest.java` 里加一个 `@GameTestGenerator` 方法。
 
-YAML 用例资源：`common/src/main/resources/data/agent_driver/gametests/*.yaml`（datapack 路径，
+YAML 用例资源：`common/src/main/resources/data/worlddriver/gametests/*.yaml`（datapack 路径，
 与现有 `scripts/agent_validation/*.js` 同一套 classpath 资源加载方式）。
 
 ## 3. YAML schema
@@ -65,8 +65,8 @@ YAML 用例资源：`common/src/main/resources/data/agent_driver/gametests/*.yam
 对齐 proposal §4.1 C 的示例，最小可用 schema：
 
 ```yaml
-# data/agent_driver/gametests/redstone_tick_stability.yaml
-- name: "redstone-tick-stability"      # 必填，唯一；映射成 GameTest 名 agent_driver:redstone-tick-stability
+# data/worlddriver/gametests/redstone_tick_stability.yaml
+- name: "redstone-tick-stability"      # 必填，唯一；映射成 GameTest 名 worlddriver:redstone-tick-stability
   structure: null                       # 第一期忽略；为 null/缺省时跑 seedTestArea() 竞技场
   timeout_ticks: 200                    # 默认 200
   region:                               # 该用例 snapshot/restore 的盒子（相对 ORIGIN 或绝对坐标）
@@ -182,12 +182,12 @@ sub-test，失败定位差。改用 Mojang 原生的 `@GameTestGenerator`：一�
 // neoforge/.../AgentGameTest.java （新增方法，与 agentRpcSmoke 并存）
 @GameTestGenerator
 public static Collection<TestFunction> yamlTests() {
-    List<YamlTestSpec> specs = YamlTestLoader.loadAll();   // data/agent_driver/gametests/*.yaml
+    List<YamlTestSpec> specs = YamlTestLoader.loadAll();   // data/worlddriver/gametests/*.yaml
     List<TestFunction> fns = new ArrayList<>();
     for (YamlTestSpec spec : specs) {
         fns.add(new TestFunction(
             "agent_yaml",                         // batch
-            "agent_driver:" + spec.name(),        // test name → 报告里逐条
+            "worlddriver:" + spec.name(),        // test name → 报告里逐条
             "empty",                              // structure template（同 agentRpcSmoke）
             Rotation.NONE,
             spec.timeoutTicks(),
@@ -201,14 +201,14 @@ public static Collection<TestFunction> yamlTests() {
 
 // body 复用 agentRpcSmoke 的防死锁模式：worker 线程跑 interpreter，tick 路径轮询完成
 private static void runYamlAsGameTest(GameTestHelper helper, YamlTestSpec spec) {
-    AgentDriverCommon.api().seedTestArea();
+    WorldDriverCommon.api().seedTestArea();
     AtomicReference<Throwable> crash = new AtomicReference<>();
     AtomicBoolean done = new AtomicBoolean(false);
     Thread worker = new Thread(() -> {
-        try { new YamlTestInterpreter(AgentDriverCommon.api()).runSpec(spec); }
+        try { new YamlTestInterpreter(WorldDriverCommon.api()).runSpec(spec); }
         catch (Throwable e) { crash.set(e); }
         finally { done.set(true); }
-    }, "AgentDriver-YamlTest-" + spec.name());
+    }, "WorldDriver-YamlTest-" + spec.name());
     worker.setDaemon(true);
     worker.start();
     helper.startSequence()
@@ -268,7 +268,7 @@ classpath 上目前**没有** YAML 解析器。引入 `org.yaml:snakeyaml`（~30
 - `common` 用 `compileOnly`；`neoforge` 用 `shadowBundle` + `forgeRuntimeLibrary`，`fabric` 用
   `shadowBundle` + `implementation`——与 netty 完全相同的运行时可见性套路。
 - **relocate**：两个平台的 `shadowJar` 各加一条 `relocate 'org.yaml.snakeyaml',
-  'net.magicterra.agent.shaded.snakeyaml'`。注意：现有的 Rhino/netty 其实**并没有** relocate
+  'net.magicterra.worlddriver.shaded.snakeyaml'`。注意：现有的 Rhino/netty 其实**并没有** relocate
   （Rhino 是独有包名的 fork、netty 与 MC 自带版本兼容），snakeyaml 是本工程**唯一**被 relocate 的
   依赖，因为它是高撞包风险库。relocate 对源码透明（照常 `import org.yaml.snakeyaml`）；dev 运行
   用未 relocate 的 `forgeRuntimeLibrary`/`implementation`，所以
@@ -284,7 +284,7 @@ classpath 上目前**没有** YAML 解析器。引入 `org.yaml:snakeyaml`（~30
 1. `common/.../scripts/agent_validation/34_yaml_gametest.js` —— JS 层断言 `YamlTestLoader` +
    `YamlTestInterpreter` 对一个内置样例 spec 的 round-trip（load → run → 断言结果 / 断言 restore
    后区域复原）。把 `runValidation()` 名单从 33 → 34，套件 sub-test 数随之 +1。
-2. 一个真实样例 YAML：`data/agent_driver/gametests/smoke_place_observe.yaml`——
+2. 一个真实样例 YAML：`data/worlddriver/gametests/smoke_place_observe.yaml`——
    `place` 一个 cobblestone → `block_present` 断言它在 → restore 还原。端到端跑通
    校验套件，确认它作为独立 sub-test 出现且 PASS。
 
@@ -310,7 +310,7 @@ classpath 上目前**没有** YAML 解析器。引入 `org.yaml:snakeyaml`（~30
 
 ## 11. 与提案的对账
 
-落地后回写 `minecraft-agent-driver-proposal.md`：§0 状态表 §4.1 C 行从「⚠️ 部分」推进，
+落地后回写 `minecraft-worlddriver-proposal.md`：§0 状态表 §4.1 C 行从「⚠️ 部分」推进，
 §5 Phase 2 的「YAML 转译器 ❌」勾掉；CHANGELOG `[Unreleased] / Added` 记一条。
 microtiming、magic-server 回归集、headlessmc CI 仍留 ❌，是 Phase 2 收尾的后续项。
 

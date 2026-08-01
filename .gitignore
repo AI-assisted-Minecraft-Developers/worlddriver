@@ -7,10 +7,10 @@ run-dogfood/
 run-contract/
 run-t1/
 run-t2/
-scripts/testkit/.t1-world-template-*/
-scripts/testkit/.t2-world-template-*/
-scripts/testkit/.pool-state.json
-scripts/testkit/.pool-state.lock
+scripts/stagewright/.t1-world-template-*/
+scripts/stagewright/.t2-world-template-*/
+scripts/stagewright/.pool-state.json
+scripts/stagewright/.pool-state.lock
 .idea/
 *.log
 # log4j2 rolls latest.log into dated .gz archives, which *.log does not cover;
@@ -28,8 +28,11 @@ __pycache__/
 *.py[cod]
 
 # path-debug chart output (runtime, never commit)
-**/config/agent_driver/debug/
+**/config/worlddriver/debug/
 /.venv/
 # local tooling (jacoco jars, coverage output) — never commit
 .local/
 coverage-out/
+
+# Eclipse/IDE compiled output (was committed by accident before the rename)
+bin/

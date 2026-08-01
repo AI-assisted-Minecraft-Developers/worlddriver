@@ -1,7 +1,7 @@
 """驱动一个 (archive, flags) replay 并收集 maxStuck + per-Move conformance。
 
 live 链路(spec §7 工作流第1步):
-  1) 经 WS-RPC 设 flags(新 flag 会被 MCP 工具 schema strip,必须走 RPC——见 agent-driver-rpc skill)
+  1) 经 WS-RPC 设 flags(新 flag 会被 MCP 工具 schema strip,必须走 RPC——见 worlddriver-rpc skill)
   2) mc.debug.replay {file, restoreBlocks:true}
   3) 轮询 fabric/run/logs/latest.log 的 [walker] 行,到达 arrive_x 或超时即停
   4) 解析这段日志切片 → maxStuck + conformance
@@ -19,8 +19,8 @@ from scripts.pmcs.conformance import conformance_table
 LOG = "fabric/run/logs/latest.log"
 RPC_URL = "ws://127.0.0.1:39801/rpc"
 # ReplayTool 从 RUNTIME config 目录读归档(cwd=fabric/run);repo 的 corpus 必须先 copy 过去。
-REPO_REPLAY_DIR = "config/agent_driver/replays"
-RUNTIME_REPLAY_DIR = "fabric/run/config/agent_driver/replays"
+REPO_REPLAY_DIR = "config/worlddriver/replays"
+RUNTIME_REPLAY_DIR = "fabric/run/config/worlddriver/replays"
 
 
 def _ensure_archive_in_runtime(archive: str):

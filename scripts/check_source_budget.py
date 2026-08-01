@@ -49,7 +49,7 @@ SRC_ROOTS = [
     "common/src",
     "fabric/src",
     "neoforge/src",
-    "testkit-common/src",
+    "stagewright-common/src",
 ]
 
 METHOD_EXEMPT_DIRS = ("common/src/testmod",)

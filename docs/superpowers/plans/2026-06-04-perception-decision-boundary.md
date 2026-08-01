@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 为 agent-driver 加一个每 tick 计算的 `WorldModel` 黑板，从它派生客户端权威的 `mc.client.scene` + HazardField 驱动的 ASCII 地图、避险逃跑反射、空闲黄昏自保反射，使 LLM 退出反应式回路后 bot 仍能活过一夜。
+**Goal:** 为 worlddriver 加一个每 tick 计算的 `WorldModel` 黑板，从它派生客户端权威的 `mc.client.scene` + HazardField 驱动的 ASCII 地图、避险逃跑反射、空闲黄昏自保反射，使 LLM 退出反应式回路后 bot 仍能活过一夜。
 
 **Architecture:** 纯函数 `HazardField`/`SurvivalFacts`/`AsciiMapRenderer`（只吃既有 `WorldView` 块访问接口 + 标量，可 headless GameTest）作为承重底层；服务端 `mc.observe.scene`（headless 可测）+ 客户端 `mc.client.scene`（反射权威，live 认证）共用这套纯函数；逃跑修复为 `ClientWorldView.dangerCost` 注入（不改 `RetreatChain`）；黄昏自保为低于用户任务的 `DuskSecureChain`。
 
@@ -15,8 +15,8 @@
 - 既有验证范例：`agent_validation/40_scheduler.js`、`21_blocks_to_avoid.js`（client-guard skip 范式）、`07_mcp_parity.js`（三传输 parity）。
 
 **全局约定：**
-- 包根 `net.magicterra.agent`，下文 `…` = `common/src/main/java/net/magicterra/agent`。
-- 新验证 JS 必须**显式登记**到 `…/AgentDriverCommon.java` 的文件名数组（L41 起，不是自动发现），否则不被执行。
+- 包根 `net.magicterra.worlddriver`，下文 `…` = `common/src/main/java/net/magicterra/worlddriver`。
+- 新验证 JS 必须**显式登记**到 `…/WorldDriverCommon.java` 的文件名数组（L41 起，不是自动发现），否则不被执行。
 - 测试世界里 `mc.action.fill` / `mc.action.runCommand` 是允许的搭建手段（仅测试竞技场，非生存进度）。
 - 每个 Task 末尾 commit；commit 不传 `-c user.email/name/gpgsign`（用户已配好 GPG）。
 - 跑 build：`./gradlew :common:compileJava`；跑测试：`./gradlew :neoforge:runGameTestServer`（headless，期望全绿）。
@@ -53,7 +53,7 @@ Expected: BUILD SUCCESSFUL；日志里出现 `validation: NN/NN passed`（记下
 - [ ] **Step 1: 写纯函数**
 
 ```java
-package net.magicterra.agent.bot.world;
+package net.magicterra.worlddriver.bot.world;
 
 /** Pure survival arithmetic shared by HazardField + reflexes. No Minecraft client types. */
 public final class SurvivalMath {
@@ -83,7 +83,7 @@ Expected: BUILD SUCCESSFUL.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/world/SurvivalMath.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/world/SurvivalMath.java
 git commit -m "feat(world): add SurvivalMath.survivableFall pure helper"
 ```
 
@@ -96,7 +96,7 @@ git commit -m "feat(world): add SurvivalMath.survivableFall pure helper"
 - [ ] **Step 1: `HazardCell`**
 
 ```java
-package net.magicterra.agent.bot.world;
+package net.magicterra.worlddriver.bot.world;
 
 /** One cell of the HazardField grid. Immutable value. */
 public record HazardCell(
@@ -115,9 +115,9 @@ public record HazardCell(
 - [ ] **Step 2: `HazardField`（纯函数 compute over WorldView）**
 
 ```java
-package net.magicterra.agent.bot.world;
+package net.magicterra.worlddriver.bot.world;
 
-import net.magicterra.agent.bot.pathfinder.WorldView;
+import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 
 import java.util.HashMap;
@@ -222,8 +222,8 @@ Expected: BUILD SUCCESSFUL（注意 `WorldView.canStandAt/isKnown/isWater/isPass
 - [ ] **Step 4: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/world/HazardCell.java \
-        common/src/main/java/net/magicterra/agent/bot/world/HazardField.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/world/HazardCell.java \
+        common/src/main/java/net/magicterra/worlddriver/bot/world/HazardField.java
 git commit -m "feat(world): HazardField + HazardCell pure grid over WorldView"
 ```
 
@@ -235,8 +235,8 @@ git commit -m "feat(world): HazardField + HazardCell pure grid over WorldView"
 - Modify: `…/api/ObserveApi.java`（加 `scene(params)` 方法，over 服务端 WorldView）
 - Modify: `…/api/AgentApi.java`（route `mc.observe.scene` → `observe.scene`，照 `mc.observe.boss` 行）
 - Modify: `…/mcp/catalog/ObserveActionTools.java`（roTool schema，照 `mc.observe.boss`）
-- Modify: `…/AgentDriverCommon.java`（登记 `50_scene_hazard.js`）
-- Create test: `…/resources/data/agent_driver/scripts/agent_validation/50_scene_hazard.js`
+- Modify: `…/WorldDriverCommon.java`（登记 `50_scene_hazard.js`）
+- Create test: `…/resources/data/worlddriver/scripts/agent_validation/50_scene_hazard.js`
 
 - [ ] **Step 1: 先写失败测试 `50_scene_hazard.js`**
 
@@ -270,7 +270,7 @@ Expected: FAIL —— `mc.observe.scene` 未注册（`unknown verb` 或 route �
 - [ ] **Step 3: `SceneModel`（纯数据容器）**
 
 ```java
-package net.magicterra.agent.bot.world;
+package net.magicterra.worlddriver.bot.world;
 
 import net.minecraft.core.BlockPos;
 import java.util.LinkedHashMap;
@@ -304,7 +304,7 @@ public final class SceneModel {
 - [ ] **Step 4: `AsciiMapRenderer`（纯渲染）**
 
 ```java
-package net.magicterra.agent.bot.world;
+package net.magicterra.worlddriver.bot.world;
 
 import net.minecraft.core.BlockPos;
 import java.util.ArrayList;
@@ -359,7 +359,7 @@ public final class AsciiMapRenderer {
 在 `…/bot/world/SurvivalFacts.java` 新建：
 
 ```java
-package net.magicterra.agent.bot.world;
+package net.magicterra.worlddriver.bot.world;
 
 /** Pure derivations over a HazardField. */
 public final class SurvivalFacts {
@@ -409,7 +409,7 @@ public final class SurvivalFacts {
 打开 `…/api/ObserveApi.java`，照已有 `map(...)`/`boss(...)` 的取参+线程约定加：
 
 ```java
-// imports: net.magicterra.agent.bot.world.*; net.minecraft.core.BlockPos;
+// imports: net.magicterra.worlddriver.bot.world.*; net.minecraft.core.BlockPos;
 public Map<String,Object> scene(Map<String,Object> params) {
     if (!api.onServerThread()) return api.runOnServerThread(() -> scene(params));
     var level = api.level();
@@ -450,7 +450,7 @@ public Map<String,Object> scene(Map<String,Object> params) {
 routes.put("mc.observe.scene", p -> observe.scene(p));
 ```
 `…/mcp/catalog/ObserveActionTools.java`：照 `mc.observe.boss` 的 roTool schema 加 `mc.observe.scene`（params: `center?`, `radius?`(int), `render?`("summary"|"map")）。
-`…/AgentDriverCommon.java`：在文件名数组末尾加 `"50_scene_hazard.js",`。
+`…/WorldDriverCommon.java`：在文件名数组末尾加 `"50_scene_hazard.js",`。
 
 - [ ] **Step 8: 跑测试确认通过**
 
@@ -460,12 +460,12 @@ Expected: PASS —— `50_scene` 三个断言绿；总用例数 = 基线 + 3。
 - [ ] **Step 9: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/world/ \
-        common/src/main/java/net/magicterra/agent/api/ObserveApi.java \
-        common/src/main/java/net/magicterra/agent/api/AgentApi.java \
-        common/src/main/java/net/magicterra/agent/mcp/catalog/ObserveActionTools.java \
-        common/src/main/java/net/magicterra/agent/AgentDriverCommon.java \
-        common/src/main/resources/data/agent_driver/scripts/agent_validation/50_scene_hazard.js
+git add common/src/main/java/net/magicterra/worlddriver/bot/world/ \
+        common/src/main/java/net/magicterra/worlddriver/api/ObserveApi.java \
+        common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java \
+        common/src/main/java/net/magicterra/worlddriver/mcp/catalog/ObserveActionTools.java \
+        common/src/main/java/net/magicterra/worlddriver/WorldDriverCommon.java \
+        common/src/main/resources/data/worlddriver/scripts/agent_validation/50_scene_hazard.js
 git commit -m "feat(observe): server-side mc.observe.scene + AsciiMapRenderer (headless-testable)"
 ```
 
@@ -512,7 +512,7 @@ Expected: PASS（HazardField 的 cliff/lava/deep-water 逻辑已在 Task 2 实�
 - [ ] **Step 3: Commit**
 
 ```bash
-git add common/src/main/resources/data/agent_driver/scripts/agent_validation/50_scene_hazard.js
+git add common/src/main/resources/data/worlddriver/scripts/agent_validation/50_scene_hazard.js
 git commit -m "test(observe): assert cliff/lava/deep-water lethality in scene"
 ```
 
@@ -520,7 +520,7 @@ git commit -m "test(observe): assert cliff/lava/deep-water lethality in scene"
 
 **Files:**
 - Create test: `…/agent_validation/51_scene_facts.js`
-- Modify: `…/AgentDriverCommon.java`（登记 `51_scene_facts.js`）
+- Modify: `…/WorldDriverCommon.java`（登记 `51_scene_facts.js`）
 
 - [ ] **Step 1: 写测试**
 
@@ -559,15 +559,15 @@ AgentTest.run("51_scene: byte-identical across in-JVM, RPC, MCP", function(t){
 
 - [ ] **Step 2: 登记 + 跑**
 
-`…/AgentDriverCommon.java` 数组加 `"51_scene_facts.js",`。
+`…/WorldDriverCommon.java` 数组加 `"51_scene_facts.js",`。
 Run: `./gradlew :neoforge:runGameTestServer`
 Expected: PASS（若 `". @ ."` 断言因间距/glyph 不符而红，按实际 `AsciiMapRenderer.rows` 输出修正断言字符串——它是字节稳定契约的锚点）。
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add common/src/main/resources/data/agent_driver/scripts/agent_validation/51_scene_facts.js \
-        common/src/main/java/net/magicterra/agent/AgentDriverCommon.java
+git add common/src/main/resources/data/worlddriver/scripts/agent_validation/51_scene_facts.js \
+        common/src/main/java/net/magicterra/worlddriver/WorldDriverCommon.java
 git commit -m "test(observe): cornered/fleeStep + render byte-stability + 3-transport parity"
 ```
 
@@ -585,10 +585,10 @@ git commit -m "test(observe): cornered/fleeStep + render byte-stability + 3-tran
 - [ ] **Step 1: 写类（镜像 BotState 的 snapshot 模式）**
 
 ```java
-package net.magicterra.agent.bot.world;
+package net.magicterra.worlddriver.bot.world;
 
-import net.magicterra.agent.bot.combat.ThreatScanner;
-import net.magicterra.agent.bot.pathfinder.WorldView;
+import net.magicterra.worlddriver.bot.combat.ThreatScanner;
+import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import java.util.LinkedHashMap;
@@ -615,10 +615,10 @@ public final class WorldModel {
         tick++;
         BlockPos foot = p.blockPosition();
         int survivable = SurvivalMath.survivableFall(p.getHealth());
-        int radius = net.magicterra.agent.bot.BotConfig.hazardGridRadius;
-        int decimate = Math.max(1, net.magicterra.agent.bot.BotConfig.hazardGridDecimateTicks);
+        int radius = net.magicterra.worlddriver.bot.BotConfig.hazardGridRadius;
+        int decimate = Math.max(1, net.magicterra.worlddriver.bot.BotConfig.hazardGridDecimateTicks);
         if (hazard == null || tick % decimate == 0 || !foot.equals(hazard.center)) {
-            hazard = HazardField.compute(w, foot, radius, survivable, net.magicterra.agent.bot.BotConfig.deepWaterMax);
+            hazard = HazardField.compute(w, foot, radius, survivable, net.magicterra.worlddriver.bot.BotConfig.deepWaterMax);
         }
         boolean cornered = SurvivalFacts.cornered(hazard);
         int lethal = SurvivalFacts.lethalCount(hazard);
@@ -669,7 +669,7 @@ public final class WorldModel {
 
 Run: `./gradlew :common:compileJava` → BUILD SUCCESSFUL
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/world/WorldModel.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/world/WorldModel.java
 git commit -m "feat(world): WorldModel per-tick blackboard with volatile Snapshot"
 ```
 
@@ -680,7 +680,7 @@ git commit -m "feat(world): WorldModel per-tick blackboard with volatile Snapsho
 - Modify: `…/api/AgentApi.java`（route `mc.client.scene` → client snapshot；照 `mc.client.player`）
 - Modify: `…/resources/.../scripts/prelude.js`（`Agent.client.scene`，照 `Agent.client.player`）
 - Modify: `…/mcp/catalog/ClientTools.java`（roTool schema，照 `mc.client.player`）
-- Modify: `…/AgentDriverCommon.java`（登记 `52_client_scene.js`）
+- Modify: `…/WorldDriverCommon.java`（登记 `52_client_scene.js`）
 - Create test: `…/agent_validation/52_client_scene.js`
 
 - [ ] **Step 1: 失败测试（client-guarded）**
@@ -706,9 +706,9 @@ Run: `./gradlew :neoforge:runGameTestServer` → 期望仍全绿（52 在 headle
 - [ ] **Step 3: 接 clientTick**
 
 `…/bot/BotApiImpl.java`：
-- 顶部字段区加：`private final net.magicterra.agent.bot.world.WorldModel worldModel = new net.magicterra.agent.bot.world.WorldModel();`
+- 顶部字段区加：`private final net.magicterra.worlddriver.bot.world.WorldModel worldModel = new net.magicterra.worlddriver.bot.world.WorldModel();`
 - 在 `clientTick()` 里、null-guard 之后、`CLUTCH` 之前（现 ~L990）加：`worldModel.update(mc, world, state);`
-- 加 getter：`public net.magicterra.agent.bot.world.WorldModel worldModel() { return worldModel; }`
+- 加 getter：`public net.magicterra.worlddriver.bot.world.WorldModel worldModel() { return worldModel; }`
 
 > `world` 即 clientTick 里已有的 `WorldView`（grep 确认 clientTick 内的局部名；若叫别的就用那个）。
 
@@ -721,7 +721,7 @@ routes.put("mc.client.scene", p -> requireClient().worldModelSnapshot());
 （在 client 侧实现 `worldModelSnapshot()` = `bot.worldModel().snapshot().toMap()`；照 `requireClient().observePlayer()` 的落点。）
 `prelude.js`：`Agent.client` 里加 `scene: function(params){ return Agent.invoke("mc.client.scene", params||{}); }`（照 `player`）。
 `ClientTools.java`：照 `mc.client.player` 加 `mc.client.scene` roTool schema。
-`AgentDriverCommon.java`：数组加 `"52_client_scene.js",`。
+`WorldDriverCommon.java`：数组加 `"52_client_scene.js",`。
 
 - [ ] **Step 5: 编译 + 跑 headless（仍全绿，52 skip）+ Commit**
 
@@ -774,11 +774,11 @@ git add -A && git commit -m "feat(observe): scene query params (plane/extent/ove
 - Modify: `…/bot/ClientWorldView.java`（持 WorldModel/HazardField 引用；`beginSearch` 快照；`dangerCost += lethalPenalty`）
 - Modify: `…/bot/BotApiImpl.java`（构造 ClientWorldView 时传入 `worldModel`，或 setter）
 - Create test: `…/agent_validation/53_flee_safety.js`（client-guarded；headless skip）
-- Modify: `…/AgentDriverCommon.java`（登记 `53_flee_safety.js`）
+- Modify: `…/WorldDriverCommon.java`（登记 `53_flee_safety.js`）
 
 - [ ] **Step 1: 读现状**
 
-Run: `grep -n "dangerCost\|beginSearch" common/src/main/java/net/magicterra/agent/bot/ClientWorldView.java`
+Run: `grep -n "dangerCost\|beginSearch" common/src/main/java/net/magicterra/worlddriver/bot/ClientWorldView.java`
 记下两个方法当前实现，注入是“在现有返回值上 + lethalPenalty”，不是替换。
 
 - [ ] **Step 2: 注入**
@@ -828,16 +828,16 @@ public static final float IDLE_SECURE = 40f;
 - [ ] **Step 2: `DuskSecureChain`（照 `RetreatChain` 结构）**
 
 ```java
-package net.magicterra.agent.bot.scheduler;
+package net.magicterra.worlddriver.bot.scheduler;
 
-import net.magicterra.agent.bot.BotConfig;
-import net.magicterra.agent.bot.BotState;
-import net.magicterra.agent.bot.pathfinder.WorldView;
-import net.magicterra.agent.bot.process.BunkerProcess;
-import net.magicterra.agent.bot.world.WorldModel;
+import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.BotState;
+import net.magicterra.worlddriver.bot.pathfinder.WorldView;
+import net.magicterra.worlddriver.bot.process.BunkerProcess;
+import net.magicterra.worlddriver.bot.world.WorldModel;
 import net.minecraft.client.Minecraft;
 
-import static net.magicterra.agent.bot.util.BotInteract.releaseKeys;
+import static net.magicterra.worlddriver.bot.util.BotInteract.releaseKeys;
 
 /**
  * Idle-only proactive shelter at dusk (controlled re-intro of the shelved BunkerChain).
@@ -862,7 +862,7 @@ public final class DuskSecureChain implements Chain {
         WorldModel.Snapshot s = worldModel.snapshot();
         if (!s.present() || !s.exposedAtNight() || s.cornered()) { idleTicks = 0; return 0f; }
         // danger gate: never dig in under attack (use the shared threat read)
-        if (net.magicterra.agent.bot.combat.ThreatScanner.current(mc).threats().stream()
+        if (net.magicterra.worlddriver.bot.combat.ThreatScanner.current(mc).threats().stream()
                 .anyMatch(th -> th.distance() <= 12.0)) { idleTicks = 0; return 0f; }
         idleTicks++;
         if (idleTicks < IDLE_DEBOUNCE_TICKS) return 0f;   // require stable idle before acting
@@ -899,7 +899,7 @@ git add -A && git commit -m "feat(reflex): DuskSecureChain (idle-only dusk shelt
 
 **Files:**
 - Modify: `…/bot/world/WorldModel.java`（检测 `exposedAtNight`/`cornered` 上升沿，经事件 API emit；去抖）
-- Modify: `…/AgentDriverCommon.java`（登记 `54_scene_events.js`）
+- Modify: `…/WorldDriverCommon.java`（登记 `54_scene_events.js`）
 - Create test: `…/agent_validation/54_scene_events.js`（client-guarded）
 
 - [ ] **Step 1: WorldModel 加边沿检测 + emit**

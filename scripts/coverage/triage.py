@@ -13,7 +13,7 @@ import sys
 from collections import defaultdict
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SRC = os.path.join(ROOT, "common/src/main/java/net/magicterra/agent/bot/movement")
+SRC = os.path.join(ROOT, "common/src/main/java/net/magicterra/worlddriver/bot/movement")
 DUMP = os.path.join(ROOT, "coverage-out/uncovered-movement.txt")
 ONLY = re.compile(r"movement/(Walker\w*|Walker)\.java")
 

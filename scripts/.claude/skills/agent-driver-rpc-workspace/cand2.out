@@ -1,6 +1,6 @@
 {
-  "skill_name": "agent-driver-rpc",
-  "description": "Call the agent-driver Minecraft mod's live control API over its JSON-RPC websocket (port 39801) with the bundled rpc.py client, and look up exact method params in its complete 45-method reference. Use this skill whenever you need to DRIVE or QUERY a running agent-driver client/bot \u2014 calling mc.bot.* (goto, setting, mine, build, status, cancel), mc.action.* (runCommand, fill, placeMany), mc.observe.*, mc.client.* (input, screenshot, screen, chat), mc.query, mc.wait.*, or mc.script.eval. Reach for it ESPECIALLY when the mcp__agent-driver__* tools can't do the job: a setting or param won't apply / gets stripped after you rebuilt the mod (the harness freezes MCP tool schemas at session start, so newly-added keys must be set over RPC instead), you want to send a raw method+params straight to the websocket, you need to script a multi-step live setup (give\u2192tp\u2192fill\u2192setting\u2192goto) in one shell block, or you're bringing the client up headless (title\u2192world, input, screenshots). Also use it to answer \"what RPC methods exist / how do I call X\" for this mod. This is for INVOKING the mod at runtime \u2014 not for editing the mod's Java (BotConfig/ToolCatalog/Walker), writing gametests, or standing up your own MCP server, which are ordinary code tasks. If a task means controlling the live bot/client or bypassing a stale MCP tool, consult this skill rather than guessing the wire format.",
+  "skill_name": "worlddriver-rpc",
+  "description": "Call the worlddriver Minecraft mod's live control API over its JSON-RPC websocket (port 39801) with the bundled rpc.py client, and look up exact method params in its complete 45-method reference. Use this skill whenever you need to DRIVE or QUERY a running worlddriver client/bot \u2014 calling mc.bot.* (goto, setting, mine, build, status, cancel), mc.action.* (runCommand, fill, placeMany), mc.observe.*, mc.client.* (input, screenshot, screen, chat), mc.query, mc.wait.*, or mc.script.eval. Reach for it ESPECIALLY when the mcp__worlddriver__* tools can't do the job: a setting or param won't apply / gets stripped after you rebuilt the mod (the harness freezes MCP tool schemas at session start, so newly-added keys must be set over RPC instead), you want to send a raw method+params straight to the websocket, you need to script a multi-step live setup (give\u2192tp\u2192fill\u2192setting\u2192goto) in one shell block, or you're bringing the client up headless (title\u2192world, input, screenshots). Also use it to answer \"what RPC methods exist / how do I call X\" for this mod. This is for INVOKING the mod at runtime \u2014 not for editing the mod's Java (BotConfig/ToolCatalog/Walker), writing gametests, or standing up your own MCP server, which are ordinary code tasks. If a task means controlling the live bot/client or bypassing a stale MCP tool, consult this skill rather than guessing the wire format.",
   "results": [
     {
       "query": "set allowParkourPlace true on the running bot and then send it to 22 150 0, all in one shot",
@@ -35,7 +35,7 @@
       "pass": false
     },
     {
-      "query": "what methods does the agent-driver mod expose for reading the player's inventory and the nearby hostile entities, and how do I call them?",
+      "query": "what methods does the worlddriver mod expose for reading the player's inventory and the nearby hostile entities, and how do I call them?",
       "should_trigger": true,
       "trigger_rate": 0.3333333333333333,
       "triggers": 1,
@@ -67,7 +67,7 @@
       "pass": false
     },
     {
-      "query": "how do I send a raw method + params to the agent-driver websocket on 39801 without going through the mcp tools?",
+      "query": "how do I send a raw method + params to the worlddriver websocket on 39801 without going through the mcp tools?",
       "should_trigger": true,
       "trigger_rate": 0.3333333333333333,
       "triggers": 1,

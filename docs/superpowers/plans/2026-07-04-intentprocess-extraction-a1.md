@@ -17,23 +17,23 @@
 - **SCOPE (documented deviation from design §8):** A1 delivers the `Intent`/`IntentProcess` seam + parity ONLY. The **mutable-goal operation (`amend`) and its verb are deferred to phase B**, where design §5 already places `amend`, so they can be added and tested together (no untested surface). A1's `Intent` is a minimal immutable holder of the target `Goal`.
 - **Parity acceptance (per project memory: live/replay is truth; only trust `required tests passed`/`BUILD SUCCESSFUL`; the `TOTAL:` line masks required failures):** the headless GameTest failing set must be UNCHANGED versus the A0 tip. Reference failing set (established by running the suite on the A0 branch and base `80073d5`): 4 required — `descentOvershootResyncArena`, `descentYawArena`, `riverSheerBankArena`, `waterFarAimBankCornerArena`; 1 optional — `vineOverWaterClimbArena`. All pre-existing Walker executor arenas, unrelated to this refactor.
 - **`serverProcessArena` must STAY GREEN** — it is currently passing and is the server-side proof that the Avatar-migrated process drives a FakePlayer to a goal. After rewiring it to `IntentProcess`, its passing confirms the server Avatar path works through the new process. This is the one arena whose result specifically validates A1.
-- **Alternate ports for any test run:** `JAVA_TOOL_OPTIONS="-Dagent.mcpPort=39810 -Dagent.rpcPort=39811"` — another process may be testing on the default ports (39800/39801).
+- **Alternate ports for any test run:** `JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39810 -Dworlddriver.rpcPort=39811"` — another process may be testing on the default ports (39800/39801).
 
 ## File Structure
 
-- **Create** `common/src/main/java/net/magicterra/agent/bot/process/Intent.java` — the intent value type. A1 responsibility: hold the target `Goal`. Lives beside `IntentProcess` (they change together); may move to a dedicated `bot/intent/` package when the taxonomy grows in A2+. ~20 lines.
-- **Create** `common/src/main/java/net/magicterra/agent/bot/process/IntentProcess.java` — the generic navigation process (ported from `GotoProcess`). One responsibility: drive the `Walker` toward the intent's target. ~55 lines.
-- **Modify** `common/src/main/java/net/magicterra/agent/bot/BotApiImpl.java` — two `new GotoProcess(goal)` sites (~163, ~230) → `new IntentProcess(new Intent(goal))`; update the import.
-- **Modify** `common/src/main/java/net/magicterra/agent/bot/ReplayInstaller.java` — one site (~129) → `new IntentProcess(new Intent(goal))`; update import + the `{@link GotoProcess}` javadoc reference (~93).
-- **Modify** `neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTestServer.java` — construction (~208) → `new IntentProcess(new Intent(new Goal.Block(goal)))`; update import + assertion-message strings + the `{@link GotoProcess}` javadoc (~183-186).
-- **Delete** `common/src/main/java/net/magicterra/agent/bot/process/GotoProcess.java`.
+- **Create** `common/src/main/java/net/magicterra/worlddriver/bot/process/Intent.java` — the intent value type. A1 responsibility: hold the target `Goal`. Lives beside `IntentProcess` (they change together); may move to a dedicated `bot/intent/` package when the taxonomy grows in A2+. ~20 lines.
+- **Create** `common/src/main/java/net/magicterra/worlddriver/bot/process/IntentProcess.java` — the generic navigation process (ported from `GotoProcess`). One responsibility: drive the `Walker` toward the intent's target. ~55 lines.
+- **Modify** `common/src/main/java/net/magicterra/worlddriver/bot/BotApiImpl.java` — two `new GotoProcess(goal)` sites (~163, ~230) → `new IntentProcess(new Intent(goal))`; update the import.
+- **Modify** `common/src/main/java/net/magicterra/worlddriver/bot/ReplayInstaller.java` — one site (~129) → `new IntentProcess(new Intent(goal))`; update import + the `{@link GotoProcess}` javadoc reference (~93).
+- **Modify** `neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTestServer.java` — construction (~208) → `new IntentProcess(new Intent(new Goal.Block(goal)))`; update import + assertion-message strings + the `{@link GotoProcess}` javadoc (~183-186).
+- **Delete** `common/src/main/java/net/magicterra/worlddriver/bot/process/GotoProcess.java`.
 
 ---
 
 ### Task 1: Create the `Intent` value type
 
 **Files:**
-- Create: `common/src/main/java/net/magicterra/agent/bot/process/Intent.java`
+- Create: `common/src/main/java/net/magicterra/worlddriver/bot/process/Intent.java`
 
 **Interfaces:**
 - Produces: `Intent(Goal target)` constructor and `Goal target()` accessor — consumed by `IntentProcess` (Task 2) and the rewired call sites (Task 3).
@@ -41,9 +41,9 @@
 - [ ] **Step 1: Create the file**
 
 ```java
-package net.magicterra.agent.bot.process;
+package net.magicterra.worlddriver.bot.process;
 
-import net.magicterra.agent.bot.Goal;
+import net.magicterra.worlddriver.bot.Goal;
 
 /**
  * The declarative unit of navigation the {@link IntentProcess} interprets. Phase
@@ -76,7 +76,7 @@ Expected: `BUILD SUCCESSFUL`.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/process/Intent.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/process/Intent.java
 git commit -m "process: add Intent value type (A1, target-only)"
 ```
 
@@ -85,7 +85,7 @@ git commit -m "process: add Intent value type (A1, target-only)"
 ### Task 2: Create `IntentProcess` (ported from `GotoProcess`)
 
 **Files:**
-- Create: `common/src/main/java/net/magicterra/agent/bot/process/IntentProcess.java`
+- Create: `common/src/main/java/net/magicterra/worlddriver/bot/process/IntentProcess.java`
 
 **Interfaces:**
 - Consumes: `Intent` (Task 1).
@@ -94,13 +94,13 @@ git commit -m "process: add Intent value type (A1, target-only)"
 - [ ] **Step 1: Create the file** (this is `GotoProcess` generalized — the `Walker` driving is byte-identical; the only change is holding an `Intent` and reading `intent.target()` where `GotoProcess` read `goal`)
 
 ```java
-package net.magicterra.agent.bot.process;
+package net.magicterra.worlddriver.bot.process;
 
-import net.magicterra.agent.bot.BotState;
-import net.magicterra.agent.bot.Goal;
-import net.magicterra.agent.bot.movement.Avatar;
-import net.magicterra.agent.bot.movement.Walker;
-import net.magicterra.agent.bot.pathfinder.WorldView;
+import net.magicterra.worlddriver.bot.BotState;
+import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.movement.Walker;
+import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 
 /**
  * The generic navigation process for the LLM navigation intent layer: drives the
@@ -137,7 +137,7 @@ public final class IntentProcess implements BotProcess {
     }
 
     /** Avatar-migrated: drives the client LocalPlayer (via the BotProcess bridge)
-     *  or a server FakePlayer (ServerAgentDriver) identically — pure movement, so
+     *  or a server FakePlayer (ServerWorldDriver) identically — pure movement, so
      *  it just hands the Walker the same Avatar. */
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
         Walker.Step s = walker.tick(a, w);
@@ -168,7 +168,7 @@ Expected: `BUILD SUCCESSFUL`. (`GotoProcess` still exists and is still reference
 - [ ] **Step 3: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/process/IntentProcess.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/process/IntentProcess.java
 git commit -m "process: add IntentProcess (A1, generalizes GotoProcess for a static target)"
 ```
 
@@ -177,24 +177,24 @@ git commit -m "process: add IntentProcess (A1, generalizes GotoProcess for a sta
 ### Task 3: Rewire all four sites to `IntentProcess`, delete `GotoProcess`
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/BotApiImpl.java`
-- Modify: `common/src/main/java/net/magicterra/agent/bot/ReplayInstaller.java`
-- Modify: `neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTestServer.java`
-- Delete: `common/src/main/java/net/magicterra/agent/bot/process/GotoProcess.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/BotApiImpl.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/ReplayInstaller.java`
+- Modify: `neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTestServer.java`
+- Delete: `common/src/main/java/net/magicterra/worlddriver/bot/process/GotoProcess.java`
 
 **Interfaces:**
 - Consumes: `Intent`, `IntentProcess` (Tasks 1-2).
 
-- [ ] **Step 1: Rewire `BotApiImpl.java`** — both construction sites. Find `startProcess(new GotoProcess(goal));` (near line 163) and `startProcess(new GotoProcess(g));` (near line 230) and replace with `startProcess(new IntentProcess(new Intent(goal)));` and `startProcess(new IntentProcess(new Intent(g)));` respectively. Update the import: replace `import net.magicterra.agent.bot.process.GotoProcess;` with `import net.magicterra.agent.bot.process.Intent;` and `import net.magicterra.agent.bot.process.IntentProcess;` (add both; keep alphabetical order with the other `process.*` imports).
+- [ ] **Step 1: Rewire `BotApiImpl.java`** — both construction sites. Find `startProcess(new GotoProcess(goal));` (near line 163) and `startProcess(new GotoProcess(g));` (near line 230) and replace with `startProcess(new IntentProcess(new Intent(goal)));` and `startProcess(new IntentProcess(new Intent(g)));` respectively. Update the import: replace `import net.magicterra.worlddriver.bot.process.GotoProcess;` with `import net.magicterra.worlddriver.bot.process.Intent;` and `import net.magicterra.worlddriver.bot.process.IntentProcess;` (add both; keep alphabetical order with the other `process.*` imports).
 
 - [ ] **Step 2: Rewire `ReplayInstaller.java`** — find `bot.startProcess(new GotoProcess(goal));` (near line 129), replace with `bot.startProcess(new IntentProcess(new Intent(goal)));`. Update the import the same way (drop `GotoProcess`, add `Intent` + `IntentProcess`). Update the javadoc `{@link GotoProcess}` (near line 93) to `{@link IntentProcess}`.
 
-- [ ] **Step 3: Rewire `AgentGameTestServer.java`** — find `driver.runProcess(new GotoProcess(new Goal.Block(goal)));` (near line 208), replace with `driver.runProcess(new IntentProcess(new Intent(new Goal.Block(goal))));`. Update the import (drop `GotoProcess`, add `Intent` + `IntentProcess` from `net.magicterra.agent.bot.process`). Update the two assertion-message strings (near 221, 224): `"server GotoProcess did not finish+unregister: ..."` → `"server IntentProcess did not finish+unregister: ..."` and `"server-run GotoProcess did not reach the goal: ..."` → `"server-run IntentProcess did not reach the goal: ..."`. Update the javadoc `{@link GotoProcess}` references (near 183-186) to `{@link IntentProcess}`.
+- [ ] **Step 3: Rewire `AgentGameTestServer.java`** — find `driver.runProcess(new GotoProcess(new Goal.Block(goal)));` (near line 208), replace with `driver.runProcess(new IntentProcess(new Intent(new Goal.Block(goal))));`. Update the import (drop `GotoProcess`, add `Intent` + `IntentProcess` from `net.magicterra.worlddriver.bot.process`). Update the two assertion-message strings (near 221, 224): `"server GotoProcess did not finish+unregister: ..."` → `"server IntentProcess did not finish+unregister: ..."` and `"server-run GotoProcess did not reach the goal: ..."` → `"server-run IntentProcess did not reach the goal: ..."`. Update the javadoc `{@link GotoProcess}` references (near 183-186) to `{@link IntentProcess}`.
 
 - [ ] **Step 4: Delete `GotoProcess.java`**
 
 ```bash
-git rm common/src/main/java/net/magicterra/agent/bot/process/GotoProcess.java
+git rm common/src/main/java/net/magicterra/worlddriver/bot/process/GotoProcess.java
 ```
 
 - [ ] **Step 5: Verify no dangling references remain**
@@ -226,7 +226,7 @@ git commit -m "process: route goto/replay/server-test through IntentProcess; del
 
 Run:
 ```bash
-JAVA_TOOL_OPTIONS="-Dagent.mcpPort=39810 -Dagent.rpcPort=39811" \
+JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39810 -Dworlddriver.rpcPort=39811" \
   ./gradlew :neoforge:runGameTestServer --console=plain 2>&1 | tee /tmp/a1-gametest.log
 ```
 

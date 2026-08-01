@@ -1,4 +1,4 @@
-# AgentDriver
+# WorldDriver
 
 一个把运行中的 Minecraft 暴露成"可编程、AI 可驱动"接口的模组。**同一个 AgentApi**
 对外开三条传输：
@@ -34,7 +34,7 @@
 ```
 
 **MCP 工具**，按职责分组（完整 schema 见
-[`common/src/main/java/.../mcp/ToolCatalog.java`](common/src/main/java/net/magicterra/agent/mcp/ToolCatalog.java)）：
+[`common/src/main/java/.../mcp/ToolCatalog.java`](common/src/main/java/net/magicterra/worlddriver/mcp/ToolCatalog.java)）：
 
 | 分组 | 工具 | 什么时候用 |
 |---|---|---|
@@ -57,23 +57,23 @@
 ### 1. 跑集成测试（不需要客户端）
 
 ```bash
-python3 scripts/testkit/t0.py --loader neoforge \
+python3 scripts/stagewright/t0.py --loader neoforge \
   --run-task :neoforge:runDogfoodServer \
   --results neoforge/run-dogfood/testkit-results.jsonl \
-  --expect-file scripts/testkit/expected-scenes-neoforge.txt
+  --expect-file scripts/stagewright/expected-scenes-neoforge.txt
 # → GREEN（任何一个场景挂掉就非零退出）
 ```
 
-这会用 mc-testkit harness dogfood 一个 dedicated server，autorun ad.* 场景
+这会用 stagewright harness dogfood 一个 dedicated server，autorun wd.* 场景
 （`common/src/testmod/.../scene/`）加上 `*.js` 校验套件，并把结果流对照 expect-file
-校验。`scripts/testkit/` 下的编排器族（`t0`/`t1`/`t2` + `instrument.py`）是 CI 正门
+校验。`scripts/stagewright/` 下的编排器族（`t0`/`t1`/`t2` + `instrument.py`）是 CI 正门
 —— 旧的 `@GameTest`/GameTestServer 路径已在 P4-final 退役。
 
 ### 2. 跑客户端，接 MCP 客户端
 
 ```bash
 # 可选：固定端口（不然会随机分配，写到 fabric/run/agent-{mcp,rpc}.port）
-JAVA_TOOL_OPTIONS="-Dagent.mcpPort=39800 -Dagent.rpcPort=39801" \
+JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39800 -Dworlddriver.rpcPort=39801" \
   ./gradlew :fabric:runClient
 ```
 
@@ -82,7 +82,7 @@ RPC 和 MCP **都**在 client init 阶段就起来了 —— 你在 TitleScreen 
 `mc.script.eval` 立刻可用。
 
 RPC 和 MCP 默认都绑定到 `127.0.0.1`。需要让其它主机连入时，设置
-`-Dagent.rpcHost=0.0.0.0` / `-Dagent.mcpHost=0.0.0.0`（也可用 IPv6 的 `::`
+`-Dworlddriver.rpcHost=0.0.0.0` / `-Dworlddriver.mcpHost=0.0.0.0`（也可用 IPv6 的 `::`
 或某个具体网卡地址）。绑定通配地址时日志仍打印 loopback URL，因为
 `0.0.0.0` / `::` 本身不是可连接的目标地址。
 
@@ -93,7 +93,7 @@ RPC 和 MCP 默认都绑定到 `127.0.0.1`。需要让其它主机连入时，�
 {
   "$schema": "https://modelcontextprotocol.io/schemas/mcp.json",
   "mcpServers": {
-    "agent-driver": {
+    "worlddriver": {
       "type": "http",
       "url": "http://127.0.0.1:39800/mcp"
     }
@@ -101,14 +101,14 @@ RPC 和 MCP 默认都绑定到 `127.0.0.1`。需要让其它主机连入时，�
 }
 ```
 
-URL 里的端口要和 runClient 启动时的 `-Dagent.mcpPort` 一致。Claude Desktop 等只
+URL 里的端口要和 runClient 启动时的 `-Dworlddriver.mcpPort` 一致。Claude Desktop 等只
 能走 stdio 的客户端，参考 [`docs/mcp-clients.md`](docs/mcp-clients.md) 用
 `mcp-remote` 桥接。
 
 ### 3. 用 shell 烟雾测试一下
 
 ```bash
-PORT=$(cat fabric/run/agent-mcp.port)
+PORT=$(cat fabric/run/worlddriver-mcp.port)
 curl -s http://127.0.0.1:$PORT/mcp \
   -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call",
@@ -128,24 +128,24 @@ curl -s http://127.0.0.1:$PORT/mcp \
 | `/agent test result` | 打印最近一次跑分的每条测试结果 |
 | `/agent port`        | 打印 RPC 端口（`ws://127.0.0.1:<port>/rpc`） |
 | `/agent mcp`         | 打印 MCP 端点（`http://127.0.0.1:<port>/mcp`） |
-| `/agent reload`      | 重新加载 `config/agent_driver/scripts/` 下的用户脚本 |
+| `/agent reload`      | 重新加载 `config/worlddriver/scripts/` 下的用户脚本 |
 
 ---
 
 ## 工程目录
 
 ```
-agent-driver-mod/
+worlddriver/
 ├── common/                Architectury 共享代码（AgentApi、MCP/RPC server、Rhino 胶水）
 │   └── src/main/
-│       ├── java/net/magicterra/agent/
+│       ├── java/net/magicterra/worlddriver/
 │       │   ├── api/               AgentApi 路由 + System/Observe/Action/Wait 处理器（单一可信源）
 │       │   ├── bot/               客户端 bot 子系统（pathfinder、goto/mine/build/follow 等进程）
 │       │   ├── mcp/               McpServer + ToolCatalog
 │       │   ├── rpc/               RpcServer (Netty WebSocket) + JsonCodec
 │       │   ├── script/            Rhino 接入、沙箱、ScriptEvaluator
 │       │   └── client/            ClientHooks 中介（impl 在 fabric/neoforge 下）
-│       └── resources/data/agent_driver/scripts/agent_validation/  *.js 校验套件
+│       └── resources/data/worlddriver/scripts/agent_validation/  *.js 校验套件
 ├── fabric/                Fabric 入口 + 客户端实现
 ├── neoforge/              NeoForge 入口 + 客户端实现
 ├── docs/                  各客户端接入指南（重点看 docs/mcp-clients.md）
@@ -177,7 +177,7 @@ agent-driver-mod/
 
 **Phase 1（感知 + 行动 + 最小客户端驱动）已端到端跑通：**
 
-- mc-testkit 正门（`scripts/testkit/t0.py`）全套校验脚本 + ad.* 场景绿（用作 CI）
+- stagewright 正门（`scripts/stagewright/t0.py`）全套校验脚本 + wd.* 场景绿（用作 CI）
 - 全部 MCP 工具，Claude Code 走 `.mcp.json` 就能接通，无需额外配置
 - 完整闭环演示：TitleScreen 点击 → SelectWorldScreen 点击 → 世界加载 →
   `mc.query q='blocks'` 扫到 17 棵树 → 锁定出生点旁那棵 `(0, 67, 1)` 的橡木 →

@@ -5,12 +5,12 @@ The mod exposes a [Model Context Protocol](https://modelcontextprotocol.io/)
 chosen at server start and written to two files in the JVM working directory:
 
 ```
-agent-mcp.port   # e.g. "54321"   — MCP / HTTP
-agent-rpc.port   # e.g. "54322"   — WebSocket RPC (for in-mod scripts)
+worlddriver-mcp.port   # e.g. "54321"   — MCP / HTTP
+worlddriver-rpc.port   # e.g. "54322"   — WebSocket RPC (for in-mod scripts)
 ```
 
 You can also see it in chat with `/agent mcp`, and pin a fixed port via
-`-Dagent.mcpPort=12345` on the JVM command line.
+`-Dworlddriver.mcpPort=12345` on the JVM command line.
 
 Everything below is **platform-agnostic**: any client speaking MCP
 Streamable HTTP can connect. We list specific recipes for Claude Desktop,
@@ -27,8 +27,8 @@ The [official Inspector](https://github.com/modelcontextprotocol/inspector)
 gives you a UI to browse tools, call them, and inspect the raw JSON-RPC.
 
 ```bash
-# In one shell — start the game with -Dagent.mcpPort=39800 so the port is stable
-./gradlew :fabric:runClient -Dagent.mcpPort=39800
+# In one shell — start the game with -Dworlddriver.mcpPort=39800 so the port is stable
+./gradlew :fabric:runClient -Dworlddriver.mcpPort=39800
 
 # In another shell
 npx @modelcontextprotocol/inspector
@@ -47,14 +47,14 @@ In the Inspector UI:
 Claude Code natively speaks Streamable HTTP. Register the server once:
 
 ```bash
-claude mcp add agent-driver http://127.0.0.1:39800/mcp --transport http
+claude mcp add worlddriver http://127.0.0.1:39800/mcp --transport http
 ```
 
 Then list and call:
 
 ```bash
 claude mcp list
-claude  # then ask: "use the agent-driver MCP to call mc.system.version"
+claude  # then ask: "use the worlddriver MCP to call mc.system.version"
 ```
 
 ---
@@ -68,7 +68,7 @@ Streamable HTTP server, bridge it through `mcp-remote`:
 ```json
 {
   "mcpServers": {
-    "agent-driver": {
+    "worlddriver": {
       "command": "npx",
       "args": [
         "-y",
@@ -87,7 +87,7 @@ Save as:
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 - Linux: `~/.config/Claude/claude_desktop_config.json`
 
-Restart Claude Desktop. The hammer icon should show the agent-driver tools.
+Restart Claude Desktop. The hammer icon should show the worlddriver tools.
 
 ---
 
@@ -126,7 +126,7 @@ Some clients (Claude Code, Cursor, Continue, Codex) read a project-local
 ```json
 {
   "mcpServers": {
-    "agent-driver": {
+    "worlddriver": {
       "type": "http",
       "url": "http://127.0.0.1:39800/mcp"
     }
@@ -140,7 +140,7 @@ works too:
 ```json
 {
   "mcpServers": {
-    "agent-driver": {
+    "worlddriver": {
       "command": "npx",
       "args": ["-y", "mcp-remote", "http://127.0.0.1:39800/mcp", "--transport", "http-only"]
     }
@@ -272,7 +272,7 @@ emitted event then rides the same push stream. Predicate: `value` (equals),
 - **"Connection refused"**: the MCP server comes up at client init (right
   after Minecraft's resource pack stage), so you can connect from the title
   screen — no world required. If you still see refused, check that the
-  process actually wrote `agent-mcp.port` to its working directory and that
+  process actually wrote `worlddriver-mcp.port` to its working directory and that
   your client is hitting that port. On a dedicated-server JVM, MCP comes
   up in `onServerStarting` instead.
 - **"mc.client.* not available"**: you're on a dedicated server JVM. Those

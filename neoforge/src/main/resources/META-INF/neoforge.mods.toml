@@ -3,20 +3,20 @@ loaderVersion="${loader_version_range}"
 license="${mod_license}"
 
 [[mods]]
-modId="agent_driver"
+modId="worlddriver"
 version="${version}"
-displayName="AgentDriver"
+displayName="WorldDriver"
 authors="${mod_authors}"
 description='''${mod_description}'''
 
-[[dependencies.agent_driver]]
+[[dependencies.worlddriver]]
     modId="neoforge"
     type="required"
     versionRange="${neoforge_version_range}"
     ordering="NONE"
     side="BOTH"
 
-[[dependencies.agent_driver]]
+[[dependencies.worlddriver]]
     modId="minecraft"
     type="required"
     versionRange="${minecraft_version_range}"

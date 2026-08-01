@@ -15,7 +15,7 @@
 - **Admissibility unchanged.** Constraints only PRUNE edges (remove successors); they never add negative cost. A* optimality/termination is preserved.
 - **YAGNI — A2a scope only.** `Capability` enum carries only `NONE` and `PARKOUR` this phase. Do NOT add `PLACE`/`SWIM`/`DIG`, dig-column moves, `requireTool`, or `forbidWater` — those are A2b. Do NOT fold the Walker's out-of-blocks `suppressPlace` re-plan flag into the capability system (it is a live re-plan path; leave it exactly as-is).
 - **Cell-centre convention:** distance-based constraints use the cell centre `(to.x+0.5, to.y, to.z+0.5)` — identical to A4b's `AvoidRegion`/`LeashAnchor`, so `leashHard` and the soft `leash` measure the same geometry.
-- Alternate ports for any gametest run: `JAVA_TOOL_OPTIONS="-Dagent.mcpPort=39810 -Dagent.rpcPort=39811"`.
+- Alternate ports for any gametest run: `JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39810 -Dworlddriver.rpcPort=39811"`.
 
 ## File Structure
 
@@ -46,7 +46,7 @@
 
 - [ ] **Step 1: `Capability.java`**
 ```java
-package net.magicterra.agent.bot.pathfinder;
+package net.magicterra.worlddriver.bot.pathfinder;
 
 /** A move-type category that a {@link CapabilityProfile} can forbid per-intent.
  *  {@code NONE} = ungated (the vast majority of moves). A2a wires only PARKOUR;
@@ -56,7 +56,7 @@ public enum Capability { NONE, PARKOUR }
 
 - [ ] **Step 2: `CapabilityProfile.java`**
 ```java
-package net.magicterra.agent.bot.pathfinder;
+package net.magicterra.worlddriver.bot.pathfinder;
 
 import java.util.EnumSet;
 import java.util.Set;
@@ -83,9 +83,9 @@ public final class CapabilityProfile {
 
 - [ ] **Step 3: `Constraint.java`**
 ```java
-package net.magicterra.agent.bot.pathfinder;
+package net.magicterra.worlddriver.bot.pathfinder;
 
-import net.magicterra.agent.bot.Goal;
+import net.magicterra.worlddriver.bot.Goal;
 import net.minecraft.core.BlockPos;
 
 /** A hard, per-intent edge predicate: return {@code false} to PRUNE the move to
@@ -100,7 +100,7 @@ public interface Constraint {
 
 - [ ] **Step 4: `SearchProfile.java`**
 ```java
-package net.magicterra.agent.bot.pathfinder;
+package net.magicterra.worlddriver.bot.pathfinder;
 
 import java.util.List;
 
@@ -120,7 +120,7 @@ public record SearchProfile(List<CostModifier> bias, CapabilityProfile capabilit
 ```
 
 - [ ] **Step 5: Compile** — `./gradlew :common:compileJava --console=plain` → `BUILD SUCCESSFUL`.
-- [ ] **Step 6: Commit** — `git add common/src/main/java/net/magicterra/agent/bot/pathfinder/{Capability,CapabilityProfile,Constraint,SearchProfile}.java && git commit -m "pathfinder: Capability/CapabilityProfile/Constraint/SearchProfile value types (A2a Task 1)"`
+- [ ] **Step 6: Commit** — `git add common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/{Capability,CapabilityProfile,Constraint,SearchProfile}.java && git commit -m "pathfinder: Capability/CapabilityProfile/Constraint/SearchProfile value types (A2a Task 1)"`
 
 ---
 
@@ -204,7 +204,7 @@ and change the append line to:
 (Empty constraints → the whole block is skipped → no-op.)
 
 - [ ] **Step 7: Compile** — `./gradlew :common:compileJava --console=plain` → `BUILD SUCCESSFUL`.
-- [ ] **Step 8: Commit** — `git add common/src/main/java/net/magicterra/agent/bot/pathfinder/PathFinder.java && git commit -m "pathfinder: Search takes SearchProfile; capability move-gate + constraint edge-prune (A2a Task 2, empty=no-op)"`
+- [ ] **Step 8: Commit** — `git add common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/PathFinder.java && git commit -m "pathfinder: Search takes SearchProfile; capability move-gate + constraint edge-prune (A2a Task 2, empty=no-op)"`
 
 ---
 
@@ -242,11 +242,11 @@ and change the append line to:
 
 - [ ] **Step 2: `Walker.java` — replace `bias` field + `setBias` with `profile` + `setSearchProfile`.** Change line ~58 `private java.util.List<CostModifier> bias = java.util.List.of();` and the `setBias` method (~61) to:
 ```java
-    private net.magicterra.agent.bot.pathfinder.SearchProfile profile =
-            net.magicterra.agent.bot.pathfinder.SearchProfile.NONE;
+    private net.magicterra.worlddriver.bot.pathfinder.SearchProfile profile =
+            net.magicterra.worlddriver.bot.pathfinder.SearchProfile.NONE;
 
-    public void setSearchProfile(net.magicterra.agent.bot.pathfinder.SearchProfile p) {
-        this.profile = (p == null) ? net.magicterra.agent.bot.pathfinder.SearchProfile.NONE : p;
+    public void setSearchProfile(net.magicterra.worlddriver.bot.pathfinder.SearchProfile p) {
+        this.profile = (p == null) ? net.magicterra.worlddriver.bot.pathfinder.SearchProfile.NONE : p;
     }
 ```
 (Remove the now-unused `import ...CostModifier;` at line 7 only if nothing else in Walker uses it — grep first; leave it if used elsewhere.)
@@ -263,7 +263,7 @@ and change the append line to:
 - [ ] **Step 6: Compile** — `./gradlew :common:compileJava --console=plain` → `BUILD SUCCESSFUL`.
 - [ ] **Step 7: Byte-identity check — run `serverProcessArena` (the process-path parity gate).**
 ```bash
-JAVA_TOOL_OPTIONS="-Dagent.mcpPort=39810 -Dagent.rpcPort=39811" \
+JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39810 -Dworlddriver.rpcPort=39811" \
   ./gradlew :neoforge:runGameTestServer --console=plain 2>&1 | tee /tmp/a2a-t3.log
 grep -iE "serverProcessArena|BUILD (SUCCESSFUL|FAILED)" /tmp/a2a-t3.log
 ```
@@ -279,7 +279,7 @@ Expected: `[serverProcessArena] step=ARRIVED ... reached=true`. (Overall BUILD m
 **Interfaces:**
 - Produces: `Move.requiredCapability()` returning `Capability` (default `NONE`); `Parkour*` moves return `PARKOUR`.
 
-- [ ] **Step 1: Add the base method to `Move.java`** (near `placesBlock()` ~line 64; add `import net.magicterra.agent.bot.pathfinder.Capability;` only if `Move` is in a different package — it is in `pathfinder`, so no import needed):
+- [ ] **Step 1: Add the base method to `Move.java`** (near `placesBlock()` ~line 64; add `import net.magicterra.worlddriver.bot.pathfinder.Capability;` only if `Move` is in a different package — it is in `pathfinder`, so no import needed):
 ```java
     /** The capability a {@link CapabilityProfile} must permit for this move to be
      *  usable in a search. Default {@code NONE} (ungated). Overridden by the move
@@ -290,14 +290,14 @@ Expected: `[serverProcessArena] step=ARRIVED ... reached=true`. (Overall BUILD m
 - [ ] **Step 2: Override in each Parkour move.** In EACH of these 8 files add the override method (inside the class body):
 `moves/Parkour2.java`, `moves/Parkour3.java`, `moves/Parkour4.java`, `moves/Parkour2Diagonal.java`, `moves/Parkour3Diagonal.java`, `moves/ParkourAscend.java`, `moves/ParkourDescend.java`, `moves/ParkourPlace.java`:
 ```java
-    @Override public net.magicterra.agent.bot.pathfinder.Capability requiredCapability() {
-        return net.magicterra.agent.bot.pathfinder.Capability.PARKOUR;
+    @Override public net.magicterra.worlddriver.bot.pathfinder.Capability requiredCapability() {
+        return net.magicterra.worlddriver.bot.pathfinder.Capability.PARKOUR;
     }
 ```
-(These files are in package `...pathfinder.moves`, so the FQN or an import of `Capability` is needed. Use the import `import net.magicterra.agent.bot.pathfinder.Capability;` and write `return Capability.PARKOUR;` if you prefer — match the file's existing import style; `ParkourPlace` also `placesBlock()` returns true, which is fine — it stays gated by PLACE logic separately in A2b, but for A2a it just carries PARKOUR.)
-- [ ] **Step 3: Verify you covered every Parkour move:** `grep -Ln "requiredCapability" common/src/main/java/net/magicterra/agent/bot/pathfinder/moves/Parkour*.java` must print nothing (every `Parkour*.java` now has the override).
+(These files are in package `...pathfinder.moves`, so the FQN or an import of `Capability` is needed. Use the import `import net.magicterra.worlddriver.bot.pathfinder.Capability;` and write `return Capability.PARKOUR;` if you prefer — match the file's existing import style; `ParkourPlace` also `placesBlock()` returns true, which is fine — it stays gated by PLACE logic separately in A2b, but for A2a it just carries PARKOUR.)
+- [ ] **Step 3: Verify you covered every Parkour move:** `grep -Ln "requiredCapability" common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/moves/Parkour*.java` must print nothing (every `Parkour*.java` now has the override).
 - [ ] **Step 4: Compile** — `./gradlew :common:compileJava --console=plain` → `BUILD SUCCESSFUL`.
-- [ ] **Step 5: Commit** — `git add common/src/main/java/net/magicterra/agent/bot/pathfinder/Move.java common/src/main/java/net/magicterra/agent/bot/pathfinder/moves/Parkour*.java && git commit -m "pathfinder: Move.requiredCapability() tag; Parkour* → PARKOUR (A2a Task 4)"`
+- [ ] **Step 5: Commit** — `git add common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/Move.java common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/moves/Parkour*.java && git commit -m "pathfinder: Move.requiredCapability() tag; Parkour* → PARKOUR (A2a Task 4)"`
 
 ---
 
@@ -311,12 +311,12 @@ Expected: `[serverProcessArena] step=ARRIVED ... reached=true`. (Overall BUILD m
 
 - [ ] **Step 1: `YFloor.java`**
 ```java
-package net.magicterra.agent.bot.pathfinder.constraints;
+package net.magicterra.worlddriver.bot.pathfinder.constraints;
 
-import net.magicterra.agent.bot.Goal;
-import net.magicterra.agent.bot.pathfinder.Constraint;
-import net.magicterra.agent.bot.pathfinder.Move;
-import net.magicterra.agent.bot.pathfinder.WorldView;
+import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.pathfinder.Constraint;
+import net.magicterra.worlddriver.bot.pathfinder.Move;
+import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 
 /** Hard floor: prune any move whose destination is below {@code minY}. Backs
@@ -331,12 +331,12 @@ public record YFloor(int minY) implements Constraint {
 
 - [ ] **Step 2: `YCeil.java`**
 ```java
-package net.magicterra.agent.bot.pathfinder.constraints;
+package net.magicterra.worlddriver.bot.pathfinder.constraints;
 
-import net.magicterra.agent.bot.Goal;
-import net.magicterra.agent.bot.pathfinder.Constraint;
-import net.magicterra.agent.bot.pathfinder.Move;
-import net.magicterra.agent.bot.pathfinder.WorldView;
+import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.pathfinder.Constraint;
+import net.magicterra.worlddriver.bot.pathfinder.Move;
+import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 
 /** Hard ceiling: prune any move whose destination is above {@code maxY}. */
@@ -350,12 +350,12 @@ public record YCeil(int maxY) implements Constraint {
 
 - [ ] **Step 3: `LeashHardRadius.java`** (cell-centre convention, matching A4b `LeashAnchor`)
 ```java
-package net.magicterra.agent.bot.pathfinder.constraints;
+package net.magicterra.worlddriver.bot.pathfinder.constraints;
 
-import net.magicterra.agent.bot.Goal;
-import net.magicterra.agent.bot.pathfinder.Constraint;
-import net.magicterra.agent.bot.pathfinder.Move;
-import net.magicterra.agent.bot.pathfinder.WorldView;
+import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.pathfinder.Constraint;
+import net.magicterra.worlddriver.bot.pathfinder.Move;
+import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 
 /** Hard leash: prune any move whose destination is farther than {@code radius}
@@ -373,7 +373,7 @@ public record LeashHardRadius(double ax, double ay, double az, double radius) im
 ```
 
 - [ ] **Step 4: Compile** — `./gradlew :common:compileJava --console=plain` → `BUILD SUCCESSFUL`.
-- [ ] **Step 5: Commit** — `git add common/src/main/java/net/magicterra/agent/bot/pathfinder/constraints/ && git commit -m "pathfinder/constraints: YFloor + YCeil + LeashHardRadius (A2a Task 5)"`
+- [ ] **Step 5: Commit** — `git add common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/constraints/ && git commit -m "pathfinder/constraints: YFloor + YCeil + LeashHardRadius (A2a Task 5)"`
 
 ---
 
@@ -390,28 +390,28 @@ public record LeashHardRadius(double ax, double ay, double az, double radius) im
 - [ ] **Step 1: Add `resolveCapability` to `GotoGoalResolver`.**
 ```java
     /** forbidParkour:true OR capability:"walk" → forbid PARKOUR; otherwise ALL (no-op). */
-    static net.magicterra.agent.bot.pathfinder.CapabilityProfile resolveCapability(Params p) {
+    static net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile resolveCapability(Params p) {
         boolean forbidParkour = p.getBool("forbidParkour")
                 || (p.get("capability") instanceof String s && s.trim().equalsIgnoreCase("walk"));
-        if (!forbidParkour) return net.magicterra.agent.bot.pathfinder.CapabilityProfile.ALL;
-        return new net.magicterra.agent.bot.pathfinder.CapabilityProfile(
-                java.util.EnumSet.of(net.magicterra.agent.bot.pathfinder.Capability.PARKOUR));
+        if (!forbidParkour) return net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile.ALL;
+        return new net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile(
+                java.util.EnumSet.of(net.magicterra.worlddriver.bot.pathfinder.Capability.PARKOUR));
     }
 ```
 
 - [ ] **Step 2: Add `resolveConstraints` to `GotoGoalResolver`.**
 ```java
     /** yFloor / yCeil / leashHard → hard Constraints. Empty when none supplied. */
-    static java.util.List<net.magicterra.agent.bot.pathfinder.Constraint> resolveConstraints(Params p) {
-        java.util.List<net.magicterra.agent.bot.pathfinder.Constraint> cs = new java.util.ArrayList<>();
+    static java.util.List<net.magicterra.worlddriver.bot.pathfinder.Constraint> resolveConstraints(Params p) {
+        java.util.List<net.magicterra.worlddriver.bot.pathfinder.Constraint> cs = new java.util.ArrayList<>();
         if (p.get("yFloor") instanceof Number n)
-            cs.add(new net.magicterra.agent.bot.pathfinder.constraints.YFloor((int) Math.floor(n.doubleValue())));
+            cs.add(new net.magicterra.worlddriver.bot.pathfinder.constraints.YFloor((int) Math.floor(n.doubleValue())));
         if (p.get("yCeil") instanceof Number n)
-            cs.add(new net.magicterra.agent.bot.pathfinder.constraints.YCeil((int) Math.floor(n.doubleValue())));
+            cs.add(new net.magicterra.worlddriver.bot.pathfinder.constraints.YCeil((int) Math.floor(n.doubleValue())));
         if (p.get("leashHard") instanceof java.util.Map<?, ?> l) {
             Object x = l.get("x"), y = l.get("y"), z = l.get("z"), r = l.get("radius");
             if (x instanceof Number && y instanceof Number && z instanceof Number && r instanceof Number) {
-                cs.add(new net.magicterra.agent.bot.pathfinder.constraints.LeashHardRadius(
+                cs.add(new net.magicterra.worlddriver.bot.pathfinder.constraints.LeashHardRadius(
                         ((Number) x).doubleValue(), ((Number) y).doubleValue(),
                         ((Number) z).doubleValue(), ((Number) r).doubleValue()));
             }
@@ -428,7 +428,7 @@ public record LeashHardRadius(double ax, double ay, double az, double radius) im
                 GotoGoalResolver.resolveCapability(p),
                 GotoGoalResolver.resolveConstraints(p))));
 ```
-(Match the actual surrounding call shape — find it with `grep -n "resolveBias" common/src/main/java/net/magicterra/agent/bot/BotApiImpl.java`.)
+(Match the actual surrounding call shape — find it with `grep -n "resolveBias" common/src/main/java/net/magicterra/worlddriver/bot/BotApiImpl.java`.)
 
 - [ ] **Step 4: Schema/help in `BotTools.java`.** In the goto tool block (after the A4b `avoid`/`preferY`/`leash` props ~line 84-91), add — matching the file's `object()`/`number()`/`bool()`/`string()` builder helpers (read the block to confirm the exact helper for a boolean; if `bool()` doesn't exist use whatever the file uses for boolean props):
 ```java
@@ -465,7 +465,7 @@ and add help lines matching the existing goto help tone:
 - [ ] **Step 3: `leashHardArena`.** Flat lane; anchor at the start. Plan with `constraints=[new LeashHardRadius(startX+0.5, startY, startZ+0.5, R)]` to a goal INSIDE radius R: assert `goalReached==true`. Plan the SAME leash to a goal OUTSIDE radius R (farther than R along the lane): assert `goalReached==false` (every edge past R is pruned → unreachable). This proves the hard radius bound.
 - [ ] **Step 4: Run the three arenas headless.**
 ```bash
-JAVA_TOOL_OPTIONS="-Dagent.mcpPort=39810 -Dagent.rpcPort=39811" \
+JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39810 -Dworlddriver.rpcPort=39811" \
   ./gradlew :neoforge:runGameTestServer --console=plain 2>&1 | tee /tmp/a2a-t7.log
 grep -iE "parkourGate|yFloorConstraint|leashHard|required tests (failed|passed)" /tmp/a2a-t7.log
 ```

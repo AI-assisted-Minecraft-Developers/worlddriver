@@ -1,10 +1,10 @@
-# mc-testkit P4b：family 迁移波（非 Server 家族 63 名全量迁 testkit 场景 + 逐波删 twin）
+# stagewright P4b：family 迁移波（非 Server 家族 63 名全量迁 testkit 场景 + 逐波删 twin）
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 把 legacy 套件中 Server 巨类之外的 63 个 `@GameTest`（Terrain 13 / Bias 13 / WaterBank 11 / WaterCross 10 / 主类 12 / CombatSense 2 / BuildBlock 2）按 family 全量迁为 ad.* testkit 场景（直接落 common testmod），每波迁一批→A/B→删一批；收官后 legacy 只剩 Server 59 名（P4c 拆家族啃，P4-final 退役）。
+**Goal:** 把 legacy 套件中 Server 巨类之外的 63 个 `@GameTest`（Terrain 13 / Bias 13 / WaterBank 11 / WaterCross 10 / 主类 12 / CombatSense 2 / BuildBlock 2）按 family 全量迁为 wd.* testkit 场景（直接落 common testmod），每波迁一批→A/B→删一批；收官后 legacy 只剩 Server 59 名（P4c 拆家族啃，P4-final 退役）。
 
-**Architecture:** 每波自含（迁→双 loader ×2 轮字节一致→同 commit 删 twin→legacy 对账收缩→migration-log 行），失败可逐波回滚。一个 legacy 类对应一个新 SceneProvider 类（provenance 清晰、AgentDriverScenes 不再膨胀），service 文件逐行追加（重名门+对账门防吞）。63 名全部 tick-free（手动 `level.tick()` 4 处全在 Server 巨类，本 phase 不碰）——直译雷主要是 GameTestHelper 惯用法→SceneContext/await 语义与持久世界 teardown。
+**Architecture:** 每波自含（迁→双 loader ×2 轮字节一致→同 commit 删 twin→legacy 对账收缩→migration-log 行），失败可逐波回滚。一个 legacy 类对应一个新 SceneProvider 类（provenance 清晰、WorldDriverScenes 不再膨胀），service 文件逐行追加（重名门+对账门防吞）。63 名全部 tick-free（手动 `level.tick()` 4 处全在 Server 巨类，本 phase 不碰）——直译雷主要是 GameTestHelper 惯用法→SceneContext/await 语义与持久世界 teardown。
 
 **Tech Stack:** 既有 scene DSL（Scene builder/withOriginSlot/withChunkRadius/withRequired/SceneContext.cleanup LIFO）+ SceneProvider ServiceLoader + t0 --expect-file 对账门 + run_gametests.sh legacy 门。
 
@@ -24,8 +24,8 @@
 ### Task 1: Terrain 13 迁移波
 
 **Files:**
-- Create: `common/src/testmod/java/net/magicterra/agent/bot/testkit/scene/AgentDriverTerrainScenes.java`
-- Modify: `common/src/testmod/resources/META-INF/services/net.magicterra.testkit.scene.SceneProvider`（追加一行）、`scripts/testkit/expected-scenes-{neoforge,fabric}.txt`（+13 名,同 commit）、`docs/testkit/migration-log.md`（wave-2 表）
+- Create: `common/src/testmod/java/net/magicterra/worlddriver/bot/testkit/scene/WorldDriverTerrainScenes.java`
+- Modify: `common/src/testmod/resources/META-INF/services/net.magicterra.stagewright.scene.SceneProvider`（追加一行）、`scripts/stagewright/expected-scenes-{neoforge,fabric}.txt`（+13 名,同 commit）、`docs/stagewright/migration-log.md`（wave-2 表）
 - Delete(同 task 尾): `neoforge/src/testmod/.../AgentGameTestTerrain.java` 全类（13 名全迁即空壳,连 Registrar 除名若在列）
 
 **Interfaces:**
@@ -39,22 +39,22 @@
 
 ### Task 2: Bias 13 迁移波
 
-同 Task 1 波次协议逐字同构。Files: Create `AgentDriverBiasScenes.java`;Delete `AgentGameTestBias.java` twins。注意:Bias 家族含 driver 机器件（21 处 Support 引用最密）→driver 模式 createIsolated+定向 cleanup。计数 109→96。
+同 Task 1 波次协议逐字同构。Files: Create `WorldDriverBiasScenes.java`;Delete `AgentGameTestBias.java` twins。注意:Bias 家族含 driver 机器件（21 处 Support 引用最密）→driver 模式 createIsolated+定向 cleanup。计数 109→96。
 - [ ] Step 1 直译+A/B; Step 2 双 loader ×2; Step 3 删+对账 96; Step 4 Commit `feat(testkit): P4b wave 3 — Bias family migrated (13 scenes), legacy twins deleted (109→96)`
 
 ### Task 3: Water 双家族 21 迁移波（WaterBank 11 + WaterCross 10）
 
-同波次协议。Files: Create `AgentDriverWaterBankScenes.java`+`AgentDriverWaterCrossScenes.java`（一 legacy 类一 provider）;Delete 两类 twins。注意:本波含已档彩票/optional 成员（vineoverwaterclimb −711 live bug、deepwatercross 家族）→required 语义跟随+withRequired(false)+javadoc 引病历,不许调绿;水域 rig 记 [[reference_arena_void_fall_rig_disease]] 三件套与水柱居中病历。计数 96→75。
+同波次协议。Files: Create `WorldDriverWaterBankScenes.java`+`WorldDriverWaterCrossScenes.java`（一 legacy 类一 provider）;Delete 两类 twins。注意:本波含已档彩票/optional 成员（vineoverwaterclimb −711 live bug、deepwatercross 家族）→required 语义跟随+withRequired(false)+javadoc 引病历,不许调绿;水域 rig 记 [[reference_arena_void_fall_rig_disease]] 三件套与水柱居中病历。计数 96→75。
 - [ ] Step 1 直译+A/B; Step 2 双 loader ×2; Step 3 删+对账 75; Step 4 Commit `feat(testkit): P4b wave 4 — Water families migrated (21 scenes), legacy twins deleted (96→75)`
 
 ### Task 4: 主类 12 + CombatSense 2 + BuildBlock 2 = 16 迁移波
 
-同波次协议。Files: Create `AgentDriverCoreScenes.java`（主类 AgentGameTest 12 名,含 RPC/YAML 面）+`AgentDriverCombatScenes.java`+`AgentDriverBuildScenes.java`;Delete 三类 twins（CombatSense/BuildBlock 全类删,主类若全迁亦删,Registrar 相应除名）。注意:主类含 runValidation()/RPC 面（agentRpcSmoke 的同族但 rpcsmoke 本体在 Server=P4c）;threatScan 双名需受控敌对生成（白天自燃防护病历）。计数 75→59。
+同波次协议。Files: Create `WorldDriverCoreScenes.java`（主类 AgentGameTest 12 名,含 RPC/YAML 面）+`WorldDriverCombatScenes.java`+`WorldDriverBuildScenes.java`;Delete 三类 twins（CombatSense/BuildBlock 全类删,主类若全迁亦删,Registrar 相应除名）。注意:主类含 runValidation()/RPC 面（agentRpcSmoke 的同族但 rpcsmoke 本体在 Server=P4c）;threatScan 双名需受控敌对生成（白天自燃防护病历）。计数 75→59。
 - [ ] Step 1 直译+A/B; Step 2 双 loader ×2; Step 3 删+对账 59; Step 4 Commit `feat(testkit): P4b wave 5 — Core/Combat/Build families migrated (16 scenes), legacy twins deleted (75→59)`
 
 ### Task 5: 验收 + 文档
 
-**Files:** `mc-testkit/README.md`、`TODO.md`、`docs/testkit/migration-log.md`（收官段）
+**Files:** `stagewright/README.md`、`TODO.md`、`docs/stagewright/migration-log.md`（收官段）
 
 - [ ] **Step 1: 五门验收**（前台有界顺序）：①dogfood 双 loader 全量（9+63=72 场景）×2 轮结果集一致+金字节;②`run_gametests.sh` 对账 59/59 0 吞（只剩 Server,失败⊆family 存活成员）;③`instrument.py` 双 loader 23/23+`t1.py` GREEN（72 场景膨胀后 T1 面不回归）;④生产 jar 字节门双 loader+publishToMavenLocal 复验;⑤migration-log 计数链 122→59 与四波 commit 对账+「加场景」单点 how-to 补入 README（P4a 终审挂账）。
 - [ ] **Step 2: 文档 + Commit** `docs(testkit): P4b — non-Server families fully migrated (63 scenes), legacy reduced to Server-only (59)`（README 场景库结构节[七 provider 分家族]+TODO P4b 条目五门记录+残余[P4c=Server 59 拆 family 含 4 处 level.tick() 雷与 agentrpcsmoke;P4-final 退役;task#86-88/90 照旧]）

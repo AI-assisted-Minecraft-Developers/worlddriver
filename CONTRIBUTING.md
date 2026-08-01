@@ -1,4 +1,4 @@
-# Contributing to AgentDriver
+# Contributing to WorldDriver
 
 Thanks for picking this up. This document covers everything a new contributor
 needs to build, test, and ship a change.
@@ -26,17 +26,17 @@ Artifacts land under `<platform>/build/libs/`.
 ## Test
 
 The validation suite is the source of truth — JS scripts under
-`common/src/main/resources/data/agent_driver/scripts/agent_validation/` that
+`common/src/main/resources/data/worlddriver/scripts/agent_validation/` that
 exercise the AgentApi across all three transports (in-JVM, RPC, MCP). They are
-driven end-to-end by the mc-testkit orchestrators (`scripts/testkit/`), which
-dogfood a dedicated server with the harness and autorun the ad.* scenes + JS
+driven end-to-end by the stagewright orchestrators (`scripts/stagewright/`), which
+dogfood a dedicated server with the harness and autorun the wd.* scenes + JS
 suite (the legacy `@GameTest`/GameTestServer path was retired in P4-final):
 
 ```bash
-python3 scripts/testkit/t0.py --loader neoforge \
+python3 scripts/stagewright/t0.py --loader neoforge \
   --run-task :neoforge:runDogfoodServer \
   --results neoforge/run-dogfood/testkit-results.jsonl \
-  --expect-file scripts/testkit/expected-scenes-neoforge.txt
+  --expect-file scripts/stagewright/expected-scenes-neoforge.txt
 # → GREEN (exits non-zero on any failed scene)
 ```
 
@@ -49,7 +49,7 @@ script and an assertion in the existing tests.
 ```bash
 # Pin ports so .mcp.json keeps working; otherwise random ports get written
 # to fabric/run/agent-{mcp,rpc}.port
-JAVA_TOOL_OPTIONS="-Dagent.mcpPort=39800 -Dagent.rpcPort=39801" \
+JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39800 -Dworlddriver.rpcPort=39801" \
   ./gradlew :fabric:runClient
 ```
 
@@ -71,7 +71,7 @@ docs/     Client connection guides
 scripts/  Smoke tests + harness helpers
 ```
 
-The single source of truth is `common/src/main/java/net/magicterra/agent/api/AgentApi.java`.
+The single source of truth is `common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java`.
 Every transport (MCP, WebSocket RPC, in-JVM script) routes through
 `AgentApi.route(method, params)`. **Do not add behavior in a transport without
 going through AgentApi** — the validation suite asserts that all three return
@@ -112,7 +112,7 @@ Never write logs to the project root or to a top-level `logs/` directory.
 
 1. Branch from `main`.
 2. Make the change. Add or update a validation script if behavior changed.
-3. The testkit gates (`scripts/testkit/t0.py` + `instrument.py`) must be green.
+3. The testkit gates (`scripts/stagewright/t0.py` + `instrument.py`) must be green.
 4. Open a PR with:
    - A one-line summary of *what* and *why*.
    - The validation script(s) that prove it.

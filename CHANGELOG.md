@@ -8,6 +8,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **BREAKING (naming): the mod is now `WorldDriver` and the test framework is
+  `StageWright`.** The old names described the consumers, not this layer. This mod
+  is not an agent and not a test tool — it is to Minecraft roughly what chromedriver
+  is to Chrome: a control surface driven by an LLM agent, by StageWright, or by a
+  hand-written script. Every identifier that carried the old product name moved:
+
+  | Was | Is |
+  |---|---|
+  | `mod_id`/`archives_name` `agent_driver` | `worlddriver` |
+  | `net.magicterra.agent.**` | `net.magicterra.worlddriver.**` |
+  | `net.magicterra.testkit.**` | `net.magicterra.stagewright.**` |
+  | `AgentDriver*` / `Testkit*` classes | `WorldDriver*` / `StageWright*` |
+  | `-Dagent.*` (16 properties, incl. `mcpPort`/`rpcPort`) | `-Dworlddriver.*` |
+  | `-Dtestkit.autorun` / `testkit.endpoint` | `-Dstagewright.*` |
+  | `<loader>/run/agent-{mcp,rpc}.port` | `worlddriver-{mcp,rpc}.port` |
+  | scene prefix `ad.*` | `wd.*` (all 164) |
+  | data namespace `data/agent_driver/` | `data/worlddriver/` |
+  | gradle plugin id `net.magicterra.mc-testkit` | `net.magicterra.stagewright` |
+  | DSL block `testkit { }`, `-Ptestkit.loader` | `stagewright { }`, `-Pstagewright.loader` |
+  | tasks `testkitServer/Client/E2E` | `stagewrightServer/Client/E2E` |
+  | `mc-testkit/`, `scripts/testkit/`, `docs/testkit/` | `stagewright/`, `scripts/stagewright/`, `docs/stagewright/` |
+
+  **Existing worlds are unaffected** — this mod registers nothing into vanilla
+  registries (no blocks, items or entities), so no save data references `agent_driver`.
+
+  Two things deliberately did *not* move. The results filename
+  `<loader>/run-*/testkit-results.jsonl` and the orchestration contract's argument
+  names stay as they are: that is the frozen v0 wire contract between orchestrator
+  and mod, renaming it buys nothing and breaks external consumers. And the
+  `bot/testkit/` subpackage keeps its name — it means "the test-framework
+  integration", which is still what it is.
+
+  Downstream: `-Dagent.mcpPort`/`-Dagent.rpcPort` are gone, so any launcher, IDE
+  run config or script that pinned the ports must switch to `-Dworlddriver.*`;
+  readers of the port files must switch to `worlddriver-rpc.port`.
 - **BREAKING (wire): an event's `data` is now a value, not always a string.**
   `AgentEvent.data` was declared `String`, so the 20 structured emitters all
   pre-encoded with `JsonCodec.encode(map)` and the payload shipped as JSON escaped
@@ -78,7 +113,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   transport and killed the connection on the other at 128× less payload — with no
   JSON error, because a frame that never assembles carries no id to answer. Both
   limits now come from `TransportLimits.MAX_REQUEST_BYTES` (8 MiB, override with
-  `-Dagent.maxRequestBytes=N`, replacing the MCP-only `agent.mcp.maxBodyBytes`).
+  `-Dworlddriver.maxRequestBytes=N`, replacing the MCP-only `agent.mcp.maxBodyBytes`).
   `RpcClient` gets the same ceiling on inbound frames, where it matters just as
   much: responses are the big direction (`mc.client.screenshot` returns base64
   image bytes) and the 64 KiB default would have turned an oversized reply into a
@@ -125,7 +160,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   specifies (a frame with a `method` is a notification; a frame with an `id` is a
   response), matches responses by id, and drops stale ones. In-repo the only
   caller (`RpcBridge`) never subscribes, so nothing shipped was mis-answering;
-  `gpt-player/driver.py` and the agent-driver-rpc skill's `rpc.py` already
+  `gpt-player/driver.py` and the worlddriver-rpc skill's `rpc.py` already
   correlated by id.
 - **WebSocket RPC error frames now always carry `id`, plus a JSON-RPC `code`.**
   The two malformed-input paths (`request must be JSON object`, `parse: …`)
@@ -171,7 +206,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   driver's call list disagreeing. Read-before-write is the one worth a gate: a
   phase reading a later phase's product gets the zero value on every tick, with no
   exception and no log. The pipeline is clean today; this keeps it that way.
-- **Pathfinder cost attribution** (`-Dagent.pathfinderTaxLog=true`). Up to ten cost
+- **Pathfinder cost attribution** (`-Dworlddriver.pathfinderTaxLog=true`). Up to ten cost
   modifiers are summed into every A* edge, several pricing overlapping situations,
   and the search reported one opaque `finalCost` — so when a route surprised you,
   nothing said which tax produced it. Each search now logs a per-tax breakdown in
@@ -196,7 +231,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   previously only be reached through a full dogfood boot — which is why every bug
   in this section survived every existing gate.
 - **`scripts/check_scene_arena.py` — scene footprints must fit their forced-chunk
-  window.** `TestkitHarness` force-loads `(2r+1)²` chunks around each scene origin
+  window.** `StageWrightHarness` force-loads `(2r+1)²` chunks around each scene origin
   (`Scene.withChunkRadius`, default 1 → usable `dx,dz ∈ [-16r, 16r+15]`); building
   terrain outside it still succeeds, so the scene passes most of the time and
   fails when it doesn't, reading as a bot bug. The relation was maintained purely
@@ -446,7 +481,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Path archive / replay / analysis toolchain — deterministic wedge reproduction.**
   Three pieces: (1) `mc.bot.setting{pathArchive:true}` enables per-session recording
   (default **OFF** — heavyweight); on `goto` completion a self-contained JSON archive
-  lands in `config/agent_driver/replays/replay-<n>-<epochMs>.json` containing the
+  lands in `config/worlddriver/replays/replay-<n>-<epochMs>.json` containing the
   world seed, dimension, each progressive segment's planned path + edges + per-node
   physics facts (pose fit, collision, hazard, fall height, jump feasibility), a sparse
   block envelope (±2 XZ, −1..+2 Y around every node), and the per-tick executed
@@ -475,8 +510,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and on every reconnect — a mod restart mid-session just blips offline→online
   (verified live: kill client → `tools/call` returns a graceful error → relaunch →
   auto-reconnect + tool-list refresh + tools work again). Register via
-  `scripts/agent-driver-channel.mcp.json.example` and launch with
-  `claude --dangerously-load-development-channels server:agent-driver` (custom
+  `scripts/worlddriver-channel.mcp.json.example` and launch with
+  `claude --dangerously-load-development-channels server:worlddriver` (custom
   channels need the dev flag during the research preview).
 - **Driver→agent event push channel — the driver streams events to the agent in
   real time instead of the agent only polling.** Every event still funnels through
@@ -518,7 +553,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   production path with no parallel implementation to drift. Parsing is snakeyaml
   under `SafeConstructor` (the one dependency we shadow-**relocate**, since it's a
   high-collision library, unlike the unrelocated Rhino/netty); files are
-  enumerated from `data/agent_driver/gametests/index.txt`. New `mc.test.yaml`
+  enumerated from `data/worlddriver/gametests/index.txt`. New `mc.test.yaml`
   route (`{inline}` / `{file}` / `{all:true}`) returns
   `{results:[{name,pass,failures}], passed, failed}`. Validation script
   `34_yaml_gametest.js` (5 sub-tests: inline run, region-restore, classpath-file
@@ -616,7 +651,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tool genuinely makes the detour cheaper. Confirmed in **survival** too (the
   bot mines through a stone wall and reaches the goal at full health), not just
   creative instant-break.
-- **Water-bucket (MLG) falls now land on a 1-wide column, not just a wide pad.**
+- **Water-bucket (MLG) falls now land on a 1-wide column, not just a wide pwd.**
   A `fallBucket` step-off leaves the launch lip with the walk's residual
   horizontal momentum, and air has no friction, so over a tall drop the body
   coasted a full block sideways — clean off a 1-block-wide landing column. It
@@ -688,7 +723,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   untouched, and re-applied each tick so re-toggling flight can't strand the
   bot. Verified live (hovering y=107 → descends → lands → walks to goal). New
   gated diagnostic `mc.bot.setting{walkerDebug:true}` logs the Walker's per-tick
-  decisions to the `AgentDriver` logger.
+  decisions to the `WorldDriver` logger.
 - **`mc.script.eval` / RPC JSON round-trip no longer chokes on non-finite
   numbers.** `JsonCodec.encode` emitted bare `NaN`/`Infinity` (invalid JSON)
   for non-finite doubles, and `decode` couldn't read those tokens back — so a
@@ -740,7 +775,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `goto` across a 15-block ledge still emits `fallBucket15` and clutches through
   it (`lip → falling → idle`, full health) — no regression on the planned path.
 - **`mc.action.runCommand` no longer enforces a command allow-list.** The verb
-  filter (and the `-Dagent.commandAllowList` system property + `DEFAULT_COMMAND_
+  filter (and the `-Dworlddriver.commandAllowList` system property + `DEFAULT_COMMAND_
   ALLOW_LIST` / `commandAllowed` machinery) is removed — any Brigadier verb now
   runs at operator level. The MCP/RPC transports bind to localhost, so this is a
   local/trusted-setup tradeoff; re-add a verb filter in `AgentApi.runCommand` if
@@ -1438,7 +1473,7 @@ end-to-end.
 - **Brigadier `/agent` subcommands**: `test`, `test list`, `test result`,
   `port`, `mcp`, `reload`.
 - **Validation suite**: 11 `*.js` scripts under
-  `common/src/main/resources/data/agent_driver/scripts/agent_validation/`,
+  `common/src/main/resources/data/worlddriver/scripts/agent_validation/`,
   expanded into 36 GameTest cases. Asserts byte-identical results across all
   three transports.
 - **Cross-platform parity**: same `common/` sources ship on Fabric (1.21.1) and
@@ -1448,5 +1483,5 @@ end-to-end.
 - **Docs**: `docs/mcp-clients.md` (per-client connection guide),
   `docs/claude_desktop_config.example.json`.
 
-[Unreleased]: https://github.com/AI-assisted-Minecraft-Developers/agent-driver-mod/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/AI-assisted-Minecraft-Developers/agent-driver-mod/releases/tag/v0.1.0
+[Unreleased]: https://github.com/AI-assisted-Minecraft-Developers/worlddriver/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/AI-assisted-Minecraft-Developers/worlddriver/releases/tag/v0.1.0

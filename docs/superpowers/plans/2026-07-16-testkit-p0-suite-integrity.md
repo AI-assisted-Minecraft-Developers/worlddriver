@@ -1,4 +1,4 @@
-# Testkit P0 — GameTest 套件完整性止血 实现计划
+# StageWright P0 — GameTest 套件完整性止血 实现计划
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** Java 21（NeoForge 21.1.230 / MC 1.21.1 mojmap）、Python 3（标准库）、bash。
 
-**Spec:** `docs/superpowers/specs/2026-07-16-mc-testkit-design.md` §7 P0。
+**Spec:** `docs/superpowers/specs/2026-07-16-stagewright-design.md` §7 P0。
 **Spec 偏差声明**：spec 写「ENTER/EXIT JSONL」；本计划只做 ENTER——吞测试检测只需 ENTER（注册但零 enter = 被吞），而 EXIT 没有单点咽喉（测试体经 succeed()/超时/异常多路终止），加 EXIT 要改 130 处，违反 DRY/YAGNI。spec 意图（对账门捕获静默吞）完整保留。
 
 ## Global Constraints
@@ -26,9 +26,9 @@
 ### Task 1: GameTestManifest — 游戏内 JSONL 执行清单
 
 **Files:**
-- Create: `neoforge/src/main/java/net/magicterra/agent/neoforge/GameTestManifest.java`
-- Modify: `neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTestSupport.java:74-81`（gtOnlySkips 首行插桩）
-- Modify: `neoforge/src/main/java/net/magicterra/agent/neoforge/AgentDriverNeoForge.java:53-55`（GameTestServer 分支调 reset()）
+- Create: `neoforge/src/main/java/net/magicterra/worlddriver/neoforge/GameTestManifest.java`
+- Modify: `neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTestSupport.java:74-81`（gtOnlySkips 首行插桩）
+- Modify: `neoforge/src/main/java/net/magicterra/worlddriver/neoforge/WorldDriverNeoForge.java:53-55`（GameTestServer 分支调 reset()）
 
 **Interfaces:**
 - Consumes: `GameTestRegistry.getAllTestFunctions()` → `Collection<TestFunction>`；`TestFunction.testName()/batchName()/required()`（mojmap 1.21.1，已 javap 核实）。
@@ -40,9 +40,9 @@
 - [ ] **Step 1: 写 GameTestManifest.java**
 
 ```java
-package net.magicterra.agent.neoforge;
+package net.magicterra.worlddriver.neoforge;
 
-import net.magicterra.agent.AgentDriverCommon;
+import net.magicterra.worlddriver.WorldDriverCommon;
 import net.minecraft.gametest.framework.GameTestRegistry;
 import net.minecraft.gametest.framework.TestFunction;
 
@@ -94,8 +94,8 @@ final class GameTestManifest {
                         StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING,
                         StandardOpenOption.WRITE);
                 armed = true;
-                AgentDriverCommon.LOG.info("[{}] gametest manifest armed: {} registered tests -> {}",
-                        AgentDriverCommon.MOD_ID, all.size(), FILE.toAbsolutePath());
+                WorldDriverCommon.LOG.info("[{}] gametest manifest armed: {} registered tests -> {}",
+                        WorldDriverCommon.MOD_ID, all.size(), FILE.toAbsolutePath());
             } catch (IOException e) {
                 // A broken manifest must never read as green — fail the run loudly.
                 throw new UncheckedIOException("cannot write gametest manifest", e);
@@ -138,11 +138,11 @@ final class GameTestManifest {
 
 - [ ] **Step 3: GameTestServer 启动分支接 reset()**
 
-`AgentDriverNeoForge.java:53-55` 的 instanceof 分支内加一行：
+`WorldDriverNeoForge.java:53-55` 的 instanceof 分支内加一行：
 
 ```java
         if (event.getServer() instanceof net.minecraft.gametest.framework.GameTestServer) {
-            net.magicterra.agent.bot.BotConfig.applyGameTestBaseline();
+            net.magicterra.worlddriver.bot.BotConfig.applyGameTestBaseline();
             GameTestManifest.reset();
         }
 ```
@@ -164,9 +164,9 @@ Expected: registered ≈130（=注册总数）；enter 若干（≤registered—
 - [ ] **Step 6: Commit**
 
 ```bash
-git add neoforge/src/main/java/net/magicterra/agent/neoforge/GameTestManifest.java \
-        neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTestSupport.java \
-        neoforge/src/main/java/net/magicterra/agent/neoforge/AgentDriverNeoForge.java
+git add neoforge/src/main/java/net/magicterra/worlddriver/neoforge/GameTestManifest.java \
+        neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTestSupport.java \
+        neoforge/src/main/java/net/magicterra/worlddriver/neoforge/WorldDriverNeoForge.java
 git commit -m "test(#85): in-game JSONL manifest — registered dump + enter probe at the gtOnlySkips chokepoint"
 ```
 
@@ -343,11 +343,11 @@ git commit -m "test(#85): reconciler — registered-vs-entered gate + BUILD/requ
 
 **Files:**
 - Modify: `scripts/gt_reconcile.py`（加 `--audit-source` 模式）
-- Modify: 审计揪出的 `neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTest*.java`（若有）
+- Modify: 审计揪出的 `neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTest*.java`（若有）
 
 **Interfaces:**
 - Consumes: neoforge 测试源文件文本。
-- Produces: `python3 scripts/gt_reconcile.py --audit-source neoforge/src/main/java/net/magicterra/agent/neoforge` exit 0/1；保证「每个 @GameTest 方法体内都有与方法名一致的 guard 调用」——这是 Task 1 enter 探针全覆盖的前提。
+- Produces: `python3 scripts/gt_reconcile.py --audit-source neoforge/src/main/java/net/magicterra/worlddriver/neoforge` exit 0/1；保证「每个 @GameTest 方法体内都有与方法名一致的 guard 调用」——这是 Task 1 enter 探针全覆盖的前提。
 
 - [ ] **Step 1: 在 gt_reconcile.py 尾部（main 之前）加审计函数，并在 main 里接 `--audit-source`**
 
@@ -401,7 +401,7 @@ main() 里 `--self-test` 分支后加：
 
 - [ ] **Step 2: 跑审计**
 
-Run: `python3 scripts/gt_reconcile.py --audit-source neoforge/src/main/java/net/magicterra/agent/neoforge`
+Run: `python3 scripts/gt_reconcile.py --audit-source neoforge/src/main/java/net/magicterra/worlddriver/neoforge`
 Expected: 列出无 guard 的 @GameTest 方法（可能为 0——~130 处 guard 是普查过的模式，但 `AgentGameTest.agentRpcSmoke` 等 batch 特例待证）。
 
 - [ ] **Step 3: 修复揪出的每一个**
@@ -416,13 +416,13 @@ Expected: 列出无 guard 的 @GameTest 方法（可能为 0——~130 处 guard
 
 - [ ] **Step 4: 复跑审计 + 编译**
 
-Run: `python3 scripts/gt_reconcile.py --audit-source neoforge/src/main/java/net/magicterra/agent/neoforge && ./gradlew :neoforge:compileJava -q`
+Run: `python3 scripts/gt_reconcile.py --audit-source neoforge/src/main/java/net/magicterra/worlddriver/neoforge && ./gradlew :neoforge:compileJava -q`
 Expected: `source audit: CLEAN` + BUILD SUCCESSFUL
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add scripts/gt_reconcile.py neoforge/src/main/java/net/magicterra/agent/neoforge/
+git add scripts/gt_reconcile.py neoforge/src/main/java/net/magicterra/worlddriver/neoforge/
 git commit -m "test(#85): source audit mode — every @GameTest must carry the guard/probe; fix stragglers"
 ```
 

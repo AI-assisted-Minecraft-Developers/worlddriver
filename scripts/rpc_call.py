@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Call one agent-driver RPC method directly over the websocket.
+"""Call one worlddriver RPC method directly over the websocket.
 
 Bypasses the MCP tool layer — useful when the harness's MCP tool schema is
 frozen from an earlier build and strips newly-added params (e.g. a freshly

@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-05
 **Status:** Approved (pending spec review)
-**Author:** agent-driver maintainer
+**Author:** worlddriver maintainer
 
 ## 1. Problem & Goals
 
@@ -36,7 +36,7 @@ vision for analysis.
 
 ## 3. Architecture
 
-### 3.1 Core SPI (in `net.magicterra.agent.bot.pathfinder`)
+### 3.1 Core SPI (in `net.magicterra.worlddriver.bot.pathfinder`)
 
 A minimal, dependency-free seam so the core never references debug code:
 
@@ -78,21 +78,21 @@ When `SINK == NOOP` these are empty virtual calls (JIT-elided): **zero overhead*
 release. When a recorder is registered but `pathDebug == false`, the recorder's methods
 early-return: still negligible.
 
-### 3.2 Debug module (in `net.magicterra.agent.bot.debug`, self-contained)
+### 3.2 Debug module (in `net.magicterra.worlddriver.bot.debug`, self-contained)
 
 - `PathDebugRecorder implements PathTrace` — accumulates the current goto session into
   in-memory buffers (see §4). Gated by `BotConfig.pathDebug`.
 - `PathChartRenderer` — **pure function** `(SessionSnapshot, RenderOpts) -> BufferedImage`.
   No I/O, no game state; fully unit-testable headless.
 - `PathChartWriter` — encodes the image with `ImageIO` and writes
-  `config/agent_driver/debug/pathchart-<seq>.png`; returns the absolute path.
+  `config/worlddriver/debug/pathchart-<seq>.png`; returns the absolute path.
 - `DebugTools` — MCP catalog exposing `mc.debug.pathChart`.
 - `PathDebugBootstrap.init()` — registers the recorder as `PathTraceHolder.SINK` and
   adds `DebugTools` to the tool catalog. Called once at mod init.
 
 ### 3.3 Stripping for release (documented procedure)
 
-1. Delete the `net.magicterra.agent.bot.debug` package.
+1. Delete the `net.magicterra.worlddriver.bot.debug` package.
 2. Remove the single `PathDebugBootstrap.init()` call from mod init.
 3. Remove the single `DebugTools` registration line (guarded — see §6).
 
@@ -164,7 +164,7 @@ time — mid-walk, after success, or after failure.
 
 `SettingsCommand.apply` learns these keys (mirroring existing scalar/bool handling).
 
-**Output dir:** `config/agent_driver/debug/`, created on demand. Files
+**Output dir:** `config/worlddriver/debug/`, created on demand. Files
 `pathchart-<seq>.png` with a monotonic counter (timestamp via
 `System.currentTimeMillis()` is fine in mod code).
 

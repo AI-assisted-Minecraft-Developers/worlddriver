@@ -37,12 +37,12 @@
 
 - [ ] **Step 1: `NoWater.java`**
 ```java
-package net.magicterra.agent.bot.pathfinder.constraints;
+package net.magicterra.worlddriver.bot.pathfinder.constraints;
 
-import net.magicterra.agent.bot.Goal;
-import net.magicterra.agent.bot.pathfinder.Constraint;
-import net.magicterra.agent.bot.pathfinder.Move;
-import net.magicterra.agent.bot.pathfinder.WorldView;
+import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.pathfinder.Constraint;
+import net.magicterra.worlddriver.bot.pathfinder.Move;
+import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 
 /** Hard "never enter water": prune any move whose destination foot cell is water.
@@ -58,12 +58,12 @@ public record NoWater() implements Constraint {
 
 - [ ] **Step 2: `NoBreak.java`**
 ```java
-package net.magicterra.agent.bot.pathfinder.constraints;
+package net.magicterra.worlddriver.bot.pathfinder.constraints;
 
-import net.magicterra.agent.bot.Goal;
-import net.magicterra.agent.bot.pathfinder.Constraint;
-import net.magicterra.agent.bot.pathfinder.Move;
-import net.magicterra.agent.bot.pathfinder.WorldView;
+import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.pathfinder.Constraint;
+import net.magicterra.worlddriver.bot.pathfinder.Move;
+import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 
 /** Hard "never break a block": prune any edge that plans a dig. Keyed off the
@@ -104,7 +104,7 @@ public record NoBreak() implements Constraint {
         throw new IllegalArgumentException("required tool not in inventory: " + want);
     }
 ```
-(Verify the file's existing item-id idiom — if `BotUtil`/`GoalResolver` static imports already expose an item-id helper, use it instead of the raw registry call.) Then in `BotApiImpl`'s goto handler, call `GotoGoalResolver.checkRequiredTool(p, player)` right before the `new IntentProcess(...)` line, using the same `player` reference the resolver receives (find it: `grep -n "resolveGoal(p" common/src/main/java/net/magicterra/agent/bot/BotApiImpl.java` — the LocalPlayer var passed there).
+(Verify the file's existing item-id idiom — if `BotUtil`/`GoalResolver` static imports already expose an item-id helper, use it instead of the raw registry call.) Then in `BotApiImpl`'s goto handler, call `GotoGoalResolver.checkRequiredTool(p, player)` right before the `new IntentProcess(...)` line, using the same `player` reference the resolver receives (find it: `grep -n "resolveGoal(p" common/src/main/java/net/magicterra/worlddriver/bot/BotApiImpl.java` — the LocalPlayer var passed there).
 
 - [ ] **Step 5: schema + help in `BotTools.java`** goto block (after the A2a props):
 ```java

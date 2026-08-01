@@ -12,11 +12,11 @@
 
 ## Global Constraints
 
-- **硬规则 #1**:`api` 包不得 import `mcp` 包。校验经 `net.magicterra.agent.api.ParamsValidator` 接口注入,实现方在 bootstrap(`AgentDriverCommon`)。
+- **硬规则 #1**:`api` 包不得 import `mcp` 包。校验经 `net.magicterra.worlddriver.api.ParamsValidator` 接口注入,实现方在 bootstrap(`WorldDriverCommon`)。
 - **MCP tools/list 的 inputSchema 字节级不变**(渲染逻辑不动,只是延迟执行);description 仅 Task 5 的 §3 两处按本计划文本新增,别处不动。
 - **严格校验一步到位**:类型错/required 缺失/enum 越界/min-max 越界/未知键(除 `additionalProperties(true)`)一律拒绝;数值宽容(integer 收整值 Double);**不做** string→number 软转换;显式 null 视同缺席。
 - **零新增 MCP 工具**;零新增外部依赖。
-- 编译验证统一用 `./gradlew :common:compileJava`(在 `agent-driver-mod/` 目录)。**live 客户端运行期间禁止跑 gradle**(共享 dev-jar transformer 死锁)——Task 1-5 编译前先确认客户端已停,或接受 Task 6 统一编译;杀客户端按端口 owner:`ss -ltnp | grep ':39800'` 找 pid 再 kill,**禁止 pkill -f**。
+- 编译验证统一用 `./gradlew :common:compileJava`(在 `worlddriver/` 目录)。**live 客户端运行期间禁止跑 gradle**(共享 dev-jar transformer 死锁)——Task 1-5 编译前先确认客户端已停,或接受 Task 6 统一编译;杀客户端按端口 owner:`ss -ltnp | grep ':39800'` 找 pid 再 kill,**禁止 pkill -f**。
 - 客户端 JS 套件运行集中在 Task 6(重建+重启客户端代价高);Task 1-5 每任务交付编译通过 + 测试文件就位。
 - GameTest 只信 `required tests passed` 行 + `BUILD SUCCESSFUL`;optional 的 vineoverwaterclimbarena 失败是已知 flake。
 - 客户端套件基线:234 例 226 过,8 已知旧败(13_set_hotbar_slot, 21_blocks_to_avoid, 25_phase_d3×3, 40_scheduler×2, 57_replay)+ 本计划新增用例数。
@@ -27,8 +27,8 @@
 ### Task 1: §2 修复 — overlays TutorialSteps 反射删除
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/client/internal/ClientChat.java:158-182`
-- Test: `common/src/main/resources/data/agent_driver/scripts/agent_validation/63_overlays_tutorial.js`(新建)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/client/internal/ClientChat.java:158-182`
+- Test: `common/src/main/resources/data/worlddriver/scripts/agent_validation/63_overlays_tutorial.js`(新建)
 
 **Interfaces:**
 - Consumes: 无(独立修复)。
@@ -38,7 +38,7 @@
 
 - [ ] **Step 1: 写套件用例(会在 Task 6 运行)**
 
-新建 `common/src/main/resources/data/agent_driver/scripts/agent_validation/63_overlays_tutorial.js`:
+新建 `common/src/main/resources/data/worlddriver/scripts/agent_validation/63_overlays_tutorial.js`:
 
 ```js
 // Client-only — mc.client.overlays must suppress the tutorial at the source.
@@ -100,14 +100,14 @@ import net.minecraft.client.tutorial.TutorialSteps;
 
 - [ ] **Step 3: 编译**
 
-Run: `cd /root/source/minecraft/AI-assisted-Minecraft-Developers/agent-driver-mod && ./gradlew :common:compileJava -q`
+Run: `cd /root/source/minecraft/AI-assisted-Minecraft-Developers/worlddriver && ./gradlew :common:compileJava -q`
 Expected: BUILD SUCCESSFUL。若 `mc.options.tutorialStep` 或 `setStep` 编译不过(mojmap 可见性与预期不符),回退为保留原反射结构但改用全限定名 `Class.forName("net.minecraft.client.tutorial.TutorialSteps")` ——并在报告中说明。
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/client/internal/ClientChat.java \
-        common/src/main/resources/data/agent_driver/scripts/agent_validation/63_overlays_tutorial.js
+git add common/src/main/java/net/magicterra/worlddriver/client/internal/ClientChat.java \
+        common/src/main/resources/data/worlddriver/scripts/agent_validation/63_overlays_tutorial.js
 git commit -m "fix(client): overlays tutorial suppression — drop bare-name reflection, import TutorialSteps directly (feedback 2026-07-10 §2)"
 ```
 
@@ -116,12 +116,12 @@ git commit -m "fix(client): overlays tutorial suppression — drop bare-name ref
 ### Task 2: ToolSchema 携带类型化 Schema(单源重构)
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/mcp/schema/ToolSchema.java`(整文件重写)
-- Modify: `common/src/main/java/net/magicterra/agent/mcp/schema/Schemas.java:79-127`(builder 返回类型)
-- Modify: `common/src/main/java/net/magicterra/agent/mcp/ToolCatalog.java`(容器类型 + schemaByName)
-- Modify: `common/src/main/java/net/magicterra/agent/mcp/catalog/{BotTools,ClientTools,ObserveActionTools,RecipeTools,ScriptTools,SystemTools,WaitTools}.java`(仅 `tools()` 签名)
-- Modify: `common/src/main/java/net/magicterra/agent/bot/debug/DebugTools.java:12`(仅签名)
-- Modify: `common/src/main/java/net/magicterra/agent/bot/debug/PathDebugBootstrap.java`(若 supplier 类型推断需要,通常 `DebugTools::tools` 方法引用自动适配)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/mcp/schema/ToolSchema.java`(整文件重写)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/mcp/schema/Schemas.java:79-127`(builder 返回类型)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/mcp/ToolCatalog.java`(容器类型 + schemaByName)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/mcp/catalog/{BotTools,ClientTools,ObserveActionTools,RecipeTools,ScriptTools,SystemTools,WaitTools}.java`(仅 `tools()` 签名)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/debug/DebugTools.java:12`(仅签名)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/debug/PathDebugBootstrap.java`(若 supplier 类型推断需要,通常 `DebugTools::tools` 方法引用自动适配)
 
 **Interfaces:**
 - Consumes: 现有 `Schema` DSL(不动)、`Schemas.render()`(不动)。
@@ -135,7 +135,7 @@ git commit -m "fix(client): overlays tutorial suppression — drop bare-name ref
 - [ ] **Step 1: 重写 ToolSchema.java**
 
 ```java
-package net.magicterra.agent.mcp.schema;
+package net.magicterra.worlddriver.mcp.schema;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -217,7 +217,7 @@ public record ToolSchema(String name, String description, Schema schema,
     public static List<ToolSchema> tools() {
 ```
 
-并加 import `net.magicterra.agent.mcp.schema.ToolSchema`(DebugTools 在别包,必须加;catalog 七类同样)。方法体 `List.of(tool(...), roTool(...), …)` 一字不动。
+并加 import `net.magicterra.worlddriver.mcp.schema.ToolSchema`(DebugTools 在别包,必须加;catalog 七类同样)。方法体 `List.of(tool(...), roTool(...), …)` 一字不动。
 
 - [ ] **Step 4: ToolCatalog.java 收敛**
 
@@ -287,7 +287,7 @@ public record ToolSchema(String name, String description, Schema schema,
     }
 ```
 
-import 调整:加 `java.util.Collections`、`net.magicterra.agent.mcp.schema.Schema`、static `net.magicterra.agent.mcp.schema.Schemas.tool`;类 javadoc 的「Schema is mandatory by construction」段落追加一句:typed schema 同时驱动 route 层校验(SchemaValidator),渲染与校验同源。`ToolSchema.visible`/旧 `ToolSchema.hidden` 静态工厂随 Task 2 Step 1 已不存在——确认无残留引用:`grep -rn "ToolSchema.visible\|ToolSchema.hidden(" common/src`(应仅剩注释,若有代码引用逐个改为新 API)。
+import 调整:加 `java.util.Collections`、`net.magicterra.worlddriver.mcp.schema.Schema`、static `net.magicterra.worlddriver.mcp.schema.Schemas.tool`;类 javadoc 的「Schema is mandatory by construction」段落追加一句:typed schema 同时驱动 route 层校验(SchemaValidator),渲染与校验同源。`ToolSchema.visible`/旧 `ToolSchema.hidden` 静态工厂随 Task 2 Step 1 已不存在——确认无残留引用:`grep -rn "ToolSchema.visible\|ToolSchema.hidden(" common/src`(应仅剩注释,若有代码引用逐个改为新 API)。
 
 - [ ] **Step 5: 编译**
 
@@ -306,12 +306,12 @@ git commit -m "refactor(mcp): ToolSchema retains the typed Schema tree — rende
 ### Task 3: SchemaValidator + ParamsValidator 缝 + route() 接线 + 校验套件用例
 
 **Files:**
-- Create: `common/src/main/java/net/magicterra/agent/mcp/schema/SchemaValidator.java`
-- Create: `common/src/main/java/net/magicterra/agent/api/ParamsValidator.java`
-- Modify: `common/src/main/java/net/magicterra/agent/api/AgentApi.java:438-442`(route)+ setter
-- Modify: `common/src/main/java/net/magicterra/agent/AgentDriverCommon.java:173`(bootstrap 接线)
-- Create: `common/src/main/resources/data/agent_driver/scripts/agent_validation/64_schema_validation.js`
-- Modify: `common/src/main/resources/data/agent_driver/scripts/agent_validation/12_use_item.js:38-41,80-85`(两个负例改为期待 route 层异常)
+- Create: `common/src/main/java/net/magicterra/worlddriver/mcp/schema/SchemaValidator.java`
+- Create: `common/src/main/java/net/magicterra/worlddriver/api/ParamsValidator.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java:438-442`(route)+ setter
+- Modify: `common/src/main/java/net/magicterra/worlddriver/WorldDriverCommon.java:173`(bootstrap 接线)
+- Create: `common/src/main/resources/data/worlddriver/scripts/agent_validation/64_schema_validation.js`
+- Modify: `common/src/main/resources/data/worlddriver/scripts/agent_validation/12_use_item.js:38-41,80-85`(两个负例改为期待 route 层异常)
 
 **Interfaces:**
 - Consumes: Task 2 的 `ToolCatalog.schemaByName()`、`Schema` 各节点包私有访问器(同包可见:`Obj.properties()/required()/additionalProperties()`、`Str.enumValues()`、`Int/Num.minimum()/maximum()`、`Arr.items()`)。
@@ -320,14 +320,14 @@ git commit -m "refactor(mcp): ToolSchema retains the typed Schema tree — rende
 - [ ] **Step 1: ParamsValidator.java(api 包,不 import mcp)**
 
 ```java
-package net.magicterra.agent.api;
+package net.magicterra.worlddriver.api;
 
 import java.util.Map;
 
 /**
  * Pre-dispatch params gate for {@link AgentApi#route}. Implementations throw
  * {@link IllegalArgumentException} on invalid params. Wired by the bootstrap
- * (AgentDriverCommon) from the MCP ToolCatalog — injected as a functional
+ * (WorldDriverCommon) from the MCP ToolCatalog — injected as a functional
  * interface so the api layer stays transport/schema agnostic (Hard Rule #1,
  * same seam style as requireSchemasFor).
  */
@@ -340,7 +340,7 @@ public interface ParamsValidator {
 - [ ] **Step 2: SchemaValidator.java(mcp.schema 包)**
 
 ```java
-package net.magicterra.agent.mcp.schema;
+package net.magicterra.worlddriver.mcp.schema;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -491,7 +491,7 @@ setter(requireSchemasFor 旁,javadoc 同风格):
     }
 ```
 
-- [ ] **Step 4: bootstrap 接线(AgentDriverCommon.java:173 处)**
+- [ ] **Step 4: bootstrap 接线(WorldDriverCommon.java:173 处)**
 
 ```java
         if (api != null) {
@@ -501,7 +501,7 @@ setter(requireSchemasFor 旁,javadoc 同风格):
             // looked up per call: it is a cached volatile read, and registerExtra
             // invalidates the cache so late-registered extras validate too.
             api.setParamsValidator((method, params) -> {
-                net.magicterra.agent.mcp.schema.Schema s = ToolCatalog.schemaByName().get(method);
+                net.magicterra.worlddriver.mcp.schema.Schema s = ToolCatalog.schemaByName().get(method);
                 if (s != null) SchemaValidator.validate(method, s, params);
             });
         }
@@ -603,7 +603,7 @@ git commit -m "feat(api): route-layer schema validation — SchemaValidator walk
 ### Task 4: 静态 conformance 审计 — route 实读键集 ⊆ schema 声明
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/mcp/catalog/*.java`(补漏的 schema 声明)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/mcp/catalog/*.java`(补漏的 schema 声明)
 - Modify(仅当裁决为 route 侧错):对应 api/bot 实现文件
 
 **Interfaces:**
@@ -619,8 +619,8 @@ git commit -m "feat(api): route-layer schema validation — SchemaValidator walk
 辅助命令(起点,不是全部——lambda 转调的实现方法必须人工跟进去):
 
 ```bash
-grep -n 'p\.get\|p\.getOrDefault\|p\.containsKey' common/src/main/java/net/magicterra/agent/api/AgentApi.java
-grep -rn 'params\.get\|params\.getOrDefault\|params\.containsKey' common/src/main/java/net/magicterra/agent/api/ common/src/main/java/net/magicterra/agent/bot/ | grep -v test
+grep -n 'p\.get\|p\.getOrDefault\|p\.containsKey' common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java
+grep -rn 'params\.get\|params\.getOrDefault\|params\.containsKey' common/src/main/java/net/magicterra/worlddriver/api/ common/src/main/java/net/magicterra/worlddriver/bot/ | grep -v test
 ```
 
 - [ ] **Step 2: 对照 catalog,逐工具修平**
@@ -655,8 +655,8 @@ git commit -m "fix(mcp): conformance audit — declare every param the routes ac
 ### Task 5: §3 文档两行 + §1 处置记录 + CHANGELOG
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/mcp/catalog/BotTools.java:217-224`(lookAt 描述)
-- Modify: `common/src/main/java/net/magicterra/agent/mcp/catalog/ObserveActionTools.java:25-33`(observe.player 描述)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/mcp/catalog/BotTools.java:217-224`(lookAt 描述)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/mcp/catalog/ObserveActionTools.java:25-33`(observe.player 描述)
 - Modify: `docs/feedback/2026-07-10-gui-layout-regression-no-entity-interact.md`(尾部追加 Disposition)
 - Modify: `CHANGELOG.md`(仿既有条目风格,加本分支条目)
 
@@ -751,13 +751,13 @@ Expected: `… required tests passed` + `BUILD SUCCESSFUL`(optional 的 vineover
 
 - [ ] **Step 3: 重启 live 客户端并进世界**
 
-按 AGENTS.md「Interactive client」段:`JAVA_TOOL_OPTIONS="-Dagent.mcpPort=39800 -Dagent.rpcPort=39801"` 的启动命令 + `DISPLAY=:99`;然后 `scripts/into_world.py` 进世界(TitleScreen 等待≈30s 不是 GL hang,点击进世界即解)。
+按 AGENTS.md「Interactive client」段:`JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39800 -Dworlddriver.rpcPort=39801"` 的启动命令 + `DISPLAY=:99`;然后 `scripts/into_world.py` 进世界(TitleScreen 等待≈30s 不是 GL hang,点击进世界即解)。
 
 - [ ] **Step 4: 客户端套件全量**
 
 ```bash
 cd /root/source/minecraft/AI-assisted-Minecraft-Developers && \
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.action.runCommand '{"cmd":"agent test"}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.action.runCommand '{"cmd":"agent test"}'
 ```
 
 结果读 `fabric/run/logs/latest.log` 的 AgentTest 汇总(或 rpc 返回)。
@@ -766,11 +766,11 @@ Expected: 总数 = 236(234 + 63/64 两文件的新用例数按实际计),失败�
 - [ ] **Step 5: live 定向抽查(feedback 原始场景复放)**
 
 ```bash
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.client.overlays '{}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.client.overlays '{}'
 # Expected: {"ok":true,"tutorial":"NONE","toasts":"cleared"} — 无 tutorialError
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.action.runCommand '{"command":"time query daytime"}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.action.runCommand '{"command":"time query daytime"}'
 # Expected: error 含 missing required 'cmd' (string) 与 unexpected key 'command'
-python3 .claude/skills/agent-driver-rpc/rpc.py mc.action.runCommand '{"cmd":"time query daytime"}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.action.runCommand '{"cmd":"time query daytime"}'
 # Expected: ok:true — 正路不受影响
 ```
 

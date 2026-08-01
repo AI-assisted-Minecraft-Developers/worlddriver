@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ReAct-style smoke driver for the AgentDriver client RPC.
+ReAct-style smoke driver for the WorldDriver client RPC.
 
 Loop shape per step:
   Observe → screenshot + screen.info + screen.tree
@@ -11,7 +11,7 @@ Loop shape per step:
 
 No xdotool, no OS-level input. All navigation goes through the WebSocket RPC.
 
-Discovery: reads ``agent-rpc.port`` from the JVM cwd (fabric/run when invoked from
+Discovery: reads ``worlddriver-rpc.port`` from the JVM cwd (fabric/run when invoked from
 ``./gradlew :fabric:runClient``). Polls until the file appears and the WS endpoint
 is reachable.
 """
@@ -28,7 +28,7 @@ import websockets
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 RUN_DIR = REPO / "fabric" / "run"
-PORT_FILE = RUN_DIR / "agent-rpc.port"
+PORT_FILE = RUN_DIR / "worlddriver-rpc.port"
 SHOTS = RUN_DIR / "smoke"
 SHOTS.mkdir(parents=True, exist_ok=True)
 TRACE_FILE = SHOTS / "react-trace.json"
@@ -243,7 +243,7 @@ async def quit_game(rpc):
 
 # ------------------------------------------------------------------- Driver --
 async def discover_port(timeout=300):
-    """Wait until agent-rpc.port file exists and contains a valid port."""
+    """Wait until worlddriver-rpc.port file exists and contains a valid port."""
     start = time.time()
     while time.time() - start < timeout:
         if PORT_FILE.exists():

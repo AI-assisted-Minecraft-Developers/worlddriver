@@ -10,7 +10,7 @@ Live fabric client (Xvfb headless), fresh seeded world, bot buffed (resistance/r
 - **Run 3** — `pos(0,132,-30)` unreachable height with `allowPlace/allowBreak=false`: `outcome=SUCCESS` via path-exhausted best-effort, `lastPath.goalReached=false`, dashed failed-plan rendering. Chart `e2e-run3-fail.png`.
 
 ## Feature verdict — WORKS end to end
-- Capture (candidates + every planned route + per-tick trajectory) → AWT dashboard → PNG on disk (`fabric/run/config/agent_driver/debug/`) → multimodal-readable. ✅
+- Capture (candidates + every planned route + per-tick trajectory) → AWT dashboard → PNG on disk (`fabric/run/config/worlddriver/debug/`) → multimodal-readable. ✅
 - Both manual `mc.debug.pathChart` and `pathChartAutoDump` on terminal. ✅
 - Composite dashboard renders all panels on real data: top-down map (candidate heat, planned routes incl. **dashed orange failed plans**, speed-coloured trajectory, start/goal/now markers), elevation profile (Y vs distance — shows real climbs/descents), speed time-series, actual-vs-target heading time-series. ✅
 - `mc.debug.pathChart` available + correct across the MCP transport; `mc.bot.setting{pathDebug:...}` round-trips. ✅
@@ -26,4 +26,4 @@ Live fabric client (Xvfb headless), fresh seeded world, bot buffed (resistance/r
 
 ## Notes for re-running
 - Build/launch: `bash /tmp/launch_client.sh` (Xvfb :99 + matchbox + `:fabric:runClient`, ports 39800/39801). Kill old client by JVM pid (lsof on the port can miss it) before relaunch — never `./gradlew --stop` with a client alive.
-- Charts land in `fabric/run/config/agent_driver/debug/` (gitignored).
+- Charts land in `fabric/run/config/worlddriver/debug/` (gitignored).

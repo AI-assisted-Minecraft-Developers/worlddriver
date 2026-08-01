@@ -5,7 +5,7 @@ from scripts.pmcs.corpus import load_corpus
 
 
 def test_load_seed_corpus():
-    entries = load_corpus("config/agent_driver/replays/corpus.json")
+    entries = load_corpus("config/worlddriver/replays/corpus.json")
     archives = {e.archive for e in entries}
     # 至少 8 个多样归档,覆盖 steep/water/dry/long 等故障类
     assert len(entries) >= 8

@@ -1,0 +1,15 @@
+net.magicterra.worlddriver.bot.testkit.scene.WorldDriverScenes
+net.magicterra.worlddriver.bot.testkit.scene.WorldDriverTerrainScenes
+net.magicterra.worlddriver.bot.testkit.scene.WorldDriverBiasScenes
+net.magicterra.worlddriver.bot.testkit.scene.WorldDriverWaterBankScenes
+net.magicterra.worlddriver.bot.testkit.scene.WorldDriverWaterCrossScenes
+net.magicterra.worlddriver.bot.testkit.scene.WorldDriverCoreScenes
+net.magicterra.worlddriver.bot.testkit.scene.WorldDriverCombatScenes
+net.magicterra.worlddriver.bot.testkit.scene.WorldDriverBuildScenes
+net.magicterra.worlddriver.bot.testkit.scene.WorldDriverStationScenes
+net.magicterra.worlddriver.bot.testkit.scene.WorldDriverSchedulerScenes
+net.magicterra.worlddriver.bot.testkit.scene.WorldDriverSurvivalScenes
+net.magicterra.worlddriver.bot.testkit.scene.WorldDriverAvatarScenes
+net.magicterra.worlddriver.bot.testkit.scene.WorldDriverProcessScenes
+net.magicterra.worlddriver.bot.testkit.scene.WorldDriverCoverageScenes
+net.magicterra.worlddriver.bot.testkit.scene.WorldDriverBridgeScenes

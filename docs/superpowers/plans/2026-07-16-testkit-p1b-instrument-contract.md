@@ -1,22 +1,22 @@
-# mc-testkit P1b：最小仪表契约子集 实现计划
+# stagewright P1b：最小仪表契约子集 实现计划
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 建立仪表契约套件的 T0 依赖面子集（裸 RPC 直打 route()，跑在 agent-driver 裸专服上），让信任链在 P1c dogfood 开始前闭合：仪表契约绿 → testkit setup/断言可信。
+**Goal:** 建立仪表契约套件的 T0 依赖面子集（裸 RPC 直打 route()，跑在 worlddriver 裸专服上），让信任链在 P1c dogfood 开始前闭合：仪表契约绿 → testkit setup/断言可信。
 
-**Architecture:** 独立 Python 运行器 `scripts/testkit/instrument.py`（与 testkit 断言栈零耦合，spec §4.2），通过新的 `contractServer` run 配置启动 agent-driver 裸专服（双 loader），经 websocket 裸 RPC 执行 ~17 条契约检查 + 2 只金丝雀，JSONL 落盘后用与 t0.py 共享的 verdict 模块裁决（0 GREEN/1 RED/2 DEAD/3 ENV）。判决语义与编排契约 v0 同构（注册=执行对账、金丝雀误判=DEAD）。
+**Architecture:** 独立 Python 运行器 `scripts/stagewright/instrument.py`（与 testkit 断言栈零耦合，spec §4.2），通过新的 `contractServer` run 配置启动 worlddriver 裸专服（双 loader），经 websocket 裸 RPC 执行 ~17 条契约检查 + 2 只金丝雀，JSONL 落盘后用与 t0.py 共享的 verdict 模块裁决（0 GREEN/1 RED/2 DEAD/3 ENV）。判决语义与编排契约 v0 同构（注册=执行对账、金丝雀误判=DEAD）。
 
-**Tech Stack:** Python 3 stdlib + websocket 手写 envelope（复用 rpc_call.py 的连接方式）；gradle/architectury-loom run 配置；无新 Java 面（本阶段零 agent-driver 行为变更）。
+**Tech Stack:** Python 3 stdlib + websocket 手写 envelope（复用 rpc_call.py 的连接方式）；gradle/architectury-loom run 配置；无新 Java 面（本阶段零 worlddriver 行为变更）。
 
 ## Global Constraints
 
-- 依赖方向：testkit → agent_driver，永不反向；仪表契约套件**独立于 testkit 断言栈**（spec §4.2，不 import mc-testkit 模块）。
+- 依赖方向：testkit → worlddriver，永不反向；仪表契约套件**独立于 testkit 断言栈**（spec §4.2，不 import stagewright 模块）。
 - 契约检查**只用仪表面** verbs（`mc.system/observe/query/action/world/wait/events/script`）；行为面（`mc.bot.goto/mine/...`）绝不出现在检查体内——唯一例外是断言 client-only verb 在专服上大声失败这一条 dispatch 检查。
-- 编排契约 v0（`docs/testkit/orchestration-contract-v0.md`）**不改语义**；t0.py 重构后 `--self-test` 必须 11/11 PASS 且输出记录逐字节不变。
+- 编排契约 v0（`docs/stagewright/orchestration-contract-v0.md`）**不改语义**；t0.py 重构后 `--self-test` 必须 11/11 PASS 且输出记录逐字节不变。
 - 退出码语义沿用契约 v0：0 GREEN / 1 RED / 2 DEAD（金丝雀误判=门死，整轮作废）/ 3 ENV。
 - 运行纪律：等待用 Bash 工具 timeout 参数；JVM 清扫按显式 PID（匹配 `[a]gent.contractRun`），禁 pkill；每 run 前删 `run-contract/world`。
 - RPC wire 格式是手写 envelope 非 JSON-RPC 2.0：发 `{"id":N,"method":"mc.x.y","params":{…}}`，收 `{"id":N,"result":…}` 或 `{"id":N,"error":"<string>"}`（参照 `scripts/rpc_call.py`）。
-- 端口：contract 专服 `server-port=25597`（避开 t0 的 25599 与默认 25565）；RPC 端口用 ephemeral（`agent.rpcPort=0`）+ 读 `run-contract/agent-rpc.port` 端口文件发现，**绝不硬编码 39801**（39801 是 live 客户端的）。
+- 端口：contract 专服 `server-port=25597`（避开 t0 的 25599 与默认 25565）；RPC 端口用 ephemeral（`worlddriver.rpcPort=0`）+ 读 `run-contract/worlddriver-rpc.port` 端口文件发现，**绝不硬编码 39801**（39801 是 live 客户端的）。
 
 ## 已声明偏差 / 顺延清单（评审勿标缺）
 
@@ -29,20 +29,20 @@
 
 | 文件 | 职责 |
 |---|---|
-| `scripts/testkit/verdict.py`（新） | parse()/judge() 纯裁决，从 t0.py 抽出，t0 与 instrument 共享 |
-| `scripts/testkit/t0.py`（改） | 保留 launch/provision/sweep/CLI，裁决改 import verdict |
-| `scripts/testkit/instrument.py`（新） | 仪表契约运行器：provision/launch/RPC 客户端/检查注册表/JSONL/裁决/self-test |
+| `scripts/stagewright/verdict.py`（新） | parse()/judge() 纯裁决，从 t0.py 抽出，t0 与 instrument 共享 |
+| `scripts/stagewright/t0.py`（改） | 保留 launch/provision/sweep/CLI，裁决改 import verdict |
+| `scripts/stagewright/instrument.py`（新） | 仪表契约运行器：provision/launch/RPC 客户端/检查注册表/JSONL/裁决/self-test |
 | `neoforge/build.gradle`、`fabric/build.gradle`（改） | 各加 `contractServer` run 配置（runDir `run-contract`，marker+ephemeral 端口） |
-| `docs/testkit/instrument-contract-v0.md`（新） | 检查清单+永久断言台账+已知缺口册 |
-| `mc-testkit/README.md`、`TODO.md`、`AGENTS.md`（改） | 入口文档、收尾条目、日志位置行 |
+| `docs/stagewright/instrument-contract-v0.md`（新） | 检查清单+永久断言台账+已知缺口册 |
+| `stagewright/README.md`、`TODO.md`、`AGENTS.md`（改） | 入口文档、收尾条目、日志位置行 |
 
 ---
 
 ### Task 1: 从 t0.py 抽出共享 verdict 模块
 
 **Files:**
-- Create: `scripts/testkit/verdict.py`
-- Modify: `scripts/testkit/t0.py`（删除 parse/judge 定义，改 import）
+- Create: `scripts/stagewright/verdict.py`
+- Modify: `scripts/stagewright/t0.py`（删除 parse/judge 定义，改 import）
 
 **Interfaces:**
 - Produces: `verdict.parse(lines: list[str]) -> list[dict]`（与现 t0.parse 同义：逐行 json.loads，坏行抛 ValueError 且消息含行内容前 120 字符）；`verdict.judge(records: list[dict], record_type: str = "scene") -> tuple[int, list[str]]`（与现 t0.judge 完全同语义，唯一泛化点：场景记录的 `type` 字段值由参数给定，报告行里的名词跟随该参数）。
@@ -50,11 +50,11 @@
 
 - [ ] **Step 1: 创建 verdict.py**
 
-把 t0.py 中 `parse()` 与 `judge()` 两个函数**原样搬移**到新文件 `scripts/testkit/verdict.py`（带模块 docstring：`"""Shared pure-verdict logic for testkit runners (t0 scenes, instrument checks). Semantics frozen by docs/testkit/orchestration-contract-v0.md — do not change judge() behavior without a contract review."""`）。唯一允许的编辑：`judge()` 增加第二参数 `record_type="scene"`，函数体内所有 `rec.get("type") == "scene"` 比较与报告行文案里的 `scene` 字样改用该参数（`f"{record_type}"`）。**不做其它任何重构**——这是搬移不是改写。
+把 t0.py 中 `parse()` 与 `judge()` 两个函数**原样搬移**到新文件 `scripts/stagewright/verdict.py`（带模块 docstring：`"""Shared pure-verdict logic for testkit runners (t0 scenes, instrument checks). Semantics frozen by docs/stagewright/orchestration-contract-v0.md — do not change judge() behavior without a contract review."""`）。唯一允许的编辑：`judge()` 增加第二参数 `record_type="scene"`，函数体内所有 `rec.get("type") == "scene"` 比较与报告行文案里的 `scene` 字样改用该参数（`f"{record_type}"`）。**不做其它任何重构**——这是搬移不是改写。
 
 - [ ] **Step 2: t0.py 改 import**
 
-t0.py 顶部加 `from verdict import parse, judge`（t0.py 与 verdict.py 同目录；直跑 `python3 scripts/testkit/t0.py` 时需 `sys.path` 保障——在 import 前加：
+t0.py 顶部加 `from verdict import parse, judge`（t0.py 与 verdict.py 同目录；直跑 `python3 scripts/stagewright/t0.py` 时需 `sys.path` 保障——在 import 前加：
 
 ```python
 import os, sys
@@ -66,17 +66,17 @@ from verdict import parse, judge
 
 - [ ] **Step 3: 验证零漂移**
 
-Run: `python3 scripts/testkit/t0.py --self-test; echo "exit=$?"`
+Run: `python3 scripts/stagewright/t0.py --self-test; echo "exit=$?"`
 Expected: 11/11 PASS，exit=0。
 
 再跑一轮真裁决确认端到端不变：
-Run: `python3 scripts/testkit/t0.py --loader neoforge --wall 540; echo "exit=$?"`
+Run: `python3 scripts/stagewright/t0.py --loader neoforge --wall 540; echo "exit=$?"`
 Expected: `VERDICT: GREEN`，exit=0。
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add scripts/testkit/verdict.py scripts/testkit/t0.py
+git add scripts/stagewright/verdict.py scripts/stagewright/t0.py
 git commit -m "refactor(testkit): extract shared verdict module from t0.py (behavior frozen, self-test 11/11)"
 ```
 
@@ -87,7 +87,7 @@ git commit -m "refactor(testkit): extract shared verdict module from t0.py (beha
 **Files:**
 - Modify: `neoforge/build.gradle`（runs 块内加 contractServer）
 - Modify: `fabric/build.gradle`（同）
-- Create: `scripts/testkit/instrument.py`
+- Create: `scripts/stagewright/instrument.py`
 
 **Interfaces:**
 - Consumes: Task 1 的 `verdict.parse/judge`。
@@ -100,9 +100,9 @@ git commit -m "refactor(testkit): extract shared verdict module from t0.py (beha
 ```groovy
         contractServer {
             server()
-            property 'agent.contractRun', 'true'
-            property 'agent.rpcPort', '0'
-            property 'agent.mcpPort', '0'
+            property 'worlddriver.contractRun', 'true'
+            property 'worlddriver.rpcPort', '0'
+            property 'worlddriver.mcpPort', '0'
             runDir 'run-contract'
             jvmArg '-Xmx1g'
         }
@@ -115,16 +115,16 @@ git commit -m "refactor(testkit): extract shared verdict module from t0.py (beha
 Run: `./gradlew :neoforge:tasks --all 2>/dev/null | grep -i contract; ./gradlew :fabric:tasks --all 2>/dev/null | grep -i contract`
 Expected: 两行 `runContractServer`。
 
-⚠️ 命名风险：fabric 的 `runConfigs.configureEach`（fabric/build.gradle:94-112）会给**所有** run 配置钉 `agent.rpcPort=39801`——若 configureEach 后执行覆盖了本配置的 `'0'`，contract 专服会跟 live 客户端抢 39801。验证方法在 Step 4 首启后：`cat fabric/run-contract/agent-rpc.port` 必须**不是** 39801（ephemeral 高位端口）。若是 39801，修法：configureEach 体内加名字守卫 `if (it.name == 'contractServer') return` 后重验。neoforge 的 configureEach 不钉端口，无此风险。
+⚠️ 命名风险：fabric 的 `runConfigs.configureEach`（fabric/build.gradle:94-112）会给**所有** run 配置钉 `worlddriver.rpcPort=39801`——若 configureEach 后执行覆盖了本配置的 `'0'`，contract 专服会跟 live 客户端抢 39801。验证方法在 Step 4 首启后：`cat fabric/run-contract/worlddriver-rpc.port` 必须**不是** 39801（ephemeral 高位端口）。若是 39801，修法：configureEach 体内加名字守卫 `if (it.name == 'contractServer') return` 后重验。neoforge 的 configureEach 不钉端口，无此风险。
 
 - [ ] **Step 3: 写 instrument.py 骨架**
 
-创建 `scripts/testkit/instrument.py`（完整骨架，含 1 条真检查 + 2 只金丝雀 + self-test）：
+创建 `scripts/stagewright/instrument.py`（完整骨架，含 1 条真检查 + 2 只金丝雀 + self-test）：
 
 ```python
 #!/usr/bin/env python3
 """Instrument contract suite (T0-dependency face) — bare-RPC checks against a
-plain agent-driver dedicated server. Independent of the testkit assertion
+plain worlddriver dedicated server. Independent of the testkit assertion
 stack by design (spec §4.2): green here => testkit setup/asserts may trust
 the driver's instrument face. Verdict semantics mirror contract v0 via the
 shared verdict module (registered==executed reconciliation, canary
@@ -223,8 +223,8 @@ class Ctx:
 # ---------- checks ----------
 def check_version_shape(ctx):
     v = ctx.call("mc.system.version")
-    if v.get("modid") != "agent_driver":
-        raise ContractFailure(f"modid={v.get('modid')!r} != 'agent_driver'")
+    if v.get("modid") != "worlddriver":
+        raise ContractFailure(f"modid={v.get('modid')!r} != 'worlddriver'")
     if not isinstance(v.get("uptimeMs"), int) or v["uptimeMs"] < 0:
         raise ContractFailure(f"uptimeMs not a non-negative int: {v.get('uptimeMs')!r}")
 
@@ -256,7 +256,7 @@ def provision(loader):
             "sync-chunk-writes=false", "spawn-protection=0", "motd=instrument-contract",
         ]) + "\n")
     subprocess.run(["rm", "-rf", os.path.join(rd, "world")], check=True)
-    for leftover in ("agent-rpc.port", "agent-mcp.port", "instrument-results.jsonl"):
+    for leftover in ("worlddriver-rpc.port", "worlddriver-mcp.port", "instrument-results.jsonl"):
         p = os.path.join(rd, leftover)
         if os.path.exists(p):
             os.remove(p)
@@ -265,14 +265,14 @@ def provision(loader):
 def sweep():
     out = subprocess.run(["ps", "ax", "-o", "pid=,args="], capture_output=True, text=True).stdout
     for line in out.splitlines():
-        if "agent.contractRun" in line and "grep" not in line:
+        if "worlddriver.contractRun" in line and "grep" not in line:
             pid = line.strip().split()[0]
             print(f"[instrument] killing leftover contract JVM pid={pid}")
             subprocess.run(["kill", "-9", pid], check=False)
 
 
 def wait_port_file(loader, wall):
-    pf = os.path.join(run_dir(loader), "agent-rpc.port")
+    pf = os.path.join(run_dir(loader), "worlddriver-rpc.port")
     deadline = time.time() + wall
     while time.time() < deadline:
         if os.path.exists(pf):
@@ -288,7 +288,7 @@ def launch(loader, wall):
     sweep()
     provision(loader)
     task = f":{MODULE[loader]}:runContractServer"
-    print(f"[instrument] launching: ./gradlew {task} (wall={wall}s, waiting on agent-rpc.port)")
+    print(f"[instrument] launching: ./gradlew {task} (wall={wall}s, waiting on worlddriver-rpc.port)")
     proc = subprocess.Popen(["./gradlew", task], cwd=ROOT,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     port = wait_port_file(loader, wall)
@@ -401,18 +401,18 @@ if __name__ == "__main__":
 
 - [ ] **Step 4: self-test 与首次真跑**
 
-Run: `python3 scripts/testkit/instrument.py --self-test; echo "exit=$?"`
+Run: `python3 scripts/stagewright/instrument.py --self-test; echo "exit=$?"`
 Expected: 5/5 PASS，exit=0。
 
-Run: `python3 scripts/testkit/instrument.py --loader neoforge --wall 300; echo "exit=$?"`
+Run: `python3 scripts/stagewright/instrument.py --loader neoforge --wall 300; echo "exit=$?"`
 Expected: `VERDICT: GREEN`，exit=0（1 真检查 PASS + mustFail 捕获 + mustSwallow 正确缺席）。
 
-随后确认端口纪律：`cat neoforge/run-contract/agent-rpc.port` 是高位 ephemeral 端口（非 39801/25597）；`ps aux | grep -E '[a]gent.contractRun'` 为空（stop+sweep 干净）。
+随后确认端口纪律：`cat neoforge/run-contract/worlddriver-rpc.port` 是高位 ephemeral 端口（非 39801/25597）；`ps aux | grep -E '[a]gent.contractRun'` 为空（stop+sweep 干净）。
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add neoforge/build.gradle fabric/build.gradle scripts/testkit/instrument.py
+git add neoforge/build.gradle fabric/build.gradle scripts/stagewright/instrument.py
 git commit -m "feat(testkit): instrument contract runner skeleton — contractServer run configs, bare-RPC ws client, canary pair, shared verdict"
 ```
 
@@ -421,7 +421,7 @@ git commit -m "feat(testkit): instrument contract runner skeleton — contractSe
 ### Task 3: 检查批 A——route dispatch / schema / 解释器面
 
 **Files:**
-- Modify: `scripts/testkit/instrument.py`（CHECKS 表追加 6 条 + 对应函数）
+- Modify: `scripts/stagewright/instrument.py`（CHECKS 表追加 6 条 + 对应函数）
 
 **Interfaces:**
 - Consumes: Task 2 的 `ctx.call/call_raw`、`ContractFailure`、CHECKS 约定。
@@ -478,7 +478,7 @@ def check_script_eval_parity(ctx):
                  {"source": "Agent.invoke('mc.system.version').modid", "timeoutMs": 5000})
     if r.get("error"):
         raise ContractFailure(f"script error: {r['error']}")
-    if r.get("result") != "agent_driver":
+    if r.get("result") != "worlddriver":
         raise ContractFailure(f"in-JVM route parity broken: {r.get('result')!r}")
 ```
 
@@ -497,13 +497,13 @@ CHECKS 表在 `("system.versionShape", ...)` 之后、金丝雀之前追加：
 
 - [ ] **Step 2: 真跑验证**
 
-Run: `python3 scripts/testkit/instrument.py --loader neoforge --wall 300; echo "exit=$?"`
+Run: `python3 scripts/stagewright/instrument.py --loader neoforge --wall 300; echo "exit=$?"`
 Expected: `VERDICT: GREEN`，exit=0，7 条真检查全 PASS。
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add scripts/testkit/instrument.py
+git add scripts/stagewright/instrument.py
 git commit -m "test(testkit): instrument contract batch A — route dispatch, schema violations, client-only loudness, script parity"
 ```
 
@@ -512,7 +512,7 @@ git commit -m "test(testkit): instrument contract batch A — route dispatch, sc
 ### Task 4: 检查批 B——直接世界操作 / 观察读 / wait / events
 
 **Files:**
-- Modify: `scripts/testkit/instrument.py`（CHECKS 追加 10 条 + 函数）
+- Modify: `scripts/stagewright/instrument.py`（CHECKS 追加 10 条 + 函数）
 
 **Interfaces:**
 - Consumes: 同 Task 3。
@@ -661,13 +661,13 @@ CHECKS 追加（金丝雀之前）：
 
 - [ ] **Step 2: 真跑验证**
 
-Run: `python3 scripts/testkit/instrument.py --loader neoforge --wall 300; echo "exit=$?"`
+Run: `python3 scripts/stagewright/instrument.py --loader neoforge --wall 300; echo "exit=$?"`
 Expected: `VERDICT: GREEN`，exit=0，17 条真检查全 PASS + 双金丝雀正确。
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add scripts/testkit/instrument.py
+git add scripts/stagewright/instrument.py
 git commit -m "test(testkit): instrument contract batch B — world ops, observation fidelity (#42 wear), events, wait"
 ```
 
@@ -676,8 +676,8 @@ git commit -m "test(testkit): instrument contract batch B — world ops, observa
 ### Task 5: 双 loader 验收 + 门自证 + 文档
 
 **Files:**
-- Create: `docs/testkit/instrument-contract-v0.md`
-- Modify: `mc-testkit/README.md`、`TODO.md`、`AGENTS.md`（Log locations 表加一行 `mc-testkit 无关：<loader>/run-contract/`——注意本套件的 runDir 在 agent-driver 模块下）
+- Create: `docs/stagewright/instrument-contract-v0.md`
+- Modify: `stagewright/README.md`、`TODO.md`、`AGENTS.md`（Log locations 表加一行 `stagewright 无关：<loader>/run-contract/`——注意本套件的 runDir 在 worlddriver 模块下）
 
 **Interfaces:**
 - Consumes: Task 1-4 全部。
@@ -685,16 +685,16 @@ git commit -m "test(testkit): instrument contract batch B — world ops, observa
 
 - [ ] **Step 1: fabric 侧真跑**
 
-Run: `python3 scripts/testkit/instrument.py --loader fabric --wall 300; echo "exit=$?"`
-Expected: `VERDICT: GREEN`，exit=0。首启会拉 loom 配置。**必查** `cat fabric/run-contract/agent-rpc.port` ≠ 39801（Task 2 Step 2 的 configureEach 风险在此兑现；若撞车按该步修法处理并单列 commit）。
+Run: `python3 scripts/stagewright/instrument.py --loader fabric --wall 300; echo "exit=$?"`
+Expected: `VERDICT: GREEN`，exit=0。首启会拉 loom 配置。**必查** `cat fabric/run-contract/worlddriver-rpc.port` ≠ 39801（Task 2 Step 2 的 configureEach 风险在此兑现；若撞车按该步修法处理并单列 commit）。
 
 - [ ] **Step 2: 门自证（一次性,不留 commit）**
 
-临时把 `check_version_shape` 的断言改错（`!= 'agent_driver'` 改 `!= 'nonsense'`）→ 跑 neoforge → Expected: `VERDICT: RED` exit=1；再临时把 `canary_must_fail` 改为 `return None` → Expected: `VERDICT: DEAD` exit=2。两次都 `git checkout -- scripts/testkit/instrument.py` 还原后重跑 GREEN。把三次输出摘要记入报告（这是金丝雀条款的活体验收，等价 P1a 的门自证）。
+临时把 `check_version_shape` 的断言改错（`!= 'worlddriver'` 改 `!= 'nonsense'`）→ 跑 neoforge → Expected: `VERDICT: RED` exit=1；再临时把 `canary_must_fail` 改为 `return None` → Expected: `VERDICT: DEAD` exit=2。两次都 `git checkout -- scripts/stagewright/instrument.py` 还原后重跑 GREEN。把三次输出摘要记入报告（这是金丝雀条款的活体验收，等价 P1a 的门自证）。
 
 - [ ] **Step 3: 双 loader 复跑（确定性证据）**
 
-Run: `python3 scripts/testkit/instrument.py --loader neoforge --wall 300 && python3 scripts/testkit/instrument.py --loader fabric --wall 300; echo "exit=$?"`
+Run: `python3 scripts/stagewright/instrument.py --loader neoforge --wall 300 && python3 scripts/stagewright/instrument.py --loader fabric --wall 300; echo "exit=$?"`
 Expected: 两轮 GREEN，exit=0。
 
 - [ ] **Step 4: 写 instrument-contract-v0.md**
@@ -702,9 +702,9 @@ Expected: 两轮 GREEN，exit=0。
 ```markdown
 # 仪表契约 v0（T0 依赖面子集）
 
-运行器：`python3 scripts/testkit/instrument.py --loader {neoforge|fabric}`。
-裸 RPC 直打 route()，跑在 agent-driver 裸专服（`runContractServer`，runDir
-`<loader>/run-contract/`，RPC 端口 ephemeral 经 `agent-rpc.port` 发现）。
+运行器：`python3 scripts/stagewright/instrument.py --loader {neoforge|fabric}`。
+裸 RPC 直打 route()，跑在 worlddriver 裸专服（`runContractServer`，runDir
+`<loader>/run-contract/`，RPC 端口 ephemeral 经 `worlddriver-rpc.port` 发现）。
 退出码同编排契约 v0：0 GREEN / 1 RED / 2 DEAD（金丝雀误判）/ 3 ENV。
 信任链（spec §4）：本套件绿 → testkit setup/断言可信 → 行为面测试可信。
 
@@ -727,17 +727,17 @@ Expected: 两轮 GREEN，exit=0。
 
 - [ ] **Step 5: README/TODO/AGENTS.md**
 
-`mc-testkit/README.md` 在 T0 节后加一节：
+`stagewright/README.md` 在 T0 节后加一节：
 
 ```markdown
 ## Instrument contract (trust chain)
 
-    python3 scripts/testkit/instrument.py --loader neoforge   # or fabric
+    python3 scripts/stagewright/instrument.py --loader neoforge   # or fabric
 
-Bare-RPC contract checks against a plain agent-driver dedicated server —
+Bare-RPC contract checks against a plain worlddriver dedicated server —
 the instrument face testkit itself depends on (spec §4). Green here is the
 precondition for trusting any scene's setup/assertions. Contract:
-`../docs/testkit/instrument-contract-v0.md`.
+`../docs/stagewright/instrument-contract-v0.md`.
 ```
 
 `TODO.md` 头部按现有条目风格加 P1b 条目（含 commit hashes、双 loader GREEN、门自证三跑、顺延清单指向 instrument-contract-v0.md）。`AGENTS.md` Log locations 表加行：`| Instrument contract server run | `<loader>/run-contract/` |`。
@@ -745,7 +745,7 @@ precondition for trusting any scene's setup/assertions. Contract:
 - [ ] **Step 6: Commit**
 
 ```bash
-git add docs/testkit/instrument-contract-v0.md mc-testkit/README.md TODO.md AGENTS.md
+git add docs/stagewright/instrument-contract-v0.md stagewright/README.md TODO.md AGENTS.md
 git commit -m "docs(testkit): instrument contract v0 — check registry, permanent assertions, known gaps; P1b entry"
 ```
 

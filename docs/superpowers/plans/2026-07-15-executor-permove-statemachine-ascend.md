@@ -51,7 +51,7 @@ test seams, `PathArchiveRecorder` → `mc.debug.replay` live A/B tooling.
   client-only and a server FakePlayer is immune to some physics/damage (spec §6.3). Live replay A/B
   (`PathArchiveRecorder` → `mc.debug.replay`, OFF vs ON) is the flip gate. The flag flips to default-ON
   only on a clean live A/B (Unit 6).
-- **task#83 is a hard blocker for Unit 5 and the Unit 6 flip.** `config/agent_driver/replays/baseline-flags.json`
+- **task#83 is a hard blocker for Unit 5 and the Unit 6 flip.** `config/worlddriver/replays/baseline-flags.json`
   is stale (committed 2026-06-28, predates the 2026-07-04 flag-flip; still lists the DELETE flags). It
   must be re-baselined against current shipped config first, or the A/B has no valid regression floor.
 - **New `@GameTest` folds into `AgentGameTestTerrain.java`** (house rule: no new gametest file). It is
@@ -74,20 +74,20 @@ Add the `Movement` interface, `MovementStatus` enum, `MovementContext`, an empty
 with the flag OFF — is provably skipped and allocates nothing.
 
 **Files:**
-- Create: `common/src/main/java/net/magicterra/agent/bot/movement/Movement.java`
-- Create: `common/src/main/java/net/magicterra/agent/bot/movement/MovementStatus.java`
-- Create: `common/src/main/java/net/magicterra/agent/bot/movement/MovementContext.java`
-- Create: `common/src/main/java/net/magicterra/agent/bot/movement/AscendMovement.java`
-- Modify: `common/src/main/java/net/magicterra/agent/bot/BotConfig.java` (add flag near the walker-flag
+- Create: `common/src/main/java/net/magicterra/worlddriver/bot/movement/Movement.java`
+- Create: `common/src/main/java/net/magicterra/worlddriver/bot/movement/MovementStatus.java`
+- Create: `common/src/main/java/net/magicterra/worlddriver/bot/movement/MovementContext.java`
+- Create: `common/src/main/java/net/magicterra/worlddriver/bot/movement/AscendMovement.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/BotConfig.java` (add flag near the walker-flag
   region, after `walkerChainMount` at line 1817)
-- Modify: `common/src/main/java/net/magicterra/agent/bot/SettingsSnapshot.java` (add `snap.put(...)` in
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/SettingsSnapshot.java` (add `snap.put(...)` in
   the walker block near line 95)
-- Modify: `common/src/main/java/net/magicterra/agent/bot/SettingsCommand.java` (add the
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/SettingsCommand.java` (add the
   `instanceof Boolean` apply near line 353)
-- Modify: `common/src/main/java/net/magicterra/agent/bot/movement/Walker.java` (add `ascendMovement`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/movement/Walker.java` (add `ascendMovement`
   field + `forceFellOffPath` field near 159–162; add `isMigratedAscent` static; insert delegation at
   4287; OR `forceFellOffPath` into `fellOffPath` at 1042)
-- Test: `neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTestTerrain.java` (new
+- Test: `neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTestTerrain.java` (new
   `@GameTest ascendMovementNoopArena`)
 
 **Interfaces:**
@@ -147,7 +147,7 @@ public static void ascendMovementNoopArena(GameTestHelper helper) {
         for (int t = 0; t < 500 && s == Walker.Step.WALKING; t++) { s = walker.tick(av, w); av.step(); }
         boolean reachedTop = fp.getX() > ascEndX && fp.getY() >= topSurf + 1 - 0.4;
         long allocated = MovementContext.ALLOC_COUNT - allocBefore;
-        AgentDriverCommon.LOG.info("[ascendMovementNoopArena] step={} pos=({},{},{}) reachedTop={} ctxAllocated={}",
+        WorldDriverCommon.LOG.info("[ascendMovementNoopArena] step={} pos=({},{},{}) reachedTop={} ctxAllocated={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), reachedTop, allocated);
         if (allocated != 0)
             throw new GameTestAssertException("ascendMovementNoopArena: flag OFF but MovementContext was constructed "
@@ -171,7 +171,7 @@ public static void ascendMovementNoopArena(GameTestHelper helper) {
 
 `Movement.java`:
 ```java
-package net.magicterra.agent.bot.movement;
+package net.magicterra.worlddriver.bot.movement;
 
 /** A single migrated move that advances itself one tick against {@link MovementContext},
  *  emitting inputs via the context and returning its own status. The Baritone MovementState
@@ -184,7 +184,7 @@ public interface Movement {
 
 `MovementStatus.java`:
 ```java
-package net.magicterra.agent.bot.movement;
+package net.magicterra.worlddriver.bot.movement;
 
 /** Result of one {@link Movement#updateState} tick. SUCCESS is a clean pointer-advance; both
  *  failure codes fold into the existing fellOffPath re-route but carry different telemetry —
@@ -204,10 +204,10 @@ public enum MovementStatus {
   the pose/edge/world/input handles the machine needs.
 
 ```java
-package net.magicterra.agent.bot.movement;
+package net.magicterra.worlddriver.bot.movement;
 
-import net.magicterra.agent.bot.pathfinder.Move;
-import net.magicterra.agent.bot.pathfinder.WorldView;
+import net.magicterra.worlddriver.bot.pathfinder.Move;
+import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.player.Player;
 
@@ -246,7 +246,7 @@ public final class MovementContext {
   churns) until Unit 2 fills it in. Never reached with the flag OFF, so the no-op arena is unaffected.
 
 ```java
-package net.magicterra.agent.bot.movement;
+package net.magicterra.worlddriver.bot.movement;
 
 /** Per-move state machine for the ascent/climb family (stepUp, stairUpBreak, diagUp). Owns its own
  *  PREP→BREAK→ASCEND→CONFIRM sequence, input emission, and bounded timeout→cancel. See spec §4.
@@ -356,8 +356,8 @@ Implement PREP (absorb `pivotForStepUp` alignment + the jump-timing square-up ga
 plain `stepUp` (empty `toBreak`), then prove the machine's ON path reproduces legacy jump-timing.
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/movement/AscendMovement.java`
-- Modify: `common/src/main/java/net/magicterra/agent/bot/movement/Walker.java` (add the double-advance
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/movement/AscendMovement.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/movement/Walker.java` (add the double-advance
   guard from Task 1 note 1, at line 2284's advance)
 - Test: `neoforge/.../AgentGameTestTerrain.java` (convert `ascentSpeedArena:871` into a two-leg A/B)
 
@@ -425,7 +425,7 @@ public final class AscendMovement implements Movement {
     }
 }
 ```
-  Keep `WalkerConstants` package-private access (same package). Import `net.magicterra.agent.bot.BotConfig`,
+  Keep `WalkerConstants` package-private access (same package). Import `net.magicterra.worlddriver.bot.BotConfig`,
   `net.minecraft.core.BlockPos`.
 
 - [ ] **Step 4: add the double-advance guard** (Task 1 note 1) — at the within/passed advance
@@ -458,8 +458,8 @@ Implement BREAK (mine `srcUp2`/`to`/`head` in `StairUpBreak.eval` order + the an
 dig), and add `diagUp` centring so the diagonal families run on the machine.
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/movement/AscendMovement.java`
-- Modify: `common/src/main/java/net/magicterra/agent/bot/movement/Walker.java` (gate the legacy
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/movement/AscendMovement.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/movement/Walker.java` (gate the legacy
   pillar-recover arming so the machine is sole driver when ON — see note 1)
 - Test: `neoforge/.../AgentGameTestTerrain.java` (`selfShaftDigUpArena:797` +
   `diagonalAscentSpeedArena:967` two-leg A/B, mirroring Task 2 Step 1)
@@ -556,7 +556,7 @@ task#82 arena proving the OFF leg wedges forever while the ON leg re-routes with
 the unit that closes task#82.**
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/movement/AscendMovement.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/movement/AscendMovement.java`
 - Test: `neoforge/.../AgentGameTestTerrain.java` (new `@GameTest ascendDeadZoneArena`, mirroring
   `stepUpCrestOrbitArena:499–622`; new `@GameTest ascendRerouteAdoptArena` using `adoptForTest`)
 
@@ -640,7 +640,7 @@ public static void ascendDeadZoneArena(GameTestHelper helper) {
                     obsCur2[leg] = dx * dx + dz * dz; pinnedTicks[leg]++;
                 } else { rerouted[leg] = true; }   // pointer left the stairUpBreak node → the re-route fired
             }
-            AgentDriverCommon.LOG.info("[ascendDeadZoneArena] leg={} flagOn={} rerouted={} pinnedTicks={} heldCur2={} step={}",
+            WorldDriverCommon.LOG.info("[ascendDeadZoneArena] leg={} flagOn={} rerouted={} pinnedTicks={} heldCur2={} step={}",
                     leg, leg == 1, rerouted[leg], pinnedTicks[leg], String.format(Locale.ROOT, "%.3f", obsCur2[leg]), s);
         }
         if (!(obsCur2[0] > 0.45 && obsCur2[0] < 4.0))
@@ -703,7 +703,7 @@ if (episodeTicks > PREP_TIMEOUT_TICKS && noProgress) return MovementStatus.UNREA
 
 ### Task 5 (Unit 5): CONFIRM crest coverage + delete the unvalidated flags
 
-> **BLOCKED on task#83** (refresh `config/agent_driver/replays/baseline-flags.json`). The stale baseline
+> **BLOCKED on task#83** (refresh `config/worlddriver/replays/baseline-flags.json`). The stale baseline
 > still lists the DELETE flags; task#83's refresh must drop them FIRST (spec §7). Do NOT start deletion
 > until the refreshed baseline has landed. The refresh + this deletion are coupled: refresh baseline →
 > then delete flags.
@@ -712,14 +712,14 @@ Finalize CONFIRM's arrival tolerance so it structurally subsumes the crest orbit
 never-validated default-OFF DELETE set and re-point/retire `stepUpCrestOrbitArena`.
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/movement/AscendMovement.java` (CONFIRM
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/movement/AscendMovement.java` (CONFIRM
   tolerance)
-- Modify: `common/src/main/java/net/magicterra/agent/bot/BotConfig.java` (delete 6 flag declarations:
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/BotConfig.java` (delete 6 flag declarations:
   `walkerVerticalResync:1326`, `walkerLevelRiserJump:1350`, `walkerPadRamBreak:1374`,
   `walkerStepUpCrestReach:1562`, `walkerAscentRamJitterImmune:1596`, `walkerStickyDig:1892`)
 - Modify: `common/.../bot/SettingsSnapshot.java` + `SettingsCommand.java` (drop the 6 `snap.put` +
   `instanceof Boolean` blocks — lines 83/84/85/93/95 in Snapshot; 303/307/311/343/351 in Command)
-- Modify: `common/src/main/java/net/magicterra/agent/bot/movement/Walker.java` (remove the gates that
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/movement/Walker.java` (remove the gates that
   read them + now-dead fields — see Step 3)
 - Modify: `common/.../bot/movement/WalkerConstants.java` (remove now-unused constants:
   `STEPUP_CREST_STALL_TICKS:337`, `STEPUP_CREST_REACH_SQ:347`, `RAM_JITTER_RECOVER_TICKS:269`,
@@ -733,7 +733,7 @@ never-validated default-OFF DELETE set and re-point/retire `stepUpCrestOrbitAren
 
 **Steps:**
 
-- [ ] **Step 0 (blocker check):** confirm task#83 landed — `git log --oneline -- config/agent_driver/replays/baseline-flags.json`
+- [ ] **Step 0 (blocker check):** confirm task#83 landed — `git log --oneline -- config/worlddriver/replays/baseline-flags.json`
   shows a commit dated on/after 2026-07-15 that drops the DELETE flags. If not, STOP — do not proceed.
 
 - [ ] **Step 1: re-point `stepUpCrestOrbitArena`** (RED) — it currently A/Bs `walkerStepUpCrestReach`
@@ -793,7 +793,7 @@ Capture/replay the task#82 stall, resolve the §8.1 KEEP-redundancy open questio
 and retire the now-dormant legacy ascent recovery gates.
 
 **Files:**
-- Modify (final): `common/src/main/java/net/magicterra/agent/bot/BotConfig.java`
+- Modify (final): `common/src/main/java/net/magicterra/worlddriver/bot/BotConfig.java`
   (`walkerAscendMovement = true`)
 - (Later, after proof) Modify: `common/.../bot/movement/Walker.java` (retire dormant legacy ascent
   recovery gates — scope finalized by Step 2's result)

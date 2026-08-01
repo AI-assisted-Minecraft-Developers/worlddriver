@@ -7,7 +7,7 @@ Usage:
 Steps:
   1. Merge the given .exec files (jacoco CLI).
   2. Emit CSV (+ optional HTML under coverage-out/html) against :common main classes.
-  3. Print a per-class digest for net.magicterra.agent.bot.movement.* sorted by
+  3. Print a per-class digest for net.magicterra.worlddriver.bot.movement.* sorted by
      missed branches, and dump uncovered-line detail via the XML report into
      coverage-out/uncovered-movement.txt for gap triage.
 
@@ -40,7 +40,7 @@ CLASSES = os.environ.get("COVERAGE_CLASSES",
                                                      os.path.join(OUT, "classes-t1"))
                                          if os.path.isdir(p)))
 SOURCES = os.path.join(ROOT, "common/src/main/java")
-PKG_PREFIX = "net/magicterra/agent/bot"
+PKG_PREFIX = "net/magicterra/worlddriver/bot"
 
 def run(cmd):
     r = subprocess.run(cmd, capture_output=True, text=True)
@@ -110,11 +110,11 @@ def main():
             lm, lc = int(row["LINE_MISSED"]), int(row["LINE_COVERED"])
             rows.append((bm, bc, lm, lc, row["PACKAGE"] + "." + row["CLASS"]))
     rows.sort(reverse=True)
-    print("%-70s %14s %14s" % ("class (net.magicterra.agent.bot.*)", "branch miss/tot", "line miss/tot"))
+    print("%-70s %14s %14s" % ("class (net.magicterra.worlddriver.bot.*)", "branch miss/tot", "line miss/tot"))
     tb = tbm = tl = tlm = 0
     for bm, bc, lm, lc, name in rows:
         tbm += bm; tb += bm + bc; tlm += lm; tl += lm + lc
-        print("%-70s %8d/%-5d %8d/%-5d" % (name.replace("net.magicterra.agent.bot.", ""), bm, bm + bc, lm, lm + lc))
+        print("%-70s %8d/%-5d %8d/%-5d" % (name.replace("net.magicterra.worlddriver.bot.", ""), bm, bm + bc, lm, lm + lc))
     print("%-70s %8d/%-5d %8d/%-5d  (branch %.1f%%, line %.1f%%)"
           % ("TOTAL bot.*", tbm, tb, tlm, tl,
              100.0 * (tb - tbm) / tb if tb else 0, 100.0 * (tl - tlm) / tl if tl else 0))

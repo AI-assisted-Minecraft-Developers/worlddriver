@@ -4,7 +4,7 @@
 
 **Goal:** Record every `goto` session to a self-contained JSON archive, deterministically replay the stored plan through the real Walker, and analyze each step (pose-fit, blocks, collision, fall, jump, deviation) with a standalone script — so pathfinding wedges reproduce and root-cause on demand.
 
-**Architecture:** A second `PathTrace` sink (`PathArchiveRecorder`) captures seed/dimension/segments(path+edges)/sparse-block-envelope/per-tick-trajectory and writes JSON under `config/agent_driver/replays/`. A `mc.debug.replay` tool restores the envelope, teleports to start, and runs the Walker in a new `replayMode` (repath disabled) over the stored plan. `path-replay/analyze.py` reads the mod-precomputed physics booleans and prints a per-step report.
+**Architecture:** A second `PathTrace` sink (`PathArchiveRecorder`) captures seed/dimension/segments(path+edges)/sparse-block-envelope/per-tick-trajectory and writes JSON under `config/worlddriver/replays/`. A `mc.debug.replay` tool restores the envelope, teleports to start, and runs the Walker in a new `replayMode` (repath disabled) over the stored plan. `path-replay/analyze.py` reads the mod-precomputed physics booleans and prints a per-step report.
 
 **Tech Stack:** Java 21, Architectury (NeoForge GameTest as the integration suite), the hand-written `JsonCodec`, MC 1.21.1 `Level`/`VoxelShape`/`Pose`, Python 3 + pytest for the analyzer.
 
@@ -17,10 +17,10 @@
 ## File Structure
 
 **New files**
-- `common/src/main/java/net/magicterra/agent/bot/debug/NodePhysics.java` — pure helper: per-node pose-fit / hazard / fall / jump facts from a `Level`.
-- `common/src/main/java/net/magicterra/agent/bot/debug/PathArchive.java` — the archive data model + `JsonCodec`-backed read/write.
-- `common/src/main/java/net/magicterra/agent/bot/debug/PathArchiveRecorder.java` — the `PathTrace` capture sink.
-- `common/src/main/java/net/magicterra/agent/bot/debug/ReplayTool.java` — `mc.debug.replay` impl.
+- `common/src/main/java/net/magicterra/worlddriver/bot/debug/NodePhysics.java` — pure helper: per-node pose-fit / hazard / fall / jump facts from a `Level`.
+- `common/src/main/java/net/magicterra/worlddriver/bot/debug/PathArchive.java` — the archive data model + `JsonCodec`-backed read/write.
+- `common/src/main/java/net/magicterra/worlddriver/bot/debug/PathArchiveRecorder.java` — the `PathTrace` capture sink.
+- `common/src/main/java/net/magicterra/worlddriver/bot/debug/ReplayTool.java` — `mc.debug.replay` impl.
 - `path-replay/analyze.py` + `path-replay/README.md` + `path-replay/sample-archive.json` + `path-replay/test_analyze.py`.
 
 **Modified files**
@@ -33,7 +33,7 @@
 - `bot/debug/PathDebugBootstrap.java` — install the second sink + register `mc.debug.replay`.
 - `mcp/catalog/DebugTools.java` — `mc.debug.replay` schema.
 - `neoforge/.../AgentGameTest.java` — record→replay round-trip GameTest.
-- `common/src/main/resources/data/agent_driver/scripts/agent_validation/` — a parity script for `mc.debug.replay`.
+- `common/src/main/resources/data/worlddriver/scripts/agent_validation/` — a parity script for `mc.debug.replay`.
 
 ---
 
@@ -66,8 +66,8 @@ public record Facts(boolean fitStand, boolean fitCrouch, boolean fitCrawl,
 ### Task 1: Extend `WalkerSample` with `pose` + `aabbOverlap`
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/pathfinder/PathTrace.java:31-33`
-- Modify: `common/src/main/java/net/magicterra/agent/bot/movement/Walker.java:2748-2760`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/PathTrace.java:31-33`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/movement/Walker.java:2748-2760`
 
 - [ ] **Step 1: Widen the record**
 
@@ -114,8 +114,8 @@ Expected: BUILD SUCCESSFUL.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/pathfinder/PathTrace.java \
-        common/src/main/java/net/magicterra/agent/bot/movement/Walker.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/PathTrace.java \
+        common/src/main/java/net/magicterra/worlddriver/bot/movement/Walker.java
 git commit -F - <<'EOF'
 feat(debug): capture pose + aabbOverlap in WalkerSample
 
@@ -129,8 +129,8 @@ EOF
 ### Task 2: Add `edges` to `PlannedRoute`
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/debug/PathSession.java:27`
-- Modify: `common/src/main/java/net/magicterra/agent/bot/debug/PathDebugRecorder.java:81-90`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/debug/PathSession.java:27`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/debug/PathDebugRecorder.java:81-90`
 
 - [ ] **Step 1: Widen the record**
 
@@ -141,7 +141,7 @@ In `PathSession.java`, replace the `PlannedRoute` record (line 27):
                                int repathIndex, int expanded, long ms, double finalCost) {}
 ```
 
-Add the import if missing: `import net.magicterra.agent.bot.pathfinder.Move;`
+Add the import if missing: `import net.magicterra.worlddriver.bot.pathfinder.Move;`
 
 - [ ] **Step 2: Pass edges at the construction site**
 
@@ -155,8 +155,8 @@ Expected: BUILD SUCCESSFUL.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/debug/PathSession.java \
-        common/src/main/java/net/magicterra/agent/bot/debug/PathDebugRecorder.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/debug/PathSession.java \
+        common/src/main/java/net/magicterra/worlddriver/bot/debug/PathDebugRecorder.java
 git commit -F - <<'EOF'
 feat(debug): carry edges in PlannedRoute
 
@@ -170,7 +170,7 @@ EOF
 ### Task 3: Add the `pathArchive` setting
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/BotConfig.java` (near line 52, with the other `autoX` flags)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/BotConfig.java` (near line 52, with the other `autoX` flags)
 - Modify: the `mc.bot.setting` schema/catalog if it enumerates boolean keys (check `grep -rn "pathDebug" common/.../mcp/catalog/ common/.../bot/BotApiImpl.java`)
 
 - [ ] **Step 1: Add the field**
@@ -180,7 +180,7 @@ In `BotConfig.java`, beside the other `public static volatile boolean` flags:
 ```java
     /** When on, every goto session writes a JSON archive (seed, dimension, each
      *  progressive segment's path+edges, the sparse block envelope, and the
-     *  per-tick trajectory) under config/agent_driver/replays/, for offline
+     *  per-tick trajectory) under config/worlddriver/replays/, for offline
      *  analysis and deterministic replay. Heavyweight → default OFF. */
     public static volatile boolean pathArchive = false;
 ```
@@ -189,7 +189,7 @@ The existing reflection-based saver/loader persists all scalar fields automatica
 
 - [ ] **Step 2: Make sure `mc.bot.setting` accepts it**
 
-Run: `grep -rn "pathDebug\|walkerDebug" common/src/main/java/net/magicterra/agent/bot/BotApiImpl.java common/src/main/java/net/magicterra/agent/mcp/catalog/`
+Run: `grep -rn "pathDebug\|walkerDebug" common/src/main/java/net/magicterra/worlddriver/bot/BotApiImpl.java common/src/main/java/net/magicterra/worlddriver/mcp/catalog/`
 
 If `pathDebug` is handled by a generic boolean-field reflection setter, `pathArchive` is picked up automatically — verify by reading the setter. If there is an explicit allow-list of setting keys, add `"pathArchive"` next to `"pathDebug"`.
 
@@ -201,7 +201,7 @@ Expected: BUILD SUCCESSFUL.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/BotConfig.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/BotConfig.java
 git commit -F - <<'EOF'
 feat(config): add pathArchive toggle (default off)
 EOF
@@ -212,15 +212,15 @@ EOF
 ### Task 4: `NodePhysics` — per-node physics facts (TDD via GameTest)
 
 **Files:**
-- Create: `common/src/main/java/net/magicterra/agent/bot/debug/NodePhysics.java`
-- Test: `neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTest.java` (new `nodePhysicsArena`)
+- Create: `common/src/main/java/net/magicterra/worlddriver/bot/debug/NodePhysics.java`
+- Test: `neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTest.java` (new `nodePhysicsArena`)
 
 - [ ] **Step 1: Write the failing GameTest**
 
 Add to `AgentGameTest.java` a test that builds a 1-block-ceiling pocket and a 2-deep drop, then asserts the `Facts`. Use the same registration style as the existing arenas (e.g. `descentArena`). Build at unused coords (e.g. cx=240,cz=240) and clear an air box first (per the arena-coord-collision lesson). Skeleton:
 
 ```java
-@GameTest(template = "agent_driver:empty")  // match the template used by other arenas
+@GameTest(template = "worlddriver:empty")  // match the template used by other arenas
 public void nodePhysicsArena(GameTestHelper helper) {
     ServerLevel level = helper.getLevel();
     int x = 240, y = 180, z = 240;
@@ -246,9 +246,9 @@ Expected: compile error `NodePhysics` not found (or test FAIL).
 - [ ] **Step 3: Implement `NodePhysics`**
 
 ```java
-package net.magicterra.agent.bot.debug;
+package net.magicterra.worlddriver.bot.debug;
 
-import net.magicterra.agent.bot.BotConfig;
+import net.magicterra.worlddriver.bot.BotConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.EntityDimensions;
@@ -329,7 +329,7 @@ public final class NodePhysics {
 }
 ```
 
-Update the GameTest call sites to `NodePhysics.compute(level, stand, null, null)` etc. (the test only checks `fit`/`ceilingForces`; pass `null` for prev/next where unused). If `BotConfig.survivableFall` does not exist under that exact name, run `grep -n "survivableFall\|survivable" common/src/main/java/net/magicterra/agent/bot/BotConfig.java` and use the real field.
+Update the GameTest call sites to `NodePhysics.compute(level, stand, null, null)` etc. (the test only checks `fit`/`ceilingForces`; pass `null` for prev/next where unused). If `BotConfig.survivableFall` does not exist under that exact name, run `grep -n "survivableFall\|survivable" common/src/main/java/net/magicterra/worlddriver/bot/BotConfig.java` and use the real field.
 
 - [ ] **Step 4: Run the test to confirm it passes**
 
@@ -339,8 +339,8 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/debug/NodePhysics.java \
-        neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTest.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/debug/NodePhysics.java \
+        neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTest.java
 git commit -F - <<'EOF'
 feat(debug): NodePhysics — per-node pose-fit/hazard/fall/jump facts
 
@@ -354,13 +354,13 @@ EOF
 ### Task 5: `PathArchive` data model + JSON round-trip (TDD via GameTest)
 
 **Files:**
-- Create: `common/src/main/java/net/magicterra/agent/bot/debug/PathArchive.java`
+- Create: `common/src/main/java/net/magicterra/worlddriver/bot/debug/PathArchive.java`
 - Test: new `pathArchiveJsonArena` in `AgentGameTest.java`
 
 - [ ] **Step 1: Write the failing round-trip GameTest**
 
 ```java
-@GameTest(template = "agent_driver:empty")
+@GameTest(template = "worlddriver:empty")
 public void pathArchiveJsonArena(GameTestHelper helper) {
     PathArchive a = PathArchive.demo();           // a tiny fixed archive (Step 3 adds it)
     String json = a.toJson();
@@ -398,8 +398,8 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/debug/PathArchive.java \
-        neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTest.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/debug/PathArchive.java \
+        neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTest.java
 git commit -F - <<'EOF'
 feat(debug): PathArchive model + JsonCodec round-trip
 EOF
@@ -410,7 +410,7 @@ EOF
 ### Task 6: `PathArchiveRecorder` (capture sink) + envelope sampling
 
 **Files:**
-- Create: `common/src/main/java/net/magicterra/agent/bot/debug/PathArchiveRecorder.java`
+- Create: `common/src/main/java/net/magicterra/worlddriver/bot/debug/PathArchiveRecorder.java`
 
 - [ ] **Step 1: Implement the sink**
 
@@ -418,11 +418,11 @@ Implement `PathTrace`. Hold a mutable in-progress session (header + `List<Segmen
 - `onSearchBegin(start, goal)`: if `!BotConfig.pathArchive` ignore; else start a session — capture `start`, `goalDesc`, and resolve seed+dimension from the server (Step 2).
 - `onSearchResult(path, edges, …)`: append a `Segment`; for each node `i` compute `NodePhysics.compute(level, path.get(i), path.get(i-1)|null, path.get(i+1)|null)` and sample the envelope cells `(x±2, y∈[-1,+2], z±2)` via the server level (dedup by `BlockPos.asLong()`), recording `block`, `solid`, `shape` (only when not full/empty), `fluid`. **Read on the server thread** — guard with the project's existing `server.execute(...)` / snapshot helper (mirror `WorldApi.snapshot`).
 - `onWalkerTick(sample)`: append a `Tick` (carry the new `pose`/`aabbOverlap`; compute `deviation=NaN` for a plan archive).
-- `onTerminal(outcome, reason)`: finalize header, write JSON via a background thread to `config/agent_driver/replays/replay-<counter>-<epochMs>.json` (reuse the `PathChartWriter` counter/dir pattern; new sibling writer or a small shared helper), clear the session.
+- `onTerminal(outcome, reason)`: finalize header, write JSON via a background thread to `config/worlddriver/replays/replay-<counter>-<epochMs>.json` (reuse the `PathChartWriter` counter/dir pattern; new sibling writer or a small shared helper), clear the session.
 
 - [ ] **Step 2: Resolve seed + dimension**
 
-Get the integrated server from the project's server accessor (the same one `server.execute` uses; `grep -rn "getServer()\|MinecraftServer\|integratedServer\|server.execute" common/src/main/java/net/magicterra/agent/api/` to find it). `seed = server.overworld().getSeed()` (or `getWorldData().worldGenOptions().seed()`); `dimension = level.dimension().location().toString()`. If no integrated server (dedicated), store `seed = null`.
+Get the integrated server from the project's server accessor (the same one `server.execute` uses; `grep -rn "getServer()\|MinecraftServer\|integratedServer\|server.execute" common/src/main/java/net/magicterra/worlddriver/api/` to find it). `seed = server.overworld().getSeed()` (or `getWorldData().worldGenOptions().seed()`); `dimension = level.dimension().location().toString()`. If no integrated server (dedicated), store `seed = null`.
 
 - [ ] **Step 3: Compile**
 
@@ -432,7 +432,7 @@ Expected: BUILD SUCCESSFUL.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/debug/PathArchiveRecorder.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/debug/PathArchiveRecorder.java
 git commit -F - <<'EOF'
 feat(debug): PathArchiveRecorder — capture goto sessions to JSON
 EOF
@@ -443,8 +443,8 @@ EOF
 ### Task 7: Install the second sink + end-to-end capture GameTest
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/debug/PathDebugBootstrap.java:26-30`
-- Modify: `common/src/main/java/net/magicterra/agent/bot/pathfinder/PathTraceHolder.java` (if `SINK` is a single field, add fan-out)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/debug/PathDebugBootstrap.java:26-30`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/PathTraceHolder.java` (if `SINK` is a single field, add fan-out)
 - Test: new `pathArchiveCaptureArena` in `AgentGameTest.java`
 
 - [ ] **Step 1: Fan out to both sinks**
@@ -460,7 +460,7 @@ PathChartTool.bind(recorder);
 
 - [ ] **Step 2: Write the failing capture GameTest**
 
-Drive a short real `goto` across a built arena with `BotConfig.pathArchive = true`, wait for arrival, then assert an archive file exists with ≥1 segment and a non-empty trajectory. Read the newest file in `config/agent_driver/replays/` and `PathArchive.fromJson` it. Model the goto-drive on an existing live-ish GameTest (e.g. the smoothness/`descentArena` arenas) — set `BotConfig.pathArchive=true` in setup and back to false in teardown.
+Drive a short real `goto` across a built arena with `BotConfig.pathArchive = true`, wait for arrival, then assert an archive file exists with ≥1 segment and a non-empty trajectory. Read the newest file in `config/worlddriver/replays/` and `PathArchive.fromJson` it. Model the goto-drive on an existing live-ish GameTest (e.g. the smoothness/`descentArena` arenas) — set `BotConfig.pathArchive=true` in setup and back to false in teardown.
 
 - [ ] **Step 3: Run it to confirm it fails, then passes after Step 1**
 
@@ -475,9 +475,9 @@ Expected: `All N required tests passed` (N ≥ 62 now), `FAIL: 0`.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/debug/PathDebugBootstrap.java \
-        common/src/main/java/net/magicterra/agent/bot/pathfinder/PathTraceHolder.java \
-        neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTest.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/debug/PathDebugBootstrap.java \
+        common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/PathTraceHolder.java \
+        neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTest.java
 git commit -F - <<'EOF'
 feat(debug): install PathArchiveRecorder sink + capture round-trip test
 EOF
@@ -490,7 +490,7 @@ EOF
 ### Task 8: Walker `replayMode` + `beginReplay`
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/movement/Walker.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/movement/Walker.java`
 
 - [ ] **Step 1: Add the field + entry point**
 
@@ -538,7 +538,7 @@ Expected: still green (no replay caller yet — this only adds a dormant mode).
 - [ ] **Step 4: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/movement/Walker.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/movement/Walker.java
 git commit -F - <<'EOF'
 feat(walker): replayMode + beginReplay (fixed-plan execution, no repath)
 EOF
@@ -549,7 +549,7 @@ EOF
 ### Task 9: Extract a shared `restoreCells` helper in `WorldApi`
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/api/WorldApi.java:145-170`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/api/WorldApi.java:145-170`
 
 - [ ] **Step 1: Extract**
 
@@ -575,7 +575,7 @@ Expected: unchanged PASS.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/api/WorldApi.java
+git add common/src/main/java/net/magicterra/worlddriver/api/WorldApi.java
 git commit -F - <<'EOF'
 refactor(world): extract restoreCells helper for reuse by the replayer
 EOF
@@ -586,14 +586,14 @@ EOF
 ### Task 10: `ReplayTool` + `mc.debug.replay` route & schema
 
 **Files:**
-- Create: `common/src/main/java/net/magicterra/agent/bot/debug/ReplayTool.java`
-- Modify: `common/src/main/java/net/magicterra/agent/mcp/catalog/DebugTools.java`
-- Modify: `common/src/main/java/net/magicterra/agent/bot/debug/PathDebugBootstrap.java:33`
+- Create: `common/src/main/java/net/magicterra/worlddriver/bot/debug/ReplayTool.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/mcp/catalog/DebugTools.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/debug/PathDebugBootstrap.java:33`
 
 - [ ] **Step 1: Implement `ReplayTool.replay(Map<String,Object> p)`**
 
 ```
-1. file = p.get("file") or the newest config/agent_driver/replays/replay-*.json (not replay-run-*).
+1. file = p.get("file") or the newest config/worlddriver/replays/replay-*.json (not replay-run-*).
 2. PathArchive a = PathArchive.fromJson(read(file)).
 3. server.execute(() -> {
      if (restoreBlocks!=false) WorldApi.restoreCells(level, a.envelope()->Cells);
@@ -608,7 +608,7 @@ EOF
 
 For deviation: extend `PathArchiveRecorder` so that when `replayMode` is active it knows the plan node list (pass it in via a `beginReplayCapture(planNodes)` call from `ReplayTool` before `beginReplay`), and fills `Tick.deviation`. Write the replay run as `replay-run-<counter>-<epochMs>.json` with `kind:"replay"`.
 
-Find the `walker` + `server`/`level` accessors: `grep -rn "Walker walker\|\.walker\b\|server.execute\|ServerLevel" common/src/main/java/net/magicterra/agent/bot/BotApiImpl.java | head`.
+Find the `walker` + `server`/`level` accessors: `grep -rn "Walker walker\|\.walker\b\|server.execute\|ServerLevel" common/src/main/java/net/magicterra/worlddriver/bot/BotApiImpl.java | head`.
 
 - [ ] **Step 2: Schema in `DebugTools.java`**
 
@@ -619,7 +619,7 @@ roTool("mc.debug.replay",
     "(no re-planning) so wedges reproduce. Writes a replay-run-*.json with the " +
     "actual trajectory + per-step deviation.",
     object()
-        .prop("file", string().desc("Archive filename under config/agent_driver/replays/. Default: newest plan archive."))
+        .prop("file", string().desc("Archive filename under config/worlddriver/replays/. Default: newest plan archive."))
         .prop("restoreBlocks", bool().desc("Restore the recorded block envelope before replay. Default true."))
         .prop("fromStep", integer(0, 100000).desc("Start at this plan step. Default 0.")))
 ```
@@ -640,9 +640,9 @@ Expected: green.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/debug/ReplayTool.java \
-        common/src/main/java/net/magicterra/agent/mcp/catalog/DebugTools.java \
-        common/src/main/java/net/magicterra/agent/bot/debug/PathDebugBootstrap.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/debug/ReplayTool.java \
+        common/src/main/java/net/magicterra/worlddriver/mcp/catalog/DebugTools.java \
+        common/src/main/java/net/magicterra/worlddriver/bot/debug/PathDebugBootstrap.java
 git commit -F - <<'EOF'
 feat(debug): mc.debug.replay — restore envelope, tp, re-execute stored plan
 EOF
@@ -654,7 +654,7 @@ EOF
 
 **Files:**
 - Test: new `replayRoundTripArena` in `AgentGameTest.java`
-- Create: `common/src/main/resources/data/agent_driver/scripts/agent_validation/NN_replay_parity.js`
+- Create: `common/src/main/resources/data/worlddriver/scripts/agent_validation/NN_replay_parity.js`
 
 - [ ] **Step 1: Write the round-trip GameTest**
 
@@ -677,8 +677,8 @@ Expected: `All N required tests passed`, `FAIL: 0`.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTest.java \
-        common/src/main/resources/data/agent_driver/scripts/agent_validation/
+git add neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTest.java \
+        common/src/main/resources/data/worlddriver/scripts/agent_validation/
 git commit -F - <<'EOF'
 test(debug): replay round-trip GameTest + mc.debug.replay transport parity
 EOF
@@ -804,7 +804,7 @@ EOF
 
 - [ ] **Step 1: Write `path-replay/README.md`**
 
-Document: turning on capture (`mc.bot.setting {pathArchive:true}`), where archives land (`config/agent_driver/replays/`), replaying (`mc.debug.replay {file}`), and analyzing (`./.venv/bin/python path-replay/analyze.py <archive.json> --all` / `--step N` / `--replay <run.json>`). Note the archive schema version and the suffocation/hazard/jump/drift flags.
+Document: turning on capture (`mc.bot.setting {pathArchive:true}`), where archives land (`config/worlddriver/replays/`), replaying (`mc.debug.replay {file}`), and analyzing (`./.venv/bin/python path-replay/analyze.py <archive.json> --all` / `--step N` / `--replay <run.json>`). Note the archive schema version and the suffocation/hazard/jump/drift flags.
 
 - [ ] **Step 2: CHANGELOG entry**
 

@@ -16,10 +16,10 @@
 
 ## File Structure
 
-所有路径相对仓库根 `agent-driver-mod/`。
+所有路径相对仓库根 `worlddriver/`。
 
 **核心谓词(新增不变量):**
-- `common/src/main/java/net/magicterra/agent/bot/pathfinder/WorldView.java` — 新增 `headSubmerged(foot)` default 方法(D1 谓词);已有 `isFloatingWater`(D2)/`isSubmergedAscent`/`isSubmergedFoot` 保留。
+- `common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/WorldView.java` — 新增 `headSubmerged(foot)` default 方法(D1 谓词);已有 `isFloatingWater`(D2)/`isSubmergedAscent`/`isSubmergedFoot` 保留。
 
 **地面族 move(加 D1 守卫):**
 - `.../pathfinder/moves/Walk.java`、`Diagonal.java` — 新增 D1 守卫。
@@ -29,14 +29,14 @@
 **潜水回退层(新原语 + 成本):**
 - `.../pathfinder/moves/SwimTraverse.java` — **新建**,纯水平无破坏游泳原语。
 - `.../pathfinder/Move.java` — 注册 4 个 `SwimTraverse`。
-- `common/src/main/java/net/magicterra/agent/bot/BotConfig.java` — 新增 `pathfinderSubmergedTraverseCost`。
+- `common/src/main/java/net/magicterra/worlddriver/bot/BotConfig.java` — 新增 `pathfinderSubmergedTraverseCost`。
 - `.../pathfinder/PathFinder.java` — 新增 `submergedSwimTax(to)` 并接入 edge 成本累加。
 
 **执行器:**
-- `common/src/main/java/net/magicterra/agent/bot/movement/Walker.java` — Phase 3 扩展 `diveTarget`/`diving` 识别水平 `swimTraverse`;Phase 4 移除 `floatOverSubmerged`(1289-1317)及 `WATER_DESCEND_GIVEUP` 河床骑行补偿。
+- `common/src/main/java/net/magicterra/worlddriver/bot/movement/Walker.java` — Phase 3 扩展 `diveTarget`/`diving` 识别水平 `swimTraverse`;Phase 4 移除 `floatOverSubmerged`(1289-1317)及 `WATER_DESCEND_GIVEUP` 河床骑行补偿。
 
 **测试 arena(新增):**
-- `neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTest.java` — `submergedFloorWalkArena`(Phase 1 谓词)、`sealedUnderwaterPassageArena`(Phase 2/3 潜水回退)、`submergedSlotCrossArena` + `waterfallCascadeArena`(Phase 4 回归)。
+- `neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTest.java` — `submergedFloorWalkArena`(Phase 1 谓词)、`sealedUnderwaterPassageArena`(Phase 2/3 潜水回退)、`submergedSlotCrossArena` + `waterfallCascadeArena`(Phase 4 回归)。
 
 **测试命令(贯穿全程):**
 ```bash
@@ -47,7 +47,7 @@ DISPLAY= ./gradlew :neoforge:runGameTestServer 2>&1 | tail -40
 **live 终验命令(Phase 0 与各 replay 门):**
 ```bash
 DISPLAY=:99 AGENT_WORLD=Mountains setsid ./gradlew :fabric:runClient   # 重连客户端
-# 通过 MCP / .claude/skills/agent-driver-rpc/rpc.py 调:
+# 通过 MCP / .claude/skills/worlddriver-rpc/rpc.py 调:
 #   mc.debug.replay { "id": "replay-0004", "mode": "replan" }
 ```
 期望:端到端到达 `~(1732,83,3097)`;z2744 / z3022 / z3034 处 `totStuck` peak 全低(<60);**视频转录(qwen3.6,gemini 仅在用户允许时)零异常窗 + pathChart 零异常**。
@@ -66,7 +66,7 @@ DISPLAY=:99 AGENT_WORLD=Mountains setsid ./gradlew :fabric:runClient   # 重连�
 
 Run:
 ```bash
-cd agent-driver-mod
+cd worlddriver
 DISPLAY=:99 AGENT_WORLD=Mountains setsid ./gradlew :fabric:runClient
 ```
 等待世界加载(`mc.observe.player` 返回有效 pos)。开 live-screen-watch 观测通道。
@@ -107,8 +107,8 @@ TaskStop live-screen-watch Monitor + run.py(避免空跑烧 token)。client 可�
 ### Task 1.1: `headSubmerged` 谓词 + 谓词级失败测试
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/pathfinder/WorldView.java`(在 `isFloatingWater` 之前,~line 284)
-- Test: `neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTest.java`(新增 `submergedFloorWalkArena`)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/WorldView.java`(在 `isFloatingWater` 之前,~line 284)
+- Test: `neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTest.java`(新增 `submergedFloorWalkArena`)
 
 - [ ] **Step 1: 写失败测试 `submergedFloorWalkArena`**
 
@@ -222,8 +222,8 @@ Expected: 编译通过,但 `submergedFloorWalkArena` **FAIL** — `Walk INTO a h
 - [ ] **Step 5: Commit(谓词 + 失败测试)**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/pathfinder/WorldView.java \
-        neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTest.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/WorldView.java \
+        neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTest.java
 git commit -m "test: headSubmerged predicate + failing submergedFloorWalk arena (D1)"
 ```
 
@@ -264,8 +264,8 @@ Expected: `submergedFloorWalkArena` PASS;`FAIL: 0`;`All 45 required tests passed
 - [ ] **Step 4: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/pathfinder/moves/Walk.java \
-        common/src/main/java/net/magicterra/agent/bot/pathfinder/moves/Diagonal.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/moves/Walk.java \
+        common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/moves/Diagonal.java
 git commit -m "feat: D1 head-submerged guard on Walk + Diagonal (surface-first)"
 ```
 
@@ -302,8 +302,8 @@ Expected: `FAIL: 0`;`All 45 required tests passed`(尤其 `deepWaterCrossArena` 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/pathfinder/moves/StepDown.java \
-        common/src/main/java/net/magicterra/agent/bot/pathfinder/moves/DiagonalDescend.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/moves/StepDown.java \
+        common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/moves/DiagonalDescend.java
 git commit -m "refactor: unify stepDown/diagDown submerged gate under D1 headSubmerged"
 ```
 
@@ -330,9 +330,9 @@ Expected: `FAIL: 0`;`All 45 required tests passed`(`buoyantWallArena` / `waterLo
 - [ ] **Step 3: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/pathfinder/moves/StepUp.java \
-        common/src/main/java/net/magicterra/agent/bot/pathfinder/moves/StepUp2.java \
-        common/src/main/java/net/magicterra/agent/bot/pathfinder/moves/DiagonalAscend.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/moves/StepUp.java \
+        common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/moves/StepUp2.java \
+        common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/moves/DiagonalAscend.java
 git commit -m "feat: D1 head-submerged guard on ascending ground moves (keep D2 float gate)"
 ```
 
@@ -371,7 +371,7 @@ D1 禁了地面族进 submerged 格;为「水面优先 + 必要时可潜」保�
 ### Task 2.1: `SwimTraverse` move 类 + 注册 + 失败 arena
 
 **Files:**
-- Create: `common/src/main/java/net/magicterra/agent/bot/pathfinder/moves/SwimTraverse.java`
+- Create: `common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/moves/SwimTraverse.java`
 - Modify: `.../pathfinder/Move.java`(`SwimDown` 注册之后,~line 316)
 - Test: `AgentGameTest.java`(新增 `sealedUnderwaterPassageArena`)
 
@@ -448,7 +448,7 @@ D1 禁了地面族进 submerged 格;为「水面优先 + 必要时可潜」保�
                 av.step();
             }
             boolean arrived = !fp.isInWater() && fp.getX() >= cx + span + 0.5;
-            AgentDriverCommon.LOG.info("[sealedUnderwaterPassageArena] step={} pos=({},{},{}) arrived={}",
+            WorldDriverCommon.LOG.info("[sealedUnderwaterPassageArena] step={} pos=({},{},{}) arrived={}",
                     s, fp.getX(), fp.getY(), fp.getZ(), arrived);
             if (!arrived)
                 throw new GameTestAssertException("sealedUnderwaterPassage: floating Walker failed to dive the sealed tunnel: pos=("
@@ -470,10 +470,10 @@ Expected: 编译错误 `cannot find symbol: class SwimTraverse`。
 - [ ] **Step 3: 新建 `SwimTraverse.java`**
 
 ```java
-package net.magicterra.agent.bot.pathfinder.moves;
+package net.magicterra.worlddriver.bot.pathfinder.moves;
 
-import net.magicterra.agent.bot.pathfinder.Move;
-import net.magicterra.agent.bot.pathfinder.WorldView;
+import net.magicterra.worlddriver.bot.pathfinder.Move;
+import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 
 /**
@@ -523,9 +523,9 @@ Expected: 谓词 (a) 不再抛;集成 (b) **可能 FAIL**(执行器 dive-hold �
 - [ ] **Step 6: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/pathfinder/moves/SwimTraverse.java \
-        common/src/main/java/net/magicterra/agent/bot/pathfinder/Move.java \
-        neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTest.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/moves/SwimTraverse.java \
+        common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/Move.java \
+        neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTest.java
 git commit -m "feat: SwimTraverse horizontal swim primitive + sealedUnderwaterPassage arena"
 ```
 
@@ -592,8 +592,8 @@ Expected: `FAIL: 0` 之外的所有既有 arena 不回归;`sealedUnderwaterPassa
 - [ ] **Step 5: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/BotConfig.java \
-        common/src/main/java/net/magicterra/agent/bot/pathfinder/PathFinder.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/BotConfig.java \
+        common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/PathFinder.java
 git commit -m "feat: unified pathfinderSubmergedTraverseCost for swim-family dive layer"
 ```
 
@@ -646,7 +646,7 @@ Expected: `FAIL: 0`;`All 45 required tests passed`。特别确认 `deepWaterCros
 - [ ] **Step 5: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/movement/Walker.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/movement/Walker.java
 git commit -m "feat: dive-hold follows horizontal swimTraverse (sealed-passage executor)"
 ```
 
@@ -751,7 +751,7 @@ Surface-First 下 A* 不再产出 submerged 横渡节点,`floatOverSubmerged` �
             Walker.Step s = Walker.Step.WALKING;
             for (int t = 0; t < 3000 && s == Walker.Step.WALKING; t++) { s = walker.tick(av, w); av.step(); }
             boolean ashore = !fp.isInWater() && fp.onGround() && fp.getX() >= cx + span - 0.5;
-            AgentDriverCommon.LOG.info("[submergedSlotCrossArena] step={} pos=({},{},{}) ashore={}",
+            WorldDriverCommon.LOG.info("[submergedSlotCrossArena] step={} pos=({},{},{}) ashore={}",
                     s, fp.getX(), fp.getY(), fp.getZ(), ashore);
             if (!ashore)
                 throw new GameTestAssertException("submergedSlotCross: floating Walker failed to cross at the surface: pos=("
@@ -815,7 +815,7 @@ Expected: 两个新 arena PASS;`FAIL: 0`。这建立了**删旧码前**的护栏
 - [ ] **Step 4: Commit**
 
 ```bash
-git add neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTest.java
+git add neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTest.java
 git commit -m "test: regression guards submergedSlotCross + waterfallCascade (pre-removal baseline)"
 ```
 
@@ -854,7 +854,7 @@ Expected: `FAIL: 0`;`All 45 required tests passed`。**关键:** `deepWaterCross
 - [ ] **Step 3: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/movement/Walker.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/movement/Walker.java
 git commit -m "refactor: remove floatOverSubmerged riverbed-ride (obsolete under surface-first)"
 ```
 

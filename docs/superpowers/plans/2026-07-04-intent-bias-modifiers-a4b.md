@@ -15,23 +15,23 @@
 - **Per-intent, NOT global.** These modifiers live on the `Intent.bias` (cleared when the intent ends). The existing global `BotConfig.avoidZones` / `mc.bot.setting{avoidPoints}` stays untouched for backward-compat; document that `avoid:` on goto is the intent-scoped equivalent (using both stacks both — expected).
 - **Proof is a DETERMINISTIC planner arena, never an executor arena** (project memory: executor arenas driving `new Walker()` are run-to-run flaky). Assert on the planned `PathFinder.Result` node sequence, which is deterministic.
 - **Acceptance:** the new deterministic arena passes; the full GameTest suite gains no NEW *required* failures attributable to this change (the pre-existing flaky executor arenas are noise — judge by the new arena + whether any changed arena is causally reachable from a planner-cost addition that is INERT unless the goto carries bias args).
-- Alternate ports for any run: `JAVA_TOOL_OPTIONS="-Dagent.mcpPort=39810 -Dagent.rpcPort=39811"`.
+- Alternate ports for any run: `JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39810 -Dworlddriver.rpcPort=39811"`.
 
 ## File Structure
 
-- **Create** `common/src/main/java/net/magicterra/agent/bot/pathfinder/modifiers/AvoidRegion.java` — ramp-away-from-a-sphere modifier.
-- **Create** `common/src/main/java/net/magicterra/agent/bot/pathfinder/modifiers/PreferYBand.java` — penalize cells outside a Y band.
-- **Create** `common/src/main/java/net/magicterra/agent/bot/pathfinder/modifiers/LeashAnchor.java` — penalize cells beyond a soft radius from an anchor.
-- **Modify** `common/src/main/java/net/magicterra/agent/bot/GotoGoalResolver.java` — add `static List<CostModifier> resolveBias(Params p)`.
-- **Modify** `common/src/main/java/net/magicterra/agent/bot/BotApiImpl.java` — build `new Intent(goal, GotoGoalResolver.resolveBias(p))` at the goto site.
-- **Modify** `common/src/main/java/net/magicterra/agent/mcp/catalog/BotTools.java` — document + schema the `avoid`/`preferY`/`leash` goto args.
-- **Create** `neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTestBias.java` — the deterministic detour + preferY planner arenas.
+- **Create** `common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/modifiers/AvoidRegion.java` — ramp-away-from-a-sphere modifier.
+- **Create** `common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/modifiers/PreferYBand.java` — penalize cells outside a Y band.
+- **Create** `common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/modifiers/LeashAnchor.java` — penalize cells beyond a soft radius from an anchor.
+- **Modify** `common/src/main/java/net/magicterra/worlddriver/bot/GotoGoalResolver.java` — add `static List<CostModifier> resolveBias(Params p)`.
+- **Modify** `common/src/main/java/net/magicterra/worlddriver/bot/BotApiImpl.java` — build `new Intent(goal, GotoGoalResolver.resolveBias(p))` at the goto site.
+- **Modify** `common/src/main/java/net/magicterra/worlddriver/mcp/catalog/BotTools.java` — document + schema the `avoid`/`preferY`/`leash` goto args.
+- **Create** `neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTestBias.java` — the deterministic detour + preferY planner arenas.
 
 ---
 
 ### Task 1: `AvoidRegion` modifier
 
-**Files:** Create `common/src/main/java/net/magicterra/agent/bot/pathfinder/modifiers/AvoidRegion.java`
+**Files:** Create `common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/modifiers/AvoidRegion.java`
 
 **Interfaces:**
 - Produces: `record AvoidRegion(double cx, double cy, double cz, double radius, double penalty) implements CostModifier` — consumed by `resolveBias` (Task 4) and the arena (Task 6).
@@ -39,12 +39,12 @@
 - [ ] **Step 1: Create the file**
 
 ```java
-package net.magicterra.agent.bot.pathfinder.modifiers;
+package net.magicterra.worlddriver.bot.pathfinder.modifiers;
 
-import net.magicterra.agent.bot.Goal;
-import net.magicterra.agent.bot.pathfinder.CostModifier;
-import net.magicterra.agent.bot.pathfinder.Move;
-import net.magicterra.agent.bot.pathfinder.WorldView;
+import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
+import net.magicterra.worlddriver.bot.pathfinder.Move;
+import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 
 /**
@@ -72,7 +72,7 @@ public record AvoidRegion(double cx, double cy, double cz, double radius, double
 
 ### Task 2: `PreferYBand` modifier
 
-**Files:** Create `common/src/main/java/net/magicterra/agent/bot/pathfinder/modifiers/PreferYBand.java`
+**Files:** Create `common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/modifiers/PreferYBand.java`
 
 **Interfaces:**
 - Produces: `record PreferYBand(int yMin, int yMax, double weight) implements CostModifier`.
@@ -80,12 +80,12 @@ public record AvoidRegion(double cx, double cy, double cz, double radius, double
 - [ ] **Step 1: Create the file**
 
 ```java
-package net.magicterra.agent.bot.pathfinder.modifiers;
+package net.magicterra.worlddriver.bot.pathfinder.modifiers;
 
-import net.magicterra.agent.bot.Goal;
-import net.magicterra.agent.bot.pathfinder.CostModifier;
-import net.magicterra.agent.bot.pathfinder.Move;
-import net.magicterra.agent.bot.pathfinder.WorldView;
+import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
+import net.magicterra.worlddriver.bot.pathfinder.Move;
+import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 
 /**
@@ -111,7 +111,7 @@ public record PreferYBand(int yMin, int yMax, double weight) implements CostModi
 
 ### Task 3: `LeashAnchor` modifier
 
-**Files:** Create `common/src/main/java/net/magicterra/agent/bot/pathfinder/modifiers/LeashAnchor.java`
+**Files:** Create `common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/modifiers/LeashAnchor.java`
 
 **Interfaces:**
 - Produces: `record LeashAnchor(double ax, double ay, double az, double softRadius, double weight) implements CostModifier`.
@@ -119,12 +119,12 @@ public record PreferYBand(int yMin, int yMax, double weight) implements CostModi
 - [ ] **Step 1: Create the file**
 
 ```java
-package net.magicterra.agent.bot.pathfinder.modifiers;
+package net.magicterra.worlddriver.bot.pathfinder.modifiers;
 
-import net.magicterra.agent.bot.Goal;
-import net.magicterra.agent.bot.pathfinder.CostModifier;
-import net.magicterra.agent.bot.pathfinder.Move;
-import net.magicterra.agent.bot.pathfinder.WorldView;
+import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
+import net.magicterra.worlddriver.bot.pathfinder.Move;
+import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 
 /**
@@ -154,7 +154,7 @@ public record LeashAnchor(double ax, double ay, double az, double softRadius, do
 
 ### Task 4: `GotoGoalResolver.resolveBias` + `BotApiImpl` wiring
 
-**Files:** Modify `common/src/main/java/net/magicterra/agent/bot/GotoGoalResolver.java`, `common/src/main/java/net/magicterra/agent/bot/BotApiImpl.java`
+**Files:** Modify `common/src/main/java/net/magicterra/worlddriver/bot/GotoGoalResolver.java`, `common/src/main/java/net/magicterra/worlddriver/bot/BotApiImpl.java`
 
 **Interfaces:**
 - Consumes: `AvoidRegion`, `PreferYBand`, `LeashAnchor` (Tasks 1-3), `Intent(Goal, List<CostModifier>)` (A4a Task 1).
@@ -165,8 +165,8 @@ public record LeashAnchor(double ax, double ay, double az, double softRadius, do
 ```java
     /** Parse the per-intent cost bias args (avoid / preferY / leash) into modifiers
      *  appended to the Intent. Empty when none supplied → plain navigation. */
-    static java.util.List<net.magicterra.agent.bot.pathfinder.CostModifier> resolveBias(Params p) {
-        java.util.List<net.magicterra.agent.bot.pathfinder.CostModifier> bias = new java.util.ArrayList<>();
+    static java.util.List<net.magicterra.worlddriver.bot.pathfinder.CostModifier> resolveBias(Params p) {
+        java.util.List<net.magicterra.worlddriver.bot.pathfinder.CostModifier> bias = new java.util.ArrayList<>();
         // avoid: [{x,y,z,radius?,penalty?}, ...]
         if (p.get("avoid") instanceof java.util.List<?> zones) {
             for (Object o : zones) {
@@ -175,7 +175,7 @@ public record LeashAnchor(double ax, double ay, double az, double softRadius, do
                 if (x == null || y == null || z == null) continue;
                 double r = num(m.get("radius")) != null ? num(m.get("radius")) : 8.0;
                 double pen = num(m.get("penalty")) != null ? num(m.get("penalty")) : 250.0;
-                bias.add(new net.magicterra.agent.bot.pathfinder.modifiers.AvoidRegion(x, y, z, r, pen));
+                bias.add(new net.magicterra.worlddriver.bot.pathfinder.modifiers.AvoidRegion(x, y, z, r, pen));
             }
         }
         // preferY: {min,max,weight?}
@@ -183,7 +183,7 @@ public record LeashAnchor(double ax, double ay, double az, double softRadius, do
             Double lo = num(b.get("min")), hi = num(b.get("max"));
             if (lo != null && hi != null) {
                 double w = num(b.get("weight")) != null ? num(b.get("weight")) : 10.0;
-                bias.add(new net.magicterra.agent.bot.pathfinder.modifiers.PreferYBand(
+                bias.add(new net.magicterra.worlddriver.bot.pathfinder.modifiers.PreferYBand(
                         (int) Math.floor(Math.min(lo, hi)), (int) Math.floor(Math.max(lo, hi)), w));
             }
         }
@@ -192,7 +192,7 @@ public record LeashAnchor(double ax, double ay, double az, double softRadius, do
             Double x = num(l.get("x")), y = num(l.get("y")), z = num(l.get("z")), r = num(l.get("radius"));
             if (x != null && y != null && z != null && r != null) {
                 double w = num(l.get("weight")) != null ? num(l.get("weight")) : 20.0;
-                bias.add(new net.magicterra.agent.bot.pathfinder.modifiers.LeashAnchor(x, y, z, r, w));
+                bias.add(new net.magicterra.worlddriver.bot.pathfinder.modifiers.LeashAnchor(x, y, z, r, w));
             }
         }
         return bias;
@@ -211,7 +211,7 @@ public record LeashAnchor(double ax, double ay, double az, double softRadius, do
 
 ### Task 5: Schema/docs for the new goto args
 
-**Files:** Modify `common/src/main/java/net/magicterra/agent/mcp/catalog/BotTools.java`
+**Files:** Modify `common/src/main/java/net/magicterra/worlddriver/mcp/catalog/BotTools.java`
 
 **Interfaces:** Consumes nothing new; documents the Task 4 args.
 
@@ -242,21 +242,21 @@ and to the goto help string, three lines:
 
 ### Task 6: Deterministic planner arena (detour + preferY proof) + verification
 
-**Files:** Create `neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTestBias.java`
+**Files:** Create `neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTestBias.java`
 
 **Interfaces:** Consumes `AvoidRegion`, `PreferYBand`, `PathFinder(world, bias)` (A4a), `LevelWorldView`.
 
 - [ ] **Step 1: Write the arena.** Mirror the setup style of `AgentGameTestTerrain` (build a flat floor with `level.setBlockAndUpdate`, `ServerPlayerAvatar.create` for a FakePlayer, `new LevelWorldView(level, fp)`). Two deterministic assertions — plan a straight run, then re-plan with a bias modifier and assert the path changed as required:
 
 ```java
-package net.magicterra.agent.neoforge;
+package net.magicterra.worlddriver.neoforge;
 
-import net.magicterra.agent.bot.Goal;
-import net.magicterra.agent.bot.pathfinder.CostModifier;
-import net.magicterra.agent.bot.pathfinder.PathFinder;
-import net.magicterra.agent.bot.pathfinder.modifiers.AvoidRegion;
-import net.magicterra.agent.bot.pathfinder.modifiers.PreferYBand;
-import net.magicterra.agent.bot.world.LevelWorldView;
+import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
+import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
+import net.magicterra.worlddriver.bot.pathfinder.modifiers.AvoidRegion;
+import net.magicterra.worlddriver.bot.pathfinder.modifiers.PreferYBand;
+import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
@@ -295,7 +295,7 @@ public final class AgentGameTestBias {
 
         boolean plainThrough = pathEntersZone(plain, zoneX, zoneY, zoneZ, r);
         boolean detourClear = !pathEntersZone(detour, zoneX, zoneY, zoneZ, r);
-        AgentDriverCommon.LOG.info("[avoidRegionDetourArena] plainThrough={} detourClear={} plainLen={} detourLen={}",
+        WorldDriverCommon.LOG.info("[avoidRegionDetourArena] plainThrough={} detourClear={} plainLen={} detourLen={}",
                 plainThrough, detourClear, plain.path().size(), detour.path().size());
         if (!plainThrough)
             throw new GameTestAssertException("baseline: plain path did NOT pass through the zone — arena geometry wrong");
@@ -318,7 +318,7 @@ NOTE: verify the real API names before finalizing — read `PathFinder.Result` f
 
 - [ ] **Step 2: Run the new arena headless.**
 ```bash
-JAVA_TOOL_OPTIONS="-Dagent.mcpPort=39810 -Dagent.rpcPort=39811" \
+JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39810 -Dworlddriver.rpcPort=39811" \
   ./gradlew :neoforge:runGameTestServer --console=plain 2>&1 | tee /tmp/a4b-gametest.log
 grep -iE "avoidRegionDetour|required tests (failed|passed)|BUILD (SUCCESSFUL|FAILED)" /tmp/a4b-gametest.log
 ```

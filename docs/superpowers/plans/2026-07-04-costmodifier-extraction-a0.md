@@ -19,8 +19,8 @@
 
 ## File Structure
 
-- **Create** `common/src/main/java/net/magicterra/agent/bot/pathfinder/CostModifier.java` — the functional interface. One responsibility: the per-edge extra-cost contract. ~15 lines incl. javadoc.
-- **Modify** `common/src/main/java/net/magicterra/agent/bot/pathfinder/PathFinder.java` — add a `List<CostModifier> costModifiers` field to `Search`, populate it once in the `Search` constructor (in tax order), and replace the inline tax sum at lines 700-707 with an in-order loop. The eight private tax methods are unchanged.
+- **Create** `common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/CostModifier.java` — the functional interface. One responsibility: the per-edge extra-cost contract. ~15 lines incl. javadoc.
+- **Modify** `common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/PathFinder.java` — add a `List<CostModifier> costModifiers` field to `Search`, populate it once in the `Search` constructor (in tax order), and replace the inline tax sum at lines 700-707 with an in-order loop. The eight private tax methods are unchanged.
 
 No other files change in A0.
 
@@ -29,7 +29,7 @@ No other files change in A0.
 ### Task 1: Introduce the `CostModifier` interface
 
 **Files:**
-- Create: `common/src/main/java/net/magicterra/agent/bot/pathfinder/CostModifier.java`
+- Create: `common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/CostModifier.java`
 
 **Interfaces:**
 - Produces: `CostModifier.extraCost(BlockPos from, BlockPos to, Move.Edge edge, Goal goal, WorldView world) -> double` — the single-method contract Task 2 iterates over. `goal`/`world` are passed for future (phase A1+) implementers that don't close over `Search`; A0's adapters ignore them and delegate to existing `Search` methods.
@@ -37,9 +37,9 @@ No other files change in A0.
 - [ ] **Step 1: Create the interface file**
 
 ```java
-package net.magicterra.agent.bot.pathfinder;
+package net.magicterra.worlddriver.bot.pathfinder;
 
-import net.magicterra.agent.bot.Goal;
+import net.magicterra.worlddriver.bot.Goal;
 import net.minecraft.core.BlockPos;
 
 /**
@@ -71,7 +71,7 @@ Expected: `BUILD SUCCESSFUL`.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/pathfinder/CostModifier.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/CostModifier.java
 git commit -m "pathfinder: add CostModifier interface (A0, no wiring yet)"
 ```
 
@@ -80,7 +80,7 @@ git commit -m "pathfinder: add CostModifier interface (A0, no wiring yet)"
 ### Task 2: Route the eight taxes through an ordered `CostModifier` stack
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/pathfinder/PathFinder.java` (Search field + constructor + the sum at ~700-707)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/PathFinder.java` (Search field + constructor + the sum at ~700-707)
 
 **Interfaces:**
 - Consumes: `CostModifier` from Task 1.
@@ -150,7 +150,7 @@ Expected: `BUILD SUCCESSFUL`. (If it fails on `descendTax` visibility from a lam
 - [ ] **Step 5: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/pathfinder/PathFinder.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/PathFinder.java
 git commit -m "pathfinder: route the 8 edge taxes through the CostModifier stack (A0, byte-identical order)"
 ```
 
@@ -166,7 +166,7 @@ git commit -m "pathfinder: route the 8 edge taxes through the CostModifier stack
 
 - [ ] **Step 1: Run the headless GameTest suite (primary behavioral regression guard)**
 
-First, on the base commit for comparison, capture the baseline required-count. From the untouched `master` worktree (`.../agent-driver-mod`):
+First, on the base commit for comparison, capture the baseline required-count. From the untouched `master` worktree (`.../worlddriver`):
 
 ```bash
 ./gradlew :neoforge:runGameTestServer --console=plain 2>&1 | tee /tmp/a0-baseline-gametest.log
@@ -187,7 +187,7 @@ Expected: `required tests passed` present with the SAME count as the master base
 If a live client is available, from the `master` worktree with a running client on port 39801, collect the baseline matrix (omit `--baseline` = collect-only). Read `scripts/pmcs/run_corpus.py --help` first to confirm flags:
 
 ```bash
-python3 scripts/pmcs/run_corpus.py --corpus config/agent_driver/replays/corpus.json > /tmp/a0-baseline-matrix.json
+python3 scripts/pmcs/run_corpus.py --corpus config/worlddriver/replays/corpus.json > /tmp/a0-baseline-matrix.json
 ```
 Expected: a per-case matrix JSON (planned paths / telemetry). If the client GL-hang blocker prevents this, skip Steps 2-3 and record the deferral.
 
@@ -196,7 +196,7 @@ Expected: a per-case matrix JSON (planned paths / telemetry). If the client GL-h
 From this worktree with a running client:
 
 ```bash
-python3 scripts/pmcs/run_corpus.py --corpus config/agent_driver/replays/corpus.json --baseline /tmp/a0-baseline-matrix.json
+python3 scripts/pmcs/run_corpus.py --corpus config/worlddriver/replays/corpus.json --baseline /tmp/a0-baseline-matrix.json
 ```
 Expected: the divergence table reports ZERO diverging cases — a pure refactor must plan identically. Any divergence is a real regression: stop and investigate before A1.
 

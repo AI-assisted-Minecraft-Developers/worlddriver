@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drive the running Fabric client (via AgentDriver WS RPC) from the title
+"""Drive the running Fabric client (via WorldDriver WS RPC) from the title
 screen into a SINGLE FIXED, reusable singleplayer world named WORLD_NAME, then
 stop — leaving the client running in-world so MCP tools can exercise the bot.
 Reuses react_smoke's helpers.

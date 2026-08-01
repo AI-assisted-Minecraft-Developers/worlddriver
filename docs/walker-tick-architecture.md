@@ -137,7 +137,7 @@ it stays a known quantity rather than a rediscovery.
 
 ## Incident log
 
-- 2026-07-19 t0 RED `ad.boxedChurnEscalate` on the B9 tree: bot drifted to
+- 2026-07-19 t0 RED `wd.boxedChurnEscalate` on the B9 tree: bot drifted to
   dz-8.6 in the WEST chamber, off the unfenced platform edge, fell to the
   dogfood ground (y=-60) before the churn release could fire → timeout.
   Attribution: identical-tree rerun GREEN + B9 proven write-equivalent (reset

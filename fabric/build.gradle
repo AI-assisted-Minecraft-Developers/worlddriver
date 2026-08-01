@@ -36,11 +36,11 @@ dependencies {
     common(project(path: ':common', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':common', configuration: 'transformProductionFabric')
 
-    // testkit-common (P1.6 dogfood wiring) — same two-line idiom as :common above,
+    // stagewright-common (P1.6 dogfood wiring) — same two-line idiom as :common above,
     // adapted to fabric's transformProductionFabric configuration; identical to how
-    // mc-testkit/fabric/build.gradle already consumes it.
-    common(project(path: ':testkit-common', configuration: 'namedElements')) { transitive false }
-    shadowBundle project(path: ':testkit-common', configuration: 'transformProductionFabric')
+    // stagewright/fabric/build.gradle already consumes it.
+    common(project(path: ':stagewright-common', configuration: 'namedElements')) { transitive false }
+    shadowBundle project(path: ':stagewright-common', configuration: 'transformProductionFabric')
 
     // Rhino (KubeJS fork) — a full mod jar (ships fabric.mod.json), so we nest it
     // via Jar-in-Jar instead of shadowing its classes. Fabric Loader discovers
@@ -66,10 +66,10 @@ dependencies {
 
 // testmod source set — EMPTY-SOURCE BRIDGE, the fabric counterpart of neoforge's testmod
 // wiring. Fabric never carried test java of its own, and post-campaign (P4b/P4c migrated
-// every legacy @GameTest arena to a dogfooded ad.* scene, P4-final retired the GameTestServer
+// every legacy @GameTest arena to a dogfooded wd.* scene, P4-final retired the GameTestServer
 // machinery) all scenes + SimProbes + the SceneProvider service live in :common's testmod.
 // This source set is therefore empty of sources — it exists purely as the run `source`
-// carrier so dogfoodServer/testkitClient/t2Server keep main's full runtimeClasspath AND
+// carrier so dogfoodServer/stagewrightClient/t2Server keep main's full runtimeClasspath AND
 // gain :common's testmod OUTPUT+resources.
 //
 // Fabric-vs-neoforge difference (documented honestly per the brief): fabric has NO JPMS
@@ -119,8 +119,8 @@ loom {
     // what makes Fabric Loader apply it at runtime in production.
     accessWidenerPath = project(":common").loom.accessWidenerPath
 
-    // P4a Task 3: mark :common's testmod OUTPUT as belonging to the agent_driver mod so
-    // the moved scene/probe classes are grouped under agent_driver for fabric's
+    // P4a Task 3: mark :common's testmod OUTPUT as belonging to the worlddriver mod so
+    // the moved scene/probe classes are grouped under worlddriver for fabric's
     // classPathGroups (mixin/refmap ownership) and ServiceLoader(SceneProvider), run in
     // the mod's context, treats them as first-party. On fabric the runtimeClasspath
     // addition above is what actually puts the classes on each run's launch classpath;
@@ -141,13 +141,13 @@ loom {
         def mainMod = maybeCreate('main')
         mainMod.sourceSet sourceSets.main
         // :common's MAIN, so the access widener declared in fabric.mod.json is inside
-        // the agent_driver mod container during DEV runs. The production jar was never
+        // the worlddriver mod container during DEV runs. The production jar was never
         // the problem — shadowJar merges :common's resources, and the remapped jar does
         // carry the widener. Dev is different: FabricLoaderImpl.loadAccessWideners()
         // resolves the name against the MOD's own roots, not the run classpath, and
         // those roots come from this block. Without this line the server dies at boot
-        // with "Missing accessWidener file agent_driver.accesswidener from mod
-        // agent_driver" and t0 sits on a dead JVM until the 900s wall timeout.
+        // with "Missing accessWidener file worlddriver.accesswidener from mod
+        // worlddriver" and t0 sits on a dead JVM until the 900s wall timeout.
         mainMod.sourceSet project(':common').sourceSets.main, project(':common')
         mainMod.sourceSet project(':common').sourceSets.testmod, project(':common')
     }
@@ -163,67 +163,67 @@ loom {
         }
         contractServer {
             server()
-            property 'agent.contractRun', 'true'
-            property 'agent.rpcPort', '0'
-            property 'agent.mcpPort', '0'
+            property 'worlddriver.contractRun', 'true'
+            property 'worlddriver.rpcPort', '0'
+            property 'worlddriver.mcpPort', '0'
             runDir 'run-contract'
             vmArg '-Xmx1g'
         }
-        // P1.6 Task 3: dogfood run — a plain dedicated server with BOTH agent_driver
-        // and the mc-testkit harness loaded, autorun gate ON, mirroring
+        // P1.6 Task 3: dogfood run — a plain dedicated server with BOTH worlddriver
+        // and the stagewright harness loaded, autorun gate ON, mirroring
         // neoforge/build.gradle's dogfoodServer. Proves the testkit orchestrator
         // (t0.py) generalizes to the feature-loaded fabric loader. Ephemeral agent
         // ports (0 = random) so it never competes with a live dev client on 39800/39801
         // — and it is excluded from the configureEach port-pinning guard below (P1b lesson).
         dogfoodServer {
             server()
-            property 'testkit.autorun', 'true'
-            property 'agent.rpcPort', '0'
-            property 'agent.mcpPort', '0'
+            property 'stagewright.autorun', 'true'
+            property 'worlddriver.rpcPort', '0'
+            property 'worlddriver.mcpPort', '0'
             runDir 'run-dogfood'
             vmArg '-Xmx2g'
-            // P4a Task 3: the ad.* dogfood scenes + SceneProvider service moved to :common's
+            // P4a Task 3: the wd.* dogfood scenes + SceneProvider service moved to :common's
             // testmod (routed onto this fabric testmod source set's runtimeClasspath above).
             // `source sourceSets.testmod` puts that output+resources on this run so
-            // ServiceLoader discovers AgentDriverScenes and the 9 scenes run. (contractServer
+            // ServiceLoader discovers WorldDriverScenes and the 9 scenes run. (contractServer
             // is deliberately NOT given this — the instrument contract is scene-independent.)
             source sourceSets.testmod
         }
-        // P2b Task 1 (T1 topology): a real CLIENT JVM with the mc-testkit harness
-        // armed (-Dtestkit.autorun=true). When t1.py drives it into a singleplayer
-        // world, the INTEGRATED server's SERVER_STARTED fires the same TestkitCommon
-        // hook the dedicated dogfoodServer uses — so the 9 ad.* scenes run on an
+        // P2b Task 1 (T1 topology): a real CLIENT JVM with the stagewright harness
+        // armed (-Dstagewright.autorun=true). When t1.py drives it into a singleplayer
+        // world, the INTEGRATED server's SERVER_STARTED fires the same StageWrightCommon
+        // hook the dedicated dogfoodServer uses — so the 9 wd.* scenes run on an
         // integrated server for the first time = topology proof. Ephemeral agent
         // ports (0 = random) so it never competes with a live dev client on
-        // 39800/39801; the orchestrator discovers the port via run-t1/agent-rpc.port.
+        // 39800/39801; the orchestrator discovers the port via run-t1/worlddriver-rpc.port.
         // DISPLAY is supplied by t1.py's environment (self-managed Xvfb), NOT here.
         // Excluded from the configureEach port-pinning guard below (same as the
         // dedicated dogfood/contract runs) so the ephemeral ports stick.
-        testkitClient {
+        stagewrightClient {
             client()
             // Autorun defaults ON (scenes run when the integrated server starts). t1.py
             // launches once with -Pt1Autorun=false to MINT a pristine template world (no
             // scenes ever run in it → no arena-chunk pollution) and archive it, then
             // launches normally (autorun ON) on a fresh COPY of that clean template. This
             // keeps the reused world byte-clean, which the inverted-lottery signature
-            // scene ad.selfShaftDigUp is sensitive to (a template archived AFTER scenes
+            // scene wd.selfShaftDigUp is sensitive to (a template archived AFTER scenes
             // ran flips its outcome — the "禁复用脏世界" world-discipline rule).
-            property 'testkit.autorun', project.findProperty('t1Autorun') ?: 'true'
-            property 'agent.rpcPort', '0'
-            property 'agent.mcpPort', '0'
+            property 'stagewright.autorun', project.findProperty('t1Autorun') ?: 'true'
+            property 'worlddriver.rpcPort', '0'
+            property 'worlddriver.mcpPort', '0'
             runDir 'run-t1'
             vmArg '-Xmx2g'
-            // P4a Task 3: integrated-server topology needs the moved ad.* scenes +
+            // P4a Task 3: integrated-server topology needs the moved wd.* scenes +
             // SceneProvider too (t1.py drives this client into a world whose integrated
             // server autoruns them). Same testmod attach as dogfoodServer.
             source sourceSets.testmod
         }
         // P3a Task 2 (T2 production topology): a plain DEDICATED server carrying BOTH
-        // agent_driver and the mc-testkit harness, but with autorun DEFAULT OFF
+        // worlddriver and the stagewright harness, but with autorun DEFAULT OFF
         // (-Pt2Autorun ?: 'false'). Unlike dogfoodServer (autorun ON, scenes at boot),
-        // t2Server arms the harness armed-awaiting (TestkitCommon logs "awaiting mc.test.run"
+        // t2Server arms the harness armed-awaiting (StageWrightCommon logs "awaiting mc.test.run"
         // and registers the mc.test.* verbs — now that loader forwarding is unconditional)
-        // and a REAL client (testkitClient in run-t1) direct-connects to it over multiplayer.
+        // and a REAL client (stagewrightClient in run-t1) direct-connects to it over multiplayer.
         // t2.py orchestrates both processes and drives the dual-end probe. Ephemeral agent
         // ports (0 = random) so it never competes with a live dev client or a dogfood run;
         // the server-port (the multiplayer listen socket) is pinned in run-t2/server.properties
@@ -231,38 +231,38 @@ loom {
         // the configureEach guard below like the other testkit runs so its ephemeral ports stick.
         t2Server {
             server()
-            property 'testkit.autorun', project.findProperty('t2Autorun') ?: 'false'
-            property 'agent.rpcPort', '0'
-            property 'agent.mcpPort', '0'
+            property 'stagewright.autorun', project.findProperty('t2Autorun') ?: 'false'
+            property 'worlddriver.rpcPort', '0'
+            property 'worlddriver.mcpPort', '0'
             runDir 'run-t2'
             vmArg '-Xmx2g'
             // P4a Task 3: T2 production-topology dedicated server exposes mc.test.run
-            // which registers builtin + SceneProvider scenes; the ad.* scenes moved to
-            // :common testmod, so attach it here (like dogfoodServer/testkitClient).
+            // which registers builtin + SceneProvider scenes; the wd.* scenes moved to
+            // :common testmod, so attach it here (like dogfoodServer/stagewrightClient).
             source sourceSets.testmod
         }
     }
     runConfigs.configureEach {
-        // contractServer, dogfoodServer, testkitClient and t2Server pin their own ephemeral
-        // ports (agent.rpcPort/mcpPort='0') so the headless suites never compete with a live
+        // contractServer, dogfoodServer, stagewrightClient and t2Server pin their own ephemeral
+        // ports (worlddriver.rpcPort/mcpPort='0') so the headless suites never compete with a live
         // dev client on 39800/39801. Without this guard the defaults below would clobber that.
         if (it.name == 'contractServer' || it.name == 'dogfoodServer'
-                || it.name == 'testkitClient' || it.name == 't2Server') return
-        property 'agent.runValidation', project.findProperty('agentRunValidation') ?: 'false'
+                || it.name == 'stagewrightClient' || it.name == 't2Server') return
+        property 'worlddriver.runValidation', project.findProperty('agentRunValidation') ?: 'false'
         // Pin the MCP / RPC ports so the external driver (Claude harness, docs
         // example, rpc.py) always finds the mod at a known address. Default to
-        // 39800/39801; AgentDriverCommon reads -Dagent.mcpPort / -Dagent.rpcPort
+        // 39800/39801; WorldDriverCommon reads -Dworlddriver.mcpPort / -Dworlddriver.rpcPort
         // (0 = random). Override with -PagentMcpPort=… / -PagentRpcPort=… if two
         // clients must coexist.
-        property 'agent.mcpPort', project.findProperty('agentMcpPort') ?: '39800'
-        property 'agent.rpcPort', project.findProperty('agentRpcPort') ?: '39801'
-        // Persist mc.bot.setting changes to config/agent_driver_bot.properties so
+        property 'worlddriver.mcpPort', project.findProperty('agentMcpPort') ?: '39800'
+        property 'worlddriver.rpcPort', project.findProperty('agentRpcPort') ?: '39801'
+        // Persist mc.bot.setting changes to config/worlddriver_bot.properties so
         // survival toggles (autoSwim, autoRetreat, …) survive a client restart and
         // don't have to be re-applied every relaunch. Opt-in (set only on the dev
         // runClient/runServer launch, NOT the dogfood/testkit runs) so the
         // validation suites stay deterministic on pure defaults. Override with
         // -PagentPersistConfig=false.
-        property 'agent.persistConfig', project.findProperty('agentPersistConfig') ?: 'true'
+        property 'worlddriver.persistConfig', project.findProperty('agentPersistConfig') ?: 'true'
         // Cap heap so a stuck client/server can't trigger system OOM when run
         // alongside the dogfood/testkit server. MC 1.21.1 fits comfortably.
         vmArg '-Xmx2g'

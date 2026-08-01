@@ -1,0 +1,186 @@
+# Canonical expected-scene manifest for the neoforge dogfood suite (t0 --expect-file).
+# One name per line. Every migrated wd.* scene MUST be listed here in its migration commit —
+# a name missing from BOTH this file and registered[] is exactly the silent-composition
+# hole this gate exists to close (P1c final review).
+wd.ascendMovementNoop
+wd.ascendDeadZoneWatchdog
+wd.diagonalAscentSpeed
+wd.selfShaftDigUp
+wd.descentYaw
+wd.gearScope
+wd.buriedOre
+wd.entityLeash
+wd.entityLeashLowY
+wd.settingRegistryClosed
+# P4b wave 2 — Terrain family (12 migrated from AgentGameTestTerrain; descentDrift retired-without-scene, pending adjudication)
+wd.summit
+wd.sheerWall
+wd.bridgeGap
+wd.parkourAscend
+wd.ridgeOvershoot
+wd.stepUpCrestOrbit
+wd.descent
+wd.ascentSpeed
+wd.ledgeOvershoot
+wd.wallCollisionProbe
+wd.bridgeDescend
+wd.bareHandDigCadence
+# P4b wave 3 — Bias family (13 migrated from AgentGameTestBias; all planner-only)
+wd.avoidRegionDetour
+wd.digUpY
+wd.digDownY
+wd.columnRadius
+wd.parkourGate
+wd.yFloorConstraint
+wd.leashHard
+wd.forbidWater
+wd.forbidDig
+wd.shorelineHug
+wd.shorelineSmoother
+wd.escapeFarthestNoRockDrill
+wd.budgetAwayTunnelChurn
+# P4b wave 4 — WaterBank family (11 migrated from AgentGameTestWaterBank; 2 optional sensors: vineClingFidelityProbe (optional-PASS), vineOverWaterClimb (optional-FAIL, live −711 bug); riverSheerBank now required — task#91 structural fix walkerWaterClimbLateralGate)
+wd.waterPhysicsParity
+wd.buoyantWall
+wd.vineClingFidelityProbe
+wd.vineOverWaterClimb
+wd.tallBankDigClimb
+wd.waterLowBank
+wd.riverSheerBank
+wd.deepWaterCross
+wd.deepWaterClimboutNoBlock
+wd.deepWaterClimboutDrift
+wd.waterFarAimBankCorner
+# P4b wave 4 — WaterCross family (10 migrated from AgentGameTestWaterCross; all deterministic)
+wd.goalSnapBuried
+wd.basin
+wd.waterClimbOutRoute
+wd.waterStepDownFloat
+wd.forbidDigPadRam
+wd.deepWaterSubmergedCross
+wd.vineOverWaterCross
+wd.padOverWaterCross
+wd.padClusterCross
+wd.deepWaterFloatBeeline
+# P4b wave 5 — Core family (12 migrated from AgentGameTest, main class)
+wd.agentRpcSmoke
+wd.pinch
+wd.horizon
+wd.inputReleaseGate
+wd.mouseYieldGate
+wd.schemaUnionRendering
+wd.physicsParity
+wd.buildBlockWhitelist
+wd.pathArchiveJson
+wd.nodePhysics
+wd.pathArchiveCapture
+wd.replayRoundTrip
+wd.clientChatLogSemantics
+# P4b wave 5 — CombatSense family (2 migrated from AgentGameTestCombatSense; single-tick NoAI, time-independent)
+wd.threatScanZombie
+wd.threatScanHurtAttacker
+# P4b wave 5 — BuildBlock family (2 migrated from AgentGameTestBuildBlock; planner/API-only predicate probes)
+wd.buildBlockRejectsInteractive
+wd.valuablePlacementBlockMatrix
+
+# P4c wave 6 — Station family (15 migrated from AgentGameTestServer; craft/smelt/recipe/observe)
+wd.serverCraft
+wd.serverRecipeSpecies
+wd.serverCraftTableInject
+wd.serverRecipeShortfallSpecies
+wd.serverCraftTableReclaim
+wd.serverObservePlayerInventory
+wd.serverPlanHaveDefaultsToBag
+wd.serverSmeltCliff
+wd.serverCraftTableHoleRim
+wd.serverSmeltFurnaceHoleRim
+wd.smeltFuelPolicy
+wd.serverCraftGridClearHelper
+wd.serverCraftGridConservation
+wd.serverCraftFailTelemetry
+wd.serverCraftFailGridReturn
+
+# P4c wave 7 — Scheduler-semantics matrix family (11 migrated from AgentGameTestServer; #54P1 regression guards)
+wd.retreatGateMatrix
+wd.walkerTerminalReportMatrix
+wd.antiSuffocateShouldTriggerMatrix
+wd.chainEpisodeCancelMatrix
+wd.combatGraceMatrix
+wd.frailBlockedMatrix
+wd.urgentBidMatrix
+wd.duskSecureHeldProcessLifecycle
+wd.cancelRouting
+wd.manualSlotGraceMatrix
+wd.nearestFirstScanMatrix
+
+# P4c wave 8 — Survival family (13 migrated from AgentGameTestServer; escape/bunker/dive/drown/anti-suffocate)
+wd.serverEscape
+wd.serverBunker
+wd.serverBunkerAnchorRatchet
+wd.serverEscapeSealedShelter
+wd.serverLowHpEdgePin
+wd.serverBunkerSlope
+wd.surfaceDive
+wd.underwaterBase
+wd.drowningFloatShouldFloatMatrix
+wd.drownEscapeGateMatrix
+wd.contactEscapeGateMatrix
+wd.drownEscapePreempt
+wd.serverObserveAirSupply
+wd.antiSuffocateWaterNotSuffocating
+
+# P4c wave 8 — Avatar family (5 migrated from AgentGameTestServer; #45/#46/#47/#48 golden regression guards)
+wd.serverAgentDistinctBodies
+wd.serverAvatarTickFidelity
+wd.serverAttackCooldown
+wd.serverCapability
+wd.serverElytra
+
+# P4c wave 9 — Process-core family (15 migrated from AgentGameTestServer; the FINAL wave, legacy suite 15→0)
+# driver/mine/process/flee/mineProcess/mineNoTool/walkerDeepslate/forbidDigWall/build/lookRaycast/follow/combat/look/mineCanopyRadius/bridgePillar
+wd.serverDriver
+wd.serverMine
+wd.serverProcess
+wd.serverFlee
+wd.serverMineProcess
+wd.serverMineNoTool
+wd.serverWalkerDeepslateNoTool
+wd.serverForbidDigWall
+wd.serverBuild
+wd.serverLookRaycast
+wd.serverFollow
+wd.serverCombat
+wd.serverCombatCollectDrops
+wd.serverLook
+wd.serverMineCanopyRadius
+wd.serverBridgePillarStart
+wd.debugSweepCourse
+wd.expectAlarmBlockedJump
+wd.drownEscapeSurface
+wd.bestEffortSpliceCourse
+wd.ascendMovementStairs
+wd.boxedChurnEscalate
+wd.quickStartStub
+wd.ascentRamSlideBack
+wd.aboveNodeStallPitFill
+wd.verticalResyncSlideBack
+wd.stepUpBackoffCeiling
+wd.bridgeLongRun
+wd.bridgeHurdle1
+wd.bridgeHurdleSlabBypass
+wd.bridgeHurdle2Bypass
+wd.bridgeHeadBlockBypass
+wd.bridgeHeadBlockStop
+wd.bridgeFootBlockStop
+wd.bridgeStairUp
+wd.bridgeStairDown
+wd.bridgeDescendPlaceLip
+wd.bridgeStairDownGapSafe
+wd.bridgeStairDownGapDamage
+wd.bridgeLethalGapStop
+wd.bridgeFootholdPlace
+wd.bridgeFootholdStarve
+wd.bridgeStepTwoBypassNoPlace
+wd.bridgeBreakThrough
+wd.bridgeDigShortcut
+wd.bridgeDetourCheap

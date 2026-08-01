@@ -1,6 +1,6 @@
 {
-  "skill_name": "agent-driver-rpc",
-  "description": "Drive the agent-driver Minecraft mod directly over its JSON-RPC websocket (ws://127.0.0.1:39801/rpc) using the bundled rpc.py client. Use this whenever you are live-testing or scripting the agent-driver mod \u2014 calling mc.bot.*, mc.action.*, mc.observe.*, mc.client.*, mc.query, mc.wait.*, mc.bot.setting, or mc.script.eval against a running client. ESPECIALLY reach for this when an MCP tool (mcp__agent-driver__*) is missing a newly-added param or setting (the harness freezes MCP tool schemas at session start and silently strips unknown keys, so a freshly rebuilt mod's new mc.bot.setting key won't apply through the MCP tool \u2014 but it works fine over RPC), when you need to chain a multi-step setup (give\u2192tp\u2192fill\u2192set\u2192goto) in one shell block, or when staging/relaunching the live client for verification. Covers the full 45-method RPC surface.",
+  "skill_name": "worlddriver-rpc",
+  "description": "Drive the worlddriver Minecraft mod directly over its JSON-RPC websocket (ws://127.0.0.1:39801/rpc) using the bundled rpc.py client. Use this whenever you are live-testing or scripting the worlddriver mod \u2014 calling mc.bot.*, mc.action.*, mc.observe.*, mc.client.*, mc.query, mc.wait.*, mc.bot.setting, or mc.script.eval against a running client. ESPECIALLY reach for this when an MCP tool (mcp__worlddriver__*) is missing a newly-added param or setting (the harness freezes MCP tool schemas at session start and silently strips unknown keys, so a freshly rebuilt mod's new mc.bot.setting key won't apply through the MCP tool \u2014 but it works fine over RPC), when you need to chain a multi-step setup (give\u2192tp\u2192fill\u2192set\u2192goto) in one shell block, or when staging/relaunching the live client for verification. Covers the full 45-method RPC surface.",
   "results": [
     {
       "query": "set allowParkourPlace true on the running bot and then send it to 22 150 0, all in one shot",
@@ -35,7 +35,7 @@
       "pass": false
     },
     {
-      "query": "what methods does the agent-driver mod expose for reading the player's inventory and the nearby hostile entities, and how do I call them?",
+      "query": "what methods does the worlddriver mod expose for reading the player's inventory and the nearby hostile entities, and how do I call them?",
       "should_trigger": true,
       "trigger_rate": 0.0,
       "triggers": 0,
@@ -67,7 +67,7 @@
       "pass": false
     },
     {
-      "query": "how do I send a raw method + params to the agent-driver websocket on 39801 without going through the mcp tools?",
+      "query": "how do I send a raw method + params to the worlddriver websocket on 39801 without going through the mcp tools?",
       "should_trigger": true,
       "trigger_rate": 0.0,
       "triggers": 0,

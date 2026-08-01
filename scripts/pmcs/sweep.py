@@ -42,7 +42,7 @@ def sweep(corpus_path, flags, timeout, repeat=1):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--corpus", default="config/agent_driver/replays/corpus.json")
+    ap.add_argument("--corpus", default="config/worlddriver/replays/corpus.json")
     ap.add_argument("--flags", default="{}")
     ap.add_argument("--baseline", default=None, help="过门:对比的 baseline matrix JSON")
     ap.add_argument("--save", default=None, help="把本次 matrix 存到此 JSON")

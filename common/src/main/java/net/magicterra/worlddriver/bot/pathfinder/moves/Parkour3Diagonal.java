@@ -1,0 +1,58 @@
+package net.magicterra.worlddriver.bot.pathfinder.moves;
+
+import net.magicterra.worlddriver.bot.pathfinder.Capability;
+import net.magicterra.worlddriver.bot.pathfinder.Move;
+import net.magicterra.worlddriver.bot.pathfinder.WorldView;
+import net.minecraft.core.BlockPos;
+import net.magicterra.worlddriver.bot.BotConfig;
+
+/**
+ * 3-block 45° diagonal leap — gated behind the same
+ * {@link net.magicterra.worlddriver.bot.BotConfig#allowParkour4} switch as
+ * {@link Parkour4} since this is an even longer reach (~4.24 blocks
+ * horizontal) at the absolute edge of sprint-jump physics. Cost 47.
+ * Body sweeps the entire 2×2 corner column at foot+head; no stand-able
+ * cell along the diagonal interior or A* should pick a cheaper
+ * walk-and-diagonal chain.
+ */
+public final class Parkour3Diagonal extends Move {
+    public Parkour3Diagonal(int dx, int dz) { super(dx * 3, 0, dz * 3, 47); }
+    @Override public boolean availableInSearch(WorldView w) { return BotConfig.allowParkour4; }
+    public boolean valid(WorldView w, BlockPos from) {
+        if (!BotConfig.allowParkour4) return false;
+        // Buoyancy TAKEOFF gate: a floating bot can't sprint-jump out of deep water (no floor to push off).
+        // Mirrors StepUp/DiagUp/PillarUp; complements pathfinderForbidParkourIntoDeepWater. See BotConfig doc.
+        if (BotConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) return false;
+        if (!Move.hasRunway(w, from)) return false;
+        BlockPos to = apply(from);
+        if (!w.canStandAt(to)) return false;
+        // Buoyancy: no parkour LANDING in submerged water — the bot sinks/stalls there
+        // instead of leaping (mirrors Fall/StepDown's submerged gate; surface/solid OK).
+        if (w.isWater(to) && w.isWater(to.offset(0, 1, 0))) return false;
+        // ...and (opt-in) refuse a leap onto a DEEP pocket SURFACE (≥2 water below, head
+        // air): buoyant bot floats there and can't climb out (#47 dead-end-pocket dive).
+        if (BotConfig.pathfinderForbidParkourIntoDeepWater && w.isDeepWaterSurfaceLanding(to)) return false;
+        if (!w.isPassable(from.offset(0, 2, 0))) return false;
+        int sx = Integer.signum(dx), sz = Integer.signum(dz);
+        // Check every cell in the 2x2 trapezoidal sweep between launch
+        // and landing: the diagonal interior cells (1,1) (1,2) (2,1)
+        // (2,2) (2,3) (3,2) — but the corners-only check (cells the body
+        // physically passes through) is the 3 sequential diagonals
+        // (1,1), (2,2), (3,3-skip-it's-dest) plus their adjacent cardinals.
+        // Cheap conservative check: every cell in the 3×3 block between
+        // launch (excl) and dest (excl) must be air+passable.
+        for (int i = 1; i <= 2; i++) {
+            for (int j = 1; j <= 2; j++) {
+                if (i + j > 3) continue; // skip cells past the dest line
+                BlockPos mid = from.offset(sx * i, 0, sz * j);
+                if (!w.isPassable(mid) || w.isHazard(mid)) return false;
+                BlockPos midHead = mid.offset(0, 1, 0);
+                if (!w.isPassable(midHead) || w.isHazard(midHead)) return false;
+                if (w.canStandAt(mid)) return false;
+            }
+        }
+        return w.isPassable(to.offset(0, 1, 0));
+    }
+    @Override public Capability requiredCapability() { return Capability.PARKOUR; }
+    public String name() { return "parkour3d"; }
+}

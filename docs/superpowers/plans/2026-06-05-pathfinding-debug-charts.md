@@ -4,7 +4,7 @@
 
 **Goal:** Add an opt-in, fully-strippable pathfinding visualization that records search candidates, every planned route, and the actual walked trajectory (with heading + speed), and renders them to a composite PNG dashboard on disk for multimodal analysis.
 
-**Architecture:** A tiny inert SPI seam in core (`PathTrace` interface + `NOOP` + `PathTraceHolder.SINK`) is called from `PathFinder` and `Walker`. All heavy logic — recorder, AWT renderer, file writer, MCP tool, schema, bootstrap — lives in a self-contained `net.magicterra.agent.bot.debug` package that registers itself at client init via generic core seams (`AgentApi.addRoute`, `ToolCatalog.registerExtra`). Release strip = delete the `bot.debug` package + remove the one `PathDebugBootstrap.init()` call. Core compiles unchanged and pays zero runtime cost when no recorder is registered.
+**Architecture:** A tiny inert SPI seam in core (`PathTrace` interface + `NOOP` + `PathTraceHolder.SINK`) is called from `PathFinder` and `Walker`. All heavy logic — recorder, AWT renderer, file writer, MCP tool, schema, bootstrap — lives in a self-contained `net.magicterra.worlddriver.bot.debug` package that registers itself at client init via generic core seams (`AgentApi.addRoute`, `ToolCatalog.registerExtra`). Release strip = delete the `bot.debug` package + remove the one `PathDebugBootstrap.init()` call. Core compiles unchanged and pays zero runtime cost when no recorder is registered.
 
 **Tech Stack:** Java 21, NeoForge/Architectury MC 1.21.1, AWT `BufferedImage`/`Graphics2D` + `javax.imageio.ImageIO` (already used headless in `Screenshots.java`), Rhino JS validation suite.
 
@@ -13,13 +13,13 @@
 ## Conventions & test seam (read before starting)
 
 - **AGENTS.md Hard Rules apply.** Especially: #1 behavior is reachable through `AgentApi.route` and byte-identical across MCP/RPC/script; #6 prefer extending — justification for a *new* tool here is that no existing tool exposes path traces and the data is debug-only (keep the schema/description tight); #7 no fully-qualified names, add an `import` and use the simple name (only inline an FQN to break a real collision).
-- **This codebase has no JUnit unit-test source set.** The canonical suite is `./gradlew :neoforge:runGameTestServer`, which runs the numbered JS validation scripts under `common/src/main/resources/data/agent_driver/scripts/agent_validation/`. Therefore the automated test for this feature is an **integration JS validation case** plus **compile gates**; the substantive correctness check is the **E2E multimodal run** (Task 14). Where a Java class is pure (renderer math), keep it small and assert its outputs through the JS case's response fields (width/height/bytes/stats). Do not invent a JUnit harness.
+- **This codebase has no JUnit unit-test source set.** The canonical suite is `./gradlew :neoforge:runGameTestServer`, which runs the numbered JS validation scripts under `common/src/main/resources/data/worlddriver/scripts/agent_validation/`. Therefore the automated test for this feature is an **integration JS validation case** plus **compile gates**; the substantive correctness check is the **E2E multimodal run** (Task 14). Where a Java class is pure (renderer math), keep it small and assert its outputs through the JS case's response fields (width/height/bytes/stats). Do not invent a JUnit harness.
 - **Working tree state:** branch `feat/cost-based-flee` has uncommitted survival-kit changes including a modified `BotConfig.java`. Append new fields at the end of the relevant section; do not disturb existing edits. Confirm with the user before committing (per session rules, commit only when asked; branch first if on a default branch).
-- **Never commit runtime output (Hard Rule #5).** Chart PNGs write to `config/agent_driver/debug/`; Task 13 adds that to `.gitignore`.
+- **Never commit runtime output (Hard Rule #5).** Chart PNGs write to `config/worlddriver/debug/`; Task 13 adds that to `.gitignore`.
 - **Build/test commands:**
   - Compile common: `./gradlew :common:compileJava`
   - Full suite (must stay green): `./gradlew :neoforge:runGameTestServer`
-  - Interactive client (E2E): `JAVA_TOOL_OPTIONS="-Dagent.mcpPort=39800 -Dagent.rpcPort=39801" ./gradlew :fabric:runClient`
+  - Interactive client (E2E): `JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39800 -Dworlddriver.rpcPort=39801" ./gradlew :fabric:runClient`
   - Never `./gradlew --stop` while a client is alive; kill by port owner: `lsof -ti:39801 | xargs -r kill`.
 
 ---
@@ -27,44 +27,44 @@
 ## File map
 
 **New (core seam — inert, never stripped):**
-- `common/src/main/java/net/magicterra/agent/bot/pathfinder/PathTrace.java` — SPI interface + `NOOP` + nested `WalkerSample`/`Outcome`.
-- `common/src/main/java/net/magicterra/agent/bot/pathfinder/PathTraceHolder.java` — `static volatile PathTrace SINK = NOOP`.
+- `common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/PathTrace.java` — SPI interface + `NOOP` + nested `WalkerSample`/`Outcome`.
+- `common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/PathTraceHolder.java` — `static volatile PathTrace SINK = NOOP`.
 
 **New (debug package — self-contained, stripped at release):**
-- `common/src/main/java/net/magicterra/agent/bot/debug/PathSession.java` — immutable snapshot DTO (+ nested `PlannedRoute`, `Candidate`).
-- `common/src/main/java/net/magicterra/agent/bot/debug/PathDebugRecorder.java` — `implements PathTrace`; buffers + snapshot + autoDump.
-- `common/src/main/java/net/magicterra/agent/bot/debug/PathChartRenderer.java` — pure `(PathSession, opts) -> BufferedImage`.
-- `common/src/main/java/net/magicterra/agent/bot/debug/PathChartWriter.java` — encode + write PNG, returns metadata.
-- `common/src/main/java/net/magicterra/agent/bot/debug/PathChartTool.java` — route handler (snapshot → render → write → response Map).
-- `common/src/main/java/net/magicterra/agent/bot/debug/DebugTools.java` — MCP schema catalog (`mc.debug.pathChart`).
-- `common/src/main/java/net/magicterra/agent/bot/debug/PathDebugBootstrap.java` — `init()` wiring.
-- `common/src/main/resources/data/agent_driver/scripts/agent_validation/56_debug_pathchart.js` — validation case.
+- `common/src/main/java/net/magicterra/worlddriver/bot/debug/PathSession.java` — immutable snapshot DTO (+ nested `PlannedRoute`, `Candidate`).
+- `common/src/main/java/net/magicterra/worlddriver/bot/debug/PathDebugRecorder.java` — `implements PathTrace`; buffers + snapshot + autoDump.
+- `common/src/main/java/net/magicterra/worlddriver/bot/debug/PathChartRenderer.java` — pure `(PathSession, opts) -> BufferedImage`.
+- `common/src/main/java/net/magicterra/worlddriver/bot/debug/PathChartWriter.java` — encode + write PNG, returns metadata.
+- `common/src/main/java/net/magicterra/worlddriver/bot/debug/PathChartTool.java` — route handler (snapshot → render → write → response Map).
+- `common/src/main/java/net/magicterra/worlddriver/bot/debug/DebugTools.java` — MCP schema catalog (`mc.debug.pathChart`).
+- `common/src/main/java/net/magicterra/worlddriver/bot/debug/PathDebugBootstrap.java` — `init()` wiring.
+- `common/src/main/resources/data/worlddriver/scripts/agent_validation/56_debug_pathchart.js` — validation case.
 
 **Modified (core — generic inert seams + hook calls):**
 - `common/.../api/AgentApi.java` — `routes` → `ConcurrentHashMap`; add `addRoute(...)`.
-- `common/.../AgentDriverCommon.java` — add `api()` getter; register `56_debug_pathchart.js`.
+- `common/.../WorldDriverCommon.java` — add `api()` getter; register `56_debug_pathchart.js`.
 - `common/.../mcp/ToolCatalog.java` — generic `registerExtra(...)` + concat extras.
 - `common/.../client/ClientHooks.java` — call `PathDebugBootstrap.init()`.
 - `common/.../bot/pathfinder/PathFinder.java` — fire `onSearchBegin` / `onNodeExpanded`.
 - `common/.../bot/movement/Walker.java` — fire `onSearchResult` / `onWalkerTick` / `onTerminal`.
 - `common/.../bot/BotConfig.java` — 4 new settings (auto-persisted).
 - `common/.../bot/SettingsCommand.java` — parse + snapshot the 4 keys.
-- `.gitignore` — ignore `**/config/agent_driver/debug/`.
+- `.gitignore` — ignore `**/config/worlddriver/debug/`.
 
 ---
 
 ## Task 1: Core SPI seam (`PathTrace` + `PathTraceHolder`)
 
 **Files:**
-- Create: `common/src/main/java/net/magicterra/agent/bot/pathfinder/PathTrace.java`
-- Create: `common/src/main/java/net/magicterra/agent/bot/pathfinder/PathTraceHolder.java`
+- Create: `common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/PathTrace.java`
+- Create: `common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/PathTraceHolder.java`
 
 - [ ] **Step 1: Create `PathTrace.java`**
 
 ```java
-package net.magicterra.agent.bot.pathfinder;
+package net.magicterra.worlddriver.bot.pathfinder;
 
-import net.magicterra.agent.bot.Goal;
+import net.magicterra.worlddriver.bot.Goal;
 import net.minecraft.core.BlockPos;
 
 import java.util.List;
@@ -74,7 +74,7 @@ import java.util.List;
  * {@code Walker}) calls {@link PathTraceHolder#SINK} unconditionally; in a release build
  * with the {@code bot.debug} package removed the sink stays {@link #NOOP} and every method
  * is an empty virtual call the JIT elides. The real implementation lives in
- * {@code net.magicterra.agent.bot.debug.PathDebugRecorder} and is registered at client init.
+ * {@code net.magicterra.worlddriver.bot.debug.PathDebugRecorder} and is registered at client init.
  *
  * Stripping for release: delete the {@code bot.debug} package and the single
  * {@code PathDebugBootstrap.init()} call. This interface + {@link PathTraceHolder} remain,
@@ -127,7 +127,7 @@ public interface PathTrace {
 - [ ] **Step 2: Create `PathTraceHolder.java`**
 
 ```java
-package net.magicterra.agent.bot.pathfinder;
+package net.magicterra.worlddriver.bot.pathfinder;
 
 /**
  * Single mutable reference to the active {@link PathTrace}. Defaults to {@link PathTrace#NOOP}
@@ -149,8 +149,8 @@ Expected: BUILD SUCCESSFUL (no references yet, pure additions).
 - [ ] **Step 4: Commit** (only if user has approved committing on this branch)
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/pathfinder/PathTrace.java \
-        common/src/main/java/net/magicterra/agent/bot/pathfinder/PathTraceHolder.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/PathTrace.java \
+        common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/PathTraceHolder.java
 git commit -m "feat(pathdebug): add inert PathTrace SPI seam"
 ```
 
@@ -159,9 +159,9 @@ git commit -m "feat(pathdebug): add inert PathTrace SPI seam"
 ## Task 2: Generic core extension seams (`addRoute`, `registerExtra`, `api()`)
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/api/AgentApi.java` (line 93 field; add method near `route`)
-- Modify: `common/src/main/java/net/magicterra/agent/mcp/ToolCatalog.java`
-- Modify: `common/src/main/java/net/magicterra/agent/AgentDriverCommon.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java` (line 93 field; add method near `route`)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/mcp/ToolCatalog.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/WorldDriverCommon.java`
 
 - [ ] **Step 1: Make `AgentApi.routes` concurrent + add `addRoute`**
 
@@ -192,7 +192,7 @@ public void addRoute(String method, Function<Map<String, Object>, Object> handle
 Replace the body of `ToolCatalog` with the version below (adds `registerExtra` + concatenates extra suppliers after the fixed list, preserving load order):
 
 ```java
-package net.magicterra.agent.mcp;
+package net.magicterra.worlddriver.mcp;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -200,13 +200,13 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
 
-import net.magicterra.agent.mcp.catalog.BotTools;
-import net.magicterra.agent.mcp.catalog.ClientTools;
-import net.magicterra.agent.mcp.catalog.ObserveActionTools;
-import net.magicterra.agent.mcp.catalog.RecipeTools;
-import net.magicterra.agent.mcp.catalog.ScriptTools;
-import net.magicterra.agent.mcp.catalog.SystemTools;
-import net.magicterra.agent.mcp.catalog.WaitTools;
+import net.magicterra.worlddriver.mcp.catalog.BotTools;
+import net.magicterra.worlddriver.mcp.catalog.ClientTools;
+import net.magicterra.worlddriver.mcp.catalog.ObserveActionTools;
+import net.magicterra.worlddriver.mcp.catalog.RecipeTools;
+import net.magicterra.worlddriver.mcp.catalog.ScriptTools;
+import net.magicterra.worlddriver.mcp.catalog.SystemTools;
+import net.magicterra.worlddriver.mcp.catalog.WaitTools;
 
 /**
  * MCP tool catalog. The fixed section order is load-bearing (system → script →
@@ -239,7 +239,7 @@ public final class ToolCatalog {
 }
 ```
 
-- [ ] **Step 3: Add `api()` getter to `AgentDriverCommon.java`**
+- [ ] **Step 3: Add `api()` getter to `WorldDriverCommon.java`**
 
 Find the private static field `api` (declared near the top; assigned in `ensureRpcUp()` at line ~118 as `api = new AgentApi();`). Add a public accessor next to it:
 
@@ -259,9 +259,9 @@ Expected: BUILD SUCCESSFUL.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/api/AgentApi.java \
-        common/src/main/java/net/magicterra/agent/mcp/ToolCatalog.java \
-        common/src/main/java/net/magicterra/agent/AgentDriverCommon.java
+git add common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java \
+        common/src/main/java/net/magicterra/worlddriver/mcp/ToolCatalog.java \
+        common/src/main/java/net/magicterra/worlddriver/WorldDriverCommon.java
 git commit -m "feat(pathdebug): add generic inert route/catalog extension seams"
 ```
 
@@ -270,8 +270,8 @@ git commit -m "feat(pathdebug): add generic inert route/catalog extension seams"
 ## Task 3: BotConfig settings + SettingsCommand wiring
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/BotConfig.java` (near the other walker/pathfinder fields)
-- Modify: `common/src/main/java/net/magicterra/agent/bot/SettingsCommand.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/BotConfig.java` (near the other walker/pathfinder fields)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/SettingsCommand.java`
 
 - [ ] **Step 1: Add fields to `BotConfig.java`**
 
@@ -338,8 +338,8 @@ Expected: BUILD SUCCESSFUL.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/BotConfig.java \
-        common/src/main/java/net/magicterra/agent/bot/SettingsCommand.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/BotConfig.java \
+        common/src/main/java/net/magicterra/worlddriver/bot/SettingsCommand.java
 git commit -m "feat(pathdebug): add pathDebug settings + mc.bot.setting wiring"
 ```
 
@@ -348,7 +348,7 @@ git commit -m "feat(pathdebug): add pathDebug settings + mc.bot.setting wiring"
 ## Task 4: Capture hooks in `PathFinder`
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/pathfinder/PathFinder.java` (Search ctor line ~115; advance loop line ~146)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/PathFinder.java` (Search ctor line ~115; advance loop line ~146)
 
 - [ ] **Step 1: Fire `onSearchBegin` in the `Search` constructor**
 
@@ -376,7 +376,7 @@ Expected: BUILD SUCCESSFUL. (With `SINK == NOOP` these are no-ops.)
 - [ ] **Step 4: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/pathfinder/PathFinder.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/PathFinder.java
 git commit -m "feat(pathdebug): fire search-begin / node-expanded traces"
 ```
 
@@ -385,15 +385,15 @@ git commit -m "feat(pathdebug): fire search-begin / node-expanded traces"
 ## Task 5: Capture hooks in `Walker`
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/movement/Walker.java` (imports; adopt block line ~235; tick body line ~130/182; terminal returns lines ~131, ~187-201, ~213-215, ~282-284)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/movement/Walker.java` (imports; adopt block line ~235; tick body line ~130/182; terminal returns lines ~131, ~187-201, ~213-215, ~282-284)
 
 - [ ] **Step 1: Import the SPI**
 
 Add near the other pathfinder imports:
 
 ```java
-import net.magicterra.agent.bot.pathfinder.PathTrace;
-import net.magicterra.agent.bot.pathfinder.PathTraceHolder;
+import net.magicterra.worlddriver.bot.pathfinder.PathTrace;
+import net.magicterra.worlddriver.bot.pathfinder.PathTraceHolder;
 ```
 
 - [ ] **Step 2: Fire `onSearchResult` when adopting a result**
@@ -479,7 +479,7 @@ Expected: BUILD SUCCESSFUL.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/movement/Walker.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/movement/Walker.java
 git commit -m "feat(pathdebug): fire result/tick/terminal traces from Walker"
 ```
 
@@ -488,14 +488,14 @@ git commit -m "feat(pathdebug): fire result/tick/terminal traces from Walker"
 ## Task 6: Debug DTOs (`PathSession`)
 
 **Files:**
-- Create: `common/src/main/java/net/magicterra/agent/bot/debug/PathSession.java`
+- Create: `common/src/main/java/net/magicterra/worlddriver/bot/debug/PathSession.java`
 
 - [ ] **Step 1: Create `PathSession.java`**
 
 ```java
-package net.magicterra.agent.bot.debug;
+package net.magicterra.worlddriver.bot.debug;
 
-import net.magicterra.agent.bot.pathfinder.PathTrace;
+import net.magicterra.worlddriver.bot.pathfinder.PathTrace;
 import net.minecraft.core.BlockPos;
 
 import java.util.List;
@@ -532,7 +532,7 @@ Expected: BUILD SUCCESSFUL.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/debug/PathSession.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/debug/PathSession.java
 git commit -m "feat(pathdebug): add PathSession snapshot DTO"
 ```
 
@@ -541,17 +541,17 @@ git commit -m "feat(pathdebug): add PathSession snapshot DTO"
 ## Task 7: `PathDebugRecorder`
 
 **Files:**
-- Create: `common/src/main/java/net/magicterra/agent/bot/debug/PathDebugRecorder.java`
+- Create: `common/src/main/java/net/magicterra/worlddriver/bot/debug/PathDebugRecorder.java`
 
 - [ ] **Step 1: Create `PathDebugRecorder.java`**
 
 ```java
-package net.magicterra.agent.bot.debug;
+package net.magicterra.worlddriver.bot.debug;
 
-import net.magicterra.agent.bot.BotConfig;
-import net.magicterra.agent.bot.Goal;
-import net.magicterra.agent.bot.pathfinder.Move;
-import net.magicterra.agent.bot.pathfinder.PathTrace;
+import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.pathfinder.Move;
+import net.magicterra.worlddriver.bot.pathfinder.PathTrace;
 import net.minecraft.core.BlockPos;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -690,12 +690,12 @@ public final class PathDebugRecorder implements PathTrace {
 
 - [ ] **Step 2: Create `GoalMarker.java` helper** (same package — keeps the sealed-type switch out of the renderer)
 
-`common/src/main/java/net/magicterra/agent/bot/debug/GoalMarker.java`:
+`common/src/main/java/net/magicterra/worlddriver/bot/debug/GoalMarker.java`:
 
 ```java
-package net.magicterra.agent.bot.debug;
+package net.magicterra.worlddriver.bot.debug;
 
-import net.magicterra.agent.bot.Goal;
+import net.magicterra.worlddriver.bot.Goal;
 import net.minecraft.core.BlockPos;
 
 /** Derive a representative goal cell for the chart marker. Open goals
@@ -725,14 +725,14 @@ Expected: FAIL — "cannot find symbol PathChartRenderer/PathChartWriter". Proce
 ## Task 8: `PathChartRenderer` (pure AWT dashboard)
 
 **Files:**
-- Create: `common/src/main/java/net/magicterra/agent/bot/debug/PathChartRenderer.java`
+- Create: `common/src/main/java/net/magicterra/worlddriver/bot/debug/PathChartRenderer.java`
 
 - [ ] **Step 1: Create `PathChartRenderer.java`**
 
 ```java
-package net.magicterra.agent.bot.debug;
+package net.magicterra.worlddriver.bot.debug;
 
-import net.magicterra.agent.bot.pathfinder.PathTrace;
+import net.magicterra.worlddriver.bot.pathfinder.PathTrace;
 import net.minecraft.core.BlockPos;
 
 import java.awt.BasicStroke;
@@ -1079,12 +1079,12 @@ Expected: FAIL — "cannot find symbol PathChartWriter". Proceed to Task 9.
 ## Task 9: `PathChartWriter`
 
 **Files:**
-- Create: `common/src/main/java/net/magicterra/agent/bot/debug/PathChartWriter.java`
+- Create: `common/src/main/java/net/magicterra/worlddriver/bot/debug/PathChartWriter.java`
 
 - [ ] **Step 1: Create `PathChartWriter.java`**
 
 ```java
-package net.magicterra.agent.bot.debug;
+package net.magicterra.worlddriver.bot.debug;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -1096,7 +1096,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Encodes a chart to PNG and writes it under {@code config/agent_driver/debug/}. Returns
+ * Encodes a chart to PNG and writes it under {@code config/worlddriver/debug/}. Returns
  * metadata (path/width/height/bytes) for the tool response. Headless via ImageIO (same as
  * Screenshots.java). Pure side-effect class; no Minecraft refs.
  */
@@ -1104,7 +1104,7 @@ public final class PathChartWriter {
     private PathChartWriter() {}
 
     private static final AtomicInteger SEQ = new AtomicInteger();
-    private static final Path DIR = Path.of("config", "agent_driver", "debug");
+    private static final Path DIR = Path.of("config", "worlddriver", "debug");
 
     /** Write the image. {@code nameOverride} optional (without extension); else pathchart-NNNN. */
     public static Map<String, Object> write(BufferedImage img, String nameOverride) throws Exception {
@@ -1135,11 +1135,11 @@ Expected: BUILD SUCCESSFUL.
 - [ ] **Step 3: Commit Tasks 6–9 together** (they form one compiling unit)
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/debug/PathSession.java \
-        common/src/main/java/net/magicterra/agent/bot/debug/PathDebugRecorder.java \
-        common/src/main/java/net/magicterra/agent/bot/debug/GoalMarker.java \
-        common/src/main/java/net/magicterra/agent/bot/debug/PathChartRenderer.java \
-        common/src/main/java/net/magicterra/agent/bot/debug/PathChartWriter.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/debug/PathSession.java \
+        common/src/main/java/net/magicterra/worlddriver/bot/debug/PathDebugRecorder.java \
+        common/src/main/java/net/magicterra/worlddriver/bot/debug/GoalMarker.java \
+        common/src/main/java/net/magicterra/worlddriver/bot/debug/PathChartRenderer.java \
+        common/src/main/java/net/magicterra/worlddriver/bot/debug/PathChartWriter.java
 git commit -m "feat(pathdebug): recorder, AWT dashboard renderer, PNG writer"
 ```
 
@@ -1148,14 +1148,14 @@ git commit -m "feat(pathdebug): recorder, AWT dashboard renderer, PNG writer"
 ## Task 10: Route handler, schema, bootstrap
 
 **Files:**
-- Create: `common/src/main/java/net/magicterra/agent/bot/debug/PathChartTool.java`
-- Create: `common/src/main/java/net/magicterra/agent/bot/debug/DebugTools.java`
-- Create: `common/src/main/java/net/magicterra/agent/bot/debug/PathDebugBootstrap.java`
+- Create: `common/src/main/java/net/magicterra/worlddriver/bot/debug/PathChartTool.java`
+- Create: `common/src/main/java/net/magicterra/worlddriver/bot/debug/DebugTools.java`
+- Create: `common/src/main/java/net/magicterra/worlddriver/bot/debug/PathDebugBootstrap.java`
 
 - [ ] **Step 1: Create `PathChartTool.java`**
 
 ```java
-package net.magicterra.agent.bot.debug;
+package net.magicterra.worlddriver.bot.debug;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -1206,12 +1206,12 @@ public final class PathChartTool {
 - [ ] **Step 2: Create `DebugTools.java`** (schema, mirrors `ClientTools` style)
 
 ```java
-package net.magicterra.agent.bot.debug;
+package net.magicterra.worlddriver.bot.debug;
 
 import java.util.List;
 import java.util.Map;
 
-import static net.magicterra.agent.mcp.schema.Schemas.*;
+import static net.magicterra.worlddriver.mcp.schema.Schemas.*;
 
 /** MCP schema for the path-debug tool. Registered via {@code ToolCatalog.registerExtra}. */
 public final class DebugTools {
@@ -1221,7 +1221,7 @@ public final class DebugTools {
         return List.of(
             roTool("mc.debug.pathChart",
                 "Render the current goto session's pathfinding debug dashboard to a PNG on disk " +
-                "(config/agent_driver/debug/) and return its absolute path. Overlays A* candidates, " +
+                "(config/worlddriver/debug/) and return its absolute path. Overlays A* candidates, " +
                 "every planned route (latest bold, failed dashed), and the actual walked trajectory " +
                 "(speed-coloured) on a top-down X/Z map, plus an elevation profile and speed / heading " +
                 "time-series. Requires mc.bot.setting{pathDebug:true} BEFORE the goto so data is captured. " +
@@ -1247,17 +1247,17 @@ public final class DebugTools {
 }
 ```
 
-(Confirm the helper names in `net.magicterra.agent.mcp.schema.Schemas` — Task report shows `roTool(name, desc, schema)`. If the signature differs, match the existing `ClientTools` call exactly.)
+(Confirm the helper names in `net.magicterra.worlddriver.mcp.schema.Schemas` — Task report shows `roTool(name, desc, schema)`. If the signature differs, match the existing `ClientTools` call exactly.)
 
 - [ ] **Step 3: Create `PathDebugBootstrap.java`**
 
 ```java
-package net.magicterra.agent.bot.debug;
+package net.magicterra.worlddriver.bot.debug;
 
-import net.magicterra.agent.AgentDriverCommon;
-import net.magicterra.agent.api.AgentApi;
-import net.magicterra.agent.bot.pathfinder.PathTraceHolder;
-import net.magicterra.agent.mcp.ToolCatalog;
+import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.AgentApi;
+import net.magicterra.worlddriver.bot.pathfinder.PathTraceHolder;
+import net.magicterra.worlddriver.mcp.ToolCatalog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1281,7 +1281,7 @@ public final class PathDebugBootstrap {
         PathTraceHolder.SINK = recorder;
         PathChartTool.bind(recorder);
         ToolCatalog.registerExtra(DebugTools::tools);
-        AgentApi api = AgentDriverCommon.api();
+        AgentApi api = WorldDriverCommon.api();
         if (api != null) {
             api.addRoute("mc.debug.pathChart", PathChartTool::render);
             done = true;
@@ -1301,9 +1301,9 @@ Expected: BUILD SUCCESSFUL.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/debug/PathChartTool.java \
-        common/src/main/java/net/magicterra/agent/bot/debug/DebugTools.java \
-        common/src/main/java/net/magicterra/agent/bot/debug/PathDebugBootstrap.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/debug/PathChartTool.java \
+        common/src/main/java/net/magicterra/worlddriver/bot/debug/DebugTools.java \
+        common/src/main/java/net/magicterra/worlddriver/bot/debug/PathDebugBootstrap.java
 git commit -m "feat(pathdebug): mc.debug.pathChart handler, schema, bootstrap"
 ```
 
@@ -1312,19 +1312,19 @@ git commit -m "feat(pathdebug): mc.debug.pathChart handler, schema, bootstrap"
 ## Task 11: Wire bootstrap at client init
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/client/ClientHooks.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/client/ClientHooks.java`
 
 - [ ] **Step 1: Call `PathDebugBootstrap.init()` after the API is up**
 
-In `register(ClientAgentApi api)`, after `AgentDriverCommon.ensureMcpUp();`, add:
+In `register(ClientAgentApi api)`, after `WorldDriverCommon.ensureMcpUp();`, add:
 
 ```java
         // Optional, strippable: wire the path-debug recorder + mc.debug.pathChart now that
         // AgentApi exists. Removing the bot.debug package + this line fully strips the feature.
-        net.magicterra.agent.bot.debug.PathDebugBootstrap.init();
+        net.magicterra.worlddriver.bot.debug.PathDebugBootstrap.init();
 ```
 
-> Hard Rule #7 (no FQN) note: this is the **one** deliberate inline reference — it is the strip seam, and using the FQN here (rather than an `import`) means deleting this single line is the whole edit, with no orphan import to clean up. Document it in the comment as above. (If you prefer an import for style, add `import net.magicterra.agent.bot.debug.PathDebugBootstrap;` and call `PathDebugBootstrap.init();` — then strip = delete the import + the call.)
+> Hard Rule #7 (no FQN) note: this is the **one** deliberate inline reference — it is the strip seam, and using the FQN here (rather than an `import`) means deleting this single line is the whole edit, with no orphan import to clean up. Document it in the comment as above. (If you prefer an import for style, add `import net.magicterra.worlddriver.bot.debug.PathDebugBootstrap;` and call `PathDebugBootstrap.init();` — then strip = delete the import + the call.)
 
 - [ ] **Step 2: Compile**
 
@@ -1334,7 +1334,7 @@ Expected: BUILD SUCCESSFUL.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/client/ClientHooks.java
+git add common/src/main/java/net/magicterra/worlddriver/client/ClientHooks.java
 git commit -m "feat(pathdebug): init path-debug subsystem at client register"
 ```
 
@@ -1343,8 +1343,8 @@ git commit -m "feat(pathdebug): init path-debug subsystem at client register"
 ## Task 12: Validation case + registration
 
 **Files:**
-- Create: `common/src/main/resources/data/agent_driver/scripts/agent_validation/56_debug_pathchart.js`
-- Modify: `common/src/main/java/net/magicterra/agent/AgentDriverCommon.java` (the `VALIDATION_SCRIPTS` list)
+- Create: `common/src/main/resources/data/worlddriver/scripts/agent_validation/56_debug_pathchart.js`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/WorldDriverCommon.java` (the `VALIDATION_SCRIPTS` list)
 
 - [ ] **Step 1: Create `56_debug_pathchart.js`**
 
@@ -1392,7 +1392,7 @@ if (!clientAvailable() || !routeAvailable()) {
 }
 ```
 
-- [ ] **Step 2: Register the script in `AgentDriverCommon.java`**
+- [ ] **Step 2: Register the script in `WorldDriverCommon.java`**
 
 In the `VALIDATION_SCRIPTS` list (ends with `"55_setting_perception.js"`), add after it:
 
@@ -1408,8 +1408,8 @@ Expected: BUILD SUCCESSFUL — suite stays green; `56_debug_pathchart` reports *
 - [ ] **Step 4: Commit**
 
 ```bash
-git add common/src/main/resources/data/agent_driver/scripts/agent_validation/56_debug_pathchart.js \
-        common/src/main/java/net/magicterra/agent/AgentDriverCommon.java
+git add common/src/main/resources/data/worlddriver/scripts/agent_validation/56_debug_pathchart.js \
+        common/src/main/java/net/magicterra/worlddriver/WorldDriverCommon.java
 git commit -m "test(pathdebug): add 56_debug_pathchart validation case"
 ```
 
@@ -1426,7 +1426,7 @@ Add to `.gitignore`:
 
 ```
 # path-debug chart output (runtime, never commit)
-**/config/agent_driver/debug/
+**/config/worlddriver/debug/
 ```
 
 - [ ] **Step 2: Verify the strip story compiles**
@@ -1437,17 +1437,17 @@ Run:
 ```bash
 git stash --include-untracked   # park the working tree first? NO — instead:
 # Move the debug package and the init line aside, compile, then restore.
-mv common/src/main/java/net/magicterra/agent/bot/debug /tmp/debug_pkg_bak
+mv common/src/main/java/net/magicterra/worlddriver/bot/debug /tmp/debug_pkg_bak
 # comment out the PathDebugBootstrap.init() line in ClientHooks.java (or sed it):
-sed -i.bak 's/^\(\s*\)\(net\.magicterra\.agent\.bot\.debug\.PathDebugBootstrap\.init();\)/\1\/\/ \2/' common/src/main/java/net/magicterra/agent/client/ClientHooks.java
+sed -i.bak 's/^\(\s*\)\(net\.magicterra\.agent\.bot\.debug\.PathDebugBootstrap\.init();\)/\1\/\/ \2/' common/src/main/java/net/magicterra/worlddriver/client/ClientHooks.java
 ./gradlew :common:compileJava
 ```
 Expected: BUILD SUCCESSFUL — core compiles with the debug package gone (proves the seams are inert).
 
 Restore:
 ```bash
-mv common/src/main/java/net/magicterra/agent/client/ClientHooks.java.bak common/src/main/java/net/magicterra/agent/client/ClientHooks.java
-mv /tmp/debug_pkg_bak common/src/main/java/net/magicterra/agent/bot/debug
+mv common/src/main/java/net/magicterra/worlddriver/client/ClientHooks.java.bak common/src/main/java/net/magicterra/worlddriver/client/ClientHooks.java
+mv /tmp/debug_pkg_bak common/src/main/java/net/magicterra/worlddriver/bot/debug
 ./gradlew :common:compileJava   # back to green WITH debug present
 ```
 Expected: BUILD SUCCESSFUL.
@@ -1468,7 +1468,7 @@ This is the substantive correctness check — done interactively, not in CI. Cap
 - [ ] **Step 1: Build + launch the client** (the client is currently at the title screen)
 
 ```bash
-JAVA_TOOL_OPTIONS="-Dagent.mcpPort=39800 -Dagent.rpcPort=39801" ./gradlew :fabric:runClient
+JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39800 -Dworlddriver.rpcPort=39801" ./gradlew :fabric:runClient
 ```
 (If a client is already running on these ports, do not `--stop`; kill by port: `lsof -ti:39801 | xargs -r kill`, then relaunch.)
 

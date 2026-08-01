@@ -22,8 +22,8 @@
 ### Task 1: Walker 终态上报(R2a,零行为变化)
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/movement/Walker.java`
-- Test: `neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTestServer.java`(新增 `walkerTerminalReportMatrix`)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/movement/Walker.java`
+- Test: `neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTestServer.java`(新增 `walkerTerminalReportMatrix`)
 
 **Interfaces:**
 - Produces(Task 2 消费):`Walker` 三个新 public volatile 字段:`String lastEndReason`(terminal 原因标签)、`boolean lastGoalReached`(终止时 `goal.reached(foot)` 真值)、`double lastFinalDist`(终止时 `goal.estimate(foot)`,启发式距离)。加静态纯函数 `static String classifyArrival(boolean bestEffort, boolean reachedFoot, boolean snapped)`。
@@ -111,7 +111,7 @@ Run: `AGENT_GT_ONLY=walkerTerminalReport ./gradlew :neoforge:runGameTestServer` 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/movement/Walker.java neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTestServer.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/movement/Walker.java neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTestServer.java
 git commit -m "feat(walker): honest terminal report (endReason/goalReached/finalDist) at every ARRIVED/FAILED exit (gap#68-R2a)"
 ```
 
@@ -120,9 +120,9 @@ git commit -m "feat(walker): honest terminal report (endReason/goalReached/final
 ### Task 2: slot 字段 + awaitable 折叠(R2b)
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/BotState.java:76-109`(ProcessSlot)
-- Modify: `common/src/main/java/net/magicterra/agent/bot/process/IntentProcess.java:87-93`
-- Modify: `common/src/main/java/net/magicterra/agent/api/AgentApi.java:663-714`(awaitable)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/BotState.java:76-109`(ProcessSlot)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/process/IntentProcess.java:87-93`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java:663-714`(awaitable)
 
 **Interfaces:**
 - Consumes: Task 1 的 `walker.lastEndReason/lastGoalReached/lastFinalDist`。
@@ -180,7 +180,7 @@ Run: `./gradlew :neoforge:compileJava` → BUILD SUCCESSFUL;`./gradlew :neoforge
 - [ ] **Step 5: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/BotState.java common/src/main/java/net/magicterra/agent/bot/process/IntentProcess.java common/src/main/java/net/magicterra/agent/api/AgentApi.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/BotState.java common/src/main/java/net/magicterra/worlddriver/bot/process/IntentProcess.java common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java
 git commit -m "feat(status): goalReached/endReason/finalDist on goto slot + awaitable top-level fold (gap#68-R2b)"
 ```
 
@@ -189,11 +189,11 @@ git commit -m "feat(status): goalReached/endReason/finalDist on goto slot + awai
 ### Task 3: bunker 入列 awaitable + acted/enclosed(R2c)
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/BotState.java`(新增 bunker slot)
-- Modify: `common/src/main/java/net/magicterra/agent/bot/scheduler/UserTaskChain.java:107-126`(slotFor)
-- Modify: `common/src/main/java/net/magicterra/agent/bot/process/BunkerProcess.java`
-- Modify: `common/src/main/java/net/magicterra/agent/bot/BotApiImpl.java:325-336`(bunker verb)
-- Modify: `common/src/main/java/net/magicterra/agent/api/AgentApi.java:317`(路由)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/BotState.java`(新增 bunker slot)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/scheduler/UserTaskChain.java:107-126`(slotFor)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/process/BunkerProcess.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/BotApiImpl.java:325-336`(bunker verb)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java:317`(路由)
 
 **Interfaces:**
 - Produces: status 新增 `bunker` slot(ProcessSlot 标准形+Task 2 新字段);`mc.bot.bunker` 支持 `awaitMs`,响应含 `acted:boolean`(是否动过世界)与 slot 折叠;`goalReached` 语义 = SEALED 且方块级围合。
@@ -246,7 +246,7 @@ awaitable 会折叠 bunker slot(含 goalReached/endReason)到响应,`completed:t
 Run: `./gradlew :neoforge:runGameTestServer` → required 全绿零新名。
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/BotState.java common/src/main/java/net/magicterra/agent/bot/scheduler/UserTaskChain.java common/src/main/java/net/magicterra/agent/bot/process/BunkerProcess.java common/src/main/java/net/magicterra/agent/bot/BotApiImpl.java common/src/main/java/net/magicterra/agent/api/AgentApi.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/BotState.java common/src/main/java/net/magicterra/worlddriver/bot/scheduler/UserTaskChain.java common/src/main/java/net/magicterra/worlddriver/bot/process/BunkerProcess.java common/src/main/java/net/magicterra/worlddriver/bot/BotApiImpl.java common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java
 git commit -m "feat(bunker): awaitable verb + bunker slot + enclosed/acted honest verdict (gap#68-⑩)"
 ```
 
@@ -255,10 +255,10 @@ git commit -m "feat(bunker): awaitable verb + bunker slot + enclosed/acted hones
 ### Task 4: Chain episode 生命周期 + cancel 逐链可达(R1a)
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/scheduler/Chain.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/scheduler/Chain.java`
 - Modify: `BunkerChain.java` / `RetreatChain.java` / `CombatChain.java` / `DuskSecureChain.java` / `UserTaskChain.java`(同目录)
-- Modify: `common/src/main/java/net/magicterra/agent/bot/scheduler/ProcessScheduler.java`(cancelAll helper)
-- Modify: `common/src/main/java/net/magicterra/agent/bot/BotApiImpl.java:502-519`(cancel verb)、`status()`(chains 节点)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/scheduler/ProcessScheduler.java`(cancelAll helper)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/BotApiImpl.java:502-519`(cancel verb)、`status()`(chains 节点)
 
 **Interfaces:**
 - Produces: `Chain` 新 default 方法 `default String episodePhase() { return null; }`(非 null=有状态 episode)与 `default void cancelEpisode(String reason) {}`;`ProcessScheduler.cancelAllEpisodes(String reason)`;`mc.bot.cancel {process:"<chainName>"}` 对 chain 名(`bunker`/`retreat`/`combat`/`duskSecure`)直达;status 新增 `"chains": {name: {"priority": f, "episode": phaseOrNull}}`。
@@ -410,14 +410,14 @@ for (Chain ch : scheduler.chains()) {
 snap.put("chains", chains);
 ```
 
-(import `net.magicterra.agent.bot.scheduler.Chain`。)
+(import `net.magicterra.worlddriver.bot.scheduler.Chain`。)
 
 - [ ] **Step 4: GREEN + 全量回归**:solo → PASS;全量 → required 全绿零新名。
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/scheduler/ common/src/main/java/net/magicterra/agent/bot/BotApiImpl.java neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTestServer.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/scheduler/ common/src/main/java/net/magicterra/worlddriver/bot/BotApiImpl.java neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTestServer.java
 git commit -m "feat(scheduler): chain episode lifecycle — episodePhase/cancelEpisode, cancel verb reaches every chain, chains in status (gap#68-⑦)"
 ```
 
@@ -426,10 +426,10 @@ git commit -m "feat(scheduler): chain episode lifecycle — episodePhase/cancelE
 ### Task 5: 死亡全表清零 + 重生宽限 + BunkerChain priority 前置自愈(R1b)
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/BotApiImpl.java:812,922-942,1020-1027`
-- Modify: `common/src/main/java/net/magicterra/agent/bot/scheduler/CombatChain.java:92-100`
-- Modify: `common/src/main/java/net/magicterra/agent/bot/scheduler/BunkerChain.java:44-60`
-- Modify: `common/src/main/java/net/magicterra/agent/bot/BotConfig.java`(新字段)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/BotApiImpl.java:812,922-942,1020-1027`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/scheduler/CombatChain.java:92-100`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/scheduler/BunkerChain.java:44-60`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/BotConfig.java`(新字段)
 - Test: AgentGameTestServer 矩阵追加
 
 **Interfaces:**
@@ -522,7 +522,7 @@ solo GREEN → 全量零新名。启动 dev client 后(Task 10 live 阶段)`mc.b
 - [ ] **Step 5: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/ neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTestServer.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/ neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTestServer.java
 git commit -m "feat(scheduler): death clears ALL chain episodes + backfill queue; respawn grace gates autoFight/backfill; bunker self-heal in priority() (gap#68-③⑧⑫)"
 ```
 
@@ -533,8 +533,8 @@ git commit -m "feat(scheduler): death clears ALL chain episodes + backfill queue
 > **Spec 偏差说明(有意为之)**:spec §3.3 的 `ThreatContext` 单源结构体在此简化为"扩展现有静态门参数"。理由:①每 tick 单源属性已由 `ClientThreatScanner.refresh`(BotApiImpl.clientTick:869 每 tick 一次)+ `current()` 缓存保证,所有 chain 读的就是同一份 Scan;②改 `Chain.priority` 签名会波及全部 7 条 chain 与调度器,收益只有形式统一(YAGNI);③R3 的三个实质修复(hurt 事件支进闩、动态阈值、纯函数可测)全部保留。若 Phase 2 做抢占矩阵再引入完整 ThreatContext。
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/scheduler/RetreatChain.java`
-- Modify: `common/src/main/java/net/magicterra/agent/bot/BotConfig.java`(无新字段;仅当实现发现需要开关再加 `retreatHurtEntry=true`)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/scheduler/RetreatChain.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/BotConfig.java`(无新字段;仅当实现发现需要开关再加 `retreatHurtEntry=true`)
 - Test: AgentGameTestServer 矩阵(3227 区域追加 case)
 
 **Interfaces:**
@@ -599,7 +599,7 @@ private static boolean hurtByAnyone(ThreatScanner.Scan scan) {
 - [ ] **Step 5: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/scheduler/RetreatChain.java neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTestServer.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/scheduler/RetreatChain.java neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTestServer.java
 git commit -m "feat(retreat): hurt-entry latch for ANY connected attacker + dynamic 40%-maxHP threshold (gap#68-①)"
 ```
 
@@ -608,9 +608,9 @@ git commit -m "feat(retreat): hurt-entry latch for ANY connected attacker + dyna
 ### Task 7: Combat 脆血门(R4a)
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/scheduler/CombatChain.java`
-- Modify: `common/src/main/java/net/magicterra/agent/bot/BotConfig.java`
-- Modify: `common/src/main/java/net/magicterra/agent/bot/BotApiImpl.java`(combat verb 传 force)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/scheduler/CombatChain.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/BotConfig.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/BotApiImpl.java`(combat verb 传 force)
 - Test: AgentGameTestServer 矩阵
 
 **Interfaces:**
@@ -682,7 +682,7 @@ if (mc.player != null && intentMode == null
 - [ ] **Step 5: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/scheduler/CombatChain.java common/src/main/java/net/magicterra/agent/bot/BotConfig.java common/src/main/java/net/magicterra/agent/bot/BotApiImpl.java neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTestServer.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/scheduler/CombatChain.java common/src/main/java/net/magicterra/worlddriver/bot/BotConfig.java common/src/main/java/net/magicterra/worlddriver/bot/BotApiImpl.java neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTestServer.java
 git commit -m "feat(combat): frail-HP gate on entry + mid-autofight disengage, force override (gap#68-②)"
 ```
 
@@ -691,9 +691,9 @@ git commit -m "feat(combat): frail-HP gate on entry + mid-autofight disengage, f
 ### Task 8: DuskSecure 夜间升压(R4b)
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/scheduler/Priorities.java`
-- Modify: `common/src/main/java/net/magicterra/agent/bot/scheduler/DuskSecureChain.java`
-- Modify: `common/src/main/java/net/magicterra/agent/bot/BotConfig.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/scheduler/Priorities.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/scheduler/DuskSecureChain.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/BotConfig.java`
 - Test: AgentGameTestServer 矩阵
 
 **Interfaces:**
@@ -783,7 +783,7 @@ public static float urgentBid(boolean exposedAtNight, boolean cornered,
 - [ ] **Step 5: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/scheduler/ common/src/main/java/net/magicterra/agent/bot/BotConfig.java neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTestServer.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/scheduler/ common/src/main/java/net/magicterra/worlddriver/bot/BotConfig.java neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTestServer.java
 git commit -m "feat(dusk): DUSK_URGENT 90 escalation above user task, dry-run canary, debounce 50->20 (gap#68-④⑨)"
 ```
 
@@ -792,8 +792,8 @@ git commit -m "feat(dusk): DUSK_URGENT 90 escalation above user task, dry-run ca
 ### Task 9: AutoTool 手动选槽宽限(R5)
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/agent/bot/auto/AutoTool.java`
-- Modify: `common/src/main/java/net/magicterra/agent/bot/BotConfig.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/auto/AutoTool.java`
+- Modify: `common/src/main/java/net/magicterra/worlddriver/bot/BotConfig.java`
 - Test: AgentGameTestServer 矩阵
 
 **Interfaces:**
@@ -855,7 +855,7 @@ public static void tick(Minecraft mc, LocalPlayer p) {
 - [ ] **Step 5: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/agent/bot/auto/AutoTool.java common/src/main/java/net/magicterra/agent/bot/BotConfig.java neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTestServer.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/auto/AutoTool.java common/src/main/java/net/magicterra/worlddriver/bot/BotConfig.java neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTestServer.java
 git commit -m "feat(autotool): honor external hotbar selection for a grace period (gap#68-⑪)"
 ```
 

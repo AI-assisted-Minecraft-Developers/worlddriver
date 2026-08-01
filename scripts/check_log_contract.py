@@ -108,7 +108,7 @@ def main() -> int:
         path = ROOT / path
     if not path.exists():
         print(f"log-contract: {path} does not exist — run a t0 first "
-              f"(python scripts/testkit/t0.py --loader fabric ...)")
+              f"(python scripts/stagewright/t0.py --loader fabric ...)")
         return 1
 
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()

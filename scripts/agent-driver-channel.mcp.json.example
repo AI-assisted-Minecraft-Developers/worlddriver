@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "agent-driver": {
+    "worlddriver": {
       "command": "python3",
       "args": ["scripts/agent_channel_bridge.py"]
     }

@@ -6,10 +6,10 @@ loom {
     // Access widener (see the file's header for why). Declared on :common and
     // referenced by both platform modules, so one list of widened members serves
     // every artifact and cannot drift between loaders.
-    accessWidenerPath = file("src/main/resources/agent_driver.accesswidener")
+    accessWidenerPath = file("src/main/resources/worlddriver.accesswidener")
 }
 
-// P4a Task 2: testmod source set — the ad.* dogfood scenes (AgentDriverScenes) +
+// P4a Task 2: testmod source set — the wd.* dogfood scenes (WorldDriverScenes) +
 // the sim probe helpers (SimProbes) + the SceneProvider service file live here so
 // they are compiled ONLY for dev/test runs and NEVER baked into the remapped
 // production jar (common's transformProductionNeoForge/Fabric transforms only the
@@ -17,9 +17,9 @@ loom {
 // OUTPUT to their dev runs; :common itself never runs, so no loom mods{} wiring is
 // needed here. Classpath mirrors the neoforge testmod convention: testmod sees
 // main's OUTPUT plus main's own compile/runtime classpaths — so scene/probe code
-// can reach main classes (Walker, ServerAgentDriver, …) AND main's dependencies
+// can reach main classes (Walker, ServerWorldDriver, …) AND main's dependencies
 // (Minecraft, netty/snakeyaml compileOnly), while the testkit scene SPI
-// (Scene/SceneContext/SceneProvider) comes from :testkit-common namedElements
+// (Scene/SceneContext/SceneProvider) comes from :stagewright-common namedElements
 // (added explicitly below AND already transitively present in main.compileClasspath).
 // The `test` source set is for PURE-JVM unit tests of code that needs no running
 // game — the transports (JsonCodec framing, RpcServer/RpcClient wire contract) are
@@ -46,10 +46,10 @@ sourceSets {
 
 dependencies {
     // testkit scene SPI (Scene/SceneContext/SceneProvider) for the moved scenes —
-    // same architectury common→common namedElements idiom as main's testkit-common dep.
-    testmodImplementation project(path: ':testkit-common', configuration: 'namedElements')
+    // same architectury common→common namedElements idiom as main's stagewright-common dep.
+    testmodImplementation project(path: ':stagewright-common', configuration: 'namedElements')
 
-    // Same pin as mc-testkit/junit — one JUnit version across the build.
+    // Same pin as stagewright/junit — one JUnit version across the build.
     testImplementation platform('org.junit:junit-bom:5.11.3')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
@@ -72,13 +72,13 @@ dependencies {
     // Provides the @Environment annotation; do NOT use other Fabric Loader classes from common
     modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
 
-    // testkit-common (P1.6 Task 2) — the dogfood scenes (AgentDriverScenes) + the
+    // stagewright-common (P1.6 Task 2) — the dogfood scenes (WorldDriverScenes) + the
     // SceneProvider service now live in this common module, so the testkit scene SPI
     // (Scene/SceneContext/SceneProvider) is needed on the common COMPILE classpath.
     // architectury common→common consumption idiom = plain namedElements project dep
     // (the loom `common()`/`shadowBundle` transform pair is for PLATFORM modules only;
-    // runtime bundling of testkit-common into the loader jars stays in neoforge/fabric).
-    implementation project(path: ':testkit-common', configuration: 'namedElements')
+    // runtime bundling of stagewright-common into the loader jars stays in neoforge/fabric).
+    implementation project(path: ':stagewright-common', configuration: 'namedElements')
 
     // Rhino JS engine (KubeJS fork) — common because both platforms use it
     implementation "dev.latvian.mods:rhino:$rootProject.rhino_version"

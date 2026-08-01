@@ -15,20 +15,20 @@
 - **Admissibility:** bias modifiers are `CostModifier`s and MUST return `>= 0` (already the interface contract from A0).
 - **Do not change any tax logic, the two inline `world.*` costs, or Walker navigation logic** — only add the bias field/param and the six uniform `, bias` additions.
 - **Baseline was invalidated by the master sync.** §87 flipped 7 executor flags default-ON; the old failing-set reference (measured @80073d5) is stale. Task 4 RE-MEASURES the baseline on the current tip before asserting parity.
-- **Acceptance = live/replay truth; trust only `required tests passed`/`BUILD SUCCESSFUL`; the `TOTAL:` line masks required failures** (project memory). Alternate ports for any run: `JAVA_TOOL_OPTIONS="-Dagent.mcpPort=39810 -Dagent.rpcPort=39811"`.
+- **Acceptance = live/replay truth; trust only `required tests passed`/`BUILD SUCCESSFUL`; the `TOTAL:` line masks required failures** (project memory). Alternate ports for any run: `JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39810 -Dworlddriver.rpcPort=39811"`.
 
 ## File Structure
 
-- **Modify** `common/src/main/java/net/magicterra/agent/bot/process/Intent.java` — add `List<CostModifier> bias` (default empty) + `bias()` accessor.
-- **Modify** `common/src/main/java/net/magicterra/agent/bot/pathfinder/PathFinder.java` — `bias` field, two ctor overloads, `Search` ctor appends bias.
-- **Modify** `common/src/main/java/net/magicterra/agent/bot/movement/Walker.java` — `bias` field + `setBias`; the six `new PathFinder(world...)` sites pass `, bias`.
-- **Modify** `common/src/main/java/net/magicterra/agent/bot/process/IntentProcess.java` — `walker.setBias(intent.bias())` in the constructor.
+- **Modify** `common/src/main/java/net/magicterra/worlddriver/bot/process/Intent.java` — add `List<CostModifier> bias` (default empty) + `bias()` accessor.
+- **Modify** `common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/PathFinder.java` — `bias` field, two ctor overloads, `Search` ctor appends bias.
+- **Modify** `common/src/main/java/net/magicterra/worlddriver/bot/movement/Walker.java` — `bias` field + `setBias`; the six `new PathFinder(world...)` sites pass `, bias`.
+- **Modify** `common/src/main/java/net/magicterra/worlddriver/bot/process/IntentProcess.java` — `walker.setBias(intent.bias())` in the constructor.
 
 ---
 
 ### Task 1: `Intent` carries a bias list
 
-**Files:** Modify `common/src/main/java/net/magicterra/agent/bot/process/Intent.java`
+**Files:** Modify `common/src/main/java/net/magicterra/worlddriver/bot/process/Intent.java`
 
 **Interfaces:**
 - Produces: `Intent(Goal target)` (unchanged, bias defaults empty) + `Intent(Goal target, List<CostModifier> bias)` + `List<CostModifier> bias()` — consumed by `IntentProcess` (Task 4).
@@ -36,10 +36,10 @@
 - [ ] **Step 1: Edit `Intent.java`** to this (keeps the existing single-arg ctor working; adds a bias-carrying ctor + accessor):
 
 ```java
-package net.magicterra.agent.bot.process;
+package net.magicterra.worlddriver.bot.process;
 
-import net.magicterra.agent.bot.Goal;
-import net.magicterra.agent.bot.pathfinder.CostModifier;
+import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
 
 import java.util.List;
 
@@ -85,7 +85,7 @@ public final class Intent {
 
 ### Task 2: `PathFinder` accepts a bias list; `Search` appends it
 
-**Files:** Modify `common/src/main/java/net/magicterra/agent/bot/pathfinder/PathFinder.java`
+**Files:** Modify `common/src/main/java/net/magicterra/worlddriver/bot/pathfinder/PathFinder.java`
 
 **Interfaces:**
 - Consumes: `CostModifier` (A0), `List` (import).
@@ -147,13 +147,13 @@ with (add the field near the other final fields, e.g. beside `world`):
 
 ### Task 3: `Walker` holds + forwards the bias; `IntentProcess` sets it
 
-**Files:** Modify `common/src/main/java/net/magicterra/agent/bot/movement/Walker.java`, `common/src/main/java/net/magicterra/agent/bot/process/IntentProcess.java`
+**Files:** Modify `common/src/main/java/net/magicterra/worlddriver/bot/movement/Walker.java`, `common/src/main/java/net/magicterra/worlddriver/bot/process/IntentProcess.java`
 
 **Interfaces:**
 - Consumes: `PathFinder(world, bias)` / `PathFinder(world, maxNodes, maxMs, bias)` (Task 2), `Intent.bias()` (Task 1).
 - Produces: `Walker.setBias(List<CostModifier>)`.
 
-- [ ] **Step 1: Add the field + setter to `Walker`.** Ensure `java.util.List` and `net.magicterra.agent.bot.pathfinder.CostModifier` are imported. Beside the other private fields, add:
+- [ ] **Step 1: Add the field + setter to `Walker`.** Ensure `java.util.List` and `net.magicterra.worlddriver.bot.pathfinder.CostModifier` are imported. Beside the other private fields, add:
 
 ```java
     /** Per-intent cost bias forwarded to every PathFinder this Walker builds (A4a).
@@ -174,9 +174,9 @@ with (add the field near the other final fields, e.g. beside `world`):
   - `new PathFinder(world).newSearch(commitEnd, goal);` (the pinch/escape site) → `new PathFinder(world, bias).newSearch(commitEnd, goal);`
   - `new PathFinder(world, BotConfig.pathfinderQuickNodes, QUICK_MAX_MS).newSearch(foot, goal);` → `new PathFinder(world, BotConfig.pathfinderQuickNodes, QUICK_MAX_MS, bias).newSearch(foot, goal);`
 
-  There are exactly SIX `new PathFinder(world` occurrences. After editing, verify: `grep -c "new PathFinder(world)" common/src/main/java/net/magicterra/agent/bot/movement/Walker.java` must be `0` (every bare no-bias construction is gone) and `grep -c "new PathFinder(world, bias)\|QUICK_MAX_MS, bias)" common/src/main/java/net/magicterra/agent/bot/movement/Walker.java` accounts for all six.
+  There are exactly SIX `new PathFinder(world` occurrences. After editing, verify: `grep -c "new PathFinder(world)" common/src/main/java/net/magicterra/worlddriver/bot/movement/Walker.java` must be `0` (every bare no-bias construction is gone) and `grep -c "new PathFinder(world, bias)\|QUICK_MAX_MS, bias)" common/src/main/java/net/magicterra/worlddriver/bot/movement/Walker.java` accounts for all six.
 
-- [ ] **Step 3: Set the bias in `IntentProcess`.** In the `IntentProcess(Intent intent)` constructor, after `walker.setGoal(intent.target());` add `walker.setBias(intent.bias());`. Import `net.magicterra.agent.bot.pathfinder.CostModifier` only if referenced (it is not directly — `intent.bias()` returns the list; no new import needed).
+- [ ] **Step 3: Set the bias in `IntentProcess`.** In the `IntentProcess(Intent intent)` constructor, after `walker.setGoal(intent.target());` add `walker.setBias(intent.bias());`. Import `net.magicterra.worlddriver.bot.pathfinder.CostModifier` only if referenced (it is not directly — `intent.bias()` returns the list; no new import needed).
 
 - [ ] **Step 4: Compile** — `./gradlew :common:compileJava --console=plain` → `BUILD SUCCESSFUL`.
 - [ ] **Step 5: Commit** — `git add ... && git commit -m "walker: forward a per-intent cost bias to every search; IntentProcess sets it (A4a)"`
@@ -189,7 +189,7 @@ with (add the field near the other final fields, e.g. beside `world`):
 
 - [ ] **Step 1: Re-measure the baseline failing-set on the current tip's PARENT.** The old @80073d5 reference is stale (master §87 flag-flips). Establish the fresh reference from the commit just before A4a (the A1 tip = the branch HEAD before Task 1 of this plan; record it as `A4A_BASE`). From a clean worktree at `A4A_BASE`:
 ```bash
-JAVA_TOOL_OPTIONS="-Dagent.mcpPort=39820 -Dagent.rpcPort=39821" \
+JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39820 -Dworlddriver.rpcPort=39821" \
   ./gradlew :neoforge:runGameTestServer --console=plain 2>&1 | tee /tmp/a4a-baseline.log
 grep -iE "required tests (failed|passed)|optional tests failed|BUILD SUCCESSFUL|BUILD FAILED" /tmp/a4a-baseline.log
 grep -iE "failed at|step=FAILED" /tmp/a4a-baseline.log | grep -oiE "[a-z]+arena" | tr '[:upper:]' '[:lower:]' | sort -u > /tmp/a4a-ref-fails.txt
@@ -199,7 +199,7 @@ Record the fresh failing-set as the A4a reference. (Note: with §86-89 fixes som
 
 - [ ] **Step 2: Run the suite on the A4a tip and diff the failing-set.**
 ```bash
-JAVA_TOOL_OPTIONS="-Dagent.mcpPort=39810 -Dagent.rpcPort=39811" \
+JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39810 -Dworlddriver.rpcPort=39811" \
   ./gradlew :neoforge:runGameTestServer --console=plain 2>&1 | tee /tmp/a4a-gametest.log
 grep -iE "required tests (failed|passed)|optional tests failed|BUILD SUCCESSFUL|BUILD FAILED" /tmp/a4a-gametest.log
 grep -iE "failed at|step=FAILED" /tmp/a4a-gametest.log | grep -oiE "[a-z]+arena" | tr '[:upper:]' '[:lower:]' | sort -u > /tmp/a4a-fails.txt

@@ -1,4 +1,4 @@
-# mc-testkit P1.5a：wave-2 前置 + 彩票家族 walker 两员迁移 实现计划
+# stagewright P1.5a：wave-2 前置 + 彩票家族 walker 两员迁移 实现计划
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -10,32 +10,32 @@
 
 ## Global Constraints
 
-- 依赖方向 agent-driver → testkit 不逆转；mc-testkit/* 零 agent-driver 引用。
+- 依赖方向 worlddriver → testkit 不逆转；stagewright/* 零 worlddriver 引用。
 - 契约 v0 只收紧/澄清：`--expect-scene` 缺席名 ⇒ RED（MISSING-EXPECTED）；parse 坏行=丢弃并计数、后果向 RED 降级（缺 footer/SWALLOWED 自然接管），绝不向 GREEN 降级。
 - 移植保真：断言数值一个不动（selfShaftDigUp 的 `worstBackslide ≤ maxDryFall+1`、4000 循环上限、目标 Y；descentYaw 的 sumAbsDyaw 天花板、backward-hop 断言、步进结构）；同步循环原样进 body。
 - descentYaw 是字节级确定性场景（P0 探针自伤事故的受害者）：**必须钉显式 originSlot**；场景 body 内禁任何 wall-clock 依赖。
 - 每场景 `ServerPlayerAvatar.createUnique` + `ctx.cleanup` discard；`BotConfig.pinnedBaseline()` 先注册（LIFO 最后关）。
-- legacy 两员代码零改动（只加 javadoc 迁移注释）；场景名 `ad.selfShaftDigUp` / `ad.descentYaw`。
+- legacy 两员代码零改动（只加 javadoc 迁移注释）；场景名 `wd.selfShaftDigUp` / `wd.descentYaw`。
 - t0 既有 13 self-test + instrument 5 self-test 必须全过；两 CLI 参数缺省行为不变。
 - 运行纪律：前台 Bash timeout 参数；禁 pkill；每 run 删世界；子代理绝不带着后台任务结束回合（后台通知不会叫醒你——有界前台轮询收割）。
 
 ## 已声明偏差 / 顺延清单（评审勿标缺）
 
-1. **driver 家族三员（gearscope/buriedore/entityLeash）归 P1.5b**：它们走 ServerAgentDriver/Process/manager.tickAll 与手动 level.tick() 形态，移植模式与 walker 家族不同（probe helper 可见性、实体索引策略需单独设计），不塞进本竖切。
+1. **driver 家族三员（gearscope/buriedore/entityLeash）归 P1.5b**：它们走 ServerWorldDriver/Process/manager.tickAll 与手动 level.tick() 形态，移植模式与 walker 家族不同（probe helper 可见性、实体索引策略需单独设计），不塞进本竖切。
 2. **fabric 全量对齐仍单列**（spec §7 原 P1.5 里程碑之一，与本计划无冲突）。
 3. **legacy 删除仍不执行**：本计划落地删除前置（外部期望门），删除动作等 3 轮双门全绿+期望门武装后另行执行。
-4. P1c 终审 Minor #5（TestkitCommon 双臂防护）与 #4（--results 相对路径）顺手在 Task 1/2 收掉；#2（done.scenes 与异步 writer 的语义耦合注记）已在 TODO 残留，不动代码。
+4. P1c 终审 Minor #5（StageWrightCommon 双臂防护）与 #4（--results 相对路径）顺手在 Task 1/2 收掉；#2（done.scenes 与异步 writer 的语义耦合注记）已在 TODO 残留，不动代码。
 
 ## 文件结构
 
 | 文件 | 职责 |
 |---|---|
-| `scripts/testkit/verdict.py`（改） | parse 坏行丢弃+计数（返回不变，警告经新可选回调/返回附带——见 Task 1 设计）；judge 加 expected 参数（缺席名 ⇒ RED） |
-| `scripts/testkit/t0.py`（改） | `--expect-scene`；--results 相对路径锚定 REPO_ROOT；self-test 扩充 |
-| `mc-testkit/common/.../scene/Scene.java`（改） | `originSlot`(默认-1=auto)/`chunkRadius`(默认1) + `withOriginSlot`/`withChunkRadius` |
-| `mc-testkit/common/.../harness/TestkitHarness.java`（改） | 槽位预留分配（显式槽冲突=启动即炸）+ forceload/等待按半径 |
-| `mc-testkit/common/.../harness/TestkitCommon.java`（改） | 双臂幂等防护一行 |
-| `neoforge/.../testkit/AgentDriverScenes.java`（改） | + ad.selfShaftDigUp、ad.descentYaw（后者钉槽） |
+| `scripts/stagewright/verdict.py`（改） | parse 坏行丢弃+计数（返回不变，警告经新可选回调/返回附带——见 Task 1 设计）；judge 加 expected 参数（缺席名 ⇒ RED） |
+| `scripts/stagewright/t0.py`（改） | `--expect-scene`；--results 相对路径锚定 REPO_ROOT；self-test 扩充 |
+| `stagewright/common/.../scene/Scene.java`（改） | `originSlot`(默认-1=auto)/`chunkRadius`(默认1) + `withOriginSlot`/`withChunkRadius` |
+| `stagewright/common/.../harness/StageWrightHarness.java`（改） | 槽位预留分配（显式槽冲突=启动即炸）+ forceload/等待按半径 |
+| `stagewright/common/.../harness/StageWrightCommon.java`（改） | 双臂幂等防护一行 |
+| `neoforge/.../testkit/WorldDriverScenes.java`（改） | + wd.selfShaftDigUp、wd.descentYaw（后者钉槽） |
 | `AgentGameTestTerrain.java`（改，仅注释） | 两员 javadoc 迁移注释 |
 | 文档：契约附录、README、TODO | expect-scene/originSlot/chunkRadius 说明 + A/B 留痕 |
 
@@ -44,8 +44,8 @@
 ### Task 1: 编排器前置——expect-scene 门 + parse 截断容错 + 路径锚定
 
 **Files:**
-- Modify: `scripts/testkit/verdict.py`
-- Modify: `scripts/testkit/t0.py`
+- Modify: `scripts/stagewright/verdict.py`
+- Modify: `scripts/stagewright/t0.py`
 
 **Interfaces:**
 - Produces: `judge(records, record_type="scene", expected=None)`——expected 为名字集合，逐名要求出现在 suite header `registered[]`，缺席 ⇒ `code=max(code,1)` + 报告行 `MISSING-EXPECTED: <name> not in registered`；`parse(path)` 返回不变（list[dict]），但对无法解码的行：**丢弃并向 stderr 打警告**（`[verdict] WARN: dropped undecodable line N: <前80字符>`），不再抛裸 traceback——丢弃的后果由既有门自然接管（丢 footer→缺尾 RED、丢 scene 记录→SWALLOWED RED、丢 header→ENV），全部朝 RED 降级。
@@ -117,16 +117,16 @@ def parse(path):
 
 - [ ] **Step 5: 验证**
 
-Run: `python3 scripts/testkit/t0.py --self-test; echo t0=$?; python3 scripts/testkit/instrument.py --self-test; echo ins=$?`
+Run: `python3 scripts/stagewright/t0.py --self-test; echo t0=$?; python3 scripts/stagewright/instrument.py --self-test; echo ins=$?`
 Expected: t0 17/17 PASS exit 0（13+3+1）；instrument 5/5 PASS exit 0。
 
-Run: `python3 scripts/testkit/t0.py --loader neoforge --wall 540 --expect-scene floorAssert,awaitTicks; echo "exit=$?"`
+Run: `python3 scripts/stagewright/t0.py --loader neoforge --wall 540 --expect-scene floorAssert,awaitTicks; echo "exit=$?"`
 Expected: `VERDICT: GREEN` exit=0（期望门对既有内建场景生效且不误伤）。
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add scripts/testkit/verdict.py scripts/testkit/t0.py
+git add scripts/stagewright/verdict.py scripts/stagewright/t0.py
 git commit -m "feat(testkit): --expect-scene external expectation gate, parse bad-line degradation, --results path anchoring"
 ```
 
@@ -135,12 +135,12 @@ git commit -m "feat(testkit): --expect-scene external expectation gate, parse ba
 ### Task 2: harness 前置——originSlot 钉扎 + chunkRadius + 双臂防护
 
 **Files:**
-- Modify: `mc-testkit/common/src/main/java/net/magicterra/testkit/scene/Scene.java`
-- Modify: `mc-testkit/common/src/main/java/net/magicterra/testkit/harness/TestkitHarness.java`
-- Modify: `mc-testkit/common/src/main/java/net/magicterra/testkit/harness/TestkitCommon.java`
+- Modify: `stagewright/common/src/main/java/net/magicterra/stagewright/scene/Scene.java`
+- Modify: `stagewright/common/src/main/java/net/magicterra/stagewright/harness/StageWrightHarness.java`
+- Modify: `stagewright/common/src/main/java/net/magicterra/stagewright/harness/StageWrightCommon.java`
 
 **Interfaces:**
-- Produces: `Scene.withOriginSlot(int slot)`（显式槽位，默认 -1=自动分配）与 `Scene.withChunkRadius(int r)`（默认 1=3×3）；harness 槽位分配算法（下述）；TestkitCommon 幂等防护。
+- Produces: `Scene.withOriginSlot(int slot)`（显式槽位，默认 -1=自动分配）与 `Scene.withChunkRadius(int r)`（默认 1=3×3）；harness 槽位分配算法（下述）；StageWrightCommon 幂等防护。
 - Consumes: 既有 Scene record + originFor(index)。
 
 - [ ] **Step 1: Scene 扩字段**
@@ -195,33 +195,33 @@ record 加两个组件 `int originSlot, int chunkRadius`（放尾部），全部
 
 `originFor(index)` 改为 `originFor(slot)`（同一网格公式，输入换 slot），调用点从场景序号换 `slotByName.get(scene.name())`。forceChunks/allChunksLoaded 加半径参数（循环 `-r..r`），PREP 与 teardown 的调用点都带上 `scene.chunkRadius()`。
 
-- [ ] **Step 3: TestkitCommon 双臂防护**
+- [ ] **Step 3: StageWrightCommon 双臂防护**
 
 onServerStarted 开头：`if (harness != null) { <既有日志惯例> "harness already armed — ignoring duplicate onServerStarted"; return; }`。
 
 - [ ] **Step 4: 编译 + 双拓扑回归**
 
-Run: `./gradlew :testkit-common:compileJava -q && python3 scripts/testkit/t0.py --loader neoforge --wall 540 && python3 scripts/testkit/t0.py --loader neoforge --wall 540 --run-task :neoforge:runDogfoodServer --results neoforge/run-dogfood/testkit-results.jsonl --expect-scene ad.ascendMovementNoop,ad.ascendDeadZoneWatchdog,ad.diagonalAscentSpeed; echo "exit=$?"`
-Expected: 两轮 `VERDICT: GREEN` exit=0——全 auto 场景时槽位分配=原 index 语义（内建+ad.* 序号不变），dogfood 带期望门首次武装。
+Run: `./gradlew :stagewright-common:compileJava -q && python3 scripts/stagewright/t0.py --loader neoforge --wall 540 && python3 scripts/stagewright/t0.py --loader neoforge --wall 540 --run-task :neoforge:runDogfoodServer --results neoforge/run-dogfood/testkit-results.jsonl --expect-scene wd.ascendMovementNoop,wd.ascendDeadZoneWatchdog,wd.diagonalAscentSpeed; echo "exit=$?"`
+Expected: 两轮 `VERDICT: GREEN` exit=0——全 auto 场景时槽位分配=原 index 语义（内建+wd.* 序号不变），dogfood 带期望门首次武装。
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add mc-testkit/common/src/main/java/net/magicterra/testkit/
+git add stagewright/common/src/main/java/net/magicterra/stagewright/
 git commit -m "feat(testkit): pinned origin slots + per-scene chunk radius + harness double-arm guard"
 ```
 
 ---
 
-### Task 3: 迁移 ad.selfShaftDigUp + A/B
+### Task 3: 迁移 wd.selfShaftDigUp + A/B
 
 **Files:**
-- Modify: `neoforge/src/main/java/net/magicterra/agent/neoforge/testkit/AgentDriverScenes.java`
-- Modify: `neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTestTerrain.java`（仅 javadoc）
+- Modify: `neoforge/src/main/java/net/magicterra/worlddriver/neoforge/testkit/WorldDriverScenes.java`
+- Modify: `neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTestTerrain.java`（仅 javadoc）
 
 **Interfaces:**
-- Consumes: legacy `selfShaftDigUpArena`（`AgentGameTestTerrain.java:800-859`）；P1c 的移植映射规则（AgentDriverScenes 类 javadoc 里有 porting map——沿用）。
-- Produces: 场景 `ad.selfShaftDigUp`（auto 槽位，默认半径）。
+- Consumes: legacy `selfShaftDigUpArena`（`AgentGameTestTerrain.java:800-859`）；P1c 的移植映射规则（WorldDriverScenes 类 javadoc 里有 porting map——沿用）。
+- Produces: 场景 `wd.selfShaftDigUp`（auto 槽位，默认半径）。
 
 - [ ] **Step 1: 直译移植**
 
@@ -232,27 +232,27 @@ git commit -m "feat(testkit): pinned origin slots + per-scene chunk radius + har
 Run: `AGENT_GT_ONLY=selfShaftDigUpArena ./scripts/run_gametests.sh`（前台 timeout 600000）
 Expected: legacy solo GREEN。
 
-Run: `python3 scripts/testkit/t0.py --loader neoforge --wall 540 --run-task :neoforge:runDogfoodServer --results neoforge/run-dogfood/testkit-results.jsonl --expect-scene ad.selfShaftDigUp; echo "exit=$?"`
-Expected: GREEN，ad.selfShaftDigUp PASS。红则按 P1c 分诊规则（先移植误差后 harness 缝，禁调松断言，闭不了 gap 报 BLOCKED）。
+Run: `python3 scripts/stagewright/t0.py --loader neoforge --wall 540 --run-task :neoforge:runDogfoodServer --results neoforge/run-dogfood/testkit-results.jsonl --expect-scene wd.selfShaftDigUp; echo "exit=$?"`
+Expected: GREEN，wd.selfShaftDigUp PASS。红则按 P1c 分诊规则（先移植误差后 harness 缝，禁调松断言，闭不了 gap 报 BLOCKED）。
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add neoforge/src/main/java/net/magicterra/agent/neoforge/testkit/AgentDriverScenes.java neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTestTerrain.java
-git commit -m "feat(testkit): dogfood wave 2a — ad.selfShaftDigUp migrated (lottery walker family), legacy kept for A/B"
+git add neoforge/src/main/java/net/magicterra/worlddriver/neoforge/testkit/WorldDriverScenes.java neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTestTerrain.java
+git commit -m "feat(testkit): dogfood wave 2a — wd.selfShaftDigUp migrated (lottery walker family), legacy kept for A/B"
 ```
 
 ---
 
-### Task 4: 迁移 ad.descentYaw（钉槽 + 半径）+ A/B
+### Task 4: 迁移 wd.descentYaw（钉槽 + 半径）+ A/B
 
 **Files:**
-- Modify: `neoforge/src/main/java/net/magicterra/agent/neoforge/testkit/AgentDriverScenes.java`
-- Modify: `neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTestTerrain.java`（仅 javadoc）
+- Modify: `neoforge/src/main/java/net/magicterra/worlddriver/neoforge/testkit/WorldDriverScenes.java`
+- Modify: `neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTestTerrain.java`（仅 javadoc）
 
 **Interfaces:**
 - Consumes: legacy `descentYawArena`（`AgentGameTestTerrain.java:1202-1322`，legacy 已用 pinnedBaseline，solo batch=soloDescentYaw）。
-- Produces: 场景 `ad.descentYaw`，**`.withOriginSlot(4000)`**（高位远离 auto 区，常量命名 `DESCENT_YAW_SLOT` 加注释：字节级确定性场景，槽位一经发布不得变更）+ `.withChunkRadius(2)`。
+- Produces: 场景 `wd.descentYaw`，**`.withOriginSlot(4000)`**（高位远离 auto 区，常量命名 `DESCENT_YAW_SLOT` 加注释：字节级确定性场景，槽位一经发布不得变更）+ `.withChunkRadius(2)`。
 
 - [ ] **Step 1: 足迹审计先行**
 
@@ -267,14 +267,14 @@ git commit -m "feat(testkit): dogfood wave 2a — ad.selfShaftDigUp migrated (lo
 Run: `AGENT_GT_ONLY=descentYawArena ./scripts/run_gametests.sh`（前台 timeout 600000）
 Expected: legacy solo GREEN。
 
-Run（三连，确定性证据）: `for i in 1 2 3; do python3 scripts/testkit/t0.py --loader neoforge --wall 540 --run-task :neoforge:runDogfoodServer --results neoforge/run-dogfood/testkit-results.jsonl --expect-scene ad.descentYaw || break; done; echo "exit=$?"`
-Expected: 三轮全 GREEN 且 ad.descentYaw 三轮 PASS——该场景在 legacy 全量下是彩票成员，新壳三连绿即为「隔离身体+钉槽」根治假说的第一手证据；若新壳也间歇红，如实记录（那是病随身体走的反证，同样有价值），报 DONE_WITH_CONCERNS 附三轮记录。
+Run（三连，确定性证据）: `for i in 1 2 3; do python3 scripts/stagewright/t0.py --loader neoforge --wall 540 --run-task :neoforge:runDogfoodServer --results neoforge/run-dogfood/testkit-results.jsonl --expect-scene wd.descentYaw || break; done; echo "exit=$?"`
+Expected: 三轮全 GREEN 且 wd.descentYaw 三轮 PASS——该场景在 legacy 全量下是彩票成员，新壳三连绿即为「隔离身体+钉槽」根治假说的第一手证据；若新壳也间歇红，如实记录（那是病随身体走的反证，同样有价值），报 DONE_WITH_CONCERNS 附三轮记录。
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add neoforge/src/main/java/net/magicterra/agent/neoforge/testkit/AgentDriverScenes.java neoforge/src/main/java/net/magicterra/agent/neoforge/AgentGameTestTerrain.java
-git commit -m "feat(testkit): dogfood wave 2a — ad.descentYaw migrated with pinned origin slot + radius 2 (determinism-sensitive)"
+git add neoforge/src/main/java/net/magicterra/worlddriver/neoforge/testkit/WorldDriverScenes.java neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTestTerrain.java
+git commit -m "feat(testkit): dogfood wave 2a — wd.descentYaw migrated with pinned origin slot + radius 2 (determinism-sensitive)"
 ```
 
 ---
@@ -282,8 +282,8 @@ git commit -m "feat(testkit): dogfood wave 2a — ad.descentYaw migrated with pi
 ### Task 5: 验收 + 文档
 
 **Files:**
-- Modify: `docs/testkit/orchestration-contract-v0.md`（附录补三段：--expect-scene 门、originSlot 钉扎、chunkRadius）
-- Modify: `mc-testkit/README.md`（dogfood 命令更新为带 --expect-scene 全 5 名；迁移规则加「同步 body 必须有界循环」一句）
+- Modify: `docs/stagewright/orchestration-contract-v0.md`（附录补三段：--expect-scene 门、originSlot 钉扎、chunkRadius）
+- Modify: `stagewright/README.md`（dogfood 命令更新为带 --expect-scene 全 5 名；迁移规则加「同步 body 必须有界循环」一句）
 - Modify: `TODO.md`（P1.5a 条目）
 
 **Interfaces:**
@@ -291,8 +291,8 @@ git commit -m "feat(testkit): dogfood wave 2a — ad.descentYaw migrated with pi
 
 - [ ] **Step 1: 全量验收**
 
-Run: `python3 scripts/testkit/t0.py --loader neoforge --wall 540 --run-task :neoforge:runDogfoodServer --results neoforge/run-dogfood/testkit-results.jsonl --expect-scene ad.ascendMovementNoop,ad.ascendDeadZoneWatchdog,ad.diagonalAscentSpeed,ad.selfShaftDigUp,ad.descentYaw && python3 scripts/testkit/t0.py --loader neoforge --wall 540; echo "exit=$?"`
-Expected: dogfood（10 场景记录：5 内建含双金丝雀 + 5 ad.*）与纯 T0 双 GREEN。
+Run: `python3 scripts/stagewright/t0.py --loader neoforge --wall 540 --run-task :neoforge:runDogfoodServer --results neoforge/run-dogfood/testkit-results.jsonl --expect-scene wd.ascendMovementNoop,wd.ascendDeadZoneWatchdog,wd.diagonalAscentSpeed,wd.selfShaftDigUp,wd.descentYaw && python3 scripts/stagewright/t0.py --loader neoforge --wall 540; echo "exit=$?"`
+Expected: dogfood（10 场景记录：5 内建含双金丝雀 + 5 wd.*）与纯 T0 双 GREEN。
 
 legacy 全量门跑一轮（后台启动+有界前台轮询收割，参照 P1c Task 5 纪律；underwaterBase 挂死按病历处理）：GREEN 则删除倒数 +1；抽中彩票 RED 则按 P0 协议 solo 定性后如实入档（不 fishing）。
 
@@ -303,7 +303,7 @@ legacy 全量门跑一轮（后台启动+有界前台轮询收割，参照 P1c T
 - [ ] **Step 3: Commit**
 
 ```bash
-git add docs/testkit/orchestration-contract-v0.md mc-testkit/README.md TODO.md
+git add docs/stagewright/orchestration-contract-v0.md stagewright/README.md TODO.md
 git commit -m "docs(testkit): P1.5a — expect-scene gate armed, origin pinning & chunk radius appendices, wave-2a A/B record"
 ```
 

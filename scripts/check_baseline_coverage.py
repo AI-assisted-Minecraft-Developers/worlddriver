@@ -10,7 +10,7 @@ The problem
 `BotConfig.applyGameTestBaseline()` re-pins a set of knobs before the scene suite runs —
 it exists because the arena assertions were authored against the historical default-OFF
 flag set, and flipping those flags default-ON for live play broke arenas that never
-touch them (§78). Both loader entrypoints call it under `-Dtestkit.autorun`, and scenes
+touch them (§78). Both loader entrypoints call it under `-Dstagewright.autorun`, and scenes
 call `pinnedBaseline()` around 120 arenas, so EVERY t0/t1/t2 run is measured in that
 configuration.
 
@@ -46,7 +46,7 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BOT_CONFIG = os.path.join(ROOT, "common/src/main/java/net/magicterra/agent/bot/BotConfig.java")
+BOT_CONFIG = os.path.join(ROOT, "common/src/main/java/net/magicterra/worlddriver/bot/BotConfig.java")
 SCENE_GLOB = os.path.join(ROOT, "common/src/testmod/**/*.java")
 
 # Baselined fields that NO scene restores to its shipped default. Each one is a code path

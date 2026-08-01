@@ -47,7 +47,7 @@ Bottom → top:
 6. **MCP verbs** (`mc.bot.goto/follow/mine/runAway/elytra…`) + **Skill library** (Voyager JS,
    `script/SkillLibrary.java`) + **Playbook**.
 7. **Event push** — `AgentApi.emit(type,pos,data)` → ring buffer + fan-out to push subscribers →
-   surfaces to the LLM as `<channel source="agent-driver">` tags. `emitExternal(...)` is the public
+   surfaces to the LLM as `<channel source="worlddriver">` tags. `emitExternal(...)` is the public
    hook that threat/damage/chat detectors already feed. **This is the escalation channel — already
    built; today it carries no `intent.*` events.**
 

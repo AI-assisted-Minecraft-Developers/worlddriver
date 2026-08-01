@@ -26,12 +26,12 @@
 
 ## Task 1: `BodyCapabilities`
 
-**Files:** Create `common/src/main/java/net/magicterra/agent/bot/movement/BodyCapabilities.java`
+**Files:** Create `common/src/main/java/net/magicterra/worlddriver/bot/movement/BodyCapabilities.java`
 
 - [ ] **Step 1: Implement** — immutable record of flags + movement caps.
 
 ```java
-package net.magicterra.agent.bot.movement;
+package net.magicterra.worlddriver.bot.movement;
 
 /** What an Avatar's underlying entity can do, so the orchestrator skips
  *  Player-only chains and the planner reads entity movement caps. */
@@ -50,12 +50,12 @@ public record BodyCapabilities(
 
 ## Task 2: `Avatar` interface
 
-**Files:** Create `common/src/main/java/net/magicterra/agent/bot/movement/Avatar.java`
+**Files:** Create `common/src/main/java/net/magicterra/worlddriver/bot/movement/Avatar.java`
 
 - [ ] **Step 1: Define interface** — exactly the surface the Walker uses (reads + movement + block writes). Use vanilla types already imported by Walker.
 
 ```java
-package net.magicterra.agent.bot.movement;
+package net.magicterra.worlddriver.bot.movement;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -147,7 +147,7 @@ Key mappings (mc = Minecraft, p = mc.player):
 
 ## Task 6: `ServerPlayerAvatar` (FakePlayer + physics)
 
-**Files:** Create `neoforge/src/main/java/net/magicterra/agent/neoforge/sim/ServerPlayerAvatar.java`
+**Files:** Create `neoforge/src/main/java/net/magicterra/worlddriver/neoforge/sim/ServerPlayerAvatar.java`
 
 - [ ] **Step 1: Implement** `implements Avatar` wrapping a `FakePlayer fp` (from `FakePlayerFactory.getMinecraft(serverLevel)` or `get(level, profile)`).
   - movement writes store impulse: `commandMove(l,f)` → `pendingLeft=l; pendingForward=f`; `setYaw` → `fp.setYRot(yaw); fp.yBodyRot=yaw; fp.yHeadRot=yaw`; `commandJump`/`commandSneak`/`setSprinting` → store flags / `fp.setSprinting`.

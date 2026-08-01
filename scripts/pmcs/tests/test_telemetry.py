@@ -1,7 +1,7 @@
 from scripts.pmcs.telemetry import parse_walker_line, parse_log, peak_totstuck
 
 # 真实 [walker] telemetry 行格式(Walker.java:2388)
-LINE = ("[12:00:01] [Render thread/INFO] (AgentDriver) [walker] t=5 step=3/12 move=stepUp "
+LINE = ("[12:00:01] [Render thread/INFO] (WorldDriver) [walker] t=5 step=3/12 move=stepUp "
         "node=-815,64,196 p=(-815.30,63.00,196.10) pitch=0 cur2=0.120 (gate 0.45) "
         "|dY|=1.00 (gate 1.2) within=false onG=true inW=false undW=false "
         "stuck=5 totStuck=42 pend=false break0=null")

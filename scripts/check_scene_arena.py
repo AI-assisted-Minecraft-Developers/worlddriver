@@ -3,7 +3,7 @@
 
 WHY THIS EXISTS
 ---------------
-TestkitHarness lays scenes out on a 1-D grid along X (`originFor(slot) =
+StageWrightHarness lays scenes out on a 1-D grid along X (`originFor(slot) =
 GRID_X0 + slot*GRID_STEP`, GRID_STEP=512) and force-loads a (2r+1)x(2r+1)
 chunk window around the origin chunk, where r is the scene's `chunkRadius`
 (default 1). GRID_X0/GRID_Z0 are chunk-aligned, so the usable offsets are
@@ -13,7 +13,7 @@ chunk window around the origin chunk, where r is the scene's `chunkRadius`
 `Scene.withChunkRadius(r)` widens it. That relation — "the terrain this body
 builds fits in the window the harness forced" — is currently maintained BY
 HAND: a scene author works out the span, writes it in a javadoc paragraph (see
-AgentDriverWaterCrossScenes' class comment, which does this exactly right) and
+WorldDriverWaterCrossScenes' class comment, which does this exactly right) and
 adds `.withChunkRadius(n)` to the registration. Nothing checks it.
 
 The failure mode is silent and looks like flakiness. `setBlockAndUpdate` on a
@@ -72,9 +72,9 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SCENE_DIR = ROOT / "common/src/testmod/java/net/magicterra/agent/bot/testkit/scene"
+SCENE_DIR = ROOT / "common/src/testmod/java/net/magicterra/worlddriver/bot/testkit/scene"
 
-# Mirrors TestkitHarness.forceChunks + the chunk-aligned GRID_X0/GRID_Z0.
+# Mirrors StageWrightHarness.forceChunks + the chunk-aligned GRID_X0/GRID_Z0.
 # radius r forces chunks [-r, +r] around the origin chunk; the origin sits at
 # the chunk's low corner, so blocks [-16r, 16r+15] are covered.
 def window(radius: int) -> tuple[int, int]:
@@ -259,7 +259,7 @@ def _split_top(s: str, sep: str) -> list[str]:
     return out
 
 
-# `cx`/`cz` is the dominant convention but not a rule — AgentDriverStationScenes
+# `cx`/`cz` is the dominant convention but not a rule — WorldDriverStationScenes
 # binds the same thing to `x0`/`z0`. Read the names out of the body instead of
 # assuming them, or those scenes silently contribute no footprint at all.
 ORIGIN_BIND_RE = re.compile(r"\b(\w+)\s*=\s*ctx\.origin\(\)\.get([XZ])\(\)")
@@ -268,7 +268,7 @@ ORIGIN_BIND_RE = re.compile(r"\b(\w+)\s*=\s*ctx\.origin\(\)\.get([XZ])\(\)")
 def origin_names(body: str) -> list[str]:
     names = set(m.group(1) for m in ORIGIN_BIND_RE.finditer(body))
     # ...and pure aliases of those: `final int ax = cx, az = cz;`
-    # (AgentDriverStationScenes). Arithmetic is NOT followed — `floorY = ...getY()
+    # (WorldDriverStationScenes). Arithmetic is NOT followed — `floorY = ...getY()
     # + 20` is a Y binding and must not be read as an X/Z origin.
     for _ in range(3):
         for m in re.finditer(r"\b(\w+)\s*=\s*(\w+)\s*[,;]", body):
@@ -318,7 +318,7 @@ def offset_re(names: list[str]) -> re.Pattern:
     return re.compile(r"\b(" + alt + r")\b\s*(?:([+-])\s*)?")
 
 # Only coordinates handed to a world read/write count as footprint. A far-away
-# GOAL is not a footprint: ad.serverElytra aims an ElytraProcess at cx+400 so the
+# GOAL is not a footprint: wd.serverElytra aims an ElytraProcess at cx+400 so the
 # bot has something to glide toward, runs 60 ticks and asserts only that it
 # entered fall-flying — it never approaches that block, and no terrain is built
 # there. Counting target positions flagged that scene as a 25-radius arena, which
@@ -488,9 +488,9 @@ def registrations(src: str) -> list[tuple[str, str, int]]:
         rest = m.group("rest")
         meth = METHOD_RE.search(rest)
         rad = RADIUS_RE.search(rest)
-        # A lambda-bodied registration (mc-testkit's own Scenes.java uses them)
+        # A lambda-bodied registration (stagewright's own Scenes.java uses them)
         # has no method to analyze. Report it as unanalyzed rather than skipping
-        # it silently — an ad.* scene that switched to a lambda would otherwise
+        # it silently — an wd.* scene that switched to a lambda would otherwise
         # drop out of the gate's coverage without changing its output.
         out.append((m.group("name"), meth.group(1) if meth else None,
                     int(rad.group(1)) if rad else 1))
@@ -562,7 +562,7 @@ def main() -> int:
         return 1
     if args.strict and (unk or missing):
         return 1
-    print(f"scene-arena gate OK: {len(rows)} ad.* scene(s) fit their forced-chunk window; "
+    print(f"scene-arena gate OK: {len(rows)} wd.* scene(s) fit their forced-chunk window; "
           f"{len(unk)} with unresolved offset expression(s), "
           f"{len(missing)} body not located "
           f"(scope: {SCENE_DIR.relative_to(ROOT).as_posix()})")
@@ -625,14 +625,14 @@ def self_test() -> int:
     _, _, unk = footprint("level.setBlockAndUpdate(new BlockPos(cx + helper(q), y, cz), S);", {})
     ck("unresolved -> UNKNOWN", len(unk), 1)
 
-    # The ad.serverElytra shape: a far GOAL handed to a process is not terrain.
+    # The wd.serverElytra shape: a far GOAL handed to a process is not terrain.
     elytra = """
         level.setBlockAndUpdate(new BlockPos(cx + 1, floorY, cz), STONE);
         driver.runProcess(new ElytraProcess(new BlockPos(cx + 400, floorY + 40, cz), null));
     """
     ck("far goal is not footprint", footprint(elytra, {"floorY": (0, 0)})[1], 1)
 
-    # The ad.ledgeOvershoot idiom: the offset lives in the loop header and the
+    # The wd.ledgeOvershoot idiom: the offset lives in the loop header and the
     # position argument is a bare `x`. Scoping to position arguments alone scored
     # this body [0,0] "fits" while it actually reaches +44.
     ledge = """
@@ -659,7 +659,7 @@ def self_test() -> int:
     ck("DSL hull", footprint(dsl, bindings(dsl))[:2], (-9, 20))
     ck("DSL clean", footprint(dsl, bindings(dsl))[2], [])
 
-    # The origin may be bound to any name — AgentDriverStationScenes uses x0/z0.
+    # The origin may be bound to any name — WorldDriverStationScenes uses x0/z0.
     named = """
         final int x0 = ctx.origin().getX(), z0 = ctx.origin().getZ();
         level.setBlockAndUpdate(new BlockPos(x0 + 12, y, z0 - 3), STONE);

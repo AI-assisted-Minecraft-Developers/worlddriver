@@ -25,7 +25,7 @@ envelope, and per-tick trajectory, so it is heavyweight for long runs.
 With the toggle on, completing (or cancelling) a `goto` writes:
 
 ```
-config/agent_driver/replays/replay-<counter>-<epochMs>.json
+config/worlddriver/replays/replay-<counter>-<epochMs>.json
 ```
 
 The counter increments per session (shared with pathChart numbering).
@@ -53,7 +53,7 @@ The replayer:
    (no re-planning, no quick-start, no splice fires).
 4. Executes the stored plan through real physics; any wedge accumulates
    `stuckTicks` and is **recorded, not re-planned**.
-5. Writes `config/agent_driver/replays/replay-run-<counter>-<epochMs>.json`
+5. Writes `config/worlddriver/replays/replay-run-<counter>-<epochMs>.json`
    with the actual trajectory and per-step deviation from the plan.
 
 ---

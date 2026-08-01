@@ -325,7 +325,7 @@ def print_header(archive: dict) -> None:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Analyze a path-archive JSON written by the agent-driver mod."
+        description="Analyze a path-archive JSON written by the worlddriver mod."
     )
     parser.add_argument("archive", help="Path to the .json archive file.")
     parser.add_argument(

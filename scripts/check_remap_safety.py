@@ -58,7 +58,7 @@ REMEDIATION (for anything this reports)
 Access widener + access transformer -- ESTABLISHED, piloted on MouseHandler.xpos/ypos
 2026-07-26 and green on both loaders. Add the member to BOTH:
 
-    common/src/main/resources/agent_driver.accesswidener     (fabric + compile)
+    common/src/main/resources/worlddriver.accesswidener     (fabric + compile)
     neoforge/src/main/resources/META-INF/accesstransformer.cfg   (neoforge)
 
 then delete the reflection and use the member directly. The source stays Mojang-named
@@ -147,7 +147,7 @@ def find_jar(explicit: str | None) -> pathlib.Path:
             sys.exit(f"remap-safety: --jar {p} does not exist")
         return p
     libs = ROOT / "fabric" / "build" / "libs"
-    cands = [p for p in libs.glob("agent_driver-fabric-*.jar")
+    cands = [p for p in libs.glob("worlddriver-fabric-*.jar")
              if not p.name.endswith(("-sources.jar", "-dev-shadow.jar"))]
     if not cands:
         sys.exit("remap-safety: no remapped fabric jar found.\n"
@@ -156,7 +156,7 @@ def find_jar(explicit: str | None) -> pathlib.Path:
     return max(cands, key=lambda p: p.stat().st_mtime)
 
 
-AW_PATH = ROOT / "common" / "src" / "main" / "resources" / "agent_driver.accesswidener"
+AW_PATH = ROOT / "common" / "src" / "main" / "resources" / "worlddriver.accesswidener"
 AT_PATH = ROOT / "neoforge" / "src" / "main" / "resources" / "META-INF" / "accesstransformer.cfg"
 
 

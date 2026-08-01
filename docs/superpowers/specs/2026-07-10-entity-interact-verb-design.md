@@ -23,8 +23,8 @@ Agent 目前对这些交互一律无能为力。
 - **尽量不新增 MCP 工具**（用户明确要求）。
 - 与现有动词的契约风格一致（同步、返回 `{ok, result, consumed, ...}`、
   snap-look、`setShiftKeyDown` 显式管理——见 `InteractionCommands.java`）。
-- 会话内 MCP 工具 schema 冻结：新参数在**本会话**经 `mcp__agent-driver__*` 调用会被
-  harness 按旧 schema 静默剥掉，验证须走 RPC websocket（`agent-driver-rpc` 技能）；
+- 会话内 MCP 工具 schema 冻结：新参数在**本会话**经 `mcp__worlddriver__*` 调用会被
+  harness 按旧 schema 静默剥掉，验证须走 RPC websocket（`worlddriver-rpc` 技能）；
   下个会话起 MCP 原生可用。
 
 ## 3. 候选方案

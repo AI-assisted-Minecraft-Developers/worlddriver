@@ -86,7 +86,7 @@ SwimAshoreBreak/SwimBankClimbBreak/SwimUp/Fall/StepDown…),每种生成最小�
 0004 上 579→1935 冻)。corpus 必须覆盖各故障类型:深水穿越 / 水岸 climb-out / 干地陡坡 / 树冠 / 峡谷 pinch。**目标 ~10-15 归档**。
 corpus 不够多样,接受门就是假门。
 
-**已有资产(种子)**:`scripts/replay_regression_track.sh` + `config/agent_driver/replays/REGRESSION.md` +
+**已有资产(种子)**:`scripts/replay_regression_track.sh` + `config/worlddriver/replays/REGRESSION.md` +
 一批 `-815/-870` 归档。需补齐多样性。
 
 **实测 lever 矩阵(说明门为何必要)**:

@@ -98,7 +98,7 @@
 ## 三、恢复时的关键状态
 
 - **世界/bot**:integrated 单机 SurvivalTest,`/tick freeze` 冻结中(coding 模式);live bot 客户端
-  JVM 带 `-Dagent.mcpPort=39800`,**勿杀**。恢复 live 实验前解冻 + 开 live-screen-watch。
+  JVM 带 `-Dworlddriver.mcpPort=39800`,**勿杀**。恢复 live 实验前解冻 + 开 live-screen-watch。
 - **git**:分支 `feature/executor-permove-ascend` tip `6418855`;master 在 `5cea9f1`(gap#81)。
   stash 里有被否决的 Unit2 重实现("unit2-implementer-UNFAITHFUL-drive-reimpl",仅参考勿 apply)。
 - **验证纪律(本会话再校准)**:

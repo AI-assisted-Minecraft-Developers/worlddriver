@@ -17,7 +17,7 @@
 
 set -uo pipefail
 
-REPO=/home/coder/AI-assisted-Minecraft-Developers/agent-driver-mod
+REPO=/home/coder/AI-assisted-Minecraft-Developers/worlddriver
 SHOTS=$REPO/fabric/run/smoke
 mkdir -p "$SHOTS"
 # Keep prior runclient.log for diffing if needed

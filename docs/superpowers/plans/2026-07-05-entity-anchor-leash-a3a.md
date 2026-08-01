@@ -39,7 +39,7 @@
 
 - [ ] **Step 1: `EntityLeash.java`**
 ```java
-package net.magicterra.agent.bot.process;
+package net.magicterra.worlddriver.bot.process;
 
 /** Spec of a DYNAMIC leash anchor: tether the route near a moving entity.
  *  {@code entity} is a player/entity name (no colon) or an entity type id
@@ -132,7 +132,7 @@ AND guard the two STATIC parsers so an entity-keyed map doesn't ALSO produce a s
 
 - [ ] **Step 2: goto wiring.** BotApiImpl goto: build the Intent with the 5th arg `GotoGoalResolver.resolveEntityLeash(p)`.
 
-- [ ] **Step 3: follow wiring.** At `BotApiImpl:718` (`new FollowProcess(entityType, name, radius, maxIdleTicks)`): parse a profile from the same Params `p` of the follow verb — `new SearchProfile(GotoGoalResolver.resolveBias(p), GotoGoalResolver.resolveCapability(p), GotoGoalResolver.resolveConstraints(p))` — and pass via the new 5-arg ctor. (Resolver methods are package-private static in the same package — verify visibility; widen to public static if BotApiImpl is another package... it is the SAME package `net.magicterra.agent.bot` — fine.)
+- [ ] **Step 3: follow wiring.** At `BotApiImpl:718` (`new FollowProcess(entityType, name, radius, maxIdleTicks)`): parse a profile from the same Params `p` of the follow verb — `new SearchProfile(GotoGoalResolver.resolveBias(p), GotoGoalResolver.resolveCapability(p), GotoGoalResolver.resolveConstraints(p))` — and pass via the new 5-arg ctor. (Resolver methods are package-private static in the same package — verify visibility; widen to public static if BotApiImpl is another package... it is the SAME package `net.magicterra.worlddriver.bot` — fine.)
 
 - [ ] **Step 4: schema.** BotTools goto block: add `.prop("entity", string())` inside BOTH the `leash` and `leashHard` object schemas; extend their help lines: "or entity:'name-or-type' → DYNAMIC anchor that follows the entity (带路: goto the destination + leash:{entity:'PlayerB'})". Follow tool block: add the same `avoid`/`preferY`/`leash`/`forbidParkour`/`yFloor`/`yCeil`/`forbidWater`/`forbidDig` props as goto (copy the prop lines) + one help line "accepts goto's bias/constraint args (forbidWater etc.) applied to the follow pathing".
 
