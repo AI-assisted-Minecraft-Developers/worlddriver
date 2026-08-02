@@ -23,6 +23,12 @@ etc.) working in this project. Keep it short and authoritative.
     `mc.test.run` over multiplayer.
   - `instrument.py --loader <loader>` — the 23/23 instrument contract.
 
+  The commands above are unchanged, but the orchestrators themselves now live in the
+  **StageWright** repo — `scripts/stagewright/` holds thin shims that delegate to it and
+  pin `--project-root` to this repo. StageWright is expected as a sibling checkout
+  (`../stagewright`); point `STAGEWRIGHT_HOME` elsewhere if it is not. What stays here is
+  consumer data: the per-loader `expected-scenes-*.txt` manifests.
+
   Verdict = each orchestrator exits 0 (GREEN). The scenes live in `:common`'s
   testmod source set and are delivered into dev runs via the testmod bridge.
 

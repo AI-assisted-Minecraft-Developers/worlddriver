@@ -68,7 +68,9 @@ This dogfoods a dedicated server with the stagewright harness, autoruns the wd.*
 scenes (`common/src/testmod/.../scene/`) plus the `*.js` validation suite, and
 verifies the results stream against the expect-file. The stagewright orchestrators
 under `scripts/stagewright/` (`t0`/`t1`/`t2` + `instrument.py`) are the CI gates — the
-legacy `@GameTest`/GameTestServer path was retired in P4-final.
+legacy `@GameTest`/GameTestServer path was retired in P4-final. Those entry points are
+shims: the orchestrators live in the StageWright repo, expected as a sibling checkout
+(`../stagewright`, override with `STAGEWRIGHT_HOME`).
 
 ### 2. Run the client and connect an MCP client
 

@@ -57,6 +57,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `stagewrightClient` / `t2Server` boot with both mods side by side, as a production install
     would. Never published, never bundled — the build-graph equivalent of `testImplementation`.
 
+- **The StageWright orchestrators moved out of this repo; `scripts/stagewright/` now holds
+  shims.** Every documented gate command is unchanged — `python scripts/stagewright/t0.py
+  --loader fabric …` still works — but `t0`/`t1`/`t2`/`instrument`/`instrument_client`/`pool`
+  are ~25-line delegations to a StageWright checkout, expected as a sibling directory
+  (`../stagewright`, override with `STAGEWRIGHT_HOME`). What stays here is consumer data: the
+  per-loader `expected-scenes-*.txt` manifests.
+
+  The orchestrators used to derive the repo root from their own `__file__`, which after the
+  move would resolve to StageWright's tree and silently drive the wrong build. They now take
+  `--project-root` (falling back to `$STAGEWRIGHT_PROJECT_ROOT`, then the cwd), and the shims
+  pin it to this repo so a gate can never be aimed at whatever directory you were standing in.
+
+  Two gate defects surfaced while proving this, both of which had been reporting success
+  without checking anything:
+  - t0's "shipped per-loader manifests agree" compared two manifests via a helper that
+    returns an empty list for a *missing* file, so `not []` passed. It is now tri-state and
+    reports SKIP when the manifests are absent — which is what StageWright standing alone
+    now correctly says, and worlddriver still says PASS.
+  - t1/t2 resolved `TESTKIT_DIR` once at import from the pre-`--project-root` value, so
+    `--project-root` moved the run dirs but left the world-template cache behind — the
+    dirty-world failure mode, arriving silently. Resolved lazily now.
+
 ### Removed
 - **BREAKING (RPC): the YAML GameTest harness is retired — `mc.test.yaml` is gone.**
   It was the driver's *second* in-game test system, living alongside StageWright's
