@@ -82,6 +82,26 @@ subprojects {
         publications {
             mavenJava(MavenPublication) {
                 from components.java
+
+                // ---- `dev` classifier: the NAMED-mappings jar, for cross-repo compilation ----
+                // components.java publishes loom's REMAPPED artifact, whose Minecraft references
+                // are intermediary (net/minecraft/class_1291). That is correct for shipping and
+                // useless for compiling: a consumer building in a dev environment resolves against
+                // named/mojmap (net/minecraft/core/BlockPos), so linking the published jar directly
+                // fails on every Minecraft-touching signature.
+                //
+                // Inside one Gradle build, consumers dodge this via
+                // `project(path: ':x', configuration: 'namedElements')`. That configuration has no
+                // published equivalent — so publish the artifact it points at. Loom already builds
+                // it (build/devlibs/<name>-dev.jar); this only stops it being thrown away.
+                //
+                // Needed in BOTH directions once StageWright and WorldDriver are separate repos:
+                // stagewright-common compiles against worlddriver-common:dev, and worlddriver's
+                // testmod compiles against mc_stagewright-api:dev. Attached as a classifier rather
+                // than a second publication so the coordinates stay one artifact with two faces —
+                // `:dev` for compiling, plain for shipping — and no POM claims a dependency on it.
+                artifact(tasks.named('jar')) { classifier = 'dev' }
+
                 // Everything a consumer needs at runtime (Rhino, netty-codec-http)
                 // is nested in the jar via Jar-in-Jar, so the published
                 // POM must not re-declare them: a consumer that naively resolves
