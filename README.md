@@ -72,6 +72,20 @@ legacy `@GameTest`/GameTestServer path was retired in P4-final. Those entry poin
 shims: the orchestrators live in the StageWright repo, expected as a sibling checkout
 (`../stagewright`, override with `STAGEWRIGHT_HOME`).
 
+StageWright is consumed as **published artifacts**, not as a subproject, and the two repos
+depend on each other in opposite directions — so a fresh clone bootstraps in this order:
+
+```bash
+(cd ../worlddriver  && ./gradlew :common:publishToMavenLocal)   # 1. what StageWright compiles against
+(cd ../stagewright  && ./gradlew publishToMavenLocal \
+                    && ./gradlew -p gradle-plugin publishToMavenLocal)   # 2. the framework + its plugin
+./gradlew build                                                  # 3. testmod + dev runs resolve it
+```
+
+Not a real cycle: this repo's **main** source set has never depended on StageWright, and
+StageWright's api module depends on nothing. Full reasoning at the top of
+`../stagewright/build.gradle`.
+
 ### 2. Run the client and connect an MCP client
 
 ```bash

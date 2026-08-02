@@ -29,6 +29,16 @@ etc.) working in this project. Keep it short and authoritative.
   (`../stagewright`); point `STAGEWRIGHT_HOME` elsewhere if it is not. What stays here is
   consumer data: the per-loader `expected-scenes-*.txt` manifests.
 
+- **StageWright is a dependency, not a subproject.** It is consumed only as published
+  artifacts (`stagewright_version` / `stagewright_plugin_version` in `gradle.properties`):
+  `mc_stagewright-api:dev` on the testmod compile classpath, `mc_stagewright-<loader>` as
+  `modLocalRuntime` for dev runs, and the `net.magicterra.stagewright` gradle plugin. None
+  of it is published or bundled by this repo, and both shipped jars contain **zero**
+  StageWright entries. Until the artifacts reach a real remote they come from `mavenLocal`,
+  which means a fresh clone must bootstrap in the order documented at the top of
+  `../stagewright/build.gradle` — publish `worlddriver-common` first, then StageWright, then
+  build here. Skipping step 1 fails with an unresolved `worlddriver-common:<ver>:dev`.
+
   Verdict = each orchestrator exits 0 (GREEN). The scenes live in `:common`'s
   testmod source set and are delivered into dev runs via the testmod bridge.
 

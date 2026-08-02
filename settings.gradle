@@ -1,16 +1,21 @@
 pluginManagement {
-    // Standalone included build for the stagewright gradle plugin (id
-    // net.magicterra.stagewright). Being an included build it lives entirely
-    // outside the root subprojects{} / loom pipeline; the root build applies it
-    // below as the first dogfood consumer. Zero cost when a consumer does not
-    // apply the plugin.
-    includeBuild('stagewright/gradle-plugin')
-
     repositories {
+        // StageWright's gradle plugin arrives as a published artifact now, not as an
+        // included build: the framework lives in its own repository. Until it is on a real
+        // remote that repository is the local one — see the release-order note at the foot
+        // of ../stagewright/settings.gradle for how the two builds bootstrap each other.
+        mavenLocal()
         maven { url "https://maven.fabricmc.net/" }
         maven { url "https://maven.architectury.dev/" }
         maven { url "https://files.minecraftforge.net/maven/" }
         gradlePluginPortal()
+    }
+
+    // The version lives here, not in the root `plugins {}` block, which does not accept
+    // property interpolation. Keeps build.gradle's `id 'net.magicterra.stagewright'`
+    // version-free and the number beside the other coordinates in gradle.properties.
+    plugins {
+        id 'net.magicterra.stagewright' version "${stagewright_plugin_version}"
     }
 }
 
@@ -22,13 +27,3 @@ rootProject.name = 'worlddriver'
 include 'common'
 include 'fabric'
 include 'neoforge'
-include 'stagewright-api'
-include 'stagewright-common'
-include 'stagewright-fabric'
-include 'stagewright-neoforge'
-include 'stagewright-junit'
-project(':stagewright-api').projectDir = file('stagewright/api')
-project(':stagewright-common').projectDir = file('stagewright/common')
-project(':stagewright-fabric').projectDir = file('stagewright/fabric')
-project(':stagewright-neoforge').projectDir = file('stagewright/neoforge')
-project(':stagewright-junit').projectDir = file('stagewright/junit')

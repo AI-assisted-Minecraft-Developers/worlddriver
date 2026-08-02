@@ -79,6 +79,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `--project-root` moved the run dirs but left the world-template cache behind — the
     dirty-world failure mode, arriving silently. Resolved lazily now.
 
+- **BREAKING (build): StageWright is no longer a subproject of this build — it is a
+  published dependency.** `settings.gradle` no longer includes `stagewright-{api,common,
+  fabric,neoforge,junit}`, `stagewright/` is deleted from this repo, and the framework
+  arrives as artifacts:
+
+  | consumed as | coordinate | why that face |
+  |---|---|---|
+  | testmod compile | `net.magicterra:mc_stagewright-api:<ver>:dev` | named mappings; not a `mod*` configuration, so loom must not remap it |
+  | dev-run classpath | `net.magicterra:mc_stagewright-<loader>:<ver>` | a `mod*` configuration, so loom remaps intermediary → named |
+  | gradle tasks | plugin `net.magicterra.stagewright:<plugin-ver>` | was `includeBuild('stagewright/gradle-plugin')` |
+
+  Versions are `stagewright_version` / `stagewright_plugin_version` in `gradle.properties`.
+  The two are separate because the plugin carries no Minecraft classpath and does not move
+  with the Minecraft version.
+
+  **Bootstrap order matters and is not discoverable from an error message.** The
+  dependency runs both ways — `stagewright-common` compiles against `worlddriver-common`,
+  and this repo's testmod compiles against `mc_stagewright-api` — so a fresh clone must:
+  publish `worlddriver-common` first (this repo's **main** source set has never needed
+  StageWright, which is what makes the cycle only apparent), then publish StageWright, then
+  build here. The sequence is written out at the top of `../stagewright/build.gradle`.
+  Skipping the first step fails on an unresolved `worlddriver-common:<ver>:dev`.
+
+  Both shipped jars still contain **zero** StageWright entries, and `modLocalRuntime` is
+  still never published and never bundled — only its source changed, from a project
+  reference to a coordinate.
+
 ### Removed
 - **BREAKING (RPC): the YAML GameTest harness is retired — `mc.test.yaml` is gone.**
   It was the driver's *second* in-game test system, living alongside StageWright's

@@ -31,12 +31,6 @@ allprojects {
 }
 
 subprojects {
-    // stagewright-junit is a pure-JVM JUnit 5 attach module (out-of-process RPC consumer):
-    // no Minecraft, no loader, no loom. It provides its own java-library setup in
-    // stagewright/junit/build.gradle. Scope it out of the loom/architectury/MC pipeline
-    // that every other subproject shares. (group/version still come from allprojects.)
-    if (project.name == 'stagewright-junit') return
-
     apply plugin: 'dev.architectury.loom'
     apply plugin: 'architectury-plugin'
     apply plugin: 'maven-publish'
@@ -47,11 +41,13 @@ subprojects {
     }
 
     repositories {
-        // Add repositories to retrieve artifacts from in here.
-        // You should only use this when depending on other mods because
-        // Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
-        // See https://docs.gradle.org/current/userguide/declaring_repositories.html
-        // for more information about repositories.
+        // StageWright's published modules. Required, not a convenience: since the repo
+        // split the framework is not a subproject here, so `mc_stagewright-api:dev` (testmod
+        // compile) and `mc_stagewright-{fabric,neoforge}` (dev runs) have nowhere else to
+        // come from. Local until the artifacts are on a real remote.
+        mavenLocal()
+        // Loom adds the essential maven repositories to download Minecraft and libraries
+        // from automatically; only declare others when depending on mods.
     }
 
     loom {

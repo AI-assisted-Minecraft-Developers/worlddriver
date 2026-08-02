@@ -45,14 +45,19 @@ sourceSets {
 }
 
 dependencies {
-    // testkit scene SPI (Scene/SceneContext/SceneProvider) for the moved scenes —
-    // same architectury common→common namedElements idiom as main's stagewright-common dep.
-    // The API ONLY, never the runtime: the wd.* scenes need Scene/SceneContext/SceneProvider
-    // to DECLARE themselves, and nothing else. Depending on stagewright-common here would be a
-    // version cycle once the two repos publish separately (that module depends on this one).
-    testmodImplementation project(path: ':stagewright-api', configuration: 'namedElements')
+    // StageWright's scene SPI (Scene/SceneContext/SceneProvider) for the wd.* scenes.
+    //
+    // The API ONLY, never the runtime: the scenes need those three types to DECLARE
+    // themselves and nothing else. Depending on mc_stagewright-common here would be a
+    // version CYCLE — that module compiles against worlddriver-common — which is exactly
+    // why the api module was split out before the repos separated.
+    //
+    // `:dev` is the named-mappings jar. Not a `mod*` configuration, so loom does not remap
+    // it, which is correct: the dev jar is already in the mappings this compile classpath
+    // uses. The plain artifact is intermediary and would fail to link.
+    testmodImplementation "net.magicterra:mc_stagewright-api:${rootProject.stagewright_version}:dev"
 
-    // Same pin as stagewright/junit — one JUnit version across the build.
+    // Same pin StageWright's junit module uses — one JUnit version across both repos.
     testImplementation platform('org.junit:junit-bom:5.11.3')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
