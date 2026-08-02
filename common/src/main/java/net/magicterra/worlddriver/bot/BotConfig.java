@@ -2536,6 +2536,20 @@ public final class BotConfig {
      *  {@code mc.bot.setting{elytraDebug:true}}. */
     public static volatile boolean elytraDebug = false;
 
+    /** Keep the game ticking while the BOT is driving and the window loses focus.
+     *
+     *  <p>Vanilla singleplayer pauses on lost focus, which is right for a human who alt-tabbed
+     *  and wrong for a bot mid-task: the world freezes partway through a goto/mine, and the
+     *  {@code PauseScreen} it opens sits underneath every subsequent screen assertion — a
+     *  screen-close check reads "screen should be null" and finds the pause menu instead.
+     *
+     *  <p>Scoped exactly like the {@link MouseYield} handshake: the override is applied only
+     *  while a process actually owns the tick, and the human's own
+     *  {@code options.pauseOnLostFocus} value is handed straight back the moment the bot stops.
+     *  A pause menu the human opened deliberately (Esc) is never touched — only the AUTOMATIC
+     *  focus-loss pause is suppressed. See {@link FocusPolicy}. */
+    public static volatile boolean keepTickingUnfocused = true;
+
     // ===================== persistence (survives a restart) =====================
     // The "重启游戏需要重新配置" pain: every relaunch reset these volatiles to their
     // defaults, so survival toggles (autoSwim, autoRetreat, …) had to be re-applied

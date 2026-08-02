@@ -3,11 +3,13 @@ package net.magicterra.worlddriver.fabric.client;
 import com.mojang.authlib.GameProfile;
 import java.time.Instant;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.BotApiImpl;
+import net.magicterra.worlddriver.bot.FocusPolicy;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.MouseYieldHud;
 import net.magicterra.worlddriver.client.ClientDriverApiImpl;
@@ -30,6 +32,11 @@ public final class WorldDriverFabricClient implements ClientModInitializer {
         BotApiImpl bot = new BotApiImpl();
         BotHooks.register(bot);
         ClientTickEvents.END_CLIENT_TICK.register(mc -> bot.clientTick());
+        // FocusPolicy holds the human's real pauseOnLostFocus while the bot drives. Minecraft
+        // saves options.txt on close, so a force-quit mid-drive would otherwise PERSIST our
+        // temporary false into their settings. The tick's falling edge covers every normal
+        // stop; this covers the one path where ticks just stop arriving.
+        ClientLifecycleEvents.CLIENT_STOPPING.register(FocusPolicy::release);
         // "Bot is driving" badge — the visible half of the mouse-yield handshake
         // (BotConfig.mouseYield / mouseYieldHud). Drawing lives in common; this is
         // only the loader's render hook. NeoForge subscribes RenderGuiEvent.Post.

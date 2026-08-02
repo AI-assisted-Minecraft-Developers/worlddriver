@@ -12,7 +12,10 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.ClientChatReceivedEvent;
+import net.minecraft.client.Minecraft;
+import net.magicterra.worlddriver.bot.FocusPolicy;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.event.GameShuttingDownEvent;
 import net.neoforged.neoforge.client.event.RenderGuiEvent;
 
 /**
@@ -42,6 +45,16 @@ public final class WorldDriverNeoForgeClient {
     public static void onClientTick(ClientTickEvent.Post evt) {
         BotApiImpl b = BOT;
         if (b != null) b.clientTick();
+    }
+
+    /** FocusPolicy holds the human's real pauseOnLostFocus while the bot drives. Minecraft saves
+     *  options.txt on close, so a force-quit mid-drive would otherwise PERSIST our temporary
+     *  false into their settings. The tick's falling edge covers every normal stop; this covers
+     *  the one path where ticks just stop arriving. Fabric registers CLIENT_STOPPING for the
+     *  same call, so the two loaders can't diverge on whose setting gets left mutated. */
+    @SubscribeEvent
+    public static void onGameShuttingDown(GameShuttingDownEvent evt) {
+        FocusPolicy.release(Minecraft.getInstance());
     }
 
     /** "Bot is driving" badge — the visible half of the mouse-yield handshake

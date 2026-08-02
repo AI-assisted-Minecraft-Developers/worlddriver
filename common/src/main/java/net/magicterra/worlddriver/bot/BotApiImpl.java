@@ -1005,18 +1005,34 @@ public final class BotApiImpl implements BotApi {
         return c != null && c.kind().equals("builder");
     }
 
+    /**
+     * The two policies that key off "is the bot currently driving", applied at the very top of
+     * every client tick — ahead of all of {@code clientTick}'s early returns (no world, bot
+     * paused, clutch owning the tick), because each one's FALLING edge has to be honoured on
+     * exactly those ticks too. Handing the cursor back, or handing the human's pause setting
+     * back, must not be skipped just because there is nothing else to do this tick.
+     *
+     * <ul>
+     *   <li><b>Mouse coexistence</b> — marked from the PREVIOUS tick's ownership
+     *       ({@code scheduler.current()} is last tick's decision): a 1-tick lag on a 20-tick
+     *       linger, so it never flickers.</li>
+     *   <li><b>Focus</b> — while the bot drives, vanilla's pause-on-lost-focus is suppressed so
+     *       an alt-tab cannot freeze the world mid-task (see {@link FocusPolicy}).</li>
+     * </ul>
+     */
+    private void applyTakeoverPolicies(Minecraft mc) {
+        String mouseDriver = scheduler.currentName();
+        if (mouseDriver == null) mouseDriver = state.activeName();
+        boolean botDriving = mouseDriver != null && !paused;
+        if (botDriving) MouseYield.markDriving(mouseDriver);
+        MouseYield.tick(mc);
+        FocusPolicy.apply(mc, botDriving);
+    }
+
     /** Called from the platform client-tick hook every client tick. */
     public void clientTick() {
         Minecraft mc = Minecraft.getInstance();
-        // Human/bot mouse coexistence. Marked from the PREVIOUS tick's ownership
-        // (scheduler.current() is last tick's decision) — a 1-tick lag on a 20-tick
-        // linger, so it never flickers. Driven here at the very top, ahead of every
-        // early return below (no world, bot paused, clutch owning the tick), because
-        // the gate must be able to hand the cursor BACK on exactly those ticks too.
-        String mouseDriver = scheduler.currentName();
-        if (mouseDriver == null) mouseDriver = state.activeName();
-        if (mouseDriver != null && !paused) MouseYield.markDriving(mouseDriver);
-        MouseYield.tick(mc);
+        applyTakeoverPolicies(mc);
         // Death detection must run BEFORE autoRespawn: autoRespawn dismisses the
         // DeathScreen (setScreen(null)), and the screen is the only client-side
         // carrier of the SPECIFIC cause of death (slain by X / drowned / blown
