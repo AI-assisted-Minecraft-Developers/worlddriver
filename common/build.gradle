@@ -47,7 +47,10 @@ sourceSets {
 dependencies {
     // testkit scene SPI (Scene/SceneContext/SceneProvider) for the moved scenes —
     // same architectury common→common namedElements idiom as main's stagewright-common dep.
-    testmodImplementation project(path: ':stagewright-common', configuration: 'namedElements')
+    // The API ONLY, never the runtime: the wd.* scenes need Scene/SceneContext/SceneProvider
+    // to DECLARE themselves, and nothing else. Depending on stagewright-common here would be a
+    // version cycle once the two repos publish separately (that module depends on this one).
+    testmodImplementation project(path: ':stagewright-api', configuration: 'namedElements')
 
     // Same pin as stagewright/junit — one JUnit version across the build.
     testImplementation platform('org.junit:junit-bom:5.11.3')
