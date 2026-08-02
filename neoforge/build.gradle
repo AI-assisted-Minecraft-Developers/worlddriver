@@ -39,10 +39,16 @@ dependencies {
     common(project(path: ':common', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':common', configuration: 'transformProductionNeoForge')
 
-    // stagewright-common (P1c dogfood wiring) — same two-line idiom as :common above,
-    // and identical to how stagewright/neoforge/build.gradle already consumes it.
-    common(project(path: ':stagewright-common', configuration: 'namedElements')) { transitive false }
-    shadowBundle project(path: ':stagewright-common', configuration: 'transformProductionNeoForge')
+    // DEV-ONLY: put the StageWright mod on the dev run classpath so dogfoodServer /
+    // stagewrightClient / t2Server boot with both mods, the way a production install would
+    // (worlddriver.jar + stagewright.jar side by side). `modLocalRuntime` is never published
+    // and never bundled — it is the build-graph equivalent of `testImplementation junit`.
+    modLocalRuntime project(':stagewright-neoforge')
+
+    // NOTE: stagewright-common is deliberately NOT bundled here. It used to be, which is what
+    // put the whole test harness inside the shipped worlddriver jar and forced the driver to
+    // forward server lifecycle into it. StageWright is its own mod (stagewright/neoforge ships a
+    // neoforge.mods.toml) and depends on worlddriver, not the other way round.
 
     // Rhino (KubeJS fork) — a full mod jar (ships neoforge.mods.toml), so we
     // nest it via Jar-in-Jar instead of shadowing its classes. FML discovers the

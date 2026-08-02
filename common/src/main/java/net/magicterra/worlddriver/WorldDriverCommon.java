@@ -5,8 +5,6 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.bot.stagewright.TestInputVerbs;
-import net.magicterra.worlddriver.bot.stagewright.TestResetVerb;
 import net.magicterra.worlddriver.mcp.McpServer;
 import net.magicterra.worlddriver.mcp.ToolCatalog;
 import net.magicterra.worlddriver.mcp.schema.Schema;
@@ -151,18 +149,12 @@ public final class WorldDriverCommon {
                 // routes on this api instance without importing it (Hard Rule #1 — only the
                 // (name, handler) data-flow crosses the seam, mirroring setParamsValidator).
                 ToolCatalog.wireRouteSink(api::addRoute);
-                // First runtime consumer of the paired SPI: the hidden mc.test.reset client-pool
-                // entry reset. Registered here on the COMMON boot path (not client-only
-                // ClientHooks, unlike PathDebugBootstrap) because a dedicated server must carry the
-                // route + schema too — the dogfood wd.settingRegistryClosed scene asserts it there,
-                // and on a server the verb throws client-only rather than doing anything. MUST come
-                // after wireRouteSink (a pre-boot registerVerb throws) and before the
-                // requireSchemasFor convergence guard below (so its route already has a schema).
-                TestResetVerb.register();
-                // task#90 instrument-face gap closers: hidden mc.test.input.heldKeys (KeyMapping
-                // readback) + mc.test.input.useOnBlock (instrument-grade world right-click). Same
-                // paired-SPI / common-boot / client-only contract as TestResetVerb above.
-                TestInputVerbs.register();
+                // The mc.test.* verbs (reset / run / input.*) used to be registered from right here,
+                // on the driver's own boot path, even though they belong to StageWright. They are now
+                // registered by StageWright itself at SERVER_STARTED — strictly after this sink is
+                // wired, which is the ordering registerVerb requires. The driver no longer names its
+                // test framework at boot, and a server without StageWright installed simply has no
+                // mc.test.* surface.
             }
         } catch (Exception e) {
             LOG.error("[{}] failed to start RPC server", MOD_ID, e);

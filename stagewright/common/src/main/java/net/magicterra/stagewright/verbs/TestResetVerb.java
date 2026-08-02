@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.bot.stagewright;
+package net.magicterra.stagewright.verbs;
 
 import java.util.Map;
 

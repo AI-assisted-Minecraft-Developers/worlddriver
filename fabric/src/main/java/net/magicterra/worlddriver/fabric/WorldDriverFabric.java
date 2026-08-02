@@ -17,16 +17,15 @@ import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.fabric.sim.FabricAvatarBodies;
 import net.minecraft.core.BlockPos;
 import net.magicterra.worlddriver.script.ScriptEvents;
-import net.magicterra.stagewright.StageWrightCommon;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 
 public final class WorldDriverFabric implements ModInitializer {
-    // P1.6 Task 3 dogfood wiring — mirrors WorldDriverNeoForge's TESTKIT_AUTORUN double
-    // gate exactly: the same -Dstagewright.autorun system property that arms the stagewright
-    // harness also conditions BotConfig.applyGameTestBaseline() (an worlddriver concern
-    // StageWrightCommon knows nothing about), so the two can never diverge across loaders.
+    // Reads the same -Dstagewright.autorun property StageWright arms on, but does NOT talk to
+    // StageWright: applyGameTestBaseline() is a worlddriver concern (it pins the legacy default-OFF
+    // flag baseline the scene arenas were authored against). The property is the only thing shared,
+    // which is what lets the driver stay ignorant of whether a test framework is even installed.
     private static final boolean TESTKIT_AUTORUN = Boolean.getBoolean("stagewright.autorun");
 
     @Override
@@ -46,28 +45,22 @@ public final class WorldDriverFabric implements ModInitializer {
         ServerLifecycleEvents.SERVER_STARTING.register(server -> WorldDriverCommon.onServerStarting());
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             WorldDriverCommon.onServerStarted(server);
-            // StageWright forwarding is UNCONDITIONAL (P3a controller adjudication): StageWrightCommon
-            // implements the autorun-vs-armed split internally — with -Dstagewright.autorun unset it
-            // only logs "armed, awaiting mc.test.run" and registers the mc.test.* verb hooks, which
-            // the T2 on-demand topology (mc.test.run against a non-autorun dedicated server) needs.
-            // applyGameTestBaseline STAYS gated on autorun: it pins the legacy default-OFF flag
-            // baseline the arenas were authored against and must NOT mutate a production server's
-            // live bot defaults — it only matters where the suite auto-runs its scenes at boot.
+            // Gated on autorun: this pins the legacy default-OFF flag baseline the scene arenas were
+            // authored against, and must NOT mutate a production server's live bot defaults — it only
+            // matters where a suite auto-runs its scenes at boot. StageWright arms itself from its own
+            // SERVER_STARTED handler; the driver does not forward lifecycle to it any more.
             if (TESTKIT_AUTORUN) {
                 BotConfig.applyGameTestBaseline();
             }
-            StageWrightCommon.onServerStarted(server, "fabric");
         });
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> WorldDriverCommon.onServerStopping());
         // Order mirrors WorldDriverNeoForge.onServerTick exactly: fireTick, then
-        // ServerAvatarManager.tickAll() (drive server-side agents), then — if gated —
-        // StageWrightCommon.onServerTick() (advance the dogfood scene runner).
+        // ServerAvatarManager.tickAll() (drive server-side agents). StageWright ticks its own
+        // harness from its own END_SERVER_TICK registration — it is a mod, not a library the
+        // driver has to pump.
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             ScriptEvents.fireTick();
             ServerAvatarManager.tickAll();
-            // Unconditional (P3a): a no-op until the harness is built (autorun at boot OR
-            // mc.test.run on-demand), so the armed-awaiting T2 server advances its suite once triggered.
-            StageWrightCommon.onServerTick(server);
         });
         CommandRegistrationCallback.EVENT.register((dispatcher, ctx, env) ->
                 WorldDriverCommon.registerCommands(dispatcher));

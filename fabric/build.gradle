@@ -36,11 +36,16 @@ dependencies {
     common(project(path: ':common', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':common', configuration: 'transformProductionFabric')
 
-    // stagewright-common (P1.6 dogfood wiring) — same two-line idiom as :common above,
-    // adapted to fabric's transformProductionFabric configuration; identical to how
-    // stagewright/fabric/build.gradle already consumes it.
-    common(project(path: ':stagewright-common', configuration: 'namedElements')) { transitive false }
-    shadowBundle project(path: ':stagewright-common', configuration: 'transformProductionFabric')
+    // DEV-ONLY: put the StageWright mod on the dev run classpath so dogfoodServer /
+    // stagewrightClient / t2Server boot with both mods, the way a production install would
+    // (worlddriver.jar + stagewright.jar side by side). `modLocalRuntime` is never published
+    // and never bundled — it is the build-graph equivalent of `testImplementation junit`.
+    modLocalRuntime project(':stagewright-fabric')
+
+    // NOTE: stagewright-common is deliberately NOT bundled here. It used to be, which is what
+    // put the whole test harness inside the shipped worlddriver jar and forced the driver to
+    // forward server lifecycle into it. StageWright is its own mod (stagewright/fabric ships a
+    // fabric.mod.json) and depends on worlddriver, not the other way round.
 
     // Rhino (KubeJS fork) — a full mod jar (ships fabric.mod.json), so we nest it
     // via Jar-in-Jar instead of shadowing its classes. Fabric Loader discovers

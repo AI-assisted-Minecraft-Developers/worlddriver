@@ -78,7 +78,9 @@ dependencies {
     // architectury common→common consumption idiom = plain namedElements project dep
     // (the loom `common()`/`shadowBundle` transform pair is for PLATFORM modules only;
     // runtime bundling of stagewright-common into the loader jars stays in neoforge/fabric).
-    implementation project(path: ':stagewright-common', configuration: 'namedElements')
+    // stagewright is NOT a main dependency — that edge is what put the test framework in the
+    // shipped jar. Only the `testmod` source set compiles against it (the wd.* scenes need
+    // Scene/SceneContext/SceneProvider), declared in the testmod block above.
 
     // Rhino JS engine (KubeJS fork) — common because both platforms use it
     implementation "dev.latvian.mods:rhino:$rootProject.rhino_version"
