@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`BotConfig.keepTickingUnfocused` (default true) — a driving bot no longer gets paused
+  by an alt-tab.** Vanilla singleplayer pauses on lost focus; for a bot mid-task that stops
+  the world partway through a goto/mine, and the `PauseScreen` it opens then sits
+  *underneath* every later screen assertion. The second effect is the expensive one: one
+  focus slip during a T1 run turned the 1-failure baseline into 5 unrelated-looking
+  failures (`10_client` "screen should be null after close" — the pause menu was behind the
+  inventory; `12_use_item`; and both mob scenes, because a paused world advances no ticks).
+  Nothing in those messages mentions focus.
+
+  Scoped like the `MouseYield` handshake it sits beside: applied only while a process owns
+  the tick, with the human's own `options.pauseOnLostFocus` handed back on the falling edge
+  and on client shutdown (Minecraft saves `options.txt` on close, so a force-quit mid-drive
+  would otherwise persist the override into their real settings). Only the *automatic*
+  focus-loss pause is suppressed — an Esc menu the human opened is never touched.
+  `scripts/stagewright/t{1,2}.py` also seed `pauseOnLostFocus:false`, since the client-face
+  validation scripts drive the client with no process running and the mod-side setting does
+  not cover them.
+
+### Changed
+- **BREAKING (module layout): StageWright now depends on WorldDriver, not the reverse — and
+  the driver's jars no longer contain it.** `:common` had
+  `implementation project(':stagewright-common')` in its **main** source set, so both shipped
+  jars carried 25 StageWright entries: the harness, the scene API, a JSONL results writer.
+  Every other oddity in that seam was downstream of it — the bundling meant a worlddriver-only
+  install had nothing to arm the harness, so the loader entrypoints forwarded server lifecycle
+  in ("UNCONDITIONAL", by their own comment); but `stagewright-{fabric,neoforge}` already
+  registered those same events themselves, so both paths fired and `StageWrightCommon` grew an
+  `if (armed) warn` guard; and `stagewright-common` needed `ToolCatalog`, which would have been
+  a cycle, so `StageWrightVerbHook` was invented to invert it.
+
+  Reverted at the root instead. `stagewright-common` now depends on worlddriver's `:common`;
+  worlddriver depends on StageWright only from its `testmod` source set, which keeps the Gradle
+  task graph acyclic without needing a separate `stagewright-api` artifact.
+
+  - Both worlddriver jars now contain **zero** stagewright entries.
+  - `StageWrightVerbHook` and its `META-INF/services` file are **deleted** — StageWright calls
+    `ToolCatalog.registerVerb` directly.
+  - `TestRunVerb` / `TestResetVerb` / `TestInputVerbs` move from
+    `net.magicterra.worlddriver.bot.stagewright` (a package in the driver's production tree,
+    named after its test framework) to `net.magicterra.stagewright.verbs`. That package is now
+    absent from worlddriver's main entirely, retiring the JPMS split-package hazard that forced
+    the scenes into a `.scene` sub-package.
+  - `WorldDriverCommon.ensureRpcUp` no longer registers `mc.test.*`. **A server without
+    StageWright installed has no `mc.test.*` surface at all** — a stronger gate than the
+    system property it replaces.
+  - Dev runs get `modLocalRuntime project(':stagewright-<loader>')` so `dogfoodServer` /
+    `stagewrightClient` / `t2Server` boot with both mods side by side, as a production install
+    would. Never published, never bundled — the build-graph equivalent of `testImplementation`.
+
 ### Removed
 - **BREAKING (RPC): the YAML GameTest harness is retired — `mc.test.yaml` is gone.**
   It was the driver's *second* in-game test system, living alongside StageWright's
