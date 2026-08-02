@@ -495,7 +495,7 @@ public final class WorldDriverCommon {
         try {
             tmp = Files.createTempDirectory("worlddriver-scripts");
             for (String name : VALIDATION_SCRIPTS) {
-                String resourcePath = "/data/" + MOD_ID + "/scripts/agent_validation/" + name;
+                String resourcePath = "/data/" + MOD_ID + "/scripts/validation/" + name;
                 try (InputStream in = WorldDriverCommon.class.getResourceAsStream(resourcePath)) {
                     if (in == null) {
                         LOG.error("[{}] missing script in jar: {}", MOD_ID, resourcePath);

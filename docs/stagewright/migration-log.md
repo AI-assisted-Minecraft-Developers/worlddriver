@@ -531,7 +531,7 @@ in wave 5 (count-forced: `AgentGameTestServer` already holds exactly 59, so all 
 non-Server tests had to leave to reach `registered==59`) — flagged as a required
 watch-item. **Task-5 acceptance found its 259-check JS validation suite is not
 portable to the integrated-client (T1/T2) topology** (8 client-face checks diverge —
-`observe…player` / `Agent.bot.tunnel` / `blocks_to_avoid` JS bindings + a couple of
+`observe…player` / `Driver.bot.tunnel` / `blocks_to_avoid` JS bindings + a couple of
 behavioural checks — while all 259 PASS on the dedicated path). Per controller
 adjudication the scene keeps REQUIRED dedicated-server coverage and carries a **visible
 topology guard** (`!isDedicatedServer()` → early PASS with a `SceneContext.passNote`
@@ -1131,9 +1131,9 @@ time the 259-check JS validation suite ran on the integrated (client-hosted) T1 
 
 | # | check | verbatim error | root cause | class | fix |
 |---|-------|----------------|-----------|-------|-----|
-| 1 | `13_set_hotbar_slot: switches slot … observe.player` | `TypeError: Cannot find function player in object` | validation harness prelude was a STALE subset of `prelude.js` (no `Agent.observe.player`) | harness gap | load canonical `prelude.js` |
+| 1 | `13_set_hotbar_slot: switches slot … observe.player` | `TypeError: Cannot find function player in object` | validation harness prelude was a STALE subset of `prelude.js` (no `Driver.observe.player`) | harness gap | load canonical `prelude.js` |
 | 2 | `21_blocks_to_avoid: invalid id rejects whole write` | `TypeError: Cannot call method "indexOf" of undefined` | `mc.bot.setting` omits `applied` when empty (SettingsCommand:808, both topologies) — script non-defensive | script | `(r.applied || [])` |
-| 3-5 | `25_phase_d3: Agent.bot.tunnel …` ×3 | `TypeError: Cannot call method "tunnel" of undefined` | harness prelude had no `Agent.bot.*` sugar | harness gap | load canonical `prelude.js` |
+| 3-5 | `25_phase_d3: Driver.bot.tunnel …` ×3 | `TypeError: Cannot call method "tunnel" of undefined` | harness prelude had no `Driver.bot.*` sugar | harness gap | load canonical `prelude.js` |
 | 6,7 | `40_scheduler: forced retreat …` / `retreat preempts a goto …` | `not equal: retreat chain holds the channel` | stale determinism trick — RetreatChain needs a real threat to bid (gap#65/#68), not just threshold==maxHP | behavioural | summon a NoAI hostile (as 41_defense does) |
 | 8 | `42_combat: melee engage clears a zombie pack` | `not equal: engage ran to completion` | full area-clear needs a flat, entity-clean arena; on a live client world under CPU load `completed` is pathing/timing-coupled | behavioural (unportable) | **NAMED task#92 topology-skip** — offence covered by `wd.serverCombat*` |
 | 9 | `57_replay: return shape is well-typed` | `not equal: segments is a positive number` | assertion pinned the OLD rigid-replay shape; the replan path returns `file/mode/envelopeCells/restoredBlocks/blockStateFidelity` | script (stale shape) | assert the current contract |

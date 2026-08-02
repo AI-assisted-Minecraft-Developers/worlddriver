@@ -23,7 +23,7 @@
 外部 MCP 客户端              进程内 JS 脚本                  外部 WS 客户端
        │                              │                              │
        ▼                              ▼                              ▼
- HTTP /mcp (39800)            Agent.invoke(method,…)         WS  /rpc (39801)
+ HTTP /mcp (39800)            Driver.invoke(method,…)         WS  /rpc (39801)
        │                              │                              │
        └──────────────────────────────┴──────────────────────────────┘
                                       ▼
@@ -145,7 +145,7 @@ worlddriver/
 │       │   ├── rpc/               RpcServer (Netty WebSocket) + JsonCodec
 │       │   ├── script/            Rhino 接入、沙箱、ScriptEvaluator
 │       │   └── client/            ClientHooks 中介（impl 在 fabric/neoforge 下）
-│       └── resources/data/worlddriver/scripts/agent_validation/  *.js 校验套件
+│       └── resources/data/worlddriver/scripts/validation/  *.js 校验套件
 ├── fabric/                Fabric 入口 + 客户端实现
 ├── neoforge/              NeoForge 入口 + 客户端实现
 ├── docs/                  各客户端接入指南（重点看 docs/mcp-clients.md）

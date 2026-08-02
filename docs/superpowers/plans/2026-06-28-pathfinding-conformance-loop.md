@@ -836,7 +836,7 @@ git commit -m "chore(corpus): seed 3 diverse archives + restructure REGRESSION.m
 
 ## 设 flag(新 flag 必须走 RPC)
 - MCP 工具 schema 在 session 启动冻结 → 新加的 BotConfig key 被 strip。
-- 用 RPC(port 39801,见 worlddriver-rpc skill 的 rpc.py)或 `mc.script_eval` 里 `Agent.invoke('mc.bot.setting', {...})`。
+- 用 RPC(port 39801,见 worlddriver-rpc skill 的 rpc.py)或 `mc.script_eval` 里 `Driver.invoke('mc.bot.setting', {...})`。
 
 ## 三件套分层判别器(定 class A vs B)
 1. `mc.observe.map` / `mc.client.blocks` — 真几何(非假设)。

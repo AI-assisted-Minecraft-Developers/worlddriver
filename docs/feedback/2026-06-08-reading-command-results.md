@@ -19,7 +19,7 @@ read path drops the thing you most want:
   lit lamp from an unlit one, or a stair's facing.
 - `mc.world.snapshot` returns **counts** (`blocks`, `nonAir`, `blockEntities`) — not
   per-cell state.
-- `mc.script.eval`'s sandbox exposes only `Agent.invoke/system/observe/action/query/
+- `mc.script.eval`'s sandbox exposes only `Driver.invoke/system/observe/action/query/
   client` (the same RPC surface) — **no raw `Level`/`BlockState`/light access**, so it
   can't read a state or a light level either.
 

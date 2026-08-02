@@ -18,8 +18,8 @@
 (function () {
     var SENSE_RADIUS = 96;
 
-    function boss()     { return Agent.invoke('mc.observe.boss', { radius: SENSE_RADIUS }); }
-    function aborting()  { var s = Agent.invoke('mc.bot.playbook', { op: 'status' }); return !!(s && s.aborting); }
+    function boss()     { return Driver.invoke('mc.observe.boss', { radius: SENSE_RADIUS }); }
+    function aborting()  { var s = Driver.invoke('mc.bot.playbook', { op: 'status' }); return !!(s && s.aborting); }
     function nearest(list) {
         var best = list[0];
         for (var i = 1; i < list.length; i++) if (list[i].distance < best.distance) best = list[i];
@@ -32,9 +32,9 @@
     }
 
     // T0 survival reflexes on for the whole fight.
-    Agent.invoke('mc.bot.setting', { autoTotem: true, autoHeal: true, autoEat: true, autoDodge: true });
+    Driver.invoke('mc.bot.setting', { autoTotem: true, autoHeal: true, autoEat: true, autoDodge: true });
     // Gear up if we are carrying anything better (idempotent — no-op once best is worn).
-    try { Agent.invoke('mc.bot.equip', { profile: 'best' }); } catch (e) {}
+    try { Driver.invoke('mc.bot.equip', { profile: 'best' }); } catch (e) {}
 
     var maxRounds = (typeof PLAYBOOK !== 'undefined' && PLAYBOOK.maxRounds) ? PLAYBOOK.maxRounds : 6000;
     var rounds = 0, crystalsCleared = false;
@@ -53,10 +53,10 @@
             // Caged crystals sit in an iron-bar cage atop the taller pillars — get
             // up close (range 2) so we can break in; exposed ones we approach loosely.
             try {
-                Agent.invoke('mc.bot.goto', { pos: { x: c.pos.x, y: c.pos.y, z: c.pos.z }, near: c.caged ? 2 : 4 });
+                Driver.invoke('mc.bot.goto', { pos: { x: c.pos.x, y: c.pos.y, z: c.pos.z }, near: c.caged ? 2 : 4 });
             } catch (e) {}
-            Agent.invoke('mc.bot.combat', { mode: 'kill', target: { id: c.id } });
-            Agent.system.waitTicks(12);
+            Driver.invoke('mc.bot.combat', { mode: 'kill', target: { id: c.id } });
+            Driver.system.waitTicks(12);
             continue;
         }
 
@@ -66,10 +66,10 @@
         if (b.perched && b.head) {
             // Perch is the prime damage window — close on the head, then melee.
             try {
-                Agent.invoke('mc.bot.goto', { pos: { x: Math.floor(b.head.x), y: Math.floor(b.head.y), z: Math.floor(b.head.z) }, near: 3 });
+                Driver.invoke('mc.bot.goto', { pos: { x: Math.floor(b.head.x), y: Math.floor(b.head.y), z: Math.floor(b.head.z) }, near: 3 });
             } catch (e) {}
         }
-        Agent.invoke('mc.bot.combat', { mode: 'kill', target: { type: 'ender_dragon' } });
-        Agent.system.waitTicks(12);
+        Driver.invoke('mc.bot.combat', { mode: 'kill', target: { type: 'ender_dragon' } });
+        Driver.system.waitTicks(12);
     }
 })();

@@ -52,7 +52,7 @@ etc.) working in this project. Keep it short and authoritative.
    server thread use the snapshot helpers in `DriverApi`, never `Level`
    directly.
 3. **Don't widen the Rhino sandbox** without adding a matching negative test
-   in `common/src/main/resources/data/worlddriver/scripts/agent_validation/08_sandbox.js`.
+   in `common/src/main/resources/data/worlddriver/scripts/validation/08_sandbox.js`.
 4. **MCP spec citations are load-bearing.** When changing `McpServer.java`,
    keep the `// spec: 2025-06-18 §…` comments accurate. The spec lives at
    <https://modelcontextprotocol.io/specification/2025-06-18>.
@@ -166,7 +166,7 @@ scripts/smoke-test-react.sh
 0. **First**, re-read Hard Rule #6 — can you extend an existing tool instead?
 1. Add the underlying behavior to `DriverApi.route(...)`.
 2. Register the tool schema in `common/src/main/java/net/magicterra/worlddriver/mcp/ToolCatalog.java`.
-3. Add a corresponding validation script under `agent_validation/` that
+3. Add a corresponding validation script under `validation/` that
    exercises it through all three transports and asserts byte-identical
    results (see `06_rpc_parity.js` / `07_mcp_parity.js` for the pattern).
 4. Re-run the testkit gates (`scripts/stagewright/t0.py` + `instrument.py`) — they must stay green.

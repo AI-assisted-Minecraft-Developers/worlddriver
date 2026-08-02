@@ -22,9 +22,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   | `AgentScriptManager`, `AgentContextFactory`, `AgentClassFilter`, `AgentEvents`, `AgentTest` | `ScriptManager`, `ScriptContextFactory`, `ScriptClassFilter`, `ScriptEvents`, `ScriptTest` |
 
   `ScriptTest` is bound into the Rhino scope under its new name, so every
-  `agent_validation/*.js` calls `ScriptTest.run(...)` now. No JSON field or RPC
-  method name changed — this is class names only. The script-facing `Agent` global
-  (`Agent.invoke(...)`) is deliberately untouched.
+  validation script calls `ScriptTest.run(...)` now. No JSON field or RPC method
+  name changed — this is class names only.
+- **BREAKING (scripts): the Rhino global `Agent` is now `Driver`.** Every in-game
+  script and every `mc.script.eval` payload that said `Agent.invoke(...)`,
+  `Agent.bot.*`, `Agent.observe.*` … must say `Driver.*`. The definition lives in
+  the canonical `prelude.js` and all 60+ bundled validation scripts follow it.
+  `Agent` was the last place the old positioning survived in a public surface: the
+  scripts calling it are not agents, they are callers of the driver — same reason
+  `AgentApi` became `DriverApi`.
+
+  The bundled scripts also moved from `data/worlddriver/scripts/agent_validation/`
+  to `.../scripts/validation/`.
+
+  Note that `Agent` remains the right word for the *consumer* — the L2 LLM layer
+  in the design docs, and `gpt-player`'s own `Agent` class, are untouched.
 - **BREAKING (naming): the mod is now `WorldDriver` and the test framework is
   `StageWright`.** The old names described the consumers, not this layer. This mod
   is not an agent and not a test tool — it is to Minecraft roughly what chromedriver

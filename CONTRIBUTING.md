@@ -26,7 +26,7 @@ Artifacts land under `<platform>/build/libs/`.
 ## Test
 
 The validation suite is the source of truth — JS scripts under
-`common/src/main/resources/data/worlddriver/scripts/agent_validation/` that
+`common/src/main/resources/data/worlddriver/scripts/validation/` that
 exercise the DriverApi across all three transports (in-JVM, RPC, MCP). They are
 driven end-to-end by the stagewright orchestrators (`scripts/stagewright/`), which
 dogfood a dedicated server with the harness and autorun the wd.* scenes + JS

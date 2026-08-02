@@ -132,7 +132,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *  <p><b>Topology-portable (task#92).</b> The JS RPC/YAML validation suite runs on BOTH the
      *  dedicated (T0) and the integrated / client-hosted (T1/T2) topologies as REQUIRED coverage.
      *  task#92 removed the old blanket dedicated-only early-PASS: the divergences it papered over were
-     *  a STALE validation-harness prelude (missing {@code Agent.observe.player}/{@code Agent.bot.*}
+     *  a STALE validation-harness prelude (missing {@code Driver.observe.player}/{@code Driver.bot.*}
      *  sugar — now loaded from the canonical {@code prelude.js}), a couple of non-defensive script
      *  shapes ({@code applied} compact array; the {@code mc.debug.replay} replan shape), and a stale
      *  scheduler determinism trick (RetreatChain needs a real threat to bid — the scripts now summon

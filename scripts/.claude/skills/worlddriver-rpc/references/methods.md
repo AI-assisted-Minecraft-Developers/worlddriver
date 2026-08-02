@@ -292,7 +292,7 @@ creative-flight test toggle, no snapshot field).
 ## mc.script.eval / mc.skill
 | method | params | returns / notes |
 |---|---|---|
-| `mc.script.eval` | `source` (req), `timeoutMs?` (dflt 3000, max 30000) | run a sandboxed JS snippet against the in-process API. Inside: `Agent.invoke(method, params)`, the `Agent.system/observe/action/query/client` helpers, `console.log(x)`. Last expression is the result → `{result, error?, log:[…], ms}`. **Best when a task needs ≥3 chained calls** (observe→decide→act) — one round-trip instead of N. No file/network/reflection; server thread, so client-thread state can't be set here. |
+| `mc.script.eval` | `source` (req), `timeoutMs?` (dflt 3000, max 30000) | run a sandboxed JS snippet against the in-process API. Inside: `Driver.invoke(method, params)`, the `Driver.system/observe/action/query/client` helpers, `console.log(x)`. Last expression is the result → `{result, error?, log:[…], ms}`. **Best when a task needs ≥3 chained calls** (observe→decide→act) — one round-trip instead of N. No file/network/reflection; server thread, so client-thread state can't be set here. |
 | `mc.skill` | `op?:"save"\|"list"\|"get"\|"run"\|"delete"` (dflt list), `name?` (`[a-z][a-z0-9_]*`), `source?` (save), `args?` (run), `timeoutMs?` (1–30000, dflt 3000) | persistent skill library (scripts saved under `scripts/skills/`). `save`→`{ok,saved,name,bytes}`; `list`→`{ok,skills:[{name,bytes}],count}`; `get`→`{ok,name,source}`; `run`→`{ok,result,error,log,ms,skill}`; `delete`→`{ok,deleted,name}`. |
 
 <a id="mctest"></a>

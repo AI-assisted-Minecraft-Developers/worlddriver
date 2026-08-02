@@ -58,7 +58,7 @@ GameTest 接入仍在 neoforge 模块（`@GameTestHolder`/`@GameTestGenerator` �
 在 `AgentGameTest.java` 里加一个 `@GameTestGenerator` 方法。
 
 YAML 用例资源：`common/src/main/resources/data/worlddriver/gametests/*.yaml`（datapack 路径，
-与现有 `scripts/agent_validation/*.js` 同一套 classpath 资源加载方式）。
+与现有 `scripts/validation/*.js` 同一套 classpath 资源加载方式）。
 
 ## 3. YAML schema
 
@@ -113,7 +113,7 @@ YAML 用例资源：`common/src/main/resources/data/worlddriver/gametests/*.yaml
 | `fill` | `mc.action.fill` | `{from, to, type}` |
 | `place_many` | `mc.action.placeMany` | `{blocks:[{pos,type}, ...]}`（元素形状核对自 `ActionApi.placeMany`） |
 | `run_command` | `mc.action.runCommand` | 字符串值 → `{cmd: "..."}`（参数键是 `cmd`，核对自 `DriverApi` 与 prelude） |
-| `wait_ticks` | `mc.system.waitTicks` | 整数值 → `{ticks:N}`。**已有 route**（JS 套件里 `Agent.system.waitTicks` 在用），interpreter 直接调它即可，无需自建 sleep |
+| `wait_ticks` | `mc.system.waitTicks` | 整数值 → `{ticks:N}`。**已有 route**（JS 套件里 `Driver.system.waitTicks` 在用），interpreter 直接调它即可，无需自建 sleep |
 | `bot` | `mc.bot.<sub>` | `{do: "goto", ...}` 形式，转 `mc.bot.goto` 等（覆盖需要 bot 动作的用例） |
 
 设计原则：**不为 YAML 发明新动词**——能映射到已有 route 的就映射，映射不到的（如 `wait_ticks`）
@@ -281,7 +281,7 @@ classpath 上目前**没有** YAML 解析器。引入 `org.yaml:snakeyaml`（~30
 
 ## 9. 验证用例（铁律：每加能力配一个测试）
 
-1. `common/.../scripts/agent_validation/34_yaml_gametest.js` —— JS 层断言 `YamlTestLoader` +
+1. `common/.../scripts/validation/34_yaml_gametest.js` —— JS 层断言 `YamlTestLoader` +
    `YamlTestInterpreter` 对一个内置样例 spec 的 round-trip（load → run → 断言结果 / 断言 restore
    后区域复原）。把 `runValidation()` 名单从 33 → 34，套件 sub-test 数随之 +1。
 2. 一个真实样例 YAML：`data/worlddriver/gametests/smoke_place_observe.yaml`——

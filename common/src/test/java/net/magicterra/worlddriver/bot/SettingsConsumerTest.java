@@ -136,7 +136,7 @@ class SettingsConsumerTest {
                 throw new UncheckedIOException(e);
             }
         }
-        // Rhino scripts read settings too (agent_validation drives mc.bot.setting).
+        // Rhino scripts read settings too (validation drives mc.bot.setting).
         Path res = Path.of("src/main/resources");
         try (Stream<Path> files = Files.walk(res)) {
             for (Path p : files.filter(f -> f.toString().endsWith(".js")).toList()) {

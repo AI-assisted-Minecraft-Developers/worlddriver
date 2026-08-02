@@ -6,13 +6,13 @@
 
 **Architecture:** 纯函数 `HazardField`/`SurvivalFacts`/`AsciiMapRenderer`（只吃既有 `WorldView` 块访问接口 + 标量，可 headless GameTest）作为承重底层；服务端 `mc.observe.scene`（headless 可测）+ 客户端 `mc.client.scene`（反射权威，live 认证）共用这套纯函数；逃跑修复为 `ClientWorldView.dangerCost` 注入（不改 `RetreatChain`）；黄昏自保为低于用户任务的 `DuskSecureChain`。
 
-**Tech Stack:** Java 21 / Architectury (common+fabric+neoforge) / Mojmap MC 1.21.1；测试 = `agent_validation/NN_*.js`（Rhino）经 `:neoforge:runGameTestServer` headless 跑；live 认证经 `:fabric:runClient` + SurvivalTest。
+**Tech Stack:** Java 21 / Architectury (common+fabric+neoforge) / Mojmap MC 1.21.1；测试 = `validation/NN_*.js`（Rhino）经 `:neoforge:runGameTestServer` headless 跑；live 认证经 `:fabric:runClient` + SurvivalTest。
 
 **前置阅读（实现者必看）：**
 - `docs/superpowers/specs/2026-06-04-perception-decision-boundary-design.md` —— 本计划的设计依据，§编号下文直接引用。
 - `docs/design/00-execution-model.md` —— 调度器/链/反射执行模型。
 - `common/.../bot/pathfinder/WorldView.java` —— 纯函数的块访问接口（已 `isSolid/isPassable/isWater/isHazard/isKnown/dangerCost/beginSearch/canStandAt`）。
-- 既有验证范例：`agent_validation/40_scheduler.js`、`21_blocks_to_avoid.js`（client-guard skip 范式）、`07_mcp_parity.js`（三传输 parity）。
+- 既有验证范例：`validation/40_scheduler.js`、`21_blocks_to_avoid.js`（client-guard skip 范式）、`07_mcp_parity.js`（三传输 parity）。
 
 **全局约定：**
 - 包根 `net.magicterra.worlddriver`，下文 `…` = `common/src/main/java/net/magicterra/worlddriver`。
@@ -236,7 +236,7 @@ git commit -m "feat(world): HazardField + HazardCell pure grid over WorldView"
 - Modify: `…/api/DriverApi.java`（route `mc.observe.scene` → `observe.scene`，照 `mc.observe.boss` 行）
 - Modify: `…/mcp/catalog/ObserveActionTools.java`（roTool schema，照 `mc.observe.boss`）
 - Modify: `…/WorldDriverCommon.java`（登记 `50_scene_hazard.js`）
-- Create test: `…/resources/data/worlddriver/scripts/agent_validation/50_scene_hazard.js`
+- Create test: `…/resources/data/worlddriver/scripts/validation/50_scene_hazard.js`
 
 - [ ] **Step 1: 先写失败测试 `50_scene_hazard.js`**
 
@@ -245,10 +245,10 @@ git commit -m "feat(world): HazardField + HazardCell pure grid over WorldView"
 // Builds arenas with mc.action.fill (test-arena cheat) at y=200 and asserts HazardField output.
 
 function fill(x1,y1,z1,x2,y2,z2,block){
-    return Agent.invoke("mc.action.fill", {from:{x:x1,y:y1,z:z1}, to:{x:x2,y:y2,z:z2}, block:block});
+    return Driver.invoke("mc.action.fill", {from:{x:x1,y:y1,z:z1}, to:{x:x2,y:y2,z:z2}, block:block});
 }
 function scene(center, radius){
-    return Agent.invoke("mc.observe.scene", {center:center, radius:radius, render:"map"});
+    return Driver.invoke("mc.observe.scene", {center:center, radius:radius, render:"map"});
 }
 
 ScriptTest.run("50_scene: flat ground -> no lethal cells", function(t){
@@ -465,14 +465,14 @@ git add common/src/main/java/net/magicterra/worlddriver/bot/world/ \
         common/src/main/java/net/magicterra/worlddriver/api/DriverApi.java \
         common/src/main/java/net/magicterra/worlddriver/mcp/catalog/ObserveActionTools.java \
         common/src/main/java/net/magicterra/worlddriver/WorldDriverCommon.java \
-        common/src/main/resources/data/worlddriver/scripts/agent_validation/50_scene_hazard.js
+        common/src/main/resources/data/worlddriver/scripts/validation/50_scene_hazard.js
 git commit -m "feat(observe): server-side mc.observe.scene + AsciiMapRenderer (headless-testable)"
 ```
 
 ### Task 4: 悬崖 / 深水 / 熔岩 致死断言
 
 **Files:**
-- Modify test: `…/agent_validation/50_scene_hazard.js`
+- Modify test: `…/validation/50_scene_hazard.js`
 
 - [ ] **Step 1: 加失败断言（cliff/deep-water/lava）**
 
@@ -482,7 +482,7 @@ ScriptTest.run("50_scene: cliff edge is V (lethal) at low HP-equivalent drop", f
     fill(2000,199,2000, 2008,199,2008, "minecraft:stone");
     fill(2000,200,2000, 2008,206,2008, "minecraft:air");
     fill(2005,193,2004, 2005,199,2004, "minecraft:air"); // carve a 6+ deep hole at (2005,*,2004)
-    var s = Agent.invoke("mc.observe.scene", {center:{x:2004,y:200,z:2004}, radius:2, render:"map"});
+    var s = Driver.invoke("mc.observe.scene", {center:{x:2004,y:200,z:2004}, radius:2, render:"map"});
     // the hole is dx=+1,dz=0 from center; expect a drop glyph there
     t.assertTrue(s.hazardSummary.lethalCount >= 1, "a deep pit neighbour is lethal");
 });
@@ -491,7 +491,7 @@ ScriptTest.run("50_scene: lava cell is lethal", function(t){
     fill(3000,199,3000, 3008,199,3008, "minecraft:stone");
     fill(3000,200,3000, 3008,205,3008, "minecraft:air");
     fill(3005,200,3004, 3005,200,3004, "minecraft:lava");
-    var s = Agent.invoke("mc.observe.scene", {center:{x:3004,y:200,z:3004}, radius:2, render:"map"});
+    var s = Driver.invoke("mc.observe.scene", {center:{x:3004,y:200,z:3004}, radius:2, render:"map"});
     t.assertTrue(s.hazardSummary.lethalCount >= 1, "lava neighbour is lethal");
 });
 
@@ -499,7 +499,7 @@ ScriptTest.run("50_scene: deep water (>=2) is lethal, shallow is not", function(
     fill(4000,199,4000, 4008,199,4008, "minecraft:stone");
     fill(4000,200,4000, 4008,205,4008, "minecraft:air");
     fill(4005,197,4004, 4005,200,4004, "minecraft:water"); // 4-deep water column
-    var s = Agent.invoke("mc.observe.scene", {center:{x:4004,y:200,z:4004}, radius:2, render:"map"});
+    var s = Driver.invoke("mc.observe.scene", {center:{x:4004,y:200,z:4004}, radius:2, render:"map"});
     t.assertTrue(s.hazardSummary.lethalCount >= 1, "deep water neighbour is lethal");
 });
 ```
@@ -512,35 +512,35 @@ Expected: PASS（HazardField 的 cliff/lava/deep-water 逻辑已在 Task 2 实�
 - [ ] **Step 3: Commit**
 
 ```bash
-git add common/src/main/resources/data/worlddriver/scripts/agent_validation/50_scene_hazard.js
+git add common/src/main/resources/data/worlddriver/scripts/validation/50_scene_hazard.js
 git commit -m "test(observe): assert cliff/lava/deep-water lethality in scene"
 ```
 
 ### Task 5: `cornered` / `safeFleeStep` / 渲染字节稳定 + 三传输 parity
 
 **Files:**
-- Create test: `…/agent_validation/51_scene_facts.js`
+- Create test: `…/validation/51_scene_facts.js`
 - Modify: `…/WorldDriverCommon.java`（登记 `51_scene_facts.js`）
 
 - [ ] **Step 1: 写测试**
 
 ```javascript
-function fill(x1,y1,z1,x2,y2,z2,b){return Agent.invoke("mc.action.fill",{from:{x:x1,y:y1,z:z1},to:{x:x2,y:y2,z:z2},block:b});}
+function fill(x1,y1,z1,x2,y2,z2,b){return Driver.invoke("mc.action.fill",{from:{x:x1,y:y1,z:z1},to:{x:x2,y:y2,z:z2},block:b});}
 
 ScriptTest.run("51_scene: one safe exit -> not cornered, fleeStep points to it", function(t){
     // 3x3 stone, walls of stone on all sides except one gap to the north (dz=-1)
     fill(5000,199,5000, 5002,199,5002, "minecraft:stone");
     fill(5000,200,5000, 5002,203,5002, "minecraft:air");
     fill(5000,200,5000, 5002,201,5000, "minecraft:stone"); // wall south? adjust per axis
-    var s = Agent.invoke("mc.observe.scene", {center:{x:5001,y:200,z:5001}, radius:1});
+    var s = Driver.invoke("mc.observe.scene", {center:{x:5001,y:200,z:5001}, radius:1});
     t.assertEqual(s.hazardSummary.cornered, false, "has a non-lethal exit");
 });
 
 ScriptTest.run("51_scene: render rows are byte-stable for a fixed flat grid", function(t){
     fill(6000,199,6000, 6004,199,6004, "minecraft:stone");
     fill(6000,200,6000, 6004,205,6004, "minecraft:air");
-    var a = Agent.invoke("mc.observe.scene", {center:{x:6002,y:200,z:6002}, radius:1, render:"map"});
-    var b = Agent.invoke("mc.observe.scene", {center:{x:6002,y:200,z:6002}, radius:1, render:"map"});
+    var a = Driver.invoke("mc.observe.scene", {center:{x:6002,y:200,z:6002}, radius:1, render:"map"});
+    var b = Driver.invoke("mc.observe.scene", {center:{x:6002,y:200,z:6002}, radius:1, render:"map"});
     t.assertEqual(JSON.stringify(a.rows), JSON.stringify(b.rows), "identical render twice");
     t.assertEqual(a.rows[1], ". @ .", "center row of a flat 3x3 is '. @ .'");
 });
@@ -549,9 +549,9 @@ ScriptTest.run("51_scene: byte-identical across in-JVM, RPC, MCP", function(t){
     fill(7000,199,7000, 7004,199,7004, "minecraft:stone");
     fill(7000,200,7000, 7004,205,7004, "minecraft:air");
     var args = {center:{x:7002,y:200,z:7002}, radius:1, render:"map"};
-    var direct = Agent.invoke("mc.observe.scene", args);
-    var viaTcp = Agent.system.rpcRoundtrip("mc.observe.scene", args);
-    var viaMcp = Agent.system.mcpRoundtrip("mc.observe.scene", args);
+    var direct = Driver.invoke("mc.observe.scene", args);
+    var viaTcp = Driver.system.rpcRoundtrip("mc.observe.scene", args);
+    var viaMcp = Driver.system.mcpRoundtrip("mc.observe.scene", args);
     t.assertEqual(JSON.stringify(viaTcp.rows), JSON.stringify(direct.rows), "RPC rows parity");
     t.assertEqual(JSON.stringify(viaMcp.rows), JSON.stringify(direct.rows), "MCP rows parity");
 });
@@ -566,7 +566,7 @@ Expected: PASS（若 `". @ ."` 断言因间距/glyph 不符而红，按实际 `A
 - [ ] **Step 3: Commit**
 
 ```bash
-git add common/src/main/resources/data/worlddriver/scripts/agent_validation/51_scene_facts.js \
+git add common/src/main/resources/data/worlddriver/scripts/validation/51_scene_facts.js \
         common/src/main/java/net/magicterra/worlddriver/WorldDriverCommon.java
 git commit -m "test(observe): cornered/fleeStep + render byte-stability + 3-transport parity"
 ```
@@ -678,20 +678,20 @@ git commit -m "feat(world): WorldModel per-tick blackboard with volatile Snapsho
 **Files:**
 - Modify: `…/bot/BotApiImpl.java`（加 `worldModel` 字段 + clientTick 顶部 update + 暴露 snapshot getter）
 - Modify: `…/api/DriverApi.java`（route `mc.client.scene` → client snapshot；照 `mc.client.player`）
-- Modify: `…/resources/.../scripts/prelude.js`（`Agent.client.scene`，照 `Agent.client.player`）
+- Modify: `…/resources/.../scripts/prelude.js`（`Driver.client.scene`，照 `Driver.client.player`）
 - Modify: `…/mcp/catalog/ClientTools.java`（roTool schema，照 `mc.client.player`）
 - Modify: `…/WorldDriverCommon.java`（登记 `52_client_scene.js`）
-- Create test: `…/agent_validation/52_client_scene.js`
+- Create test: `…/validation/52_client_scene.js`
 
 - [ ] **Step 1: 失败测试（client-guarded）**
 
 ```javascript
-function clientAvailable(){ try { Agent.invoke("mc.client.screen.info",{}); return true; } catch(e){ return false; } }
+function clientAvailable(){ try { Driver.invoke("mc.client.screen.info",{}); return true; } catch(e){ return false; } }
 if (!clientAvailable()) {
     ScriptTest.run("52_client_scene: skipped (no client)", function(t){ /* PASS */ });
 } else {
     ScriptTest.run("52_client_scene: returns present client snapshot", function(t){
-        var s = Agent.invoke("mc.client.scene", {});
+        var s = Driver.invoke("mc.client.scene", {});
         t.assertEqual(s.present, true, "client scene present");
         t.assertTrue(typeof s.dayPhase === "string", "has dayPhase");
         t.assertTrue("cornered" in s, "has cornered fact");
@@ -719,7 +719,7 @@ Run: `./gradlew :neoforge:runGameTestServer` → 期望仍全绿（52 在 headle
 routes.put("mc.client.scene", p -> requireClient().worldModelSnapshot());
 ```
 （在 client 侧实现 `worldModelSnapshot()` = `bot.worldModel().snapshot().toMap()`；照 `requireClient().observePlayer()` 的落点。）
-`prelude.js`：`Agent.client` 里加 `scene: function(params){ return Agent.invoke("mc.client.scene", params||{}); }`（照 `player`）。
+`prelude.js`：`Driver.client` 里加 `scene: function(params){ return Driver.invoke("mc.client.scene", params||{}); }`（照 `player`）。
 `ClientTools.java`：照 `mc.client.player` 加 `mc.client.scene` roTool schema。
 `WorldDriverCommon.java`：数组加 `"52_client_scene.js",`。
 
@@ -735,7 +735,7 @@ git add -A && git commit -m "feat(client): WorldModel wired into clientTick + mc
 **Files:**
 - Modify: `…/api/ObserveApi.java`（`scene` 支持 plane/extent/overlays；client 侧同形）
 - Modify: `…/bot/world/AsciiMapRenderer.java`（加 vertical 剖面 + height/biome/light overlay 渲染）
-- Modify test: `…/agent_validation/50_scene_hazard.js`（加参数断言）
+- Modify test: `…/validation/50_scene_hazard.js`（加参数断言）
 
 - [ ] **Step 1: 失败测试（服务端可测的参数：center/radius/plane=top + height overlay）**
 
@@ -743,11 +743,11 @@ git add -A && git commit -m "feat(client): WorldModel wired into clientTick + mc
 ScriptTest.run("50_scene: height overlay annotates surface y", function(t){
     fill(8000,199,8000, 8008,199,8008, "minecraft:stone");
     fill(8000,200,8000, 8008,205,8008, "minecraft:air");
-    var s = Agent.invoke("mc.observe.scene", {center:{x:8004,y:200,z:8004}, radius:2, render:"map", overlays:["height"]});
+    var s = Driver.invoke("mc.observe.scene", {center:{x:8004,y:200,z:8004}, radius:2, render:"map", overlays:["height"]});
     t.assertTrue("centerY" in s, "height overlay reports centerY");
 });
 ScriptTest.run("50_scene: radius clamps at 32 and reports truncation", function(t){
-    var s = Agent.invoke("mc.observe.scene", {center:{x:8004,y:200,z:8004}, radius:99});
+    var s = Driver.invoke("mc.observe.scene", {center:{x:8004,y:200,z:8004}, radius:99});
     t.assertEqual(s.radius, 32, "radius clamped to 32");
     t.assertEqual(s.truncated, true, "reports truncation");
 });
@@ -773,7 +773,7 @@ git add -A && git commit -m "feat(observe): scene query params (plane/extent/ove
 **Files:**
 - Modify: `…/bot/ClientWorldView.java`（持 WorldModel/HazardField 引用；`beginSearch` 快照；`dangerCost += lethalPenalty`）
 - Modify: `…/bot/BotApiImpl.java`（构造 ClientWorldView 时传入 `worldModel`，或 setter）
-- Create test: `…/agent_validation/53_flee_safety.js`（client-guarded；headless skip）
+- Create test: `…/validation/53_flee_safety.js`（client-guarded；headless skip）
 - Modify: `…/WorldDriverCommon.java`（登记 `53_flee_safety.js`）
 
 - [ ] **Step 1: 读现状**
@@ -791,11 +791,11 @@ Run: `grep -n "dangerCost\|beginSearch" common/src/main/java/net/magicterra/worl
 - [ ] **Step 3: client-guarded 测试（行为锚点，live 在阶段 5 实证）**
 
 ```javascript
-function clientAvailable(){ try { Agent.invoke("mc.client.screen.info",{}); return true; } catch(e){ return false; } }
+function clientAvailable(){ try { Driver.invoke("mc.client.screen.info",{}); return true; } catch(e){ return false; } }
 if(!clientAvailable()){ ScriptTest.run("53_flee_safety: skipped (no client)", function(t){}); }
 else {
   ScriptTest.run("53_flee_safety: scene exposes a safe flee step when a non-lethal exit exists", function(t){
-    var s = Agent.invoke("mc.client.scene", {});
+    var s = Driver.invoke("mc.client.scene", {});
     t.assertTrue("cornered" in s, "scene carries cornered fact used by flee fallback");
   });
 }
@@ -900,7 +900,7 @@ git add -A && git commit -m "feat(reflex): DuskSecureChain (idle-only dusk shelt
 **Files:**
 - Modify: `…/bot/world/WorldModel.java`（检测 `exposedAtNight`/`cornered` 上升沿，经事件 API emit；去抖）
 - Modify: `…/WorldDriverCommon.java`（登记 `54_scene_events.js`）
-- Create test: `…/agent_validation/54_scene_events.js`（client-guarded）
+- Create test: `…/validation/54_scene_events.js`（client-guarded）
 
 - [ ] **Step 1: WorldModel 加边沿检测 + emit**
 
@@ -915,11 +915,11 @@ prevExposed = exposedAtNight; prevCornered = cornered;
 - [ ] **Step 2: client-guarded 测试 + 登记 + headless 全绿 + Commit**
 
 ```javascript
-function clientAvailable(){ try { Agent.invoke("mc.client.screen.info",{}); return true; } catch(e){ return false; } }
+function clientAvailable(){ try { Driver.invoke("mc.client.screen.info",{}); return true; } catch(e){ return false; } }
 if(!clientAvailable()){ ScriptTest.run("54_scene_events: skipped (no client)", function(t){}); }
 else {
   ScriptTest.run("54_scene_events: mc.events lists scene channels", function(t){
-    var r = Agent.invoke("mc.events", {});  // follow existing mc.events shape
+    var r = Driver.invoke("mc.events", {});  // follow existing mc.events shape
     t.assertTrue(JSON.stringify(r).indexOf("duskExposed") >= 0 || true, "duskExposed channel known");
   });
 }
@@ -960,7 +960,7 @@ git commit -m "docs(design): 04 perception + decision-boundary (classification +
 
 **Files:**
 - Modify: `…/bot/BotConfig.java`（`hazardGridRadius=12`, `hazardGridDecimateTicks=4`, `deepWaterMax=2`, `sceneQueryMaxRadius=32`）
-- Modify test: `…/agent_validation/19_setting_survival.js` 或新 `55_setting_scene.js`（若 setting 经 `mc.bot.setting` 暴露则断言 round-trip）
+- Modify test: `…/validation/19_setting_survival.js` 或新 `55_setting_scene.js`（若 setting 经 `mc.bot.setting` 暴露则断言 round-trip）
 
 - [ ] **Step 1: 加旋钮 + （如适用）暴露到 `mc.bot.setting` schema**
 

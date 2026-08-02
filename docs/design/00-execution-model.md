@@ -186,7 +186,7 @@ void clientTick() {
 
 > **use 键争用（02 文档展开）**：`AutoShield`/`AutoEat`/`AutoHeal` 都要持 use 键，互斥。`runAmbientUseKey` 在它们之间仲裁——弹射物来袭时盾 > 吃，否则低血治疗 > 普通进食。这是现有 `processOwnsUseKey` 门控的自然延伸（claimant 从"1 个 process"变成"process + 几个 ambient 用户"）。
 
-## 7. 验证（`agent_validation/40_scheduler.js`）
+## 7. 验证（`validation/40_scheduler.js`）
 
 1. 启动 `mc.bot.goto` 远点 → 确认在走。
 2. 在 bot 旁 `/summon zombie` + 让其掉血 → 断言 `mc.bot.status` 显示 CombatChain 活跃、UserTaskChain `suspended:true`。

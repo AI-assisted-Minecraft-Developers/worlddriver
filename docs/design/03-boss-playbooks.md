@@ -104,7 +104,7 @@ while (boss().present) {
 
 - 剧本是 `mc.script.eval` 能跑的 JS，或落盘 `config/worlddriver/scripts/playbooks/*.js` 由 `/agent reload` 载入。
 - 对外触发：T2 调 `mc.bot.playbook{name:"dragon"}`（或直接 `mc.script.eval` 跑剧本文件）。剧本内部循环调 `mc.bot.combat/goto/...`，靠 Phase A 调度器 + T0 反射兜底保命。
-- 剧本跑在**现有 Rhino 沙箱**内，不放宽权限（AGENTS.md #3）。剧本只是编排 `Agent.invoke(...)`，不碰禁用类。
+- 剧本跑在**现有 Rhino 沙箱**内，不放宽权限（AGENTS.md #3）。剧本只是编排 `Driver.invoke(...)`，不碰禁用类。
 
 ## 6. 验证
 

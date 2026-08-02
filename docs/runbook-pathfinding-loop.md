@@ -10,8 +10,8 @@
 
 ## 设 flag(新 flag 必须走 RPC)
 - MCP 工具 schema 在 session 启动冻结 → 新加的 BotConfig key 被 strip(`BotTools.java` 的 `.prop` 白名单)。
-- 用 RPC(port 39801,见 worlddriver-rpc skill 的 rpc.py)或 `mc.script_eval` 里 `Agent.invoke('mc.bot.setting', {...})`。
-- 注意:script_eval 里 `Java.type` 不可用;读设置用 `Agent.invoke('mc.bot.setting', {}).settings`。
+- 用 RPC(port 39801,见 worlddriver-rpc skill 的 rpc.py)或 `mc.script_eval` 里 `Driver.invoke('mc.bot.setting', {...})`。
+- 注意:script_eval 里 `Java.type` 不可用;读设置用 `Driver.invoke('mc.bot.setting', {}).settings`。
 
 ## 三件套分层判别器(定 class A vs B)
 1. `mc.observe.map` / `mc.client.blocks` — 真几何(非假设)。

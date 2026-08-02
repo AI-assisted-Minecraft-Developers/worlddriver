@@ -37,12 +37,12 @@
 
 - [ ] **Step 1: 写会失败的验证用例**（TDD——测试先落盘；js 套件要到 Task 4 起了新客户端才能跑，先写好并在旧客户端上确认「当前必失败」）
 
-在 `common/src/main/resources/data/worlddriver/scripts/agent_validation/12_use_item.js` 的
+在 `common/src/main/resources/data/worlddriver/scripts/validation/12_use_item.js` 的
 `clientAvailable()` else 分支末尾（`pos-mode auto-picks face` 用例后、收尾 `}` 前）追加：
 
 ```js
     ScriptTest.run("12_use_item: entity-mode rejects non-integer entityId", function(t) {
-        var r = Agent.invoke("mc.bot.useItem", { entityId: "abc" });
+        var r = Driver.invoke("mc.bot.useItem", { entityId: "abc" });
         t.assertEqual(r.ok, false, "non-integer entityId must be ok:false");
         t.assertTrue(typeof r.error === "string" && r.error.indexOf("integer") >= 0,
             "error must mention integer (got " + JSON.stringify(r) + ")");
@@ -50,7 +50,7 @@
 
     ScriptTest.run("12_use_item: entity-mode rejects nonexistent entity id", function(t) {
         // 2^30 is well past any real entity id in a fresh world
-        var r = Agent.invoke("mc.bot.useItem", { entityId: 1073741824 });
+        var r = Driver.invoke("mc.bot.useItem", { entityId: 1073741824 });
         t.assertEqual(r.ok, false, "nonexistent entity must be ok:false");
         t.assertTrue(typeof r.error === "string", "must include error string");
     });
@@ -185,7 +185,7 @@ git add common/src/main/java/net/magicterra/worlddriver/bot/InteractionCommands.
         common/src/main/java/net/magicterra/worlddriver/bot/BotApi.java \
         common/src/main/java/net/magicterra/worlddriver/bot/BotApiImpl.java \
         common/src/main/java/net/magicterra/worlddriver/api/DriverApi.java \
-        common/src/main/resources/data/worlddriver/scripts/agent_validation/12_use_item.js
+        common/src/main/resources/data/worlddriver/scripts/validation/12_use_item.js
 git commit -m "feat(bot): mc.bot.useItem entityId mode — right-click an entity (interactAt→interact, vanilla parity)"
 ```
 

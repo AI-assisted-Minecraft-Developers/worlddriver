@@ -14,7 +14,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Used as the body of Agent.system.mcpRoundtrip(method, params).
+ * Used as the body of Driver.system.mcpRoundtrip(method, params).
  *
  * Sends a JSON-RPC 2.0 tools/call request over HTTP to the local MCP server,
  * pulls the "text" content of the first content block, JSON-decodes it, and

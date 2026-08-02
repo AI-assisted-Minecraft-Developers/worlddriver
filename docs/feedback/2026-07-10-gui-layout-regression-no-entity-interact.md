@@ -60,7 +60,7 @@ dropping the tutorial half; `toasts:"cleared"` alone is already the useful part.
 ## 3. `mc.observe.player().look` lags client camera changes (doc gotcha)
 
 Inside a single `mc.script.eval`, calling `mc.bot.lookAt {pos}` and then immediately
-`Agent.observe.player().look` returned the **pre-lookAt** rotation (`yaw:0`) even
+`Driver.observe.player().look` returned the **pre-lookAt** rotation (`yaw:0`) even
 though a screenshot confirmed the camera had moved. Presumably observe reads the
 server-side entity and the client rotation packet hadn't ticked over yet. One line in
 the `lookAt`/`observe.player` docs ("rotation is visible to observe.player only on the

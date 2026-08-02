@@ -243,7 +243,7 @@ gap 清单原写 `cornered → BunkerChain(300)`。**撤回**，因与两条既�
 
 ## 8. 迁移与对现有代码的影响
 - **新增**：`WorldModel`(+`Snapshot`)、`HazardField`(+`HazardCell`)、`SurvivalFacts`（纯事实数学）、`AsciiMapRenderer`（纯渲染）、`DuskSecureChain`。
-- **改动**：`BotApiImpl.clientTick` +1 行 + `worldModel` 字段 + 注册 `DuskSecureChain`；`ClientWorldView` 持 worldModel 引用、`beginSearch`/`dangerCost` 注入 HazardField；`Priorities` 加 `IDLE_SECURE=40`；`BotConfig` 加 §7 旋钮；`DriverApi`+`prelude.js`+catalog 加 `mc.client.scene`（route + schema + `Agent.client.scene`）；`ThreatScanner` 作为 WorldModel 输入（不改其内部）。
+- **改动**：`BotApiImpl.clientTick` +1 行 + `worldModel` 字段 + 注册 `DuskSecureChain`；`ClientWorldView` 持 worldModel 引用、`beginSearch`/`dangerCost` 注入 HazardField；`Priorities` 加 `IDLE_SECURE=40`；`BotConfig` 加 §7 旋钮；`DriverApi`+`prelude.js`+catalog 加 `mc.client.scene`（route + schema + `Driver.client.scene`）；`ThreatScanner` 作为 WorldModel 输入（不改其内部）。
 - **不改签名**：`Chain`、`BotProcess`、`WorldView` 接口签名不动（WorldView 仅用既有 `dangerCost`/`beginSearch` 默认方法的 client 覆盖）。
 - **新文档**：`docs/design/04-perception-and-decision-boundary.md`。
 - **本 session 半成品 `ObserveApi.map`（server 端）**：渲染逻辑抽进 `AsciiMapRenderer`；server 版要么删，要么留作明确标注的 `mc.observe.map` server 概览喂同一渲染器。**建议先只上 client 版**。

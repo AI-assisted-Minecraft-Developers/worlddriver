@@ -67,7 +67,7 @@ reject unknown projection keys with an `isError` so callers aren't misled.
 ### 4. No way to read an entity's **active MobEffects**. This is the single biggest gap
 for testing effect-based mechanics (my use case applies/removes a custom `MobEffect`
 marker and needs to assert it). Neither `mc.query` (no `effects` projection) nor
-`mc.script.eval` (sandbox exposes only `Agent.invoke` routes, no MC classes) can read
+`mc.script.eval` (sandbox exposes only `Driver.invoke` routes, no MC classes) can read
 `entity.getActiveEffects()`. **Requested enhancement:** an `effects` projection on
 `mc.query q:"entities"` returning `[{id, amplifier, duration}]`. Would unlock a whole
 class of buff/debuff regression tests.

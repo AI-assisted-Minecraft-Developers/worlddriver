@@ -9,7 +9,7 @@
 
 feedback §4 的表象是 `mc.action.runCommand {"command":…}`(错字段名)只报 "empty command"。
 根因是**参数校验只存在于 MCP 客户端侧**(harness 按 tools/list 的 inputSchema 校验),而
-RPC websocket、Rhino `Agent.invoke`、内部消费者(EventsApi/WaitApi/YamlTestInterpreter/
+RPC websocket、Rhino `Driver.invoke`、内部消费者(EventsApi/WaitApi/YamlTestInterpreter/
 ReplayInstaller)走的 `DriverApi.route()` 对参数**零校验**——错键、错类型、越界 enum 一律
 被路由 lambda 以各自随机的方式失败(NPE、ClassCast、误导性业务报错)。
 

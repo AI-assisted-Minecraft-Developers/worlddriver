@@ -5,7 +5,7 @@ import net.magicterra.worlddriver.rpc.RpcClient;
 import java.util.Map;
 
 /**
- * Used as the body of Agent.system.rpcRoundtrip(method, params).
+ * Used as the body of Driver.system.rpcRoundtrip(method, params).
  * Each call opens a fresh WebSocket connection to ws://host:port/rpc, sends one
  * frame, reads one frame. Simple and deterministic for parity validation.
  */
@@ -28,7 +28,7 @@ public final class RpcBridge {
     }
 
     /**
-     * Used by JS Agent.invokeRpc — returns the raw JSON response string so the script
+     * Used by JS Driver.invokeRpc — returns the raw JSON response string so the script
      * can JSON.parse it through the same path as the in-JVM result.
      */
     public String callJson(String method, String paramsJson) {

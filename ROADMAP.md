@@ -111,4 +111,4 @@ LLM）/ **L1 process**（有界技能，数秒闭环）/ **L2 Agent**（外部 L
 | N5 | 建门框 + 点火 + **进下界** | ⬜ |
 
 > 已验证的生存基本功：水下寻路 + 破岸上岸、踮脚采高处原木、挖三填一 bunker（封顶 + 破出 + 黄昏自保
-> 反射）、死井挖阶梯爬出、reach-across 采水上原木、配置持久化。详见 `docs/design/` 与各 `agent_validation/*.js`。
+> 反射）、死井挖阶梯爬出、reach-across 采水上原木、配置持久化。详见 `docs/design/` 与各 `validation/*.js`。

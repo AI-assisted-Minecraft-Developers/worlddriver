@@ -28,7 +28,7 @@
 
 **Files:**
 - Modify: `common/src/main/java/net/magicterra/worlddriver/client/internal/ClientChat.java:158-182`
-- Test: `common/src/main/resources/data/worlddriver/scripts/agent_validation/63_overlays_tutorial.js`(新建)
+- Test: `common/src/main/resources/data/worlddriver/scripts/validation/63_overlays_tutorial.js`(新建)
 
 **Interfaces:**
 - Consumes: 无(独立修复)。
@@ -38,7 +38,7 @@
 
 - [ ] **Step 1: 写套件用例(会在 Task 6 运行)**
 
-新建 `common/src/main/resources/data/worlddriver/scripts/agent_validation/63_overlays_tutorial.js`:
+新建 `common/src/main/resources/data/worlddriver/scripts/validation/63_overlays_tutorial.js`:
 
 ```js
 // Client-only — mc.client.overlays must suppress the tutorial at the source.
@@ -48,7 +48,7 @@
 
 function clientAvailable() {
     try {
-        Agent.invoke("mc.client.screen.info", {});
+        Driver.invoke("mc.client.screen.info", {});
         return true;
     } catch (e) {
         return false;
@@ -61,7 +61,7 @@ if (!clientAvailable()) {
     });
 } else {
     ScriptTest.run("63_overlays_tutorial: tutorial suppressed without reflection error", function(t) {
-        var res = Agent.invoke("mc.client.overlays", {});
+        var res = Driver.invoke("mc.client.overlays", {});
         t.assertEqual(res.ok, true, "overlays must report ok (got " + JSON.stringify(res) + ")");
         t.assertEqual(res.tutorial, "NONE", "tutorial must be set to NONE (got " + JSON.stringify(res) + ")");
         t.assertTrue(res.tutorialError === undefined || res.tutorialError === null,
@@ -107,7 +107,7 @@ Expected: BUILD SUCCESSFUL。若 `mc.options.tutorialStep` 或 `setStep` 编译�
 
 ```bash
 git add common/src/main/java/net/magicterra/worlddriver/client/internal/ClientChat.java \
-        common/src/main/resources/data/worlddriver/scripts/agent_validation/63_overlays_tutorial.js
+        common/src/main/resources/data/worlddriver/scripts/validation/63_overlays_tutorial.js
 git commit -m "fix(client): overlays tutorial suppression — drop bare-name reflection, import TutorialSteps directly (feedback 2026-07-10 §2)"
 ```
 
@@ -310,8 +310,8 @@ git commit -m "refactor(mcp): ToolSchema retains the typed Schema tree — rende
 - Create: `common/src/main/java/net/magicterra/worlddriver/api/ParamsValidator.java`
 - Modify: `common/src/main/java/net/magicterra/worlddriver/api/DriverApi.java:438-442`(route)+ setter
 - Modify: `common/src/main/java/net/magicterra/worlddriver/WorldDriverCommon.java:173`(bootstrap 接线)
-- Create: `common/src/main/resources/data/worlddriver/scripts/agent_validation/64_schema_validation.js`
-- Modify: `common/src/main/resources/data/worlddriver/scripts/agent_validation/12_use_item.js:38-41,80-85`(两个负例改为期待 route 层异常)
+- Create: `common/src/main/resources/data/worlddriver/scripts/validation/64_schema_validation.js`
+- Modify: `common/src/main/resources/data/worlddriver/scripts/validation/12_use_item.js:38-41,80-85`(两个负例改为期待 route 层异常)
 
 **Interfaces:**
 - Consumes: Task 2 的 `ToolCatalog.schemaByName()`、`Schema` 各节点包私有访问器(同包可见:`Obj.properties()/required()/additionalProperties()`、`Str.enumValues()`、`Int/Num.minimum()/maximum()`、`Arr.items()`)。
@@ -482,7 +482,7 @@ setter(requireSchemasFor 旁,javadoc 同风格):
      * Pre-dispatch params validation, injected by the bootstrap from the MCP
      * ToolCatalog (Hard Rule #1: the api layer never depends on the mcp layer —
      * same seam style as {@link #requireSchemasFor}). Covers EVERY caller of
-     * {@link #route}: MCP tools/call, RPC websocket, in-JVM Rhino Agent.invoke,
+     * {@link #route}: MCP tools/call, RPC websocket, in-JVM Rhino Driver.invoke,
      * and internal consumers (EventsApi/WaitApi/YamlTestInterpreter/…) — one
      * contract, uniformly enforced.
      */
@@ -522,31 +522,31 @@ function errOf(fn) {
 }
 
 ScriptTest.run("64_schema_validation: wrong field name names both the missing and the unexpected key", function(t) {
-    var msg = errOf(function() { Agent.invoke("mc.action.runCommand", { command: "time query daytime" }); });
+    var msg = errOf(function() { Driver.invoke("mc.action.runCommand", { command: "time query daytime" }); });
     t.assertTrue(msg !== null, "must reject");
     t.assertTrue(msg.indexOf("missing required 'cmd'") >= 0, "must name missing 'cmd', got: " + msg);
     t.assertTrue(msg.indexOf("unexpected key 'command'") >= 0, "must name unexpected 'command', got: " + msg);
 });
 
 ScriptTest.run("64_schema_validation: type violation is rejected with both types named", function(t) {
-    var msg = errOf(function() { Agent.invoke("mc.action.runCommand", { cmd: 42 }); });
+    var msg = errOf(function() { Driver.invoke("mc.action.runCommand", { cmd: 42 }); });
     t.assertTrue(msg !== null && msg.indexOf("must be string") >= 0, "cmd:42 must be a type error, got: " + msg);
 });
 
 ScriptTest.run("64_schema_validation: unknown key on a valid call is rejected", function(t) {
-    var msg = errOf(function() { Agent.invoke("mc.system.waitTicks", { ticks: 1, bogus: true }); });
+    var msg = errOf(function() { Driver.invoke("mc.system.waitTicks", { ticks: 1, bogus: true }); });
     t.assertTrue(msg !== null && msg.indexOf("unexpected key 'bogus'") >= 0, "got: " + msg);
 });
 
 ScriptTest.run("64_schema_validation: enum violation names the allowed set", function(t) {
     // mc.bot.useItem hand is enum ["main","off"]
-    var msg = errOf(function() { Agent.invoke("mc.bot.useItem", { hand: "left" }); });
+    var msg = errOf(function() { Driver.invoke("mc.bot.useItem", { hand: "left" }); });
     t.assertTrue(msg !== null && msg.indexOf("must be one of") >= 0, "got: " + msg);
 });
 
 ScriptTest.run("64_schema_validation: integral double passes an integer slot", function(t) {
     // JSON decoders routinely hand integers over as doubles — 1.0 must be accepted.
-    var res = Agent.invoke("mc.system.waitTicks", { ticks: 1.0 });
+    var res = Driver.invoke("mc.system.waitTicks", { ticks: 1.0 });
     t.assertTrue(res !== null && res !== undefined, "waitTicks{ticks:1.0} must be accepted");
 });
 
@@ -554,7 +554,7 @@ ScriptTest.run("64_schema_validation: additionalProperties(true) tool accepts un
     // mc.test.yaml is declared additionalProperties(true); calling with an unknown
     // key must NOT be a schema rejection. all:false is a no-op run request shape;
     // any non-validation outcome (ok or business error) passes.
-    var msg = errOf(function() { Agent.invoke("mc.test.yaml", { freeform: 1, all: false }); });
+    var msg = errOf(function() { Driver.invoke("mc.test.yaml", { freeform: 1, all: false }); });
     t.assertTrue(msg === null || msg.indexOf("unexpected key") < 0,
         "additionalProperties(true) must not reject unknown keys, got: " + msg);
 });
@@ -568,7 +568,7 @@ ScriptTest.run("64_schema_validation: additionalProperties(true) tool accepts un
     ScriptTest.run("12_use_item: pos-mode rejects malformed pos", function(t) {
         // Route-layer schema validation rejects string pos before the tool runs.
         var msg = null;
-        try { Agent.invoke("mc.bot.useItem", { pos: "not-a-pos" }); } catch (e) { msg = String(e); }
+        try { Driver.invoke("mc.bot.useItem", { pos: "not-a-pos" }); } catch (e) { msg = String(e); }
         t.assertTrue(msg !== null && msg.indexOf("must be object") >= 0,
             "string pos must be rejected by schema validation, got: " + msg);
     });
@@ -578,7 +578,7 @@ ScriptTest.run("64_schema_validation: additionalProperties(true) tool accepts un
     ScriptTest.run("12_use_item: entity-mode rejects non-integer entityId", function(t) {
         // Route-layer schema validation rejects string entityId before the tool runs.
         var msg = null;
-        try { Agent.invoke("mc.bot.useItem", { entityId: "abc" }); } catch (e) { msg = String(e); }
+        try { Driver.invoke("mc.bot.useItem", { entityId: "abc" }); } catch (e) { msg = String(e); }
         t.assertTrue(msg !== null && msg.indexOf("must be integer") >= 0,
             "non-integer entityId must be rejected by schema validation, got: " + msg);
     });

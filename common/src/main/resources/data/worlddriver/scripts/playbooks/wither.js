@@ -11,15 +11,15 @@
 // projectiles and burrows, so this melees throughout; a sealed bedrock box keeps it
 // from escaping (build with the existing placeBlock/fill primitives before calling).
 (function () {
-    function boss()     { return Agent.invoke('mc.observe.boss', { radius: 48 }); }
-    function player()   { return Agent.invoke('mc.observe.player', {}); }
-    function aborting()  { var s = Agent.invoke('mc.bot.playbook', { op: 'status' }); return !!(s && s.aborting); }
+    function boss()     { return Driver.invoke('mc.observe.boss', { radius: 48 }); }
+    function player()   { return Driver.invoke('mc.observe.player', {}); }
+    function aborting()  { var s = Driver.invoke('mc.bot.playbook', { op: 'status' }); return !!(s && s.aborting); }
 
     var summon = !(typeof PLAYBOOK !== 'undefined' && PLAYBOOK.summon === false);
 
     // --- Gear gate (Phase F): equip the best we have, then verify all four armour
     //     slots are filled and a sword is in hand; abort to the planner otherwise.
-    try { Agent.invoke('mc.bot.equip', { profile: 'best' }); } catch (e) {}
+    try { Driver.invoke('mc.bot.equip', { profile: 'best' }); } catch (e) {}
     var me = player();
     var armor = (me && me.armor) || {};
     var missing = [];
@@ -32,7 +32,7 @@
                  missingArmor: missing, hasSword: hasSword };
     }
 
-    Agent.invoke('mc.bot.setting', { autoTotem: true, autoHeal: true, autoEat: true, autoDodge: true, autoRetreat: false });
+    Driver.invoke('mc.bot.setting', { autoTotem: true, autoHeal: true, autoEat: true, autoDodge: true, autoRetreat: false });
 
     // --- Summon (optional). The wither stays invulnerable ~220 ticks, then
     //     detonates a large explosion — back off and let it blow before closing in.
@@ -42,9 +42,9 @@
             var p = player();
             if (p && p.pos) {
                 var sx = Math.floor(p.pos.x) + 4, sy = Math.floor(p.pos.y), sz = Math.floor(p.pos.z);
-                Agent.invoke('mc.action.runCommand', { cmd: 'summon minecraft:wither ' + sx + ' ' + sy + ' ' + sz });
+                Driver.invoke('mc.action.runCommand', { cmd: 'summon minecraft:wither ' + sx + ' ' + sy + ' ' + sz });
             }
-            Agent.system.waitTicks(10);
+            Driver.system.waitTicks(10);
         }
     }
 
@@ -65,15 +65,15 @@
 
         if (b.invulTicks > 0) {
             // Spawning: stay clear of the imminent explosion.
-            if (!backedOff) { try { Agent.invoke('mc.bot.runAway', { minDist: 12 }); } catch (e) {} backedOff = true; }
-            Agent.system.waitTicks(10);
+            if (!backedOff) { try { Driver.invoke('mc.bot.runAway', { minDist: 12 }); } catch (e) {} backedOff = true; }
+            Driver.system.waitTicks(10);
             continue;
         }
         backedOff = false;
 
         // Both phases: melee the wither and chase. T0 autoDodge handles the skulls;
         // autoHeal/autoTotem cover the wither debuff's chip damage.
-        Agent.invoke('mc.bot.combat', { mode: 'kill', target: { type: 'wither' } });
-        Agent.system.waitTicks(10);
+        Driver.invoke('mc.bot.combat', { mode: 'kill', target: { type: 'wither' } });
+        Driver.system.waitTicks(10);
     }
 })();

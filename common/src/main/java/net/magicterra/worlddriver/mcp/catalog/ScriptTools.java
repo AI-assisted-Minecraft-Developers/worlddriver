@@ -19,11 +19,11 @@ public final class ScriptTools {
                 "**Prefer this when a task would otherwise need ≥3 separate tool calls** " +
                 "(e.g. observe→decide→act, cursor→action→eventsSince, scan→pick→place). " +
                 "Runs a short JavaScript snippet against the in-process Agent API. Inside the snippet:\n" +
-                "  - Agent.invoke(method, params): call any other tool by name, e.g. " +
-                "Agent.invoke('mc.query', {q:'blocks', center:{x:0,y:200,z:0}, filter:{in_radius:5}})\n" +
-                "  - Agent.system / Agent.observe / Agent.action / Agent.query / Agent.client: typed helpers\n" +
-                "    (e.g. Agent.observe.player(), Agent.action.fill(from,to,type), Agent.action.placeMany([...]),\n" +
-                "     Agent.client.screen.info(), Agent.client.screenshot({maxWidth:640,format:'jpeg'}))\n" +
+                "  - Driver.invoke(method, params): call any other tool by name, e.g. " +
+                "Driver.invoke('mc.query', {q:'blocks', center:{x:0,y:200,z:0}, filter:{in_radius:5}})\n" +
+                "  - Driver.system / Driver.observe / Driver.action / Driver.query / Driver.client: typed helpers\n" +
+                "    (e.g. Driver.observe.player(), Driver.action.fill(from,to,type), Driver.action.placeMany([...]),\n" +
+                "     Driver.client.screen.info(), Driver.client.screenshot({maxWidth:640,format:'jpeg'}))\n" +
                 "  - console.log(x): append to the returned log array (objects auto-JSON-stringified)\n" +
                 "Last expression = result. Fresh scope per call. Sandboxed (no file/network/reflection); " +
                 "bounded by timeoutMs (default 3000, max 30000). " +
@@ -38,7 +38,7 @@ public final class ScriptTools {
                 "Persistent skill library (Phase H / Voyager): write a reusable JS skill once, " +
                 "save it by name, then list/run it across sessions — the building block for " +
                 "self-growing skills. A skill is an ordinary sandbox script (orchestrates " +
-                "Agent.invoke like mc.script.eval) that reads its call args from an injected SKILL " +
+                "Driver.invoke like mc.script.eval) that reads its call args from an injected SKILL " +
                 "global; running one goes through the same 30s-capped evaluator. `op` selects the " +
                 "action: save {name,source} (syntax-checked before it's persisted — a skill that " +
                 "doesn't parse is rejected); list (→ {skills:[{name,bytes}]}); get {name} (→ source); " +

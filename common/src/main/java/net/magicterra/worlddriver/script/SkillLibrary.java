@@ -18,7 +18,7 @@ import java.util.stream.Stream;
  * Phase H — a persistent skill library (Voyager pattern): the agent writes a new
  * JS skill, it's syntax-checked and saved to disk, then listed / run / deleted by
  * name so it can be reused across sessions. Skills are ordinary agent scripts
- * (they orchestrate {@code Agent.invoke(...)} like the validation suite), run
+ * (they orchestrate {@code Driver.invoke(...)} like the validation suite), run
  * through the same {@link ScriptEvaluator} as {@code mc.script.eval} (30 s cap —
  * skills are short reusable tasks, not the multi-minute boss loops that use the
  * {@link PlaybookRunner}). Backs the single {@code mc.skill} verb; {@code op}

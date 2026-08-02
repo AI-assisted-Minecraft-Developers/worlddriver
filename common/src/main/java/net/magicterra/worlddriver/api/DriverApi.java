@@ -510,7 +510,7 @@ public final class DriverApi {
      * Pre-dispatch params validation, injected by the bootstrap from the MCP
      * ToolCatalog (Hard Rule #1: the api layer never depends on the mcp layer —
      * same seam style as {@link #requireSchemasFor}). Covers EVERY caller of
-     * {@link #route}: MCP tools/call, RPC websocket, in-JVM Rhino Agent.invoke,
+     * {@link #route}: MCP tools/call, RPC websocket, in-JVM Rhino Driver.invoke,
      * and internal consumers (EventsApi/WaitApi/YamlTestInterpreter/…) — one
      * contract, uniformly enforced.
      */

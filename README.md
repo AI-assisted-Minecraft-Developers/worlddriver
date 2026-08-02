@@ -23,7 +23,7 @@ agents see exactly what in-game scripts see.
 external MCP client            in-game JS script              external WS client
        │                              │                              │
        ▼                              ▼                              ▼
- HTTP /mcp (port 39800)        Agent.invoke(method,…)         WS  /rpc (port 39801)
+ HTTP /mcp (port 39800)        Driver.invoke(method,…)         WS  /rpc (port 39801)
        │                              │                              │
        └──────────────────────────────┴──────────────────────────────┘
                                       ▼
@@ -147,7 +147,7 @@ worlddriver/
 │       │   ├── rpc/               RpcServer (Netty WebSocket) + JsonCodec
 │       │   ├── script/            Rhino integration, sandbox, ScriptEvaluator
 │       │   └── client/            ClientHooks broker (impl lives in fabric/neoforge)
-│       └── resources/data/worlddriver/scripts/agent_validation/  *.js suite
+│       └── resources/data/worlddriver/scripts/validation/  *.js suite
 ├── fabric/                Fabric loader entrypoint + client-side impl
 ├── neoforge/              NeoForge entrypoint + client-side impl
 ├── docs/                  Connection guides (see docs/mcp-clients.md)

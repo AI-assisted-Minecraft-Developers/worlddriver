@@ -13,7 +13,7 @@
 ## Conventions & test seam (read before starting)
 
 - **AGENTS.md Hard Rules apply.** Especially: #1 behavior is reachable through `DriverApi.route` and byte-identical across MCP/RPC/script; #6 prefer extending — justification for a *new* tool here is that no existing tool exposes path traces and the data is debug-only (keep the schema/description tight); #7 no fully-qualified names, add an `import` and use the simple name (only inline an FQN to break a real collision).
-- **This codebase has no JUnit unit-test source set.** The canonical suite is `./gradlew :neoforge:runGameTestServer`, which runs the numbered JS validation scripts under `common/src/main/resources/data/worlddriver/scripts/agent_validation/`. Therefore the automated test for this feature is an **integration JS validation case** plus **compile gates**; the substantive correctness check is the **E2E multimodal run** (Task 14). Where a Java class is pure (renderer math), keep it small and assert its outputs through the JS case's response fields (width/height/bytes/stats). Do not invent a JUnit harness.
+- **This codebase has no JUnit unit-test source set.** The canonical suite is `./gradlew :neoforge:runGameTestServer`, which runs the numbered JS validation scripts under `common/src/main/resources/data/worlddriver/scripts/validation/`. Therefore the automated test for this feature is an **integration JS validation case** plus **compile gates**; the substantive correctness check is the **E2E multimodal run** (Task 14). Where a Java class is pure (renderer math), keep it small and assert its outputs through the JS case's response fields (width/height/bytes/stats). Do not invent a JUnit harness.
 - **Working tree state:** branch `feat/cost-based-flee` has uncommitted survival-kit changes including a modified `BotConfig.java`. Append new fields at the end of the relevant section; do not disturb existing edits. Confirm with the user before committing (per session rules, commit only when asked; branch first if on a default branch).
 - **Never commit runtime output (Hard Rule #5).** Chart PNGs write to `config/worlddriver/debug/`; Task 13 adds that to `.gitignore`.
 - **Build/test commands:**
@@ -38,7 +38,7 @@
 - `common/src/main/java/net/magicterra/worlddriver/bot/debug/PathChartTool.java` — route handler (snapshot → render → write → response Map).
 - `common/src/main/java/net/magicterra/worlddriver/bot/debug/DebugTools.java` — MCP schema catalog (`mc.debug.pathChart`).
 - `common/src/main/java/net/magicterra/worlddriver/bot/debug/PathDebugBootstrap.java` — `init()` wiring.
-- `common/src/main/resources/data/worlddriver/scripts/agent_validation/56_debug_pathchart.js` — validation case.
+- `common/src/main/resources/data/worlddriver/scripts/validation/56_debug_pathchart.js` — validation case.
 
 **Modified (core — generic inert seams + hook calls):**
 - `common/.../api/DriverApi.java` — `routes` → `ConcurrentHashMap`; add `addRoute(...)`.
@@ -1343,7 +1343,7 @@ git commit -m "feat(pathdebug): init path-debug subsystem at client register"
 ## Task 12: Validation case + registration
 
 **Files:**
-- Create: `common/src/main/resources/data/worlddriver/scripts/agent_validation/56_debug_pathchart.js`
+- Create: `common/src/main/resources/data/worlddriver/scripts/validation/56_debug_pathchart.js`
 - Modify: `common/src/main/java/net/magicterra/worlddriver/WorldDriverCommon.java` (the `VALIDATION_SCRIPTS` list)
 
 - [ ] **Step 1: Create `56_debug_pathchart.js`**
@@ -1354,10 +1354,10 @@ git commit -m "feat(pathdebug): init path-debug subsystem at client register"
 // keeping the headless suite green. When a client is present, smoke the tool end to end.
 
 function clientAvailable() {
-    try { Agent.invoke("mc.client.screen.info", {}); return true; } catch (e) { return false; }
+    try { Driver.invoke("mc.client.screen.info", {}); return true; } catch (e) { return false; }
 }
 function routeAvailable() {
-    try { Agent.invoke("mc.debug.pathChart", { save: false }); return true; } catch (e) { return false; }
+    try { Driver.invoke("mc.debug.pathChart", { save: false }); return true; } catch (e) { return false; }
 }
 
 if (!clientAvailable() || !routeAvailable()) {
@@ -1365,14 +1365,14 @@ if (!clientAvailable() || !routeAvailable()) {
 } else {
 
     ScriptTest.run("56_debug_pathchart: settings round-trip", function (t) {
-        var r = Agent.invoke("mc.bot.setting", { pathDebug: true, pathChartAutoDump: false, pathDebugMaxNodes: 4000 });
+        var r = Driver.invoke("mc.bot.setting", { pathDebug: true, pathChartAutoDump: false, pathDebugMaxNodes: 4000 });
         t.assertEqual(r.ok, true, "write must succeed");
         t.assertEqual(r.settings.pathDebug, true, "pathDebug echoed");
         t.assertEqual(r.settings.pathDebugMaxNodes, 4000, "maxNodes echoed");
     });
 
     ScriptTest.run("56_debug_pathchart: render returns a non-trivial PNG", function (t) {
-        var r = Agent.invoke("mc.debug.pathChart", { width: 800, height: 600 });
+        var r = Driver.invoke("mc.debug.pathChart", { width: 800, height: 600 });
         t.assertEqual(r.ok, true, "render must succeed");
         t.assertEqual(r.width, 800, "width honoured");
         t.assertEqual(r.height, 600, "height honoured");
@@ -1382,9 +1382,9 @@ if (!clientAvailable() || !routeAvailable()) {
 
     ScriptTest.run("56_debug_pathchart: byte-identical across transports", function (t) {
         var args = { width: 640, height: 480, save: false };
-        var direct = Agent.invoke("mc.debug.pathChart", args);
-        var viaTcp = Agent.system.rpcRoundtrip("mc.debug.pathChart", args);
-        var viaMcp = Agent.system.mcpRoundtrip("mc.debug.pathChart", args);
+        var direct = Driver.invoke("mc.debug.pathChart", args);
+        var viaTcp = Driver.system.rpcRoundtrip("mc.debug.pathChart", args);
+        var viaMcp = Driver.system.mcpRoundtrip("mc.debug.pathChart", args);
         t.assertEqual(viaTcp.ok, direct.ok, "RPC.ok parity");
         t.assertEqual(viaMcp.ok, direct.ok, "MCP.ok parity");
         t.assertEqual(viaTcp.width, direct.width, "RPC.width parity");
@@ -1408,7 +1408,7 @@ Expected: BUILD SUCCESSFUL — suite stays green; `56_debug_pathchart` reports *
 - [ ] **Step 4: Commit**
 
 ```bash
-git add common/src/main/resources/data/worlddriver/scripts/agent_validation/56_debug_pathchart.js \
+git add common/src/main/resources/data/worlddriver/scripts/validation/56_debug_pathchart.js \
         common/src/main/java/net/magicterra/worlddriver/WorldDriverCommon.java
 git commit -m "test(pathdebug): add 56_debug_pathchart validation case"
 ```

@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-06-15-path-archive-replay-design.md`
 
-**Conventions (AGENTS.md):** behavior goes in `DriverApi.route`, never a transport; world writes bounce through `server.execute()`; new MCP tool ⇒ route + `ToolCatalog` schema + an `agent_validation` parity script; keep `:neoforge:runGameTestServer` green (≥60 cases). Commit messages via `git commit -F -` heredoc; never override git config. There is an unrelated uncommitted `Walker.java` change in the tree (the prior `deepDescendCatchup` WIP) — **do not** sweep it into any commit here; always `git add` exact files.
+**Conventions (AGENTS.md):** behavior goes in `DriverApi.route`, never a transport; world writes bounce through `server.execute()`; new MCP tool ⇒ route + `ToolCatalog` schema + an `validation` parity script; keep `:neoforge:runGameTestServer` green (≥60 cases). Commit messages via `git commit -F -` heredoc; never override git config. There is an unrelated uncommitted `Walker.java` change in the tree (the prior `deepDescendCatchup` WIP) — **do not** sweep it into any commit here; always `git add` exact files.
 
 ---
 
@@ -33,7 +33,7 @@
 - `bot/debug/PathDebugBootstrap.java` — install the second sink + register `mc.debug.replay`.
 - `mcp/catalog/DebugTools.java` — `mc.debug.replay` schema.
 - `neoforge/.../AgentGameTest.java` — record→replay round-trip GameTest.
-- `common/src/main/resources/data/worlddriver/scripts/agent_validation/` — a parity script for `mc.debug.replay`.
+- `common/src/main/resources/data/worlddriver/scripts/validation/` — a parity script for `mc.debug.replay`.
 
 ---
 
@@ -654,7 +654,7 @@ EOF
 
 **Files:**
 - Test: new `replayRoundTripArena` in `AgentGameTest.java`
-- Create: `common/src/main/resources/data/worlddriver/scripts/agent_validation/NN_replay_parity.js`
+- Create: `common/src/main/resources/data/worlddriver/scripts/validation/NN_replay_parity.js`
 
 - [ ] **Step 1: Write the round-trip GameTest**
 
@@ -678,7 +678,7 @@ Expected: `All N required tests passed`, `FAIL: 0`.
 
 ```bash
 git add neoforge/src/main/java/net/magicterra/worlddriver/neoforge/AgentGameTest.java \
-        common/src/main/resources/data/worlddriver/scripts/agent_validation/
+        common/src/main/resources/data/worlddriver/scripts/validation/
 git commit -F - <<'EOF'
 test(debug): replay round-trip GameTest + mc.debug.replay transport parity
 EOF

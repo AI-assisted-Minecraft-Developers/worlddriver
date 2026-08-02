@@ -56,13 +56,13 @@
 ### Task 3: task#92 agentRpcSmoke 拓扑可移植
 
 **Files:**
-- Modify: `common/src/main/resources/data/worlddriver/scripts/agent_validation/*.js`（按取证清单：13_set_hotbar_slot/21_blocks_to_avoid/25_phase_d3/40_scheduler/41_defense/42_combat/44_craft/45_equip/57_replay 中分歧成员）
+- Modify: `common/src/main/resources/data/worlddriver/scripts/validation/*.js`（按取证清单：13_set_hotbar_slot/21_blocks_to_avoid/25_phase_d3/40_scheduler/41_defense/42_combat/44_craft/45_equip/57_replay 中分歧成员）
 - Modify: `common/src/testmod/java/net/magicterra/worlddriver/bot/stagewright/scene/WorldDriverCoreScenes.java:139-146`（毯式 early-PASS 门拆除）
 - Possibly modify: `common/src/main/java/net/magicterra/worlddriver/api/ObserveApi.java` / client-face 绑定（仅当取证证明分歧根在 driver 侧缺失）
 - Modify: `docs/stagewright/migration-log.md`（task#92 裁决更新，append-only）
 
 **Interfaces:**
-- Consumes: 记录的 8 分歧（TODO.md:41）：5 硬 JS `TypeError: … of undefined`（observe…player / Agent.bot.tunnel / blocks_to_avoid 客户端面）+2 行为（scheduler retreat 通道归属）+1 flaky 名额（41_defense 箭矢/57_replay 形）；最可疑机制=integrated 拓扑下 `mc.observe.player` 合法返回 `{present:false}`（ObserveApi.java:120-134 永不抛）而脚本无防御直接解引用。
+- Consumes: 记录的 8 分歧（TODO.md:41）：5 硬 JS `TypeError: … of undefined`（observe…player / Driver.bot.tunnel / blocks_to_avoid 客户端面）+2 行为（scheduler retreat 通道归属）+1 flaky 名额（41_defense 箭矢/57_replay 形）；最可疑机制=integrated 拓扑下 `mc.observe.player` 合法返回 `{present:false}`（ObserveApi.java:120-134 永不抛）而脚本无防御直接解引用。
 - Produces: 259-check 套件在 T0 专服与 T1 integrated 双拓扑可跑；`agentRpcSmoke` 场景在两拓扑都真跑套件。
 
 - [ ] **Step 1 取证**: `t1.py --hold` 拉起 integrated 拓扑，裸 RPC 触发 `WorldDriverCommon.runValidation()`（scripts/.claude/skills/worlddriver-rpc/rpc.py 走 mc.script.eval 或等价入口），抓 8 失败的**完整错误文本+check 名**入报告（现有记录只有归类没有原文）。逐一定性：脚本不设防 / driver client-face 真缺失 / 真行为分歧 / flaky。
