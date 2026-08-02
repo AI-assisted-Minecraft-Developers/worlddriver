@@ -42,7 +42,7 @@ public final class TestResetVerb {
     private TestResetVerb() {}
 
     /** Hidden ToolSchema — declared (satisfies the boot schema invariant) but kept out of MCP
-     *  {@code tools/list}, exactly like the {@code mc.test.yaml} harness precedent. No params. */
+     *  {@code tools/list} — a harness verb is not an agent action. No params. */
     public static final ToolSchema SCHEMA = tool(
             "mc.test.reset",
             "Reset the client entry between testkit client-pool reuse runs (dev/test harness verb; "

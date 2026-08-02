@@ -37,8 +37,6 @@ import net.magicterra.worlddriver.client.ClientDriverApi;
 import net.magicterra.worlddriver.bot.BotApi;
 import java.util.Set;
 import net.magicterra.worlddriver.rpc.JsonCodec;
-import net.magicterra.worlddriver.test.yaml.YamlTestInterpreter;
-import net.magicterra.worlddriver.test.yaml.YamlTestSpec;
 import net.magicterra.worlddriver.bot.BotHooks;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.ExecutionException;
@@ -185,11 +183,6 @@ public final class DriverApi {
         routes.put("mc.world.block",       p -> world.block(p));
         routes.put("mc.world.snapshot",    p -> world.snapshot(p));
         routes.put("mc.world.restore",     p -> withEvents(p, () -> world.restore(p)));
-        // Run YAML GameTest definitions through the interpreter on demand (docs/
-        // yaml-gametest.md). {file:"x.yaml"} loads a classpath file, {inline:"..."}
-        // parses a literal; returns {results:[{name,pass,failures}], passed, failed}.
-        // The same YamlTestInterpreter also backs the @GameTestGenerator hook.
-        routes.put("mc.test.yaml",         p -> runYamlTests(p));
         routes.put("mc.recipe.lookup",     p -> recipe.lookup(p));
         routes.put("mc.recipe.resolve",    p -> recipe.resolve(p));
         routes.put("mc.plan.acquire",      p -> recipe.planAcquire(p));
@@ -511,7 +504,7 @@ public final class DriverApi {
      * ToolCatalog (Hard Rule #1: the api layer never depends on the mcp layer —
      * same seam style as {@link #requireSchemasFor}). Covers EVERY caller of
      * {@link #route}: MCP tools/call, RPC websocket, in-JVM Rhino Driver.invoke,
-     * and internal consumers (EventsApi/WaitApi/YamlTestInterpreter/…) — one
+     * and internal consumers (EventsApi/WaitApi/…) — one
      * contract, uniformly enforced.
      */
     public void setParamsValidator(ParamsValidator validator) {
@@ -528,14 +521,15 @@ public final class DriverApi {
         onServerThread(() -> {
             BlockPos origin = ORIGIN;
             BlockState air = Blocks.AIR.defaultBlockState();
-            // Clear up to dy=12 (origin.y+12): the YAML-gametest validation cells
-            // live at origin.y+6..+10 (34_yaml_gametest.js inline @ +6/+7/+8,
-            // smoke_place_observe.yaml @ +10) — ABOVE the old +5 ceiling. Because
-            // the GameTest world PERSISTS across runs, any block left up there
-            // (a one-off restore hiccup, or world-gen residue) was never wiped by
-            // the seed and poisoned the next run's "cell is air before the run"
-            // precondition forever (the long-standing 34_yaml flake). Clearing the
-            // full vertical extent the suite uses makes every run self-healing.
+            // Clear up to dy=12 (origin.y+12) — deliberately taller than any cell the
+            // suite currently writes. The ceiling was raised from +5 to +12 to kill a
+            // flake whose mechanism outlives its original culprit: the world PERSISTS
+            // across runs, so a block left above the cleared band (a one-off restore
+            // hiccup, or world-gen residue) is never wiped by the seed and poisons the
+            // next run's "cell is air before the run" precondition FOREVER. The verb
+            // that first exposed this (mc.test.yaml, cells @ +6..+10) is gone, but the
+            // headroom stays: it costs one pass over ~1000 air blocks and makes every
+            // run self-healing regardless of which script reaches highest.
             for (int dx = -4; dx <= 4; dx++)
                 for (int dy = -1; dy <= 12; dy++)
                     for (int dz = -4; dz <= 4; dz++)
@@ -775,41 +769,6 @@ public final class DriverApi {
         return false;
     }
 
-    // ---------------- YAML GameTest runner ----------------
-    /** Backs {@code mc.test.yaml}: parse {file}/{inline} into specs, run each
-     *  through {@link YamlTestInterpreter}, return a per-spec pass/fail report. */
-    private Map<String, Object> runYamlTests(Map<String, Object> p) {
-        List<YamlTestSpec> specs;
-        Object inline = (p == null) ? null : p.get("inline");
-        Object file = (p == null) ? null : p.get("file");
-        boolean all = p != null && Boolean.TRUE.equals(p.get("all"));
-        if (inline instanceof String s && !s.isBlank()) {
-            specs = net.magicterra.worlddriver.test.yaml.YamlTestLoader.parseString(s, "<inline>");
-        } else if (file instanceof String f && !f.isBlank()) {
-            specs = net.magicterra.worlddriver.test.yaml.YamlTestLoader.loadFile(f);
-        } else if (all) {
-            specs = net.magicterra.worlddriver.test.yaml.YamlTestLoader.loadAll();
-        } else {
-            throw new IllegalArgumentException("mc.test.yaml requires 'file', 'inline', or 'all:true'");
-        }
-        YamlTestInterpreter interp = new YamlTestInterpreter(this);
-        List<Map<String, Object>> results = new ArrayList<>();
-        int passed = 0, failed = 0;
-        for (YamlTestSpec spec : specs) {
-            YamlTestInterpreter.Result r = interp.runSpec(spec);
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("name", r.name());
-            row.put("pass", r.pass());
-            row.put("failures", r.failures());
-            results.add(row);
-            if (r.pass()) passed++; else failed++;
-        }
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("results", results);
-        out.put("passed", passed);
-        out.put("failed", failed);
-        return out;
-    }
 
     // ---------------- Query DSL ----------------
     public Object query(QueryParams p) {

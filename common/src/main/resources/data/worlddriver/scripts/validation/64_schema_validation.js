@@ -52,10 +52,13 @@ ScriptTest.run("64_schema_validation: non-integral double on an integer slot is 
 });
 
 ScriptTest.run("64_schema_validation: additionalProperties(true) tool accepts unknown keys", function(t) {
-    // mc.test.yaml is declared additionalProperties(true); calling with an unknown
-    // key must NOT be a schema rejection. all:false is a no-op run request shape;
-    // any non-validation outcome (ok or business error) passes.
-    var msg = errOf(function() { Driver.invoke("mc.test.yaml", { freeform: 1, all: false }); });
+    // mc.bot.playbook is declared additionalProperties(true) at the ROOT, and its
+    // openness is load-bearing rather than harness laxity: the whole params object is
+    // injected into the playbook script as the PLAYBOOK global, so free-form tuning
+    // keys are the feature. (This sub-test used to ride on mc.test.yaml, which was
+    // open for the weaker reason that nobody had closed it; it retired with the YAML
+    // harness.) op:"status" is a read-only query — any non-validation outcome passes.
+    var msg = errOf(function() { Driver.invoke("mc.bot.playbook", { freeform: 1, op: "status" }); });
     t.assertTrue(msg === null || msg.indexOf("unexpected key") < 0,
         "additionalProperties(true) must not reject unknown keys, got: " + msg);
 });

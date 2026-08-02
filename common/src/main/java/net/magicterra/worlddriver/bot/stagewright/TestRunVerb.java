@@ -43,7 +43,7 @@ public final class TestRunVerb implements StageWrightVerbHook {
 
     /** Hidden ToolSchema — declared (satisfies the boot schema invariant + drives route-layer
      *  validation) but kept out of MCP {@code tools/list}, exactly like {@code mc.test.reset} and the
-     *  {@code mc.test.yaml} harness precedent. No params. */
+     *  harness-verb convention. No params. */
     public static final ToolSchema SCHEMA = tool(
             "mc.test.run",
             "Trigger the stagewright scene suite ON DEMAND (dev/test harness verb; reachable over RPC "

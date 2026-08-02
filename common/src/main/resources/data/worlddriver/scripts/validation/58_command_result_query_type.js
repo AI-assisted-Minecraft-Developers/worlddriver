@@ -21,8 +21,9 @@ ScriptTest.run("58_cmd_result: execute-if count lands in value", function(t) {
     var x = origin.x + 6, y = origin.y + 1, z = origin.z + 6;
     // The gametest world persists across runs (run-gametest/world), and an
     // aborted earlier run can leave tagged strays behind — kill defensively so
-    // the counts below are hermetic (the entity-soup gotcha from
-    // docs/yaml-gametest.md §12.5, promptly re-proven by this very test).
+    // the counts below are hermetic. (This "entity soup" gotcha was first written
+    // up in the retired docs/yaml-gametest.md §12.5; it is a property of the
+    // persistent world, not of that harness, so it outlived the doc.)
     Driver.invoke("mc.action.runCommand", { cmd: "kill @e[tag=t58]" });
     Driver.invoke("mc.action.runCommand",
         { cmd: "summon minecraft:armor_stand " + x + " " + y + " " + z + " {Tags:[\"t58\"]}" });

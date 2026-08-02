@@ -61,9 +61,9 @@ import net.magicterra.worlddriver.mcp.schema.ToolSchema;
  * </ul>
  * The driver's own curated catalog and the internal {@code DriverApi.addRoute}
  * consumers (e.g. the path-debug package) do NOT go through {@code registerVerb}
- * and are unaffected by the policy. {@code mc.test.yaml} (a {@link #HIDDEN_TOOLS
- * hidden} harness verb registered the classic way, not via {@code registerVerb})
- * is grandfathered under the {@code mc.test.*} grant.
+ * and are unaffected by the policy. The {@code mc.test.*} grant now has exactly one
+ * claimant — the StageWright runtime, via {@code registerVerb} — since the driver's
+ * own {@code mc.test.yaml} was retired; nothing is grandfathered into it any more.
  */
 public final class ToolCatalog {
     private ToolCatalog() {}
@@ -125,8 +125,10 @@ public final class ToolCatalog {
      * throws {@link IllegalArgumentException}: it closes the hole where a caller
      * granted the {@code mc.test.*} namespace (or, before this guard, any {@code mc.*}
      * name it could otherwise slip past a looser check) could pick a name equal to a
-     * driver-owned verb — e.g. {@code mc.test.yaml} — and last-wins shadow it, both in
-     * the route sink and in {@code schemaByName()}. The baseline is fixed at class-load
+     * driver-owned verb — {@code mc.test.yaml} was the motivating example before it was
+     * retired — and last-wins shadow it, both in the route sink and in
+     * {@code schemaByName()}. The guard outlives that verb: it is what keeps the
+     * {@code mc.test.*} grant from reaching the curated sections. The baseline is fixed at class-load
      * (the fixed sections + {@code HIDDEN_TOOLS} never change at runtime, and
      * {@link #registerExtra} — including the extras this method itself feeds — never
      * contributes to it by construction), so the guard cannot be bypassed by first
@@ -212,11 +214,13 @@ public final class ToolCatalog {
      * rule #1 exists to prevent. {@code ToolCatalogHiddenTest} pins both halves.
      */
     private static final List<ToolSchema> HIDDEN_TOOLS = List.of(
-            // mc.test.yaml — run YAML gametests on demand; a harness verb, not an agent action.
-            tool("mc.test.yaml",
-                    "Run YAML GameTest specs on demand (dev/test harness verb; declared but not "
-                    + "advertised in tools/list). Params: file | inline | all:true.",
-                    object().additionalProperties(true)).asHidden()
+            // Currently EMPTY, and that is a state, not a leftover: the driver owns no hidden
+            // verb of its own since mc.test.yaml was retired. Every live hidden verb
+            // (mc.test.run / mc.test.reset / mc.test.input.*) now belongs to the StageWright
+            // runtime and arrives through registerVerb + .asHidden() instead. The list stays
+            // because it is the declaration site for a DRIVER-owned hidden verb, and because
+            // baselineNames() folds it in — an entry added here is protected from being
+            // shadowed by registerVerb, which an EXTRA-registered verb is not.
     );
 
     /** Register an extra schema supplier (e.g. the path-debug tool). Inert until called. */

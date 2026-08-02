@@ -79,7 +79,6 @@ public final class WorldDriverCommon {
             "31_goal_types.js",
             "32_break_place.js",
             "33_world_snapshot.js",
-            "34_yaml_gametest.js",
             "40_scheduler.js",
             "41_defense.js",
             "42_combat.js",

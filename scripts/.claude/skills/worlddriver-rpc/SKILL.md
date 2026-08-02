@@ -8,8 +8,9 @@ description: >-
   mc.query / mc.events / mc.wait.* / mc.recipe.* / mc.plan.acquire /
   mc.script.eval / mc.skill call, scripting a multi-step live setup
   (give→tp→fill→setting→goto), sending a raw method+params to the websocket,
-  reaching an RPC-route-only method the MCP layer doesn't expose (e.g.
-  mc.test.yaml), or when an mcp__worlddriver__* tool won't
+  reaching an RPC-route-only method the MCP layer doesn't expose (the
+  StageWright harness verbs mc.test.run / mc.test.reset / mc.test.input.*,
+  present only when that runtime is loaded), or when an mcp__worlddriver__* tool won't
   apply a newly-added param/setting (the MCP tool schemas are frozen at session
   start, so new keys must be set over RPC). Don't hand-roll a websocket client or
   guess the wire format, method names, or params — they're all in this skill.
@@ -85,8 +86,10 @@ a local bot you never need `--host` — loopback is included in a wildcard bind.
 
 ## Method surface (overview)
 
-72 methods across 14 namespaces (71 exposed as MCP tools + one RPC-route-only,
-`mc.test.yaml`). Full per-method params + returns are in **`references/methods.md`**
+72 methods across 13 namespaces, all carrying a visible `ToolSchema` — the driver
+layer owns no hidden verb since `mc.test.yaml` retired with the YAML harness. The
+only RPC-route-only verbs left belong to the StageWright runtime and exist only
+while it is loaded. Full per-method params + returns are in **`references/methods.md`**
 — read it before composing an unfamiliar call.
 
 | namespace | what's there |
@@ -105,7 +108,6 @@ a local bot you never need `--host` — loopback is included in a wildcard bind.
 | `mc.client.*` | `player`, `scene`, `blocks` (client-authoritative reads), `overlays`, `screenshot` |
 | `mc.bot.*` | `goto`, `mine`, `bunker`, `escape`, `craft`, `smelt`, `combat`, `equip`, `build`, `clearArea`, `farm`, `construct`, `sleep`, `follow`, `explore`, `runAway`, `lookAt`, `useItem`, `attackEntity`, `elytraFly`, `playbook`, `waypoint`, `status`, `cancel`, `setting` |
 | `mc.script.eval` / `mc.skill` | sandboxed JS snippet (one round-trip) + persistent skill library (`save`/`list`/`get`/`run`/`delete`) |
-| `mc.test.yaml` | run YAML gametests on demand (RPC-route-only) |
 
 ## Live event stream → Monitor (game-event notifications)
 

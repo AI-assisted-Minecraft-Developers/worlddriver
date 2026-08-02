@@ -18,7 +18,7 @@ loom {
 // needed here. Classpath mirrors the neoforge testmod convention: testmod sees
 // main's OUTPUT plus main's own compile/runtime classpaths — so scene/probe code
 // can reach main classes (Walker, ServerWorldDriver, …) AND main's dependencies
-// (Minecraft, netty/snakeyaml compileOnly), while the testkit scene SPI
+// (Minecraft, netty compileOnly), while the testkit scene SPI
 // (Scene/SceneContext/SceneProvider) comes from :stagewright-common namedElements
 // (added explicitly below AND already transitively present in main.compileClasspath).
 // The `test` source set is for PURE-JVM unit tests of code that needs no running
@@ -30,9 +30,9 @@ loom {
 // not here.
 //
 // runtimeClasspath deliberately extends main's COMPILE classpath, not its runtime
-// one: netty-codec-http and snakeyaml are `compileOnly` for main (the loader modules
-// shadow-bundle them), so a test inheriting main.runtimeClasspath would compile and
-// then NoClassDefFoundError on the first WebSocket frame.
+// one: netty-codec-http is `compileOnly` for main (the loader modules shadow-bundle
+// it), so a test inheriting main.runtimeClasspath would compile and then
+// NoClassDefFoundError on the first WebSocket frame.
 sourceSets {
     testmod {
         compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
@@ -88,7 +88,4 @@ dependencies {
     // wire runtime visibility (forgeRuntimeLibrary on NeoForge) + shadow-bundle.
     compileOnly "io.netty:netty-codec-http:$rootProject.netty_version"
 
-    // snakeyaml — YAML GameTest definitions. Compile-only here; fabric/neoforge
-    // wire runtime visibility + shadow-bundle (relocated). See gradle.properties.
-    compileOnly "org.yaml:snakeyaml:$rootProject.snakeyaml_version"
 }

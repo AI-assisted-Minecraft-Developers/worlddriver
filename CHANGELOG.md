@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- **BREAKING (RPC): the YAML GameTest harness is retired — `mc.test.yaml` is gone.**
+  It was the driver's *second* in-game test system, living alongside StageWright's
+  Scene suite, and the reason it existed had already expired: its own javadoc said
+  "the same `YamlTestInterpreter` also backs the `@GameTestGenerator` hook", but
+  `@GameTest` was retired in P4-final. Meanwhile it squatted on the `mc.test.*`
+  namespace granted to the StageWright runtime — `ToolCatalog` carried an explicit
+  "grandfathered" carve-out for it, which is a deferred conflict, not a resolved one.
+  Confirmed with the owner that it had no consumers.
+
+  Removed: `test/yaml/{YamlTestInterpreter,YamlTestLoader,YamlTestSpec,AssertKind}`,
+  the `mc.test.yaml` route + hidden `ToolSchema`, `data/worlddriver/gametests/`
+  (`index.txt` + `smoke_place_observe.yaml`), the `34_yaml_gametest.js` validation
+  script, and `docs/yaml-gametest.md`.
+
+  Consequences worth knowing:
+  - **`snakeyaml` is gone from both shipped jars** — the harness was its only
+    consumer, so the Jar-in-Jar nesting, the `forgeRuntimeLibrary`/`include` wiring
+    and `snakeyaml_version` all went with it. Verified: 0 yaml entries in either jar.
+  - **`ToolCatalog.HIDDEN_TOOLS` is now empty**, and that is a state rather than a
+    leftover: the driver owns no hidden verb any more. Every live hidden verb
+    (`mc.test.run` / `mc.test.reset` / `mc.test.input.*`) belongs to StageWright and
+    arrives via `registerVerb(..., .asHidden())`. The list stays as the declaration
+    site for a driver-owned one, because `baselineNames()` folds it in — an entry
+    there is protected from `registerVerb` shadowing, an EXTRA-registered one is not.
+  - **`mc.test.*` now has exactly one claimant.** The grandfather clause is deleted
+    from `ToolCatalog`, `stagewright/README.md` and `instrument-contract-v0.md`.
+  - `ToolCatalogHiddenTest` was deleted with its sole subject. It is not lost
+    coverage: `instrument.py`'s check ⑤ pins the same two halves (out of
+    `tools/list`; still declared + routable + schema-validated) on `mc.test.run`,
+    over the live transport rather than a unit-level list.
+  - `64_schema_validation.js`'s "additionalProperties(true) accepts unknown keys"
+    sub-test was retargeted from `mc.test.yaml` to `mc.bot.playbook`, which is a
+    better subject: its openness is load-bearing product behaviour (the params
+    object is injected into the playbook script as the `PLAYBOOK` global), not
+    harness laxity.
+  - `wd.agentRpcSmoke`'s coverage-drift constants dropped by the script's 5 checks:
+    dedicated 147→142 (observed), integrated 259→254 (derived — the script was
+    unconditional and pure server-side, so it contributed 5 on both topologies;
+    the integrated count check is unreachable while `44_craft` fails first).
+  - `DriverApi.seedTestArea` keeps its dy=12 clear ceiling. It was raised to +12 for
+    this harness's cells, but the mechanism it fixes (a persistent world means one
+    stray block poisons the "cell is air" precondition forever) is a property of the
+    world, not of the harness, so the headroom outlives the verb that motivated it.
+
+  Gates: build, source-budget, t0 fabric, t0 neoforge, t2, `instrument --loader
+  neoforge` all GREEN. t1 RED with exactly the unchanged pre-existing baseline
+  (`wd.vineOverWaterClimb`; `wd.agentRpcSmoke` via `44_craft`).
+
 ### Changed
 - **Internal: the `Agent*` class names were carrying three unrelated meanings.**
   Follow-up to the WorldDriver rename below. `Agent` meant the API façade in

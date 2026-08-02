@@ -82,8 +82,8 @@ subprojects {
         publications {
             mavenJava(MavenPublication) {
                 from components.java
-                // Everything a consumer needs at runtime (Rhino, netty-codec-http,
-                // snakeyaml) is nested in the jar via Jar-in-Jar, so the published
+                // Everything a consumer needs at runtime (Rhino, netty-codec-http)
+                // is nested in the jar via Jar-in-Jar, so the published
                 // POM must not re-declare them: a consumer that naively resolves
                 // the POM would put a SECOND copy of Rhino on its classpath
                 // (docs/feedback/2026-06-04, bug #2).

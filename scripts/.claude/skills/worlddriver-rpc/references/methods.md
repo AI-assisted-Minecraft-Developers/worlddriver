@@ -3,13 +3,15 @@
 Every method the JSON-RPC websocket (`ws://127.0.0.1:39801/rpc`) accepts. Most
 are also MCP tools (`mcp__worlddriver__*`) with `.`→`_` names (`mc.bot.goto` ⇄
 `mc_bot_goto`); both go through one dispatcher (`DriverApi.route`), so behaviour is
-identical. **72 methods across 14 namespaces** — 71 exposed as MCP tools plus one
-**RPC-route-only** verb, `mc.test.yaml` (it has a registered route and a *hidden*
-`ToolSchema`, so it's reachable over RPC and internally but kept out of MCP
-`tools/list`). Every route is asserted at boot to carry a schema
-(`DriverApi.requireSchemasFor`), so "route with no schema" can't drift in; an
-intentional RPC-only verb is the hidden-schema case above. Over RPC the hidden verb
-works like any other method — one of the reasons this skill exists.
+identical. **72 methods across 13 namespaces**, all exposed as MCP tools: the driver
+layer owns no hidden verb any more (`mc.test.yaml`, the last one, retired with the
+YAML harness). Every route is asserted at boot to carry a schema
+(`DriverApi.requireSchemasFor`), so "route with no schema" can't drift in. Hidden
+(RPC-route-only) verbs still exist as a mechanism — `ToolCatalog.HIDDEN_TOOLS` for
+driver-owned ones, `registerVerb(..., .asHidden())` for granted namespaces — but the
+only live ones are the StageWright harness's `mc.test.run` / `mc.test.reset` /
+`mc.test.input.*`, which appear only when that runtime is loaded. Over RPC a hidden
+verb works like any other method — one of the reasons this skill exists.
 
 Source of truth: `common/.../api/DriverApi.java` (the route table — the canonical
 list of *which* methods exist), `common/.../mcp/catalog/*Tools.java` (visible MCP
@@ -39,7 +41,6 @@ the RPC-only verbs), `common/.../bot/SettingsRegistry.java` (the canonical order
 - [`mc.client.*`](#mcclient-misc) — player, scene, blocks, overlays, screenshot
 - [`mc.bot.*`](#mcbot) — goto, mine, bunker, escape, craft, smelt, combat, equip, build, clearArea, farm, construct, sleep, follow, explore, runAway, lookAt, useItem, attackEntity, elytraFly, playbook, waypoint, status, cancel, setting
 - [`mc.script.eval` / `mc.skill`](#mcscript--mcskill)
-- [`mc.test.yaml`](#mctest) — run YAML gametests on demand
 
 ---
 
@@ -57,7 +58,7 @@ the result instead, so check `ok`, not just transport success.
 - `mc.observe.threats` / `mc.observe.boss` are client-backed: they return
   empty/`{present:false}` on a dedicated server.
 - `mc.system.*`, `mc.action.*`, `mc.world.*`, `mc.observe.scene` / `map` / `container`,
-  `mc.query`, `mc.events`, `mc.wait.*`, `mc.recipe.*`, `mc.plan.acquire`, `mc.test.yaml`
+  `mc.query`, `mc.events`, `mc.wait.*`, `mc.recipe.*`, `mc.plan.acquire`
   work server-side; several also have a client-MCP fallback that reads
   LocalPlayer/ClientLevel when no server is attached (e.g. `mc.observe.player`
   then also returns `inventory`, `effects`, `time`, `hit`).
@@ -295,8 +296,3 @@ creative-flight test toggle, no snapshot field).
 | `mc.script.eval` | `source` (req), `timeoutMs?` (dflt 3000, max 30000) | run a sandboxed JS snippet against the in-process API. Inside: `Driver.invoke(method, params)`, the `Driver.system/observe/action/query/client` helpers, `console.log(x)`. Last expression is the result → `{result, error?, log:[…], ms}`. **Best when a task needs ≥3 chained calls** (observe→decide→act) — one round-trip instead of N. No file/network/reflection; server thread, so client-thread state can't be set here. |
 | `mc.skill` | `op?:"save"\|"list"\|"get"\|"run"\|"delete"` (dflt list), `name?` (`[a-z][a-z0-9_]*`), `source?` (save), `args?` (run), `timeoutMs?` (1–30000, dflt 3000) | persistent skill library (scripts saved under `scripts/skills/`). `save`→`{ok,saved,name,bytes}`; `list`→`{ok,skills:[{name,bytes}],count}`; `get`→`{ok,name,source}`; `run`→`{ok,result,error,log,ms,skill}`; `delete`→`{ok,deleted,name}`. |
 
-<a id="mctest"></a>
-## mc.test.yaml
-| method | params | returns / notes |
-|---|---|---|
-| `mc.test.yaml` | `file?` (classpath path) or `inline?` (spec string) or `all?:true` | **The one RPC-route-only verb** (declared as a *hidden* `ToolSchema` in `ToolCatalog.HIDDEN_TOOLS`, so it's out of MCP `tools/list` but reachable over RPC): run YAML GameTest specs on demand → `{results:[{name,pass,failures}], passed, failed}`. See `docs/yaml-gametest.md`. Server-side. |

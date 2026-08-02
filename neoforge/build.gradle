@@ -63,12 +63,6 @@ dependencies {
     include("io.netty:netty-codec-http:$rootProject.netty_version") { transitive = false }
     forgeRuntimeLibrary "io.netty:netty-codec-http:$rootProject.netty_version"
 
-    // snakeyaml — same FML runtime-visibility dance as netty. JiJ'd as a library
-    // jar; both loaders dedupe nested jars by version, so no relocation is needed
-    // (the previous shadow-relocate to net.magicterra.worlddriver.shaded.snakeyaml is
-    // dropped — JiJ avoids the class-collision it was guarding against).
-    include("org.yaml:snakeyaml:$rootProject.snakeyaml_version") { transitive = false }
-    forgeRuntimeLibrary "org.yaml:snakeyaml:$rootProject.snakeyaml_version"
 }
 
 // testmod source set — EMPTY-SOURCE BRIDGE (P4-final). The legacy @GameTest classes
@@ -128,7 +122,7 @@ processResources {
 shadowJar {
     // Shadow now only merges the multi-platform `common` sources into the
     // platform jar (Architectury requires this). External libraries (Rhino,
-    // netty-codec-http, snakeyaml) are nested via Jar-in-Jar (`include`) instead
+    // netty-codec-http) are nested via Jar-in-Jar (`include`) instead
     // of being shadowed/relocated, so there is no `relocate` rule here anymore.
     configurations = [project.configurations.shadowBundle]
     archiveClassifier = 'dev-shadow'

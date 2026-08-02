@@ -118,7 +118,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     }
 
     // ==================================================================================
-    // agentRpcSmoke — the RPC/YAML validation face, ported with an await-continuation poll.
+    // agentRpcSmoke — the JS RPC validation face, ported with an await-continuation poll.
     // ==================================================================================
 
     /** Ported from {@code AgentGameTest#agentRpcSmoke}: wraps the JS validation suite
@@ -129,7 +129,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *  The harness ticks the server between polls, so the suite's {@code server.execute()}-marshalled
      *  RPC/MCP round-trips drain exactly as under the GameTest tick loop.
      *
-     *  <p><b>Topology-portable (task#92).</b> The JS RPC/YAML validation suite runs on BOTH the
+     *  <p><b>Topology-portable (task#92).</b> The JS RPC validation suite runs on BOTH the
      *  dedicated (T0) and the integrated / client-hosted (T1/T2) topologies as REQUIRED coverage.
      *  task#92 removed the old blanket dedicated-only early-PASS: the divergences it papered over were
      *  a STALE validation-harness prelude (missing {@code Driver.observe.player}/{@code Driver.bot.*}
@@ -215,7 +215,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                         + unexpectedSkips);
                 return;
             }
-            ctx.passNote("agentRpcSmoke: full RPC/YAML validation suite ran on the "
+            ctx.passNote("agentRpcSmoke: full RPC validation suite ran on the "
                     + (dedicated ? "dedicated" : "integrated") + " topology — " + results.size()
                     + " checks, 0 failures"
                     + (skips.isEmpty() ? " (no topology skips)"
@@ -223,14 +223,17 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         });
     }
 
-    /** task#92 — the RPC/YAML validation suite's check count on the INTEGRATED (client-hosted) topology,
-     *  where every client-face script runs its full real branch. Coverage-drift guard. */
-    private static final int RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED = 259;
+    /** task#92 — the RPC validation suite's check count on the INTEGRATED (client-hosted) topology,
+     *  where every client-face script runs its full real branch. Coverage-drift guard.
+     *  Was 259 until 34_yaml_gametest.js (5 checks, both topologies — it was pure server-side and
+     *  never self-skipped) retired with the mc.test.yaml harness. */
+    private static final int RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED = 254;
 
     /** task#92 — the same suite's check count on the DEDICATED topology, where the ~35 client-face
      *  scripts each self-skip to a single "no client" placeholder (their real branch needs a client).
-     *  The integrated set is a strict superset; both run REQUIRED with FAIL==0. Coverage-drift guard. */
-    private static final int RPC_SMOKE_EXPECTED_TOTAL_DEDICATED = 147;
+     *  The integrated set is a strict superset; both run REQUIRED with FAIL==0. Coverage-drift guard.
+     *  Was 147 until 34_yaml_gametest.js retired — see the INTEGRATED note above. */
+    private static final int RPC_SMOKE_EXPECTED_TOTAL_DEDICATED = 142;
 
     /** task#92 — allow-list of check-name substrings permitted to record a {@code SKIP(task#92)} PASS on
      *  a topology whose precondition isn't met. Every skipped check MUST match one of these; any other
