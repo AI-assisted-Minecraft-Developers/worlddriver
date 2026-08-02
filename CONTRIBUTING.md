@@ -35,7 +35,7 @@ suite (the legacy `@GameTest`/GameTestServer path was retired in P4-final):
 ```bash
 python3 scripts/stagewright/t0.py --loader neoforge \
   --run-task :neoforge:runDogfoodServer \
-  --results neoforge/run-dogfood/testkit-results.jsonl \
+  --results neoforge/run-dogfood/stagewright-results.jsonl \
   --expect-file scripts/stagewright/expected-scenes-neoforge.txt
 # → GREEN (exits non-zero on any failed scene)
 ```

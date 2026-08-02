@@ -2,7 +2,7 @@ build/
 .gradle/
 */build/
 run/
-run-testkit/
+run-stagewright/
 run-dogfood/
 run-contract/
 run-t1/

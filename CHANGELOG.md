@@ -29,20 +29,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   | DSL block `testkit { }`, `-Ptestkit.loader` | `stagewright { }`, `-Pstagewright.loader` |
   | tasks `testkitServer/Client/E2E` | `stagewrightServer/Client/E2E` |
   | `mc-testkit/`, `scripts/testkit/`, `docs/testkit/` | `stagewright/`, `scripts/stagewright/`, `docs/stagewright/` |
+  | results file `testkit-results.jsonl` | `stagewright-results.jsonl` |
+  | subpackage `…worlddriver.bot.testkit` | `…worlddriver.bot.stagewright` |
+  | plan docs `2026-07-*-testkit-*.md` | `2026-07-*-stagewright-*.md` |
 
   **Existing worlds are unaffected** — this mod registers nothing into vanilla
   registries (no blocks, items or entities), so no save data references `agent_driver`.
 
-  Two things deliberately did *not* move. The results filename
-  `<loader>/run-*/testkit-results.jsonl` and the orchestration contract's argument
-  names stay as they are: that is the frozen v0 wire contract between orchestrator
-  and mod, renaming it buys nothing and breaks external consumers. And the
-  `bot/testkit/` subpackage keeps its name — it means "the test-framework
-  integration", which is still what it is.
+  The orchestration contract's results filename moved with everything else. It is
+  the one name an out-of-tree consumer reads off disk, so it would normally be held
+  back — but every consumer is in-house, so a coordinated break was cheaper than
+  carrying a second vocabulary forever. Pass `--results <path>` explicitly if you
+  have a runner pinned to the old name.
 
   Downstream: `-Dagent.mcpPort`/`-Dagent.rpcPort` are gone, so any launcher, IDE
   run config or script that pinned the ports must switch to `-Dworlddriver.*`;
-  readers of the port files must switch to `worlddriver-rpc.port`.
+  readers of the port files must switch to `worlddriver-rpc.port`, and readers of
+  the results file to `stagewright-results.jsonl`.
 - **BREAKING (wire): an event's `data` is now a value, not always a string.**
   `AgentEvent.data` was declared `String`, so the 20 structured emitters all
   pre-encoded with `JsonCodec.encode(map)` and the payload shipped as JSON escaped

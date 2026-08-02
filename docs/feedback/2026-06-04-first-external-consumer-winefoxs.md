@@ -1,9 +1,9 @@
 # Feedback — first external consumer (winefoxs_spellbooks)
 
 > Date: 2026-06-04 · Consumer: `winefoxs_spellbooks` (NeoForge ModDevGradle mod, MC 1.21.1)
-> Goal: use AgentDriver as an automated-test harness to drive + assert another mod's
+> Goal: use WorldDriver as an automated-test harness to drive + assert another mod's
 > gameplay (a custom Iron's Spellbooks school) from an AI agent.
-> Author: Claude (agent), first time wiring AgentDriver into a *separate* mod project.
+> Author: Claude (agent), first time wiring WorldDriver into a *separate* mod project.
 
 This is net-positive — the integration worked end to end on the first real attempt:
 publish → consume → boot a 46-mod server → MCP up → drive + observe winefoxs content.
@@ -14,10 +14,10 @@ that the test-authoring docs should call out.
 
 - `./gradlew :neoforge:publishToMavenLocal` produced a valid, self-contained NeoForge
   mod jar: `META-INF/neoforge.mods.toml` present, Rhino + netty-http + shaded snakeyaml
-  all bundled. Coordinates `net.magicterra:agent_driver-neoforge:0.1.0+1.21.1`.
+  all bundled. Coordinates `net.magicterra:worlddriver-neoforge:0.1.0+1.21.1`.
 - Consuming from a **ModDevGradle** project (not Loom/Architectury) Just Worked: one
-  `runtimeOnly("net.magicterra:agent_driver-neoforge:…")` line, FML discovered it
-  ("Found valid mod file … with {agent_driver} mods"), constructed the entry, and it
+  `runtimeOnly("net.magicterra:worlddriver-neoforge:…")` line, FML discovered it
+  ("Found valid mod file … with {worlddriver} mods"), constructed the entry, and it
   coexisted with Iron's Spellbooks + Touhou Little Maid + ~30 addons (46 mods total),
   no mixin/registry conflicts.
 - On a **dedicated server** (`runServer`), `onServerStarting` brought up both RPC and
@@ -30,7 +30,7 @@ that the test-authoring docs should call out.
 ## Bugs / rough edges (actionable)
 
 ### 1. Prod jar bundles stray absolute paths (shadow misconfig) — low risk, looks wrong
-`unzip -l agent_driver-neoforge-0.1.0+1.21.1.jar` shows top-level entries that should
+`unzip -l worlddriver-neoforge-0.1.0+1.21.1.jar` shows top-level entries that should
 not be there:
 ```
 home/coder/
@@ -52,7 +52,7 @@ contains only `net/magicterra/...` + intentionally-bundled libs.
 already shaded into the jar (`dev/latvian/mods/rhino/*.class` present). A consumer that
 adds the dep naively gets **two** copies of Rhino on the classpath. I had to add:
 ```gradle
-runtimeOnly("net.magicterra:agent_driver-neoforge:…") {
+runtimeOnly("net.magicterra:worlddriver-neoforge:…") {
     exclude group: "dev.latvian.mods", module: "rhino"
 }
 ```
@@ -83,7 +83,7 @@ non-living entities (items, XP orbs, dying mobs) caught in the radius. Minor, bu
 `is_living` filter (mirroring the existing `is_hostile`) would make health-delta
 assertions robust without client-side filtering.
 
-## MC-behavior notes for the test-authoring docs (not AgentDriver bugs)
+## MC-behavior notes for the test-authoring docs (not WorldDriver bugs)
 
 These bit me while driving and will bite every test author; worth a "writing reliable
 gameplay assertions" doc section:
@@ -103,10 +103,10 @@ gameplay assertions" doc section:
   would help.
 
 ## Port-conflict UX (minor)
-A `:fabric:runClient` of AgentDriver itself was already holding the default 39800/39801,
+A `:fabric:runClient` of WorldDriver itself was already holding the default 39800/39801,
 so my consumer server's bind failed with `BindException: Address already in use` and the
-only signal was an ERROR mid-log. Pinning the consumer to `-Dagent.mcpPort=39810
--Dagent.rpcPort=39811` fixed it. Consider: on bind failure, fall back to a random port
+only signal was an ERROR mid-log. Pinning the consumer to `-Dworlddriver.mcpPort=39810
+-Dworlddriver.rpcPort=39811` fixed it. Consider: on bind failure, fall back to a random port
 (you already write the chosen port to `run/agent-{mcp,rpc}.port`) instead of erroring, so
 two instances coexist by default.
 
@@ -126,12 +126,12 @@ assertions read `mc.query`, so it's optional). Findings:
   thing blocking a *direct* assertion of a self-applied buff's stacks; I had to fall
   back to an indirect observable (an AoE radius that only widens at 3 stacks). An
   `effects` field on `mc.observe.player` would close this.
-- The `agent-driver-rpc` skill's `rpc.py` worked verbatim in the consumer repo and
-  **auto-resolved the port** from `run/agent-rpc.port` with no `--port` needed. The
+- The `worlddriver-rpc` skill's `rpc.py` worked verbatim in the consumer repo and
+  **auto-resolved the port** from `run/worlddriver-rpc.port` with no `--port` needed. The
   "relaunch by PORT OWNER not `pkill -f`" gotcha in the skill is real and saved me
   (I hit the exact exit-144 it warns about before reading it).
 
-> Not an AgentDriver bug, but surfaced via it: the consumer's modpack has a
+> Not an WorldDriver bug, but surfaced via it: the consumer's modpack has a
 > pre-existing crash (`ess_requiem.AdrenalineRushRemoved` NPEs on a null
 > `MobEffectEvent.Remove.getEffectInstance()` when a wild `mowziesmobs` Elokosa
 > ticks). It crashed the integrated server ~40s after world-load before I could act.
@@ -142,7 +142,7 @@ assertions read `mc.query`, so it's optional). Findings:
 ## Addendum 2 — headless-server gameplay-timing gotchas (HIGH impact, cost hours)
 
 These surfaced while testing a *time-dependent* mechanic (a MobEffect that self-explodes
-on natural expiry). They are not AgentDriver bugs, but they are the single most important
+on natural expiry). They are not WorldDriver bugs, but they are the single most important
 thing the test-authoring docs could warn about, because on a **dedicated server with no
 player connected** the world looks alive (commands run, entities summon, queries return)
 yet is silently **not simulating**. Every symptom mimics a mod bug.

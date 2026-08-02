@@ -100,7 +100,7 @@ dependencies {
 // module, unioned with the moved-package's siblings in :common main). Putting it on
 // runtimeClasspath too would ALSO expose it as a bare -classpath dir that FML's
 // userdev locator re-packages into a second synthetic module (generated_XXX) — and
-// two modules exporting net.magicterra.worlddriver.bot.testkit is a hard
+// two modules exporting net.magicterra.worlddriver.bot.stagewright is a hard
 // java.lang.module.ResolutionException at boot (diagnosed live: run-dogfood ModuleLayerHandler).
 // Compile-only stays dev-only and never reaches any jar/publication.
 evaluationDependsOn(':common')
@@ -171,8 +171,8 @@ loom {
             //      fml.modFolders group — the same module the scenes are discovered from —
             //      exactly as the line above does for neoforge's own testmod.
             //   2. NO SPLIT PACKAGE. The moved classes live in package
-            //      net.magicterra.worlddriver.bot.testkit.SCENE, DISJOINT from
-            //      net.magicterra.worlddriver.bot.testkit (TestResetVerb/TestRunVerb, which stay in
+            //      net.magicterra.worlddriver.bot.stagewright.SCENE, DISJOINT from
+            //      net.magicterra.worlddriver.bot.stagewright (TestResetVerb/TestRunVerb, which stay in
             //      :common MAIN and are delivered as their own dev module). FML wires broad
             //      `reads` edges between mod modules, so two modules exporting the SAME package
             //      is a hard java.lang.module.ResolutionException at boot (diagnosed live:

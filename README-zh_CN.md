@@ -59,7 +59,7 @@
 ```bash
 python3 scripts/stagewright/t0.py --loader neoforge \
   --run-task :neoforge:runDogfoodServer \
-  --results neoforge/run-dogfood/testkit-results.jsonl \
+  --results neoforge/run-dogfood/stagewright-results.jsonl \
   --expect-file scripts/stagewright/expected-scenes-neoforge.txt
 # → GREEN（任何一个场景挂掉就非零退出）
 ```

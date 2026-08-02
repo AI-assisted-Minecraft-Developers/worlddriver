@@ -72,7 +72,7 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SCENE_DIR = ROOT / "common/src/testmod/java/net/magicterra/worlddriver/bot/testkit/scene"
+SCENE_DIR = ROOT / "common/src/testmod/java/net/magicterra/worlddriver/bot/stagewright/scene"
 
 # Mirrors StageWrightHarness.forceChunks + the chunk-aligned GRID_X0/GRID_Z0.
 # radius r forces chunks [-r, +r] around the origin chunk; the origin sits at

@@ -22,7 +22,7 @@
 
 **Files:**
 - Investigate/Modify: `common/src/main/java/net/magicterra/worlddriver/bot/movement/Walker.java`（strideFloorGuard :572-640；嫌疑=:589 `h < 0.03` 早退把垂直运动整体豁免，回落自己挖出的柱洞不在「前向 stride」检测模型内）
-- Modify: `common/src/testmod/java/net/magicterra/worlddriver/bot/testkit/scene/WorldDriverScenes.java`（签名门翻严：javadoc :710-718 预写了 flip 指令；金值登记同步）
+- Modify: `common/src/testmod/java/net/magicterra/worlddriver/bot/stagewright/scene/WorldDriverScenes.java`（签名门翻严：javadoc :710-718 预写了 flip 指令；金值登记同步）
 - Possibly: `common/src/main/java/net/magicterra/worlddriver/bot/BotConfig.java`（若需新 tunable——默认值必须使修复默认生效）
 
 **Interfaces:**

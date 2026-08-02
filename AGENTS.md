@@ -16,7 +16,7 @@ etc.) working in this project. Keep it short and authoritative.
   GameTestServer machinery were retired in P4-final). The gates:
   - `t0.py` — dogfood a dedicated server, autorun the wd.* scenes, and verify
     the results stream against an expect-file (`--loader <fabric|neoforge>
-    --run-task :<loader>:runDogfoodServer --results <loader>/run-dogfood/testkit-results.jsonl
+    --run-task :<loader>:runDogfoodServer --results <loader>/run-dogfood/stagewright-results.jsonl
     --expect-file scripts/stagewright/expected-scenes-<loader>.txt`).
   - `t1.py` — integrated-server (client-topology) parity run.
   - `t2.py` — production topology: a plain dedicated server driven on-demand via
@@ -131,7 +131,7 @@ Runtime output is local-only and must never appear at the project root:
 | Fabric client / server logs            | `fabric/run/logs/` |
 | NeoForge client logs                   | `neoforge/run/logs/` |
 | Dogfood (T0) server logs               | `<loader>/run-dogfood/logs/` |
-| StageWright T0 server run results          | `stagewright/<loader>/run-testkit/` |
+| StageWright T0 server run results          | `stagewright/<loader>/run-stagewright/` |
 | Instrument contract server run          | `<loader>/run-contract/` |
 | Smoke-test screenshots, traces, logs   | `fabric/run/smoke/` |
 | Gradle compile output                  | `<platform>/build/` |
@@ -148,7 +148,7 @@ unexpected location, treat it as a leftover and delete it — do not commit it.
 # Integration tests (use as CI) — stagewright orchestrators, see scripts/stagewright/
 python3 scripts/stagewright/t0.py --loader neoforge \
   --run-task :neoforge:runDogfoodServer \
-  --results neoforge/run-dogfood/testkit-results.jsonl \
+  --results neoforge/run-dogfood/stagewright-results.jsonl \
   --expect-file scripts/stagewright/expected-scenes-neoforge.txt
 python3 scripts/stagewright/instrument.py --loader neoforge   # 23/23 instrument contract
 python3 scripts/stagewright/t1.py                             # integrated-server parity

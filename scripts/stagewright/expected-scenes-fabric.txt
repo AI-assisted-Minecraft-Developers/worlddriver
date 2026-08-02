@@ -1,5 +1,5 @@
 # Canonical expected-scene manifest for the fabric dogfood suite (t0 --expect-file).
-# One name per line. The wd.* scenes live in common (net.magicterra.worlddriver.bot.testkit)
+# One name per line. The wd.* scenes live in common (net.magicterra.worlddriver.bot.stagewright)
 # and are registered for BOTH loaders via the same common SceneProvider service file, so
 # this list is identical to expected-scenes-neoforge.txt by construction — any scene added
 # to common MUST be added to BOTH manifests in the same commit. A name missing from BOTH

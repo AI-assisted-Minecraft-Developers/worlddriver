@@ -1,7 +1,7 @@
 # Feedback — `mc.query q:"blocks"` silently omits stair blocks
 
 > Date: 2026-06-07 · Consumer: `magic-server-modpack` (pakku modpack, MC 1.21.1 / NeoForge)
-> Goal: drive AgentDriver over the RPC websocket to **build a structure live** (a round
+> Goal: drive WorldDriver over the RPC websocket to **build a structure live** (a round
 > conical wizard tower) via `mc.action.fill` / `placeMany` / `runCommand`, then **verify**
 > the result with `mc.query`.
 > Author: Claude (agent), building + verifying world edits programmatically.
