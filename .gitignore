@@ -36,3 +36,6 @@ coverage-out/
 
 # Eclipse/IDE compiled output (was committed by accident before the rename)
 bin/
+
+# StageWright's standalone build (added during the repo split) has its own build dirs.
+stagewright/.gradle/
