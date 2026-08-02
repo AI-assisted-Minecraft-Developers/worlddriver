@@ -41,6 +41,15 @@ etc.) working in this project. Keep it short and authoritative.
   fail with the offending file and line instead of a scene verdict. Note the test
   JVM's working directory is the module dir, which is what makes `Path.of(
   "src/main/java")` resolve — don't add a `workingDir` to the task.
+- **`net.magicterra.worlddriver.test` is script API, not a test framework** — it
+  ships in the production jar on purpose. `ScriptTest` is bound into the Rhino
+  scope by `ScriptManager`, so every in-game script asserts with
+  `ScriptTest.run(...)` / `TestContext`; it is as much part of the script surface
+  as `Driver.invoke` is. The package *name* invites the opposite conclusion, which
+  is why this is written down: it has been proposed for extraction once (2026-08-02,
+  alongside the StageWright split) and deliberately kept. If you are hunting for
+  test machinery that does not belong in the jar, `test/yaml` was the real instance
+  and it is already gone.
 
 ## Hard rules
 
