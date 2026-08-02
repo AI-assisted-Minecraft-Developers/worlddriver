@@ -1,4 +1,4 @@
-AgentTest.run("05_query: entities + select restricts fields", function(t) {
+ScriptTest.run("05_query: entities + select restricts fields", function(t) {
     var res = Agent.query({
         q: "entities",
         filter: { in_radius: 16, is_hostile: false },
@@ -11,7 +11,7 @@ AgentTest.run("05_query: entities + select restricts fields", function(t) {
     t.assertFalse("health" in res[0], "select should drop health field");
 });
 
-AgentTest.run("05_query: blocks q returns at least the seeded stones", function(t) {
+ScriptTest.run("05_query: blocks q returns at least the seeded stones", function(t) {
     var res = Agent.query({
         q: "blocks",
         filter: { in_radius: 4 },

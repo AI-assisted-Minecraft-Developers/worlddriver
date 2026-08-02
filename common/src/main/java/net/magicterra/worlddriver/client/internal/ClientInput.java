@@ -23,7 +23,7 @@ import net.minecraft.client.gui.components.events.ContainerEventHandler;
 /**
  * Input synthesis for {@code mc.client.screen.close} and {@code mc.client.input.*}
  * (click / slotClick / mouseMove / setHotbarSlot / typeText / key). Stateless;
- * extracted from {@code ClientAgentApiImpl}.
+ * extracted from {@code ClientDriverApiImpl}.
  */
 public final class ClientInput {
     private ClientInput() {}

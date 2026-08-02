@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.rpc;
 
-import net.magicterra.worlddriver.model.AgentEvent;
+import net.magicterra.worlddriver.model.DriverEvent;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -23,11 +23,11 @@ public final class EventNotifications {
     private EventNotifications() {}
 
     /** The full JSON-RPC {@code notifications/message} frame for an event. */
-    public static String frame(AgentEvent e) {
+    public static String frame(DriverEvent e) {
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("level", levelFor(e.type));
         params.put("logger", "minecraft.events");
-        params.put("data", e); // JsonCodec encodes AgentEvent → {seq,timestamp,type,pos,data}
+        params.put("data", e); // JsonCodec encodes DriverEvent → {seq,timestamp,type,pos,data}
         Map<String, Object> msg = new LinkedHashMap<>();
         msg.put("jsonrpc", "2.0");
         msg.put("method", "notifications/message");

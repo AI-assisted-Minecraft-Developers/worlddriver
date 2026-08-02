@@ -47,8 +47,8 @@ Minecraft     fabric / neoforge，1.21.1
 
 | 模块 | 形态 | 职责 |
 |---|---|---|
-| `core` | 多加载器 common 库 | 测试模型、断言 DSL、JSONL 结果 schema。由既有 `common/src/main/java/net/magicterra/worlddriver/test/`（AgentTest/TestContext/yaml）迁出演化，非绿地 |
-| `runtime` | 薄 mod（common+fabric+neoforge） | 游戏内 harness：`@SceneTest` 注解发现与串行调度、arena builder/坐标分配器、身体进场重置、执行清单；经 `AgentApi.addRoute` + schema SPI 注册 `mc.test.*` verbs |
+| `core` | 多加载器 common 库 | 测试模型、断言 DSL、JSONL 结果 schema。由既有 `common/src/main/java/net/magicterra/worlddriver/test/`（ScriptTest/TestContext/yaml）迁出演化，非绿地 |
+| `runtime` | 薄 mod（common+fabric+neoforge） | 游戏内 harness：`@SceneTest` 注解发现与串行调度、arena builder/坐标分配器、身体进场重置、执行清单；经 `DriverApi.addRoute` + schema SPI 注册 `mc.test.*` verbs |
 | `orchestrator` | Python CLI（已拍板：Python 先行，gradle-plugin 后包同一契约） | 进程级编排：拓扑启动矩阵、世界生命周期、watchdog、JSONL 聚合、对账门 |
 | `gradle-plugin` | Gradle 插件（P3） | `stagewrightServer` / `stagewrightClient` / `stagewrightE2E` 任务；testmod source set 惯例；shell 同一编排契约 |
 
@@ -63,7 +63,7 @@ Minecraft     fabric / neoforge，1.21.1
 | 拓扑 | 壳 | 用途 |
 |---|---|---|
 | **T0 server-only** | 普通 headless 专用服务器（两 loader 完全对称） | 批量行为回归（arena 测试）。金字塔底座，跑得起最大量 |
-| **T1 integrated-client** | xvfb 下真客户端进单机世界 | UI/屏幕交互、client-only 路径（GUI 容器、screen watchdog、chat、death screen、LookController/AgentInput 缝、客户端反射） |
+| **T1 integrated-client** | xvfb 下真客户端进单机世界 | UI/屏幕交互、client-only 路径（GUI 容器、screen watchdog、chat、death screen、LookController/AvatarInput 缝、客户端反射） |
 | **T2 dedicated+client** | 专服 + 真客户端连入 | 生产拓扑（SurvivalTest 同构）；server/client avatar 行为缝；专服特有行为（ESC 不冻结等） |
 
 **T0 不用 GameTestServer**：harness 自研调度后，T0 只需「专服 + mod + 启动参数触发 harness + 退出码」。vanilla GameTest 的调度病从存在上消除；fabric 侧（现零测试基建）与 neoforge 同一入口。GameTestServer 仅迁移过渡期保留。
@@ -88,7 +88,7 @@ public static void furnaceKeepsFuel(SceneContext ctx) {
 
 注册在 common 层由 runtime 注解扫描发现，两个 loader 同一套测试代码。
 
-**执行模型铁律**：`@SceneTest` 体跑在 server 线程 tick 内；体内调仪表 verb 安全（`onServerThread` 同线程内联执行，AgentApi:627 已核实），但**禁止任何阻塞等待跨线程 future**（如带长 awaitMs 的 `wait.*`）——只许 `ctx.await()` continuation，违反即死锁（既有 GameTest 死锁病的同款机制）。harness 对体内阻塞加看门狗侦测。
+**执行模型铁律**：`@SceneTest` 体跑在 server 线程 tick 内；体内调仪表 verb 安全（`onServerThread` 同线程内联执行，DriverApi:627 已核实），但**禁止任何阻塞等待跨线程 future**（如带长 awaitMs 的 `wait.*`）——只许 `ctx.await()` continuation，违反即死锁（既有 GameTest 死锁病的同款机制）。harness 对体内阻塞加看门狗侦测。
 
 **② 进程外 JUnit 5 场景**（已拍板：JUnit 5 基座）——测试体跑在游戏进程外普通 JVM，经控制通道拿类型化代理；断点、断言报告、CI 集成白拿。**拓扑生命周期采用 attach 模式契约**：JUnit 扩展读 `TESTKIT_ENDPOINT`（编排器起好拓扑后写出的端点描述文件）——已设则附着，未设则 fail-fast 并提示先跑对应 gradle/编排器任务。IDE 里"点一下全自动起拓扑"要到 P3 gradle-plugin 内嵌启动逻辑后才成立，此前 IDE 单跑需先手动起一次拓扑（attach 后可反复跑）：
 
@@ -106,7 +106,7 @@ class FurnaceScreenTest {
 }
 ```
 
-**③ 游戏内 JS/Rhino 场景**（轻量 smoke）：驱动层内嵌 Rhino，既有 AgentTest 模式收编延续；现 132 个 JS 验证脚本跑法不变。
+**③ 游戏内 JS/Rhino 场景**（轻量 smoke）：驱动层内嵌 Rhino，既有 ScriptTest 模式收编延续；现 132 个 JS 验证脚本跑法不变。
 
 **断言 DSL 要点**：方块/实体/背包/玩家状态断言；屏幕断言（screenTree 基座）；一等**事件流断言**（`assertEvents().next("block.break").within(40)`——替代现在 python grep 日志的事件对账实践）；失败自动截图（T1/T2）；`await().within().then()` continuation（游戏内形态）与阻塞式（进程外形态）双风格同语义。
 
@@ -153,7 +153,7 @@ worlddriver 用 testkit 自测，而 testkit 依赖 worlddriver——需防「�
 ## 6. worlddriver 侧改动清单
 
 1. **verb 扩展点公共化**：`addRoute()` 已是公共缝；补 ToolCatalog schema SPI（`requireSchemasFor` 开机不变量对第三方 verb 放行的唯一合理路径），命名空间约定（`mc.test.*` 归 testkit-runtime；第三方 `modid.*`）。测试 verbs 经声明白拿统一参数校验（#280 unknown-key 病预防）。
-2. **`common/test/` 包迁出**为 testkit-core 起点（AgentTest/TestContext/yaml/testOrigin 先例）。
+2. **`common/test/` 包迁出**为 testkit-core 起点（ScriptTest/TestContext/yaml/testOrigin 先例）。
 3. **130 个测试按 family 迁 `@SceneTest`**，同时搬出生产 jar 进 testmod source set；被吞名单 + flaky 家族优先；巨类拆 family、私有 builder 收编共享 arena 库；旧 `@GameTest` 迁一批删一批，不并行养。
 4. **「live 待验」清单**中可重复项沉淀为 T1/T2 场景（screen watchdog、GUI 容器、chat 回读、server/client avatar 缝）。
 5. **仪表契约套件**建立（§4）。

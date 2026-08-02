@@ -70,7 +70,7 @@ final class WalkerTickPrelude {
         wk.jumpTag = null;
         wk.aimTag = null;
         wk.driveTag = null;
-        // AgentInput install (client) is handled inside the Avatar implementation.
+        // AvatarInput install (client) is handled inside the Avatar implementation.
 
         // Steep-barrier planner escalation: a confirmed boxed churn (below) arms a sticky
         // timer; while it's live, route the planner's horizon/soft-commit/depth-penalty
@@ -92,9 +92,9 @@ final class WalkerTickPrelude {
         // Per-tick baseline for the jump/sneak channel: default to "not jumping / not
         // sneaking" so any path that returns without setting them can't leak a stale
         // value — branches below override as needed. (jump only matters on the ground,
-        // so a default-false on an airborne tick is a no-op; see AgentInput.)
-        Walker.agentJump(a, false);
-        Walker.agentSneak(a, false);
+        // so a default-false on an airborne tick is a no-op; see AvatarInput.)
+        Walker.avatarJump(a, false);
+        Walker.avatarSneak(a, false);
 
         // Ground pathfinder: end creative flight so the player descends and
         // the walk/jump actuator (which relies on gravity + onGround) works.
@@ -117,8 +117,8 @@ final class WalkerTickPrelude {
         if (wk.descending) {
             if (!p.onGround() && !world.isWater(new BlockPos(
                     (int) Math.floor(p.getX()), (int) Math.floor(p.getY()), (int) Math.floor(p.getZ())))) {
-                Walker.agentForward(a, false);
-                Walker.agentJump(a, false);
+                Walker.avatarForward(a, false);
+                Walker.avatarJump(a, false);
                 p.setSprinting(false);
                 if (BotConfig.walkerDebug)
                     LOG.info(

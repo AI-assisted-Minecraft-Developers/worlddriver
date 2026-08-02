@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.api;
 
 import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.model.AgentEvent;
+import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -33,7 +33,7 @@ import java.util.function.Predicate;
 import net.magicterra.worlddriver.bot.util.BlockMatch;
 import java.util.function.Supplier;
 import net.magicterra.worlddriver.client.ClientHooks;
-import net.magicterra.worlddriver.client.ClientAgentApi;
+import net.magicterra.worlddriver.client.ClientDriverApi;
 import net.magicterra.worlddriver.bot.BotApi;
 import java.util.Set;
 import net.magicterra.worlddriver.rpc.JsonCodec;
@@ -59,7 +59,7 @@ import java.util.concurrent.ExecutionException;
  * through {@link #route(String, Map)} — that is the single dispatch point, and
  * the only place new game-affecting behavior may be wired.
  */
-public final class AgentApi {
+public final class DriverApi {
     public final SystemApi system = new SystemApi(this);
     public final ObserveApi observe = new ObserveApi(this);
     public final ActionApi action = new ActionApi(this);
@@ -78,7 +78,7 @@ public final class AgentApi {
     // here if exposing the transports beyond the loopback interface.
 
     volatile MinecraftServer server;
-    final ArrayDeque<AgentEvent> events = new ArrayDeque<>(EVENT_BUFFER_CAP);
+    final ArrayDeque<DriverEvent> events = new ArrayDeque<>(EVENT_BUFFER_CAP);
     final Object eventsLock = new Object();
     final AtomicLong eventSeq = new AtomicLong();
     final long startNanos = System.nanoTime();
@@ -87,7 +87,7 @@ public final class AgentApi {
      *  {@link #emit} hands the new event to each, off the caller's thread via
      *  {@link #eventDispatch} so neither the server tick nor a client tick ever
      *  blocks on socket I/O. Copy-on-write: registration is rare, iteration frequent. */
-    private final List<Consumer<AgentEvent>> eventListeners = new CopyOnWriteArrayList<>();
+    private final List<Consumer<DriverEvent>> eventListeners = new CopyOnWriteArrayList<>();
     private final ExecutorService eventDispatch = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "agent-event-dispatch");
         t.setDaemon(true);
@@ -99,7 +99,7 @@ public final class AgentApi {
     private volatile Function<Map<String, Object>, Object> playbookHandler;
     private volatile Function<Map<String, Object>, Object> skillHandler;
 
-    public AgentApi() {
+    public DriverApi() {
         routes.put("mc.system.version", p -> system.version());
         routes.put("mc.system.testOrigin", p -> system.testOrigin());
         routes.put("mc.system.waitTicks", p -> system.waitTicks(num(p.get("ticks"))));
@@ -259,7 +259,7 @@ public final class AgentApi {
         routes.put("mc.client.player",               p -> requireClient().observePlayer());
         routes.put("mc.client.scene",                p -> requireBot().worldModel().snapshot().toMap());
         routes.put("mc.client.blocks",               p -> {
-            ClientAgentApi c = requireClient();
+            ClientDriverApi c = requireClient();
             int r = 4;
             String typeFilter = null;
             Object filter = p.get("filter");
@@ -357,7 +357,7 @@ public final class AgentApi {
         });
 
         // Script evaluation. Bound at startup via setScriptHandler() to avoid
-        // making AgentApi depend on Rhino classes directly — keeps the api/
+        // making DriverApi depend on Rhino classes directly — keeps the api/
         // package free of the script/ package.
         routes.put("mc.script.eval", p -> {
             Function<Map<String, Object>, Object> h = scriptHandler;
@@ -394,13 +394,13 @@ public final class AgentApi {
         this.skillHandler = handler;
     }
 
-    static ClientAgentApi requireClient() {
-        ClientAgentApi c = ClientHooks.impl();
+    static ClientDriverApi requireClient() {
+        ClientDriverApi c = ClientHooks.impl();
         if (c == null) throw new IllegalStateException("mc.client.* not available (no client registered)");
         return c;
     }
 
-    private static ClientAgentApi clientOrNull() {
+    private static ClientDriverApi clientOrNull() {
         return ClientHooks.impl();
     }
 
@@ -595,7 +595,7 @@ public final class AgentApi {
      *  so the calling thread (server tick / client tick / watcher) never blocks on a
      *  socket write. Returns the assigned sequence number. */
     long emit(String type, BlockPos pos, Object data) {
-        AgentEvent e = new AgentEvent(eventSeq.incrementAndGet(), type, pos, data);
+        DriverEvent e = new DriverEvent(eventSeq.incrementAndGet(), type, pos, data);
         synchronized (eventsLock) {
             if (events.size() >= EVENT_BUFFER_CAP) events.pollFirst();
             events.addLast(e);
@@ -612,7 +612,7 @@ public final class AgentApi {
                 // before. Evaluated here on the dispatch thread, the same moment the
                 // transports evaluated it, so the timing is unchanged too.
                 if (BotConfig.mutedEvents.contains(e.type)) return;
-                for (Consumer<AgentEvent> l : eventListeners) {
+                for (Consumer<DriverEvent> l : eventListeners) {
                     try { l.accept(e); } catch (Throwable ignored) { /* a bad listener never breaks emission */ }
                 }
             });
@@ -622,17 +622,17 @@ public final class AgentApi {
 
     /** Register a live push listener (the WebSocket/SSE transports). Idempotent-ish:
      *  the same consumer may appear twice if added twice — callers add exactly once. */
-    public void addEventListener(Consumer<AgentEvent> listener) {
+    public void addEventListener(Consumer<DriverEvent> listener) {
         if (listener != null) eventListeners.add(listener);
     }
 
-    public void removeEventListener(Consumer<AgentEvent> listener) {
+    public void removeEventListener(Consumer<DriverEvent> listener) {
         eventListeners.remove(listener);
     }
 
     ServerLevel level() {
         MinecraftServer s = server;
-        if (s == null) throw new IllegalStateException("AgentApi not attached to a server");
+        if (s == null) throw new IllegalStateException("DriverApi not attached to a server");
         return s.overworld();
     }
 
@@ -645,7 +645,7 @@ public final class AgentApi {
 
     <T> T onServerThread(Supplier<T> task) {
         MinecraftServer s = server;
-        if (s == null) throw new IllegalStateException("AgentApi not attached to a server");
+        if (s == null) throw new IllegalStateException("DriverApi not attached to a server");
         if (s.isSameThread()) return task.get();
         CompletableFuture<T> f = new CompletableFuture<>();
         s.execute(() -> {
@@ -754,7 +754,7 @@ public final class AgentApi {
         }
         long cursorBefore = eventSeq.get();
         Map<String, Object> result = impl.get();
-        List<AgentEvent> page = observe.eventsSince(cursorBefore, null, EVENT_BUFFER_CAP);
+        List<DriverEvent> page = observe.eventsSince(cursorBefore, null, EVENT_BUFFER_CAP);
         Map<String, Object> out = new LinkedHashMap<>(result);
         out.put("events", page);
         return out;

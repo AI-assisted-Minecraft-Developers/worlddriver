@@ -45,12 +45,12 @@ function summonRetreatThreat() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("40_scheduler: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("40_scheduler: skipped (no client api — dedicated server)", function(t) {
         // PASS
     });
 } else {
 
-    AgentTest.run("40_scheduler: autoRetreat / retreatHpThreshold round-trip + range check", function(t) {
+    ScriptTest.run("40_scheduler: autoRetreat / retreatHpThreshold round-trip + range check", function(t) {
         var r = Agent.invoke("mc.bot.setting", { autoRetreat: true, retreatHpThreshold: 8 });
         t.assertEqual(r.ok, true, "write must succeed");
         t.assertTrue(r.applied.indexOf("autoRetreat") >= 0, "autoRetreat must be applied");
@@ -64,7 +64,7 @@ if (!clientAvailable()) {
         resetScheduler();
     });
 
-    AgentTest.run("40_scheduler: status exposes scheduler fields with idle defaults", function(t) {
+    ScriptTest.run("40_scheduler: status exposes scheduler fields with idle defaults", function(t) {
         resetScheduler();
         Agent.system.waitTicks(2);
         var s = Agent.invoke("mc.bot.status", {});
@@ -80,7 +80,7 @@ if (!clientAvailable()) {
         t.assertEqual(s.chainPriorities.retreat, 0, "retreat off bids 0");
     });
 
-    AgentTest.run("40_scheduler: forced retreat outbids and holds the movement channel", function(t) {
+    ScriptTest.run("40_scheduler: forced retreat outbids and holds the movement channel", function(t) {
         resetScheduler();
         summonRetreatThreat();   // task#92: a hostile to flee, so RetreatChain bids
         // Force retreat permanently active (threshold == max HP) with a threat present.
@@ -94,7 +94,7 @@ if (!clientAvailable()) {
         resetScheduler();
     });
 
-    AgentTest.run("40_scheduler: retreat preempts a running goto, then it resumes", function(t) {
+    ScriptTest.run("40_scheduler: retreat preempts a running goto, then it resumes", function(t) {
         resetScheduler();
         // Aim a goto at a reachable point ~24 blocks away so the user task stays
         // WALKING through the test rather than completing immediately.
@@ -141,7 +141,7 @@ if (!clientAvailable()) {
         resetScheduler();
     });
 
-    AgentTest.run("40_scheduler: status scheduler fields agree across in-JVM, RPC, MCP transports",
+    ScriptTest.run("40_scheduler: status scheduler fields agree across in-JVM, RPC, MCP transports",
         function(t) {
             resetScheduler();
             Agent.invoke("mc.bot.setting", { autoRetreat: true, retreatHpThreshold: 20 });

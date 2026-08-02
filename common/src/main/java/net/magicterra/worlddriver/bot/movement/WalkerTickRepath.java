@@ -230,7 +230,7 @@ final class WalkerTickRepath {
             wk.stepUpBackoff.ticks--;
             double sbd = Math.toRadians(angleDiff(p.getYRot(), wk.stepUpBackoff.yaw));
             a.commandMove((float) -Math.sin(sbd), (float) Math.cos(sbd));
-            Walker.agentJump(a, false);
+            Walker.avatarJump(a, false);
             p.setSprinting(false);
             return Walker.Step.WALKING;
         }
@@ -241,7 +241,7 @@ final class WalkerTickRepath {
             // p.setYRot here wound the camera 8+ full turns in a water-cave wedge
             // cluster (bursts every ~6 s, each with a different escape bearing,
             // every one yanking the view — raw yaw hit -3109°). commandMove pushes
-            // the body along the escape bearing with ZERO camera motion: AgentInput
+            // the body along the escape bearing with ZERO camera motion: AvatarInput
             // pre-rotates the impulse by Δ = bearing − cameraYaw and vanilla
             // travel() rotates it back, so the net push is along unstuck.burstYaw exactly
             // as before — the same decoupling the main walk branch already uses.
@@ -255,7 +255,7 @@ final class WalkerTickRepath {
             boolean burstJump = !(BotConfig.walkerRecoveryHopFloorGate
                     && lethalDropWithinHopRange(world, p, foot));
             if (burstJump) wk.jumpTag = "unstuckBurst";
-            Walker.agentJump(a, burstJump);
+            Walker.avatarJump(a, burstJump);
             p.setSprinting(false);
             return Walker.Step.WALKING;
         }

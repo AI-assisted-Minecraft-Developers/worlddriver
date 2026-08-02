@@ -15,7 +15,7 @@ import net.minecraft.server.level.ServerPlayer;
  *       ({@code getMinecraft}/{@code get}) — same cached instances as before the
  *       migration, so the byte-level metric gates stay green;</li>
  *   <li><b>fabric</b> (Task 3) injects a factory backed by the common vanilla-only
- *       {@link AgentFakePlayer}.</li>
+ *       {@link AvatarFakePlayer}.</li>
  * </ul>
  *
  * <p>The repo has no {@code @ExpectPlatform} precedent and this stage does not add a
@@ -24,8 +24,8 @@ import net.minecraft.server.level.ServerPlayer;
  * #unique} before {@code install} — or installing twice — throws loudly rather than
  * silently handing back a wrong/absent body.
  */
-public final class ServerAgentBodies {
-    private ServerAgentBodies() {}
+public final class ServerAvatarBodies {
+    private ServerAvatarBodies() {}
 
     /** Per-loader body source. Implementations return a fully-constructed, level-attached
      *  headless player ready to be posed and driven by {@link ServerPlayerAvatar}. */
@@ -41,10 +41,10 @@ public final class ServerAgentBodies {
     /** Install the loader's body factory. Callable exactly once per JVM; a second
      *  install (two loaders, or a double mod-init) throws {@link IllegalStateException}. */
     public static synchronized void install(BodyFactory f) {
-        if (f == null) throw new IllegalStateException("ServerAgentBodies factory must not be null");
+        if (f == null) throw new IllegalStateException("ServerAvatarBodies factory must not be null");
         if (factory != null) {
             throw new IllegalStateException(
-                    "ServerAgentBodies factory already installed (" + factory.getClass().getName() + "); install once per loader init");
+                    "ServerAvatarBodies factory already installed (" + factory.getClass().getName() + "); install once per loader init");
         }
         factory = f;
     }
@@ -59,8 +59,8 @@ public final class ServerAgentBodies {
         BodyFactory f = factory;
         if (f == null) {
             throw new IllegalStateException(
-                    "ServerAgentBodies not installed — the active loader's mod-init must call "
-                            + "ServerAgentBodies.install(...) before any server-agent body is created");
+                    "ServerAvatarBodies not installed — the active loader's mod-init must call "
+                            + "ServerAvatarBodies.install(...) before any server-agent body is created");
         }
         return f;
     }

@@ -53,7 +53,7 @@ public final class BotUtil {
     // === Threading bridge ====================================================
 
     /** Default budget for waiting on a client-tick hop. Mirrors
-     *  {@code AgentApi.SERVER_THREAD_TIMEOUT_MS} — the server-side twin of this
+     *  {@code DriverApi.SERVER_THREAD_TIMEOUT_MS} — the server-side twin of this
      *  bridge — so a stalled client surfaces as a clear error instead of parking
      *  the calling RPC/MCP thread forever. Override with
      *  {@code -Dworlddriver.clientThreadTimeoutMs=N}. */
@@ -63,7 +63,7 @@ public final class BotUtil {
     /**
      * Run {@code body} on the client thread and return its value.
      *
-     * <p>Modelled on {@code AgentApi.onServerThread}, and deliberately identical to it
+     * <p>Modelled on {@code DriverApi.onServerThread}, and deliberately identical to it
      * in the two respects that are observable to a caller:
      * <ul>
      *   <li><b>Bounded.</b> {@code mc.execute} only runs when the client drains its task

@@ -5,7 +5,7 @@ package net.magicterra.worlddriver.rpc;
  *
  * <p>They did. {@code McpServer} capped a POST body at 8 MiB and said so; the
  * WebSocket server never set a frame size at all and silently inherited Netty's
- * 64 KiB default. The same {@code AgentApi} call therefore succeeded over MCP and
+ * 64 KiB default. The same {@code DriverApi} call therefore succeeded over MCP and
  * failed over the WebSocket at 128× less payload — and failed in the worst way
  * available: a frame that exceeds the decoder's limit never assembles, so there is
  * no request to answer and no id to answer it with. The caller saw the connection

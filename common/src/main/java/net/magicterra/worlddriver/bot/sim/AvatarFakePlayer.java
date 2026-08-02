@@ -31,11 +31,11 @@ import org.jetbrains.annotations.Nullable;
  * {@code net.neoforged.neoforge.common.util.FakePlayer}.
  *
  * <p><b>SKELETON (P1.6 Task 1).</b> This class exists so the common
- * {@link ServerAgentBodies} seam has a body to hand fabric, but it is <b>not wired
+ * {@link ServerAvatarBodies} seam has a body to hand fabric, but it is <b>not wired
  * up on any loader yet</b>: neoforge injects {@code FakePlayerFactory} bodies (its
  * shims never construct this), so on neoforge this class is dead code. Its FIRST
  * REAL USE is P1.6 Task 3, where the fabric mod-init installs a {@link
- * ServerAgentBodies.BodyFactory} that mints these. Until then only the override set
+ * ServerAvatarBodies.BodyFactory} that mints these. Until then only the override set
  * and the connection stub are frozen in — no factory/caching layer (fabric has no
  * per-level {@code FakePlayerFactory} equivalent; Task 3 decides shared-vs-unique
  * bookkeeping).
@@ -64,11 +64,11 @@ import org.jetbrains.annotations.Nullable;
  *       by code). The exhaustive inbound list, if ever needed, is Task 3 work when fabric first exercises this.</li>
  * </ul>
  */
-public class AgentFakePlayer extends ServerPlayer {
+public class AvatarFakePlayer extends ServerPlayer {
 
-    public AgentFakePlayer(ServerLevel level, GameProfile profile) {
+    public AvatarFakePlayer(ServerLevel level, GameProfile profile) {
         super(level.getServer(), level, profile, ClientInformation.createDefault());
-        this.connection = new AgentFakePlayerNetHandler(level.getServer(), this);
+        this.connection = new AvatarFakePlayerNetHandler(level.getServer(), this);
     }
 
     @Override public void displayClientMessage(Component chatComponent, boolean actionBar) { }
@@ -103,10 +103,10 @@ public class AgentFakePlayer extends ServerPlayer {
      * inbound packets are never dispatched to a never-connected body. It is wired
      * onto a dummy SERVERBOUND {@link Connection} so nothing touches a real socket.
      */
-    private static final class AgentFakePlayerNetHandler extends ServerGamePacketListenerImpl {
+    private static final class AvatarFakePlayerNetHandler extends ServerGamePacketListenerImpl {
         private static final Connection DUMMY_CONNECTION = new AgentFakeConnection();
 
-        AgentFakePlayerNetHandler(MinecraftServer server, ServerPlayer player) {
+        AvatarFakePlayerNetHandler(MinecraftServer server, ServerPlayer player) {
             super(server, DUMMY_CONNECTION, player, CommonListenerCookie.createInitial(player.getGameProfile(), false));
         }
 

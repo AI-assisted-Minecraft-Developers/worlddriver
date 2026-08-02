@@ -45,9 +45,9 @@ final class ReplayInstaller {
 
             int restored = 0;
             if (restoreBlocks && cells != null && !cells.isEmpty()) {
-                net.magicterra.worlddriver.api.AgentApi api =
+                net.magicterra.worlddriver.api.DriverApi api =
                         net.magicterra.worlddriver.WorldDriverCommon.api();
-                if (api == null) return Map.of("ok", false, "error", "AgentApi not ready");
+                if (api == null) return Map.of("ok", false, "error", "DriverApi not ready");
                 try {
                     restored = api.restoreCellsOnServer(cells);
                 } catch (RuntimeException e) {
@@ -59,7 +59,7 @@ final class ReplayInstaller {
             // /tp command (authoritative in single-player) and also sync the client
             // position so beginReplay anchors on the start foot immediately.
             double tx = start.getX() + 0.5, ty = start.getY(), tz = start.getZ() + 0.5;
-            net.magicterra.worlddriver.api.AgentApi api =
+            net.magicterra.worlddriver.api.DriverApi api =
                     net.magicterra.worlddriver.WorldDriverCommon.api();
             if (api != null) {
                 try {
@@ -104,10 +104,10 @@ final class ReplayInstaller {
             if (player == null) return Map.of("ok", false, "error", "no player");
 
             int restored = 0;
-            net.magicterra.worlddriver.api.AgentApi api =
+            net.magicterra.worlddriver.api.DriverApi api =
                     net.magicterra.worlddriver.WorldDriverCommon.api();
             if (restoreBlocks && cells != null && !cells.isEmpty()) {
-                if (api == null) return Map.of("ok", false, "error", "AgentApi not ready");
+                if (api == null) return Map.of("ok", false, "error", "DriverApi not ready");
                 try {
                     restored = api.restoreCellsOnServer(cells);
                 } catch (RuntimeException e) {

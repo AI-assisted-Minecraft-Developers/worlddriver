@@ -1,7 +1,7 @@
 # WorldDriver
 
 A Minecraft mod that exposes the running game as a programmable, AI-drivable
-surface. It speaks three transports over the **same single AgentApi**:
+surface. It speaks three transports over the **same single DriverApi**:
 
 - **In-JVM Rhino scripting** — bundled JS engine, sandboxed, runs alongside the game
 - **WebSocket RPC** — JSON-NDJSON over `ws://127.0.0.1:<port>/rpc`
@@ -27,7 +27,7 @@ external MCP client            in-game JS script              external WS client
        │                              │                              │
        └──────────────────────────────┴──────────────────────────────┘
                                       ▼
-                                  AgentApi
+                                  DriverApi
                        (single source of truth, on the server thread)
                                       ▼
                           live ServerLevel + ClientHooks
@@ -138,10 +138,10 @@ Registered as Brigadier subcommands of `/agent`:
 
 ```
 worlddriver/
-├── common/                Architectury shared sources (the AgentApi, MCP/RPC servers, Rhino glue)
+├── common/                Architectury shared sources (the DriverApi, MCP/RPC servers, Rhino glue)
 │   └── src/main/
 │       ├── java/net/magicterra/worlddriver/
-│       │   ├── api/               AgentApi router + System/Observe/Action/Wait handlers (single source of truth)
+│       │   ├── api/               DriverApi router + System/Observe/Action/Wait handlers (single source of truth)
 │       │   ├── bot/               Client-side bot subsystem (pathfinder, goto/mine/build/follow processes)
 │       │   ├── mcp/               McpServer + ToolCatalog
 │       │   ├── rpc/               RpcServer (Netty WebSocket) + JsonCodec
@@ -158,7 +158,7 @@ worlddriver/
 
 ## Design highlights
 
-- **One source of truth.** `AgentApi.route(method, params)` is the only function
+- **One source of truth.** `DriverApi.route(method, params)` is the only function
   that runs game logic. MCP, WebSocket and in-JVM scripts all call into it the
   same way — and the validation suite asserts they return byte-identical results.
 - **Server-thread discipline.** All write paths bounce through `server.execute()`;
@@ -167,7 +167,7 @@ worlddriver/
   header validation (loopback allowlist) for DNS-rebinding defense, `image`
   content blocks for screenshots, `text+image` envelope for multimodal vision.
   See `McpServer.java` for the spec-cite comments.
-- **Sandboxed Rhino.** `AgentClassFilter` blocks `Runtime`, `ProcessBuilder`,
+- **Sandboxed Rhino.** `ScriptClassFilter` blocks `Runtime`, `ProcessBuilder`,
   `Thread`, `File`, `Socket`, reflection, JDK internals. Validated by
   `08_sandbox.js`. `mc.script.eval` adds a wall-clock deadline enforced via
   Rhino's instruction-count observer.

@@ -13,19 +13,19 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("10_client: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("10_client: skipped (no client api — dedicated server)", function(t) {
         // no-op: PASS so headless runs stay green
     });
 } else {
 
-    AgentTest.run("10_client: screen.info exposes hasScreen/worldOpen/hasPlayer", function(t) {
+    ScriptTest.run("10_client: screen.info exposes hasScreen/worldOpen/hasPlayer", function(t) {
         var info = Agent.invoke("mc.client.screen.info", {});
         t.assertEqual(typeof info.hasScreen, "boolean", "hasScreen must be boolean");
         t.assertEqual(typeof info.worldOpen, "boolean", "worldOpen must be boolean");
         t.assertEqual(typeof info.hasPlayer, "boolean", "hasPlayer must be boolean");
     });
 
-    AgentTest.run("10_client: input.key 'E' opens inventory + close round-trip", function(t) {
+    ScriptTest.run("10_client: input.key 'E' opens inventory + close round-trip", function(t) {
         var info = Agent.invoke("mc.client.screen.info", {});
         if (!info.hasPlayer) {
             // Client booted but never joined a world — exercise close path only.
@@ -45,7 +45,7 @@ if (!clientAvailable()) {
         t.assertEqual(after.hasScreen, false, "screen should be null after close");
     });
 
-    AgentTest.run("10_client: screenshot returns base64 png with positive dims", function(t) {
+    ScriptTest.run("10_client: screenshot returns base64 png with positive dims", function(t) {
         var shot = Agent.invoke("mc.client.screenshot", {});
         t.assertEqual(shot.format, "png", "format must be png");
         t.assertTrue(shot.width > 0, "width must be positive (got " + shot.width + ")");
@@ -54,7 +54,7 @@ if (!clientAvailable()) {
             "base64 payload must be non-trivial (got " + (shot.base64 ? shot.base64.length : 0) + " bytes)");
     });
 
-    AgentTest.run("10_client: screenshot also reachable via WebSocket RPC", function(t) {
+    ScriptTest.run("10_client: screenshot also reachable via WebSocket RPC", function(t) {
         // Cross-path parity check: screenshot bytes can differ frame-to-frame, but
         // the shape and format fields must match between in-JVM and TCP paths.
         var direct = Agent.invoke("mc.client.screen.info", {});
@@ -63,7 +63,7 @@ if (!clientAvailable()) {
         t.assertEqual(direct.worldOpen, viaTcp.worldOpen, "worldOpen mismatch across paths");
     });
 
-    AgentTest.run("10_client: screenshot via MCP returns merged {format,width,height,base64}", function(t) {
+    ScriptTest.run("10_client: screenshot via MCP returns merged {format,width,height,base64}", function(t) {
         // MCP splits the screenshot into [text(meta JSON), image(base64 bytes)] so
         // multimodal LLMs see it as vision input. McpBridge.call merges the image
         // block's data back under 'base64' so this round-trip is shape-compatible

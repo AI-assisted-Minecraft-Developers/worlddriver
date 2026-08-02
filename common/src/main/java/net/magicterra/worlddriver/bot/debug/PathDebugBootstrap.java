@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.debug;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.AgentApi;
+import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.bot.pathfinder.MultiTrace;
 import net.magicterra.worlddriver.bot.pathfinder.PathTraceHolder;
 import net.magicterra.worlddriver.mcp.ToolCatalog;
@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory;
 /**
  * One-time wiring for the path-debug subsystem. Registers the recorder as the active
  * {@link PathTraceHolder#SINK}, the {@code mc.debug.pathChart} route (via the generic
- * {@link AgentApi#addRoute}), and its schema (via {@link ToolCatalog#registerExtra}).
+ * {@link DriverApi#addRoute}), and its schema (via {@link ToolCatalog#registerExtra}).
  *
  * Release strip: delete the {@code bot.debug} package and the single call to this method
  * in {@code ClientHooks.register}. Core compiles unchanged.
@@ -37,7 +37,7 @@ public final class PathDebugBootstrap {
         PathTraceHolder.SINK = new MultiTrace(recorder, archive);
         PathChartTool.bind(recorder);
         ToolCatalog.registerExtra(DebugTools::tools);
-        AgentApi api = WorldDriverCommon.api();
+        DriverApi api = WorldDriverCommon.api();
         if (api != null) {
             api.addRoute("mc.debug.pathChart", PathChartTool::render);
             api.addRoute("mc.debug.plan", PlanProbeTool::plan);
@@ -45,7 +45,7 @@ public final class PathDebugBootstrap {
             LOG.info("[pathdebug] initialised — mc.debug.pathChart + mc.debug.plan + mc.debug.replay ready (set pathDebug:true to capture)");
         } else {
             // Unreachable on the real client path (ensureRpcUp builds the api before init runs).
-            LOG.warn("[pathdebug] AgentApi not ready; route not registered");
+            LOG.warn("[pathdebug] DriverApi not ready; route not registered");
         }
     }
 }

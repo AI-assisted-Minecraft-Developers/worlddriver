@@ -1,7 +1,7 @@
 // ROADMAP Phase C — active combat loop (T1). mc.bot.combat is client-only
 // (needs Minecraft.gameMode + real mobs), so every test self-skips with a
 // recorded PASS on the dedicated GameTest server. The behavioural checks run in
-// fabric runClient sessions where the AgentTest world (superflat CREATIVE) lets
+// fabric runClient sessions where the ScriptTest world (superflat CREATIVE) lets
 // us summon mobs and watch the bot clear them. CREATIVE = the bot is invulnerable,
 // so combat never gets preempted by autoRetreat and the assertions are about the
 // bot's OFFENCE (clearing the pack, timing, kiting), not its survival.
@@ -27,7 +27,7 @@ function findType(threats, needle) {
     return null;
 }
 
-// Top-level so the deferred AgentTest.run callbacks can reach them.
+// Top-level so the deferred ScriptTest.run callbacks can reach them.
 function cleanup() {
     Agent.invoke("mc.bot.cancel", { process: "all" });
     Agent.invoke("mc.action.runCommand", { cmd: "kill @e[type=!minecraft:player]" });
@@ -44,10 +44,10 @@ function equip(item) {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("42_combat: skipped (no client api — dedicated server)", function(t) {});
+    ScriptTest.run("42_combat: skipped (no client api — dedicated server)", function(t) {});
 } else {
 
-    AgentTest.run("42_combat: rejects an unknown mode", function(t) {
+    ScriptTest.run("42_combat: rejects an unknown mode", function(t) {
         // Route-layer schema validation rejects the enum violation before the tool runs;
         // the validator message names the allowed set ("must be one of [engage, ...]").
         var msg = null;
@@ -56,7 +56,7 @@ if (!clientAvailable()) {
             "unknown mode must be rejected by schema validation naming the valid modes, got: " + msg);
     });
 
-    AgentTest.run("42_combat: kill mode requires a target", function(t) {
+    ScriptTest.run("42_combat: kill mode requires a target", function(t) {
         var r = Agent.invoke("mc.bot.combat", { mode: "kill" });
         t.assertEqual(r.ok, false, "kill without target must be ok:false");
         t.assertTrue(r.error.indexOf("target") >= 0, "error mentions target");
@@ -74,13 +74,13 @@ if (!clientAvailable()) {
     // (wd.serverCombat*, P4c). Recorded as a counted, cited skip — NOT a swallow,
     // NOT deleted (deleting a check is forbidden). The scene's named-skip gate pins
     // exactly this check by the "SKIP(task#92)" marker below.
-    AgentTest.run("42_combat: melee engage clears a zombie pack with well-timed swings — "
+    ScriptTest.run("42_combat: melee engage clears a zombie pack with well-timed swings — "
             + "SKIP(task#92) needs a flat GameTest arena (integrated topology); "
             + "offence covered by wd.serverCombat*", function(t) {
         // PASS — named topology skip (see comment above). Body intentionally empty.
     });
 
-    AgentTest.run("42_combat: ranged kite keeps distance from a skeleton and fires", function(t) {
+    ScriptTest.run("42_combat: ranged kite keeps distance from a skeleton and fires", function(t) {
         cleanup();
         equip("minecraft:bow");
         Agent.invoke("mc.action.runCommand", { cmd: "give @s minecraft:arrow 64" });
@@ -113,7 +113,7 @@ if (!clientAvailable()) {
         cleanup();
     });
 
-    AgentTest.run("42_combat: status.combat carries telemetry + cancel stands the chain down", function(t) {
+    ScriptTest.run("42_combat: status.combat carries telemetry + cancel stands the chain down", function(t) {
         cleanup();
         equip("minecraft:diamond_sword");
         var me = Agent.invoke("mc.observe.player", {});

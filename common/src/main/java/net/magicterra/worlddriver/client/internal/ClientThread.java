@@ -10,7 +10,7 @@ import java.util.function.Supplier;
  * Shared client-thread marshaller for the {@code client.internal.*} helpers.
  * Every {@code mc.client.*} behavior runs its body through {@link #runOnClient}
  * so it executes on the Minecraft render thread while the RPC handler thread
- * blocks for the result. Extracted from {@code ClientAgentApiImpl} so the
+ * blocks for the result. Extracted from {@code ClientDriverApiImpl} so the
  * per-concern helper classes can share one implementation.
  */
 public final class ClientThread {

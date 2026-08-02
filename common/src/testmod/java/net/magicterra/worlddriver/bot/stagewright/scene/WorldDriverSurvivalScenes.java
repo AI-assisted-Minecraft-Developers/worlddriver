@@ -34,7 +34,7 @@ import net.magicterra.worlddriver.bot.scheduler.DrownEscapeChain;
 import net.magicterra.worlddriver.bot.scheduler.Priorities;
 import net.magicterra.worlddriver.bot.scheduler.ProcessScheduler;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
-import net.magicterra.worlddriver.bot.sim.ServerAgentManager;
+import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
@@ -69,7 +69,7 @@ import net.minecraft.world.level.block.Blocks;
  * → {@link BotConfig#pinnedBaseline()} + {@code ctx.cleanup(pin::close)}; {@code throw new
  * GameTestAssertException} → {@link SceneContext#fail}; {@code helper.succeed()} → return. The real
  * {@code BunkerProcess}/{@code EscapeProcess}/{@code RunAwayProcess}/{@code IntentProcess} legs run
- * synchronously over the bounded {@code ServerAgentManager.register}+{@code tickAll()} loop (wave-7
+ * synchronously over the bounded {@code ServerAvatarManager.register}+{@code tickAll()} loop (wave-7
  * dusk precedent); every scene registers {@code ctx.cleanup} to discard its avatar, drain every dug
  * and placed block in its footprint (LIFO air-scrub) and clear the manager (the #40 persistent-world
  * lesson).
@@ -125,8 +125,8 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -5; dx <= 5; dx++)
                 for (int dy = -1; dy <= 5; dy++)
@@ -154,17 +154,17 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         driver.fakePlayer().getInventory().clearContent();
         driver.fakePlayer().getInventory().add(new ItemStack(Items.DIRT, 64));   // VERT_RISE fallback
         driver.runProcess(new EscapeProcess(floorY + 4));
-        ServerAgentManager.register(driver);
-        for (int t = 0; t < 800 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        ServerAvatarManager.register(driver);
+        for (int t = 0; t < 800 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         ServerPlayer fp = driver.fakePlayer();
         boolean climbed = fp.getY() >= floorY + 3.0;   // up from the floorY+1 pit bottom to ~the rim
         WorldDriverCommon.LOG.info("[wd.serverEscape] pos=({},{},{}) climbed={} finished={} active={}",
-                fp.getX(), fp.getY(), fp.getZ(), climbed, driver.finished(), ServerAgentManager.activeCount());
-        if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                fp.getX(), fp.getY(), fp.getZ(), climbed, driver.finished(), ServerAvatarManager.activeCount());
+        if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
             ctx.fail("server EscapeProcess did not finish+unregister: active="
-                    + ServerAgentManager.activeCount() + " y=" + fp.getY());
+                    + ServerAvatarManager.activeCount() + " y=" + fp.getY());
         if (!climbed)
             ctx.fail("server EscapeProcess did not climb out: y=" + fp.getY());
     }
@@ -179,8 +179,8 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -3; dx <= 3; dx++)
                 for (int dy = -4; dy <= 3; dy++)
@@ -207,11 +207,11 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         driver.fakePlayer().getInventory().clearContent();
         driver.fakePlayer().getInventory().add(new ItemStack(Items.DIRT, 64));   // server breaks drop nothing → pre-stock plug blocks
         driver.runProcess(new BunkerProcess(2));
-        ServerAgentManager.register(driver);
+        ServerAvatarManager.register(driver);
         // BunkerProcess holds at SEALED (returns false forever), so it won't unregister —
         // run a fixed window then inspect the world.
-        for (int t = 0; t < 800 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        for (int t = 0; t < 800 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         // The shaft column the bot dug (down from floorY) must be plugged solid.
         int sealed = 0, shaftCells = 0;
@@ -221,7 +221,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         }
         ServerPlayer fp = driver.fakePlayer();
         WorldDriverCommon.LOG.info("[wd.serverBunker] pos=({},{},{}) sealed={}/{} active={}",
-                fp.getX(), fp.getY(), fp.getZ(), sealed, shaftCells, ServerAgentManager.activeCount());
+                fp.getX(), fp.getY(), fp.getZ(), sealed, shaftCells, ServerAvatarManager.activeCount());
         if (sealed < shaftCells)
             ctx.fail("server BunkerProcess left the shaft open: sealed=" + sealed + "/" + shaftCells);
     }
@@ -293,8 +293,8 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -6; dx <= 6; dx++)
                 for (int dy = -1; dy <= 7; dy++)
@@ -321,18 +321,18 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         driver.fakePlayer().getInventory().clearContent();
         driver.fakePlayer().getInventory().add(new ItemStack(Items.DIRT, 64));   // VERT_RISE fallback
         driver.runProcess(new EscapeProcess(floorY + 6));
-        ServerAgentManager.register(driver);
-        for (int t = 0; t < 800 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        ServerAvatarManager.register(driver);
+        for (int t = 0; t < 800 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         ServerPlayer fp = driver.fakePlayer();
         boolean climbed = fp.getY() >= floorY + 5.0;
         String slotErr = driver.botState().escape.lastError;
         WorldDriverCommon.LOG.info("[wd.serverEscapeSealedShelter] pos=({},{},{}) climbed={} finished={} active={} slotErr={}",
-                fp.getX(), fp.getY(), fp.getZ(), climbed, driver.finished(), ServerAgentManager.activeCount(), slotErr);
-        if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                fp.getX(), fp.getY(), fp.getZ(), climbed, driver.finished(), ServerAvatarManager.activeCount(), slotErr);
+        if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
             ctx.fail("sealed-shelter escape did not finish+unregister (old STEP_UP ping-pong?): active="
-                    + ServerAgentManager.activeCount() + " y=" + fp.getY());
+                    + ServerAvatarManager.activeCount() + " y=" + fp.getY());
         if (!climbed)
             ctx.fail("sealed-shelter escape did not reach the surface: y=" + fp.getY() + " slotErr=" + slotErr);
         if (slotErr != null)
@@ -349,8 +349,8 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -6; dx <= 18; dx++)
                 for (int dy = 0; dy <= 16; dy++)
@@ -388,16 +388,16 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         ctx.cleanup(() -> driver.fakePlayer().discard());
         driver.fakePlayer().setHealth(2.0f);
         driver.runProcess(new RunAwayProcess(from, minDist));
-        ServerAgentManager.register(driver);
-        for (int t = 0; t < 800 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        ServerAvatarManager.register(driver);
+        for (int t = 0; t < 800 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         ServerPlayer fp = driver.fakePlayer();
         double ddx = fp.getX() - (cx - 2 + 0.5), ddz = fp.getZ() - (cz + 0.5);
         double dist = Math.sqrt(ddx * ddx + ddz * ddz);
         WorldDriverCommon.LOG.info("[wd.serverLowHpEdgePin] pos=({},{},{}) dist={} hp={} finished={} active={}",
                 fp.getX(), fp.getY(), fp.getZ(), dist, fp.getHealth(),
-                driver.finished(), ServerAgentManager.activeCount());
+                driver.finished(), ServerAvatarManager.activeCount());
         if (fp.getHealth() < 2.0f)
             ctx.fail("low-HP flee took damage (fell off the planned descent / lip): hp="
                     + fp.getHealth() + " y=" + fp.getY());
@@ -405,8 +405,8 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
             ctx.fail("low-HP flee left the elevated runway (fell): y=" + fp.getY());
         if (dist < minDist - 0.5)
             ctx.fail("low-HP flee did not reach min distance: dist=" + dist + " (need " + minDist + ")");
-        if (!driver.finished() || ServerAgentManager.activeCount() != 0)
-            ctx.fail("low-HP flee did not finish+unregister: active=" + ServerAgentManager.activeCount());
+        if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
+            ctx.fail("low-HP flee did not finish+unregister: active=" + ServerAvatarManager.activeCount());
     }
 
     // ==================================================================================
@@ -420,8 +420,8 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -4; dx <= 4; dx++)
                 for (int dy = -5; dy <= 4; dy++)
@@ -454,9 +454,9 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         driver.fakePlayer().getInventory().clearContent();
         driver.fakePlayer().getInventory().add(new ItemStack(Items.DIRT, 64));
         driver.runProcess(new BunkerProcess(2));
-        ServerAgentManager.register(driver);
-        for (int t = 0; t < 1200 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        ServerAvatarManager.register(driver);
+        for (int t = 0; t < 1200 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         ServerPlayer fp = driver.fakePlayer();
         BlockPos foot = fp.blockPosition();
@@ -488,8 +488,8 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -3; dx <= 3; dx++)
                 for (int y = floorY - 2; y <= surfaceY + 2; y++)
@@ -549,12 +549,12 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
             ctx.fail("planner: dive-enabled plan reached the goal WITHOUT a swimDownSurface edge — "
                     + "the new opt-in move never fired");
 
-        // EXECUTOR proof: the SAME intent, run for real over the ticked ServerAgentManager loop.
+        // EXECUTOR proof: the SAME intent, run for real over the ticked ServerAvatarManager loop.
         Intent intent = new Intent(goal, List.of(), diveProfile, constraints);
         driver.runProcess(new IntentProcess(intent));
-        ServerAgentManager.register(driver);
-        for (int t = 0; t < 600 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        ServerAvatarManager.register(driver);
+        for (int t = 0; t < 600 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         ServerPlayer fp = driver.fakePlayer();
         double ddx = fp.getX() - (bottomCell.getX() + 0.5);
@@ -563,10 +563,10 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         double dist = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz);
         WorldDriverCommon.LOG.info(
                 "[wd.surfaceDive] pos=({},{},{}) finished={} active={} dist={}",
-                fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAgentManager.activeCount(), dist);
-        if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAvatarManager.activeCount(), dist);
+        if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
             ctx.fail("executor: dive process did not finish+unregister within 600t: "
-                    + "finished=" + driver.finished() + " active=" + ServerAgentManager.activeCount());
+                    + "finished=" + driver.finished() + " active=" + ServerAvatarManager.activeCount());
         if (dist > 2.0)
             ctx.fail("executor: bot did not land within 2 of the underwater goal: pos=("
                     + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") dist=" + dist);
@@ -585,8 +585,8 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         // Scrub the whole tank + chamber (all water + stone → air) so nothing leaks between runs.
         ctx.cleanup(() -> {
             for (int dx = -3; dx <= 8; dx++)
@@ -680,9 +680,9 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
 
         Intent intent = new Intent(goal, List.of(), diveProfile, constraints);
         driver.runProcess(new IntentProcess(intent));
-        ServerAgentManager.register(driver);
-        for (int t = 0; t < 600 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        ServerAvatarManager.register(driver);
+        for (int t = 0; t < 600 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         ServerPlayer fp = driver.fakePlayer();
         // Position asserts measure against the STAND cell (the water cell on the chamber floor).
@@ -693,11 +693,11 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         boolean insideChamber = fp.getX() > cx + 2.5;   // past the tank's east wall plane
         WorldDriverCommon.LOG.info(
                 "[wd.underwaterBase] pos=({},{},{}) finished={} active={} dist={} insideChamber={}",
-                fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAgentManager.activeCount(),
+                fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAvatarManager.activeCount(),
                 dist, insideChamber);
-        if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+        if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
             ctx.fail("executor: dive+traverse process did not finish+unregister within 600t: finished="
-                    + driver.finished() + " active=" + ServerAgentManager.activeCount()
+                    + driver.finished() + " active=" + ServerAvatarManager.activeCount()
                     + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ")");
         if (!insideChamber || dist > 2.0)
             ctx.fail("executor: bot did not end INSIDE the chamber near the goal: pos=("
@@ -933,8 +933,8 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
             BotConfig.drownEscapeAirThreshold = oEnter;
             BotConfig.drownEscapeReleaseAir = oRelease;
         });
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -2; dx <= 2; dx++)
                 for (int y = floorY - 1; y <= floorY + depth + 4; y++)
@@ -1044,8 +1044,8 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.AIR.defaultBlockState()));
 
         BotConfig.walkerDebug = false;
@@ -1055,7 +1055,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         ServerPlayer fp = driver.fakePlayer();
         fp.setAirSupply(42);
 
-        java.util.Map<String, Object> snap = new net.magicterra.worlddriver.api.AgentApi().observe.playerSnapshot(fp);
+        java.util.Map<String, Object> snap = new net.magicterra.worlddriver.api.DriverApi().observe.playerSnapshot(fp);
         WorldDriverCommon.LOG.info("[wd.serverObserveAirSupply] air={} maxAir={}", snap.get("air"), snap.get("maxAir"));
         if (!(snap.get("air") instanceof Number an) || an.intValue() != 42)
             ctx.fail("gap#70: observe.player carries no (or wrong) `air` field — got " + snap.get("air")

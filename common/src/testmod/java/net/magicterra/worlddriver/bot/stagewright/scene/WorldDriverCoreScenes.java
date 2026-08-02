@@ -29,7 +29,7 @@ import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.client.internal.ClientChatLog;
 import net.magicterra.worlddriver.mcp.ToolCatalog;
-import net.magicterra.worlddriver.test.AgentTest;
+import net.magicterra.worlddriver.test.ScriptTest;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
@@ -157,7 +157,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *  blanket skip — the suite executes in full on both. */
     private static void agentRpcSmoke(SceneContext ctx) {
         if (WorldDriverCommon.api() == null) {
-            ctx.fail("agentRpcSmoke: AgentApi not initialized — was the mod loaded?");
+            ctx.fail("agentRpcSmoke: DriverApi not initialized — was the mod loaded?");
             return;
         }
         WorldDriverCommon.api().seedTestArea();
@@ -178,10 +178,10 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             if (v == null) { ctx.fail("agentRpcSmoke: validation still running"); return; } // cond guarantees non-null
 
             // Read the per-check results the worker just recorded (single source:
-            // AgentTest's static snapshot, set by runValidation()). Assert the full
+            // ScriptTest's static snapshot, set by runValidation()). Assert the full
             // suite ran with the expected coverage, zero failures, and only NAMED
             // task#92 topology-skips — on WHICHEVER topology this scene is running.
-            List<AgentTest.Result> results = AgentTest.snapshot();
+            List<ScriptTest.Result> results = ScriptTest.snapshot();
             List<String> failures = new ArrayList<>();
             List<String> skips = new ArrayList<>();
             List<String> unexpectedSkips = new ArrayList<>();
@@ -190,7 +190,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             // the allow-list catches marked skips, but a check silently converted to a
             // passing no-op WITHOUT this marker escapes both gates — any new skip MUST
             // carry the marker (and a task citation) or it is dishonest coverage.
-            for (AgentTest.Result r : results) {
+            for (ScriptTest.Result r : results) {
                 if (!r.passed) { failures.add(r.name); continue; }
                 if (r.name.contains("SKIP(task#92)")) {
                     skips.add(r.name);

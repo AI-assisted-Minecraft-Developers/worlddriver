@@ -12,12 +12,12 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("55_setting_perception: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("55_setting_perception: skipped (no client api — dedicated server)", function(t) {
         // PASS
     });
 } else {
 
-    AgentTest.run("55_setting_perception: autoSecureAtDusk toggle round-trip", function(t) {
+    ScriptTest.run("55_setting_perception: autoSecureAtDusk toggle round-trip", function(t) {
         // Toggle false, read back
         var r = Agent.invoke("mc.bot.setting", { autoSecureAtDusk: false });
         t.assertEqual(r.ok, true, "write must succeed");
@@ -33,7 +33,7 @@ if (!clientAvailable()) {
         Agent.invoke("mc.bot.setting", { autoSecureAtDusk: false });
     });
 
-    AgentTest.run("55_setting_perception: hazardGridRadius in-range round-trip and out-of-range clamp", function(t) {
+    ScriptTest.run("55_setting_perception: hazardGridRadius in-range round-trip and out-of-range clamp", function(t) {
         // In-range: set 16
         var r = Agent.invoke("mc.bot.setting", { hazardGridRadius: 16 });
         t.assertEqual(r.ok, true, "write must succeed");
@@ -50,7 +50,7 @@ if (!clientAvailable()) {
         Agent.invoke("mc.bot.setting", { hazardGridRadius: 12 });
     });
 
-    AgentTest.run("55_setting_perception: deepWaterMax and sceneQueryMaxRadius round-trip", function(t) {
+    ScriptTest.run("55_setting_perception: deepWaterMax and sceneQueryMaxRadius round-trip", function(t) {
         var r = Agent.invoke("mc.bot.setting", { deepWaterMax: 3, sceneQueryMaxRadius: 24 });
         t.assertEqual(r.ok, true, "write must succeed");
         t.assertEqual(r.settings.deepWaterMax, 3, "deepWaterMax round-trips");
@@ -60,7 +60,7 @@ if (!clientAvailable()) {
         Agent.invoke("mc.bot.setting", { deepWaterMax: 2, sceneQueryMaxRadius: 32 });
     });
 
-    AgentTest.run("55_setting_perception: mutedEvents round-trip + clear", function(t) {
+    ScriptTest.run("55_setting_perception: mutedEvents round-trip + clear", function(t) {
         // Mute two event types from the push channel
         var r = Agent.invoke("mc.bot.setting", { mutedEvents: ["entity.death", "item.pickup"] });
         t.assertEqual(r.ok, true, "write must succeed");

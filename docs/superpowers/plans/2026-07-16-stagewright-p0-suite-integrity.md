@@ -4,7 +4,7 @@
 
 **Goal:** 让现有 GameTest 套件的回归门恢复诚实——注册却未执行的测试（task#85 静默吞）、TOTAL 假绿、僵尸 JVM/污染世界，全部在门上变成显式失败。
 
-**Architecture:** 游戏内单点插桩写 JSONL 执行清单（注册侧 = GameTestRegistry 全量 dump，执行侧 = 每个测试体第一行都会调的 `gtOnlySkips()` 单一咽喉）；进程外 Python 对账脚本判定「注册数=执行数 + BUILD 状态 + vanilla required 行」三合一裁决；bash 包装脚本统一「杀残留 JVM→删世界→跑→对账」。不新增 RPC verb、不动 AgentApi（P0 是测试脚手架，不是驱动层面）。
+**Architecture:** 游戏内单点插桩写 JSONL 执行清单（注册侧 = GameTestRegistry 全量 dump，执行侧 = 每个测试体第一行都会调的 `gtOnlySkips()` 单一咽喉）；进程外 Python 对账脚本判定「注册数=执行数 + BUILD 状态 + vanilla required 行」三合一裁决；bash 包装脚本统一「杀残留 JVM→删世界→跑→对账」。不新增 RPC verb、不动 DriverApi（P0 是测试脚手架，不是驱动层面）。
 
 **Tech Stack:** Java 21（NeoForge 21.1.230 / MC 1.21.1 mojmap）、Python 3（标准库）、bash。
 

@@ -12,11 +12,11 @@ function botAvailable() {
 }
 
 if (!botAvailable()) {
-    AgentTest.run("30_backfill: skipped (no mc.bot — dedicated server)",
+    ScriptTest.run("30_backfill: skipped (no mc.bot — dedicated server)",
         function(t) { /* PASS */ });
 } else {
 
-    AgentTest.run("30_backfill: setting snapshot includes autoBackfill keys",
+    ScriptTest.run("30_backfill: setting snapshot includes autoBackfill keys",
         function(t) {
             var r = Agent.invoke("mc.bot.setting", {});
             t.assertEqual(r.ok, true, "ok");
@@ -28,7 +28,7 @@ if (!botAvailable()) {
             t.assertEqual(typeof r.settings.autoBackfillRadius, "number", "number type");
         });
 
-    AgentTest.run("30_backfill: autoBackfill toggle round-trips", function(t) {
+    ScriptTest.run("30_backfill: autoBackfill toggle round-trips", function(t) {
         var before = Agent.invoke("mc.bot.setting", {}).settings.autoBackfill;
         var r = Agent.invoke("mc.bot.setting", { autoBackfill: !before });
         t.assertEqual(r.ok, true, "ok");
@@ -38,7 +38,7 @@ if (!botAvailable()) {
         Agent.invoke("mc.bot.setting", { autoBackfill: before });
     });
 
-    AgentTest.run("30_backfill: autoBackfillBlock validation rejects bad id",
+    ScriptTest.run("30_backfill: autoBackfillBlock validation rejects bad id",
         function(t) {
             var r = Agent.invoke("mc.bot.setting", { autoBackfillBlock: "minecraft:not_a_real_block_xyz" });
             t.assertEqual(r.ok, true, "settings call still returns ok");
@@ -50,7 +50,7 @@ if (!botAvailable()) {
                     "snapshot unchanged");
         });
 
-    AgentTest.run("30_backfill: autoBackfillBlock accepts a real block id",
+    ScriptTest.run("30_backfill: autoBackfillBlock accepts a real block id",
         function(t) {
             var r = Agent.invoke("mc.bot.setting", { autoBackfillBlock: "minecraft:dirt" });
             t.assertEqual(r.ok, true, "ok");
@@ -60,7 +60,7 @@ if (!botAvailable()) {
             t.assertEqual(restore.settings.autoBackfillBlock, "minecraft:cobblestone", "restored");
         });
 
-    AgentTest.run("30_backfill: autoBackfillRadius range bound [1,16]",
+    ScriptTest.run("30_backfill: autoBackfillRadius range bound [1,16]",
         function(t) {
             var lo = Agent.invoke("mc.bot.setting", { autoBackfillRadius: 0 });
             t.assertTrue((lo.applied || []).indexOf("autoBackfillRadius") < 0, "0 rejected");

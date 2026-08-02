@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.mcp;
 
-import net.magicterra.worlddriver.api.AgentApi;
+import net.magicterra.worlddriver.api.DriverApi;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>{@code mc.test.yaml}'s description used to claim it was "reachable over RPC
  * only". It never was: {@code McpServer}'s {@code tools/call} validates the name
- * against {@code AgentApi.methods()} — every registered route — not against the
+ * against {@code DriverApi.methods()} — every registered route — not against the
  * advertised list, so a hidden verb is callable on MCP too. Nothing enforced the
  * claim and nothing contradicted it either; it was prose next to code that did
  * something else, which is how the {@code logging/setLevel} doc drifted as well.
@@ -45,7 +45,7 @@ class ToolCatalogHiddenTest {
         assertTrue(declared.contains(HIDDEN),
                 HIDDEN + " must stay DECLARED — the boot invariant requires every route "
                 + "to carry a ToolSchema, so dropping it here would fail startup");
-        assertTrue(new AgentApi().methods().contains(HIDDEN),
+        assertTrue(new DriverApi().methods().contains(HIDDEN),
                 HIDDEN + " must stay routable: this is what tools/call checks against, "
                 + "which is why hiding does not make it uncallable");
     }

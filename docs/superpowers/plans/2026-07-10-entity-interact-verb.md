@@ -4,7 +4,7 @@
 
 **Goal:** 给 `mc.bot.useItem` 加第三种参数模式 `entityId` = 右键实体（骑乘/交易/剪毛/挤奶/喂食/拴绳），零新增 MCP 工具。
 
-**Architecture:** 复刻 vanilla `Minecraft.startUseItem()` 的 ENTITY 分支（1.21.1 decompile 确认）：`gameMode.interactAt` → 未消费再 `gameMode.interact` → 消费则挥手。实现放 `InteractionCommands`（与 attackEntity 对称），`AgentApi` 路由三叉分发，`BotTools` 只改描述/schema。
+**Architecture:** 复刻 vanilla `Minecraft.startUseItem()` 的 ENTITY 分支（1.21.1 decompile 确认）：`gameMode.interactAt` → 未消费再 `gameMode.interact` → 消费则挥手。实现放 `InteractionCommands`（与 attackEntity 对称），`DriverApi` 路由三叉分发，`BotTools` 只改描述/schema。
 
 **Tech Stack:** Java 21 / MC 1.21.1 / Architectury(common) / 既有 rpc.py 验证链。
 
@@ -21,13 +21,13 @@
 
 ---
 
-### Task 1: `useItemOnEntity` 动词实现（InteractionCommands + BotApi + BotApiImpl + AgentApi）
+### Task 1: `useItemOnEntity` 动词实现（InteractionCommands + BotApi + BotApiImpl + DriverApi）
 
 **Files:**
 - Modify: `common/src/main/java/net/magicterra/worlddriver/bot/InteractionCommands.java`（在 `attackEntity` 方法后加新方法）
 - Modify: `common/src/main/java/net/magicterra/worlddriver/bot/BotApi.java`（`useItemOn` 声明后加一行接口方法，约 line 55 后）
 - Modify: `common/src/main/java/net/magicterra/worlddriver/bot/BotApiImpl.java`（`useItemOn` delegate 后加 delegate，约 line 784 后）
-- Modify: `common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java:331-333`（路由三叉分发）
+- Modify: `common/src/main/java/net/magicterra/worlddriver/api/DriverApi.java:331-333`（路由三叉分发）
 
 **Interfaces:**
 - Consumes: `BotUtil.onClient(Supplier)`、`BotInteract.parseHand(Object)`、`Params.of/get/getBool`（全部已存在）。
@@ -41,14 +41,14 @@
 `clientAvailable()` else 分支末尾（`pos-mode auto-picks face` 用例后、收尾 `}` 前）追加：
 
 ```js
-    AgentTest.run("12_use_item: entity-mode rejects non-integer entityId", function(t) {
+    ScriptTest.run("12_use_item: entity-mode rejects non-integer entityId", function(t) {
         var r = Agent.invoke("mc.bot.useItem", { entityId: "abc" });
         t.assertEqual(r.ok, false, "non-integer entityId must be ok:false");
         t.assertTrue(typeof r.error === "string" && r.error.indexOf("integer") >= 0,
             "error must mention integer (got " + JSON.stringify(r) + ")");
     });
 
-    AgentTest.run("12_use_item: entity-mode rejects nonexistent entity id", function(t) {
+    ScriptTest.run("12_use_item: entity-mode rejects nonexistent entity id", function(t) {
         // 2^30 is well past any real entity id in a fresh world
         var r = Agent.invoke("mc.bot.useItem", { entityId: 1073741824 });
         t.assertEqual(r.ok, false, "nonexistent entity must be ok:false");
@@ -151,7 +151,7 @@ python3 .claude/skills/worlddriver-rpc/rpc.py mc.bot.useItem '{"entityId":107374
     }
 ```
 
-`AgentApi.java` line 331-333，原：
+`DriverApi.java` line 331-333，原：
 
 ```java
         routes.put("mc.bot.useItem",     p -> (p != null && p.get("pos") != null)
@@ -184,7 +184,7 @@ cd /root/source/minecraft/AI-assisted-Minecraft-Developers/worlddriver
 git add common/src/main/java/net/magicterra/worlddriver/bot/InteractionCommands.java \
         common/src/main/java/net/magicterra/worlddriver/bot/BotApi.java \
         common/src/main/java/net/magicterra/worlddriver/bot/BotApiImpl.java \
-        common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java \
+        common/src/main/java/net/magicterra/worlddriver/api/DriverApi.java \
         common/src/main/resources/data/worlddriver/scripts/agent_validation/12_use_item.js
 git commit -m "feat(bot): mc.bot.useItem entityId mode — right-click an entity (interactAt→interact, vanilla parity)"
 ```

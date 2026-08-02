@@ -4,7 +4,7 @@
 // them, so the bug likely died in a refactor — this sweep either convicts it or
 // closes the case and keeps it closed.
 
-AgentTest.run("60_stairs: every placed stair variant is returned by query", function(t) {
+ScriptTest.run("60_stairs: every placed stair variant is returned by query", function(t) {
     var origin = Agent.system.testOrigin();
     var y = origin.y + 3, z = origin.z + 26;
     var stairs = [

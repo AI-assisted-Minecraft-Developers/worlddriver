@@ -1,6 +1,6 @@
 # WorldDriver
 
-一个把运行中的 Minecraft 暴露成"可编程、AI 可驱动"接口的模组。**同一个 AgentApi**
+一个把运行中的 Minecraft 暴露成"可编程、AI 可驱动"接口的模组。**同一个 DriverApi**
 对外开三条传输：
 
 - **进程内 Rhino 脚本** —— 内置 JS 引擎，带沙箱，随游戏一起跑
@@ -27,7 +27,7 @@
        │                              │                              │
        └──────────────────────────────┴──────────────────────────────┘
                                       ▼
-                                  AgentApi
+                                  DriverApi
                        （单一可信源，调度到 server 线程）
                                       ▼
                           live ServerLevel + ClientHooks
@@ -136,10 +136,10 @@ curl -s http://127.0.0.1:$PORT/mcp \
 
 ```
 worlddriver/
-├── common/                Architectury 共享代码（AgentApi、MCP/RPC server、Rhino 胶水）
+├── common/                Architectury 共享代码（DriverApi、MCP/RPC server、Rhino 胶水）
 │   └── src/main/
 │       ├── java/net/magicterra/worlddriver/
-│       │   ├── api/               AgentApi 路由 + System/Observe/Action/Wait 处理器（单一可信源）
+│       │   ├── api/               DriverApi 路由 + System/Observe/Action/Wait 处理器（单一可信源）
 │       │   ├── bot/               客户端 bot 子系统（pathfinder、goto/mine/build/follow 等进程）
 │       │   ├── mcp/               McpServer + ToolCatalog
 │       │   ├── rpc/               RpcServer (Netty WebSocket) + JsonCodec
@@ -156,7 +156,7 @@ worlddriver/
 
 ## 设计要点
 
-- **单一可信源**：`AgentApi.route(method, params)` 是唯一一处真正运行游戏逻辑的
+- **单一可信源**：`DriverApi.route(method, params)` 是唯一一处真正运行游戏逻辑的
   地方。MCP、WebSocket、进程内脚本都通过同一个入口调用 —— 校验套件断言三者结果
   字节一致。
 - **server 线程纪律**：所有写路径都经 `server.execute()` 派发；脚本跑在非 server
@@ -164,7 +164,7 @@ worlddriver/
 - **MCP spec 合规**：`initialize` 协商协议版本，Origin 头校验（loopback allowlist）
   防 DNS rebinding，截图发真正的 `image` content block，多模态走 `text+image`
   双块返回。具体 spec 引用见 `McpServer.java` 注释。
-- **Rhino 沙箱**：`AgentClassFilter` 屏蔽 `Runtime`、`ProcessBuilder`、`Thread`、
+- **Rhino 沙箱**：`ScriptClassFilter` 屏蔽 `Runtime`、`ProcessBuilder`、`Thread`、
   `File`、`Socket`、反射、JDK 内部包。`08_sandbox.js` 持续验证。`mc.script.eval`
   在沙箱基础上额外加了 wall-clock 超时（通过 Rhino 的 instruction-count
   observer 强制执行）。

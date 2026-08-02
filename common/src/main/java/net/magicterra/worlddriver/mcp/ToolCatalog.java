@@ -36,8 +36,8 @@ import net.magicterra.worlddriver.mcp.schema.ToolSchema;
  * Every method exposed as a {@link ToolSchema} — its identity and its schema bound
  * together. {@link #schemas()} is the single source of which methods are declared;
  * {@link #declaredMethodNames()} feeds the bootstrap's boot-time invariant
- * (see {@code AgentApi.requireSchemasFor}) which refuses to start if any registered
- * {@code AgentApi.route} lacks a {@code ToolSchema}. So "added a route, forgot the
+ * (see {@code DriverApi.requireSchemasFor}) which refuses to start if any registered
+ * {@code DriverApi.route} lacks a {@code ToolSchema}. So "added a route, forgot the
  * schema" fails fast at boot — it can't silently become an RPC-only method.
  *
  * <p>A method that is intentionally RPC-only (a dev/test verb, not an agent action)
@@ -59,7 +59,7 @@ import net.magicterra.worlddriver.mcp.schema.ToolSchema;
  *   <li>Third-party verbs MUST be namespaced under their mod id: at least one dot,
  *       and not starting with {@code mc.} (i.e. {@code <modid>.<verb>}).</li>
  * </ul>
- * The driver's own curated catalog and the internal {@code AgentApi.addRoute}
+ * The driver's own curated catalog and the internal {@code DriverApi.addRoute}
  * consumers (e.g. the path-debug package) do NOT go through {@code registerVerb}
  * and are unaffected by the policy. {@code mc.test.yaml} (a {@link #HIDDEN_TOOLS
  * hidden} harness verb registered the classic way, not via {@code registerVerb})
@@ -72,19 +72,19 @@ public final class ToolCatalog {
     private static volatile Map<String, Schema> byNameCache;
 
     /**
-     * Route sink injected by the bootstrap at boot (bound to {@code AgentApi::addRoute}).
+     * Route sink injected by the bootstrap at boot (bound to {@code DriverApi::addRoute}).
      * {@link #registerVerb} publishes its route through this so ToolCatalog never imports
-     * or holds the {@code AgentApi} — it depends only on the {@code addRoute} shape,
-     * mirroring the {@code AgentApi.setParamsValidator}/{@code setScriptHandler} injection
+     * or holds the {@code DriverApi} — it depends only on the {@code addRoute} shape,
+     * mirroring the {@code DriverApi.setParamsValidator}/{@code setScriptHandler} injection
      * direction (bootstrap pushes the functional dependency in).
      */
     private static volatile BiConsumer<String, Function<Map<String, Object>, Object>> routeSink;
 
     /**
      * Wire the route sink used by {@link #registerVerb}. Called once from the platform
-     * bootstrap ({@code WorldDriverCommon.ensureRpcUp}) right after the {@code AgentApi}
+     * bootstrap ({@code WorldDriverCommon.ensureRpcUp}) right after the {@code DriverApi}
      * is constructed, with {@code api::addRoute}. Keeps the mcp layer free of any
-     * {@code AgentApi} import (Hard Rule #1: only a data-flow of {@code (name, handler)}
+     * {@code DriverApi} import (Hard Rule #1: only a data-flow of {@code (name, handler)}
      * crosses the seam, never a type dependency).
      */
     public static void wireRouteSink(BiConsumer<String, Function<Map<String, Object>, Object>> sink) {
@@ -107,14 +107,14 @@ public final class ToolCatalog {
      *       {@code schema.name()} — violation throws {@link IllegalArgumentException};</li>
      *   <li>supply the schema through the {@link #registerExtra} mechanism (which
      *       invalidates the validation cache so the new verb validates immediately);</li>
-     *   <li>install the route on the live {@code AgentApi} via the bootstrap-wired
+     *   <li>install the route on the live {@code DriverApi} via the bootstrap-wired
      *       {@linkplain #wireRouteSink route sink};</li>
      *   <li>self-check that the route now has a resolvable schema (single-name mirror
-     *       of {@code AgentApi.requireSchemasFor}) — a torn pair is an internal bug.</li>
+     *       of {@code DriverApi.requireSchemasFor}) — a torn pair is an internal bug.</li>
      * </ol>
      *
      * <p><b>Ordering.</b> Must be called after the driver boots and wires the route
-     * sink (mirror {@code PathDebugBootstrap.init}, which runs once the {@code AgentApi}
+     * sink (mirror {@code PathDebugBootstrap.init}, which runs once the {@code DriverApi}
      * exists). A pre-boot call throws {@link IllegalStateException} — pre-boot queueing
      * is deliberately unsupported, because deferring only the route half would split the
      * atomic (schema+route) pair and could mask a mod registering before boot.
@@ -133,7 +133,7 @@ public final class ToolCatalog {
      * registering something to grow the baseline.
      *
      * <p><b>Duplicate names within the extra space</b> (i.e. names NOT in the driver-owned
-     * baseline) still follow {@code AgentApi.addRoute} last-wins semantics for the route;
+     * baseline) still follow {@code DriverApi.addRoute} last-wins semantics for the route;
      * the schema supplier is appended (last entry for a name wins in
      * {@code schemaByName()}), so re-registering the SAME extra verb name replaces its
      * route and its effective schema. This residual last-wins is a same-classpath trust
@@ -165,14 +165,14 @@ public final class ToolCatalog {
             throw new IllegalStateException(
                     "ToolCatalog.registerVerb('" + name + "') called before worlddriver wired the "
                     + "route sink — register verbs after the driver boots (mirror PathDebugBootstrap.init, "
-                    + "which runs once the AgentApi exists). Pre-boot queueing is intentionally not "
+                    + "which runs once the DriverApi exists). Pre-boot queueing is intentionally not "
                     + "supported: it would split the atomic (schema+route) pair.");
         }
         // Atomic pair: schema first (via EXTRA — invalidates the validation cache), then the
         // route on the live api. Both halves land under this one call.
         registerExtra(() -> List.of(schema));
         sink.accept(name, handler);
-        // Self-check — single-name mirror of AgentApi.requireSchemasFor. A paired entry that
+        // Self-check — single-name mirror of DriverApi.requireSchemasFor. A paired entry that
         // leaves the route without a resolvable schema is a bug, not a runtime possibility.
         if (schemaByName().get(name) == null) {
             throw new IllegalStateException(
@@ -204,7 +204,7 @@ public final class ToolCatalog {
      * <p><b>Hidden means unadvertised, not unreachable.</b> Hiding exists to save
      * prompt tokens (hard rule #6: every listed tool ships its schema to every LLM
      * client, every turn), and that is all it does. {@code tools/call} validates
-     * against {@code AgentApi.methods()} — the full route set — so a hidden verb is
+     * against {@code DriverApi.methods()} — the full route set — so a hidden verb is
      * callable by name on every transport, MCP included. That is deliberate: the
      * transports bind to loopback and {@code mc.action.runCommand} already runs
      * arbitrary operator-level commands, so gating a harness verb would be theatre,
@@ -283,7 +283,7 @@ public final class ToolCatalog {
     }
 
     /** Names of every declared method (visible + hidden). The bootstrap asserts that
-     *  {@code AgentApi}'s route table is a subset of this — no route without a schema. */
+     *  {@code DriverApi}'s route table is a subset of this — no route without a schema. */
     public static Set<String> declaredMethodNames() {
         Set<String> names = new LinkedHashSet<>();
         for (ToolSchema s : schemas()) names.add(s.name());

@@ -10,7 +10,7 @@ import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.BotApiImpl;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.MouseYieldHud;
-import net.magicterra.worlddriver.client.ClientAgentApiImpl;
+import net.magicterra.worlddriver.client.ClientDriverApiImpl;
 import net.magicterra.worlddriver.client.ClientHooks;
 import net.magicterra.worlddriver.client.internal.ClientChat;
 import net.minecraft.network.chat.ChatType;
@@ -20,13 +20,13 @@ import net.minecraft.network.chat.PlayerChatMessage;
 /**
  * Fabric client-side bootstrap. Only loaded under Dist.CLIENT — Fabric Loader
  * skips client entrypoints on a dedicated-server install — so referencing
- * {@link ClientAgentApiImpl} here doesn't drag client classes into dedi-server
+ * {@link ClientDriverApiImpl} here doesn't drag client classes into dedi-server
  * classloading.
  */
 public final class WorldDriverFabricClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
-        ClientHooks.register(new ClientAgentApiImpl());
+        ClientHooks.register(new ClientDriverApiImpl());
         BotApiImpl bot = new BotApiImpl();
         BotHooks.register(bot);
         ClientTickEvents.END_CLIENT_TICK.register(mc -> bot.clientTick());

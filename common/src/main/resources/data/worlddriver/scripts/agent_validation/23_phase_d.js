@@ -14,12 +14,12 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("23_phase_d: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("23_phase_d: skipped (no client api — dedicated server)", function(t) {
         // PASS — farm + Parkour3/2-diagonal need a real client.
     });
 } else {
 
-    AgentTest.run("23_phase_d: farm rejects missing from/to", function(t) {
+    ScriptTest.run("23_phase_d: farm rejects missing from/to", function(t) {
         // Route-layer schema validation rejects the missing required keys before the tool runs.
         var msg = null;
         try { Agent.invoke("mc.bot.farm", {}); } catch (e) { msg = String(e); }
@@ -28,7 +28,7 @@ if (!clientAvailable()) {
             "missing rect must be rejected by schema validation naming both keys, got: " + msg);
     });
 
-    AgentTest.run("23_phase_d: farm rejects oversize area", function(t) {
+    ScriptTest.run("23_phase_d: farm rejects oversize area", function(t) {
         // 100×100 = 10000 cells, well past the 4096 cap.
         var r = Agent.invoke("mc.bot.farm", {
             from: { x: 0, y: 64, z: 0 },
@@ -39,7 +39,7 @@ if (!clientAvailable()) {
                   || String(r.error).indexOf("4096") >= 0, "error mentions cap: " + r.error);
     });
 
-    AgentTest.run("23_phase_d: farm rejects invalid crops filter", function(t) {
+    ScriptTest.run("23_phase_d: farm rejects invalid crops filter", function(t) {
         var r = Agent.invoke("mc.bot.farm", {
             from: { x: 0, y: 64, z: 0 },
             to:   { x: 4, y: 64, z: 4 },
@@ -50,7 +50,7 @@ if (!clientAvailable()) {
                   || String(r.error).indexOf("subset") >= 0, "error mentions crops: " + r.error);
     });
 
-    AgentTest.run("23_phase_d: farm accepts valid rect (or 'no player' if title screen)",
+    ScriptTest.run("23_phase_d: farm accepts valid rect (or 'no player' if title screen)",
         function(t) {
             var r = Agent.invoke("mc.bot.farm", {
                 from: { x: 0, y: 64, z: 0 },
@@ -72,7 +72,7 @@ if (!clientAvailable()) {
             }
         });
 
-    AgentTest.run("23_phase_d: farm byte-identical across in-JVM/RPC/MCP transports",
+    ScriptTest.run("23_phase_d: farm byte-identical across in-JVM/RPC/MCP transports",
         function(t) {
             // Schema-reject path is deterministic and doesn't need a player.
             var args = { from: { x: 0, y: 64, z: 0 }, to: { x: 99, y: 64, z: 99 } };

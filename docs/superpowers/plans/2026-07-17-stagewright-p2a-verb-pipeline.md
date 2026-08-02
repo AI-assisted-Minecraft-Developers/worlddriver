@@ -4,13 +4,13 @@
 
 **Goal:** 落地 spec §6.1 的 verb 扩展点公共化（schema SPI + 命名空间约定 + `mc.test.*`）并根修 #280（`mc.bot.setting` 未知键静默吞），全部在 T0/契约层可验（P2 的 T1 拓扑与客户端仪表扩展另列 P2b，JUnit5 attach 另列 P2c）。
 
-**Architecture:** 现状盘点——`AgentApi.addRoute`（公共缝）、`ToolCatalog.registerExtra`（schema 供给 + cache 失效）、`SchemaValidator` route 层预派发校验、`requireSchemasFor` 开机不变量**均已存在**；缺的是 (a) 原子配对注册（route 与 schema 分两步注册可漂移）、(b) boot 后注册的 no-schema 洞（`WorldDriverCommon` 校验接线 `if (s != null) validate` ——无 schema 的 route 静默跳过校验=#280 同形洞）、(c) 命名空间政策、(d) #280 本体。#280 修法=单源注册表：`SettingsSnapshot.build` 已是全量知识（手列键+反射补全 `public static volatile` 原始类型 BotConfig 字段），从它派生①封闭 ToolSchema（validator 预派发拒未知键）②apply 侧大声拒绝（双保险）。
+**Architecture:** 现状盘点——`DriverApi.addRoute`（公共缝）、`ToolCatalog.registerExtra`（schema 供给 + cache 失效）、`SchemaValidator` route 层预派发校验、`requireSchemasFor` 开机不变量**均已存在**；缺的是 (a) 原子配对注册（route 与 schema 分两步注册可漂移）、(b) boot 后注册的 no-schema 洞（`WorldDriverCommon` 校验接线 `if (s != null) validate` ——无 schema 的 route 静默跳过校验=#280 同形洞）、(c) 命名空间政策、(d) #280 本体。#280 修法=单源注册表：`SettingsSnapshot.build` 已是全量知识（手列键+反射补全 `public static volatile` 原始类型 BotConfig 字段），从它派生①封闭 ToolSchema（validator 预派发拒未知键）②apply 侧大声拒绝（双保险）。
 
 **Tech Stack:** 既有 Schema DSL（运行时构建，`object().prop(...).additionalProperties(false)`）、instrument.py 契约、dogfood 场景回归。
 
 ## Global Constraints
 
-- **Hard Rule #1 不破**：api 层不依赖 mcp 层——新配对注册入口放哪一层要沿既有 seam 风格（`requireSchemasFor`/`setParamsValidator` 由 bootstrap 注入的先例）；如在 ToolCatalog 侧提供 `registerVerb(ToolSchema, handler)` 需经 bootstrap 转接 AgentApi，不许 ToolCatalog 直接 import AgentApi 单例之外的核心。实现者读 `WorldDriverCommon.java:170-190` 的接线后择位，报告里论证。
+- **Hard Rule #1 不破**：api 层不依赖 mcp 层——新配对注册入口放哪一层要沿既有 seam 风格（`requireSchemasFor`/`setParamsValidator` 由 bootstrap 注入的先例）；如在 ToolCatalog 侧提供 `registerVerb(ToolSchema, handler)` 需经 bootstrap 转接 DriverApi，不许 ToolCatalog 直接 import DriverApi 单例之外的核心。实现者读 `WorldDriverCommon.java:170-190` 的接线后择位，报告里论证。
 - **命名空间政策**（写进 javadoc + mod 开发者文档）：`mc.*` 保留给驱动层；`mc.test.*` 授予 testkit-runtime（`mc.test.yaml` 为既有驱动层 harness verb，**祖父条款**注记）；第三方一律 `<modid>.*`。新配对注册入口对违反者**注册时即抛**。
 - **校验洞收口语义**：route() 派发时 schema 缺失 = `IllegalStateException` 大声拒（不是跳过）。开机 `requireSchemasFor` 已保证 boot 时全集有 schema，post-boot 只有新配对入口可加 → 该异常只可能命中"绕过配对入口直接 addRoute"的编程错误。既有 `addRoute` 保持公共（path-debug 等内部消费者）但 javadoc 明示新规则。
 - **#280 修复语义**：未知键=**错误**（RPC error envelope），不是静默忽略也不是仅诊断字段；已知键正常应用不受影响；`paused` 等 apply 侧特殊键必须在注册表内（apply 键集 ⊆ 注册表键集，差集=启动即抛的自检）。快照的反射补全 pass 保证新 BotConfig 旗标自动进注册表（#280 病根=新旗标漏 schema）。
@@ -22,7 +22,7 @@
 
 | 文件 | 责任 |
 |---|---|
-| `common/.../api/AgentApi.java` | 校验接线洞收口协作方（见 bootstrap）；javadoc 规则更新 |
+| `common/.../api/DriverApi.java` | 校验接线洞收口协作方（见 bootstrap）；javadoc 规则更新 |
 | `common/.../WorldDriverCommon.java`(:170-190) | `if (s != null)` → 缺 schema 大声抛；配对注册入口的 bootstrap 转接 |
 | `common/.../mcp/ToolCatalog.java` | `registerVerb(ToolSchema, handler)` 配对入口（或按 Hard Rule #1 择位的等价物）+ 命名空间政策enforcement + javadoc |
 | `common/.../bot/SettingsRegistry.java`（新） | 单源键注册表：从 SettingsSnapshot 键集+类型派生；`knownKeys()`/`schemaProps()`/`isKnown(key)` 纯函数（不触 Minecraft 客户端类，服务端场景可调） |
@@ -39,7 +39,7 @@
 
 ### Task 1: 配对注册入口 + 校验洞收口 + 命名空间政策
 
-**Files:** `ToolCatalog.java`、`WorldDriverCommon.java`、`AgentApi.java`（javadoc）
+**Files:** `ToolCatalog.java`、`WorldDriverCommon.java`、`DriverApi.java`（javadoc）
 **Interfaces:**
 - Produces: `ToolCatalog.registerVerb(ToolSchema schema, Function<Map<String,Object>,Object> handler)`（或 Hard-Rule-#1 合规等价物——实现者读接线后定,报告论证）:原子完成 schema 供给+route 注册;命名空间校验（`mc.` 前缀非 `mc.test.` 拒;政策 javadoc）;重复名沿 addRoute last-wins 语义并注记。
 - Produces: 派发时 schema 缺失=IllegalStateException（改 `WorldDriverCommon` 校验接线的 null 分支）。

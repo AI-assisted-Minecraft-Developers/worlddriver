@@ -14,12 +14,12 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("32_break_place: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("32_break_place: skipped (no client api — dedicated server)", function(t) {
         // PASS
     });
 } else {
 
-    AgentTest.run("32_break_place: allowBreak / allowPlace toggles round-trip", function(t) {
+    ScriptTest.run("32_break_place: allowBreak / allowPlace toggles round-trip", function(t) {
         var on = Agent.invoke("mc.bot.setting", { allowBreak: true, allowPlace: true });
         t.assertEqual(on.ok, true, "write must succeed");
         t.assertTrue(on.applied.indexOf("allowBreak") >= 0, "allowBreak must be applied");
@@ -32,7 +32,7 @@ if (!clientAvailable()) {
         t.assertEqual(off.settings.allowPlace, false, "snapshot reflects allowPlace=false after disable");
     });
 
-    AgentTest.run("32_break_place: avoidDanger toggle + dangerPenalty round-trip", function(t) {
+    ScriptTest.run("32_break_place: avoidDanger toggle + dangerPenalty round-trip", function(t) {
         var r = Agent.invoke("mc.bot.setting", { avoidDanger: false, "pathfinder.dangerPenalty": 50 });
         t.assertEqual(r.ok, true, "write must succeed");
         t.assertTrue(r.applied.indexOf("avoidDanger") >= 0, "avoidDanger must be applied");
@@ -46,7 +46,7 @@ if (!clientAvailable()) {
         Agent.invoke("mc.bot.setting", { avoidDanger: true, "pathfinder.dangerPenalty": 30 });
     });
 
-    AgentTest.run("32_break_place: avoidMobs toggle + mob radius/penalty round-trip", function(t) {
+    ScriptTest.run("32_break_place: avoidMobs toggle + mob radius/penalty round-trip", function(t) {
         var r = Agent.invoke("mc.bot.setting", {
             avoidMobs: true, "pathfinder.mobAvoidRadius": 8, "pathfinder.mobAvoidPenalty": 60 });
         t.assertEqual(r.ok, true, "write must succeed");
@@ -61,7 +61,7 @@ if (!clientAvailable()) {
             avoidMobs: false, "pathfinder.mobAvoidRadius": 6, "pathfinder.mobAvoidPenalty": 40 });
     });
 
-    AgentTest.run("32_break_place: byte-identical results across in-JVM, RPC, MCP transports",
+    ScriptTest.run("32_break_place: byte-identical results across in-JVM, RPC, MCP transports",
         function(t) {
             var args = { allowBreak: true };
             var direct = Agent.invoke("mc.bot.setting", args);

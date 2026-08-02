@@ -1,4 +1,4 @@
-AgentTest.run("01_handshake: system.version returns expected fields", function(t) {
+ScriptTest.run("01_handshake: system.version returns expected fields", function(t) {
     var info = Agent.system.version();
     t.assertEqual(info.modid, "worlddriver", "modid mismatch");
     t.assertEqual(info.version, "0.1.0-dev", "version mismatch");

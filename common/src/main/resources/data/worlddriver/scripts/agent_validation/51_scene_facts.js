@@ -19,7 +19,7 @@ function scene(center, radius, render) {
 // ── Test 1: not cornered — flat platform ────────────────────────────────────
 // z=250. Flat 5x5 stone platform at y=199, air y=200-205.
 // All 8 immediate neighbours at radius=1 are standable, non-lethal → cornered=false.
-AgentTest.run("51_scene_facts: flat platform -> not cornered", function (t) {
+ScriptTest.run("51_scene_facts: flat platform -> not cornered", function (t) {
     var ox = 0, oy = 200, oz = 250;
     fill(ox - 4, oy - 1, oz - 4, ox + 4, oy - 1, oz + 4, "minecraft:stone");
     fill(ox - 4, oy,     oz - 4, ox + 4, oy + 5, oz + 4, "minecraft:air");
@@ -34,7 +34,7 @@ AgentTest.run("51_scene_facts: flat platform -> not cornered", function (t) {
 // z=260. Stone floor at y=199. Center cell (y=200, y=201) is air.
 // 8 ring cells: stone at y=200 AND y=201 (body+head) → canStandAt fails for
 // every foot candidate the scanner probes → none are standable → cornered=true.
-AgentTest.run("51_scene_facts: walled ring -> cornered", function (t) {
+ScriptTest.run("51_scene_facts: walled ring -> cornered", function (t) {
     var ox = 0, oy = 200, oz = 260;
     // Clear the arena first.
     fill(ox - 4, oy - 2, oz - 4, ox + 4, oy + 5, oz + 4, "minecraft:air");
@@ -56,7 +56,7 @@ AgentTest.run("51_scene_facts: walled ring -> cornered", function (t) {
 // z=270. Flat 5x5 stone platform, radius=1 → 3x3 map.
 // Middle row of the 3x3 grid with center '@' must be ". @ ." (walk-me-walk).
 // Two successive calls must return JSON-identical rows arrays.
-AgentTest.run("51_scene_facts: render rows are byte-stable and middle row is '. @ .'", function (t) {
+ScriptTest.run("51_scene_facts: render rows are byte-stable and middle row is '. @ .'", function (t) {
     var ox = 0, oy = 200, oz = 270;
     fill(ox - 4, oy - 1, oz - 4, ox + 4, oy - 1, oz + 4, "minecraft:stone");
     fill(ox - 4, oy,     oz - 4, ox + 4, oy + 5, oz + 4, "minecraft:air");
@@ -78,7 +78,7 @@ AgentTest.run("51_scene_facts: render rows are byte-stable and middle row is '. 
 // ── Test 4: 3-transport parity ───────────────────────────────────────────────
 // z=20 — near origin, in chunk Z=1, persistently loaded by the GameTest server.
 // Flat 5x5 stone platform. Compare rows JSON across in-JVM, RPC, MCP.
-AgentTest.run("51_scene_facts: rows JSON identical across in-JVM / RPC / MCP", function (t) {
+ScriptTest.run("51_scene_facts: rows JSON identical across in-JVM / RPC / MCP", function (t) {
     var ox = 0, oy = 200, oz = 20;
     fill(ox - 4, oy - 1, oz - 4, ox + 4, oy - 1, oz + 4, "minecraft:stone");
     fill(ox - 4, oy,     oz - 4, ox + 4, oy + 5, oz + 4, "minecraft:air");

@@ -22,7 +22,7 @@
 
 1. **子集 ≠ 全套**：spec §4.2 的 30-50 条是完整套件目标；P1b 只建 T0 依赖面子集（route dispatch / 观察读 / 直接世界操作 / wait / events，~17 条）。客户端仪表（input 注入、屏幕内省）归 P2。
 2. **#41 全背包 / #45 攻击冷却 / #55 伤害源** 永久断言顺延 P2：`mc.observe.player` 需要 PlayerList 里有真玩家，裸专服 headless 拿不到（`/agentserver` 的 FakePlayer 不入 PlayerList，对 observe.player 不可见——此 gap 在 Task 5 的契约文档里记为「已知缺口+未来断言」）。P1b 以 `obs.playerAbsentPin`（present:false 语义钉死）+ `obs.containerDurability`（#42 耐久字段经 container 路径）覆盖可及部分。
-3. **#280 setting 未知键静默吞**不在本阶段修：`mc.bot.setting` 属 `mc.bot.*`，专服上抛 client-only（勘察实证 AgentApi.java:395-409）——不属于 T0 仪表面。契约以 `route.clientOnlyVerb` 断言其大声失败；未知键行为修复+断言归 P2 客户端仪表面。
+3. **#280 setting 未知键静默吞**不在本阶段修：`mc.bot.setting` 属 `mc.bot.*`，专服上抛 client-only（勘察实证 DriverApi.java:395-409）——不属于 T0 仪表面。契约以 `route.clientOnlyVerb` 断言其大声失败；未知键行为修复+断言归 P2 客户端仪表面。
 4. 双 loader 验收分级沿用 P1：neoforge 全检查 + fabric 同套跑通即可（fabric 无 sim 包不影响——本子集不用任何 body）。
 
 ## 文件结构
@@ -429,7 +429,7 @@ git commit -m "feat(testkit): instrument contract runner skeleton — contractSe
 
 - [ ] **Step 1: 追加检查函数**
 
-在 `canary_must_fail` 前插入（错误形状字符串以 AgentApi.java:441 / SchemaValidator.java:25-28 / AgentApi.java:395-409 为准）：
+在 `canary_must_fail` 前插入（错误形状字符串以 DriverApi.java:441 / SchemaValidator.java:25-28 / DriverApi.java:395-409 为准）：
 
 ```python
 def check_unknown_method(ctx):

@@ -4,11 +4,11 @@ import java.util.List;
 import java.util.Map;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.AgentApi;
+import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.process.ElytraProcess;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
-import net.magicterra.worlddriver.bot.sim.ServerAgentManager;
+import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
@@ -113,8 +113,8 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             clearBox(level, ax, floorY, az, 6, 8);
             clearBox(level, bx, floorY, bz, 6, 8);
@@ -164,8 +164,8 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> clearBox(level, cx, floorY, cz, 3, 5));
         BotConfig.walkerDebug = false;
 
@@ -235,8 +235,8 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> clearBox(level, cx, floorY, cz, 3, 5));
         BotConfig.walkerDebug = false;
 
@@ -252,7 +252,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         // Let the weapon SWAP land before timing anything (gap #47 empties the bar on swap).
         driver.avatar().step();
 
-        AgentApi api = new AgentApi();
+        DriverApi api = new DriverApi();
         fp.resetAttackStrengthTicker();               // just swung: bar empty
         @SuppressWarnings("unchecked")
         Map<String, Object> a0 = (Map<String, Object>) api.observe.playerSnapshot(fp).get("attack");
@@ -366,8 +366,8 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -1; dx <= 1; dx++)
                 for (int dz = -1; dz <= 1; dz++)
@@ -392,17 +392,17 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         // No fireworks: pure glide takeoff (boost needs a ticked firework entity).
         driver.runProcess(new ElytraProcess(
                 new BlockPos(cx + 400, floorY + 40, cz), null, 0f, false, 0, 2000, 3.0, true));
-        ServerAgentManager.register(driver);
+        ServerAvatarManager.register(driver);
 
         boolean flewAtSomePoint = false;
-        for (int t = 0; t < 60 && ServerAgentManager.activeCount() > 0; t++) {
-            ServerAgentManager.tickAll();
+        for (int t = 0; t < 60 && ServerAvatarManager.activeCount() > 0; t++) {
+            ServerAvatarManager.tickAll();
             if (fp.isFallFlying()) flewAtSomePoint = true;
         }
-        boolean crashed = !driver.finished() && ServerAgentManager.activeCount() == 0;
+        boolean crashed = !driver.finished() && ServerAvatarManager.activeCount() == 0;
         WorldDriverCommon.LOG.info("[wd.serverElytra] flew={} pos=({},{},{}) finished={} active={} crashed={}",
                 flewAtSomePoint, fp.getX(), fp.getY(), fp.getZ(),
-                driver.finished(), ServerAgentManager.activeCount(), crashed);
+                driver.finished(), ServerAvatarManager.activeCount(), crashed);
         if (crashed)
             ctx.fail("server ElytraProcess crashed the tick (driver removed unfinished)");
         if (!flewAtSomePoint)

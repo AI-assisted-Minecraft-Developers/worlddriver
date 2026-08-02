@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.rpc;
 
-import net.magicterra.worlddriver.model.AgentEvent;
+import net.magicterra.worlddriver.model.DriverEvent;
 import net.minecraft.core.BlockPos;
 
 import java.lang.reflect.Field;
@@ -38,7 +38,7 @@ public final class JsonCodec {
             sb.append("{\"x\":").append(bp.getX()).append(",\"y\":").append(bp.getY()).append(",\"z\":").append(bp.getZ()).append("}");
             return;
         }
-        if (v instanceof AgentEvent ae) {
+        if (v instanceof DriverEvent ae) {
             sb.append("{\"seq\":").append(ae.seq)
               .append(",\"timestamp\":").append(ae.timestamp)
               .append(",\"type\":"); writeStr(sb, ae.type);

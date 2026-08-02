@@ -15,12 +15,12 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("12_use_item: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("12_use_item: skipped (no client api — dedicated server)", function(t) {
         // no-op: PASS so headless runs stay green
     });
 } else {
 
-    AgentTest.run("12_use_item: useItem returns shape with empty hand (no crash)", function(t) {
+    ScriptTest.run("12_use_item: useItem returns shape with empty hand (no crash)", function(t) {
         var info = Agent.invoke("mc.client.screen.info", {});
         if (!info.hasPlayer) {
             var res = Agent.invoke("mc.bot.useItem", {});
@@ -35,7 +35,7 @@ if (!clientAvailable()) {
         t.assertEqual(typeof res.consumed, "boolean", "consumed must be a boolean");
     });
 
-    AgentTest.run("12_use_item: pos-mode rejects malformed pos", function(t) {
+    ScriptTest.run("12_use_item: pos-mode rejects malformed pos", function(t) {
         // Route-layer schema validation rejects string pos before the tool runs.
         var msg = null;
         try { Agent.invoke("mc.bot.useItem", { pos: "not-a-pos" }); } catch (e) { msg = String(e); }
@@ -43,7 +43,7 @@ if (!clientAvailable()) {
             "string pos must be rejected by schema validation, got: " + msg);
     });
 
-    AgentTest.run("12_use_item: pos-mode echoes effective face", function(t) {
+    ScriptTest.run("12_use_item: pos-mode echoes effective face", function(t) {
         var info = Agent.invoke("mc.client.screen.info", {});
         if (!info.hasPlayer) {
             var res = Agent.invoke("mc.bot.useItem", { pos: { x: 0, y: 200, z: 0 }, face: "up" });
@@ -65,7 +65,7 @@ if (!clientAvailable()) {
         t.assertTrue(typeof res.result === "string", "result must be an InteractionResult name");
     });
 
-    AgentTest.run("12_use_item: pos-mode auto-picks face when omitted", function(t) {
+    ScriptTest.run("12_use_item: pos-mode auto-picks face when omitted", function(t) {
         var info = Agent.invoke("mc.client.screen.info", {});
         if (!info.hasPlayer) return;
         var res = Agent.invoke("mc.bot.useItem", {
@@ -80,7 +80,7 @@ if (!clientAvailable()) {
             "auto-picked face must be a cardinal direction, got '" + res.face + "'");
     });
 
-    AgentTest.run("12_use_item: entity-mode rejects non-integer entityId", function(t) {
+    ScriptTest.run("12_use_item: entity-mode rejects non-integer entityId", function(t) {
         // Route-layer schema validation rejects string entityId before the tool runs.
         var msg = null;
         try { Agent.invoke("mc.bot.useItem", { entityId: "abc" }); } catch (e) { msg = String(e); }
@@ -88,14 +88,14 @@ if (!clientAvailable()) {
             "non-integer entityId must be rejected by schema validation, got: " + msg);
     });
 
-    AgentTest.run("12_use_item: entity-mode rejects nonexistent entity id", function(t) {
+    ScriptTest.run("12_use_item: entity-mode rejects nonexistent entity id", function(t) {
         // 2^30 is well past any real entity id in a fresh world
         var r = Agent.invoke("mc.bot.useItem", { entityId: 1073741824 });
         t.assertEqual(r.ok, false, "nonexistent entity must be ok:false");
         t.assertTrue(typeof r.error === "string", "must include error string");
     });
 
-    AgentTest.run("12_use_item: entity-mode mounts a boat with an empty hand", function(t) {
+    ScriptTest.run("12_use_item: entity-mode mounts a boat with an empty hand", function(t) {
         var info = Agent.invoke("mc.client.screen.info", {});
         if (!info.hasPlayer) return;
         var me = Agent.invoke("mc.observe.player", {});

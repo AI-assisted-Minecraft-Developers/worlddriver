@@ -13,12 +13,12 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("13_set_hotbar_slot: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("13_set_hotbar_slot: skipped (no client api — dedicated server)", function(t) {
         // no-op: PASS so headless runs stay green
     });
 } else {
 
-    AgentTest.run("13_set_hotbar_slot: rejects out-of-range slot", function(t) {
+    ScriptTest.run("13_set_hotbar_slot: rejects out-of-range slot", function(t) {
         // Route-layer schema validation rejects the bounds violation (slot 0-8) before the tool runs.
         var msg = null;
         try { Agent.invoke("mc.client.input.setHotbarSlot", { slot: 99 }); } catch (e) { msg = String(e); }
@@ -26,7 +26,7 @@ if (!clientAvailable()) {
             "slot 99 must be rejected by schema validation, got: " + msg);
     });
 
-    AgentTest.run("13_set_hotbar_slot: switches slot and is observable via observe.player", function(t) {
+    ScriptTest.run("13_set_hotbar_slot: switches slot and is observable via observe.player", function(t) {
         var info = Agent.invoke("mc.client.screen.info", {});
         if (!info.hasPlayer) {
             // No player — the call should fail cleanly, not pretend success.
@@ -48,9 +48,9 @@ if (!clientAvailable()) {
         Agent.invoke("mc.client.input.setHotbarSlot", { slot: before.selectedSlot });
     });
 
-    AgentTest.run("13_set_hotbar_slot: schema-reject surfaces identically across in-JVM, RPC, MCP transports",
+    ScriptTest.run("13_set_hotbar_slot: schema-reject surfaces identically across in-JVM, RPC, MCP transports",
         function(t) {
-            // The validator runs inside AgentApi.route(), shared by all three
+            // The validator runs inside DriverApi.route(), shared by all three
             // transports — each must surface the SAME core violation message
             // (each transport adds its own wrapper prefix, so we compare cores).
             // This keeps the Hard Rule #1 contract: one route, one behavior.

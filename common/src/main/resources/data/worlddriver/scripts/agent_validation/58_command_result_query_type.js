@@ -5,7 +5,7 @@
 //  - 7592620: mc.query q:"entities" honors filter.type (exact id).
 // Both were shipped without tests; this script is their guard.
 
-AgentTest.run("58_cmd_result: seed returns success + feedback text", function(t) {
+ScriptTest.run("58_cmd_result: seed returns success + feedback text", function(t) {
     var r = Agent.invoke("mc.action.runCommand", { cmd: "seed" });
     t.assertEqual(r.ok, true, "seed should dispatch");
     t.assertEqual(r.success, true, "seed should report success");
@@ -16,7 +16,7 @@ AgentTest.run("58_cmd_result: seed returns success + feedback text", function(t)
         "feedback should contain the seed text, got: " + r.feedback[0]);
 });
 
-AgentTest.run("58_cmd_result: execute-if count lands in value", function(t) {
+ScriptTest.run("58_cmd_result: execute-if count lands in value", function(t) {
     var origin = Agent.system.testOrigin();
     var x = origin.x + 6, y = origin.y + 1, z = origin.z + 6;
     // The gametest world persists across runs (run-gametest/world), and an
@@ -39,7 +39,7 @@ AgentTest.run("58_cmd_result: execute-if count lands in value", function(t) {
     t.assertEqual(miss.success, false, "no-match predicate should report failure");
 });
 
-AgentTest.run("58_cmd_result: data get surfaces NBT text in feedback", function(t) {
+ScriptTest.run("58_cmd_result: data get surfaces NBT text in feedback", function(t) {
     var r = Agent.invoke("mc.action.runCommand",
         { cmd: "data get entity @e[tag=t58,limit=1] Tags" });
     t.assertEqual(r.ok, true);
@@ -49,7 +49,7 @@ AgentTest.run("58_cmd_result: data get surfaces NBT text in feedback", function(
         "feedback should contain the tag NBT, got: " + r.feedback[0]);
 });
 
-AgentTest.run("58_query_type: entities filter.type restricts rows", function(t) {
+ScriptTest.run("58_query_type: entities filter.type restricts rows", function(t) {
     var origin = Agent.system.testOrigin();
     var rows = Agent.query({
         q: "entities",

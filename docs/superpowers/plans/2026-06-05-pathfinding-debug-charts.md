@@ -4,7 +4,7 @@
 
 **Goal:** Add an opt-in, fully-strippable pathfinding visualization that records search candidates, every planned route, and the actual walked trajectory (with heading + speed), and renders them to a composite PNG dashboard on disk for multimodal analysis.
 
-**Architecture:** A tiny inert SPI seam in core (`PathTrace` interface + `NOOP` + `PathTraceHolder.SINK`) is called from `PathFinder` and `Walker`. All heavy logic — recorder, AWT renderer, file writer, MCP tool, schema, bootstrap — lives in a self-contained `net.magicterra.worlddriver.bot.debug` package that registers itself at client init via generic core seams (`AgentApi.addRoute`, `ToolCatalog.registerExtra`). Release strip = delete the `bot.debug` package + remove the one `PathDebugBootstrap.init()` call. Core compiles unchanged and pays zero runtime cost when no recorder is registered.
+**Architecture:** A tiny inert SPI seam in core (`PathTrace` interface + `NOOP` + `PathTraceHolder.SINK`) is called from `PathFinder` and `Walker`. All heavy logic — recorder, AWT renderer, file writer, MCP tool, schema, bootstrap — lives in a self-contained `net.magicterra.worlddriver.bot.debug` package that registers itself at client init via generic core seams (`DriverApi.addRoute`, `ToolCatalog.registerExtra`). Release strip = delete the `bot.debug` package + remove the one `PathDebugBootstrap.init()` call. Core compiles unchanged and pays zero runtime cost when no recorder is registered.
 
 **Tech Stack:** Java 21, NeoForge/Architectury MC 1.21.1, AWT `BufferedImage`/`Graphics2D` + `javax.imageio.ImageIO` (already used headless in `Screenshots.java`), Rhino JS validation suite.
 
@@ -12,7 +12,7 @@
 
 ## Conventions & test seam (read before starting)
 
-- **AGENTS.md Hard Rules apply.** Especially: #1 behavior is reachable through `AgentApi.route` and byte-identical across MCP/RPC/script; #6 prefer extending — justification for a *new* tool here is that no existing tool exposes path traces and the data is debug-only (keep the schema/description tight); #7 no fully-qualified names, add an `import` and use the simple name (only inline an FQN to break a real collision).
+- **AGENTS.md Hard Rules apply.** Especially: #1 behavior is reachable through `DriverApi.route` and byte-identical across MCP/RPC/script; #6 prefer extending — justification for a *new* tool here is that no existing tool exposes path traces and the data is debug-only (keep the schema/description tight); #7 no fully-qualified names, add an `import` and use the simple name (only inline an FQN to break a real collision).
 - **This codebase has no JUnit unit-test source set.** The canonical suite is `./gradlew :neoforge:runGameTestServer`, which runs the numbered JS validation scripts under `common/src/main/resources/data/worlddriver/scripts/agent_validation/`. Therefore the automated test for this feature is an **integration JS validation case** plus **compile gates**; the substantive correctness check is the **E2E multimodal run** (Task 14). Where a Java class is pure (renderer math), keep it small and assert its outputs through the JS case's response fields (width/height/bytes/stats). Do not invent a JUnit harness.
 - **Working tree state:** branch `feat/cost-based-flee` has uncommitted survival-kit changes including a modified `BotConfig.java`. Append new fields at the end of the relevant section; do not disturb existing edits. Confirm with the user before committing (per session rules, commit only when asked; branch first if on a default branch).
 - **Never commit runtime output (Hard Rule #5).** Chart PNGs write to `config/worlddriver/debug/`; Task 13 adds that to `.gitignore`.
@@ -41,7 +41,7 @@
 - `common/src/main/resources/data/worlddriver/scripts/agent_validation/56_debug_pathchart.js` — validation case.
 
 **Modified (core — generic inert seams + hook calls):**
-- `common/.../api/AgentApi.java` — `routes` → `ConcurrentHashMap`; add `addRoute(...)`.
+- `common/.../api/DriverApi.java` — `routes` → `ConcurrentHashMap`; add `addRoute(...)`.
 - `common/.../WorldDriverCommon.java` — add `api()` getter; register `56_debug_pathchart.js`.
 - `common/.../mcp/ToolCatalog.java` — generic `registerExtra(...)` + concat extras.
 - `common/.../client/ClientHooks.java` — call `PathDebugBootstrap.init()`.
@@ -159,13 +159,13 @@ git commit -m "feat(pathdebug): add inert PathTrace SPI seam"
 ## Task 2: Generic core extension seams (`addRoute`, `registerExtra`, `api()`)
 
 **Files:**
-- Modify: `common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java` (line 93 field; add method near `route`)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/api/DriverApi.java` (line 93 field; add method near `route`)
 - Modify: `common/src/main/java/net/magicterra/worlddriver/mcp/ToolCatalog.java`
 - Modify: `common/src/main/java/net/magicterra/worlddriver/WorldDriverCommon.java`
 
-- [ ] **Step 1: Make `AgentApi.routes` concurrent + add `addRoute`**
+- [ ] **Step 1: Make `DriverApi.routes` concurrent + add `addRoute`**
 
-In `AgentApi.java`, change the field at line 93 from `HashMap` to `ConcurrentHashMap` (so post-construction registration is thread-safe against transport reads):
+In `DriverApi.java`, change the field at line 93 from `HashMap` to `ConcurrentHashMap` (so post-construction registration is thread-safe against transport reads):
 
 ```java
 private final Map<String, Function<Map<String, Object>, Object>> routes = new java.util.concurrent.ConcurrentHashMap<>();
@@ -241,15 +241,15 @@ public final class ToolCatalog {
 
 - [ ] **Step 3: Add `api()` getter to `WorldDriverCommon.java`**
 
-Find the private static field `api` (declared near the top; assigned in `ensureRpcUp()` at line ~118 as `api = new AgentApi();`). Add a public accessor next to it:
+Find the private static field `api` (declared near the top; assigned in `ensureRpcUp()` at line ~118 as `api = new DriverApi();`). Add a public accessor next to it:
 
 ```java
-/** The shared AgentApi singleton, or null before {@link #ensureRpcUp()} runs.
+/** The shared DriverApi singleton, or null before {@link #ensureRpcUp()} runs.
  *  Used by optional subsystems (path-debug) to register routes at client init. */
-public static AgentApi api() { return api; }
+public static DriverApi api() { return api; }
 ```
 
-(Confirm the field type is `AgentApi` and import is present — `ensureRpcUp` already constructs it, so it is.)
+(Confirm the field type is `DriverApi` and import is present — `ensureRpcUp` already constructs it, so it is.)
 
 - [ ] **Step 4: Compile**
 
@@ -259,7 +259,7 @@ Expected: BUILD SUCCESSFUL.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java \
+git add common/src/main/java/net/magicterra/worlddriver/api/DriverApi.java \
         common/src/main/java/net/magicterra/worlddriver/mcp/ToolCatalog.java \
         common/src/main/java/net/magicterra/worlddriver/WorldDriverCommon.java
 git commit -m "feat(pathdebug): add generic inert route/catalog extension seams"
@@ -1255,7 +1255,7 @@ public final class DebugTools {
 package net.magicterra.worlddriver.bot.debug;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.AgentApi;
+import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.bot.pathfinder.PathTraceHolder;
 import net.magicterra.worlddriver.mcp.ToolCatalog;
 import org.slf4j.Logger;
@@ -1264,7 +1264,7 @@ import org.slf4j.LoggerFactory;
 /**
  * One-time wiring for the path-debug subsystem. Registers the recorder as the active
  * {@link PathTraceHolder#SINK}, the {@code mc.debug.pathChart} route (via the generic
- * {@link AgentApi#addRoute}), and its schema (via {@link ToolCatalog#registerExtra}).
+ * {@link DriverApi#addRoute}), and its schema (via {@link ToolCatalog#registerExtra}).
  *
  * Release strip: delete the {@code bot.debug} package and the single call to this method
  * in {@code ClientHooks.register}. Core compiles unchanged.
@@ -1281,13 +1281,13 @@ public final class PathDebugBootstrap {
         PathTraceHolder.SINK = recorder;
         PathChartTool.bind(recorder);
         ToolCatalog.registerExtra(DebugTools::tools);
-        AgentApi api = WorldDriverCommon.api();
+        DriverApi api = WorldDriverCommon.api();
         if (api != null) {
             api.addRoute("mc.debug.pathChart", PathChartTool::render);
             done = true;
             LOG.info("[pathdebug] initialised — mc.debug.pathChart ready (set pathDebug:true to capture)");
         } else {
-            LOG.warn("[pathdebug] AgentApi not ready; route not registered");
+            LOG.warn("[pathdebug] DriverApi not ready; route not registered");
         }
     }
 }
@@ -1316,11 +1316,11 @@ git commit -m "feat(pathdebug): mc.debug.pathChart handler, schema, bootstrap"
 
 - [ ] **Step 1: Call `PathDebugBootstrap.init()` after the API is up**
 
-In `register(ClientAgentApi api)`, after `WorldDriverCommon.ensureMcpUp();`, add:
+In `register(ClientDriverApi api)`, after `WorldDriverCommon.ensureMcpUp();`, add:
 
 ```java
         // Optional, strippable: wire the path-debug recorder + mc.debug.pathChart now that
-        // AgentApi exists. Removing the bot.debug package + this line fully strips the feature.
+        // DriverApi exists. Removing the bot.debug package + this line fully strips the feature.
         net.magicterra.worlddriver.bot.debug.PathDebugBootstrap.init();
 ```
 
@@ -1361,17 +1361,17 @@ function routeAvailable() {
 }
 
 if (!clientAvailable() || !routeAvailable()) {
-    AgentTest.run("56_debug_pathchart: skipped (no client / route)", function (t) { /* PASS */ });
+    ScriptTest.run("56_debug_pathchart: skipped (no client / route)", function (t) { /* PASS */ });
 } else {
 
-    AgentTest.run("56_debug_pathchart: settings round-trip", function (t) {
+    ScriptTest.run("56_debug_pathchart: settings round-trip", function (t) {
         var r = Agent.invoke("mc.bot.setting", { pathDebug: true, pathChartAutoDump: false, pathDebugMaxNodes: 4000 });
         t.assertEqual(r.ok, true, "write must succeed");
         t.assertEqual(r.settings.pathDebug, true, "pathDebug echoed");
         t.assertEqual(r.settings.pathDebugMaxNodes, 4000, "maxNodes echoed");
     });
 
-    AgentTest.run("56_debug_pathchart: render returns a non-trivial PNG", function (t) {
+    ScriptTest.run("56_debug_pathchart: render returns a non-trivial PNG", function (t) {
         var r = Agent.invoke("mc.debug.pathChart", { width: 800, height: 600 });
         t.assertEqual(r.ok, true, "render must succeed");
         t.assertEqual(r.width, 800, "width honoured");
@@ -1380,7 +1380,7 @@ if (!clientAvailable() || !routeAvailable()) {
         t.assertTrue(r.bytes > 1000, "PNG has real bytes");
     });
 
-    AgentTest.run("56_debug_pathchart: byte-identical across transports", function (t) {
+    ScriptTest.run("56_debug_pathchart: byte-identical across transports", function (t) {
         var args = { width: 640, height: 480, save: false };
         var direct = Agent.invoke("mc.debug.pathChart", args);
         var viaTcp = Agent.system.rpcRoundtrip("mc.debug.pathChart", args);

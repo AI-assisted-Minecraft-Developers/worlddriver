@@ -133,8 +133,8 @@ The context is derived from exactly the executor state the ascent path reads tod
 - **Clock/counters the machine now OWNS** (moved off `Walker`'s field list, `Walker.java:159–226`):
   a per-episode tick counter, an actuation-progress marker, and the pillar-recover sub-state
   (`pillarRecoverLatch/Cell/PeakY/StallTicks`, `Walker.java:159–162`) that ASCEND absorbs (§4).
-- **Input sink** — the `agentForward/agentJump/agentSneak/aim` channel the machine drives (the same
-  helpers `tickInner` calls, e.g. `agentJump(a,…)` `Walker.java:670`).
+- **Input sink** — the `avatarForward/avatarJump/avatarSneak/aim` channel the machine drives (the same
+  helpers `tickInner` calls, e.g. `avatarJump(a,…)` `Walker.java:670`).
 
 The context is constructed once per delegated tick from live `Walker` state; the machine does not
 retain references across ticks except through its own owned sub-state (which `Walker` holds on its

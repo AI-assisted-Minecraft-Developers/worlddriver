@@ -23,12 +23,12 @@ function scene(center, radius, render) {
 // 5/8 in full-wheel runs (order/timing dependent; solo runs always won the
 // race). Pin the whole work strip for the duration of this file; the last
 // test releases it. (Deterministic-rig template: REGRESSION.md arena rig.)
-AgentTest.run("50_scene: rig — forceload the z=0..300 work strip", function (t) {
+ScriptTest.run("50_scene: rig — forceload the z=0..300 work strip", function (t) {
     var r = Agent.invoke("mc.action.runCommand", { cmd: "forceload add -8 -8 8 308" });
     t.assertEqual(r.ok, true, "forceload add must succeed");
 });
 
-AgentTest.run("50_scene: flat ground -> no lethal cells", function (t) {
+ScriptTest.run("50_scene: flat ground -> no lethal cells", function (t) {
     var ox = 0, oy = 200, oz = 0;
     // Build a stone platform (9x9) at y=199 with clear air above (y=200..205)
     // within the loaded test region around (0,200,0).
@@ -46,7 +46,7 @@ AgentTest.run("50_scene: flat ground -> no lethal cells", function (t) {
 // Center (0,200,50). Stone platform at y=199. Neighbour at x=+1 has a pit
 // 23 blocks deep: air y=177..199, solid stone floor at y=176.
 // drop = center.y(200) - foot.y(177) = 23 > survivableFall(22) -> lethal.
-AgentTest.run("50_scene: deep pit neighbour is lethal (V)", function (t) {
+ScriptTest.run("50_scene: deep pit neighbour is lethal (V)", function (t) {
     var ox = 0, oy = 200, oz = 50;
     // Full 9x9 stone platform at y=199, clear air y=200..205.
     fill(ox - 4, oy - 1, oz - 4, ox + 4, oy - 1, oz + 4, "minecraft:stone");
@@ -64,7 +64,7 @@ AgentTest.run("50_scene: deep pit neighbour is lethal (V)", function (t) {
 
 // ── Test 3: shallow step-down is NOT lethal ───────────────────────────────────
 // Center (0,200,100). Neighbour at x=+1 drops 3 blocks (drop 3 <= 22) -> not lethal.
-AgentTest.run("50_scene: shallow step-down is NOT lethal", function (t) {
+ScriptTest.run("50_scene: shallow step-down is NOT lethal", function (t) {
     var ox = 0, oy = 200, oz = 100;
     fill(ox - 4, oy - 1, oz - 4, ox + 4, oy - 1, oz + 4, "minecraft:stone");
     fill(ox - 4, oy,     oz - 4, ox + 4, oy + 5, oz + 4, "minecraft:air");
@@ -82,7 +82,7 @@ AgentTest.run("50_scene: shallow step-down is NOT lethal", function (t) {
 // Center (0,200,150). Neighbour at x=+1 has a deep pit with lava at the top.
 // drop = 23 > 22 -> lethal regardless of lava (lava is passable so scan goes
 // through it; foot lands on stone at y=176, drop=23).
-AgentTest.run("50_scene: lava pit neighbour is lethal", function (t) {
+ScriptTest.run("50_scene: lava pit neighbour is lethal", function (t) {
     var ox = 0, oy = 200, oz = 150;
     fill(ox - 4, oy - 1, oz - 4, ox + 4, oy - 1, oz + 4, "minecraft:stone");
     fill(ox - 4, oy,     oz - 4, ox + 4, oy + 5, oz + 4, "minecraft:air");
@@ -102,7 +102,7 @@ AgentTest.run("50_scene: lava pit neighbour is lethal", function (t) {
 // Center (0,200,200). deepWaterMax=2 (hardcoded in ObserveApi.scene).
 //   Lethal side  (x=+1): water at y=200 AND y=199, stone at y=198 -> depth=2 -> lethal.
 //   Safe side    (x=-1): water at y=200 only, stone at y=199       -> depth=1 -> not lethal.
-AgentTest.run("50_scene: deep water (>=2) lethal, shallow (1) not", function (t) {
+ScriptTest.run("50_scene: deep water (>=2) lethal, shallow (1) not", function (t) {
     var ox = 0, oy = 200, oz = 200;
     // Build platform and clear air.
     fill(ox - 4, oy - 1, oz - 4, ox + 4, oy - 1, oz + 4, "minecraft:stone");
@@ -141,7 +141,7 @@ AgentTest.run("50_scene: deep water (>=2) lethal, shallow (1) not", function (t)
 // with stone still at y=199 under it so the column exists — but the body/head
 // hazard check fires first and returns contactDamage=true, lethal=true.
 // Center cell itself is air at y=200 -> should still be walkable (no hazard there).
-AgentTest.run("50_scene: lava at body level renders '!' and is lethal", function (t) {
+ScriptTest.run("50_scene: lava at body level renders '!' and is lethal", function (t) {
     var ox = 0, oy = 200, oz = 250;
     // 9x9 stone platform at y=199, clear air y=200..205.
     fill(ox - 4, oy - 1, oz - 4, ox + 4, oy - 1, oz + 4, "minecraft:stone");
@@ -164,7 +164,7 @@ AgentTest.run("50_scene: lava at body level renders '!' and is lethal", function
 
 // ── Test 7: radius clamps to 32 with truncation report ───────────────────────
 // Request radius=99 -> should clamp to 32 and report truncated:true, requested:99.
-AgentTest.run("50_scene: radius clamps to 32 with truncation report", function (t) {
+ScriptTest.run("50_scene: radius clamps to 32 with truncation report", function (t) {
     // Use a pre-built flat area (the test-5 platform at oz=200 works fine).
     var s = Agent.invoke("mc.observe.scene", { center: { x: 0, y: 200, z: 200 }, radius: 99 });
     t.assertEqual(s.radius, 32, "radius clamped to 32");
@@ -175,7 +175,7 @@ AgentTest.run("50_scene: radius clamps to 32 with truncation report", function (
 // ── Test 8: height overlay reports centerY / minY / maxY ─────────────────────
 // Center (0,200,300). Flat stone platform at y=199 -> surface Y = 200 for all
 // standable cells, so minY == maxY == 200 and centerY == 200.
-AgentTest.run("50_scene: height overlay reports centerY/minY/maxY", function (t) {
+ScriptTest.run("50_scene: height overlay reports centerY/minY/maxY", function (t) {
     var ox = 0, oy = 200, oz = 300;
     fill(ox - 4, oy - 1, oz - 4, ox + 4, oy - 1, oz + 4, "minecraft:stone");
     fill(ox - 4, oy,     oz - 4, ox + 4, oy + 5, oz + 4, "minecraft:air");
@@ -192,7 +192,7 @@ AgentTest.run("50_scene: height overlay reports centerY/minY/maxY", function (t)
 });
 
 // Rig teardown — release the chunk pin added by the first test in this file.
-AgentTest.run("50_scene: rig — release the forceloaded work strip", function (t) {
+ScriptTest.run("50_scene: rig — release the forceloaded work strip", function (t) {
     var r = Agent.invoke("mc.action.runCommand", { cmd: "forceload remove -8 -8 8 308" });
     t.assertEqual(r.ok, true, "forceload remove must succeed");
 });

@@ -8,14 +8,14 @@ import java.util.Map;
 import java.util.Set;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.AgentApi;
+import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.RecipeApi;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.process.CraftProcess;
 import net.magicterra.worlddriver.bot.process.RecipeResolver;
 import net.magicterra.worlddriver.bot.process.SmeltProcess;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
-import net.magicterra.worlddriver.bot.sim.ServerAgentManager;
+import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.model.Params;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -152,29 +152,29 @@ public final class WorldDriverStationScenes implements SceneProvider {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
         BotConfig.walkerDebug = false;
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
 
         ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
         ctx.cleanup(() -> driver.fakePlayer().discard());
         driver.fakePlayer().getInventory().clearContent();
         driver.fakePlayer().getInventory().add(new ItemStack(Items.OAK_LOG, 1));
         driver.runProcess(new CraftProcess("minecraft:oak_planks", 4));
-        ServerAgentManager.register(driver);
-        for (int t = 0; t < 300 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        ServerAvatarManager.register(driver);
+        for (int t = 0; t < 300 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         ServerPlayer fp = driver.fakePlayer();
         int planks = 0;
         for (ItemStack stk : fp.getInventory().items)
             if (stk.getItem() == Items.OAK_PLANKS) planks += stk.getCount();
         WorldDriverCommon.LOG.info("[wd.serverCraft] planks={} finished={} active={} err={}",
-                planks, driver.finished(), ServerAgentManager.activeCount(), driver.botState().craft.lastError);
+                planks, driver.finished(), ServerAvatarManager.activeCount(), driver.botState().craft.lastError);
         if (planks < 4)
             ctx.fail("wd.serverCraft: server CraftProcess (2x2 inventory) did not craft planks: got " + planks);
-        if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+        if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
             ctx.fail("wd.serverCraft: server CraftProcess did not finish+unregister: active="
-                    + ServerAgentManager.activeCount());
+                    + ServerAvatarManager.activeCount());
     }
 
     /** Ported from {@code serverRecipeSpeciesArena}: pure {@link RecipeResolver} test — a bot holding
@@ -320,8 +320,8 @@ public final class WorldDriverStationScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         BotConfig.walkerDebug = false;
         BotConfig.craftReclaimTable = true;
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
 
         // (A) PLACED table → reclaimed. Bot carries a table + pickaxe materials → places its own.
         final int ax = cx, az = cz;
@@ -337,9 +337,9 @@ public final class WorldDriverStationScenes implements SceneProvider {
         da.fakePlayer().getInventory().add(new ItemStack(Items.OAK_PLANKS, 3));
         da.fakePlayer().getInventory().add(new ItemStack(Items.STICK, 2));
         da.runProcess(new CraftProcess("minecraft:wooden_pickaxe", 1));
-        ServerAgentManager.register(da);
-        for (int t = 0; t < 400 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        ServerAvatarManager.register(da);
+        for (int t = 0; t < 400 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         int tablesLeft = 0;
         for (int dx = -3; dx <= 3; dx++)
@@ -349,18 +349,18 @@ public final class WorldDriverStationScenes implements SceneProvider {
                         tablesLeft++;
         String errA = da.botState().craft.lastError;
         WorldDriverCommon.LOG.info("[wd.serverCraftTableReclaim] A finished={} active={} tablesLeft={} err={}",
-                da.finished(), ServerAgentManager.activeCount(), tablesLeft, errA);
+                da.finished(), ServerAvatarManager.activeCount(), tablesLeft, errA);
 
-        if (!da.finished() || ServerAgentManager.activeCount() != 0)
+        if (!da.finished() || ServerAvatarManager.activeCount() != 0)
             ctx.fail("wd.serverCraftTableReclaim: craft did not terminate after reclaim: finished="
-                    + da.finished() + " active=" + ServerAgentManager.activeCount());
+                    + da.finished() + " active=" + ServerAvatarManager.activeCount());
         if (tablesLeft != 0)
             ctx.fail("wd.serverCraftTableReclaim: placed crafting_table was abandoned (gap #276): "
                     + tablesLeft + " still standing near the bot");
         if (errA == null || !errA.contains("工作台"))
             ctx.fail("wd.serverCraftTableReclaim: reclaim overwrote the craft's error: " + errA);
 
-        ServerAgentManager.clear();
+        ServerAvatarManager.clear();
 
         // (B) SAFETY CRUX: a table already STANDING is borrowed, never broken. Relocated +16 X.
         final int bx = cx + 16, bz = cz;
@@ -377,9 +377,9 @@ public final class WorldDriverStationScenes implements SceneProvider {
         db.fakePlayer().getInventory().add(new ItemStack(Items.OAK_PLANKS, 3));
         db.fakePlayer().getInventory().add(new ItemStack(Items.STICK, 2));   // NO table item
         db.runProcess(new CraftProcess("minecraft:wooden_pickaxe", 1));
-        ServerAgentManager.register(db);
-        for (int t = 0; t < 400 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        ServerAvatarManager.register(db);
+        for (int t = 0; t < 400 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         boolean survived = level.getBlockState(preExisting).is(Blocks.CRAFTING_TABLE);
         WorldDriverCommon.LOG.info("[wd.serverCraftTableReclaim] B finished={} preExistingSurvived={}",
@@ -400,8 +400,8 @@ public final class WorldDriverStationScenes implements SceneProvider {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
         BotConfig.walkerDebug = false;
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> scrub(level, cx, cz, floorY, 3, 4));
 
         clearBox(level, cx, floorY + 1, cz, 3, 3);
@@ -422,7 +422,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         worn.setDamageValue(245);
         fp.getInventory().setItem(4, worn);
 
-        Map<String, Object> snap = new AgentApi().observe.playerSnapshot(fp);
+        Map<String, Object> snap = new DriverApi().observe.playerSnapshot(fp);
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> inv = (List<Map<String, Object>>) snap.get("inventory");
@@ -499,8 +499,8 @@ public final class WorldDriverStationScenes implements SceneProvider {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
         BotConfig.walkerDebug = false;
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> scrub(level, cx, cz, floorY, 3, 4));
 
         clearBox(level, cx, floorY + 1, cz, 3, 3);
@@ -578,8 +578,8 @@ public final class WorldDriverStationScenes implements SceneProvider {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
         BotConfig.walkerDebug = false;
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
 
         ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
         ctx.cleanup(() -> driver.fakePlayer().discard());
@@ -587,16 +587,16 @@ public final class WorldDriverStationScenes implements SceneProvider {
         driver.fakePlayer().getInventory().add(new ItemStack(Items.RAW_IRON, 4));
         driver.fakePlayer().getInventory().add(new ItemStack(Items.COAL, 4));
         driver.runProcess(new SmeltProcess("minecraft:raw_iron", 4, "minecraft:coal"));
-        ServerAgentManager.register(driver);
-        for (int t = 0; t < 200 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        ServerAvatarManager.register(driver);
+        for (int t = 0; t < 200 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         String err = driver.botState().smelt.lastError;
         WorldDriverCommon.LOG.info("[wd.serverSmeltCliff] finished={} active={} err={}",
-                driver.finished(), ServerAgentManager.activeCount(), err);
-        if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                driver.finished(), ServerAvatarManager.activeCount(), err);
+        if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
             ctx.fail("wd.serverSmeltCliff: server SmeltProcess did not degrade gracefully (still active): "
-                    + ServerAgentManager.activeCount());
+                    + ServerAvatarManager.activeCount());
         if (err == null || !err.contains("熔炉"))
             ctx.fail("wd.serverSmeltCliff: server SmeltProcess ended with an unexpected error: " + err);
     }
@@ -613,8 +613,8 @@ public final class WorldDriverStationScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         BotConfig.walkerDebug = false;
         BotConfig.craftReclaimTable = false;
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         // Legacy scrubbed [-3,3] × dy[0,4] on exit; the two-layer floor reaches [-2,2], so this covers it.
         ctx.cleanup(() -> {
             for (int dx = -3; dx <= 3; dx++)
@@ -638,9 +638,9 @@ public final class WorldDriverStationScenes implements SceneProvider {
         driver.fakePlayer().getInventory().add(new ItemStack(Items.OAK_PLANKS, 3));
         driver.fakePlayer().getInventory().add(new ItemStack(Items.STICK, 2));
         driver.runProcess(new CraftProcess("minecraft:wooden_pickaxe", 1));
-        ServerAgentManager.register(driver);
-        for (int t = 0; t < 400 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        ServerAvatarManager.register(driver);
+        for (int t = 0; t < 400 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         int tables = 0;
         for (int dx = -3; dx <= 3; dx++)
@@ -650,7 +650,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
                         tables++;
         String err = driver.botState().craft.lastError;
         WorldDriverCommon.LOG.info("[wd.serverCraftTableHoleRim] finished={} active={} tables={} err={}",
-                driver.finished(), ServerAgentManager.activeCount(), tables, err);
+                driver.finished(), ServerAvatarManager.activeCount(), tables, err);
         if (tables == 0)
             ctx.fail("wd.serverCraftTableHoleRim: bot in a 1-deep hole placed NO crafting table (gap#61: "
                     + "rim dy=+1 not searched): lastError=" + err);
@@ -666,8 +666,8 @@ public final class WorldDriverStationScenes implements SceneProvider {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
         BotConfig.walkerDebug = false;
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -3; dx <= 3; dx++)
                 for (int dy = 0; dy <= 4; dy++)
@@ -689,9 +689,9 @@ public final class WorldDriverStationScenes implements SceneProvider {
         driver.fakePlayer().getInventory().add(new ItemStack(Items.RAW_IRON, 3));
         driver.fakePlayer().getInventory().add(new ItemStack(Items.COAL, 8));
         driver.runProcess(new SmeltProcess("minecraft:raw_iron", 3, null));
-        ServerAgentManager.register(driver);
-        for (int t = 0; t < 400 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        ServerAvatarManager.register(driver);
+        for (int t = 0; t < 400 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         int furnaces = 0;
         for (int dx = -3; dx <= 3; dx++)
@@ -701,7 +701,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
                         furnaces++;
         String err = driver.botState().smelt.lastError;
         WorldDriverCommon.LOG.info("[wd.serverSmeltFurnaceHoleRim] finished={} active={} furnaces={} err={}",
-                driver.finished(), ServerAgentManager.activeCount(), furnaces, err);
+                driver.finished(), ServerAvatarManager.activeCount(), furnaces, err);
         if (furnaces == 0)
             ctx.fail("wd.serverSmeltFurnaceHoleRim: bot in a 1-deep hole placed NO furnace (gap#62: "
                     + "placeFurnace lags placeTable's candidate scan): lastError=" + err);
@@ -724,8 +724,8 @@ public final class WorldDriverStationScenes implements SceneProvider {
         // Full-footprint scrub on every exit (legacy only cleared the furnace block).
         ctx.cleanup(() -> scrub(level, x0, z0, floorY, 2, 3));
 
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
 
         Container furnace = (Container) level.getBlockEntity(fpos);
 
@@ -739,7 +739,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         fp.getInventory().add(new ItemStack(Items.COAL, 8));
         fp.getInventory().add(new ItemStack(Items.RAW_IRON, 3));
         driver.runProcess(new SmeltProcess("minecraft:raw_iron", 2, null));
-        ServerAgentManager.register(driver);
+        ServerAvatarManager.register(driver);
 
         var menu = ((MenuProvider) level.getBlockEntity(fpos)).createMenu(77, fp.getInventory(), fp);
 
@@ -747,7 +747,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         for (int t = 0; t < 80 && furnace.getItem(0).isEmpty(); t++) {
             if (!(fp.containerMenu instanceof AbstractFurnaceMenu) && menu != null)
                 fp.containerMenu = menu;
-            ServerAgentManager.tickAll();
+            ServerAvatarManager.tickAll();
         }
         ItemStack fuelLoaded = furnace.getItem(1);
         WorldDriverCommon.LOG.info("[wd.smeltFuelPolicy] after LOAD: in={} fuel={} tableInBag={}",
@@ -760,7 +760,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         // Phase 2 — simulate the fire dying with input still to cook: reload (next-best = planks).
         furnace.setItem(1, ItemStack.EMPTY);
-        for (int t = 0; t < 40 && furnace.getItem(1).isEmpty(); t++) ServerAgentManager.tickAll();
+        for (int t = 0; t < 40 && furnace.getItem(1).isEmpty(); t++) ServerAvatarManager.tickAll();
         ItemStack refuel = furnace.getItem(1);
         WorldDriverCommon.LOG.info("[wd.smeltFuelPolicy] after burn-out: fuel={}", refuel);
         if (refuel.getItem() != Items.OAK_PLANKS)
@@ -769,7 +769,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         // Phase 3 — cook (inject result) and let the process finish: ALL THREE slots taken back.
         furnace.setItem(2, new ItemStack(Items.IRON_INGOT, 2));
-        for (int t = 0; t < 60 && ServerAgentManager.activeCount() > 0; t++) ServerAgentManager.tickAll();
+        for (int t = 0; t < 60 && ServerAvatarManager.activeCount() > 0; t++) ServerAvatarManager.tickAll();
         WorldDriverCommon.LOG.info("[wd.smeltFuelPolicy] end: ingot={} rawIron={} planks={} coal={} slots=[{},{},{}] err={}",
                 countItem(fp, Items.IRON_INGOT), countItem(fp, Items.RAW_IRON),
                 countItem(fp, Items.OAK_PLANKS), countItem(fp, Items.COAL),
@@ -803,8 +803,8 @@ public final class WorldDriverStationScenes implements SceneProvider {
         level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.STONE.defaultBlockState());
         ctx.cleanup(() -> level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.AIR.defaultBlockState()));
 
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
 
         ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
         ctx.cleanup(() -> driver.fakePlayer().discard());
@@ -841,8 +841,8 @@ public final class WorldDriverStationScenes implements SceneProvider {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
         BotConfig.walkerDebug = false;
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
 
         ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
         ctx.cleanup(() -> driver.fakePlayer().discard());
@@ -850,9 +850,9 @@ public final class WorldDriverStationScenes implements SceneProvider {
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.ACACIA_LOG, 1));
         driver.runProcess(new CraftProcess("minecraft:acacia_planks", 4));
-        ServerAgentManager.register(driver);
-        for (int t = 0; t < 300 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        ServerAvatarManager.register(driver);
+        for (int t = 0; t < 300 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         InventoryMenu invMenu = (InventoryMenu) fp.inventoryMenu;
         boolean gridEmpty = true;
@@ -867,9 +867,9 @@ public final class WorldDriverStationScenes implements SceneProvider {
             ctx.fail("wd.serverCraftGridConservation: expected the single acacia_log fully consumed, got " + logs + " remaining");
         if (planks != 4)
             ctx.fail("wd.serverCraftGridConservation: expected 4 acacia_planks, got " + planks);
-        if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+        if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
             ctx.fail("wd.serverCraftGridConservation: server CraftProcess did not finish+unregister: active="
-                    + ServerAgentManager.activeCount());
+                    + ServerAvatarManager.activeCount());
     }
 
     /** In-memory log4j2 appender (inlined from {@code AgentGameTestServer.CraftLogCatcher}) used only
@@ -903,16 +903,16 @@ public final class WorldDriverStationScenes implements SceneProvider {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
         BotConfig.walkerDebug = false;
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
 
         ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
         ctx.cleanup(() -> driver.fakePlayer().discard());
         driver.fakePlayer().getInventory().clearContent();   // zero materials: plan() must report "缺 …"
         driver.runProcess(new CraftProcess("minecraft:oak_planks", 4));
-        ServerAgentManager.register(driver);
-        for (int t = 0; t < 60 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        ServerAvatarManager.register(driver);
+        for (int t = 0; t < 60 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         String err = driver.botState().craft.lastError;
         boolean sawFailLog = catcher.lines.stream().anyMatch(l -> l.startsWith("[craft]") && l.contains("fail"));
@@ -951,8 +951,8 @@ public final class WorldDriverStationScenes implements SceneProvider {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
         BotConfig.walkerDebug = false;
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
 
         ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
         ctx.cleanup(() -> driver.fakePlayer().discard());
@@ -964,9 +964,9 @@ public final class WorldDriverStationScenes implements SceneProvider {
         fp.containerMenu = new DummyMenu(1);
 
         driver.runProcess(new CraftProcess("minecraft:oak_planks", 4));
-        ServerAgentManager.register(driver);
-        for (int t = 0; t < 60 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        ServerAvatarManager.register(driver);
+        for (int t = 0; t < 60 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         String err = driver.botState().craft.lastError;
         boolean gridEmpty = true;
@@ -983,8 +983,8 @@ public final class WorldDriverStationScenes implements SceneProvider {
         if (logs != 1 || sticks != 2)
             ctx.fail("wd.serverCraftFailGridReturn: gap#67-③ (final-review #1): stranded grid material not returned "
                     + "to inventory on FAIL: logs=" + logs + " (want 1) sticks=" + sticks + " (want 2)");
-        if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+        if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
             ctx.fail("wd.serverCraftFailGridReturn: server CraftProcess did not finish+unregister: active="
-                    + ServerAgentManager.activeCount());
+                    + ServerAvatarManager.activeCount());
     }
 }

@@ -1,4 +1,4 @@
-AgentTest.run("03_events_since: cursor + setblock destroy produces block.break event", function(t) {
+ScriptTest.run("03_events_since: cursor + setblock destroy produces block.break event", function(t) {
     var cursorBefore = Agent.observe.cursor();
     var origin = Agent.system.testOrigin();
     // Destroy one of the seeded stones

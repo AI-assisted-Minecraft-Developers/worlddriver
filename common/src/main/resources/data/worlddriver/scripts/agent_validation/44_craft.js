@@ -9,7 +9,7 @@ function clientAvailable() {
     catch (e) { return false; }
 }
 
-// Top-level so the deferred AgentTest.run callbacks can see them.
+// Top-level so the deferred ScriptTest.run callbacks can see them.
 function cleanup() {
     Agent.invoke("mc.bot.cancel", { process: "all" });
     Agent.invoke("mc.action.runCommand", { cmd: "clear @s" });
@@ -56,7 +56,7 @@ function awaitSlot(slot, maxTicks) {
     return Agent.invoke("mc.bot.status", {})[slot];
 }
 
-AgentTest.run("44_craft: mc.bot.craft reports missing materials, not a crash", function(t) {
+ScriptTest.run("44_craft: mc.bot.craft reports missing materials, not a crash", function(t) {
     if (!clientAvailable()) { return; }   // behaviour is client-only
     cleanup();
     Agent.system.waitTicks(2);
@@ -70,10 +70,10 @@ AgentTest.run("44_craft: mc.bot.craft reports missing materials, not a crash", f
 });
 
 if (!clientAvailable()) {
-    AgentTest.run("44_craft: behaviour skipped (no client api — dedicated server)", function(t) {});
+    ScriptTest.run("44_craft: behaviour skipped (no client api — dedicated server)", function(t) {});
 } else {
 
-    AgentTest.run("44_craft: 2x2 inventory craft makes a crafting table from planks", function(t) {
+    ScriptTest.run("44_craft: 2x2 inventory craft makes a crafting table from planks", function(t) {
         cleanup();
         Agent.system.waitTicks(2);
         giveAndWait("minecraft:oak_planks", 4);
@@ -86,7 +86,7 @@ if (!clientAvailable()) {
         cleanup();
     });
 
-    AgentTest.run("44_craft: 3x3 table craft makes a wooden pickaxe (places + opens a table)", function(t) {
+    ScriptTest.run("44_craft: 3x3 table craft makes a wooden pickaxe (places + opens a table)", function(t) {
         cleanup();
         Agent.system.waitTicks(2);
         // Give all leaves so the only step is the 3x3 pickaxe, plus a table to place.
@@ -102,7 +102,7 @@ if (!clientAvailable()) {
         cleanup();
     });
 
-    AgentTest.run("44_craft: smelt raw iron into an iron ingot in a furnace", function(t) {
+    ScriptTest.run("44_craft: smelt raw iron into an iron ingot in a furnace", function(t) {
         cleanup();
         Agent.system.waitTicks(2);
         giveAndWait("minecraft:furnace", 1);

@@ -38,7 +38,7 @@ import net.minecraft.world.entity.LivingEntity;
 /**
  * World/player observation for {@code mc.observe.player} (client fallback),
  * {@code mc.query} (client fallback) and {@code mc.observe.container} (open
- * menu). Stateless; extracted from {@code ClientAgentApiImpl}.
+ * menu). Stateless; extracted from {@code ClientDriverApiImpl}.
  */
 public final class ClientObserve {
     private ClientObserve() {}

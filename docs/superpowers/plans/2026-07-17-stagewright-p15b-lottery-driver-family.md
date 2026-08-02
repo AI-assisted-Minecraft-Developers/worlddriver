@@ -14,7 +14,7 @@
 - 移植保真：断言数值/循环上限/两阶段结构原值；同步循环原样进 body。唯一 sanctioned 身体偏差：`ServerWorldDriver.create` → `createIsolated`（唯一身体，同 P1c create→createUnique 先例，javadoc 注明）。
 - **solo 定性必须真单名**（P1.5a 实证：多名 AGENT_GT_ONLY 非完全隔离）——所有 A/B 基线一律 `AGENT_GT_ONLY=<单个名字>`。
 - 若 legacy 单名 solo RED（Task 3 selfShaftDigUp 先例）：先证移植保真（指标同值），STOP 报 BLOCKED 交裁决，不许自行降 optional、不许调松断言。
-- 每场景 `BotConfig.pinnedBaseline()` 先注册 + `ctx.cleanup` 里 targeted `ServerAgentManager.unregister(driver)` + fp discard（LIFO：unregister/discard 先跑、pin 最后关）；`clear()` 只许作兜底且注明理由。
+- 每场景 `BotConfig.pinnedBaseline()` 先注册 + `ctx.cleanup` 里 targeted `ServerAvatarManager.unregister(driver)` + fp discard（LIFO：unregister/discard 先跑、pin 最后关）；`clear()` 只许作兜底且注明理由。
 - optional 治理规则（README 已立）：任何 withRequired(false) 必须 javadoc 引 task 编号。
 - 运行纪律：前台 Bash timeout；禁 pkill；子代理绝不带后台任务结束回合（有界前台轮询收割）；legacy 全量 RED 按 P0 协议单名 solo 定性、不 fishing。
 
@@ -182,8 +182,8 @@ git commit -m "feat(testkit): task#86 sensor -> required golden-failure signatur
 - Modify: `scripts/stagewright/expected-scenes-neoforge.txt`（+wd.gearScope）
 
 **Interfaces:**
-- Consumes: legacy `serverAvatarGearScopeProbeArena`（`AgentGameTestServer.java:2259-2339`）：7×5 pad+clearBox、`ServerWorldDriver.create`、probeSwing×2（空手/铁剑）、probeHurt×2（裸/穿甲）、断言剑伤≥3×拳伤、ATTACK_SPEED=1.6、ATTACK_DAMAGE=6.0、`ServerAgentManager.clear()` 收尾、config 仅 walkerDebug。
-- Produces: `wd.gearScope`（auto 槽、默认半径——足迹审计写 javadoc）；**driver 类场景移植模式**（后续两任务沿用）：`createIsolated` + `ctx.cleanup(() -> { ServerAgentManager.unregister(driver); fp.discard(); })`（若 legacy 未 register 则只 discard；clear() 不用——targeted 优先，porting map 记录理由）。
+- Consumes: legacy `serverAvatarGearScopeProbeArena`（`AgentGameTestServer.java:2259-2339`）：7×5 pad+clearBox、`ServerWorldDriver.create`、probeSwing×2（空手/铁剑）、probeHurt×2（裸/穿甲）、断言剑伤≥3×拳伤、ATTACK_SPEED=1.6、ATTACK_DAMAGE=6.0、`ServerAvatarManager.clear()` 收尾、config 仅 walkerDebug。
+- Produces: `wd.gearScope`（auto 槽、默认半径——足迹审计写 javadoc）；**driver 类场景移植模式**（后续两任务沿用）：`createIsolated` + `ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); })`（若 legacy 未 register 则只 discard；clear() 不用——targeted 优先，porting map 记录理由）。
 
 - [ ] **Step 1: probe 提升 + 直译移植 + 清单追加**（porting 规则同前例；probe 调用点从类内直呼变 `AgentGameTestServer.probeSwing(...)` 显式引用）
 
@@ -210,7 +210,7 @@ git commit -m "feat(testkit): dogfood wave 2b — wd.gearScope migrated (driver 
 - Modify: `WorldDriverScenes.java` + `AgentGameTestServer.java`（javadoc）+ `expected-scenes-neoforge.txt`（+wd.buriedOre）
 
 **Interfaces:**
-- Consumes: legacy `serverMineBuriedOreArena`（`AgentGameTestServer.java:3240-3305`）：石方块埋 iron_ore、`ServerWorldDriver` + `MineProcess` + `ServerAgentManager.register/tickAll` 循环、断言 oreMined+process finished+unregistered、finally 整 rig 清除。
+- Consumes: legacy `serverMineBuriedOreArena`（`AgentGameTestServer.java:3240-3305`）：石方块埋 iron_ore、`ServerWorldDriver` + `MineProcess` + `ServerAvatarManager.register/tickAll` 循环、断言 oreMined+process finished+unregistered、finally 整 rig 清除。
 - Produces: `wd.buriedOre`（auto 槽）；tickAll 循环原样进 body（manager 只 tick 本场景注册的 driver——dogfood 服上无其它 agent，porting map 注明该假设）。
 
 - [ ] **Step 1: 直译移植**（Task 3 的 driver 模式：createIsolated、cleanup targeted unregister+discard；legacy 的 finally rig 清除改 `ctx.cleanup`——网格隔离下方块残留无害但保持对称）

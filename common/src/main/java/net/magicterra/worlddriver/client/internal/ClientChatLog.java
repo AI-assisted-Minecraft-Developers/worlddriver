@@ -27,7 +27,7 @@ import java.util.Map;
  * cross the packet layer and are NOT captured here.
  *
  * <p>Seq spaces: this log's {@code seq} and the event buffer's cursor
- * ({@code AgentApi.events} / {@code mc.observe.eventsSince}) are SEPARATE
+ * ({@code DriverApi.events} / {@code mc.observe.eventsSince}) are SEPARATE
  * monotonic sequences — never feed one's cursor to the other. The
  * {@code client.message} event stream drains this log, and its rows carry the
  * chat {@code seq} (see {@link Entry#row()}), so consumers can reconcile an

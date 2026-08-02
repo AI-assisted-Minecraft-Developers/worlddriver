@@ -1,7 +1,7 @@
 // ROADMAP Phase F — equipment management (T1 verb + T0 autoEquip). mc.bot.equip is
 // client-only (reads the client inventory menu + slot-clicks), so the tests self-skip
 // with a recorded PASS on the dedicated GameTest server and run for real in fabric
-// runClient. AgentTest is CREATIVE — /give drops items into the inventory (not worn),
+// runClient. ScriptTest is CREATIVE — /give drops items into the inventory (not worn),
 // and the client inventory lags the server /give by a few ticks, so we equip on a
 // short retry loop (the verb is idempotent) rather than a fixed sleep.
 
@@ -42,10 +42,10 @@ function equipUntil(profile, slot, wantNeedle) {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("45_equip: skipped (no client api — dedicated server)", function(t) {});
+    ScriptTest.run("45_equip: skipped (no client api — dedicated server)", function(t) {});
 } else {
 
-    AgentTest.run("45_equip: equips the best armor on every slot (diamond over iron)", function(t) {
+    ScriptTest.run("45_equip: equips the best armor on every slot (diamond over iron)", function(t) {
         cleanup();
         ["iron_helmet", "diamond_helmet", "iron_chestplate", "diamond_chestplate",
          "iron_leggings", "diamond_leggings", "iron_boots", "diamond_boots"].forEach(function(a) {
@@ -73,7 +73,7 @@ if (!clientAvailable()) {
         cleanup();
     });
 
-    AgentTest.run("45_equip: picks the best weapon — sword over axe, by tier", function(t) {
+    ScriptTest.run("45_equip: picks the best weapon — sword over axe, by tier", function(t) {
         cleanup();
         give("minecraft:diamond_axe");
         give("minecraft:iron_sword");
@@ -84,7 +84,7 @@ if (!clientAvailable()) {
         cleanup();
     });
 
-    AgentTest.run("45_equip: flags a low-durability equipped item", function(t) {
+    ScriptTest.run("45_equip: flags a low-durability equipped item", function(t) {
         cleanup();
         // Diamond sword max durability 1561; damage 1555 → ~0.4% left, well under the
         // default 10% threshold. 1.21 component syntax: [damage=N].
@@ -97,7 +97,7 @@ if (!clientAvailable()) {
         cleanup();
     });
 
-    AgentTest.run("45_equip: reports missing armor slots", function(t) {
+    ScriptTest.run("45_equip: reports missing armor slots", function(t) {
         cleanup();
         give("minecraft:diamond_helmet");   // only a helmet — three slots stay empty
         var r = equipUntil("armor", "head", "diamond_helmet");
@@ -108,7 +108,7 @@ if (!clientAvailable()) {
         cleanup();
     });
 
-    AgentTest.run("45_equip: autoEquip + threshold settings round-trip", function(t) {
+    ScriptTest.run("45_equip: autoEquip + threshold settings round-trip", function(t) {
         var r = Agent.invoke("mc.bot.setting", { autoEquip: true, equipDurabilityThreshold: 0.25 });
         t.assertEqual(r.ok, true, "write ok");
         t.assertTrue(r.applied.indexOf("autoEquip") >= 0, "autoEquip applied");

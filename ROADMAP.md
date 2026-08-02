@@ -29,7 +29,7 @@ LLM）/ **L1 process**（有界技能，数秒闭环）/ **L2 Agent**（外部 L
 ### 1.1 🟡 执行层 actuation：去全局键盘化（发包驱动）
 
 三层模型决定"谁掌控"，这一层决定"L0/L1 如何按键驱动玩家"。方向：**绝不写人类共享的 `mc.options.keyXXX`，
-改驱动玩家自己的输入对象（`AgentInput` 的 impulse/jumping/shiftKeyDown）+ `setSprinting` + gameMode 包**
+改驱动玩家自己的输入对象（`AvatarInput` 的 impulse/jumping/shiftKeyDown）+ `setSprinting` + gameMode 包**
 ——vanilla 自动把它们序列化成 `ServerboundMovePlayer` / `PlayerCommand` 包，这就是"发包不用按键"。
 
 - **根因**：`mc.options.keyXXX` 是人机共享对象，MC 只在 GLFW 按下边沿重置 isDown；旧执行层每 tick `setDown` /
@@ -37,7 +37,7 @@ LLM）/ **L1 process**（有界技能，数秒闭环）/ **L2 Agent**（外部 L
   InputOverrideHandler 抢键问题），且移动硬绑镜头 yaw、slew 滞后时前进键顶错向墙。
 - **收益**：人机共存（手动游玩不被抢键）+ 镜头解耦动态纠偏（impulse 沿真实 heading，不等镜头追上）。
 - 🟡 **已落地**（compiled + headless GT 绿，待 live A/B）：`InputReleaseGate` edge-gate（bot 真按过键才清一次，
-  从不驱动 → 永不碰人类键）+ `AgentInput` 全 locomotion 通道（`commandMove` 解耦 + `commandForward/Jump/Sneak`）+
+  从不驱动 → 永不碰人类键）+ `AvatarInput` 全 locomotion 通道（`commandMove` 解耦 + `commandForward/Jump/Sneak`）+
   `BotInput` facade + `setSprinting`=sprint 发包（反编译 `LocalPlayer` 证：`keySprint.setDown` 在每站点都与
   `setSprinting` 配对，纯冗余可删）→ **Walker + 14 进程/链全迁**（Build/Backfill/Mine/Follow/Farm/BboxFill/
   Escape/Bunker/Bridge/Elytra/Panic/Dodge/Tower/Sleep）。

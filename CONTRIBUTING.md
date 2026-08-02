@@ -27,7 +27,7 @@ Artifacts land under `<platform>/build/libs/`.
 
 The validation suite is the source of truth — JS scripts under
 `common/src/main/resources/data/worlddriver/scripts/agent_validation/` that
-exercise the AgentApi across all three transports (in-JVM, RPC, MCP). They are
+exercise the DriverApi across all three transports (in-JVM, RPC, MCP). They are
 driven end-to-end by the stagewright orchestrators (`scripts/stagewright/`), which
 dogfood a dedicated server with the harness and autorun the wd.* scenes + JS
 suite (the legacy `@GameTest`/GameTestServer path was retired in P4-final):
@@ -64,17 +64,17 @@ through TitleScreen → CreateWorld → in-world via the WebSocket RPC. Outputs
 ## Code layout
 
 ```
-common/   Architectury shared sources — AgentApi, MCP/RPC servers, Rhino glue
+common/   Architectury shared sources — DriverApi, MCP/RPC servers, Rhino glue
 fabric/   Fabric loader entry point + client-side impl of mc.client.*
 neoforge/ NeoForge entry point + client-side impl of mc.client.*
 docs/     Client connection guides
 scripts/  Smoke tests + harness helpers
 ```
 
-The single source of truth is `common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java`.
+The single source of truth is `common/src/main/java/net/magicterra/worlddriver/api/DriverApi.java`.
 Every transport (MCP, WebSocket RPC, in-JVM script) routes through
-`AgentApi.route(method, params)`. **Do not add behavior in a transport without
-going through AgentApi** — the validation suite asserts that all three return
+`DriverApi.route(method, params)`. **Do not add behavior in a transport without
+going through DriverApi** — the validation suite asserts that all three return
 byte-identical results.
 
 ## Conventions
@@ -86,12 +86,12 @@ byte-identical results.
   Reads from `ServerLevel` outside the server thread must use the snapshot
   helpers; do not call `Level` directly from RPC/MCP handler threads.
 - **No transport-specific game state.** If MCP needs something, it goes in
-  AgentApi. Same for RPC. Same for scripts.
+  DriverApi. Same for RPC. Same for scripts.
 - **Spec compliance.** The MCP server is annotated with spec citations (e.g.
   `// spec: 2025-06-18 §5.3 Origin validation`). Keep those up to date when
   touching `McpServer.java`.
 - **Sandbox safety.** Any new Rhino-exposed surface must pass through
-  `AgentClassFilter`. Add a corresponding negative test in `08_sandbox.js`.
+  `ScriptClassFilter`. Add a corresponding negative test in `08_sandbox.js`.
 
 ## Where logs live
 

@@ -12,7 +12,7 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("18_waypoint: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("18_waypoint: skipped (no client api — dedicated server)", function(t) {
         // PASS
     });
 } else {
@@ -20,7 +20,7 @@ if (!clientAvailable()) {
     // Ensure clean slate.
     try { Agent.invoke("mc.bot.waypoint", { op: "clear" }); } catch (e) {}
 
-    AgentTest.run("18_waypoint: save with explicit pos round-trips", function(t) {
+    ScriptTest.run("18_waypoint: save with explicit pos round-trips", function(t) {
         var pos = { x: 10, y: 64, z: 20 };
         var s = Agent.invoke("mc.bot.waypoint", { op: "save", name: "home", pos: pos });
         t.assertEqual(s.ok, true, "save must succeed");
@@ -34,14 +34,14 @@ if (!clientAvailable()) {
         t.assertEqual(g.pos.x, 10, "get returns saved x");
     });
 
-    AgentTest.run("18_waypoint: list reports stored entries", function(t) {
+    ScriptTest.run("18_waypoint: list reports stored entries", function(t) {
         var l = Agent.invoke("mc.bot.waypoint", { op: "list" });
         t.assertEqual(l.ok, true, "list must succeed");
         t.assertTrue(Array.isArray(l.waypoints), "waypoints must be array");
         t.assertTrue(l.count >= 1, "count must reflect stored entries");
     });
 
-    AgentTest.run("18_waypoint: delete removes the entry", function(t) {
+    ScriptTest.run("18_waypoint: delete removes the entry", function(t) {
         Agent.invoke("mc.bot.waypoint", { op: "save", name: "tmp", pos: { x: 1, y: 2, z: 3 } });
         var d = Agent.invoke("mc.bot.waypoint", { op: "delete", name: "tmp" });
         t.assertEqual(d.ok, true, "delete must succeed");
@@ -50,13 +50,13 @@ if (!clientAvailable()) {
         t.assertEqual(g.ok, false, "get after delete must fail");
     });
 
-    AgentTest.run("18_waypoint: save without name is rejected", function(t) {
+    ScriptTest.run("18_waypoint: save without name is rejected", function(t) {
         var r = Agent.invoke("mc.bot.waypoint", { op: "save" });
         t.assertEqual(r.ok, false, "missing name must be ok:false");
         t.assertTrue(r.error.indexOf("name") >= 0, "error must mention 'name'");
     });
 
-    AgentTest.run("18_waypoint: unknown op is rejected", function(t) {
+    ScriptTest.run("18_waypoint: unknown op is rejected", function(t) {
         // Route-layer schema validation rejects the enum violation before the tool
         // runs; the validator message echoes the offending value.
         var msg = null;
@@ -65,9 +65,9 @@ if (!clientAvailable()) {
             "unknown op must be rejected by schema validation echoing the bad op, got: " + msg);
     });
 
-    AgentTest.run("18_waypoint: schema-reject surfaces identically across in-JVM, RPC, MCP transports",
+    ScriptTest.run("18_waypoint: schema-reject surfaces identically across in-JVM, RPC, MCP transports",
         function(t) {
-            // The validator runs inside AgentApi.route(), shared by all three
+            // The validator runs inside DriverApi.route(), shared by all three
             // transports — each must surface the SAME core violation message
             // (each transport adds its own wrapper prefix, so we compare cores).
             var args = { op: "wiggle" };

@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Sends a JSON-RPC 2.0 tools/call request over HTTP to the local MCP server,
  * pulls the "text" content of the first content block, JSON-decodes it, and
  * returns the result Object. Lets validation scripts compare MCP-path results
- * against in-JVM results from the same AgentApi route.
+ * against in-JVM results from the same DriverApi route.
  */
 public final class McpBridge {
     private final URI endpoint;
@@ -35,7 +35,7 @@ public final class McpBridge {
 
     /**
      * Calls a tool by name and returns the inner result as a parsed Object
-     * (Map / List / Number / String / Boolean / null) — same shape AgentApi
+     * (Map / List / Number / String / Boolean / null) — same shape DriverApi
      * would have returned in-process.
      */
     @SuppressWarnings("unchecked")

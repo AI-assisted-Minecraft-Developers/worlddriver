@@ -13,12 +13,12 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("20_clearArea_modes: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("20_clearArea_modes: skipped (no client api — dedicated server)", function(t) {
         // PASS
     });
 } else {
 
-    AgentTest.run("20_clearArea_modes: rejects fill + replace together", function(t) {
+    ScriptTest.run("20_clearArea_modes: rejects fill + replace together", function(t) {
         var r = Agent.invoke("mc.bot.clearArea", {
             from: { x: 0, y: 64, z: 0 },
             to:   { x: 1, y: 64, z: 1 },
@@ -29,7 +29,7 @@ if (!clientAvailable()) {
         t.assertTrue(r.error.indexOf("fill OR replace") >= 0, "error must mention the conflict");
     });
 
-    AgentTest.run("20_clearArea_modes: rejects malformed replace", function(t) {
+    ScriptTest.run("20_clearArea_modes: rejects malformed replace", function(t) {
         // Route-layer schema validation rejects the missing required nested key
         // (replace.to) before the tool runs.
         var msg = null;
@@ -44,7 +44,7 @@ if (!clientAvailable()) {
             "missing replace.to must be rejected by schema validation, got: " + msg);
     });
 
-    AgentTest.run("20_clearArea_modes: oversize volume rejected", function(t) {
+    ScriptTest.run("20_clearArea_modes: oversize volume rejected", function(t) {
         var r = Agent.invoke("mc.bot.clearArea", {
             from: { x: 0,  y: 64, z: 0 },
             to:   { x: 50, y: 80, z: 50 }
@@ -53,7 +53,7 @@ if (!clientAvailable()) {
         t.assertTrue(r.error.indexOf("area too large") >= 0, "error must mention size");
     });
 
-    AgentTest.run("20_clearArea_modes: byte-identical results across in-JVM, RPC, MCP transports",
+    ScriptTest.run("20_clearArea_modes: byte-identical results across in-JVM, RPC, MCP transports",
         function(t) {
             var args = {
                 from: { x: 0, y: 64, z: 0 },

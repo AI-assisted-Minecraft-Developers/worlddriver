@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Force-switch the running client into the cheats-enabled AgentTest world
+"""Force-switch the running client into the cheats-enabled ScriptTest world
 (quit to title first, deterministic). Mirrors into_survival.py. Infra only."""
 import asyncio
 import websockets
 import react_smoke as rs
 import into_world as iw
 
-WORLD_NAME = "AgentTest"
+WORLD_NAME = "ScriptTest"
 iw.WORLD_NAME = WORLD_NAME
 
 

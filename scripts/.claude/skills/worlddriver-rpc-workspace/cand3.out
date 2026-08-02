@@ -75,7 +75,7 @@
       "pass": false
     },
     {
-      "query": "drive the client into the AgentTest world from the title screen and then grab a screenshot of where it ends up",
+      "query": "drive the client into the ScriptTest world from the title screen and then grab a screenshot of where it ends up",
       "should_trigger": true,
       "trigger_rate": 0.3333333333333333,
       "triggers": 1,

@@ -12,12 +12,12 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("21_blocks_to_avoid: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("21_blocks_to_avoid: skipped (no client api — dedicated server)", function(t) {
         // PASS
     });
 } else {
 
-    AgentTest.run("21_blocks_to_avoid: valid ids round-trip", function(t) {
+    ScriptTest.run("21_blocks_to_avoid: valid ids round-trip", function(t) {
         var r = Agent.invoke("mc.bot.setting", {
             blocksToAvoid: ["minecraft:powder_snow", "minecraft:sweet_berry_bush"]
         });
@@ -27,13 +27,13 @@ if (!clientAvailable()) {
         t.assertEqual(r.settings.blocksToAvoid.length, 2, "list length round-trips");
     });
 
-    AgentTest.run("21_blocks_to_avoid: empty list clears the set", function(t) {
+    ScriptTest.run("21_blocks_to_avoid: empty list clears the set", function(t) {
         var r = Agent.invoke("mc.bot.setting", { blocksToAvoid: [] });
         t.assertEqual(r.ok, true, "write must succeed");
         t.assertEqual(r.settings.blocksToAvoid.length, 0, "list now empty");
     });
 
-    AgentTest.run("21_blocks_to_avoid: invalid id rejects whole write", function(t) {
+    ScriptTest.run("21_blocks_to_avoid: invalid id rejects whole write", function(t) {
         var r = Agent.invoke("mc.bot.setting", {
             blocksToAvoid: ["minecraft:stone", "not_a_real:block_id"]
         });
@@ -49,7 +49,7 @@ if (!clientAvailable()) {
             "must NOT be in applied — whole-list rejection");
     });
 
-    AgentTest.run("21_blocks_to_avoid: byte-identical results across in-JVM, RPC, MCP transports",
+    ScriptTest.run("21_blocks_to_avoid: byte-identical results across in-JVM, RPC, MCP transports",
         function(t) {
             var args = { blocksToAvoid: ["not_a_real:block_id"] };
             var direct = Agent.invoke("mc.bot.setting", args);

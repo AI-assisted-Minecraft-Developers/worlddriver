@@ -20,7 +20,7 @@ function yamlFor(o, y, type, badType) {
     ].join("\n");
 }
 
-AgentTest.run("34_yaml_gametest: inline spec runs setup+asserts and passes", function (t) {
+ScriptTest.run("34_yaml_gametest: inline spec runs setup+asserts and passes", function (t) {
     var o = Agent.system.testOrigin();
     var y = o.y + 6;
     var res = Agent.invoke("mc.test.yaml", {
@@ -31,7 +31,7 @@ AgentTest.run("34_yaml_gametest: inline spec runs setup+asserts and passes", fun
     t.assertEqual(res.results[0].pass, true, "spec marked pass");
 });
 
-AgentTest.run("34_yaml_gametest: region is restored after the run", function (t) {
+ScriptTest.run("34_yaml_gametest: region is restored after the run", function (t) {
     var o = Agent.system.testOrigin();
     var y = o.y + 7;
     var cell = { x: o.x, y: y, z: o.z };
@@ -50,7 +50,7 @@ AgentTest.run("34_yaml_gametest: region is restored after the run", function (t)
     t.assertEqual(after.blocks.length, 0, "target cell is air again after restore");
 });
 
-AgentTest.run("34_yaml_gametest: loads a classpath file via file:", function (t) {
+ScriptTest.run("34_yaml_gametest: loads a classpath file via file:", function (t) {
     // Exercises the resource-loading path (YamlTestLoader.loadFile + snakeyaml).
     var res = Agent.invoke("mc.test.yaml", { file: "smoke_place_observe.yaml" });
     t.assertEqual(res.failed, 0, "smoke file passed; failures="
@@ -59,7 +59,7 @@ AgentTest.run("34_yaml_gametest: loads a classpath file via file:", function (t)
     t.assertEqual(res.results[0].name, "smoke-place-observe", "spec name from the file");
 });
 
-AgentTest.run("34_yaml_gametest: all:true runs the index.txt manifest", function (t) {
+ScriptTest.run("34_yaml_gametest: all:true runs the index.txt manifest", function (t) {
     // Exercises YamlTestLoader.loadAll (reads index.txt, then each listed file).
     var res = Agent.invoke("mc.test.yaml", { all: true });
     t.assertTrue(res.results.length >= 1, "index.txt lists at least one file");
@@ -67,7 +67,7 @@ AgentTest.run("34_yaml_gametest: all:true runs the index.txt manifest", function
         + JSON.stringify(res.results.map(function (r) { return r.failures; })));
 });
 
-AgentTest.run("34_yaml_gametest: a failing assert is reported, not swallowed", function (t) {
+ScriptTest.run("34_yaml_gametest: a failing assert is reported, not swallowed", function (t) {
     var o = Agent.system.testOrigin();
     var y = o.y + 8;
     var p = "[" + o.x + ", " + y + ", " + o.z + "]";

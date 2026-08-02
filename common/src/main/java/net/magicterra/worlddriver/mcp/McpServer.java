@@ -3,8 +3,8 @@ package net.magicterra.worlddriver.mcp;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.AgentApi;
-import net.magicterra.worlddriver.model.AgentEvent;
+import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.rpc.EventNotifications;
 import net.magicterra.worlddriver.rpc.JsonCodec;
 import net.magicterra.worlddriver.rpc.TransportLimits;
@@ -63,8 +63,8 @@ import java.util.concurrent.TimeUnit;
  *   initialize, notifications/initialized, tools/list, tools/call, ping,
  *   logging/setLevel; GET opens the server→client notification stream
  *
- * Routes tools/call -> AgentApi.route(method, params) — the same code path
- * in-JVM scripts use. Errors from AgentApi turn into MCP tool-error results
+ * Routes tools/call -> DriverApi.route(method, params) — the same code path
+ * in-JVM scripts use. Errors from DriverApi turn into MCP tool-error results
  * (isError=true), not transport-level JSON-RPC errors, per MCP convention.
  */
 public final class McpServer implements Closeable {
@@ -79,17 +79,17 @@ public final class McpServer implements Closeable {
      *  {@link TransportLimits}. */
     private static final long MAX_BODY_BYTES = TransportLimits.MAX_REQUEST_BYTES;
 
-    private final AgentApi api;
+    private final DriverApi api;
     private final HttpServer http;
     /** Open server→client SSE streams (clients that issued {@code GET /mcp}).
      *  {@link #onEvent} fans each driver event out to all of them. */
     private final Set<SseSubscriber> sse = ConcurrentHashMap.newKeySet();
 
-    public McpServer(AgentApi api, int port) throws IOException {
+    public McpServer(DriverApi api, int port) throws IOException {
         this(api, "127.0.0.1", port);
     }
 
-    public McpServer(AgentApi api, String bindHost, int port) throws IOException {
+    public McpServer(DriverApi api, String bindHost, int port) throws IOException {
         this.api = api;
         this.http = HttpServer.create(new InetSocketAddress(bindHost, port), 0);
         this.http.createContext("/mcp", this::handle);
@@ -276,10 +276,10 @@ public final class McpServer implements Closeable {
      *  driver events are domain signals the Agent asked for, and a client that defaults
      *  its filter to {@code warning} would otherwise silently drop every info/notice
      *  event. The frame still carries a severity {@code level} for display/ordering.
-     *  Runs on AgentApi's event-dispatch thread. */
-    private void onEvent(AgentEvent e) {
+     *  Runs on DriverApi's event-dispatch thread. */
+    private void onEvent(DriverEvent e) {
         if (sse.isEmpty()) return;
-        // No mutedEvents check here: AgentApi applies the per-type opt-out before it
+        // No mutedEvents check here: DriverApi applies the per-type opt-out before it
         // calls any listener, so every transport gets the same policy for free.
         String frame = "data: " + EventNotifications.frame(e) + "\n\n";
         for (SseSubscriber sub : sse) sub.offer(frame);  // never blocks: see SseSubscriber.offer
@@ -304,7 +304,7 @@ public final class McpServer implements Closeable {
         /**
          * Hand a frame to THIS subscriber's writer without touching the socket.
          *
-         * <p>{@link #onEvent} runs on AgentApi's single event-dispatch thread, shared
+         * <p>{@link #onEvent} runs on DriverApi's single event-dispatch thread, shared
          * by every listener — the WebSocket transport included. Writing the socket
          * there (which is what this class used to do) meant one SSE client whose TCP
          * receive window had filled blocked that thread inside {@code os.write}, and
@@ -362,7 +362,7 @@ public final class McpServer implements Closeable {
     }
 
     /**
-     * Wraps {@code AgentApi.route()} output into MCP tool result content. For
+     * Wraps {@code DriverApi.route()} output into MCP tool result content. For
      * image-shaped Maps (format=png/jpeg/... + base64 keys), emits a small text
      * block with the non-base64 metadata as JSON, plus a real {@code image}
      * content block so multimodal LLMs receive it as vision input rather than

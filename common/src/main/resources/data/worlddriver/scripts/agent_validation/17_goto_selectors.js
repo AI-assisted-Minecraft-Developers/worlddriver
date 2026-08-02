@@ -14,19 +14,19 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("17_goto_selectors: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("17_goto_selectors: skipped (no client api — dedicated server)", function(t) {
         // PASS
     });
 } else {
 
-    AgentTest.run("17_goto_selectors: rejects when no selector provided", function(t) {
+    ScriptTest.run("17_goto_selectors: rejects when no selector provided", function(t) {
         var r = Agent.invoke("mc.bot.goto", {});
         t.assertEqual(r.ok, false, "empty params must be ok:false");
         t.assertTrue(typeof r.error === "string" && r.error.indexOf("pos") >= 0,
             "error must list the accepted selector shapes");
     });
 
-    AgentTest.run("17_goto_selectors: rejects unknown direction name", function(t) {
+    ScriptTest.run("17_goto_selectors: rejects unknown direction name", function(t) {
         // Route-layer schema validation rejects the enum violation before the tool runs.
         var msg = null;
         try { Agent.invoke("mc.bot.goto", { direction: "wiggle", distance: 4 }); }
@@ -35,21 +35,21 @@ if (!clientAvailable()) {
             "unknown direction must be rejected by schema validation, got: " + msg);
     });
 
-    AgentTest.run("17_goto_selectors: rejects missing waypoint", function(t) {
+    ScriptTest.run("17_goto_selectors: rejects missing waypoint", function(t) {
         var r = Agent.invoke("mc.bot.goto", { waypoint: "no-such-waypoint" });
         t.assertEqual(r.ok, false, "missing waypoint must be ok:false");
         t.assertTrue(r.error.indexOf("waypoint") >= 0, "error must mention 'waypoint'");
     });
 
-    AgentTest.run("17_goto_selectors: rejects nonexistent entity id", function(t) {
+    ScriptTest.run("17_goto_selectors: rejects nonexistent entity id", function(t) {
         var r = Agent.invoke("mc.bot.goto", { entityId: 1073741824 });
         t.assertEqual(r.ok, false, "missing entity must be ok:false");
         t.assertTrue(r.error.indexOf("entity") >= 0, "error must mention 'entity'");
     });
 
-    AgentTest.run("17_goto_selectors: schema-reject surfaces identically across in-JVM, RPC, MCP transports",
+    ScriptTest.run("17_goto_selectors: schema-reject surfaces identically across in-JVM, RPC, MCP transports",
         function(t) {
-            // The validator runs inside AgentApi.route(), shared by all three
+            // The validator runs inside DriverApi.route(), shared by all three
             // transports — each must surface the SAME core violation message
             // (each transport adds its own wrapper prefix, so we compare cores).
             var args = { direction: "wiggle", distance: 4 };

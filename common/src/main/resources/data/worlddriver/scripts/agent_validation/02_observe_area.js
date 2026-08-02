@@ -2,7 +2,7 @@
 // q='blocks' shape directly (flat array) and the prelude's back-compat
 // helper (Agent.observe.area returning {blocks:[...]}).
 
-AgentTest.run("02_observe_area: query q='blocks' returns stones, respects filter.type", function(t) {
+ScriptTest.run("02_observe_area: query q='blocks' returns stones, respects filter.type", function(t) {
     var origin = Agent.system.testOrigin();
     var rows = Agent.invoke("mc.query", {
         q: "blocks",
@@ -18,7 +18,7 @@ AgentTest.run("02_observe_area: query q='blocks' returns stones, respects filter
     t.assertTrue(allStone, "filter.type should restrict to minecraft:stone");
 });
 
-AgentTest.run("02_observe_area: oak_log found without filter (back-compat helper shape)", function(t) {
+ScriptTest.run("02_observe_area: oak_log found without filter (back-compat helper shape)", function(t) {
     var origin = Agent.system.testOrigin();
     // Use the prelude helper to assert it still returns the legacy {blocks:[]} shape.
     var result = Agent.observe.area({ center: origin, radius: 2 });

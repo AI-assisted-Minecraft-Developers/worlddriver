@@ -17,7 +17,7 @@ import react_smoke as rs
 
 # Fixed, reusable world. Every run plays THIS world instead of piling up a new
 # one in the saves list. Created once (superflat/creative/cheats), reused after.
-WORLD_NAME = os.environ.get("AGENT_WORLD", "AgentTest")
+WORLD_NAME = os.environ.get("AGENT_WORLD", "ScriptTest")
 
 
 async def goto_singleplayer(rpc):
@@ -38,7 +38,7 @@ async def goto_singleplayer(rpc):
 def find_existing_world(tree, name):
     """Search the SelectWorld list for an entry whose label mentions ``name``.
     World-list rows are WorldListEntry widgets whose ``message`` carries the
-    level name (e.g. "...AgentTest"). Match case-insensitively on the substring."""
+    level name (e.g. "...ScriptTest"). Match case-insensitively on the substring."""
     return rs.find_widget(tree, rs.by_label(name))
 
 
@@ -134,7 +134,7 @@ async def set_world_name(rpc, name):
         await asyncio.sleep(0.2)
     # Clear the default "New World" then type our name. Ctrl+A select-all proved
     # unreliable over RPC (it deleted only one char, leaving "New Worl", and the
-    # typed name was appended → "New WorlAgentTest"), so press END then many
+    # typed name was appended → "New WorlScriptTest"), so press END then many
     # BACKSPACE/DELETE to clear from any cursor position regardless of length.
     print(f"  [act ] clear + type world name '{name}'")
     rs.trace("act", action="typeText", text=name, reason="set fixed world name")

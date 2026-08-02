@@ -7,14 +7,14 @@ function clientAvailable() {
     catch (e) { return false; }
 }
 
-// Top-level (not inside a block) so the deferred AgentTest.run callbacks can see it.
+// Top-level (not inside a block) so the deferred ScriptTest.run callbacks can see it.
 function cleanup() {
     Agent.invoke("mc.action.runCommand", { cmd: "kill @e[type=!minecraft:player]" });
     Agent.invoke("mc.bot.setting", { autoDodge: false });
     Agent.invoke("mc.bot.cancel", { process: "all" });
 }
 
-AgentTest.run("41_defense: mc.observe.threats has the documented shape", function(t) {
+ScriptTest.run("41_defense: mc.observe.threats has the documented shape", function(t) {
     // Works server-side too — returns empty arrays when no client is attached.
     var r = Agent.invoke("mc.observe.threats", { radius: 16 });
     t.assertTrue(typeof r === "object" && r !== null, "object");
@@ -23,10 +23,10 @@ AgentTest.run("41_defense: mc.observe.threats has the documented shape", functio
 });
 
 if (!clientAvailable()) {
-    AgentTest.run("41_defense: behaviour skipped (no client api — dedicated server)", function(t) {});
+    ScriptTest.run("41_defense: behaviour skipped (no client api — dedicated server)", function(t) {});
 } else {
 
-    AgentTest.run("41_defense: reflex toggles round-trip", function(t) {
+    ScriptTest.run("41_defense: reflex toggles round-trip", function(t) {
         var r = Agent.invoke("mc.bot.setting", {
             autoTotem: true, autoShield: true, autoHeal: true, autoDodge: true,
             healHpThreshold: 10, creeperKeepDistance: 4, projectileDodgeRadius: 10
@@ -46,7 +46,7 @@ if (!clientAvailable()) {
         });
     });
 
-    AgentTest.run("41_defense: observe.threats detects and scores a summoned hostile", function(t) {
+    ScriptTest.run("41_defense: observe.threats detects and scores a summoned hostile", function(t) {
         cleanup();
         var me = Agent.invoke("mc.observe.player", {});
         t.assertTrue(me.present, "player present");
@@ -65,7 +65,7 @@ if (!clientAvailable()) {
         cleanup();
     });
 
-    AgentTest.run("41_defense: PanicChain takes the channel for a nearby creeper", function(t) {
+    ScriptTest.run("41_defense: PanicChain takes the channel for a nearby creeper", function(t) {
         cleanup();
         // Widen keep-distance so a summon ~3.5 blocks away is comfortably inside it
         // (a +2 block summon lands at ~3.5 due to entity centring + rounding).
@@ -85,7 +85,7 @@ if (!clientAvailable()) {
         t.assertTrue(after.activeChain !== "panic", "panic releases once the creeper is gone");
     });
 
-    AgentTest.run("41_defense: ThreatScanner senses an incoming projectile", function(t) {
+    ScriptTest.run("41_defense: ThreatScanner senses an incoming projectile", function(t) {
         cleanup();
         Agent.invoke("mc.bot.setting", { autoDodge: true });
         var me = Agent.invoke("mc.observe.player", {});

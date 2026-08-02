@@ -14,12 +14,12 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("26_schematic_loader: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("26_schematic_loader: skipped (no client api — dedicated server)", function(t) {
         // PASS
     });
 } else {
 
-    AgentTest.run("26_schematic_loader: build rejects missing both schematic and schematicBase64",
+    ScriptTest.run("26_schematic_loader: build rejects missing both schematic and schematicBase64",
         function(t) {
             var r = Agent.invoke("mc.bot.build", { origin: { x: 0, y: 64, z: 0 } });
             t.assertEqual(r.ok, false, "missing both → ok:false");
@@ -27,7 +27,7 @@ if (!clientAvailable()) {
                 "error mentions schematic: " + r.error);
         });
 
-    AgentTest.run("26_schematic_loader: build rejects when both modes specified",
+    ScriptTest.run("26_schematic_loader: build rejects when both modes specified",
         function(t) {
             var r = Agent.invoke("mc.bot.build", {
                 origin: { x: 0, y: 64, z: 0 },
@@ -40,7 +40,7 @@ if (!clientAvailable()) {
                 "error mentions conflict: " + r.error);
         });
 
-    AgentTest.run("26_schematic_loader: invalid base64 is rejected with a clear error",
+    ScriptTest.run("26_schematic_loader: invalid base64 is rejected with a clear error",
         function(t) {
             var r = Agent.invoke("mc.bot.build", {
                 origin: { x: 0, y: 64, z: 0 },
@@ -51,7 +51,7 @@ if (!clientAvailable()) {
                 "error mentions base64: " + r.error);
         });
 
-    AgentTest.run("26_schematic_loader: valid base64 but non-NBT bytes rejected",
+    ScriptTest.run("26_schematic_loader: valid base64 but non-NBT bytes rejected",
         function(t) {
             // "Hello, world!" base64 — decodes fine, but isn't gzip nor raw NBT,
             // so both NbtIo paths in fromSpongeSchem throw and we surface the
@@ -67,7 +67,7 @@ if (!clientAvailable()) {
                 "error mentions schematic/NBT: " + r.error);
         });
 
-    AgentTest.run("26_schematic_loader: build rejects negative paths identically across transports",
+    ScriptTest.run("26_schematic_loader: build rejects negative paths identically across transports",
         function(t) {
             // The base64-reject path doesn't touch the client thread (it's
             // checked before onClient), so it's deterministic across all three

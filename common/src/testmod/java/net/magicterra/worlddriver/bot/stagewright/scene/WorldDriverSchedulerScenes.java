@@ -21,7 +21,7 @@ import net.magicterra.worlddriver.bot.scheduler.DuskSecureChain;
 import net.magicterra.worlddriver.bot.scheduler.Priorities;
 import net.magicterra.worlddriver.bot.scheduler.RetreatChain;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
-import net.magicterra.worlddriver.bot.sim.ServerAgentManager;
+import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.world.HazardField;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.bot.world.SurvivalFacts;
@@ -764,8 +764,8 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         BotConfig.allowBreak = true;
         BotConfig.allowPlace = true;
         BotConfig.walkerDebug = false;
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         // Scrub the whole dirt slab + dig shaft on any exit (#40 persistent-world lesson).
         ctx.cleanup(() -> {
             for (int dx = -4; dx <= 4; dx++)

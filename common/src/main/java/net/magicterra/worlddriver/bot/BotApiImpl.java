@@ -1075,7 +1075,7 @@ public final class BotApiImpl implements BotApi {
                 String type = mc.screen.getClass().getSimpleName();
                 mc.player.closeContainer();
                 mc.setScreen(null);
-                net.magicterra.worlddriver.api.AgentApi api = net.magicterra.worlddriver.WorldDriverCommon.api();
+                net.magicterra.worlddriver.api.DriverApi api = net.magicterra.worlddriver.WorldDriverCommon.api();
                 if (api != null) api.emitExternal("screen.autoClosed", mc.player.blockPosition(), java.util.Map.of(
                                 "screen", type, "blockedTicks", (double) screenBlockTicks));
                 net.magicterra.worlddriver.WorldDriverCommon.LOG.warn(

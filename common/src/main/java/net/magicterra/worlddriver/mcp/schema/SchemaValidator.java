@@ -7,7 +7,7 @@ import java.util.Map;
 /**
  * Validates route params against the SAME typed {@link Schema} the MCP catalog
  * advertises — single source, so runtime enforcement can never drift from
- * tools/list. Wired into AgentApi.route() via the api-layer ParamsValidator seam.
+ * tools/list. Wired into DriverApi.route() via the api-layer ParamsValidator seam.
  *
  * <p>Semantics: type mismatch, missing required, enum violation, min/max bounds
  * and unknown keys (unless the object declares additionalProperties(true)) all

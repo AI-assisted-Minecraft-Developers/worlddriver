@@ -21,7 +21,7 @@ import io.netty.handler.codec.http.websocketx.WebSocketClientHandshaker;
 import io.netty.handler.codec.http.websocketx.WebSocketClientHandshakerFactory;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.codec.http.websocketx.WebSocketVersion;
-import net.magicterra.worlddriver.api.AgentApi;
+import net.magicterra.worlddriver.api.DriverApi;
 import org.junit.jupiter.api.Test;
 
 import java.net.InetSocketAddress;
@@ -121,9 +121,9 @@ class RpcFramingTest {
 
     @Test
     void everyErrorResponseCarriesAnIdKeyAndACode() throws Exception {
-        // AgentApi's constructor only fills a route map with lambdas, so it needs no
+        // DriverApi's constructor only fills a route map with lambdas, so it needs no
         // running game as long as no route actually executes.
-        try (RpcServer server = new RpcServer(new AgentApi(), 0);
+        try (RpcServer server = new RpcServer(new DriverApi(), 0);
              RawClient raw = new RawClient(server.port())) {
 
             Map<?, ?> nonObject = raw.roundTrip("\"just a string\"");
@@ -151,11 +151,11 @@ class RpcFramingTest {
     void aLargeRequestIsAcceptedLikeTheMcpTransportAcceptsIt() throws Exception {
         // McpServer caps a POST body at agent.mcp.maxBodyBytes (8 MiB default). The
         // WebSocket side inherited Netty's 64 KiB default frame size, so the same
-        // AgentApi call succeeded on one transport and killed the connection on the
+        // DriverApi call succeeded on one transport and killed the connection on the
         // other — with no JSON error, because a frame that never assembles cannot
         // carry one. 100 KiB is comfortably over the old limit and far under the new.
         String pad = "x".repeat(100 * 1024);
-        try (RpcServer server = new RpcServer(new AgentApi(), 0);
+        try (RpcServer server = new RpcServer(new DriverApi(), 0);
              RawClient raw = new RawClient(server.port())) {
             Map<?, ?> r = raw.roundTrip(
                     "{\"id\":11,\"method\":\"mc.nope\",\"params\":{\"pad\":\"" + pad + "\"}}");
@@ -173,7 +173,7 @@ class RpcFramingTest {
         // did not match, the set stayed empty, empty meant "no filter", and the caller
         // was subscribed to EVERY event while its ack said types:[] — which reads like
         // the opposite. Failing open on a filter is the worst direction to fail.
-        try (RpcServer server = new RpcServer(new AgentApi(), 0);
+        try (RpcServer server = new RpcServer(new DriverApi(), 0);
              RawClient raw = new RawClient(server.port())) {
 
             Map<?, ?> str = raw.roundTrip("{\"id\":1,\"method\":\"mc.events.subscribe\","
@@ -194,7 +194,7 @@ class RpcFramingTest {
 
     @Test
     void subscribeAckSaysWhetherTheFilterIsUnrestricted() throws Exception {
-        try (RpcServer server = new RpcServer(new AgentApi(), 0);
+        try (RpcServer server = new RpcServer(new DriverApi(), 0);
              RawClient raw = new RawClient(server.port())) {
 
             Map<?, ?> filtered = result(raw.roundTrip("{\"id\":4,\"method\":\"mc.events.subscribe\","
@@ -227,7 +227,7 @@ class RpcFramingTest {
         // gpt-player/driver.py and the worlddriver-rpc skill's rpc.py both read
         // `error` as a string. `code` was added alongside it precisely so neither
         // has to change; if this ever becomes an object, both break silently.
-        try (RpcServer server = new RpcServer(new AgentApi(), 0);
+        try (RpcServer server = new RpcServer(new DriverApi(), 0);
              RawClient raw = new RawClient(server.port())) {
             Map<?, ?> r = raw.roundTrip("{\"id\":1,\"method\":\"mc.nope\",\"params\":{}}");
             assertInstanceOf(String.class, r.get("error"));

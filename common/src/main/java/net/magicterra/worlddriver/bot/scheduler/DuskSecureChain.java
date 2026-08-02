@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.scheduler;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.AgentApi;
+import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.combat.ThreatScanner;
@@ -173,7 +173,7 @@ public final class DuskSecureChain implements Chain {
      *  {@link BotConfig#autoSecureAtDusk} to keep 挖三填一 predominantly an Agent-invoked
      *  action (mc.bot.bunker) rather than an uncontrolled reflex. */
     private static void announceAutoTrigger(Minecraft mc, boolean rearm) {
-        AgentApi api = WorldDriverCommon.api();
+        DriverApi api = WorldDriverCommon.api();
         if (api == null || mc.player == null) return;
         BlockPos p = mc.player.blockPosition();
         api.emitExternal("duskSecure.triggered", p, Map.of(
@@ -191,7 +191,7 @@ public final class DuskSecureChain implements Chain {
      *  #announceAutoTrigger}'s emit shape. */
     private void maybeEmitDryRun(Minecraft mc) {
         if (dryRunCooldown > 0) { dryRunCooldown--; return; }
-        AgentApi api = WorldDriverCommon.api();
+        DriverApi api = WorldDriverCommon.api();
         if (api == null || mc.player == null) return;
         BlockPos p = mc.player.blockPosition();
         api.emitExternal("duskSecure.urgentDryRun", p, Map.of(

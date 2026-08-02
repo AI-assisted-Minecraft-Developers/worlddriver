@@ -1,4 +1,4 @@
-AgentTest.run("04_action_place: placeMany then observe shows new block", function(t) {
+ScriptTest.run("04_action_place: placeMany then observe shows new block", function(t) {
     var origin = Agent.system.testOrigin();
     var target = { x: origin.x, y: origin.y + 3, z: origin.z };
     var r = Agent.invoke("mc.action.placeMany",

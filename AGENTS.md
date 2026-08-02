@@ -7,10 +7,10 @@ etc.) working in this project. Keep it short and authoritative.
 
 - **Stack**: Minecraft 1.21.1, Architectury (Fabric + NeoForge), JDK 21,
   Gradle wrapper. Rhino is the embedded JS engine.
-- **Source of truth**: `common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java`.
+- **Source of truth**: `common/src/main/java/net/magicterra/worlddriver/api/DriverApi.java`.
   Every transport (MCP HTTP, WebSocket RPC, in-JVM Rhino) routes through
-  `AgentApi.route(method, params)`. Do **not** add game-affecting behavior
-  in a transport — add it in AgentApi, expose it through all three.
+  `DriverApi.route(method, params)`. Do **not** add game-affecting behavior
+  in a transport — add it in DriverApi, expose it through all three.
 - **Tests**: the stagewright orchestrators under `scripts/stagewright/` are the
   canonical integration gates (the legacy `@GameTest` suite and its
   GameTestServer machinery were retired in P4-final). The gates:
@@ -36,7 +36,7 @@ etc.) working in this project. Keep it short and authoritative.
 
   It also holds the checks that are **properties of the source rather than of a
   run** — `WalkerTickDataflowTest` (the WalkerTick* phase handoff order),
-  `AgentEventWireTest#noEmitterPreEncodesItsPayload`. Booting a game to discover a
+  `DriverEventWireTest#noEmitterPreEncodesItsPayload`. Booting a game to discover a
   fact that a parser can read off the code is the slow way to learn it, and these
   fail with the offending file and line instead of a scene verdict. Note the test
   JVM's working directory is the module dir, which is what makes `Path.of(
@@ -44,12 +44,12 @@ etc.) working in this project. Keep it short and authoritative.
 
 ## Hard rules
 
-1. **Never put behavior in a transport handler.** New methods go in AgentApi.
+1. **Never put behavior in a transport handler.** New methods go in DriverApi.
    MCP, RPC and the script bridge each only translate parameters and call
-   `AgentApi.route(...)`. The validation suite asserts the three return
+   `DriverApi.route(...)`. The validation suite asserts the three return
    byte-identical results — if they diverge, the regression is yours to fix.
 2. **All write paths bounce through `server.execute()`.** Reads outside the
-   server thread use the snapshot helpers in `AgentApi`, never `Level`
+   server thread use the snapshot helpers in `DriverApi`, never `Level`
    directly.
 3. **Don't widen the Rhino sandbox** without adding a matching negative test
    in `common/src/main/resources/data/worlddriver/scripts/agent_validation/08_sandbox.js`.
@@ -164,7 +164,7 @@ scripts/smoke-test-react.sh
 ## When you add a new MCP tool
 
 0. **First**, re-read Hard Rule #6 — can you extend an existing tool instead?
-1. Add the underlying behavior to `AgentApi.route(...)`.
+1. Add the underlying behavior to `DriverApi.route(...)`.
 2. Register the tool schema in `common/src/main/java/net/magicterra/worlddriver/mcp/ToolCatalog.java`.
 3. Add a corresponding validation script under `agent_validation/` that
    exercises it through all three transports and asserts byte-identical
@@ -173,12 +173,12 @@ scripts/smoke-test-react.sh
 
 ## When you remove or merge a tool
 
-1. Drop the route in `AgentApi` and the catalog entry in `ToolCatalog`.
+1. Drop the route in `DriverApi` and the catalog entry in `ToolCatalog`.
 2. Keep a JS-level helper in `prelude.js` AND the inlined prelude inside
-   `AgentScriptManager.java` so existing scripts keep working — both prelude
+   `ScriptManager.java` so existing scripts keep working — both prelude
    sources have to stay in sync.
 3. Update validation scripts that called the old name.
-4. Delete now-dead methods from the `ClientAgentApi` / `BotApi` interfaces
+4. Delete now-dead methods from the `ClientDriverApi` / `BotApi` interfaces
    and their impls so future agents don't think the method still exists.
 5. Note the consolidation in `CHANGELOG.md` `[Unreleased]`.
 

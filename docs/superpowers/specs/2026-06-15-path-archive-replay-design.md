@@ -249,7 +249,7 @@ original run. The injection is a contained change.
 - `bot/BotConfig.java` — `pathArchive` (persisted).
 - `api/WorldApi.java` — extract a shared block-restore helper for the replayer.
 - `mcp/catalog/DebugTools.java` — `mc.debug.replay` schema.
-- `api/AgentApi.java` + the `PathDebug` bootstrap — register the `mc.debug.replay`
+- `api/DriverApi.java` + the `PathDebug` bootstrap — register the `mc.debug.replay`
   route and the second sink.
 
 ## 8. Testing

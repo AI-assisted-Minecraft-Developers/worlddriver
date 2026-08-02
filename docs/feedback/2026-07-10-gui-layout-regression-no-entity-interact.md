@@ -103,7 +103,7 @@ would have saved a tools/list round-trip.
 - **§3 (observe.player().look lag)** — DOCUMENTED on both `mc.bot.lookAt` and
   `mc.observe.player` tool descriptions: rotation is visible to observe one tick later;
   `waitTicks(1)` before asserting.
-- **§4 (unhelpful wrong-argument error)** — FIXED STRUCTURALLY: `AgentApi.route()` now
+- **§4 (unhelpful wrong-argument error)** — FIXED STRUCTURALLY: `DriverApi.route()` now
   validates params against the same typed Schema the MCP catalog advertises
   (`SchemaValidator`, single source — advertisement and enforcement cannot drift).
   `{"command":…}` now fails with `invalid params for mc.action.runCommand: missing

@@ -14,10 +14,10 @@ function routeAvailable() {
 }
 
 if (!routeAvailable()) {
-    AgentTest.run("57_replay: skipped (no route)", function (t) { /* PASS */ });
+    ScriptTest.run("57_replay: skipped (no route)", function (t) { /* PASS */ });
 } else {
 
-    AgentTest.run("57_replay: return shape is well-typed", function (t) {
+    ScriptTest.run("57_replay: return shape is well-typed", function (t) {
         var r = Agent.invoke("mc.debug.replay", { restoreBlocks: false });
         t.assertTrue(typeof r.ok === "boolean", "ok is a boolean");
         if (!r.ok) {

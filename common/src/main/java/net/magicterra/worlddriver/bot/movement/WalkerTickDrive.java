@@ -163,9 +163,9 @@ final class WalkerTickDrive {
         }
         if (wk.pillarRecover.latch > 0 && wk.pillarRecover.cell != null) {
             wk.pillarRecover.latch--;
-            Walker.agentForward(a, false);
+            Walker.avatarForward(a, false);
             p.setSprinting(false);
-            Walker.agentSneak(a, false);
+            Walker.avatarSneak(a, false);
             p.setShiftKeyDown(false);
             // Clear the ceiling FIRST: a block where the head rises (tree-canopy leaves at
             // rung+2, a dirt overhang) makes the recovery jump RAM it — the bot can't gain
@@ -178,7 +178,7 @@ final class WalkerTickDrive {
             // death, forbidDig is only a navigation preference, so safety wins over the constraint.
             BlockPos recCeiling = wk.pillarRecover.cell.offset(0, 2, 0);
             if (BotConfig.allowBreak && world.isSolid(recCeiling)) {
-                Walker.agentJump(a, false);
+                Walker.avatarJump(a, false);
                 a.selectTool(recCeiling);
                 a.aimAtBlock(recCeiling);
                 a.breakHold(true);
@@ -188,9 +188,9 @@ final class WalkerTickDrive {
             p.setXRot(89.5f);                         // look straight down to aim the support
             if (p.onGround()) {
                 wk.jumpTag = "pillarRecoverRung";
-                Walker.agentJump(a, true);     // jump off the current rung
+                Walker.avatarJump(a, true);     // jump off the current rung
             } else {
-                Walker.agentJump(a, false);
+                Walker.avatarJump(a, false);
                 // Place into the feet cell once risen clear of it (vanilla rejects the place
                 // while the player AABB still overlaps the target cell — gate on real height).
                 if (p.getY() >= wk.pillarRecover.cell.getY() + 1.0) {
@@ -388,14 +388,14 @@ final class WalkerTickDrive {
                 else if (dotR < -0.04) strafeL = true;
             }
         }
-        // Camera-decoupled drive (see AgentInput). Rotate the body-frame movement intent
+        // Camera-decoupled drive (see AvatarInput). Rotate the body-frame movement intent
         // (forward + lane-keep strafe) from the desired travel heading (aimYaw) into the
         // camera frame by Δ = aimYaw − cameraYaw, so vanilla travel()'s rotate-by-yaw moves
         // the body ALONG the heading even while the camera is still slewing toward it — the
         // body no longer rams a wall waiting for the look to catch up (动态纠偏). At Δ=0
         // (camera caught up) the impulse equals the old keyed (dL,dF), so steady-state walking
         // is byte-identical; only the slew transient changes. Special branches above return
-        // before here, so they keep their own key-based actuation (AgentInput falls back to
+        // before here, so they keep their own key-based actuation (AvatarInput falls back to
         // keys uncommanded).
         //
         // The DRIVE always targets aimYaw — even while the camera is frozen by the anti-wind
@@ -895,7 +895,7 @@ final class WalkerTickDrive {
                 && world.isWater(wp) && world.isWater(wp.above())
                 && wp.getY() <= foot.getY();
         boolean underwaterSink = underwaterDepthHold && wp.getY() < foot.getY();
-        Walker.agentSneak(a, brakeSneak || diving || lavaBrake || underwaterSink);
+        Walker.avatarSneak(a, brakeSneak || diving || lavaBrake || underwaterSink);
         p.setShiftKeyDown(brakeSneak || lavaBrake);
         // Jump for a real upward step, a parkour-leap edge (by move type, not
         // raw distance — string-pulling makes plain walk waypoints far apart
@@ -1111,7 +1111,7 @@ final class WalkerTickDrive {
                     : stepUpFreeze && p.onGround() ? "stepUpFreeze"
                     : levelRiserJump ? "levelRiser" : wiggle ? "wiggle" : "swim";
         }
-        Walker.agentJump(a, jump);
+        Walker.avatarJump(a, jump);
         // Sprint in water ONLY on a FLAT crossing (flatWaterWalk: wp.y==foot.y). The
         // prone swim pose that sprint+forward forces is exactly what a wide open-ocean
         // crossing needs (vanilla's fast swim) — WITHOUT it the bot treads upright in

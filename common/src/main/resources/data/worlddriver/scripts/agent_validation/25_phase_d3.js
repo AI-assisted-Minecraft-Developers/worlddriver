@@ -12,12 +12,12 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("25_phase_d3: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("25_phase_d3: skipped (no client api — dedicated server)", function(t) {
         // PASS
     });
 } else {
 
-    AgentTest.run("25_phase_d3: allowParkour4 still round-trips (gates parkour3d too)",
+    ScriptTest.run("25_phase_d3: allowParkour4 still round-trips (gates parkour3d too)",
         function(t) {
             // Parkour3Diagonal shares the allowParkour4 gate — verify the toggle
             // still works after the new Move class is registered.
@@ -27,7 +27,7 @@ if (!clientAvailable()) {
             t.assertEqual(off.settings.allowParkour4, false, "allowParkour4 off");
         });
 
-    AgentTest.run("25_phase_d3: Agent.bot.tunnel rejects missing distance",
+    ScriptTest.run("25_phase_d3: Agent.bot.tunnel rejects missing distance",
         function(t) {
             var r = Agent.bot.tunnel({ direction: "forward" });
             t.assertEqual(r.ok, false, "missing distance → ok:false");
@@ -35,7 +35,7 @@ if (!clientAvailable()) {
                 "error mentions distance: " + r.error);
         });
 
-    AgentTest.run("25_phase_d3: Agent.bot.tunnel rejects unknown direction",
+    ScriptTest.run("25_phase_d3: Agent.bot.tunnel rejects unknown direction",
         function(t) {
             // distance present but direction garbage. Note: 'banana' isn't a
             // known absolute or relative direction; helper rejects it.
@@ -46,7 +46,7 @@ if (!clientAvailable()) {
                 "error mentions direction: " + r.error);
         });
 
-    AgentTest.run("25_phase_d3: Agent.bot.tunnel forwards to clearArea with computed bbox",
+    ScriptTest.run("25_phase_d3: Agent.bot.tunnel forwards to clearArea with computed bbox",
         function(t) {
             // Absolute direction skips yaw-snap so this works at TitleScreen too.
             // Either succeeds (in-world; clearArea dispatched) or rejects with
@@ -65,7 +65,7 @@ if (!clientAvailable()) {
             }
         });
 
-    AgentTest.run("25_phase_d3: setting reads identical across in-JVM/RPC/MCP",
+    ScriptTest.run("25_phase_d3: setting reads identical across in-JVM/RPC/MCP",
         function(t) {
             var direct = Agent.invoke("mc.bot.setting", {});
             var viaTcp = Agent.system.rpcRoundtrip("mc.bot.setting", {});

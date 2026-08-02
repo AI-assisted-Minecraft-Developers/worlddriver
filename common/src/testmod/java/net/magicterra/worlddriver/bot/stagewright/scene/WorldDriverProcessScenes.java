@@ -20,7 +20,7 @@ import net.magicterra.worlddriver.bot.process.MineProcess;
 import net.magicterra.worlddriver.bot.process.RunAwayProcess;
 import net.magicterra.worlddriver.bot.process.Schematic;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
-import net.magicterra.worlddriver.bot.sim.ServerAgentManager;
+import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -64,7 +64,7 @@ import net.minecraft.world.phys.Vec3;
  * {@code gtOnlySkips(...)} → deleted. The real {@code IntentProcess}/{@code MineProcess}/
  * {@code RunAwayProcess}/{@code BuildProcess}/{@code FollowProcess}/{@code CombatProcess}/
  * {@code LookProcess}/{@code BridgeProcess} legs and the bespoke driver/gotoGoal legs run over the
- * bounded {@code ServerAgentManager.register}+{@code tickAll()} loop (finish auto-unregisters).
+ * bounded {@code ServerAvatarManager.register}+{@code tickAll()} loop (finish auto-unregisters).
  *
  * <p><b>⚡ The three re-entrant {@code level.tick()} mines.</b> The legacy
  * {@code serverForbidDigWallArena} / {@code serverFollowArena} / {@code serverCombatArena} each ran a
@@ -75,7 +75,7 @@ import net.minecraft.world.phys.Vec3;
  * (loud STEP_TIMEOUT on non-appearance) — the harness ticks the server between polls, promoting the
  * force-loaded arena chunk to ENTITY_TICKING so the fresh entity enters the queryable section index
  * (the exact state the legacy 3-tick loop hand-forced). Everything downstream of the await —
- * {@code ServerAgentManager.register}, the {@code tickAll()} drive loop, and every assertion — is kept
+ * {@code ServerAvatarManager.register}, the {@code tickAll()} drive loop, and every assertion — is kept
  * <b>VERBATIM</b>. {@code wd.serverCombat} additionally ticks the {@code Zombie} DIRECTLY
  * ({@code zombie.tick()}, NOT {@code level.tick()}) each drive iteration to clear its hurt-cooldown —
  * the exact legacy actuation, and safe (direct entity tick, no ChunkMap re-entry).
@@ -137,7 +137,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
     // ==================================================================================
     // wd.serverDriver — Phase 2 headless driver: FakePlayer walks + steps up a +1 ledge
-    // to a Block goal, driven through ServerAgentManager (the live server-tick entry).
+    // to a Block goal, driven through ServerAvatarManager (the live server-tick entry).
     // ==================================================================================
 
     private static void serverDriverScene(SceneContext ctx) {
@@ -146,8 +146,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -1; dx <= 1; dx++)
                 for (int dy = 0; dy <= 2; dy++)
@@ -171,12 +171,12 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
         ctx.cleanup(() -> driver.fakePlayer().discard());
         driver.gotoGoal(new Goal.Block(goal));
-        ServerAgentManager.register(driver);
-        if (ServerAgentManager.activeCount() != 1) { ctx.fail("driver failed to register"); return; }
+        ServerAvatarManager.register(driver);
+        if (ServerAvatarManager.activeCount() != 1) { ctx.fail("driver failed to register"); return; }
 
         // Drive via the SAME entry point the server tick uses.
-        for (int t = 0; t < 200 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        for (int t = 0; t < 200 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         ServerPlayer fp = driver.fakePlayer();
         boolean reached = Math.abs(fp.getX() - (cx + 0.5)) < 1.5
@@ -184,10 +184,10 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 && fp.getY() >= floorY + 2 - 0.4;
         WorldDriverCommon.LOG.info("[wd.serverDriver] step={} pos=({},{},{}) finished={} active={} reached={}",
                 driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(),
-                driver.finished(), ServerAgentManager.activeCount(), reached);
-        if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                driver.finished(), ServerAvatarManager.activeCount(), reached);
+        if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
             ctx.fail("server driver did not finish + auto-unregister: finished="
-                    + driver.finished() + " active=" + ServerAgentManager.activeCount());
+                    + driver.finished() + " active=" + ServerAvatarManager.activeCount());
         if (!reached)
             ctx.fail("server-driven agent did not reach the goal: pos=("
                     + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + driver.lastStep());
@@ -203,8 +203,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -5; dx <= 5; dx++)
                 for (int dy = 0; dy <= 18; dy++)
@@ -225,20 +225,20 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx - 3 + 0.5, floorY + 1, cz + 0.5);
         ctx.cleanup(() -> driver.fakePlayer().discard());
         driver.mine(target);
-        ServerAgentManager.register(driver);
-        for (int t = 0; t < 200 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        ServerAvatarManager.register(driver);
+        for (int t = 0; t < 200 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         boolean mined = level.getBlockState(target).isAir();
         ServerPlayer fp = driver.fakePlayer();
         WorldDriverCommon.LOG.info("[wd.serverMine] step={} pos=({},{},{}) finished={} active={} mined={}",
                 driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(),
-                driver.finished(), ServerAgentManager.activeCount(), mined);
+                driver.finished(), ServerAvatarManager.activeCount(), mined);
         if (!mined)
             ctx.fail("server agent did not mine the target (still " + level.getBlockState(target) + ")");
-        if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+        if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
             ctx.fail("mine task did not finish+unregister: finished="
-                    + driver.finished() + " active=" + ServerAgentManager.activeCount());
+                    + driver.finished() + " active=" + ServerAvatarManager.activeCount());
     }
 
     // ==================================================================================
@@ -251,8 +251,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -1; dx <= 1; dx++)
                 for (int dy = 0; dy <= 2; dy++)
@@ -272,20 +272,20 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
         ctx.cleanup(() -> driver.fakePlayer().discard());
         driver.runProcess(new IntentProcess(new Intent(new Goal.Block(goal))));   // the REAL client process, server-side
-        ServerAgentManager.register(driver);
+        ServerAvatarManager.register(driver);
 
-        for (int t = 0; t < 200 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        for (int t = 0; t < 200 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         ServerPlayer fp = driver.fakePlayer();
         boolean reached = Math.abs(fp.getX() - (cx + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (cz + 9 + 0.5)) < 1.5;
         WorldDriverCommon.LOG.info("[wd.serverProcess] step={} pos=({},{},{}) finished={} active={} reached={}",
                 driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(),
-                driver.finished(), ServerAgentManager.activeCount(), reached);
-        if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                driver.finished(), ServerAvatarManager.activeCount(), reached);
+        if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
             ctx.fail("server IntentProcess did not finish+unregister: finished="
-                    + driver.finished() + " active=" + ServerAgentManager.activeCount());
+                    + driver.finished() + " active=" + ServerAvatarManager.activeCount());
         if (!reached)
             ctx.fail("server-run IntentProcess did not reach the goal: pos=("
                     + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ")");
@@ -301,8 +301,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -R; dx <= R; dx++)
                 for (int dy = 0; dy <= 2; dy++)
@@ -323,10 +323,10 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
         ctx.cleanup(() -> driver.fakePlayer().discard());
         driver.runProcess(new RunAwayProcess(from, minDist));
-        ServerAgentManager.register(driver);
+        ServerAvatarManager.register(driver);
 
-        for (int t = 0; t < 200 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        for (int t = 0; t < 200 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         ServerPlayer fp = driver.fakePlayer();
         double dx = fp.getX() - (cx + 0.5), dz = fp.getZ() - (cz + 0.5);
@@ -334,13 +334,13 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         boolean fled = dist >= minDist - 0.5;
         WorldDriverCommon.LOG.info("[wd.serverFlee] step={} pos=({},{},{}) dist={} finished={} active={} fled={}",
                 driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(), dist,
-                driver.finished(), ServerAgentManager.activeCount(), fled);
+                driver.finished(), ServerAvatarManager.activeCount(), fled);
         if (!fled)
             ctx.fail("server RunAwayProcess did not reach min flee distance: dist="
                     + dist + " (need " + minDist + ")");
-        if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+        if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
             ctx.fail("flee process did not finish+unregister: finished="
-                    + driver.finished() + " active=" + ServerAgentManager.activeCount());
+                    + driver.finished() + " active=" + ServerAvatarManager.activeCount());
     }
 
     // ==================================================================================
@@ -354,8 +354,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -1; dx <= 9; dx++)
                 for (int dy = 0; dy <= 2; dy++)
@@ -388,22 +388,22 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         driver.fakePlayer().getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));
         driver.fakePlayer().getInventory().selected = 0;
         driver.runProcess(new MineProcess(List.of("minecraft:stone"), 3, 8));
-        ServerAgentManager.register(driver);
+        ServerAvatarManager.register(driver);
 
-        for (int t = 0; t < 400 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        for (int t = 0; t < 400 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         int remaining = 0;
         for (BlockPos t : targets) if (!level.getBlockState(t).isAir()) remaining++;
         ServerPlayer fp = driver.fakePlayer();
         WorldDriverCommon.LOG.info("[wd.serverMineProcess] step={} pos=({},{},{}) finished={} active={} remaining={}/3",
                 driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(),
-                driver.finished(), ServerAgentManager.activeCount(), remaining);
+                driver.finished(), ServerAvatarManager.activeCount(), remaining);
         if (remaining != 0)
             ctx.fail("server MineProcess left " + remaining + "/3 target stone unmined");
-        if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+        if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
             ctx.fail("server MineProcess did not finish+unregister: finished="
-                    + driver.finished() + " active=" + ServerAgentManager.activeCount());
+                    + driver.finished() + " active=" + ServerAvatarManager.activeCount());
     }
 
     // ==================================================================================
@@ -417,8 +417,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -1; dx <= 9; dx++)
                 for (int dy = 0; dy <= 2; dy++)
@@ -447,24 +447,24 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ctx.cleanup(() -> driver.fakePlayer().discard());
         // NO pickaxe — empty-handed, matching the campaign soft-lock (broken pickaxe, no craft path).
         driver.runProcess(new MineProcess(List.of("minecraft:stone"), 3, 8));
-        ServerAgentManager.register(driver);
+        ServerAvatarManager.register(driver);
 
-        for (int t = 0; t < 400 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        for (int t = 0; t < 400 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         int remaining = 0;
         for (BlockPos t : targets) if (!level.getBlockState(t).isAir()) remaining++;
         String err = driver.botState().mine.lastError;
         WorldDriverCommon.LOG.info("[wd.serverMineNoTool] finished={} active={} remaining={}/3 lastError={}",
-                driver.finished(), ServerAgentManager.activeCount(), remaining, err);
+                driver.finished(), ServerAvatarManager.activeCount(), remaining, err);
         // Must have mined NONE — a harvest-requiring block with no tool yields nothing.
         if (remaining != 3)
             ctx.fail("toolless MineProcess broke " + (3 - remaining)
                     + "/3 stone for zero drops (should mine none): remaining=" + remaining);
         // Must have aborted cleanly (finished + unregistered), not spun or ground the quota.
-        if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+        if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
             ctx.fail("toolless MineProcess did not abort+unregister: finished="
-                    + driver.finished() + " active=" + ServerAgentManager.activeCount());
+                    + driver.finished() + " active=" + ServerAvatarManager.activeCount());
         // Signal must name the missing tool so the planner can act (craft/relocate).
         if (err == null || !err.contains("pickaxe"))
             ctx.fail("expected a tool-block signal naming a pickaxe, got: " + err);
@@ -483,8 +483,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         boolean ofb = ServerPlayerAvatar.faithfulBreak;
         ctx.cleanup(() -> ServerPlayerAvatar.faithfulBreak = ofb);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -1; dx <= 1; dx++)
                 for (int dy = 0; dy <= 3; dy++)
@@ -529,15 +529,15 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ctx.cleanup(() -> driver.fakePlayer().discard());
         // NO pickaxe — empty-handed, matching the campaign soft-lock at y-14 deepslate.
         driver.gotoGoal(new Goal.Block(goal));       // real Walker executor, no MineProcess
-        ServerAgentManager.register(driver);
+        ServerAvatarManager.register(driver);
 
         final int BUDGET = 3000;                     // >> walkerTotalTickBudget(1200); an infinite grind stays active past this
         int endTick = -1;
         for (int t = 0; t < BUDGET; t++) {
-            if (ServerAgentManager.activeCount() == 0) { endTick = t; break; }
-            ServerAgentManager.tickAll();
+            if (ServerAvatarManager.activeCount() == 0) { endTick = t; break; }
+            ServerAvatarManager.tickAll();
         }
-        if (endTick < 0 && ServerAgentManager.activeCount() == 0) endTick = BUDGET;
+        if (endTick < 0 && ServerAvatarManager.activeCount() == 0) endTick = BUDGET;
 
         ServerPlayer fp = driver.fakePlayer();
         int plugRemaining = (level.getBlockState(plugFoot).isAir() ? 0 : 1)
@@ -545,7 +545,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         boolean reached = Math.abs(fp.getZ() - (cz + 4 + 0.5)) < 1.5 && fp.getY() >= floorY + 1 - 0.4;
         WorldDriverCommon.LOG.info("[wd.serverWalkerDeepslateNoTool] endTick={} step={} pos=({},{},{}) finished={} active={} reached={} plugRemaining={}/2",
                 endTick, driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(),
-                driver.finished(), ServerAgentManager.activeCount(), reached, plugRemaining);
+                driver.finished(), ServerAvatarManager.activeCount(), reached, plugRemaining);
         // Real guard: the bot must BREAK THROUGH the bare-hand deepslate plug and REACH
         // the goal. A reset-stall regression (dig never completes) would leave the plug
         // solid and the bot short of the goal — reached/plugRemaining catch it, where a
@@ -573,8 +573,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -1; dx <= 1; dx++)
                 for (int dy = 0; dy <= 3; dy++)
@@ -636,18 +636,18 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             driverA.fakePlayer().getInventory().selected = 0;
             Intent intentA = new Intent(new Goal.Near(standCell, 1), List.of(), CapabilityProfile.ALL, List.of(new NoBreak()), leash);
             driverA.runProcess(new IntentProcess(intentA));
-            ServerAgentManager.register(driverA);
+            ServerAvatarManager.register(driverA);
             int endA = -1;
             for (int t = 0; t < BUDGET; t++) {
-                if (ServerAgentManager.activeCount() == 0) { endA = t; break; }
-                ServerAgentManager.tickAll();
+                if (ServerAvatarManager.activeCount() == 0) { endA = t; break; }
+                ServerAvatarManager.tickAll();
             }
             ServerPlayer fpA = driverA.fakePlayer();
             int plugA = (level.getBlockState(plugFoot).isAir() ? 0 : 1) + (level.getBlockState(plugHead).isAir() ? 0 : 1);
             boolean gotPastA = fpA.getZ() > cz + plugDz + 1.0;   // past the plug = tunnelled through
             WorldDriverCommon.LOG.info("[wd.serverForbidDigWall] A(forbidDig) endTick={} step={} pos=({},{},{}) gotPast={} plugRemaining={}/2",
                     endA, driverA.lastStep(), fpA.getX(), fpA.getY(), fpA.getZ(), gotPastA, plugA);
-            ServerAgentManager.clear();
+            ServerAvatarManager.clear();
             fpA.discard();                                  // so the pinned FakePlayer can't linger into Phase B
             if (plugA != 2 || gotPastA) {
                 ctx.fail("forbidDig LEAK: executor dig fallback punched the wall despite NoBreak — "
@@ -664,11 +664,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             driverB.fakePlayer().getInventory().selected = 0;
             Intent intentB = new Intent(new Goal.Near(standCell, 1), List.of(), CapabilityProfile.ALL, List.of(), leash);   // no NoBreak = digging allowed
             driverB.runProcess(new IntentProcess(intentB));
-            ServerAgentManager.register(driverB);
+            ServerAvatarManager.register(driverB);
             int endB = -1;
             for (int t = 0; t < BUDGET; t++) {
-                if (ServerAgentManager.activeCount() == 0) { endB = t; break; }
-                ServerAgentManager.tickAll();
+                if (ServerAvatarManager.activeCount() == 0) { endB = t; break; }
+                ServerAvatarManager.tickAll();
             }
             ServerPlayer fpB = driverB.fakePlayer();
             int plugB = (level.getBlockState(plugFoot).isAir() ? 0 : 1) + (level.getBlockState(plugHead).isAir() ? 0 : 1);
@@ -692,8 +692,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -1; dx <= 6; dx++)
                 for (int dy = 0; dy <= 2; dy++)
@@ -723,23 +723,23 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         driver.fakePlayer().getInventory().items.set(0, new ItemStack(Blocks.COBBLESTONE, 64));
         driver.fakePlayer().getInventory().selected = 0;
         driver.runProcess(new BuildProcess(origin, schem));
-        ServerAgentManager.register(driver);
+        ServerAvatarManager.register(driver);
 
-        for (int t = 0; t < 400 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        for (int t = 0; t < 400 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         boolean p1 = level.getBlockState(t1).is(Blocks.COBBLESTONE);
         boolean p2 = level.getBlockState(t2).is(Blocks.COBBLESTONE);
         ServerPlayer fp = driver.fakePlayer();
         WorldDriverCommon.LOG.info("[wd.serverBuild] step={} pos=({},{},{}) finished={} active={} placed1={} placed2={}",
                 driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(),
-                driver.finished(), ServerAgentManager.activeCount(), p1, p2);
+                driver.finished(), ServerAvatarManager.activeCount(), p1, p2);
         if (!p1 || !p2)
             ctx.fail("server BuildProcess failed to place both cobble: t1="
                     + level.getBlockState(t1) + " t2=" + level.getBlockState(t2));
-        if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+        if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
             ctx.fail("build process did not finish+unregister: finished="
-                    + driver.finished() + " active=" + ServerAgentManager.activeCount());
+                    + driver.finished() + " active=" + ServerAvatarManager.activeCount());
     }
 
     // ==================================================================================
@@ -752,8 +752,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -3; dx <= 7; dx++)
                 for (int dy = -1; dy <= 7; dy++)
@@ -797,8 +797,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -2; dx <= 12; dx++)
                 for (int dy = 0; dy <= 2; dy++)
@@ -826,10 +826,10 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
             ctx.cleanup(() -> driver.fakePlayer().discard());
             driver.runProcess(new FollowProcess("minecraft:armor_stand", null, 2, 0));
-            ServerAgentManager.register(driver);
+            ServerAvatarManager.register(driver);
 
-            for (int t = 0; t < 200 && ServerAgentManager.activeCount() > 0; t++)
-                ServerAgentManager.tickAll();
+            for (int t = 0; t < 200 && ServerAvatarManager.activeCount() > 0; t++)
+                ServerAvatarManager.tickAll();
 
             ServerPlayer fp = driver.fakePlayer();
             double dx = fp.getX() - (cx + 8 + 0.5), dz = fp.getZ() - (cz + 0.5);
@@ -855,8 +855,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -2; dx <= 10; dx++)
                 for (int dy = 0; dy <= 2; dy++)
@@ -899,10 +899,10 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             // KILL by TYPE (scans Level.getEntities) rather than by id — the by-id lookup is not
             // populated without a full level.tick(); type-mode exercises the same melee loop.
             driver.runProcess(new CombatProcess(CombatProcess.Mode.KILL, null, "minecraft:zombie"));
-            ServerAgentManager.register(driver);
+            ServerAvatarManager.register(driver);
 
-            for (int t = 0; t < 1500 && ServerAgentManager.activeCount() > 0; t++) {
-                ServerAgentManager.tickAll();
+            for (int t = 0; t < 1500 && ServerAvatarManager.activeCount() > 0; t++) {
+                ServerAvatarManager.tickAll();
                 // Tick the zombie DIRECTLY each iteration so it processes its hurt-cooldown
                 // (invulnerableTime) — a non-ticked target stays permanently invulnerable after
                 // the first hit. NOT level.tick() (that is the ChunkMap-livelock trap): a direct
@@ -919,12 +919,12 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             ServerPlayer fp = driver.fakePlayer();
             WorldDriverCommon.LOG.info("[wd.serverCombat] step={} pos=({},{},{}) zHp={} dead={} finished={} active={}",
                     driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(),
-                    zombie.getHealth(), dead, driver.finished(), ServerAgentManager.activeCount());
+                    zombie.getHealth(), dead, driver.finished(), ServerAvatarManager.activeCount());
             if (!dead)
                 ctx.fail("server CombatProcess did not kill the zombie: hp=" + zombie.getHealth());
-            if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+            if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
                 ctx.fail("server CombatProcess did not finish+unregister: finished="
-                        + driver.finished() + " active=" + ServerAgentManager.activeCount());
+                        + driver.finished() + " active=" + ServerAvatarManager.activeCount());
         });
     }
 
@@ -949,8 +949,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -2; dx <= 10; dx++)
                 for (int dy = 0; dy <= 2; dy++)
@@ -991,14 +991,14 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             driver.fakePlayer().getInventory().clearContent();
             driver.fakePlayer().getInventory().add(new ItemStack(Items.IRON_SWORD));
             driver.runProcess(new CombatProcess(CombatProcess.Mode.KILL, null, "minecraft:zombie"));
-            ServerAgentManager.register(driver);
+            ServerAvatarManager.register(driver);
 
             // Diagnostics live in the FAIL MESSAGE, not LOG.info — late-suite async
             // log lines are dropped wholesale on shutdown (task#95 lesson).
             int killedAt = -1, endedAt = -1;
             double killX = Double.NaN;
-            for (int t = 0; t < 1500 && ServerAgentManager.activeCount() > 0; t++) {
-                ServerAgentManager.tickAll();
+            for (int t = 0; t < 1500 && ServerAvatarManager.activeCount() > 0; t++) {
+                ServerAvatarManager.tickAll();
                 if (killedAt < 0 && !zombie.isAlive()) {
                     killedAt = t;
                     killX = driver.fakePlayer().getX();
@@ -1024,9 +1024,9 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                     + " goal=" + driver.botState().combat.goal + "]";
             if (!dead)
                 ctx.fail("collectDrops rig: zombie not killed: hp=" + zombie.getHealth() + diag);
-            if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+            if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
                 ctx.fail("collectDrops: combat did not finish+unregister: finished="
-                        + driver.finished() + " active=" + ServerAgentManager.activeCount() + diag);
+                        + driver.finished() + " active=" + ServerAvatarManager.activeCount() + diag);
             if (!pickedUp && distToDrop > 2.0)
                 ctx.fail("collectDrops: drop NOT swept — bot ended " + distToDrop
                         + " blocks from the drop (pre-fix behaviour: terminate at the kill spot)"
@@ -1044,8 +1044,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -1; dx <= 5; dx++)
                 for (int dy = 0; dy <= 2; dy++)
@@ -1063,9 +1063,9 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
         ctx.cleanup(() -> driver.fakePlayer().discard());
         driver.runProcess(new LookProcess(track, 0f, 0f));
-        ServerAgentManager.register(driver);
-        for (int t = 0; t < 300 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        ServerAvatarManager.register(driver);
+        for (int t = 0; t < 300 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         ServerPlayer fp = driver.fakePlayer();
         var eye = fp.getEyePosition();
@@ -1075,9 +1075,9 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         float yawErr = Math.abs(((ty - fp.getYRot()) % 360f + 540f) % 360f - 180f);
         float pitchErr = Math.abs(tp - fp.getXRot());
         WorldDriverCommon.LOG.info("[wd.serverLook] yaw={} (tgt {}) pitch={} (tgt {}) finished={} active={}",
-                fp.getYRot(), ty, fp.getXRot(), tp, driver.finished(), ServerAgentManager.activeCount());
-        if (!driver.finished() || ServerAgentManager.activeCount() != 0)
-            ctx.fail("server LookProcess did not align+finish: active=" + ServerAgentManager.activeCount());
+                fp.getYRot(), ty, fp.getXRot(), tp, driver.finished(), ServerAvatarManager.activeCount());
+        if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
+            ctx.fail("server LookProcess did not align+finish: active=" + ServerAvatarManager.activeCount());
         if (yawErr > 2f || pitchErr > 2f)
             ctx.fail("server LookProcess off target: yawErr=" + yawErr + " pitchErr=" + pitchErr);
     }
@@ -1093,8 +1093,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
             for (int dx = -1; dx <= 11; dx++)
                 for (int dy = 0; dy <= 8; dy++)
@@ -1125,15 +1125,15 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         driver16.fakePlayer().getInventory().items.set(0, new ItemStack(Items.WOODEN_AXE));
         driver16.fakePlayer().getInventory().selected = 0;
         driver16.runProcess(new MineProcess(List.of("#minecraft:logs"), 1, 16));
-        ServerAgentManager.register(driver16);
-        for (int t = 0; t < 800 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        ServerAvatarManager.register(driver16);
+        for (int t = 0; t < 800 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
         boolean minedAt16 = !level.getBlockState(logPos).is(Blocks.OAK_LOG);
         String err16 = driver16.botState().mine.lastError;
         WorldDriverCommon.LOG.info("[wd.serverMineCanopyRadius] radius=16 minedAt16={} finished={} lastError={}",
                 minedAt16, driver16.finished(), err16);
         if (!minedAt16) { ctx.fail("gap#67(regression): radius=16 must still find the dy=+4 canopy log: lastError=" + err16); return; }
-        ServerAgentManager.clear();
+        ServerAvatarManager.clear();
 
         // Phase 2 — radius=32, the exact live repro: respawn the log and re-run with the wider radius.
         level.setBlockAndUpdate(logPos, Blocks.OAK_LOG.defaultBlockState());
@@ -1142,9 +1142,9 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         driver32.fakePlayer().getInventory().items.set(0, new ItemStack(Items.WOODEN_AXE));
         driver32.fakePlayer().getInventory().selected = 0;
         driver32.runProcess(new MineProcess(List.of("#minecraft:logs"), 1, 32));
-        ServerAgentManager.register(driver32);
-        for (int t = 0; t < 800 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        ServerAvatarManager.register(driver32);
+        for (int t = 0; t < 800 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
         boolean minedAt32 = !level.getBlockState(logPos).is(Blocks.OAK_LOG);
         String err32 = driver32.botState().mine.lastError;
         WorldDriverCommon.LOG.info("[wd.serverMineCanopyRadius] radius=32 minedAt32={} finished={} lastError={}",
@@ -1161,8 +1161,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
     private static void serverBridgePillarStartScene(SceneContext ctx) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAgentManager.clear();
-        ctx.cleanup(ServerAgentManager::clear);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
         BotConfig.walkerDebug = false;
 
         // Leg A: live death-#24 shape — sneak-overhang start (center 1.05 east of the pillar cell
@@ -1208,12 +1208,12 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         fp.getInventory().setItem(0, new ItemStack(Items.COBBLESTONE, 64));
         fp.getInventory().selected = 0;
         driver.runProcess(new BridgeProcess(Direction.EAST, distance, "minecraft:cobblestone"));
-        ServerAgentManager.register(driver);
+        ServerAvatarManager.register(driver);
 
         double minY = fp.getY();
         int t = 0;
-        for (; t < 400 && ServerAgentManager.activeCount() > 0; t++) {
-            ServerAgentManager.tickAll();
+        for (; t < 400 && ServerAvatarManager.activeCount() > 0; t++) {
+            ServerAvatarManager.tickAll();
             minY = Math.min(minY, fp.getY());
             if (t < 40 || t % 20 == 0)
                 WorldDriverCommon.LOG.info("[bridgePillar {} t={}] pos=({},{},{}) onGround={} dm={} step={} lastErr={}",
@@ -1240,6 +1240,6 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         if (!driver.finished() || lastErr == null || !lastErr.startsWith("done"))
             ctx.fail("gap#75-a leg " + leg + ": process did not reach the done terminal: "
                     + "finished=" + driver.finished() + " lastErr=" + lastErr);
-        ServerAgentManager.clear();
+        ServerAvatarManager.clear();
     }
 }

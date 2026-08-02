@@ -6,11 +6,11 @@ import dev.latvian.mods.rhino.util.ClassVisibilityContext;
 
 /**
  * Rhino ContextFactory for agent script Contexts (class filtering is OFF by
- * default — see AgentClassFilter; -Dworlddriver.sandbox=on opts in). The Context
- * delegates {@link Context#visibleToScripts} to {@link AgentClassFilter}
+ * default — see ScriptClassFilter; -Dworlddriver.sandbox=on opts in). The Context
+ * delegates {@link Context#visibleToScripts} to {@link ScriptClassFilter}
  * so any LiveConnect class lookup goes through our denylist.
  */
-public final class AgentContextFactory extends ContextFactory {
+public final class ScriptContextFactory extends ContextFactory {
     @Override
     protected Context createContext() {
         return new SandboxedContext(this);
@@ -23,7 +23,7 @@ public final class AgentContextFactory extends ContextFactory {
 
         @Override
         public boolean visibleToScripts(String fullClassName, ClassVisibilityContext type) {
-            return AgentClassFilter.isAllowed(fullClassName, type);
+            return ScriptClassFilter.isAllowed(fullClassName, type);
         }
     }
 }

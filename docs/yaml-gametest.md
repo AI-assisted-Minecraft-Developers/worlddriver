@@ -2,7 +2,7 @@
 
 > ⚠️ **交付机制已更新（P4-final）**：本文原按「@GameTest 内联 + GameTestServer 跑套件」
 > 设计并落地（§7.1 / §10）。P4-final 退役了 GameTestServer 运行机器——`mc.test.yaml`
-> 路由本身**保留**（它走 `AgentApi.route()`，与 GameTestServer 无关），现由 stagewright
+> 路由本身**保留**（它走 `DriverApi.route()`，与 GameTestServer 无关），现由 stagewright
 > 正门（`scripts/stagewright/` 的 t0/t1/t2 + `instrument.py`）与 JS 校验套件驱动。下文对
 > `@GameTest`/GameTestServer 交付形态的描述属于**历史设计记录**，保留以存档实现脉络。
 >
@@ -18,7 +18,7 @@
 
 **一句话契约**（沿用 addendum §3.1 的验证理念）：
 > YAML 用例里只有「场景 + 动作 + 断言」三段业务语义，没有任何序列化/网络/线程的杂音——
-> 因为每条动作和断言都落到现有的 `AgentApi.route()`，与 JS / WS / MCP 三路走同一个 Java 方法。
+> 因为每条动作和断言都落到现有的 `DriverApi.route()`，与 JS / WS / MCP 三路走同一个 Java 方法。
 
 **非目标（本期不做）**：
 - microtiming（逐 tick 方块变化捕获）—— 留待 Phase 3 的 Carpet 风格 tracker，断言层先留 `block_changed_within` 占位但不实现。
@@ -30,15 +30,15 @@
 
 | 设施 | 位置 | 设计里怎么用 |
 |---|---|---|
-| 单一 dispatch 点 | `AgentApi.route(String method, Map params) -> Object` | 所有 setup 动作 / 断言取数都走它；不新开旁路 |
+| 单一 dispatch 点 | `DriverApi.route(String method, Map params) -> Object` | 所有 setup 动作 / 断言取数都走它；不新开旁路 |
 | setup/teardown 回滚 | `mc.world.snapshot` / `mc.world.restore`（`WorldApi`） | 每个用例跑前 snapshot、`finally` restore |
-| 确定性竞技场 | `AgentApi.seedTestArea()`（y=200，`ORIGIN`） | 第一期所有 YAML 用例的坐标基准 |
+| 确定性竞技场 | `DriverApi.seedTestArea()`（y=200，`ORIGIN`） | 第一期所有 YAML 用例的坐标基准 |
 | 既有 GameTest 范本 | `neoforge/.../AgentGameTest.java`（`agentRpcSmoke`） | 复用 worker-thread + `startSequence().thenWaitUntil` 防死锁模式 |
 | 断言语义 | `common/.../test/TestContext.java`（throw `AssertionError`） | interpreter 的断言失败复用同一套异常归类 |
 | 结构资源 | `neoforge/.../data/worlddriver/structure/empty.nbt` | `@GameTest(template="empty")` 仍需要它（哪怕 body 不碰） |
 
 **关键约束（来自 `AgentGameTest` 的注释，必须遵守）**：`@GameTest` body 跑在 server 线程上；
-而 YAML 动作里的 `mc.bot.*` 寻路、`mc.world.*` 都通过 `AgentApi.onServerThread()` 把活儿
+而 YAML 动作里的 `mc.bot.*` 寻路、`mc.world.*` 都通过 `DriverApi.onServerThread()` 把活儿
 塞回 server tick 队列、靠每 tick drain——**如果 body 阻塞 server 线程就会死锁**。因此 interpreter
 必须在 worker 线程上跑用例主体，再从 tick 路径用 `thenWaitUntil` 轮询完成。
 
@@ -109,10 +109,10 @@ YAML 用例资源：`common/src/main/resources/data/worlddriver/gametests/*.yaml
 
 | YAML 键 | route method | 说明 |
 |---|---|---|
-| `place` | `mc.action.placeMany` | 单块也走 placeMany：`{blocks:[{pos,type}]}`。**没有 `mc.action.placeBlock` route**——单块放置已并入 `placeMany`（核对自 `AgentApi` routes 表，2026-06-01） |
+| `place` | `mc.action.placeMany` | 单块也走 placeMany：`{blocks:[{pos,type}]}`。**没有 `mc.action.placeBlock` route**——单块放置已并入 `placeMany`（核对自 `DriverApi` routes 表，2026-06-01） |
 | `fill` | `mc.action.fill` | `{from, to, type}` |
 | `place_many` | `mc.action.placeMany` | `{blocks:[{pos,type}, ...]}`（元素形状核对自 `ActionApi.placeMany`） |
-| `run_command` | `mc.action.runCommand` | 字符串值 → `{cmd: "..."}`（参数键是 `cmd`，核对自 `AgentApi` 与 prelude） |
+| `run_command` | `mc.action.runCommand` | 字符串值 → `{cmd: "..."}`（参数键是 `cmd`，核对自 `DriverApi` 与 prelude） |
 | `wait_ticks` | `mc.system.waitTicks` | 整数值 → `{ticks:N}`。**已有 route**（JS 套件里 `Agent.system.waitTicks` 在用），interpreter 直接调它即可，无需自建 sleep |
 | `bot` | `mc.bot.<sub>` | `{do: "goto", ...}` 形式，转 `mc.bot.goto` 等（覆盖需要 bot 动作的用例） |
 

@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Internal: the `Agent*` class names were carrying three unrelated meanings.**
+  Follow-up to the WorldDriver rename below. `Agent` meant the API façade in
+  `api/`/`model/`, the controlled server-side body in `bot/sim/`+`bot/movement/`,
+  and the Rhino layer in `script/` — so a single replacement would have produced
+  things like `ServerWorldDriverManager`. Split by meaning instead:
+
+  | Was | Is |
+  |---|---|
+  | `AgentApi`, `ClientAgentApi(Impl)`, `AgentEvent` | `DriverApi`, `ClientDriverApi(Impl)`, `DriverEvent` |
+  | `ServerAgentManager`, `ServerAgentBodies`, `FabricAgentBodies`, `ServerAgentCommand` | `Server*`/`Fabric*` + `Avatar…` (joins the existing `ServerPlayerAvatar` vocabulary) |
+  | `AgentFakePlayer`, `AgentInput` | `AvatarFakePlayer`, `AvatarInput` |
+  | `AgentScriptManager`, `AgentContextFactory`, `AgentClassFilter`, `AgentEvents`, `AgentTest` | `ScriptManager`, `ScriptContextFactory`, `ScriptClassFilter`, `ScriptEvents`, `ScriptTest` |
+
+  `ScriptTest` is bound into the Rhino scope under its new name, so every
+  `agent_validation/*.js` calls `ScriptTest.run(...)` now. No JSON field or RPC
+  method name changed — this is class names only. The script-facing `Agent` global
+  (`Agent.invoke(...)`) is deliberately untouched.
 - **BREAKING (naming): the mod is now `WorldDriver` and the test framework is
   `StageWright`.** The old names described the consumers, not this layer. This mod
   is not an agent and not a test tool — it is to Minecraft roughly what chromedriver
@@ -47,7 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   readers of the port files must switch to `worlddriver-rpc.port`, and readers of
   the results file to `stagewright-results.jsonl`.
 - **BREAKING (wire): an event's `data` is now a value, not always a string.**
-  `AgentEvent.data` was declared `String`, so the 20 structured emitters all
+  `DriverEvent.data` was declared `String`, so the 20 structured emitters all
   pre-encoded with `JsonCodec.encode(map)` and the payload shipped as JSON escaped
   inside a JSON string (`"data":"{\"phase\":\"sunset\"}"`). That made the field an
   undiscriminated union — a scalar payload (`block.place` → a block id) and a
@@ -112,7 +129,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and watcher `emitAs`, so the set is open-world and a typo still yields silence.
 - **The WebSocket transport silently dropped requests over 64 KiB.** `McpServer`
   capped a POST body at 8 MiB and documented it; `RpcServer` never set a frame size
-  and inherited Netty's 64 KiB default, so the same `AgentApi` call succeeded on one
+  and inherited Netty's 64 KiB default, so the same `DriverApi` call succeeded on one
   transport and killed the connection on the other at 128× less payload — with no
   JSON error, because a frame that never assembles carries no id to answer. Both
   limits now come from `TransportLimits.MAX_REQUEST_BYTES` (8 MiB, override with
@@ -122,7 +139,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   image bytes) and the 64 KiB default would have turned an oversized reply into a
   call timeout.
 - **One stalled MCP SSE client no longer freezes the whole event system.**
-  `McpServer.onEvent` wrote each SSE socket inline, on AgentApi's *single*
+  `McpServer.onEvent` wrote each SSE socket inline, on DriverApi's *single*
   event-dispatch thread — the one every listener shares. A client whose TCP receive
   window had filled parked that thread inside `os.write`, taking down every other
   SSE subscriber, **the WebSocket push channel**, and letting the dispatch queue
@@ -135,7 +152,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   EOF is loud and recoverable via `mc.observe.eventsSince{cursor}` replay.
   (Unchanged: a client that wedges and never closes its TCP connection still holds
   its own HTTP worker thread — now only its own.)
-- **`mutedEvents` is applied once, in `AgentApi`, instead of once per transport.**
+- **`mutedEvents` is applied once, in `DriverApi`, instead of once per transport.**
   `RpcServer.onEvent` and `McpServer.onEvent` each carried their own copy of the
   same `BotConfig.mutedEvents.contains(...)` line — a policy decision living in two
   transport handlers, which AGENTS.md hard rule #1 exists to prevent, and the shape
@@ -318,7 +335,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a bare class name (`Class.forName("TutorialSteps")`) and threw in every runtime,
   not just mojmap dev. Replaced with a direct import + field write so both vanilla
   and intermediary runtimes succeed (docs/feedback/2026-07-10 §2).
-- **`AgentApi.route()` validates params against the MCP schema — single source of
+- **`DriverApi.route()` validates params against the MCP schema — single source of
   truth** — wrong-argument errors now name missing required fields and unexpected
   keys instead of silently consuming them or returning a generic message. `{command:…}`
   (missing required `cmd`) now fails with `invalid params for mc.action.runCommand:
@@ -518,7 +535,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   channels need the dev flag during the research preview).
 - **Driver→agent event push channel — the driver streams events to the agent in
   real time instead of the agent only polling.** Every event still funnels through
-  the single `AgentApi.emit(...)` (ring buffer for `mc.observe.eventsSince` replay,
+  the single `DriverApi.emit(...)` (ring buffer for `mc.observe.eventsSince` replay,
   unchanged) which now also fans out to live push subscribers off a dedicated
   dispatch thread (the game tick never blocks on a socket). Every event is a
   standard server→client **`notifications/message`** (the MCP logging notification —
@@ -551,7 +568,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   needed the `mc.world.snapshot`/`restore` primitive below — cases never pollute
   each other). Every setup verb (`place`/`place_many`/`fill`/`run_command`/
   `wait_ticks`) and assert (`block_present`/`block_absent`/`entity_present`, with
-  `namespace:*` wildcards) dispatches through `AgentApi.route(...)` — the same
+  `namespace:*` wildcards) dispatches through `DriverApi.route(...)` — the same
   single entry the JS/WS/MCP transports use, so a YAML test exercises the real
   production path with no parallel implementation to drift. Parsing is snakeyaml
   under `SafeConstructor` (the one dependency we shadow-**relocate**, since it's a
@@ -577,7 +594,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   snapshots, cleared when the server detaches); `restore` puts the region back
   verbatim, including a chest's contents and components. This is the prerequisite
   the GameTest YAML layer (proposal §4.1 C) needs to stash a region, run a test,
-  and roll it back. New `WorldApi` handler behind `AgentApi.route(...)`; restore
+  and roll it back. New `WorldApi` handler behind `DriverApi.route(...)`; restore
   emits a `world.restore` event and honors `returnEvents`. Validation script
   `33_world_snapshot.js` covers state restore, block-entity contents round-trip,
   and three-transport metadata parity — suite is now 60 GameTest cases.
@@ -606,14 +623,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Internal refactor: the five longest source files were split by responsibility
   — no behavior change.** `ToolCatalog` now concatenates per-category catalogs
   (`mcp/catalog/*`) over shared schema builders (`mcp/schema/Schemas`); the tool
-  set, order, and count (45) are byte-identical. `ClientAgentApiImpl` became a
+  set, order, and count (45) are byte-identical. `ClientDriverApiImpl` became a
   thin facade delegating to `client/internal/*` (screen / input / chat / observe
   / screenshot). The 25 concrete pathfinder moves moved out of `Move` into
   one-class-per-file under `bot/pathfinder/moves/`. `BotApiImpl`'s client-tick
   auto-behaviors moved to `bot/auto/*` (`AutoEat`/`AutoSwim`/`AutoTool`/
-  `AutoRespawn`). `AgentApi`'s `system/observe/action/wait` verb groups moved to
+  `AutoRespawn`). `DriverApi`'s `system/observe/action/wait` verb groups moved to
   sibling `SystemApi`/`ObserveApi`/`ActionApi`/`WaitApi` handlers (pure helpers in
-  `ApiSupport`), while `AgentApi.route(...)` stays the single dispatch point.
+  `ApiSupport`), while `DriverApi.route(...)` stays the single dispatch point.
   Longest file dropped from 1126 → 836 lines. All 57 GameTest cases (including
   the three-transport parity checks) stay green.
 
@@ -781,7 +798,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   filter (and the `-Dworlddriver.commandAllowList` system property + `DEFAULT_COMMAND_
   ALLOW_LIST` / `commandAllowed` machinery) is removed — any Brigadier verb now
   runs at operator level. The MCP/RPC transports bind to localhost, so this is a
-  local/trusted-setup tradeoff; re-add a verb filter in `AgentApi.runCommand` if
+  local/trusted-setup tradeoff; re-add a verb filter in `DriverApi.runCommand` if
   exposing the transports beyond the loopback interface.
 - **`mc.bot.follow` watches its target when within range.** On arriving inside
   `radius` the bot now stops and aims at the followed entity (a tracking shot)
@@ -883,7 +900,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   at **full health** (clutch placed water, then scooped it). **Ground fallback:**
   `mc.bot.elytraFly{pos, groundFallback:true}` walks to the target via the normal
   pathfinder when there's no usable elytra instead of failing. All four verified
-  live (AgentTest). Aborts surface on the `elytra` slot's `lastError`.
+  live (ScriptTest). Aborts surface on the `elytra` slot's `lastError`.
 - **Elytra flight — coarse 3D path planner (waypoint corridors around big
   obstacles).** The reactive controller below only sees one horizon ahead, so it
   can climb a ridge but can't decide to fly *around* a barrier too tall to clear
@@ -899,7 +916,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (far/unloaded chunks read as free at plan time; the controller's live lookahead
   handles whatever is really there). Status exposes the corridor length and the
   current waypoint index under the `elytra` slot. **Verified live (creative,
-  AgentTest):** against a 120-block-tall, 40-wide wall straddling the straight
+  ScriptTest):** against a 120-block-tall, 40-wide wall straddling the straight
   line to the goal, the planner returned a waypoint just past the wall's end and
   the bot flew *around* it at y≈−3 (clearing the z=20 end by ~3 blocks, no climb),
   then collapsed to a direct route once past — where the reactive controller
@@ -919,7 +936,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   active*, tracking the rocket's remaining life so subsequent lookaheads stay
   honest. Triggered by `mc.bot.elytraFly{pos:{x,y,z}}` (no fixed `pitch`); the
   fixed-pitch test glide and the always-on clutch's fall-flying skip are
-  unchanged. **Verified live (creative, AgentTest):** from a standing start it
+  unchanged. **Verified live (creative, ScriptTest):** from a standing start it
   rocket-climbed +35 and steered 157 blocks to arrive within 3 blocks of a far
   higher goal (99 ticks); and against a 75-block-tall wall straddling the path it
   climbed (pitch −45) to clear the top by ~3 blocks exactly at the wall, then
@@ -942,7 +959,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   as a "fall". With `mc.bot.setting{elytraDebug:true}` the process validates the
   simulator tick-by-tick against the live client (predicted vs observed
   `deltaMovement`) and logs per-tick + summary error. **Verified live (creative,
-  AgentTest; the fall-flying glide branch is gamemode-independent):** level,
+  ScriptTest; the fall-flying glide branch is gamemode-independent):** level,
   +30° dive, and −25° climb flights each ran 120 samples at **meanErr = maxErr =
   0.0000 blocks/tick** (every branch — gravity, dive-redirect, climb, steering,
   drag); ground takeoff jumped/deployed and a firework-boosted −12° climb gained
@@ -1448,7 +1465,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 - Stray `*-run.log` files at the project root and the committed `smoke-shots/`
   artifacts; they are local-run outputs and should never have been tracked.
-- Dead Java for the merged tools — `ClientAgentApi.openInventory` /
+- Dead Java for the merged tools — `ClientDriverApi.openInventory` /
   `openPause`, `BotApi.pause` / `resume`, and their impls; routes call only
   the merged surface now.
 
@@ -1458,8 +1475,8 @@ Phase 1 — perceive + act + minimal client driving — complete and verified
 end-to-end.
 
 ### Added
-- **AgentApi**: single source of truth (~900 lines), routes every method
-  through `AgentApi.route(method, params)` on the server thread.
+- **DriverApi**: single source of truth (~900 lines), routes every method
+  through `DriverApi.route(method, params)` on the server thread.
 - **MCP Streamable HTTP server** on `http://127.0.0.1:<port>/mcp`, exposing
   18 tools across five groups (`mc.system.*`, `mc.observe.*`, `mc.action.*`,
   `mc.query`, `mc.script.eval`, `mc.client.*`).
@@ -1467,9 +1484,9 @@ end-to-end.
     validation (loopback allowlist), MCP `image` content blocks for screenshots,
     `text+image` envelope for multimodal vision.
 - **WebSocket RPC server** on `ws://127.0.0.1:<port>/rpc`, JSON-NDJSON, same
-  AgentApi surface.
+  DriverApi surface.
 - **In-JVM Rhino scripting** (`dev.latvian.mods:rhino:2101.2.7-build.81`)
-  - Sandboxed via `AgentClassFilter`: blocks `Runtime`, `ProcessBuilder`,
+  - Sandboxed via `ScriptClassFilter`: blocks `Runtime`, `ProcessBuilder`,
     `Thread`, `File`, `Socket`, reflection, JDK internals.
   - `mc.script.eval` adds a wall-clock deadline enforced via Rhino's
     instruction-count observer.

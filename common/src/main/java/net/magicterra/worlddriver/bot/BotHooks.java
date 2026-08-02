@@ -1,11 +1,11 @@
 package net.magicterra.worlddriver.bot;
 
 /**
- * Broker between {@code AgentApi} (common) and the client-side {@link BotApi}
+ * Broker between {@code DriverApi} (common) and the client-side {@link BotApi}
  * impl. Mirrors {@code ClientHooks} — keeps the static reference in common so
  * dedicated server JVMs never load bot impl classes.
  *
- * Bind is loose: registration order doesn't matter; {@code AgentApi} checks
+ * Bind is loose: registration order doesn't matter; {@code DriverApi} checks
  * availability at call time and returns "unavailable" to {@code mc.bot.*}
  * routes when no impl is registered (e.g. on dedicated server).
  */

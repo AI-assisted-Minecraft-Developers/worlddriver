@@ -8,7 +8,7 @@
   {"query": "use mc.script.eval to observe the player, pick whichever cardinal has the most open space, and kick off a goto that way in a single round trip", "should_trigger": true},
   {"query": "run these against the bot in order: time set day, gamerule naturalRegeneration false, give me a water bucket, then re-observe the player", "should_trigger": true},
   {"query": "how do I send a raw method + params to the worlddriver websocket on 39801 without going through the mcp tools?", "should_trigger": true},
-  {"query": "drive the client into the AgentTest world from the title screen and then grab a screenshot of where it ends up", "should_trigger": true},
+  {"query": "drive the client into the ScriptTest world from the title screen and then grab a screenshot of where it ends up", "should_trigger": true},
   {"query": "the bot keeps overshooting the landing block on a parkour-place leap — fix the Walker actuator so it brakes the momentum on touchdown", "should_trigger": false},
   {"query": "add a new allowElytraFly setting to BotConfig.java and wire it through BotApiImpl.setting(), the snapshot, and ToolCatalog so it shows up", "should_trigger": false},
   {"query": "write a neoforge gametest that asserts the pathfinder emits a parkourPlace2 edge across a 2-block gap", "should_trigger": false},

@@ -2,11 +2,11 @@ package net.magicterra.worlddriver.neoforge;
 
 import com.mojang.authlib.GameProfile;
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.AgentApi;
+import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.bot.sim.ServerAgentBodies;
+import net.magicterra.worlddriver.bot.sim.ServerAvatarBodies;
 import net.minecraft.core.BlockPos;
-import net.magicterra.worlddriver.script.AgentEvents;
+import net.magicterra.worlddriver.script.ScriptEvents;
 import net.magicterra.stagewright.StageWrightCommon;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
@@ -41,12 +41,12 @@ public final class WorldDriverNeoForge {
     private static final boolean TESTKIT_AUTORUN = Boolean.getBoolean("stagewright.autorun");
 
     public WorldDriverNeoForge(IEventBus modBus, ModContainer container) {
-        // P1.6 Task 1: inject the loader body factory behind the common ServerAgentBodies
+        // P1.6 Task 1: inject the loader body factory behind the common ServerAvatarBodies
         // seam. Backed by FakePlayerFactory (getMinecraft/get), so the server-agent sim core
         // — now in common — mints the SAME cached FakePlayer instances as before the migration
         // (byte-level metric gates unchanged). Installed once, at mod construction, before any
         // scene/GameTest/agentserver body is created.
-        ServerAgentBodies.install(new ServerAgentBodies.BodyFactory() {
+        ServerAvatarBodies.install(new ServerAvatarBodies.BodyFactory() {
             @Override public ServerPlayer shared(ServerLevel level) { return FakePlayerFactory.getMinecraft(level); }
             @Override public ServerPlayer unique(ServerLevel level, GameProfile profile) { return FakePlayerFactory.get(level, profile); }
         });
@@ -87,13 +87,13 @@ public final class WorldDriverNeoForge {
     @SubscribeEvent
     public void onRegisterCommands(RegisterCommandsEvent event) {
         WorldDriverCommon.registerCommands(event.getDispatcher());
-        net.magicterra.worlddriver.neoforge.sim.ServerAgentCommand.register(event.getDispatcher());   // Phase 2: /agentserver
+        net.magicterra.worlddriver.neoforge.sim.ServerAvatarCommand.register(event.getDispatcher());   // Phase 2: /agentserver
     }
 
     @SubscribeEvent
     public void onServerTick(ServerTickEvent.Post event) {
-        AgentEvents.fireTick();
-        net.magicterra.worlddriver.neoforge.sim.ServerAgentManager.tickAll();   // Phase 2: drive server-side FakePlayer agents
+        ScriptEvents.fireTick();
+        net.magicterra.worlddriver.neoforge.sim.ServerAvatarManager.tickAll();   // Phase 2: drive server-side FakePlayer agents
         // Unconditional (P3a): a no-op until the harness is built (autorun at boot OR mc.test.run
         // on-demand), so the armed-awaiting T2 server advances its suite once triggered.
         StageWrightCommon.onServerTick(event.getServer());
@@ -104,7 +104,7 @@ public final class WorldDriverNeoForge {
     // is still slightly optimistic, but it's the closest hook NeoForge exposes.
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public void onBlockBreak(BlockEvent.BreakEvent event) {
-        AgentApi api = WorldDriverCommon.api();
+        DriverApi api = WorldDriverCommon.api();
         if (api == null || event.isCanceled()) return;
         var pos = event.getPos();
         String id = BuiltInRegistries.BLOCK.getKey(event.getState().getBlock()).toString();
@@ -113,7 +113,7 @@ public final class WorldDriverNeoForge {
 
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public void onBlockPlace(BlockEvent.EntityPlaceEvent event) {
-        AgentApi api = WorldDriverCommon.api();
+        DriverApi api = WorldDriverCommon.api();
         if (api == null || event.isCanceled()) return;
         Entity placer = event.getEntity();
         if (placer == null) return;
@@ -124,7 +124,7 @@ public final class WorldDriverNeoForge {
 
     @SubscribeEvent
     public void onLivingDeath(LivingDeathEvent event) {
-        AgentApi api = WorldDriverCommon.api();
+        DriverApi api = WorldDriverCommon.api();
         if (api == null) return;
         LivingEntity entity = event.getEntity();
         var p = entity.blockPosition();
@@ -134,7 +134,7 @@ public final class WorldDriverNeoForge {
 
     @SubscribeEvent
     public void onPlayerJoin(PlayerEvent.PlayerLoggedInEvent event) {
-        AgentApi api = WorldDriverCommon.api();
+        DriverApi api = WorldDriverCommon.api();
         if (api == null) return;
         Player pl = event.getEntity();
         var p = pl.blockPosition();
@@ -144,7 +144,7 @@ public final class WorldDriverNeoForge {
 
     @SubscribeEvent
     public void onPlayerLeave(PlayerEvent.PlayerLoggedOutEvent event) {
-        AgentApi api = WorldDriverCommon.api();
+        DriverApi api = WorldDriverCommon.api();
         if (api == null) return;
         Player pl = event.getEntity();
         var p = pl.blockPosition();
@@ -154,7 +154,7 @@ public final class WorldDriverNeoForge {
 
     @SubscribeEvent
     public void onChat(ServerChatEvent event) {
-        AgentApi api = WorldDriverCommon.api();
+        DriverApi api = WorldDriverCommon.api();
         if (api == null) return;
         Player pl = event.getPlayer();
         var p = pl.blockPosition();

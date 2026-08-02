@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.model;
 import net.minecraft.core.BlockPos;
 
-public final class AgentEvent {
+public final class DriverEvent {
     public final long seq;
     public final long timestamp;
     public final String type;
@@ -25,7 +25,7 @@ public final class AgentEvent {
      */
     public final Object data;
 
-    public AgentEvent(long seq, String type, BlockPos pos, Object data) {
+    public DriverEvent(long seq, String type, BlockPos pos, Object data) {
         this.seq = seq;
         this.timestamp = System.currentTimeMillis();
         this.type = type;

@@ -552,14 +552,14 @@ manifest), so no script constant needed updating. One provider service line appe
 this commit.
 
 **Driver / body substitution.** The Station tests drive real `CraftProcess` / `SmeltProcess`
-instances headless over a FakePlayer via `ServerWorldDriver.create` + `ServerAgentManager`
+instances headless over a FakePlayer via `ServerWorldDriver.create` + `ServerAvatarManager`
 register/tickAll. The canonical `create → createUnique` substitution maps to
 `ServerWorldDriver.create → ServerWorldDriver.createIsolated` (which delegates to
 `ServerPlayerAvatar.createUnique`, the #48 per-scene isolated body); the common
 `ServerWorldDriver.fakePlayer()` returns a plain `ServerPlayer` (a FakePlayer IS a ServerPlayer),
 and every station call used — `getInventory()`, `containerMenu`, `inventoryMenu`, `offhand`,
 `setItemSlot` — is a `ServerPlayer` member, so the port is type-faithful on both loaders (fabric has
-no `ServerWorldDriver`/`ServerAgentManager` shim — it uses the common ones directly). These are
+no `ServerWorldDriver`/`ServerAvatarManager` shim — it uses the common ones directly). These are
 process-outcome / block-state / resolver gates, not `Walker`-flakiness lotteries, so body isolation
 does not change any verdict (confirmed byte-identical ×2×2).
 
@@ -626,7 +626,7 @@ static) was deleted — its only callers were the four grid/smelt tests migrated
 by grep: zero remaining references). `clearBox` was **kept** — still used by surviving Server-family
 arenas (`serverBunker*`, etc.). Eight now-orphaned imports were removed from `AgentGameTestServer`
 (`CraftProcess`, `RecipeManager`, `HolderLookup`, `Params`, `RecipeApi`, `RecipeResolver`,
-`AbstractContainerMenu`, `InventoryMenu`); `AgentApi` was kept (still used by a surviving arena). One
+`AbstractContainerMenu`, `InventoryMenu`); `DriverApi` was kept (still used by a surviving arena). One
 dangling `{@link #serverObservePlayerInventoryArena}` in the surviving `serverObserveAirSupplyArena`
 javadoc (gap#70) was repointed to plain text "the migrated `wd.serverObservePlayerInventory` scene".
 
@@ -775,13 +775,13 @@ lines appended to the common `SceneProvider` file; the 18 `wd.*` names added to 
 `allowBreak`/`allowPlace`/`pathfinderSliceMs`/… — over the pinned baseline); `throw new
 GameTestAssertException` → `ctx.fail`; `helper.succeed()` → return; `gtOnlySkips(...)` → deleted. The
 real `EscapeProcess`/`BunkerProcess`/`RunAwayProcess`/`IntentProcess`/`ElytraProcess` legs run over
-the bounded `ServerAgentManager.register`+`tickAll()` loop (finish auto-unregisters), and
+the bounded `ServerAvatarManager.register`+`tickAll()` loop (finish auto-unregisters), and
 `wd.drownEscapePreempt` drives a real `DrownEscapeChain` + `ProcessScheduler`. ⛔ **No Survival or
 Avatar scene calls `level.tick()`** (this family has none — the re-entrant `level.tick()` mines are
 all in the Process wave, P4c Task 4).
 
 **Cleanup discipline (#40 persistent-world lesson).** Every world-touching scene registers
-`ctx.cleanup` (LIFO) to (a) discard its avatar(s) (`fakePlayer().discard()`), (b) `ServerAgentManager.clear()`,
+`ctx.cleanup` (LIFO) to (a) discard its avatar(s) (`fakePlayer().discard()`), (b) `ServerAvatarManager.clear()`,
 and (c) air-scrub its whole footprint box — draining every dug AND placed block. The two water tanks
 (`wd.surfaceDive`, `wd.underwaterBase`) scrub all water + stone so no fluid leaks into a neighbouring
 slot; `wd.drownEscapePreempt`/`wd.serverObserveAirSupply`/`wd.antiSuffocateWaterNotSuffocating` restore
@@ -795,7 +795,7 @@ a *killed* run (a world-pollution recidivist — the same class `run_gametests.s
 the world at start), NOT anything inherent to this test's own actuation. The test's actuation is
 BOUNDED on every axis: the planner precheck runs `pathfinderSliceMs=1` / `pathfinderMaxMs=∞` so the
 search is *node-budget*-deterministic (not wall-clock), the executor is capped at 600 ticks, and ⛔ it
-never calls `level.tick()` (it ticks only the avatar via `ServerAgentManager.tickAll()`, which cannot
+never calls `level.tick()` (it ticks only the avatar via `ServerAvatarManager.tickAll()`, which cannot
 re-enter the `serverForbidDigWall`-style `ChunkMap` livelock). Because the hang is not inherent to the
 actuation, the wave PORTS it (rather than taking the escape-hatch) — with the brief-mandated **extra
 neoforge validation for this scene specifically (×3+ total)**. Result: `wd.underwaterBase` runs
@@ -846,7 +846,7 @@ helpers `antiSuffocateSuffocatesBlockMatrix` / `drowningFloatShouldFloatMatrix` 
 provider. `buildFloor` was **KEPT** (still called by the surviving `serverMineArena`, Process wave).
 Nineteen now-orphaned imports were removed (`BunkerAnchor`, `DrownEscapeGate`, `DrowningFloatGate`,
 `DrownEscapeChain`, `AntiSuffocateGate`, `ProcessScheduler`, `Chain`, `Priorities`, `WorldView`,
-`Minecraft`, `EscapeProcess`, `AgentApi`, `Capability`, `Constraint`, `SearchProfile`, `PathFinder`,
+`Minecraft`, `EscapeProcess`, `DriverApi`, `Capability`, `Constraint`, `SearchProfile`, `PathFinder`,
 `Move`, `FluidTags`, `EquipmentSlot` — each verified to have only the import line as its remaining
 reference). No surviving arena references any deleted method name (verified by grep).
 
@@ -911,7 +911,7 @@ Each legacy arena hand-forced a fresh entity into the queryable section index wi
 `for (int i = 0; i < 3; i++) level.tick(() -> true);` loop — the ⛔ persistent-world ChunkMap-livelock
 trigger that MUST NOT be copied into a scene. Each is translated to the established wave-5
 **bounded entity-visibility await** (loud STEP_TIMEOUT on non-appearance). Everything downstream of the
-await — `ServerAgentManager.register`, the `tickAll()` drive loop, and every assertion — is kept VERBATIM.
+await — `ServerAvatarManager.register`, the `tickAll()` drive loop, and every assertion — is kept VERBATIM.
 
 1. **`serverForbidDigWallArena` (legacy :639)**
    - BEFORE: `for (int i = 0; i < 3; i++) level.tick(() -> true);   // index the fresh entity so EntityFind sees it`
@@ -1161,7 +1161,7 @@ executes in full on both.
 **fabric GREEN** (147/0); golden trio (descentYaw/selfShaftDigUp/gearScope) PASS, entityLeash 30-31t.
 t1.py **GREEN** — `wd.agentRpcSmoke` PASS, scene ACTUALLY ran the suite (804 ticks / 35 s wall),
 `passNote` = "259 checks, 0 failures, 1 named task#92 topology-skip"; client log `TOTAL 259 / PASS 259
-/ FAIL 0`. Files: `AgentScriptManager.java` (prelude load), `prelude.js` (tunnel guard),
+/ FAIL 0`. Files: `ScriptManager.java` (prelude load), `prelude.js` (tunnel guard),
 `21/40/42/57_*.js`, `WorldDriverCoreScenes.java` (guard removed + topology-aware gate).
 
 ## task#87 — low-Y leash probe (`wd.entityLeashLowY`): RED reproduced, **BLOCKED on adjudication** — 2026-07-19 (D2 Task 2)

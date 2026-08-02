@@ -19,7 +19,7 @@ function missingCount(missing, item) {
     return 0;
 }
 
-AgentTest.run("43_recipe: lookup by result finds the diamond pickaxe recipe", function(t) {
+ScriptTest.run("43_recipe: lookup by result finds the diamond pickaxe recipe", function(t) {
     var r = Agent.invoke("mc.recipe.lookup", { result: "minecraft:diamond_pickaxe" });
     t.assertEqual(r.ok, true, "ok");
     t.assertTrue(r.count >= 1, "at least one recipe produces a diamond pickaxe");
@@ -40,7 +40,7 @@ AgentTest.run("43_recipe: lookup by result finds the diamond pickaxe recipe", fu
     t.assertTrue(Array.isArray(rec.pattern) && rec.pattern.length === 3, "3-row shaped pattern");
 });
 
-AgentTest.run("43_recipe: lookup by ingredient finds recipes that consume sticks", function(t) {
+ScriptTest.run("43_recipe: lookup by ingredient finds recipes that consume sticks", function(t) {
     var r = Agent.invoke("mc.recipe.lookup", { ingredient: "minecraft:stick", limit: 50 });
     t.assertEqual(r.ok, true, "ok");
     t.assertTrue(r.count >= 1, "something is made from sticks");
@@ -56,7 +56,7 @@ AgentTest.run("43_recipe: lookup by ingredient finds recipes that consume sticks
     t.assertTrue(allUseStick, "every result consumes a stick");
 });
 
-AgentTest.run("43_recipe: resolve diamond pickaxe — plan ordered, diamonds missing", function(t) {
+ScriptTest.run("43_recipe: resolve diamond pickaxe — plan ordered, diamonds missing", function(t) {
     // Give planks so only diamonds are unobtainable; exercises stick->pickaxe.
     var r = Agent.invoke("mc.recipe.resolve", {
         target: "minecraft:diamond_pickaxe", count: 1,
@@ -73,7 +73,7 @@ AgentTest.run("43_recipe: resolve diamond pickaxe — plan ordered, diamonds mis
     t.assertTrue(r.stations_needed.indexOf("crafting_table") >= 0, "crafting table needed");
 });
 
-AgentTest.run("43_recipe: resolve substitutes a tag member from inventory", function(t) {
+ScriptTest.run("43_recipe: resolve substitutes a tag member from inventory", function(t) {
     // The crafting table recipe takes #planks; birch planks must satisfy it.
     var r = Agent.invoke("mc.recipe.resolve", {
         target: "minecraft:crafting_table", count: 1,
@@ -87,7 +87,7 @@ AgentTest.run("43_recipe: resolve substitutes a tag member from inventory", func
     t.assertTrue(top.from.indexOf("minecraft:birch_planks") >= 0, "consumes birch planks");
 });
 
-AgentTest.run("43_recipe: resolve a raw material terminates (storage-pair safe)", function(t) {
+ScriptTest.run("43_recipe: resolve a raw material terminates (storage-pair safe)", function(t) {
     // diamond is craftable from a diamond block (decompression) — resolve must NOT
     // loop diamond->diamond_block->diamond; it reports diamond as missing.
     var r = Agent.invoke("mc.recipe.resolve", { target: "minecraft:diamond", count: 2 });
@@ -96,13 +96,13 @@ AgentTest.run("43_recipe: resolve a raw material terminates (storage-pair safe)"
     t.assertEqual(r.steps.length, 0, "no nonsensical decompression steps");
 });
 
-AgentTest.run("43_recipe: unknown item id is rejected, not crashed", function(t) {
+ScriptTest.run("43_recipe: unknown item id is rejected, not crashed", function(t) {
     var r = Agent.invoke("mc.recipe.resolve", { target: "minecraft:not_a_real_item", count: 1 });
     t.assertEqual(r.ok, false, "ok:false for unknown item");
     t.assertTrue(typeof r.error === "string", "carries an error message");
 });
 
-AgentTest.run("43_recipe: lookup/resolve agree across in-JVM, RPC, MCP transports", function(t) {
+ScriptTest.run("43_recipe: lookup/resolve agree across in-JVM, RPC, MCP transports", function(t) {
     var la = { result: "minecraft:stick" };
     var ld = Agent.invoke("mc.recipe.lookup", la);
     var lt = Agent.system.rpcRoundtrip("mc.recipe.lookup", la);

@@ -12,12 +12,12 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("24_phase_d2: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("24_phase_d2: skipped (no client api — dedicated server)", function(t) {
         // PASS
     });
 } else {
 
-    AgentTest.run("24_phase_d2: allowParkour4 toggle round-trips", function(t) {
+    ScriptTest.run("24_phase_d2: allowParkour4 toggle round-trips", function(t) {
         var on = Agent.invoke("mc.bot.setting", { allowParkour4: true });
         t.assertEqual(on.ok, true, "write must succeed");
         t.assertTrue(on.applied.indexOf("allowParkour4") >= 0, "applied includes allowParkour4");
@@ -26,7 +26,7 @@ if (!clientAvailable()) {
         t.assertEqual(off.settings.allowParkour4, false, "snapshot reflects allowParkour4=false");
     });
 
-    AgentTest.run("24_phase_d2: autoTool toggle round-trips", function(t) {
+    ScriptTest.run("24_phase_d2: autoTool toggle round-trips", function(t) {
         var on = Agent.invoke("mc.bot.setting", { autoTool: true });
         t.assertEqual(on.ok, true, "write must succeed");
         t.assertTrue(on.applied.indexOf("autoTool") >= 0, "applied includes autoTool");
@@ -35,7 +35,7 @@ if (!clientAvailable()) {
         t.assertEqual(off.settings.autoTool, false, "snapshot reflects autoTool=false");
     });
 
-    AgentTest.run("24_phase_d2: non-boolean for toggle leaves state unchanged", function(t) {
+    ScriptTest.run("24_phase_d2: non-boolean for toggle leaves state unchanged", function(t) {
         // Route-layer schema validation now rejects the wrong-type value before
         // the tool runs (stronger than the old silent-skip typing guard) — and
         // the rejected write must leave the stored state untouched.
@@ -49,7 +49,7 @@ if (!clientAvailable()) {
             "rejected write must not flip the boolean: before=" + before + " after=" + after);
     });
 
-    AgentTest.run("24_phase_d2: byte-identical setting reads across in-JVM/RPC/MCP",
+    ScriptTest.run("24_phase_d2: byte-identical setting reads across in-JVM/RPC/MCP",
         function(t) {
             var direct = Agent.invoke("mc.bot.setting", {});
             var viaTcp = Agent.system.rpcRoundtrip("mc.bot.setting", {});

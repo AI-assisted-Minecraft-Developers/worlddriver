@@ -11,7 +11,7 @@
 
   log4j2 prefers log4j2-test.xml over log4j2.xml on the classpath, so this file
   alone fixes it — no working-directory change, which matters because the
-  source-scanning tests (WalkerTickDataflowTest, AgentEventWireTest) resolve
+  source-scanning tests (WalkerTickDataflowTest, DriverEventWireTest) resolve
   paths like src/main/java relative to that same module-dir cwd.
 
   Level is warn: tests that deliberately provoke a warning (SseBackpressureTest's

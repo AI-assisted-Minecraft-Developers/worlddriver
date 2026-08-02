@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Pushing to a stalled SSE client must not block the caller.
  *
- * <p>{@code McpServer.onEvent} runs on AgentApi's single event-dispatch thread, which
+ * <p>{@code McpServer.onEvent} runs on DriverApi's single event-dispatch thread, which
  * every listener shares — the WebSocket transport included. It used to write the SSE
  * socket inline, so one client whose TCP receive window had filled blocked that thread
  * inside {@code os.write} and with it every other subscriber, the WebSocket push

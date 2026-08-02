@@ -4,7 +4,7 @@
 // ars_nouveau:source_lamp[lit=true] (extends CopperBulbBlock) with no way to
 // confirm `lit` persisted; vanilla copper_bulb reproduces that shape 1:1.
 
-AgentTest.run("61_world_block: blockstate + light round-trip (lit copper bulb)", function(t) {
+ScriptTest.run("61_world_block: blockstate + light round-trip (lit copper bulb)", function(t) {
     var origin = Agent.system.testOrigin();
     var x = origin.x + 24, y = origin.y + 4, z = origin.z + 24;
     var s = Agent.invoke("mc.action.runCommand",
@@ -31,7 +31,7 @@ AgentTest.run("61_world_block: blockstate + light round-trip (lit copper bulb)",
     t.assertFalse("blockEntity" in cell, "nbt defaults to false");
 });
 
-AgentTest.run("61_world_block: block-entity NBT via nbt:true", function(t) {
+ScriptTest.run("61_world_block: block-entity NBT via nbt:true", function(t) {
     var origin = Agent.system.testOrigin();
     var x = origin.x + 24, y = origin.y + 6, z = origin.z + 24;
     Agent.invoke("mc.action.runCommand",

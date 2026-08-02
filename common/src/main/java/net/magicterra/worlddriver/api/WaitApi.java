@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.api;
 
-import net.magicterra.worlddriver.model.AgentEvent;
+import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.model.Params;
 import net.magicterra.worlddriver.rpc.JsonCodec;
 
@@ -20,11 +20,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 /**
- * {@code mc.wait.*} long-polling handlers, extracted from {@code AgentApi}. All
+ * {@code mc.wait.*} long-polling handlers, extracted from {@code DriverApi}. All
  * wait methods block the calling thread (HTTP / WS worker, or script-eval pool)
  * — never the server thread — and bound the wait by a hard wall-clock deadline
  * so a stuck condition can't hang a client. Inner work re-uses the same routes
- * everyone else calls via an {@link AgentApi} back-reference, so policy stays in
+ * everyone else calls via an {@link DriverApi} back-reference, so policy stays in
  * one place (e.g., {@code observe.container} requires server; {@code wait.condition}
  * inherits that requirement transparently).
  *
@@ -38,8 +38,8 @@ import java.util.function.Supplier;
  * either polls {@code mc.wait.result} or watches for the event.
  */
 public final class WaitApi {
-    private final AgentApi api;
-    WaitApi(AgentApi api) { this.api = api; }
+    private final DriverApi api;
+    WaitApi(DriverApi api) { this.api = api; }
 
     /** Maximum wall-clock budget any wait.* tool will accept, in ms. Keeps a
      *  runaway script from squatting on a worker thread for hours. */
@@ -140,7 +140,7 @@ public final class WaitApi {
             long t0 = System.nanoTime();
             long deadlineNanos = t0 + budgetMs * 1_000_000L;
             while (true) {
-                List<AgentEvent> page = api.observe.eventsSince(cursor, finalTypes, limit);
+                List<DriverEvent> page = api.observe.eventsSince(cursor, finalTypes, limit);
                 if (!page.isEmpty()) {
                     long ms = (System.nanoTime() - t0) / 1_000_000L;
                     long newCursor = page.get(page.size() - 1).seq;
@@ -166,7 +166,7 @@ public final class WaitApi {
 
     /**
      * Wait until the client is fully in-world (a player exists and a world is
-     * loaded). Does NOT require {@code AgentApi} to be attached to a server —
+     * loaded). Does NOT require {@code DriverApi} to be attached to a server —
      * the whole point is to wait until that happens. On dedicated server (no
      * client bound) throws "mc.client.* not available" immediately.
      */
@@ -180,7 +180,7 @@ public final class WaitApi {
             long deadlineNanos = t0 + budgetMs * 1_000_000L;
             Map<String, Object> info = null;
             while (true) {
-                info = AgentApi.requireClient().screenInfo();
+                info = DriverApi.requireClient().screenInfo();
                 boolean ready = Boolean.TRUE.equals(info.get("worldOpen")) && Boolean.TRUE.equals(info.get("hasPlayer"));
                 if (ready) {
                     long ms = (System.nanoTime() - t0) / 1_000_000L;

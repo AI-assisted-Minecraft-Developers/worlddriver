@@ -94,8 +94,8 @@ final class WalkerTickProgress {
                 // replayMode: a fixed plan was adopted at beginReplay, so path is
                 // never null here in practice; if it somehow is, just hold (no
                 // quick-start/beeline) — replay never re-plans.
-                Walker.agentForward(a, false);
-                Walker.agentJump(a, false);
+                Walker.avatarForward(a, false);
+                Walker.avatarJump(a, false);
                 p.setSprinting(false);
                 return Walker.Step.WALKING;
             }
@@ -756,8 +756,8 @@ final class WalkerTickProgress {
                         wk.edges = null;
                         wk.step = 0;
                         wk.seg.commitEnd = null;
-                        Walker.agentForward(a, false);
-                        Walker.agentJump(a, false);
+                        Walker.avatarForward(a, false);
+                        Walker.avatarJump(a, false);
                         p.setSprinting(false);
                         return Walker.Step.WALKING;
                     }
@@ -780,8 +780,8 @@ final class WalkerTickProgress {
                 if (wk.replayMode || wk.seg.activeSearch == null
                         || (!wk.tryLandBeeline(world, foot, wk.goal)
                             && !wk.tryQuickStart(world, foot, wk.goal) && !wk.tryWaterBeeline(world, foot, wk.goal))) {
-                    Walker.agentForward(a, false);
-                    Walker.agentJump(a, false);
+                    Walker.avatarForward(a, false);
+                    Walker.avatarJump(a, false);
                     p.setSprinting(false);
                     return Walker.Step.WALKING;
                 }

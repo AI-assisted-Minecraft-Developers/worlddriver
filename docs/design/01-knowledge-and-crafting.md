@@ -68,7 +68,7 @@ altoclef 的反面教训：它用 `TaskCatalogue` **硬编码**了"每种资源�
 
 ### 2.4 线程
 
-`RecipeManager` 读取走 server 线程（用现有 `AgentApi` 的同步 helper 模式），或用客户端同步副本（client-only 场景，bot 子系统本就在 client）。与现有 `mc.observe.*` 一致，不新增线程模型。
+`RecipeManager` 读取走 server 线程（用现有 `DriverApi` 的同步 helper 模式），或用客户端同步副本（client-only 场景，bot 子系统本就在 client）。与现有 `mc.observe.*` 一致，不新增线程模型。
 
 ### 2.5 验证（`43_recipe.js`）
 

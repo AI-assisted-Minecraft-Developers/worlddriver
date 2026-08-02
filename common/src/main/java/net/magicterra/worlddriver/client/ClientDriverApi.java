@@ -7,13 +7,13 @@ import java.util.Set;
  * Client-side surface for the agent driver. A platform-specific implementation
  * holds direct references to {@code net.minecraft.client.*} and is registered
  * through {@link ClientHooks} during client init. Dedicated servers never load
- * it; {@link net.magicterra.worlddriver.api.AgentApi} treats {@code mc.client.*}
+ * it; {@link net.magicterra.worlddriver.api.DriverApi} treats {@code mc.client.*}
  * routes as available-only-when-bound.
  *
  * Every method returns JSON-serializable values (Map / List / String / Number /
  * Boolean / null) so they round-trip cleanly through {@code JsonCodec}.
  */
-public interface ClientAgentApi {
+public interface ClientDriverApi {
     /** Walks the current Screen widget tree and returns a JSON-friendly snapshot. */
     Map<String, Object> screenTree();
 
@@ -61,7 +61,7 @@ public interface ClientAgentApi {
      * Client-side player snapshot — pos, look, on-ground, hp/food, selected hotbar
      * slot + held item, plus the current crosshair {@code HitResult} (block or
      * entity the camera is aimed at, with reach distance). Works without a server
-     * being attached to {@code AgentApi}, so it remains available when the client
+     * being attached to {@code DriverApi}, so it remains available when the client
      * is connected to a remote dedicated server. Result also includes
      * {@code inventory}: a list of every non-empty inventory slot
      * ({@code {slot,id,count}}, indexed the same way as {@code Player.getInventory()})

@@ -6,7 +6,7 @@
 //   - q='blocks' rows carry blockstate properties in `state`
 // Uses a corner of the seeded arena away from the mock cow/sheep pair.
 
-AgentTest.run("59_proj: entity effects/uuid/id round-trip", function(t) {
+ScriptTest.run("59_proj: entity effects/uuid/id round-trip", function(t) {
     var origin = Agent.system.testOrigin();
     var x = origin.x + 20, y = origin.y + 1, z = origin.z + 20;
     // Defensive cleanup: the gametest world persists across runs, so an aborted
@@ -36,7 +36,7 @@ AgentTest.run("59_proj: entity effects/uuid/id round-trip", function(t) {
     t.assertTrue(row.effects[0].durationTicks > 0, "duration should be positive");
 });
 
-AgentTest.run("59_proj: is_living filter drops item entities", function(t) {
+ScriptTest.run("59_proj: is_living filter drops item entities", function(t) {
     var origin = Agent.system.testOrigin();
     var x = origin.x + 20, y = origin.y + 1, z = origin.z + 20;
     var s = Agent.invoke("mc.action.runCommand",
@@ -64,7 +64,7 @@ AgentTest.run("59_proj: is_living filter drops item entities", function(t) {
     t.assertFalse("effects" in nonLiving[0], "non-living rows carry no effects");
 });
 
-AgentTest.run("59_proj: unknown select key is rejected", function(t) {
+ScriptTest.run("59_proj: unknown select key is rejected", function(t) {
     var threw = false, msg = "";
     try {
         Agent.query({ q: "entities", filter: { in_radius: 2 }, select: ["type", "bogus_key"] });
@@ -82,7 +82,7 @@ AgentTest.run("59_proj: unknown select key is rejected", function(t) {
     t.assertTrue(threw, "blocks branch must reject unknown select keys too");
 });
 
-AgentTest.run("59_proj: blocks rows carry blockstate properties", function(t) {
+ScriptTest.run("59_proj: blocks rows carry blockstate properties", function(t) {
     var origin = Agent.system.testOrigin();
     var x = origin.x + 22, y = origin.y + 3, z = origin.z + 22;
     var s = Agent.invoke("mc.action.runCommand",

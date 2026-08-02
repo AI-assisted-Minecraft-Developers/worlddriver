@@ -12,12 +12,12 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("19_setting_survival: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("19_setting_survival: skipped (no client api — dedicated server)", function(t) {
         // PASS
     });
 } else {
 
-    AgentTest.run("19_setting_survival: autoEat / autoRespawn toggles round-trip", function(t) {
+    ScriptTest.run("19_setting_survival: autoEat / autoRespawn toggles round-trip", function(t) {
         var r = Agent.invoke("mc.bot.setting", { autoEat: true, autoRespawn: true });
         t.assertEqual(r.ok, true, "write must succeed");
         t.assertTrue(r.applied.indexOf("autoEat") >= 0, "autoEat must be applied");
@@ -30,14 +30,14 @@ if (!clientAvailable()) {
         t.assertEqual(off.settings.autoRespawn, false, "snapshot reflects autoRespawn=false after disable");
     });
 
-    AgentTest.run("19_setting_survival: pathfinder.maxNodes / maxMs accept tunable values", function(t) {
+    ScriptTest.run("19_setting_survival: pathfinder.maxNodes / maxMs accept tunable values", function(t) {
         var r = Agent.invoke("mc.bot.setting", { "pathfinder.maxNodes": 50000, "pathfinder.maxMs": 2000 });
         t.assertEqual(r.ok, true, "write must succeed");
         t.assertEqual(r.settings["pathfinder.maxNodes"], 50000, "maxNodes round-trip");
         t.assertEqual(r.settings["pathfinder.maxMs"], 2000, "maxMs round-trip");
     });
 
-    AgentTest.run("19_setting_survival: smoothLook toggle + rate round-trip", function(t) {
+    ScriptTest.run("19_setting_survival: smoothLook toggle + rate round-trip", function(t) {
         var r = Agent.invoke("mc.bot.setting", { smoothLook: true, smoothLookDegPerTick: 30 });
         t.assertEqual(r.ok, true, "write must succeed");
         t.assertTrue(r.applied.indexOf("smoothLook") >= 0, "smoothLook must be applied");
@@ -50,14 +50,14 @@ if (!clientAvailable()) {
         Agent.invoke("mc.bot.setting", { smoothLook: false, smoothLookDegPerTick: 20 });
     });
 
-    AgentTest.run("19_setting_survival: out-of-range autoEatFoodThreshold rejected", function(t) {
+    ScriptTest.run("19_setting_survival: out-of-range autoEatFoodThreshold rejected", function(t) {
         var r = Agent.invoke("mc.bot.setting", { autoEatFoodThreshold: 99 });
         t.assertEqual(r.ok, true, "envelope still ok");
         t.assertTrue(Array.isArray(r.rejected) && r.rejected.length > 0,
             "out-of-range value must be rejected");
     });
 
-    AgentTest.run("19_setting_survival: byte-identical results across in-JVM, RPC, MCP transports",
+    ScriptTest.run("19_setting_survival: byte-identical results across in-JVM, RPC, MCP transports",
         function(t) {
             var args = { autoEatFoodThreshold: 99 };
             var direct = Agent.invoke("mc.bot.setting", args);

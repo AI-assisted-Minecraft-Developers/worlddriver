@@ -30,7 +30,7 @@ Agent 目前对这些交互一律无能为力。
 ## 3. 候选方案
 
 **A（选定）：扩展 `mc.bot.useItem` 的参数分发** —— 加 `entityId` 分支。
-`AgentApi` 里该路由本就按参数分发（`pos` → `useItemOn`），再加一层
+`DriverApi` 里该路由本就按参数分发（`pos` → `useItemOn`），再加一层
 `entityId` → `useItemOnEntity` 完全顺势。零新工具、零新路由；
 schema/描述更新后自然可发现。三种模式语义统一为「右键」：无参=空挥，
 `pos`=对方块，`entityId`=对实体。
@@ -85,7 +85,7 @@ interactAt(player, entity, EntityHitResult, hand)
 1. `bot/InteractionCommands.java` — 新增 `useItemOnEntity`（~45 行，
    与 attackEntity 对称）。
 2. `bot/BotApi.java` + `bot/BotApiImpl.java` — 接口方法 + delegate（各 1-3 行）。
-3. `api/AgentApi.java` — 路由分发改为三叉：
+3. `api/DriverApi.java` — 路由分发改为三叉：
    `entityId` → `useItemOnEntity`；`pos` → `useItemOn`；否则 `useItem`。
 4. `mcp/catalog/BotTools.java` — `mc.bot.useItem` 描述加第三模式 +
    `entityId`/`sneak` prop（服务于下个会话的 MCP 调用；本会话验证走 RPC）。
@@ -104,14 +104,14 @@ interactAt(player, entity, EntityHitResult, hand)
 - **headless GameTest 不适用**：本动词是 `onClient` 客户端路径，GameTestServer
   没有 client（服务端 gametest 只测 Avatar/进程层，见 `serverBuildArena` 注释）。
   不为测试而开 `Avatar.interactEntity` 缝（YAGNI，见 §7）。
-- **Live 验证 = 主裁判**（客户端已在 AgentTest 世界，项目纪律「live 是真相」），
+- **Live 验证 = 主裁判**（客户端已在 ScriptTest 世界，项目纪律「live 是真相」），
   3 个用例，全走 RPC `mc.bot.useItem {"entityId":N}`（绕开本会话冻结 schema）：
   1. 挤奶：give 桶 + summon 牛 → 返回 `consumed:true` 且手上变 `milk_bucket`；
   2. 骑乘：summon 船 → 返回 `riding:"minecraft:boat"`，`mc.observe.player` 佐证；
   3. 交易 UI：summon 村民（带职业）→ 返回 `screen:"MerchantScreen"`，
      `mc.client.screen.info` 佐证；随后 `mc.client.screen.close` 收尾。
   负例：不存在的 entityId、entityId=自己 → `{ok:false}`。
-- **客户端 `/agent test` 套件**（`AgentTest.run` 注册）：若既有交互动词
+- **客户端 `/agent test` 套件**（`ScriptTest.run` 注册）：若既有交互动词
   （attackEntity/useItemOn）已有套件用例则对称加一条（骑船最稳定、无物品依赖）；
   若没有先例则不新开测试面，live 三用例为准——实现计划阶段定。
 
@@ -119,7 +119,7 @@ interactAt(player, entity, EntityHitResult, hand)
 
 ```
 Agent (MCP/RPC) → mc.bot.useItem{entityId,...}
-  → AgentApi 路由分发 → BotApiImpl → InteractionCommands.useItemOnEntity
+  → DriverApi 路由分发 → BotApiImpl → InteractionCommands.useItemOnEntity
   → onClient: snap-look → setShift(sneak) → interactAt → (interact) → swing
   → 采集 riding/screen → 返回 JSON
 ```

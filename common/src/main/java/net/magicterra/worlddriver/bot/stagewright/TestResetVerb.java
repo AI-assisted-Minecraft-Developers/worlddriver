@@ -22,7 +22,7 @@ import static net.magicterra.worlddriver.mcp.schema.Schemas.tool;
  * {@link #register()} is invoked from {@code WorldDriverCommon.ensureRpcUp}, once, immediately after
  * {@code ToolCatalog.wireRouteSink(api::addRoute)} wires the route sink — the pattern of
  * {@code PathDebugBootstrap.init} (a one-time subsystem bootstrap that runs only after the
- * {@code AgentApi} exists), but deliberately on the COMMON boot path rather than the client-only
+ * {@code DriverApi} exists), but deliberately on the COMMON boot path rather than the client-only
  * {@code ClientHooks.register}: the verb must exist on a dedicated server too (the dogfood harness is
  * a headless server, and {@code wd.settingRegistryClosed} asserts the route + schema are present
  * there). Registering pre-boot would throw ({@code registerVerb} refuses a sink-less call), which is

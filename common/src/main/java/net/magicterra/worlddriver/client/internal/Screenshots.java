@@ -13,7 +13,7 @@ import static net.magicterra.worlddriver.client.internal.ClientThread.runOnClien
 
 /**
  * Framebuffer capture + downscale/transcode for {@code mc.client.screenshot}.
- * Stateless; extracted from {@code ClientAgentApiImpl}.
+ * Stateless; extracted from {@code ClientDriverApiImpl}.
  */
 public final class Screenshots {
     private Screenshots() {}

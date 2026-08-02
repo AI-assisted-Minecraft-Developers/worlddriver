@@ -9,7 +9,7 @@
 | # | 根因 | 证据腿 | 关键代码事实 |
 |---|------|--------|--------------|
 | R1 | **反射链的 episode 状态无生命周期管理**:process-less 反射(BunkerChain)把状态藏在内部 anchor,cancel 结构性够不到,死亡不清 | ⑦⑧③ | `BunkerChain` 无 BotProcess,`a.sealed` 每 tick 重竞价 300;`cancel`/`cancelAllProcesses` 只重置 combatChain+userTask 两目标(`BotApiImpl.java:502-519,1020-1027`);死亡钩子仅 `detectDeath→cancelAllProcesses`(`BotApiImpl.java:812`),backfillTracker/RetreatChain.retreating/BunkerAnchor 全部跨死亡存活 |
-| R2 | **verb 返回值把"启动确认"当"完成"卖,Walker 三个 best-effort 放弃出口报 SUCCESS** | ⑤⑩ | `awaitable` 只轮询 `slot.active`(`AgentApi.java:690-693`);`IntentProcess.tick` 里 ARRIVED 不写任何错误(`IntentProcess.java:87-93`);Walker 五个 ARRIVED 出口中 goal-snap(≤6格,`Walker.java:337-378`)/frontier-hold(`5257-5271`)/anti-spin water(`1491-1516`)三个是放弃却报 SUCCESS;bunker 甚至不 awaitable,`ok:true,depth:N` 纯启动 ack(`BotApiImpl.java:326-336`),BunkerProcess 首 tick 可零动作退出(`BunkerProcess.java:128-131`) |
+| R2 | **verb 返回值把"启动确认"当"完成"卖,Walker 三个 best-effort 放弃出口报 SUCCESS** | ⑤⑩ | `awaitable` 只轮询 `slot.active`(`DriverApi.java:690-693`);`IntentProcess.tick` 里 ARRIVED 不写任何错误(`IntentProcess.java:87-93`);Walker 五个 ARRIVED 出口中 goal-snap(≤6格,`Walker.java:337-378`)/frontier-hold(`5257-5271`)/anti-spin water(`1491-1516`)三个是放弃却报 SUCCESS;bunker 甚至不 awaitable,`ok:true,depth:N` 纯启动 ack(`BotApiImpl.java:326-336`),BunkerProcess 首 tick 可零动作退出(`BunkerProcess.java:128-131`) |
 | R3 | **反射进入门重derive扫描、不消费权威伤害事件** | ①(重定性) | Retreat 竞价 ≥100 本会赢 user 50——盲区不是优先级压制,而是 `shouldEnter` 门自身返回 0:只认"HP≤6∧近战12格内"或"attackedMe∧RangedAttackMob"(`RetreatChain.java:84-93,155-159`),威胁来自 `ClientThreatScanner` 重derive `getLastDamageSource`,hurt 事件的 attackerId/attackerDistance 无消费者 |
 | R4 | **战斗与夜间自保缺态势门** | ②④⑨ | CombatChain/CombatProcess 全程零 own-HP 读取(`CombatChain.java:92-100`);DuskSecureChain=40<user=50 by design(`Priorities.java:34`,类注释"BELOW user task"),夜间暴露也永远抢不过任意 user 任务;且触发条件苛刻(50-tick idle debounce+无威胁12格) |
 | R5 | **idle 态 ambient 行为抢占外部输入** | ⑪ | `autoTool && c==null` 时 `AutoTool.tick` 每 tick 按准星方块重选最优槽(`BotApiImpl.java:922-924`,`AutoTool.java:48-50`),外部 setHotbarSlot 无法存活一个 tick |
@@ -53,7 +53,7 @@ default void onDeath() { cancelEpisode("player-death"); }
 
 - `Walker.terminal(...)` 已带 `PathTrace.Outcome`;新增结构 `TerminalReport {Step step, Outcome outcome, String reason, double finalDistSq, boolean goalReached}`,五个 ARRIVED 出口逐一标注真实 reason:`arrived | goal-snapped(dist) | frontier-giveup | churn-giveup | best-effort-consumed`。**行为不变,只改上报**(避免 Phase 1 引入寻路回归)。
 - `IntentProcess.tick`:ARRIVED 时把 `TerminalReport` 写进 slot(新字段 `goalReached/endReason/finalDist`),不再只有 FAILED 才留痕。
-- `awaitable`(`AgentApi.java:663`):completed 折叠时携带上述字段;`completed:true ∧ goalReached:false` = "进程结束但未达目标",agent 侧一眼可判。向后兼容:旧字段全保留。
+- `awaitable`(`DriverApi.java:663`):completed 折叠时携带上述字段;`completed:true ∧ goalReached:false` = "进程结束但未达目标",agent 侧一眼可判。向后兼容:旧字段全保留。
 - **bunker 入列 awaitable**(与 goto 同款),返回补 `acted:boolean`(是否动过世界)+ `phase` 终值;`ok:true` 语义统一文档化为"已受理"。首 tick 零动作退出的路径(水位不足等)必须写 `lastError`。
 - goal 类型修正:`direction:up/down` 造出的 YLevel goal 标记 `requiresProgress`——best-effort 放弃出口对带此标记的 goal 一律 `goalReached:false`(治"秒报完成")。
 

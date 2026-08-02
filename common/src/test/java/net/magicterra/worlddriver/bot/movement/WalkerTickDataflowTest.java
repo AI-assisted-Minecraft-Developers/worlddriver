@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>These scan source rather than run the pipeline because the pipeline needs a live
  * {@code Level} — the ordering property is a static property of the code, so a static
  * check is the honest tool for it (same approach as
- * {@code AgentEventWireTest#noEmitterPreEncodesItsPayload}).
+ * {@code DriverEventWireTest#noEmitterPreEncodesItsPayload}).
  *
  * <p>Deliberately NOT asserted: that a field has exactly one writer. The ctx javadoc
  * allows a phase to re-publish {@code frame} basics it recomputed, so read-before-write

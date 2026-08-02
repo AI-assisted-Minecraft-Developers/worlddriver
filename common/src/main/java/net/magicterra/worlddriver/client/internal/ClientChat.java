@@ -19,7 +19,7 @@ import static net.magicterra.worlddriver.client.internal.ClientThread.runOnClien
  * {@code mc.client.overlays}. Reads received lines from {@link ClientChatLog}
  * (packet-level, monotonic seq) — NOT from the GUI's ChatComponent, whose
  * newest-first 100-cap buffer made seq unstable and replies stale.
- * Extracted from {@code ClientAgentApiImpl}.
+ * Extracted from {@code ClientDriverApiImpl}.
  */
 public final class ClientChat {
     private ClientChat() {}

@@ -6,7 +6,7 @@
 // and is verified separately in runClient; here we prove the event generation that
 // feeds it.
 
-AgentTest.run("49_events: emit injects a custom event that replays via eventsSince", function (t) {
+ScriptTest.run("49_events: emit injects a custom event that replays via eventsSince", function (t) {
     var c0 = Agent.invoke("mc.observe.cursor", {});
     var em = Agent.invoke("mc.events", { op: "emit", type: "test.custom", data: { hello: "world" } });
     t.assertEqual(em.ok, true, "emit ok");
@@ -22,7 +22,7 @@ AgentTest.run("49_events: emit injects a custom event that replays via eventsSin
     t.assertTrue(typeof ev.data === "object", "data must NOT arrive as a string");
 });
 
-AgentTest.run("49_events: emit requires a type; bad op rejected", function (t) {
+ScriptTest.run("49_events: emit requires a type; bad op rejected", function (t) {
     var threw = false;
     try { Agent.invoke("mc.events", { op: "emit" }); }
     catch (e) { threw = true; t.assertTrue(String(e.message).indexOf("type") >= 0, "error names type (" + e.message + ")"); }
@@ -34,7 +34,7 @@ AgentTest.run("49_events: emit requires a type; bad op rejected", function (t) {
     t.assertTrue(threw2, "unknown op throws");
 });
 
-AgentTest.run("49_events: a rising-edge watcher emits emitAs into the stream", function (t) {
+ScriptTest.run("49_events: a rising-edge watcher emits emitAs into the stream", function (t) {
     var c0 = Agent.invoke("mc.observe.cursor", {});
     // mc.system.version returns a truthy object every poll, so the predicate is
     // true on the first tick → fires once immediately (200ms), then self-cancels.
@@ -59,7 +59,7 @@ AgentTest.run("49_events: a rising-edge watcher emits emitAs into the stream", f
     t.assertFalse(present, "once-watcher is gone from the list after firing");
 });
 
-AgentTest.run("49_events: watch / list / unwatch lifecycle", function (t) {
+ScriptTest.run("49_events: watch / list / unwatch lifecycle", function (t) {
     // everyMs 60000 with a one-shot rising edge → first poll is 60s out, so it
     // won't fire during the test; lets us exercise unwatch on a live watcher.
     var w = Agent.invoke("mc.events", {

@@ -13,7 +13,7 @@ import net.minecraft.world.entity.player.Player;
  * {@link Avatar} over the client {@code LocalPlayer}. Every method maps 1:1 to
  * the behaviour the Walker used inline before the seam was extracted, so client
  * movement is unchanged by construction (the zero-regression oracle). Installs
- * the decoupled {@link AgentInput} lazily, exactly as the old Walker.tick did
+ * the decoupled {@link AvatarInput} lazily, exactly as the old Walker.tick did
  * (a respawn / dimension change builds a fresh vanilla KeyboardInput).
  */
 public final class ClientPlayerAvatar implements Avatar {
@@ -24,17 +24,17 @@ public final class ClientPlayerAvatar implements Avatar {
     public ClientPlayerAvatar(Minecraft mc) {
         this.mc = mc;
         this.p = mc.player;
-        if (p != null && !(p.input instanceof AgentInput)) p.input = new AgentInput(mc.options);
+        if (p != null && !(p.input instanceof AvatarInput)) p.input = new AvatarInput(mc.options);
     }
 
-    private AgentInput ai() { return p.input instanceof AgentInput a ? a : null; }
+    private AvatarInput ai() { return p.input instanceof AvatarInput a ? a : null; }
 
     @Override public Player player() { return p; }
 
-    @Override public void commandMove(float left, float forward) { AgentInput a = ai(); if (a != null) a.commandMove(left, forward); }
-    @Override public void commandForward(float forward) { AgentInput a = ai(); if (a != null) a.commandForward(forward); }
-    @Override public void commandJump(boolean v) { AgentInput a = ai(); if (a != null) a.commandJump(v); else p.input.jumping = v; }
-    @Override public void commandSneak(boolean v) { AgentInput a = ai(); if (a != null) a.commandSneak(v); else p.input.shiftKeyDown = v; }
+    @Override public void commandMove(float left, float forward) { AvatarInput a = ai(); if (a != null) a.commandMove(left, forward); }
+    @Override public void commandForward(float forward) { AvatarInput a = ai(); if (a != null) a.commandForward(forward); }
+    @Override public void commandJump(boolean v) { AvatarInput a = ai(); if (a != null) a.commandJump(v); else p.input.jumping = v; }
+    @Override public void commandSneak(boolean v) { AvatarInput a = ai(); if (a != null) a.commandSneak(v); else p.input.shiftKeyDown = v; }
     @Override public void commandUseItem(boolean hold) { mc.options.keyUse.setDown(hold); }
     @Override public void requestLookSnap() { LookController.requestSnap(); }
 

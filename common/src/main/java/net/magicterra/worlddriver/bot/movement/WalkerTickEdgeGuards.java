@@ -235,13 +235,13 @@ final class WalkerTickEdgeGuards {
                 a.commandMove((float) (-Math.sin(fhBearing) * FREE_HANG_DRIVE),
                               (float) (Math.cos(fhBearing) * FREE_HANG_DRIVE));
             } else {
-                Walker.agentForward(a, pressForward);      // forward INTO the wall (wall-backed climb)
+                Walker.avatarForward(a, pressForward);      // forward INTO the wall (wall-backed climb)
             }
             // On a free-hanging climb hold JUMP every tick (jumping sustains the wall-less vy=+0.2);
             // otherwise jump tracks climbUp (off → slide back down a wall-backed vine to be re-planned).
             if (freeHang || climbUp) wk.jumpTag = "vineClimb";
-            Walker.agentJump(a, freeHang || climbUp);      // continuous jump on a wall-less climb
-            Walker.agentSneak(a, false);              // sneak would HALT the vine climb
+            Walker.avatarJump(a, freeHang || climbUp);      // continuous jump on a wall-less climb
+            Walker.avatarSneak(a, false);              // sneak would HALT the vine climb
             p.setShiftKeyDown(false);
             p.setSprinting(false);
             if (BotConfig.walkerDebug)

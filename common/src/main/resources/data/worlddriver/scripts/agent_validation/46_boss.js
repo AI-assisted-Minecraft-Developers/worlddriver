@@ -1,7 +1,7 @@
 // ROADMAP Phase G — boss sensing (mc.observe.boss) + playbook runner
 // (mc.bot.playbook). Sensing + /summon need a live client + integrated server, so
 // the whole suite self-skips with a recorded PASS on the dedicated GameTest server
-// and runs for real in fabric runClient (AgentTest superflat CREATIVE world, where
+// and runs for real in fabric runClient (ScriptTest superflat CREATIVE world, where
 // /summon works and the bot is invulnerable). Boss fights themselves aren't
 // deterministic (entity AI) — per design 03 §6 we assert the SENSING layer + the
 // playbook's structural guards (no-boss exit, gear gate), not a full kill.
@@ -39,17 +39,17 @@ function waitPlaybookIdle(timeoutTicks) {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("46_boss: skipped (no client api — dedicated server)", function (t) {});
+    ScriptTest.run("46_boss: skipped (no client api — dedicated server)", function (t) {});
 } else {
 
-    AgentTest.run("46_boss: observe.boss reports absent with no boss", function (t) {
+    ScriptTest.run("46_boss: observe.boss reports absent with no boss", function (t) {
         cleanupBosses();
         var b = boss();
         t.assertEqual(b.present, false, "no boss present");
         t.assertTrue(Array.isArray(b.crystals), "crystals is always an array");
     });
 
-    AgentTest.run("46_boss: senses end crystals (id + pos)", function (t) {
+    ScriptTest.run("46_boss: senses end crystals (id + pos)", function (t) {
         cleanupBosses();
         var p = selfPos();
         cmd("summon minecraft:end_crystal " + (p.x + 3) + " " + p.y + " " + p.z);
@@ -63,7 +63,7 @@ if (!clientAvailable()) {
         cleanupBosses();
     });
 
-    AgentTest.run("46_boss: senses a wither (type, health, phase fields)", function (t) {
+    ScriptTest.run("46_boss: senses a wither (type, health, phase fields)", function (t) {
         cleanupBosses();
         var p = selfPos();
         cmd("summon minecraft:wither " + (p.x + 6) + " " + p.y + " " + p.z);
@@ -82,7 +82,7 @@ if (!clientAvailable()) {
         cleanupBosses();
     });
 
-    AgentTest.run("46_boss: senses the ender dragon (phase + head)", function (t) {
+    ScriptTest.run("46_boss: senses the ender dragon (phase + head)", function (t) {
         cleanupBosses();
         var p = selfPos();
         cmd("summon minecraft:ender_dragon " + p.x + " " + (p.y + 5) + " " + p.z);
@@ -97,13 +97,13 @@ if (!clientAvailable()) {
         cleanupBosses();
     });
 
-    AgentTest.run("46_boss: playbook rejects an unknown name", function (t) {
+    ScriptTest.run("46_boss: playbook rejects an unknown name", function (t) {
         var r = Agent.invoke("mc.bot.playbook", { name: "nope_not_real" });
         t.assertEqual(r.ok, false, "unknown playbook rejected");
         t.assertTrue(has(r.error, "unknown playbook"), "error names the problem (" + r.error + ")");
     });
 
-    AgentTest.run("46_boss: dragon playbook exits cleanly with no dragon", function (t) {
+    ScriptTest.run("46_boss: dragon playbook exits cleanly with no dragon", function (t) {
         cleanupBosses();
         var r = Agent.invoke("mc.bot.playbook", { name: "dragon" });
         t.assertEqual(r.ok, true, "playbook started");
@@ -114,7 +114,7 @@ if (!clientAvailable()) {
             "exited with no-dragon note (" + JSON.stringify(s && s.lastResult) + ")");
     });
 
-    AgentTest.run("46_boss: wither playbook aborts on failed gear gate", function (t) {
+    ScriptTest.run("46_boss: wither playbook aborts on failed gear gate", function (t) {
         cleanupBosses();
         cmd("clear @s");
         Agent.system.waitTicks(4);

@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.rpc;
 
-import net.magicterra.worlddriver.model.AgentEvent;
+import net.magicterra.worlddriver.model.DriverEvent;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 
@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@code AgentEvent.data} must reach the wire as a typed value.
+ * {@code DriverEvent.data} must reach the wire as a typed value.
  *
  * <p>It was declared {@code String}, so every structured emitter pre-encoded with
  * {@code JsonCodec.encode(map)} and the payload shipped as JSON escaped inside a
@@ -30,16 +30,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@code isinstance(d, dict)}; that was never true, so its dusk interrupt was dead
  * code for every {@code time.phase} event.
  */
-class AgentEventWireTest {
+class DriverEventWireTest {
 
-    private static Map<?, ?> encodeThenDecode(AgentEvent e) {
+    private static Map<?, ?> encodeThenDecode(DriverEvent e) {
         Object decoded = JsonCodec.decode(JsonCodec.encode(e));
         return assertInstanceOf(Map.class, decoded);
     }
 
     @Test
     void structuredPayloadArrivesAsAnObject() {
-        AgentEvent e = new AgentEvent(1, "time.phase", new BlockPos(1, 2, 3),
+        DriverEvent e = new DriverEvent(1, "time.phase", new BlockPos(1, 2, 3),
                 Map.of("phase", "sunset", "dayTime", 12800L));
         Map<?, ?> wire = encodeThenDecode(e);
 
@@ -55,13 +55,13 @@ class AgentEventWireTest {
     void scalarPayloadStaysAString() {
         // block.place / entity.death carry a bare id and must keep doing so —
         // gpt-player compares e["data"] == "minecraft:player" directly.
-        AgentEvent e = new AgentEvent(2, "entity.death", null, "minecraft:player");
+        DriverEvent e = new DriverEvent(2, "entity.death", null, "minecraft:player");
         assertEquals("minecraft:player", encodeThenDecode(e).get("data"));
     }
 
     @Test
     void nestedAndListPayloadsSurvive() {
-        AgentEvent e = new AgentEvent(3, "wait.done", null,
+        DriverEvent e = new DriverEvent(3, "wait.done", null,
                 Map.of("result", Map.of("ok", true), "seen", List.of(1L, 2L)));
         Map<?, ?> data = assertInstanceOf(Map.class, encodeThenDecode(e).get("data"));
         assertEquals(Boolean.TRUE, ((Map<?, ?>) data.get("result")).get("ok"));
@@ -70,7 +70,7 @@ class AgentEventWireTest {
 
     @Test
     void payloadIsNotDoubleEscaped() {
-        AgentEvent e = new AgentEvent(4, "x", null, Map.of("k", "v"));
+        DriverEvent e = new DriverEvent(4, "x", null, Map.of("k", "v"));
         String json = JsonCodec.encode(e);
         assertTrue(json.contains("\"data\":{"), "data should open an object: " + json);
         assertFalse(json.contains("\\\""), "no escaped quotes — that is the double encoding: " + json);
@@ -78,13 +78,13 @@ class AgentEventWireTest {
 
     @Test
     void absentPayloadEncodesAsNull() {
-        AgentEvent e = new AgentEvent(5, "x", null, null);
+        DriverEvent e = new DriverEvent(5, "x", null, null);
         assertNull(encodeThenDecode(e).get("data"));
     }
 
     @Test
     void envelopeFieldsAreUnchanged() {
-        AgentEvent e = new AgentEvent(9, "block.place", new BlockPos(4, 5, 6), "minecraft:stone");
+        DriverEvent e = new DriverEvent(9, "block.place", new BlockPos(4, 5, 6), "minecraft:stone");
         Map<?, ?> wire = encodeThenDecode(e);
         assertEquals(9L, wire.get("seq"));
         assertEquals("block.place", wire.get("type"));
@@ -95,7 +95,7 @@ class AgentEventWireTest {
     }
 
     /**
-     * The tests above build an {@link AgentEvent} directly, so they prove the CODEC
+     * The tests above build an {@link DriverEvent} directly, so they prove the CODEC
      * is right — not that the emitters stopped pre-encoding. Nothing else can:
      * {@code emit} takes an {@code Object}, so a leftover
      * {@code emit(type, pos, JsonCodec.encode(map))} compiles cleanly and quietly
@@ -135,7 +135,7 @@ class AgentEventWireTest {
     void notificationFrameCarriesTheSameTypedPayload() {
         // The push channel wraps the event as MCP notifications/message; the payload
         // must not be re-flattened on the way through.
-        AgentEvent e = new AgentEvent(6, "threat.appeared", new BlockPos(0, 64, 0),
+        DriverEvent e = new DriverEvent(6, "threat.appeared", new BlockPos(0, 64, 0),
                 Map.of("type", "minecraft:zombie", "dist", 7L));
         Map<?, ?> frame = assertInstanceOf(Map.class,
                 JsonCodec.decode(EventNotifications.frame(e)));

@@ -17,8 +17,8 @@ import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.GlobalEventExecutor;
-import net.magicterra.worlddriver.api.AgentApi;
-import net.magicterra.worlddriver.model.AgentEvent;
+import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.model.DriverEvent;
 
 import java.io.Closeable;
 import java.net.InetSocketAddress;
@@ -40,7 +40,7 @@ import java.util.concurrent.ThreadFactory;
  * too malformed to carry one; {@code code} is the JSON-RPC 2.0 reserved code, the
  * same value McpServer would report for the same failure.
  *
- * Same {@code AgentApi.route(method, params)} is invoked here AND from in-JVM Rhino
+ * Same {@code DriverApi.route(method, params)} is invoked here AND from in-JVM Rhino
  * calls, guaranteeing structural parity between paths.
  *
  * <h2>Event push channel (driver→agent)</h2>
@@ -86,11 +86,11 @@ public final class RpcServer implements Closeable {
      *  channel attribute so it's GC'd with the connection. */
     private static final AttributeKey<Set<String>> FILTER = AttributeKey.valueOf("worlddriver.eventFilter");
 
-    public RpcServer(AgentApi api, int requestedPort) {
+    public RpcServer(DriverApi api, int requestedPort) {
         this(api, "127.0.0.1", requestedPort);
     }
 
-    public RpcServer(AgentApi api, String bindHost, int requestedPort) {
+    public RpcServer(DriverApi api, String bindHost, int requestedPort) {
         ServerBootstrap b = new ServerBootstrap();
         final ChannelGroup subs = this.subscribers;
         b.group(boss, worker)
@@ -122,12 +122,12 @@ public final class RpcServer implements Closeable {
     public int port() { return port; }
 
     /** Fan one emitted event out to every subscribed channel whose filter accepts
-     *  its type. Runs on AgentApi's single-thread event-dispatch executor; Netty's
+     *  its type. Runs on DriverApi's single-thread event-dispatch executor; Netty's
      *  {@code writeAndFlush} is itself thread-safe and async, so this never blocks
      *  the game thread that produced the event. */
-    private void onEvent(AgentEvent e) {
+    private void onEvent(DriverEvent e) {
         if (subscribers.isEmpty()) return;
-        // No mutedEvents check here: AgentApi applies the per-type opt-out before it
+        // No mutedEvents check here: DriverApi applies the per-type opt-out before it
         // calls any listener, so every transport gets the same policy for free.
         String frame = eventFrame(e);
         for (Channel ch : subscribers) {
@@ -140,7 +140,7 @@ public final class RpcServer implements Closeable {
 
     /** Frame an event as the shared MCP {@code notifications/message} (identical on
      *  the WS and MCP-HTTP transports — see {@link EventNotifications}). */
-    private static String eventFrame(AgentEvent e) {
+    private static String eventFrame(DriverEvent e) {
         return EventNotifications.frame(e);
     }
 
@@ -164,11 +164,11 @@ public final class RpcServer implements Closeable {
     }
 
     private static final class FrameHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
-        private final AgentApi api;
+        private final DriverApi api;
         private final ExecutorService routeExec;
         private final ChannelGroup subscribers;
 
-        FrameHandler(AgentApi api, ExecutorService routeExec, ChannelGroup subscribers) {
+        FrameHandler(DriverApi api, ExecutorService routeExec, ChannelGroup subscribers) {
             this.api = api;
             this.routeExec = routeExec;
             this.subscribers = subscribers;
@@ -198,7 +198,7 @@ public final class RpcServer implements Closeable {
                 String method = (String) req.get("method");
                 Map<String, Object> params = (Map<String, Object>) req.get("params");
                 // Event-stream subscription is per-connection state, so it's handled
-                // at the transport layer (not an AgentApi route): it controls which
+                // at the transport layer (not an DriverApi route): it controls which
                 // frames THIS socket receives, not any game behavior.
                 if ("mc.events.subscribe".equals(method) || "mc.events.unsubscribe".equals(method)) {
                     return subscriptionControl(method, params, ch, id);
@@ -250,9 +250,9 @@ public final class RpcServer implements Closeable {
         }
 
         /** Mirrors McpServer's classification: an unroutable method is -32601, a bad
-         *  argument -32602, anything else the route threw -32603. AgentApi signals the
+         *  argument -32602, anything else the route threw -32603. DriverApi signals the
          *  first two with IllegalArgumentException, so the method-not-found case is
-         *  told apart by the message AgentApi.route builds for it. */
+         *  told apart by the message DriverApi.route builds for it. */
         private static int codeFor(Throwable ex) {
             String msg = String.valueOf(ex.getMessage());
             if (ex instanceof IllegalArgumentException)

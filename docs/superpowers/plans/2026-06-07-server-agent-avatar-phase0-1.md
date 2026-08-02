@@ -107,11 +107,11 @@ public interface Avatar {
 
 **Files:** Create `common/.../bot/movement/ClientPlayerAvatar.java`
 
-- [ ] **Step 1: Implement** — each method maps 1:1 to the CURRENT Walker inline behaviour, so client behaviour is unchanged by construction. Reuse `BotInput`, `AgentInput`, `LookController`, and the Walker's static helpers (make `clientUseItemOn`, `selectBestToolFor`, `aimAtBlockSnap`, `ensureHoldingPlaceableAny` package-visible static or move to a shared `ClientActuation` helper).
+- [ ] **Step 1: Implement** — each method maps 1:1 to the CURRENT Walker inline behaviour, so client behaviour is unchanged by construction. Reuse `BotInput`, `AvatarInput`, `LookController`, and the Walker's static helpers (make `clientUseItemOn`, `selectBestToolFor`, `aimAtBlockSnap`, `ensureHoldingPlaceableAny` package-visible static or move to a shared `ClientActuation` helper).
 
 Key mappings (mc = Minecraft, p = mc.player):
-- `commandMove(l,f)` → `((AgentInput)p.input).commandMove(l,f)` (install AgentInput if absent, as Walker does today).
-- `commandJump(v)` → `agentJump` logic; `commandSneak(v)` → `agentSneak`.
+- `commandMove(l,f)` → `((AvatarInput)p.input).commandMove(l,f)` (install AvatarInput if absent, as Walker does today).
+- `commandJump(v)` → `avatarJump` logic; `commandSneak(v)` → `avatarSneak`.
 - `setSprinting` → `p.setSprinting`; `setYaw` → `p.setYRot + yHeadRot + yBodyRot`; `setPitch` → `p.setXRot`; `requestLookSnap` → `LookController.requestSnap()`.
 - `placeSupport(cell,face)` → `clientUseItemOn(mc,p,cell,face)`; `selectToolFor` → `selectBestToolFor(mc,cell)`; `breakHold(v)` → `mc.options.keyAttack.setDown(v)`; `aimAtBlock` → `aimAtBlockSnap(p,cell)`; `holdPlaceable` → `ensureHoldingPlaceableAny(mc)`.
 - reads → `p.getX()` etc.; `capabilities()` → `BodyCapabilities.PLAYER`.

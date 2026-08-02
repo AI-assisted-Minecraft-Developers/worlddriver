@@ -10,11 +10,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * KubeJS-style event group exposed to scripts as the global {@code AgentEvents}.
+ * KubeJS-style event group exposed to scripts as the global {@code ScriptEvents}.
  *
  * Scripts register callbacks at load time:
- *   AgentEvents.onAttach(function () { console.log("ready"); });
- *   AgentEvents.tick(function () { ... });
+ *   ScriptEvents.onAttach(function () { console.log("ready"); });
+ *   ScriptEvents.tick(function () { ... });
  *
  * The mod fires {@link #fireTick()} from the platform's server tick event and
  * {@link #fireAttach()} once after the script manager finishes loading. All
@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * State is per-load: {@link #install} stores the factory/scope, {@link #clear}
  * wipes registered callbacks on reload.
  */
-public final class AgentEvents {
+public final class ScriptEvents {
     private static final List<Function> tickCallbacks = new CopyOnWriteArrayList<>();
     private static final List<Function> attachCallbacks = new CopyOnWriteArrayList<>();
 
@@ -33,9 +33,9 @@ public final class AgentEvents {
     private static final AtomicLong tickCount = new AtomicLong();
     private static volatile boolean attachFired = false;
 
-    private AgentEvents() {}
+    private ScriptEvents() {}
 
-    /** Called by AgentScriptManager once the scope is built. */
+    /** Called by ScriptManager once the scope is built. */
     public static void install(ContextFactory f, Scriptable s) {
         factory = f;
         scope = s;
@@ -50,7 +50,7 @@ public final class AgentEvents {
         attachFired = false;
     }
 
-    /** Register a callback to run every server tick. JS: {@code AgentEvents.tick(fn)}. */
+    /** Register a callback to run every server tick. JS: {@code ScriptEvents.tick(fn)}. */
     public static void tick(Function cb) {
         if (cb != null) tickCallbacks.add(cb);
     }
@@ -75,7 +75,7 @@ public final class AgentEvents {
         }
     }
 
-    /** Fired by AgentScriptManager once all scripts have been evaluated. */
+    /** Fired by ScriptManager once all scripts have been evaluated. */
     public static void fireAttach() {
         attachFired = true;
         for (Function cb : attachCallbacks) {

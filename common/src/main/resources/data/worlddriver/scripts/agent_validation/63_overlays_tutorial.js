@@ -13,11 +13,11 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("63_overlays_tutorial: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("63_overlays_tutorial: skipped (no client api — dedicated server)", function(t) {
         // no-op: PASS so headless runs stay green
     });
 } else {
-    AgentTest.run("63_overlays_tutorial: tutorial suppressed without reflection error", function(t) {
+    ScriptTest.run("63_overlays_tutorial: tutorial suppressed without reflection error", function(t) {
         var res = Agent.invoke("mc.client.overlays", {});
         t.assertEqual(res.ok, true, "overlays must report ok (got " + JSON.stringify(res) + ")");
         t.assertEqual(res.tutorial, "NONE", "tutorial must be set to NONE (got " + JSON.stringify(res) + ")");

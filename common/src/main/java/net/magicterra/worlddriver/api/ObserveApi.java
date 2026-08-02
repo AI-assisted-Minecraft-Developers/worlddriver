@@ -11,7 +11,7 @@ import net.magicterra.worlddriver.bot.world.SceneModel;
 import net.magicterra.worlddriver.bot.world.ServerWorldView;
 import net.magicterra.worlddriver.bot.world.SurvivalFacts;
 import net.magicterra.worlddriver.bot.world.SurvivalMath;
-import net.magicterra.worlddriver.model.AgentEvent;
+import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -37,22 +37,22 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * {@code mc.observe.*} handlers, extracted from {@code AgentApi}. Reads the live
+ * {@code mc.observe.*} handlers, extracted from {@code DriverApi}. Reads the live
  * {@link ServerLevel} and the shared event ring buffer through an
- * {@link AgentApi} back-reference; dispatch still flows through
- * {@code AgentApi.route} (single source of truth).
+ * {@link DriverApi} back-reference; dispatch still flows through
+ * {@code DriverApi.route} (single source of truth).
  */
 public final class ObserveApi {
-    private final AgentApi api;
-    ObserveApi(AgentApi api) { this.api = api; }
+    private final DriverApi api;
+    ObserveApi(DriverApi api) { this.api = api; }
 
     public long cursor() {
         api.level(); // require server: pre-fix this returned 0 even with no world, which is misleading
         return api.eventSeq.get();
     }
 
-    public List<AgentEvent> eventsSince(long cursor) {
-        return eventsSince(cursor, null, AgentApi.EVENT_BUFFER_CAP);
+    public List<DriverEvent> eventsSince(long cursor) {
+        return eventsSince(cursor, null, DriverApi.EVENT_BUFFER_CAP);
     }
 
     /**
@@ -61,11 +61,11 @@ public final class ObserveApi {
      * cap drops the *newest* events when the window is too large — callers
      * should bump cursor to the last returned event's seq and re-call.
      */
-    public List<AgentEvent> eventsSince(long cursor, Set<String> types, int limit) {
+    public List<DriverEvent> eventsSince(long cursor, Set<String> types, int limit) {
         api.level(); // require server: same reason as cursor() above
         synchronized (api.eventsLock) {
-            List<AgentEvent> out = new ArrayList<>();
-            for (AgentEvent e : api.events) {
+            List<DriverEvent> out = new ArrayList<>();
+            for (DriverEvent e : api.events) {
                 if (e.seq <= cursor) continue;
                 if (types != null && !types.contains(e.type)) continue;
                 out.add(e);
@@ -423,7 +423,7 @@ public final class ObserveApi {
                 if (!all.isEmpty()) {
                     center = all.get(0).blockPosition();
                 } else {
-                    center = AgentApi.ORIGIN;
+                    center = DriverApi.ORIGIN;
                 }
             }
             ServerWorldView w = new ServerWorldView(level);

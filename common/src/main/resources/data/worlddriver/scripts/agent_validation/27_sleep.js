@@ -13,12 +13,12 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("27_sleep: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("27_sleep: skipped (no client api — dedicated server)", function(t) {
         // PASS — sleep needs a live LocalPlayer to startProcess.
     });
 } else {
 
-    AgentTest.run("27_sleep: accepts no-arg form (uses default radius)",
+    ScriptTest.run("27_sleep: accepts no-arg form (uses default radius)",
         function(t) {
             var r = Agent.invoke("mc.bot.sleep", {});
             // Either accepted (in-world) or rejected with "no player" (title screen).
@@ -33,7 +33,7 @@ if (!clientAvailable()) {
             }
         });
 
-    AgentTest.run("27_sleep: accepts explicit pos + radius",
+    ScriptTest.run("27_sleep: accepts explicit pos + radius",
         function(t) {
             var r = Agent.invoke("mc.bot.sleep", {
                 pos: { x: 0, y: 64, z: 0 },
@@ -51,7 +51,7 @@ if (!clientAvailable()) {
             }
         });
 
-    AgentTest.run("27_sleep: clamps oversize radius into [1,64]",
+    ScriptTest.run("27_sleep: clamps oversize radius into [1,64]",
         function(t) {
             // Schema cap is 64. mc.bot.sleep silently clamps to bounds rather
             // than rejecting (matches the rest of mc.bot.* radius behaviour).
@@ -65,7 +65,7 @@ if (!clientAvailable()) {
             }
         });
 
-    AgentTest.run("27_sleep: byte-identical across in-JVM/RPC/MCP transports",
+    ScriptTest.run("27_sleep: byte-identical across in-JVM/RPC/MCP transports",
         function(t) {
             // The no-player rejection path is deterministic across transports
             // when there's no LocalPlayer; with one attached, ok:true + same

@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.neoforge.sim;
 
-import net.magicterra.worlddriver.bot.sim.ServerAgentBodies;
+import net.magicterra.worlddriver.bot.sim.ServerAvatarBodies;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.util.FakePlayer;
@@ -15,7 +15,7 @@ import net.neoforged.neoforge.common.util.FakePlayer;
  * class only:
  * <ol>
  *   <li>covariantly narrows {@link #fakePlayer()} back to {@link FakePlayer};</li>
- *   <li>mints bodies through the {@link ServerAgentBodies} seam (the neoforge mod
+ *   <li>mints bodies through the {@link ServerAvatarBodies} seam (the neoforge mod
  *       installs a {@code FakePlayerFactory}-backed factory in
  *       {@code WorldDriverNeoForge}, so {@code shared}/{@code unique} return the same
  *       cached {@code FakePlayer} instances as before the migration) and returns
@@ -37,14 +37,14 @@ public class ServerPlayerAvatar extends net.magicterra.worlddriver.bot.sim.Serve
     public ServerPlayerAvatar(FakePlayer fp) { super(fp); }
 
     public static ServerPlayerAvatar create(ServerLevel level, double x, double y, double z) {
-        return init((FakePlayer) ServerAgentBodies.shared(level), x, y, z);
+        return init((FakePlayer) ServerAvatarBodies.shared(level), x, y, z);
     }
 
     public static ServerPlayerAvatar createUnique(ServerLevel level, double x, double y, double z) {
         String name = "agent-body-" + BODY_SEQ.incrementAndGet();
         com.mojang.authlib.GameProfile profile = new com.mojang.authlib.GameProfile(
                 java.util.UUID.nameUUIDFromBytes(name.getBytes(java.nio.charset.StandardCharsets.UTF_8)), name);
-        return init((FakePlayer) ServerAgentBodies.unique(level, profile), x, y, z);
+        return init((FakePlayer) ServerAvatarBodies.unique(level, profile), x, y, z);
     }
 
     private static ServerPlayerAvatar init(FakePlayer fp, double x, double y, double z) {

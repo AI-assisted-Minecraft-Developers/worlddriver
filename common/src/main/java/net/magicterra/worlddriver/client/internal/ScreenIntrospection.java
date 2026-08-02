@@ -25,7 +25,7 @@ import net.minecraft.client.gui.components.EditBox;
 
 /**
  * Screen / widget-tree introspection for {@code mc.client.screen.*}. Stateless;
- * extracted from {@code ClientAgentApiImpl}.
+ * extracted from {@code ClientDriverApiImpl}.
  */
 public final class ScreenIntrospection {
     private ScreenIntrospection() {}

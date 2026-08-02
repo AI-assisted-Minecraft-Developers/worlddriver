@@ -50,7 +50,7 @@ final class WalkerConstants {
      *  replay 2953°). Fix: aim the CAMERA at the first path node ≥ this many blocks away (a far
      *  point's bearing is stable → no spin) while the MOVEMENT impulse keeps driving at the
      *  immediate node (precise foot-placement → still reaches). The two run on independent
-     *  channels (camera = aimYaw, movement = driveTargetYaw, decoupled by AgentInput's impulse
+     *  channels (camera = aimYaw, movement = driveTargetYaw, decoupled by AvatarInput's impulse
      *  pre-rotation), so neither damps the other — every prior single-channel fix (trend, EMA
      *  low-pass) failed precisely because damping the aim also damped the navigation. */
     public static final double DESCENT_CAM_FAR_DIST = 5.0;

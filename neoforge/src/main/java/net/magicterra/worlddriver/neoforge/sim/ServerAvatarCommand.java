@@ -15,15 +15,15 @@ import net.minecraft.world.phys.Vec3;
  * Phase 2 live handle: {@code /agentserver} spawns and commands a fully
  * server-side {@link ServerWorldDriver} (a FakePlayer steered by the real
  * Walker on the {@code ServerTickEvent}) — no client, no LocalPlayer. The
- * driver is registered with {@link ServerAgentManager}, so once spawned it is
+ * driver is registered with {@link ServerAvatarManager}, so once spawned it is
  * driven autonomously by the live server tick.
  *
  * <p>Increment-2a scope: a single demo agent (FakePlayerFactory.getMinecraft is
  * a per-level singleton) that moves logically server-side and is reported via
  * {@code status}; client-visibility and multi-agent support are later work.
  */
-public final class ServerAgentCommand {
-    private ServerAgentCommand() {}
+public final class ServerAvatarCommand {
+    private ServerAvatarCommand() {}
 
     /** The most recently spawned driver, the target of {@code goto}/{@code status}. */
     private static ServerWorldDriver current;
@@ -31,15 +31,15 @@ public final class ServerAgentCommand {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("agentserver")
                 .requires(s -> s.hasPermission(2))
-                .then(Commands.literal("spawn").executes(ServerAgentCommand::spawn))
+                .then(Commands.literal("spawn").executes(ServerAvatarCommand::spawn))
                 .then(Commands.literal("goto")
                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
-                                .executes(ServerAgentCommand::gotoPos)))
+                                .executes(ServerAvatarCommand::gotoPos)))
                 .then(Commands.literal("mine")
                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
-                                .executes(ServerAgentCommand::minePos)))
-                .then(Commands.literal("status").executes(ServerAgentCommand::status))
-                .then(Commands.literal("clear").executes(ServerAgentCommand::clear)));
+                                .executes(ServerAvatarCommand::minePos)))
+                .then(Commands.literal("status").executes(ServerAvatarCommand::status))
+                .then(Commands.literal("clear").executes(ServerAvatarCommand::clear)));
     }
 
     private static int spawn(CommandContext<CommandSourceStack> ctx) {
@@ -47,9 +47,9 @@ public final class ServerAgentCommand {
         ServerLevel level = src.getLevel();
         Vec3 p = src.getPosition();
         current = ServerWorldDriver.createIsolated(level, p.x, p.y, p.z);
-        ServerAgentManager.register(current);
+        ServerAvatarManager.register(current);
         src.sendSuccess(() -> Component.literal("agentserver: spawned a server-side agent at "
-                + String.format("%.1f %.1f %.1f", p.x, p.y, p.z) + " (active=" + ServerAgentManager.activeCount() + ")"), false);
+                + String.format("%.1f %.1f %.1f", p.x, p.y, p.z) + " (active=" + ServerAvatarManager.activeCount() + ")"), false);
         return 1;
     }
 
@@ -61,7 +61,7 @@ public final class ServerAgentCommand {
         }
         BlockPos target = BlockPosArgument.getBlockPos(ctx, "pos");
         current.gotoGoal(new Goal.Block(target));
-        ServerAgentManager.register(current);   // re-arm a finished driver
+        ServerAvatarManager.register(current);   // re-arm a finished driver
         src.sendSuccess(() -> Component.literal("agentserver: goto " + target.toShortString()), false);
         return 1;
     }
@@ -74,7 +74,7 @@ public final class ServerAgentCommand {
         }
         BlockPos target = BlockPosArgument.getBlockPos(ctx, "pos");
         current.mine(target);
-        ServerAgentManager.register(current);   // re-arm a finished driver
+        ServerAvatarManager.register(current);   // re-arm a finished driver
         src.sendSuccess(() -> Component.literal("agentserver: mine " + target.toShortString()), false);
         return 1;
     }
@@ -82,19 +82,19 @@ public final class ServerAgentCommand {
     private static int status(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack src = ctx.getSource();
         if (current == null) {
-            src.sendSuccess(() -> Component.literal("agentserver: no agent (active=" + ServerAgentManager.activeCount() + ")"), false);
+            src.sendSuccess(() -> Component.literal("agentserver: no agent (active=" + ServerAvatarManager.activeCount() + ")"), false);
             return 1;
         }
         var fp = current.fakePlayer();
         src.sendSuccess(() -> Component.literal(String.format(
                 "agentserver: pos=%.1f %.1f %.1f step=%s finished=%s active=%d",
                 fp.getX(), fp.getY(), fp.getZ(), current.lastStep(), current.finished(),
-                ServerAgentManager.activeCount())), false);
+                ServerAvatarManager.activeCount())), false);
         return 1;
     }
 
     private static int clear(CommandContext<CommandSourceStack> ctx) {
-        ServerAgentManager.clear();
+        ServerAvatarManager.clear();
         current = null;
         ctx.getSource().sendSuccess(() -> Component.literal("agentserver: cleared"), false);
         return 1;

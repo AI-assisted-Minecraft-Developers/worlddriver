@@ -13,12 +13,12 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("22_phase_c: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("22_phase_c: skipped (no client api — dedicated server)", function(t) {
         // PASS
     });
 } else {
 
-    AgentTest.run("22_phase_c: autoSwim toggle round-trips", function(t) {
+    ScriptTest.run("22_phase_c: autoSwim toggle round-trips", function(t) {
         var r = Agent.invoke("mc.bot.setting", { autoSwim: true });
         t.assertEqual(r.ok, true, "write must succeed");
         t.assertTrue(r.applied.indexOf("autoSwim") >= 0, "autoSwim must be applied");
@@ -27,7 +27,7 @@ if (!clientAvailable()) {
         t.assertEqual(off.settings.autoSwim, false, "snapshot reflects autoSwim=false");
     });
 
-    AgentTest.run("22_phase_c: status returns canonical shape (lastPath optional)", function(t) {
+    ScriptTest.run("22_phase_c: status returns canonical shape (lastPath optional)", function(t) {
         var s = Agent.invoke("mc.bot.status", {});
         // status returns the BotState slots + paused + activeProcess; lastPath
         // is only present after a goto/mine/etc has actually run A*. Don't
@@ -42,7 +42,7 @@ if (!clientAvailable()) {
         }
     });
 
-    AgentTest.run("22_phase_c: byte-identical results across in-JVM, RPC, MCP transports",
+    ScriptTest.run("22_phase_c: byte-identical results across in-JVM, RPC, MCP transports",
         function(t) {
             var args = { autoSwim: true };
             var direct = Agent.invoke("mc.bot.setting", args);

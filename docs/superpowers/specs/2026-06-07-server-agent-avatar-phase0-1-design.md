@@ -73,7 +73,7 @@ Contains **only the surface the Walker actually uses** in Phase 0/1 (combat/craf
 - **Capabilities:** `capabilities() -> BodyCapabilities`.
 
 ### 4.2 Implementations
-- **`ClientPlayerAvatar`** (common): maps every method **1:1 to the current behaviour** — `mc.options.keyXXX` / `AgentInput` / `p.setYRot` / `clientUseItemOn` / `BotInput`. Pure passthrough, **no behaviour change** → this is the regression oracle. (Common already references client classes, as `ClientWorldView` does today.)
+- **`ClientPlayerAvatar`** (common): maps every method **1:1 to the current behaviour** — `mc.options.keyXXX` / `AvatarInput` / `p.setYRot` / `clientUseItemOn` / `BotInput`. Pure passthrough, **no behaviour change** → this is the regression oracle. (Common already references client classes, as `ClientWorldView` does today.)
 - **`ServerPlayerAvatar`** (**neoforge** module, because `FakePlayer` is NeoForge-specific): impulse → entity fields; `placeSupport` → `fp.gameMode.useItemOn` (a `FakePlayer` is a `ServerPlayer`, so real placement works); `selectToolFor`/`holdPlaceable` → server-side inventory swaps. Its physics step is driven by the §3 driver. (Cross-platform Fabric equivalent is out of scope here.)
 
 ### 4.3 Changes to existing code
@@ -121,7 +121,7 @@ Phases 2–4 (`EntitySense`/`ServerSense`, `MobAvatar`, `MobTakeover`, the `Brai
 ## Appendix A — Verified codebase facts (informing this design)
 
 - `WorldView` is the proven perception seam; **three** impls already exist: `ClientWorldView`, `bot/world/ServerWorldView.java` (read-only, used by `ObserveApi` server-side), `bot/debug/GridWorldView.java` (synthetic).
-- `bot/movement/BotInput.java` is already a thin movement-actuation facade, but hard-wired to `LocalPlayer` + `AgentInput` + `Minecraft.getInstance()`. It is the natural seed for `Avatar`'s movement methods. (Attack/use deliberately bypass it — mining rides `mc.options.keyAttack` for the vanilla destroy pipeline.)
+- `bot/movement/BotInput.java` is already a thin movement-actuation facade, but hard-wired to `LocalPlayer` + `AvatarInput` + `Minecraft.getInstance()`. It is the natural seed for `Avatar`'s movement methods. (Attack/use deliberately bypass it — mining rides `mc.options.keyAttack` for the vanilla destroy pipeline.)
 - `Walker.tick(Minecraft mc, WorldView world)` then `LocalPlayer p = mc.player;` — all actuation flows from `mc` / `p` / `mc.options.keyXXX` / `clientUseItemOn(mc,p,...)` across ~87 sites.
 - Combat `ThreatScanner` reads `mc.level.entitiesForRendering()` + client creeper swell (deeply client-bound today) → replaced by `ServerSense` in Phase 3; the server entity list is authoritative and *more* complete.
 - NeoForge `net.neoforged.neoforge.common.util.FakePlayerFactory` provides a `ServerPlayer` usable server-side (full Player capability) but its physics are **not** auto-simulated by the server — it must be driven manually (Approach A).

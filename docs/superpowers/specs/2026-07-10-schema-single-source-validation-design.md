@@ -10,13 +10,13 @@
 feedback §4 的表象是 `mc.action.runCommand {"command":…}`(错字段名)只报 "empty command"。
 根因是**参数校验只存在于 MCP 客户端侧**(harness 按 tools/list 的 inputSchema 校验),而
 RPC websocket、Rhino `Agent.invoke`、内部消费者(EventsApi/WaitApi/YamlTestInterpreter/
-ReplayInstaller)走的 `AgentApi.route()` 对参数**零校验**——错键、错类型、越界 enum 一律
+ReplayInstaller)走的 `DriverApi.route()` 对参数**零校验**——错键、错类型、越界 enum 一律
 被路由 lambda 以各自随机的方式失败(NPE、ClassCast、误导性业务报错)。
 
 架构现状(有利):
 
-- **收口点唯一**:所有传输层与内部调用汇合于 `AgentApi.route(method, params)`
-  (`api/AgentApi.java:438`)。
+- **收口点唯一**:所有传输层与内部调用汇合于 `DriverApi.route(method, params)`
+  (`api/DriverApi.java:438`)。
 - **schema 已类型化单源**:catalog 七类 ~71 工具全部用 `mcp/schema/Schema` sealed DSL 定义;
   启动守护 `requireSchemasFor` 保证「有 route 必有 schema」。
 - **漂移根源**:`Schemas.tool()` 在定义处把 Schema 树渲染成 `Map<String,Object>` 后即丢弃,
@@ -91,7 +91,7 @@ public record ToolSchema(String name, String description, Schema schema,
 
 - api 包新增函数式接口 `ParamsValidator { void validate(String method, Map<String,Object> params); }`
   (api 层自有类型,不 import mcp 包 — 硬规则 #1)。
-- `AgentApi` 增加 `setParamsValidator(ParamsValidator v)`;`route()` 在 `routes.get` 命中后、
+- `DriverApi` 增加 `setParamsValidator(ParamsValidator v)`;`route()` 在 `routes.get` 命中后、
   `fn.apply` 前调用(未知 method 的报错维持原样)。
 - bootstrap(现调 `requireSchemasFor` 处)同点位接线:
   `api.setParamsValidator((m, p) -> { Schema s = schemaByName.get(m); if (s != null) SchemaValidator.validate(m, s, p); })`
@@ -140,7 +140,7 @@ feedback 文档尾部追加 "Disposition (2026-07-10)" 段:
 定义:catalog 类 → ToolSchema{name, desc, Schema, …}(类型化,唯一真相)
 广告:ToolCatalog.tools() → ToolSchema.mcpTool() 渲染 → MCP tools/list(字节级不变)
 校验:bootstrap → api.setParamsValidator(schemaByName + SchemaValidator)
-调用:任意传输层/内部 → AgentApi.route() → 校验 → 路由 lambda
+调用:任意传输层/内部 → DriverApi.route() → 校验 → 路由 lambda
 ```
 
 ## 6. Conformance 清扫(严格校验的兜底)

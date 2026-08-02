@@ -13,12 +13,12 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("16_attack_entity: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("16_attack_entity: skipped (no client api — dedicated server)", function(t) {
         // PASS
     });
 } else {
 
-    AgentTest.run("16_attack_entity: rejects missing entityId", function(t) {
+    ScriptTest.run("16_attack_entity: rejects missing entityId", function(t) {
         // Route-layer schema validation rejects the missing required key before the tool runs.
         var msg = null;
         try { Agent.invoke("mc.bot.attackEntity", {}); } catch (e) { msg = String(e); }
@@ -26,7 +26,7 @@ if (!clientAvailable()) {
             "missing entityId must be rejected by schema validation, got: " + msg);
     });
 
-    AgentTest.run("16_attack_entity: rejects non-integer entityId", function(t) {
+    ScriptTest.run("16_attack_entity: rejects non-integer entityId", function(t) {
         // Route-layer schema validation rejects the type violation before the tool runs.
         var msg = null;
         try { Agent.invoke("mc.bot.attackEntity", { entityId: "abc" }); } catch (e) { msg = String(e); }
@@ -34,7 +34,7 @@ if (!clientAvailable()) {
             "non-integer entityId must be rejected by schema validation, got: " + msg);
     });
 
-    AgentTest.run("16_attack_entity: rejects nonexistent entity id", function(t) {
+    ScriptTest.run("16_attack_entity: rejects nonexistent entity id", function(t) {
         // 2^30 is well past any real entity id in a fresh world
         var r = Agent.invoke("mc.bot.attackEntity", { entityId: 1073741824 });
         // Either "no entity with id ..." (level loaded) or "no player" (title screen) — both ok:false
@@ -42,7 +42,7 @@ if (!clientAvailable()) {
         t.assertTrue(typeof r.error === "string", "must include error string");
     });
 
-    AgentTest.run("16_attack_entity: byte-identical results across in-JVM, RPC, MCP transports",
+    ScriptTest.run("16_attack_entity: byte-identical results across in-JVM, RPC, MCP transports",
         function(t) {
             var args = { entityId: 1073741824 };
             var direct = Agent.invoke("mc.bot.attackEntity", args);

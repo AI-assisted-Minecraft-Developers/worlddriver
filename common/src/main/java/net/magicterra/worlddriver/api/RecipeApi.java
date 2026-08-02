@@ -39,11 +39,11 @@ import java.util.Set;
  * </ul>
  *
  * All reads run on the server thread (recipes are server-authoritative) via
- * {@link AgentApi#onServerThread}.
+ * {@link DriverApi#onServerThread}.
  */
 public final class RecipeApi {
-    private final AgentApi api;
-    RecipeApi(AgentApi api) { this.api = api; }
+    private final DriverApi api;
+    RecipeApi(DriverApi api) { this.api = api; }
 
     /** The bot's server player, or {@code null} when there is none (headless / not yet
      *  joined). Used only to ask whether a crafting station is already within reach

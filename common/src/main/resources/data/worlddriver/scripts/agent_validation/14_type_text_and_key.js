@@ -13,12 +13,12 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("14_type_text_and_key: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("14_type_text_and_key: skipped (no client api — dedicated server)", function(t) {
         // no-op: PASS so headless runs stay green
     });
 } else {
 
-    AgentTest.run("14_type_text_and_key: typeText fails cleanly when no screen open", function(t) {
+    ScriptTest.run("14_type_text_and_key: typeText fails cleanly when no screen open", function(t) {
         // Title screen / world screen always has a Screen, so we can't test the
         // no-screen path here without disrupting state. Instead, exercise that
         // the input-validation branches return ok:false structurally.
@@ -27,13 +27,13 @@ if (!clientAvailable()) {
             "typeText must return a boolean ok field");
     });
 
-    AgentTest.run("14_type_text_and_key: key rejects unknown name", function(t) {
+    ScriptTest.run("14_type_text_and_key: key rejects unknown name", function(t) {
         var r = Agent.invoke("mc.client.input.key", { key: "BLAHBLAH" });
         t.assertEqual(r.ok, false, "unknown key must report ok:false");
         t.assertTrue(typeof r.error === "string", "must include error string");
     });
 
-    AgentTest.run("14_type_text_and_key: key rejects bad action", function(t) {
+    ScriptTest.run("14_type_text_and_key: key rejects bad action", function(t) {
         // Route-layer schema validation rejects the enum violation before the tool runs.
         var msg = null;
         try { Agent.invoke("mc.client.input.key", { key: "ENTER", action: "smash" }); }
@@ -42,7 +42,7 @@ if (!clientAvailable()) {
             "bad action must be rejected by schema validation, got: " + msg);
     });
 
-    AgentTest.run("14_type_text_and_key: byte-identical results across in-JVM, RPC, MCP transports",
+    ScriptTest.run("14_type_text_and_key: byte-identical results across in-JVM, RPC, MCP transports",
         function(t) {
             var direct = Agent.invoke("mc.client.input.key", { key: "WUT" });
             var viaTcp = Agent.system.rpcRoundtrip("mc.client.input.key", { key: "WUT" });

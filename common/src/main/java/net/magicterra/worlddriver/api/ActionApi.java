@@ -18,14 +18,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * {@code mc.action.*} handlers, extracted from {@code AgentApi}. All writes bounce
- * through {@code AgentApi.onServerThread} and emit through the shared event ring
- * buffer via an {@link AgentApi} back-reference; dispatch still flows through
- * {@code AgentApi.route} (single source of truth).
+ * {@code mc.action.*} handlers, extracted from {@code DriverApi}. All writes bounce
+ * through {@code DriverApi.onServerThread} and emit through the shared event ring
+ * buffer via an {@link DriverApi} back-reference; dispatch still flows through
+ * {@code DriverApi.route} (single source of truth).
  */
 public final class ActionApi {
-    private final AgentApi api;
-    ActionApi(AgentApi api) { this.api = api; }
+    private final DriverApi api;
+    ActionApi(DriverApi api) { this.api = api; }
 
     /**
      * Fill an axis-aligned box with one block type in a single server-thread hop.

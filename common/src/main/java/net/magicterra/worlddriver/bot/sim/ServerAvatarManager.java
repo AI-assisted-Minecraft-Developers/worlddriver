@@ -14,13 +14,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * no {@code LocalPlayer} / client involved.
  *
  * <p>MIGRATION (P1.6 Task 1): this is now the SINGLE registry, shared by every
- * loader. The NeoForge {@code net.magicterra.worlddriver.neoforge.sim.ServerAgentManager}
+ * loader. The NeoForge {@code net.magicterra.worlddriver.neoforge.sim.ServerAvatarManager}
  * of the same simple name is a static-delegation shim onto this class, so
  * {@code WorldDriverNeoForge}'s per-server-tick {@code tickAll()} and the common
  * dogfood scenes land in the same list.
  */
-public final class ServerAgentManager {
-    private ServerAgentManager() {}
+public final class ServerAvatarManager {
+    private ServerAvatarManager() {}
 
     private static final CopyOnWriteArrayList<ServerWorldDriver> ACTIVE = new CopyOnWriteArrayList<>();
 
@@ -36,7 +36,7 @@ public final class ServerAgentManager {
                 d.tick();
                 if (d.finished()) ACTIVE.remove(d);
             } catch (Throwable t) {
-                net.magicterra.worlddriver.WorldDriverCommon.LOG.error("[ServerAgentManager] driver crashed, removing", t);
+                net.magicterra.worlddriver.WorldDriverCommon.LOG.error("[ServerAvatarManager] driver crashed, removing", t);
                 ACTIVE.remove(d);   // a crashed driver must not wedge the server tick
             }
         }

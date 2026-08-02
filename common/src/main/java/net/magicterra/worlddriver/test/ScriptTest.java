@@ -5,7 +5,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 /** Minimal test harness callable from Rhino JS. No JUnit dependency. */
-public final class AgentTest {
+public final class ScriptTest {
     private static final List<Result> results = new CopyOnWriteArrayList<>();
 
     public static void run(String name, Consumer<TestContext> body) {

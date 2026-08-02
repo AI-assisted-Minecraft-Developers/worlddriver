@@ -4,7 +4,7 @@
 
 **Goal:** 让 worlddriver 的 fabric loader 获得与 neoforge 同级的 testkit dogfood 门（8 个 wd.* 场景 + 13 记录验收），同时把从未被测过的 fabric 服务端驱动层第一次置于测试之下。
 
-**Architecture:** sim 核心（ServerPlayerAvatar/ServerWorldDriver/ServerAgentManager）与场景（WorldDriverScenes + probe helpers）从 neoforge 模块搬入 common；FakePlayer 的 loader 差异用「loader 注入 body 工厂」seam 解决（repo 无 @ExpectPlatform 先例，不引新依赖）：neoforge 注入 FakePlayerFactory（行为字节级不变），fabric 注入 common 自造的 vanilla-only `AgentFakePlayer`。neoforge 原 FQN 全部留薄 shim（协变返回 FakePlayer），legacy AgentGameTestServer 约 3000 行**零源码改动**。重构护栏 = P1.5 系列建立的字节级指标门。
+**Architecture:** sim 核心（ServerPlayerAvatar/ServerWorldDriver/ServerAvatarManager）与场景（WorldDriverScenes + probe helpers）从 neoforge 模块搬入 common；FakePlayer 的 loader 差异用「loader 注入 body 工厂」seam 解决（repo 无 @ExpectPlatform 先例，不引新依赖）：neoforge 注入 FakePlayerFactory（行为字节级不变），fabric 注入 common 自造的 vanilla-only `AvatarFakePlayer`。neoforge 原 FQN 全部留薄 shim（协变返回 FakePlayer），legacy AgentGameTestServer 约 3000 行**零源码改动**。重构护栏 = P1.5 系列建立的字节级指标门。
 
 **Tech Stack:** architectury 多 loader（loom.platform per module）、ServiceLoader SPI、t0.py --expect-file 正门。
 
@@ -27,9 +27,9 @@
 |---|---|---|
 | `neoforge/.../sim/ServerPlayerAvatar.java`(563 行,neoforge 专有仅 FakePlayer/FakePlayerFactory 两 import) | `common/.../bot/sim/ServerPlayerAvatar.java`（字段/返回改 `ServerPlayer`） | 同 FQN 薄 shim extends common 版,协变 `FakePlayer fakePlayer()`,静态 create/createUnique 走 FakePlayerFactory |
 | `neoforge/.../sim/ServerWorldDriver.java`(125 行) | `common/.../bot/sim/ServerWorldDriver.java` | 同 FQN 薄 shim（协变访问器 + createIsolated 委托） |
-| `neoforge/.../sim/ServerAgentManager.java`(38 行) | `common/.../bot/sim/ServerAgentManager.java`（唯一注册表） | 同 FQN 静态全委托 shim（单一注册表在 common） |
-| — | `common/.../bot/sim/AgentFakePlayer.java`（新,vanilla-only 镜像 NeoForge FakePlayer 含 net-handler stub,用 javadc 反编译对照） | — |
-| — | `common/.../bot/sim/ServerAgentBodies.java`（新,工厂 seam:`install(BodyFactory)` 一次性 + `shared(level)`/`unique(level,profile)`,未安装即用=大声抛） | — |
+| `neoforge/.../sim/ServerAvatarManager.java`(38 行) | `common/.../bot/sim/ServerAvatarManager.java`（唯一注册表） | 同 FQN 静态全委托 shim（单一注册表在 common） |
+| — | `common/.../bot/sim/AvatarFakePlayer.java`（新,vanilla-only 镜像 NeoForge FakePlayer 含 net-handler stub,用 javadc 反编译对照） | — |
+| — | `common/.../bot/sim/ServerAvatarBodies.java`（新,工厂 seam:`install(BodyFactory)` 一次性 + `shared(level)`/`unique(level,profile)`,未安装即用=大声抛） | — |
 | `neoforge/.../testkit/WorldDriverScenes.java` | `common/.../bot/stagewright/WorldDriverScenes.java`（import 换 common sim;probe 调用换 SimProbes） | 删除（provider 以 common 版注册） |
 | `AgentGameTestServer.probeSwing/probeHurt`、`AgentGameTestSupport.grantWaterEffects` | `common/.../bot/stagewright/SimProbes.java`（签名用 common 类型） | 原静态改一行 delegate（legacy 调用点零改动） |
 | `neoforge/src/main/resources/META-INF/services/net.magicterra.stagewright.scene.SceneProvider` | `common/src/main/resources/META-INF/services/...`（内容=common 版 FQCN） | **删除** |
@@ -40,16 +40,16 @@
 ### Task 1: common sim 核心 + body 工厂 seam（neoforge shim 化）
 
 **Files:**
-- Create: `common/src/main/java/net/magicterra/worlddriver/bot/sim/{AgentFakePlayer,ServerAgentBodies,ServerPlayerAvatar,ServerWorldDriver,ServerAgentManager}.java`
-- Modify: `neoforge/src/main/java/net/magicterra/worlddriver/neoforge/sim/{ServerPlayerAvatar,ServerWorldDriver,ServerAgentManager}.java`（改写为 shim）、`neoforge/.../WorldDriverNeoForge.java`（init 安装 neoforge 工厂）
+- Create: `common/src/main/java/net/magicterra/worlddriver/bot/sim/{AvatarFakePlayer,ServerAvatarBodies,ServerPlayerAvatar,ServerWorldDriver,ServerAvatarManager}.java`
+- Modify: `neoforge/src/main/java/net/magicterra/worlddriver/neoforge/sim/{ServerPlayerAvatar,ServerWorldDriver,ServerAvatarManager}.java`（改写为 shim）、`neoforge/.../WorldDriverNeoForge.java`（init 安装 neoforge 工厂）
 
 **Interfaces:**
 - Consumes: 现 neoforge sim 三类源码（逻辑逐行搬,唯 FakePlayer 类型改 `ServerPlayer`）；NeoForge `FakePlayer`/`FakePlayerFactory`（shim 与工厂用）。
-- Produces: `ServerAgentBodies.install(BodyFactory)`（loader init 一次性,重复 install=抛）;`BodyFactory { ServerPlayer shared(ServerLevel); ServerPlayer unique(ServerLevel, GameProfile); }`;common `ServerPlayerAvatar.create/createUnique` 经 seam 取身体;common `ServerAgentManager` 是唯一注册表（shim 全委托,`WorldDriverNeoForge:91` 的 tickAll 经 shim 落同一张表）。
+- Produces: `ServerAvatarBodies.install(BodyFactory)`（loader init 一次性,重复 install=抛）;`BodyFactory { ServerPlayer shared(ServerLevel); ServerPlayer unique(ServerLevel, GameProfile); }`;common `ServerPlayerAvatar.create/createUnique` 经 seam 取身体;common `ServerAvatarManager` 是唯一注册表（shim 全委托,`WorldDriverNeoForge:91` 的 tickAll 经 shim 落同一张表）。
 
-- [ ] **Step 1: 逐行搬移三类到 common**（`FakePlayer fp` → `ServerPlayer fp`;`FakePlayerFactory.getMinecraft/get` 调用点换 `ServerAgentBodies.shared/unique`;方法留 non-final 供 shim 协变;javadoc 标注搬迁来源与 seam 契约）
-- [ ] **Step 2: AgentFakePlayer + ServerAgentBodies**（AgentFakePlayer 本 Task 只建骨架并 javadoc 声明 fabric Task 3 首用;镜像 NeoForge FakePlayer 的 override 集,用 mcp javadc 反编译 `net.neoforged.neoforge.common.util.FakePlayer` 对照,连接 stub 必含）
-- [ ] **Step 3: neoforge shim 化**（同 FQN extends common 版;协变 `FakePlayer fakePlayer()` 强转返回;静态工厂返回 shim 类型;`ServerAgentManager` shim 静态全委托;`WorldDriverNeoForge` init `ServerAgentBodies.install(...)` 走 FakePlayerFactory）
+- [ ] **Step 1: 逐行搬移三类到 common**（`FakePlayer fp` → `ServerPlayer fp`;`FakePlayerFactory.getMinecraft/get` 调用点换 `ServerAvatarBodies.shared/unique`;方法留 non-final 供 shim 协变;javadoc 标注搬迁来源与 seam 契约）
+- [ ] **Step 2: AvatarFakePlayer + ServerAvatarBodies**（AvatarFakePlayer 本 Task 只建骨架并 javadoc 声明 fabric Task 3 首用;镜像 NeoForge FakePlayer 的 override 集,用 mcp javadc 反编译 `net.neoforged.neoforge.common.util.FakePlayer` 对照,连接 stub 必含）
+- [ ] **Step 3: neoforge shim 化**（同 FQN extends common 版;协变 `FakePlayer fakePlayer()` 强转返回;静态工厂返回 shim 类型;`ServerAvatarManager` shim 静态全委托;`WorldDriverNeoForge` init `ServerAvatarBodies.install(...)` 走 FakePlayerFactory）
 - [ ] **Step 4: 编译门**：`./gradlew :common:build :neoforge:build :fabric:build -x test`（fabric 此时未用 sim,须仍绿）
 - [ ] **Step 5: neoforge 字节级指标门**（重构护栏）：dogfood 正门命令跑 GREEN 且三组指标与 Global Constraints 逐字比对;另跑 legacy 真单名 `AGENT_GT_ONLY=serverAvatarGearScopeProbeArena`（shim 路径的 legacy 侧验证）
 - [ ] **Step 6: Commit** `refactor(sim): server-agent sim core to common behind loader body-factory seam (neoforge shims keep FQN, byte-metric gated)`
@@ -79,7 +79,7 @@
 
 **Interfaces:**
 - Consumes: neoforge 侧接线全样（`WorldDriverNeoForge.java:33-92`:TESTKIT_AUTORUN 双门、applyGameTestBaseline、StageWrightCommon.onServerStarted(server,"fabric")、onServerTick、tickAll）;fabric 事件 API（`ServerLifecycleEvents.SERVER_STARTED`/`ServerTickEvents.END_SERVER_TICK`,WorldDriverFabric:24-26 已有挂点）。
-- Produces: `:fabric:runDogfoodServer`（run-dogfood 目录,ephemeral 端口,stagewright.autorun=true）;fabric init 安装 `ServerAgentBodies.install(AgentFakePlayer 工厂)`（unique=profile 键控,shared=level 缓存,语义对照 FakePlayerFactory javadoc）。
+- Produces: `:fabric:runDogfoodServer`（run-dogfood 目录,ephemeral 端口,stagewright.autorun=true）;fabric init 安装 `ServerAvatarBodies.install(AvatarFakePlayer 工厂)`（unique=profile 键控,shared=level 缓存,语义对照 FakePlayerFactory javadoc）。
 
 - [ ] **Step 1: build.gradle**（依赖+运行配置+名字守卫;fabric 守卫先例在 :106）
 - [ ] **Step 2: WorldDriverFabric 接线**（镜像双门与调用序:tickAll 在 StageWrightCommon.onServerTick **之前**,与 neoforge:91-92 同序;工厂 install 放 onInitialize）
@@ -112,7 +112,7 @@
 
 ## Self-Review（计划自检记录）
 
-1. **覆盖**：TODO 残留「fabric 侧 dogfood/T0 双门未验证」→ Task 3-5;风险册「fabric 驱动层从未被测」→ 工厂 seam+AgentFakePlayer 首测(Task 1/3);「9 处手动 level.tick 迁移雷」→ 已由 P1.5b await 降级消化,fabric 直接受益。
-2. **占位符**：搬迁类任务以「逐行搬+唯一类型替换」+现源码行号锚定,非留白;AgentFakePlayer 明示以 javadc 反编译对照实现;无 TBD。
-3. **一致性**：`ServerAgentBodies.shared/unique` 在 Task 1 定义、Task 3 fabric 工厂实现引用同名;SimProbes 签名 Task 2 定义即 Task 2 内消费;清单文件名 Task 3 创建与 Task 3/4/5 命令引用一致。
-4. **风险入案**：AgentFakePlayer 连接 stub 不全→场景崩（Task 1 骨架+Task 3 首用分离,崩溃归因窄）;service 双注册假 RED（重名门自证,Task 2 Step 4 预案）;fabric 事件序 END_SERVER_TICK 与 neoforge Post 的场景执行位差→指标漂移（Task 4 ×3 定性 + BLOCKED 协议）;common→stagewright-common 依赖若引 loom 解析问题→镜像 stagewright 内部消费法（Task 2 Step 3 编译门早失败）。
+1. **覆盖**：TODO 残留「fabric 侧 dogfood/T0 双门未验证」→ Task 3-5;风险册「fabric 驱动层从未被测」→ 工厂 seam+AvatarFakePlayer 首测(Task 1/3);「9 处手动 level.tick 迁移雷」→ 已由 P1.5b await 降级消化,fabric 直接受益。
+2. **占位符**：搬迁类任务以「逐行搬+唯一类型替换」+现源码行号锚定,非留白;AvatarFakePlayer 明示以 javadc 反编译对照实现;无 TBD。
+3. **一致性**：`ServerAvatarBodies.shared/unique` 在 Task 1 定义、Task 3 fabric 工厂实现引用同名;SimProbes 签名 Task 2 定义即 Task 2 内消费;清单文件名 Task 3 创建与 Task 3/4/5 命令引用一致。
+4. **风险入案**：AvatarFakePlayer 连接 stub 不全→场景崩（Task 1 骨架+Task 3 首用分离,崩溃归因窄）;service 双注册假 RED（重名门自证,Task 2 Step 4 预案）;fabric 事件序 END_SERVER_TICK 与 neoforge Post 的场景执行位差→指标漂移（Task 4 ×3 定性 + BLOCKED 协议）;common→stagewright-common 依赖若引 loom 解析问题→镜像 stagewright 内部消费法（Task 2 Step 3 编译门早失败）。

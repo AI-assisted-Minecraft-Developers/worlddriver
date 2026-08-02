@@ -2,23 +2,23 @@
 
 Every method the JSON-RPC websocket (`ws://127.0.0.1:39801/rpc`) accepts. Most
 are also MCP tools (`mcp__worlddriver__*`) with `.`→`_` names (`mc.bot.goto` ⇄
-`mc_bot_goto`); both go through one dispatcher (`AgentApi.route`), so behaviour is
+`mc_bot_goto`); both go through one dispatcher (`DriverApi.route`), so behaviour is
 identical. **72 methods across 14 namespaces** — 71 exposed as MCP tools plus one
 **RPC-route-only** verb, `mc.test.yaml` (it has a registered route and a *hidden*
 `ToolSchema`, so it's reachable over RPC and internally but kept out of MCP
 `tools/list`). Every route is asserted at boot to carry a schema
-(`AgentApi.requireSchemasFor`), so "route with no schema" can't drift in; an
+(`DriverApi.requireSchemasFor`), so "route with no schema" can't drift in; an
 intentional RPC-only verb is the hidden-schema case above. Over RPC the hidden verb
 works like any other method — one of the reasons this skill exists.
 
-Source of truth: `common/.../api/AgentApi.java` (the route table — the canonical
+Source of truth: `common/.../api/DriverApi.java` (the route table — the canonical
 list of *which* methods exist), `common/.../mcp/catalog/*Tools.java` (visible MCP
 schemas + inline param docs) and `common/.../mcp/ToolCatalog.java` (`HIDDEN_TOOLS`,
 the RPC-only verbs), `common/.../bot/SettingsRegistry.java` (the canonical ordered
 `mc.bot.setting` key list + its single-source schema) backed by
 `common/.../bot/BotConfig.java` (the fields + their ranges),
 `.../rpc/RpcServer.java` (envelope; binds `127.0.0.1` on port 39801, WS path
-`/rpc`). When in doubt, grep `AgentApi.java` for the route then the matching
+`/rpc`). When in doubt, grep `DriverApi.java` for the route then the matching
 `*Tools.java` for its param list.
 
 ## Contents

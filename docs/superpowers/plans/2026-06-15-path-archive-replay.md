@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-06-15-path-archive-replay-design.md`
 
-**Conventions (AGENTS.md):** behavior goes in `AgentApi.route`, never a transport; world writes bounce through `server.execute()`; new MCP tool ⇒ route + `ToolCatalog` schema + an `agent_validation` parity script; keep `:neoforge:runGameTestServer` green (≥60 cases). Commit messages via `git commit -F -` heredoc; never override git config. There is an unrelated uncommitted `Walker.java` change in the tree (the prior `deepDescendCatchup` WIP) — **do not** sweep it into any commit here; always `git add` exact files.
+**Conventions (AGENTS.md):** behavior goes in `DriverApi.route`, never a transport; world writes bounce through `server.execute()`; new MCP tool ⇒ route + `ToolCatalog` schema + an `agent_validation` parity script; keep `:neoforge:runGameTestServer` green (≥60 cases). Commit messages via `git commit -F -` heredoc; never override git config. There is an unrelated uncommitted `Walker.java` change in the tree (the prior `deepDescendCatchup` WIP) — **do not** sweep it into any commit here; always `git add` exact files.
 
 ---
 

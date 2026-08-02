@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.test.yaml;
 
-import net.magicterra.worlddriver.api.AgentApi;
+import net.magicterra.worlddriver.api.DriverApi;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -10,7 +10,7 @@ import java.util.Map;
 /**
  * Runs one {@link YamlTestSpec}: {@code snapshot → setup → asserts → restore}
  * (docs/yaml-gametest.md §6). Every setup action and assert goes through
- * {@link AgentApi#route(String, Map)} — the same single dispatch point the JS /
+ * {@link DriverApi#route(String, Map)} — the same single dispatch point the JS /
  * WS / MCP transports use — so a YAML test exercises exactly the production code
  * path with no parallel implementation to drift.
  *
@@ -24,9 +24,9 @@ public final class YamlTestInterpreter {
     /** Outcome of one spec. {@code pass == failures.isEmpty()}. */
     public record Result(String name, boolean pass, List<String> failures) {}
 
-    private final AgentApi api;
+    private final DriverApi api;
 
-    public YamlTestInterpreter(AgentApi api) {
+    public YamlTestInterpreter(DriverApi api) {
         this.api = api;
     }
 

@@ -5,7 +5,7 @@
 
 function tick(n) { Agent.invoke("mc.system.waitTicks", { ticks: n || 1 }); }
 
-AgentTest.run("33_world_snapshot: block states restore after mutation", function(t) {
+ScriptTest.run("33_world_snapshot: block states restore after mutation", function(t) {
     var o = Agent.system.testOrigin();
     // Build a known 3x3x1 region in the air above the arena, independent of the
     // (mutated-by-earlier-scripts) seeded plane: 9 stone with an oak-planks center.
@@ -42,7 +42,7 @@ AgentTest.run("33_world_snapshot: block states restore after mutation", function
     t.assertEqual(back.blocks[0].type, "minecraft:stone", "corner restored to stone");
 });
 
-AgentTest.run("33_world_snapshot: block-entity contents survive restore", function(t) {
+ScriptTest.run("33_world_snapshot: block-entity contents survive restore", function(t) {
     var o = Agent.system.testOrigin();
     var pos = { x: o.x, y: o.y + 3, z: o.z }; // empty air above the seeded log
     var c = pos.x + " " + pos.y + " " + pos.z;
@@ -77,7 +77,7 @@ AgentTest.run("33_world_snapshot: block-entity contents survive restore", functi
     t.assertTrue(threw, "restore of a discarded id must throw");
 });
 
-AgentTest.run("33_world_snapshot: metadata identical across in-JVM, RPC, MCP", function(t) {
+ScriptTest.run("33_world_snapshot: metadata identical across in-JVM, RPC, MCP", function(t) {
     var o = Agent.system.testOrigin();
     var args = { id: "parity", from: { x: o.x, y: o.y, z: o.z }, to: { x: o.x + 1, y: o.y, z: o.z + 1 } };
     var direct = Agent.invoke("mc.world.snapshot", args);

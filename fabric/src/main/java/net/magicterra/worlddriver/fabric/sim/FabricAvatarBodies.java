@@ -5,15 +5,15 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.mojang.authlib.GameProfile;
-import net.magicterra.worlddriver.bot.sim.AgentFakePlayer;
-import net.magicterra.worlddriver.bot.sim.ServerAgentBodies;
+import net.magicterra.worlddriver.bot.sim.AvatarFakePlayer;
+import net.magicterra.worlddriver.bot.sim.ServerAvatarBodies;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * Fabric's {@link ServerAgentBodies.BodyFactory} — a vanilla-only reimplementation of
+ * Fabric's {@link ServerAvatarBodies.BodyFactory} — a vanilla-only reimplementation of
  * NeoForge's {@code net.neoforged.neoforge.common.util.FakePlayerFactory}, minting
- * {@link AgentFakePlayer} bodies instead of NeoForge {@code FakePlayer}s.
+ * {@link AvatarFakePlayer} bodies instead of NeoForge {@code FakePlayer}s.
  *
  * <p><b>Semantics mirrored from FakePlayerFactory</b> (decompiled for P1.6 Task 3):
  * <ul>
@@ -35,13 +35,13 @@ import net.minecraft.server.level.ServerPlayer;
  * {@code ServerWorldEvents.UNLOAD} all run there), so no extra locking is introduced over the
  * NeoForge reference.
  */
-public final class FabricAgentBodies implements ServerAgentBodies.BodyFactory {
+public final class FabricAvatarBodies implements ServerAvatarBodies.BodyFactory {
 
     /** Same fixed profile NeoForge's {@code FakePlayerFactory.MINECRAFT} uses for getMinecraft. */
     private static final GameProfile MINECRAFT =
             new GameProfile(UUID.fromString("41C82C87-7AfB-4024-BA57-13D2C99CAE77"), "[Minecraft]");
 
-    private final Map<Key, AgentFakePlayer> bodies = new HashMap<>();
+    private final Map<Key, AvatarFakePlayer> bodies = new HashMap<>();
 
     @Override
     public ServerPlayer shared(ServerLevel level) {
@@ -53,8 +53,8 @@ public final class FabricAgentBodies implements ServerAgentBodies.BodyFactory {
         return get(level, profile);
     }
 
-    private AgentFakePlayer get(ServerLevel level, GameProfile profile) {
-        return bodies.computeIfAbsent(new Key(level, profile), k -> new AgentFakePlayer(k.level(), k.profile()));
+    private AvatarFakePlayer get(ServerLevel level, GameProfile profile) {
+        return bodies.computeIfAbsent(new Key(level, profile), k -> new AvatarFakePlayer(k.level(), k.profile()));
     }
 
     /** Mirror of {@code FakePlayerFactory.unloadLevel}: drop every body attached to {@code level}. */

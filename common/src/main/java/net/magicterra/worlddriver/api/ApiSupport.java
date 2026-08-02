@@ -14,9 +14,9 @@ import java.util.Map;
 import java.util.Collection;
 
 /**
- * Pure, stateless helpers shared by {@link AgentApi} and the {@code *Api}
+ * Pure, stateless helpers shared by {@link DriverApi} and the {@code *Api}
  * sub-handlers ({@link SystemApi}, {@link ObserveApi}, {@link ActionApi},
- * {@link WaitApi}). Extracted from {@code AgentApi} so the handler bodies can
+ * {@link WaitApi}). Extracted from {@code DriverApi} so the handler bodies can
  * live in their own files without a back-reference just for parsing/encoding.
  */
 final class ApiSupport {

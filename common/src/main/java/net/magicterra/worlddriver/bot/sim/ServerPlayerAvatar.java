@@ -29,14 +29,14 @@ import net.minecraft.world.phys.Vec3;
  * {@code net.magicterra.worlddriver.neoforge.sim.ServerPlayerAvatar}; the ONLY
  * substantive change is that the body type is now vanilla {@link ServerPlayer}
  * (was NeoForge {@code FakePlayer}) and the body is obtained through the
- * loader-injected {@link ServerAgentBodies} seam instead of {@code
+ * loader-injected {@link ServerAvatarBodies} seam instead of {@code
  * FakePlayerFactory} directly. The NeoForge shim of the same simple name keeps
  * the original {@code FakePlayer} return type covariantly, so ~3000 lines of
  * legacy GameTest callers ({@code FakePlayer fp = av.fakePlayer()}) compile
  * unchanged. This class is {@code non-final} and its covariantly-overridden
- * methods {@code non-final} for exactly that shim. See {@link ServerAgentBodies}
+ * methods {@code non-final} for exactly that shim. See {@link ServerAvatarBodies}
  * for the seam contract (neoforge injects FakePlayerFactory, fabric injects
- * {@link AgentFakePlayer}).
+ * {@link AvatarFakePlayer}).
  */
 public class ServerPlayerAvatar implements Avatar {
 
@@ -100,7 +100,7 @@ public class ServerPlayerAvatar implements Avatar {
     /**
      * Build a body at {@code pos} in {@code level}, ready to drive.
      *
-     * <p>⚠️ SHARED BODY (gap #48): {@link ServerAgentBodies#shared} is a per-LEVEL SINGLETON — every
+     * <p>⚠️ SHARED BODY (gap #48): {@link ServerAvatarBodies#shared} is a per-LEVEL SINGLETON — every
      * caller of THIS factory in a level shares one body. Production no longer rides it
      * ({@code /agentserver} → {@link #createUnique}, one body per agent, guarded by the required
      * {@code serverAgentDistinctBodiesArena}); the GameTest arenas deliberately still do — see
@@ -115,7 +115,7 @@ public class ServerPlayerAvatar implements Avatar {
             new java.util.concurrent.atomic.AtomicInteger();
 
     public static ServerPlayerAvatar create(ServerLevel level, double x, double y, double z) {
-        return init(ServerAgentBodies.shared(level), x, y, z);
+        return init(ServerAvatarBodies.shared(level), x, y, z);
     }
 
     /** Like {@link #create} but with a body of its OWN — a fresh unique GameProfile, so this
@@ -134,7 +134,7 @@ public class ServerPlayerAvatar implements Avatar {
         String name = "agent-body-" + BODY_SEQ.incrementAndGet();
         com.mojang.authlib.GameProfile profile = new com.mojang.authlib.GameProfile(
                 java.util.UUID.nameUUIDFromBytes(name.getBytes(java.nio.charset.StandardCharsets.UTF_8)), name);
-        return init(ServerAgentBodies.unique(level, profile), x, y, z);
+        return init(ServerAvatarBodies.unique(level, profile), x, y, z);
     }
 
     private static ServerPlayerAvatar init(ServerPlayer fp, double x, double y, double z) {
@@ -327,7 +327,7 @@ public class ServerPlayerAvatar implements Avatar {
     /**
      * Last stack seen in each slot, so a change can be detected the way vanilla detects it.
      *
-     * <p>Keyed by the BODY entity, not held per-avatar: {@link ServerAgentBodies#shared}/{@code
+     * <p>Keyed by the BODY entity, not held per-avatar: {@link ServerAvatarBodies#shared}/{@code
      * unique} hand the same body back for the same profile, so a new {@code ServerWorldDriver}
      * inherits the previous one's entity — and its attribute map. With a per-avatar record the fresh
      * avatar starts with no memory, cannot remove modifiers it did not add, and the previous run's
@@ -521,7 +521,7 @@ public class ServerPlayerAvatar implements Avatar {
         // (or water drag + the wall auto-climb-out), and calls move() for
         // collision — the same pipeline LocalPlayer.aiStep runs on the client.
         fp.travel(new Vec3(fp.xxa, fp.yya, fp.zza));
-        // Ground jump is a one-shot edge (like AgentInput); the buoyant bob must
+        // Ground jump is a one-shot edge (like AvatarInput); the buoyant bob must
         // repeat each tick underwater, so only clear when NOT floating in water.
         if (!inWater) pendingJump = false;
     }

@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * {@code mc.events} handler — the server-side surface of the driver→agent event
  * channel (the push channel itself lives in the transports: WebSocket frames in
  * {@code RpcServer}, an SSE stream in {@code McpServer}). Every event still funnels
- * through {@link AgentApi#emit}, so a watcher firing here reaches subscribers on
+ * through {@link DriverApi#emit}, so a watcher firing here reaches subscribers on
  * both transports exactly like a block/chat/death event does — single source of
  * truth.
  *
@@ -43,12 +43,12 @@ import java.util.concurrent.atomic.AtomicInteger;
  * otherwise JS-truthy.
  */
 public final class EventsApi {
-    private final AgentApi api;
+    private final DriverApi api;
     private final ScheduledExecutorService exec;
     private final Map<Integer, Watcher> watchers = new ConcurrentHashMap<>();
     private final AtomicInteger seq = new AtomicInteger();
 
-    EventsApi(AgentApi api) {
+    EventsApi(DriverApi api) {
         this.api = api;
         this.exec = Executors.newScheduledThreadPool(2, r -> {
             Thread t = new Thread(r, "agent-event-watch-" + System.identityHashCode(r));

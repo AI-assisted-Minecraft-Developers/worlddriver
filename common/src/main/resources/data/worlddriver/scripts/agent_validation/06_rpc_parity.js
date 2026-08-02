@@ -15,7 +15,7 @@ function jsonStable(v) {
     return "{" + pairs.join(",") + "}";
 }
 
-AgentTest.run("06_rpc_parity: query q='blocks' identical via in-JVM and TCP", function(t) {
+ScriptTest.run("06_rpc_parity: query q='blocks' identical via in-JVM and TCP", function(t) {
     var origin = Agent.system.testOrigin();
     var params = { q: "blocks", center: origin,
                    filter: { in_radius: 4, type: "minecraft:stone" } };
@@ -25,7 +25,7 @@ AgentTest.run("06_rpc_parity: query q='blocks' identical via in-JVM and TCP", fu
         "in-JVM and TCP block-scan results must be byte-identical");
 });
 
-AgentTest.run("06_rpc_parity: system.version identical via in-JVM and TCP", function(t) {
+ScriptTest.run("06_rpc_parity: system.version identical via in-JVM and TCP", function(t) {
     var direct = Agent.invoke("mc.system.version", {});
     var viaTcp = Agent.system.rpcRoundtrip("mc.system.version", {});
     // uptimeMs is time-sensitive — strip before compare
@@ -35,7 +35,7 @@ AgentTest.run("06_rpc_parity: system.version identical via in-JVM and TCP", func
         "version metadata must match across paths");
 });
 
-AgentTest.run("06_rpc_parity: query.entities identical via both paths", function(t) {
+ScriptTest.run("06_rpc_parity: query.entities identical via both paths", function(t) {
     var params = { q: "entities", filter: { in_radius: 16, is_hostile: false }, select: ["pos","type","health"] };
     var direct = Agent.invoke("mc.query", params);
     var viaTcp = Agent.system.rpcRoundtrip("mc.query", params);

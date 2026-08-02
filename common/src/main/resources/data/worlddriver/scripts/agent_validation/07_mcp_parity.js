@@ -1,5 +1,5 @@
 // Prove the MCP/HTTP path returns the same payload as in-JVM and NDJSON-TCP paths.
-// Same AgentApi.route() underneath; the only difference is JSON-RPC wrapping +
+// Same DriverApi.route() underneath; the only difference is JSON-RPC wrapping +
 // HTTP transport. If parity holds, an external MCP client (Claude, Inspector,
 // custom agent) will see identical data to what scripts see in-process.
 
@@ -18,7 +18,7 @@ function jsonStable(v) {
     return "{" + pairs.join(",") + "}";
 }
 
-AgentTest.run("07_mcp_parity: query q='blocks' identical via in-JVM and MCP/HTTP", function(t) {
+ScriptTest.run("07_mcp_parity: query q='blocks' identical via in-JVM and MCP/HTTP", function(t) {
     var origin = Agent.system.testOrigin();
     var params = { q: "blocks", center: origin,
                    filter: { in_radius: 4, type: "minecraft:stone" } };
@@ -28,7 +28,7 @@ AgentTest.run("07_mcp_parity: query q='blocks' identical via in-JVM and MCP/HTTP
         "in-JVM and MCP block-scan results must be byte-identical");
 });
 
-AgentTest.run("07_mcp_parity: system.version identical via in-JVM and MCP", function(t) {
+ScriptTest.run("07_mcp_parity: system.version identical via in-JVM and MCP", function(t) {
     var direct = Agent.invoke("mc.system.version", {});
     var viaMcp = Agent.system.mcpRoundtrip("mc.system.version", {});
     delete direct.uptimeMs;
@@ -36,7 +36,7 @@ AgentTest.run("07_mcp_parity: system.version identical via in-JVM and MCP", func
     t.assertEqual(jsonStable(direct), jsonStable(viaMcp));
 });
 
-AgentTest.run("07_mcp_parity: TCP and MCP paths agree on query q='blocks'", function(t) {
+ScriptTest.run("07_mcp_parity: TCP and MCP paths agree on query q='blocks'", function(t) {
     var origin = Agent.system.testOrigin();
     var params = { q: "blocks", center: origin, filter: { in_radius: 4 } };
     var viaTcp = Agent.system.rpcRoundtrip("mc.query", params);
@@ -45,7 +45,7 @@ AgentTest.run("07_mcp_parity: TCP and MCP paths agree on query q='blocks'", func
         "TCP and MCP paths must produce identical results");
 });
 
-AgentTest.run("07_mcp_parity: unknown tool returns MCP error (not a crash)", function(t) {
+ScriptTest.run("07_mcp_parity: unknown tool returns MCP error (not a crash)", function(t) {
     var threw = false;
     var msg = "";
     try {

@@ -13,12 +13,12 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("15_input_slot_click: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("15_input_slot_click: skipped (no client api — dedicated server)", function(t) {
         // no-op: PASS
     });
 } else {
 
-    AgentTest.run("15_input_slot_click: rejects unknown ClickType", function(t) {
+    ScriptTest.run("15_input_slot_click: rejects unknown ClickType", function(t) {
         // Route-layer schema validation rejects the enum violation before the tool
         // runs; the validator message echoes the offending value.
         var msg = null;
@@ -29,7 +29,7 @@ if (!clientAvailable()) {
             "unknown type must be rejected by schema validation echoing the bad type, got: " + msg);
     });
 
-    AgentTest.run("15_input_slot_click: rejects when no container screen open", function(t) {
+    ScriptTest.run("15_input_slot_click: rejects when no container screen open", function(t) {
         // Try to close any container screen first so the test is deterministic.
         // closeScreen on TitleScreen / level-only is a no-op, so this is safe.
         try { Agent.invoke("mc.client.screen.close", {}); } catch (e) {}
@@ -44,9 +44,9 @@ if (!clientAvailable()) {
         t.assertTrue(typeof r.error === "string", "must include error string");
     });
 
-    AgentTest.run("15_input_slot_click: schema-reject surfaces identically across in-JVM, RPC, MCP transports",
+    ScriptTest.run("15_input_slot_click: schema-reject surfaces identically across in-JVM, RPC, MCP transports",
         function(t) {
-            // The validator runs inside AgentApi.route(), shared by all three
+            // The validator runs inside DriverApi.route(), shared by all three
             // transports — each must surface the SAME core violation message
             // (each transport adds its own wrapper prefix, so we compare cores).
             var args = { slot: 0, type: "wiggle" };

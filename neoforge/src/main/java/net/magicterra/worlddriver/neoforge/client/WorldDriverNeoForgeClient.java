@@ -4,7 +4,7 @@ import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.BotApiImpl;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.MouseYieldHud;
-import net.magicterra.worlddriver.client.ClientAgentApiImpl;
+import net.magicterra.worlddriver.client.ClientDriverApiImpl;
 import net.magicterra.worlddriver.client.ClientHooks;
 import net.magicterra.worlddriver.client.internal.ClientChat;
 import net.neoforged.api.distmarker.Dist;
@@ -19,7 +19,7 @@ import net.neoforged.neoforge.client.event.RenderGuiEvent;
  * NeoForge client-side bootstrap. Dist-gated via {@link EventBusSubscriber} so
  * it's only wired up on the client jar. The class is instantiated lazily by
  * the MOD bus, and the impl reference is the first thing that triggers class
- * loading of {@link ClientAgentApiImpl} — keeping dedi-server JVMs free of
+ * loading of {@link ClientDriverApiImpl} — keeping dedi-server JVMs free of
  * client classes.
  */
 @EventBusSubscriber(modid = WorldDriverCommon.MOD_ID, value = Dist.CLIENT)
@@ -31,7 +31,7 @@ public final class WorldDriverNeoForgeClient {
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
         event.enqueueWork(() -> {
-            ClientHooks.register(new ClientAgentApiImpl());
+            ClientHooks.register(new ClientDriverApiImpl());
             BOT = new BotApiImpl();
             BotHooks.register(BOT);
             WorldDriverCommon.LOG.info("[{}] NeoForge client api + bot registered", WorldDriverCommon.MOD_ID);

@@ -16,13 +16,13 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * {@code mc.world.*} handlers, extracted from {@code AgentApi}. Captures and
+ * {@code mc.world.*} handlers, extracted from {@code DriverApi}. Captures and
  * restores an axis-aligned box of block states (plus block-entity NBT) into an
  * in-memory store so a test can stash a region, mutate it, then put it back
  * verbatim — the deterministic setup/teardown primitive the GameTest YAML layer
- * (proposal §4.1 C) builds on. Dispatch still flows through {@code AgentApi.route}
+ * (proposal §4.1 C) builds on. Dispatch still flows through {@code DriverApi.route}
  * (single source of truth); all reads/writes bounce through
- * {@code AgentApi.onServerThread}.
+ * {@code DriverApi.onServerThread}.
  *
  * <p>Snapshots hold live {@link BlockState} / {@link CompoundTag} objects rather
  * than serialized bytes — restore is then an exact identity put with no
@@ -36,11 +36,11 @@ public final class WorldApi {
      *  silently (a silent eviction would turn a later restore into a no-op). */
     static final int MAX_SNAPSHOTS = 64;
 
-    private final AgentApi api;
+    private final DriverApi api;
     private final Map<String, Snapshot> store = new LinkedHashMap<>();
     private final AtomicLong autoId = new AtomicLong();
 
-    WorldApi(AgentApi api) { this.api = api; }
+    WorldApi(DriverApi api) { this.api = api; }
 
     /** Immutable captured region. Indexing is x-major, then y, then z. */
     private static final class Snapshot {

@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.script;
 
-import net.magicterra.worlddriver.api.AgentApi;
-import net.magicterra.worlddriver.test.AgentTest;
+import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.test.ScriptTest;
 import dev.latvian.mods.rhino.Context;
 import dev.latvian.mods.rhino.ContextFactory;
 import dev.latvian.mods.rhino.NativeJavaClass;
@@ -18,22 +18,22 @@ import java.util.stream.Stream;
  * Tiny Rhino-backed script manager.
  *
  * Canonical call form, used by all scripts:
- *   Agent.invoke(method, params)     // in-JVM via AgentApi.invokeJson
+ *   Agent.invoke(method, params)     // in-JVM via DriverApi.invokeJson
  *   Agent.invokeRpc(method, params)  // TCP round-trip via RpcBridge.callJson
  *
  * Both paths use the same JsonCodec, so results are byte-identical on success.
  */
-public final class AgentScriptManager {
-    private final AgentApi api;
+public final class ScriptManager {
+    private final DriverApi api;
     private final Path scriptsDir;
     private final RpcBridge bridge;     // may be null if RPC server isn't up
     private final McpBridge mcpBridge;  // may be null if MCP server isn't up
 
-    public AgentScriptManager(AgentApi api, Path scriptsDir, RpcBridge bridge) {
+    public ScriptManager(DriverApi api, Path scriptsDir, RpcBridge bridge) {
         this(api, scriptsDir, bridge, null);
     }
 
-    public AgentScriptManager(AgentApi api, Path scriptsDir, RpcBridge bridge, McpBridge mcpBridge) {
+    public ScriptManager(DriverApi api, Path scriptsDir, RpcBridge bridge, McpBridge mcpBridge) {
         this.api = api;
         this.scriptsDir = scriptsDir;
         this.bridge = bridge;
@@ -41,17 +41,17 @@ public final class AgentScriptManager {
     }
 
     public int loadAll() throws IOException {
-        AgentEvents.clear();
-        ContextFactory factory = new AgentContextFactory();
+        ScriptEvents.clear();
+        ContextFactory factory = new ScriptContextFactory();
         Context cx = factory.enter();
         ScriptableObject scope = cx.initStandardObjects();
-        AgentEvents.install(factory, scope);
+        ScriptEvents.install(factory, scope);
 
         ScriptableObject.putProperty(scope, "__api", cx.javaToJS(api, scope), cx);
-        ScriptableObject.putProperty(scope, "AgentTest",
-                new NativeJavaClass(cx, scope, AgentTest.class), cx);
-        ScriptableObject.putProperty(scope, "AgentEvents",
-                new NativeJavaClass(cx, scope, AgentEvents.class), cx);
+        ScriptableObject.putProperty(scope, "ScriptTest",
+                new NativeJavaClass(cx, scope, ScriptTest.class), cx);
+        ScriptableObject.putProperty(scope, "ScriptEvents",
+                new NativeJavaClass(cx, scope, ScriptEvents.class), cx);
         if (bridge != null) {
             ScriptableObject.putProperty(scope, "__rpc", cx.javaToJS(bridge, scope), cx);
         }
@@ -71,7 +71,7 @@ public final class AgentScriptManager {
         // branch, called the missing sugar, and threw "… of undefined". Loading the
         // real prelude fixes the whole family at the source (single source of truth).
         String canonical;
-        try (java.io.InputStream in = AgentScriptManager.class.getResourceAsStream(
+        try (java.io.InputStream in = ScriptManager.class.getResourceAsStream(
                 "/data/worlddriver/scripts/prelude.js")) {
             if (in == null) throw new IOException("prelude.js missing from classpath");
             canonical = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
@@ -125,7 +125,7 @@ public final class AgentScriptManager {
             }
         }
         // Now that all scripts have registered their callbacks, signal attach.
-        AgentEvents.fireAttach();
+        ScriptEvents.fireAttach();
         return loaded;
     }
 }

@@ -220,8 +220,8 @@ final class WalkerTickSearch {
                         if (BotConfig.walkerDebug)
                             LOG.info("[walker] anti-spin: {} water repaths w/o progress after {} re-baselines (d={}) → end best-effort",
                                     wk.goalSpin.repathsNoProgress, wk.goalSpin.churnResets, String.format(Locale.ROOT, "%.0f", d));
-                        Walker.agentForward(a, false);
-                        Walker.agentJump(a, false);
+                        Walker.avatarForward(a, false);
+                        Walker.avatarJump(a, false);
                         p.setSprinting(false);
                         return wk.terminalReport(Walker.Step.ARRIVED, PathTrace.Outcome.SUCCESS, null, "churn-giveup", p.blockPosition());
                     }
@@ -299,7 +299,7 @@ final class WalkerTickSearch {
                 // for real. (Bounded by the total-tick budget above, so a void
                 // fall with no clutch can't hang the goto forever.)
                 if (!p.onGround()) {
-                    Walker.agentForward(a, false);
+                    Walker.avatarForward(a, false);
                     p.setSprinting(false);
                     return Walker.Step.WALKING;
                 }
@@ -316,8 +316,8 @@ final class WalkerTickSearch {
                     if (BotConfig.walkerDebug && wk.searchGov.noPathWaitTicks % 100 == 1)
                         LOG.info("[walker] no path but stuck-penalties still live → waiting out decay ({}/{})",
                                 wk.searchGov.noPathWaitTicks, NO_PATH_WAIT_CAP);
-                    Walker.agentForward(a, false);
-                    Walker.agentJump(a, false);
+                    Walker.avatarForward(a, false);
+                    Walker.avatarJump(a, false);
                     p.setSprinting(false);
                     return Walker.Step.WALKING;
                 }

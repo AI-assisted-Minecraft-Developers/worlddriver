@@ -11,7 +11,7 @@ function stepIndex(steps, action, needle) {
 }
 function blocksOf(steps, idx) { return (steps[idx].blocks || []).join(","); }
 
-AgentTest.run("47_plan: iron_pickaxe → mine raw_iron, smelt ingot, craft (ordered)", function (t) {
+ScriptTest.run("47_plan: iron_pickaxe → mine raw_iron, smelt ingot, craft (ordered)", function (t) {
     var r = Agent.invoke("mc.plan.acquire", { target: "minecraft:iron_pickaxe", count: 1 });
     t.assertEqual(r.ok, true, "ok");
     var mine = stepIndex(r.steps, "mine", "raw_iron");
@@ -28,7 +28,7 @@ AgentTest.run("47_plan: iron_pickaxe → mine raw_iron, smelt ingot, craft (orde
     t.assertEqual(r.feasible, true, "iron pickaxe is fully obtainable");
 });
 
-AgentTest.run("47_plan: diamond_pickaxe mines diamond from ore", function (t) {
+ScriptTest.run("47_plan: diamond_pickaxe mines diamond from ore", function (t) {
     var r = Agent.invoke("mc.plan.acquire", { target: "minecraft:diamond_pickaxe", count: 1 });
     t.assertEqual(r.ok, true, "ok");
     var mine = stepIndex(r.steps, "mine", "diamond");
@@ -37,7 +37,7 @@ AgentTest.run("47_plan: diamond_pickaxe mines diamond from ore", function (t) {
     t.assertTrue(stepIndex(r.steps, "craft", "diamond_pickaxe") >= 0, "crafts the pickaxe");
 });
 
-AgentTest.run("47_plan: `have` skips already-owned materials", function (t) {
+ScriptTest.run("47_plan: `have` skips already-owned materials", function (t) {
     var r = Agent.invoke("mc.plan.acquire", {
         target: "minecraft:diamond_pickaxe", count: 1,
         have: { "minecraft:diamond": 3, "minecraft:stick": 2 }
@@ -47,14 +47,14 @@ AgentTest.run("47_plan: `have` skips already-owned materials", function (t) {
     t.assertTrue(stepIndex(r.steps, "craft", "diamond_pickaxe") >= 0, "still crafts the pickaxe");
 });
 
-AgentTest.run("47_plan: reports unobtainable mob-drop leaves", function (t) {
+ScriptTest.run("47_plan: reports unobtainable mob-drop leaves", function (t) {
     var r = Agent.invoke("mc.plan.acquire", { target: "minecraft:ender_pearl", count: 1 });
     t.assertEqual(r.ok, true, "ok");
     t.assertEqual(r.feasible, false, "ender_pearl can't be mined/farmed/smelted");
     t.assertTrue(r.unobtainable.length > 0, "unobtainable is non-empty (" + JSON.stringify(r.unobtainable) + ")");
 });
 
-AgentTest.run("47_plan: rejects an unknown item", function (t) {
+ScriptTest.run("47_plan: rejects an unknown item", function (t) {
     var r = Agent.invoke("mc.plan.acquire", { target: "minecraft:not_a_real_item_xyz" });
     t.assertEqual(r.ok, false, "unknown item rejected");
     t.assertTrue(typeof r.error === "string" && r.error.indexOf("unknown") >= 0, "error names it (" + r.error + ")");

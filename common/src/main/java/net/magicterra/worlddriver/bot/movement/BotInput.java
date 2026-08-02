@@ -9,14 +9,14 @@ import net.minecraft.client.player.LocalPlayer;
  * SHARED global keybinds {@code mc.options.keyUp/Jump/Shift/Sprint} — those are the same
  * objects a human's keyboard maps to, and writing them fights manual play.
  *
- * <p>Instead this drives the player's OWN {@link AgentInput} (impulse / Input.jumping /
+ * <p>Instead this drives the player's OWN {@link AvatarInput} (impulse / Input.jumping /
  * Input.shiftKeyDown) and {@code setSprinting()} directly — which is the "send the packet,
  * don't press the key" path: vanilla serialises the input/flag into ServerboundMovePlayer /
- * ServerboundPlayerCommand packets. Per-tick (see {@link AgentInput}): a driver re-asserts
+ * ServerboundPlayerCommand packets. Per-tick (see {@link AvatarInput}): a driver re-asserts
  * each active tick (they all run per-tick loops); the instant it stops, the uncommanded tick
  * falls back to the real keybind, so manual play is untouched with no explicit release.
  *
- * <p><b>Sprint</b> needs no AgentInput field — {@code LocalPlayer.setSprinting(v)} flips the
+ * <p><b>Sprint</b> needs no AvatarInput field — {@code LocalPlayer.setSprinting(v)} flips the
  * shared flag and aiStep emits START/STOP_SPRINTING; the old {@code keySprint.setDown} was
  * redundant beside the {@code setSprinting} every site already paired with it.
  *
@@ -28,11 +28,11 @@ import net.minecraft.client.player.LocalPlayer;
 public final class BotInput {
     private BotInput() {}
 
-    /** The player's AgentInput, installing it if a respawn/dimension swap left a vanilla
+    /** The player's AvatarInput, installing it if a respawn/dimension swap left a vanilla
      *  KeyboardInput (drivers other than the Walker may take over before it installs one). */
-    private static AgentInput ai(LocalPlayer p) {
-        if (!(p.input instanceof AgentInput)) p.input = new AgentInput(Minecraft.getInstance().options);
-        return (AgentInput) p.input;
+    private static AvatarInput ai(LocalPlayer p) {
+        if (!(p.input instanceof AvatarInput)) p.input = new AvatarInput(Minecraft.getInstance().options);
+        return (AvatarInput) p.input;
     }
 
     /** Forward intent — {@code forward(mc, true)} ≡ keyUp held, {@code forward(mc, false)} ≡ released. */

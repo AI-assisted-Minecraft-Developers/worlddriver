@@ -25,7 +25,7 @@ import net.magicterra.worlddriver.bot.process.Intent;
 import net.magicterra.worlddriver.bot.process.IntentProcess;
 import net.magicterra.worlddriver.bot.process.MineProcess;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
-import net.magicterra.worlddriver.bot.sim.ServerAgentManager;
+import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
@@ -140,8 +140,8 @@ import net.minecraft.world.phys.AABB;
  *       an isolated per-body FakePlayer, so a shared singleton can no longer make the
  *       suite a lottery). {@code create} would reintroduce the shared body; NEVER use
  *       it in a scene.</li>
- *   <li>legacy {@code ServerAgentManager.clear()} teardown →
- *       {@code ctx.cleanup(() -> { ServerAgentManager.unregister(driver); fp.discard(); })}
+ *   <li>legacy {@code ServerAvatarManager.clear()} teardown →
+ *       {@code ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); })}
  *       — <b>targeted</b>, not {@code clear()}. The FakePlayer for discard comes from
  *       {@code driver.fakePlayer()} (its own accessor, delegating to
  *       {@code avatar.fakePlayer()}). {@code clear()} would nuke EVERY registered
@@ -248,7 +248,7 @@ public final class WorldDriverScenes implements SceneProvider {
      *       because {@code Schema.Obj.additionalProperties()/properties()} are package-private to
      *       the schema package and unreachable here; the prop COUNT is read off the public MCP
      *       render ({@link Schemas#render}) and must equal {@code knownKeys().size()}.</li>
-     *   <li>{@code mc.test.reset} is registered: the route exists ({@code AgentApi.methods()}
+     *   <li>{@code mc.test.reset} is registered: the route exists ({@code DriverApi.methods()}
      *       contains it) AND its schema resolves ({@code ToolCatalog.schemaByName()} has it) —
      *       the paired registration held. This is the leg that goes RED on a loader whose boot
      *       path never called the registration hook.</li>
@@ -302,9 +302,9 @@ public final class WorldDriverScenes implements SceneProvider {
         // (5) mc.test.reset registered — the SPI's regression net: route present AND schema resolves.
         var api = WorldDriverCommon.api();
         if (api == null)
-            ctx.fail("settingRegistry: AgentApi not booted — cannot check mc.test.reset registration");
+            ctx.fail("settingRegistry: DriverApi not booted — cannot check mc.test.reset registration");
         if (!api.methods().contains("mc.test.reset"))
-            ctx.fail("settingRegistry: mc.test.reset route missing from AgentApi.methods() — the "
+            ctx.fail("settingRegistry: mc.test.reset route missing from DriverApi.methods() — the "
                     + "paired verb-registration hook did not run on this loader's boot path");
         if (ToolCatalog.schemaByName().get("mc.test.reset") == null)
             ctx.fail("settingRegistry: mc.test.reset has a route but no resolvable schema — the "
@@ -839,8 +839,8 @@ public final class WorldDriverScenes implements SceneProvider {
         // createIsolated (NOT create) — sanctioned #48 deviation, own per-body FakePlayer.
         ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
-        // Targeted teardown (NOT ServerAgentManager.clear() — see class javadoc).
-        ctx.cleanup(() -> { ServerAgentManager.unregister(driver); fp.discard(); });
+        // Targeted teardown (NOT ServerAvatarManager.clear() — see class javadoc).
+        ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); });
 
         // --- (1) DAMAGE DEALT: bare hand vs iron sword, both at FULL attack strength. ---
         float bare = SimProbes.probeSwing(level, driver, fp, ItemStack.EMPTY, cx, floorY, cz);
@@ -923,17 +923,17 @@ public final class WorldDriverScenes implements SceneProvider {
      *
      * <p><b>DIFFERENCE from {@code wd.gearScope} — this scene REALLY registers and
      * drives the manager loop.</b> gearScope only pokes probe helpers on an
-     * unregistered driver, so its cleanup {@code ServerAgentManager.unregister} is a
+     * unregistered driver, so its cleanup {@code ServerAvatarManager.unregister} is a
      * harmless no-op. This scene genuinely
-     * {@code ServerAgentManager.register(driver)}s and pumps
-     * {@code ServerAgentManager.tickAll()} in a bounded in-body loop until the process
+     * {@code ServerAvatarManager.register(driver)}s and pumps
+     * {@code ServerAvatarManager.tickAll()} in a bounded in-body loop until the process
      * unregisters itself — so here the cleanup {@code unregister} is the REAL
      * teardown (and a backstop for the early-abort path where the process never
      * self-unregisters). The synchronous loop runs on the scene's first RUN tick —
      * sanctioned, identical to the legacy GameTest shell's synchronous body — so the
      * old/new-shell A/B compares like with like.
      *
-     * <p><b>tickAll assumption.</b> {@code ServerAgentManager.tickAll()} ticks EVERY
+     * <p><b>tickAll assumption.</b> {@code ServerAvatarManager.tickAll()} ticks EVERY
      * registered driver, not just this scene's. The port relies on the dogfood
      * harness running ONE scene at a time (no other agents registered concurrently),
      * so {@code tickAll} effectively drives only {@code driver} here — the same
@@ -988,14 +988,14 @@ public final class WorldDriverScenes implements SceneProvider {
         // createIsolated (NOT create) — sanctioned #48 deviation, own per-body FakePlayer.
         ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
-        // Targeted teardown (NOT ServerAgentManager.clear() — see class javadoc). Unlike
+        // Targeted teardown (NOT ServerAvatarManager.clear() — see class javadoc). Unlike
         // gearScope's no-op, this unregister is the REAL teardown: this scene registers.
         // Also carries the legacy finally-block rig clear (DIRT strip + STONE cube +
         // any break-route tunnel the bot carved) — grid isolation makes leftover blocks
         // harmless, but the clear is retained for symmetry with the legacy body per the
         // porting plan (see footprint-audit javadoc above).
         ctx.cleanup(() -> {
-            ServerAgentManager.unregister(driver);
+            ServerAvatarManager.unregister(driver);
             fp.discard();
             for (int dx = -1; dx <= 9; dx++)
                 for (int dy = 0; dy <= 4; dy++)
@@ -1007,20 +1007,20 @@ public final class WorldDriverScenes implements SceneProvider {
         fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));
         fp.getInventory().selected = 0;
         driver.runProcess(new MineProcess(List.of("minecraft:iron_ore"), 1, 16));
-        ServerAgentManager.register(driver);
+        ServerAvatarManager.register(driver);
 
-        for (int t = 0; t < 800 && ServerAgentManager.activeCount() > 0; t++)
-            ServerAgentManager.tickAll();
+        for (int t = 0; t < 800 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
 
         boolean oreMined = !level.getBlockState(ore).is(Blocks.IRON_ORE);
         String err = driver.botState().mine.lastError;
         WorldDriverCommon.LOG.info("[wd.buriedOre] pos=({},{},{}) finished={} active={} oreMined={} lastError={}",
-                fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAgentManager.activeCount(), oreMined, err);
+                fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAvatarManager.activeCount(), oreMined, err);
         if (!oreMined)
             ctx.fail("buriedOre: buried ore not mined (gap#60: stand pre-filter rejected a dig-reachable target): lastError=" + err);
-        if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+        if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
             ctx.fail("buriedOre: buried-ore MineProcess did not finish+unregister: finished="
-                    + driver.finished() + " active=" + ServerAgentManager.activeCount());
+                    + driver.finished() + " active=" + ServerAvatarManager.activeCount());
     }
 
     /**
@@ -1035,8 +1035,8 @@ public final class WorldDriverScenes implements SceneProvider {
      * {@code create}, targeted {@code unregister}+{@code discard} cleanup not
      * {@code clear()}, {@code "entityLeash: "}-prefixed failures, constant-faithful
      * assertions). Like {@code wd.buriedOre} it REALLY
-     * {@code ServerAgentManager.register(driver)}s and pumps
-     * {@code ServerAgentManager.tickAll()} in bounded loops until the process
+     * {@code ServerAvatarManager.register(driver)}s and pumps
+     * {@code ServerAvatarManager.tickAll()} in bounded loops until the process
      * unregisters itself, so its cleanup {@code unregister} is the REAL teardown (and
      * a backstop for the early-abort path). Unlike the other driver scenes it does NOT
      * run everything on the first RUN tick — the two phases are split into
@@ -1063,7 +1063,7 @@ public final class WorldDriverScenes implements SceneProvider {
      * The legacy body force-indexes a freshly-added armor stand into the entity-section
      * lookup with two {@code for (i&lt;3) level.tick(() -&gt; true)} blocks (a fresh
      * entity is not scannable by {@code EntityFind.nearest} — the leash's entity scan —
-     * until the level processes it; and {@code ServerAgentManager.tickAll()} drives the
+     * until the level processes it; and {@code ServerAvatarManager.tickAll()} drives the
      * bot but NOT the level). The direct port (keeping those manual ticks, on the theory
      * that {@code ServerTickEvent.Post} runs OUTSIDE the level's own tick loop so the
      * re-entrant call is re-entrancy-safe) was TRIED FIRST and <b>MISBEHAVED IN
@@ -1089,7 +1089,7 @@ public final class WorldDriverScenes implements SceneProvider {
      *
      * <p><b>Fallback sub-deviation — driver registration is BRACKETED around each await.</b>
      * The platform's own {@code WorldDriverNeoForge.onServerTick(ServerTickEvent.Post)}
-     * calls {@code ServerAgentManager.tickAll()} EVERY server tick (before the testkit
+     * calls {@code ServerAvatarManager.tickAll()} EVERY server tick (before the testkit
      * harness advances the scene). In the other driver scenes the driver is registered
      * and fully driven+unregistered inside ONE synchronous body tick, so the platform
      * loop never sees it mid-flight. Here the scene spans multiple ticks (the await
@@ -1187,17 +1187,17 @@ public final class WorldDriverScenes implements SceneProvider {
         // createIsolated (NOT create) — sanctioned #48 deviation, own per-body FakePlayer.
         final ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
         final ServerPlayer fp = driver.fakePlayer();
-        // Targeted teardown (NOT ServerAgentManager.clear() — see class javadoc). This scene
+        // Targeted teardown (NOT ServerAvatarManager.clear() — see class javadoc). This scene
         // registers, so unregister is the REAL teardown. Also carries the legacy finally's
         // stand.discard() (the legacy finally has NO rig block-clear, so there is none to
         // translate); grid isolation makes any leftover carved block harmless regardless.
         ctx.cleanup(() -> {
-            ServerAgentManager.unregister(driver);
+            ServerAvatarManager.unregister(driver);
             fp.discard();
             stand.discard();
         });
         driver.runProcess(new IntentProcess(intent));
-        // NOTE: NOT registered with ServerAgentManager yet — registration is bracketed
+        // NOTE: NOT registered with ServerAvatarManager yet — registration is bracketed
         // around each phase's drive loop so the platform's own ServerTickEvent.Post
         // tickAll() cannot drive the bot during the await waits (see javadoc).
 
@@ -1230,9 +1230,9 @@ public final class WorldDriverScenes implements SceneProvider {
                 .then(() -> {
                     // Phase 1: stand stationary at start — the hard leash must hold the bot back.
                     // Register ONLY for this synchronous loop, then unregister before the next await.
-                    ServerAgentManager.register(driver);
-                    for (int t = 0; t < 200 && ServerAgentManager.activeCount() > 0; t++)
-                        ServerAgentManager.tickAll();
+                    ServerAvatarManager.register(driver);
+                    for (int t = 0; t < 200 && ServerAvatarManager.activeCount() > 0; t++)
+                        ServerAvatarManager.tickAll();
 
                     double sdx = fp.getX() - (cx + 0.5), sdz = fp.getZ() - (cz + 0.5);
                     double standDist1 = Math.sqrt(sdx * sdx + sdz * sdz);
@@ -1242,7 +1242,7 @@ public final class WorldDriverScenes implements SceneProvider {
                     // ctx.ticks() here == the ticks AWAIT-1 waited for the fresh stand to be indexed.
                     WorldDriverCommon.LOG.info(
                             "[wd.entityLeash] phase1 pos=({},{},{}) finished={} active={} standDist={} arrivedTrueGoal={} await1Ticks={}",
-                            fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAgentManager.activeCount(),
+                            fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAvatarManager.activeCount(),
                             standDist1, arrivedTrueGoal1, ctx.ticks());
                     if (driver.finished() || arrivedTrueGoal1)
                         ctx.fail("entityLeash: phase1: process reached the true goal before the anchor moved — "
@@ -1259,7 +1259,7 @@ public final class WorldDriverScenes implements SceneProvider {
                     stand.teleportTo(p2anchor.getX() + 0.5, floorY + 1, p2anchor.getZ() + 0.5);
                     // Unregister so the platform tickAll() cannot drive the bot during the re-index
                     // wait; phase 2 re-registers.
-                    ServerAgentManager.unregister(driver);
+                    ServerAvatarManager.unregister(driver);
 
                     // AWAIT-2 — fallback for the legacy second for(i<3) level.tick(): wait until a
                     // section query finds the teleported stand at its NEW anchor (the re-index the
@@ -1268,9 +1268,9 @@ public final class WorldDriverScenes implements SceneProvider {
                                     new AABB(p2anchor).inflate(2.0)).isEmpty())
                             .within(180)  // liveness bound, moves with AWAIT-1 (see adjudication comment there)
                             .then(() -> {
-                                ServerAgentManager.register(driver);
-                                for (int t = 0; t < 600 && ServerAgentManager.activeCount() > 0; t++) {
-                                    ServerAgentManager.tickAll();
+                                ServerAvatarManager.register(driver);
+                                for (int t = 0; t < 600 && ServerAvatarManager.activeCount() > 0; t++) {
+                                    ServerAvatarManager.tickAll();
                                     if (t % 150 == 0) {
                                         WorldDriverCommon.LOG.info("[wd.entityLeash] p2 t={} pos=({},{},{}) standPos={}",
                                                 t, fp.getX(), fp.getY(), fp.getZ(), stand.blockPosition().toShortString());
@@ -1283,10 +1283,10 @@ public final class WorldDriverScenes implements SceneProvider {
                                 // phase2 == AWAIT-1 + AWAIT-2 waits; AWAIT-2 = sceneTicks - await1Ticks.
                                 WorldDriverCommon.LOG.info(
                                         "[wd.entityLeash] phase2 pos=({},{},{}) finished={} active={} reached={} sceneTicks={}",
-                                        fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAgentManager.activeCount(), reached, ctx.ticks());
-                                if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                                        fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAvatarManager.activeCount(), reached, ctx.ticks());
+                                if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
                                     ctx.fail("entityLeash: phase2: leash re-solve process did not finish+unregister after "
-                                            + "the anchor moved: finished=" + driver.finished() + " active=" + ServerAgentManager.activeCount());
+                                            + "the anchor moved: finished=" + driver.finished() + " active=" + ServerAvatarManager.activeCount());
                                 if (!reached)
                                     ctx.fail("entityLeash: phase2: bot did not ARRIVE at the goal after the anchor moved: pos=("
                                             + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ")");
@@ -1451,7 +1451,7 @@ public final class WorldDriverScenes implements SceneProvider {
         final ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
         final ServerPlayer fp = driver.fakePlayer();
         ctx.cleanup(() -> {
-            ServerAgentManager.unregister(driver);
+            ServerAvatarManager.unregister(driver);
             fp.discard();
             stand.discard();
         });
@@ -1462,9 +1462,9 @@ public final class WorldDriverScenes implements SceneProvider {
         ctx.await(() -> EntityFind.nearest(level, fp, "minecraft:armor_stand") != null)
                 .within(180)  // liveness gate copied from wd.entityLeash — NOT tightened (task#88)
                 .then(() -> {
-                    ServerAgentManager.register(driver);
-                    for (int t = 0; t < 200 && ServerAgentManager.activeCount() > 0; t++)
-                        ServerAgentManager.tickAll();
+                    ServerAvatarManager.register(driver);
+                    for (int t = 0; t < 200 && ServerAvatarManager.activeCount() > 0; t++)
+                        ServerAvatarManager.tickAll();
 
                     double sdx = fp.getX() - (cx + 0.5), sdz = fp.getZ() - (cz + 0.5);
                     double standDist1 = Math.sqrt(sdx * sdx + sdz * sdz);
@@ -1472,7 +1472,7 @@ public final class WorldDriverScenes implements SceneProvider {
                             && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
                     WorldDriverCommon.LOG.info(
                             "[wd.entityLeashLowY] phase1 pos=({},{},{}) finished={} active={} standDist={} arrivedTrueGoal={} await1Ticks={}",
-                            fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAgentManager.activeCount(),
+                            fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAvatarManager.activeCount(),
                             standDist1, arrivedTrueGoal1, ctx.ticks());
                     if (driver.finished() || arrivedTrueGoal1)
                         ctx.fail("entityLeashLowY: phase1: process reached the true goal before the anchor moved — "
@@ -1483,15 +1483,15 @@ public final class WorldDriverScenes implements SceneProvider {
                                 + standDist1 + " radius=" + leashRadius);
 
                     stand.teleportTo(p2anchor.getX() + 0.5, floorY + 1, p2anchor.getZ() + 0.5);
-                    ServerAgentManager.unregister(driver);
+                    ServerAvatarManager.unregister(driver);
 
                     ctx.await(() -> !level.getEntitiesOfClass(ArmorStand.class,
                                     new AABB(p2anchor).inflate(2.0)).isEmpty())
                             .within(180)  // liveness bound, moves with AWAIT-1 (copied, not tightened)
                             .then(() -> {
-                                ServerAgentManager.register(driver);
-                                for (int t = 0; t < 600 && ServerAgentManager.activeCount() > 0; t++) {
-                                    ServerAgentManager.tickAll();
+                                ServerAvatarManager.register(driver);
+                                for (int t = 0; t < 600 && ServerAvatarManager.activeCount() > 0; t++) {
+                                    ServerAvatarManager.tickAll();
                                     if (t % 150 == 0) {
                                         WorldDriverCommon.LOG.info("[wd.entityLeashLowY] p2 t={} pos=({},{},{}) standPos={}",
                                                 t, fp.getX(), fp.getY(), fp.getZ(), stand.blockPosition().toShortString());
@@ -1502,10 +1502,10 @@ public final class WorldDriverScenes implements SceneProvider {
                                         && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
                                 WorldDriverCommon.LOG.info(
                                         "[wd.entityLeashLowY] phase2 pos=({},{},{}) finished={} active={} reached={} sceneTicks={}",
-                                        fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAgentManager.activeCount(), reached, ctx.ticks());
-                                if (!driver.finished() || ServerAgentManager.activeCount() != 0)
+                                        fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAvatarManager.activeCount(), reached, ctx.ticks());
+                                if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
                                     ctx.fail("entityLeashLowY: phase2: leash re-solve process did not finish+unregister after "
-                                            + "the anchor moved: finished=" + driver.finished() + " active=" + ServerAgentManager.activeCount());
+                                            + "the anchor moved: finished=" + driver.finished() + " active=" + ServerAvatarManager.activeCount());
                                 if (!reached)
                                     ctx.fail("entityLeashLowY: phase2: bot did not ARRIVE at the goal after the anchor moved: pos=("
                                             + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ")");

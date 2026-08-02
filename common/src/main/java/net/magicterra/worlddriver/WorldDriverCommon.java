@@ -3,7 +3,7 @@ package net.magicterra.worlddriver;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
-import net.magicterra.worlddriver.api.AgentApi;
+import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.stagewright.TestInputVerbs;
 import net.magicterra.worlddriver.bot.stagewright.TestResetVerb;
@@ -12,13 +12,13 @@ import net.magicterra.worlddriver.mcp.ToolCatalog;
 import net.magicterra.worlddriver.mcp.schema.Schema;
 import net.magicterra.worlddriver.mcp.schema.SchemaValidator;
 import net.magicterra.worlddriver.rpc.RpcServer;
-import net.magicterra.worlddriver.script.AgentScriptManager;
+import net.magicterra.worlddriver.script.ScriptManager;
 import net.magicterra.worlddriver.script.McpBridge;
 import net.magicterra.worlddriver.script.PlaybookRunner;
 import net.magicterra.worlddriver.script.RpcBridge;
 import net.magicterra.worlddriver.script.SkillLibrary;
 import net.magicterra.worlddriver.script.ScriptEvaluator;
-import net.magicterra.worlddriver.test.AgentTest;
+import net.magicterra.worlddriver.test.ScriptTest;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -108,21 +108,21 @@ public final class WorldDriverCommon {
             "65_schema_union.js"
     );
 
-    private static AgentApi api;
+    private static DriverApi api;
     private static RpcServer rpcServer;
     private static McpServer mcpServer;
     private static int rpcPort = -1;
     private static int mcpPort = -1;
-    private static volatile List<AgentTest.Result> lastResults = List.of();
+    private static volatile List<ScriptTest.Result> lastResults = List.of();
 
     private WorldDriverCommon() {}
 
     public static int rpcPort() { return rpcPort; }
     public static int mcpPort() { return mcpPort; }
-    public static AgentApi api() { return api; }
+    public static DriverApi api() { return api; }
 
     /**
-     * Idempotently bring up the AgentApi + RPC server. Called from both the
+     * Idempotently bring up the DriverApi + RPC server. Called from both the
      * client init path (so mc.client.* RPC is reachable from the very first
      * screen — no world needed) AND from onServerStarting. Subsequent calls
      * are no-ops once the API exists. The port is written to
@@ -134,7 +134,7 @@ public final class WorldDriverCommon {
         try {
             if (api == null) {
                 BotConfig.load();   // restore persisted bot settings before any tick reads them
-                api = new AgentApi();
+                api = new DriverApi();
                 ScriptEvaluator evaluator = new ScriptEvaluator(api);
                 api.setScriptHandler(p -> {
                     String src = (p.get("source") instanceof String s) ? s : "";
@@ -175,7 +175,7 @@ public final class WorldDriverCommon {
         // client that connected fast enough had its params dispatched with NO schema
         // validation — the exact #280-shaped hole. It sits OUTSIDE the catch above so
         // it hard-fails: a route with no MCP ToolSchema is a programming error (see
-        // AgentApi.requireSchemasFor / ToolCatalog), not a recoverable startup hiccup
+        // DriverApi.requireSchemasFor / ToolCatalog), not a recoverable startup hiccup
         // — let it abort mod init rather than limp on with a half-specified tool
         // surface. It runs on the first successful ensureRpcUp() pass only — the
         // method early-returns above once api/rpcServer exist, so it does NOT re-run
@@ -194,15 +194,15 @@ public final class WorldDriverCommon {
                 // Schema-less dispatch is now a loud programming error, not a silent skip.
                 // requireSchemasFor (above) guarantees every route has a schema at boot;
                 // post-boot the only route additions are the paired ToolCatalog.registerVerb
-                // (self-checked) — so a missing schema here means a raw AgentApi.addRoute was
+                // (self-checked) — so a missing schema here means a raw DriverApi.addRoute was
                 // used WITHOUT a matching declared ToolSchema. Refuse to dispatch rather than
                 // run an unvalidated verb (the #280-shaped hole: no schema ⇒ no param check).
                 if (s == null) {
                     throw new IllegalStateException(
                             "worlddriver: route '" + method + "' has no MCP ToolSchema — schema-less "
                             + "dispatch is refused. Register game-affecting verbs via the paired "
-                            + "ToolCatalog.registerVerb(schema, handler); a raw AgentApi.addRoute must "
-                            + "be matched by a declared ToolSchema (see AgentApi.requireSchemasFor).");
+                            + "ToolCatalog.registerVerb(schema, handler); a raw DriverApi.addRoute must "
+                            + "be matched by a declared ToolSchema (see DriverApi.requireSchemasFor).");
                 }
                 SchemaValidator.validate(method, s, params);
             });
@@ -349,13 +349,13 @@ public final class WorldDriverCommon {
      * across world transitions so client-only routes (mc.client.*) and the
      * script evaluator keep working at the main menu — only the
      * MinecraftServer reference is detached. World-dependent routes will
-     * throw "AgentApi not attached to a server" until a new world loads,
+     * throw "DriverApi not attached to a server" until a new world loads,
      * which McpServer converts to a tool isError.
      */
     public static void onServerStopping() {
         if (api != null) {
             api.detachServer();
-            LOG.info("[{}] AgentApi detached from server (RPC + MCP still up)", MOD_ID);
+            LOG.info("[{}] DriverApi detached from server (RPC + MCP still up)", MOD_ID);
         }
     }
 
@@ -429,13 +429,13 @@ public final class WorldDriverCommon {
             return 0;
         }
         int pass = 0, fail = 0;
-        for (AgentTest.Result r : results) {
+        for (ScriptTest.Result r : results) {
             if (r.passed) pass++; else fail++;
         }
         final int totalPass = pass, totalFail = fail;
         src.sendSuccess(() -> Component.literal(
                 "Last run: PASS=" + totalPass + " FAIL=" + totalFail + " TOTAL=" + results.size()), false);
-        for (AgentTest.Result r : results) {
+        for (ScriptTest.Result r : results) {
             String tag = r.passed ? "PASS" : "FAIL";
             String line = "  [" + tag + "] " + r.name + "  (" + r.ms + " ms)";
             src.sendSuccess(() -> Component.literal(line), false);
@@ -459,7 +459,7 @@ public final class WorldDriverCommon {
 
     /**
      * Scans {@link #userScriptsDir()} for *.js files and evaluates them in a
-     * fresh Rhino scope. Wipes any previously-registered AgentEvents callbacks.
+     * fresh Rhino scope. Wipes any previously-registered ScriptEvents callbacks.
      * Returns the count of scripts evaluated (0 if directory missing or empty).
      */
     public static int loadUserScripts() {
@@ -476,7 +476,7 @@ public final class WorldDriverCommon {
             }
             RpcBridge bridge = new RpcBridge("127.0.0.1", rpcPort);
             McpBridge mcpBridge = (mcpPort > 0) ? new McpBridge("127.0.0.1", mcpPort) : null;
-            AgentScriptManager mgr = new AgentScriptManager(api, dir, bridge, mcpBridge);
+            ScriptManager mgr = new ScriptManager(api, dir, bridge, mcpBridge);
             int n = mgr.loadAll();
             LOG.info("[{}] loaded {} user script(s) from {}", MOD_ID, n, dir);
             return n;
@@ -504,14 +504,14 @@ public final class WorldDriverCommon {
                     Files.copy(in, tmp.resolve(name));
                 }
             }
-            AgentTest.clear();
+            ScriptTest.clear();
             RpcBridge bridge = new RpcBridge("127.0.0.1", rpcPort);
             McpBridge mcpBridge = (mcpPort > 0) ? new McpBridge("127.0.0.1", mcpPort) : null;
-            AgentScriptManager mgr = new AgentScriptManager(api, tmp, bridge, mcpBridge);
+            ScriptManager mgr = new ScriptManager(api, tmp, bridge, mcpBridge);
             int loaded = mgr.loadAll();
             LOG.info("[{}] loaded {} validation script(s)", MOD_ID, loaded);
 
-            var results = AgentTest.snapshot();
+            var results = ScriptTest.snapshot();
             lastResults = results;
             int pass = 0, fail = 0;
             LOG.info("==================== Agent Validation ====================");

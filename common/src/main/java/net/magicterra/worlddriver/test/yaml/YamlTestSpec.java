@@ -9,7 +9,7 @@ import java.util.Map;
  *
  * <p>{@code setup} / {@code asserts} are kept as raw single-entry maps
  * ({@code {verb: params}}); {@link YamlTestInterpreter} maps each verb to an
- * {@code AgentApi} route or a built-in. {@code region} is the snapshot box used
+ * {@code DriverApi} route or a built-in. {@code region} is the snapshot box used
  * for deterministic setup/teardown — when {@code null} the case runs without a
  * snapshot/restore. {@code structure} is parsed but NOT consumed in the first
  * phase (all cases run in the {@code seedTestArea()} arena at y=200).

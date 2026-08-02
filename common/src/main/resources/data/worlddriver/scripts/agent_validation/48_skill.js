@@ -4,7 +4,7 @@
 // gate). The skill itself only does pure JS here (no bot verbs) so it's valid on
 // a headless server.
 
-AgentTest.run("48_skill: save / list / get / run / delete round-trip", function (t) {
+ScriptTest.run("48_skill: save / list / get / run / delete round-trip", function (t) {
     var name = "validation_demo_skill";
     Agent.invoke("mc.skill", { op: "delete", name: name });   // clean slate
 
@@ -34,7 +34,7 @@ AgentTest.run("48_skill: save / list / get / run / delete round-trip", function 
     t.assertFalse(still, "gone from list after delete");
 });
 
-AgentTest.run("48_skill: rejects bad name, syntax error, unknown skill", function (t) {
+ScriptTest.run("48_skill: rejects bad name, syntax error, unknown skill", function (t) {
     var bad = Agent.invoke("mc.skill", { op: "save", name: "Bad Name!", source: "1" });
     t.assertEqual(bad.ok, false, "bad name rejected");
 

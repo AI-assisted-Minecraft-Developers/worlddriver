@@ -12,12 +12,12 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("29_chat_history: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("29_chat_history: skipped (no client api — dedicated server)", function(t) {
         // PASS
     });
 } else {
 
-    AgentTest.run("29_chat_history: history returns shape {ok, count, nextSeq, messages}",
+    ScriptTest.run("29_chat_history: history returns shape {ok, count, nextSeq, messages}",
         function(t) {
             var r = Agent.invoke("mc.client.chat.history", {});
             t.assertEqual(r.ok, true, "ok");
@@ -27,13 +27,13 @@ if (!clientAvailable()) {
             t.assertTrue(r.count === r.messages.length, "count matches messages length");
         });
 
-    AgentTest.run("29_chat_history: limit caps result", function(t) {
+    ScriptTest.run("29_chat_history: limit caps result", function(t) {
         var r = Agent.invoke("mc.client.chat.history", { limit: 1 });
         t.assertEqual(r.ok, true, "ok");
         t.assertTrue(r.messages.length <= 1, "at most 1 message");
     });
 
-    AgentTest.run("29_chat_history: sinceSeq filters out older messages",
+    ScriptTest.run("29_chat_history: sinceSeq filters out older messages",
         function(t) {
             var full = Agent.invoke("mc.client.chat.history", {});
             var nextSeq = full.nextSeq;
@@ -42,7 +42,7 @@ if (!clientAvailable()) {
             t.assertEqual(empty.count, 0, "no messages after sinceSeq beyond end");
         });
 
-    AgentTest.run("29_chat_history: chat.send accepts awaitReplyMs without throwing",
+    ScriptTest.run("29_chat_history: chat.send accepts awaitReplyMs without throwing",
         function(t) {
             // We can't actually receive a reply on a TitleScreen / pre-connect,
             // but the call must accept the param and time out gracefully.
@@ -53,7 +53,7 @@ if (!clientAvailable()) {
                 "chat.send returned a known shape: " + JSON.stringify(r));
         });
 
-    AgentTest.run("29_chat_history: overlays default-true returns {ok}", function(t) {
+    ScriptTest.run("29_chat_history: overlays default-true returns {ok}", function(t) {
         var r = Agent.invoke("mc.client.overlays", {});
         t.assertEqual(r.ok, true, "ok");
         // Either both fields populated, or error fields if reflection failed.
@@ -63,7 +63,7 @@ if (!clientAvailable()) {
         t.assertTrue(ok2, "toasts field present");
     });
 
-    AgentTest.run("29_chat_history: overlays{tutorial:false,toasts:false} skips both",
+    ScriptTest.run("29_chat_history: overlays{tutorial:false,toasts:false} skips both",
         function(t) {
             var r = Agent.invoke("mc.client.overlays", { tutorial: false, toasts: false });
             t.assertEqual(r.ok, true, "ok");
@@ -73,7 +73,7 @@ if (!clientAvailable()) {
                 "no toasts field when disabled");
         });
 
-    AgentTest.run("29_chat_history: 3-transport parity on history shape",
+    ScriptTest.run("29_chat_history: 3-transport parity on history shape",
         function(t) {
             var direct = Agent.invoke("mc.client.chat.history", { limit: 5 });
             var viaTcp = Agent.system.rpcRoundtrip("mc.client.chat.history", { limit: 5 });

@@ -9,7 +9,7 @@ public final class QueryParams {
     public String q;
     public Map<String, Object> filter;
     public List<String> select;
-    /** Optional search center. When null the route falls back to {@link AgentApi#testOriginPos()}. */
+    /** Optional search center. When null the route falls back to {@link DriverApi#testOriginPos()}. */
     public BlockPos center;
 
     @SuppressWarnings("unchecked")

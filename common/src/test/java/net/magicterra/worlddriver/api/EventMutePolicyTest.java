@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.api;
 
 import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.model.AgentEvent;
+import net.magicterra.worlddriver.model.DriverEvent;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@code mc.bot.setting{mutedEvents}} is applied once, by {@link AgentApi}, before
+ * {@code mc.bot.setting{mutedEvents}} is applied once, by {@link DriverApi}, before
  * any listener runs.
  *
  * <p>It used to be applied by each transport instead — {@code RpcServer.onEvent} and
@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class EventMutePolicyTest {
 
-    /** Emissions are dispatched FIFO on AgentApi's single-thread executor, so once a
+    /** Emissions are dispatched FIFO on DriverApi's single-thread executor, so once a
      *  later event has been delivered every earlier one has already been processed —
      *  no sleep needed to conclude that a muted event was dropped rather than late. */
     private static List<String> deliveredAfterEmitting(Set<String> muted, String... types)
@@ -34,10 +34,10 @@ class EventMutePolicyTest {
         Set<String> saved = BotConfig.mutedEvents;
         BotConfig.mutedEvents = muted;
         try {
-            AgentApi api = new AgentApi();
+            DriverApi api = new DriverApi();
             List<String> seen = new CopyOnWriteArrayList<>();
             CountDownLatch sentinel = new CountDownLatch(1);
-            api.addEventListener((AgentEvent e) -> {
+            api.addEventListener((DriverEvent e) -> {
                 if ("sentinel".equals(e.type)) sentinel.countDown();
                 else seen.add(e.type);
             });
@@ -73,7 +73,7 @@ class EventMutePolicyTest {
         Set<String> saved = BotConfig.mutedEvents;
         BotConfig.mutedEvents = Set.of("noisy");
         try {
-            AgentApi api = new AgentApi();
+            DriverApi api = new DriverApi();
             long before = api.eventSeq.get();
             api.emitExternal("noisy", null, "payload");
             assertEquals(before + 1, api.eventSeq.get(),

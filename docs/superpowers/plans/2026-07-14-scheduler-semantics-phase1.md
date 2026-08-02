@@ -4,7 +4,7 @@
 
 **Goal:** 修复 gap#68 家族的 5 个结构根因(spec `docs/superpowers/specs/2026-07-14-scheduler-semantics-phase1-design.md`):verb 终态诚实化、chain episode 生命周期(cancel/死亡全清)、反射进入门事件化、combat 脆血门+duskSecure 夜间升压、AutoTool 手动宽限。
 
-**Architecture:** 全部改动在 `common/`(调度器 `bot/scheduler/`、进程 `bot/process/`、报告缝 `api/AgentApi.java`+`bot/BotApiImpl.java`);纯门逻辑抽成静态可测函数,矩阵测试进 `neoforge/.../AgentGameTestServer.java`(#65 先例,AgentGameTestServer.java:3227 起);行为开关全走 `BotConfig` public static volatile 字段(setting 反射自动接线,落地后用 `mc.bot.setting` 的 applied 列表验证)。
+**Architecture:** 全部改动在 `common/`(调度器 `bot/scheduler/`、进程 `bot/process/`、报告缝 `api/DriverApi.java`+`bot/BotApiImpl.java`);纯门逻辑抽成静态可测函数,矩阵测试进 `neoforge/.../AgentGameTestServer.java`(#65 先例,AgentGameTestServer.java:3227 起);行为开关全走 `BotConfig` public static volatile 字段(setting 反射自动接线,落地后用 `mc.bot.setting` 的 applied 列表验证)。
 
 **Tech Stack:** Java 21, Minecraft 1.21 multiloader (common/fabric/neoforge), NeoForge GameTest。
 
@@ -122,7 +122,7 @@ git commit -m "feat(walker): honest terminal report (endReason/goalReached/final
 **Files:**
 - Modify: `common/src/main/java/net/magicterra/worlddriver/bot/BotState.java:76-109`(ProcessSlot)
 - Modify: `common/src/main/java/net/magicterra/worlddriver/bot/process/IntentProcess.java:87-93`
-- Modify: `common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java:663-714`(awaitable)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/api/DriverApi.java:663-714`(awaitable)
 
 **Interfaces:**
 - Consumes: Task 1 的 `walker.lastEndReason/lastGoalReached/lastFinalDist`。
@@ -160,7 +160,7 @@ st.mc_goto.reset();
 return true;
 ```
 
-- [ ] **Step 3: awaitable 顶层便捷键**(AgentApi.java:707-712 的 status 折叠处改为)
+- [ ] **Step 3: awaitable 顶层便捷键**(DriverApi.java:707-712 的 status 折叠处改为)
 
 ```java
 if (finalStatus != null) {
@@ -180,7 +180,7 @@ Run: `./gradlew :neoforge:compileJava` → BUILD SUCCESSFUL;`./gradlew :neoforge
 - [ ] **Step 5: Commit**
 
 ```bash
-git add common/src/main/java/net/magicterra/worlddriver/bot/BotState.java common/src/main/java/net/magicterra/worlddriver/bot/process/IntentProcess.java common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/BotState.java common/src/main/java/net/magicterra/worlddriver/bot/process/IntentProcess.java common/src/main/java/net/magicterra/worlddriver/api/DriverApi.java
 git commit -m "feat(status): goalReached/endReason/finalDist on goto slot + awaitable top-level fold (gap#68-R2b)"
 ```
 
@@ -193,7 +193,7 @@ git commit -m "feat(status): goalReached/endReason/finalDist on goto slot + awai
 - Modify: `common/src/main/java/net/magicterra/worlddriver/bot/scheduler/UserTaskChain.java:107-126`(slotFor)
 - Modify: `common/src/main/java/net/magicterra/worlddriver/bot/process/BunkerProcess.java`
 - Modify: `common/src/main/java/net/magicterra/worlddriver/bot/BotApiImpl.java:325-336`(bunker verb)
-- Modify: `common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java:317`(路由)
+- Modify: `common/src/main/java/net/magicterra/worlddriver/api/DriverApi.java:317`(路由)
 
 **Interfaces:**
 - Produces: status 新增 `bunker` slot(ProcessSlot 标准形+Task 2 新字段);`mc.bot.bunker` 支持 `awaitMs`,响应含 `acted:boolean`(是否动过世界)与 slot 折叠;`goalReached` 语义 = SEALED 且方块级围合。
@@ -233,7 +233,7 @@ private static boolean enclosed(WorldView w, Avatar a) {
   - 各 `return true` 出口替换,标签按语境:水位不足首 tick 退出(BunkerProcess.java:128-131)→ `finish(st, w, a, "unsafe-site", "water/hazard at dig site — no action taken")`;挖掘超时(173)→ `finish(..., "dig-timeout", "break timeout (unbreakable below?)")`;不安全(167)→ `finish(..., "unsafe-mid-dig", "hazard opened mid-dig")`;act 超时(219)→ `finish(..., "act-timeout", "seal/carve timeout")`;正常 DONE → `finish(..., phase.name(), null)`。`sealedOk` 若现代码无此概念,以 `phase == Phase.SEALED` 曾达到为准(加 boolean 字段在进入 SEALED 时置 true)。
   - 注意 `tick(Avatar a, ...)` 签名里已有 `st`(BotProcess 接口)——直接用。
 
-- [ ] **Step 4: verb + 路由**。BotApiImpl.java:334 响应加 `"acted"` 无法同步得知(异步)→ 响应保持启动 ack 但注释语义;AgentApi.java:317 改为:
+- [ ] **Step 4: verb + 路由**。BotApiImpl.java:334 响应加 `"acted"` 无法同步得知(异步)→ 响应保持启动 ack 但注释语义;DriverApi.java:317 改为:
 
 ```java
 routes.put("mc.bot.bunker",    p -> awaitable(p, "bunker",  requireBot()::bunker));
@@ -246,7 +246,7 @@ awaitable 会折叠 bunker slot(含 goalReached/endReason)到响应,`completed:t
 Run: `./gradlew :neoforge:runGameTestServer` → required 全绿零新名。
 
 ```bash
-git add common/src/main/java/net/magicterra/worlddriver/bot/BotState.java common/src/main/java/net/magicterra/worlddriver/bot/scheduler/UserTaskChain.java common/src/main/java/net/magicterra/worlddriver/bot/process/BunkerProcess.java common/src/main/java/net/magicterra/worlddriver/bot/BotApiImpl.java common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java
+git add common/src/main/java/net/magicterra/worlddriver/bot/BotState.java common/src/main/java/net/magicterra/worlddriver/bot/scheduler/UserTaskChain.java common/src/main/java/net/magicterra/worlddriver/bot/process/BunkerProcess.java common/src/main/java/net/magicterra/worlddriver/bot/BotApiImpl.java common/src/main/java/net/magicterra/worlddriver/api/DriverApi.java
 git commit -m "feat(bunker): awaitable verb + bunker slot + enclosed/acted honest verdict (gap#68-⑩)"
 ```
 

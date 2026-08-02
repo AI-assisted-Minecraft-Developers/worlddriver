@@ -1,6 +1,6 @@
 {
   "skill_name": "worlddriver-rpc",
-  "description": "Call the worlddriver Minecraft mod's live control API over its JSON-RPC websocket (port 39801) with the bundled rpc.py client, and look up exact method params in its complete 45-method reference. Use this skill whenever you need to DRIVE or QUERY a running worlddriver client/bot \u2014 calling mc.bot.* (goto, setting, mine, build, status, cancel), mc.action.* (runCommand, fill, placeMany), mc.observe.*, mc.client.* (input, screenshot, screen, chat), mc.query, mc.wait.*, or mc.script.eval. Reach for it ESPECIALLY when the mcp__worlddriver__* tools can't do the job: a setting or param won't apply / gets stripped after you rebuilt the mod (the harness freezes MCP tool schemas at session start, so newly-added keys must be set over RPC instead), you want to send a raw method+params straight to the websocket, you need to script a multi-step live setup (give\u2192tp\u2192fill\u2192setting\u2192goto) in one shell block, or you're bringing the client up headless (title\u2192world, input, screenshots). Also use it to answer \"what RPC methods exist / how do I call X\" for this mod. This is for INVOKING the mod at runtime \u2014 not for editing the mod's Java (BotConfig/ToolCatalog/Walker), writing gametests, or standing up your own MCP server, which are ordinary code tasks. If a task means controlling the live bot/client or bypassing a stale MCP tool, consult this skill rather than guessing the wire format.",
+  "description": "Drive the worlddriver Minecraft mod directly over its JSON-RPC websocket (ws://127.0.0.1:39801/rpc) using the bundled rpc.py client. Use this whenever you are live-testing or scripting the worlddriver mod \u2014 calling mc.bot.*, mc.action.*, mc.observe.*, mc.client.*, mc.query, mc.wait.*, mc.bot.setting, or mc.script.eval against a running client. ESPECIALLY reach for this when an MCP tool (mcp__worlddriver__*) is missing a newly-added param or setting (the harness freezes MCP tool schemas at session start and silently strips unknown keys, so a freshly rebuilt mod's new mc.bot.setting key won't apply through the MCP tool \u2014 but it works fine over RPC), when you need to chain a multi-step setup (give\u2192tp\u2192fill\u2192set\u2192goto) in one shell block, or when staging/relaunching the live client for verification. Covers the full 45-method RPC surface.",
   "results": [
     {
       "query": "set allowParkourPlace true on the running bot and then send it to 22 150 0, all in one shot",
@@ -29,16 +29,16 @@
     {
       "query": "the mcp tool for mc.bot.setting keeps stripping maxWaterBucketFall, it never applies. is there a way around the tool layer to set it?",
       "should_trigger": true,
-      "trigger_rate": 0.0,
-      "triggers": 0,
+      "trigger_rate": 0.3333333333333333,
+      "triggers": 1,
       "runs": 3,
       "pass": false
     },
     {
       "query": "what methods does the worlddriver mod expose for reading the player's inventory and the nearby hostile entities, and how do I call them?",
       "should_trigger": true,
-      "trigger_rate": 0.3333333333333333,
-      "triggers": 1,
+      "trigger_rate": 0.0,
+      "triggers": 0,
       "runs": 3,
       "pass": false
     },
@@ -53,8 +53,8 @@
     {
       "query": "use mc.script.eval to observe the player, pick whichever cardinal has the most open space, and kick off a goto that way in a single round trip",
       "should_trigger": true,
-      "trigger_rate": 0.3333333333333333,
-      "triggers": 1,
+      "trigger_rate": 0.0,
+      "triggers": 0,
       "runs": 3,
       "pass": false
     },
@@ -69,13 +69,13 @@
     {
       "query": "how do I send a raw method + params to the worlddriver websocket on 39801 without going through the mcp tools?",
       "should_trigger": true,
-      "trigger_rate": 0.3333333333333333,
-      "triggers": 1,
+      "trigger_rate": 0.0,
+      "triggers": 0,
       "runs": 3,
       "pass": false
     },
     {
-      "query": "drive the client into the AgentTest world from the title screen and then grab a screenshot of where it ends up",
+      "query": "drive the client into the ScriptTest world from the title screen and then grab a screenshot of where it ends up",
       "should_trigger": true,
       "trigger_rate": 0.0,
       "triggers": 0,

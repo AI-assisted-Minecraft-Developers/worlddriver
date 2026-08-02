@@ -14,12 +14,12 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("31_goal_types: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("31_goal_types: skipped (no client api — dedicated server)", function(t) {
         // PASS
     });
 } else {
 
-    AgentTest.run("31_goal_types: pathfinder.axisHeight round-trips and rejects out-of-range", function(t) {
+    ScriptTest.run("31_goal_types: pathfinder.axisHeight round-trips and rejects out-of-range", function(t) {
         var r = Agent.invoke("mc.bot.setting", { "pathfinder.axisHeight": 64 });
         t.assertEqual(r.ok, true, "write must succeed");
         t.assertTrue(r.applied.indexOf("pathfinder.axisHeight") >= 0, "axisHeight must be applied");
@@ -30,34 +30,34 @@ if (!clientAvailable()) {
             "out-of-range axisHeight must be rejected");
     });
 
-    AgentTest.run("31_goal_types: strict direction must be horizontal", function(t) {
+    ScriptTest.run("31_goal_types: strict direction must be horizontal", function(t) {
         var r = Agent.invoke("mc.bot.goto", { direction: "up", strict: true });
         t.assertEqual(r.ok, false, "strict + vertical direction must be ok:false");
         t.assertTrue(r.error.indexOf("horizontal") >= 0, "error must mention 'horizontal'");
     });
 
-    AgentTest.run("31_goal_types: invert with no base selector is rejected", function(t) {
+    ScriptTest.run("31_goal_types: invert with no base selector is rejected", function(t) {
         var r = Agent.invoke("mc.bot.goto", { invert: true });
         t.assertEqual(r.ok, false, "invert with nothing to invert must be ok:false");
         t.assertTrue(typeof r.error === "string" && r.error.indexOf("pos") >= 0,
             "error must list the accepted selector shapes");
     });
 
-    AgentTest.run("31_goal_types: axis goal starts a pathing process", function(t) {
+    ScriptTest.run("31_goal_types: axis goal starts a pathing process", function(t) {
         var r = Agent.invoke("mc.bot.goto", { axis: true });
         t.assertEqual(r.ok, true, "axis goal must be accepted");
         t.assertEqual(r.started, true, "axis goal must start a process");
         Agent.invoke("mc.bot.cancel", {});
     });
 
-    AgentTest.run("31_goal_types: goalMode 'adjacent' accepted for a positional target", function(t) {
+    ScriptTest.run("31_goal_types: goalMode 'adjacent' accepted for a positional target", function(t) {
         var r = Agent.invoke("mc.bot.goto", { pos: { x: 0, y: 64, z: 0 }, goalMode: "adjacent" });
         t.assertEqual(r.ok, true, "adjacent goalMode must be accepted");
         t.assertEqual(r.started, true, "must start a process");
         Agent.invoke("mc.bot.cancel", {});
     });
 
-    AgentTest.run("31_goal_types: byte-identical results across in-JVM, RPC, MCP transports",
+    ScriptTest.run("31_goal_types: byte-identical results across in-JVM, RPC, MCP transports",
         function(t) {
             var args = { direction: "up", strict: true };
             var direct = Agent.invoke("mc.bot.goto", args);

@@ -14,7 +14,7 @@ import net.minecraft.server.level.ServerPlayer;
  * {@link ServerPlayerAvatar} (a headless {@link ServerPlayer} body) with no client. Each call to
  * {@link #tick()} advances the Walker (which sets the avatar's impulse/jump via
  * the {@code Avatar} seam) then runs the manual vanilla physics step. This is
- * exactly the loop the headless arenas validate; {@link ServerAgentManager}
+ * exactly the loop the headless arenas validate; {@link ServerAvatarManager}
  * wires it to the live {@code ServerTickEvent} so a dedicated server drives the
  * FakePlayer with no {@code LocalPlayer}.
  *

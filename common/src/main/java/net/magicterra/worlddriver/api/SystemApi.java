@@ -6,13 +6,13 @@ import net.minecraft.server.MinecraftServer;
 import java.util.Map;
 
 /**
- * {@code mc.system.*} handlers, extracted from {@code AgentApi}. Holds an
- * {@link AgentApi} back-reference for the shared server handle + start clock;
- * dispatch still flows through {@code AgentApi.route} (single source of truth).
+ * {@code mc.system.*} handlers, extracted from {@code DriverApi}. Holds an
+ * {@link DriverApi} back-reference for the shared server handle + start clock;
+ * dispatch still flows through {@code DriverApi.route} (single source of truth).
  */
 public final class SystemApi {
-    private final AgentApi api;
-    SystemApi(AgentApi api) { this.api = api; }
+    private final DriverApi api;
+    SystemApi(DriverApi api) { this.api = api; }
 
     public Map<String, Object> version() {
         return Map.of(
@@ -22,7 +22,7 @@ public final class SystemApi {
         );
     }
 
-    public BlockPos testOrigin() { return AgentApi.ORIGIN; }
+    public BlockPos testOrigin() { return DriverApi.ORIGIN; }
 
     /**
      * Block the calling thread for {@code ticks * 50ms} (the nominal MC tick period).

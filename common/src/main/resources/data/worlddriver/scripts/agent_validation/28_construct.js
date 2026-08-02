@@ -13,12 +13,12 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("28_construct: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("28_construct: skipped (no client api — dedicated server)", function(t) {
         // PASS
     });
 } else {
 
-    AgentTest.run("28_construct: rejects missing mode", function(t) {
+    ScriptTest.run("28_construct: rejects missing mode", function(t) {
         // Route-layer schema validation rejects the missing required key before the tool runs.
         var msg = null;
         try { Agent.invoke("mc.bot.construct", {}); } catch (e) { msg = String(e); }
@@ -26,7 +26,7 @@ if (!clientAvailable()) {
             "missing mode must be rejected by schema validation, got: " + msg);
     });
 
-    AgentTest.run("28_construct: rejects unknown mode", function(t) {
+    ScriptTest.run("28_construct: rejects unknown mode", function(t) {
         // Route-layer schema validation rejects the enum violation before the tool runs.
         var msg = null;
         try { Agent.invoke("mc.bot.construct", { mode: "elevator" }); } catch (e) { msg = String(e); }
@@ -34,14 +34,14 @@ if (!clientAvailable()) {
             "unknown mode must be rejected by schema validation, got: " + msg);
     });
 
-    AgentTest.run("28_construct: tower rejects missing height/targetY", function(t) {
+    ScriptTest.run("28_construct: tower rejects missing height/targetY", function(t) {
         var r = Agent.invoke("mc.bot.construct", { mode: "tower" });
         t.assertEqual(r.ok, false, "tower without height/targetY → ok:false");
         t.assertTrue(String(r.error).indexOf("height") >= 0 || String(r.error).indexOf("targetY") >= 0,
             "error mentions height/targetY: " + r.error);
     });
 
-    AgentTest.run("28_construct: tower rejects oversize height", function(t) {
+    ScriptTest.run("28_construct: tower rejects oversize height", function(t) {
         // Route-layer schema validation rejects the bounds violation (height ≤ 256) before the tool runs.
         var msg = null;
         try { Agent.invoke("mc.bot.construct", { mode: "tower", height: 9999 }); }
@@ -50,14 +50,14 @@ if (!clientAvailable()) {
             "9999-block tower must be rejected by schema validation naming the cap, got: " + msg);
     });
 
-    AgentTest.run("28_construct: bridge rejects missing distance", function(t) {
+    ScriptTest.run("28_construct: bridge rejects missing distance", function(t) {
         var r = Agent.invoke("mc.bot.construct", { mode: "bridge", direction: "north" });
         t.assertEqual(r.ok, false, "bridge without distance → ok:false");
         t.assertTrue(String(r.error).indexOf("distance") >= 0,
             "error mentions distance: " + r.error);
     });
 
-    AgentTest.run("28_construct: bridge rejects oversize distance", function(t) {
+    ScriptTest.run("28_construct: bridge rejects oversize distance", function(t) {
         // Route-layer schema validation rejects the bounds violation (distance ≤ 64) before the tool runs.
         var msg = null;
         try {
@@ -67,7 +67,7 @@ if (!clientAvailable()) {
             "9999-block bridge must be rejected by schema validation naming the cap, got: " + msg);
     });
 
-    AgentTest.run("28_construct: bridge rejects unknown direction", function(t) {
+    ScriptTest.run("28_construct: bridge rejects unknown direction", function(t) {
         // Route-layer schema validation rejects the enum violation before the tool
         // runs — deterministic regardless of player state.
         var msg = null;
@@ -78,8 +78,8 @@ if (!clientAvailable()) {
             "unknown direction must be rejected by schema validation, got: " + msg);
     });
 
-    AgentTest.run("28_construct: schema-reject surfaces identically across in-JVM, RPC, MCP transports", function(t) {
-        // The validator runs inside AgentApi.route(), shared by all three
+    ScriptTest.run("28_construct: schema-reject surfaces identically across in-JVM, RPC, MCP transports", function(t) {
+        // The validator runs inside DriverApi.route(), shared by all three
         // transports — each must surface the SAME core violation message
         // (each transport adds its own wrapper prefix, so we compare cores).
         var args = { mode: "elevator" };

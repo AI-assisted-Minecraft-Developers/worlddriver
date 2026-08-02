@@ -23,7 +23,7 @@ import net.minecraft.client.player.KeyboardInput;
  * own key-pressing branches (pillar / bridge / swim / parkour) are unaffected. A command
  * overrides only the horizontal movement vector for that single tick.
  */
-public final class AgentInput extends KeyboardInput {
+public final class AvatarInput extends KeyboardInput {
     private boolean moveCommanded;
     private float cmdForward;
     private float cmdLeft;
@@ -34,7 +34,7 @@ public final class AgentInput extends KeyboardInput {
     private boolean sneakCommanded;
     private boolean cmdSneak;
 
-    public AgentInput(Options options) {
+    public AvatarInput(Options options) {
         super(options);
     }
 

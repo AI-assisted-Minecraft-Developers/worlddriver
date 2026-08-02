@@ -6,7 +6,7 @@ import dev.latvian.mods.rhino.ScriptRuntime;
 import dev.latvian.mods.rhino.ScriptableObject;
 import dev.latvian.mods.rhino.Undefined;
 import dev.latvian.mods.rhino.util.ClassVisibilityContext;
-import net.magicterra.worlddriver.api.AgentApi;
+import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.rpc.JsonCodec;
 
 import java.io.IOException;
@@ -27,10 +27,10 @@ import java.util.concurrent.atomic.AtomicLong;
  * Ad-hoc Rhino evaluator behind the {@code mc.script.eval} MCP tool.
  *
  * Each call gets a fresh scope (no state leaks between calls), runs on a
- * worker thread from a cached pool (off the server thread, so AgentApi
+ * worker thread from a cached pool (off the server thread, so DriverApi
  * routes that bounce through {@code server.execute()} don't deadlock), and
  * is bounded by a wall-clock deadline enforced via Rhino's instruction-count
- * observer. The optional {@link AgentClassFilter} class filter applies only when opted in (-Dworlddriver.sandbox=on; off by default — scripts are first-party capability).
+ * observer. The optional {@link ScriptClassFilter} class filter applies only when opted in (-Dworlddriver.sandbox=on; off by default — scripts are first-party capability).
  *
  * The script body runs through {@code eval()} so its last expression is the
  * completion value; the wrapper captures result/error/log and JSON-encodes
@@ -47,7 +47,7 @@ public final class ScriptEvaluator {
     private static final String PRELUDE_RESOURCE = "/data/worlddriver/scripts/prelude.js";
     private static final String PRELUDE = loadPrelude();
 
-    private final AgentApi api;
+    private final DriverApi api;
     private final ExecutorService executor;
     private final AtomicLong seq = new AtomicLong();
 
@@ -60,7 +60,7 @@ public final class ScriptEvaluator {
         }
     }
 
-    public ScriptEvaluator(AgentApi api) {
+    public ScriptEvaluator(DriverApi api) {
         this.api = api;
         this.executor = Executors.newCachedThreadPool(r -> {
             Thread t = new Thread(r, "agent-script-eval-" + seq.incrementAndGet());
@@ -244,7 +244,7 @@ public final class ScriptEvaluator {
     }
 
     /**
-     * Context that combines the optional {@link AgentClassFilter} class filter (off by default)
+     * Context that combines the optional {@link ScriptClassFilter} class filter (off by default)
      * with a wall-clock deadline enforced via Rhino's instruction-count hook.
      */
     private static final class FilteredObservedContext extends Context {
@@ -262,7 +262,7 @@ public final class ScriptEvaluator {
 
         @Override
         public boolean visibleToScripts(String fullClassName, ClassVisibilityContext type) {
-            return AgentClassFilter.isAllowed(fullClassName, type);
+            return ScriptClassFilter.isAllowed(fullClassName, type);
         }
 
         @Override

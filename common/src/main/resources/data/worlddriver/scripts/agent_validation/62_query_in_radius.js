@@ -11,7 +11,7 @@
 // Each block is hermetic: defensive pre-kill, own summons, kill in a finally
 // so a failed assertion can't leak pinned stands into later suites.
 
-AgentTest.run("62_radius: r=3 ring — every in-range stand returned, none outside", function(t) {
+ScriptTest.run("62_radius: r=3 ring — every in-range stand returned, none outside", function(t) {
     var origin = Agent.system.testOrigin();
     var cx = origin.x + 24, cy = origin.y + 6, cz = origin.z + 24;
     Agent.invoke("mc.action.runCommand", { cmd: "kill @e[tag=t62]" });
@@ -73,7 +73,7 @@ AgentTest.run("62_radius: r=3 ring — every in-range stand returned, none outsi
     }
 });
 
-AgentTest.run("62_radius: r=0 returns only the center cell", function(t) {
+ScriptTest.run("62_radius: r=0 returns only the center cell", function(t) {
     var origin = Agent.system.testOrigin();
     var cx = origin.x + 24, cy = origin.y + 6, cz = origin.z + 24;
     Agent.invoke("mc.action.runCommand", { cmd: "kill @e[tag=t62]" });

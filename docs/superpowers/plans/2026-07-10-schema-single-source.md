@@ -4,9 +4,9 @@
 
 **Goal:** 路由层参数校验与 MCP catalog schema 单源化(feedback §4 根治),外加 §2 TutorialSteps 反射修复、§3 look 滞后文档、§1 残差处置记录。
 
-**Architecture:** `ToolSchema` 改为携带类型化 `Schema` 树(渲染延迟到 tools/list),新增 `SchemaValidator`(sealed-switch 遍历器)经 api 层 `ParamsValidator` 缝注入 `AgentApi.route()`,所有传输层与内部调用统一受校验。严格拒绝,无 warn 过渡;存量 schema↔route 不一致由静态审计 + 全量套件清扫修平。
+**Architecture:** `ToolSchema` 改为携带类型化 `Schema` 树(渲染延迟到 tools/list),新增 `SchemaValidator`(sealed-switch 遍历器)经 api 层 `ParamsValidator` 缝注入 `DriverApi.route()`,所有传输层与内部调用统一受校验。严格拒绝,无 warn 过渡;存量 schema↔route 不一致由静态审计 + 全量套件清扫修平。
 
-**Tech Stack:** Java 21(sealed interface + pattern-switch)、Mojang DFU Codec(渲染,不动)、客户端 JS 验证套件(AgentTest)、NeoForge GameTestServer。
+**Tech Stack:** Java 21(sealed interface + pattern-switch)、Mojang DFU Codec(渲染,不动)、客户端 JS 验证套件(ScriptTest)、NeoForge GameTestServer。
 
 **Spec:** `docs/superpowers/specs/2026-07-10-schema-single-source-validation-design.md`
 
@@ -56,11 +56,11 @@ function clientAvailable() {
 }
 
 if (!clientAvailable()) {
-    AgentTest.run("63_overlays_tutorial: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("63_overlays_tutorial: skipped (no client api — dedicated server)", function(t) {
         // no-op: PASS so headless runs stay green
     });
 } else {
-    AgentTest.run("63_overlays_tutorial: tutorial suppressed without reflection error", function(t) {
+    ScriptTest.run("63_overlays_tutorial: tutorial suppressed without reflection error", function(t) {
         var res = Agent.invoke("mc.client.overlays", {});
         t.assertEqual(res.ok, true, "overlays must report ok (got " + JSON.stringify(res) + ")");
         t.assertEqual(res.tutorial, "NONE", "tutorial must be set to NONE (got " + JSON.stringify(res) + ")");
@@ -308,14 +308,14 @@ git commit -m "refactor(mcp): ToolSchema retains the typed Schema tree — rende
 **Files:**
 - Create: `common/src/main/java/net/magicterra/worlddriver/mcp/schema/SchemaValidator.java`
 - Create: `common/src/main/java/net/magicterra/worlddriver/api/ParamsValidator.java`
-- Modify: `common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java:438-442`(route)+ setter
+- Modify: `common/src/main/java/net/magicterra/worlddriver/api/DriverApi.java:438-442`(route)+ setter
 - Modify: `common/src/main/java/net/magicterra/worlddriver/WorldDriverCommon.java:173`(bootstrap 接线)
 - Create: `common/src/main/resources/data/worlddriver/scripts/agent_validation/64_schema_validation.js`
 - Modify: `common/src/main/resources/data/worlddriver/scripts/agent_validation/12_use_item.js:38-41,80-85`(两个负例改为期待 route 层异常)
 
 **Interfaces:**
 - Consumes: Task 2 的 `ToolCatalog.schemaByName()`、`Schema` 各节点包私有访问器(同包可见:`Obj.properties()/required()/additionalProperties()`、`Str.enumValues()`、`Int/Num.minimum()/maximum()`、`Arr.items()`)。
-- Produces: `SchemaValidator.validate(String method, Schema schema, Map<String,Object> params)` 违规抛 `IllegalArgumentException`;`AgentApi.setParamsValidator(ParamsValidator)`。
+- Produces: `SchemaValidator.validate(String method, Schema schema, Map<String,Object> params)` 违规抛 `IllegalArgumentException`;`DriverApi.setParamsValidator(ParamsValidator)`。
 
 - [ ] **Step 1: ParamsValidator.java(api 包,不 import mcp)**
 
@@ -325,7 +325,7 @@ package net.magicterra.worlddriver.api;
 import java.util.Map;
 
 /**
- * Pre-dispatch params gate for {@link AgentApi#route}. Implementations throw
+ * Pre-dispatch params gate for {@link DriverApi#route}. Implementations throw
  * {@link IllegalArgumentException} on invalid params. Wired by the bootstrap
  * (WorldDriverCommon) from the MCP ToolCatalog — injected as a functional
  * interface so the api layer stays transport/schema agnostic (Hard Rule #1,
@@ -349,7 +349,7 @@ import java.util.Map;
 /**
  * Validates route params against the SAME typed {@link Schema} the MCP catalog
  * advertises — single source, so runtime enforcement can never drift from
- * tools/list. Wired into AgentApi.route() via the api-layer ParamsValidator seam.
+ * tools/list. Wired into DriverApi.route() via the api-layer ParamsValidator seam.
  *
  * <p>Semantics: type mismatch, missing required, enum violation, min/max bounds
  * and unknown keys (unless the object declares additionalProperties(true)) all
@@ -454,7 +454,7 @@ public final class SchemaValidator {
 }
 ```
 
-- [ ] **Step 3: AgentApi 接线**
+- [ ] **Step 3: DriverApi 接线**
 
 字段区(routes 声明附近)加:
 
@@ -513,7 +513,7 @@ setter(requireSchemasFor 旁,javadoc 同风格):
 
 ```js
 // Route-layer schema validation (feedback 2026-07-10 §4) — the validator runs
-// inside AgentApi.route(), so violations surface as thrown errors (wrapped by
+// inside DriverApi.route(), so violations surface as thrown errors (wrapped by
 // Rhino), NOT as {ok:false} results. Server-side routes work headless; no
 // clientAvailable guard needed for runCommand/query cases.
 
@@ -521,36 +521,36 @@ function errOf(fn) {
     try { fn(); return null; } catch (e) { return String(e); }
 }
 
-AgentTest.run("64_schema_validation: wrong field name names both the missing and the unexpected key", function(t) {
+ScriptTest.run("64_schema_validation: wrong field name names both the missing and the unexpected key", function(t) {
     var msg = errOf(function() { Agent.invoke("mc.action.runCommand", { command: "time query daytime" }); });
     t.assertTrue(msg !== null, "must reject");
     t.assertTrue(msg.indexOf("missing required 'cmd'") >= 0, "must name missing 'cmd', got: " + msg);
     t.assertTrue(msg.indexOf("unexpected key 'command'") >= 0, "must name unexpected 'command', got: " + msg);
 });
 
-AgentTest.run("64_schema_validation: type violation is rejected with both types named", function(t) {
+ScriptTest.run("64_schema_validation: type violation is rejected with both types named", function(t) {
     var msg = errOf(function() { Agent.invoke("mc.action.runCommand", { cmd: 42 }); });
     t.assertTrue(msg !== null && msg.indexOf("must be string") >= 0, "cmd:42 must be a type error, got: " + msg);
 });
 
-AgentTest.run("64_schema_validation: unknown key on a valid call is rejected", function(t) {
+ScriptTest.run("64_schema_validation: unknown key on a valid call is rejected", function(t) {
     var msg = errOf(function() { Agent.invoke("mc.system.waitTicks", { ticks: 1, bogus: true }); });
     t.assertTrue(msg !== null && msg.indexOf("unexpected key 'bogus'") >= 0, "got: " + msg);
 });
 
-AgentTest.run("64_schema_validation: enum violation names the allowed set", function(t) {
+ScriptTest.run("64_schema_validation: enum violation names the allowed set", function(t) {
     // mc.bot.useItem hand is enum ["main","off"]
     var msg = errOf(function() { Agent.invoke("mc.bot.useItem", { hand: "left" }); });
     t.assertTrue(msg !== null && msg.indexOf("must be one of") >= 0, "got: " + msg);
 });
 
-AgentTest.run("64_schema_validation: integral double passes an integer slot", function(t) {
+ScriptTest.run("64_schema_validation: integral double passes an integer slot", function(t) {
     // JSON decoders routinely hand integers over as doubles — 1.0 must be accepted.
     var res = Agent.invoke("mc.system.waitTicks", { ticks: 1.0 });
     t.assertTrue(res !== null && res !== undefined, "waitTicks{ticks:1.0} must be accepted");
 });
 
-AgentTest.run("64_schema_validation: additionalProperties(true) tool accepts unknown keys", function(t) {
+ScriptTest.run("64_schema_validation: additionalProperties(true) tool accepts unknown keys", function(t) {
     // mc.test.yaml is declared additionalProperties(true); calling with an unknown
     // key must NOT be a schema rejection. all:false is a no-op run request shape;
     // any non-validation outcome (ok or business error) passes.
@@ -565,7 +565,7 @@ AgentTest.run("64_schema_validation: additionalProperties(true) tool accepts unk
 `pos-mode rejects malformed pos`(38-41 行)与 `entity-mode rejects non-integer entityId`(80-85 行)原依赖业务层返回 `{ok:false}`;严格校验后在 route 层即抛错。改为:
 
 ```js
-    AgentTest.run("12_use_item: pos-mode rejects malformed pos", function(t) {
+    ScriptTest.run("12_use_item: pos-mode rejects malformed pos", function(t) {
         // Route-layer schema validation rejects string pos before the tool runs.
         var msg = null;
         try { Agent.invoke("mc.bot.useItem", { pos: "not-a-pos" }); } catch (e) { msg = String(e); }
@@ -575,7 +575,7 @@ AgentTest.run("64_schema_validation: additionalProperties(true) tool accepts unk
 ```
 
 ```js
-    AgentTest.run("12_use_item: entity-mode rejects non-integer entityId", function(t) {
+    ScriptTest.run("12_use_item: entity-mode rejects non-integer entityId", function(t) {
         // Route-layer schema validation rejects string entityId before the tool runs.
         var msg = null;
         try { Agent.invoke("mc.bot.useItem", { entityId: "abc" }); } catch (e) { msg = String(e); }
@@ -614,12 +614,12 @@ git commit -m "feat(api): route-layer schema validation — SchemaValidator walk
 
 - [ ] **Step 1: 提取 route→实读键清单**
 
-对 `AgentApi.java` 的每个 `routes.put("mc.…", p -> …)`:收集 lambda 内所有 `p.get("key")`/`p.getOrDefault("key",…)`/`p.containsKey("key")`,以及 lambda 调用的实现方法内对同一 params Map 的读取(重点:`ObserveApi/ActionApi/WorldApi/WaitApi/EventsApi/RecipeApi/ScriptApi` 与 `bot/` 下接收 `Map<String,Object> params` 的方法,如 `InteractionCommands.useItemOnEntity`、`observe.scene(p)`、`mc.query` 的 `filter` 嵌套键)。产出一张 method → 实读键集(含嵌套,如 `filter.in_radius`、`filter.type`)的工作清单(保存到 `/tmp` 級临时文件即可,不入库)。
+对 `DriverApi.java` 的每个 `routes.put("mc.…", p -> …)`:收集 lambda 内所有 `p.get("key")`/`p.getOrDefault("key",…)`/`p.containsKey("key")`,以及 lambda 调用的实现方法内对同一 params Map 的读取(重点:`ObserveApi/ActionApi/WorldApi/WaitApi/EventsApi/RecipeApi/ScriptApi` 与 `bot/` 下接收 `Map<String,Object> params` 的方法,如 `InteractionCommands.useItemOnEntity`、`observe.scene(p)`、`mc.query` 的 `filter` 嵌套键)。产出一张 method → 实读键集(含嵌套,如 `filter.in_radius`、`filter.type`)的工作清单(保存到 `/tmp` 級临时文件即可,不入库)。
 
 辅助命令(起点,不是全部——lambda 转调的实现方法必须人工跟进去):
 
 ```bash
-grep -n 'p\.get\|p\.getOrDefault\|p\.containsKey' common/src/main/java/net/magicterra/worlddriver/api/AgentApi.java
+grep -n 'p\.get\|p\.getOrDefault\|p\.containsKey' common/src/main/java/net/magicterra/worlddriver/api/DriverApi.java
 grep -rn 'params\.get\|params\.getOrDefault\|params\.containsKey' common/src/main/java/net/magicterra/worlddriver/api/ common/src/main/java/net/magicterra/worlddriver/bot/ | grep -v test
 ```
 
@@ -701,7 +701,7 @@ git commit -m "fix(mcp): conformance audit — declare every param the routes ac
 - **§3 (observe.player().look lag)** — DOCUMENTED on both `mc.bot.lookAt` and
   `mc.observe.player` tool descriptions: rotation is visible to observe one tick later;
   `waitTicks(1)` before asserting.
-- **§4 (unhelpful wrong-argument error)** — FIXED STRUCTURALLY: `AgentApi.route()` now
+- **§4 (unhelpful wrong-argument error)** — FIXED STRUCTURALLY: `DriverApi.route()` now
   validates params against the same typed Schema the MCP catalog advertises
   (`SchemaValidator`, single source — advertisement and enforcement cannot drift).
   `{"command":…}` now fails with `invalid params for mc.action.runCommand: missing
@@ -760,7 +760,7 @@ cd /root/source/minecraft/AI-assisted-Minecraft-Developers && \
 python3 .claude/skills/worlddriver-rpc/rpc.py mc.action.runCommand '{"cmd":"agent test"}'
 ```
 
-结果读 `fabric/run/logs/latest.log` 的 AgentTest 汇总(或 rpc 返回)。
+结果读 `fabric/run/logs/latest.log` 的 ScriptTest 汇总(或 rpc 返回)。
 Expected: 总数 = 236(234 + 63/64 两文件的新用例数按实际计),失败恰为 8 已知旧败;`63_overlays_tutorial`、`64_schema_validation` 全 PASS;`12_use_item` 全 PASS(含改造后的两个负例)。任何新失败 = 存量不一致或校验器 bug——逐个修(每修一处小提交)后重跑,直到只剩 8 已知旧败。
 
 - [ ] **Step 5: live 定向抽查(feedback 原始场景复放)**

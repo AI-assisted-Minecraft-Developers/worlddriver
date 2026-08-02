@@ -11,7 +11,7 @@ import net.magicterra.worlddriver.client.internal.Screenshots;
 import java.util.Set;
 
 /**
- * Default {@link ClientAgentApi} implementation. Lives in the common module
+ * Default {@link ClientDriverApi} implementation. Lives in the common module
  * because both Fabric and NeoForge share the same MC client API surface; class
  * loading is deferred until a platform client entrypoint instantiates it, so
  * dedicated server JVMs never resolve the {@code net.minecraft.client.*}
@@ -24,7 +24,7 @@ import java.util.Set;
  * {@link net.magicterra.worlddriver.client.internal.ClientThread} for the shared
  * {@code runOnClient} jumper.
  */
-public final class ClientAgentApiImpl implements ClientAgentApi {
+public final class ClientDriverApiImpl implements ClientDriverApi {
 
     @Override
     public Map<String, Object> screenInfo() { return ScreenIntrospection.screenInfo(); }

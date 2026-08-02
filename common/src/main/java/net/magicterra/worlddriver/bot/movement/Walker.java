@@ -794,17 +794,17 @@ public final class Walker {
         return adoptPath(new PathFinder.Result(plan, planEdges, false, 0, 0L, 0.0), world, foot);
     }
 
-    // Jump / sneak actuators — drive the player's OWN AgentInput (Input.jumping /
+    // Jump / sneak actuators — drive the player's OWN AvatarInput (Input.jumping /
     // Input.shiftKeyDown) instead of the SHARED global keybinds mc.options.keyJump /
     // keyShift, so the Walker never fights a human's space/shift. Per-tick (see
-    // AgentInput): tick() sets a default below, branches override. p.input is always
-    // an AgentInput here (installed at the top of tick()); the guard keeps it safe if
+    // AvatarInput): tick() sets a default below, branches override. p.input is always
+    // an AvatarInput here (installed at the top of tick()); the guard keeps it safe if
     // a respawn swapped a fresh KeyboardInput in between.
-    static void agentJump(Avatar a, boolean v) { a.commandJump(v); }
-    static void agentSneak(Avatar a, boolean v) { a.commandSneak(v); }
+    static void avatarJump(Avatar a, boolean v) { a.commandJump(v); }
+    static void avatarSneak(Avatar a, boolean v) { a.commandSneak(v); }
     /** Raw forward (keyUp equivalent) for the special branches that drive the impulse
      *  themselves (the main walk path uses commandMove). v=false also zeroes strafe. */
-    static void agentForward(Avatar a, boolean v) { a.commandForward(v ? 1f : 0f); }
+    static void avatarForward(Avatar a, boolean v) { a.commandForward(v ? 1f : 0f); }
 
 
     /** Client bridge: existing callers pass {@link Minecraft}; wrap it in a
@@ -852,7 +852,7 @@ public final class Walker {
                 boolean overhang = hp.onGround() && !hp.isInWater()
                         && world.isPassable(fc.below()) && !world.isWater(fc.below());
                 if (!overhang) guardHoldTicks--;
-                agentSneak(a, true);
+                avatarSneak(a, true);
                 a.commandJump(false);
                 hp.setSprinting(false);
             }
@@ -862,7 +862,7 @@ public final class Walker {
         // hold tail). A sneak that nothing releases turns a one-stride save into a
         // permanent stall (ridge descent pinned at maxNoProgress=205 in the first
         // full-suite run).
-        if (guardSneakLatch && !pinned) agentSneak(a, false);
+        if (guardSneakLatch && !pinned) avatarSneak(a, false);
         guardSneakLatch = pinned;
         if (fired) {
             // A pin is a deliberate hold, not a stall: revert this tick's stuck accounting so
@@ -990,7 +990,7 @@ public final class Walker {
             if (!world.isPassable(below) || world.isWater(below))
                 return false;                                   // a floor or a water landing → safe
         }
-        agentSneak(a, true);
+        avatarSneak(a, true);
         a.commandJump(false);
         p.setSprinting(false);
         // Log the plug's REAL outcome: the 2026-07-13 live death log claimed "plug" eight ticks
@@ -1105,8 +1105,8 @@ public final class Walker {
                 seg.activeSearch = newPathFinder(world).newSearch(seg.commitEnd, goal);
                 seg.searchFromEnd = true;
             }
-            agentForward(a, false);
-            agentJump(a, false);
+            avatarForward(a, false);
+            avatarJump(a, false);
             p.setSprinting(false);
             return Step.WALKING;
         }
