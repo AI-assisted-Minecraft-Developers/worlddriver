@@ -190,4 +190,6 @@ pack.placesAndReadsBack
 pack.awaitsAcrossTicks
 pack.seesTheModsItShipsWith
 pack.measuresItsOwnTickCost
+pack.reachesJava
+pack.drivesTheGame
 pack.knownQuirk

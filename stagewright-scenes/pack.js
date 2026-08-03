@@ -51,6 +51,41 @@ scene("pack.measuresItsOwnTickCost", 300, function (s) {
     });
 });
 
+scene("pack.reachesJava", 100, function (s) {
+    // Both idioms a pack author might reach for. Java.loadClass is the one KubeJS taught them;
+    // package traversal is the one every other JS-on-JVM environment taught them.
+    var ArrayList = Java.loadClass("java.util.ArrayList");
+    var list = new ArrayList();
+    list.add("one");
+    s.expect(list.get(0)).as("a Java collection built inside a scene file").isEqualTo("one");
+
+    var uuid = java.util.UUID.randomUUID();
+    s.expect(String(uuid).length === 36 ? "ok" : String(uuid))
+        .as("java.util.UUID reached by package path").isEqualTo("ok");
+
+    s.expect(Java.tryLoadClass("no.such.Class") === null ? "null" : "something")
+        .as("tryLoadClass answers null rather than throwing").isEqualTo("null");
+});
+
+scene("pack.drivesTheGame", 200, function (s) {
+    // One binding, every verb. This is worlddriver's own router — the same entry point MCP and the
+    // WebSocket RPC go through — so a pack author gets the whole verb surface without StageWright
+    // carrying a copy of any of it.
+    s.setBlock(0, 0, 0, block("minecraft:gold_block"));
+    var p = s.origin();
+    var got = driver("mc.world.block", { pos: { x: p.getX(), y: p.getY(), z: p.getZ() } });
+    s.record("driverSawType", String(got.type));
+    s.expect(String(got.type)).as("the driver read back the block this scene placed")
+        .isEqualTo("minecraft:gold_block");
+
+    // Object.keys only works on a NATIVE object, so this asserts the Java->JS conversion as much as
+    // it asserts the verb: an unconverted java.util.Map would answer with no keys at all.
+    var version = driver("mc.system.version");
+    s.expect(Object.keys(version).length > 0 ? "converted" : "raw java map")
+        .as("a verb's result arrives as a native JS object").isEqualTo("converted");
+    s.record("driverVersionKeys", Object.keys(version).join(","));
+});
+
 // Deliberately optional: it pins a thing the pack accepts rather than something it requires. A
 // failure here reports without failing the run.
 scene.optional("pack.knownQuirk", 100, function (s) {
