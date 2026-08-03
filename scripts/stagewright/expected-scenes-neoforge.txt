@@ -192,4 +192,6 @@ pack.seesTheModsItShipsWith
 pack.measuresItsOwnTickCost
 pack.reachesJava
 pack.drivesTheGame
+pack.standsOnSuperflatGround
+pack.standsOnGeneratedGround
 pack.knownQuirk

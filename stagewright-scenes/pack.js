@@ -88,6 +88,26 @@ scene("pack.drivesTheGame", 200, function (s) {
     s.record("driverVersionKeys", Object.keys(version).join(","));
 });
 
+// The ground a scene stands on is declared, not built. A pack whose mods only misbehave on real
+// terrain — a mob that spawns wrong on a slope, a machine that needs to see stone below it — cannot
+// test any of that in the empty sky the default arena is, and building a convincing landscape out of
+// setBlock calls is not testing worldgen, it is testing your own scene.
+scene("pack.standsOnSuperflatGround", 100, function (s) {
+    s.expectBlock(0, -1, 0).as("the arena landed on the superflat's grass")
+        .isEqualTo(block("minecraft:grass_block"));
+    s.expectBlock(0, 0, 0).as("and the scene's own level is the air above it")
+        .isEqualTo(block("minecraft:air"));
+    s.record("surfaceY", s.originY());
+}, { terrain: "superflat" });
+
+scene("pack.standsOnGeneratedGround", 200, function (s) {
+    // Whatever worldgen put here — ocean, hillside, forest floor. The scene asserts that it is ON
+    // it, and records what "it" turned out to be rather than demanding a particular landscape.
+    s.expectBlock(0, -1, 0).as("generated terrain, not the empty sky")
+        .isNotEqualTo(block("minecraft:air"));
+    s.record("surfaceY", s.originY());
+}, { terrain: "generated" });
+
 // Deliberately optional: it pins a thing the pack accepts rather than something it requires. A
 // failure here reports without failing the run.
 scene.optional("pack.knownQuirk", 100, function (s) {
