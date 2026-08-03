@@ -164,7 +164,18 @@ public final class CraftProcess implements BotProcess {
             // craft into a failure, nor overwrite the error a failed one is reporting.
             if (++reclaimTicks > RECLAIM_TIMEOUT) { endReclaim(a); return; }
             a.aimAtBlock(placedTable);
+            // Both actuators, not one. breakHold alone CANNOT break anything on a driven
+            // client: vanilla only runs continueAttack -> continueDestroyBlock while the
+            // mouse is grabbed, and a client nobody clicked into never grabs it, so it calls
+            // stopDestroyBlock every tick instead and destroyProgress sits at exactly 0.0
+            // forever (measured: 140 ticks aimed dead-on at the table, progress 0.0, mouse
+            // grabbed=false). continueDestroy alone is not enough either — the first call
+            // latches isDestroying, vanilla's stopDestroyBlock clears it, and only the
+            // sameDestroyTarget branch keeps accumulating afterwards. Keeping the key down
+            // is what makes the pair work under a grabbed mouse too, where vanilla drives
+            // the same break and the two simply agree.
             a.breakHold(true);
+            a.continueDestroy(placedTable);
             return;
         }
         a.breakHold(false);
