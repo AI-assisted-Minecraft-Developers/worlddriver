@@ -77,9 +77,87 @@ stagewright {
     }
 }
 
+// ---- Republished StageWright must actually reach the run. ----
+//
+// There are TWO caches between `stagewright/gradlew publishToMavenLocal` and a game JVM here, and
+// they fail the same way: the build succeeds, the jar is present, and the code that runs is days
+// old. Both have to be defeated, and defeating one alone proves nothing.
+//
+// 1. Gradle's dependency cache — handled by `changing = true` on the dependency plus the zero TTL
+//    below. A version string that stays put while its contents move is exactly what `changing`
+//    describes.
+// 2. Loom's remap cache — NOT handled by either, because loom keys its output directory on the
+//    dependency's coordinates, not on the bytes it remapped. The republished jar resolves, loom
+//    finds an output already sitting at that key, and serves it. That is how a client run came up
+//    with a build of the harness whose client director did not exist yet, having reported no error
+//    of any kind.
+//
+// So: before configuring anything, drop every remapped net.magicterra artifact older than the
+// publish of the module it came from. Both of loom's staging areas are swept — it keeps the same jar
+// under two naming schemes (`.gradle/loom-cache/remapped_mods/…/net/magicterra/…` and
+// `<subproject>/build/loom-cache/remapped_working/remapped.net.magicterra-…`) and clearing only the
+// first has it restored from the second, which looks exactly like the eviction not working. Cheap (a
+// walk over a few dozen files), self-disarming (after one remap every output is newer than its
+// source), and it only ever deletes a derived file loom rebuilds.
+//
+// Per module, not one global newest-publish: republishing the gradle plugin alone would otherwise
+// invalidate the remapped MOD jars, and since a warm daemon cannot delete them, an unrelated change
+// would end every build with the hard error below.
+def publishedAt = [:]
+def publishRoot = new File("${System.properties['user.home']}/.m2/repository/net/magicterra")
+if (publishRoot.isDirectory()) {
+    publishRoot.eachFile(groovy.io.FileType.DIRECTORIES) { File moduleDir ->
+        long newest = 0L
+        moduleDir.eachFileRecurse(groovy.io.FileType.FILES) { File f ->
+            if (f.name.endsWith('.jar') && f.lastModified() > newest) newest = f.lastModified()
+        }
+        if (newest > 0L) publishedAt[moduleDir.name] = newest
+    }
+}
+if (!publishedAt.isEmpty()) {
+    // Longest name first: `stagewright-neoforge` is a suffix of `mc_stagewright-neoforge`, so a
+    // shortest-match scan would compare the wrong module's publish time.
+    def modulesByLength = publishedAt.keySet().sort { -it.length() }
+    def held = []
+    allprojects { proj ->
+        [new File(proj.projectDir, '.gradle/loom-cache'),
+         new File(proj.projectDir, 'build/loom-cache')].each { File cache ->
+            if (!cache.isDirectory()) return
+            cache.eachFileRecurse(groovy.io.FileType.FILES) { File stale ->
+                if (!stale.name.endsWith('.jar')) return
+                def path = stale.absolutePath.replace('\\', '/')
+                if (!path.contains('net/magicterra') && !stale.name.contains('net.magicterra')) return
+                def module = modulesByLength.find { stale.name.contains(it) }
+                if (module == null || stale.lastModified() >= publishedAt[module]) return
+                logger.lifecycle("[worlddriver] dropping a ${module} remap that predates the"
+                        + " publish it came from: ${stale.name}")
+                // Checked, because a delete that quietly fails is worse than no eviction at all: it
+                // logs the fix and runs the stale code anyway. A long-lived daemon still has these
+                // jars open from the build that remapped them, and Windows will not unlink an open
+                // file — so this reports false rather than throwing, and the whole point is lost
+                // unless somebody looks.
+                if (!stale.delete()) held << stale
+            }
+        }
+    }
+    if (!held.isEmpty()) {
+        throw new GradleException(
+                "StageWright was republished after loom remapped it, and the stale remap cannot be"
+                        + " deleted because this Gradle daemon still has it open:\n  "
+                        + held.collect { it.name }.join("\n  ")
+                        + "\n\nRun `./gradlew --stop` and build again. Without that, the build"
+                        + " succeeds against the previously remapped jar — no error, no warning, and"
+                        + " the game runs code that no longer exists in the source tree.")
+    }
+}
+
 allprojects {
     group = rootProject.maven_group
     version = rootProject.mod_version
+
+    configurations.all {
+        resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
+    }
 }
 
 subprojects {

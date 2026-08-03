@@ -43,7 +43,12 @@ dependencies {
     // A `mod*` configuration, so loom DOES remap this one: the published jar is
     // intermediary and the dev runtime needs named. That is the opposite of the `:dev`
     // classifier :common's testmod compile uses, and both are right for their side.
-    modLocalRuntime "net.magicterra:mc_stagewright-fabric:${rootProject.stagewright_version}"
+    // `changing = true` — see the note beside the neoforge twin. mavenLocal keeps the version while
+    // the contents move, and loom's remap cache is keyed on coordinates, so without this a
+    // republished harness is invisible to the dev run.
+    modLocalRuntime("net.magicterra:mc_stagewright-fabric:${rootProject.stagewright_version}") {
+        changing = true
+    }
 
     // NOTE: stagewright-common is deliberately NOT bundled here. It used to be, which is what
     // put the whole test harness inside the shipped worlddriver jar and forced the driver to
