@@ -244,6 +244,7 @@ public final class BunkerProcess implements BotProcess {
         a.selectTool(below);
         a.aimAtBlock(below);
         a.breakHold(true);
+        a.continueDestroy(below);
         acted = true;
         if (++digTicks > BotConfig.breakTimeoutTicks) {
             a.breakHold(false); a.releaseInputs();
@@ -295,6 +296,7 @@ public final class BunkerProcess implements BotProcess {
         a.selectTool(target);
         a.aimAtBlock(target);
         a.breakHold(true);
+        a.continueDestroy(target);
         acted = true;
         if (++actTicks > BotConfig.breakTimeoutTicks * 2) {
             a.breakHold(false); a.releaseInputs();

@@ -81,7 +81,30 @@ public interface Avatar {
     void place(WorldView w, BlockPos cell);
     /** Place against the given face of {@code cell} directly. */
     void placeOn(BlockPos cell, Direction face);
-    /** Hold/release the break action. */
+    /**
+     * Hold/release the break action.
+     *
+     * <p><b>On a client avatar this alone breaks nothing.</b> It sets {@code keyAttack} down and
+     * waits for vanilla's {@code tick → continueAttack → continueDestroyBlock} pipeline, and that
+     * pipeline is gated on {@code mouseHandler.isMouseGrabbed()} — true only after a human clicks
+     * into the window. A driven client never grabs the mouse, so vanilla takes the other branch and
+     * calls {@code stopDestroyBlock()} every tick instead. Measured 2026-08-04 on the craft-table
+     * reclaim: 140 ticks aimed dead-on at the block, crosshair on target, no screen open,
+     * {@code destroyProgress} pinned at exactly 0.0, {@code grabbed=false}.
+     *
+     * <p>So every client-side break site must pair this with {@link #continueDestroy(BlockPos)} on
+     * the same block:
+     * <pre>{@code a.aimAtBlock(t); a.breakHold(true); a.continueDestroy(t); }</pre>
+     * Both, not either. {@code continueDestroy} alone latches {@code isDestroying}, which vanilla's
+     * per-tick {@code stopDestroyBlock} then clears; the break survives only because
+     * {@code continueDestroyBlock} keys off {@code sameDestroyTarget} rather than that flag. Keeping
+     * the key down is what makes the same code correct under a grabbed mouse, where vanilla drives
+     * the identical break and the two simply agree.
+     *
+     * <p>Server avatars are unaffected either way: there {@code breakHold(true)} destroys the block
+     * directly and {@code continueDestroy} is an inherited no-op. That asymmetry is why this went
+     * unnoticed — every dig scene in the suite is a {@code wd.server*} scene.
+     */
     void breakHold(boolean v);
 
     /** Vanilla mining progress of the block currently being destroyed, 0..1,

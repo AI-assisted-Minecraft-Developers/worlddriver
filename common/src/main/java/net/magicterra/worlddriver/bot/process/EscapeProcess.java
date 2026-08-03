@@ -242,6 +242,7 @@ public final class EscapeProcess implements BotProcess {
         a.selectTool(target);
         a.aimAtBlock(target);
         a.breakHold(true);
+        a.continueDestroy(target);
         if (++actTicks > BotConfig.breakTimeoutTicks * 3) {   // walls (bare-hand sandstone) are slow
             return done(a, st, "carve timeout at " + target.toShortString()
                     + " (solid=" + w.isSolid(target) + ")");
@@ -307,6 +308,7 @@ public final class EscapeProcess implements BotProcess {
         a.selectTool(target);
         a.aimAtBlock(target);
         a.breakHold(true);
+        a.continueDestroy(target);
         if (++actTicks > BotConfig.breakTimeoutTicks * 3) {
             return done(a, st, "ceiling-break timeout at " + target.toShortString());
         }

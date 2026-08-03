@@ -147,6 +147,7 @@ public final class FarmProcess implements BotProcess {
                 p.setSprinting(false);
                 a.aimAtBlock(currentTarget);
                 a.breakHold(true);
+                a.continueDestroy(currentTarget);
                 breakingTicks++;
                 BlockState bs = lvl.getBlockState(currentTarget);
                 if (bs.isAir()) {

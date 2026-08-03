@@ -203,6 +203,7 @@ public final class DescendProcess implements BotProcess {
         a.selectTool(target);
         a.aimAtBlock(target);
         a.breakHold(true);
+        a.continueDestroy(target);
         if (++actTicks > BotConfig.breakTimeoutTicks * 3) {
             return done(a, st, "carve timeout at " + target.toShortString());
         }
@@ -256,6 +257,7 @@ public final class DescendProcess implements BotProcess {
         a.selectTool(below);
         a.aimAtBlock(below);
         a.breakHold(true);
+        a.continueDestroy(below);
         if (++actTicks > BotConfig.breakTimeoutTicks * 3) {
             return done(a, st, "own-floor dig timeout at " + below.toShortString());
         }

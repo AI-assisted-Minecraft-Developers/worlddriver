@@ -330,12 +330,14 @@ public final class MineProcess implements BotProcess {
             }
             case BREAKING -> {
                 // Release walking keys, hold the break action via the Avatar:
-                //  - CLIENT: a.breakHold(true) = keyAttack.setDown(true), so vanilla's
-                //    tick → continueAttack → gameMode.continueDestroyBlock pipeline
-                //    drives a PROGRESSIVE break (calling gameMode directly would let
-                //    client prediction remove the block for a tick, mis-counted as a
-                //    success by the id check).
-                //  - SERVER: a.breakHold(true) = level.destroyBlock(aimTarget) (instant).
+                //  - CLIENT: keyAttack down PLUS a direct continueDestroy on the same block.
+                //    The key alone drives nothing here: vanilla's tick → continueAttack →
+                //    continueDestroyBlock pipeline this used to rely on only runs while the
+                //    mouse is grabbed, and a driven client never grabs it (see Avatar#breakHold
+                //    for the measurement). The direct call is what actually advances the break;
+                //    it is still PROGRESSIVE, so the id check below stays honest.
+                //  - SERVER: a.breakHold(true) = level.destroyBlock(aimTarget) (instant), and
+                //    continueDestroy is an inherited no-op.
                 // Either way the SAME completion check below (block id changed away
                 // from the original) detects the break — progressive or instant.
                 a.commandForward(0);
@@ -343,6 +345,7 @@ public final class MineProcess implements BotProcess {
                 p.setSprinting(false);
                 a.aimAtBlock(currentTarget);
                 a.breakHold(true);
+                a.continueDestroy(currentTarget);
 
                 breakingTicks++;
                 String now = currentBlockId(lvl);
