@@ -187,3 +187,10 @@ wd.bridgeStepTwoBypassNoPlace
 wd.bridgeBreakThrough
 wd.bridgeDigShortcut
 wd.bridgeDetourCheap
+
+# JavaScript scenes, installed from ../stagewright-scenes by the provision step.
+pack.placesAndReadsBack
+pack.awaitsAcrossTicks
+pack.seesTheModsItShipsWith
+pack.measuresItsOwnTickCost
+pack.knownQuirk
