@@ -39,6 +39,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Dogfooded worlddriver scenes — <b>P4b wave 5, the Core (main {@code AgentGameTest}) family</b>:
@@ -155,12 +156,72 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *  topology's own number so a silently-dropped check (a stale-prelude script-load failure, an #85
      *  swallow) still trips. This is a topology-aware assertion of each topology's correct value, NOT a
      *  blanket skip — the suite executes in full on both. */
+    /**
+     * Put the player on the pad {@code seedTestArea()} just built.
+     *
+     * <p>{@code seedTestArea} clears and floors a 5×5 at the driver's test origin, and until now
+     * nothing ever went there. The suite's client-side checks — {@code mc.bot.craft} and friends —
+     * act at the PLAYER, so on a client topology they ran wherever the auto-driven client had
+     * wandered in a generated world. Observed: one run placed its crafting table fine, the next
+     * failed with {@code placeNearby: click failed ... below=minecraft:lily_pad} because the client
+     * was standing on a pond, and a third produced a different failure set again. Those read as
+     * product bugs and are terrain.
+     *
+     * <p>{@link SceneContext#playerHere()} first, purely for the cleanup it registers: it captures
+     * where the player was and teleports them back when the scene resolves, on FAIL and TIMEOUT
+     * too. The arena it moves them to is then overridden — the pad is at the driver's origin, not
+     * this scene's grid cell, because that is the spot the suite's own scripts are written against.
+     *
+     * <p>No player, no move: {@link SceneContext#playerOrNull()} rather than {@code player()},
+     * because a dedicated server has none and {@code player()} would SKIP the whole scene — taking
+     * all 142 checks with it on the one topology where they currently pass.
+     */
+    private static void standOnTestArea(SceneContext ctx) {
+        if (ctx.playerOrNull() == null) return;
+        ServerPlayer player = ctx.playerHere();
+        Object origin = WorldDriverCommon.api().route("mc.system.testOrigin", Map.of());
+        // Loud, not a quiet return. The first version guarded with `instanceof Map` — the verb
+        // answers a BlockPos — so it fell through silently and the teleport below never ran for
+        // three consecutive gate runs, while the scene reported the same eight failures each time
+        // and read as if it were telling us something about them. A shape this code cannot use has
+        // to stop the scene, or the next change to that verb disables this the same silent way.
+        if (!(origin instanceof BlockPos pad)) {
+            ctx.fail("mc.system.testOrigin answered "
+                    + (origin == null ? "null" : origin.getClass().getName())
+                    + ", not a BlockPos — cannot stand the player on the seeded pad");
+            return;
+        }
+        // Offset by one on both axes rather than landing on the origin cell: seedTestArea puts an
+        // oak log at origin+(0,1,0) for the checks that mine one, and a player standing in it has
+        // no free cell at their feet — which surfaces as "需要工作台（脚边没有可放置的空位）",
+        // the very terrain-shaped failure this move exists to remove. One block diagonal keeps the
+        // player on the 5×5 stone with free cells on every side.
+        double tx = pad.getX() + 1.5;
+        double ty = pad.getY() + 1;
+        double tz = pad.getZ() + 1.5;
+        player.teleportTo(ctx.level(), tx, ty, tz, Set.of(), 0f, 0f);
+
+        // Assert the move actually took. A teleport into an occupied cell is resolved by pushing
+        // the player back out, and one that lands them off the pad is indistinguishable downstream
+        // from bad terrain — which is the exact confusion this whole move exists to end. Checked
+        // here and not at the end of the scene: later checks (40_scheduler's goto/retreat) move the
+        // player on purpose, so a finishing-position assertion would fail honest tests.
+        double drift = player.position().distanceTo(new Vec3(tx, ty, tz));
+        if (drift > 1.0) {
+            ctx.fail("could not stand the player on the seeded test pad: asked for ("
+                    + tx + ", " + ty + ", " + tz + "), ended at " + player.position()
+                    + " (" + String.format(Locale.ROOT, "%.2f", drift) + " away) — the suite's"
+                    + " client-side checks would have run on whatever is under that spot instead");
+        }
+    }
+
     private static void agentRpcSmoke(SceneContext ctx) {
         if (WorldDriverCommon.api() == null) {
             ctx.fail("agentRpcSmoke: DriverApi not initialized — was the mod loaded?");
             return;
         }
         WorldDriverCommon.api().seedTestArea();
+        standOnTestArea(ctx);
 
         AtomicReference<Integer> result = new AtomicReference<>();
         AtomicReference<Throwable> crash = new AtomicReference<>();
