@@ -534,9 +534,15 @@ public final class DriverApi {
                 for (int dy = -1; dy <= 12; dy++)
                     for (int dz = -4; dz <= 4; dz++)
                         level.setBlockAndUpdate(origin.offset(dx, dy, dz), air);
+            // Floor the whole cleared footprint, not a 5×5 island in it. The suite's moving checks
+            // need somewhere to move: a kiting bot backs away from what it is shooting at, and off
+            // a five-wide pad it is over the edge in two steps — which reports as "kited away from
+            // the skeleton, not into melee (d=3.3)", a distance that reads like a behaviour bug and
+            // is a missing floor. Same width as the air above it, so walking off the stone and
+            // walking out of the cleared box are the same boundary rather than two.
             BlockState stone = Blocks.STONE.defaultBlockState();
-            for (int dx = -2; dx <= 2; dx++)
-                for (int dz = -2; dz <= 2; dz++)
+            for (int dx = -4; dx <= 4; dx++)
+                for (int dz = -4; dz <= 4; dz++)
                     level.setBlockAndUpdate(origin.offset(dx, 0, dz), stone);
             level.setBlockAndUpdate(origin.offset(0, 1, 0), Blocks.OAK_LOG.defaultBlockState());
 
