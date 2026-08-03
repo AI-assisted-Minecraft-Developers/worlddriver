@@ -39,3 +39,7 @@ bin/
 
 # StageWright's standalone build (added during the repo split) has its own build dirs.
 stagewright/.gradle/
+
+# StageWright scene runs. Each topology gets its own game directory so a run never inherits
+# the previous one's world; none of it is source, and the results file is regenerated every run.
+run-stagewright*/

@@ -2,10 +2,10 @@ plugins {
     id 'dev.architectury.loom' version '1.11-SNAPSHOT' apply false
     id 'architectury-plugin' version '3.4-SNAPSHOT'
     id 'com.gradleup.shadow' version '8.3.6' apply false
-    // First dogfood consumer of the stagewright gradle plugin (included build wired
-    // in settings.gradle). Registers stagewrightServer/stagewrightClient/stagewrightE2E on the
-    // ROOT project, each shelling the frozen python orchestration contract. Applying
-    // it is negligible at configuration time (lazy task registration).
+    // First dogfood consumer of the stagewright gradle plugin (resolved from mavenLocal, wired in
+    // settings.gradle). Registers one `stagewright<Topology>` task per entry in the block below,
+    // each provisioning a clean run directory, running the loader subproject's own dogfood run task
+    // and judging its results. Applying it is negligible at configuration time (lazy registration).
     id 'net.magicterra.stagewright'
 }
 
@@ -13,16 +13,68 @@ architectury {
     minecraft = project.minecraft_version
 }
 
-// Dogfood consumer configuration for the stagewright gradle plugin. The plugin's
-// only loader-override mechanism is the `stagewright { loader }` extension (there is
-// no built-in `-P` binding); this bridge threads the `stagewright.loader` project
-// property onto it so the documented gate-1 command works —
-//   ./gradlew stagewrightServer -Pstagewright.loader=neoforge
-// selects the neoforge dogfood — while the fabric convention stays the default
-// (so `./gradlew stagewrightClient` remains fabric T1). Loader-invalid values are
-// left for the orchestrator (t0/t1/t2.py) to reject at its --loader boundary.
+// Dogfood consumer configuration for the stagewright gradle plugin.
+//
+// One task per (gate, loader) pair rather than one task plus a `-Pstagewright.loader` switch. The
+// switch existed because the plugin used to shell a python orchestrator that took `--loader`; now
+// that a topology IS a run task plus a results file plus an expect-file, and all three differ per
+// loader, a single parameterised task would just be three topologies wearing one name — and the
+// pair that actually needs running together (both loaders, proving byte-identity) could not be
+// asked for in one invocation.
+//
+//   ./gradlew stagewrightDedicatedServerFabric stagewrightDedicatedServerNeoforge     # both loaders, one command
+//
+// `virtualDisplay` is on for every topology whose run task is a client. It is a no-op wherever a
+// DISPLAY already exists, so a developer on a desktop gets their own screen and the headless Linux
+// host gets an Xvfb the build starts and stops — the one job t1.py/t2.py did that had nothing to do
+// with Minecraft.
 stagewright {
-    loader = (findProperty('stagewright.loader') ?: 'fabric')
+    topologies {
+        dedicatedServerFabric {
+            runTask = ':fabric:runDogfoodServer'
+            gameDirectory = file('fabric/run-dogfood')
+            expectFile = file('scripts/stagewright/expected-scenes-fabric.txt')
+            // 165 scenes, several of which walk a bot across real terrain. The default 20 exists to
+            // cut short a game that never armed; this suite legitimately runs longer than that.
+            timeoutMinutes = 45
+        }
+        dedicatedServerNeoforge {
+            runTask = ':neoforge:runDogfoodServer'
+            gameDirectory = file('neoforge/run-dogfood')
+            expectFile = file('scripts/stagewright/expected-scenes-neoforge.txt')
+            timeoutMinutes = 45
+        }
+        integratedServerFabric {
+            runTask = ':fabric:runStagewrightIntegratedServer'
+            gameDirectory = file('fabric/run-stagewright-integrated')
+            expectFile = file('scripts/stagewright/expected-scenes-fabric.txt')
+            virtualDisplay = true
+            timeoutMinutes = 45
+        }
+        integratedServerNeoforge {
+            runTask = ':neoforge:runStagewrightIntegratedServer'
+            gameDirectory = file('neoforge/run-stagewright-integrated')
+            expectFile = file('scripts/stagewright/expected-scenes-neoforge.txt')
+            virtualDisplay = true
+            timeoutMinutes = 45
+        }
+        dedicatedServerWithClientFabric {
+            runTask = ':fabric:runStagewrightDedicatedServerWithClient'
+            companionRunTask = ':fabric:runStagewrightJoiningClient'
+            gameDirectory = file('fabric/run-stagewright-with-client')
+            expectFile = file('scripts/stagewright/expected-scenes-fabric.txt')
+            virtualDisplay = true
+            timeoutMinutes = 45
+        }
+        dedicatedServerWithClientNeoforge {
+            runTask = ':neoforge:runStagewrightDedicatedServerWithClient'
+            companionRunTask = ':neoforge:runStagewrightJoiningClient'
+            gameDirectory = file('neoforge/run-stagewright-with-client')
+            expectFile = file('scripts/stagewright/expected-scenes-neoforge.txt')
+            virtualDisplay = true
+            timeoutMinutes = 45
+        }
+    }
 }
 
 allprojects {

@@ -244,13 +244,63 @@ loom {
             // :common testmod, so attach it here (like dogfoodServer/stagewrightClient).
             source sourceSets.testmod
         }
+
+        // ---- Self-driving topologies. No orchestrator process. ----
+        //
+        // These three sit beside stagewrightClient/t2Server rather than replacing them because the
+        // older pair are still driven from outside: pool.py holds one for interactive instrument
+        // work and instrument_client.py attaches to it, and both would break the moment the harness
+        // started running scenes on its own. The pair goes when those scripts do.
+        //
+        // Everything the orchestrators used to supply — enter a world, dial a server, wait for a
+        // player, exit when finished — is a system property the harness reads for itself.
+
+        // Integrated-server topology: a client that opens its own singleplayer world, whose
+        // integrated server arms the same harness the dedicated one does.
+        stagewrightIntegratedServer {
+            client()
+            property 'stagewright.autorun', 'true'
+            property 'stagewright.client.world', 'StageWrightClient'
+            property 'stagewright.client.exitWhenDone', 'true'
+            property 'worlddriver.rpcPort', '0'
+            property 'worlddriver.mcpPort', '0'
+            runDir 'run-stagewright-integrated'
+            vmArg '-Xmx2g'
+            source sourceSets.testmod
+        }
+        // Production topology, server half: holds the suite back until a real client has joined.
+        stagewrightDedicatedServerWithClient {
+            server()
+            programArgs '--nogui', '--port', '25601'
+            property 'stagewright.autorun', 'true'
+            property 'stagewright.awaitPlayer', 'true'
+            property 'worlddriver.rpcPort', '0'
+            property 'worlddriver.mcpPort', '0'
+            runDir 'run-stagewright-with-client'
+            vmArg '-Xmx2g'
+            source sourceSets.testmod
+        }
+        // Production topology, client half. Started by the plugin as a companion of the server
+        // above, so it needs no scenes of its own — it only has to be a real player.
+        stagewrightJoiningClient {
+            client()
+            property 'stagewright.client.connect', '127.0.0.1:25601'
+            property 'worlddriver.rpcPort', '0'
+            property 'worlddriver.mcpPort', '0'
+            runDir 'run-stagewright-joining-client'
+            vmArg '-Xmx2g'
+        }
     }
     runConfigs.configureEach {
         // contractServer, dogfoodServer, stagewrightClient and t2Server pin their own ephemeral
         // ports (worlddriver.rpcPort/mcpPort='0') so the headless suites never compete with a live
         // dev client on 39800/39801. Without this guard the defaults below would clobber that.
+        // The three self-driving topologies do the same.
         if (it.name == 'contractServer' || it.name == 'dogfoodServer'
-                || it.name == 'stagewrightClient' || it.name == 't2Server') return
+                || it.name == 'stagewrightClient' || it.name == 't2Server'
+                || it.name.startsWith('stagewrightIntegrated')
+                || it.name.startsWith('stagewrightDedicated')
+                || it.name.startsWith('stagewrightJoining')) return
         property 'worlddriver.runValidation', project.findProperty('agentRunValidation') ?: 'false'
         // Pin the MCP / RPC ports so the external driver (Claude harness, docs
         // example, rpc.py) always finds the mod at a known address. Default to
