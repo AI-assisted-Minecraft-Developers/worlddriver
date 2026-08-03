@@ -72,8 +72,10 @@ scene("pack.drivesTheGame", 200, function (s) {
     // WebSocket RPC go through — so a pack author gets the whole verb surface without StageWright
     // carrying a copy of any of it.
     s.setBlock(0, 0, 0, block("minecraft:gold_block"));
-    var p = s.origin();
-    var got = driver("mc.world.block", { pos: { x: p.getX(), y: p.getY(), z: p.getZ() } });
+    // originX() rather than origin().getX(): a scene file must not call methods ON Minecraft
+    // objects. Their names are remapped and a production Fabric jar is intermediary, where getX is
+    // method_10263 — the same line passes on NeoForge and fails on Fabric.
+    var got = driver("mc.world.block", { pos: { x: s.originX(), y: s.originY(), z: s.originZ() } });
     s.record("driverSawType", String(got.type));
     s.expect(String(got.type)).as("the driver read back the block this scene placed")
         .isEqualTo("minecraft:gold_block");
