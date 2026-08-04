@@ -335,3 +335,16 @@ loom {
         vmArg '-Xmx2g'
     }
 }
+
+// The scene scripts a modpack author would ship, delivered into the dogfood run the way a pack
+// delivers them: config/stagewright/scenes. t0.py drives runDogfoodServer directly rather than one
+// of the stagewright plugin's topology tasks, so the plugin's own sceneScripts provisioning never
+// runs for this gate — without this the run reads whatever copy was last left in the directory. It
+// read a two-day-old one, and the expect-file gate caught it only because a scene had been added.
+// Sync rather than Copy: a scene deleted upstream must not keep running here.
+def installDogfoodScenes = tasks.register('installDogfoodScenes', Sync) {
+    from rootProject.file('stagewright-scenes')
+    include '*.js'
+    into layout.projectDirectory.dir('run-dogfood/config/stagewright/scenes')
+}
+tasks.named('runDogfoodServer') { dependsOn installDogfoodScenes }
