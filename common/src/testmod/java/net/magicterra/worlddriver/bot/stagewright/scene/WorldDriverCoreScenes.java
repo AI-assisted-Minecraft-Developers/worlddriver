@@ -104,7 +104,8 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 Scene.of("wd.nodePhysics", 200, WorldDriverCoreScenes::nodePhysics),
                 Scene.of("wd.pathArchiveCapture", 400, WorldDriverCoreScenes::pathArchiveCapture),
                 Scene.of("wd.replayRoundTrip", 400, WorldDriverCoreScenes::replayRoundTrip),
-                Scene.of("wd.clientChatLogSemantics", 200, WorldDriverCoreScenes::clientChatLogSemantics));
+                Scene.of("wd.clientChatLogSemantics", 200, WorldDriverCoreScenes::clientChatLogSemantics),
+                Scene.of("wd.clientSettingSchema", 200, WorldDriverCoreScenes::clientSettingSchema));
     }
 
     /** Inlined from {@code AgentGameTestSupport#buildFloor}: 11×11 stone floor at {@code floorY},
@@ -927,5 +928,70 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         // reference Locale so the import matches the legacy shell's import set (no unused-import churn)
         WorldDriverCommon.LOG.info("[wd.clientChatLogSemantics] {} lines, seq monotonic, eviction cap 512 OK",
                 String.format(Locale.ROOT, "%d", tail.size()));
+    }
+
+    /**
+     * A CLIENT-only verb, routed from a scene, with the closed schema doing its job.
+     *
+     * <p>Ported from {@code instrument_client.py}'s {@code route.settingUnknownKeyLive} and
+     * {@code route.settingKnownKeyLive}, and it is the first scene to route a client-only verb.
+     * That matters beyond this one check: every remaining client-face check in that file calls a
+     * verb a dedicated server has no handler for, and scene bodies run on the SERVER thread. Until
+     * something proved the hop works, none of them could be ported. This is that proof, and it
+     * carries its own weight as a check rather than being a throwaway probe.
+     *
+     * <p>Skipped off an integrated server on purpose — there {@code mc.bot.setting} has no handler
+     * in the JVM at all, which is a property of the topology and not a failure.
+     *
+     * <p>The unknown-key half is the one with history (#280): {@code route} runs the validator
+     * BEFORE the handler, so the rejection has to arrive even though the handler would have run.
+     * Going through {@code DriverApi.route} rather than an MCP tool is the point — a cached MCP
+     * schema silently drops an unexpected key, which is exactly how that gap hid.
+     */
+    private static void clientSettingSchema(SceneContext ctx) {
+        if (ctx.server().isDedicatedServer())
+            ctx.skip("mc.bot.setting is client-only — only an integrated server has its handler here");
+        var api = WorldDriverCommon.api();
+
+        String rejection = null;
+        try {
+            api.route("mc.bot.setting", Map.of("definitelyNotAKnob", true));
+        } catch (RuntimeException e) {
+            rejection = String.valueOf(e.getMessage());
+        }
+        ctx.expect(rejection).as("the error an unknown mc.bot.setting key produced").isNotNull();
+        ctx.expect(rejection != null && rejection.contains("unexpected key")
+                        && rejection.contains("definitelyNotAKnob"))
+                .as("the rejection is the closed schema's, and names the key it refused")
+                .isEqualTo(true);
+
+        // The schema must not over-reach the other way: a KNOWN key applies, shows up in the
+        // snapshot the same call returns, and reads back the same from a fresh call. Restored
+        // however this exits, so run order cannot leak a flipped knob into another scene.
+        boolean orig = settingBool(api, "autoEat");
+        ctx.cleanup(() -> api.route("mc.bot.setting", Map.of("autoEat", orig)));
+
+        Object write = api.route("mc.bot.setting", Map.of("autoEat", !orig));
+        Object applied = write instanceof Map<?, ?> m ? m.get("applied") : null;
+        ctx.expect(applied instanceof List<?> l && l.contains("autoEat"))
+                .as("autoEat came back in applied[]").isEqualTo(true);
+        ctx.expect(settingOf(write, "autoEat")).as("the snapshot the write returned")
+                .isEqualTo(!orig);
+        ctx.expect(settingBool(api, "autoEat")).as("a fresh read of autoEat").isEqualTo(!orig);
+        ctx.record("routedClientVerb", "mc.bot.setting");
+    }
+
+    /** {@code mc.bot.setting}'s settings snapshot, read fresh. */
+    private static boolean settingBool(net.magicterra.worlddriver.api.DriverApi api, String key) {
+        Object v = settingOf(api.route("mc.bot.setting", Map.of()), key);
+        if (!(v instanceof Boolean b))
+            throw new IllegalStateException(key + " is not a boolean in the settings snapshot: " + v);
+        return b;
+    }
+
+    /** One key out of a {@code mc.bot.setting} result's {@code settings} map. */
+    private static Object settingOf(Object result, String key) {
+        Object settings = result instanceof Map<?, ?> m ? m.get("settings") : null;
+        return settings instanceof Map<?, ?> s ? s.get(key) : null;
     }
 }
