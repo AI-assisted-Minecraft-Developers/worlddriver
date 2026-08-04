@@ -51,6 +51,16 @@ public final class SimProbes {
         fp.resetAttackStrengthTicker();
         for (int i = 0; i < 30; i++) driver.avatar().step();
         float before = z.getHealth();
+        // Everything that can zero this measurement, recorded at the instant of the swing. The
+        // target only started ticking on 2026-08-05 (arenas could not tick entities before that),
+        // so it can now burn, carry i-frames from that burn, or be dead by the time we swing —
+        // and a swing no larger than the last hit is refused outright by vanilla.
+        net.magicterra.worlddriver.WorldDriverCommon.LOG.warn(
+                "[probeSwing] weapon={} zHp={} fire={} invT={} alive={} strength={} atk={} day={}",
+                weapon.isEmpty() ? "bare" : weapon.getItem(), before, z.getRemainingFireTicks(),
+                z.invulnerableTime, z.isAlive(), fp.getAttackStrengthScale(0.5f),
+                fp.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE),
+                level.getDayTime() % 24000L);
         driver.avatar().attackEntity(z);
         float lost = before - z.getHealth();
         z.discard();
