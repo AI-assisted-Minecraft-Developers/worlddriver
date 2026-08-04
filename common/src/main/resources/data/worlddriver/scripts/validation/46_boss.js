@@ -24,7 +24,19 @@ function cleanupBosses() {
     cmd("kill @e[type=minecraft:ender_dragon]");
     cmd("kill @e[type=minecraft:wither]");
     cmd("kill @e[type=minecraft:end_crystal]");
-    Driver.system.waitTicks(4);
+    // Wait for the bosses to be GONE, not for a fixed number of ticks. `/kill` does not
+    // remove a living entity — it damages it to death, and a dying mob then sits in the
+    // world through its ~20-tick death animation, sensed by observe.boss the entire time.
+    // A 4-tick wait left that corpse standing for the NEXT check, which summoned its own
+    // boss and then sensed the previous one: "senses the ender dragon" failing with
+    // type=wither, and only sometimes, depending on which of the two the scan reached
+    // first. Polling for absence is both correct and faster in the common case, where
+    // nothing was alive to begin with and the loop exits without waiting at all.
+    // Measured: a wither killed by /kill stays sensed for exactly 20 more ticks, so the
+    // old 4-tick wait plus the dragon check's own 6 never once cleared it — the bug was
+    // present every run and only the symptom was intermittent, depending on which of the
+    // two bosses the scan happened to reach first.
+    for (var i = 0; i < 30 && boss(64).present; i++) Driver.system.waitTicks(2);
 }
 
 // Poll the runner until the background playbook goes idle; return final status.
