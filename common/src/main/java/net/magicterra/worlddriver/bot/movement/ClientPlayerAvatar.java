@@ -60,12 +60,25 @@ public final class ClientPlayerAvatar implements Avatar {
     }
     @Override public boolean breakHeld() { return mc.options.keyAttack.isDown(); }
 
-    /** Mojmap-private {@code MultiPlayerGameMode.destroyProgress}, read via a
-     *  cached reflective Field (dev runtime is Mojmap; no mixin/AW plumbing in
-     *  this repo and one float read does not justify adding it). -1 when
-     *  reflection is unavailable — callers fall back to their tick caps. */
+    /** The cell {@link #continueDestroy} already drove this client tick, and the tick it drove
+     *  it on — the pair that keeps one block from being advanced twice in a tick. */
+    private BlockPos destroyDrivenCell;
+    private int destroyDrivenTick = -1;
+
     @Override public void continueDestroy(BlockPos cell) {
         if (mc.gameMode == null || p == null) return;
+        // Vanilla drives continueDestroyBlock exactly ONCE per client tick and each call advances
+        // destroyProgress by a tick's worth, so a cell driven twice in one tick mines at double
+        // speed. Two walker phases now do exactly that on the committed dig cell — the prelude
+        // services the sticky dig, then digAimReassert re-asserts it — and they share one avatar,
+        // because Walker.tick builds a fresh ClientPlayerAvatar per tick and hands it to every
+        // phase. That shared instance is the whole scope of this guard: a process driving the same
+        // cell in the same tick holds its own avatar and is not caught here. Same-cell only, on
+        // purpose — two phases driving DIFFERENT cells in one tick is a separate bug, and quietly
+        // dropping one of them here would hide it.
+        if (p.tickCount == destroyDrivenTick && cell.equals(destroyDrivenCell)) return;
+        destroyDrivenTick = p.tickCount;
+        destroyDrivenCell = cell;
         // Mirror vanilla Minecraft.continueAttack exactly: it swings the main hand on
         // every successful continueDestroyBlock tick. Direct-driven digs without the
         // swing are visibly armless AND emit no ServerboundSwingPacket — third-party

@@ -293,12 +293,12 @@ final class WalkerTickPrelude {
                                     wk.stickyDig.pos, wk.stickyDig.rayMiss);
                     }
                 }
-                if (wk.stickyDig.direct) {
-                    a.breakHold(false);
-                    a.continueDestroy(wk.stickyDig.pos);
-                } else {
-                    a.breakHold(true);
-                }
+                // The direct drive is unconditional now — it is what actually breaks the block on a
+                // client, whether or not the raycast has wandered. What the latch still decides is
+                // the KEY: held while the crosshair is on the cell, released once it is not, so
+                // vanilla's raycast-driven continueAttack cannot double-drive a different cell.
+                a.breakHold(!wk.stickyDig.direct);
+                a.continueDestroy(wk.stickyDig.pos);
                 return Walker.Step.WALKING;
             }
         }

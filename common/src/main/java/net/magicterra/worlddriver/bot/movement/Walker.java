@@ -176,12 +176,13 @@ public final class Walker {
         // Bob-reset bypass (same live session): while the bot BOBS in water the
         // eye/raycast dips behind the bank lip on some ticks, vanilla's
         // continueAttack then targets a DIFFERENT cell and zeroes the progress
-        // — the dig can never finish no matter how long we hold. After a few
-        // raycast misses, latch DIRECT drive (gameMode.continueDestroyBlock on
-        // the exact cell — the AntiSuffocate gap#69 pattern), which decouples
-        // progress from the crosshair entirely.
+        // — the dig can never finish no matter how long we hold. The direct
+        // drive (gameMode.continueDestroyBlock on the exact cell — the
+        // AntiSuffocate gap#69 pattern) decouples progress from the crosshair
+        // entirely, and every dig site now runs it unconditionally.
         int rayMiss;          // raycast-off-target ticks for this dig (cumulative)
-        boolean direct;       // latched: drive continueDestroyBlock directly
+        boolean direct;       // latched once the raycast has wandered: drop keyAttack,
+                              // so vanilla cannot drive a second cell alongside ours
         void engage(net.minecraft.core.BlockPos b) {
             pos = b;
             ticks = 0;
@@ -805,6 +806,12 @@ public final class Walker {
     /** Raw forward (keyUp equivalent) for the special branches that drive the impulse
      *  themselves (the main walk path uses commandMove). v=false also zeroes strafe. */
     static void avatarForward(Avatar a, boolean v) { a.commandForward(v ? 1f : 0f); }
+    /** Break {@code cell}: hold the key AND drive the destroy directly, never one alone. On a client
+     *  avatar {@link Avatar#breakHold} only rides vanilla's continueAttack pipeline, which a driven
+     *  client never reaches because the mouse is never grabbed — so the key by itself breaks
+     *  nothing. Server avatars break on the key and take the destroy as an inherited no-op, which is
+     *  why every wd.server* dig scene passed for as long as the walker drove the key alone. */
+    static void avatarDig(Avatar a, BlockPos cell) { a.breakHold(true); a.continueDestroy(cell); }
 
 
     /** Client bridge: existing callers pass {@link Minecraft}; wrap it in a

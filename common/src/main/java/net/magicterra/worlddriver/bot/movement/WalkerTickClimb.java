@@ -687,13 +687,13 @@ final class WalkerTickClimb {
                     a.aimAtBlock(riser);
                     wk.waterClimb.lastDigRiser = riser;
                     wk.waterClimb.lastDigAimEyeY = p.getEyeY();
-                    a.breakHold(true);
+                    Walker.avatarDig(a, riser);
                     // Sticky-dig coverage gap (2026-07-21 live lake basin): the per-tick
                     // re-aim above holds the CAMERA on the riser, but a bob that dips the
                     // eye below the surface still makes the mining raycast MISS for those
                     // ticks and vanilla zeroes destroyProgress — the exact disease the
-                    // break-actuator sites already cure via StickyDig's ray-miss latch →
-                    // direct continueDestroy (which bypasses the raycast entirely). This
+                    // direct destroy above cures by advancing the exact cell whatever the
+                    // crosshair does; StickyDig then holds that dig across ticks. This
                     // dig site predates that machinery and never engaged it, so bank digs
                     // kept resetting through the bob while actuator digs held fine. Engage
                     // the same holder; it self-releases on break/stall/drift as everywhere.
@@ -808,7 +808,7 @@ final class WalkerTickClimb {
                     }
                     BotConfig.walkerDigActive = true;
                     a.aimAtBlock(b);
-                    a.breakHold(true);
+                    Walker.avatarDig(a, b);
                     if (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority) wk.stickyDig.engage(b);
                     return Walker.Step.WALKING;
                 }
@@ -1012,7 +1012,7 @@ final class WalkerTickClimb {
                     }
                     BotConfig.walkerDigActive = true;
                     a.aimAtBlock(b);
-                    a.breakHold(true);
+                    Walker.avatarDig(a, b);
                     if (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority) wk.stickyDig.engage(b);
                     boolean climbBreak = floatingPocket && b.getY() >= foot.getY();
                     if ((swimEscapeBreak && p.isInWater() && !p.isUnderWater()) || climbBreak) {

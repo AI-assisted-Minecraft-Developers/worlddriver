@@ -241,6 +241,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `data == "minecraft:player"` (a scalar payload) is unaffected.
 
 ### Fixed
+- **The walker could not break a single block on a client. Every dig site now drives the
+  destroy directly.** The seven break sites under `bot/movement/` did `breakHold(true)` and
+  waited for vanilla's `continueAttack → continueDestroyBlock` pipeline, which is gated on
+  `mouseHandler.isMouseGrabbed()` — never true for a driven client. The processes were fixed
+  for this a day earlier; the walker was not, and its one direct drive sat behind
+  `StickyDig`'s ray-miss latch, which only arms after the crosshair has *wandered off* the
+  target. A dig aimed correctly therefore never reached it: the bot stood against the block
+  holding an attack key that did nothing, forever.
+
+  Measured, same rig both ways — a goal cell sealed inside a solid dirt shell so the only
+  route in is through one block. Before: `goto` awaited its full 60 s, `completed=false`,
+  both door cells still dirt, bot parked at x=15.26 against the wall. After: arrived in
+  4.6 s, the two door cells air, bot at x=18.34 inside. Neighbouring shell cells untouched —
+  it digs the doorway it needs, not a hole.
+
+  `Walker.avatarDig` is now the only way these sites break: it holds the key *and* drives the
+  destroy, so the pair cannot be half-written at a new site. `StickyDig.direct` no longer
+  decides *whether* to drive — only whether to release the key, which is what it was really
+  for. `Avatar#continueDestroy` gained a same-cell-same-tick guard, because two walker phases
+  can now aim at one cell in a tick and each call advances vanilla's break by a tick's worth.
+
+  No server-side behaviour changed at all: `ServerPlayerAvatar` inherits `continueDestroy` as
+  a no-op, which is exactly why all 180 `wd.server*` scenes passed throughout and could not
+  have caught this. Both t0 gates re-run GREEN, byte-identical outcomes.
+
 - **26 `.pyc` files were tracked, so `git status` was never clean.** `.gitignore`
   had covered `scripts/**/__pycache__/` for a long time, but it was added *after*
   the bytecode had been committed and an ignore rule does nothing for a tracked

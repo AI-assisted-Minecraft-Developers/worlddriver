@@ -181,7 +181,7 @@ final class WalkerTickDrive {
                 Walker.avatarJump(a, false);
                 a.selectTool(recCeiling);
                 a.aimAtBlock(recCeiling);
-                a.breakHold(true);
+                Walker.avatarDig(a, recCeiling);
                 return Walker.Step.WALKING;
             }
             a.breakHold(false);
@@ -1215,7 +1215,7 @@ final class WalkerTickDrive {
             }
             if (pad != null) {
                 a.aimAtBlock(pad);
-                a.breakHold(true);
+                Walker.avatarDig(a, pad);
             }
         }
         // walkerWallDigFallback (§71, C49): the purest "recovery fires but does nothing"
@@ -1271,7 +1271,7 @@ final class WalkerTickDrive {
                 if (tgt != null) {
                     a.selectTool(tgt);
                     a.aimAtBlock(tgt);
-                    a.breakHold(true);
+                    Walker.avatarDig(a, tgt);
                     if (BotConfig.walkerDigAimPriority) wk.stickyDig.engage(tgt);
                     if (BotConfig.walkerDebug)
                         LOG.info("[walker] wall-dig FALLBACK {},{},{} stuckT={}",
@@ -1287,7 +1287,7 @@ final class WalkerTickDrive {
         if (BotConfig.walkerDigAimPriority && wk.stickyDig.pos != null && world.isSolid(wk.stickyDig.pos)) {
             a.selectTool(wk.stickyDig.pos);
             a.aimAtBlock(wk.stickyDig.pos);
-            a.breakHold(true);
+            Walker.avatarDig(a, wk.stickyDig.pos);   // prelude's repeat of this cell is dropped
         }
         if (BotConfig.walkerDebug) {
             // [dbgcollide] hard physics evidence for the hill speed-sawtooth: is the
