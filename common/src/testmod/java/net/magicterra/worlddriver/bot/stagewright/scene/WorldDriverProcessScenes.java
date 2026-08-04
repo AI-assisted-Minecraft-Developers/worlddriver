@@ -72,13 +72,17 @@ import net.minecraft.world.phys.Vec3;
  * ChunkMap-livelock trigger that ⛔MUST NOT be copied into a scene (persistent dogfood world). Each is
  * translated to the established wave-5 <b>bounded entity-visibility await</b>: build + summon in the
  * body, then {@code ctx.await(() -> !level.getEntitiesOfClass(...).isEmpty()).within(100).then(...)}
- * (loud STEP_TIMEOUT on non-appearance) — the harness ticks the server between polls, promoting the
- * force-loaded arena chunk to ENTITY_TICKING so the fresh entity enters the queryable section index
- * (the exact state the legacy 3-tick loop hand-forced). Everything downstream of the await —
- * {@code ServerAvatarManager.register}, the {@code tickAll()} drive loop, and every assertion — is kept
- * <b>VERBATIM</b>. {@code wd.serverCombat} additionally ticks the {@code Zombie} DIRECTLY
- * ({@code zombie.tick()}, NOT {@code level.tick()}) each drive iteration to clear its hurt-cooldown —
- * the exact legacy actuation, and safe (direct entity tick, no ChunkMap re-entry).
+ * (loud STEP_TIMEOUT on non-appearance) — the harness ticks the server between polls, and the fresh
+ * entity enters the queryable section index (the exact state the legacy 3-tick loop hand-forced).
+ * Since 2026-08-05 StageWright's PREP will not start a scene until its arena is entity-ticking, so
+ * these awaits resolve on their first poll; they stay as the guard that says so. Everything
+ * downstream of the await — {@code ServerAvatarManager.register}, the {@code tickAll()} drive loop,
+ * and every assertion — is kept <b>VERBATIM</b>. {@code wd.serverCombat} additionally ticks the
+ * {@code Zombie} DIRECTLY ({@code zombie.tick()}, NOT {@code level.tick()}) each drive iteration to
+ * clear its hurt-cooldown — the exact legacy actuation, and safe (direct entity tick, no ChunkMap
+ * re-entry). A live arena does not make that redundant and never did: the drive loop runs up to 1500
+ * avatar ticks inside a single server tick, so the server's own entity tick fires once for the whole
+ * fight, and a target ticked once stays invulnerable after the first hit.
  *
  * <p><b>{@code wd.serverCombat} controlled-combat rig — daytime auto-burn protection copied verbatim.</b>
  * The zombie is {@code setNoAi(true)} + {@code setPersistenceRequired()} + max {@code KNOCKBACK_RESISTANCE}
