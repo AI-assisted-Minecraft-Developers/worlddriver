@@ -88,6 +88,28 @@ scene("pack.drivesTheGame", 200, function (s) {
     s.record("driverVersionKeys", Object.keys(version).join(","));
 });
 
+scene("pack.runsCommands", 200, function (s) {
+    // The widest surface a scene file has, and the one that needs no Java at all: items, mobs,
+    // effects, gamerules and every command the pack's own mods register, all as strings — so none
+    // of it goes through a method name that is spelled differently on Fabric.
+    //
+    // `~ ~ ~` is the scene's own arena, not the world origin, which is what lets the same line run
+    // in whichever grid slot this scene was handed.
+    // A block a command placed is NOT reverted at teardown: setBlock records what it overwrote,
+    // a command goes through the game's own paths and leaves no such record.
+    s.cleanup(function () { s.setBlock(0, 0, 0, block("minecraft:air")); });
+
+    s.command("setblock ~ ~ ~ minecraft:chest");
+    s.command("item replace block ~ ~ ~ container.0 with minecraft:diamond 7");
+
+    // Commands read as well as write. `data get` answers with the value as the command's own
+    // result, which is how a scene asserts about state no block lookup can reach — what is in a
+    // container, what a machine has stored, whatever a mod keeps in its block entity.
+    var read = s.command("data get block ~ ~ ~ Items[0].count");
+    s.record("commandSaid", read.text());
+    s.expect(String(read.result())).as("diamonds the command put in the chest").isEqualTo("7");
+}, { terrain: "superflat" });
+
 // The ground a scene stands on is declared, not built. A pack whose mods only misbehave on real
 // terrain — a mob that spawns wrong on a slope, a machine that needs to see stone below it — cannot
 // test any of that in the empty sky the default arena is, and building a convincing landscape out of
