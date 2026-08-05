@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -105,7 +106,8 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 Scene.of("wd.pathArchiveCapture", 400, WorldDriverCoreScenes::pathArchiveCapture),
                 Scene.of("wd.replayRoundTrip", 400, WorldDriverCoreScenes::replayRoundTrip),
                 Scene.of("wd.clientChatLogSemantics", 200, WorldDriverCoreScenes::clientChatLogSemantics),
-                Scene.of("wd.clientSettingSchema", 200, WorldDriverCoreScenes::clientSettingSchema));
+                Scene.of("wd.clientSettingSchema", 200, WorldDriverCoreScenes::clientSettingSchema),
+                Scene.of("wd.fullInventoryVisible", 200, WorldDriverCoreScenes::fullInventoryVisible));
     }
 
     /** Inlined from {@code AgentGameTestSupport#buildFloor}: 11×11 stone floor at {@code floorY},
@@ -993,5 +995,61 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     private static Object settingOf(Object result, String key) {
         Object settings = result instanceof Map<?, ?> m ? m.get("settings") : null;
         return settings instanceof Map<?, ?> s ? s.get(key) : null;
+    }
+
+    /**
+     * All 36 inventory slots reach {@code mc.observe.player}, not just the hotbar.
+     *
+     * <p>Ported from {@code instrument_client.py}'s {@code obs.fullInventory} — the #41 permanent
+     * assertion. The bug it exists for showed 9 slots of 36 through this verb: the hotbar, and none
+     * of the three quarters behind it. So the staging is deliberately entirely in the MAIN
+     * inventory, and each slot is asserted by id and count rather than by a total, which would pass
+     * with the items in the wrong places.
+     *
+     * <p>Server-face, unlike its siblings in that file: it needs a REAL player in the PlayerList
+     * rather than a client hop, which is exactly what {@code ctx.player()} skips out on when the
+     * topology has none. The player is addressed BY NAME, not {@code @p} — this arena is 100k blocks
+     * from spawn, so the nearest player to it is nobody in particular.
+     */
+    private static void fullInventoryVisible(SceneContext ctx) {
+        String name = ctx.player().getGameProfile().getName();
+        // Three slots emptied, not the whole bag. The python original opened with `clear @p`, which
+        // is a command that FAILS when the bag is already empty ("No items were found on player") —
+        // it only survived that because it passed require_success=False, and ctx.command is loud by
+        // design. Replacing single slots always succeeds, and it also stops this scene from wiping a
+        // real player's inventory to look at three slots of it.
+        ctx.cleanup(() -> {
+            for (int slot : new int[]{9, 20, 35})
+                ctx.command("item replace entity " + name + " container." + slot + " with minecraft:air");
+        });
+        ctx.command("item replace entity " + name + " container.9 with minecraft:diamond 5");
+        ctx.command("item replace entity " + name + " container.20 with minecraft:emerald 7");
+        ctx.command("item replace entity " + name + " container.35 with minecraft:gold_ingot 3");
+
+        Object obs = WorldDriverCommon.api().route("mc.observe.player", Map.of("name", name));
+        Object rows = obs instanceof Map<?, ?> m ? m.get("inventory") : null;
+        ctx.expect(rows instanceof List<?>).as("observe.player carries an inventory list")
+                .isEqualTo(true);
+        if (!(rows instanceof List<?> list)) return;
+
+        Map<Integer, Map<?, ?>> bySlot = new LinkedHashMap<>();
+        for (Object row : list)
+            if (row instanceof Map<?, ?> e && e.get("slot") instanceof Number n)
+                bySlot.put(n.intValue(), e);
+
+        expectSlot(ctx, bySlot, 9, "minecraft:diamond", "5");
+        expectSlot(ctx, bySlot, 20, "minecraft:emerald", "7");
+        expectSlot(ctx, bySlot, 35, "minecraft:gold_ingot", "3");
+        ctx.record("slotsSeen", String.valueOf(bySlot.size()));
+    }
+
+    /** One staged slot, named by number so a regression says which quarter of the bag went missing. */
+    private static void expectSlot(SceneContext ctx, Map<Integer, Map<?, ?>> bySlot,
+                                   int slot, String id, String count) {
+        Map<?, ?> e = bySlot.get(slot);
+        ctx.expect(e).as("main-inventory slot " + slot + ", the 9-of-36 bug").isNotNull();
+        if (e == null) return;
+        ctx.expect(String.valueOf(e.get("id"))).as("slot " + slot + " id").isEqualTo(id);
+        ctx.expect(String.valueOf(e.get("count"))).as("slot " + slot + " count").isEqualTo(count);
     }
 }
