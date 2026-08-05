@@ -7,6 +7,20 @@ function clientAvailable() {
     catch (e) { return false; }
 }
 
+// Poll a tick at a time instead of waiting a fixed number and reading once. waitTicks counts SERVER
+// ticks, but ThreatScanner is CLIENT-side — so a fixed server-tick wait does not guarantee the
+// client scanner has run even once, and on a loaded machine it sometimes had not. Polling also takes
+// the FIRST moment the condition holds, which matters for a check whose subject is in flight and
+// stops existing shortly after it arrives.
+function waitUntil(pred, maxTicks) {
+    var budget = maxTicks || 40;
+    for (var i = 0; i < budget; i++) {
+        if (pred()) return true;
+        Driver.system.waitTicks(1);
+    }
+    return pred();
+}
+
 // Top-level (not inside a block) so the deferred ScriptTest.run callbacks can see it.
 function cleanup() {
     Driver.invoke("mc.action.runCommand", { cmd: "kill @e[type=!minecraft:player]" });
@@ -97,11 +111,16 @@ if (!clientAvailable()) {
         Driver.invoke("mc.action.runCommand", {
             cmd: "summon arrow " + x + " " + y + " " + (z + 14) + " {Motion:[0.0,0.05,-0.8]}"
         });
-        Driver.system.waitTicks(5);
-        var threats = Driver.invoke("mc.observe.threats", { radius: 24 });
-        var s = Driver.invoke("mc.bot.status", {});
-        t.assertTrue(threats.incomingProjectiles.length > 0 || s.activeChain === "dodge",
-            "incoming arrow sensed (or dodge already engaged)");
+        // The arrow covers 0.8 blocks a tick from 14 away, so it is gone in ~18 ticks — the budget
+        // is what it takes to see it, not a margin on top of a guess.
+        var sensed = false;
+        waitUntil(function () {
+            var threats = Driver.invoke("mc.observe.threats", { radius: 24 });
+            var s = Driver.invoke("mc.bot.status", {});
+            sensed = threats.incomingProjectiles.length > 0 || s.activeChain === "dodge";
+            return sensed;
+        }, 20);
+        t.assertTrue(sensed, "incoming arrow sensed (or dodge already engaged)");
         cleanup();
     });
 }

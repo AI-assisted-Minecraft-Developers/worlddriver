@@ -12,6 +12,19 @@ function clientAvailable() {
     }
 }
 
+// Poll a tick at a time instead of reading once. setHotbarSlot writes the CLIENT's selected slot
+// and syncs by packet; observe.player reads the SERVER's. Those are two threads either side of a
+// queue even on an integrated server, so "read it straight back" is a race that passes on an idle
+// machine and fails on a busy one — which is exactly how it presented, as an intermittent RED.
+function waitUntil(pred, maxTicks) {
+    var budget = maxTicks || 40;
+    for (var i = 0; i < budget; i++) {
+        if (pred()) return true;
+        Driver.system.waitTicks(1);
+    }
+    return pred();
+}
+
 if (!clientAvailable()) {
     ScriptTest.run("13_set_hotbar_slot: skipped (no client api — dedicated server)", function(t) {
         // no-op: PASS so headless runs stay green
@@ -40,7 +53,11 @@ if (!clientAvailable()) {
         t.assertTrue(r.ok, "switch must succeed (got " + JSON.stringify(r) + ")");
         t.assertEqual(r.slot, target, "echoed slot must match requested");
         t.assertEqual(r.previous, before.selectedSlot, "previous must report prior slot");
-        var after = Driver.observe.player();
+        var after = before;
+        waitUntil(function () {
+            after = Driver.observe.player();
+            return after.selectedSlot === target;
+        }, 40);
         t.assertEqual(after.selectedSlot, target,
             "observe.player must report the new selectedSlot");
         // Restore so we don't leave the player on a different slot for the
