@@ -33,6 +33,12 @@ etc.) working in this project. Keep it short and authoritative.
   (`../stagewright`); point `STAGEWRIGHT_HOME` elsewhere if it is not. What stays here is
   consumer data: the per-loader `expected-scenes-*.txt` manifests.
 
+  While writing or debugging a single scene, narrow the run rather than paying for all 191:
+  `./gradlew stagewrightDedicatedServerFabric -Pstagewright.scenes=wd.gearScope` (~47s against
+  ~1m52s; `*` globs, comma-separates). Such a run reports
+  `GREEN (FILTERED — not a gate result)` and skips expect-file reconciliation, so it is a dev
+  loop and never a gate — re-run unfiltered before you believe anything.
+
   On `DedicatedServerWithClient` the companion client ALSO writes a results file of its
   own (`run-stagewright-joining-client/stagewright-client-results.jsonl`), judged beside
   the server's. It holds the assertions no scene can make, because every scene body runs
