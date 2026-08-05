@@ -79,6 +79,8 @@ wd.clientChatLogSemantics
 wd.clientSettingSchema
 wd.fullInventoryVisible
 wd.attackCooldownSurface
+wd.clientResetClearsEntry
+wd.clientResetReleasesKeys
 # P4b wave 5 — CombatSense family (2 migrated from AgentGameTestCombatSense; single-tick NoAI, time-independent)
 wd.threatScanZombie
 wd.threatScanHurtAttacker

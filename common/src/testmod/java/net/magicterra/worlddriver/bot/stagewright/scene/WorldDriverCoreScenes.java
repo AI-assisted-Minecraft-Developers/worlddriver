@@ -3,14 +3,17 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.debug.BotLevelHolder;
@@ -108,7 +111,9 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 Scene.of("wd.clientChatLogSemantics", 200, WorldDriverCoreScenes::clientChatLogSemantics),
                 Scene.of("wd.clientSettingSchema", 200, WorldDriverCoreScenes::clientSettingSchema),
                 Scene.of("wd.fullInventoryVisible", 200, WorldDriverCoreScenes::fullInventoryVisible),
-                Scene.of("wd.attackCooldownSurface", 300, WorldDriverCoreScenes::attackCooldownSurface));
+                Scene.of("wd.attackCooldownSurface", 300, WorldDriverCoreScenes::attackCooldownSurface),
+                Scene.of("wd.clientResetClearsEntry", 300, WorldDriverCoreScenes::clientResetClearsEntry),
+                Scene.of("wd.clientResetReleasesKeys", 300, WorldDriverCoreScenes::clientResetReleasesKeys));
     }
 
     /** Inlined from {@code AgentGameTestSupport#buildFloor}: 11×11 stone floor at {@code floorY},
@@ -985,7 +990,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     }
 
     /** {@code mc.bot.setting}'s settings snapshot, read fresh. */
-    private static boolean settingBool(net.magicterra.worlddriver.api.DriverApi api, String key) {
+    private static boolean settingBool(DriverApi api, String key) {
         Object v = settingOf(api.route("mc.bot.setting", Map.of()), key);
         if (!(v instanceof Boolean b))
             throw new IllegalStateException(key + " is not a boolean in the settings snapshot: " + v);
@@ -1113,5 +1118,130 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         if (e == null) return;
         ctx.expect(String.valueOf(e.get("id"))).as("slot " + slot + " id").isEqualTo(id);
         ctx.expect(String.valueOf(e.get("count"))).as("slot " + slot + " count").isEqualTo(count);
+    }
+
+    /**
+     * {@code mc.test.reset} returns the client entry to a known state in one call.
+     *
+     * <p>Ported from {@code instrument_client.py}'s {@code reset.behavior}. This is the verb the
+     * client pool leaned on between hand-offs, so what it promises — no open screen, no held key,
+     * no stale chat readback — is the precondition every other client-face check inherits.
+     *
+     * <p>Two of the three are verified by an INDEPENDENT readback rather than by the verb's own
+     * manifest: the screen through {@code mc.client.screen.info}, the chat log through
+     * {@code mc.client.chat.history}. The keys token is only read off the manifest here and is
+     * proved for real by {@link #clientResetReleasesKeys}, which is the entire reason that scene
+     * exists — the token is appended unconditionally, so on its own it says that
+     * {@code releaseKeys()} ran, not that anything was released.
+     *
+     * <p>The reset is ALSO the cleanup, registered before anything is dirtied. Unlike the python
+     * original this runs inside a suite of 180 other scenes, so a failure between "open the
+     * inventory" and "reset" must not hand the next scene a client with a screen up.
+     */
+    private static void clientResetClearsEntry(SceneContext ctx) {
+        if (ctx.server().isDedicatedServer())
+            ctx.skip("mc.test.reset is client-only — only an integrated server has its handler here");
+        DriverApi api = WorldDriverCommon.api();
+        ctx.cleanup(() -> api.route("mc.test.reset", Map.of()));
+
+        api.route("mc.client.screen.close", Map.of());          // start from a known no-screen state
+        api.route("mc.client.chat.send", Map.of("text", "stagewright-reset-probe"));
+        api.route("mc.client.input.key", Map.of("key", "E"));   // the inventory keybind
+
+        // Separate awaits so a timeout names which half of the dirtying never landed; steps drain
+        // in registration order, so the reset below only runs once both have.
+        ctx.await(() -> Boolean.TRUE.equals(screenInfo(api).get("hasScreen"))).within(100).then(() ->
+                ctx.record("dirtiedScreen", "true"));
+        ctx.await(() -> chatCount(api) >= 1).within(100).then(() -> {
+            Object r = api.route("mc.test.reset", Map.of());
+            Object reset = r instanceof Map<?, ?> m ? m.get("reset") : null;
+            ctx.expect(r instanceof Map<?, ?> m && Boolean.TRUE.equals(m.get("ok")))
+                    .as("mc.test.reset reported ok").isEqualTo(true);
+            List<?> tokens = reset instanceof List<?> l ? l : List.of();
+            ctx.expect(tokens.contains("screen")).as("reset[] names the screen it closed")
+                    .isEqualTo(true);
+            ctx.expect(tokens.contains("keys")).as("reset[] names the keys it released")
+                    .isEqualTo(true);
+            boolean clearedChat = tokens.stream()
+                    .anyMatch(t -> t instanceof String s && s.startsWith("chat:"));
+            ctx.expect(clearedChat).as("reset[] names the chat log it cleared").isEqualTo(true);
+
+            Map<?, ?> info = screenInfo(api);
+            ctx.expect(info.get("hasScreen")).as("a screen is still open after the reset")
+                    .isEqualTo(false);
+            // The reset must close the screen without closing the WORLD — a disconnect would also
+            // satisfy "no screen open" and would take every scene after this one down with it.
+            ctx.expect(info.get("worldOpen")).as("the reset kept us in the world").isEqualTo(true);
+            ctx.expect(chatCount(api)).as("chat readback entries after the reset").isEqualTo(0);
+            ctx.record("resetTokens", String.valueOf(reset));
+        });
+    }
+
+    /**
+     * {@code mc.test.reset} really releases a key that was really down.
+     *
+     * <p>Ported from {@code instrument_client.py}'s {@code reset.heldKeys}. The reason it is its own
+     * scene rather than a line in {@link #clientResetClearsEntry}: the {@code reset[]} manifest's
+     * "keys" token is unconditional, so it proves the release code PATH ran and nothing about its
+     * effect — a {@code releaseKeys()} that became a no-op would keep every existing assertion
+     * green. {@code mc.test.input.heldKeys} closes that from outside by reading
+     * {@code KeyMapping.isDown()} back: press forward, prove the readback SEES it held, reset, and
+     * prove every key in the surface is false.
+     *
+     * <p>The whole surface is compared, not just the key that was pressed. A readback that quietly
+     * stopped reporting a keymapping would otherwise pass here forever, since a key it does not
+     * report can never be seen stuck.
+     */
+    private static void clientResetReleasesKeys(SceneContext ctx) {
+        if (ctx.server().isDedicatedServer())
+            ctx.skip("mc.test.input.heldKeys is client-only — only an integrated server has its"
+                    + " handler here");
+        DriverApi api = WorldDriverCommon.api();
+        ctx.cleanup(() -> api.route("mc.test.reset", Map.of()));
+
+        api.route("mc.client.screen.close", Map.of());   // no screen → the key takes the keybind path
+        api.route("mc.client.input.key", Map.of("key", "W", "action", "press"));
+
+        ctx.await(() -> Boolean.TRUE.equals(heldKeys(api).get("up"))).within(100).then(() -> {
+            Object r = api.route("mc.test.reset", Map.of());
+            Object reset = r instanceof Map<?, ?> m ? m.get("reset") : null;
+            ctx.expect(reset instanceof List<?> l && l.contains("keys"))
+                    .as("reset[] names the keys it released").isEqualTo(true);
+
+            Map<?, ?> keys = heldKeys(api);
+            ctx.expect(joinSorted(keys.keySet())).as("the keys mc.test.input.heldKeys reports")
+                    .isEqualTo("attack,down,jump,left,right,shift,sprint,up");
+            List<String> stuck = new ArrayList<>();
+            for (Map.Entry<?, ?> e : keys.entrySet())
+                if (Boolean.TRUE.equals(e.getValue())) stuck.add(String.valueOf(e.getKey()));
+            ctx.expect(joinSorted(stuck))
+                    .as("keys still held after mc.test.reset — a releaseKeys() no-op regression")
+                    .isEqualTo("");
+        });
+    }
+
+    /** {@code mc.client.screen.info}, or empty when the verb answered with something else. */
+    private static Map<?, ?> screenInfo(DriverApi api) {
+        Object r = api.route("mc.client.screen.info", Map.of());
+        return r instanceof Map<?, ?> m ? m : Map.of();
+    }
+
+    /** How many lines {@code mc.client.chat.history} is holding; −1 if it did not say. */
+    private static int chatCount(DriverApi api) {
+        Object r = api.route("mc.client.chat.history", Map.of("limit", 50));
+        Object count = r instanceof Map<?, ?> m ? m.get("count") : null;
+        return count instanceof Number n ? n.intValue() : -1;
+    }
+
+    /** The {@code keys} map out of {@code mc.test.input.heldKeys}. */
+    private static Map<?, ?> heldKeys(DriverApi api) {
+        Object r = api.route("mc.test.input.heldKeys", Map.of());
+        Object keys = r instanceof Map<?, ?> m ? m.get("keys") : null;
+        return keys instanceof Map<?, ?> k ? k : Map.of();
+    }
+
+    /** Sorted and joined, so a mismatch reports as one readable string instead of a set dump. */
+    private static String joinSorted(Collection<?> values) {
+        return values.stream().map(String::valueOf).sorted().collect(Collectors.joining(","));
     }
 }
