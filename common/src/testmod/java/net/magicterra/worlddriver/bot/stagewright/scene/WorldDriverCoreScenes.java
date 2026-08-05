@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -115,7 +116,8 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 Scene.of("wd.attackCooldownSurface", 300, WorldDriverCoreScenes::attackCooldownSurface),
                 Scene.of("wd.clientResetClearsEntry", 300, WorldDriverCoreScenes::clientResetClearsEntry),
                 Scene.of("wd.clientResetReleasesKeys", 300, WorldDriverCoreScenes::clientResetReleasesKeys),
-                Scene.of("wd.hurtCarriesItsSource", 300, WorldDriverCoreScenes::hurtCarriesItsSource));
+                Scene.of("wd.hurtCarriesItsSource", 300, WorldDriverCoreScenes::hurtCarriesItsSource),
+                Scene.of("wd.clientPlayerInWorld", 200, WorldDriverCoreScenes::clientPlayerInWorld));
     }
 
     /** Inlined from {@code AgentGameTestSupport#buildFloor}: 11×11 stone floor at {@code floorY},
@@ -1277,16 +1279,34 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         // low; after, so this scene is idempotent and the next one starts from full health.
         ctx.cleanup(() -> ctx.command("effect give " + name + " minecraft:instant_health 1 5 true"));
         ctx.command("effect give " + name + " minecraft:instant_health 1 5 true");
+        // A full i-frame window between the heal and the damage, for two independent reasons — both
+        // of which cost this scene a run before they were understood.
+        //
+        // The event fires on a drop between two of ClientEventDetector's OWN samples, so healing
+        // and damaging inside one tick is judged on what the two net out to: from full health that
+        // is still a drop and the scene passes, from anywhere below full it is a RISE and no event
+        // is emitted at all. Which one you got depended on the health the previous scene left.
+        //
+        // And the damage has to actually land. out_of_world is in BYPASSES_INVULNERABILITY, so it
+        // ignores the creative flag — but NOT in BYPASSES_COOLDOWN, so it is still subject to the
+        // rule that a hit inside i-frames must EXCEED lastHurt. Two points would be refused
+        // outright ("Target is invulnerable to the given damage type") if anything hurt this player
+        // in the preceding 20 ticks. Waiting the window out is what makes that impossible rather
+        // than unlikely.
+        AtomicLong cursor = new AtomicLong(-1);
+        int[] settled = {0};
+        ctx.await(() -> ++settled[0] >= 20).within(80).then(() -> {
+            cursor.set(api.route("mc.observe.cursor", Map.of()) instanceof Number n
+                    ? n.longValue() : 0L);
+            // out_of_world is in BYPASSES_INVULNERABILITY, so it lands whichever gamemode the run's
+            // template put the player in. Toggling /gamemode instead would be a far wider blast
+            // radius for a scene that only needs two points of damage.
+            ctx.command("damage " + name + " 2 minecraft:out_of_world");
+        });
 
-        long cursor = api.route("mc.observe.cursor", Map.of()) instanceof Number n
-                ? n.longValue() : 0L;
-        // out_of_world is in BYPASSES_INVULNERABILITY, so it lands whichever gamemode the run's
-        // template put the player in. Toggling /gamemode instead would be a far wider blast radius
-        // for a scene that only needs two points of damage.
-        ctx.command("damage " + name + " 2 minecraft:out_of_world");
-
-        ctx.await(() -> !hurtPayloads(api, cursor).isEmpty()).within(200).then(() -> {
-            Map<?, ?> payload = hurtPayloads(api, cursor).get(0);
+        ctx.await(() -> cursor.get() >= 0 && !hurtPayloads(api, cursor.get()).isEmpty())
+                .within(200).then(() -> {
+            Map<?, ?> payload = hurtPayloads(api, cursor.get()).get(0);
             Object source = payload.get("source");
             ctx.expect(source instanceof String s && !s.isEmpty())
                     .as("player.hurt attributes a source instead of reporting an HP delta alone")
@@ -1295,6 +1315,35 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                     .as("player.hurt reports the health actually lost").isEqualTo(true);
             ctx.record("hurtSource", String.valueOf(source));
         });
+    }
+
+    /**
+     * {@code mc.client.player} reports a LocalPlayer that is genuinely in a world.
+     *
+     * <p>The client half of {@code instrument_client.py}'s {@code t1.inWorld}. The server half of
+     * that check — a real ServerPlayer in the PlayerList — is already StageWright's built-in
+     * {@code remotePlayerIsPresent}, which asserts it harder (it also wants a live network
+     * connection) and does it on the multiplayer topology too. What is left, and what this covers,
+     * is the CLIENT face's own answer: the verb an agent actually asks "where am I".
+     *
+     * <p>A position is asserted per axis rather than as a whole, because the failure this guards is
+     * a payload that arrives shaped right and empty — {@code present:true} with no {@code pos} at
+     * all reads as in-world to any caller that does not look.
+     */
+    private static void clientPlayerInWorld(SceneContext ctx) {
+        if (ctx.server().isDedicatedServer())
+            ctx.skip("mc.client.player is client-only — only an integrated server has its handler here");
+        DriverApi api = WorldDriverCommon.api();
+        Object r = api.route("mc.client.player", Map.of());
+        Map<?, ?> cp = r instanceof Map<?, ?> m ? m : Map.of();
+        ctx.expect(cp.get("present")).as("mc.client.player reports a LocalPlayer in a world")
+                .isEqualTo(true);
+
+        Map<?, ?> pos = cp.get("pos") instanceof Map<?, ?> m ? m : Map.of();
+        for (String axis : new String[]{"x", "y", "z"})
+            ctx.expect(pos.get(axis) instanceof Number).as("mc.client.player's pos." + axis
+                    + " is a number, not a hole in a well-shaped payload").isEqualTo(true);
+        ctx.record("clientPos", pos.get("x") + "," + pos.get("y") + "," + pos.get("z"));
     }
 
     /** The {@code player.hurt} payloads emitted since {@code cursor}, oldest first. */
