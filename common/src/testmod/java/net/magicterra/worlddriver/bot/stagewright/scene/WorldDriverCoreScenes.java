@@ -33,6 +33,7 @@ import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.client.internal.ClientChatLog;
 import net.magicterra.worlddriver.mcp.ToolCatalog;
+import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.test.ScriptTest;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -113,7 +114,8 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 Scene.of("wd.fullInventoryVisible", 200, WorldDriverCoreScenes::fullInventoryVisible),
                 Scene.of("wd.attackCooldownSurface", 300, WorldDriverCoreScenes::attackCooldownSurface),
                 Scene.of("wd.clientResetClearsEntry", 300, WorldDriverCoreScenes::clientResetClearsEntry),
-                Scene.of("wd.clientResetReleasesKeys", 300, WorldDriverCoreScenes::clientResetReleasesKeys));
+                Scene.of("wd.clientResetReleasesKeys", 300, WorldDriverCoreScenes::clientResetReleasesKeys),
+                Scene.of("wd.hurtCarriesItsSource", 300, WorldDriverCoreScenes::hurtCarriesItsSource));
     }
 
     /** Inlined from {@code AgentGameTestSupport#buildFloor}: 11×11 stone floor at {@code floorY},
@@ -1243,5 +1245,66 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     /** Sorted and joined, so a mismatch reports as one readable string instead of a set dump. */
     private static String joinSorted(Collection<?> values) {
         return values.stream().map(String::valueOf).sorted().collect(Collectors.joining(","));
+    }
+
+    /**
+     * A {@code player.hurt} event says what hurt the player, not just how much.
+     *
+     * <p>Ported from {@code instrument_client.py}'s {@code obs.damageSource} — the #55 permanent
+     * assertion. Without attribution a fall into a self-dug pit and a mob bite are the same HP
+     * delta, so both the combat chain and the agent above it engage phantoms.
+     *
+     * <p><b>This port covers the weaker of the two halves the python check had, deliberately and
+     * visibly.</b> {@code player.hurt} is emitted CLIENT-side by {@code ClientEventDetector},
+     * mirroring the server's DamageSource off {@code ClientboundDamageEventPacket}. On an
+     * integrated server that lands in the same ring a server-attached observe reads, which is what
+     * this scene checks. On a dedicated server + real client the server's ring never carries it at
+     * all, and the only reader is a client push subscription ({@code mc.events.subscribe}) — which
+     * a scene body, running on the server thread, has no way to hold. That path is the STRONGER
+     * assertion, because there the attribution has to survive a real network boundary to reach the
+     * agent, and it is the one thing in the instrument contract that still needs a client-side
+     * reader before {@code instrument_client.py} can be deleted. The skip below names it rather
+     * than passing quietly on a topology where it proved nothing.
+     */
+    private static void hurtCarriesItsSource(SceneContext ctx) {
+        if (ctx.server().isDedicatedServer())
+            ctx.skip("player.hurt is emitted client-side, so a dedicated server's observe ring never"
+                    + " carries it — the packet-boundary half still needs a client push subscription");
+        DriverApi api = WorldDriverCommon.api();
+        String name = ctx.player().getGameProfile().getName();
+
+        // Healed on both sides: before, so two points cannot kill a player an earlier scene left
+        // low; after, so this scene is idempotent and the next one starts from full health.
+        ctx.cleanup(() -> ctx.command("effect give " + name + " minecraft:instant_health 1 5 true"));
+        ctx.command("effect give " + name + " minecraft:instant_health 1 5 true");
+
+        long cursor = api.route("mc.observe.cursor", Map.of()) instanceof Number n
+                ? n.longValue() : 0L;
+        // out_of_world is in BYPASSES_INVULNERABILITY, so it lands whichever gamemode the run's
+        // template put the player in. Toggling /gamemode instead would be a far wider blast radius
+        // for a scene that only needs two points of damage.
+        ctx.command("damage " + name + " 2 minecraft:out_of_world");
+
+        ctx.await(() -> !hurtPayloads(api, cursor).isEmpty()).within(200).then(() -> {
+            Map<?, ?> payload = hurtPayloads(api, cursor).get(0);
+            Object source = payload.get("source");
+            ctx.expect(source instanceof String s && !s.isEmpty())
+                    .as("player.hurt attributes a source instead of reporting an HP delta alone")
+                    .isEqualTo(true);
+            ctx.expect(payload.get("lost") instanceof Number n && n.doubleValue() > 0)
+                    .as("player.hurt reports the health actually lost").isEqualTo(true);
+            ctx.record("hurtSource", String.valueOf(source));
+        });
+    }
+
+    /** The {@code player.hurt} payloads emitted since {@code cursor}, oldest first. */
+    private static List<Map<?, ?>> hurtPayloads(DriverApi api, long cursor) {
+        Object r = api.route("mc.observe.eventsSince",
+                Map.of("cursor", cursor, "types", List.of("player.hurt")));
+        List<Map<?, ?>> out = new ArrayList<>();
+        if (r instanceof List<?> list)
+            for (Object e : list)
+                if (e instanceof DriverEvent ev && ev.data instanceof Map<?, ?> m) out.add(m);
+        return out;
     }
 }
