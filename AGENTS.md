@@ -194,6 +194,12 @@ python3 scripts/stagewright/instrument.py --loader neoforge   # 23/23 instrument
 ./gradlew stagewrightIntegratedServerFabric                   # integrated-server parity
 ./gradlew stagewrightDedicatedServerWithClientFabric          # production topology, both halves
 
+# Out-of-process UI tests. Two terminals: the hold publishes an endpoint, the tests attach to it.
+# With TESTKIT_ENDPOINT unset those tests SKIP rather than fail, so a green run without it is not
+# coverage.
+./gradlew stagewrightIntegratedServerFabricHold               # Ctrl-C ends the hold
+TESTKIT_ENDPOINT=$PWD/fabric/run-stagewright-integrated/stagewright-endpoint.json   ../stagewright/gradlew -p ../stagewright :stagewright-junit:test --rerun-tasks
+
 # Interactive client (pin ports so .mcp.json keeps working)
 JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39800 -Dworlddriver.rpcPort=39801" \
   ./gradlew :fabric:runClient
