@@ -67,10 +67,12 @@ python3 scripts/stagewright/t0.py --loader neoforge \
 This dogfoods a dedicated server with the stagewright harness, autoruns the wd.*
 scenes (`common/src/testmod/.../scene/`) plus the `*.js` validation suite, and
 verifies the results stream against the expect-file. The stagewright orchestrators
-under `scripts/stagewright/` (`t0`/`t1`/`t2` + `instrument.py`) are the CI gates — the
-legacy `@GameTest`/GameTestServer path was retired in P4-final. Those entry points are
-shims: the orchestrators live in the StageWright repo, expected as a sibling checkout
-(`../stagewright`, override with `STAGEWRIGHT_HOME`).
+under `scripts/stagewright/` (`t0.py` + `instrument.py`) and the `./gradlew
+stagewright<Topology><Loader>` tasks are the CI gates — the legacy `@GameTest`/GameTestServer
+path was retired in P4-final, and `t1.py`/`t2.py` were replaced by the Gradle tasks for the
+two client topologies. The script entry points are shims: the orchestrators live in the
+StageWright repo, expected as a sibling checkout (`../stagewright`, override with
+`STAGEWRIGHT_HOME`).
 
 StageWright is consumed as **published artifacts**, not as a subproject, and the two repos
 depend on each other in opposite directions — so a fresh clone bootstraps in this order:

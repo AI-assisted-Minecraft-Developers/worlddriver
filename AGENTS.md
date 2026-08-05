@@ -18,16 +18,25 @@ etc.) working in this project. Keep it short and authoritative.
     the results stream against an expect-file (`--loader <fabric|neoforge>
     --run-task :<loader>:runDogfoodServer --results <loader>/run-dogfood/stagewright-results.jsonl
     --expect-file scripts/stagewright/expected-scenes-<loader>.txt`).
-  - `t1.py` — integrated-server (client-topology) parity run.
-  - `t2.py` — production topology: a plain dedicated server driven on-demand via
-    `mc.test.run` over multiplayer.
   - `instrument.py --loader <loader>` — the 23/23 instrument contract.
+  - `./gradlew stagewright<Topology><Loader>` — the other two topologies, as Gradle
+    tasks rather than Python. `Topology` is `IntegratedServer` (a client that opens its
+    own world, so the same scenes run under an integrated server) or
+    `DedicatedServerWithClient` (a headless server with a real client joined to it);
+    `Loader` is `Fabric` or `Neoforge`. Each provisions a clean run directory, runs the
+    game, and judges the results against the same contract. `DedicatedServer<Loader>`
+    also exists and writes the same `run-dogfood` directory `t0.py` does.
 
-  The commands above are unchanged, but the orchestrators themselves now live in the
-  **StageWright** repo — `scripts/stagewright/` holds thin shims that delegate to it and
-  pin `--project-root` to this repo. StageWright is expected as a sibling checkout
+  These replaced `t1.py` and `t2.py`, which are gone. The remaining orchestrators live in
+  the **StageWright** repo — `scripts/stagewright/` holds thin shims that delegate to it
+  and pin `--project-root` to this repo. StageWright is expected as a sibling checkout
   (`../stagewright`); point `STAGEWRIGHT_HOME` elsewhere if it is not. What stays here is
   consumer data: the per-loader `expected-scenes-*.txt` manifests.
+
+  On `DedicatedServerWithClient` the companion client ALSO writes a results file of its
+  own (`run-stagewright-joining-client/stagewright-client-results.jsonl`), judged beside
+  the server's. It holds the assertions no scene can make, because every scene body runs
+  on the server thread and that topology's client is a different process.
 
 - **StageWright is a dependency, not a subproject.** It is consumed only as published
   artifacts (`stagewright_version` / `stagewright_plugin_version` in `gradle.properties`):
@@ -176,7 +185,8 @@ python3 scripts/stagewright/t0.py --loader neoforge \
   --results neoforge/run-dogfood/stagewright-results.jsonl \
   --expect-file scripts/stagewright/expected-scenes-neoforge.txt
 python3 scripts/stagewright/instrument.py --loader neoforge   # 23/23 instrument contract
-python3 scripts/stagewright/t1.py                             # integrated-server parity
+./gradlew stagewrightIntegratedServerFabric                   # integrated-server parity
+./gradlew stagewrightDedicatedServerWithClientFabric          # production topology, both halves
 
 # Interactive client (pin ports so .mcp.json keeps working)
 JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39800 -Dworlddriver.rpcPort=39801" \

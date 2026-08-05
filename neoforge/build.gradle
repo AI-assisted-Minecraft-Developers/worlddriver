@@ -278,10 +278,11 @@ loom {
 
         // ---- Self-driving topologies. No orchestrator process. ----
         //
-        // These three sit beside stagewrightClient/t2Server rather than replacing them because the
-        // older pair are still driven from outside: pool.py holds one for interactive instrument
-        // work and instrument_client.py attaches to it, and both would break the moment the harness
-        // started running scenes on its own. The pair goes when those scripts do.
+        // These three replaced the orchestrator-driven pair. stagewrightClient and t2Server are now
+        // ORPHANED — the scripts that drove them from outside (pool.py, instrument_client.py, t1.py,
+        // t2.py) are deleted, and nothing else names them; instrument.py, the one surviving
+        // orchestrator, drives runContractServer. They are inert config kept only until the run
+        // configs and their classpath/port filters below can be unpicked in one go.
         //
         // Everything the orchestrators used to supply — enter a world, dial a server, wait for a
         // player, exit when finished — is a system property the harness reads for itself.

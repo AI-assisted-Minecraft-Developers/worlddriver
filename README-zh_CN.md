@@ -66,8 +66,10 @@ python3 scripts/stagewright/t0.py --loader neoforge \
 
 这会用 stagewright harness dogfood 一个 dedicated server，autorun wd.* 场景
 （`common/src/testmod/.../scene/`）加上 `*.js` 校验套件，并把结果流对照 expect-file
-校验。`scripts/stagewright/` 下的编排器族（`t0`/`t1`/`t2` + `instrument.py`）是 CI 正门
-—— 旧的 `@GameTest`/GameTestServer 路径已在 P4-final 退役。
+校验。`scripts/stagewright/` 下的编排器（`t0.py` + `instrument.py`）与
+`./gradlew stagewright<Topology><Loader>` 任务共同构成 CI 正门 —— 旧的
+`@GameTest`/GameTestServer 路径已在 P4-final 退役，两个客户端拓扑的 `t1.py`/`t2.py`
+已由 Gradle 任务取代。
 
 ### 2. 跑客户端，接 MCP 客户端
 

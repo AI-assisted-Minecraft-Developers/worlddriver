@@ -45,7 +45,7 @@ def click_button(labels, gone_type=None, timeout=6.0):
     main menu and take the whole acceptance run with it, so an unrecognised label
     set is reported with the labels actually on screen, for the operator to add.
 
-    This is the sync sibling of `testkit/guidrive.py`'s `click_widget` +
+    This is the sync sibling of the retired `guidrive.py`'s `click_widget` +
     `wait_until` — same centre-of-bbox, same poll-then-raise — kept separate only
     because guidrive is async over its own RPC session. Every other script in here
     already clicked widget centres; accept_cycle was the last pixel-counter. The

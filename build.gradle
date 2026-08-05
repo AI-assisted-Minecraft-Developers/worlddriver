@@ -26,7 +26,8 @@ architectury {
 //
 // `virtualDisplay` is on for every topology whose run task is a client. It is a no-op wherever a
 // DISPLAY already exists, so a developer on a desktop gets their own screen and the headless Linux
-// host gets an Xvfb the build starts and stops — the one job t1.py/t2.py did that had nothing to do
+// host gets an Xvfb the build starts and stops — the one job the retired client orchestrators did
+// that had nothing to do
 // with Minecraft.
 stagewright {
     topologies {
