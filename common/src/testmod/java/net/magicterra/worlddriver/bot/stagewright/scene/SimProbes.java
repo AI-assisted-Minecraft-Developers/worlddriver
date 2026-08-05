@@ -10,29 +10,34 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 /**
- * Common-side sim probe helpers for the dogfood scenes (P1.6 Task 2). The method
- * bodies are moved VERBATIM from the neoforge legacy GameTest files (single source
- * — the scene must drive the identical measurement); only the body type narrows
- * from the neoforge {@code FakePlayer} to vanilla {@link ServerPlayer} (a FakePlayer
- * IS a ServerPlayer) and the driver parameter narrows to the common
- * {@link ServerWorldDriver}.
+ * Common-side sim probe helpers for the dogfood scenes (P1.6 Task 2). The bodies came
+ * over from the neoforge legacy GameTest files ({@code AgentGameTestServer.probeSwing}
+ * / {@code probeHurt}, {@code AgentGameTestSupport.grantWaterEffects}), which no longer
+ * exist — the GameTest path was retired in P4-final and these are now the only copies.
+ * The type narrowing at the move was the neoforge {@code FakePlayer} to vanilla
+ * {@link ServerPlayer} (a FakePlayer IS a ServerPlayer) and the driver parameter to the
+ * common {@link ServerWorldDriver}.
  *
- * <p>The legacy statics stay in place as one-line delegates onto these helpers so
- * every existing GameTest caller compiles untouched:
- * <ul>
- *   <li>{@code AgentGameTestServer.probeSwing} → {@link #probeSwing};</li>
- *   <li>{@code AgentGameTestServer.probeHurt} → {@link #probeHurt};</li>
- *   <li>{@code AgentGameTestSupport.grantWaterEffects} → {@link #grantWaterEffects}.</li>
- * </ul>
+ * <p>Every probe here holds the environment constant so it measures only what it names.
+ * {@link #grantWaterEffects} does that for the avatar — drowning, burning and starving
+ * cannot enter a movement scene's physics; {@link #probeHurt} zeroes i-frames so the
+ * previous probe cannot eat the hit; {@link #probeSwing} does BOTH for its target, which
+ * it did not have to before arenas ticked entities. When a probe reads zero, suspect this
+ * list first: it is far likelier that the environment ate the measurement than that the
+ * driver stopped working.
  */
 public final class SimProbes {
 
     private SimProbes() {}
 
     /** One full-strength swing at a fresh NoAI zombie; returns the health it lost.
-     *  <p>Moved verbatim from {@code AgentGameTestServer#probeSwing} (P1.6 Task 2);
+     *  <p>Moved from {@code AgentGameTestServer#probeSwing} (P1.6 Task 2);
      *  {@code FakePlayer fp} → {@link ServerPlayer fp}, driver param → common
-     *  {@link ServerWorldDriver}. */
+     *  {@link ServerWorldDriver}.
+     *  <p>No longer verbatim: the target is made fire-proof and its i-frames are cleared at
+     *  the instant of the swing. Both lines exist to keep the environment OUT of the
+     *  measurement — see the comments at each. The legacy body could omit them only because
+     *  its arena could not tick an entity, so its zombie could never burn. */
     public static float probeSwing(ServerLevel level, ServerWorldDriver driver, ServerPlayer fp,
                                     ItemStack weapon, int cx, int floorY, int cz) {
         fp.getInventory().clearContent();
@@ -45,22 +50,32 @@ public final class SimProbes {
         var kbr = z.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.KNOCKBACK_RESISTANCE);
         if (kbr != null) kbr.setBaseValue(1.0);
         z.setInvulnerable(false);
+        // The target burns without this. Arenas only started ticking entities on 2026-08-05, and
+        // the harness does not pin world time, so a sun-sensitive mob under open sky ignites on a
+        // per-tick dice roll (Zombie#aiStep -> isSunBurnTick) — which is exactly why the resulting
+        // failure was intermittent. One fire tick then refuses the whole measurement: inside
+        // i-frames vanilla only lets a hit through when it EXCEEDS lastHurt, and a bare fist's 1.0
+        // does not exceed a fire tick's 1.0, so probeSwing returned a flat 0. Fire resistance keeps
+        // the burn out of the damage math without touching melee (it is read only by
+        // isInvulnerableTo, never by actuallyHurt).
+        z.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, -1, 0, false, false));
         level.addFreshEntity(z);
         for (int i = 0; i < 3; i++) level.tick(() -> true);
         // Full recharge: step() is the only thing that advances the FakePlayer's ticker.
         fp.resetAttackStrengthTicker();
         for (int i = 0; i < 30; i++) driver.avatar().step();
+        // Belt to the effect's braces: whatever hurt the target, i-frame residue must not be able
+        // to refuse the swing. Zeroing this forces vanilla's else-branch, which overwrites lastHurt
+        // instead of comparing against it. Nothing ticks between here and attackEntity, so neither
+        // the fire nor the i-frames can come back.
+        if (z.invulnerableTime > 0 || !z.isAlive())
+            net.magicterra.worlddriver.WorldDriverCommon.LOG.warn(
+                    "[probeSwing] target compromised before the swing: weapon={} hp={} fire={} invT={} alive={}",
+                    weapon.isEmpty() ? "bare" : weapon.getItem(), z.getHealth(),
+                    z.getRemainingFireTicks(), z.invulnerableTime, z.isAlive());
+        z.setRemainingFireTicks(0);
+        z.invulnerableTime = 0;
         float before = z.getHealth();
-        // Everything that can zero this measurement, recorded at the instant of the swing. The
-        // target only started ticking on 2026-08-05 (arenas could not tick entities before that),
-        // so it can now burn, carry i-frames from that burn, or be dead by the time we swing —
-        // and a swing no larger than the last hit is refused outright by vanilla.
-        net.magicterra.worlddriver.WorldDriverCommon.LOG.warn(
-                "[probeSwing] weapon={} zHp={} fire={} invT={} alive={} strength={} atk={} day={}",
-                weapon.isEmpty() ? "bare" : weapon.getItem(), before, z.getRemainingFireTicks(),
-                z.invulnerableTime, z.isAlive(), fp.getAttackStrengthScale(0.5f),
-                fp.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE),
-                level.getDayTime() % 24000L);
         driver.avatar().attackEntity(z);
         float lost = before - z.getHealth();
         z.discard();

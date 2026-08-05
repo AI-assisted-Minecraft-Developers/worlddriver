@@ -241,6 +241,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `data == "minecraft:player"` (a scalar payload) is unaffected.
 
 ### Fixed
+- **`wd.gearScope` failed at random because its target was on fire.** The scene reported
+  "rig broken: a bare-handed swing dealt no damage at all" on roughly one run in three,
+  which read as a driver regression and is not one. Arenas only began ticking entities on
+  2026-08-05 and the harness does not pin world time, so the probe's zombie — NoAI, under
+  open sky — ignites on a per-tick dice roll (`Zombie#aiStep` → `isSunBurnTick`). That is
+  the whole of the intermittency. One fire tick then refuses the entire measurement: inside
+  i-frames vanilla only lets a hit through when it *exceeds* `lastHurt`, and a bare fist's
+  1.0 does not exceed a fire tick's 1.0, so `probeSwing` returned a flat 0.
+
+  The target now carries fire resistance, which keeps the burn out of the damage math
+  without touching melee (`FIRE_RESISTANCE` is read by `isInvulnerableTo`, never by
+  `actuallyHurt`), and its i-frames are zeroed at the instant of the swing so residue from
+  *any* source cannot refuse it. The avatar had this protection all along via
+  `grantWaterEffects`; only the target went without.
+
+  A/B'd against the failing state injected deterministically, so the "before" leg fails
+  every run instead of one in three. Before: `bareHand=0.0`, `ironSword=4.92` — the sword
+  showing the same rule from the other side, `6.0` less `lastHurt`. After, same injection:
+  `bareHand=0.94000053`, `ironSword=5.9040003`, the exact values this scene has always
+  recorded. With the injection removed the new diagnostic never fires, so the burn is not
+  merely survived — it no longer happens.
+
 - **The walker could not break a single block on a client. Every dig site now drives the
   destroy directly.** The seven break sites under `bot/movement/` did `breakHold(true)` and
   waited for vanilla's `continueAttack → continueDestroyBlock` pipeline, which is gated on
