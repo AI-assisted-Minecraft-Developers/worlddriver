@@ -81,6 +81,7 @@ wd.replayRoundTrip
 wd.clientChatLogSemantics
 wd.clientSettingSchema
 wd.fullInventoryVisible
+wd.attackCooldownSurface
 # P4b wave 5 — CombatSense family (2 migrated from AgentGameTestCombatSense; single-tick NoAI, time-independent)
 wd.threatScanZombie
 wd.threatScanHurtAttacker

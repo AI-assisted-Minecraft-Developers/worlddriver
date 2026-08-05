@@ -107,7 +107,8 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 Scene.of("wd.replayRoundTrip", 400, WorldDriverCoreScenes::replayRoundTrip),
                 Scene.of("wd.clientChatLogSemantics", 200, WorldDriverCoreScenes::clientChatLogSemantics),
                 Scene.of("wd.clientSettingSchema", 200, WorldDriverCoreScenes::clientSettingSchema),
-                Scene.of("wd.fullInventoryVisible", 200, WorldDriverCoreScenes::fullInventoryVisible));
+                Scene.of("wd.fullInventoryVisible", 200, WorldDriverCoreScenes::fullInventoryVisible),
+                Scene.of("wd.attackCooldownSurface", 300, WorldDriverCoreScenes::attackCooldownSurface));
     }
 
     /** Inlined from {@code AgentGameTestSupport#buildFloor}: 11×11 stone floor at {@code floorY},
@@ -1041,6 +1042,67 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         expectSlot(ctx, bySlot, 20, "minecraft:emerald", "7");
         expectSlot(ctx, bySlot, 35, "minecraft:gold_ingot", "3");
         ctx.record("slotsSeen", String.valueOf(bySlot.size()));
+    }
+
+    /**
+     * The melee attack-cooldown surface exists, reads consistently at idle, and follows the weapon.
+     *
+     * <p>Ported from {@code instrument_client.py}'s {@code obs.attackCooldown} — the #45 permanent
+     * assertion. The cooldown {@code CombatProcess} gates every swing on used to reach the agent as
+     * zero bytes, so what is asserted is the SURFACE: the four fields are present, an idle read is
+     * internally consistent, and — the actual point — {@code fullCooldownTicks} is derived from the
+     * held weapon's attack-speed attribute rather than being a constant.
+     *
+     * <p>Deliberately NOT asserted, carried over from the original: that {@code strengthScale} dips
+     * right after a swing. That is racy against the ~5-tick bare-hand recharge and would trade a
+     * permanent assertion for a flaky one.
+     *
+     * <p>Two sequential awaits rather than nested ones — steps drain in registration order, so the
+     * second condition is only ever evaluated after the first has run and staged the sword.
+     */
+    private static void attackCooldownSurface(SceneContext ctx) {
+        String name = ctx.player().getGameProfile().getName();
+        ctx.cleanup(() -> ctx.command(
+                "item replace entity " + name + " weapon.mainhand with minecraft:air"));
+        ctx.command("item replace entity " + name + " weapon.mainhand with minecraft:air");
+
+        AtomicReference<Integer> bareRef = new AtomicReference<>();
+        ctx.await(() -> Boolean.TRUE.equals(attackSnap(name).get("ready"))).within(60).then(() -> {
+            Map<?, ?> snap = attackSnap(name);
+            for (String k : new String[]{"strengthScale", "ready", "cooldownTicks", "fullCooldownTicks"})
+                ctx.expect(snap.containsKey(k)).as("AttackSnap carries " + k).isEqualTo(true);
+            ctx.expect(String.valueOf(snap.get("cooldownTicks"))).as("idle cooldownTicks").isEqualTo("0");
+            ctx.expect(snap.get("strengthScale") instanceof Number n && n.doubleValue() >= 1.0)
+                    .as("idle strengthScale is fully recharged").isEqualTo(true);
+            int bare = snap.get("fullCooldownTicks") instanceof Number n ? n.intValue() : -1;
+            // A live attribute read, not a hardcoded constant: bare-hand attack speed 4.0/s means
+            // ceil(20/4) = 5 ticks. If vanilla ever retunes that, this is supposed to notice.
+            ctx.expect(bare).as("bare-hand fullCooldownTicks (attack speed 4.0 -> ceil(20/4))")
+                    .isEqualTo(5);
+            bareRef.set(bare);
+            ctx.record("bareFullCooldownTicks", String.valueOf(bare));
+            ctx.command("item replace entity " + name
+                    + " weapon.mainhand with minecraft:netherite_sword");
+        });
+
+        ctx.await(() -> {
+            Integer bare = bareRef.get();
+            return bare != null && attackSnap(name).get("fullCooldownTicks") instanceof Number n
+                    && n.intValue() > bare;
+        }).within(60).then(() -> {
+            int sword = attackSnap(name).get("fullCooldownTicks") instanceof Number n ? n.intValue() : -1;
+            ctx.expect(sword > bareRef.get())
+                    .as("a slower weapon lengthens fullCooldownTicks, so the snapshot reads the"
+                            + " held item's attack speed rather than a fixed number").isEqualTo(true);
+            ctx.record("swordFullCooldownTicks", String.valueOf(sword));
+        });
+    }
+
+    /** {@code mc.observe.player}'s AttackSnap for one named player, or empty when absent. */
+    private static Map<?, ?> attackSnap(String name) {
+        Object obs = WorldDriverCommon.api().route("mc.observe.player", Map.of("name", name));
+        Object attack = obs instanceof Map<?, ?> m ? m.get("attack") : null;
+        return attack instanceof Map<?, ?> a ? a : Map.of();
     }
 
     /** One staged slot, named by number so a regression says which quarter of the bag went missing. */
