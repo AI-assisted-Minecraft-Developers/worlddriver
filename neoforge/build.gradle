@@ -40,7 +40,7 @@ dependencies {
     shadowBundle project(path: ':common', configuration: 'transformProductionNeoForge')
 
     // DEV-ONLY: put the StageWright mod on the dev run classpath so dogfoodServer /
-    // stagewrightClient / t2Server boot with both mods, the way a production install would
+    // every headless run boots with both mods, the way a production install would
     // (worlddriver.jar + stagewright.jar side by side). `modLocalRuntime` is never published
     // and never bundled — it is the build-graph equivalent of `testImplementation junit`.
     // A `mod*` configuration, so loom DOES remap this one: the published jar is
@@ -89,7 +89,7 @@ dependencies {
 // set now carries NO test java of its own — it survives purely as the delivery vehicle
 // that folds :common's testmod OUTPUT+resources into worlddriver's dev-run module (via
 // the loom mods{} block below) and onto the `source sourceSets.testmod` runs
-// (runDogfoodServer / stagewrightClient / t2Server) so ServiceLoader discovers the wd.*
+// (runDogfoodServer and the self-driving topologies) so ServiceLoader discovers the wd.*
 // scenes. Deleting it would silently drop all scene delivery — keep it.
 // Classpath wiring mirrors the stagewright gradle-plugin's
 // testmod convention (testmod sees main's OUTPUT plus main's own compile/runtime
@@ -224,65 +224,9 @@ loom {
             // contract is scene-independent by design.)
             source sourceSets.testmod
         }
-        // P2c Task 4 (T1 topology, neoforge parity): a real CLIENT JVM with the
-        // stagewright harness armed (-Dstagewright.autorun=true), mirroring fabric's
-        // stagewrightClient. When t1.py --loader neoforge drives it into a singleplayer
-        // world, the INTEGRATED server's SERVER_STARTED fires the same StageWrightCommon
-        // hook the dedicated dogfoodServer uses — so the 9 wd.* scenes run on an
-        // integrated neoforge server = the client-topology parity this task closes
-        // (T0 dedicated already ran on both loaders; P1.6 proved fabric==neoforge
-        // byte-identity there). Autorun defaults ON; t1.py launches once with
-        // -Pt1Autorun=false to MINT a pristine (scene-free) template world, archives
-        // it, then launches normally (autorun ON) on a fresh COPY — keeping the
-        // reused world byte-clean for the wd.selfShaftDigUp inverted-lottery signature.
-        // Ephemeral agent ports (0 = random) so it never competes with a live dev
-        // client; the orchestrator discovers the port via run-t1/worlddriver-rpc.port.
-        // DISPLAY is supplied by t1.py's environment (self-managed Xvfb), NOT here.
-        // Excluded from the configureEach guard below (like contractServer) so it
-        // manages its own -Xmx and worlddriver.runValidation (neoforge's guard, unlike
-        // fabric's, pins no agent ports — the exclusion is heap/validation only).
-        stagewrightClient {
-            client()
-            property 'stagewright.autorun', project.findProperty('t1Autorun') ?: 'true'
-            property 'worlddriver.rpcPort', '0'
-            property 'worlddriver.mcpPort', '0'
-            runDir 'run-t1'
-            vmArg '-Xmx2g'
-            // P4a Task 2: integrated-server topology needs the moved wd.* scenes +
-            // SceneProvider too (t1.py drives this client into a world whose
-            // integrated server autoruns them). Same testmod attach as dogfoodServer.
-            source sourceSets.testmod
-        }
-        // P3a Task 2 (T2 production topology, neoforge parity): a plain DEDICATED server
-        // carrying worlddriver + the stagewright harness with autorun DEFAULT OFF
-        // (-Pt2Autorun ?: 'false'), mirroring fabric's t2Server. Arms the harness
-        // armed-awaiting (registers mc.test.* verbs via the now-unconditional loader
-        // forwarding) so a real stagewrightClient (run-t1) can direct-connect over multiplayer
-        // and t2.py can drive the dual-end probe. Ephemeral agent ports (0 = random); the
-        // multiplayer listen socket is pinned in run-t2/server.properties (25596, distinct
-        // from fabric's 25597 and dogfood's 25599) which t2.py generates-and-pins. Excluded
-        // from the configureEach guard below (like contractServer/stagewrightClient) so it
-        // manages its own -Xmx and ephemeral ports.
-        t2Server {
-            server()
-            property 'stagewright.autorun', project.findProperty('t2Autorun') ?: 'false'
-            property 'worlddriver.rpcPort', '0'
-            property 'worlddriver.mcpPort', '0'
-            runDir 'run-t2'
-            vmArg '-Xmx2g'
-            // P4a Task 2: T2 production-topology dedicated server exposes mc.test.run
-            // which registers builtin + SceneProvider scenes; the wd.* scenes moved
-            // to :common testmod, so attach it here (like dogfoodServer/stagewrightClient).
-            source sourceSets.testmod
-        }
-
-        // ---- Self-driving topologies. No orchestrator process. ----
-        //
-        // These three replaced the orchestrator-driven pair. stagewrightClient and t2Server are now
-        // ORPHANED — the scripts that drove them from outside (pool.py, instrument_client.py, t1.py,
-        // t2.py) are deleted, and nothing else names them; instrument.py, the one surviving
-        // orchestrator, drives runContractServer. They are inert config kept only until the run
-        // configs and their classpath/port filters below can be unpicked in one go.
+        // These replaced the orchestrator-driven pair (stagewrightClient in run-t1, t2Server in
+        // run-t2), deleted along with the scripts that drove them from outside. The only
+        // orchestrator left, instrument.py, drives runContractServer and needs neither.
         //
         // Everything the orchestrators used to supply — enter a world, dial a server, wait for a
         // player, exit when finished — is a system property the harness reads for itself.
@@ -324,10 +268,9 @@ loom {
         }
     }
     runConfigs.configureEach {
-        // contractServer, stagewrightClient and t2Server manage their own -Xmx (contractServer 1g;
-        // stagewrightClient/t2Server their own 2g cap), so exclude them from the guard's default
+        // contractServer manages its own -Xmx (1g), so exclude it from the guard's default
         // heap/runValidation pinning below. The three self-driving topologies do the same.
-        if (it.name == 'contractServer' || it.name == 'stagewrightClient' || it.name == 't2Server'
+        if (it.name == 'contractServer'
                 || it.name.startsWith('stagewrightIntegrated')
                 || it.name.startsWith('stagewrightDedicated')
                 || it.name.startsWith('stagewrightJoining')) return

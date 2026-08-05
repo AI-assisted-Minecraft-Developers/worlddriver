@@ -36,8 +36,8 @@ dependencies {
     common(project(path: ':common', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':common', configuration: 'transformProductionFabric')
 
-    // DEV-ONLY: put the StageWright mod on the dev run classpath so dogfoodServer /
-    // stagewrightClient / t2Server boot with both mods, the way a production install would
+    // DEV-ONLY: put the StageWright mod on the dev run classpath so every headless run
+    // boots with both mods, the way a production install would
     // (worlddriver.jar + stagewright.jar side by side). `modLocalRuntime` is never published
     // and never bundled — it is the build-graph equivalent of `testImplementation junit`.
     // A `mod*` configuration, so loom DOES remap this one: the published jar is
@@ -77,7 +77,7 @@ dependencies {
 // every legacy @GameTest arena to a dogfooded wd.* scene, P4-final retired the GameTestServer
 // machinery) all scenes + SimProbes + the SceneProvider service live in :common's testmod.
 // This source set is therefore empty of sources — it exists purely as the run `source`
-// carrier so dogfoodServer/stagewrightClient/t2Server keep main's full runtimeClasspath AND
+// carrier so the headless runs keep main's full runtimeClasspath AND
 // gain :common's testmod OUTPUT+resources.
 //
 // Fabric-vs-neoforge difference (documented honestly per the brief): fabric has NO JPMS
@@ -197,66 +197,11 @@ loom {
             // is deliberately NOT given this — the instrument contract is scene-independent.)
             source sourceSets.testmod
         }
-        // P2b Task 1 (T1 topology): a real CLIENT JVM with the stagewright harness
-        // armed (-Dstagewright.autorun=true). When t1.py drives it into a singleplayer
-        // world, the INTEGRATED server's SERVER_STARTED fires the same StageWrightCommon
-        // hook the dedicated dogfoodServer uses — so the 9 wd.* scenes run on an
-        // integrated server for the first time = topology proof. Ephemeral agent
-        // ports (0 = random) so it never competes with a live dev client on
-        // 39800/39801; the orchestrator discovers the port via run-t1/worlddriver-rpc.port.
-        // DISPLAY is supplied by t1.py's environment (self-managed Xvfb), NOT here.
-        // Excluded from the configureEach port-pinning guard below (same as the
-        // dedicated dogfood/contract runs) so the ephemeral ports stick.
-        stagewrightClient {
-            client()
-            // Autorun defaults ON (scenes run when the integrated server starts). t1.py
-            // launches once with -Pt1Autorun=false to MINT a pristine template world (no
-            // scenes ever run in it → no arena-chunk pollution) and archive it, then
-            // launches normally (autorun ON) on a fresh COPY of that clean template. This
-            // keeps the reused world byte-clean, which the inverted-lottery signature
-            // scene wd.selfShaftDigUp is sensitive to (a template archived AFTER scenes
-            // ran flips its outcome — the "禁复用脏世界" world-discipline rule).
-            property 'stagewright.autorun', project.findProperty('t1Autorun') ?: 'true'
-            property 'worlddriver.rpcPort', '0'
-            property 'worlddriver.mcpPort', '0'
-            runDir 'run-t1'
-            vmArg '-Xmx2g'
-            // P4a Task 3: integrated-server topology needs the moved wd.* scenes +
-            // SceneProvider too (t1.py drives this client into a world whose integrated
-            // server autoruns them). Same testmod attach as dogfoodServer.
-            source sourceSets.testmod
-        }
-        // P3a Task 2 (T2 production topology): a plain DEDICATED server carrying BOTH
-        // worlddriver and the stagewright harness, but with autorun DEFAULT OFF
-        // (-Pt2Autorun ?: 'false'). Unlike dogfoodServer (autorun ON, scenes at boot),
-        // t2Server arms the harness armed-awaiting (StageWrightCommon logs "awaiting mc.test.run"
-        // and registers the mc.test.* verbs — now that loader forwarding is unconditional)
-        // and a REAL client (stagewrightClient in run-t1) direct-connects to it over multiplayer.
-        // t2.py orchestrates both processes and drives the dual-end probe. Ephemeral agent
-        // ports (0 = random) so it never competes with a live dev client or a dogfood run;
-        // the server-port (the multiplayer listen socket) is pinned in run-t2/server.properties
-        // (25597, distinct from dogfood's 25599) which t2.py generates-and-pins. Excluded from
-        // the configureEach guard below like the other testkit runs so its ephemeral ports stick.
-        t2Server {
-            server()
-            property 'stagewright.autorun', project.findProperty('t2Autorun') ?: 'false'
-            property 'worlddriver.rpcPort', '0'
-            property 'worlddriver.mcpPort', '0'
-            runDir 'run-t2'
-            vmArg '-Xmx2g'
-            // P4a Task 3: T2 production-topology dedicated server exposes mc.test.run
-            // which registers builtin + SceneProvider scenes; the wd.* scenes moved to
-            // :common testmod, so attach it here (like dogfoodServer/stagewrightClient).
-            source sourceSets.testmod
-        }
-
         // ---- Self-driving topologies. No orchestrator process. ----
         //
-        // These three replaced the orchestrator-driven pair. stagewrightClient and t2Server are now
-        // ORPHANED — the scripts that drove them from outside (pool.py, instrument_client.py, t1.py,
-        // t2.py) are deleted, and nothing else names them; instrument.py, the one surviving
-        // orchestrator, drives runContractServer. They are inert config kept only until the run
-        // configs and their classpath/port filters below can be unpicked in one go.
+        // These replaced the orchestrator-driven pair (stagewrightClient in run-t1, t2Server in
+        // run-t2), deleted along with the scripts that drove them from outside. The only
+        // orchestrator left, instrument.py, drives runContractServer and needs neither.
         //
         // Everything the orchestrators used to supply — enter a world, dial a server, wait for a
         // player, exit when finished — is a system property the harness reads for itself.
@@ -298,12 +243,11 @@ loom {
         }
     }
     runConfigs.configureEach {
-        // contractServer, dogfoodServer, stagewrightClient and t2Server pin their own ephemeral
-        // ports (worlddriver.rpcPort/mcpPort='0') so the headless suites never compete with a live
+        // contractServer and dogfoodServer pin their own ephemeral ports
+        // (worlddriver.rpcPort/mcpPort='0') so the headless suites never compete with a live
         // dev client on 39800/39801. Without this guard the defaults below would clobber that.
         // The three self-driving topologies do the same.
         if (it.name == 'contractServer' || it.name == 'dogfoodServer'
-                || it.name == 'stagewrightClient' || it.name == 't2Server'
                 || it.name.startsWith('stagewrightIntegrated')
                 || it.name.startsWith('stagewrightDedicated')
                 || it.name.startsWith('stagewrightJoining')) return
