@@ -70,6 +70,9 @@ stagewright {
             runTask = ':fabric:runStagewrightDedicatedServerWithClient'
             companionRunTask = ':fabric:runStagewrightJoiningClient'
             gameDirectory = file('fabric/run-stagewright-with-client')
+            // The client half probes the process boundary in its own JVM; without this its
+            // verdict would be written and never read.
+            companionResultsFile = file('fabric/run-stagewright-joining-client/stagewright-client-results.jsonl')
             expectFile = file('scripts/stagewright/expected-scenes-fabric.txt')
             virtualDisplay = true
             timeoutMinutes = 45
@@ -79,6 +82,9 @@ stagewright {
             runTask = ':neoforge:runStagewrightDedicatedServerWithClient'
             companionRunTask = ':neoforge:runStagewrightJoiningClient'
             gameDirectory = file('neoforge/run-stagewright-with-client')
+            // The client half probes the process boundary in its own JVM; without this its
+            // verdict would be written and never read.
+            companionResultsFile = file('neoforge/run-stagewright-joining-client/stagewright-client-results.jsonl')
             expectFile = file('scripts/stagewright/expected-scenes-neoforge.txt')
             virtualDisplay = true
             timeoutMinutes = 45
