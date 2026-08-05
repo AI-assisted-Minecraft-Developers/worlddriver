@@ -205,4 +205,6 @@ pack.drivesTheGame
 pack.runsCommands
 pack.standsOnSuperflatGround
 pack.standsOnGeneratedGround
+pack.runsAtTheFrozenNight
+pack.runsAtTheClockItAsked
 pack.knownQuirk

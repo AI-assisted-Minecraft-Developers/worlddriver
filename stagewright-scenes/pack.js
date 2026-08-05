@@ -130,6 +130,20 @@ scene("pack.standsOnGeneratedGround", 200, function (s) {
     s.record("surfaceY", s.originY());
 }, { terrain: "generated" });
 
+// The clock is held still for the whole run, at night, so nothing sun-sensitive can ignite on a
+// dice roll a scene did not ask for. This asserts the pin from inside a scene rather than trusting
+// the header that announces it.
+scene("pack.runsAtTheFrozenNight", 100, function (s) {
+    var t = s.command("time query daytime");
+    s.expect(String(t.result())).as("the default clock every scene gets").isEqualTo("18000");
+});
+
+// ...and a scene whose subject IS daylight says so, instead of being quietly hidden by that default.
+scene("pack.runsAtTheClockItAsked", 100, function (s) {
+    var t = s.command("time query daytime");
+    s.expect(String(t.result())).as("the clock this scene declared").isEqualTo("6000");
+}, { clock: "noon" });
+
 // Deliberately optional: it pins a thing the pack accepts rather than something it requires. A
 // failure here reports without failing the run.
 scene.optional("pack.knownQuirk", 100, function (s) {
