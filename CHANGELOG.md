@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Scenes run in a world StageWright holds still, and the two rigs that used to hold it
+  still for themselves stopped doing so.** The suite pins `dayTime` to a frozen midnight and
+  turns off `doDaylightCycle`, `doWeatherCycle` and `doMobSpawning`, announcing the list at
+  suite start and in the results header. This suite finishes inside `dayTime`≈130 — sunrise,
+  exactly where sky brightness crosses the threshold vanilla dice-rolls against to decide
+  whether a sun-sensitive mob ignites — which is why `wd.serverCombat`,
+  `wd.serverCombatCollectDrops` and
+  `SimProbes.probeSwing` had each independently grown a defence against the sun. The first two
+  now say nothing about time at all; `probeSwing` keeps its fire resistance because a caller
+  that legitimately asks for `Clock.NOON` must not get a different number out of it.
+  `pack.runsAtTheFrozenNight` / `pack.runsAtTheClockItAsked` assert the pin and the override
+  from inside a scene rather than trusting the header that announces them.
 - **`BotConfig.keepTickingUnfocused` (default true) — a driving bot no longer gets paused
   by an alt-tab.** Vanilla singleplayer pauses on lost focus; for a bot mid-task that stops
   the world partway through a goto/mine, and the `PauseScreen` it opens then sits

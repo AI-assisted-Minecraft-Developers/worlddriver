@@ -84,12 +84,10 @@ import net.minecraft.world.phys.Vec3;
  * avatar ticks inside a single server tick, so the server's own entity tick fires once for the whole
  * fight, and a target ticked once stays invulnerable after the first hit.
  *
- * <p><b>{@code wd.serverCombat} controlled-combat rig — daytime auto-burn protection copied verbatim.</b>
- * The zombie is {@code setNoAi(true)} + {@code setPersistenceRequired()} + max {@code KNOCKBACK_RESISTANCE}
- * and the level is pinned to {@code setDayTime(18000)} (night) so it cannot sun-burn to a false
- * fire-kill; it is re-pinned to its cell each drive iteration. This protection is the legacy rig's
- * verbatim — nothing tuned. (No {@code level.tick()} elapses for the zombie in daylight; the direct
- * {@code zombie.tick()} at night cannot ignite.)
+ * <p><b>{@code wd.serverCombat} controlled-combat rig.</b> The zombie is {@code setNoAi(true)} +
+ * {@code setPersistenceRequired()} + max {@code KNOCKBACK_RESISTANCE}, and it is re-pinned to its
+ * cell each drive iteration. It cannot sun-burn to a false fire-kill because StageWright pins the
+ * whole run to a frozen midnight — the scene used to do that for itself, and no longer has to.
  *
  * <p><b>{@code wd.serverWalkerDeepslateNoTool}</b> flips {@link ServerPlayerAvatar#faithfulBreak} (a
  * static NOT covered by {@code pinnedBaseline}) — saved/restored via its own {@code ctx.cleanup}.
@@ -880,13 +878,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         if (kbr != null) kbr.setBaseValue(1.0);
         level.addFreshEntity(zombie);
         ctx.cleanup(() -> zombie.discard());
-        // Post-review hygiene (P4c wave-9): restore the pre-scene dayTime on exit so this scene
-        // leaves the shared persistent world's clock untouched (the scene's own run still pins
-        // 18000 below — behaviour unchanged; this is cleanup-hygiene only, future-proofing against
-        // a later day-sensitive neighbour).
-        long savedDayTime = level.getDayTime();
-        ctx.cleanup(() -> level.setDayTime(savedDayTime));
-        level.setDayTime(18000);              // night → the zombie won't sun-burn (no false fire-kill)
+        // No night pin here any more: StageWright freezes every scene at midnight and says so in the
+        // run's results header, so the zombie cannot sun-burn to a false fire-kill.
 
         BotConfig.walkerDebug = false;
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
@@ -979,9 +972,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         drop.setNoGravity(true);              // stays put without needing item ticks
         level.addFreshEntity(drop);
         ctx.cleanup(() -> drop.discard());
-        long savedDayTime = level.getDayTime();
-        ctx.cleanup(() -> level.setDayTime(savedDayTime));
-        level.setDayTime(18000);              // night → no zombie sun-burn false kill
+        // Night comes from StageWright's suite-wide world pin, not from here.
 
         BotConfig.walkerDebug = false;
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;

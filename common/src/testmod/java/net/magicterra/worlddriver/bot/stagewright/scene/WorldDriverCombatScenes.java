@@ -34,10 +34,9 @@ import net.minecraft.world.phys.AABB;
  * source" hazard cannot fire here: burning requires the entity to tick in daylight over multiple
  * ticks, and this scan completes in the same tick the entity is added. The legacy rig carried NO
  * roof/helmet/night protection precisely because it never needed any (single-tick, NoAI); that
- * protection (NoAI + persistence) is copied verbatim. The dogfood world's time-of-day (a flat
- * survival world, doDaylightCycle default; neither {@code StageWrightHarness} nor
- * {@code applyGameTestBaseline} pin time) is therefore irrelevant to these two scenes — verified
- * observationally byte-identical across both loaders ×2 (see migration-log wave-5).
+ * protection (NoAI + persistence) is copied verbatim. Time of day is therefore irrelevant to these
+ * two scenes either way — verified observationally byte-identical across both loaders ×2 (see
+ * migration-log wave-5) back when the harness still let the world's clock run.
  *
  * <p><b>{@code makeMockPlayer} substitution.</b> The legacy used the GameTest-only
  * {@code helper.makeMockPlayer(GameType.SURVIVAL)} — a plain vulnerable {@link Player} (NOT a

@@ -50,10 +50,12 @@ public final class SimProbes {
         var kbr = z.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.KNOCKBACK_RESISTANCE);
         if (kbr != null) kbr.setBaseValue(1.0);
         z.setInvulnerable(false);
-        // The target burns without this. Arenas only started ticking entities on 2026-08-05, and
-        // the harness does not pin world time, so a sun-sensitive mob under open sky ignites on a
-        // per-tick dice roll (Zombie#aiStep -> isSunBurnTick) — which is exactly why the resulting
-        // failure was intermittent. One fire tick then refuses the whole measurement: inside
+        // The target burned without this before StageWright pinned the clock: arenas started ticking
+        // entities on 2026-08-05, and a sun-sensitive mob under open sky ignites on a per-tick dice
+        // roll (Zombie#aiStep -> isSunBurnTick) — which is exactly why the resulting failure was
+        // intermittent. Kept even though the run is now pinned to night, because this is a
+        // measurement helper: a caller that legitimately declares Clock.NOON must not silently get a
+        // different number out of it. One fire tick refuses the whole measurement: inside
         // i-frames vanilla only lets a hit through when it EXCEEDS lastHurt, and a bare fist's 1.0
         // does not exceed a fire tick's 1.0, so probeSwing returned a flat 0. Fire resistance keeps
         // the burn out of the damage math without touching melee (it is read only by
