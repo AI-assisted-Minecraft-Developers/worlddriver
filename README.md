@@ -57,22 +57,19 @@ string in text), so multimodal models receive the framebuffer as vision input.
 ### 1. Build & run the integration suite (no client needed)
 
 ```bash
-python3 scripts/stagewright/t0.py --loader neoforge \
-  --run-task :neoforge:runDogfoodServer \
-  --results neoforge/run-dogfood/stagewright-results.jsonl \
-  --expect-file scripts/stagewright/expected-scenes-neoforge.txt
-# → GREEN (exits non-zero on any failed scene)
+./gradlew stagewrightDedicatedServerNeoforge
+# → VERDICT: GREEN (exits non-zero on any failed scene)
 ```
 
 This dogfoods a dedicated server with the stagewright harness, autoruns the wd.*
 scenes (`common/src/testmod/.../scene/`) plus the `*.js` validation suite, and
-verifies the results stream against the expect-file. The stagewright orchestrators
-under `scripts/stagewright/` (`t0.py` + `instrument.py`) and the `./gradlew
-stagewright<Topology><Loader>` tasks are the CI gates — the legacy `@GameTest`/GameTestServer
-path was retired in P4-final, and `t1.py`/`t2.py` were replaced by the Gradle tasks for the
-two client topologies. The script entry points are shims: the orchestrators live in the
-StageWright repo, expected as a sibling checkout (`../stagewright`, override with
-`STAGEWRIGHT_HOME`).
+verifies the results stream against the expect-file. The `./gradlew
+stagewright<Topology><Loader>` tasks are the CI gates, one per topology and loader; the
+`Hold` variants of the same tasks publish an endpoint for the out-of-process suites in
+`:stagewright-junit`. The legacy `@GameTest`/GameTestServer path was retired in P4-final and
+the Python orchestrators that replaced it were deleted on 2026-08-05 — StageWright is a
+sibling checkout (`../stagewright`) consumed as published artifacts, and what remains in this
+repo is the per-loader `expected-scenes-*.txt` manifests.
 
 StageWright is consumed as **published artifacts**, not as a subproject, and the two repos
 depend on each other in opposite directions — so a fresh clone bootstraps in this order:
@@ -199,7 +196,7 @@ worlddriver/
 
 **Phase 1 (perceive + act + minimal client driving) is complete and verified end-to-end:**
 
-- All validation scripts + wd.* scenes pass under the stagewright gates (`scripts/stagewright/t0.py`, CI)
+- All validation scripts + wd.* scenes pass under the stagewright gates (`./gradlew stagewrightDedicatedServer<Loader>`, CI)
 - Every MCP tool reachable from Claude Code via `.mcp.json` with no extra wiring
 - Title-screen → world-load → tree-discovery loop demonstrated entirely through MCP
   (TitleScreen click → SelectWorldScreen click → world loads → `mc.query q='blocks'`

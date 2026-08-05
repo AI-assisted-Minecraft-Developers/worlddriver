@@ -5,12 +5,6 @@ run/
 run-stagewright/
 run-dogfood/
 run-contract/
-run-t1/
-run-t2/
-scripts/stagewright/.t1-world-template-*/
-scripts/stagewright/.t2-world-template-*/
-scripts/stagewright/.pool-state.json
-scripts/stagewright/.pool-state.lock
 .idea/
 *.log
 # log4j2 rolls latest.log into dated .gz archives, which *.log does not cover;

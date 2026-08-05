@@ -33,16 +33,14 @@ dogfood a dedicated server with the harness and autorun the wd.* scenes + JS
 suite (the legacy `@GameTest`/GameTestServer path was retired in P4-final):
 
 ```bash
-python3 scripts/stagewright/t0.py --loader neoforge \
-  --run-task :neoforge:runDogfoodServer \
-  --results neoforge/run-dogfood/stagewright-results.jsonl \
-  --expect-file scripts/stagewright/expected-scenes-neoforge.txt
-# → GREEN (exits non-zero on any failed scene)
+./gradlew stagewrightDedicatedServerNeoforge
+# → VERDICT: GREEN (exits non-zero on any failed scene)
 ```
 
-`t0.py` (dogfood) plus `instrument.py` are the gates that need to pass before a
-PR is mergeable. Any new behavior should add a corresponding `*.js` validation
-script and an assertion in the existing tests.
+That gate, plus the instrument contract in `:stagewright-junit` run against a
+`stagewrightDedicatedServer<Loader>Hold`, are what need to pass before a PR is mergeable. Any
+new behavior should add a corresponding `*.js` validation script and an assertion in the
+existing tests.
 
 ## Run a client (interactive)
 
@@ -112,7 +110,8 @@ Never write logs to the project root or to a top-level `logs/` directory.
 
 1. Branch from `main`.
 2. Make the change. Add or update a validation script if behavior changed.
-3. The testkit gates (`scripts/stagewright/t0.py` + `instrument.py`) must be green.
+3. The gates (`./gradlew stagewrightDedicatedServer<Loader>`, plus the instrument contract
+   over a hold) must be green.
 4. Open a PR with:
    - A one-line summary of *what* and *why*.
    - The validation script(s) that prove it.

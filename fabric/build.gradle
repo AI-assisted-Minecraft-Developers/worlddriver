@@ -179,8 +179,8 @@ loom {
         }
         // P1.6 Task 3: dogfood run — a plain dedicated server with BOTH worlddriver
         // and the stagewright harness loaded, autorun gate ON, mirroring
-        // neoforge/build.gradle's dogfoodServer. Proves the testkit orchestrator
-        // (t0.py) generalizes to the feature-loaded fabric loader. Ephemeral agent
+        // neoforge/build.gradle's dogfoodServer. Proves the harness generalizes to the
+        // feature-loaded fabric loader. Ephemeral agent
         // ports (0 = random) so it never competes with a live dev client on 39800/39801
         // — and it is excluded from the configureEach port-pinning guard below (P1b lesson).
         dogfoodServer {
@@ -200,8 +200,8 @@ loom {
         // ---- Self-driving topologies. No orchestrator process. ----
         //
         // These replaced the orchestrator-driven pair (stagewrightClient in run-t1, t2Server in
-        // run-t2), deleted along with the scripts that drove them from outside. The only
-        // orchestrator left, instrument.py, drives runContractServer and needs neither.
+        // run-t2), deleted along with the scripts that drove them from outside. No orchestrator
+        // process remains: the last two went on 2026-08-05.
         //
         // Everything the orchestrators used to supply — enter a world, dial a server, wait for a
         // player, exit when finished — is a system property the harness reads for itself.
@@ -273,10 +273,10 @@ loom {
 }
 
 // The scene scripts a modpack author would ship, delivered into the dogfood run the way a pack
-// delivers them: config/stagewright/scenes. t0.py drives runDogfoodServer directly rather than one
-// of the stagewright plugin's topology tasks, so the plugin's own sceneScripts provisioning never
-// runs for this gate — without this the run reads whatever copy was last left in the directory. It
-// read a two-day-old one, and the expect-file gate caught it only because a scene had been added.
+// delivers them: config/stagewright/scenes. The gate task provisions these itself, so this exists
+// for the BARE `:fabric:runDogfoodServer` — run that directly and nothing else installs the scenes,
+// leaving whatever copy the directory last held. It held a two-day-old one, and the expect-file
+// gate caught it only because a scene had been added.
 // Sync rather than Copy: a scene deleted upstream must not keep running here.
 def installDogfoodScenes = tasks.register('installDogfoodScenes', Sync) {
     from rootProject.file('stagewright-scenes')

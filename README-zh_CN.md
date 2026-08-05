@@ -57,19 +57,17 @@
 ### 1. 跑集成测试（不需要客户端）
 
 ```bash
-python3 scripts/stagewright/t0.py --loader neoforge \
-  --run-task :neoforge:runDogfoodServer \
-  --results neoforge/run-dogfood/stagewright-results.jsonl \
-  --expect-file scripts/stagewright/expected-scenes-neoforge.txt
-# → GREEN（任何一个场景挂掉就非零退出）
+./gradlew stagewrightDedicatedServerNeoforge
+# → VERDICT: GREEN（任何一个场景挂掉就非零退出）
 ```
 
 这会用 stagewright harness dogfood 一个 dedicated server，autorun wd.* 场景
 （`common/src/testmod/.../scene/`）加上 `*.js` 校验套件，并把结果流对照 expect-file
-校验。`scripts/stagewright/` 下的编排器（`t0.py` + `instrument.py`）与
-`./gradlew stagewright<Topology><Loader>` 任务共同构成 CI 正门 —— 旧的
-`@GameTest`/GameTestServer 路径已在 P4-final 退役，两个客户端拓扑的 `t1.py`/`t2.py`
-已由 Gradle 任务取代。
+校验。CI 正门就是 `./gradlew stagewright<Topology><Loader>` 任务，每个拓扑 × 每个 loader
+一个；同名的 `Hold` 变体把端点发布出来，供 `:stagewright-junit` 里的进程外套件 attach。旧的
+`@GameTest`/GameTestServer 路径已在 P4-final 退役，接替它的那批 Python 编排器也已于
+2026-08-05 删除 —— StageWright 是同级 checkout（`../stagewright`），以发布产物形式消费，本仓
+留下的只有各 loader 的 `expected-scenes-*.txt` 清单。
 
 ### 2. 跑客户端，接 MCP 客户端
 
@@ -179,7 +177,7 @@ worlddriver/
 
 **Phase 1（感知 + 行动 + 最小客户端驱动）已端到端跑通：**
 
-- stagewright 正门（`scripts/stagewright/t0.py`）全套校验脚本 + wd.* 场景绿（用作 CI）
+- stagewright 正门（`./gradlew stagewrightDedicatedServer<Loader>`）全套校验脚本 + wd.* 场景绿（用作 CI）
 - 全部 MCP 工具，Claude Code 走 `.mcp.json` 就能接通，无需额外配置
 - 完整闭环演示：TitleScreen 点击 → SelectWorldScreen 点击 → 世界加载 →
   `mc.query q='blocks'` 扫到 17 棵树 → 锁定出生点旁那棵 `(0, 67, 1)` 的橡木 →

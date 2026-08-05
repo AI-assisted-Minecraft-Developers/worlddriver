@@ -11,38 +11,25 @@ etc.) working in this project. Keep it short and authoritative.
   Every transport (MCP HTTP, WebSocket RPC, in-JVM Rhino) routes through
   `DriverApi.route(method, params)`. Do **not** add game-affecting behavior
   in a transport — add it in DriverApi, expose it through all three.
-- **Tests**: the stagewright orchestrators under `scripts/stagewright/` are the
-  canonical integration gates (the legacy `@GameTest` suite and its
-  GameTestServer machinery were retired in P4-final). The gates:
-  - `t0.py` — dogfood a dedicated server, autorun the wd.* scenes, and verify
-    the results stream against an expect-file (`--loader <fabric|neoforge>
-    --run-task :<loader>:runDogfoodServer --results <loader>/run-dogfood/stagewright-results.jsonl
-    --expect-file scripts/stagewright/expected-scenes-<loader>.txt`).
-  - `instrument.py --loader <loader>` — the 23/23 instrument contract.
-  - `./gradlew stagewright<Topology><Loader>` — the other two topologies, as Gradle
-    tasks rather than Python. `Topology` is `IntegratedServer` (a client that opens its
-    own world, so the same scenes run under an integrated server) or
+- **Tests**: the StageWright gates are Gradle tasks in this build (the legacy `@GameTest`
+  suite and its GameTestServer machinery were retired in P4-final; the Python orchestrators
+  that replaced them are gone too, as of 2026-08-05):
+  - `./gradlew stagewright<Topology><Loader>` — provision a clean run directory, run the
+    game, judge the results against the orchestration contract. `Topology` is
+    `DedicatedServer` (headless, the wd.* scene suite), `IntegratedServer` (a client that
+    opens its own world, so the same scenes run under an integrated server) or
     `DedicatedServerWithClient` (a headless server with a real client joined to it);
-    `Loader` is `Fabric` or `Neoforge`. Each provisions a clean run directory, runs the
-    game, and judges the results against the same contract. `DedicatedServer<Loader>`
-    also exists and writes the same `run-dogfood` directory `t0.py` does.
+    `Loader` is `Fabric` or `Neoforge`.
+  - `./gradlew stagewright<Topology><Loader>Hold` — the same topology, standing still, with
+    a `TESTKIT_ENDPOINT` descriptor published into its run directory once the game is in a
+    world. Ends on Ctrl-C. Everything that asserts from OUTSIDE the game attaches to one of
+    these — the 26-check instrument contract and the UI tests both live in
+    `:stagewright-junit` and are gated by which face the hold has. Commands below.
 
-  These replaced `t1.py` and `t2.py`, which are gone. The remaining orchestrators live in
-  the **StageWright** repo — `scripts/stagewright/` holds thin shims that delegate to it
-  and pin `--project-root` to this repo. StageWright is expected as a sibling checkout
-  (`../stagewright`); point `STAGEWRIGHT_HOME` elsewhere if it is not. What stays here is
-  consumer data: the per-loader `expected-scenes-*.txt` manifests.
-
-  While writing or debugging a single scene, narrow the run rather than paying for all 191:
-  `./gradlew stagewrightDedicatedServerFabric -Pstagewright.scenes=wd.gearScope` (~47s against
-  ~1m52s; `*` globs, comma-separates). Such a run reports
-  `GREEN (FILTERED — not a gate result)` and skips expect-file reconciliation, so it is a dev
-  loop and never a gate — re-run unfiltered before you believe anything.
-
-  On `DedicatedServerWithClient` the companion client ALSO writes a results file of its
-  own (`run-stagewright-joining-client/stagewright-client-results.jsonl`), judged beside
-  the server's. It holds the assertions no scene can make, because every scene body runs
-  on the server thread and that topology's client is a different process.
+  What stays in this repo is consumer data: the per-loader `expected-scenes-*.txt` manifests
+  under `scripts/stagewright/`, named by the topology declarations in `build.gradle`.
+  StageWright itself is expected as a sibling checkout (`../stagewright`) and consumed as
+  published artifacts from `mavenLocal`.
 
 - **StageWright is a dependency, not a subproject.** It is consumed only as published
   artifacts (`stagewright_version` / `stagewright_plugin_version` in `gradle.properties`):
@@ -54,8 +41,8 @@ etc.) working in this project. Keep it short and authoritative.
   `../stagewright/build.gradle` — publish `worlddriver-common` first, then StageWright, then
   build here. Skipping step 1 fails with an unresolved `worlddriver-common:<ver>:dev`.
 
-  Verdict = each orchestrator exits 0 (GREEN). The scenes live in `:common`'s
-  testmod source set and are delivered into dev runs via the testmod bridge.
+  Verdict = each gate task exits 0 (GREEN). The scenes live in `:common`'s testmod source
+  set and are delivered into dev runs via the testmod bridge.
 
   For code that needs **no running game** — the transports, the codec, pure
   helpers — there is now a JUnit 5 source set at `common/src/test`, run by
@@ -138,7 +125,7 @@ etc.) working in this project. Keep it short and authoritative.
    per-site reason; shrink that list, never grow it. If you must add one, make
    the degradation loud (log once) and say so in the entry.
 10. **Don't change a `[walker]` / `[expect]` log format without its consumers.**
-    Gate: `python3 scripts/check_log_contract.py` (after a t0 — it reads that
+    Gate: `python3 scripts/check_log_contract.py` (after a dedicated-server gate run — it reads that
     run's `latest.log`). Five dev tools recover bot state by regexing those
     lines, and a regex that stops matching does not raise: it returns nothing,
     and the tool reports "no ticks" as though the bot never moved. The emitters
@@ -185,20 +172,21 @@ unexpected location, treat it as a leftover and delete it — do not commit it.
 # Build everything
 ./gradlew build
 
-# Integration tests (use as CI) — stagewright orchestrators, see scripts/stagewright/
-python3 scripts/stagewright/t0.py --loader neoforge \
-  --run-task :neoforge:runDogfoodServer \
-  --results neoforge/run-dogfood/stagewright-results.jsonl \
-  --expect-file scripts/stagewright/expected-scenes-neoforge.txt
-python3 scripts/stagewright/instrument.py --loader neoforge   # 23/23 instrument contract
+# Integration tests (use as CI)
+./gradlew stagewrightDedicatedServerNeoforge                  # the wd.* scene suite, headless
 ./gradlew stagewrightIntegratedServerFabric                   # integrated-server parity
 ./gradlew stagewrightDedicatedServerWithClientFabric          # production topology, both halves
 
-# Out-of-process UI tests. Two terminals: the hold publishes an endpoint, the tests attach to it.
-# With TESTKIT_ENDPOINT unset those tests SKIP rather than fail, so a green run without it is not
-# coverage.
-./gradlew stagewrightIntegratedServerFabricHold               # Ctrl-C ends the hold
-TESTKIT_ENDPOINT=$PWD/fabric/run-stagewright-integrated/stagewright-endpoint.json   ../stagewright/gradlew -p ../stagewright :stagewright-junit:test --rerun-tasks
+# Out-of-process tests. Two terminals: the hold publishes an endpoint, the tests attach to it.
+# WHICH hold decides which half runs — the suite is face-gated and the other half skips with a
+# reason. With TESTKIT_ENDPOINT unset BOTH halves skip, so a green run without it is not coverage.
+./gradlew stagewrightDedicatedServerFabricHold                # server face: 26 instrument checks
+TESTKIT_ENDPOINT=$PWD/fabric/run-dogfood/stagewright-endpoint.json \
+  ../stagewright/gradlew -p ../stagewright :stagewright-junit:test --rerun-tasks
+
+./gradlew stagewrightIntegratedServerFabricHold               # client face: 6 UI tests
+TESTKIT_ENDPOINT=$PWD/fabric/run-stagewright-integrated/stagewright-endpoint.json \
+  ../stagewright/gradlew -p ../stagewright :stagewright-junit:test --rerun-tasks
 
 # Interactive client (pin ports so .mcp.json keeps working)
 JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39800 -Dworlddriver.rpcPort=39801" \
@@ -216,7 +204,8 @@ scripts/smoke-test-react.sh
 3. Add a corresponding validation script under `validation/` that
    exercises it through all three transports and asserts byte-identical
    results (see `06_rpc_parity.js` / `07_mcp_parity.js` for the pattern).
-4. Re-run the testkit gates (`scripts/stagewright/t0.py` + `instrument.py`) — they must stay green.
+4. Re-run the gates (`./gradlew stagewrightDedicatedServer<Loader>`, plus the instrument
+   contract over a hold) — they must stay green.
 
 ## When you remove or merge a tool
 

@@ -23,13 +23,13 @@ Checked 2026-07-27 against a real 5593-line sample: all four regexes matched
 100%. So this gate is not repairing a break, it is pinning a contract that was
 never pinned — which is the whole point, because the failure mode is silent.
 
-DO NOT RUN THIS CONCURRENTLY WITH t0
-------------------------------------
+DO NOT RUN THIS CONCURRENTLY WITH THE DEDICATED-SERVER GATE
+-----------------------------------------------------------
 The sample is a real run log — `<loader>/run-dogfood/logs/latest.log` — which is
-exactly the file t0.py's dogfood server is writing while it runs. Running the gate
-during a t0 reads a half-written log and can report a RED that has nothing to do
-with the code (observed 2026-07-27). Let t0 finish first; the log it leaves behind
-is the sample this wants anyway.
+exactly the file that gate's dogfood server is writing while it runs. Running this
+during one reads a half-written log and can report a RED that has nothing to do
+with the code (observed 2026-07-27). Let the gate finish first; the log it leaves
+behind is the sample this wants anyway.
 
 WHAT IT CHECKS
 --------------
@@ -107,8 +107,8 @@ def main() -> int:
     if not path.is_absolute():
         path = ROOT / path
     if not path.exists():
-        print(f"log-contract: {path} does not exist — run a t0 first "
-              f"(python scripts/stagewright/t0.py --loader fabric ...)")
+        print(f"log-contract: {path} does not exist — run the gate first "
+              f"(./gradlew stagewrightDedicatedServerFabric)")
         return 1
 
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()

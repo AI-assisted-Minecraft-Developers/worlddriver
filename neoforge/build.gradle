@@ -209,7 +209,7 @@ loom {
         }
         // P1c: dogfood run — boots a professional dedicated server with BOTH
         // worlddriver and the stagewright harness loaded, autorun gate ON. This
-        // is what proves the testkit orchestrator (t0.py) generalizes beyond its
+        // is what proves the harness generalizes beyond its
         // own bare-bones stagewright-neoforge module to a real, feature-loaded mod.
         dogfoodServer {
             server()
@@ -226,7 +226,7 @@ loom {
         }
         // These replaced the orchestrator-driven pair (stagewrightClient in run-t1, t2Server in
         // run-t2), deleted along with the scripts that drove them from outside. The only
-        // orchestrator left, instrument.py, drives runContractServer and needs neither.
+        // process remains: the last two went on 2026-08-05.
         //
         // Everything the orchestrators used to supply — enter a world, dial a server, wait for a
         // player, exit when finished — is a system property the harness reads for itself.
@@ -281,7 +281,8 @@ loom {
 }
 
 // The scene scripts a modpack author would ship, delivered into the dogfood run the way a pack
-// delivers them: config/stagewright/scenes. t0.py drives runDogfoodServer directly rather than one
+// delivers them: config/stagewright/scenes. The gate task provisions these itself, so this is for
+// the BARE `:neoforge:runDogfoodServer`; that path drives runDogfoodServer directly rather than one
 // of the stagewright plugin's topology tasks, so the plugin's own sceneScripts provisioning never
 // runs for this gate — without this the run reads whatever copy was last left in the directory. It
 // read a two-day-old one, and the expect-file gate caught it only because a scene had been added.
