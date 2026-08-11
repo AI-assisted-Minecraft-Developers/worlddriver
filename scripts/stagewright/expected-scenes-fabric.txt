@@ -177,6 +177,7 @@ wd.serverCastsObsidian
 wd.serverCastsAPortalFrame
 wd.serverBuildsAndLightsAPortal
 wd.serverEntersTheNether
+wd.serverOpensTheEndPortal
 wd.serverLightsPortal
 wd.debugSweepCourse
 wd.expectAlarmBlockedJump

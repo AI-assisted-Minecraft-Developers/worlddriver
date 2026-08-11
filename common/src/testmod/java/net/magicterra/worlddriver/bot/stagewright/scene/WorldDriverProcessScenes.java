@@ -204,7 +204,12 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 // light it. Written as a frontier sensor and green on both loaders first try, so it
                 // is required — it is the ladder's own plan, and the ladder is expensive to ask.
                 Scene.of("wd.serverBuildsAndLightsAPortal", 4_000,
-                        WorldDriverProcessScenes::serverBuildsAndLightsAPortal));
+                        WorldDriverProcessScenes::serverBuildsAndLightsAPortal),
+                // N9/N10: the last two verbs between a stronghold and the dragon. Green on both
+                // loaders first try, so required — the eye insert is a useOn-only item and would
+                // regress the same silent way the flint-and-steel did.
+                Scene.of("wd.serverOpensTheEndPortal", 4_000,
+                        WorldDriverProcessScenes::serverOpensTheEndPortal));
     }
 
     /** Inlined from {@code AgentGameTestSupport#buildFloor}: 11×11 stone floor at {@code floorY},
@@ -2758,6 +2763,121 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         driver.avatar().useBlock(support, face);
         ServerAvatarManager.tickAll();
         return !level.getBlockState(target).isAir();
+    }
+
+    /**
+     * Set twelve eyes into a stronghold's frame and step through into the End.
+     *
+     * <p>Two verbs, both on the critical path and neither exercised anywhere else. Inserting an eye
+     * is {@code EnderEyeItem.useOn} — the same {@code useOn}-only shape as the flint-and-steel, so a
+     * body that reaches for {@code useItemInHand} gets {@code PASS} and a frame that never fills.
+     * Stepping through is {@code EndPortalBlock}, which reaches {@code changeDimension} by a
+     * different road than the Nether's and lands on a fixed point rather than a searched one.
+     *
+     * <p><b>Why this is worth its own scene given the Nether already passes.</b> The teleport that
+     * was swallowed is delivered the same way here, but the destination is
+     * {@code ServerLevel.END_SPAWN_POINT} rather than a scaled coordinate, so a body that arrived
+     * "somewhere in the End" would look correct on a dimension check while standing in the void
+     * beside the island. The assertion is on the platform.
+     *
+     * <p>Staged: the frame and the twelve eyes. Where eyes come from is
+     * {@code ENDER_PEARL}/{@code EYE_OF_ENDER}'s question and finding the stronghold is
+     * {@code STRONGHOLD}'s; what this owns is that a driven body can spend them and survive the
+     * crossing.
+     */
+    private static void serverOpensTheEndPortal(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+
+        ServerLevel end = level.getServer().getLevel(Level.END);
+        if (end == null) {
+            ctx.skip("这个运行时没有末地维度（数据包移除了 minecraft:the_end），没有可去的地方");
+            return;
+        }
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
+        ctx.cleanup(() -> {
+            for (int dx = -4; dx <= 4; dx++)
+                for (int dy = -1; dy <= 4; dy++)
+                    for (int dz = -4; dz <= 4; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                                Blocks.AIR.defaultBlockState());
+        });
+        for (int dx = -4; dx <= 4; dx++)
+            for (int dz = -4; dz <= 4; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+
+        // Twelve frames round a 3x3, each FACING the middle — the shape
+        // EndPortalFrameBlock.getOrCreatePortalShape() looks for. A frame laid without facings is a
+        // frame that fills with eyes and never becomes a portal, which reads as a broken insert.
+        final int y = floorY + 1;
+        List<BlockPos> frames = new ArrayList<>();
+        for (int d = -1; d <= 1; d++) {
+            frames.add(place(level, new BlockPos(cx + d, y, cz - 2), Direction.SOUTH));
+            frames.add(place(level, new BlockPos(cx + d, y, cz + 2), Direction.NORTH));
+            frames.add(place(level, new BlockPos(cx - 2, y, cz + d), Direction.EAST));
+            frames.add(place(level, new BlockPos(cx + 2, y, cz + d), Direction.WEST));
+        }
+        ctx.record("frame.blocks", frames.size() + "");
+
+        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 3.5);
+        ctx.cleanup(() -> driver.fakePlayer().discard());
+        var fp = driver.fakePlayer();
+        fp.getInventory().items.set(0, new ItemStack(Items.ENDER_EYE, 12));
+        fp.getInventory().selected = 0;
+
+        int set = 0;
+        for (BlockPos at : frames) {
+            if (!driver.avatar().holdItem(Items.ENDER_EYE)) { ctx.record("eyes.ranOutAt", at.toShortString()); break; }
+            driver.avatar().useBlock(at, Direction.UP);
+            ServerAvatarManager.tickAll();
+            if (level.getBlockState(at).getValue(net.minecraft.world.level.block.EndPortalFrameBlock.HAS_EYE)) set++;
+            else ctx.record("eye.missed." + at.toShortString(), String.valueOf(level.getBlockState(at)));
+        }
+        ctx.record("eyes.set", set + "/" + frames.size());
+        ctx.record("eyes.left", countItem(fp, Items.ENDER_EYE) + "");
+        ctx.expect(set).as("all twelve eyes go into the frame from a driven body's hand")
+                .isEqualTo(frames.size());
+
+        BlockPos doorway = new BlockPos(cx, y, cz);
+        ctx.record("portal.formed", String.valueOf(level.getBlockState(doorway).getBlock()));
+        ctx.expect(level.getBlockState(doorway).getBlock() == Blocks.END_PORTAL)
+                .as("the twelfth eye opens the portal").isTrue();
+
+        driver.runProcess(new HoldStill(4_000));
+        ServerAvatarManager.register(driver);
+        fp.setPos(doorway.getX() + 0.5, doorway.getY(), doorway.getZ() + 0.5);
+
+        final int budget = 400;
+        int ticked = 0;
+        while (ticked < budget && fp.level() == level) { ServerAvatarManager.tickAll(); ticked++; }
+        ctx.record("transit.ticks", ticked + (ticked >= budget ? "（用尽）" : ""));
+        ctx.record("transit.dimension", fp.level().dimension().location().toString());
+        ctx.record("transit.pos", fp.blockPosition().toShortString());
+        ctx.expect(fp.level().dimension()).as("the driven body crosses into the End").isEqualTo(Level.END);
+
+        // The platform, not merely the dimension. END_SPAWN_POINT is fixed, so "somewhere in the
+        // End" and "on the obsidian island vanilla builds for arrivals" are different claims and
+        // only the second one can fight a dragon.
+        BlockPos want = net.minecraft.server.level.ServerLevel.END_SPAWN_POINT;
+        int drift = Math.max(Math.abs(fp.blockPosition().getX() - want.getX()),
+                Math.abs(fp.blockPosition().getZ() - want.getZ()));
+        ctx.record("transit.spawnPoint", want.toShortString() + "（漂移 " + drift + " 格）");
+        ctx.record("transit.underfoot", String.valueOf(
+                fp.level().getBlockState(fp.blockPosition().below()).getBlock()));
+        ctx.expect(drift).as("the arrival is on the End's own spawn platform").isAtMost(16);
+        ctx.passNote("十二只眼开门, " + ticked + " tick 过到末地, 落在 "
+                + fp.blockPosition().toShortString());
+    }
+
+    /** An end-portal frame at {@code at} facing {@code towards}, returned for the caller's list. */
+    private static BlockPos place(ServerLevel level, BlockPos at, Direction towards) {
+        level.setBlockAndUpdate(at, Blocks.END_PORTAL_FRAME.defaultBlockState()
+                .setValue(net.minecraft.world.level.block.EndPortalFrameBlock.FACING, towards));
+        return at;
     }
 
     /**
