@@ -25,10 +25,18 @@ ScriptTest.run("58_cmd_result: execute-if count lands in value", function(t) {
     // up in the retired docs/yaml-gametest.md §12.5; it is a property of the
     // persistent world, not of that harness, so it outlived the doc.)
     Driver.invoke("mc.action.runCommand", { cmd: "kill @e[tag=t58]" });
-    Driver.invoke("mc.action.runCommand",
-        { cmd: "summon minecraft:armor_stand " + x + " " + y + " " + z + " {Tags:[\"t58\"]}" });
-    Driver.invoke("mc.action.runCommand",
-        { cmd: "summon minecraft:armor_stand " + (x + 1) + " " + y + " " + z + " {Tags:[\"t58\"]}" });
+    // Assert the setup, not just the subject. These two summons used to be fire-and-forget, so
+    // when the arena's chunk was not entity-loaded the stands never appeared and this test
+    // reported "matching selector should succeed" — i.e. it accused `execute if entity` of a bug
+    // it did not have. A check that ignores the return value of its own fixture can only ever
+    // describe the symptom.
+    for (var n = 0; n < 2; n++) {
+        var s = Driver.invoke("mc.action.runCommand",
+            { cmd: "summon minecraft:armor_stand " + (x + n) + " " + y + " " + z + " {Tags:[\"t58\"]}" });
+        t.assertEqual(s.ok, true, "summon " + n + " should dispatch");
+        t.assertEqual(s.success, true, "summon " + n + " should succeed — without both stands the"
+            + " assertions below are about a world that was never set up");
+    }
 
     var hit = Driver.invoke("mc.action.runCommand", { cmd: "execute if entity @e[tag=t58]" });
     t.assertEqual(hit.ok, true);

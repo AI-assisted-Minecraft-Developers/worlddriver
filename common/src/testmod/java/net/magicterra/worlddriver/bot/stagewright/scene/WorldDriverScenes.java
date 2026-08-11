@@ -208,6 +208,11 @@ public final class WorldDriverScenes implements SceneProvider {
                 Scene.of("wd.selfShaftDigUp", 200, WorldDriverScenes::selfShaftDigUp)
                         .withOriginSlot(SELF_SHAFT_DIG_UP_SLOT),
                 Scene.of("wd.gearScope", 200, WorldDriverScenes::gearScope),
+                // This scene used to pass for the wrong reason: the avatar mined THROUGH the rock
+                // covering the ore, because Level#destroyBlock has no reach check and "buried" was
+                // never an obstacle. It went red the moment wd.serverBreakNeedsReach forbade that,
+                // and it is required again now that MineProcess peels the overburden one reachable
+                // block at a time instead. Same assertion, honestly earned this time.
                 Scene.of("wd.buriedOre", 200, WorldDriverScenes::buriedOre),
                 Scene.of("wd.entityLeash", 200, WorldDriverScenes::entityLeash),
                 // task#87 CLOSED (2026-07-19) — permanent low-Y regression guard. The void-

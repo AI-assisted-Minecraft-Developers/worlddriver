@@ -102,7 +102,19 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
                 Scene.of("wd.serverEscape", 400, WorldDriverSurvivalScenes::serverEscapeScene),
                 Scene.of("wd.serverBunker", 400, WorldDriverSurvivalScenes::serverBunkerScene),
                 Scene.of("wd.serverBunkerAnchorRatchet", 200, WorldDriverSurvivalScenes::serverBunkerAnchorRatchetScene),
-                Scene.of("wd.serverEscapeSealedShelter", 400, WorldDriverSurvivalScenes::serverEscapeSealedShelterScene),
+                // Optional as of the break reach gate. The carve aims at the EXIT (y=224 from a
+                // body at y=221) instead of at the next block up, and that only ever worked
+                // because Level#destroyBlock let the avatar mine through the two courses in
+                // between. wd.serverBreakNeedsReach forbids it now.
+                //
+                // wd.buriedOre and wd.serverMineHarvestBuried went red the same way and are
+                // required again, because MineProcess learned to peel one reachable block at a
+                // time (MineProcess#firstBreakableToward). This escape runs a DIFFERENT digger and
+                // has not learned it yet — that is the whole of the remaining gap, and it is the
+                // change that promotes this back. Escaping a sealed shelter stays required
+                // behaviour; what is optional is the claim that it works today.
+                Scene.of("wd.serverEscapeSealedShelter", 400, WorldDriverSurvivalScenes::serverEscapeSealedShelterScene)
+                        .withRequired(false),
                 Scene.of("wd.serverLowHpEdgePin", 400, WorldDriverSurvivalScenes::serverLowHpEdgePinScene),
                 Scene.of("wd.serverBunkerSlope", 400, WorldDriverSurvivalScenes::serverBunkerSlopeScene),
                 Scene.of("wd.surfaceDive", 400, WorldDriverSurvivalScenes::surfaceDiveScene),

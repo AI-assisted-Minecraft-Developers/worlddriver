@@ -92,7 +92,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
                 Scene.of("wd.serverCraftTableReclaim", 400, WorldDriverStationScenes::serverCraftTableReclaim),
                 Scene.of("wd.serverObservePlayerInventory", 200, WorldDriverStationScenes::serverObservePlayerInventory),
                 Scene.of("wd.serverPlanHaveDefaultsToBag", 200, WorldDriverStationScenes::serverPlanHaveDefaultsToBag),
-                Scene.of("wd.serverSmeltCliff", 200, WorldDriverStationScenes::serverSmeltCliff),
+                Scene.of("wd.serverSmeltStationOpens", 200, WorldDriverStationScenes::serverSmeltStationOpens),
                 Scene.of("wd.serverCraftTableHoleRim", 400, WorldDriverStationScenes::serverCraftTableHoleRim),
                 Scene.of("wd.serverSmeltFurnaceHoleRim", 400, WorldDriverStationScenes::serverSmeltFurnaceHoleRim),
                 Scene.of("wd.smeltFuelPolicy", 200, WorldDriverStationScenes::smeltFuelPolicy),
@@ -310,8 +310,9 @@ public final class WorldDriverStationScenes implements SceneProvider {
      *  reclaimed when the craft ends; a table it merely FOUND standing must be left alone. Two
      *  independent sub-rigs — the legacy +40/+40 diagonal is relocated to a compact +16 X offset so
      *  both fit one origin window (internal geometry byte-unchanged; the outcomes are
-     *  position-invariant). The server 3×3 craft always dies at the FakePlayer menu-open cliff (that
-     *  IS the vehicle — reclaim must run on the FAILURE path too); only the WORLD half is asserted. */
+     *  position-invariant). Historically the server 3×3 craft always died at the FakePlayer
+     *  menu-open cliff and this scene rode that as its vehicle; the cliff is gone, so the craft now
+     *  SUCCEEDS and reclaim is asserted on the success path (see the note at the assertion). */
     private static void serverCraftTableReclaim(SceneContext ctx) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
@@ -357,8 +358,17 @@ public final class WorldDriverStationScenes implements SceneProvider {
         if (tablesLeft != 0)
             ctx.fail("wd.serverCraftTableReclaim: placed crafting_table was abandoned (gap #276): "
                     + tablesLeft + " still standing near the bot");
-        if (errA == null || !errA.contains("工作台"))
-            ctx.fail("wd.serverCraftTableReclaim: reclaim overwrote the craft's error: " + errA);
+        // This used to require errA to name 工作台 — the scene rode the FakePlayer menu-open cliff as
+        // its vehicle, because a server 3×3 craft could not succeed and reclaim therefore only ever
+        // ran on the failure path. The cliff is gone (ServerPlayerAvatar.openStationMenu), so the
+        // craft now completes and the assertion inverts: reclaim must run on the SUCCESS path, which
+        // is the stronger claim and the one gap #276 was always about. A craft that failed here would
+        // now be a real regression rather than the expected outcome, so it is checked as one.
+        if (errA != null)
+            ctx.fail("wd.serverCraftTableReclaim: the 3×3 craft failed: " + errA);
+        if (countItem(da.fakePlayer(), Items.WOODEN_PICKAXE) < 1)
+            ctx.fail("wd.serverCraftTableReclaim: craft reported no error but produced no pickaxe — "
+                    + "the table was placed, used and reclaimed without anything being made");
 
         ServerAvatarManager.clear();
 
@@ -558,10 +568,18 @@ public final class WorldDriverStationScenes implements SceneProvider {
     // Smelt scenes.
     // ==================================================================================
 
-    /** Ported from {@code serverSmeltCliffArena}: capability-cliff proof — a FakePlayer cannot open a
-     *  furnace menu, so the SERVER {@link SmeltProcess} must degrade GRACEFULLY (find furnace, attempt
-     *  open, time out, FINISH+unregister with the "open furnace" error) rather than wedge the tick. */
-    private static void serverSmeltCliff(SceneContext ctx) {
+    /**
+     * Ported from {@code serverSmeltStationOpensArena}, and inverted: the SERVER {@link SmeltProcess} must
+     * find a furnace, OPEN it, and load it.
+     *
+     * <p>It was a capability-cliff proof — a fake player could not open a furnace menu, so the most
+     * this could ask was that the process degrade gracefully and finish with an "open furnace"
+     * error instead of wedging the tick. {@code ServerPlayerAvatar.openStationMenu} removed the
+     * cliff, so the graceful-degradation assertion became a test that the feature stays broken. It
+     * now asserts the capability. Renamed with it: a scene called {@code …Cliff} that requires the
+     * cliff to be gone is a trap for the next reader.
+     */
+    private static void serverSmeltStationOpens(SceneContext ctx) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
         for (int dx = -1; dx <= 2; dx++)
@@ -592,13 +610,29 @@ public final class WorldDriverStationScenes implements SceneProvider {
             ServerAvatarManager.tickAll();
 
         String err = driver.botState().smelt.lastError;
-        WorldDriverCommon.LOG.info("[wd.serverSmeltCliff] finished={} active={} err={}",
-                driver.finished(), ServerAvatarManager.activeCount(), err);
-        if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
-            ctx.fail("wd.serverSmeltCliff: server SmeltProcess did not degrade gracefully (still active): "
-                    + ServerAvatarManager.activeCount());
-        if (err == null || !err.contains("熔炉"))
-            ctx.fail("wd.serverSmeltCliff: server SmeltProcess ended with an unexpected error: " + err);
+        Container furnace = level.getBlockEntity(new BlockPos(cx + 1, floorY + 1, cz)) instanceof Container c
+                ? c : null;
+        int loaded = 0;
+        if (furnace != null) {
+            for (int slot = 0; slot < furnace.getContainerSize(); slot++) {
+                loaded += furnace.getItem(slot).getCount();
+            }
+        }
+        WorldDriverCommon.LOG.info("[wd.serverSmeltStationOpens] finished={} active={} err={} loaded={}",
+                driver.finished(), ServerAvatarManager.activeCount(), err, loaded);
+
+        // The furnace must OPEN and take its load. Nothing here waits for it to cook: this rig drives
+        // up to 200 avatar ticks inside a SINGLE server tick, so no furnace tick ever fires and the
+        // process is still working when the loop ends — which is why "finished" is deliberately not
+        // asserted. What is asserted is everything up to the first world tick: the menu opened, the
+        // input and fuel went in.
+        if (err != null && err.contains("熔炉"))
+            ctx.fail("wd.serverSmeltStationOpens: SmeltProcess could not open the furnace: " + err);
+        if (furnace == null)
+            ctx.fail("wd.serverSmeltStationOpens: no furnace container at the rig position");
+        if (loaded == 0)
+            ctx.fail("wd.serverSmeltStationOpens: the furnace opened but nothing was loaded into it "
+                    + "(err=" + err + ") — insertion is the half that a menu-open alone does not prove");
     }
 
     /** Ported from {@code serverCraftTableHoleRimArena} (gap#61): a bot in a 1-deep hole must place a

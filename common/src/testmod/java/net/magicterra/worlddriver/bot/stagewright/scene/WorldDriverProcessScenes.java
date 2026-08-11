@@ -19,6 +19,8 @@ import net.magicterra.worlddriver.bot.process.LookProcess;
 import net.magicterra.worlddriver.bot.process.MineProcess;
 import net.magicterra.worlddriver.bot.process.RunAwayProcess;
 import net.magicterra.worlddriver.bot.process.Schematic;
+import net.magicterra.worlddriver.bot.process.TowerProcess;
+import net.magicterra.worlddriver.bot.stagewright.journey.HoldStill;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
@@ -107,6 +109,43 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 Scene.of("wd.serverProcess", 400, WorldDriverProcessScenes::serverProcessScene),
                 Scene.of("wd.serverFlee", 400, WorldDriverProcessScenes::serverFleeScene),
                 Scene.of("wd.serverMineProcess", 600, WorldDriverProcessScenes::serverMineProcessScene),
+                Scene.of("wd.serverMineHarvest", 1_500, WorldDriverProcessScenes::serverMineHarvestScene),
+                // The SAME circuit with two of the three ores buried — the field shape, since the
+                // journey's iron rung mines ore four blocks under the surface. It shipped optional
+                // and red on purpose while a drop at the bottom of a self-dug hole was
+                // unretrievable, precisely so the cliff would not get written in as the
+                // requirement (wd.serverSmeltStationOpens is the scene that had to be renamed for
+                // doing that). Required as of the change that fixed it: the drops were never in a
+                // hole at all, they were sealed inside rock the avatar had no business mining
+                // through, and the miner now peels its way down instead.
+                Scene.of("wd.serverMineHarvestBuried", 1_500, WorldDriverProcessScenes::serverMineHarvestBuriedScene),
+                // Optional and red: a body that digs the block out from under itself does not go
+                // down. It was written as the smallest statement of why the scene above was red,
+                // and it outlived that explanation — the buried drops turned out to be sealed in
+                // rock rather than lying at the bottom of a hole, so the scene above is required
+                // and green while this one is still red. It stays because the capability is still
+                // missing and the journey still scripts around it, not because it explains anything
+                // upstream any more.
+                Scene.of("wd.serverSelfShaftDescends", 1_200, WorldDriverProcessScenes::serverSelfShaftDescends)
+                        .withRequired(false),
+                // Pure navigation, no mining: can the walker path to the bottom of a pit? That is
+                // the question under wd.serverMineHarvestBuried, and mining it first means a
+                // failure could belong to either half. Required, because if this is red the
+                // buried-drop story is a Walker story and every fix aimed at MineProcess is aimed
+                // at the wrong file.
+                Scene.of("wd.serverBreakNeedsReach", 400, WorldDriverProcessScenes::serverBreakNeedsReach),
+                Scene.of("wd.serverWalkIntoAPit", 900, WorldDriverProcessScenes::serverWalkIntoAPit),
+                // The same pit, with the miner's own permissions. MineProcess sweeps with breaking
+                // AND placing on, and a walker allowed to place can treat a hole as terrain to
+                // bridge rather than a place to stand — so "the walker can reach a pit" and "the
+                // collector can reach a pit" are not the same claim. Optional until measured.
+                Scene.of("wd.serverWalkIntoAPitArmed", 900, WorldDriverProcessScenes::serverWalkIntoAPitArmed)
+                        .withRequired(false),
+                // Optional because it is GREEN on Fabric and RED on NeoForge, and a loader
+                // divergence is exactly the thing this repo has been bitten by before — it is
+                // worth a named row that says which loader, not a hidden assertion or a red gate.
+                Scene.of("wd.serverAvatarEarnsAdvancement", 300,
+                        WorldDriverProcessScenes::serverAvatarEarnsAdvancementScene).withRequired(false),
                 Scene.of("wd.serverMineNoTool", 600, WorldDriverProcessScenes::serverMineNoToolScene),
                 Scene.of("wd.serverWalkerDeepslateNoTool", 600, WorldDriverProcessScenes::serverWalkerDeepslateNoToolScene),
                 Scene.of("wd.serverForbidDigWall", 400, WorldDriverProcessScenes::serverForbidDigWallScene),
@@ -117,7 +156,28 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 Scene.of("wd.serverCombatCollectDrops", 400, WorldDriverProcessScenes::serverCombatCollectDropsScene),
                 Scene.of("wd.serverLook", 400, WorldDriverProcessScenes::serverLookScene),
                 Scene.of("wd.serverMineCanopyRadius", 600, WorldDriverProcessScenes::serverMineCanopyRadiusScene),
-                Scene.of("wd.serverBridgePillarStart", 400, WorldDriverProcessScenes::serverBridgePillarStartScene));
+                Scene.of("wd.serverBridgePillarStart", 400, WorldDriverProcessScenes::serverBridgePillarStartScene),
+                // Required from the day it was written, because it passed the day it was written.
+                // It exists because the journey reported the opposite — exit.fromY=54 ->
+                // exit.toY=55, one block in 1200 ticks — and an isolated arena said the body leaves
+                // a four-deep shaft in 46 ticks. That gap is now known to be about the journey's
+                // budget and terrain, not about a missing capability, which is exactly the sort of
+                // thing a stalled rung four scenes downstream cannot tell you.
+                Scene.of("wd.serverPillarsOutOfAPit", 1_500, WorldDriverProcessScenes::serverPillarsOutOfAPit),
+                // The same question at the depth a real mining rung digs to, and driven by the
+                // process the journey now scripts rather than by the walker. It shipped optional —
+                // the four-deep arena above proves a capability, not this one, and the journey had
+                // measured a NINE-deep shaft moving the body one block in 6 000 ticks — and was
+                // promoted in the run that first saw it green (135 ticks), which is what keeps a
+                // frontier from sliding back.
+                Scene.of("wd.serverTowersOutOfADeepShaft", 1_500,
+                        WorldDriverProcessScenes::serverTowersOutOfADeepShaft),
+                // Shipped optional as the capability probe for a rung nobody had written, and
+                // promoted in the run that first saw it green — the whole cast works on a
+                // server-side body with no engine change, so from here a red row means N4's
+                // foundation moved rather than that it was never there.
+                Scene.of("wd.serverCastsObsidian", 400,
+                        WorldDriverProcessScenes::serverCastsObsidian));
     }
 
     /** Inlined from {@code AgentGameTestSupport#buildFloor}: 11×11 stone floor at {@code floorY},
@@ -129,6 +189,77 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
             }
+    }
+
+    /**
+     * Can a server-driven body earn an advancement at all?
+     *
+     * <p>{@code story/upgrade_tools} is "hold a stone pickaxe" — an {@code inventory_changed}
+     * trigger, the simplest one there is. It fires from the {@code ContainerListener} vanilla
+     * attaches in {@code ServerPlayer.initInventoryMenu}, which a body that was never placed
+     * through {@code PlayerList} does not have, and it is only delivered when something calls
+     * {@code containerMenu.broadcastChanges()} — which {@code ServerPlayer.doTick} does and this
+     * avatar's {@code Player}-shaped tick did not. Both are now done, and the result is
+     * <b>green on Fabric and red on NeoForge</b>: same common constructor, same common tick, and
+     * NeoForge's own {@code FakePlayer} still earns nothing. That divergence is what this scene
+     * exists to keep visible; it is not yet explained, and the loader it fails on is in the
+     * failure message so nobody has to re-derive which.
+     *
+     * <p>Advancements are not on the critical path to a dead dragon, which is why this is a
+     * sensor rather than a blocker — but a driver that reports a modpack's progression to an
+     * agent cannot silently award nothing.
+     */
+    private static void serverAvatarEarnsAdvancementScene(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+        ctx.cleanup(() -> {
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dy = 0; dy <= 2; dy++)
+                    for (int dz = -1; dz <= 1; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+        });
+
+        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayer fp = driver.fakePlayer();
+        ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); });
+        fp.getInventory().clearContent();
+        fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));
+        // A process, because a registered driver with nothing to do is not ticked — and the
+        // inventory broadcast that delivers the trigger rides the body's tick. LookProcess is the
+        // cheapest one there is (pure yaw/pitch, no world interaction), so what this scene
+        // measures stays "can this body earn anything" and not "can it mine".
+        driver.runProcess(new LookProcess(new BlockPos(cx + 2, floorY + 1, cz), 0f, 0f));
+        ServerAvatarManager.register(driver);
+        for (int t = 0; t < 40 && ServerAvatarManager.activeCount() > 0; t++)
+            ServerAvatarManager.tickAll();
+
+        if (!earned(fp, "minecraft:story/upgrade_tools"))
+            ctx.fail("the body holds a stone pickaxe and did not earn story/upgrade_tools — "
+                    + "nothing is listening to its inventory, so a server-driven agent's whole "
+                    + "progression is invisible [diag ticked=" + driver.finished()
+                    + " held=" + fp.getMainHandItem().getItem() + "]");
+    }
+
+    /** Whether this body has completed a named advancement. False also when the id is unknown,
+     *  which cannot happen for a vanilla story id in a vanilla runtime. */
+    private static boolean earned(ServerPlayer fp, String id) {
+        var holder = fp.server.getAdvancements().get(
+                net.minecraft.resources.ResourceLocation.parse(id));
+        return holder != null && fp.getAdvancements().getOrStartProgress(holder).isDone();
+    }
+
+    /** Which of the rig's ores are still standing, for a failure message that says so. */
+    private static String standingLabel(ServerLevel level, List<BlockPos> ores) {
+        StringBuilder sb = new StringBuilder();
+        for (BlockPos at : ores)
+            sb.append(sb.length() == 0 ? "" : ",").append(level.getBlockState(at).is(Blocks.IRON_ORE) ? "ore" : "air");
+        return sb.toString();
     }
 
     /** A ±24-block cube around the arena centre — the entity-visibility poll box. Used only to detect
@@ -406,6 +537,651 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
             ctx.fail("server MineProcess did not finish+unregister: finished="
                     + driver.finished() + " active=" + ServerAvatarManager.activeCount());
+    }
+
+    // ==================================================================================
+    // wd.serverMineHarvest — the assertion this family never made: mining must put the
+    // HARVEST IN THE BAG, not merely turn the block to air.
+    // ==================================================================================
+
+    /**
+     * The sibling scenes above assert that the target block stops being there. Every one of
+     * them passes on a bot that mines all day and acquires nothing, and for a long time that
+     * is exactly what the headless avatar did — {@code wd.serverCombatCollectDrops} even says
+     * so out loud ("pickup fidelity on a FakePlayer is not this scene's contract"). Nothing
+     * owned the other half, so nothing caught it. This scene owns it: <b>PASS means an item
+     * that did not exist before is in the inventory afterwards.</b>
+     *
+     * <p><b>Real ticks, not a {@code tickAll()} spin.</b> The whole family drives its process
+     * inside one server tick. That cannot work here: a mined block drops an {@link ItemEntity}
+     * with a 10-tick pickup delay, and an entity only counts that delay down when the LEVEL
+     * ticks it. Spun in-body, the drop is never pickable and the scene would fail for a
+     * reason that has nothing to do with the code under test. So the process is registered
+     * and left to the platform's per-server-tick {@code tickAll()}, and the scene awaits its
+     * self-unregister — the {@code JourneyRig.drive} shape.
+     *
+     * <p><b>The rig reproduces the hazard, not a friendly case.</b> The pickaxe starts in the
+     * BAG (slot 20, not the hotbar) and the hotbar starts holding DIRT, because that is the
+     * state the journey's iron rung actually reaches: {@code holdPlaceable()} grabs the first
+     * placeable in the hotbar while bridging, so by the time the ore breaks the hand holds the
+     * dirt it just tunnelled through. A rig that pre-selects the pickaxe would be green while
+     * the real path is broken.
+     *
+     * <p><b>Diagnostics live in the fail message</b> (late-suite {@code LOG.info} is dropped on
+     * shutdown), and they deliberately separate the two ways this can fail: {@code drops=} counts
+     * raw-iron ItemEntities still lying in the arena. Drops present + bag empty is a COLLECT/
+     * pickup defect; neither present is a drop defect. Naming which one it is at failure time is
+     * the point of measuring both.
+     *
+     * <p><b>Footprint audit</b> (origin-relative, default 3×3 window dx/dz [−16,+31]): floor and
+     * clear span dx [−2,+7], dz [−2,+2] — inside the window at the default radius.
+     */
+    private static void serverMineHarvestScene(SceneContext ctx) { mineHarvest(ctx, false); }
+
+    /** The buried half — see {@link #mineHarvest}. Optional: it is red on arrival and says why. */
+    private static void serverMineHarvestBuriedScene(SceneContext ctx) { mineHarvest(ctx, true); }
+
+    /**
+     * Dig the block under your own feet and end up one block lower.
+     *
+     * <p>The most ordinary thing a player does underground, and this body cannot do it. The journey's
+     * iron rung found it the expensive way: the ore is four blocks under the surface, so the route
+     * scripted a shaft — break the block below, fall in, repeat — and the trace showed twelve legs
+     * with the body at a constant {@code y=63}, shuffling sideways one cell at a time.
+     *
+     * <p>Two separate facts have to hold and the failure message names which one broke.
+     * <b>The block must break</b>: {@code ServerWorldDriver.mine} aims a {@code Goal.Near(target,2)}
+     * and the target is one block away, so navigation is trivially satisfied and the actuator runs.
+     * <b>The body must then descend into the hole</b>: it has no free-running physics — the platform
+     * only steps an avatar that a registered driver is ticking, and the single-block mine ends on the
+     * tick the block turns to air, which buys one {@code avatar.step()} and about a tenth of a block
+     * of gravity. So the descent is driven explicitly, with the emptied cell as the goal.
+     *
+     * <p>Goal.Block on that cell rather than a height: {@code Goal.YLevel} was tried on the journey
+     * and it descends to the wrong place — "be at y=60" is satisfied anywhere, and the walker took
+     * the cheapest way down it could find, landing six blocks off the ore column. A shaft is a
+     * column, and only a goal naming the column keeps the body over its own hole.
+     */
+    private static void serverSelfShaftDescends(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
+        ctx.cleanup(() -> {
+            for (int dx = -3; dx <= 3; dx++)
+                for (int dy = -4; dy <= 2; dy++)
+                    for (int dz = -3; dz <= 3; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                                Blocks.AIR.defaultBlockState());
+        });
+
+        // A solid slab with nowhere to walk down to. That is the point: a staircase has somewhere to
+        // step INTO and this deliberately does not, because the field shape the journey hit — a
+        // swamp with the ore straight down — does not either.
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = -3; dz <= 3; dz++)
+                for (int dy = -4; dy <= 0; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                            Blocks.STONE.defaultBlockState());
+
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = false;    // placing would let it pillar back up and muddy the reading
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = 20;
+        BotConfig.pathfinderMaxMs = 2000;
+
+        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayer fp = driver.fakePlayer();
+        ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); });
+        fp.getInventory().clearContent();
+        fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));
+        fp.getInventory().selected = 0;
+
+        BlockPos under = new BlockPos(cx, floorY, cz);
+        BlockPos deeper = under.below();
+        final int startY = fp.blockPosition().getY();
+
+        // TWO courses, not one, and the reason is the bug this scene missed the first time.
+        // ServerWorldDriver.tick() branches on `process` before `mineTarget`, and mine()/gotoGoal()
+        // did not clear it — so on a driver that had ever run a BotProcess, every later mine was
+        // silently ignored and the stale process ran instead, finishing against its already-met
+        // goal. A one-course version arms mine() on a fresh driver, which is the single ordering
+        // where that cannot bite; the journey found it only after four rungs of processes had run
+        // on the same body. So the second course is mined AFTER a process has owned this driver.
+        driver.mine(under);
+        ServerAvatarManager.register(driver);
+
+        ctx.await(() -> ServerAvatarManager.activeCount() == 0).within(400).then(() -> {
+            boolean brokeFirst = level.getBlockState(under).isAir();
+            driver.runProcess(new IntentProcess(new Intent(new Goal.Block(under))));
+            ServerAvatarManager.register(driver);
+
+            ctx.await(() -> ServerAvatarManager.activeCount() == 0).within(600).then(() -> {
+                int midY = fp.blockPosition().getY();
+                driver.mine(deeper);
+                ServerAvatarManager.register(driver);
+
+                ctx.await(() -> ServerAvatarManager.activeCount() == 0).within(400).then(() -> {
+                    BlockPos at = fp.blockPosition();
+                    String diag = " [diag under=" + level.getBlockState(under).getBlock()
+                            + " deeper=" + level.getBlockState(deeper).getBlock()
+                            + " startY=" + startY + " midY=" + midY + " endY=" + at.getY()
+                            + " body@" + (at.getX() - cx) + "," + (at.getY() - floorY)
+                            + "," + (at.getZ() - cz)
+                            + " onGround=" + fp.onGround()
+                            + " lastStep=" + driver.lastStep() + "]";
+                    ctx.expect(brokeFirst)
+                            .as("the block under the body broke — if this is false the descent was"
+                                    + " never even attempted and the rest of the message is noise" + diag)
+                            .isEqualTo(true);
+                    ctx.expect(midY < startY)
+                            .as("the body followed its own shaft down; a player who digs the block"
+                                    + " beneath them falls in, and every drop from that dig is down"
+                                    + " there with it" + diag)
+                            .isEqualTo(true);
+                    ctx.expect(level.getBlockState(deeper).isAir())
+                            .as("a mine armed AFTER a process actually mines — the driver ticks its"
+                                    + " process branch first, so a stale one turns every later mine"
+                                    + " into a no-op that still reports success" + diag)
+                            .isEqualTo(true);
+                });
+            });
+        });
+    }
+
+    /**
+     * Walk to the bottom of a two-deep, one-wide pit six blocks away.
+     *
+     * <p>The navigation half of {@code wd.serverMineHarvestBuried}, on its own. That scene mines
+     * three ores, two of them buried, and then fails to collect the drops that fell into the holes;
+     * its verdict reads {@code collect timed out after 240 ticks} with {@code collectPath=0/0} —
+     * the collect walker searched for the whole budget and never produced a path, and never said
+     * FAILED either. "Cannot path into a pit" and "can path but the collect logic asks for the
+     * wrong cell" produce exactly that same line, and they live in different files.
+     *
+     * <p>So the pit is dug by the harness rather than by the bot, there is no item and no mining,
+     * and the only verb under test is {@code IntentProcess} against {@code Goal.Block} on the pit
+     * floor. Whatever this scene says is unambiguous.
+     */
+    /**
+     * The avatar must not mine what a player could not have touched.
+     *
+     * <p>Three targets in one slab, at once, so a fix that trades one for another cannot pass:
+     * a block <b>sealed</b> in stone (all six faces solid), a block <b>far</b> away but exposed,
+     * and a block <b>adjacent</b> to the body. Only the third may break.
+     *
+     * <p>This is the contract behind {@code wd.serverMineHarvestBuried}. Without it
+     * {@code Level#destroyBlock} breaks anything the avatar aims at, at any distance, through any
+     * amount of rock — and the drop from a sealed block lands in a 1×1×1 pocket
+     * ({@code openSides=0}) that no pathfinder can ever reach. Two rounds of work went into the
+     * walker and the collect sweep before anyone measured the pocket.
+     */
+    private static void serverBreakNeedsReach(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
+        ctx.cleanup(() -> {
+            for (int dx = -3; dx <= 12; dx++)
+                for (int dy = -4; dy <= 2; dy++)
+                    for (int dz = -3; dz <= 3; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                                Blocks.AIR.defaultBlockState());
+        });
+        for (int dx = -3; dx <= 12; dx++)
+            for (int dz = -3; dz <= 3; dz++)
+                for (int dy = -4; dy <= 0; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                            Blocks.STONE.defaultBlockState());
+
+        BlockPos sealed = new BlockPos(cx, floorY - 2, cz);          // buried, six solid faces
+        BlockPos far = new BlockPos(cx + 10, floorY, cz);            // exposed, ten blocks away
+        BlockPos adjacent = new BlockPos(cx + 1, floorY, cz);        // the one a player can reach
+        for (BlockPos at : List.of(sealed, far, adjacent))
+            level.setBlockAndUpdate(at, Blocks.IRON_ORE.defaultBlockState());
+
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = false;
+        BotConfig.walkerDebug = false;
+
+        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayer fp = driver.fakePlayer();
+        ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); });
+        fp.getInventory().clearContent();
+        fp.getInventory().items.set(0, new ItemStack(Items.DIAMOND_PICKAXE));  // never the excuse
+        fp.getInventory().selected = 0;
+
+        // Aim and hold at each, generously — a slow-mine needs ticks, and giving the two that must
+        // NOT break more ticks than the one that must is the point.
+        ServerPlayerAvatar avatar = driver.avatar();
+        for (BlockPos at : List.of(sealed, far, adjacent))
+            for (int t = 0; t < 60; t++) {
+                avatar.selectTool(at);
+                avatar.aimAtBlock(at);
+                avatar.breakHold(true);
+            }
+
+        String diag = " [diag sealed=" + level.getBlockState(sealed).getBlock()
+                + " far=" + level.getBlockState(far).getBlock()
+                + " adjacent=" + level.getBlockState(adjacent).getBlock()
+                + " eye=" + String.format("%.1f", fp.getEyePosition().y)
+                + " range=" + String.format("%.1f", fp.blockInteractionRange()) + "]";
+        ctx.expect(level.getBlockState(sealed).is(Blocks.IRON_ORE))
+                .as("a block walled in on all six faces must survive — no ray from any eye can hit"
+                        + " it, and its drop would be sealed where nothing can collect it" + diag)
+                .isEqualTo(true);
+        ctx.expect(level.getBlockState(far).is(Blocks.IRON_ORE))
+                .as("a block ten blocks away must survive — vanilla's own server rejects the dig on"
+                        + " distance alone" + diag)
+                .isEqualTo(true);
+        ctx.expect(level.getBlockState(adjacent).isAir())
+                .as("and the block right next to the body must still break, or the gate has simply"
+                        + " turned mining off" + diag)
+                .isEqualTo(true);
+    }
+
+    /**
+     * Stand at the bottom of a four-deep shaft with blocks in the bag and get out.
+     *
+     * <p>The exit half of {@code wd.serverWalkIntoAPit}. Going down was never the problem; coming
+     * back up is. Once the reach gate stopped the avatar mining through rock, every mining rung had
+     * to dig a shaft, and the journey then measured what happens next: {@code exit.fromY=54 ->
+     * exit.toY=55}, one block in 1200 ticks, with 17 cobblestone in the inventory and placing
+     * allowed. The rung above it inherited a body in a pit and spent its whole budget walking
+     * nowhere.
+     *
+     * <p>Isolated deliberately. A stalled food rung four scenes downstream is a terrible place to
+     * learn this, and "the walker never planned a pillar" and "it planned one and the avatar could
+     * not execute the jump-and-place" are different bugs — {@code PillarUp} exists as a pathfinder
+     * move, so this scene's failure message carries the path length, which separates them.
+     */
+    private static void serverPillarsOutOfAPit(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
+        ctx.cleanup(() -> {
+            for (int dx = -3; dx <= 3; dx++)
+                for (int dy = -6; dy <= 3; dy++)
+                    for (int dz = -3; dz <= 3; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                                Blocks.AIR.defaultBlockState());
+        });
+
+        // Solid ground with a one-wide, four-deep shaft in the middle of it — the exact hole a
+        // mining rung leaves behind.
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = -3; dz <= 3; dz++)
+                for (int dy = -5; dy <= 0; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                            Blocks.STONE.defaultBlockState());
+        for (int dy = -4; dy <= 0; dy++)
+            level.setBlockAndUpdate(new BlockPos(cx, floorY + dy, cz), Blocks.AIR.defaultBlockState());
+
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;      // pillaring is the point; forbidding it would be circular
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = 20;
+        BotConfig.pathfinderMaxMs = 2000;
+
+        final int pitFloorY = floorY - 4;
+        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, pitFloorY, cz + 0.5);
+        ServerPlayer fp = driver.fakePlayer();
+        ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); });
+        fp.getInventory().clearContent();
+        fp.getInventory().items.set(0, new ItemStack(Items.COBBLESTONE, 32));
+        fp.getInventory().selected = 0;
+
+        final int startY = fp.blockPosition().getY();
+        driver.runProcess(new IntentProcess(new Intent(new Goal.YLevel(floorY + 1))));
+        ServerAvatarManager.register(driver);
+
+        ctx.await(() -> ServerAvatarManager.activeCount() == 0).within(1_200).then(() -> {
+            BlockPos at = fp.blockPosition();
+            String diag = " [diag startY=" + startY + " endY=" + at.getY()
+                    + " surfaceY=" + (floorY + 1)
+                    + " climbed=" + (at.getY() - startY)
+                    + " body@" + (at.getX() - cx) + "," + (at.getY() - floorY) + "," + (at.getZ() - cz)
+                    + " cobble=" + fp.getInventory().countItem(Items.COBBLESTONE)
+                    + " lastStep=" + driver.lastStep()
+                    + " path=" + driver.botState().mc_goto.pathStep
+                    + "/" + driver.botState().mc_goto.pathLen
+                    + " endReason=" + driver.botState().mc_goto.endReason + "]";
+            ctx.expect(at.getY() >= floorY)
+                    .as("the body pillared out of the shaft it would have dug — a miner that cannot"
+                            + " leave its own hole strands every rung after it" + diag)
+                    .isEqualTo(true);
+            // NOT "it spent blocks pillaring". That was the first version of this assertion and it
+            // was wrong in the instructive way: the body got out in 46 ticks having spent nothing,
+            // because with breaking allowed it cut a staircase through the shaft wall — which is
+            // what a player with a pickaxe does, and is a better answer than pillaring. Demanding
+            // the pillar would have written one implementation into the requirement and reported a
+            // capability as missing while watching it work.
+            ctx.expect(at.getX() != cx || at.getZ() != cz || at.getY() >= floorY)
+                    .as("and it is genuinely out — not still standing in the shaft column at the"
+                            + " depth it started" + diag)
+                    .isEqualTo(true);
+        });
+    }
+
+    /**
+     * Nine deep, one wide, and a ceiling — the shaft an honest mining rung actually leaves.
+     *
+     * <p>{@link #serverPillarsOutOfAPit} is four deep and open to the sky, and it passes in 46
+     * ticks. The journey's stone rung sinks nine courses and then mines sideways, so the body ends
+     * under its own roof, and there the walker measured one block of climb in 6 000 ticks. Two
+     * things differ at once — depth, and the overhang — so this scene reproduces both and drives
+     * the exit the way the journey now scripts it: clear {@code feet+2}, then
+     * {@link TowerProcess} one course, repeat.
+     *
+     * <p>The overhang is the interesting half. {@code TowerProcess} does not break; it jumps and
+     * fills the cell it left. Under a roof that is a jump into rock, reported as "stuck (no Y gain)"
+     * — a message that reads like a missing capability and is really a missing step in the plan.
+     */
+    private static void serverTowersOutOfADeepShaft(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
+        ctx.cleanup(() -> {
+            for (int dx = -3; dx <= 3; dx++)
+                for (int dy = -11; dy <= 3; dy++)
+                    for (int dz = -3; dz <= 3; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                                Blocks.AIR.defaultBlockState());
+        });
+
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = -3; dz <= 3; dz++)
+                for (int dy = -10; dy <= 0; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                            Blocks.STONE.defaultBlockState());
+        // The shaft, and then one cell of sideways working at the bottom — which is what puts a
+        // roof over the body's head. Standing in the alcove, the column home is a step away and
+        // the way up is through stone.
+        for (int dy = -9; dy <= 0; dy++)
+            level.setBlockAndUpdate(new BlockPos(cx, floorY + dy, cz), Blocks.AIR.defaultBlockState());
+        for (int dy = -9; dy <= -8; dy++)
+            level.setBlockAndUpdate(new BlockPos(cx + 1, floorY + dy, cz), Blocks.AIR.defaultBlockState());
+
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = 20;
+        BotConfig.pathfinderMaxMs = 2000;
+
+        final int shaftFloorY = floorY - 9;
+        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 1.5, shaftFloorY, cz + 0.5);
+        ServerPlayer fp = driver.fakePlayer();
+        ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); });
+        fp.getInventory().clearContent();
+        // Slot 0, because that is the constraint TowerProcess actually has: outside creative it
+        // only scans the hotbar, and a run whose cobblestone had settled into the main inventory
+        // would report "no placeable block in hotbar" while carrying thirty of them.
+        fp.getInventory().items.set(0, new ItemStack(Items.COBBLESTONE, 32));
+        fp.getInventory().selected = 0;
+        // A stone pickaxe, because the ceiling is stone and the exit is only scriptable if the
+        // body can clear it in a sensible number of ticks.
+        fp.getInventory().items.set(1, new ItemStack(Items.STONE_PICKAXE));
+
+        final int startY = fp.blockPosition().getY();
+        towerOneCourse(ctx, driver, fp, floorY + 1, 40, () -> {
+            BlockPos at = fp.blockPosition();
+            String diag = " [diag startY=" + startY + " endY=" + at.getY()
+                    + " surfaceY=" + (floorY + 1)
+                    + " climbed=" + (at.getY() - startY)
+                    + " body@" + (at.getX() - cx) + "," + (at.getY() - floorY) + "," + (at.getZ() - cz)
+                    + " cobble=" + fp.getInventory().countItem(Items.COBBLESTONE)
+                    + " builder=" + driver.botState().builder.lastError + "]";
+            ctx.expect(at.getY() > floorY)
+                    .as("the body climbed nine courses out of a roofed shaft — the exit a mining"
+                            + " rung has to make before the next rung can go anywhere" + diag)
+                    .isEqualTo(true);
+        });
+    }
+
+    /** One course of the scripted exit: clear {@code feet+2} if it is solid, else tower one block.
+     *  Recursive rather than looped for the same reason the journey's version is — a course is two
+     *  waits, and the body has to move between them. */
+    private static void towerOneCourse(SceneContext ctx, ServerWorldDriver driver, ServerPlayer fp,
+                                       int surfaceY, int budget, Runnable then) {
+        BlockPos at = fp.blockPosition();
+        if (at.getY() >= surfaceY || budget <= 0) { then.run(); return; }
+        BlockPos ceiling = at.above(2);
+        if (fp.level().getBlockState(ceiling).blocksMotion()) {
+            ServerAvatarManager.register(driver.mine(ceiling));
+            ctx.await(driver::finished).within(400)
+                    .then(() -> towerOneCourse(ctx, driver, fp, surfaceY, budget - 1, then));
+            return;
+        }
+        // Land before jumping, exactly as the journey's version does. TowerProcess waits for
+        // onGround in READY and counts stuck ticks from zero, so a body still settling out of the
+        // mine that preceded it burns its whole patience falling and reports "out of blocks?" while
+        // holding thirty-two cobblestone. Same HoldStill the journey uses — an arena that models
+        // the routine with a different settle is not modelling the routine.
+        if (!fp.onGround()) {
+            ServerAvatarManager.register(driver.runProcess(new HoldStill(40)));
+            ctx.await(driver::finished).within(60)
+                    .then(() -> towerOneCourse(ctx, driver, fp, surfaceY, budget - 1, then));
+            return;
+        }
+        ServerAvatarManager.register(driver.runProcess(new TowerProcess(at.getY() + 1, "minecraft:cobblestone")));
+        ctx.await(driver::finished).within(200).then(() -> {
+            ServerAvatarManager.unregister(driver);
+            if (fp.blockPosition().getY() <= at.getY()) { then.run(); return; }
+            towerOneCourse(ctx, driver, fp, surfaceY, budget - 1, then);
+        });
+    }
+
+    private static void serverWalkIntoAPit(SceneContext ctx) { walkIntoAPit(ctx, false); }
+
+    /** {@link #serverWalkIntoAPit} with the permissions {@code MineProcess} actually sweeps under. */
+    private static void serverWalkIntoAPitArmed(SceneContext ctx) { walkIntoAPit(ctx, true); }
+
+    private static void walkIntoAPit(SceneContext ctx, boolean armed) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
+        ctx.cleanup(() -> {
+            for (int dx = -2; dx <= 9; dx++)
+                for (int dy = -3; dy <= 2; dy++)
+                    for (int dz = -2; dz <= 2; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                                Blocks.AIR.defaultBlockState());
+        });
+
+        for (int dx = -2; dx <= 9; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                for (int dy = -3; dy <= 0; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                            Blocks.STONE.defaultBlockState());
+
+        // Exactly the hole a bot leaves when it digs down to an ore one course under the floor:
+        // one wide, two deep, walls on all four sides.
+        BlockPos pitBottom = new BlockPos(cx + 6, floorY - 1, cz);
+        level.setBlockAndUpdate(new BlockPos(cx + 6, floorY, cz), Blocks.AIR.defaultBlockState());
+        level.setBlockAndUpdate(pitBottom, Blocks.AIR.defaultBlockState());
+
+        // Unarmed: nothing to dig or pave with, so the only answer the walker can give is about
+        // the pit. Armed: exactly what MineProcess.COLLECT runs under, dirt in hand included.
+        BotConfig.allowBreak = armed;
+        BotConfig.allowPlace = armed;
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = 20;
+        BotConfig.pathfinderMaxMs = 2000;
+
+        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayer fp = driver.fakePlayer();
+        ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); });
+        fp.getInventory().clearContent();
+        if (armed) {
+            fp.getInventory().items.set(0, new ItemStack(Items.DIRT, 16));   // holdPlaceable's pick
+            fp.getInventory().items.set(1, new ItemStack(Items.STONE_PICKAXE));
+            fp.getInventory().selected = 0;
+        }
+
+        driver.runProcess(new IntentProcess(new Intent(new Goal.Block(pitBottom))));
+        ServerAvatarManager.register(driver);
+
+        ctx.await(() -> ServerAvatarManager.activeCount() == 0).within(700).then(() -> {
+            BlockPos at = fp.blockPosition();
+            double away = Math.sqrt(at.distSqr(pitBottom));
+            String diag = " [diag pit=" + (pitBottom.getX() - cx) + "," + (pitBottom.getY() - floorY)
+                    + "," + (pitBottom.getZ() - cz)
+                    + " body@" + (at.getX() - cx) + "," + (at.getY() - floorY) + "," + (at.getZ() - cz)
+                    + " dist=" + String.format("%.1f", away)
+                    + " lastStep=" + driver.lastStep()
+                    + " pathStep=" + driver.botState().mc_goto.pathStep
+                    + "/" + driver.botState().mc_goto.pathLen
+                    + " endReason=" + driver.botState().mc_goto.endReason
+                    + " lastError=" + driver.botState().mc_goto.lastError + "]";
+            ctx.expect(at.getY() <= pitBottom.getY())
+                    .as("the body got down into the pit — a drop at the bottom of a two-deep hole"
+                            + " is only unreachable if this is false" + diag)
+                    .isEqualTo(true);
+            ctx.expect(away <= 1.5)
+                    .as("and it got to the pit's own cell, which is where vanilla's pickup magnet"
+                            + " would reach an item lying there" + diag)
+                    .isEqualTo(true);
+        });
+    }
+
+    /** How many of a cell's six neighbours are non-solid — 0 means the item is walled in. */
+    private static int openSides(ServerLevel level, BlockPos cell) {
+        int open = 0;
+        for (Direction d : Direction.values())
+            if (!level.getBlockState(cell.relative(d)).isSolidRender(level, cell.relative(d))) open++;
+        return open;
+    }
+
+    private static void mineHarvest(SceneContext ctx, boolean buried) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
+        ctx.cleanup(() -> {
+            for (ItemEntity stray : level.getEntitiesOfClass(ItemEntity.class, entityBox(cx, floorY, cz)))
+                stray.discard();
+            for (int dx = -2; dx <= 10; dx++)
+                for (int dy = -3; dy <= 2; dy++)
+                    for (int dz = -2; dz <= 2; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+        });
+
+        // DIRT floor (not a target, and not a pickaxe block) over three courses of STONE, so the
+        // two buried ores can be dug down to and the drops land in the hole the bot just made.
+        for (int dx = -2; dx <= 10; dx++)
+            for (int dz = -2; dz <= 2; dz++) {
+                for (int dy = -3; dy <= -1; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.STONE.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.DIRT.defaultBlockState());
+            }
+        // Three ores, spread out and at three depths — one at eye level, one a course down, one
+        // two. Collecting them is a CIRCUIT, not a reach: the bot walks, digs, and has to come
+        // back for what fell into each hole. A single exposed ore at arm's length was enough to
+        // catch the pickup-delay bug and blind to the one after it, where three ores were mined
+        // in the field and all three drops stayed on the ground.
+        BlockPos ore = new BlockPos(cx + 3, floorY + 1, cz);
+        BlockPos oreB = new BlockPos(cx + 6, buried ? floorY - 1 : floorY + 1, cz);
+        BlockPos oreC = new BlockPos(cx + 9, buried ? floorY - 2 : floorY + 1, cz);
+        level.setBlockAndUpdate(ore, Blocks.IRON_ORE.defaultBlockState());
+        level.setBlockAndUpdate(oreB, Blocks.IRON_ORE.defaultBlockState());
+        level.setBlockAndUpdate(oreC, Blocks.IRON_ORE.defaultBlockState());
+
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;      // the hazard: placing is what makes the hand hold dirt
+        BotConfig.walkerDebug = false;
+        // Real ticks — a pathfinder slice that blocks the server thread would stall the suite,
+        // so these stay the generous-but-bounded values the journey rig uses, not MAX_VALUE/2.
+        BotConfig.pathfinderSliceMs = 20;
+        BotConfig.pathfinderMaxMs = 2000;
+
+        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayer fp = driver.fakePlayer();
+        ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); });
+        fp.getInventory().clearContent();
+        fp.getInventory().items.set(0, new ItemStack(Items.DIRT, 16));   // what holdPlaceable will grab
+        fp.getInventory().items.set(20, new ItemStack(Items.STONE_PICKAXE));  // bag, not hotbar
+        fp.getInventory().selected = 0;
+        // Ask for FOUR and put THREE there. Every way a mine can bank nothing is on this path:
+        // the quota comes up short (so the give-up branch must still sweep what was broken),
+        // the first drop is at the bot's feet with its pickup delay still running (so COLLECT
+        // must not read "no goal" as "nothing left"), and the other two are at the bottom of
+        // holes the bot dug, several blocks apart (so the sweep has to path back to them). A
+        // quota that matched the rig would exercise none of it, and the journey's iron rung asks
+        // for four ores out of a vein that does not hold four — the short quota IS the normal case.
+        driver.runProcess(new MineProcess(List.of("minecraft:iron_ore"), 4, 12));
+        ServerAvatarManager.register(driver);
+
+        ctx.await(() -> ServerAvatarManager.activeCount() == 0).within(1_200).then(() -> {
+            int banked = fp.getInventory().countItem(Items.RAW_IRON);
+            int drops = 0;
+            StringBuilder where = new StringBuilder();
+            for (ItemEntity it : level.getEntitiesOfClass(ItemEntity.class, entityBox(cx, floorY, cz)))
+                if (it.getItem().is(Items.RAW_IRON)) {
+                    drops += it.getItem().getCount();
+                    BlockPos cell = it.blockPosition();
+                    where.append(" drop@").append((int) it.getX() - cx).append(",")
+                         .append((int) it.getY() - floorY).append(",").append((int) it.getZ() - cz)
+                         .append("(d=").append(String.format("%.1f", Math.sqrt(it.distanceToSqr(fp))))
+                    // Is there a way IN? level.destroyBlock has no reach gate, so this avatar can
+                    // break a block it could never have touched — and an ore mined through solid
+                    // rock leaves its drop in a SEALED pocket. "Sealed" and "reachable but the
+                    // walker stopped short" both end as an uncollected item four blocks away, and
+                    // no amount of pathfinder work fixes the first one.
+                         .append(",above=").append(level.getBlockState(cell.above()).getBlock())
+                         .append(",openSides=").append(openSides(level, cell)).append(")");
+                }
+            String diag = " [diag oresLeft=" + standingLabel(level, List.of(ore, oreB, oreC))
+                    + " banked=" + banked + " drops=" + drops
+                    + " held=" + fp.getMainHandItem().getItem()
+                    + " finished=" + driver.finished()
+                    + " lastError=" + driver.botState().mine.lastError
+                    + " endReason=" + driver.botState().mine.endReason
+                    + " body@" + (fp.blockPosition().getX() - cx) + "," + (fp.blockPosition().getY() - floorY)
+                    + "," + (fp.blockPosition().getZ() - cz)
+                    + " lastStep=" + driver.lastStep()
+                    + " collectPath=" + driver.botState().mine.pathStep + "/" + driver.botState().mine.pathLen
+                    + where + "]";
+            int standing = 0;
+            for (BlockPos at : List.of(ore, oreB, oreC)) if (level.getBlockState(at).is(Blocks.IRON_ORE)) standing++;
+            if (standing > 0)
+                ctx.fail("mineHarvest rig: " + standing + " of 3 ores were never broken" + diag);
+            if (!driver.finished())
+                ctx.fail("mineHarvest: the mine did not finish+unregister" + diag);
+            if (banked < 3)
+                ctx.fail((buried ? "mineHarvestBuried" : "mineHarvest")
+                        + ": 3 ores broke but only " + banked + " raw iron reached the inventory — "
+                        + (drops > 0 ? "the drop exists and was not collected" : "no drop was ever created")
+                        + diag);
+            // A finished command must say how it ended. `active:false` with no error reads as
+            // success, and this verb can end clean having banked nothing — which is what made the
+            // two collection bugs above take three playthrough runs to tell apart from "the ore
+            // was never reached". Same contract BunkerProcess and IntentProcess already keep.
+            if (driver.botState().mine.endReason == null)
+                ctx.fail("mineHarvest: the mine finished without stating a terminal verdict" + diag);
+            // Whether the body EARNED anything for this is a separate question with a separate
+            // answer per loader — see wd.serverAvatarEarnsAdvancement.
+        });
     }
 
     // ==================================================================================
@@ -1237,4 +2013,221 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                     + "finished=" + driver.finished() + " lastErr=" + lastErr);
         ServerAvatarManager.clear();
     }
+
+    /**
+     * Cast one obsidian block the way a portal is actually built.
+     *
+     * <p>The capability probe for ROADMAP N4, written before the rung rather than after it, because
+     * the rung is a ~77-block descent to this seed's nearest lava and that would be an expensive
+     * place to discover that the body cannot work a bucket. Everything the cast needs fits in eight
+     * blocks of arena: fill an empty bucket from a lava source, empty it into a chosen cell, and let
+     * water convert that cell to obsidian.
+     *
+     * <p><b>Why a cast and not a mine.</b> Obsidian that already exists — the crust of a lava lake —
+     * needs a diamond pickaxe to take, and diamonds are several rungs above anything this route
+     * holds. A portal is therefore not found but MADE: a mould, then lava placed into it one bucket
+     * at a time, then water. That is why this asserts the block at a cell the body CHOSE, rather
+     * than anywhere obsidian happens to appear.
+     *
+     * <p><b>One bucket, three uses.</b> The cast is scripted the way the ladder can actually afford
+     * it: the water is placed ONCE at the build site and stays there, and the same bucket then
+     * shuttles lava for every frame block. So this probe empties a water bucket, fills it from lava,
+     * empties it into the mould — and then asserts the water source is STILL THERE, because that
+     * last reading is the whole of the one-bucket claim. If the cast consumed its water, the portal
+     * would cost ten trips back to open water and {@code JourneyStage.PORTAL_KIT}'s bill — one
+     * bucket, three ingots — would be wrong for the second time.
+     */
+    private static void serverCastsObsidian(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
+        ctx.cleanup(() -> {
+            for (int dx = -3; dx <= 4; dx++)
+                for (int dy = -1; dy <= 3; dy++)
+                    for (int dz = -2; dz <= 2; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                                Blocks.AIR.defaultBlockState());
+        });
+
+        // A stone floor, one lava source to draw from, and a hole to cast into. The lava is placed
+        // by the scene because this probe is about the BUCKET, not about finding lava — the journey
+        // has a surveyed coordinate for that, and getting there is the rung's problem not this one's.
+        for (int dx = -3; dx <= 4; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+        BlockPos source = new BlockPos(cx + 2, floorY, cz);
+        level.setBlockAndUpdate(source, Blocks.LAVA.defaultBlockState());
+        BlockPos mould = new BlockPos(cx - 1, floorY, cz);
+        level.setBlockAndUpdate(mould, Blocks.AIR.defaultBlockState());
+        // The mould needs a BOTTOM. Without one the arena's single floor layer leaves air under the
+        // hole, the aim at that cell hits nothing, and the pour comes back PASS with the bucket
+        // still full — a miss, which reads nothing like the CONSUME-but-empty-target of a pour that
+        // landed somewhere else. A mould is a container, and a container with no floor is a hole.
+        level.setBlockAndUpdate(mould.below(), Blocks.STONE.defaultBlockState());
+        // The mould's far wall, and it is load-bearing rather than scenery. A fluid lands in the cell
+        // in FRONT of the face the ray hit, so putting water in the cell ABOVE the mould needs a face
+        // that points at that cell — and a hole has no such face: its rim points up, at the cell the
+        // water is supposed to end up in. The wall supplies one. A real cast has it anyway, because
+        // a mould is a trench cut into rock rather than a dent in a plain.
+        BlockPos wall = new BlockPos(cx - 2, floorY + 1, cz);
+        level.setBlockAndUpdate(wall, Blocks.STONE.defaultBlockState());
+
+        BotConfig.allowBreak = false;
+        BotConfig.allowPlace = true;
+
+        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+        ctx.cleanup(() -> driver.fakePlayer().discard());
+        var fp = driver.fakePlayer();
+        // A WATER bucket, not an empty one, and that is the order the plan runs in: the water is what
+        // gets carried to the site, and the bucket is empty from then on except while it is holding
+        // the lava it is about to pour.
+        // And the bucket is deliberately NOT the selected slot. `useItemInHand` uses whatever the
+        // hotbar has selected, so a body that just mined its way down holds a PICKAXE when it
+        // reaches the lava — and a pickaxe's `use` returns PASS and changes nothing, which is
+        // byte-identical to a bucket whose ray missed. The journey lost a whole run to that shape
+        // (fill.result=PASS, lava_bucket=0, source untouched, aim dead on at 2.5 m). So this arena
+        // starts the way the rung actually arrives, and every use below goes through holdItem.
+        fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE, 1));
+        fp.getInventory().items.set(1, new ItemStack(Items.WATER_BUCKET, 1));
+        fp.getInventory().selected = 0;
+
+        // 1. Set the water down, against the wall, so it stands one cell above the mould. This is the
+        //    verb the first version of this probe never asked about: it staged the water with
+        //    setBlockAndUpdate, which proved the CONVERSION and left "can the body put water where it
+        //    wants it" unanswered — and that question is the one a 77-block descent would have been
+        //    an expensive place to fail.
+        ctx.expect(driver.avatar().holdItem(Items.WATER_BUCKET))
+                .as("the water bucket can be brought to the main hand from the bag").isTrue();
+        driver.avatar().aimAtBlock(wall);
+        ServerAvatarManager.tickAll();
+        ctx.record("water.hand", String.valueOf(fp.getMainHandItem().getItem()));
+        ctx.record("water.aim", String.format(java.util.Locale.ROOT, "%.1f/%.1f",
+                fp.getYRot(), fp.getXRot()));
+        ctx.record("water.result", String.valueOf(driver.avatar().useItemInHand()));
+        ctx.record("water.landedAt", whereIs(level, cx, floorY, cz, Blocks.WATER));
+        ctx.record("bucket.afterWater", countItem(fp, Items.BUCKET) + " empty");
+        ctx.expect(level.getBlockState(mould.above()).getBlock() == Blocks.WATER)
+                .as("water placed in the cell above the mould (see water.landedAt)").isTrue();
+
+        // 2. Fill — by AIMING at the lava and using the item in hand, not by right-clicking the
+        //    block. The first version of this used useBlock and came back bucket.filled=0 with the
+        //    source untouched, which is correct behaviour and the wrong verb: useItemOn is the
+        //    block-targeted path, and a bucket has no useOn. BucketItem does its work in `use`,
+        //    which ray-traces from the eyes for a fluid — so where the body is LOOKING is the whole
+        //    input, and aiming is not decoration here the way it is for a place.
+        ctx.expect(driver.avatar().holdItem(Items.BUCKET))
+                .as("the now-empty bucket is back in the main hand before the fill").isTrue();
+        driver.avatar().aimAtBlock(source);
+        // A tick between aiming and using, because the aim is state the body carries and the ray
+        // trace reads it — and because a use that fails for want of a tick and a use that fails for
+        // want of reach are the same FAIL from outside.
+        ServerAvatarManager.tickAll();
+        ctx.record("aim.yawPitch", String.format(java.util.Locale.ROOT, "%.1f/%.1f",
+                fp.getYRot(), fp.getXRot()));
+        ctx.record("aim.eyeToSource", String.format(java.util.Locale.ROOT, "%.2f",
+                fp.getEyePosition().distanceTo(net.minecraft.world.phys.Vec3.atCenterOf(source))));
+        // What vanilla's own pick would hit from where the body is looking. If this is not the
+        // source, the aim is the problem; if it IS and the use still fails, the problem is the use.
+        // Clipped the way BucketItem clips, not with Entity.pick, and the difference is not
+        // cosmetic. `pick` calls getViewYRot, which LivingEntity overrides to return yHeadRot —
+        // and Avatar.aimAtBlock sets yRot/xRot only, so a pick rays down a direction nobody aimed.
+        // In this arena that produced a quietly nonsensical reading (`-5,-59,-2` for a floor at
+        // y=220) and nothing depended on it; in the journey the same call drove a tunnel, and the
+        // tunnel mined eight blocks AWAY from the lava. Item.getPlayerPOVHitResult reads
+        // getXRot()/getYRot() directly, so this is what the use will actually see.
+        var picked = aimedAt(fp, 6.0, true);
+        ctx.record("aim.picks", picked.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+                ? picked.getBlockPos().toShortString() + " " + level.getBlockState(picked.getBlockPos()).getBlock()
+                : String.valueOf(picked.getType()));
+        ctx.record("use.result", String.valueOf(driver.avatar().useItemInHand()));
+        int filled = countItem(fp, Items.LAVA_BUCKET);
+        ctx.record("bucket.filled", filled);
+        ctx.record("source.after", String.valueOf(level.getBlockState(source).getBlock()));
+        ctx.expect(filled).as("lava bucket held after right-clicking a lava source").isAtLeast(1);
+
+        // 3. Pour into the cell the body chose. Same verb and the same reason: emptying is also
+        //    BucketItem.use, ray-traced. Aimed at the floor BENEATH the mould, because the fluid
+        //    lands in the cell in FRONT of the face that was hit, not in the block that was hit —
+        //    and the mould is ADJACENT to the body for that aim to be possible at all. Two cells
+        //    away it was not: a ray toward a cell below floor level clips the floor's lip first, the
+        //    bucket emptied onto whatever it did hit, and the mould stayed air while the use
+        //    reported CONSUME.
+        ctx.expect(driver.avatar().holdItem(Items.LAVA_BUCKET))
+                .as("the filled bucket is in the main hand before the pour").isTrue();
+        driver.avatar().aimAtBlock(mould.below());
+        ServerAvatarManager.tickAll();          // as above: the aim has to land before the use reads it
+        ctx.record("pour.hand", String.valueOf(fp.getMainHandItem().getItem()));
+        ctx.record("pour.aim", String.format(java.util.Locale.ROOT, "%.1f/%.1f",
+                fp.getYRot(), fp.getXRot()));
+        ctx.record("pour.result", String.valueOf(driver.avatar().useItemInHand()));
+        // Where the lava actually went, when it did not go where it was aimed. A CONSUME with an
+        // empty target cell means vanilla accepted the use and put the fluid somewhere else, which
+        // is a different bug from a use vanilla refused.
+        ctx.record("pour.holdingAfter", countItem(fp, Items.LAVA_BUCKET) + " lava bucket(s)");
+        ctx.record("pour.lavaLandedAt", whereIs(level, cx, floorY, cz, Blocks.LAVA));
+        ctx.record("mould.afterPour", String.valueOf(level.getBlockState(mould).getBlock()));
+
+        // 4. And it is already obsidian, with no step in between. A lava SOURCE placed next to water
+        //    converts on the neighbour update, not on a fluid tick — so with the water set down first
+        //    there is nothing to wait for, and the loop below is only here so that a build where the
+        //    conversion IS deferred reports the conversion rather than a missing one.
+        for (int t = 0; t < 40 && level.getBlockState(mould).getBlock() != Blocks.OBSIDIAN; t++) {
+            ServerAvatarManager.tickAll();
+        }
+        ctx.record("mould.cast", String.valueOf(level.getBlockState(mould).getBlock()));
+        ctx.expect(level.getBlockState(mould).getBlock() == Blocks.OBSIDIAN)
+                .as("lava poured beneath standing water casts obsidian in the chosen cell").isTrue();
+
+        // 5. The reading the one-bucket plan stands on: the water is STILL a source. A cast that ate
+        //    its water would need a fresh trip to open water for every one of the portal's ten
+        //    blocks, which is a different route with a different bill — and nothing about the
+        //    obsidian above would have said so.
+        ctx.record("water.afterCast", String.valueOf(level.getBlockState(mould.above()).getBlock()));
+        ctx.expect(level.getBlockState(mould.above()).getBlock() == Blocks.WATER)
+                .as("the water source survives the cast (one bucket shuttles all ten blocks)").isTrue();
+    }
+
+    /** The block a use would hit, clipped the way {@code Item.getPlayerPOVHitResult} clips it —
+     *  from {@code getXRot()}/{@code getYRot()}, not from the head rotation {@code Entity.pick}
+     *  reads and {@code Avatar.aimAtBlock} never sets. */
+    private static net.minecraft.world.phys.BlockHitResult aimedAt(
+            net.minecraft.server.level.ServerPlayer fp, double range, boolean hitFluids) {
+        net.minecraft.world.phys.Vec3 eye = fp.getEyePosition();
+        net.minecraft.world.phys.Vec3 look =
+                net.minecraft.world.phys.Vec3.directionFromRotation(fp.getXRot(), fp.getYRot());
+        return fp.level().clip(new net.minecraft.world.level.ClipContext(eye,
+                eye.add(look.scale(range)),
+                net.minecraft.world.level.ClipContext.Block.OUTLINE,
+                hitFluids ? net.minecraft.world.level.ClipContext.Fluid.SOURCE_ONLY
+                          : net.minecraft.world.level.ClipContext.Fluid.NONE, fp));
+    }
+    /** Every cell of the arena holding a block — for saying where a fluid went when it did not go
+     *  where it was aimed. "CONSUME and the target is empty" and "the use was refused" are different
+     *  bugs, and only this tells them apart. */
+    private static String whereIs(ServerLevel level, int cx, int floorY, int cz,
+                                  net.minecraft.world.level.block.Block want) {
+        StringBuilder sb = new StringBuilder();
+        for (int dx = -4; dx <= 5; dx++)
+            for (int dy = -1; dy <= 3; dy++)
+                for (int dz = -3; dz <= 3; dz++) {
+                    BlockPos at = new BlockPos(cx + dx, floorY + dy, cz + dz);
+                    if (level.getBlockState(at).getBlock() != want) continue;
+                    if (sb.length() > 0) sb.append(' ');
+                    sb.append(at.toShortString());
+                }
+        return sb.length() == 0 ? "nowhere in the arena" : sb.toString();
+    }
+
+    /** How many of an item the body holds — the only witness a right-click leaves behind. */
+    private static int countItem(net.minecraft.server.level.ServerPlayer fp,
+                                 net.minecraft.world.item.Item item) {
+        int n = 0;
+        for (ItemStack st : fp.getInventory().items) if (st.is(item)) n += st.getCount();
+        return n;
+    }
+
 }
