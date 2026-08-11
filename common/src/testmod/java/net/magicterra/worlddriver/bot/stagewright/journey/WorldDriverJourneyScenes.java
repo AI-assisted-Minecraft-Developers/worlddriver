@@ -123,7 +123,10 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // of a 36-block shaft, through the one mechanism this ladder already knows is unreliable.
         out.add(stage("wd.journey12PortalLit", JourneyStage.PORTAL_LIT, 250_000,
                 WorldDriverJourneyScenes::portalLit));
-        out.add(unscripted("wd.journey13Nether", JourneyStage.NETHER));
+        // 3 000: standing in a portal is an ~80-tick wait for a player, and the only other cost is
+        // the couple of steps from where the striking left the body.
+        out.add(stage("wd.journey13Nether", JourneyStage.NETHER, 3_000,
+                WorldDriverJourneyScenes::nether));
         out.add(unscripted("wd.journey14BlazeRod", JourneyStage.BLAZE_ROD));
         out.add(unscripted("wd.journey15EnderPearl", JourneyStage.ENDER_PEARL));
         out.add(unscripted("wd.journey16EyeOfEnder", JourneyStage.EYE_OF_ENDER));
@@ -2200,6 +2203,60 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             ctx.expect(filled).as("lava bucket filled from a source (see fill.result / fill.sourceAfter)")
                     .isAtLeast(1);
             then.run();
+        });
+    }
+
+    // =====================================================================================
+    // NETHER — walk into the portal the rung below lit, and come out somewhere else.
+    // =====================================================================================
+
+    /**
+     * Step through and assert the body actually MOVED, not merely that the dimension changed.
+     *
+     * <p>{@code wd.serverEntersTheNether} exists because that distinction was worth a bug: vanilla
+     * delivers the destination through {@code connection.teleport}, both loaders' fake players used
+     * to swallow it, and the body arrived in the Nether holding its overworld coordinates — 87 501
+     * blocks out, above the roof, standing on air, while a dimension check passed. So this rung
+     * checks the 8:1 scaling too. If it ever regresses, the fortress rung above would search a world
+     * nobody is standing in.
+     */
+    private static void nether(SceneContext ctx) {
+        JourneyRig rig = JourneyRig.enter(ctx, JourneyStage.NETHER);
+        BlockPos portal = rig.nearestBlock("minecraft:nether_portal", 24);
+        rig.evidence("portal.found", portal == null ? "无" : portal.toShortString());
+        if (portal == null) {
+            ctx.fail("身边 24 格内没有传送门方块 —— PORTAL_LIT 说点着了，这里却找不到，"
+                    + "两者必有一个是假的（身体在 " + rig.player().blockPosition() + "）");
+            return;
+        }
+        final BlockPos from = rig.player().blockPosition();
+        rig.attempting("走进传送门站住，等它把身体送过去");
+        rig.settle(new IntentProcess(new Intent(new Goal.Block(portal))), 2_000, () -> {
+            BlockPos at = rig.player().blockPosition();
+            rig.evidence("stand.at", at.toShortString());
+            rig.evidence("stand.in", String.valueOf(
+                    rig.player().serverLevel().getBlockState(at).getBlock()));
+            // A player's own portal wait is ~80 ticks; this budget is generous on purpose, because a
+            // run that spends it all has found a body the timer never STARTS for, which is a
+            // different finding from one it never fires for.
+            rig.await(() -> !"minecraft:overworld".equals(rig.dimension()), 1_200, () -> {
+                rig.evidence("dimension", rig.dimension());
+                BlockPos now = rig.player().blockPosition();
+                rig.evidence("arrived.at", now.toShortString());
+                rig.evidence("underfoot", String.valueOf(
+                        rig.player().serverLevel().getBlockState(now.below()).getBlock()));
+                int wantX = Math.floorDiv(from.getX(), 8), wantZ = Math.floorDiv(from.getZ(), 8);
+                int drift = Math.max(Math.abs(now.getX() - wantX), Math.abs(now.getZ() - wantZ));
+                rig.evidence("scaled.expectedXZ", wantX + "," + wantZ + "（漂移 " + drift + " 格）");
+                ctx.expect(rig.dimension()).as("the body is in the Nether")
+                        .isEqualTo("minecraft:the_nether");
+                ctx.expect(drift).as("it arrived at the 8:1-scaled coordinate, not the raw one")
+                        .isAtMost(128);
+                rig.noteAdvancement("minecraft:story/enter_the_nether");
+                rig.reach("从自己点亮的门走进下界，落在 " + now.toShortString()
+                        + "（地表门在 " + from.toShortString() + "，按 8:1 应在 "
+                        + wantX + "," + wantZ + "）");
+            });
         });
     }
 
