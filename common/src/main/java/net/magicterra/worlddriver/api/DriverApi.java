@@ -7,6 +7,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.TicketType;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -67,6 +69,34 @@ public final class DriverApi {
     public final EventsApi eventsApi = new EventsApi(this);
 
     static final BlockPos ORIGIN = new BlockPos(0, 200, 0);
+
+    /**
+     * Keeps the test arena's chunks loaded, entities and all, for as long as the server runs.
+     *
+     * <p>Nothing else does. {@code StageWrightHarness} force-loads a window around each SCENE's
+     * arena (AGENTS.md hard rule #11), and this arena is not one — {@link #ORIGIN} is an absolute
+     * position outside every scene's grid cell, so the harness's window never covers it. Left
+     * unpinned it stays loaded only while a player happens to be standing near 0,200,0, and
+     * {@code seedTestArea} is called from scenes that then walk the player 130,000 blocks away.
+     *
+     * <p>What that costs is a whole class of failure that reads as a product bug. Block writes
+     * load the chunk they touch on demand, so terrain always works; {@code Level#getEntities}
+     * only sees LOADED entity sections, so entities silently do not exist. The validation suite
+     * then reports "exactly the 2 tagged stands, got 0" and "the two seeded props are there, got
+     * 0 non-player rows of 0" — which read as the entity query being broken. Measured on both
+     * NeoForge client topologies, at both ends of the suite: {@code 05_query} failed before the
+     * player's teleport onto the pad had promoted the chunk, and {@code 58_query_type} failed
+     * after {@code 40_scheduler} had walked them off it. Same missing ticket, opposite ends,
+     * different checks each run — which is what made it look like flakiness.
+     *
+     * <p>Not persisted, so it never outlives the process and cannot end up in a saved world.
+     */
+    private static final TicketType<ChunkPos> TEST_ARENA_TICKET =
+            TicketType.create("worlddriver_test_arena", Comparator.comparingLong(ChunkPos::toLong));
+
+    /** Chunks within this many of {@link #ORIGIN}'s chunk must be ENTITY_TICKING. The seed clears a
+     *  ±20 box and the suite queries a ±16 radius around the origin, so ±2 chunks covers both. */
+    private static final int TEST_ARENA_CHUNK_RADIUS = 2;
 
     static final int EVENT_BUFFER_CAP = 4096;
 
@@ -515,11 +545,30 @@ public final class DriverApi {
      * Lays down a deterministic test arena: 5x5 stones at y=200, oak log at y=201,
      * one cow at (3,201,0), one sheep at (-3,201,2). Clears surrounding air first
      * so {@code /agent test} is idempotent.
+     *
+     * <p>Pins the arena's chunks on the way in ({@link #TEST_ARENA_TICKET}) and asserts on the way
+     * out that the props it just placed are actually visible. "Deterministic" is the whole point of
+     * this verb, and an arena whose entities exist only while somebody stands next to it is not.
      */
     public void seedTestArea() {
         ServerLevel level = level();
         onServerThread(() -> {
             BlockPos origin = ORIGIN;
+            // Pin first, write second. The ticket's level has to reach ENTITY_TICKING (31) out to
+            // TEST_ARENA_CHUNK_RADIUS, and a region ticket at distance d puts its own chunk at
+            // 33-d and each ring one higher — so d = radius + 2. Re-adding an identical ticket is
+            // a no-op in DistanceManager, which is what makes this safe to call on every seed.
+            ChunkPos center = new ChunkPos(origin);
+            level.getChunkSource().addRegionTicket(
+                    TEST_ARENA_TICKET, center, TEST_ARENA_CHUNK_RADIUS + 2, center);
+            // Then drive the load to completion before touching anything. addRegionTicket only
+            // registers intent; the chunks reach FULL (and their entity sections become visible)
+            // through the chunk source's own update pass, and a blocking getChunk on the server
+            // thread is what runs it. Without this the seed still writes its blocks — those load
+            // on demand — and its animals still land in a section nothing can see yet.
+            for (int cx = center.x - TEST_ARENA_CHUNK_RADIUS; cx <= center.x + TEST_ARENA_CHUNK_RADIUS; cx++)
+                for (int cz = center.z - TEST_ARENA_CHUNK_RADIUS; cz <= center.z + TEST_ARENA_CHUNK_RADIUS; cz++)
+                    level.getChunk(cx, cz);
             BlockState air = Blocks.AIR.defaultBlockState();
             // Clear up to dy=12 (origin.y+12) — deliberately taller than any cell the
             // suite currently writes. The ceiling was raised from +5 to +12 to kill a
@@ -573,6 +622,21 @@ public final class DriverApi {
                 sheep.setPersistenceRequired();
                 sheep.setNoAi(true);
                 level.addFreshEntity(sheep);
+            }
+            // Read the props back through the same lookup every caller will use, and refuse to
+            // report a seeded arena that is not one. Both creates are null-guarded and
+            // addFreshEntity can decline, so up to here every way this fails is silent — and a
+            // silent failure here is not an error anyone sees, it is a suite that reports the
+            // ENTITY QUERY as broken. Throwing puts the message at the cause.
+            int props = 0;
+            for (Entity e : level.getEntities((Entity) null, new AABB(ORIGIN).inflate(4.0))) {
+                if (e instanceof Cow || e instanceof Sheep) props++;
+            }
+            if (props != 2) {
+                throw new IllegalStateException("seedTestArea: the arena at " + ORIGIN + " holds "
+                        + props + " of its 2 props after seeding — the chunk is loaded for blocks"
+                        + " but not for entities, so every entity check downstream would report an"
+                        + " empty world instead of this");
             }
             synchronized (eventsLock) {
                 events.clear();
