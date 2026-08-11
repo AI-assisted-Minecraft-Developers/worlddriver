@@ -19,6 +19,7 @@ import net.magicterra.worlddriver.bot.process.SmeltProcess;
 import net.magicterra.worlddriver.bot.process.TowerProcess;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.server.level.ServerLevel;
@@ -116,7 +117,12 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // carrying it. A surface pool costs almost nothing and a deepslate pool costs all of this.
         out.add(stage("wd.journey11Obsidian", JourneyStage.OBSIDIAN, 100_000,
                 WorldDriverJourneyScenes::obsidian));
-        out.add(unscripted("wd.journey12PortalLit", JourneyStage.PORTAL_LIT));
+        // 250 000, and the number is the trip bill rather than caution: this rung descends once,
+        // carves a frame into the rock at the lava's own level, and then makes ten short walks
+        // between the pool and the mould. Building at the SURFACE instead would cost ten climbs out
+        // of a 36-block shaft, through the one mechanism this ladder already knows is unreliable.
+        out.add(stage("wd.journey12PortalLit", JourneyStage.PORTAL_LIT, 250_000,
+                WorldDriverJourneyScenes::portalLit));
         out.add(unscripted("wd.journey13Nether", JourneyStage.NETHER));
         out.add(unscripted("wd.journey14BlazeRod", JourneyStage.BLAZE_ROD));
         out.add(unscripted("wd.journey15EnderPearl", JourneyStage.ENDER_PEARL));
@@ -2194,6 +2200,363 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             ctx.expect(filled).as("lava bucket filled from a source (see fill.result / fill.sourceAfter)")
                     .isAtLeast(1);
             then.run();
+        });
+    }
+
+    // =====================================================================================
+    // PORTAL_LIT — ten obsidian in a frame, at the lava's own level, then a flint-and-steel.
+    // =====================================================================================
+
+    /** Ring cells of the portal, as (dx, dy) from the frame's bottom-left. Corners left out: ten
+     *  blocks is what the ladder can afford, and {@code wd.serverLightsPortal} proves ten lights. */
+    private static final int[][] RING = {
+            {0, 0}, {1, 0}, {-1, 1}, {2, 1}, {-1, 2}, {2, 2}, {-1, 3}, {2, 3}, {0, 4}, {1, 4}};
+
+    /**
+     * Build and light the portal, without a diamond pickaxe and without staging.
+     *
+     * <p>The technique is the one {@code wd.serverBuildsAndLightsAPortal} proves end to end, and the
+     * three shapes it cost to find are worth restating where the rung uses them:
+     *
+     * <ul>
+     *   <li><b>The water is carried, not left.</b> A source goes into the interior cell ADJACENT to
+     *       the cell being cast, which reproduces the single-cast geometry for every cell and needs
+     *       no flow at all — the conversion is a neighbour update, not a fluid tick. One bucket then
+     *       suffices because it is empty exactly when it needs to be: after placing the water (go
+     *       fetch lava) and again after pouring the lava (take the water back).</li>
+     *   <li><b>The top pair cannot cast against the interior.</b> Vanilla looks above the lava and
+     *       to its four sides, never below, so those two cast against a notch carved one block
+     *       higher — which is why this rung hollows TWELVE cells and not ten.</li>
+     *   <li><b>A scoop takes the source.</b> Ten casts need ten DISTINCT lava cells, so the rung
+     *       enumerates the pool rather than returning to one spot.</li>
+     * </ul>
+     *
+     * <p><b>Why underground.</b> Obsidian cannot be carried, so the frame is cast where it stands.
+     * At the surface each of the ten fills would be a climb out of a 36-block shaft — the mechanism
+     * this ladder has the least confidence in. At the lava's own level the rock is its own mould:
+     * the frame is carved into a face, the stone behind it is the backing every bucket aims at, and
+     * the ten walks are a few blocks each.
+     */
+    private static void portalLit(SceneContext ctx) {
+        JourneyRig rig = JourneyRig.enter(ctx, JourneyStage.PORTAL_LIT);
+        if (requireSurvey(ctx, rig)) return;
+        rig.generousPathfinding();
+
+        BlockPos lava = JourneyRoute.firstLava;
+        rig.evidence("bucket.before", rig.carrying("minecraft:bucket"));
+        rig.evidence("flintAndSteel.before", rig.carrying("minecraft:flint_and_steel"));
+        rig.evidence("cobblestone.before", rig.carrying("minecraft:cobblestone"));
+        if (rig.carrying("minecraft:flint_and_steel") < 1) {
+            ctx.fail("没有打火石：PORTAL_KIT 应当留下一把（当前 0）");
+            return;
+        }
+        if (rig.carrying("minecraft:bucket") < 1 && rig.carrying("minecraft:water_bucket") < 1) {
+            ctx.fail("没有桶：OBSIDIAN 用完之后应当把空桶带回来（bucket=0, water_bucket=0, lava_bucket="
+                    + rig.carrying("minecraft:lava_bucket") + "）");
+            return;
+        }
+
+        // Water first, at the surface, while there is still water to be had: the whole rung below
+        // ground runs on one source and there is none down there to go back for.
+        fillWaterAtTheSurface(ctx, rig, () -> descendToTheForge(ctx, rig, lava));
+    }
+
+    /** Put water in the bucket before going under. OBSIDIAN ends beside standing water, so this is
+     *  normally one aim away; the walk is the fallback for a run that ended somewhere else. */
+    private static void fillWaterAtTheSurface(SceneContext ctx, JourneyRig rig, Runnable then) {
+        if (rig.carrying("minecraft:water_bucket") >= 1) {
+            rig.evidence("water.alreadyCarried", "是");
+            then.run();
+            return;
+        }
+        BlockPos water = shallowWaterNear(rig, 24);
+        if (water == null) {
+            BlockPos w = JourneyRoute.firstWater;
+            rig.attempting("身边没有水，走到勘测过的水域装水");
+            walkToColumn(rig, "water", w.getX(), w.getZ(), 0, 16_000,
+                    () -> scoopWater(ctx, rig, shallowWaterNear(rig, 12), then),
+                    () -> ctx.fail("走不到 firstWater " + w.toShortString()
+                            + "：停在 " + rig.player().blockPosition()));
+            return;
+        }
+        scoopWater(ctx, rig, water, then);
+    }
+
+    private static void scoopWater(SceneContext ctx, JourneyRig rig, BlockPos water, Runnable then) {
+        if (water == null) {
+            ctx.fail("装不到水：附近没有底下实心的水面（身体在 " + rig.player().blockPosition() + "）");
+            return;
+        }
+        rig.attempting("装一桶水带下去 —— 底下没有水可回头取");
+        rig.settle(new IntentProcess(new Intent(new Goal.Near(water, 2))), 2_000, () -> {
+            BlockPos aim = shallowWaterNear(rig, 8);
+            if (aim == null) aim = water;
+            holdForUse(rig, Items.BUCKET, "waterFill");
+            rig.body().avatar().aimAtBlock(aim);
+            final BlockPos at = aim;
+            rig.settle(new HoldStill(2), 10, () -> {
+                rig.evidence("waterFill.result", String.valueOf(rig.body().avatar().useItemInHand()));
+                rig.evidence("water_bucket", rig.carrying("minecraft:water_bucket"));
+                rig.evidence("waterFill.cellAfter", String.valueOf(ctx.level().getBlockState(at).getBlock()));
+                if (rig.carrying("minecraft:water_bucket") < 1) {
+                    ctx.fail("装水失败：瞄了 " + at.toShortString() + "，桶里还是空的 —— "
+                            + "这一级底下全程靠这一桶水，装不上就没有下一步");
+                    return;
+                }
+                then.run();
+            });
+        });
+    }
+
+    /** Walk to the surveyed lava and sink to its level, reusing OBSIDIAN's own descent. */
+    private static void descendToTheForge(SceneContext ctx, JourneyRig rig, BlockPos lava) {
+        rig.attempting("背着一桶水走到岩浆柱并下到岩浆层");
+        walkToColumn(rig, "lava", lava.getX(), lava.getZ(), 0, 24_000, () -> {
+            BlockPos at = rig.player().blockPosition();
+            final int surfaceY = daylightY(rig, at);
+            rig.evidence("forge.surfaceY", surfaceY + "（脚下 y=" + at.getY() + "）");
+            if (at.getY() <= lava.getY() + 2) { carveTheForge(ctx, rig, lava, surfaceY); return; }
+            ServerLevel level = ctx.level();
+            Map<String, Integer> rejected = new java.util.LinkedHashMap<>();
+            BlockPos dig = pickDigColumn(level, lava, surfaceY, rejected);
+            if (dig == null) {
+                ctx.fail("岩浆柱周围没有可下挖的柱子（目标 " + lava.toShortString()
+                        + "，地表 y=" + surfaceY + "）——各项否决计数：" + rejected);
+                return;
+            }
+            stepOntoDiggableColumn(rig, dig, lava, surfaceY, MAX_WALK_ATTEMPTS, () -> {
+                BotConfig.allowPlace = false;
+                descendByMining(rig, lava.getY() + 1, () -> {
+                    BotConfig.allowPlace = true;
+                    rig.evidence("forge.landedY", rig.player().blockPosition().getY());
+                    carveTheForge(ctx, rig, lava, surfaceY);
+                });
+            }, () -> ctx.fail("站不到可下挖的柱子上：想去 " + dig.getX() + "," + dig.getZ()
+                    + "，停在 " + rig.player().blockPosition()));
+        }, () -> ctx.fail("走不到岩浆柱：目标 " + lava.getX() + "," + lava.getZ()
+                + "，停在 " + rig.player().blockPosition()));
+    }
+
+    /**
+     * Hollow the alcove the casting is done from, and the twelve cells of the frame in its far wall.
+     *
+     * <p>The face is put on the side of the body AWAY from the pool, so that nothing carved opens
+     * into lava — the one mistake down here that ends the run rather than costing it a retry.
+     */
+    private static void carveTheForge(SceneContext ctx, JourneyRig rig, BlockPos lava, int surfaceY) {
+        BlockPos at = rig.player().blockPosition();
+        int dx = Integer.signum(at.getX() - lava.getX());
+        int dz = Integer.signum(at.getZ() - lava.getZ());
+        // One axis only: a diagonal face has no flat back for the buckets to aim at.
+        Direction away = Math.abs(at.getX() - lava.getX()) >= Math.abs(at.getZ() - lava.getZ())
+                ? (dx >= 0 ? Direction.EAST : Direction.WEST)
+                : (dz >= 0 ? Direction.SOUTH : Direction.NORTH);
+        BlockPos base = at.relative(away, 2);               // frame's bottom-left, two clear of the body
+        rig.evidence("forge.face", base.toShortString() + " 朝 " + away + "（背离岩浆）");
+
+        List<BlockPos> cells = new ArrayList<>();
+        // The alcove the body stands in: two deep, four wide, seven tall, between body and face.
+        for (int d = 0; d <= 1; d++)
+            for (int w = -2; w <= 2; w++)
+                for (int y = 0; y <= 6; y++)
+                    cells.add(at.relative(away, d).relative(away.getClockWise(), w).above(y));
+        // The frame itself, one further in: ten ring cells, six interior, two cap notches.
+        for (int[] c : RING) cells.add(frameCell(base, away, c[0], c[1]));
+        for (int ix = 0; ix <= 1; ix++)
+            for (int iy = 1; iy <= 3; iy++) cells.add(frameCell(base, away, ix, iy));
+        cells.add(frameCell(base, away, 0, 5));
+        cells.add(frameCell(base, away, 1, 5));
+
+        ServerLevel level = ctx.level();
+        List<BlockPos> todo = new ArrayList<>();
+        for (BlockPos c : cells) {
+            if (level.getBlockState(c).isAir()) continue;
+            if (!level.getFluidState(c).isEmpty()) {
+                ctx.fail("要挖的格子里有流体：" + c.toShortString() + " = "
+                        + level.getBlockState(c).getBlock() + " —— 换个面再挖，别把岩浆放进来");
+                return;
+            }
+            todo.add(c);
+        }
+        rig.evidence("forge.toCarve", todo.size() + "/" + cells.size() + " 格");
+        rig.attempting("挖出浇筑用的壁龛和十二格门框");
+        BotConfig.allowPlace = false;
+        carveNext(ctx, rig, todo, 0, () -> {
+            BotConfig.allowPlace = true;
+            rig.evidence("forge.carved", "完成");
+            castTheFrame(ctx, rig, base, away, lava, surfaceY);
+        });
+    }
+
+    /** A frame cell at (dx, dy) from {@code base}, in the plane facing {@code away}. */
+    private static BlockPos frameCell(BlockPos base, Direction away, int dx, int dy) {
+        return base.relative(away.getClockWise(), dx).above(dy);
+    }
+
+    private static void carveNext(SceneContext ctx, JourneyRig rig, List<BlockPos> todo, int i,
+                                  Runnable then) {
+        if (i >= todo.size()) { then.run(); return; }
+        BlockPos c = todo.get(i);
+        if (ctx.level().getBlockState(c).isAir()) { carveNext(ctx, rig, todo, i + 1, then); return; }
+        rig.mineBlock(c, 900, () -> {
+            if (!ctx.level().getBlockState(c).isAir())
+                rig.evidence("carve.stuck." + i, c.toShortString() + " 仍是 "
+                        + ctx.level().getBlockState(c).getBlock());
+            carveNext(ctx, rig, todo, i + 1, then);
+        });
+    }
+
+    /**
+     * Ten casts from one bucket, then the flint-and-steel.
+     *
+     * <p>The loop is the arena's, verbatim in shape: place the water in the interior cell adjacent
+     * to the target, fetch lava from a pool cell nobody has spent yet, pour, take the water back.
+     * The bucket is empty at both of the moments that need it to be.
+     */
+    private static void castTheFrame(SceneContext ctx, JourneyRig rig, BlockPos base, Direction away,
+                                     BlockPos lava, int surfaceY) {
+        List<BlockPos> pool = lavaSourcesNear(ctx.level(), rig.player().blockPosition(), 10);
+        rig.evidence("pool.sources", pool.size() + " 格岩浆源（需要 10）");
+        if (pool.size() < RING.length) {
+            ctx.fail("附近岩浆源不够：只找到 " + pool.size() + " 格，浇十块需要十格 —— "
+                    + "装一次桶拿走的是源块，不是从同一格装十次");
+            return;
+        }
+        rig.attempting("一只桶浇十块黑曜石（水搬着走）");
+        castCell(ctx, rig, base, away, pool, 0, () -> lightIt(ctx, rig, base, away, surfaceY));
+    }
+
+    /** Lava SOURCE cells within {@code r}, nearest first — ten distinct ones is the rung's bill. */
+    private static List<BlockPos> lavaSourcesNear(ServerLevel level, BlockPos from, int r) {
+        List<BlockPos> out = new ArrayList<>();
+        for (int dx = -r; dx <= r; dx++)
+            for (int dy = -4; dy <= 2; dy++)
+                for (int dz = -r; dz <= r; dz++) {
+                    BlockPos c = from.offset(dx, dy, dz);
+                    if (level.getFluidState(c).isSource() && level.getBlockState(c).is(Blocks.LAVA))
+                        out.add(c);
+                }
+        out.sort(java.util.Comparator.comparingDouble(a -> a.distSqr(from)));
+        return out;
+    }
+
+    /** The interior (or, for the top pair, the notch above) that the water goes into for this cell. */
+    private static BlockPos wetCellFor(BlockPos base, Direction away, int dx, int dy) {
+        if (dy == 0) return frameCell(base, away, dx, 1);                 // bottom pair: above
+        if (dy == 4) return frameCell(base, away, dx, 5);                 // top pair: the notch
+        return frameCell(base, away, dx < 0 ? 0 : 1, dy);                 // columns: sideways
+    }
+
+    private static void castCell(SceneContext ctx, JourneyRig rig, BlockPos base, Direction away,
+                                 List<BlockPos> pool, int i, Runnable then) {
+        if (i >= RING.length) {
+            rig.evidence("frame.cast", countObsidian(ctx.level(), base, away) + "/" + RING.length);
+            then.run();
+            return;
+        }
+        BlockPos cell = frameCell(base, away, RING[i][0], RING[i][1]);
+        BlockPos wet = wetCellFor(base, away, RING[i][0], RING[i][1]);
+        // Water in, from the block behind it: a bucket fills the neighbour of the face its ray lands
+        // on, and an air cell stops no ray. Standing level with the target keeps that ray horizontal.
+        placeFluid(ctx, rig, wet, away, Items.WATER_BUCKET, "water" + i, () -> {
+            if (ctx.level().getFluidState(wet).isEmpty()) {
+                ctx.fail("水没放进去：想放 " + wet.toShortString() + "（第 " + (i + 1) + " 格的相邻内框），"
+                        + "那格现在是 " + ctx.level().getBlockState(wet).getBlock());
+                return;
+            }
+            BlockPos src = pool.get(Math.min(i, pool.size() - 1));
+            fillFrom(ctx, rig, src, "lava" + i, () -> placeFluid(ctx, rig, cell, away, Items.LAVA_BUCKET,
+                    "cast" + i, () -> rig.settle(new HoldStill(3), 12, () -> {
+                var got = ctx.level().getBlockState(cell).getBlock();
+                if (got != Blocks.OBSIDIAN)
+                    rig.evidence("cast.missed." + i, cell.toShortString() + " = " + got
+                            + "（旁边 " + wet.toShortString() + " 是 "
+                            + ctx.level().getBlockState(wet).getBlock() + "）");
+                // The bucket is empty again, which is exactly what taking the water back needs —
+                // and it is also what leaves the interior clear without a separate clean-up trip.
+                fillFrom(ctx, rig, wet, "recover" + i,
+                        () -> castCell(ctx, rig, base, away, pool, i + 1, then));
+            })));
+        });
+    }
+
+    /** Stand level with {@code target} and empty the held bucket into it, aiming at the solid block
+     *  behind it. Level, because a steep ray enters the face a block low and lands in the wrong cell. */
+    private static void placeFluid(SceneContext ctx, JourneyRig rig, BlockPos target, Direction away,
+                                   net.minecraft.world.item.Item held, String tag, Runnable then) {
+        BlockPos stand = target.relative(away.getOpposite(), 2);
+        rig.settle(new IntentProcess(new Intent(new Goal.Block(new BlockPos(
+                stand.getX(), target.getY(), stand.getZ())))), 1_200, () -> {
+            holdForUse(rig, held, tag);
+            BlockPos backing = target.relative(away);
+            rig.body().avatar().aimAtBlock(backing);
+            rig.settle(new HoldStill(2), 10, () -> {
+                rig.evidence(tag + ".result", String.valueOf(rig.body().avatar().useItemInHand()));
+                then.run();
+            });
+        });
+    }
+
+    /** Fill the (empty) bucket from a fluid source, standing beside it. */
+    private static void fillFrom(SceneContext ctx, JourneyRig rig, BlockPos src, String tag,
+                                 Runnable then) {
+        rig.settle(new IntentProcess(new Intent(new Goal.Near(src, 2))), 1_500, () -> {
+            holdForUse(rig, Items.BUCKET, tag);
+            rig.body().avatar().aimAtBlock(src);
+            rig.settle(new HoldStill(2), 10, () -> {
+                rig.evidence(tag + ".result", String.valueOf(rig.body().avatar().useItemInHand()));
+                then.run();
+            });
+        });
+    }
+
+    private static int countObsidian(ServerLevel level, BlockPos base, Direction away) {
+        int n = 0;
+        for (int[] c : RING)
+            if (level.getBlockState(frameCell(base, away, c[0], c[1])).getBlock() == Blocks.OBSIDIAN) n++;
+        return n;
+    }
+
+    /**
+     * Strike the frame.
+     *
+     * <p>{@code FlintAndSteelItem} overrides {@code useOn} and has no {@code use}, so this must go
+     * through {@code useBlock(cell, face)} — called the other way it returns {@code PASS} and the
+     * world does not move. The fire lands at {@code clickedPos.relative(clickedFace)}, so the click
+     * is on the frame's bottom-left obsidian with the face pointing UP into the interior.
+     */
+    private static void lightIt(SceneContext ctx, JourneyRig rig, BlockPos base, Direction away,
+                                int surfaceY) {
+        ServerLevel level = ctx.level();
+        int cast = countObsidian(level, base, away);
+        rig.evidence("frame.obsidian", cast + "/" + RING.length);
+        if (cast < RING.length) {
+            ctx.fail("门框没浇满：只有 " + cast + "/" + RING.length + " 块黑曜石 —— 点不着一个缺角的门");
+            return;
+        }
+        BlockPos hearth = frameCell(base, away, 0, 0);
+        BlockPos doorway = hearth.above();
+        rig.attempting("点火");
+        rig.settle(new IntentProcess(new Intent(new Goal.Near(hearth, 3))), 1_500, () -> {
+            holdForUse(rig, Items.FLINT_AND_STEEL, "light");
+            rig.body().avatar().aimAtBlock(hearth);
+            rig.settle(new HoldStill(2), 10, () -> {
+                rig.body().avatar().useBlock(hearth, Direction.UP);
+                rig.settle(new HoldStill(5), 20, () -> {
+                    int lit = 0;
+                    for (int ix = 0; ix <= 1; ix++)
+                        for (int iy = 1; iy <= 3; iy++)
+                            if (level.getBlockState(frameCell(base, away, ix, iy)).getBlock()
+                                    == Blocks.NETHER_PORTAL) lit++;
+                    rig.evidence("portal.cells", lit + "/6");
+                    rig.evidence("light.cellAfter", String.valueOf(level.getBlockState(doorway).getBlock()));
+                    rig.evidence("bucket.after", rig.carrying("minecraft:bucket")
+                            + " 空 / " + rig.carrying("minecraft:water_bucket") + " 水");
+                    ctx.expect(lit).as("the portal the body carved, cast and struck is lit").isEqualTo(6);
+                    rig.reach("在 y=" + doorway.getY() + " 就地浇出十块黑曜石并点亮 " + lit
+                            + " 格传送门（自带一桶水下井，浇完水还在桶里）");
+                });
+            });
         });
     }
 
