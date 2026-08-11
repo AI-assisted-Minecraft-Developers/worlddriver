@@ -1,15 +1,23 @@
 package net.magicterra.worlddriver.bot.sim;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.movement.BodyCapabilities;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
+import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.MenuProvider;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.FallingBlock;
@@ -95,7 +103,19 @@ public class ServerPlayerAvatar implements Avatar {
     private BlockPos breakProgPos;
     private float breakProg;
 
-    public ServerPlayerAvatar(ServerPlayer fp) { this.fp = fp; }
+    public ServerPlayerAvatar(ServerPlayer fp) {
+        this.fp = fp;
+        // Attach vanilla's own inventory-menu listener. A real player gets this from
+        // PlayerList.placeNewPlayer; a body that was never placed through the player list has an
+        // inventoryMenu with NO listeners at all, and it is that listener — not the packets it
+        // sits next to — which fires CriteriaTriggers.INVENTORY_CHANGED and thereby awards
+        // story/root, story/mine_stone, story/upgrade_tools and story/smelt_iron. Without it a
+        // server-driven agent can craft a table, mine cobblestone, upgrade its pickaxe and smelt
+        // iron and earn nothing at all; the journey ladder records an advancement per rung and
+        // reported not-earned for every one of them. The synchronizer it also attaches writes to
+        // a connection that discards what it is given, which is what made this look skippable.
+        fp.initInventoryMenu();
+    }
 
     /**
      * Build a body at {@code pos} in {@code level}, ready to drive.
@@ -178,7 +198,66 @@ public class ServerPlayerAvatar implements Avatar {
                 && bi.getBlock().defaultBlockState().blocksMotion();
     }
 
-    @Override public void selectTool(BlockPos cell) { /* arena breaks with hand/held; best-tool optional */ }
+    /**
+     * Put the best tool for this block in the main hand, swapping it up from the bag if need be.
+     *
+     * <p>This was a no-op — "arena breaks with hand/held; best-tool optional" — and until blocks
+     * started dropping their harvest it genuinely was optional: nothing the avatar broke produced
+     * anything, so which tool was held could not change an outcome.
+     *
+     * <p><b>What it does and does not decide today.</b> It decides break SPEED, through
+     * {@code getDestroyProgress} on the {@code faithfulBreak} path. It does <b>not</b> decide
+     * drops, and an earlier revision of this comment claimed it did — wrongly.
+     * {@code Level#destroyBlock} hands {@code Block.dropResources} a literal
+     * {@code ItemStack.EMPTY} as the tool and never looks at the hand, so on this avatar's default
+     * (instant) break path every block yields its plain, unenchanted harvest no matter what is
+     * held. That is more generous than survival, not less: the wrong-tool case cannot be the
+     * reason a bag comes back empty. Restoring the real rule means breaking through
+     * {@code fp.gameMode.destroyBlock} — see {@code DROP_HARVEST} for why that has not been done
+     * as a drive-by.
+     *
+     * <p><b>Ranking is the client's rule, minus Efficiency.</b> A candidate wins if it is
+     * correct-for-drops when the current pick is not, or if it is equally correct and faster —
+     * exactly {@code BotInteract.selectBestToolFor}'s comparison. That utility cannot be reused
+     * here: it takes a {@code Minecraft} and lives on the client side of the seam. The Efficiency
+     * lookup it does is dropped rather than duplicated, because it only reorders tools that are
+     * already correct-for-drops, and correctness is the half that decides whether anything drops.
+     *
+     * <p>The bag is searched as well as the hotbar, and a winner outside the hotbar is SWAPPED into
+     * the selected slot. A player does that by hand; a bot that could only use what happened to be
+     * on its hotbar would fail for a reason no agent could see or fix through the API.
+     */
+    @Override public void selectTool(BlockPos cell) {
+        var state = fp.level().getBlockState(cell);
+        if (state.isAir()) return;
+        var inv = fp.getInventory();
+        ItemStack held = inv.getSelected();
+        float bestSpeed = held.getDestroySpeed(state);
+        boolean bestCorrect = held.isCorrectToolForDrops(state);
+        int bestSlot = -1;
+        for (int slot = 0; slot < inv.items.size(); slot++) {
+            if (slot == inv.selected) continue;
+            ItemStack candidate = inv.items.get(slot);
+            if (candidate.isEmpty()) continue;
+            float speed = candidate.getDestroySpeed(state);
+            boolean correct = candidate.isCorrectToolForDrops(state);
+            if ((correct && !bestCorrect) || (correct == bestCorrect && speed > bestSpeed)) {
+                bestSlot = slot;
+                bestSpeed = speed;
+                bestCorrect = correct;
+            }
+        }
+        if (bestSlot < 0) return;
+        if (bestSlot < 9) {
+            inv.selected = bestSlot;
+            return;
+        }
+        // Out of the bag and into the hand. Server-authoritative, so no packet: this body's
+        // connection swallows them anyway.
+        ItemStack promoted = inv.items.get(bestSlot);
+        inv.items.set(bestSlot, inv.items.get(inv.selected));
+        inv.items.set(inv.selected, promoted);
+    }
     @Override public void setSelectedSlot(int slot) {
         if (slot >= 0 && slot <= 8) fp.getInventory().selected = slot;   // server-authoritative; no packet
     }
@@ -234,8 +313,13 @@ public class ServerPlayerAvatar implements Avatar {
             breakProg = 0f;
             return;
         }
+        if (!canBreakFromHere(aimTarget)) {
+            breakProgPos = null;
+            breakProg = 0f;
+            return;
+        }
         if (!faithfulBreak) {
-            fp.level().destroyBlock(aimTarget, false, fp);
+            fp.level().destroyBlock(aimTarget, DROP_HARVEST, fp);
             return;
         }
         // Faithful slow-mine: accumulate the SAME per-tick destroy fraction the live client
@@ -247,11 +331,96 @@ public class ServerPlayerAvatar implements Avatar {
         if (!aimTarget.equals(breakProgPos)) { breakProgPos = aimTarget; breakProg = 0f; }
         breakProg += st.getDestroyProgress(fp, fp.level(), aimTarget);
         if (breakProg >= 1.0f) {
-            fp.level().destroyBlock(aimTarget, false, fp);
+            fp.level().destroyBlock(aimTarget, DROP_HARVEST, fp);
             breakProgPos = null;
             breakProg = 0f;
         }
     }
+
+    /**
+     * Can a player standing here actually break that block?
+     *
+     * <p>{@code Level#destroyBlock} has no reach gate and no visibility gate, so without this the
+     * avatar mines through solid rock. That is not merely unfaithful — it is the reason a
+     * playthrough could not gather buried ore. Measured on {@code wd.serverMineHarvestBuried}: the
+     * bot broke two ores under an intact floor and both drops landed in a sealed 1×1×1 pocket,
+     * {@code openSides=0}, {@code above=dirt} / {@code above=stone}. No pathfinder reaches those,
+     * and two rounds of work went into the walker and the collect sweep before this measurement
+     * existed. The sweep was right to give up; the mine should never have happened.
+     *
+     * <p>Two conditions, both of which a real dig satisfies for free:
+     * <ul>
+     *   <li><b>Exposed</b> — at least one of the six neighbours is not a full solid face. A block
+     *       walled in on all sides cannot be hit by any ray from any eye position, so this is the
+     *       cheap exact form of "the client could have aimed at it".</li>
+     *   <li><b>In range</b> — eye to block centre within the player's own
+     *       {@code blockInteractionRange} attribute, plus half a block because the range is
+     *       measured to the nearest face and this measures to the centre. Erring outward keeps the
+     *       gate from rejecting digs vanilla allows.</li>
+     * </ul>
+     *
+     * <p>What this deliberately does NOT do is raycast. A ray from the eye can be blocked by the
+     * very block being mined and by the corner the bot is leaning around, and vanilla's own server
+     * does not raycast either — it trusts the client's aim and checks distance. Exposure plus
+     * distance is the honest server-side approximation; it rejects the impossible dig without
+     * inventing a stricter rule than the game's.
+     */
+    @Override public boolean canBreak(BlockPos pos) { return canBreakFromHere(pos); }
+
+    private boolean canBreakFromHere(BlockPos pos) {
+        boolean exposed = false;
+        for (Direction d : Direction.values()) {
+            BlockPos n = pos.relative(d);
+            if (!fp.level().getBlockState(n).isSolidRender(fp.level(), n)) { exposed = true; break; }
+        }
+        if (!exposed) return false;
+        double reach = fp.blockInteractionRange() + 0.5;
+        return fp.getEyePosition().distanceToSqr(Vec3.atCenterOf(pos)) <= reach * reach;
+    }
+
+    /**
+     * Whether a block this avatar breaks drops its harvest, as {@code Level#destroyBlock}'s second
+     * argument.
+     *
+     * <p>{@code true}, because that is what happens when a player in survival breaks a block, and
+     * this avatar is meant to be a player. It was {@code false} at both call sites — an unexplained
+     * literal, and almost certainly a leftover from when this class only ever dug THROUGH terrain to
+     * open a path, where drops are litter.
+     *
+     * <p><b>What that cost.</b> A server-side agent could mine all day and acquire nothing: the
+     * block vanished and no {@code ItemEntity} was ever created, so {@code MineProcess} met its
+     * broken-block quota, entered its COLLECT phase and walked laps around a drop that did not
+     * exist. Paired with the missing entity-touch loop (see {@link #touchNearbyEntities()}) it meant
+     * <b>no material could be gathered on the headless path at all</b> — which is every rung of a
+     * playthrough. Neither gap was visible to the 222 scenes that were green over them, because none
+     * of them asserted that an item reached the inventory; the one named for it,
+     * {@code wd.serverCombatCollectDrops}, passes when the bot merely ends within two blocks of a
+     * drop it did not have to collect. The wood leg of the journey ladder asked for one log and got
+     * zero.
+     *
+     * <p><b>Blast radius, stated rather than hidden.</b> Every arena where the avatar digs now
+     * produces item entities, and — because pickup works now too — the avatar may end a scene
+     * holding what it dug. That can change behaviour, not just bookkeeping: {@code holdPlaceable()}
+     * selects the first placeable in the hotbar, so a bot that has just picked up the dirt it
+     * tunnelled through can start PLACING where it previously had nothing to place. This is the
+     * faithful behaviour and the client path has always had it; scenes written against the old
+     * silent-break avatar are the ones that have to move.
+     *
+     * <p><b>Still not the player's rule, and knowing which way it errs matters.</b>
+     * {@code Level#destroyBlock} drops through {@code Block.dropResources(..., ItemStack.EMPTY)}:
+     * no tool requirement, no Silk Touch, no Fortune, no tool durability spent. So this avatar
+     * currently harvests obsidian with its fists and diamonds with a wooden pickaxe. For a driver
+     * whose job is to tell a modpack author what a player would experience, that is a fidelity
+     * hole on the critical path — the survival ladder's obsidian rung is exactly a
+     * wrong-tool-must-fail case. The faithful route is {@code fp.gameMode.destroyBlock(pos)}
+     * ({@code ServerPlayerGameMode}), which gates the drop on
+     * {@code player.hasCorrectToolForDrops}, passes the real held stack to
+     * {@code Block#playerDestroy}, and calls {@code ItemStack#mineBlock} so tools wear out. It is
+     * left for a change of its own because it moves a requirement, not a bug: every arena where
+     * the avatar digs bare-handed keeps breaking blocks (removal is not tool-gated) but stops
+     * banking them, so the scenes that quietly rely on free harvest have to be found first.
+     */
+    private static final boolean DROP_HARVEST = true;
 
     @Override public boolean breakHeld() { return breakHeld; }
 
@@ -261,16 +430,65 @@ public class ServerPlayerAvatar implements Avatar {
     }
 
     @Override public void useBlock(BlockPos cell, Direction face) {
-        // Raw useItemOn (no holdPlaceable gate): places a held block OR triggers the
-        // block's use. Opening a menu (table/furnace) is a no-op on a FakePlayer
-        // (openMenu disabled), so container processes time out gracefully server-side.
+        // Raw useItemOn (no holdPlaceable gate): places a held block OR triggers the block's use.
         Vec3 hit = new Vec3(
                 cell.getX() + 0.5 + face.getStepX() * 0.5,
                 cell.getY() + 0.5 + face.getStepY() * 0.5,
                 cell.getZ() + 0.5 + face.getStepZ() * 0.5);
         BlockHitResult brh = new BlockHitResult(hit, face, cell, false);
+        AbstractContainerMenu before = fp.containerMenu;
         fp.gameMode.useItemOn(fp, fp.level(), fp.getMainHandItem(), InteractionHand.MAIN_HAND, brh);
+        if (fp.containerMenu == before) openStationMenu(cell);
     }
+
+    /**
+     * Install the menu this block would have opened, when vanilla's own route declined to.
+     *
+     * <p><b>Why this is needed at all.</b> A fake player's {@code openMenu} returns
+     * {@code OptionalInt.empty()} — NeoForge's {@code FakePlayer} does it and
+     * {@link AvatarFakePlayer} mirrors it, on the reasoning that a body with no client has no
+     * screen to show. But {@code CraftingTableBlock.useWithoutItem} reaches the menu ONLY through
+     * {@code player.openMenu(...)}, so on this avatar a right-click on a table did nothing at all
+     * and {@code CraftProcess} sat in {@code OPEN_WAIT} until it timed out. Both this method's old
+     * comment and {@code CraftProcess}'s called that a "capability cliff" and left it — which meant
+     * <b>the server-side agent could craft only what fits the 2×2 inventory grid</b>. Everything a
+     * playthrough is made of — pickaxes, a furnace, buckets, flint and steel — is 3×3.
+     *
+     * <p><b>Why here and not by un-overriding {@code openMenu}.</b> That override lives on
+     * {@link AvatarFakePlayer}, which is the FABRIC body; NeoForge injects its own
+     * {@code FakePlayer} through {@link ServerAvatarBodies} and this repo cannot edit it. Fixing it
+     * there would fix one loader and leave the other timing out, which is the exact shape of
+     * divergence this project has been bitten by before. {@link ServerPlayerAvatar} is common to
+     * both, so the seam belongs here.
+     *
+     * <p><b>What is deliberately skipped.</b> Vanilla's {@code initMenu} attaches a slot listener
+     * and a synchronizer, both of which exist to send packets to a screen. This body's connection
+     * swallows every outbound packet, so attaching them would buy nothing and cost per-slot work on
+     * the tick thread; they are private on {@code ServerPlayer} anyway, and prying them open would
+     * need an access widener for no behaviour (AGENTS.md hard rule #9). Everything the menu does
+     * that MATTERS is server-side and untouched: {@code CraftingMenu.slotsChanged} still recomputes
+     * the result slot, {@code clicked} still moves stacks, and {@code closeContainer} still returns
+     * what was left in the grid.
+     *
+     * <p>Menu ids are a per-body rolling counter that never yields 0, because 0 is the inventory
+     * menu's own id and {@code containerClick}/{@code placeRecipe} both match on it. Nothing
+     * synchronises these ids with a client, so they only have to be distinct from that one.
+     */
+    private void openStationMenu(BlockPos cell) {
+        MenuProvider provider = fp.level().getBlockState(cell).getMenuProvider(fp.level(), cell);
+        if (provider == null) return;
+        AbstractContainerMenu menu = provider.createMenu(nextMenuId(), fp.getInventory(), fp);
+        if (menu == null) return;
+        fp.containerMenu = menu;
+    }
+
+    /** Rolling 1..99 menu id — never 0, which belongs to the inventory menu. */
+    private int nextMenuId() {
+        menuId = menuId % 99 + 1;
+        return menuId;
+    }
+
+    private int menuId;
 
     @Override public void placeRecipe(int containerId, net.minecraft.world.item.crafting.RecipeHolder<?> recipe, boolean placeAll) {
         // Mirror ServerGamePacketListenerImpl.handlePlaceRecipe: fill the open menu's
@@ -407,12 +625,22 @@ public class ServerPlayerAvatar implements Avatar {
      *       phantom full bar as fact;</li>
      *   <li>{@code cooldowns.tick()} — ItemCooldowns (ender pearl, shield-disable, chorus fruit)
      *       otherwise never expire, so the first use of such an item disables it permanently.</li>
+     *   <li>{@link #touchNearbyEntities()} — the entity-touch loop out of {@code Player.aiStep}, which
+     *       is how a player picks anything up. Without it the avatar could break a block, watch the
+     *       drop land at its feet and never acquire it, so <b>no server-side agent could gather any
+     *       material at all</b>. It went unnoticed because nothing asked: the one scene named for it,
+     *       {@code wd.serverCombatCollectDrops}, passes when the bot ends within two blocks of the
+     *       drop and never requires the item to reach the inventory. The wood leg of the journey
+     *       ladder asked directly and got zero logs after felling the tree.</li>
      * </ol>
      *
      * <p>DELIBERATELY NOT MIRRORED — these are capability cliffs of the server avatar, not oversights:
      * <ul>
-     *   <li>{@code aiStep()}/{@code travel()} drive: {@link #step()} integrates movement by hand;
-     *       running vanilla's would double-integrate.</li>
+     *   <li>{@code aiStep()}/{@code travel()} MOVEMENT drive: {@link #step()} integrates movement by
+     *       hand; running vanilla's would double-integrate. Note the carve-out above — the touch loop
+     *       lives in {@code aiStep} too but moves nothing, so mirroring it cannot double-integrate
+     *       anything. "aiStep is not run" was true and was quietly read as "nothing in aiStep is
+     *       needed", which is how the pickup went missing.</li>
      *   <li>{@code foodData.tick()}: hunger would be a half-truth here. Exhaustion accrues in
      *       {@code Player.aiStep}/{@code causeFoodExhaustion}, which this avatar never runs, so the
      *       bot would never get hungry no matter what {@code foodData.tick()} did — and starvation
@@ -439,6 +667,70 @@ public class ServerPlayerAvatar implements Avatar {
         // Vanilla order: the ticker is incremented first, then a swap zeroes it (Player.tick).
         if (!ItemStack.isSameItem(lastMain, fp.getMainHandItem())) fp.resetAttackStrengthTicker();
         fp.getCooldowns().tick();
+        touchNearbyEntities();
+        broadcastMenuChanges();
+    }
+
+    /**
+     * Let the open menu notice what changed — which is what awards advancements.
+     *
+     * <p>A real {@code ServerPlayer} calls {@code containerMenu.broadcastChanges()} once per tick
+     * from {@code doTick}. This avatar mirrors {@code Player}'s tick rather than
+     * {@code ServerPlayer}'s, so it never did, and the omission looked free: broadcasting is
+     * "sending slot updates to a screen", and this body's connection swallows every packet.
+     *
+     * <p>It is not free. `ServerPlayer`'s own {@code ContainerListener} — attached in its
+     * constructor, so this body has it — fires {@code CriteriaTriggers.INVENTORY_CHANGED} from
+     * {@code slotChanged}, and that trigger is what awards {@code story/root},
+     * {@code story/mine_stone}, {@code story/upgrade_tools} and {@code story/smelt_iron}: the whole
+     * early advancement tree. Without the broadcast the listener is never called, so a
+     * server-driven agent could craft a table, mine cobblestone, upgrade its pickaxe and smelt iron
+     * and earn <b>nothing</b>. The journey ladder records an advancement per rung and reported
+     * {@code not-earned} for every one of them, which is how this surfaced.
+     *
+     * <p>Cost is one comparison per slot per tick, against the copy the menu already keeps — the
+     * same work vanilla does — and the packets the synchronizer emits still go nowhere.
+     */
+    private void broadcastMenuChanges() {
+        if (fp.isRemoved() || fp.containerMenu == null) return;
+        fp.containerMenu.broadcastChanges();
+    }
+
+    /**
+     * Pick up what is lying next to the body — the entity-touch loop from {@code Player.aiStep}.
+     *
+     * <p>Vanilla runs this every tick for every player and it is the ONLY route by which an item on
+     * the ground becomes an item in a bag: {@code Entity.playerTouch} is what {@code ItemEntity},
+     * {@code ExperienceOrb} and {@code AbstractArrow} implement to hand themselves over. This avatar
+     * never runs {@code aiStep} — see the mirror list on {@link #mirrorPlayerTick()} for why — so
+     * before this method a server-driven agent could mine all day and end with an empty inventory.
+     *
+     * <p>Replicated rather than delegated because {@code Player.touch} is private; the one line it
+     * contains ({@code entity.playerTouch(this)}) is public API, so no reflection and no access
+     * widener is involved (AGENTS.md hard rule #9).
+     *
+     * <p><b>The experience-orb split is vanilla's, not a simplification.</b> Orbs are collected into
+     * a list and exactly ONE of them, chosen at random, is touched per tick; everything else is
+     * touched immediately. That is the game's own rate limit on orb pickup, and flattening it would
+     * make a server agent hoover a kill's whole orb cloud in a single tick — a divergence from the
+     * client path that would show up as a levelling-speed difference nobody could account for.
+     */
+    private void touchNearbyEntities() {
+        if (fp.isRemoved()) return;
+        // The same box vanilla uses: one block out horizontally, half a block vertically.
+        List<Entity> near = fp.level().getEntities(fp, fp.getBoundingBox().inflate(1.0, 0.5, 1.0));
+        if (near.isEmpty()) return;
+        List<Entity> orbs = new ArrayList<>();
+        for (Entity entity : near) {
+            if (entity.getType() == EntityType.EXPERIENCE_ORB) {
+                orbs.add(entity);
+            } else if (!entity.isRemoved()) {
+                entity.playerTouch(fp);
+            }
+        }
+        if (!orbs.isEmpty()) {
+            Util.getRandom(orbs, fp.getRandom()).playerTouch(fp);
+        }
     }
 
     @Override public BodyCapabilities capabilities() { return BodyCapabilities.PLAYER; }
