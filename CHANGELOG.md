@@ -8,6 +8,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **All six topologies re-verified GREEN with the new scenes, and coverage is now stated as a
+  matrix rather than a number.** No single topology runs everything, so "all scenes pass" is only
+  meaningful as a union — and the union is complete:
+
+  | topology | pass | skipped |
+  |---|---|---|
+  | dedicatedServerFabric | 225 | 20 (client-only) |
+  | dedicatedServerNeoforge | 225 | 19 |
+  | integratedServerFabric | 244 | 1 (needs NeoForge `itemhandler`) |
+  | **integratedServerNeoforge** | **244** | **0** |
+  | dedicatedServerWithClientFabric | 239 | 6 |
+  | dedicatedServerWithClientNeoforge | 239 | 5 |
+
+  `integratedServerNeoforge` skips nothing, so every scene in the suite executes and passes
+  somewhere. The 20 that skip on a dedicated server are the `mc.client.*` family, which needs an
+  integrated server's handlers; all 19 of the 20 that are not loader-gated were checked individually
+  as `dedicated=skip / integrated=pass`, because "it skipped" and "it passed" are the same green row
+  and only one of them is coverage. Both `dedicatedServerWithClient` runs also judged their
+  second-process client probe: `client.damageSourceAcrossTheWire` PASS `[source=outOfWorld, lost=2.0]`.
+
+  **A RED along the way was contamination, not a defect, and is recorded because it cost a
+  diagnosis.** An `integratedServerNeoforge` run reported four required failures — three client
+  scenes plus one new one. Re-run clean it is GREEN and all four pass. That run was a relaunch of a
+  topology an interrupted job had left mid-flight, with orphaned game JVMs (an `architectury` one
+  among them) still alive. Reap the strays and re-run before reading a verdict from a log.
+
 - **The three capabilities the pinned probes could not answer now have scenes**, and one of them
   changed the plan.
 
