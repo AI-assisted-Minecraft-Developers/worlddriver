@@ -45,8 +45,15 @@ public final class WorldDriverNeoForge {
         // (byte-level metric gates unchanged). Installed once, at mod construction, before any
         // scene/GameTest/agentserver body is created.
         ServerAvatarBodies.install(new ServerAvatarBodies.BodyFactory() {
-            @Override public ServerPlayer shared(ServerLevel level) { return FakePlayerFactory.getMinecraft(level); }
-            @Override public ServerPlayer unique(ServerLevel level, GameProfile profile) { return FakePlayerFactory.get(level, profile); }
+            @Override public ServerPlayer shared(ServerLevel level) {
+                // install(): NeoForge's FakePlayer wears a listener whose teleport() is a no-op, and
+                // ServerPlayer.changeDimension delivers the destination through exactly that call — so
+                // without this a portal moves the body between dimensions and not between places.
+                return net.magicterra.worlddriver.bot.sim.AvatarNetHandler.install(FakePlayerFactory.getMinecraft(level));
+            }
+            @Override public ServerPlayer unique(ServerLevel level, GameProfile profile) {
+                return net.magicterra.worlddriver.bot.sim.AvatarNetHandler.install(FakePlayerFactory.get(level, profile));
+            }
         });
         NeoForge.EVENT_BUS.register(this);
         // P4-final (campaign close): the legacy @GameTest suite and its dedicated-server run

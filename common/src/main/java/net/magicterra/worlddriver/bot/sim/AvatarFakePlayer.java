@@ -1,27 +1,17 @@
 package net.magicterra.worlddriver.bot.sim;
 
 import java.util.OptionalInt;
-import java.util.Set;
 
 import com.mojang.authlib.GameProfile;
-import net.minecraft.network.Connection;
-import net.minecraft.network.DisconnectionDetails;
-import net.minecraft.network.PacketSendListener;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.PacketFlow;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ClientInformation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.network.CommonListenerCookie;
-import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import net.minecraft.stats.Stat;
 import net.minecraft.world.Container;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.RelativeMovement;
 import net.minecraft.world.entity.animal.horse.AbstractHorse;
 import net.minecraft.world.entity.player.Player;
 import org.jetbrains.annotations.Nullable;
@@ -52,6 +42,10 @@ import org.jetbrains.annotations.Nullable;
  *   <li>{@link #openMenu}, {@link #openHorseInventory} — no menus server-side; {@link #startRiding} → {@code false}.</li>
  * </ul>
  *
+ * <p>The listener itself now lives in {@link AvatarNetHandler}, because NeoForge's own fake player
+ * needs the same one and is not ours to subclass. One method there is deliberately NOT a no-op; the
+ * reason is worth reading before adding another.
+ *
  * <p><b>Deliberately skipped</b> vs the NeoForge original:
  * <ul>
  *   <li>{@code getServer()} — NeoForge routes through {@code ServerLifecycleHooks}; vanilla
@@ -60,7 +54,7 @@ import org.jetbrains.annotations.Nullable;
  *   <li>the two-arg {@code openMenu(MenuProvider, Consumer&lt;RegistryFriendlyByteBuf&gt;)} — a NeoForge-only
  *       overload (extra-data writer); vanilla has only the one-arg {@link #openMenu(MenuProvider)} overridden here;</li>
  *   <li>the ~60 per-packet {@code handle*} no-ops of {@code FakePlayer$FakePlayerNetHandler} — the connection
- *       here only needs to swallow OUTBOUND {@link #send} (inbound packets are never dispatched to a body driven
+ *       here only needs to swallow OUTBOUND {@code send} (inbound packets are never dispatched to a body driven
  *       by code). The exhaustive inbound list, if ever needed, is Task 3 work when fabric first exercises this.</li>
  * </ul>
  */
@@ -68,7 +62,7 @@ public class AvatarFakePlayer extends ServerPlayer {
 
     public AvatarFakePlayer(ServerLevel level, GameProfile profile) {
         super(level.getServer(), level, profile, ClientInformation.createDefault());
-        this.connection = new AvatarFakePlayerNetHandler(level.getServer(), this);
+        AvatarNetHandler.install(this);
     }
 
     @Override public void displayClientMessage(Component chatComponent, boolean actionBar) { }
@@ -91,46 +85,4 @@ public class AvatarFakePlayer extends ServerPlayer {
 
     @Override public boolean startRiding(Entity entity, boolean force) { return false; }
 
-    /**
-     * Bodyless game-packet listener — mirrors {@code FakePlayer$FakePlayerNetHandler}:
-     * the outbound path ({@link #send}), {@link #tick()}, and the server-invocable
-     * LIFECYCLE hooks ({@code resetPosition}/{@code disconnect}/{@code onDisconnect}/
-     * {@code teleport}×2/{@code ackBlockChangesUpTo}) are all no-ops, so a code-driven
-     * body can never diverge from NeoForge's FakePlayer when some future caller routes
-     * through {@code connection} (e.g. {@code ServerPlayer.teleportTo} → connection
-     * teleport sets await-position state in the REAL listener — P1.6 final review,
-     * T1-M2). The ~60 inbound {@code handle*} no-ops remain deliberately unmirrored:
-     * inbound packets are never dispatched to a never-connected body. It is wired
-     * onto a dummy SERVERBOUND {@link Connection} so nothing touches a real socket.
-     */
-    private static final class AvatarFakePlayerNetHandler extends ServerGamePacketListenerImpl {
-        private static final Connection DUMMY_CONNECTION = new AgentFakeConnection();
-
-        AvatarFakePlayerNetHandler(MinecraftServer server, ServerPlayer player) {
-            super(server, DUMMY_CONNECTION, player, CommonListenerCookie.createInitial(player.getGameProfile(), false));
-        }
-
-        @Override public void tick() { }
-
-        @Override public void send(Packet<?> packet) { }
-
-        @Override public void send(Packet<?> packet, @Nullable PacketSendListener sendListener) { }
-
-        @Override public void resetPosition() { }
-
-        @Override public void disconnect(Component reason) { }
-
-        @Override public void onDisconnect(DisconnectionDetails details) { }
-
-        @Override public void teleport(double x, double y, double z, float yaw, float pitch) { }
-
-        @Override public void teleport(double x, double y, double z, float yaw, float pitch, Set<RelativeMovement> relativeSet) { }
-
-        @Override public void ackBlockChangesUpTo(int sequence) { }
-    }
-
-    /** Dummy never-connected {@link Connection} (SERVERBOUND), as in {@code FakePlayer$FakeConnection}. */
-    private static final class AgentFakeConnection extends Connection {
-        AgentFakeConnection() { super(PacketFlow.SERVERBOUND); }
-    }
 }
