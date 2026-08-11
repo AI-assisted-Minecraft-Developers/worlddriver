@@ -2412,10 +2412,14 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         rig.evidence("forge.face", base.toShortString() + " 朝 " + away + "（背离岩浆）");
 
         List<BlockPos> cells = new ArrayList<>();
-        // The alcove the body stands in: two deep, four wide, seven tall, between body and face.
-        for (int d = 0; d <= 1; d++)
-            for (int w = -2; w <= 2; w++)
-                for (int y = 0; y <= 6; y++)
+        // The alcove the body stands in, carved BOTTOM-UP. Order is not tidiness: the body digs what
+        // it can path to, so opening a whole layer before starting the one above keeps every next
+        // cell adjacent to air the body can already stand in. The first version looped depth-then-
+        // width-then-height, which asked for a cell six blocks over the body's head while the floor
+        // beside it was still solid.
+        for (int y = 0; y <= 6; y++)
+            for (int d = 0; d <= 1; d++)
+                for (int w = -2; w <= 2; w++)
                     cells.add(at.relative(away, d).relative(away.getClockWise(), w).above(y));
         // The frame itself, one further in: ten ring cells, six interior, two cap notches.
         for (int[] c : RING) cells.add(frameCell(base, away, c[0], c[1]));
@@ -2438,7 +2442,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         rig.evidence("forge.toCarve", todo.size() + "/" + cells.size() + " 格");
         rig.attempting("挖出浇筑用的壁龛和十二格门框");
         BotConfig.allowPlace = false;
-        carveNext(ctx, rig, todo, 0, () -> {
+        carveNext(ctx, rig, todo, 0, new ArrayList<>(), () -> {
             BotConfig.allowPlace = true;
             rig.evidence("forge.carved", "完成");
             castTheFrame(ctx, rig, base, away, lava, surfaceY);
@@ -2450,17 +2454,40 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         return base.relative(away.getClockWise(), dx).above(dy);
     }
 
+    /**
+     * Carve the list, and let a cell that will not open be DATA rather than death.
+     *
+     * <p>The first field run died here on {@code await step exceeded within=900} and recorded
+     * nothing at all about which cell — {@code mineBlock} is drive-shaped, so its timeout ends the
+     * rung before the line that would have named the block. Every cell now gets a bounded attempt
+     * and the run carries on, so the failure that arrives at the end is a LIST of what could not be
+     * reached, which is the thing a plan can be corrected from.
+     */
     private static void carveNext(SceneContext ctx, JourneyRig rig, List<BlockPos> todo, int i,
-                                  Runnable then) {
-        if (i >= todo.size()) { then.run(); return; }
+                                  List<BlockPos> stuck, Runnable then) {
+        if (i >= todo.size()) {
+            rig.evidence("carve.stuck", stuck.isEmpty() ? "无"
+                    : stuck.size() + " 格挖不动：" + describeStuck(rig, stuck));
+            then.run();
+            return;
+        }
         BlockPos c = todo.get(i);
-        if (ctx.level().getBlockState(c).isAir()) { carveNext(ctx, rig, todo, i + 1, then); return; }
-        rig.mineBlock(c, 900, () -> {
-            if (!ctx.level().getBlockState(c).isAir())
-                rig.evidence("carve.stuck." + i, c.toShortString() + " 仍是 "
-                        + ctx.level().getBlockState(c).getBlock());
-            carveNext(ctx, rig, todo, i + 1, then);
+        if (ctx.level().getBlockState(c).isAir()) { carveNext(ctx, rig, todo, i + 1, stuck, then); return; }
+        rig.mineCellOrGiveUp(c, 240, () -> {
+            if (!ctx.level().getBlockState(c).isAir()) stuck.add(c);
+            carveNext(ctx, rig, todo, i + 1, stuck, then);
         });
+    }
+
+    /** Stuck cells summarised by height above the body's floor — the shape of the failure matters
+     *  more than the coordinates, because "everything above y+3" and "one awkward corner" want
+     *  completely different fixes. */
+    private static String describeStuck(JourneyRig rig, List<BlockPos> stuck) {
+        int floor = rig.player().blockPosition().getY();
+        Map<Integer, Integer> byHeight = new java.util.TreeMap<>();
+        for (BlockPos c : stuck) byHeight.merge(c.getY() - floor, 1, Integer::sum);
+        return byHeight.toString() + "（键=离脚下的高度，值=格数）"
+                + " 例：" + stuck.get(0).toShortString();
     }
 
     /**

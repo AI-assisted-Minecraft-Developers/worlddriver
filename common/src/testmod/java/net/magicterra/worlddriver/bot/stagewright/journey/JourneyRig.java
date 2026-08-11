@@ -258,6 +258,27 @@ public final class JourneyRig {
     }
 
     /**
+     * Break ONE named block, giving up after {@code ticks} and continuing either way.
+     *
+     * <p>{@link #mineBlock} is {@link #drive}-shaped: its timeout IS the failure, which is right for
+     * a dig the rung cannot proceed without. It is wrong for one cell of a larger excavation, and
+     * the difference cost a run: the portal rung carved a frame cell by cell with {@code mineBlock},
+     * one cell could not be reached, and the rung died on the framework's generic
+     * {@code await step exceeded within=900} — with no evidence at all about WHICH cell, because the
+     * continuation that would have recorded it never ran. This is the {@link #settle} of digging:
+     * the caller checks whether the cell actually opened and decides what that means.
+     */
+    public void mineCellOrGiveUp(BlockPos target, int ticks, Runnable then) {
+        ServerWorldDriver d = body();
+        ServerAvatarManager.register(d.mine(target));
+        int[] waited = {0};
+        await(() -> d.finished() || ++waited[0] >= ticks, ticks + 100, () -> {
+            ServerAvatarManager.unregister(d);
+            then.run();
+        });
+    }
+
+    /**
      * Run a process for at most {@code ticks} and continue either way.
      *
      * <p>{@link #drive} is right for a leg that must succeed — its timeout IS the failure. It is
