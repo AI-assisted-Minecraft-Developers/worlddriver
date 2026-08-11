@@ -136,8 +136,38 @@ public final class MineProcess implements BotProcess {
     private final Walker collectWalker = new Walker("mine.collect");
     { collectWalker.setSearchBudget(8_000, 400); }   // drops are even nearer
     private BlockPos currentCollectGoal;
+    /** Drop cells the collect walker reported FAILED on. findCollectGoal returns the NEAREST
+     *  drop, so without a skip list a single unreachable one is handed back every tick and
+     *  shadows every other drop until the collect cap expires. */
+    private final Set<BlockPos> unreachableDrops = new HashSet<>();
+    /** What the collect walker last said. Read only by {@link #finish} — a terminal verdict that
+     *  cannot name the sweep's own behaviour makes the reader guess between three bugs. */
+    private Walker.Step lastCollectStep;
+    /** Retirement causes, split. See the COLLECT stuck-handler for why the split matters. */
+    /** Re-plans spent on the current collect goal after an ARRIVED that was not at it. */
+    private int collectRepaths;
+    private static final int COLLECT_MAX_REPATHS = 3;
+    private int retiredUnpathable;
+    private int retiredArrivedShort;
+    private int pickupWaitTicks;
+    /** Ticks spent standing on an ARRIVED collect goal whose item is still there. */
+    private int collectStuckTicks;
+    /** How long "arrived" may coexist with "the item is still on the ground" before the drop is
+     *  written off. A handful of ticks, because vanilla's magnet fires on the very next tick when
+     *  the body really is on top of the item — anything longer is the body being somewhere it
+     *  cannot reach from. */
+    private static final int COLLECT_STUCK_TICKS = 10;
     private static final int MAX_COLLECT_TICKS = 240;       // ~12 s @ 20 tps — long enough to walk to all 8 break spots
     private static final int COLLECT_SCAN_RADIUS = 8;       // matches vanilla item lifetime drift
+    /** How long COLLECT will stand still for a drop that is already at its feet but is still
+     *  counting down the 10-tick pickup delay every freshly-broken block gives its item. Twice
+     *  the delay, so the wait is over long before the cap — the cap only bounds the pathological
+     *  case where the delay never expires because nothing is ticking the entity. */
+    private static final int PICKUP_DELAY_WAIT_TICKS = 20;
+    /** Blocks. Wide enough to cover vanilla's pickup box (bounding box inflated 1.0/0.5/1.0),
+     *  narrow enough that a delayed drop we would have to WALK to is not mistaken for one that
+     *  will fall into our hands — that one is findCollectGoal's job once it becomes pickable. */
+    private static final double PICKUP_WAIT_RADIUS = 2.0;
     // gap#67-⑤: real safety cap on cells visited per scanForTarget call. Applied
     // to NearestFirstScan's nearest-first order (see below), so a cutoff drops
     // the FARTHEST cells, never an entire dy layer — unlike the old dy-outer
@@ -168,7 +198,7 @@ public final class MineProcess implements BotProcess {
 
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
         Player p = a.player();
-        if (p == null) { st.mine.lastError = "player vanished"; st.mine.reset(); return true; }
+        if (p == null) { st.mine.lastError = "player vanished"; finish(st, null, null, "player vanished"); return true; }
         Level lvl = p.level();
         // Quota reached → switch to COLLECT instead of declaring done. The
         // old behaviour left the player wherever the last break completed,
@@ -194,7 +224,7 @@ public final class MineProcess implements BotProcess {
             a.commandJump(false);
             p.setSprinting(false);
             st.mine.lastError = "aborted: entered lava";
-            st.mine.reset();
+            finish(st, p, lvl, "aborted: entered lava");
             return true;
         }
 
@@ -212,7 +242,7 @@ public final class MineProcess implements BotProcess {
             st.mine.lastError = "aborted: taking damage with no safely-reachable target (hp "
                     + String.format("%.0f", hpNow) + ", peak " + String.format("%.0f", minePeakHp)
                     + ", broken=" + broken + "/" + desiredQty + ")";
-            st.mine.reset();
+            finish(st, p, lvl, "aborted: taking damage");
             return true;
         }
 
@@ -225,7 +255,20 @@ public final class MineProcess implements BotProcess {
                     // hand-off ("go craft/relocate"), not the ambiguous "no reachable target".
                     st.mine.lastError = noTargetReason != null ? noTargetReason
                             : "no reachable target (broken=" + broken + "/" + desiredQty + ")";
-                    st.mine.reset();
+                    // Coming up short is not a reason to walk away from what was already
+                    // mined. Ask for four ores where the vein holds two and this path used to
+                    // return straight from SEARCH, so COLLECT never ran and both drops rotted
+                    // on the ground — an "I got nothing" that was really "I got two". The
+                    // quota decides how long to keep looking, never who owns the harvest.
+                    // lastError survives reset(), so the short-quota signal still reaches the
+                    // caller after the sweep.
+                    if (broken > 0) {
+                        phase = Phase.COLLECT;
+                        collectTicks = 0;
+                        pickupWaitTicks = 0;
+                        return false;
+                    }
+                    finish(st, p, lvl, noTargetReason != null ? "no harvestable target" : "no reachable target");
                     return true;
                 }
                 currentTarget = t.block;
@@ -343,6 +386,64 @@ public final class MineProcess implements BotProcess {
                 a.commandForward(0);
                 a.commandJump(false);
                 p.setSprinting(false);
+                // ⚠️ The tool is selected on the way IN (the two selectTool calls in GOING), not
+                // here, and re-selecting every BREAKING tick was tried and measured WORSE: it
+                // fights holdPlaceable for the selected slot all the way down a shaft — each
+                // undoes the other — and the same rig that used to reach the ore then failed to
+                // reach it at all inside a larger budget, leaving the ore standing. If the hand
+                // ever has to be re-armed at break time, the two writers need arbitration (the
+                // AutoTool yield-to-external-writer shape), not a third writer of the same slot.
+                //
+                // Note this is a CLIENT-path concern only. It was first written down as the
+                // explanation for the journey's empty iron bag, and that was wrong:
+                // ServerPlayerAvatar breaks through Level#destroyBlock, which drops through
+                // Block.dropResources(..., ItemStack.EMPTY) and never reads the hand at all. On
+                // the server avatar the held item cannot cost you a drop today (see
+                // ServerPlayerAvatar#DROP_HARVEST) — it would only start to once breaking moves
+                // to the faithful gameMode route.
+                // Swing at what is IN THE WAY, not at what is wanted. A buried ore is not
+                // breakable from a stand on the surface, and before the avatar had a reach gate
+                // that did not matter — it mined straight through the overburden and left the drop
+                // sealed in a pocket (see ServerPlayerAvatar#canBreak). With the gate, aiming at
+                // the ore is a swing that can never land: the no-progress watchdog eventually
+                // blacklists it and the miner reports "no reachable target" about ore it is
+                // standing on top of.
+                //
+                // The overburden becomes a CLEARING target, which is machinery that already
+                // exists for leaves occluding a log — it does not count toward the quota, it does
+                // not seed COLLECT, and finishing it re-SEARCHes so the now-exposed block below is
+                // picked up normally. Peeling one block per pass is what a player does, and it is
+                // also what keeps every drop at the bottom of a hole the body can enter.
+                BlockPos overburden = currentTargetClearing ? null : firstBreakableToward(a, lvl, p, currentTarget);
+                if (overburden != null) {
+                    currentTarget = overburden;
+                    currentTargetClearing = true;
+                    breakStartId = currentBlockId(lvl);
+                    breakingTicks = 0;
+                } else if (!a.canBreak(currentTarget) && isExposed(lvl, currentTarget)) {
+                    // Exposed and STILL not breakable means out of range, and range does not
+                    // improve by standing here: a canopy log five blocks above the stand, which
+                    // needs climbing, not patience. Retire it now and re-SEARCH so the miner takes
+                    // the trunk log at eye level instead of staring up at the crown. The
+                    // no-progress watchdog would reach the same conclusion a hundred ticks later,
+                    // and a tree is a race against the budget — waiting for it cost the journey's
+                    // wood rung all six logs.
+                    //
+                    // The exposure test is what keeps this from eating buried ore. An UNexposed
+                    // target is not permanently lost: the peel above breaks what covers it, and
+                    // once a neighbour falls the same block becomes reachable. Retiring on
+                    // "cannot break right now" without that distinction left the deepest of the
+                    // three ores in wd.serverMineHarvestBuried standing.
+                    //
+                    // This is the honest shape of the limitation, not a workaround for it: what
+                    // the bot cannot do is CLIMB to a log, and until it can, "mine the ones you can
+                    // reach" is what a player without a ladder does too.
+                    blacklist.add(currentTarget);
+                    a.breakHold(false);
+                    currentTarget = null;
+                    phase = Phase.SEARCH;
+                    return false;
+                }
                 a.aimAtBlock(currentTarget);
                 a.breakHold(true);
                 a.continueDestroy(currentTarget);
@@ -393,15 +494,82 @@ public final class MineProcess implements BotProcess {
                 a.breakHold(false);
                 collectTicks++;
                 BlockPos goal = findCollectGoal(lvl, p);
+                // Nothing to walk to — but "nothing to walk to" is not the same as "nothing
+                // left". A block broken from arm's length drops its item AT OUR FEET with a
+                // 10-tick pickup delay, and findCollectGoal skips delayed items (walking to
+                // one is pointless) while the recentBreaks fallback pops the break cell we are
+                // already standing on. Both correctly return "no goal", one tick after the
+                // break — and completing there abandoned the harvest and reported success.
+                // That is how a mine of qty 1 banked nothing: 24 ticks, ore gone, drop on the
+                // floor, lastError null. Stand still instead and let vanilla's magnet fire.
+                if (goal == null && awaitingPickupDelay(lvl, p)
+                        && ++pickupWaitTicks <= PICKUP_DELAY_WAIT_TICKS) {
+                    return false;
+                }
                 if (goal == null || collectTicks > MAX_COLLECT_TICKS) {
-                    st.mine.reset();
+                    finish(st, p, lvl, collectTicks > MAX_COLLECT_TICKS
+                            ? "collect timed out after " + MAX_COLLECT_TICKS + " ticks"
+                            : "collect swept everything it could reach");
                     return true;
                 }
+                pickupWaitTicks = 0;
                 if (!goal.equals(currentCollectGoal)) {
+                    if (!goal.equals(st.mine.target)) collectRepaths = 0;   // a different drop, fresh allowance
                     currentCollectGoal = goal;
+                    collectStuckTicks = 0;
+                    // Stand ON the drop's own cell, which is what a player does. An adjacency goal
+                    // was tried and is subtly wrong: "adjacent" is measured to the CELL while the
+                    // magnet reaches from the body to the ITEM, and vanilla's reach is only about
+                    // 1.4 blocks (bounding box inflated 1.0). Measured on the three-ore rig, the
+                    // sweep reported ARRIVED standing 1.6 blocks from a drop and then stood there
+                    // for the whole collect budget: a goal satisfied and an item not picked up.
                     collectWalker.setGoal(new Goal.Block(goal));
                 }
-                collectWalker.tick(a, w);
+                Walker.Step step = collectWalker.tick(a, w);
+                lastCollectStep = step;
+                // Two ways this drop is not going to happen, and both used to be silently ignored:
+                // the walker says it cannot path there, or it says it has ARRIVED and the item is
+                // still lying there anyway (arrived-but-out-of-reach — a shaft bottom the body
+                // cannot enter). Either way, stop pouring the budget into it. Without a skip list
+                // findCollectGoal hands back the same nearest drop every tick, so ONE dead drop
+                // used to shadow every reachable one behind it: three ores mined, three drops on
+                // the ground, an empty bag and no error.
+                boolean cannotPath = step == Walker.Step.FAILED;
+                // ARRIVED does not mean "at the goal". The walker reports it when the path it
+                // computed runs out, and when A* cannot reach the goal it returns a best-effort
+                // partial path — so a sweep can report success standing four blocks from the drop
+                // (measured: `retired 2 drop(s): 0 unpathable + 2 arrived-but-short`, distances 4.1
+                // and 6.4). Retiring on that throws away drops the body never went to.
+                //
+                // So an ARRIVED that is not actually AT the cell re-plans, a bounded number of
+                // times: the world changes while a mine runs — blocks fall, the body's own shaft
+                // opens routes — and the second search often reaches what the first could not.
+                // Only after those are spent is the drop genuinely out of reach.
+                boolean arrivedShort = step == Walker.Step.ARRIVED
+                        && !p.blockPosition().equals(goal)
+                        && collectRepaths < COLLECT_MAX_REPATHS;
+                if (arrivedShort) {
+                    collectRepaths++;
+                    currentCollectGoal = null;      // forces a fresh setGoal, hence a fresh search
+                    collectStuckTicks = 0;
+                    st.mine.target = goal;
+                    return false;
+                }
+                boolean stuck = cannotPath
+                        || (step == Walker.Step.ARRIVED && ++collectStuckTicks > COLLECT_STUCK_TICKS);
+                if (stuck) {
+                    collectRepaths = 0;
+                    // Which of the two retired it, counted rather than guessed. "The walker refuses
+                    // to path there" and "the walker believes it has arrived and the item is still
+                    // on the floor" are opposite bugs — one is the pathfinder's move set, the other
+                    // is the goal being satisfied short of vanilla's pickup reach — and both end as
+                    // an unretrieved drop. wd.serverWalkIntoAPit proves a two-deep pit IS pathable,
+                    // so a FAILED here would mean the collect walker differs from a plain one.
+                    if (cannotPath) retiredUnpathable++; else retiredArrivedShort++;
+                    unreachableDrops.add(goal);
+                    currentCollectGoal = null;
+                    collectStuckTicks = 0;
+                }
                 st.mine.target = goal;
                 st.mine.pathLen = collectWalker.pathLen();
                 st.mine.pathStep = collectWalker.pathStep();
@@ -423,24 +591,30 @@ public final class MineProcess implements BotProcess {
             AABB box = p.getBoundingBox().inflate(COLLECT_SCAN_RADIUS);
             var items = lvl.getEntitiesOfClass(ItemEntity.class, box,
                     it -> it.isAlive() && !it.hasPickUpDelay());
-            ItemEntity best = null;
+            BlockPos best = null;
             double bestD2 = Double.MAX_VALUE;
             for (var it : items) {
+                BlockPos cell = new BlockPos((int) Math.floor(it.getX()),
+                        (int) Math.floor(it.getY()), (int) Math.floor(it.getZ()));
+                if (unreachableDrops.contains(cell)) continue;   // the walker already said no
                 double d2 = it.distanceToSqr(p);
-                if (d2 < bestD2) { bestD2 = d2; best = it; }
+                if (d2 < bestD2) { bestD2 = d2; best = cell; }
             }
-            if (best != null) {
-                return new BlockPos(
-                        (int) Math.floor(best.getX()),
-                        (int) Math.floor(best.getY()),
-                        (int) Math.floor(best.getZ()));
-            }
+            if (best != null) return best;
         }
         // No item visible — sweep through remembered break positions in FIFO
+        // (see the COLLECT case for why a null return here does not mean "done").
         // order. Pop any we've already reached so we keep moving toward the
         // next spot instead of looping.
         while (!recentBreaks.isEmpty()) {
             BlockPos bp = recentBreaks.peekFirst();
+            // The skip list has to cover THIS path too. It guarded the item scan and not the
+            // fallback, so once every visible drop was retired the sweep dropped through to here
+            // and handed back the same unreachable break cell — the bottom of a hole it cannot
+            // enter — for the rest of the budget. Measured: both drops retired as unreachable and
+            // the verdict still read `sweep WALKING`, 240 ticks of walking toward a cell already
+            // known to be dead. Same bug as the one fixed on the drop path, one branch over.
+            if (unreachableDrops.contains(bp)) { recentBreaks.removeFirst(); continue; }
             double dx = p.getX() - (bp.getX() + 0.5);
             double dy = p.getY() - bp.getY();
             double dz = p.getZ() - (bp.getZ() + 0.5);
@@ -451,6 +625,107 @@ public final class MineProcess implements BotProcess {
             return bp;
         }
         return null;
+    }
+
+    /**
+     * End the command with an honest verdict, not just an absence of error.
+     *
+     * <p>{@code BunkerProcess} and {@code IntentProcess} already stamp {@code goalReached} /
+     * {@code endReason} at every terminal exit — "gap#68-R2", because a run that ends with
+     * {@code active:false} and no {@code lastError} is indistinguishable from a run that
+     * succeeded. Mine was the outlier, and it is the verb where that hurts most: it can meet its
+     * quota, sweep, end clean, and have banked nothing, because breaking a block and acquiring it
+     * are two different events and only the first one was ever reported. Diagnosing that took
+     * three full playthrough runs to tell apart from "the ore was never reached".
+     *
+     * <p>So the verdict carries the count that was missing — how many drops were still lying in
+     * the collect radius when the sweep ended. It is reported through {@code endReason} rather
+     * than {@code lastError} because leftovers are not necessarily a failure (an unreachable drop
+     * behind a wall is a fact about the world), and {@code goalReached} stays the plain
+     * quota question.
+     */
+    private void finish(BotState st, Player p, Level lvl, String reason) {
+        int left = p == null || lvl == null ? 0 : looseDrops(lvl, p);
+        st.mine.goalReached = broken >= desiredQty;
+        st.mine.endReason = reason + " (broke " + broken + "/" + desiredQty
+                + (left > 0 ? ", left " + left + " drop(s) on the ground" : "")
+                // What the sweep was DOING when it ran out of budget. "Left 2 drops" says the
+                // harvest was incomplete; it does not say whether the walker was refusing to
+                // path, insisting it had arrived, or still searching — three different bugs that
+                // all end with items on the floor, and the count alone sent two investigations
+                // to the wrong file.
+                + (lastCollectStep != null
+                        ? ", sweep " + lastCollectStep + " toward " + currentCollectGoal
+                          + ", retired " + unreachableDrops.size() + " drop(s): "
+                          + retiredUnpathable + " unpathable + " + retiredArrivedShort
+                          + " arrived-but-short"
+                        : "")
+                + ")";
+        st.mine.reset();
+    }
+
+    /**
+     * The block to swing at on the way to {@code target}, or null when {@code target} itself is
+     * already reachable (the ordinary case, and the only one before the reach gate existed).
+     *
+     * <p>Walks the segment from the eye to the target's centre and returns the FIRST solid block
+     * along it that the avatar can actually break. That is the overburden: the thing standing
+     * between a stand and the ore. Returning null when nothing on the line qualifies is
+     * deliberate — a target that is neither reachable nor approachable through anything breakable
+     * belongs to the no-progress watchdog and the blacklist, not to an infinite peel.
+     *
+     * <p>Sampled rather than voxel-traversed at 0.2 blocks — a fifth of a block cannot skip a full
+     * cube, and the segment here is bounded by the player's own interaction range, so this is a
+     * couple of dozen samples and not a raycast worth optimising.
+     */
+    /** True when at least one of the six faces is open — i.e. some ray could reach this block.
+     *  The same test {@code ServerPlayerAvatar} gates breaking on, asked here so the miner can
+     *  tell "too far" (permanent from this stand) from "walled in" (the peel will fix it). */
+    private static boolean isExposed(Level lvl, BlockPos pos) {
+        for (Direction d : Direction.values()) {
+            BlockPos n = pos.relative(d);
+            if (!lvl.getBlockState(n).isSolidRender(lvl, n)) return true;
+        }
+        return false;
+    }
+
+    private static BlockPos firstBreakableToward(Avatar a, Level lvl, Player p, BlockPos target) {
+        if (a.canBreak(target)) return null;
+        Vec3 eye = p.getEyePosition();
+        Vec3 centre = Vec3.atCenterOf(target);
+        double span = eye.distanceTo(centre);
+        if (span <= 0.001) return null;
+        Vec3 stride = centre.subtract(eye).scale(0.2 / span);
+        BlockPos last = null;
+        for (int i = 1; i * 0.2 <= span; i++) {
+            Vec3 at = eye.add(stride.scale(i));
+            BlockPos cell = BlockPos.containing(at);
+            if (cell.equals(last)) continue;
+            last = cell;
+            if (cell.equals(target)) break;
+            if (lvl.getBlockState(cell).isAir()) continue;
+            if (a.canBreak(cell)) return cell;
+        }
+        return null;
+    }
+
+    /** Item entities still lying inside the collect radius — what the sweep did not get. */
+    private static int looseDrops(Level lvl, Player p) {
+        return lvl.getEntitiesOfClass(ItemEntity.class,
+                p.getBoundingBox().inflate(COLLECT_SCAN_RADIUS), ItemEntity::isAlive).size();
+    }
+
+    /**
+     * True when a drop is close enough that standing still will collect it, but is not
+     * pickable yet — the {@code setDefaultPickUpDelay()} every block drop is born with.
+     * Deliberately narrow: only drops within {@link #PICKUP_WAIT_RADIUS} count, so this
+     * waits for the item at our feet and never for one across the arena.
+     */
+    private static boolean awaitingPickupDelay(Level lvl, Player p) {
+        if (lvl == null) return false;
+        AABB box = p.getBoundingBox().inflate(PICKUP_WAIT_RADIUS);
+        return !lvl.getEntitiesOfClass(ItemEntity.class, box,
+                it -> it.isAlive() && it.hasPickUpDelay()).isEmpty();
     }
 
     /** Scan candidates within radius, filter by target id + blacklist + stand reachability, pick nearest. */
