@@ -8,6 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **The three capabilities the pinned probes could not answer now have scenes**, and one of them
+  changed the plan.
+
+  **`wd.serverFightsAFlyingBlaze` — melee cannot win under open sky.** 3000 ticks, the blaze taken
+  from 20 health to 8 and never finished, hovering 6–8 blocks up against a melee reach of about
+  three. The same fight **in a closed room takes 40 ticks** — a 75× difference from changing the
+  room rather than the code, which is why no ranged-combat subsystem was written to solve what turns
+  out to be a geometry problem. **A ceiling alone was not enough either**: a bare lid over an open
+  floor got the blaze to 2 health and still lost it, because the mob drifted out past the lid's edge
+  and climbed above it. Walls first, then a ceiling — sideways is how it escapes.
+
+  Only the room is asserted. The open round is recorded, because it was first written as
+  `expect(open.dead).isFalse()` and a NeoForge run then finished the open blaze at 2.0 health left:
+  an assertion that a fight is NOT won sits on the wrong side of the dice, and one lucky run would
+  redden the gate for the one reason that is good news.
+
+  **`wd.serverEarnsAnEnderPearl` — a mob whose defence is to stop being there is still killable.**
+  6/6 killed, 4 pearls, inside a closed box so that every teleport lands back in the thing being
+  measured. A real stronghold is not a box and the scene says so.
+
+  **`wd.serverBreaksAnEndCrystal` — the verb the dragon fight opens with.** The crystal breaks to a
+  melee hit and the body is still standing; that second reading is weak while the avatar is
+  invulnerable, and it says so on the row. The 20–40 block pillar is `ascendByTowering`'s problem,
+  not this scene's.
+
 - **`wd.serverDamagesTheDragon` — the summit's own question, answered.** A dragon is not hit like a
   mob: `EnderDragon.hurt` refuses every direct hit, damage only lands through an `EnderDragonPart`,
   and only the HEAD takes it undivided. The prediction was that the combat loop would swing at a
