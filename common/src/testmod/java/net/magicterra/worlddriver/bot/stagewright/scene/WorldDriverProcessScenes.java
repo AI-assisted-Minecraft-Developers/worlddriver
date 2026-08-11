@@ -29,6 +29,7 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.magicterra.worlddriver.bot.stagewright.journey.HoldStill;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -38,6 +39,7 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
@@ -191,7 +193,13 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 // costs a descent, and finding out there that it needs a second bucket costs the
                 // rung below it too.
                 Scene.of("wd.serverCastsAPortalFrame", 1_200,
-                        WorldDriverProcessScenes::serverCastsAPortalFrame));
+                        WorldDriverProcessScenes::serverCastsAPortalFrame),
+                // N6's first question, and the one the ladder cannot ask cheaply: a lit portal is
+                // worth nothing if the body that lit it cannot walk through. Required as of the
+                // teleport fix — it was written as a frontier sensor, went red on BOTH loaders for
+                // the same reason, and is kept required so that reason cannot come back quietly.
+                Scene.of("wd.serverEntersTheNether", 4_000,
+                        WorldDriverProcessScenes::serverEntersTheNether));
     }
 
     /** Inlined from {@code AgentGameTestSupport#buildFloor}: 11×11 stone floor at {@code floorY},
@@ -2437,6 +2445,141 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         driver.avatar().useItemInHand();
         ServerAvatarManager.tickAll();
         return level.getBlockState(target).getBlock() == want;
+    }
+
+    /**
+     * Walk a server-driven body through a lit portal and out the other side, into the Nether.
+     *
+     * <p>The first question of ROADMAP N6, and it is asked here rather than on the ladder because
+     * the rung that asks it in the field has just spent an hour of wall-clock casting ten obsidian
+     * at the bottom of a shaft. A portal that lights and does not transit would invalidate that
+     * whole rung, and it would do so silently: the body would stand in purple fog forever and the
+     * budget would run out, which reads as a slow walk.
+     *
+     * <p><b>Why it was genuinely in doubt.</b> {@code JoinedPlayerBodies.JoinedBody} overrides
+     * {@code tick()} to do <i>nothing</i> — deliberately, so vanilla does not integrate locomotion
+     * a second time on top of {@code ServerPlayerAvatar.step()}. Vanilla's portal handling lives in
+     * {@code Entity.baseTick()}, and whether that is reached depends entirely on the avatar's own
+     * mirror of the tick. It is: {@code step()} calls {@code fp.baseTick()} first, and
+     * {@code checkInsideBlocks()} rides {@code move()}. So the machinery is present — but "present"
+     * and "works for a body with a connection that discards every packet it is given" are different
+     * claims, and only one of them can be tested.
+     *
+     * <p><b>Frontier, not required.</b> If this is red the finding is engine-shaped and belongs in
+     * TODO.md, not in a gate that blocks unrelated work. Promote it the day it is green.
+     *
+     * <p>Staged: the frame is set as obsidian rather than cast, because the cast has two scenes of
+     * its own and this one is about the seam AFTER a portal exists. The lighting is NOT staged —
+     * it goes through the same flint-and-steel path {@code wd.serverLightsPortal} proves, so that a
+     * portal built by the driver is what the driver then tries to walk into.
+     */
+    private static void serverEntersTheNether(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+
+        ServerLevel nether = level.getServer().getLevel(Level.NETHER);
+        if (nether == null) {
+            ctx.skip("这个运行时没有下界维度（数据包移除了 minecraft:the_nether），没有可去的地方");
+            return;
+        }
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
+        ctx.cleanup(() -> {
+            for (int dx = -4; dx <= 5; dx++)
+                for (int dy = -1; dy <= 8; dy++)
+                    for (int dz = -3; dz <= 3; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                                Blocks.AIR.defaultBlockState());
+        });
+
+        for (int dx = -4; dx <= 5; dx++)
+            for (int dz = -3; dz <= 3; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+
+        final int x0 = cx + 1, y0 = floorY + 1;
+        List<BlockPos> frame = new ArrayList<>();
+        frame.add(new BlockPos(x0, y0, cz));           frame.add(new BlockPos(x0 + 1, y0, cz));
+        frame.add(new BlockPos(x0, y0 + 4, cz));       frame.add(new BlockPos(x0 + 1, y0 + 4, cz));
+        for (int dy = 1; dy <= 3; dy++) {
+            frame.add(new BlockPos(x0 - 1, y0 + dy, cz));
+            frame.add(new BlockPos(x0 + 2, y0 + dy, cz));
+        }
+        for (BlockPos at : frame) level.setBlockAndUpdate(at, Blocks.OBSIDIAN.defaultBlockState());
+        for (int dx = 0; dx <= 1; dx++)
+            for (int dy = 1; dy <= 3; dy++)
+                level.setBlockAndUpdate(new BlockPos(x0 + dx, y0 + dy, cz), Blocks.AIR.defaultBlockState());
+
+        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, x0 + 0.5, floorY + 1, cz + 2.5);
+        ctx.cleanup(() -> driver.fakePlayer().discard());
+        var fp = driver.fakePlayer();
+        fp.getInventory().items.set(0, new ItemStack(Items.FLINT_AND_STEEL, 1));
+        fp.getInventory().selected = 0;
+
+        BlockPos hearth = new BlockPos(x0, y0, cz);
+        driver.avatar().holdItem(Items.FLINT_AND_STEEL);
+        driver.avatar().aimAtBlock(hearth);
+        ServerAvatarManager.tickAll();
+        driver.avatar().useBlock(hearth, Direction.UP);
+        ServerAvatarManager.tickAll();
+        BlockPos doorway = hearth.above();
+        ctx.record("portal.lit", String.valueOf(level.getBlockState(doorway).getBlock()));
+        ctx.expect(level.getBlockState(doorway).getBlock() == Blocks.NETHER_PORTAL)
+                .as("the frame lights before anything is asked about walking through it").isTrue();
+
+        // Standing in it is what starts vanilla's portal timer; a player's is ~80 ticks, so the
+        // budget below is generous by design — a run that spends it all has found a body the timer
+        // never starts for, which is a different finding from a body it never fires for.
+        driver.runProcess(new HoldStill(4_000));
+        ServerAvatarManager.register(driver);
+        fp.setPos(doorway.getX() + 0.5, doorway.getY(), doorway.getZ() + 0.5);
+
+        final int budget = 600;
+        int ticked = 0;
+        while (ticked < budget && fp.level() == level) { ServerAvatarManager.tickAll(); ticked++; }
+
+        ctx.record("transit.ticks", ticked + (ticked >= budget ? "（用尽）" : ""));
+        ctx.record("transit.dimension", fp.level().dimension().location().toString());
+        ctx.record("transit.pos", fp.blockPosition().toShortString());
+        ctx.record("transit.standingIn", String.valueOf(fp.level().getBlockState(fp.blockPosition()).getBlock()));
+        // Two readings, because they want opposite fixes: a body that never entered the portal's
+        // own block is a POSITIONING fault, and a body that stood in it for six hundred ticks
+        // without moving is a TICK fault.
+        ctx.record("transit.everInPortal",
+                level.getBlockState(doorway).getBlock() == Blocks.NETHER_PORTAL ? "门还在" : "门没了");
+
+        ctx.expect(fp.level().dimension()).as("the driven body arrives in the Nether through its own portal")
+                .isEqualTo(Level.NETHER);
+
+        // WHERE it landed, and this is not a detail. Vanilla scales the destination by the ratio of
+        // the two dimensions' coordinate_scale — 8:1 — so an overworld portal at x=100001 belongs at
+        // nether x≈12500. A body that arrives at the UNSCALED coordinate is in the Nether and is also
+        // 87 000 blocks from the fortress the blaze rod rung will look for, and every rung above this
+        // one would search the wrong world while this scene reported green.
+        double scale = net.minecraft.world.level.dimension.DimensionType.getTeleportationScale(
+                level.dimensionType(), nether.dimensionType());
+        BlockPos want = new BlockPos((int) Math.floor(cx * scale), fp.blockPosition().getY(),
+                (int) Math.floor(cz * scale));
+        int drift = Math.max(Math.abs(fp.blockPosition().getX() - want.getX()),
+                Math.abs(fp.blockPosition().getZ() - want.getZ()));
+        ctx.record("transit.scale", String.valueOf(scale));
+        ctx.record("transit.expectedXZ", want.getX() + "," + want.getZ() + "（漂移 " + drift + " 格）");
+        ctx.record("transit.arrivalPortal", String.valueOf(
+                fp.level().getBlockState(fp.blockPosition()).getBlock()));
+        ctx.record("transit.underfoot", String.valueOf(
+                fp.level().getBlockState(fp.blockPosition().below()).getBlock()));
+        // The dimension's own ceiling: a nether arrival above logical height is standing where the
+        // roof is, which no portal search should ever return.
+        ctx.record("transit.logicalHeight", nether.dimensionType().logicalHeight()
+                + "（落点 y=" + fp.blockPosition().getY() + "）");
+        ctx.expect(drift).as("the arrival is at the 8:1-scaled coordinate, not the raw one")
+                .isAtMost(128);
+        ctx.expect(fp.blockPosition().getY()).as("the arrival is under the Nether's own roof")
+                .isAtMost(nether.dimensionType().logicalHeight());
+        ctx.passNote("穿过自己点燃的传送门到达下界，用了 " + ticked + " tick，落在 "
+                + fp.blockPosition().toShortString() + "（期望附近 " + want.getX() + "," + want.getZ() + "）");
     }
 
     /**
