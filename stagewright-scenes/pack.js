@@ -23,11 +23,40 @@ scene("pack.awaitsAcrossTicks", 200, function (s) {
 });
 
 scene("pack.seesTheModsItShipsWith", 100, function (s) {
-    // The reason a pack author wants this at all: assert that the mods in THIS pack are present and
-    // registered, which no single mod's own test suite can tell them.
+    // The reason a pack author wants this at all: assert that the mods in THIS pack are present, at
+    // the versions the pack was built against, which no single mod's own test suite can tell them.
+    s.record("mods.count", s.mods().count());
+    s.record("worlddriver", s.mods().version("worlddriver"));
+    s.expect(s.mods().loaded("minecraft")).as("Minecraft in the mod list").isTrue();
+    s.expect(s.mods().loaded("worlddriver")).as("the mod this pack is about").isTrue();
+    s.expect(s.mods().loaded("definitely_not_a_mod")).as("a mod nobody has").isFalse();
+
+    // And what the pack ships still registers, which is the half a mod list cannot answer: a mod
+    // loaded with its content switched off in config is present and contributes nothing.
     s.setBlock(0, 0, 0, block("minecraft:stone"));
     s.expectBlock(0, 0, 0).as("a block the pack ships").isEqualTo(block("minecraft:stone"));
-    s.record("packMod", "minecraft");
+});
+
+scene("pack.usesACapabilityItDeclared", 100, function (s) {
+    // The declarative seam, from the side it was built for: a .json file beside this one names a
+    // mod and a class, and a scene reaches it without a build tool, a jar, or a line of Java. The
+    // class name lives in that file rather than in this scene — which is the entire difference
+    // between this and calling s.probe('...') here.
+    s.expect(s.hasCapability("pack:driver")).as("the capability this pack declared").isTrue();
+
+    var driver = s.capability("pack:driver");
+    s.record("capability.source", driver.source());
+    s.record("capability.version", driver.version());
+    s.expect(driver.mods()).as("the mods it named that are loaded").contains("worlddriver");
+
+    s.expect(driver.probe().className()).as("what its probe bound")
+        .isEqualTo("net.magicterra.worlddriver.api.DriverApi");
+
+    // The other half, and the one that has to be true for any of this to be trustworthy: the
+    // descriptors StageWright itself ships are all here, and none of them claims to be available in
+    // a runtime that has none of those mods.
+    s.expect(s.capabilityProviders()).as("a shipped descriptor").contains("mekanism");
+    s.expect(s.hasCapability("mekanism")).as("Mekanism in this runtime").isFalse();
 });
 
 scene("pack.measuresItsOwnTickCost", 300, function (s) {

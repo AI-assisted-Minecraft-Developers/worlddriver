@@ -1,0 +1,9 @@
+{
+  "_comment": "A capability declared the way a modpack author declares one: a .json file beside the pack's scenes, no build tool anywhere. It rides through the same provisioning as pack.js and lands in config/stagewright/capabilities/. The subject is worlddriver itself because this file has to be satisfiable in the runtime it runs in — the built-in descriptors StageWright ships (mekanism, ae2, create...) prove the OTHER half here, since none of those mods is installed and every one of them must report itself registered-but-absent.",
+
+  "name": "pack:driver",
+  "mods": ["worlddriver"],
+  "classes": ["net.magicterra.worlddriver.api.DriverApi"],
+  "probe": "net.magicterra.worlddriver.api.DriverApi",
+  "absent": "this descriptor names worlddriver, which is the mod whose own suite it ships in — absent here means the mod list never arrived"
+}
