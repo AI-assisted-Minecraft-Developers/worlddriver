@@ -149,6 +149,14 @@ etc.) working in this project. Keep it short and authoritative.
     the footprint as arguments, so the gate reads it directly instead of
     interval-evaluating a `cx + dx` expression to recover it.
 
+    **The gate only sees offsets a scene writes itself.** A scene that builds through a
+    helper at an ABSOLUTE position — `DriverApi.seedTestArea()` at `0,200,0` is the one that
+    exists — is outside every arena window and the gate reports it fine. Blocks still work
+    there (the write loads the chunk), entities do not (`Level#getEntities` sees loaded
+    sections only), so the scene fails as "the entity query returned nothing" somewhere far
+    from the cause. That helper now takes its own region ticket; if you add another, it needs
+    one too — the gate will not tell you.
+
 ## Log locations
 
 Runtime output is local-only and must never appear at the project root:
@@ -172,10 +180,36 @@ unexpected location, treat it as a leftover and delete it — do not commit it.
 # Build everything
 ./gradlew build
 
-# Integration tests (use as CI)
-./gradlew stagewrightDedicatedServerNeoforge                  # the wd.* scene suite, headless
+# Integration tests (use as CI). Six topologies — three shapes on two loaders — and stagewrightCoverage
+# below needs ALL of them run, because it reconciles them against each other.
+./gradlew stagewrightDedicatedServerFabric                    # the wd.* scene suite, headless
+./gradlew stagewrightDedicatedServerNeoforge                  # ditto on the other loader
 ./gradlew stagewrightIntegratedServerFabric                   # integrated-server parity
+./gradlew stagewrightIntegratedServerNeoforge                 # ditto
 ./gradlew stagewrightDedicatedServerWithClientFabric          # production topology, both halves
+./gradlew stagewrightDedicatedServerWithClientNeoforge        # ditto
+
+# The NeoForge production topology joined this list on 2026-08-08, when it went green for the first
+# time. It is worth its five minutes precisely because the two loaders' dev launchers differ in what
+# they hand a child process: the bug it was RED on made the driver ABSENT from a JVM that listed it
+# in the mod list, and the Fabric twin was green throughout on identical code.
+#
+# The manifest is 222 scenes (171 wd.* + 38 cap.* + 13 pack.*); a run registers 232 with the
+# framework's built-ins and canaries. Both production topologies also judge a SECOND results file,
+# the one their client half writes in its own run directory — that is what `companionResultsFile`
+# in build.gradle points at, and without it a client that never joined would still read GREEN.
+
+# Redirect, never pipe to `tail`: the verdict is at the end, so tailing looks sufficient right up
+# until a run dies before producing one and the error was in the part you discarded.
+./gradlew stagewrightDedicatedServerNeoforge > run.log 2>&1
+
+# Cross-run coverage. Every scene any topology registers must have EXECUTED in at least one of them,
+# and no single verdict can be asked that: a scene needing a player skips on a dedicated server, a
+# skip records PASS, and a suite whose player scenes skip EVERYWHERE is green over subjects it has
+# never once run. Needs all six topologies to have been run first — it reads their results, it does
+# not run them, deliberately: a RED topology aborts the build and this is exactly when it has the
+# most to say.
+./gradlew stagewrightCoverage
 
 # Out-of-process tests. Two terminals: the hold publishes an endpoint, the tests attach to it.
 # WHICH hold decides which half runs — the suite is face-gated and the other half skips with a

@@ -8,6 +8,1082 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`wd.journey11Obsidian` — the obsidian rung is scripted.** Walk to the lava the survey found,
+  sink a shaft as deep as that lava is, tunnel the last cells to it, fill the bucket, climb the same
+  height back, and pour into standing water. The assertion is on the cell the rung NAMED before the
+  pour: obsidian appearing somewhere proves the fluids met, obsidian appearing where the body aimed
+  proves the body put it there, and only the second is something a portal can be built on.
+
+  **One block, not the portal's ten, and that is the rung rather than a shortcut.** Obsidian cannot
+  be carried — taking it back needs a diamond pickaxe — so a frame is cast in place and where the ten
+  cells go is `PORTAL_LIT`'s question. The portal's own plan (carry water DOWN once, leave it as a
+  source, shuttle lava with the one bucket) is also written down in the rung, together with why it
+  is not what this rung does: water placed at the bottom flows along any opening at its own level,
+  and the opening this rung must make is the one to the lava. Water reaching the pool converts the
+  very source the bucket was going to draw from, so the two halves race over a tunnel two or three
+  cells long — about fifteen ticks. Pouring into water that is already standing at the surface has
+  no such race and measures the same four verbs.
+
+  The tunnel to the lava **drives itself and needs no route**: a bucket fills along the ray the body
+  is looking down, so whatever that ray hits first IS the obstruction. Aim at the source, ask
+  vanilla's own pick what got in the way, mine that, look again. Every block it breaks is on the
+  line to the goal, so it cannot wander.
+
+- **`wd.serverCastsObsidian` now places its water from the bucket too, and asserts the source
+  survives.** The first version staged the water with `setBlockAndUpdate`, which proved the
+  conversion and left *can the body put water where it wants it* unanswered — the one verb of the
+  cast the arena had not tested. It now empties a water bucket against a wall so the water lands one
+  cell above the mould, fills from lava, pours, and then checks **the water is still a source**.
+  That last reading is the whole of the one-bucket claim: a cast that ate its water would need a
+  fresh trip to open water for each of the portal's ten blocks, and nothing about the obsidian would
+  have said so. Green on both loaders, 161–175 ms.
+
+- **`wd.serverCastsObsidian` — a server-side body can cast obsidian, and N4 needs no new
+  engine capability.** Written as a capability probe BEFORE the rung rather than after it, because the rung
+  is a descent of tens of blocks to this seed's nearest lava and that is an expensive place to
+  discover the body cannot work a bucket. It fills an empty bucket from a lava source, empties it into a chosen
+  cell, and asserts water converts that cell to obsidian — the cast, not the crust, because obsidian
+  that already exists needs a diamond pickaxe to take. Green on both loaders in 160 ms, promoted to
+  required in the run that first saw it green.
+
+  Four wrong answers on the way, each cheap and each worth knowing before writing the rung. **The
+  verb is not `useItemOn`** — that is the block-targeted path and a bucket has no `useOn`; buckets do
+  their work in `Item.use`, which the driver exposes as `useItemInHand`. **Aim is an input, not
+  decoration**: `use` ray-traces from the eyes, so where the body is looking is the whole of the
+  targeting. **An aim needs a tick to land** before the use reads it — without one the fill silently
+  used the previous aim. And **a mould needs a bottom**: aimed at a cell with air beneath it the ray
+  hit nothing and the pour came back `PASS` with the bucket still full, which reads nothing like the
+  `CONSUME`-with-empty-target of a pour that landed somewhere else. The probe records both, because
+  a miss and a misplacement are different bugs.
+
+- **The journey's floor is IRON.** `JourneyLedger.FLOOR` moves FURNACE → IRON and
+  `JourneyStage.IRON` becomes gating, which is the fifth time this ratchet has been raised and the
+  first time it took real work to earn. IRON had been green before and failed on the same code the
+  next run, so it was deliberately left below the floor on the rule the number exists to enforce —
+  *the floor claims a rung works, not that it once worked*. Promoted on three consecutive green runs
+  of the same code (铁锭 ×4 / ×6 / ×6, `stagingCalls=0`). PORTAL_KIT stays frontier: green on one of
+  those three, and both failures have since been fixed but not yet re-measured.
+- **`firstLava` is surveyed.** It had been UNSURVEYED because the survey asked the surface question,
+  and a swamp surface truthfully has no lava; that is a correct answer to a question nobody wanted
+  asked. `nearestInBand` scans an absolute height band instead and answered identically on two
+  consecutive runs — `(84, -14, 47)`, a ~77-block descent, which was written down here and in the
+  stage javadoc as ROADMAP N4's bill. *That number did not survive the next widening of the search:
+  see the entry under Fixed. The pool is at `(68, 27, -1)` and the descent is thirty-six.*
+
+- **The journey climbs to PORTAL_KIT, and the iron rung works two veins to pay for it.** Seed 5471's
+  first iron vein is one ore deep: the rung mined it out and reported `broke 1/8, no reachable
+  target` with two ingots banked, which is terrain rather than driver and is not something a bigger
+  quota can fix (a wider radius makes it worse — see the drift note below). So the survey now finds a
+  SECOND vein at least twelve blocks from the first (`secondIron`, `secondIronDescent`), and the rung
+  digs it only when the first came up short of what the kit costs. `PORTAL_KIT` itself dropped from
+  two buckets to one. **The reason first given for that was wrong** and is corrected here: "pour
+  water over the lava sources and they turn to obsidian where they stand" is true and useless,
+  because taking obsidian out of a lava lake needs a diamond pickaxe. A portal is cast, not found —
+  a mould, then lava placed into it one bucket at a time. One bucket is still right for a different
+  reason: water is carried **once**, placed as a source at the build site where it stays and flows
+  over each cell, so the same bucket shuttles lava for all ten frame blocks. Four ingots, not seven.
+
+- **The ladder fells a tree when a craft runs out of wood, instead of pre-paying for a tax nobody
+  can size.** The wood bill has been raised twice — 3 → 5 → 8 — and eaten through both times. The
+  measurement that ends the argument: a run with **eight logs** (thirty-two planks) reached the stone
+  rung holding `planks=3`, `craftingTable=0`, `sticks=2`, `cobblestone=32`, and failed
+  `缺 1 个 oak_log`. The recipes it had actually paid for cost **nine** planks. The other twenty went
+  on crafting tables that are neither standing within 32 blocks nor lying as drops — simply gone.
+
+  A bill cannot be sized against a tax that varies like that, so this stops trying. A craft that
+  fails for want of wood now walks to the nearest trunk of the route's own species, cuts it, and
+  tries once — one retry, and only for the one cause a retry can fix, since every other error would
+  repeat identically. Same lesson as the wedged walk: **a retry has to change the question.**
+
+  The vanishing table itself is an engine-side finding and is logged as one; `wd.serverCraftTableReclaim`
+  passes in an arena, so whatever loses it is not visible at that scale.
+
+- **Every craft now keeps its own table, instead of three of them remembering to.** `CraftProcess`
+  places a crafting table and reclaims it only on a best-effort basis, so a craft that walks away
+  leaves one standing — four planks, one log, every time the ladder buys another. Three of the
+  ladder's crafts had a `reclaimTableIfLeftStanding` backstop written by hand; the planks, the
+  sticks, the wooden pickaxe and the flint-and-steel did not.
+
+  Measured: a run holding **six raw iron** smelted none, because the furnace it had to re-craft
+  needed a table, the table needed four planks, and there was not one log left —
+  `furnace.remadeError=缺 1 个 oak_log`. The wood bill has already been raised twice for this
+  (3 → 5 → 8) and raising it is treating the symptom: the recipes are fixed and **the tax is what
+  varies**.
+
+  So the guard stopped being something each rung has to remember. `craftKeepingTheTable` is
+  ensure-a-table → craft → take it with you, and every craft on the ladder goes through it. The
+  reclaim is one block-break at a fixed cost immediately after the craft — the only moment the table
+  is certain to be in reach, since thirty seconds later the rung has walked a hundred blocks and the
+  32-block search that would find it again is looking in the wrong place. It also records
+  `<item>.crafted` and `<item>.craftError` for every craft, which is what turned the last failure
+  from *"the craft verb is broken"* into *"it ran out of wood"* in one line.
+
+- **The furnace guard had none of the crafting table's recovery, and no reason attached to its
+  failure.** `ensureCarrying` — which the iron rung uses to get a furnace back before smelting — did
+  three things the table's guard does not: it *noted* a standing station instead of mining it back,
+  it re-crafted through a bare `CraftProcess` with no table guard and no room check, and it recorded
+  no error.
+
+  Measured: `furnace.standing=none`, `furnace.remade=true`, `furnace.after=0`, and then
+  `smelt.lastError=需要熔炉（背包里没有可放置的熔炉）` — a rung that mined **4 raw iron** and smelted
+  none. The re-craft had failed for want of a crafting table, and the only trace of that was a count
+  of zero two lines later: an outcome with no reason attached, which reads as *the craft verb is
+  broken* rather than *it was never given what it needs*.
+
+  It now mines a standing station back into the bag, re-crafts through `ensureCraftingTable`, records
+  `<station>.remadeCount` and `<station>.remadeError`, and reclaims the table afterwards — the same
+  shape the table's own guard has had since the tax it charges was measured.
+
+- **`wd.journey11Obsidian` is green in the field.** The ladder's peak is now OBSIDIAN, floor IRON,
+  `staging.calls=0`: `fill.hand=minecraft:bucket, fill.result=CONSUME, lava_bucket=1,
+  fill.sourceAfter=air` — the source consumed, the bucket full — then `cast.hand=minecraft:lava_bucket,
+  cast.result=CONSUME, cast.cellAfter=Block{minecraft:obsidian}, bucket.after=1`. Obsidian in the
+  cell the rung named, from lava the body fetched itself, with the bucket back in hand.
+
+  **The floor is now PORTAL_KIT** — ROADMAP N0 through N3, the sixth time this ratchet has moved.
+  It had been green six times *before* this and was still held down, which is the point of the rule:
+  those greens were not on one code base, and one of the reds was real. The kit costs four ingots,
+  the vein loop was written to work three veins, and only two were ever baked. A rung that passes
+  because the terrain was generous is not a rung that works — what made it promotable was finding
+  that, not running more runs. Four consecutive greens, 铁锭 ×6 / ×6 / ×11 / ×6.
+
+  One bound rides along and is not hidden: every green row on this track carries
+  `body.invulnerable=true`. The ladder proves what the driver can DO, never that a body survives it.
+
+- **OBSIDIAN was promoted to gating and demoted one run later, and the round trip is worth more than
+  the promotion was.** It had exactly the three consecutive greens the bar asks for — identical code,
+  casting at `-6, 62, 55`, `staging.calls=0`, `exit.gained=36/36`. The next run tunnelled into a
+  cave, fell from y=27 to **y=14**, and reported *"descended to the lava layer and cannot see a lava
+  source"* — true, and reading like a survey problem about a pool the three runs before had walked
+  straight up to.
+
+  **Three-of-a-kind cannot see a one-in-four hazard.** The bar is not wrong for the rungs below it;
+  it is too small a sample for a rung whose last leg mines horizontally through rock nobody surveyed,
+  because that leg can open a floor. The demotion is the ratchet working — the verdict scene went
+  red the moment the run fell short of a floor that had just been raised — not a mistake it failed
+  to prevent.
+
+  Fixed with `TUNNEL_CLIMB_BACKS`: when no source is in reach and the pool sits more than two blocks
+  *above* the body, the tunnel now towers back to the pool's level and resumes instead of reporting
+  a missing pool from underneath it. Twice per rung, and the budget is threaded through the tunnel's
+  recursion rather than re-defaulted per step — a budget that resets every step is not a budget.
+
+  **This fix is still unexercised in the field.** The three runs after it never fell — `tunnel.fell`
+  appears in none of them — which is what a one-in-four hazard does to a three-run sample, and is
+  exactly why those greens are not evidence the recovery works.
+
+- **The food rung looks further instead of looking elsewhere, and two wrong premises died to get
+  there.** It failed with `[minecraft:cat, minecraft:frog]` within 96 blocks.
+
+  *First premise — "spawn is where the animals are."* A run then found the same cats and frogs within
+  96 of the stone rung's endpoint **and** within 96 of spawn. Walking home changed nothing.
+
+  *Second premise — "then survey the herd at spawn on tick one and walk there."* Written, and then
+  **refuted by the survey built to support it**: with the chunk pin applied and the load waited out,
+  it reports `无` too. This seed has no food animal within 96 blocks of spawn, at tick one or later.
+  The runs that eat find their cow 77 blocks from wherever the wood and stone rungs carried the body,
+  which is well over 96 from spawn.
+
+  So the thing to change is the radius, not the standpoint: on a miss the rung pins 11 chunks, waits,
+  and re-scans at 176 blocks (`prey.wide`), then walks to what it finds. Not the default, because
+  pinning 23×23 chunks to answer a question 96 blocks usually answers is a cost every run would pay
+  for the benefit of one. The spawn-time survey stays as a recorded measurement — it is the evidence
+  that the wide search has to exist — but no longer feeds a landmark nobody reads.
+
+  Two traps on the way, both worth keeping. **It cannot live in recon**, which is where it was first
+  written: recon runs before the body exists, and every prey query is about the body's surroundings
+  (`nearestPreyTarget` centres on it, `seeAtLeast` pins ITS chunks) whereas recon reads terrain, which
+  needs only a level — six runs died on `还没有身体` first. And **a survey that cannot see reports an
+  empty world**: scanning on the same line as `seeAtLeast` sees only already-loaded chunks, because
+  the ticket applies on an await tick. Widen, *wait*, then look.
+
+- **Two tests of the same condition that disagree are a bug generator.** `makeRoomForAStation` asked
+  whether a station could be placed by checking **4 cells** at foot level with one set of predicates;
+  `PlaceNearby.place`, the code that actually does the placing, checks **24** (8 offsets × 3 layers)
+  with different ones. The helper therefore said "no room" where the placer would have succeeded —
+  visible as `station.noGround` in two green runs whose craft worked anyway — and, when it "fixed"
+  that, it walked a **fixed compass direction ±4 blocks**, which is a guess: measured, a body went
+  from `62,63,64` to `62,63,60`, one unusable cell to another. In a swamp that is the normal case,
+  because the body is standing in water and the neighbouring "ground" is more water.
+
+  The furnace rung then failed twice in six runs — `furnaces crafted (0)` with `cobblestone.before=25`
+  and `craftingTable=1`, every material in hand and nowhere to put anything. That is a floor rung, so
+  the verdict went red both times.
+
+  Three fixes: `placerWouldFindRoom` is a copy of the placer's own 24-cell predicate (one of two
+  disagreeing tests is always wrong, and the failure never says which); `groundWithRoomNear` walks to
+  a cell that *answers* the question rather than in a direction; and the attempt evidence is indexed
+  (`station.steppingOff.N`) because three attempts under one key describe only the last — the same
+  defect the pickup keys had.
+
+- **Counting green runs is the wrong promotion criterion.** OBSIDIAN was promoted on three greens and
+  regressed the next run; the bar was raised to five on the reasoning that a one-in-four hazard is
+  invisible to a three-run window; it was promoted on five and **regressed the next run again**. The
+  floor is back at PORTAL_KIT.
+
+  Both regressions were the *same* hazard — the tunnel holing a cave roof — and both times the
+  qualifying runs had simply never hit it. `tunnel.fell` appears in none of the three, and in none of
+  the five. So the larger sample was never the fix: **a run that does not exercise a known recovery
+  is not evidence about that recovery**, and no number of such runs adds up to any. This was written
+  down explicitly before the second promotion and then promoted past anyway.
+
+  What a promotion of this rung has to show is therefore not a count but **each known hazard's
+  recovery observed working at least once**. The fall recovery has now been seen twice and failed
+  both times, the second unambiguously: `climb.0.stalled=stuck (no Y gain in 60t — out of blocks?)`
+  beside `climb.0.state=onGround=true inWater=false y=14.00` and `climb.0.stock=cobblestone ×104` —
+  solid ground, clear ceiling, block in hand, no gain.
+
+- **After falling into a cave, look for lava instead of climbing back to the surveyed pool.** The
+  rung's claim is "fetch lava and cast obsidian", not "use *this* pool", and a body that just fell
+  through a cave roof is standing in a cave — which at that depth is where lava is. It now searches
+  24 blocks for any source and walks to it (`tunnel.otherPool`), keeping the climb-back only as a
+  fallback. Cheaper than towering twelve blocks up a shaft that has already refused twice, and it is
+  what a player who fell in would do.
+
+- **`MISS` is not an obstruction.** The blocked-line guard added above did its job on its first
+  outing — it refused to pour — but it named the wrong thing, because the evidence beside it was
+  `cast.range=12.12, cast.picks=MISS`. Nothing was in the way: **the target was eight blocks past
+  the end of a five-block ray.** `Goal.Near` reporting done is not the same as being in reach, and
+  out of range a clip returns `MISS`, which reads exactly like an obstruction that cannot be cleared.
+  `approachAndPour` now checks the range it actually achieved and walks again (`CAST_APPROACHES=3`,
+  `cast.tooFar` recorded) instead of handing an unreachable target to the pour.
+
+- **The food rung failed for the first time in eighteen runs, and the retry it needed had to change
+  the question.** `方圆 96 格内没有掉落食物的动物 —— 附近只有 [minecraft:cat, minecraft:frog]`.
+  Not a loaded-chunk problem: the rung already pins seven chunks and waits before scanning. Where it
+  STARTS is wherever the stone rung left the body — the far end of whatever cobblestone that rung
+  had to walk to — so seventeen runs began near cows and the eighteenth began in swamp.
+
+  Re-scanning in place would ask the identical question and get the identical answer, the mistake
+  `walkToColumn` already made once. It now walks back to spawn — the one cell this seed has an animal
+  claim about — and looks again, and only then is "no animals" a statement about the world.
+
+- **The floor regressed, twice in five runs, and both times for "nowhere to put a station".** IRON is
+  gating and PORTAL_KIT is the floor, so `wd.journey99Verdict` correctly went red. Two different
+  reports, one situation:
+
+  - `furnace.craftError=需要工作台（背包里有，但脚边没有可放置的空位——先清出一格）`, reached with
+    `exit.gained=2/22` — the iron shaft's exit had stalled and left the body at the bottom.
+  - `smelt.lastError=需要熔炉（背包里没有可放置的熔炉）` reached with `furnace.carried=true,
+    furnace.after=1` — **the furnace plainly in the bag.**
+
+  The second message names the wrong cause. `PlaceNearby.place` holds the item through `holdItem`,
+  which searches all 36 slots and found it; what it could not find was a cell to put it in. The body
+  was standing on top of the one-wide pillar it had just towered out of the shaft on — air on every
+  side, air under every side. Same family as `holdPlaceable`'s "out of blocks?" while carrying 110
+  cobblestone, and logged in `TODO.md` as an engine-side diagnostic defect rather than fixed here.
+
+  Two test-side fixes. **The smelt path never asked for room at all** — `makeRoomForAStation` was
+  called only from `ensureCraftingTable` — so it now does. And that helper had exactly one remedy,
+  walking, which is right for a pillar top and useless at the bottom of a one-wide shaft, where
+  every leg ends where it began (`station.noGround` three times). It now falls back to **cutting a
+  niche**: a solid side cell over a solid floor becomes an empty supported cell the moment it is
+  mined, which is precisely what the driver's own error asks for (`先清出一格`).
+
+  Note this was exposure, not a new bug: `RAW_IRON_TO_MINE = bill + 1` makes the rung work more
+  veins, which puts the body in a shaft at craft time more often.
+
+- **A pour down a blocked line is a successful pour into the wrong cell.** The cast aims at the bed
+  *under* the water, because the fluid lands in the cell in front of whatever face the ray hits. A
+  run chose `-15,62,42`, aimed at `-15,61,42`, and the pick answered **`-15,62,42`** — the water cell
+  itself, because it held **seagrass**. Seagrass has no collision but it does have a
+  `Block.OUTLINE` shape, and that is the shape a bucket's own clip uses.
+
+  So the pour reported `CONSUME`, the bucket emptied, and obsidian appeared at `-15,62,41`: one cell
+  short, cast against the near face of the plant. The rung asserts on the cell it *named*, so it
+  correctly went red — but the failure reads as "the cast does not work" when the cast worked
+  perfectly, one metre away. Swamp water is full of seagrass; this is terrain the ladder meets every
+  run, not an oddity.
+
+  The tunnel has always cleared its own line — *mine whatever the ray hits first, because that IS the
+  obstruction* — and the cast, which holds exactly one bucket of lava and gets no second try, never
+  did. It now checks the pick against the intended bed **before** spending the bucket, clears what is
+  in the way, and re-aims (`CAST_CLEARINGS=2`, `cast.blockedBy` recorded).
+
+  **Clearing was the wrong primary fix, and the next run said so.** It fired twice on the same cell
+  and the seagrass was still standing (`cast.cellAfter=seagrass`), so the third attempt poured blind
+  and cast one metre short again — at `-15,62,42`, the identical coordinate, because the choice is
+  deterministic. The real defect is upstream: **`shallowWaterNear` tested `getFluidState().isSource()`
+  and the WATER tag, and never looked at the block.** A waterlogged seagrass answers both exactly like
+  open water. It now requires the block itself to be `Blocks.WATER` — a cast target must be a cell a
+  ray can *enter*, and "a water source is in it" does not say that. Same shape as the survey bug where
+  water was mistaken for a floor.
+
+  The clearing stays as a backstop for genuine mid-line obstructions, but it **no longer pours when it
+  runs out**. Spending the run's only lava into whatever the ray happens to hit produces
+  `casts obsidian in the chosen cell (false)` with `obsidian.anywhere` sitting one metre away — a
+  failure that blames the cast for working perfectly somewhere else. It now stops and names the
+  obstruction instead.
+
+- **The exit works once the tower is handed its block.** With the per-course `holdItem`, the next
+  run climbed `exit.gained=36/36` from y=27 and cast at the surface — `-6, 62, 55`, on dirt, with the
+  `（在地下…）` suffix correctly absent. The same run's iron rung came home with six ingots off three
+  veins. Two consecutive full-ladder greens to OBSIDIAN, `staging.calls=0`.
+
+- **A green rung said what it did not do.** The run before that climbed **one block of thirty-six** on the
+  way out and passed anyway, because it found water in the cave it was already standing in and cast
+  there. The rung's own claim — obsidian, unstaged — was honestly met; the exit it was also supposed
+  to exercise never happened. `recordExit` now records `exit.gained=1/36` (a fraction, not a landing
+  height — `exit.toY=28` is only a shortfall if you remember `exit.rise` was 36), and the PASS note
+  itself says `（在地下 y=27 浇的，没能爬回地面）` when the body never surfaced.
+
+- **`holdPlaceable` searches nine slots; `holdItem` searches thirty-six.** That asymmetry is why the
+  exit stalled: `TowerProcess` asks via `holdPlaceable`, which scans only the hotbar, so a body four
+  rungs deep — hotbar full of pickaxes, a bucket, flint, food — reported `no placeable block in
+  hotbar` while **carrying 110 cobblestone**. The same wrong message had already been mis-read twice
+  (once as a mid-air measurement bug, once as a pathfinding limit), because "out of blocks?" is a
+  confident guess and the body always had blocks.
+
+  Scripted around rather than widened: each course now `holdItem`s the pillar block before the tower
+  asks, so `isSupport(main)` hits immediately. Whether `holdPlaceable` should search the whole
+  inventory is a separate decision — a client body would yank items into a human's hand — and is
+  logged in `TODO.md`.
+
+- **A surveyed landmark that is never baked is not a landmark.** `JourneyRoute.thirdIron` and
+  `thirdIronDescent` sat at `UNSURVEYED` while recon printed real coordinates for them on *every*
+  run — `10,58,82` and `10,65,82`, 59 blocks out. The iron rung's vein loop was written to work
+  veins until the portal kit's bill is paid; with only two veins baked it could not, so a run whose
+  first vein lost its drops (`vein1.raw_iron=0` with `onGround=2`) banked three ingots and the
+  failure surfaced a rung later as `缺 1 个 iron_ingot`. Both are baked now and checked by recon's
+  staleness guard like every other landmark.
+
+- **Mine one more ore than the bill.** The vein loop stopped at `IRON_INGOTS_THE_KIT_COSTS` raw ore,
+  which assumes a furnace load returns its input — and one already had not: `部分完成：只炼出
+  5/6（燃料耗尽）`. Mining exactly the bill means arriving one ingot under it whenever the coal runs
+  out first, four rungs deep. It now targets `RAW_IRON_TO_MINE = bill + 1`.
+
+- **Two veins overwrote each other's pickup evidence.** `collectByHand` recorded `pickup.walks` /
+  `pickup.target` under fixed keys, and evidence entries overwrite by name, so a run that collected
+  at two veins kept only the second's. The surviving reading was actively misleading: `vein1.raw_iron
+  =0, vein1.raw_iron.onGround=2` — two ingots' worth lying where the body had just been — beside a
+  `pickup.target` at the *other* vein, ten blocks away, which says nothing about whether vein 1's
+  collect walked anywhere at all. The keys are now caller-tagged (`vein1.pickup.*`) like the shaft
+  and climb keys have been from the start, and a `<tag>.pickup.left` reading taken **after** the
+  collect stops separates "the walk reached it" from "it despawned while the body was at the next
+  vein" — five minutes is a short life for an item and this ladder's mines are long.
+
+- **A use uses the hand, not the bag.** Every bucket step in the obsidian rung — the fill and the
+  pour — called `useItemInHand` without first bringing the bucket to the main hand. `useItemInHand`
+  uses the *selected hotbar slot*, and by the time the ladder reaches the lava the body has mined a
+  36-block shaft, so what is selected is a pickaxe.
+
+  A pickaxe's `use` returns `PASS` and changes nothing. So does a bucket whose ray missed. The rung
+  read `fill.result=PASS, lava_bucket=0, fill.sourceAfter=lava` **while the aim was dead on the
+  source at 2.5 m** — a targeting failure's exact signature, produced by a targeting success holding
+  the wrong item. The fill and the pour now go through `Avatar.holdItem` and record `fill.hand` /
+  `cast.hand`, which is what separates the two afterwards.
+
+  `wd.serverCastsObsidian` could not have caught this and now can: its body used to start with the
+  bucket already selected and nothing else in the bag. It now starts the way the rung actually
+  arrives — **stone pickaxe in hand, bucket behind it** — and asserts each `holdItem` before its use.
+
+- **`Entity.pick` is the wrong instrument for predicting a use, twice over.** The obsidian rung's
+  tunnel drives itself by asking what stands between the body and the lava, and it took two
+  measurements to get that question asked correctly.
+
+  First, **`pick` interpolates**: `partialTicks = 0.0F` rays from the *previous tick's* position, so
+  a body at `-4,27,57` aiming at a pool 3.7 blocks away got back `57,64,56 air` — a surface cell
+  sixty blocks off, through a five-block ray.
+
+  Then, with `1.0F`, it was still wrong and now subtly: **`pick` calls `getViewYRot`, which
+  `LivingEntity` overrides to return `yHeadRot`**, and `Avatar.aimAtBlock` sets `yRot`/`xRot` only.
+  So the ray goes down a direction nobody aimed. Measured: the body at `-4,27,56`, the pool at
+  `-6,26,54`, and hits marching *away* — `-4,28,57 → -3,28,57 → -2,27,58` — with the self-driving
+  tunnel dutifully mining eight blocks in the wrong direction and then reporting, accurately, that it
+  still could not see the lava.
+
+  `Item.getPlayerPOVHitResult` — what `BucketItem` actually uses — reads `getXRot()`/`getYRot()`
+  directly, so **the pour was never wrong; only the prediction was**. Both the rung and
+  `wd.serverCastsObsidian` now clip exactly that way, which makes them the only readings that can
+  honestly claim to say what a use will hit. That `aimAtBlock` leaves the head rotation behind is an
+  engine-side finding in its own right and is logged as one rather than fixed from a test.
+
+  **The descent underneath worked on the first try**: 36 blocks from y=63 to `shaft.landedY=27`,
+  72 attempts against a cap of 128, on a column recon had chosen for it.
+
+- **The lava survey now produces a plan instead of a coordinate, and recon says so in one second.**
+  `nearestInBand` answers "where is the closest lava", which is the wrong question by exactly the
+  margin that matters: seed 5471's closest pool sits under the swamp's water table, and **all 280
+  columns within eight blocks of it** were rejected for having fluid in the twelve blocks below their
+  own surface. A pool you cannot sink a shaft beside is a coordinate. The ore landmarks learned this
+  when the nearest iron turned out to be under a pond — `nearestUnderDryGround` exists for it — and
+  lava was surveyed without it.
+
+  Recon now enumerates the nearest **distinct** pools (hits within 16 blocks folded together, so a
+  lava lake is one candidate and not two hundred) and takes the first one the rung's own column test
+  accepts: `(-6, 26, 54)`, 82 blocks out, dig column two cells off. Every rejected pool's tally is
+  recorded. The candidate list also contains a pool at **y=63 — the surface** — which the old band
+  ceiling of 50 excluded by construction.
+
+  **Where this check runs is half the fix.** The obsidian rung is the last rung, so learning there
+  that the terrain will not take a shaft costs a full run of everything below it — twenty-five
+  minutes, once per guess. Recon reads the same fact at minute one, and it was that tally which
+  identified the *rule* as the broken thing rather than the terrain: 280 candidates, 280 rejections,
+  all one reason. A rule nothing can satisfy is not a strict rule.
+
+  The dryness rule itself was rebalanced twice on that evidence and now applies only at the shaft's
+  two ends — the mouth, where a floating body never falls into its own hole, and the landing, so the
+  shaft ends on ground beside the pool rather than in the water sitting on it. What happens in
+  between is the descent's problem, and the descent now reports floating in one line.
+
+- **"Climb back to the surface" was climbing back to wherever the body had been standing.** Every
+  mining rung records a `surfaceY` on arrival and climbs out to it afterwards, and that number was
+  `player().blockPosition().getY()` — which is the surface only if the rung below left the body on
+  the surface, and mining rungs do not.
+
+  Measured, and it is a rung failing two rungs later. The portal kit walked to its gravel column
+  **from the bottom of the iron rung's shaft**, read `surfaceY = 43`, dug, and then climbed
+  *perfectly* back out: `exit.rise = 4 block(s)`, `exit.toY = 47`, goal met, rung PASS. The real
+  surface was around 60. The obsidian rung then began fourteen blocks underground, could not route
+  84 blocks to the lava, and reported that as a walking failure — with the walker's own
+  `no progress for 1200 ticks` three times over. **A rung that climbs out to a number nobody checked
+  has not climbed out.** `surfaceY` now comes from the heightmap, which answers the question that was
+  actually being asked and does not care where the body is.
+
+  The obsidian rung additionally climbs to daylight before it sets off, whatever the rung below left
+  behind — the fix above removes the cause, and this stops the same shape of mistake being diagnosed
+  here a second time.
+
+  This is also the first payoff of the ascent fix in the same release: the climb's own record now
+  reads `climb.3.stalled=stuck (no Y gain — out of blocks?)` beside `climb.3.stock=cobblestone ×192`,
+  which is what made it obvious that the builder's guess was wrong and the *target* was.
+
+- **The hunt now ends where it began, and says so when it cannot.** The food rung is the only one
+  that goes where the TERRAIN says rather than where the route says — it follows an animal, and seed
+  5471's swamp puts the nearest cow tens of blocks off in a direction nothing else on the ladder
+  uses. Every rung above then started from wherever the chase ended. Measured: the iron rung reported
+  "cannot reach the descent point" from `4,65,114`, **88 blocks** away, with the walker's own verdict
+  `no route progress after 5 consecutive searches — goal unreachable from here`. That is not the iron
+  rung's failure and should not be reported as one.
+
+  It now walks back to world spawn — the anchor every surveyed landmark was measured from, and the
+  one place the ladder knows is connected to its own route. **Best-effort and loud**: a body that got
+  its food has climbed this rung whether or not it found its way home, so a failed return records
+  `food.strandedAt` rather than failing FOOD, which is what lets the next rung's failure be traced to
+  this one instead of investigated on its own terms.
+
+- **A shaft column has to be dry, and a floating shaft now says so.** The obsidian rung picks its
+  descent column at runtime rather than from a surveyed constant, and the first run that did so got
+  everything else right — stepped off the lava's own column when it found itself standing on it,
+  landed on a checked column two cells away, scaled its attempt cap to the 34-block descent — and
+  then **floated**. The column was under a swamp pond, `supportUnder` answered `minecraft:water`
+  122 times running, and the rung reported *"the block broke but the body did not sink"* about a body
+  that was swimming.
+
+  Two changes, and the first is the real one. `pickDigColumn` now requires
+  `JourneyRoute.dryColumn` — **the ladder's own definition of dry**, the same one every ore landmark
+  is surveyed against, rather than a second definition written in a second place — and rings out to
+  eight cells because dryness is a far stronger filter than the geometry was. And `descendByMining`
+  now distinguishes *"the floor is gone and the body is about to fall"* from *"the body is in a
+  fluid"*: the first is worth a settle, the second is worth one line, because no number of settles
+  fixes floating. It cost 7 000 ticks to learn nothing.
+
+- **The wood bill is eight logs, and the wood rung will visit up to four trunks to pay it.** Five
+  was the bill through the floor with **two** crafting-table remakes costed in — a table (4 planks),
+  sticks (2), a wooden pickaxe (3), two replacements (8), seventeen of the twenty planks five logs
+  give. A run then felled exactly five, so the top-up leg never fired, needed a **third** remake, and
+  died `缺 1 个 oak_log` holding 3 planks. The arithmetic was right and the margin was zero: the
+  recipes are fixed and **the table tax is what varies**, so the slack has to be sized against the
+  tax rather than against the recipes.
+
+  The top-up also stopped being a single extra tree. It now keeps going until the bill is paid or it
+  runs out of trunks: the surveyed second tree first, then the nearest trunk of the **same species**
+  at least 8 blocks off — far enough to be a different tree rather than the crown of the one just
+  felled, which is still standing, still made of logs, and still out of a non-climbing body's reach.
+
+- **A retry that changes nothing is not a retry — `walkToColumn` now breaks a wedged leg in half.**
+  The re-plan this helper does after a short arrival assumes each attempt starts somewhere better,
+  which is true when the walker stopped early and false when it is stuck. Measured: the iron rung
+  ended a leg at `78,63,96` with its descent column **22 blocks away**, then spent its two remaining
+  attempts and four minutes issuing about ninety pathfinder searches *from that same cell*, every one
+  burning its 100 000-node budget without finding a route. Three identical questions, three identical
+  answers, and the rung reported "cannot reach the descent point" for a body that had never moved.
+
+  An attempt that ends within four blocks of where it began now aims at the **midpoint** first — a
+  shorter question the pathfinder may well be able to answer — and then resumes the original leg. It
+  is what a player does when a route will not come, and it needs nothing from the engine. The leg
+  also records `<what>.goto.N` (the walker's own `endReason`/`lastError`) on every failed attempt,
+  because ninety searches left no record of *why* beyond their own search-begin lines, and a wedge
+  and a slow crossing read identically without it.
+
+- **The lava search was horizontal, so it answered a depth question with a width answer — and
+  ROADMAP N4 paid double for two runs.** `LAVA_SEARCH_RADIUS` bounds dx and dz, never y, so at 48 it
+  was reporting "the nearest lava inside a 97-block-wide box" as though it were the nearest lava.
+  Measured: at 48 the survey said `(84, -14, 47)`, a 77-block descent, and that number was written
+  into the roadmap, the stage javadoc and this changelog as *the seed's terrain*. At 80 it says
+  `(68, 27, -1)` — thirty-six blocks down, 61 out in z, never a candidate before. Both answers are
+  correct; only one is useful; and **nothing in the first answer hinted the second existed**, which
+  is the argument for a search that reaches past the first thing it can find.
+
+  `LAVA_SEARCH_TOP` went 50 → 90 in the same change and moved nothing on this seed, because both
+  pools are underground. It was still wrong: 50 sits below this swamp's own y≈63 surface, so a
+  surface lava lake could not have been reported however close it was, and a missing answer and an
+  excluded one look identical from the outside.
+
+- **A scripted shaft's attempt cap no longer has to guess how deep it is going.** `MAX_SHAFT_BLOCKS`
+  (60) and `MAX_CLIMB_STEPS` (40) were sized against the deepest hole the ladder dug at the time —
+  eleven blocks — and a cap that does not know its own distance reports *"the block broke but the
+  body did not sink"* for a shaft that was merely longer than the number somebody typed. That
+  sentence names a driver bug and means a budget, and telling the two apart costs a whole run. Both
+  are now floors under a per-block figure: three attempts per block down, two courses per block up.
+
+- **A deep climb was asking for a block it was not carrying.** `ascendByTowering` hard-coded
+  `minecraft:cobblestone`, which is right for exactly as long as every shaft stops above y=0. Below
+  that the spoil is cobbled deepslate, and `TowerProcess` asked for cobblestone reports **"stuck (no
+  Y gain — out of blocks?)"** with a full inventory — a message that names the wrong problem so
+  convincingly that the first reading is always "the builder is broken". It now pillars with
+  whichever of the shaft's own spoil the body holds most of, re-read every course, because a deep
+  climb crosses the boundary where the deepslate runs out and the stone above takes over.
+
+
+### Fixed
+- **One tree is not one tree's worth of wood, and the wood rung was sized against the wrong bill.**
+  The assertion asked for three logs because three is what the tool rung costs. It is not what the
+  LADDER costs: every 3×3 craft that finds itself without a crafting table buys another one, so the
+  real bill through the floor is a table (4 planks), sticks (2), a wooden pickaxe (3) and a
+  replacement table per craft. Measured hauls from the single surveyed tree were **4, then 3, then
+  2** on consecutive runs — the body cannot climb, so it takes the trunk at eye level and leaves the
+  crown — and two runs died of that arithmetic one rung apart, both reporting `缺 1 个 oak_log` while
+  holding 33 cobblestone and 2 sticks. Everything the craft needed except the table. So the survey
+  now finds a `secondTree` at least twelve blocks from the first, the wood rung walks to it when the
+  first came up short, and the assertion states the ladder's bill rather than the next rung's. A
+  shortfall now fails at the rung that under-delivered instead of two rungs later.
+- **The stone rung crafted without checking it still had a table.** `ensureCraftingTable` was added
+  for the furnace and portal rungs and never for this one, which is the first 3×3 craft after the
+  wooden pickaxe — the craft that actually finds the table gone. It also now looks for the table
+  **standing in the world** before paying four planks for a new one: a failed reclaim does not
+  destroy a table, it either drops it or leaves it placed, and those two are indistinguishable from
+  the inventory while calling for opposite responses. `craftingTable.standing` / `.recovered` /
+  `.remade` say which happened, because "the layer below holds on to what it places" and "the ladder
+  quietly re-buys it every rung" are different claims.
+- **A survey invented a landmark, and the landmark check was strict about the wrong thing.** Runs on
+  one seed and one build surveyed the second tree at 13 m and at 17 m. Baking the nearer answer and
+  asking recon whether it still held a log came back `found Block{minecraft:air}` — **there is no
+  tree there and never was**. A chunk that is present but not finished reads as terrain without its
+  features, so "the search found something" is not evidence about the world; only "a later run can
+  still see it" is. Two changes: the survey now forces chunks further than its widest search reaches
+  rather than exactly as far, and `secondTree` is checked for **still holding a log** instead of for
+  equalling a fresh survey's answer. The second is the one that generalises — what the wood rung
+  needs from that constant is a tree, not the nearest tree, and equality against an unstable search
+  makes the ladder's first rung a coin flip that nobody reads.
+- **The crafting table now travels with the body instead of being re-bought every rung.** Walking
+  back to a table left standing was the first version and it only moved the problem one rung along:
+  the table stays where the last craft happened, the body walks a hundred blocks to mine iron, and
+  the next rung finds `craftingTable.standing=none` and pays four planks again. Measured, that tax is
+  what ended a run at PORTAL_KIT holding four iron ingots and `缺 1 个 oak_log`. `ensureCraftingTable`
+  now mines the standing table back into the bag — one block-break, which is what a player does with
+  their table — and the ladder stopped paying for tables at all: the run after it reported
+  `craftingTable=1` at every craft and climbed to `PORTAL_KIT` with a bucket and a flint-and-steel.
+- **The food rung searched three times further than it could see.** Entities exist only in loaded
+  chunks, and the journey's travelling pin is two chunks — right for a walking body, wrong for a
+  searching one. So a 96-block scan from a 32-block pin had two thirds of its radius empty by
+  construction, and it did not report that: it reported `方圆 96 格内没有掉落食物的动物`, on a swamp
+  that has cows, from a body the rung below had walked away from spawn. The rung now widens the pin
+  to cover its own search radius, waits a beat for those chunks to arrive, and narrows it again in
+  cleanup — widened per rung rather than for everyone, because every extra chunk is entity ticking
+  the other rungs would pay for and none of them need.
+- **Seven logs, and the craft was still one log short — they were the wrong species.** A swamp mixes
+  oak and birch, so "walk to the second nearest tree" often means walking to the other kind. The run
+  then holds a haul that reads as plenty and cannot buy anything, because `CraftProcess`'s resolver
+  commits to ONE plank variant rather than treating the recipe's tag as the recipe does: measured,
+  `logs=7` with `craft.lastError=缺 1 个 oak_log` and birch in the bag. Two species are two piles for
+  planning purposes, and seven logs in two piles buys less than five in one. The survey now looks for
+  a second tree **of the first one's kind**, and the wood rung records `logs.kinds` per species — a
+  single total read as "plenty of wood" through two failures that were really "plenty of the wrong
+  wood". Widening the resolver to the `planks` tag is the real fix and belongs to whoever owns the
+  recipe walk; this is the scripted way round it.
+- **The iron rung treated an unfillable quota as a fatal error.** The ore sweep ran under `drive`
+  with a 14 000-tick budget, so a vein that ran out mid-sweep ended the rung with `await step
+  exceeded within=14000 ticks` — the ore mined, the ingots never attempted, and twelve minutes of a
+  fourteen-minute run spent walking. The quota is a ceiling (raising it turns the sweep into a walk,
+  which is why the answer to a thin vein is a second vein), and what the rung actually requires is
+  one raw iron, asserted afterwards. It is a `settle` at 6 000 now, so an exhausted vein costs the
+  leg and the second vein and the smelt still get their turn.
+- **A cross-country leg now re-plans instead of reporting a walk it did not finish.**
+  `IntentProcess` reports its goal reached for a partial path, which inside the collect sweep had
+  already cost a fix; over open ground it is worse. Measured on the iron rung: a leg returned cleanly
+  with the body **88 blocks** from the column it was sent to, and the rung reported "cannot reach the
+  descent point" for what was really "the walker stopped early and nobody asked it to continue".
+  Legs now re-plan from wherever they actually stopped, bounded at three tries, and record
+  `<what>.walkAttempts` so a leg that quietly needs three every run stays visible.
+- **The crafting table is picked up immediately after each craft, not looked for at the next one.**
+  Searching for it later is a race the body always wins: once the iron rung began working two and
+  three veins, the next craft was a hundred blocks and several shafts away, `craftingTable.standing`
+  came back `none`, and the run bought a table it could not afford — `缺 1 个 oak_log` with five iron
+  ingots in the bag. Widening the search only moves where it loses. The reclaim now happens where the
+  cost is fixed, one block away and one tick after the craft, recorded as
+  `craftingTable.tookItAlong`. The run after it climbed to PORTAL_KIT and the iron rung finished in
+  4 628 ticks against 10 000–19 000 before, because a rung that is not re-buying a table is not
+  walking back for wood either.
+- **The iron rung digs until the bill is paid, not a fixed number of veins.** One vein was never
+  enough on this seed and two turned out not to be either: a run took `vein1.raw_iron=0` and
+  `vein2.raw_iron=3`, smelted three, and PORTAL_KIT failed on `缺 1 个 iron_ingot` holding a bucket
+  and six flint it did not need. Veins here run one to three ore, so "how many veins" has no stable
+  answer and "enough ore" does. The rung now works surveyed veins in order until it has what the kit
+  costs or runs out, recording `iron.veinsWorked`. Two corrections came with it: the third vein must
+  be clear of **every** earlier one — avoiding only the second returned `(83,59,75)`, the FIRST
+  vein's own coordinate, which would have sunk a second shaft into a hole already mined out — and it
+  is searched at 80 blocks rather than 48, because at 48 it was `NOT_FOUND`, which is a fact about
+  the search and not about the seed. The first two keep their old radius on purpose: they are baked
+  constants recon checks, and widening their search could move them.
+- **The flint half was never the problem.** Worth recording because the odds invite the assumption:
+  gravel gives flint one time in ten, so a rung that ends with no flint-and-steel looks like a
+  probability problem. Measured, it is not — `gravel.collected=65`, `flint=6`. Both failures of that
+  rung were iron: the bucket costs three ingots and the flint-and-steel costs the fourth.
+- **A station needs ground, not just space — and the ladder's own exit leaves it with neither.**
+  Climbing out of a shaft towers a one-wide pillar up the inside of it, so the body finishes standing
+  on a column with air on all four sides *and air under all four sides*: plenty of room, nowhere to
+  put anything. A first attempt at this checked only that a neighbouring cell was empty, reported
+  "already room", and the craft failed anyway with the same `脚边没有可放置的空位` — which promptly
+  dropped a run back to WOOD_TOOLS and was caught by the freshly-raised floor within one run of
+  raising it. The test is now "empty **with something under it**", and the remedy is to step off the
+  pillar rather than to dig, bounded at three short legs and recorded as `station.steppingOff` /
+  `station.noGround`.
+- **A craft needs somewhere to put its table.** The stone rung crafted at the bottom of the shaft it
+  had just dug and failed with `需要工作台（背包里有，但脚边没有可放置的空位——先清出一格）` — a
+  table in the bag and no free cell to stand it in, because a one-wide shaft has none. It **passed
+  one run and failed the next on identical code**, since whether the last course leaves a usable cell
+  depends on how the shaft happened to end; that reads as flakiness and is not. The rung now climbs
+  out first and crafts on the grass, which is what a player does and needs nothing from the shaft's
+  shape. The station searches are also flat rather than cubic — wide in XZ, a few blocks in Y —
+  because a station sits on ground the body left a rung ago: a table standing at x=84 was invisible
+  to a radius-6 search, so the furnace rung bought another one and ran the ladder out of wood.
+- **The journey's exit from its own shaft was a search, and searches do not climb.** Every mining
+  rung now digs (honest mining leaves no other way to reach buried stone), so every mining rung has
+  to get back out. That exit was handed to the walker as `Goal.YLevel(surfaceY)` on the strength of
+  `wd.serverPillarsOutOfAPit`, which leaves a four-deep arena pit in 46 ticks. In the field it
+  bought **one block in 6 000 ticks** — `exit.fromY=54 → exit.toY=55` — and the food rung then spent
+  its entire 8 000-tick budget re-searching a route out of the hole from `71,55,74`. The run fell
+  back to `STONE_TOOLS`, four rungs below the floor.
+
+  Two things differ between the arena and the field, and only one of them was depth. A rung that
+  mines sideways at the bottom of its shaft ends up **under its own ceiling**, and `TowerProcess`
+  cannot break — under a roof it jumps into rock and reports `stuck (no Y gain)`, which reads like a
+  missing capability and is really a missing step in the plan. The ascent is now spelled out the
+  way the descent already was: clear `feet+2` if it is solid, tower one course, repeat, with
+  `climb.<n>` evidence per course and the builder's own `lastError` recorded if a course with a
+  clear ceiling gains nothing.
+
+  The ceiling was not the last step missing. `TowerProcess` waits for `onGround` before it jumps
+  and its stuck counter starts at tick zero, so a body still settling out of the mine that preceded
+  it spent all sixty ticks of that patience falling and reported `stuck (no Y gain — out of blocks?)`
+  while holding thirty cobblestone. Landing first — the same non-steering `HoldStill` the descent
+  uses — is what made the exit work: measured `exit.fromY=57 → exit.toY=63`, six courses, six
+  cobblestone, alternating "mine the dirt overhead" and "tower into the gap", where the previous
+  build managed `53 → 53`. The walker keeps a recorded fallback for what the tower cannot do, and
+  `exit.walkerFallback` says when it was needed, because two ways up with no note of which carried
+  the body is how a capability quietly stops being tested.
+
+  The stone rung's quota went 20 → 32 with it. The bill was longer than it looked: a stone pickaxe
+  (3) plus one cobblestone per course of the exit (the shaft is nine deep) plus the furnace (8) —
+  so a rung that came back with nineteen was paying the exit out of the furnace's share.
+  `wd.serverTowersOutOfADeepShaft` pins the shape in an arena: nine deep, one wide, with the
+  sideways alcove that puts the roof there.
+
+- **The iron rung now walks onto its own drops instead of asking the sweep twice.** Measured:
+  `broke 2/8`, `raw_iron=0`, `raw_iron.onGround=2`, `collect timed out after 240 ticks`, with the
+  body five blocks away from ore it had broken itself. The sweep's failure is `MineProcess`'s own
+  business and has its own sensor (`wd.serverMineHarvestBuried`); the rung, meanwhile, knows exactly
+  what it broke, so it reads the item's position out of the world and walks there — three legs, each
+  a best-effort settle, with a beat on the spot afterwards because a fresh drop carries a 10-tick
+  pickup delay. `pickup.walks` records how many legs it took, which is the number that says whether
+  the sweep is getting better or worse.
+
+- **A 3×3 craft can eat the run's only crafting table.** `CraftProcess` places a table when none is
+  in reach and reclaims it on the way out, and the reclaim is best-effort by design — a craft is
+  never failed over cleanup. The journey's stone rung crafts at the bottom of its own shaft, so the
+  run climbed out with `craftingTable=0`, and the furnace rung then sat on 24 cobblestone and
+  crafted nothing while reporting only `furnace=0`. The ladder now re-crafts a table before any 3×3
+  craft that needs one (`craftingTable.remade` says when it had to) and the furnace rung records
+  `craftingTable` and `craft.lastError`, because "the station, the grid, or the process" are three
+  different bugs and the furnace count alone separates none of them.
+
+- **The scripted shaft mistook groundwater for its own floor.** `supportUnder` picked the cell
+  holding the body up with `!isAir()`, and water is neither air nor a floor. Measured: the shaft
+  broke its centre cell, swamp groundwater filled the hole, and from the third pass on the digger
+  answered "the support is the water" for twenty-eight consecutive passes — mining a fluid is a
+  no-op — while the corner cell actually carrying the body was never touched. It printed "the block
+  broke but the body did not sink", which is true and points at the walker. `blocksMotion()` on both
+  the picker and the already-open branch turned the same column from FAIL (thirty passes, zero
+  descent) into PASS (603 ticks, 21 cobblestone).
+
+  Why the water got in is a second bug, in the survey: `dryCross` certified the column and its four
+  cardinals, which is the footprint `DescendProcess` cuts a staircase through. A scripted shaft is
+  not a staircase — a player box is 0.6 wide, so a body near a cell edge is held up by a
+  *neighbouring* cell and the digger breaks that one too, making the hole up to 2×2 whose walls are
+  the ring a cross never looks at. Widened to 5×5; on seed 5471 that moves `firstStone` from
+  `(72,59,74)` to `(83,59,76)`.
+
+- **The collect sweep threw away drops it had never walked to.** `Walker.Step.ARRIVED` does not
+  mean the goal was reached — it means the path the walker computed ran out, and when A* cannot
+  reach the goal it returns a best-effort partial path. `Goal.Block.reached` is an exact cell
+  match, so the two disagree freely: measured, `retired 2 drop(s): 0 unpathable + 2
+  arrived-but-short` with the body 4.1 and 6.4 blocks from the items it had just given up on.
+
+  An ARRIVED that is not at the goal cell now re-plans, up to three times, before the drop is
+  retired. Re-planning is not superstition here: a mine changes the world while it runs — its own
+  shaft opens routes that did not exist when the first search failed. The journey's iron rung left
+  four drops on the ground under the old behaviour.
+
+- **The server avatar mined through solid rock, and that is why a playthrough could not gather
+  buried ore.** `Level#destroyBlock` has no reach check and no visibility check, so the avatar
+  broke whatever it aimed at, at any distance, through any amount of stone. The consequence is not
+  cosmetic: an ore mined under an intact floor drops its item into a **sealed 1×1×1 pocket**, and
+  nothing can ever collect it.
+
+  That pocket is what `wd.serverMineHarvestBuried` had been failing on all along, and two rounds of
+  work went into the wrong files first — the walker, then the collect sweep — because the verdict
+  said "the drop was not collected" and nobody had looked at the drop's surroundings. Adding two
+  fields to the diagnostic ended it in one run: `above=Block{minecraft:dirt}, openSides=0`.
+
+  `ServerPlayerAvatar.breakHold` now refuses a target that is either walled in on all six faces or
+  beyond the player's own `blockInteractionRange`. It deliberately does not raycast — vanilla's
+  server does not either; it trusts the client's aim and checks distance — so exposure plus
+  distance is the honest server-side form of "a client could have aimed at this".
+  `wd.serverBreakNeedsReach` pins the contract with three targets at once (sealed, far, adjacent)
+  so a fix cannot trade one for another.
+
+  **Blast radius, stated rather than hidden: two scenes were green because of this bug.**
+  `wd.buriedOre` mined through the ore's overburden, and `wd.serverEscapeSealedShelter` carved at
+  the exit block three courses above the body instead of at the next block up.
+
+- **The miner now peels its own overburden instead of swinging at what it cannot hit.**
+  `MineProcess` aimed at the target it wanted; with the reach gate in place that is a swing that
+  can never land, and the no-progress watchdog ends up reporting "no reachable target" about ore
+  the bot is standing on top of. `firstBreakableToward` walks the segment from the eye to the
+  target and returns the first solid block along it the avatar can actually break, and that block
+  becomes a **clearing** target — machinery that already existed for leaves occluding a log, so it
+  does not count toward the quota, does not seed COLLECT, and re-SEARCHes on completion so the
+  newly exposed block is picked up normally. One block per pass, which is what a player does, and
+  which also keeps every drop at the bottom of a hole the body can walk into.
+
+  `wd.buriedOre` is **required again**, and `wd.serverMineHarvestBuried` — optional and red by
+  design since it was written, the scene that made the journey's IRON rung a coin flip — is
+  **required for the first time**. Its diagnosis changed completely on the way: the drops were never
+  at the bottom of a hole the walker refused to enter, they were sealed inside rock the avatar had
+  no business mining through.
+
+  A target that is **exposed and still unbreakable** is out of range, and range does not improve by
+  standing still — so it is retired immediately instead of after the no-progress watchdog's hundred
+  ticks. That distinction is load-bearing in both directions. Without the retirement the journey's
+  wood rung went from six logs to **zero**: the reach gate had also revealed that the bot harvested
+  canopy logs five blocks above its own head, and waiting a hundred ticks per unreachable log ate
+  the whole budget before it ever tried the trunk. Without the *exposure* half of the test, the
+  deepest of the three ores in `wd.serverMineHarvestBuried` was retired before the peel could
+  uncover it. Buried is temporary; far is not.
+
+  `wd.serverEscapeSealedShelter` stays optional. It runs a different digger, which still aims at
+  the exit; teaching that one the same lesson is what promotes it back, and the reason is recorded
+  at its registration rather than here.
+
+- **One unreachable break cell pinned the whole sweep, on the branch the skip list did not
+  cover.** `findCollectGoal` retires drops the collect walker gave up on, and that guard was on the
+  item scan only. Once every visible drop was retired the search fell through to the
+  `recentBreaks` fallback, which happily handed back a break cell at the bottom of a hole the body
+  cannot enter — forever, because the pop test is "within 1.5 blocks" and it never gets there.
+  `wd.serverMineHarvestBuried` spent its entire 240-tick budget walking toward a cell already known
+  to be dead, then reported `collect timed out`. It now finishes in 121 ticks with
+  `collect swept everything it could reach`, which is the truth.
+
+  The same verdict now names what the sweep was doing when it stopped, split by cause:
+  `retired 2 drop(s): 0 unpathable + 2 arrived-but-short`. That distinction is the whole diagnosis
+  — "the walker will not path there" and "the walker says it has arrived and the item is four
+  blocks away" are opposite bugs in different files, and the drop count alone sent two
+  investigations to the wrong one.
+
+- **A `ServerWorldDriver` that had ever run a process could never be given another order.**
+  `tick()` branches on `process` before it looks at `mineTarget`, and neither `mine()` nor
+  `gotoGoal()` cleared it — only `runProcess` cleared the other side. So on any driver with a
+  process in its history, every later `mine`/`gotoGoal` was **silently ignored** and the stale
+  process ran again instead.
+
+  Nothing reported an error, which is what made it expensive. The old process reached its
+  already-satisfied goal, the driver finished, and the caller read that as the mine completing.
+  The journey's iron rung scripted a shaft — break the block below, fall in, repeat — and produced
+  twelve legs of `shaft.N.broke=grass_block`: the same untouched ground, twelve times, reported as
+  twelve successful mines. Two wrong diagnoses came out of that before the evidence line that
+  compares the block *after* the mine to the block before it.
+
+  `wd.serverSelfShaftDescends` is the regression test, and its first version would not have caught
+  this: a fresh driver mines before it has ever held a process, which is the one ordering where the
+  bug cannot appear. It now mines a second course **after** a process has owned the driver.
+  Verified by reverting the fix — the scene fails with `deeper=Block{minecraft:stone}`.
+
+- **`MineProcess` mined, then walked away from the harvest — twice over.** Two independent
+  ways COLLECT could end with the drops still on the ground, both of which made a mine report
+  success while banking nothing.
+
+  *The pickup delay.* A block broken at arm's length drops its item **at the miner's feet**
+  with vanilla's 10-tick pickup delay. `findCollectGoal` skips delayed items (walking to one is
+  pointless) and its `recentBreaks` fallback pops the break cell the bot is already standing
+  on — so one tick after the break both correctly answer "no goal", and COLLECT read that as
+  "nothing left" and finished. Mining one iron ore took 24 ticks and banked nothing: ore gone,
+  drop on the floor, no error. COLLECT now stands still while a drop inside 2 blocks is still
+  counting down, bounded at 20 ticks so the pathological case (nothing is ticking the entity,
+  as in every scene that spins its avatar inside one server tick) cannot hang.
+
+  *The short quota.* Asking for four ores where the vein holds two returned straight out of
+  SEARCH — `st.mine.reset(); return true` — so COLLECT never ran at all and both drops were
+  abandoned. "I got nothing" where the truth was "I got two". The quota now decides how long to
+  keep looking and never who owns the harvest; the short-quota `lastError` still reaches the
+  caller, because `reset()` preserves it.
+
+  *The arrival that was not one.* The sweep walked to a goal looser than vanilla's pickup reach
+  and then stood on it. Measured: `lastStep=ARRIVED`, a drop **1.6 blocks away**, and the whole
+  240-tick collect budget burned without touching it — the magnet reaches about 1.4 blocks
+  (bounding box inflated 1.0), so "adjacent to the drop's cell" is not close enough. The goal is
+  the drop's own cell again, which is what a player walks onto.
+
+  *The dead goal that shadowed the live ones.* `findCollectGoal` returns the NEAREST drop and the
+  walker's verdict was discarded, so one unreachable drop was re-pathed every tick until the cap
+  while every reachable drop behind it went uncollected. `Walker.Step.FAILED`, and "ARRIVED but
+  the item is still lying there", now both retire that drop and let the next one through.
+
+  **Why nothing caught any of them:** every mine scene asserted that the target block stopped
+  being there. `wd.serverMineHarvest` is the new sensor that owns the other half — PASS means
+  items that did not exist before are in the inventory. It runs over **real server ticks** rather
+  than an in-body `tickAll()` spin (a drop cannot count down its delay in a level that is not
+  ticking), it starts the pickaxe in the bag with dirt in the hotbar so `holdPlaceable` grabs the
+  dirt exactly as it does in the field, and it asks for four ores where three exist and spread
+  over a circuit, so the short quota, the delay and the sweep are all on its path.
+
+  `wd.serverMineHarvestBuried` is the same circuit with two of the three ores under the floor,
+  and it is **optional and red**: a drop that falls to the bottom of a hole the avatar dug from
+  arm's length is still not retrievable. It is shipped red rather than softened because softening
+  it would encode the cliff as the requirement — the mistake `wd.serverSmeltStationOpens` was
+  renamed for.
+
+- **`MineProcess` states a terminal verdict.** `BunkerProcess` and `IntentProcess` already stamp
+  `goalReached` / `endReason` at every terminal exit, for the reason gap#68-R2 names: a run that
+  ends `active:false` with no `lastError` is indistinguishable from one that succeeded. Mine was
+  the outlier and is the verb where it hurts most, because breaking a block and acquiring it are
+  two different events and only the first was ever reported. The verdict now carries the count
+  that was missing — `collect timed out after 240 ticks (broke 3/4, left 2 drop(s) on the
+  ground)` — which is one line saying what previously took three playthrough runs to establish.
+
+- **The server avatar can earn advancements — on Fabric.** Two halves were missing and both
+  looked free. A body that was never placed through `PlayerList` has an `inventoryMenu` with no
+  listeners at all, so `ServerPlayerAvatar` now calls vanilla's own `initInventoryMenu()`; and a
+  real `ServerPlayer` calls `containerMenu.broadcastChanges()` once per tick from `doTick`, which
+  this avatar's `Player`-shaped tick never did. Neither is about packets — the connection
+  discards those — but `ServerPlayer`'s `ContainerListener` fires
+  `CriteriaTriggers.INVENTORY_CHANGED` from `slotChanged`, and that trigger is what awards
+  `story/root`, `story/mine_stone`, `story/upgrade_tools` and `story/smelt_iron`. Without it a
+  server-driven agent could craft a table, mine cobblestone, upgrade its pickaxe and smelt iron
+  and earn **nothing**. Surfaced by the journey ladder, which records an advancement per rung and
+  reported `not-earned` for every one.
+
+  **`wd.serverAvatarEarnsAdvancement` is green on Fabric and red on NeoForge**, from the same
+  common constructor and the same common tick over NeoForge's own `FakePlayer`. The divergence is
+  not yet explained and is shipped as a named optional row rather than an assertion nobody sees,
+  because a driver whose job is to report a modpack's progression to an agent must not silently
+  award nothing on one loader. The scene drives a `LookProcess` for a few ticks purely because a
+  registered driver with nothing to do is not ticked at all — which is itself worth knowing: the
+  inventory broadcast rides the body's tick, so an item handed to an idle body earns nothing until
+  something next runs.
+
+- **A server-side agent could not acquire anything it mined.** Two independent gaps stacked,
+  and either alone was enough to make gathering impossible. `ServerPlayerAvatar.breakHold`
+  called `Level#destroyBlock(pos, false, fp)` at both call sites — an unexplained literal,
+  almost certainly left from when the avatar only ever dug *through* terrain to open a path —
+  so a broken block produced no `ItemEntity` at all. And `mirrorPlayerTick()` never ran the
+  entity-touch loop from `Player.aiStep`, which is the only route by which
+  `ItemEntity.playerTouch` hands a stack to a player, so even a drop that existed could not be
+  picked up. Both are now faithful: blocks drop their harvest, and the touch loop is mirrored
+  including vanilla's own rate limit on experience orbs (one random orb per tick, the rest
+  touched immediately).
+
+  **How this survived 222 green scenes:** none of them ever asserted that an item reached an
+  inventory. The one named for it, `wd.serverCombatCollectDrops`, passes when the bot ends
+  within two blocks of a drop — `pickedUp || distToDrop <= 2.0` — so it measured that the bot
+  walks back to where a drop would be, never that it collects one. The gap surfaced the first
+  time something asked directly: the wood rung of the new journey ladder felled its tree,
+  watched `MineProcess` meet its quota and enter COLLECT, and ended with zero logs.
+
+  **Blast radius, stated because it is behavioural and not merely cosmetic:** every arena
+  where the avatar digs now spawns item entities, and the avatar may finish a scene holding
+  what it dug. `holdPlaceable()` selects the first placeable in the hotbar, so a bot that has
+  just picked up the dirt it tunnelled through can now *place* where it previously had nothing
+  to place. This is what the client path has always done; scenes written against the old
+  silent-break avatar are the ones that move.
+
+- **The server avatar picks a tool again.** `ServerPlayerAvatar.selectTool` was a no-op —
+  "arena breaks with hand/held; best-tool optional" — and until blocks started dropping their
+  harvest it genuinely was optional, because nothing the avatar broke produced anything. It now
+  ranks by the client's own rule (correct-for-drops beats fast; equal correctness, faster
+  wins), searches the bag as well as the hotbar, and swaps a winner into the selected slot.
+
+  This entry first claimed the fix was load-bearing for *drops*, on the reasoning that
+  `Level#destroyBlock` gates them on `canHarvestBlock`. It does not: it passes
+  `Block.dropResources` a literal `ItemStack.EMPTY` and never looks at the hand. What
+  `selectTool` decides here is break *speed*. The empty bag that prompted the work was a
+  `MineProcess` collection bug (below), and the wrong diagnosis is recorded rather than quietly
+  edited out because it cost a round of engine changes aimed at the wrong file.
+  `BotInteract.selectBestToolFor` could not be reused — it takes a `Minecraft` and lives on the
+  client side of the seam — so the ranking is reimplemented, minus its Efficiency lookup, which
+  only reorders tools that are already correct.
+
+- **A server-side agent can now use a station: crafting tables and furnaces open.**
+  `ServerPlayerAvatar.useBlock` installs the menu the block would have opened when vanilla's own
+  route declines to — which it always did, because a fake player's `openMenu` returns
+  `OptionalInt.empty()`. `CraftingTableBlock` reaches its menu *only* through `openMenu`, so a
+  right-click on a table did nothing and `CraftProcess` sat in `OPEN_WAIT` until it timed out.
+  Both this method's comment and `CraftProcess`'s called that a "capability cliff" and left it,
+  which meant **the server agent could craft only what fits the 2×2 inventory grid** — and
+  every rung of a playthrough above planks (pickaxes, furnace, buckets, flint and steel) is
+  3×3.
+
+  Deliberately placed in `ServerPlayerAvatar` (common) rather than by un-overriding
+  `AvatarFakePlayer.openMenu`: that class is the *Fabric* body, while NeoForge injects its own
+  `FakePlayer` through `ServerAvatarBodies`. Fixing it there would have fixed one loader and
+  left the other timing out. Vanilla's `initMenu` is skipped — it attaches a slot listener and
+  a synchronizer, both of which exist to send packets to a screen this body does not have, and
+  both are private on `ServerPlayer`. Everything that matters is server-side and untouched:
+  `CraftingMenu.slotsChanged` still recomputes the result, `clicked` still moves stacks, and
+  closing still returns what was left in the grid.
+
+  Two scenes had encoded the cliff as the requirement and are inverted with it:
+  `wd.serverCraftTableReclaim` used the guaranteed craft failure as its vehicle for
+  reclaim-on-failure and now asserts reclaim on the success path (plus that a pickaxe was
+  actually made); `wd.serverSmeltCliff` → **`wd.serverSmeltStationOpens`**, which now asserts
+  the furnace opens and takes its load rather than that the process degrades gracefully. Both
+  loaders' dedicated gates are GREEN after all three fixes, with the only non-canary failure
+  still the known optional sensor `wd.vineOverWaterClimb`.
+
+### Added
+- **A server-agent body that JOINS the server, behind `-Dworlddriver.realPlayerBodies=true`.**
+  Every gap the playthrough ladder found in the headless agent had one shape: vanilla does the
+  thing inside a method a fake player never runs, and the fix was to hand-copy one more piece of
+  `Player.tick()` into `ServerPlayerAvatar.mirrorPlayerTick()`. That list only grows, because it
+  is a re-implementation maintained by discovering what is missing.
+
+  A `FakePlayer` is a `ServerPlayer` that was never *placed*. `PlayerList.placeNewPlayer` is what
+  attaches the inventory-menu listener that fires `INVENTORY_CHANGED`, loads the profile's
+  `PlayerAdvancements` and points it at the body, puts it in `ServerLevel.players()` so the level
+  keeps ticking and mobs can see it, registers it with the `ChunkMap` so it loads what it walks
+  into, and fires the loader's login event that modpack mods hook. None of that is reachable by
+  copying methods. `JoinedPlayerBodies` installs into the existing `ServerAvatarBodies` seam, so
+  the 222 dogfood scenes and the journey ladder become an A/B harness rather than an argument.
+
+  Measured on seed 5471, same ladder, same rung (`FURNACE`), zero staging both runs:
+
+  | ladder evidence | fake body | joined body |
+  |---|---|---|
+  | `advancement.root` at WOOD_TOOLS | not-earned | **earned** |
+  | `advancement.mine_stone` at STONE_TOOLS | not-earned | **earned** |
+  | `advancement.upgrade_tools` at STONE_TOOLS | not-earned | **earned** |
+
+  The hand-copied `initInventoryMenu()` was enough to make a synthetic scene
+  (`wd.serverAvatarEarnsAdvancement`) pass and did nothing for the actual playthrough. Joining
+  fixes it everywhere with no per-criterion work — which is the argument for the whole approach.
+
+  It also closes the loader divergence that entry left open. `wd.serverAvatarEarnsAdvancement` was
+  green on Fabric and red on NeoForge off the same `:common` constructor and the same `:common`
+  tick — NeoForge's own `FakePlayer` simply would not report a criterion. Joined, it passes on both.
+  The explanation is the same one line: a body that was placed does not need either loader's fake
+  player to behave.
+
+  The NeoForge join needed one thing Fabric's did not. Vanilla's path never touches
+  `Connection.channel()` — every reach for the wire goes through `send`, which this class swallows —
+  but NeoForge stores the connection type as a **channel attribute**, so `placeNewPlayer` died on
+  `channel().attr(...)` and took the whole armed suite down to 76 executed scenes. There is no
+  setter for that field and `channel()` is NeoForge's accessor rather than a vanilla method, so it
+  cannot be overridden from `:common`; the connection instead registers itself on an
+  `EmbeddedChannel`, whose `channelActive` is what assigns the field. The channel's tail discards
+  and completes each write, because `EmbeddedChannel`'s default is to queue outbound messages
+  forever — a silent leak in place of a loud crash.
+
+  Both gates GREEN armed, with coverage identical to the unarmed baseline: Fabric 208 executed /
+  20 skipped, NeoForge 209 / 19.
+
+  One trap worth recording because it nearly got reported as a win. Scenes already dispose their
+  bodies with `fp.discard()`, which is enough for a fake player and not enough for a placed one:
+  `PlayerList` keeps its own list, so the first armed run logged 79 joins and 0 departures. Those
+  corpses satisfied `ctx.player()`, and thirteen scenes that should have skipped ran against one —
+  reading, at a glance, as "joining bought 13 scenes of coverage". It bought none; `JoinedBody`
+  now leaves the player list when it is discarded, and the suite reports exactly the coverage it
+  did before (208 executed / 20 skipped, GREEN).
+
+  Off by default, and deliberately half-finished: `JoinedBody.tick()` is still a no-op because
+  `ServerPlayerAvatar.step()` integrates locomotion by hand and vanilla's `aiStep` would integrate
+  it a second time. The second half is teaching the driver to write inputs (`xxa`/`zza`/`jumping`)
+  instead of positions. Until then a joined body has vanilla's wiring but not vanilla's tick, and
+  anything derived per-tick inside `Player.tick()` — the attack-strength ticker, for one — stays
+  frozen.
+
+- **`wd.journey*` — the playthrough ladder: worlddriver asking whether its own API can finish
+  the game.** Twenty rungs from an empty inventory at world spawn to a dead ender dragon, run
+  as one continuous chain over one body in one world. Every other scene family asks whether a
+  verb works; this one asks the question they add up to and none of them answered.
+
+  Four rules make its results mean something. **One run**: stages are chapters sharing state
+  through `JourneyLedger`, not independent tests, so `IRON` means ore this body mined with a
+  pickaxe it crafted from wood it cut. **Nothing staged**: no give, no setblock, no fill, no
+  teleport — and the claim is measured (`JourneyLedger.stagingCalls()`), not asserted. **Every
+  step scripted** against landmarks surveyed from the fixed seed 5471 (`JourneyRoute`), so a
+  failure names the driver failing to execute a correct plan rather than a planner failing to
+  find one. **The frontier fails freely**: rungs ahead of the engine ship optional, and
+  `JourneyLedger.FLOOR` is the single number the verdict scene ratchets against.
+
+  Off by default — a playthrough is hours where the gates are minutes — behind
+  `-Dworlddriver.journey=true` and `:fabric:runJourneyServer`, which provisions its own run
+  directory, forces the seed, and **deletes the world first** (a playthrough plays the world,
+  so run 2 would otherwise begin with run 1's tree already felled). `wd.journeyArmed`
+  registers in every run, including the six gates, so a family that silently stopped
+  registering shows up as a changed rung count in five minutes rather than hiding behind a
+  journey nobody ran.
+
+  Current height on seed 5471 (spawn is a swamp): **`FURNACE`** — recon, spawn, wood, wooden
+  tools, stone tools, a hunted cow and a crafted furnace, all in one unbroken run with zero
+  staging calls. The floor was ratcheted three times getting there (`WOOD_TOOLS` →
+  `STONE_TOOLS` → `FOOD`), each time in the change that first ran that rung green.
+
+  **A prerequisite is not an order.** Every rung blocks everything above it, so a rung in the
+  middle of the list asserts that nothing above it can happen first — which is false for `BED`.
+  A bed is a durability keystone (it moves the spawn point so a death does not undo the run) and
+  nothing on the road to the dragon needs one; on this track it is doubly irrelevant because the
+  body cannot die. It mattered because of terrain: seed 5471's swamp holds cows and frogs but no
+  sheep, so wool means a long walk. Left in the line, "could not find a sheep" would have blocked
+  iron, the portal and the whole nether. `JourneyStage.requires()` and `criticalPath()` make it a
+  side rung — skipped without blocking, and not counted toward the height.
+
+  **A surveyed coordinate is not yet a plan.** Three rungs were written as "go to where the
+  resource is", and all three were wrong in the same way. `Goal.Near(target, 3)` judges 3D
+  distance, so aimed at a log five blocks up it tells a bot standing at the foot of the tree it
+  is four blocks short and sends it climbing, and aimed at an ore seven blocks down it reports
+  "could not reach the iron" about a bot standing on top of it. Wood passed for as long as the
+  pathfinder happened to pillar in time and then, unchanged, spent 1304 ticks ending nine blocks
+  off. Navigation now approaches the **column** (`Goal.XZ`) on all three, and reaching up or down
+  is left to the verb whose job it is.
+
+  The iron rung needed the same correction one level further out. Seed 5471's *nearest* iron is
+  under a swamp pond, and no amount of driver is going to sink a shaft through standing water —
+  `DescendProcess` inspected its four cardinals and its own column, found every one wet, and
+  refused, which is the correct behaviour and makes the coordinate the bug. Surveying a dry
+  descent column separately then produced a point 18 blocks away, trading a flooded shaft for a
+  long blind tunnel. `JourneyRoute.nearestUnderDryGround` asks the two questions together — the
+  nearest ore whose own column *and its four cardinals* are dry the whole way down, which is the
+  footprint a staircase occupies — and answers with an ore 26 blocks out that the shaft lands on.
+  A survey that only records where things are produces plans nothing can execute.
+
+  **`IRON` has been climbed — and is deliberately not the floor.** A run took the ore, smelted it
+  and finished holding two ingots, with nothing staged. The next run of the same code failed it.
+  The cause is known and has a sensor: this seed's iron is four blocks under its surface, and a
+  drop at the bottom of a hole the avatar dug is not retrievable yet
+  (`wd.serverMineHarvestBuried`), so the rung turns on where the drop happens to land. `FLOOR` is
+  therefore `FURNACE`. A floor is a claim that a rung WORKS, not that it once worked; ratcheting
+  onto a coin flip would make every later red row unreadable.
+
+  The explicit descent step is gone with it. `DescendProcess` was the right verb on paper — its
+  own javadoc argues a veteran digs a staircase rather than asking A* to price a shaft — and on
+  this ground it walked the body nineteen cells sideways for one block down and reported "no safe
+  descent stride (all cardinals + own column wet/hazard/unbreakable)". A staircase needs somewhere
+  to step INTO and a swamp does not have it. The rung passed in spite of that step, not because of
+  it; the limitation is recorded and the plan no longer depends on it.
+
+  `wd.journey01Recon` doubles as the staleness guard — it re-derives every baked coordinate and
+  fails when one moves, because a stale survey does not report itself, it reports "the bot could
+  not gather wood".
 - **Scenes run in a world StageWright holds still, and the two rigs that used to hold it
   still for themselves stopped doing so.** The suite pins `dayTime` to a frozen midnight and
   turns off `doDaylightCycle`, `doWeatherCycle` and `doMobSpawning`, announcing the list at
@@ -253,6 +1329,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `data == "minecraft:player"` (a scalar payload) is unaffected.
 
 ### Fixed
+- **The driver's test arena had no chunk ticket, so its entities existed only while somebody
+  stood next to it.** `seedTestArea()` builds at the absolute origin `0,200,0`, which is not
+  any scene's arena — `StageWrightHarness` force-loads a window around each *scene* origin
+  (hard rule #11) and that window never covers this one. Block writes load the chunk they
+  touch on demand, so the terrain was always right; `Level#getEntities` only sees loaded
+  entity sections, so the animals and the summoned props were silently not there. What the
+  suite reported was `the two seeded props are there, got 0 non-player rows of 0` and
+  `exactly the 2 tagged stands, got 0` — i.e. it accused the entity query and
+  `execute if entity` of bugs they did not have.
+
+  Both NeoForge client topologies hit it, at opposite ends of the same suite and therefore on
+  different checks each run, which is what made it read as flakiness: `05_query` failed before
+  the player's teleport onto the pad had promoted the chunk, and `58_query_type` failed after
+  `40_scheduler`'s goto had walked them 137,000 blocks away from it. Fabric passed on identical
+  code by timing alone.
+
+  `seedTestArea` now takes a non-persistent region ticket around the origin (ENTITY_TICKING out
+  to ±2 chunks, covering both the ±20 clear box and the suite's ±16 query radius), drives the
+  load to completion before it writes, and **reads its own props back before returning** —
+  throwing if the arena it just reported seeding does not hold them. Every earlier way this
+  could fail was silent: both `EntityType#create` calls are null-guarded and `addFreshEntity`
+  can decline, and none of that reaches the person reading a test report.
+
+  `58_command_result_query_type.js` now asserts its two `summon`s succeeded. A check that
+  ignores the return value of its own fixture can only ever describe the symptom.
 - **`wd.gearScope` failed at random because its target was on fire.** The scene reported
   "rig broken: a bare-handed swing dealt no damage at all" on roughly one run in three,
   which read as a driver regression and is not one. Arenas only began ticking entities on

@@ -36,19 +36,50 @@ external MCP client            in-game JS script              external WS client
 **MCP tools**, grouped by concern (full schema in
 [`common/src/main/java/.../mcp/ToolCatalog.java`](common/src/main/java/net/magicterra/worlddriver/mcp/ToolCatalog.java)):
 
+**72 tools**, and every one is advertised: the catalog's hidden-tool list is empty, so `tools/list`
+is the whole surface. (Hiding exists only to save prompt tokens — a hidden verb is still callable by
+name on every transport.)
+
 | Group | Tools | When to reach for it |
 |---|---|---|
 | `mc.system.*`   | `version`, `testOrigin`, `waitTicks` | Liveness, arena origin, fixed-duration waits |
-| `mc.observe.*`  | `cursor`, `eventsSince`, `player`, `container` | "What just happened, who is here, what's in this chest?" (Block/entity scans → `mc.query`) |
-| `mc.action.*`   | `fill`, `placeMany`, `runCommand` | Mutate the world (box fill / heterogeneous list — single = placeMany with one entry / vanilla command) |
+| `mc.script.eval`| run a JS snippet | Compound multi-step tasks (saves dozens of round-trips) |
+| `mc.observe.*`  | `player`, `cursor`, `container`, `eventsSince`, `map`, `scene`, `threats`, `boss` | "Who is here, what just happened, what's in this chest?" `map` is a server-side ASCII spatial map — a glanceable substitute for parsing a block scan; `scene` is a hazard read around a center; `threats` scores hostiles and incoming projectiles; `boss` is boss-fight sensing. The last two are client-only and absent on a dedicated server. (Raw block/entity scans → `mc.query`) |
 | `mc.query`      | `q='blocks' \| 'entities'` | Filtered DSL queries with `select` projection; client-MCP fallback scans ClientLevel when no server attached (entity rows include numeric `id` for `mc.bot.attackEntity`) |
-| `mc.wait.*`     | `event`, `worldReady`, `condition` | Long-poll primitives (next event / world loaded / arbitrary truthy condition) |
-| `mc.script.eval`| Run a JS snippet | Compound multi-step tasks (saves dozens of round-trips) |
-| `mc.client.*`   | `screen.info / .tree / .close`, `input.click / .slotClick / .mouseMove / .setHotbarSlot / .typeText / .key`, `chat.send`, `screenshot` | Client-only — UI inspection + input synthesis. To open inventory / pause use `input.key{key:'E'/'ESCAPE'}`. `input.slotClick` does Menu.clicked with explicit ClickType (shift-click / Q-drop / swap / clone). |
-| `mc.bot.*`      | `goto`, `mine`, `build`, `clearArea`, `farm`, `sleep`, `construct`, `follow`, `explore`, `runAway`, `lookAt`, `useItem`, `attackEntity`, `waypoint`, `cancel`, `status`, `setting` | Client-side autonomous actions, Baritone-aligned. `goto` accepts pos/xz/y/block/entity/entityId/direction+distance/waypoint/axis selectors, plus modifiers `goalMode:"in"/"two"/"adjacent"` (GoalBlock/GoalTwoBlocks/GoalGetToBlock), `direction+strict` (GoalStrictDirection), and `invert` (GoalInverted) — full Baritone goal-surface parity. `waypoint` saves/lists/deletes named positions (used as `goto{waypoint:"name"}`). `farm` harvests + replants wheat/carrots/potatoes/beetroots in a 2D bbox. `sleep` finds the nearest bed and right-clicks it (vanilla owns night/safety gating). `construct` is Baritone pillar+bridge folded into one verb: `mode:"tower"` pillars up to height/targetY, `mode:"bridge"` sneak-walks forward placing blocks. `setting` toggles `autoEat`/`autoRespawn`/`autoSwim`/`autoTool`/`allowParkour4`/`allowBreak`/`allowPlace`/`smoothLook` and tunes `pathfinder.maxNodes`/`maxMs`/`axisHeight`/`smoothLookDegPerTick`. `allowBreak`/`allowPlace` (Baritone parity, both off by default) let A\* mine through walls / dig down and bridge one-block gaps as part of a route — the bot reaches goals with no pre-existing walkable path; off keeps `goto`/`follow` non-destructive. `smoothLook` pans the camera over ticks during pathfinding + `lookAt` (snaps when off) for stream/demo capture; functional aim (attack/place/break) always snaps. `useItem` with `pos` = place/use on a block face; without = mid-air use. `attackEntity` = one left-click. Long-running ones are async — poll `status` or pass `awaitMs`. Pause/resume via `setting{paused:bool}`. |
+| `mc.action.*`   | `fill`, `placeMany`, `runCommand` | Mutate the world (box fill / heterogeneous list — single = placeMany with one entry / vanilla command) |
+| `mc.world.*`    | `snapshot`, `restore`, `block` | `snapshot` captures a box of block states **and block-entity NBT** into a handle and `restore` puts it back verbatim — the undo a risky build or a destructive test wants. `block` is read-only single-cell inspection: type, state, light levels |
+| `mc.recipe.*`   | `lookup`, `resolve` | Read the game's own recipe table — vanilla plus any loaded mod — rather than hardcoding recipes an agent then gets wrong in a modpack |
+| `mc.wait.*`     | `event`, `worldReady`, `condition`, `result` | Long-poll primitives (next event / world loaded / arbitrary truthy condition). `result` fetches what a wait started with `background:true` produced |
+| `mc.events`     | the server-side event channel | Driver→agent push: threats, chat and the rest, as a stream rather than a poll |
+| `mc.plan.acquire`| goal-directed acquisition planner | "Get me N of X" — plans the chain rather than being told it |
+| `mc.skill`      | persistent skill library | Write a reusable JS skill once, call it by name afterwards (Voyager-style) |
+| `mc.client.*`   | `screen.info / .tree / .close`, `input.click / .slotClick / .mouseMove / .setHotbarSlot / .typeText / .replaceText / .slider / .key`, `chat.send / .history`, `screenshot`, `player`, `blocks`, `scene`, `overlays` | Client-only — UI inspection + input synthesis. To open inventory / pause use `input.key{key:'E'/'ESCAPE'}`. `input.slotClick` does Menu.clicked with explicit ClickType (shift-click / Q-drop / swap / clone); `replaceText` sets an EditBox atomically; `slider` reads/sets an `AbstractSliderButton`. `player` / `blocks` / `scene` are the client-**authoritative** reads (LocalPlayer + ClientLevel), which is what you want when the question is what the client believes rather than what the server holds. `overlays` dismisses HUD overlays that do not belong to the world |
+| `mc.bot.*`      | `goto`, `mine`, `build`, `clearArea`, `farm`, `sleep`, `construct`, `follow`, `explore`, `runAway`, `escape`, `lookAt`, `useItem`, `holdItem`, `equip`, `attackEntity`, `combat`, `craft`, `smelt`, `elytraFly`, `bunker`, `playbook`, `waypoint`, `cancel`, `status`, `setting` | Client-side autonomous actions, Baritone-aligned. Long-running ones are async — poll `status` or pass `awaitMs`; pause/resume via `setting{paused:bool}`. See below |
 
 The `screenshot` tool emits a real MCP `image` content block (not a base64
 string in text), so multimodal models receive the framebuffer as vision input.
+
+**`mc.bot.*` in more detail.** `goto` accepts pos/xz/y/block/entity/entityId/direction+distance/
+waypoint/axis selectors, plus modifiers `goalMode:"in"/"two"/"adjacent"` (GoalBlock/GoalTwoBlocks/
+GoalGetToBlock), `direction+strict` (GoalStrictDirection) and `invert` (GoalInverted) — full Baritone
+goal-surface parity. `waypoint` saves/lists/deletes named positions (used as `goto{waypoint:"name"}`).
+`farm` harvests and replants wheat/carrots/potatoes/beetroots in a 2D bbox. `sleep` finds the nearest
+bed and right-clicks it (vanilla owns night/safety gating). `construct` folds Baritone's pillar and
+bridge into one verb: `mode:"tower"` pillars to height/targetY, `mode:"bridge"` sneak-walks forward
+placing blocks. `escape` is the inverse — it carves a staircase *up* the dry walls of a pit or well
+and climbs out without placing anything. `craft` resolves a full sub-recipe tree from the inventory;
+`smelt` drives a furnace by slot simulation; `equip` fits the best armour on every slot and the best
+weapon in hand; `holdItem` selects a specific item into the main hand. `combat` actively fights
+hostiles and `playbook` runs a hot-reloadable multi-phase boss script.
+
+`setting` toggles `autoEat`/`autoRespawn`/`autoSwim`/`autoTool`/`allowParkour4`/`allowBreak`/
+`allowPlace`/`smoothLook` and tunes `pathfinder.maxNodes`/`maxMs`/`axisHeight`/`smoothLookDegPerTick`.
+`allowBreak`/`allowPlace` (Baritone parity, both **off** by default) let A\* mine through walls, dig
+down and bridge one-block gaps as part of a route, so the bot reaches goals with no pre-existing
+walkable path; off keeps `goto`/`follow` non-destructive. `smoothLook` pans the camera over ticks
+during pathfinding and `lookAt` (snaps when off) for stream/demo capture; functional aim
+(attack/place/break) always snaps. `useItem` with `pos` places/uses on a block face, without it uses
+mid-air; `attackEntity` is one left-click.
 
 ---
 
@@ -88,7 +119,7 @@ StageWright's api module depends on nothing. Full reasoning at the top of
 ### 2. Run the client and connect an MCP client
 
 ```bash
-# Optional: pin ports (otherwise random ones get written to fabric/run/agent-{mcp,rpc}.port)
+# Optional: pin ports (otherwise random ones get written to fabric/run/worlddriver-{mcp,rpc}.port)
 JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39800 -Dworlddriver.rpcPort=39801" \
   ./gradlew :fabric:runClient
 ```
@@ -154,19 +185,23 @@ Registered as Brigadier subcommands of `/agent`:
 ```
 worlddriver/
 ├── common/                Architectury shared sources (the DriverApi, MCP/RPC servers, Rhino glue)
-│   └── src/main/
-│       ├── java/net/magicterra/worlddriver/
-│       │   ├── api/               DriverApi router + System/Observe/Action/Wait handlers (single source of truth)
-│       │   ├── bot/               Client-side bot subsystem (pathfinder, goto/mine/build/follow processes)
-│       │   ├── mcp/               McpServer + ToolCatalog
-│       │   ├── rpc/               RpcServer (Netty WebSocket) + JsonCodec
-│       │   ├── script/            Rhino integration, sandbox, ScriptEvaluator
-│       │   └── client/            ClientHooks broker (impl lives in fabric/neoforge)
-│       └── resources/data/worlddriver/scripts/validation/  *.js suite
+│   ├── src/main/
+│   │   ├── java/net/magicterra/worlddriver/
+│   │   │   ├── api/               DriverApi router + System/Observe/Action/Wait handlers (single source of truth)
+│   │   │   ├── bot/               Client-side bot subsystem (pathfinder, goto/mine/build/follow processes)
+│   │   │   ├── mcp/               McpServer + ToolCatalog (+ catalog/ — the per-group tool schemas)
+│   │   │   ├── rpc/               RpcServer (Netty WebSocket) + JsonCodec
+│   │   │   ├── script/            Rhino integration, sandbox, ScriptEvaluator
+│   │   │   ├── model/             Wire/DTO types shared by the transports
+│   │   │   └── client/            ClientHooks broker (impl lives in fabric/neoforge)
+│   │   └── resources/data/worlddriver/scripts/validation/  *.js suite
+│   ├── src/testmod/       The wd.* / cap.* / pack.* scenes run by the StageWright gates
+│   └── src/test/          Plain JVM unit tests (no game)
 ├── fabric/                Fabric loader entrypoint + client-side impl
 ├── neoforge/              NeoForge entrypoint + client-side impl
+├── stagewright-scenes/    .js scenes installed into a run's config/stagewright/scenes/
 ├── docs/                  Connection guides (see docs/mcp-clients.md)
-└── scripts/               One-shot helper scripts (smoke tests, harness aids)
+└── scripts/               Expected-scene manifests, the source-budget gate, the MCP bridge
 ```
 
 ---
@@ -196,7 +231,6 @@ worlddriver/
 
 **Phase 1 (perceive + act + minimal client driving) is complete and verified end-to-end:**
 
-- All validation scripts + wd.* scenes pass under the stagewright gates (`./gradlew stagewrightDedicatedServer<Loader>`, CI)
 - Every MCP tool reachable from Claude Code via `.mcp.json` with no extra wiring
 - Title-screen → world-load → tree-discovery loop demonstrated entirely through MCP
   (TitleScreen click → SelectWorldScreen click → world loads → `mc.query q='blocks'`
@@ -206,8 +240,20 @@ worlddriver/
   with an in-mod A* pathfinder, exposed as async processes pollable through
   `mc.bot.status` + `mc.wait.condition`
 
-Phase 2–3 are tracked separately; see [`CHANGELOG.md`](CHANGELOG.md) for
-released milestones.
+The verb surface has since grown well past that slice — `combat`, `craft`, `smelt`, `equip`,
+`elytraFly`, `escape`, `bunker` and `playbook` on the bot, plus `mc.plan.acquire`, `mc.skill`,
+`mc.observe.boss/threats/map` and the `mc.world.snapshot/restore` pair. The table above is the
+current surface; [`CHANGELOG.md`](CHANGELOG.md) has the per-milestone record and
+[`ROADMAP.md`](ROADMAP.md) the ladder still open.
+
+**Gate status (2026-08-08): all six topologies GREEN**, on both loaders and all three shapes —
+`stagewrightDedicatedServer`, `stagewrightIntegratedServer` and `stagewrightDedicatedServerWithClient`
+× {Fabric, Neoforge}. The manifest is 222 scenes (171 `wd.*` + 38 `cap.*` + 13 `pack.*`); a run
+registers 232 with the framework's own built-ins and canaries. The two production topologies also
+judge the results file their *client* half writes, which is the only place assertions about the
+process boundary can live. `./gradlew stagewrightCoverage` reconciles all six against each other:
+every scene any run registers must have executed in at least one of them, because a scene that skips
+everywhere is green over a subject nothing tested.
 
 ---
 

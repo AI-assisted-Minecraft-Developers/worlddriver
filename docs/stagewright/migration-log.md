@@ -1030,6 +1030,12 @@ methods**. The test-**method** count — the number this drift log tracks retire
 
 ### Final suite composition
 
+> **A snapshot, not the current suite.** Everything in this section describes the moment the
+> migration closed. The suite has grown since — 171 `wd.*` across 15 provider classes as of
+> 2026-08-08, in a 222-scene manifest with `cap.*` and `pack.*`. For current numbers see
+> `stagewright/README.md`; this log is kept so the *provenance* of the migrated scenes stays
+> readable, and rewriting its arithmetic would destroy exactly that.
+
 **Dogfood suite = 130 `wd.*` scenes** across **13 `SceneProvider` classes** (all in
 `common/src/testmod/.../scene/`, one common `SceneProvider` service file, both loaders):
 `WorldDriverScenes` (9 seed) + `Terrain` (12) + `Bias` (13) + `WaterBank` (11) + `WaterCross` (10) +

@@ -2,6 +2,671 @@
 
 > 镜像 Task 跟踪器的长期工作。重要根因写进 memory(reference/project)。
 
+## 🧭 下一级设计: `wd.journey12PortalLit`(N5) —— 十块黑曜石怎么来
+
+黑曜石那一级已经跑绿, 但它浇的是**一块**。门框要十块(4×5 去四角), 而黑曜石**放不下去** ——
+身体手里永远不会有黑曜石物品, 没有钻石镐就挖不起来。所以门框只能**就地浇**, 这是一个"挖模具"
+的问题, 不是"搭建筑"的问题, `BuildProcess`/`Schematic` 在这一级用不上。
+
+**成本决定选型。** 一次"下井→装桶→爬回地面"实测 4464 tick。十块就是十趟, 四万多 tick, 还不算
+风险。所以门框**建在岩浆边上**, 不建在地面:一次下井, 水只搬一次, 之后每次装桶是走三格而不是
+爬三十六格。地面上的门以后要用再说 —— 这一级的断言是"点着的传送门", 没说在哪儿。
+
+拟定步骤(全部用现有动词, 不加引擎能力):
+
+1. 沿黑曜石那一级留下的竖井下到岩浆层(`shaft.column` 已经记在证据里)。
+2. 在池边找/削一面竖直岩壁, 把门框的十格**掏成十个一格深的兜**, 内框 2×3 **先不掏** ——
+   掏了岩浆就顺着流进去了, 内框是最后一步。
+3. 逐格: `holdForUse(BUCKET)` → 瞄池子装满 → 走回 → 瞄兜底 → 倒。兜是五面封死的, 岩浆源留在
+   里面(会往开口那面淌一点, 这是所有 lava-cast 的常态, 玩家也认)。
+4. 十格都是岩浆源之后, 在岩壁顶上放**一桶水**, 让它顺着面淌下来, 十格一起转黑曜石。
+   `wd.serverCastsObsidian` 已经证过**水源浇完还在**, 所以这一桶水从头到尾只花一次。
+5. 掏内框 2×3(石头, 便宜)。
+6. `holdForUse(FLINT_AND_STEEL)` → 瞄内框底格 → `useItemInHand`。
+
+**还没答案的三个问题**(要靠现场跑, 别在这儿猜):
+
+- 兜的开口朝水平, 岩浆会不会淌得太厉害以至于源块自己就没了? 竞技场里模具是**朝上开口**的,
+  这是没测过的形状 —— 值得先补一个竞技场探针, 理由和当初先写 `wd.serverCastsObsidian` 一样:
+  在四十米深的地方发现这个, 太贵了。
+- 身体站在岩浆边浇十次, 会不会被淌出来的岩浆点着。`bodyIsInvulnerable` 已经记在每条绿行里,
+  所以这一级如果靠无敌活下来, 记录会说。
+~~- 点火那一下走 `useItemOn` 还是 `use`?~~ **查过了(2026-08-10), 是 `useOn`, 和桶正好相反。**
+  `FlintAndSteelItem` 只覆写 `useOn(UseOnContext)`, **没有 `use`** —— 所以点火必须走
+  `Avatar.useBlock(cell, face)`, 走 `useItemInHand()` 会拿到 `Item.use` 的默认 `PASS`, 世界纹丝
+  不动。**这就是桶那个坑的镜像**: 桶必须 `use`、打火石必须 `useOn`, 而两边猜错的表现一模一样
+  —— `PASS` + 什么都没发生。所以这一级从第一版起就要把 `<step>.result` 记下来。
+
+  还有一条从源码里直接读到的形状, 省一次现场试错: 点的那一格如果自己不可点燃(黑曜石就不是),
+  火会放到 **`clickedPos.relative(clickedFace)`** 去。所以要**点门框的黑曜石、face 朝内框**,
+  火落在内框里, `BaseFireBlock` 再去凑传送门。`ServerPlayerAvatar.useBlock` 正是拿 `face` 现造
+  `BlockHitResult` 的, 所以这个参数是真到得了 vanilla 手里的。
+
+## 2026-08-08/09 🆕 `wd.journey*` 通关自测阶梯 — 高度 PORTAL_KIT(桶与打火石), 地板仍在 FURNACE, 前沿=铁产量与一处 tick 僵死
+
+**做了什么**: 20 级阶梯(空手出生→屠龙)作为一条连续链跑在固定种子 5471 上, 一个身体一个世界,
+`JourneyLedger` 跨场景传状态, `JourneyLedger.FLOOR` 单点棘轮裁决。全程零布景(give/setblock/fill/tp
+一次都没有, 且 `stagingCalls()` **实测**而非口头承诺)。每步写死坐标(`JourneyRoute`, 由
+`wd.journey01Recon` 从活世界侦察并充当陈旧守卫), 所以失败只可能是"驱动执行不了正确计划", 不是
+"规划器没想出来"。默认关闭(`-Dworlddriver.journey=true` + `:fabric:runJourneyServer`), 六道门只跑
+常驻标记 `wd.journeyArmed`。
+
+**侦察结果(种子 5471)**: spawn=(64,68,60) 是 **swamp**(开局很硬, 水在 6 格外); firstTree=(65,68,63)
+在树冠 y=68(地表才 63); firstStone=(67,59,69); firstIron=(64,55,60); firstCoal=(62,54,71);
+stronghold=(-1168,64,1296) 1745 格; village=(400,64,-464); ruinedPortal=(-384,64,-368) 620 格。
+**48 格内没有岩浆** → N4 浇黑曜石需要专门的远程/深层侦察, `firstLava` 故意留 UNSURVEYED。
+
+**根因 1+2 (已修, 采集彻底不可能)**: `ServerPlayerAvatar` ①`breakHold` 两处
+`destroyBlock(pos,false,fp)` → 挖掉的方块**根本不产生掉落物**; ②`mirrorPlayerTick()` 从未镜像
+`Player.aiStep` 的 entity-touch 环 → 就算有掉落物也**捡不起来**。任一条单独成立就够让服务端 agent
+永远两手空空。**为什么 222 个绿场景看不见**: 没有任何一个断言过"物品进了背包"。唯一以此命名的
+`wd.serverCombatCollectDrops` 判据是 `pickedUp || distToDrop <= 2.0` —— 只要求走到掉落物 2 格内。
+journey 的 wood 级第一次直接问"给我 1 根原木", 立刻暴露。修完 t0 fabric **GREEN 零回归**(232 执行,
+唯一非金丝雀失败仍是已知可选传感器 `wd.vineOverWaterClimb`)。
+**影响面(行为级, 不只是记账)**: 挖掘现在产生实体、avatar 会带着挖到的东西离开场景;
+`holdPlaceable()` 取热键栏第一个可放置物 → 挖穿泥土的 bot 现在**可能开始放置**它以前无物可放的地方。
+
+**根因 3 (已修)**: 3×3 合成走不通。`[craft] fail state=OPEN_WAIT msg=打开工作台超时` ——
+fake player 的 `openMenu()` 返回 `OptionalInt.empty()`, 而 `CraftingTableBlock` **只**经由
+`openMenu` 拿菜单, 所以右键工作台什么也不发生。2×2 背包合成一直是正常的, 卡住的是阶梯的绝大部分
+(镐/熔炉/桶/打火石全要 3×3)。修在 `ServerPlayerAvatar.useBlock`(common) 而**不是**重写
+`AvatarFakePlayer.openMenu` —— 后者是 fabric 身体, neoforge 经 `ServerAvatarBodies` 注入它自家的
+`FakePlayer`, 只改那里等于只修一个加载器。跳过 vanilla 的 `initMenu`(它只挂 slot listener + synchronizer,
+纯粹为了给一块不存在的屏幕发包, 且两者在 `ServerPlayer` 上都是 private —— 撬开它们需要 access widener
+却换不来任何行为)。
+**两个场景把悬崖当需求写死了, 随修一起翻转**: `wd.serverCraftTableReclaim` 原本拿"必然失败的 craft"
+当载体测 reclaim-on-failure → 改为断言 reclaim 在**成功路径**上发生 + 真的产出了镐;
+`wd.serverSmeltCliff` → **`wd.serverSmeltStationOpens`**, 从"必须优雅降级"翻成"炉子必须开得起来且装得进料"
+(名字里带 Cliff 却要求 cliff 消失, 是给下一个读者挖坑)。
+
+**根因 4 (已修)**: `ServerPlayerAvatar.selectTool` 是**空实现**("best-tool optional")。现按客户端同一
+排序规则实现(correct-for-drops 优先, 同等则更快者胜), 搜索范围含背包, 命中背包时换进手持槽。不能复用
+`BotInteract.selectBestToolFor`(它吃 `Minecraft`, 在 seam 的客户端一侧)。
+⚠️ **当初把它当成"空背包"的根因是判断错了, 这里如实记下**: 反编译 1.21.1 的 `Level#destroyBlock` 可见
+它给 `Block.dropResources` 传的是字面量 **`ItemStack.EMPTY`**, **根本不看手持物**。所以这条路径上
+`selectTool` 决定的只是**破坏速度**, 不是掉落。空背包的真凶是 `MineProcess` 的收集(见根因 5)。
+📌 **顺带暴露的保真度洞**: 服务端 avatar 现在**赤手也能挖出黑曜石、木镐也能挖出钻石**——无工具门槛、
+无精准采集、无时运、工具也不掉耐久。对一个"要告诉整合包作者玩家会遇到什么"的驱动, 这是**主链上的**保真度
+问题(N4 黑曜石正是"用错工具必须失败"的场景)。忠实路线是 `fp.gameMode.destroyBlock(pos)`
+(`ServerPlayerGameMode`: 用 `hasCorrectToolForDrops` 把门, 把真实手持栈交给 `Block#playerDestroy`,
+并调 `ItemStack#mineBlock` 磨损工具)。**留作单独一次改动**——它挪的是需求不是 bug: 每个赤手开挖的
+arena 依然会破坏方块(移除不受工具门槛约束), 但不再白拿掉落, 所以得先把默默吃这份免费收成的场景找出来。
+
+**当前高度**: **FURNACE** —— recon→spawn→wood→wood_tools→stone_tools→猎牛→熔炉, 一条不断的链,
+布景调用 0 次。地板按纪律棘轮三次(WOOD_TOOLS→STONE_TOOLS→FOOD)。裁决 PASS。
+五处修复后 **fabric + neoforge 两道门都 GREEN**(唯一非金丝雀失败仍是已知可选传感器 `wd.vineOverWaterClimb`)。
+
+**阶梯模型改了: 前置 ≠ 顺序。** 每一级都挡住它上面的全部, 所以夹在中间的一级等于在断言"我不成,
+上面全不成"——对 BED 这是假的: 床是耐久 keystone(换出生点, 死了不回退), **通往末影龙的路上没有任何
+一级需要床**, 在这条无敌身体的轨道上更是双重无关。它之所以要紧是地形: 5471 的沼泽只有牛和青蛙**没有羊**,
+羊毛要走很远。留在直线里, "找不到羊"会把铁/传送门/整个下界全部堵死。
+`JourneyStage.requires()` + `criticalPath()` 把它变成侧枝——跳过但不阻塞, 也不计入高度。
+
+**根因 5 (已修, 才是空背包的真凶)**: `MineProcess` 挖完就把掉落物丢在地上, 两条独立路径。
+①**捡拾延迟**: 贴身挖掉的方块, 掉落物就落在**脚下**且带 vanilla 的 10 tick `pickUpDelay`。
+`findCollectGoal` 会跳过还在延迟中的物品(走过去没意义), 而 `recentBreaks` 兜底又会把"已站在其上"的
+破坏点弹掉 —— 于是破坏后第 1 tick 两边都正确地答"没有目标", COLLECT 把它读成"没东西了"就收工。
+实测: 挖 1 个铁矿共 24 tick, 矿没了、掉落物在地上、`lastError=null`。现在只要 2 格内有还在倒计时的
+掉落物就原地等(上限 20 tick, 免得在"实体根本不 tick"的单 tick 场景里挂死)。
+②**配额没凑够就弃收**: 要 4 个而矿脉只有 2 个时, SEARCH 直接 `reset(); return true`, **COLLECT 压根没跑**,
+两个掉落物全丢。"我什么也没拿到"其实是"我拿到了两个"。现在配额只决定**找多久**, 不决定**收成归谁**。
+**为什么没人抓到**: 所有 mine 场景都只断言"目标方块不在了"。新增 `wd.serverMineHarvest` 认领另一半 ——
+PASS 的定义是**背包里多了一件原本不存在的东西**。它跑在**真实 server tick** 上(单 tick 里 spin 的场景
+实体不 tick, 延迟永远不清零), 镐放**背包**、热键栏放泥土(复现 `holdPlaceable` 抢手的真实状态),
+并且**要 2 个只放 1 个**, 让上面两条缺陷都在它的路径上。两道门 GREEN, 已升 required。
+
+**脚本侧新教训: 侦察到的坐标还不是计划。** 三级都写成"走到资源所在处", 三级都错在同一点 ——
+`Goal.Near(target,3)` 判的是**三维**距离: 对着树冠上 5 格的原木, 它告诉站在树下的 bot"你还差 4 格"
+然后让它爬; 对着地下 7 格的矿, 它对着**正站在矿上方**的 bot 报"走不到铁矿"。wood 级一直靠"pathfinder
+恰好来得及垒柱"侥幸通过, 后来一字未改地跑了 1304 tick 停在 9 格外。三级统一改成走**柱**(`Goal.XZ`),
+够不够得着交给该管的动词。
+铁那一级还要再往外一层: 5471 **最近**的铁在沼泽水塘底下, 竖井必淹 —— `DescendProcess` 查完四个方向和
+自己脚下那一列, 发现全是水, **拒绝下挖**。这是**正确行为**, 所以 bug 在坐标不在驱动。单独侦察"干燥下挖点"
+又给出 18 格外的点(用长盲隧道换掉淹井)。`JourneyRoute.nearestUnderDryGround` 把两个问题**一起问**:
+最近的、**自己这一列加四个正交邻列**都干到底的铁矿(那正是楼梯井占的形状) —— 答案是 26 格外、竖井直接落在
+矿上的那一个。**只记录"东西在哪"的侦察, 产出的是执行不了的计划。**
+
+**根因 5 续: 又两条收集缺陷(已修)**。③**到了却够不着**: sweep 走到一个比 vanilla 吸取半径更宽松的
+目标就停了 —— 实测 `lastStep=ARRIVED`、掉落物在 **1.6 格**外、240 tick 收集预算全烧完一件没碰到。
+磁吸半径只有约 1.4 格(bounding box inflate 1.0), 所以"站在掉落物所在格的旁边"根本不够。目标改回
+掉落物**自己那一格**(玩家就是走上去的)。④**一个死目标遮住所有活目标**: `findCollectGoal` 返回**最近**
+的掉落物, 而 walker 的判定被丢弃了 —— 一个够不到的掉落物会被每 tick 重新寻路直到超时, 它后面每一个
+够得到的全部陪葬。现在 `Walker.Step.FAILED` 和"ARRIVED 了但东西还在地上"都会把这个掉落物**退役**。
+
+**根因 6 (fabric 已修, neoforge 仍红): 服务端 avatar 拿不到任何成就。** 缺了两半, 而且两半看上去都"无所谓"。
+①没经 `PlayerList` 上线的身体, 它的 `inventoryMenu` **一个监听器都没有** → 现在在 `ServerPlayerAvatar`
+构造里调 vanilla 自己的 `initInventoryMenu()`; ②真 `ServerPlayer` 每 tick 在 `doTick` 里调
+`containerMenu.broadcastChanges()`, 这个 avatar 镜像的是 `Player` 的 tick, 从来没调过。两者都不是"发包"的事
+(连接本来就吞包), 但 `ServerPlayer` 自己的 `ContainerListener` 正是从 `slotChanged` 里触发
+`CriteriaTriggers.INVENTORY_CHANGED` —— `story/root`、`story/mine_stone`、`story/upgrade_tools`、
+`story/smelt_iron` 全靠它。不监听/不广播 = 做了工作台、挖了圆石、升了石镐、炼了铁锭, **一个成就都不得**。
+是 journey 每级记录一条成就、条条 `not-earned` 才暴露的。
+⚠️ **加载器分叉(未解释)**: `wd.serverAvatarEarnsAdvancement` **fabric 绿 / neoforge 红** —— 同一份 common
+构造、同一份 common tick, 跑在 neoforge 自家 `FakePlayer` 上就是不得成就。作为**具名 optional 行**发出来,
+不藏进断言里也不让门变红。顺带一条值得知道的: **注册了但没有进程的 driver 根本不会被 tick**, 库存广播是搭
+body tick 的车 —— 所以往闲置身体里塞东西, 要等下一个进程跑起来才可能触发成就。
+顺带: 根本没有 `story/mine_wood` 这个 id, 我第一版就写错了 —— `advancementStatus` 把 `UNREGISTERED`
+(没人注册过这个 id = 打错了)和 `not-earned` 分开, 正是为了这种情况。
+
+**新增传感器**: `wd.serverMineHarvest`(required, 两门 GREEN) = 三个矿排成一条巡回路线、配额要 4 个只放 3 个,
+把捡拾延迟/短配额/巡回三条全压在它的路径上, **PASS 的定义是背包里多了原本不存在的东西**。
+`wd.serverMineHarvestBuried`(optional, **故意红着**) = 同一条路线但两个矿埋在地板下 —— 这是**野外的形状**。
+不把它改软, 因为改软就是"把悬崖当需求写死"(`wd.serverSmeltStationOpens` 就是因为这个才改的名)。
+
+**当前高度 IRON, 但地板留在 FURNACE。** IRON 真的爬上去过(矿挖到、铁炼出、两块铁锭在背包里、零布景),
+下一跑同样的代码又挂了。原因清楚且有专属传感器: 这颗种子的铁在地表下 4 格, 而**avatar 隔空挖出来的坑,
+坑底的掉落物取不回来** —— 于是这一级取决于掉落物碰巧落在哪。**地板是"这一级能用"的断言, 不是"它曾经成功过"**;
+架在一枚硬币上, 以后每一条红都读不出是回归还是硬币。
+
+**顺带删掉了显式下挖步骤。** `DescendProcess` 纸面上是对的动词(它自己的 javadoc 就论证"老手直接挖楼梯井,
+别让 A* 去给竖井定价"), 但在这块地上它把身体横着挪了 19 格只下了 1 格, 报 "no safe descent stride
+(all cardinals + own column wet/hazard/unbreakable)" —— 楼梯需要**能踏进去的地方**, 沼泽没有。
+这一级是**绕过**那一步通过的, 不是靠它。限制记下来, 计划不再依赖它。
+
+**脚本侧三个教训(都是我自己踩的, 不是引擎问题)**: ①一级的断言必须是**下一级的前置条件** ——
+wood 先用 `logs>=1` 通过, 把"做工作台+木镐要 3 根"的账单甩给了下一级; ②脚本的搜索半径不能大于**动词自己的
+作用半径** —— 在 64 格内找到牛却直接交给 `CombatProcess`(SCAN_RADIUS=32), 它 2 tick 就放弃, 读起来像动词坏了;
+③物种要按掉落物白名单选, 不能 `instanceof Animal` —— 沼泽里最近的"动物"是**青蛙**, 杀了不掉肉。
+
+**根因 6 的正解: 别再抄 `Player.tick()`, 让身体真的上线。** 上面每一条根因都是同一个形状 ——
+vanilla 在一个 fake player 从不执行的方法里做了那件事, 修法是往 `mirrorPlayerTick()` 里再抄一段。
+这张单子只会变长, 因为它是一份"靠发现缺什么来维护"的 `Player.tick()` 重写。**FakePlayer 的定义就是
+一个从未被 `place` 过的 `ServerPlayer`**: `PlayerList.placeNewPlayer` 才是挂 inventory-menu 监听器
+(`INVENTORY_CHANGED`)、加载 profile 的 `PlayerAdvancements` 并指向这个身体、把它放进
+`ServerLevel.players()`(关卡才继续 tick、怪才看得见它)、注册进 `ChunkMap`(走到哪加载到哪)、
+以及触发整合包模组挂的 login 事件的地方。这些**抄方法抄不到**。
+
+`JoinedPlayerBodies` 装进既有的 `ServerAvatarBodies` 缝里(`-Dworlddriver.realPlayerBodies=true`,
+默认关), 于是 222 个场景 + journey 阶梯直接变成 A/B 台架, 而不是一场架构辩论。**实测(同种子同高度
+FURNACE, 两跑都零布景)**: `advancement.root` / `story/mine_stone` / `story/upgrade_tools`
+**三条全部 not-earned → earned**。也就是说手抄的 `initInventoryMenu()` 只够让一个合成场景变绿,
+对真正的通关链一点用没有; 上线一次就全好了, 而且不需要为每条 criterion 再抄一遍。
+
+**顺带解掉了根因 6 留的加载器分叉。** `wd.serverAvatarEarnsAdvancement` 同一份 common 构造、同一份
+common tick, fabric 绿 neoforge 红, 挂了一周没解释。上线之后**两门都绿** —— 解释就一句话:
+被 `place` 过的身体不需要任一加载器的 fake player 表现良好。
+
+**neoforge 的上线比 fabric 多要一样东西**: vanilla 全程不碰 `Connection.channel()`(所有对线的访问都走
+`send`, 而 `send` 被吞了), neoforge 把 connection type 存成**channel attribute**, 于是
+`placeNewPlayer` 死在 `channel().attr(...)`, 整个武装跑只剩 76 个场景执行。那个字段没有 setter,
+`channel()` 又是 neoforge 自己加的访问器(`:common` 里覆写不了) → 让 connection 把自己注册到一个
+`EmbeddedChannel` 上, `Connection.channelActive` 就是赋那个字段的地方。channel 尾部要**丢弃并完成**
+每次写, 因为 `EmbeddedChannel` 默认把出站消息永久排队 —— 用一个静默泄漏换掉一次响亮的崩溃。
+**两门武装后皆 GREEN, 覆盖数与未武装基线一致**(fabric 208/20, neoforge 209/19)。
+
+⚠️ **差点被当成战果的陷阱**: 场景本来就用 `fp.discard()` 收身体 —— 对 fake player 够了, 对上线的身体
+不够, 因为 `PlayerList` 有自己的名单。第一次武装跑出来 **79 次 join / 0 次离开**, 这些尸体满足了
+`ctx.player()`, 于是 13 个本该 skip 的场景对着尸体跑了起来, 看上去像"上线换来 13 个场景的覆盖"。
+**一个都不是。** 修成 `JoinedBody.remove()` 走 `PlayerList.remove` 之后, 覆盖率精确回到原值
+(208 执行 / 20 skip, GREEN)。这就是 memory 里 `skip-is-not-coverage` 反过来的版本。
+
+**这是上半场, 下半场是 `JoinedBody.tick()` 那个空实现。** `ServerPlayerAvatar.step()` 自己手算位移,
+放 vanilla 的 `aiStep` 进来会积分两次。所以现在的身体有 vanilla 的接线、没有 vanilla 的 tick ——
+凡是 `Player.tick()` 里逐 tick 推的东西都冻着, 比如攻击蓄力计数器(`wd.attackCooldownSurface` 在
+尸体没修之前正是因此 TIMEOUT)。下半场 = 驱动改成写输入(`xxa`/`zza`/`jumping`)而不是写坐标,
+那是本仓改动最频繁的子系统的一次重写, 必须单独一步做, 否则"身体变真了"和"移动搬家了"混在一起, 没有门分得开。
+
+**根因 7 (已修, 引擎级): 用过一次 process 的 driver 再也接不了新命令。** `ServerWorldDriver.tick()`
+先判 `process` 再判 `mineTarget`, 而 `mine()`/`gotoGoal()` 都没清 `process`(只有 `runProcess` 清了
+`mineTarget`)。于是**任何跑过 process 的 driver, 之后每一次 `mine`/`gotoGoal` 都被静默丢弃**, 跑的还是那个旧
+process —— 它到达早就满足的目标、driver finished、调用方读成"挖完了"。**全程没有任何报错**, 这是它贵的原因。
+
+**怎么抓到的**: IRON 按你的规矩先写死步骤(不补引擎)——挖脚下的方块、掉进去、重复。跑出来是
+`shaft.0..11` 十二条腿, 每条 `broke=grass_block`: 同一块没动过的地, 报了十二次挖掘成功。我为此**先后两次
+判错**(先怪 walker 不肯掉进坑、再怪 allowPlace 铺回填), 直到加了"挖之前/挖之后各读一次那块方块"的证据行。
+
+**回归测试 `wd.serverSelfShaftDescends`(新增, optional)**: 第一版**抓不到这个 bug** —— 新建的 driver 在
+持有任何 process 之前就 `mine()`, 恰好是唯一不会触发的顺序。改成**第二层井在一个 process 用过这个 driver
+之后再挖**。已用"回滚修复再跑一遍"验证: 场景如期失败, `deeper=Block{minecraft:stone}`。
+
+修完之后 IRON 的竖井**真的沉下去了**: 三条腿 y=63→62→61, `descent.landedY=60`,
+`descent.column=83,77` 全程没离开自己的柱子。这一级现在卡在**下一个**问题上: `raw_iron.onGround=4`、
+`mine.lastError=null` —— 矿挖了四块, 一块没捡回来, 正是 `wd.serverMineHarvestBuried` 那个形状。
+阶梯现在被**一个**已命名、可在 14 秒内复现的传感器挡住, 不再是一团乱麻。
+
+**根因 8 (半修, 前沿已精确定位): 坑底掉落物取不回, 但原因不是"走不进坑"。** 按"先测量再动手"的顺序拆:
+
+1. **新增 `wd.serverWalkIntoAPit`(required, 两门绿)** —— 纯导航, 不挖矿: 六格外一个一宽两深的坑,
+   `IntentProcess`+`Goal.Block` 走到坑底。**30 tick 通过。** 于是"walker 进不了坑"这条被排除,
+   整个故事从 Walker 移到 MineProcess。
+2. **`wd.serverWalkIntoAPitArmed`(optional)** —— 同一个坑, 换成 MineProcess 自己的权限
+   (`allowBreak`+`allowPlace`+手里有土)。**也是 30 tick 通过。** "带铲子的 walker 会把坑铺平"
+   这条假设也排除了。
+3. **给 `endReason` 加上"扫尾时在干什么"**, 于是它自己说了答案:
+   `retired 2 drop(s): 0 unpathable + 2 arrived-but-short` —— 两个掉落物**都不是**因为找不到路被放弃的,
+   是因为 walker 报了 **ARRIVED**, 而身体离掉落物 4.1 格和 6.4 格。
+
+**结论(可以直接拿去修的那句话)**: `Goal.Block.reached()` 是精确格判定, 所以 walker 的 `ARRIVED`
+**不等于"到达目标"** —— 它的意思是"我把我算出来的那条路走完了"。A* 够不到目标时给的是尽力而为的部分路径,
+走完照样报 ARRIVED。调用方无法区分"站在掉落物上"和"停在四格外的半路终点"。
+(`MineProcess` 里那条早就写下的注释——"扫尾报 ARRIVED, 人站在离掉落物 1.6 格处"——是同一件事的更早一次目击。)
+
+**已落地的那一半**: `findCollectGoal` 的 `recentBreaks` 回退分支**没有跳过已退休的格子**, 于是当所有
+可见掉落物都退休后, 它把坑底那个格子一遍遍递回来(pop 判据是"进到 1.5 格内", 而它永远进不去),
+整个 240 tick 预算全耗在一个已知的死格上。修完 `wd.serverMineHarvestBuried` 从 **287 tick 缩到 121 tick**,
+`endReason` 也从"collect timed out"变成实话"collect swept everything it could reach"。
+
+**根因 9 (根子在这, 已修): 服务端 avatar 会挖穿实心岩石。** `Level#destroyBlock` 既不判距离也不判可见性,
+所以身体瞄到哪挖到哪 —— 隔着多少石头、多远都行。后果不是"不忠实"这么轻: **在完整地板下面挖出来的矿,
+掉落物落在一个六面封死的 1×1×1 口袋里**, 谁也取不回来。
+
+**这就是 `wd.serverMineHarvestBuried` 一直在失败的东西**, 而我先后往两个错的文件里投了两轮工作
+(先 walker、再 collect 扫尾), 因为判据只说"掉落物没捡到", 没有人去看掉落物周围是什么。
+给诊断加两个字段, 一跑就结案: `above=Block{minecraft:dirt}, openSides=0`。
+
+**修法**: `ServerPlayerAvatar.breakHold` 拒绝两类目标 —— 六面全实心的, 和超出玩家自己
+`blockInteractionRange` 的。**故意不做 raycast**: vanilla 服务端自己也不做(它信任客户端的瞄准, 只判距离),
+所以"暴露 + 距离"才是服务端侧诚实的近似, 不发明比游戏更严的规则。
+`wd.serverBreakNeedsReach`(required, 两门绿)一次钉三个目标(封死 / 远 / 相邻), 让"修好一个换坏另一个"过不去。
+
+⚠️ **影响面, 摆出来而不是藏起来: 有两个场景是靠这个 bug 绿的。**
+`wd.buriedOre` 直接挖穿矿上面的覆盖层; `wd.serverEscapeSealedShelter` 的开凿瞄的是**出口**方块
+(身体在 y=221, 目标 y=224), 而不是头顶下一格。
+
+**根因 10 (已修, 这一条把前沿真的推动了): 挖矿要先剥覆盖层, 不能对着打不到的东西挥。**
+加了 reach 判定之后, `MineProcess` 对着想要的矿挥空拳 —— no-progress 看门狗最后报"no reachable target",
+而 bot 就站在那块矿正上方。`firstBreakableToward` 沿"眼睛→目标"这条线段找到**第一块能真的打到的实心方块**,
+把它设为 **clearing 目标** —— 这套机制早就存在(为了清掉挡住原木的树叶): 不计入配额、不进 COLLECT、
+破完自动 re-SEARCH, 于是刚露出来的方块被正常拾取。一次剥一层, 玩家就是这么干的,
+而且这样**每个掉落物都落在身体走得进去的坑里**。
+
+**两个场景因此转正**:
+- `wd.buriedOre` **重新 required**(这次是凭本事绿的, 不是靠挖穿岩石)。
+- `wd.serverMineHarvestBuried` —— 写出来就 optional 且**故意红着**、让 journey IRON 级变成掷硬币的那一个 ——
+  **第一次 required**。它的诊断在路上被彻底推翻: 掉落物根本不在"walker 不肯进的坑底",
+  而是**封死在 avatar 本来就不该挖穿的岩石里**。
+
+**"够不到"要分两种, 这个区分两头都吃过亏**: 已经**暴露**却仍然打不到 = 超距离, 而站着不动距离不会变,
+所以立刻退休、重新 SEARCH, 不必等 no-progress 看门狗那 100 tick。
+- 不加这条退休: reach 判定顺带暴露了 bot 一直在**砍自己头顶五格的树冠原木**, 而每根不可达的原木都要耗
+  100 tick, 预算在它试树干之前就没了 —— journey 的 WOOD 级从 6 根原木掉到 **0 根**。
+- 只看"现在打不到"就退休(不看暴露): `wd.serverMineHarvestBuried` 最深那块矿在剥离层还没挖开之前就被退休了,
+  一直立在那儿。**埋着是暂时的, 远是永久的。**
+
+`wd.serverEscapeSealedShelter` 仍留 optional: 它走的是**另一个开凿器**, 还在瞄出口。
+教会那一个同样的道理就能升回来, 原因写在它的注册处。
+
+**顺带记一条 bot 能力边界**: 它**不会爬树**。树冠上的原木现在诚实地取不到, 只能砍够得到的那些。
+这不是 bug 被绕过, 是限制被写下来了 —— 没有梯子的玩家也是这么干的。
+
+**诚实挖掘让整条阶梯变慢, 路线要跟着改**: STONE_TOOLS 第一次跑成 TIMEOUT(10051 tick / 506 秒) ——
+不是挖不动, 是**每一块**石头都要先剥四层覆盖土。侦察到的第一块石头在沼泽地表下四格, 站在草地上挖它,
+等于把二十块的量乘以四。**改法沿用 IRON 那条已经验证过的写死步骤**: 先挖竖井沉到石层, 再横着挖 ——
+玩家就是这么干的, 而且掉落物全落在脚边。两个挖掘级(STONE_TOOLS / IRON)的场景预算同步提到 40 000 tick。
+
+**`JourneyRig.settle` (新增)**: 计划内的**一次尝试**不能用 `drive` —— `drive` 的超时**就是**失败,
+于是一条卡住的腿会用框架的通用 "await step exceeded" 顶掉计划自己的诊断。石头级正是死在这上面
+(480 tick 撞上 400 tick 的沉降腿, 报了 TIMEOUT, 而竖井明明有话要说)。`settle` 跑到进程结束或 tick 用尽都往下走,
+计数器放在谓词里(它是等待期间唯一每 tick 执行的东西)。换上之后失败信息立刻变成竖井自己的判词。
+
+**竖井三连修(全是脚本层, 没动引擎)**:
+1. **`stoneDescent` 干燥柱** —— `firstStone` 原来是**无干燥约束**侦察的, 照抄 IRON 的 `nearestUnderDryGround`
+   + `dryDescentNear` 之后, recon 的陈旧守卫如约报错并打印新常量(`firstStone=(72,59,74)`,
+   `stoneDescent=(72,63,74)`), 烘进 `JourneyRoute` 即可。
+2. **竖井预算按"尝试次数"算, 不是按"方块数"** —— 一格要两三趟(破完还得给身体沉降的 tick),
+   12 次只买到 1 格。同时**下方已经是空气就别再挖**: 挖空气是白挖, 却照样吃掉一次尝试。
+3. **走到柱子的容差 2 → 0** —— 决定性的一条。竖井挖在**身体站的地方**, 而侦察只认证了**一根**柱子干燥;
+   容差 2 让身体偏出去两格, 第四趟就 `shaft.4 below=water`, 之后浮着不沉、而挖水是空操作。
+   **沼泽里两格就是干与湿的全部差别。**
+
+**竖井第四修(决定性的一条): 沉降腿不能有任何转向。** 前三修之后, 身体已经能**精确站在**侦察出的干燥柱上
+(`arrived.horizontalDistance=0`)、把脚下方块**干净地打穿**, 然后 walker 还是把它**一格一格挪开**
+(`72 → 73 → 74`)。`wd.serverSelfShaftDescends` 之所以一直绿, 是因为那个封闭场地**无处可去**;
+野外有别的选择, A* 就会去选。
+
+**这个身体没有自由运行的物理** —— `ServerAvatarManager` 只 step 有 driver 在 tick 的 avatar,
+所以没注册的身体会**悬在自己挖的洞上方**。而当时手上每一个 process 都会**转向**, 转向正是竖井的死因。
+新增 `HoldStill`(testmod-only, 不是引擎改动): 什么都不做, 只把输入清零、跑满 N tick。
+**挖穿脚下、然后站着等** —— 玩家就是这么干的, 重力不需要寻路器。
+
+效果: STONE_TOOLS 从 **3233 tick / 165 秒**(还得靠运气)降到 **324 tick / 25 秒**, 一次就过。
+
+**竖井第五修: 挖下去了要爬上来。** 诚实挖掘之前 bot 从不挖竖井, 所以没人需要这一步;
+现在挖掘级结束时身体**站在 y=60 的一格宽井底**, 而**下一级继承这个位置**。
+实测: FOOD 级向 67 格外的牛出发, 8000 tick 预算全花在"走向猎物"上 —— 它是从坑底出发的。
+新增 `climbOut`(允许放置, 用刚挖到的圆石搭柱子, best-effort): 到达目标的一级不该因为出口难看而判失败,
+下一级自己的守卫会说话。
+
+✅ **"爬不出坑"是误判, 已由传感器推翻。** journey 的 `exit.fromY=54 → exit.toY=55`(1200 tick 只上升 1 格)
+读起来像缺能力, 于是照老规矩先建**封闭传感器** `wd.serverPillarsOutOfAPit`(四格深、一格宽的竖井, 背包 32 圆石):
+**46 tick 就出来了, required 且绿**。所以 journey 那边是**预算/地形**问题, 不是能力问题。
+**教训: 不要从一个卡住的 rung 反推"缺能力", 先做密闭传感器**(`wd.serverWalkIntoAPit` 是同样的用法)。
+
+⚠️ **这个传感器自己也上了一课**: 第一版还断言"必须消耗圆石"(即出口必须是**搭柱子**)。
+它在身体已经站上地表的情况下**失败**了 —— 因为身体是**凿穿井壁开了个楼梯**上来的, 这正是有镐的玩家会做的事,
+而且比搭柱子更好。断言写成"必须 pillar"就是把**一种实现**写进需求, 并且会把一个能用的能力报成缺失。
+**断言结果("它出来了"), 永远不要断言手法。**
+注意 `wd.selfShaftDigUp` 是**向上挖**, 不是**搭柱子上升**, 两者别混。
+
+**竖井第六修(治好了 run-to-run 抖动): 破脚下不等于破支撑。** 玩家碰撞箱 0.6 宽, 站在格子边缘时
+**同时踩在两个格子上**, 只破"身体中心下方"那一格, 人就落在邻格上 —— 实测竖井破得干干净净,
+然后连续三趟 `below=air` 而 y 一动不动。**同一份代码同一组坐标, 沉不沉下去取决于走路恰好停在格子的哪个位置**,
+这就是这一级 run-to-run 抖动的全部来源。`supportUnder` 改为找**真正还撑着身体的那一格**
+(优先中心格, 否则取碰撞箱四角里还是实心的那个)。
+
+**竖井第七修: 水不是地板。** `supportUnder` 判"还撑着身体的那一格"用的是 `!isAir()` ——
+**水不是空气**。实测一跑: 竖井破了中心格、又破了碰撞箱另一角, 地下水灌进来, 从第三趟起
+`below=water` 连报 28 趟(挖流体是空转), 判词写成"方块破了但身体没下沉", 而真正还撑着身体的那一角
+**一次都没被碰过**。改成 `blocksMotion()`(下沉分支同改), 同一根柱子上石头级从
+**FAIL(30 趟 0 下降)→PASS(603 tick, 21 圆石)**。
+
+**同一跑的另一半修在侦察上: 干燥判据从"十字"扩成 5×5。**`dryCross` 原本只验自己这列 + 四个正交列 ——
+那是 `DescendProcess` 挖楼梯的形状。写死步骤挖的**不是楼梯**: 碰撞箱 0.6 宽, 身体站在格子边缘时
+支撑格是**邻格**, 挖井必然连它一起破, 洞最宽到 2×2, 而它的井壁正是十字**没看过**的那一圈。
+`firstStone` 因此从 `(72,59,74)` 移到 `(83,59,76)`(离铁矿柱只差一格 —— 这是这颗种子的巧合, 不是设计)。
+
+**出口改成写死步骤(不再交给搜索)。** `climbOut` 原来是 `Goal.YLevel(surfaceY)` 交给 walker,
+预算按 `wd.serverPillarsOutOfAPit`(四格深竖井 46 tick)估。**实测 6000 tick 只升 1 格**
+(`exit.fromY=54 → exit.toY=55`), 下一级 FOOD 整个预算都花在从坑底重复搜索路径上。
+差的不只是深度: 挖掘级在井底**横着挖**, 身体最后站在**自己的天花板下面**, 而 `TowerProcess` 不会破方块 ——
+顶着石头跳只会报 `stuck (no Y gain)`, 读起来像缺能力, 其实是计划少了一步。
+现在按下降的同一套写法展开: **清 `feet+2` → 搭一格 → 重复**, 每层记 `climb.<n>`,
+顶上空了还升不上去就把 builder 自己的 `lastError` 记下来。
+封闭传感器 `wd.serverTowersOutOfADeepShaft`(九格深、一格宽、井底带横向凹龛=有天花板)钉住这个形状。
+石头级配额随之 20→32: 账单是石镐 3 + 出口每层 1 格(九层) + 熔炉 8, 拿 19 块回来的那一跑
+是**在拿熔炉的份付出口的账**。
+
+**一趟 3×3 合成会吃掉全程唯一的工作台。** `CraftProcess` 在够不着工作台时自己放一个、走的时候再收回来,
+而收回是**故意 best-effort** 的(合成不该因为收尾失败而判负)。石头级是在**自己挖的井底**合成的,
+爬出来时 `craftingTable=0` —— 然后熔炉级抱着 24 块圆石一个也做不出来, 判词只有 `furnace=0`。
+写死步骤补法: 任何 3×3 合成前先 `ensureCraftingTable`(没有就现做一个, 四块木板, resolver 自己会规划
+原木→木板→工作台), 并记 `craftingTable.remade`。**不去改收回逻辑** —— 脚本能覆盖的事不该动引擎。
+熔炉级同时补了 `craftingTable` / `craft.lastError` 两条证据: 24 圆石 + 0 熔炉不是材料问题,
+而 `furnace=0` 一条读不出是台子、格子还是进程。
+
+🔴 **未解(本会话最大的一条): 挖矿级会把服务端的 tick 拖到近乎停摆, 三跑可复现。**
+`Server thread` 停在 `MinecraftServer.waitUntilNextTick` 的 `parkNanos`, **全进程 CPU 归零**
+(200 秒只走了 16 ms), 之后日志一行不再出。已经排除的:
+- **不是内存**: 14 GB 空闲, 没有 swap 压力。
+- **不是被 OS 挂起**: `Get-Process().Threads` 全是 `Wait, UserRequest`(自愿等待), jstack 能连上并返回。
+- **不是我们自己的线程**: 整份 dump 里 `magicterra.worlddriver` 帧数 = **0**, 寻路早已结束。
+- **不是 "Can't keep up"**: 三跑都只有一条 42~44 tick 的落后告警, 且都发生在僵死前好几分钟。
+- **不是配额半径**: 半径 14 时僵在 `67,62,91`, 退回 10 后仍僵在 `96,40,87`(第二矿脉)。
+
+**剩下的解释只有一个方向**: `haveTime()` 长期为真 —— 即 `nextTickTimeNanos` 远远跑到了未来,
+或者 `nanosecondsPerTick` 变得极大, 于是服务端**不是死了, 是每几秒才走一 tick**。
+这也解释了 StageWright 的 stall watchdog **为什么没报**: 它盯的是 tick 计数器是否**变化**
+(阈值 90 秒), 而计数器还在慢慢加 —— 慢到极点的 tick 对它来说不算 stall。
+**已做(2026-08-10, 已实证到 green)**: 三层, 都在 StageWright 侧, 都不依赖 worlddriver ——
+它的客户是一个没有 driver 的整合包。
+1. **速率判据**(`TickStarvation`): 同一窗口里少于 20 tick 也算 stall(标称 1800),
+   判词区分"停住"和"爬行"。
+2. **harness 在 tick 上也查这条**, 命中就把**这一个场景**判 TIMEOUT 收掉, 套件继续跑 ——
+   僵死通常是一个场景的问题, 剩下 200 个场景没理由跟着陪葬。
+3. **心跳文件** `stagewright-progress.json`: watchdog 线程每秒覆写一次(场景名 / tick /
+   窗口内 tick 数)。裁决**只在缺尾时**读它, 于是"harness 中途死亡"这句话后面终于跟得上
+   死在哪、当时世界还跑不跑。
+
+**实证方式**(值得记住, 因为健康的一跑碰不到这些路径): 把判据临时改成**不可能满足**跑一轮门禁。
+第一轮就抓出一个真 bug —— watchdog 和 harness 共用一个阈值时会**赛跑**, 而 watchdog 恒赢
+(它的窗口在武装时开一次, harness 的每个场景重开), 于是一轮僵死照样死成 DEAD, 正是加第 2 层
+要消掉的结果。改成 run 窗口 = 3× scene 窗口后再跑: harness 先收场景、下一个场景照常 PASS、
+watchdog 在第三个窗口才接手。恢复阈值后两 loader 全 GREEN, 214 场景零误报。
+
+**还没做**: 一个能读出 `nextTickTimeNanos` / tick rate 的探针来解释**根因**。
+现在僵死至少会自报家门, 但为什么 `haveTime()` 长期为真仍未知。
+
+## 🏆 2026-08-10 阶梯地板抬到 IRON, 高度到 PORTAL_KIT —— 零布景, 一具身体
+
+```
+RECON ✅ SPAWN ✅ WOOD ✅ WOOD_TOOLS ✅ STONE_TOOLS ✅ FOOD ✅ FURNACE ✅
+IRON ✅ 铁锭 ×6   PORTAL_KIT ✅ 桶 ×1、打火石 ×1
+journey 爬到 PORTAL_KIT，地板 FURNACE，峰顶 DRAGON，布景调用 0 次
+```
+
+这一轮之前阶梯回退到 WOOD_TOOLS(低于地板)。八次跑修出的六条, 全部是**脚本**层, 没有动引擎:
+
+1. **石镐那一级从来没检查过工作台还在不在** —— 木镐那一级会把它吃掉, 所以它之后的第一次
+   3×3 合成才是发现台子没了的那一次。熔炉/传送门两级早有这个守卫, 这一级写在税被发现之前。
+2. **一棵树不够一棵树的木头**, 而木头那一级按错了级的账单验收(3 根 = 木工具的账,
+   不是阶梯的账)。实测单树产出 4→3→2 根, 两轮死在同一道算术上, 隔一级。改成
+   survey 出第二棵 + 断言写阶梯的账。
+3. **七根木头还差一根 —— 品种不对**。沼泽混生橡木与白桦,`CraftProcess` 的依赖解析
+   **锁死一个木板变体**而不是按 `planks` 标签走, 于是 `logs=7` 配 `缺 1 个 oak_log`。
+   第二棵树现在按第一棵的方块 id 找;`logs.kinds` 按品种记账。
+4. **合成需要放得下台子**。石镐原本在自己刚挖的一格宽竖井底部合成, 报
+   `脚边没有可放置的空位`; 同一份代码一轮过一轮不过, 取决于最后一节井恰好什么形状。
+   改成先爬出来再在地面合成。
+5. **台子要带着走**。走回去用它只是把问题推后一级 —— 身体接着走一百格去挖铁, 下一级就
+   `standing=none` 再买一张。现在把立着的台子挖回包里, 之后每一级都 `craftingTable=1`。
+6. **食物那一级搜得比它看得见的远三倍**。实体只存在于已加载区块, 而随身 pin 是 2 区块;
+   96 格的搜索有三分之二注定是空的, 而它报的是"附近没有动物"。改成这一级临时把 pin
+   放宽到自己的搜索半径, cleanup 收回。
+
+另外两条属于**走路**而不是资源: 跨野外的腿会"到了"在离目标 88 格的地方(`IntentProcess`
+对半程路径也报到达), 现在最多重规划 3 次并记 `walkAttempts`; 矿脉扫荡从 `drive` 改
+`settle`(配额是上限不是要求, 矿脉挖空不该判死整级)。
+
+**地板已棘到 IRON**(第五次抬升, `JourneyStage.IRON` 同步翻成 gating), 依据是同一份代码上
+连续三轮绿(铁锭 ×4/×6/×6, `stagingCalls=0`)。抬升后第一轮就抓到一次回退 —— 而且是**我自己**
+那一版"给工作台清一格"只检查了格子空不空、没检查底下有没有东西: `climbOut` 在自己挖的井里
+垒一根一格宽的柱子, 身体最后站在四面是空、四面**底下也是空**的柱顶上。地板存在的意义就是
+这个, 第一次派上用场就兑现了。
+
+**后续把 PORTAL_KIT 也打通了**(7 轮里绿 3 轮, 最后一轮绿):
+- 铁那一级改成**按账单挖**而不是挖固定条数矿脉 —— 本种子矿脉 1~3 块矿, "挖几条"没有稳定
+  答案, "够不够"才有。第三条矿脉要避开**前面每一条**(只避第二条会返回第一条的坐标), 且
+  要用 80 格半径去找(48 格内 `NOT_FOUND`, 这是搜索的事实不是种子的事实)。
+- **打火石那一半从来不是问题**: `gravel.collected=65`, `flint=6`。两次失败都是铁 ——
+  桶吃 3 锭, 打火石吃第 4 锭。
+- **工作台改成合成完当场捡回来**, 而不是下一次合成时再去找。铁那一级开始跑两三条矿脉后,
+  下一次合成已经在一百格外, `standing=none`, 于是拿着 5 个铁锭报 `缺 1 个 oak_log`。
+  当场捡回来之后铁那一级从 10000~19000 tick 降到 **4628 tick**。
+
+**OBSIDIAN 的能力问题已经答了, 而且答案是"不用补引擎"**: `wd.serverCastsObsidian`(两 loader
+绿, 160ms, 已提升为 required)在竞技场里跑通了整个浇筑 —— 空桶从岩浆源装满、倒进**自己选定**
+的格子、水把它转成黑曜石。写在写这一级**之前**而不是之后, 因为这一级是几十格下挖, 在那里
+才发现身体不会用桶就太贵了。路上四个错答案都值得记住:
+- **动词不是 `useItemOn`** —— 那是对方块的路径, `BucketItem` 没有 `useOn`; 桶的活在
+  `Item.use` 里, 驱动侧是 `useItemInHand`。用错的那个会干净地返回并且什么都不做。
+- **瞄准是输入, 不是装饰**: `use` 从眼睛发射线, 所以 `aimAtBlock` 就是targeting, 没有格子参数。
+- **瞄完要过一 tick** 再 use, 否则 use 读到的是上一次的朝向。
+- **模具要有底**: 对着底下是空气的格子瞄, 射线打空, 倒出来是 `PASS` 且桶还是满的 ——
+  这和"倒到别处去了"的 `CONSUME`+目标格空是两种不同的 bug, 所以两个都记。
+
+## 📊 IRON 这一级的可靠性(地板就压在这儿, 值得单独记)
+
+2026-08-10 一晚十二轮, IRON 绿 6 红 3(其余被下面的级挡住没跑到)。红的三次是**三个不同的原因**,
+都不是"铁矿挖不动":
+
+| 轮次 | 失败句 | 真因 | 已修 |
+|---|---|---|---|
+| 1 | 走不到下挖点, 停在 22 格外 | 身体卡死, 三次重规划问了同一个问题 | `walkToColumn` 卡住就先走中点 |
+| 4 | 走不到下挖点, 停在 88 格外 | 上一级追牛把身体丢在荒野, 寻路自己报 `goal unreachable from here` | 食物那一级打完猎走回出生点 |
+| 11 | `iron ingots smelted (0)` | 熔炉补做时没工作台, 而唯一的痕迹是两行之后的 `furnace.after=0` | 补做走 `ensureCraftingTable`, 并记 `remadeError` |
+
+**共同形状**: 每一次真正的因都在**上一段**, 而失败句描述的是当前段。这正是地板存在的意义 ——
+它不让"这一级偶尔绿"冒充"这一级可靠"。
+
+## 📊 全梯可靠性(22 轮统计)+ 提升门槛该按什么定
+
+把 `journey-obsidian-*.log` 全量数了一遍(轮 7/8/9 是我主动杀掉的, 无数据):
+
+| 级 | ✓/✗ | 最后一次红 | 那次的真因(已修) |
+|---|---|---|---|
+| 01Recon / 02Spawn | 22/0 | 从未 | — |
+| 03Wood / 04WoodTools | 21/0 | 从未 | — |
+| 05StoneTools | 17/2 | 轮 13 | 工作台被上一级花掉 |
+| 06Food / 08Furnace | 17/0 | 从未 | — |
+| 09Iron | 12/4 | 轮 13 | 熔炉补做时没工作台 |
+| 10PortalKit | 11/1 | 轮 16 | 第三条矿脉侦察了但没烘入 |
+| 11Obsidian | 4/7 | 轮 21 | 隧道挖穿洞顶, 掉到 y=14 |
+
+**这张表不能直接当概率读** —— 每一次红都在**当时那版代码**上, 而那个原因随后就被修了。所以
+"历史通过率"永远低估现在。真正能拿来判断的只有一个数: **同一份代码连续绿了几轮**, 也就是
+现在的门槛。
+
+**但门槛不该对所有级一视同仁。** 11Obsidian 三连绿之后第四轮翻车, 而下面几级三连绿之后就再没
+出过事 —— 差别不在运气, 在**这一级有没有一段路是侦察没看过的**:
+
+| 级 | 未侦察的那一段 | 三连绿够不够 |
+|---|---|---|
+| 03–10 | 无。recon 认证过树/石/矿/砾石的柱子, 走的都是查过的地形 | 够(实测) |
+| 11Obsidian | **隧道最后那几格是横着挖穿没查过的岩石** —— 可能挖穿洞顶 | 不够(实测 1/4) |
+
+所以下一级(12PortalLit)在岩浆边掏十个兜, 暴露面比 11 还大, **它的提升门槛应该从一开始就写成
+五连绿或更多**, 而不是等它像 11 一样先升后降一次。
+
+## 🔎 待查(引擎侧): `aimAtBlock` 不动头部朝向
+
+`ServerPlayerAvatar.aimAtBlock` 只写 `setYRot`/`setXRot`。`LivingEntity` 另有一个 `yHeadRot`,
+而且 `getViewYRot`(进而 `Entity.pick`、以及任何按头部朝向做判断的代码)读的是**它**。
+
+- 桶没事: `Item.getPlayerPOVHitResult` 直接读 `getXRot()/getYRot()`, 所以浇筑一直是对的。
+- 出事的是"预测": 黑曜石那一级用 `pick` 判断视线被谁挡住, 结果射线朝着**没人瞄过**的方向 ——
+  身体在 `-4,27,56`、岩浆在 `-6,26,54`, 命中点却一路 `-4,28,57 → -3,28,57 → -2,27,58` 往外走,
+  自驱隧道老老实实朝反方向挖了八格。
+- 测试侧已绕开(自己按 `getPlayerPOVHitResult` 的方式 clip)。**引擎侧要不要让 `aimAtBlock`
+  同时设置 `yHeadRot`, 是一个单独的决定** —— 一旦改, 任何按头部朝向做判断的地方(实体索敌、
+  第三方 mod)都会跟着变, 所以不该顺手改。
+
+## ✅ 已修(测试侧): `makeRoomForAStation` 问的问题和放置器不一致
+
+`PlaceNearby.place` 扫 **8 个水平偏移 × 3 层 dy = 24 格**(`canBeReplaced` 且脚下既不是空气也不
+可替换); 而这个 helper 原本只看**脚边四个正交格、只看同一层**, 判据也不同(`!blocksMotion()` /
+`blocksMotion()`)。**24 格 vs 4 格, 两套判据。**
+
+后果比"多走几步"严重: 它会在放置器其实放得下的地方喊 `station.noGround`(39/42 两轮绿行里都有,
+craft 照样成功了), 而且它的"走开"是**固定罗盘方向 ±4 格**的猜测 —— 实测从 `62,63,64` 走到
+`62,63,60`, 从一个放不下的格子换到另一个放不下的格子, 然后熔炉那一级红了两轮(`furnaces
+crafted (0)`, 而 `cobblestone.before=25`、`craftingTable=1`, 材料全在)。沼泽里这是常态: 身体站在
+水里, 四周的"地面"还是水。
+
+已修三处:
+- **问一模一样的问题** —— `placerWouldFindRoom` 就是 `PlaceNearby` 那 24 格判据的副本。
+  *两套测同一个条件的代码只要不一致就是 bug 制造机: 总有一个是错的, 而失败信息不会告诉你是哪个。*
+- **走到答案上, 不是走个方向** —— `groundWithRoomNear` 由近及远找一个"站得下 + 放得下"的格子。
+- **证据 key 加下标** —— `station.steppingOff.N`, 否则三次尝试只剩最后一次(pickup 那批 key 犯过
+  同样的错)。
+
+## 🔎 待查(引擎侧, 诊断错怪): `SmeltProcess` 把"没地方放"说成"背包里没有"
+
+`需要熔炉（背包里没有可放置的熔炉）` —— 实测这句话在**背包里明明有熔炉**的时候照样会出:
+
+```
+furnace.carried=true, furnace.after=1        ← 熔炉一直在包里
+smelt.lastError=需要熔炉（背包里没有可放置的熔炉）
+```
+
+看代码就清楚了: `SmeltProcess.placeFurnace` → `PlaceNearby.place`, 那里先 `a.holdItem(item)`
+(翻全部 36 格, **找到了**), 再去周围 8 格 × 3 层找一个 `canBeReplaced` 且脚下是实心的格子。
+**返回 null 的两个原因是"没物品"和"没地方", 而这句话只说了前一个。** 身体当时站在自己刚
+垒出来的一格宽柱子顶上 —— 四面是空、四面的下面也是空, 地方大得很, 没有一格放得下东西。
+
+- 和 `holdPlaceable` 那条("out of blocks?" 而身体有 110 个圆石)是同一族: **猜错原因的诊断
+  比没有诊断更贵**, 因为它会终止排查。
+- 测试侧已绕开: 熔炼前先 `makeRoomForAStation`(原先只有 craft 那条路问了这个问题)。
+- 引擎侧建议(**未改**): `PlaceNearby.place` 把两种失败分开返回, 让调用方的错误文案能说对。
+
+## 🔎 待查(引擎侧): `holdPlaceable` 只翻快捷栏, `holdItem` 翻整个背包
+
+`ServerPlayerAvatar` 里两个"把方块拿到手上"的方法, 搜索范围差了 27 格:
+
+| 方法 | 搜索范围 | 找不到时 |
+|---|---|---|
+| `holdPlaceable()` / `holdPillarBlock()` | `items[0..8]`(快捷栏) | 返回 `false` |
+| `holdItem(Item)` | `items[0..35]`(全背包, 会把物品换进选中格) | 返回 `false` |
+
+`TowerProcess` 走的是前者。于是一个爬了四级梯子的身体 —— 快捷栏里是镐、桶、燧石、食物 ——
+**手里揣着 110 个圆石, 塔却报 `no placeable block in hotbar`**。黑曜石那一级的出井实测:
+要爬 36 格, 爬了 1 格(`exit.gained=1/36`), 靠 walker 兜底才没卡死。
+
+- 这条曾经被误读成别的问题两次: 一次是 `a-jump-is-not-a-gain`(在空中量高度, 把拒绝放置读成成功),
+  一次是 `the-exit-is-a-plan-not-a-search`(6000 tick 只爬一格)。**两次的 `.stalled` 文案都说
+  "out of blocks?", 而身体一直有块** —— 猜错原因的诊断比没有诊断更贵。
+- 测试侧已绕开: 出井每一层先 `holdItem(圆石)` 再让塔去放, 塔的 `isSupport(main)` 就直接命中了。
+- **引擎侧要不要让 `holdPlaceable` 也翻整个背包, 是一个单独的决定**: 快捷栏之外的东西被自动
+  换上手, 对一个有人类玩家在看的客户端身体来说是会打断操作的; 而"调用方指定用什么垒柱子"
+  本来就有 `TowerProcess(targetY, blockId)` 这个更精确的入口。
+
+## 🔎 待查(引擎侧, 已被脚本绕开但根因未查): 工作台会凭空消失
+
+`CraftProcess` 自己摆工作台、尽力回收。实测一轮: 8 根原木 = 32 块木板, 真正配方只花了 9 块
+(工作台 4 + 木棍 2 + 木镐 3), 到石器那一级只剩 3 块木板、0 个工作台, 报 `缺 1 个 oak_log`。
+中间那 20 块全变成了工作台 —— 而那些台子**既不在 32 格内立着, 也不在地上躺着**。
+
+- `wd.serverCraftTableReclaim` 在竞技场里是绿的, 所以这个丢失在竞技场那个尺度上看不见。
+- 脚本侧已绕开两层: 每次合成都走 `craftKeepingTheTable`(合完就把台子挖回来), 以及木头不够时
+  现场去砍一棵再试一次。**但这两层都是止血, 不是答案。**
+- 值得查的是: 台子被 `CraftProcess` 破坏之后掉落物去哪了。三种可能 —— 根本没掉、掉了但立刻
+  被销毁、掉了但在别的位置。三者需要不同的修法, 而现在的证据分不开它们。
+
+## 🔎 待查(引擎侧, 已被脚本绕开但根因未查): 走 22 格找不到路
+
+2026-08-10 铁那一级实测: 身体停在 `78,63,96`, 目标柱 `83,75` —— 水平 22 格。之后**四分钟里
+发出约九十次 `search-begin owner=goto ... maxNodes=100000 maxMs=4000`, 起点每次都是同一格**,
+一次都没找到路, 身体一步没动。三次重规划问了三个一模一样的问题。
+
+- 脚本侧已绕开(`walkToColumn` 现在会先走中点再续), 但那是**把长问题拆短**, 不是答案。
+- 值得查的是: 22 格的目标为什么会耗尽 100k 节点。要么目标格不可站(`XZ radius=0` 要求精确列),
+  要么中间那片沼泽水面让 A* 无法收敛。前者是目标合法性问题, 后者是水面代价/可达性问题。
+- 复现材料: 这次的 run 日志 + 种子 5471, 出生点走食物那一级追牛到 `21,64,131` 之后就会到这一带。
+
+**这一级已经写完并且第一次真的跑起来了**(2026-08-10, `wd.journey11Obsidian`, required=false)。
+计划: 走到岩浆柱 → 在**旁边**一根查过的柱子下挖 → 用射线自己开路挖到岩浆源 → 装桶 →
+原路爬回地表 → 倒进**事先点名的**一格静水里 → 断言那一格是黑曜石。
+
+- **"一块而不是十块"是这一级本身, 不是偷懒**: 黑曜石拿不走(要钻石镐), 门框是**就地浇**的,
+  十格摆哪里是 PORTAL_LIT 的问题。
+- **为什么在地表的水边浇, 而不是在岩浆池边浇**: 门框真正的打法是把水**背下去**放成源、
+  一只桶来回运岩浆。这里写不了, 原因值得记: 竖井底放下的水会顺着同高度的任何开口流,
+  而这一级必须开的那个口就是通往岩浆的口 —— 水一碰到池子就把桶要打的那个源变成黑曜石。
+  两边在抢一条两三格长的隧道, 大约十五 tick。地表倒进已有的水里没有这个竞争, 动词一样。
+- **挖到岩浆的那段隧道不需要路径规划**: 桶是沿着视线装的, 所以**视线第一个撞到的东西就是障碍**。
+  瞄准岩浆 → 问 vanilla 自己的 pick 撞到了谁 → 挖掉 → 再看。挖的每一块都在通往目标的直线上。
+
+**第一次跑的结果**: 走到岩浆柱(`arrivedDistance=0`, 一次就到)、发现自己正站在岩浆柱上并让开、
+选中偏 2 格的柱子、按 34 格深度把上限缩放到 122 次 —— 全对; 然后**浮住了**: 选的柱子在沼泽
+水塘底下, `supportUnder` 连报 122 次 `minecraft:water`。已修, 而且修了三轮, 每一轮都是上一轮的量出来的:
+
+1. 选柱要过干燥尺, 环搜到 8 格 —— 然后 **280 个候选柱 280 个被否**, 理由全是"柱子里有流体"。
+2. 把"整根柱子干燥"放松成"井口下 12 格干燥" —— 还是 280/280, 理由变成"井口下方有流体"。
+   到这一步结论就清楚了: **这颗种子最近的那潭岩浆压在沼泽水位下面**, 不是尺子太严, 是这潭
+   本来就下不去。
+3. 所以真正该改的是**侦察**: 岩浆和铁矿一样, 要的是"能挖得到的那潭", 不是"最近的那潭"。
+   recon 现在列出最近的 12 处**不同**水潭(16 格内的并成一潭, 否则一个岩浆湖就是两百个候选),
+   逐个用这一级自己的选柱规则试, 取第一个能下井的 —— 本次选中 `(-6, 26, 54)`, 82 格外。
+   候选表里还有一处在 **y=63(地表)**, 正是老的 `LAVA_SEARCH_TOP=50` 从构造上排除掉的那种。
+
+**这一轮真正的收获是"在哪儿检查"**: OBSIDIAN 是最后一级, 在那里发现"地形不让下井"要先付
+下面所有级的钱 —— 一次二十五分钟, 一次一个猜测。recon 一秒钟读同一件事, 而且把每个候选的
+否决理由都记下来 —— 正是那张 280/280 的计数表让人看出**是规则坏了不是地形不行**。
+一条谁都满足不了的规则不叫严格。
+
+并且"脚下没地板"现在要分成"马上要掉下去"和"泡在流体里"两种——后者一行就该失败, 因为再多
+settle 也治不了浮。
+
+## 🏆 2026-08-10 03:40 阶梯首次爬到 IRON(铁) —— 零布景, 诚实挖掘
+
+```
+RECON ✅ SPAWN ✅ WOOD ✅ WOOD_TOOLS ✅ STONE_TOOLS ✅(500t) FOOD ✅(767t) FURNACE ✅
+IRON  ✅ 铁锭 ×2 出炉 (1512t)
+   furnace.before=1  descent.landedY=60  raw_iron=2  raw_iron.onGround=0  iron_ingot=2
+   staging.calls=0
+```
+`raw_iron.onGround=0` 是这一跑最值钱的一个数: **挖出来的东西一件没剩在地上**。
+
+**地板仍留在 FURNACE, 不上棘轮。** 这套代码下 IRON 只绿过**一次**;
+"地板是'这一级能用'的断言, 不是'它曾经成功过'", 架在 n=1 上会让以后每一条红都读不出是回归还是抖动。
+连续绿几跑再升。
+
+**修完之后的实测(2026-08-10 02:11, 零布景)**: RECON→SPAWN→WOOD(7 根)→WOOD_TOOLS→
+**STONE_TOOLS 达成**(石镐到手, 3233 tick)→FOOD→**FURNACE 达成**。
+**IRON 第一次挖到并真的收进了背包**: `raw_iron=1`, `descent.landedY=60`, `descent.column=81,75` ——
+诚实挖掘 + 竖井下沉 + 掉落物回收全线打通。这一级现在**卡在熔炼**(`iron_ingot=0`), 不再是采集。
+新前沿 = `SmeltProcess`, 以及 `mine.endReason=collect timed out after 240 ticks (broke 2/4)`。
+
+**旧记录(已解决, 留作诊断路径)**: 石头级的竖井**第一铲就挖穿了, 身体却不下沉**:
+```
+shaft.0=67,62,67 below=dirt   → shaft.0.broke=air   body 仍在 67,62,67
+shaft.1 below=air(挖空气, 空转)  … shaft.3 漂到 73,62,71
+```
+IRON 的同一段代码沉得下去, 区别在**地面**: 石头柱 (67,69) 在沼泽的水边, 身体浮着就不会掉进洞里。
+`JourneyRoute` 已经有为 IRON 写的 `dryDescentNear`/`dryCross`, 但 `firstStone` 是**没有干燥约束**侦察出来的。
+**下一步**: 给石头级也侦察一个 `stoneDescent` 干燥柱(照抄 `ironDescent` 那套), 而不是去改引擎。
+
+**仍未做**: 双轨的另一半(integratedServer 拓扑上真走 `mc.bot.*` 路由)还没搭。
+
 ## 2026-07-20 ✅ mine #logs 上悬崖树 nodeDy=7 wedge → 连坠伤致死候选gap — 已修(planning-layer 两界:no-progress 看门狗 + 累伤中止)【commit 4e85543 branch fix/mine-unreachable-target-watchdog;t0 fabric+neoforge+t1 全 GREEN + live 三性质全证;未合master(暂留分支)】
 
 - **gate infra 教训(本轮踩)**:t0 用 `--run-task :<loader>:runDogfoodServer` **必须**配 `--results <loader>/run-dogfood/stagewright-results.jsonl`(AGENTS.md L87-89);漏了 → t0 poll 默认空路径 → 900s 超时假装挂死(其实 suite 早完成)。可 `verdict.judge(verdict.parse(<真实results>))` 直判免重跑。
