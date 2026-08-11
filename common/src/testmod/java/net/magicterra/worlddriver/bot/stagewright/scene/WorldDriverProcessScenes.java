@@ -209,7 +209,13 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 // loaders first try, so required — the eye insert is a useOn-only item and would
                 // regress the same silent way the flint-and-steel did.
                 Scene.of("wd.serverOpensTheEndPortal", 4_000,
-                        WorldDriverProcessScenes::serverOpensTheEndPortal));
+                        WorldDriverProcessScenes::serverOpensTheEndPortal),
+                // N7: the blaze rod is the one drop on the critical path that vanilla gates on the
+                // killer being a PLAYER. Measured at 11 rods from 24 kills — the uniform 0..1 roll,
+                // so the condition is satisfied and the assertion is far from the coin flip a
+                // single kill would have been.
+                Scene.of("wd.serverEarnsABlazeRod", 4_000,
+                        WorldDriverProcessScenes::serverEarnsABlazeRod));
     }
 
     /** Inlined from {@code AgentGameTestSupport#buildFloor}: 11×11 stone floor at {@code floorY},
@@ -2878,6 +2884,104 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         level.setBlockAndUpdate(at, Blocks.END_PORTAL_FRAME.defaultBlockState()
                 .setValue(net.minecraft.world.level.block.EndPortalFrameBlock.FACING, towards));
         return at;
+    }
+
+    /**
+     * Kill a blaze with a driven body and pick up the rod — the drop, not the kill, is the question.
+     *
+     * <p>A blaze rod is one of the very few things on the road to the dragon that vanilla will not
+     * give to just anything that lands the killing blow: the loot table carries a
+     * {@code killed_by_player} condition, satisfied from {@code lastHurtByPlayer}. A body that hits
+     * hard enough to kill and does not register as a player kills the blaze and gets <b>nothing</b>,
+     * and the failure is silent in the same way the advancement one was — the mob dies, the fight
+     * looks won, and the eye of ender is never craftable.
+     *
+     * <p><b>What this scene deliberately does NOT cover: flight.</b> The blaze here is pinned the
+     * way {@code wd.serverCombat}'s zombie is — no AI, knockback-resistant, re-pinned each tick — so
+     * that a red result means "the drop does not reach a driven body" and cannot also mean "it flew
+     * away". Whether the melee loop can reach a blaze that is actually hovering is a separate
+     * question and needs its own scene; saying so here is the point, because a green row that
+     * quietly meant "we never fought a flying mob" is the shape of coverage this suite exists to
+     * refuse.
+     */
+    private static void serverEarnsABlazeRod(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
+        buildFloor(level, cx, cz, floorY);
+
+        // The gamerule first, because it is the one explanation for "nothing dropped" that has
+        // nothing to do with the body — and it is cheaper to read than to infer from eight kills.
+        ctx.record("gamerule.doMobLoot", String.valueOf(
+                level.getGameRules().getBoolean(net.minecraft.world.level.GameRules.RULE_DOMOBLOOT)));
+
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+
+        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+        ctx.cleanup(() -> driver.fakePlayer().discard());
+        var fp = driver.fakePlayer();
+        fp.getInventory().clearContent();
+        fp.getInventory().add(new ItemStack(Items.IRON_SWORD));
+
+        // TWENTY-FOUR, and the count is the measurement rather than padding. A blaze rod is a
+        // uniform 0..1 roll, so ONE kill cannot tell "the player-kill condition failed" from "the
+        // die came up zero" — the first run of this scene killed one blaze, saw an empty floor, and
+        // the evidence was equally consistent with a broken drop and with a coin flip. Eight kills
+        // then measured 0,0,1,0,0,0,1,0, which answers the question and is still far too close to a
+        // coin flip to put in a gate that runs on every commit. Twenty-four puts an all-zero run
+        // out of reach even if the true rate is half what the eight-kill sample suggested, and the
+        // per-kill tally is recorded so a future red says which of the two explanations it is.
+        final int kills = 24;
+        int rods = 0, killed = 0;
+        StringBuilder tally = new StringBuilder();
+        for (int i = 0; i < kills; i++) {
+            var blaze = new net.minecraft.world.entity.monster.Blaze(
+                    net.minecraft.world.entity.EntityType.BLAZE, level);
+            blaze.setPos(cx + 3.5, floorY + 1, cz + 0.5);
+            blaze.setNoAi(true);
+            blaze.setPersistenceRequired();
+            var kbr = blaze.getAttribute(Attributes.KNOCKBACK_RESISTANCE);
+            if (kbr != null) kbr.setBaseValue(1.0);
+            level.addFreshEntity(blaze);
+
+            driver.runProcess(new CombatProcess(CombatProcess.Mode.KILL, null, "minecraft:blaze"));
+            ServerAvatarManager.register(driver);
+            for (int t = 0; t < 1_200 && blaze.isAlive(); t++) {
+                ServerAvatarManager.tickAll();
+                if (blaze.isAlive()) {
+                    blaze.tick();                       // its hurt-cooldown, as wd.serverCombat does
+                    blaze.setPos(cx + 3.5, floorY + 1, cz + 0.5);
+                    blaze.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+                }
+            }
+            if (!blaze.isAlive()) killed++;
+            for (int t = 0; t < 10; t++) ServerAvatarManager.tickAll();
+
+            int here = 0;
+            for (var d : level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+                    entityBox(cx, floorY, cz))) {
+                if (d.getItem().is(Items.BLAZE_ROD)) here += d.getItem().getCount();
+                d.discard();                            // clear the floor so the next kill is read alone
+            }
+            rods += here;
+            tally.append(tally.length() == 0 ? "" : ",").append(here);
+            blaze.discard();
+        }
+
+        ctx.record("blaze.killed", killed + "/" + kills);
+        ctx.record("rods.perKill", tally.toString());
+        ctx.record("rods.total", rods + "");
+        ctx.expect(killed).as("a driven body can kill a blaze at all").isEqualTo(kills);
+        // The whole point: vanilla gates the rod on killed_by_player, read from lastHurtByPlayer.
+        // A body that kills without registering as a player clears fortresses and crafts no eyes.
+        ctx.expect(rods).as("the kills count as PLAYER kills, so rods actually drop").isAtLeast(1);
+        ctx.passNote("铁剑打死 " + killed + " 只烈焰人, 掉出 " + rods + " 根棒（钉住的, 没测飞行）");
     }
 
     /**
