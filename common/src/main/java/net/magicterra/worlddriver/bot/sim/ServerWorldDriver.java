@@ -56,21 +56,41 @@ public class ServerWorldDriver {
         return new ServerWorldDriver(ServerPlayerAvatar.createUnique(level, x, y, z));
     }
 
-    /** Point the driver at a goal (re-arms a finished driver). */
+    /**
+     * Point the driver at a goal (re-arms a finished driver).
+     *
+     * <p>Clearing {@link #process} is not tidiness — {@link #tick()} tests it FIRST, so a driver
+     * that has ever run a process would silently keep running it and this call would do nothing.
+     * See {@link #mine} for how that was found.
+     */
     public ServerWorldDriver gotoGoal(Goal goal) {
         walker.setGoal(goal);
         mineTarget = null;
+        process = null;
         finished = false;
         last = Walker.Step.WALKING;
         return this;
     }
 
-    /** Mine task: navigate within reach of {@code target}, then break it. A real
-     *  headless task beyond movement — reuses the validated Walker + the
-     *  {@link ServerPlayerAvatar} break actuator (level.destroyBlock). */
+    /**
+     * Mine task: navigate within reach of {@code target}, then break it. A real headless task beyond
+     * movement — reuses the validated Walker + the {@link ServerPlayerAvatar} break actuator.
+     *
+     * <p>⚠️ The {@code process = null} is the fix for a silent no-op. {@link #tick()} branches on
+     * {@code process} before it looks at {@code mineTarget}, and neither this method nor
+     * {@link #gotoGoal} used to clear it — so on a driver that had run any {@link BotProcess},
+     * every later {@code mine}/{@code gotoGoal} was ignored and the OLD process ran again. Nothing
+     * reported an error: the stale process reached its already-satisfied goal, the driver finished,
+     * and the caller saw a mine "complete" with the block still standing. The journey's iron rung
+     * dug a twelve-block shaft that way and the ground never changed
+     * ({@code shaft.N.broke=grass_block} twelve times over); {@code wd.serverSelfShaftDescends}
+     * missed it because a fresh driver mines before it has ever held a process, which is the one
+     * ordering where the bug cannot appear.
+     */
     public ServerWorldDriver mine(BlockPos target) {
         this.mineTarget = target.immutable();
         walker.setGoal(new Goal.Near(target, 2));
+        process = null;
         finished = false;
         last = Walker.Step.WALKING;
         return this;

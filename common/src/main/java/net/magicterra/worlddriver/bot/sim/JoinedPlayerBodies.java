@@ -1,0 +1,326 @@
+package net.magicterra.worlddriver.bot.sim;
+
+import java.util.Map;
+import java.util.OptionalInt;
+import java.util.concurrent.ConcurrentHashMap;
+
+import com.mojang.authlib.GameProfile;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelOutboundHandlerAdapter;
+import io.netty.channel.ChannelPromise;
+import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.util.ReferenceCountUtil;
+import net.magicterra.worlddriver.WorldDriverCommon;
+import net.minecraft.network.Connection;
+import net.minecraft.network.DisconnectionDetails;
+import net.minecraft.network.PacketListener;
+import net.minecraft.network.PacketSendListener;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.PacketFlow;
+import net.minecraft.server.level.ClientInformation;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.CommonListenerCookie;
+import net.minecraft.world.MenuProvider;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.Entity.RemovalReason;
+import net.minecraft.world.entity.player.Player;
+import org.jetbrains.annotations.Nullable;
+
+/**
+ * A body that <b>joins the server</b> instead of pretending to be on it.
+ *
+ * <h2>Why this exists</h2>
+ *
+ * Every gap the playthrough ladder found in the headless agent has the same shape: vanilla does
+ * the thing in a method this body never runs. Blocks dropped nothing
+ * ({@code Level#destroyBlock}'s flag), drops were never picked up (the entity-touch loop in
+ * {@code Player.aiStep}), crafting tables would not open ({@code openMenu} returning empty), and
+ * no advancement was ever awarded (no listener on {@code inventoryMenu}, and nothing calling
+ * {@code broadcastChanges}). Each was fixed by hand-copying one more piece of vanilla into
+ * {@code ServerPlayerAvatar.mirrorPlayerTick()} — and that list only grows, because it is a
+ * re-implementation of {@code Player.tick()} maintained by discovering what is missing.
+ *
+ * <p>A {@code FakePlayer} is a {@code ServerPlayer} that was never <i>placed</i>. The join path —
+ * {@code PlayerList.placeNewPlayer} — is what attaches the inventory-menu listener that awards
+ * advancements, puts the body in {@code ServerLevel.players()} so the level keeps ticking and mob
+ * AI can see it, registers it with the {@code ChunkMap} so it loads the chunks it walks into, and
+ * fires the loader's login event that modpack mods hook. None of that is reachable by copying
+ * methods; it is reachable by joining.
+ *
+ * <h2>What this is and is not</h2>
+ *
+ * This is the <b>first half</b>. It joins, and it still overrides {@link JoinedBody#tick()} to
+ * nothing, because {@code ServerPlayerAvatar.step()} integrates locomotion by hand and vanilla's
+ * {@code aiStep} would integrate it a second time. Removing that override is the second half and a
+ * bigger change: the driver has to stop writing positions and start writing the inputs a client
+ * writes ({@code xxa}/{@code zza}/{@code jumping}), which is a rewrite of the most-churned
+ * subsystem in this repo. Doing it in one step would mix "the body is real now" with "movement
+ * moved", and no gate could tell the two apart.
+ *
+ * <h2>Off by default</h2>
+ *
+ * Armed with {@code -Dworlddriver.realPlayerBodies=true}. The seam it installs into
+ * ({@link ServerAvatarBodies}) already returns a plain {@code ServerPlayer}, so nothing else in the
+ * repo changes shape — which is the point: the 222 dogfood scenes and the journey ladder become an
+ * A/B harness for this body against the fake one, and the answer is measured rather than argued.
+ *
+ * <h2>The trap in the connection</h2>
+ *
+ * Both existing fake players swallow outbound packets by overriding {@code send} on their
+ * <i>packet listener</i>. That does not survive here: {@code placeNewPlayer} constructs vanilla's
+ * own {@code ServerGamePacketListenerImpl} and installs it, so the listener is not ours to
+ * override. The swallow has to move down to the {@link Connection}, and it has to also report
+ * {@code isConnected() == true} — a disconnected {@code Connection} does not drop packets, it
+ * queues them in {@code pendingActions} forever, which is a leak that looks like nothing at all.
+ */
+public final class JoinedPlayerBodies implements ServerAvatarBodies.BodyFactory {
+
+    /** Arms the joined-player body in place of the loader's fake player. */
+    public static final String ARM_PROPERTY = "worlddriver.realPlayerBodies";
+
+    public static boolean armed() { return Boolean.getBoolean(ARM_PROPERTY); }
+
+    /** The name the per-level shared body joins under — one per level, mirroring the fake-player
+     *  factories' own per-level sharing so scene behaviour is comparable. */
+    private static final String SHARED_NAME = "worlddriver";
+
+    private final Map<ServerLevel, Map<String, JoinedBody>> byLevel = new ConcurrentHashMap<>();
+
+    @Override
+    public ServerPlayer shared(ServerLevel level) {
+        return body(level, profileFor(SHARED_NAME));
+    }
+
+    @Override
+    public ServerPlayer unique(ServerLevel level, GameProfile profile) {
+        return body(level, profile);
+    }
+
+    /** Drop this level's bodies — they leave the player list rather than linger as ghosts. */
+    public void unloadLevel(ServerLevel level) {
+        Map<String, JoinedBody> bodies = byLevel.remove(level);
+        if (bodies == null) return;
+        for (JoinedBody body : bodies.values()) {
+            try {
+                // discard(), not PlayerList.remove(): the body's own remove() is what leaves the
+                // list, and going straight to PlayerList would re-enter it from the outside.
+                body.discard();
+            } catch (RuntimeException e) {
+                WorldDriverCommon.LOG.warn("[realbody] could not remove {} on unload: {}",
+                        body.getGameProfile().getName(), e.toString());
+            }
+        }
+    }
+
+    /**
+     * The cached body for this profile, re-joining when the last one left.
+     *
+     * <p>Not {@code computeIfAbsent}: a body that has been discarded is still in the map but is no
+     * longer in the player list, and handing it back would drive a corpse. Checking
+     * {@code isRemoved()} makes the cache self-healing and saves a removal callback — bodies are
+     * only ever minted on the server thread, so the read-then-put is not racing anything.
+     */
+    private JoinedBody body(ServerLevel level, GameProfile profile) {
+        Map<String, JoinedBody> byName = byLevel.computeIfAbsent(level, l -> new ConcurrentHashMap<>());
+        JoinedBody cached = byName.get(profile.getName());
+        if (cached != null && !cached.isRemoved()) return cached;
+        JoinedBody fresh = join(level, profile);
+        byName.put(profile.getName(), fresh);
+        return fresh;
+    }
+
+    private static JoinedBody join(ServerLevel level, GameProfile profile) {
+        JoinedBody body = new JoinedBody(level, profile);
+        // The whole point of the class. Everything a fake player is missing is installed here:
+        // the inventory-menu listener (advancements), player-list membership (the level ticks,
+        // mobs can see it), ChunkMap registration (it loads what it walks into), and the loader's
+        // login event.
+        try {
+            level.getServer().getPlayerList().placeNewPlayer(
+                    body.silentConnection(), body, CommonListenerCookie.createInitial(profile, false));
+        } catch (RuntimeException e) {
+            // The join path runs a lot of code that assumes a socket. Log the frame that wanted
+            // one — the harness only surfaces an exception's message, and "channel is null" names
+            // netty rather than the caller that reached for it.
+            WorldDriverCommon.LOG.error("[realbody] placeNewPlayer failed for {}", profile.getName(), e);
+            throw e;
+        }
+        WorldDriverCommon.LOG.info("[realbody] {} joined {} at {}", profile.getName(),
+                level.dimension().location(), body.blockPosition());
+        return body;
+    }
+
+    /** A stable offline-style profile, so a body rejoining the same world is the same player. */
+    private static GameProfile profileFor(String name) {
+        return new GameProfile(
+                java.util.UUID.nameUUIDFromBytes(("OfflinePlayer:" + name)
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                name);
+    }
+
+    /**
+     * The body itself. Deliberately thin: what makes it different from {@code AvatarFakePlayer} is
+     * not what it overrides, it is that it was placed.
+     */
+    public static final class JoinedBody extends ServerPlayer {
+
+        private final SilentConnection wire = new SilentConnection();
+        private boolean leaving;
+
+        JoinedBody(ServerLevel level, GameProfile profile) {
+            super(level.getServer(), level, profile, ClientInformation.createDefault());
+        }
+
+        Connection silentConnection() { return wire; }
+
+        /**
+         * Leaving the world means leaving the <b>player list</b>, not just the level.
+         *
+         * <p>Every scene already disposes its body with {@code fp.discard()}, which is enough for a
+         * fake player — it was never in a list to begin with. A placed player discarded that way
+         * stops ticking but stays in {@code PlayerList}, where the next scene's
+         * {@code ctx.player()} picks it up as "a connected player". Measured on the first armed
+         * Fabric run: 79 joins, 0 departures, and thirteen scenes that should have skipped ran
+         * against a stranded corpse instead.
+         *
+         * <p>{@code PlayerList.remove} routes back here through
+         * {@code ServerLevel.removePlayerImmediately}, hence the guard — without it this recurses
+         * until the stack gives out.
+         */
+        @Override
+        public void remove(RemovalReason reason) {
+            if (!leaving && getServer() != null) {
+                leaving = true;
+                try {
+                    getServer().getPlayerList().remove(this);
+                    return;
+                } catch (RuntimeException e) {
+                    WorldDriverCommon.LOG.warn("[realbody] {} could not leave the player list: {}",
+                            getGameProfile().getName(), e.toString());
+                }
+            }
+            super.remove(reason);
+        }
+
+        /**
+         * ⚠️ The second half of this change is deleting this override.
+         *
+         * <p>{@code ServerPlayerAvatar.step()} integrates locomotion by hand — it calls
+         * {@code travel()} itself and deliberately skips {@code aiStep} so nothing moves the body
+         * twice. Letting vanilla tick would double-integrate every step. Until the driver writes
+         * inputs instead of positions, a joined body still has to be ticked by the avatar's mirror
+         * list, which means the mirror list's known gaps are NOT fixed by joining alone. What
+         * joining fixes is everything outside {@code tick()}.
+         */
+        @Override public void tick() { }
+
+        /** Scenes and the journey rig both assume a body that cannot die; keeping that here means
+         *  the A/B measures the join and nothing else. A survival-fidelity run wants this gone. */
+        @Override public boolean isInvulnerableTo(DamageSource source) { return true; }
+
+        @Override public boolean canHarmPlayer(Player other) { return false; }
+
+        @Override public void die(DamageSource cause) { }
+
+        @Override public void displayClientMessage(Component message, boolean actionBar) { }
+
+        /**
+         * Unlike both fake players, this does NOT return {@code OptionalInt.empty()}.
+         *
+         * <p>That override is why a crafting table could not be opened at all and why
+         * {@code ServerPlayerAvatar.useBlock} had to install station menus by hand. A placed player
+         * has a real container counter and a real listener; vanilla's own implementation works, and
+         * the hand-installed menu becomes dead weight rather than a workaround.
+         */
+        @Override public OptionalInt openMenu(@Nullable MenuProvider provider) {
+            return super.openMenu(provider);
+        }
+    }
+
+    /**
+     * A connection that is "up" and goes nowhere.
+     *
+     * <p>{@code isConnected()} must be true: {@code Connection.send} only drops a packet when it
+     * believes it is connected — otherwise it appends to {@code pendingActions}, unboundedly, for
+     * a client that will never arrive.
+     */
+    private static final class SilentConnection extends Connection {
+
+        /**
+         * A real netty channel that throws its writes away.
+         *
+         * <p>Vanilla's join path never touches {@code channel()} — every reach for it goes through
+         * {@code send}, which this class swallows. NeoForge's does: it stores the connection type as
+         * a <b>channel attribute</b>, so {@code placeNewPlayer} dies on
+         * {@code Connection.channel().attr(...)} before the body exists. Measured: the whole armed
+         * NeoForge suite fell to 76 executed scenes, every avatar scene reporting the same NPE.
+         *
+         * <p>{@link EmbeddedChannel} supplies attributes for free, but its default tail queues
+         * outbound messages forever — a silent leak in place of a loud crash. The handler discards
+         * and completes each write instead of letting it reach that queue.
+         */
+        @SuppressWarnings("unused")     // held so the channel is not collected out from under us
+        private final EmbeddedChannel wire;
+
+        SilentConnection() {
+            super(PacketFlow.SERVERBOUND);
+            // Registering fires channelActive through the pipeline, and Connection.channelActive is
+            // what assigns its private `channel` field. That is the only way to fill it without
+            // reflection — there is no setter, and `channel()` is NeoForge's accessor rather than a
+            // vanilla method, so it cannot be overridden from :common either.
+            wire = new EmbeddedChannel(discardOutbound(), this);
+        }
+
+        private static ChannelOutboundHandlerAdapter discardOutbound() {
+            return new ChannelOutboundHandlerAdapter() {
+                @Override
+                public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
+                    ReferenceCountUtil.release(msg);
+                    promise.setSuccess();
+                }
+            };
+        }
+
+        @Override public void send(Packet<?> packet) { }
+        @Override public void send(Packet<?> packet, @Nullable PacketSendListener listener) { }
+        @Override public void send(Packet<?> packet, @Nullable PacketSendListener listener, boolean flush) { }
+        @Override public boolean isConnected() { return true; }
+        @Override public void tick() { }
+        @Override public void disconnect(Component reason) { }
+        @Override public void disconnect(DisconnectionDetails details) { }
+        @Override public void setListenerForServerboundHandshake(PacketListener listener) { }
+        @Override public void setReadOnly() { }
+        @Override public void setupCompression(int threshold, boolean validate) { }
+
+        /** Called every server tick from {@code ServerCommonPacketListenerImpl.resumeFlushing}, and
+         *  it reaches for {@code channel.eventLoop()} directly rather than going through send. */
+        @Override public void flushChannel() { }
+        @Override public void handleDisconnection() { }
+
+        /**
+         * The two that a swallowed {@code send} does not cover, and the reason the first attempt
+         * still died: a protocol switch is not a packet, it is a pipeline edit, and
+         * {@code setupInboundProtocol} writes a marker straight to the channel rather than through
+         * {@code send}. The join sequence changes protocol twice (login → configuration → play),
+         * so this NPEs before the body is usable and after vanilla has already printed
+         * "logged in", which reads as if the join succeeded.
+         *
+         * <p>Recording the listener is not optional: {@code setupInboundProtocol} is also where
+         * vanilla installs the packet listener, and {@code getPacketListener()} is read during the
+         * join. Dropping the pipeline work while keeping the assignment is the whole trick.
+         */
+        @Override
+        public <T extends PacketListener> void setupInboundProtocol(
+                net.minecraft.network.ProtocolInfo<T> protocol, T listener) {
+            this.inbound = listener;
+        }
+
+        @Override public void setupOutboundProtocol(net.minecraft.network.ProtocolInfo<?> protocol) { }
+
+        @Override public PacketListener getPacketListener() { return inbound; }
+
+        private PacketListener inbound;
+    }
+}

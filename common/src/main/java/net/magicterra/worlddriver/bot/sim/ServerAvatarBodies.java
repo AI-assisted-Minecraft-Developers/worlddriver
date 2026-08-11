@@ -37,6 +37,9 @@ public final class ServerAvatarBodies {
     }
 
     private static volatile BodyFactory factory;
+    /** The joined-player body, minted lazily and only when armed. Held separately from
+     *  {@link #factory} so arming it does not disturb the loader's one-shot install. */
+    private static volatile JoinedPlayerBodies joined;
 
     /** Install the loader's body factory. Callable exactly once per JVM; a second
      *  install (two loaders, or a double mod-init) throws {@link IllegalStateException}. */
@@ -55,7 +58,18 @@ public final class ServerAvatarBodies {
     /** @return a body of its own for {@code profile} via the installed factory. */
     public static ServerPlayer unique(ServerLevel level, GameProfile profile) { return require().unique(level, profile); }
 
+    /** The joined-player factory when {@code -Dworlddriver.realPlayerBodies=true}, else null.
+     *  Exposed so a loader's world-unload hook can evict its bodies the way it evicts the fake
+     *  ones — a joined body that outlives its level is a ghost in the player list. */
+    public static synchronized JoinedPlayerBodies joinedOrNull() {
+        if (!JoinedPlayerBodies.armed()) return null;
+        if (joined == null) joined = new JoinedPlayerBodies();
+        return joined;
+    }
+
     private static BodyFactory require() {
+        JoinedPlayerBodies real = joinedOrNull();
+        if (real != null) return real;      // armed: a body that JOINS, not one that pretends
         BodyFactory f = factory;
         if (f == null) {
             throw new IllegalStateException(
