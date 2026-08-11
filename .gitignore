@@ -5,6 +5,7 @@ run/
 run-stagewright/
 run-dogfood/
 run-contract/
+run-journey/
 .idea/
 *.log
 # log4j2 rolls latest.log into dated .gz archives, which *.log does not cover;

@@ -98,7 +98,7 @@ wd.serverRecipeShortfallSpecies
 wd.serverCraftTableReclaim
 wd.serverObservePlayerInventory
 wd.serverPlanHaveDefaultsToBag
-wd.serverSmeltCliff
+wd.serverSmeltStationOpens
 wd.serverCraftTableHoleRim
 wd.serverSmeltFurnaceHoleRim
 wd.smeltFuelPolicy
@@ -150,6 +150,13 @@ wd.serverMine
 wd.serverProcess
 wd.serverFlee
 wd.serverMineProcess
+wd.serverMineHarvest
+wd.serverMineHarvestBuried
+wd.serverSelfShaftDescends
+wd.serverBreakNeedsReach
+wd.serverWalkIntoAPit
+wd.serverWalkIntoAPitArmed
+wd.serverAvatarEarnsAdvancement
 wd.serverMineNoTool
 wd.serverWalkerDeepslateNoTool
 wd.serverForbidDigWall
@@ -161,6 +168,9 @@ wd.serverCombatCollectDrops
 wd.serverLook
 wd.serverMineCanopyRadius
 wd.serverBridgePillarStart
+wd.serverPillarsOutOfAPit
+wd.serverTowersOutOfADeepShaft
+wd.serverCastsObsidian
 wd.debugSweepCourse
 wd.expectAlarmBlockedJump
 wd.drownEscapeSurface
@@ -205,3 +215,50 @@ pack.standsOnGeneratedGround
 pack.runsAtTheFrozenNight
 pack.runsAtTheClockItAsked
 pack.knownQuirk
+pack.usesACapabilityItDeclared
+
+# StageWright's own conformance facets (s.items / s.advancements / s.recipes / s.menu and
+# scene-level dimensions), exercised against vanilla subjects so they stay true in any
+# runtime. Registered from common like every wd.* scene, so both manifests carry them.
+cap.aConditionlessDescriptorIsRejected
+cap.aPackDeclaredCapabilityResolvesAndProbes
+cap.absentCapabilityIsARecordedSkip
+cap.advancementsGrantCompletesAndRemainingEmpties
+cap.advancementsRegistryReadsWithoutAPlayer
+cap.advancementsRejectUnknownIdsLoudly
+cap.advancementsReportTheirParent
+cap.blockEntitiesTickInTheArena
+cap.blockItemHandlerReadsAVanillaChest
+cap.capabilityRegistryReportsWhatThisRuntimeOffers
+cap.dimensionAbsentIsARecordedSkip
+cap.dimensionRunsTheArenaWhereItSays
+cap.equipArmorWorksAndCuriosReportsItsAbsence
+cap.itemsEatRaisesHunger
+cap.itemsEatRefusesANonFood
+cap.itemsGiveAndCount
+cap.itemsRejectUnknownIdsLoudly
+cap.itemsRestoreIsRegisteredOnFirstWrite
+cap.lootMissingTableFailsLoudly
+cap.lootRefusesATableNeedingOtherContext
+cap.lootRollsAVanillaChestTable
+cap.menuChestHoldsAndBoundsCheck
+cap.menuCraftingTableComputesItsResult
+cap.menuRefusesABlockWithNoMenu
+cap.modListNamesThisRuntime
+cap.probeFacetsSkipRatherThanFailWhenTheModIsAbsent
+cap.probeReadsAModClassAndNamesNearMisses
+cap.probeRefusesMinecraftClasses
+cap.questsProbeReportsItsAbsence
+cap.recipeClosureBottomsOutOnRawMaterials
+cap.recipeClosureBoundsFailLoudlyRatherThanTruncating
+cap.recipeClosureReportsWhatItCouldNotSeeThrough
+cap.recipesFindAVanillaChain
+cap.recipesRunAndNotOnlyRead
+cap.recipesUncraftableAuditIsCleanOnVanilla
+cap.shippedDescriptorsAreDiscoveredAndHonestlyAbsent
+cap.structuresLocateAnswersAndReportsItsCost
+cap.structuresRegistryReads
+
+# The journey ladder is off by default (-Dworlddriver.journey=true arms it); this marker always
+# registers so a family that silently stopped registering shows up in a five-minute gate.
+wd.journeyArmed

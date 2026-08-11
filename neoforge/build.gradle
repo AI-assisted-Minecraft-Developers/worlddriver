@@ -265,6 +265,11 @@ loom {
             property 'worlddriver.mcpPort', '0'
             runDir 'run-stagewright-joining-client'
             vmArg '-Xmx2g'
+            // Deliberately no `source sourceSets.testmod`: this half runs no scenes, it only has to
+            // be a real player. (It was added once while chasing a bug that turned out to be in the
+            // companion launcher, not here — loom stages MOD_CLASSES in a task-action property the
+            // launcher was not reading, so FML listed the driver and constructed nothing. Fixed in
+            // StageWright's SideProcesses, which documents it.)
         }
     }
     runConfigs.configureEach {
@@ -292,4 +297,12 @@ def installDogfoodScenes = tasks.register('installDogfoodScenes', Sync) {
     include '*.js'
     into layout.projectDirectory.dir('run-dogfood/config/stagewright/scenes')
 }
-tasks.named('runDogfoodServer') { dependsOn installDogfoodScenes }
+// Capability descriptors travel with the scenes and split by extension, exactly as the plugin's
+// provisioning does — a pack author authors both in one folder, and the bare run must not be the
+// one path where half of that folder goes missing.
+def installDogfoodCapabilities = tasks.register('installDogfoodCapabilities', Sync) {
+    from rootProject.file('stagewright-scenes')
+    include '*.json'
+    into layout.projectDirectory.dir('run-dogfood/config/stagewright/capabilities')
+}
+tasks.named('runDogfoodServer') { dependsOn installDogfoodScenes, installDogfoodCapabilities }
