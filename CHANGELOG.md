@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`wd.serverDamagesTheDragon` — the summit's own question, answered.** A dragon is not hit like a
+  mob: `EnderDragon.hurt` refuses every direct hit, damage only lands through an `EnderDragonPart`,
+  and only the HEAD takes it undivided. The prediction was that the combat loop would swing at a
+  position with no hittable hitbox and report a fight it was winning while the boss bar never moved.
+
+  **It was wrong, and measuring beat predicting.** The existing `CombatProcess` took the dragon from
+  `200.0` to `197.3` unchanged, and a hit aimed at the head lands `2.75`. Identical on both loaders.
+
+  **The control in this scene was itself the first bug.** Its manual head-hit step read a flat zero
+  — which looked exactly like "a driven body cannot hit a multipart boss" — because it reset
+  `hurtTime`, the red-flash timer, and left `invulnerableTime`, the one that actually refuses damage
+  for 20 ticks; and because it reset the attack-strength ticker *after* swinging, so every swing
+  landed at the bottom of the cooldown curve. Both are fixed and both are written down in the scene,
+  because a control that measures the rig reads exactly like a capability that is missing.
+
+  Scoped: the dragon is pinned with no AI, so a red means the attack path cannot reach a multipart
+  entity and cannot also mean the body could not catch up. Crystals, perching and the flight pattern
+  have no scene yet and the javadoc says so.
+
 - **`wd.serverBuildsAndLightsAPortal` — the whole of N5 from a flat floor.** A bucket, a
   flint-and-steel and a pile of cobblestone go in; a lit nether portal comes out: 42 backing blocks,
   24 wall blocks, ten casts from one bucket, six portal cells. 549 ms, green on both loaders first
