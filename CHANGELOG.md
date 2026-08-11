@@ -8,6 +8,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`wd.serverCastsAPortalFrame` — ten obsidian from one bucket, and the route is not the obvious
+  one.** A frame is a vertical ring around a 2x3 interior and every one of its ten cells touches that
+  interior, so the water goes **into the interior cell adjacent to whatever is being cast** and is
+  then **carried to the next one**. That reproduces the proven single-cast geometry for every cell
+  and needs no fluid flow at all — the conversion is a neighbour update, not a fluid tick. The single
+  bucket falls out of the ordering for free: empty after placing the water so it can fetch lava,
+  empty again after pouring the lava so it can take the water back. The reservoir is visited once.
+
+  Three orderings were tried and measured first, each of which failed as a *broken bucket* rather
+  than as a wrong plan. Running water down the outside of a one-thick face reached `0/10` — falling
+  water spreads where it LANDS, and a pocket in a vertical face has no floor to spread along. Filling
+  every cell with lava and dousing at the end left the bucket full after the first miss, so cell two
+  reported "no empty bucket" and the fault was two steps upstream. One source in the interior cannot
+  reach all ten however long it is given: water does not flow up.
+
+  **The top row is a vanilla rule, not a bug.** `LiquidBlock.shouldSpreadLiquid` looks at
+  `{DOWN,NORTH,SOUTH,WEST,EAST}.getOpposite()` around the lava — above and the four sides, never
+  below. Water under lava converts nothing, so the top pair casts against a notch cut one block
+  higher, and a frame carved into a wall costs **twelve** cells of digging rather than ten. Getting
+  it wrong shows up only as two cells of standing lava.
+
+  Two other numbers the ladder now owes: a scoop takes the **source** and leaves air, so ten casts
+  need ten distinct lake cells and ten walks; and the body has to stand with the target at **eye
+  level**, because a bucket fills the neighbour of the face its ray lands on and a steep ray enters
+  the wall a block low — measured, it hit the obsidian just cast there and left the water behind.
+  Result: `10/10`, ten water moves, interior dry, bucket home. Green on both loaders, ~330 ms.
+
+- **`wd.serverEntersTheNether` — a driven body walks through the portal it lit.** ROADMAP N6's first
+  question, asked in a second here rather than at the bottom of a shaft after an hour of casting.
+  The frame is staged, the **lighting is not**: it goes through the same flint-and-steel path
+  `wd.serverLightsPortal` proves, so what the body tries to walk into is a portal it built. Transit
+  takes 82 ticks, which is a player's own portal wait. Green on both loaders.
+
+### Fixed
+- **A driven body changed worlds but not places.** `ServerPlayer.changeDimension` does not move the
+  body — it sets the new level and then delivers the destination **through
+  `connection.teleport(...)`**, which both loaders' fake players swallowed along with every other
+  packet-listener method. The body therefore arrived in the new dimension holding its **old
+  coordinates**: an overworld portal at `x=100001` landed at nether `x=100001` instead of `x=12500`,
+  87 501 blocks out, at `y=221` against a logical height of 128, standing on air, with the return
+  portal correctly built 87 501 blocks away where the body should have been.
+
+  **The dimension assertion passed the whole time.** It would have gone on passing while the fortress
+  search, the stronghold and the End all looked at the wrong world. What caught it was computing the
+  destination independently — `DimensionType.getTeleportationScale`, 8:1 — and asserting the landing
+  rather than the arrival.
+
+  The blast radius is wider than portals: `ServerPlayer.teleportTo` routes through the same call, so
+  *no* vanilla mechanism could reposition a driven body, including the End portal and the dragon's
+  gateways. The fix is one shared listener, `AvatarNetHandler`, whose `teleport` does what vanilla's
+  real listener does in `internalTeleport` (`absMoveTo`) minus the packet there is nobody to send.
+  NeoForge's `FakePlayer` is not ours to subclass, but `ServerPlayer.connection` is a public field,
+  so the loader shim installs the listener over the stub NeoForge built — the body keeps the
+  `FakePlayer` identity mods look for and only the listener changes. Both loaders now land at
+  `12499, 118, 12500`: one block of drift, in a real portal, on obsidian, under the roof.
+
 - **`wd.journey11Obsidian` — the obsidian rung is scripted.** Walk to the lava the survey found,
   sink a shaft as deep as that lava is, tunnel the last cells to it, fill the bucket, climb the same
   height back, and pour into standing water. The assertion is on the cell the rung NAMED before the
