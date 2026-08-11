@@ -220,7 +220,16 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 // not hit like a mob. Measured identically on both loaders — 200.0 -> 197.3 from the
                 // existing combat loop, then 2.75 per hit aimed at the head — so it is required.
                 Scene.of("wd.serverDamagesTheDragon", 4_000,
-                        WorldDriverProcessScenes::serverDamagesTheDragon));
+                        WorldDriverProcessScenes::serverDamagesTheDragon),
+                // The three the pinned probes deliberately could not answer. Each was named in a
+                // javadoc as "no scene yet"; these are those scenes, and all three are green on both
+                // loaders — the flying blaze only once it is given a room to be fought in.
+                Scene.of("wd.serverFightsAFlyingBlaze", 8_000,
+                        WorldDriverProcessScenes::serverFightsAFlyingBlaze),
+                Scene.of("wd.serverEarnsAnEnderPearl", 8_000,
+                        WorldDriverProcessScenes::serverEarnsAnEnderPearl),
+                Scene.of("wd.serverBreaksAnEndCrystal", 4_000,
+                        WorldDriverProcessScenes::serverBreaksAnEndCrystal));
     }
 
     /** Inlined from {@code AgentGameTestSupport#buildFloor}: 11×11 stone floor at {@code floorY},
@@ -3092,6 +3101,286 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                     .as("a hit aimed at the head lands on a multipart boss").isTrue();
             ctx.passNote("龙血 " + before + " → CombatProcess 后 " + afterCombat
                     + " → 再打头部 " + swings + " 下后 " + afterPart + "（钉住的, 没测飞行/水晶）");
+        });
+    }
+
+    /**
+     * The blaze that is allowed to fly — the half {@code wd.serverEarnsABlazeRod} pinned away.
+     *
+     * <p>That scene answered the drop and said in its own javadoc that it could not answer this,
+     * because a target held at ground level measures the loot table and nothing about reach. A blaze
+     * hovers, drifts, and shoots from above; a melee loop that can only hit what is standing next to
+     * it wins the pinned fight and loses every real one.
+     *
+     * <p><b>The body is invulnerable</b> ({@code AvatarFakePlayer.isInvulnerableTo} → true), so this
+     * cannot say whether a real run survives the fireballs — only whether the fight can be WON. That
+     * limit is recorded on the green row rather than left for a reader to discover.
+     *
+     * <p><b>Measured, and the open-sky answer is NO.</b> Given six thousand ticks the loop took a
+     * blaze from 20 health to 8 and never finished it: the mob hovers six to eight blocks above the
+     * floor and melee reaches roughly three. So this scene runs the fight TWICE — once under open
+     * sky, which fails, and once in a closed room, which is what a player builds at a spawner. The
+     * fix is a different room, not a new verb. Only the room is asserted: the open round is recorded
+     * because an assertion that a fight is NOT won sits on the wrong side of the dice — a NeoForge
+     * run finished the open blaze at 2.0 health left, which would have reddened the gate for the one
+     * reason that is good news.
+     *
+     * <p><b>A ceiling alone was not enough either.</b> A bare lid over an open floor got the blaze
+     * to 2 health and still lost it — it drifted out past the lid's edge and climbed above it. What
+     * contains a blaze is walls plus a ceiling, and that ordering (sideways first, then up) is the
+     * useful part of the finding for whoever builds the room in the field.
+     */
+    private static void serverFightsAFlyingBlaze(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
+        buildFloor(level, cx, cz, floorY);
+        ctx.cleanup(() -> {
+            for (int dx = -6; dx <= 6; dx++)
+                for (int dy = 1; dy <= 8; dy++)
+                    for (int dz = -6; dz <= 6; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                                Blocks.AIR.defaultBlockState());
+        });
+
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+
+        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+        ctx.cleanup(() -> driver.fakePlayer().discard());
+        var fp = driver.fakePlayer();
+        fp.getInventory().clearContent();
+        fp.getInventory().add(new ItemStack(Items.IRON_SWORD));
+
+        // Round 1: open sky. Measured, not assumed — and it does NOT work.
+        var open = fightOneBlaze(ctx, level, driver, fp, cx, cz, floorY, 3_000, "open");
+        // Round 2: the same fight in a closed room. This is the hardcoded step, and it is what a
+        // player does at a spawner: not a new engine verb, a different room.
+        //
+        // A CEILING ALONE IS NOT ENOUGH, and that was measured too: a bare 9x9 lid over an 11x11
+        // floor took the blaze from 20 health to 2 and still lost it, because the mob drifted out
+        // past the lid's edge and climbed to 6.2 above a ceiling that was 4 up. Walls are not
+        // decoration here — the thing being contained moves sideways first.
+        final int rr = 5, hh = 4;
+        for (int dx = -rr; dx <= rr; dx++)
+            for (int dz = -rr; dz <= rr; dz++)
+                for (int dy = 1; dy <= hh; dy++)
+                    if (Math.abs(dx) == rr || Math.abs(dz) == rr || dy == hh)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                                Blocks.STONE.defaultBlockState());
+        var roofed = fightOneBlaze(ctx, level, driver, fp, cx, cz, floorY, 3_000, "roofed");
+
+        ctx.record("body.invulnerable", "true —— 所以这一条只说打得赢, 不说活得下来");
+        // The open-sky round is RECORDED, not asserted, and that is a deliberate correction. It was
+        // written as `expect(open.dead).isFalse()` — "notice if the open fight ever becomes winnable"
+        // — until a NeoForge run finished it at 2.0 health left. An assertion that a fight is NOT won
+        // sits on the wrong side of the RNG: one lucky run reddens the gate for the one reason that
+        // is good news. The claim this scene makes is about the ROOM; the open number is the reason
+        // the room is in the plan, and it lives in the evidence where a human reads it.
+        ctx.expect(roofed.dead).as("in a closed room a driven body kills a blaze that is free to fly")
+                .isTrue();
+        ctx.passNote("露天 " + open.ticks + " tick 打不死（剩 " + String.format(java.util.Locale.ROOT, "%.1f", open.hp)
+                + " 血, 最高离地 " + String.format(java.util.Locale.ROOT, "%.1f", open.rise)
+                + " 格）；加个四格高的顶后 " + roofed.ticks + " tick 打死");
+    }
+
+    /** One unpinned blaze fight, reported rather than asserted — the caller decides what it means. */
+    private record BlazeFight(boolean dead, int ticks, float hp, double rise) {}
+
+    private static BlazeFight fightOneBlaze(SceneContext ctx, ServerLevel level, ServerWorldDriver driver,
+                                            ServerPlayer fp, int cx, int cz, int floorY,
+                                            int budget, String tag) {
+        var blaze = new net.minecraft.world.entity.monster.Blaze(
+                net.minecraft.world.entity.EntityType.BLAZE, level);
+        blaze.setPos(cx + 3.5, floorY + 1, cz + 0.5);
+        blaze.setPersistenceRequired();                       // AI ON: the whole point
+        level.addFreshEntity(blaze);
+        blaze.setTarget(fp);
+        fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);
+
+        driver.runProcess(new CombatProcess(CombatProcess.Mode.KILL, null, "minecraft:blaze"));
+        ServerAvatarManager.register(driver);
+
+        double highest = blaze.getY();
+        int t = 0;
+        for (; t < budget && blaze.isAlive(); t++) {
+            ServerAvatarManager.tickAll();
+            if (blaze.isAlive()) {
+                blaze.tick();
+                highest = Math.max(highest, blaze.getY());
+            }
+        }
+        var out = new BlazeFight(!blaze.isAlive(), t, blaze.getHealth(), highest - floorY);
+        ctx.record(tag + ".dead", String.valueOf(out.dead()));
+        ctx.record(tag + ".ticks", t + (t >= budget ? "（用尽）" : ""));
+        ctx.record(tag + ".hpLeft", String.format(java.util.Locale.ROOT, "%.1f", out.hp()));
+        ctx.record(tag + ".highestAboveFloor", String.format(java.util.Locale.ROOT, "%.1f", out.rise()));
+        blaze.discard();
+        for (var d : level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+                entityBox(cx, floorY, cz))) d.discard();
+        return out;
+    }
+
+    /**
+     * The ender pearl — a drop from a mob whose defence is to stop being there.
+     *
+     * <p>An enderman teleports when hurt, which makes it the one fight on this road where the
+     * failure mode is not "cannot do enough damage" but "cannot land a second hit". So the reading
+     * that matters is not a single kill but a RATE: how many of a fixed number die, and how many
+     * pearls come back.
+     *
+     * <p><b>Enclosed on purpose.</b> Vanilla's teleport picks a destination within ±32 and fails if
+     * it cannot fit, so an open arena lets the mob leave the measurement rather than survive it. A
+     * roofed box keeps every teleport inside the thing being measured — which is the fight, not the
+     * getaway. A real stronghold is not a box, and that difference is stated here rather than
+     * discovered later.
+     *
+     * <p>Like the blaze scene, the body is invulnerable, so this says the fight can be won and not
+     * that it can be survived.
+     */
+    private static void serverEarnsAnEnderPearl(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
+        buildFloor(level, cx, cz, floorY);
+
+        // A lid and four walls, five high — tall enough for an enderman, closed enough that a
+        // teleport lands back inside.
+        final int r = 5, h = 5;
+        ctx.cleanup(() -> {
+            for (int dx = -r - 1; dx <= r + 1; dx++)
+                for (int dy = 0; dy <= h + 1; dy++)
+                    for (int dz = -r - 1; dz <= r + 1; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                                Blocks.AIR.defaultBlockState());
+        });
+        for (int dx = -r; dx <= r; dx++)
+            for (int dz = -r; dz <= r; dz++)
+                for (int dy = 1; dy <= h; dy++) {
+                    boolean wall = Math.abs(dx) == r || Math.abs(dz) == r || dy == h;
+                    if (wall) level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                            Blocks.STONE.defaultBlockState());
+                }
+
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+
+        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+        ctx.cleanup(() -> driver.fakePlayer().discard());
+        var fp = driver.fakePlayer();
+        fp.getInventory().clearContent();
+        fp.getInventory().add(new ItemStack(Items.DIAMOND_SWORD));
+
+        final int fights = 6;
+        int killed = 0, pearls = 0;
+        StringBuilder tally = new StringBuilder();
+        for (int i = 0; i < fights; i++) {
+            var man = new net.minecraft.world.entity.monster.EnderMan(
+                    net.minecraft.world.entity.EntityType.ENDERMAN, level);
+            man.setPos(cx + 2.5, floorY + 1, cz + 0.5);
+            man.setPersistenceRequired();
+            level.addFreshEntity(man);
+            man.setTarget(fp);
+
+            driver.runProcess(new CombatProcess(CombatProcess.Mode.KILL, null, "minecraft:enderman"));
+            ServerAvatarManager.register(driver);
+            int t = 0;
+            for (; t < 2_400 && man.isAlive(); t++) {
+                ServerAvatarManager.tickAll();
+                if (man.isAlive()) man.tick();                 // AI ON: it teleports when hurt
+            }
+            if (!man.isAlive()) killed++;
+            for (int k = 0; k < 10; k++) ServerAvatarManager.tickAll();
+
+            int here = 0;
+            for (var d : level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+                    entityBox(cx, floorY, cz))) {
+                if (d.getItem().is(Items.ENDER_PEARL)) here += d.getItem().getCount();
+                d.discard();
+            }
+            pearls += here;
+            tally.append(tally.length() == 0 ? "" : ",").append(man.isAlive() ? "×" : here + "");
+            man.discard();
+        }
+
+        ctx.record("enderman.killed", killed + "/" + fights);
+        ctx.record("pearls.perFight", tally + "（× = 没打死）");
+        ctx.record("pearls.total", pearls + "");
+        ctx.record("arena", "封顶 " + (2 * r - 1) + "×" + (2 * r - 1) + "×" + (h - 1)
+                + " 的盒子 —— 瞬移落回盒内, 真要塞不是盒子");
+        ctx.record("body.invulnerable", "true —— 只说打得赢, 不说活得下来");
+        ctx.expect(killed).as("a driven body can kill an enderman that teleports when hurt")
+                .isEqualTo(fights);
+        ctx.expect(pearls).as("the kills yield ender pearls").isAtLeast(1);
+        ctx.passNote("盒中打死 " + killed + "/" + fights + " 只末影人, 掉 " + pearls + " 颗珍珠");
+    }
+
+    /**
+     * Break an end crystal — the verb the dragon fight opens with.
+     *
+     * <p>The dragon heals from every crystal still standing, so the fight does not begin until they
+     * are gone. Breaking one is a single hit on an entity with 5 health and no armour; what makes it
+     * interesting is that it <b>explodes</b>, and the body doing the hitting is standing next to it.
+     *
+     * <p>Two readings, because they are different questions: the crystal dies, and the body is still
+     * there afterwards. The second is weakened by this avatar being invulnerable — recorded on the
+     * row so nobody reads it as "the explosion is survivable".
+     *
+     * <p>Scoped: the crystal is placed at the body's own level. On a real pillar it sits 20–40 blocks
+     * up, and getting there is {@code ascendByTowering}'s problem, which has its own coverage and its
+     * own known trouble. This is the verb, not the climb.
+     */
+    private static void serverBreaksAnEndCrystal(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
+        buildFloor(level, cx, cz, floorY);
+        level.setBlockAndUpdate(new BlockPos(cx + 3, floorY, cz), Blocks.OBSIDIAN.defaultBlockState());
+
+        var crystal = new net.minecraft.world.entity.boss.enderdragon.EndCrystal(
+                level, cx + 3.5, floorY + 1, cz + 0.5);
+        crystal.setShowBottom(true);
+        level.addFreshEntity(crystal);
+        ctx.cleanup(() -> { if (crystal.isAlive()) crystal.discard(); });
+
+        ctx.await(() -> !level.getEntitiesOfClass(
+                        net.minecraft.world.entity.boss.enderdragon.EndCrystal.class,
+                        entityBox(cx, floorY, cz)).isEmpty())
+                .within(200).then(() -> {
+            ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+            ctx.cleanup(() -> driver.fakePlayer().discard());
+            var fp = driver.fakePlayer();
+            fp.getInventory().clearContent();
+            fp.getInventory().add(new ItemStack(Items.IRON_SWORD));
+
+            ctx.record("crystal.alive0", String.valueOf(crystal.isAlive()));
+            for (int i = 0; i < 5 && crystal.isAlive(); i++) {
+                fp.resetAttackStrengthTicker();
+                for (int t = 0; t < 15; t++) ServerAvatarManager.tickAll();
+                fp.attack(crystal);
+            }
+            for (int t = 0; t < 20; t++) ServerAvatarManager.tickAll();
+
+            ctx.record("crystal.alive", String.valueOf(crystal.isAlive()));
+            ctx.record("body.alive", String.valueOf(fp.isAlive()));
+            ctx.record("body.invulnerable", "true —— 所以\"炸完还站着\"这条读数是弱的");
+            ctx.expect(!crystal.isAlive()).as("a driven body can break an end crystal").isTrue();
+            ctx.expect(fp.isAlive()).as("the body is still there after the explosion").isTrue();
+            ctx.passNote("近身砸掉末影水晶, 身体还在（水晶放在同层, 没测爬柱子）");
         });
     }
 

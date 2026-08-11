@@ -175,6 +175,9 @@ wd.serverCastsAPortalFrame
 wd.serverBuildsAndLightsAPortal
 wd.serverEntersTheNether
 wd.serverDamagesTheDragon
+wd.serverBreaksAnEndCrystal
+wd.serverEarnsAnEnderPearl
+wd.serverFightsAFlyingBlaze
 wd.serverEarnsABlazeRod
 wd.serverOpensTheEndPortal
 wd.serverLightsPortal
