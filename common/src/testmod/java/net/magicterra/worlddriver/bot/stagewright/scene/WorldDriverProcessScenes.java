@@ -215,7 +215,12 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 // so the condition is satisfied and the assertion is far from the coin flip a
                 // single kill would have been.
                 Scene.of("wd.serverEarnsABlazeRod", 4_000,
-                        WorldDriverProcessScenes::serverEarnsABlazeRod));
+                        WorldDriverProcessScenes::serverEarnsABlazeRod),
+                // The summit's own question, and the last unmeasured verb on the road: a dragon is
+                // not hit like a mob. Measured identically on both loaders — 200.0 -> 197.3 from the
+                // existing combat loop, then 2.75 per hit aimed at the head — so it is required.
+                Scene.of("wd.serverDamagesTheDragon", 4_000,
+                        WorldDriverProcessScenes::serverDamagesTheDragon));
     }
 
     /** Inlined from {@code AgentGameTestSupport#buildFloor}: 11×11 stone floor at {@code floorY},
@@ -2982,6 +2987,112 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         // A body that kills without registering as a player clears fortresses and crafts no eyes.
         ctx.expect(rods).as("the kills count as PLAYER kills, so rods actually drop").isAtLeast(1);
         ctx.passNote("铁剑打死 " + killed + " 只烈焰人, 掉出 " + rods + " 根棒（钉住的, 没测飞行）");
+    }
+
+    /**
+     * Can a driven body hurt the ender dragon at all?
+     *
+     * <p>The summit's own question, and the one verb on the road to it that is not shaped like any
+     * other fight. <b>A dragon does not take damage as itself.</b> {@code EnderDragon.hurt} refuses
+     * every direct hit; damage only lands through an {@code EnderDragonPart}, and only the HEAD part
+     * takes it undivided — every other part divides it by four and forwards it. So a combat loop
+     * that finds "the nearest entity of type {@code minecraft:ender_dragon}" and swings at its
+     * position is aiming at something with no hittable hitbox there, and would report a fight it is
+     * winning while the boss bar never moves.
+     *
+     * <p>This scene therefore measures the SEAM rather than the strategy: it puts the body beside a
+     * pinned dragon and asks whether the driver's own attack path can take health off it. What it
+     * deliberately does not cover is the fight — crystals, perching, the flight pattern — none of
+     * which is worth designing before knowing whether the hit lands.
+     *
+     * <p>Staged: the arena, and the dragon is pinned with no AI and no phase, because a dragon that
+     * flies is measuring navigation. A red here means the attack path cannot reach a multipart
+     * entity; it cannot also mean the body could not catch up.
+     */
+    private static void serverDamagesTheDragon(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
+        buildFloor(level, cx, cz, floorY);
+
+        var dragon = new net.minecraft.world.entity.boss.enderdragon.EnderDragon(
+                net.minecraft.world.entity.EntityType.ENDER_DRAGON, level);
+        dragon.setNoAi(true);
+        dragon.setPos(cx + 3.5, floorY + 1, cz + 0.5);
+        level.addFreshEntity(dragon);
+        ctx.cleanup(() -> dragon.discard());
+
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+
+        ctx.await(() -> !level.getEntitiesOfClass(
+                        net.minecraft.world.entity.boss.enderdragon.EnderDragon.class,
+                        entityBox(cx, floorY, cz)).isEmpty())
+                .within(200).then(() -> {
+            ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+            ctx.cleanup(() -> driver.fakePlayer().discard());
+            var fp = driver.fakePlayer();
+            fp.getInventory().clearContent();
+            fp.getInventory().add(new ItemStack(Items.DIAMOND_SWORD));
+
+            float before = dragon.getHealth();
+            ctx.record("dragon.hp0", String.format(java.util.Locale.ROOT, "%.1f", before));
+
+            // 1. What the existing combat loop does, unchanged — the reading that says whether the
+            //    ladder can reuse it or has to learn the parts.
+            driver.runProcess(new CombatProcess(CombatProcess.Mode.KILL, null, "minecraft:ender_dragon"));
+            ServerAvatarManager.register(driver);
+            for (int t = 0; t < 600; t++) {
+                ServerAvatarManager.tickAll();
+                dragon.setPos(cx + 3.5, floorY + 1, cz + 0.5);
+                dragon.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+                dragon.hurtTime = 0;                     // its own cooldown, as the other fights do
+            }
+            float afterCombat = dragon.getHealth();
+            ctx.record("dragon.hpAfterCombatProcess",
+                    String.format(java.util.Locale.ROOT, "%.1f", afterCombat));
+
+            // 2. The head, by hand, as a control on WHERE the damage lands — the head takes a hit
+            //    undivided and every other part takes a quarter of it, so a loop that is only ever
+            //    clipping a wing is winning four times slower than its evidence suggests.
+            //
+            //    The first version of this step read a flat ZERO and the fault was in the harness,
+            //    not the dragon: it reset `hurtTime`, which is the red-flash timer, and left
+            //    `invulnerableTime`, which is the one that actually refuses damage for 20 ticks.
+            //    It also reset the attack-strength ticker AFTER swinging, so every swing landed at
+            //    the bottom of the cooldown curve. Both are fixed here; the lesson is that a
+            //    control which measures the test rig reads exactly like a capability that is missing.
+            var head = dragon.getSubEntities()[0];
+            for (var part : dragon.getSubEntities())
+                if ("head".equals(part.name)) head = part;
+            ctx.record("dragon.parts", dragon.getSubEntities().length + " 个（瞄 " + head.name + "）");
+            float beforeHead = dragon.getHealth();
+            int swings = 10;
+            for (int i = 0; i < swings; i++) {
+                dragon.invulnerableTime = 0;
+                dragon.hurtTime = 0;
+                fp.resetAttackStrengthTicker();
+                for (int t = 0; t < 15; t++) ServerAvatarManager.tickAll();   // let the swing recharge
+                fp.attack(head);
+            }
+            float afterPart = dragon.getHealth();
+            ctx.record("dragon.hpAfterHeadHits",
+                    String.format(java.util.Locale.ROOT, "%.1f", afterPart));
+            ctx.record("dragon.perHeadHit", String.format(java.util.Locale.ROOT, "%.2f",
+                    (beforeHead - afterPart) / swings));
+
+            ctx.expect(afterCombat < before)
+                    .as("the existing combat loop takes health off the dragon").isTrue();
+            ctx.expect(afterPart < beforeHead)
+                    .as("a hit aimed at the head lands on a multipart boss").isTrue();
+            ctx.passNote("龙血 " + before + " → CombatProcess 后 " + afterCombat
+                    + " → 再打头部 " + swings + " 下后 " + afterPart + "（钉住的, 没测飞行/水晶）");
+        });
     }
 
     /**

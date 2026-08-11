@@ -177,6 +177,7 @@ wd.serverCastsObsidian
 wd.serverCastsAPortalFrame
 wd.serverBuildsAndLightsAPortal
 wd.serverEntersTheNether
+wd.serverDamagesTheDragon
 wd.serverEarnsABlazeRod
 wd.serverOpensTheEndPortal
 wd.serverLightsPortal
