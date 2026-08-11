@@ -29,6 +29,7 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -37,6 +38,7 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -177,7 +179,19 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 // server-side body with no engine change, so from here a red row means N4's
                 // foundation moved rather than that it was never there.
                 Scene.of("wd.serverCastsObsidian", 400,
-                        WorldDriverProcessScenes::serverCastsObsidian));
+                        WorldDriverProcessScenes::serverCastsObsidian),
+                // N5's capability probe, written before the rung for the same reason the cast's was:
+                // the rung that needs this stands at the bottom of a 36-block shaft with ten blocks
+                // of obsidian it spent an hour casting, and "can the body work a flint-and-steel" is
+                // a question worth answering in 200ms instead.
+                Scene.of("wd.serverLightsPortal", 400,
+                        WorldDriverProcessScenes::serverLightsPortal),
+                // The other half of N5, and the expensive half: ten casts, one bucket, one water
+                // placement. Proving the technique here costs a second; proving it on the ladder
+                // costs a descent, and finding out there that it needs a second bucket costs the
+                // rung below it too.
+                Scene.of("wd.serverCastsAPortalFrame", 1_200,
+                        WorldDriverProcessScenes::serverCastsAPortalFrame));
     }
 
     /** Inlined from {@code AgentGameTestSupport#buildFloor}: 11×11 stone floor at {@code floorY},
@@ -2189,6 +2203,337 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ctx.record("water.afterCast", String.valueOf(level.getBlockState(mould.above()).getBlock()));
         ctx.expect(level.getBlockState(mould.above()).getBlock() == Blocks.WATER)
                 .as("the water source survives the cast (one bucket shuttles all ten blocks)").isTrue();
+    }
+
+    /**
+     * Cast a whole portal frame — ten obsidian — with one bucket, one water source, and no staging
+     * of anything the ladder could not carry.
+     *
+     * <p>{@code wd.serverCastsObsidian} proved one cast and proved the reading the plan stands on:
+     * <b>the water survives</b>. What it could not show is how ten casts share one source, and three
+     * wrong answers to that were tried here before the right one. Each is recorded because each
+     * failed as a <i>broken bucket</i> rather than as a wrong plan, which is the expensive kind.
+     *
+     * <ol>
+     *   <li><b>Water down the outside of the face.</b> Reached {@code 0/10}: falling water spreads
+     *       where it LANDS, and a pocket cut into a vertical face has no floor to spread along.</li>
+     *   <li><b>Lava into every cell first, douse at the end.</b> The first pour missed and left the
+     *       bucket full, so cell two reported "no empty bucket" and the real fault was two steps
+     *       upstream — a cascade that hides its own cause.</li>
+     *   <li><b>One source in the interior, let it flow to all ten.</b> It cannot, for two independent
+     *       reasons. A scene ticks BODIES, not the level, so no fluid tick ever runs; and even under
+     *       a live tick a source cannot wet the two cells <i>above</i> it, because water does not
+     *       flow up.</li>
+     * </ol>
+     *
+     * <p><b>What works is to move the water.</b> Placing a source in the interior cell adjacent to
+     * the cell being cast reproduces {@code serverCastsObsidian}'s geometry exactly, for every cell,
+     * and needs no flow at all — the conversion is a neighbour update, not a fluid tick. The one
+     * bucket then falls out of the ordering for free: it is empty after placing the water (so it can
+     * fetch lava), and empty again after pouring the lava (so it can take the water back). The well
+     * is visited once, at the start; every later cell reuses the same water.
+     *
+     * <p><b>The top row does not cast against the interior.</b> Water below lava converts nothing —
+     * vanilla looks ABOVE the lava and to its four sides, never under it — so the two top cells are
+     * cast against a notch cut one block higher. A frame carved into a wall therefore costs twelve
+     * cells of digging, not ten, and getting it wrong shows up only as two cells of standing lava.
+     *
+     * <p><b>The lava lake is not one cell, and that is a bill not a detail.</b> A scoop takes the
+     * SOURCE and leaves air, so ten casts need ten distinct source cells and ten walks. The first
+     * version of this scene staged a single lava block and read the second scoop's empty pool as a
+     * broken fill.
+     *
+     * <p>Staged deliberately: the wall, the ledge, the lake and the reservoir are scenery. Under test
+     * are the ten fills, the ten pours, the ten water moves, and that the interior ends up EMPTY —
+     * because a portal with a flooded interior does not light.
+     */
+    private static void serverCastsAPortalFrame(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
+        ctx.cleanup(() -> {
+            for (int dx = -8; dx <= 18; dx++)
+                for (int dy = -1; dy <= 12; dy++)
+                    for (int dz = -12; dz <= 6; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                                Blocks.AIR.defaultBlockState());
+        });
+
+        for (int dx = -8; dx <= 18; dx++)
+            for (int dz = -12; dz <= 6; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+
+        // Two layers: z=cz is the layer the ring is carved out of, z=cz+1 backs it so a fluid put
+        // into a carved cell has something to sit against — and so the aim has something to STOP on,
+        // which is the whole reason the backing exists. A bucket fills the neighbour of the face its
+        // ray lands on, and an air cell stops no ray.
+        for (int dx = -3; dx <= 4; dx++)
+            for (int dy = 1; dy <= 8; dy++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz), Blocks.STONE.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + 1), Blocks.STONE.defaultBlockState());
+            }
+
+        final int x0 = cx, y0 = floorY + 1;
+        // Ring cell -> the interior cell the water goes into for that cast. Above for the bottom
+        // pair, below for the top pair, sideways for the two columns: every ring cell of a portal
+        // touches the interior, which is what makes one source enough.
+        List<BlockPos[]> plan = new ArrayList<>();
+        plan.add(new BlockPos[]{ new BlockPos(x0, y0, cz),         new BlockPos(x0, y0 + 1, cz) });
+        plan.add(new BlockPos[]{ new BlockPos(x0 + 1, y0, cz),     new BlockPos(x0 + 1, y0 + 1, cz) });
+        for (int dy = 1; dy <= 3; dy++) {
+            plan.add(new BlockPos[]{ new BlockPos(x0 - 1, y0 + dy, cz), new BlockPos(x0, y0 + dy, cz) });
+            plan.add(new BlockPos[]{ new BlockPos(x0 + 2, y0 + dy, cz), new BlockPos(x0 + 1, y0 + dy, cz) });
+        }
+        // The top row is the exception, and it cost this scene a run to find. Water BELOW lava
+        // converts nothing: vanilla checks {DOWN,NORTH,SOUTH,WEST,EAST}.getOpposite() around the
+        // lava, which is ABOVE plus the four sides and never below. So the top pair is cast against
+        // a notch cut one block higher, not against the interior underneath it — and a route that
+        // carves a frame into a wall has to cut those two extra cells or come up two obsidian short
+        // with no other symptom than "lava sat there".
+        List<BlockPos> caps = List.of(new BlockPos(x0, y0 + 5, cz), new BlockPos(x0 + 1, y0 + 5, cz));
+        plan.add(new BlockPos[]{ new BlockPos(x0, y0 + 4, cz),     caps.get(0) });
+        plan.add(new BlockPos[]{ new BlockPos(x0 + 1, y0 + 4, cz), caps.get(1) });
+
+        List<BlockPos> interior = new ArrayList<>();
+        for (int dx = 0; dx <= 1; dx++)
+            for (int dy = 1; dy <= 3; dy++) interior.add(new BlockPos(x0 + dx, y0 + dy, cz));
+        for (BlockPos[] step : plan) level.setBlockAndUpdate(step[0], Blocks.AIR.defaultBlockState());
+        for (BlockPos c : interior) level.setBlockAndUpdate(c, Blocks.AIR.defaultBlockState());
+        for (BlockPos c : caps) level.setBlockAndUpdate(c, Blocks.AIR.defaultBlockState());
+        ctx.record("frame.cells", plan.size() + " ring + " + interior.size() + " interior + "
+                + caps.size() + " cap notches");
+
+        // The ledge every pour is made from. One block up, and hard against the wall: from feet at
+        // floorY+2 and z=cz-1.5 the eyes reach both the top row and the bottom row of the ring, and
+        // a body one block further back reaches neither — 4.53 against a ~4.5-block ray.
+        for (int dx = -4; dx <= 5; dx++)
+            level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 1, cz - 2), Blocks.STONE.defaultBlockState());
+
+        // A lake, not a puddle: one source per cast. Flush in the floor so it cannot spread and reach
+        // the reservoir, which is the same reason the route's real lake and its water must stay apart.
+        List<BlockPos> lake = new ArrayList<>();
+        for (int dx = 0; dx < 4; dx++)
+            for (int dz = 0; dz < 4; dz++) {
+                BlockPos at = new BlockPos(cx + 12 + dx, floorY, cz - 9 + dz);
+                level.setBlockAndUpdate(at, Blocks.LAVA.defaultBlockState());
+                lake.add(at);
+            }
+        BlockPos well = new BlockPos(cx - 6, floorY, cz - 8);
+        level.setBlockAndUpdate(well, Blocks.WATER.defaultBlockState());
+
+        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, x0 + 0.5, floorY + 2, cz - 1.5);
+        ctx.cleanup(() -> driver.fakePlayer().discard());
+        var fp = driver.fakePlayer();
+        fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE, 1));
+        fp.getInventory().items.set(1, new ItemStack(Items.BUCKET, 1));
+        fp.getInventory().selected = 0;
+
+        ctx.expect(scoopSource(driver, fp, well, floorY, Items.WATER_BUCKET))
+                .as("the reservoir fills the bucket with water").isTrue();
+
+        int cast = 0, moves = 0;
+        for (int i = 0; i < plan.size(); i++) {
+            BlockPos cell = plan.get(i)[0], wet = plan.get(i)[1];
+
+            if (!pourInto(driver, fp, wet, floorY, Items.WATER_BUCKET, Blocks.WATER, level)) {
+                ctx.record("water.stuckAt", label(cell, x0, y0) + " 想放水到 " + label(wet, x0, y0)
+                        + "，那格现在是 " + level.getBlockState(wet).getBlock());
+                break;
+            }
+            moves++;
+
+            if (!scoopSource(driver, fp, lake.get(i), floorY, Items.LAVA_BUCKET)) {
+                ctx.record("lava.stuckAt", label(cell, x0, y0)
+                        + "（湖格 " + lake.get(i).toShortString() + " = " + level.getBlockState(lake.get(i)).getBlock() + "）");
+                break;
+            }
+            pourInto(driver, fp, cell, floorY, Items.LAVA_BUCKET, Blocks.OBSIDIAN, level);
+
+            if (level.getBlockState(cell).getBlock() == Blocks.OBSIDIAN) cast++;
+            else ctx.record("cast.missed." + label(cell, x0, y0), level.getBlockState(cell).getBlock()
+                    + "（旁边 " + label(wet, x0, y0) + " 是 " + level.getBlockState(wet).getBlock() + "）");
+
+            // The bucket is empty again, which is exactly what taking the water back needs. This is
+            // the step that makes ONE bucket enough, and it is also the step that leaves the interior
+            // clear at the end without a separate clean-up trip.
+            if (!scoopSource(driver, fp, wet, floorY, Items.WATER_BUCKET) && i < plan.size() - 1)
+                ctx.record("water.notRecovered." + label(cell, x0, y0),
+                        String.valueOf(level.getBlockState(wet).getBlock()));
+        }
+        ctx.record("frame.cast", cast + "/" + plan.size());
+        ctx.record("water.moves", moves + "");
+        ctx.record("bucket.after", countItem(fp, Items.BUCKET) + " 空 / "
+                + countItem(fp, Items.LAVA_BUCKET) + " 岩浆 / " + countItem(fp, Items.WATER_BUCKET) + " 水");
+        ctx.expect(cast).as("obsidian cast into every frame cell from one bucket")
+                .isEqualTo(plan.size());
+
+        // A flooded interior does not light, and the water that cast the frame was in it ten times.
+        // The last scoop is the one that has to have taken it back out.
+        int flooded = 0;
+        for (BlockPos c : interior) if (!level.getFluidState(c).isEmpty()) flooded++;
+        for (BlockPos c : caps) if (!level.getFluidState(c).isEmpty()) flooded++;
+        ctx.record("interior.wetCells", flooded + "/" + (interior.size() + caps.size()));
+        ctx.expect(flooded).as("the interior is dry once the last cast's water is scooped back")
+                .isEqualTo(0);
+        ctx.expect(countItem(fp, Items.WATER_BUCKET)).as("the water comes home in the bucket").isEqualTo(1);
+        ctx.passNote("10 obsidian from 1 bucket: " + moves + " water moves, "
+                + plan.size() + " lake cells spent");
+    }
+
+    /** {@code dx/dy} of a frame cell relative to the ring's bottom-left, for evidence keys that stay
+     *  readable when the arena moves. */
+    private static String label(BlockPos at, int x0, int y0) {
+        return (at.getX() - x0) + "_" + (at.getY() - y0);
+    }
+
+    /**
+     * Put the body where the wall cell it is about to work on is at EYE LEVEL, on a block of its own.
+     *
+     * <p>Aiming at the backing behind a cell only reaches that cell if the ray is close to
+     * horizontal. From one fixed ledge the ray to a cell five blocks up is steep enough to enter the
+     * wall a block low, and the run that found this had just cast obsidian into exactly that block:
+     * the scoop hit the fresh obsidian, left the water behind, and the NEXT cell reported an empty
+     * bucket. So the standpoint is a function of the target, not a constant.
+     */
+    private static void standTo(ServerLevel level, ServerPlayer fp, BlockPos target, int floorY) {
+        int feet = Math.max(floorY + 2, target.getY() - 1);
+        level.setBlockAndUpdate(new BlockPos(target.getX(), feet - 1, target.getZ() - 2),
+                Blocks.STONE.defaultBlockState());
+        fp.setPos(target.getX() + 0.5, feet, target.getZ() - 1.5);
+    }
+
+    /** Stand beside a one-cell pool and pick it up. The empty bucket clips {@code SOURCE_ONLY}, so
+     *  the ray stops on the fluid itself rather than passing through to the floor. */
+    private static boolean scoopSource(ServerWorldDriver driver, ServerPlayer fp, BlockPos at, int floorY,
+                                       net.minecraft.world.item.Item expected) {
+        ServerLevel level = (ServerLevel) fp.level();
+        boolean inWall = at.getY() > floorY;
+        if (inWall) standTo(level, fp, at, floorY);
+        else fp.setPos(at.getX() + 0.5, floorY + 1, at.getZ() + 1.5);
+        ServerAvatarManager.tickAll();
+        if (!driver.avatar().holdItem(Items.BUCKET)) return false;
+        driver.avatar().aimAtBlock(inWall ? at.relative(Direction.SOUTH) : at);
+        ServerAvatarManager.tickAll();
+        driver.avatar().useItemInHand();
+        ServerAvatarManager.tickAll();
+        return countItem(fp, expected) >= 1;
+    }
+
+    /** Put the held fluid into a cell carved in the wall, by standing on the ledge in front of it and
+     *  aiming at the SOLID BACKING behind it: a bucket fills the neighbour of the face its ray lands
+     *  on, so aiming into the air cell itself hits nothing and the fluid goes wherever the ray
+     *  eventually stops — which is how an earlier version poured its water onto the floor. */
+    private static boolean pourInto(ServerWorldDriver driver, ServerPlayer fp, BlockPos target, int floorY,
+                                    net.minecraft.world.item.Item held, Block want, ServerLevel level) {
+        standTo(level, fp, target, floorY);
+        ServerAvatarManager.tickAll();
+        if (!driver.avatar().holdItem(held)) return false;
+        driver.avatar().aimAtBlock(target.relative(Direction.SOUTH));
+        ServerAvatarManager.tickAll();
+        driver.avatar().useItemInHand();
+        ServerAvatarManager.tickAll();
+        return level.getBlockState(target).getBlock() == want;
+    }
+
+    /**
+     * Light a nether portal with a flint-and-steel, on a server-side body.
+     *
+     * <p>The capability probe for ROADMAP N5, and the frame here is <b>staged on purpose</b>. This
+     * arena is not asking whether the ladder can cast ten obsidian — {@code wd.serverCastsObsidian}
+     * owns one cast and the journey rung owns the other nine. It is asking the one question that
+     * sits between a finished frame and a lit portal, and that question is worth its own 200ms
+     * because the rung that asks it in the field does so at the bottom of a 36-block shaft.
+     *
+     * <p><b>The verb is the opposite of the bucket's, and getting it wrong looks identical.</b>
+     * {@code BucketItem} has no {@code useOn}, so a bucket must go through {@code Item.use} —
+     * driver-side {@code useItemInHand}. {@code FlintAndSteelItem} is the mirror image: it overrides
+     * <b>{@code useOn(UseOnContext)}</b> and has no {@code use} at all, so it must go through
+     * {@code useBlock(cell, face)}. Called the other way it returns {@code Item.use}'s default
+     * {@code PASS} and the world does not move — the same silent nothing a pickaxe gives, which
+     * already cost this ladder a run.
+     *
+     * <p><b>Where the fire lands is a parameter, not a detail.</b> Reading the item: when the clicked
+     * block is not itself ignitable — obsidian is not — vanilla puts the fire at
+     * {@code clickedPos.relative(clickedFace)}. So the click has to be on a FRAME block with the face
+     * pointing INTO the interior, and clicking the interior's floor with face UP is the natural way
+     * to say that. {@code ServerPlayerAvatar.useBlock} builds its {@code BlockHitResult} from that
+     * face, so the parameter really does reach vanilla.
+     */
+    private static void serverLightsPortal(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
+        ctx.cleanup(() -> {
+            for (int dx = -4; dx <= 5; dx++)
+                for (int dy = -1; dy <= 7; dy++)
+                    for (int dz = -3; dz <= 3; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                                Blocks.AIR.defaultBlockState());
+        });
+
+        for (int dx = -4; dx <= 5; dx++)
+            for (int dz = -3; dz <= 3; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+
+        // A minimal frame: interior 2 wide × 3 tall, so ten obsidian with the corners left out —
+        // which is what the ladder can afford and therefore what this must prove lights.
+        final int x0 = cx + 1, y0 = floorY + 1;
+        List<BlockPos> frame = new ArrayList<>();
+        frame.add(new BlockPos(x0, y0, cz));           frame.add(new BlockPos(x0 + 1, y0, cz));
+        frame.add(new BlockPos(x0, y0 + 4, cz));       frame.add(new BlockPos(x0 + 1, y0 + 4, cz));
+        for (int dy = 1; dy <= 3; dy++) {
+            frame.add(new BlockPos(x0 - 1, y0 + dy, cz));
+            frame.add(new BlockPos(x0 + 2, y0 + dy, cz));
+        }
+        for (BlockPos p : frame) level.setBlockAndUpdate(p, Blocks.OBSIDIAN.defaultBlockState());
+        for (int dx = 0; dx <= 1; dx++)
+            for (int dy = 1; dy <= 3; dy++)
+                level.setBlockAndUpdate(new BlockPos(x0 + dx, y0 + dy, cz), Blocks.AIR.defaultBlockState());
+        ctx.record("frame.blocks", frame.size() + " obsidian");
+
+        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, x0 + 0.5, floorY + 1, cz + 2.5);
+        ctx.cleanup(() -> driver.fakePlayer().discard());
+        var fp = driver.fakePlayer();
+        // Pickaxe selected, flint-and-steel behind it — the arena starts the way the rung arrives.
+        fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE, 1));
+        fp.getInventory().items.set(1, new ItemStack(Items.FLINT_AND_STEEL, 1));
+        fp.getInventory().selected = 0;
+
+        BlockPos hearth = new BlockPos(x0, y0, cz);      // a frame block; the fire goes above it
+        BlockPos firstInterior = hearth.above();
+
+        ctx.expect(driver.avatar().holdItem(Items.FLINT_AND_STEEL))
+                .as("the flint-and-steel can be brought to the main hand from the bag").isTrue();
+        driver.avatar().aimAtBlock(hearth);
+        ServerAvatarManager.tickAll();
+        ctx.record("light.hand", String.valueOf(fp.getMainHandItem().getItem()));
+        ctx.record("light.clicked", hearth.toShortString() + " face=UP");
+
+        driver.avatar().useBlock(hearth, Direction.UP);
+        for (int t = 0; t < 20 && level.getBlockState(firstInterior).getBlock() != Blocks.NETHER_PORTAL; t++) {
+            ServerAvatarManager.tickAll();
+        }
+        ctx.record("light.cellAfter", String.valueOf(level.getBlockState(firstInterior).getBlock()));
+        ctx.record("flintAndSteel.after", countItem(fp, Items.FLINT_AND_STEEL) + " (durability spent, not the item)");
+
+        // Every interior cell, not just the one that was lit: a portal is the whole 2×3, and a fire
+        // that burned in one cell without becoming a portal is a different outcome from a portal —
+        // both leave "something happened" at the click site.
+        int litCells = 0;
+        for (int dx = 0; dx <= 1; dx++)
+            for (int dy = 1; dy <= 3; dy++)
+                if (level.getBlockState(new BlockPos(x0 + dx, y0 + dy, cz)).getBlock() == Blocks.NETHER_PORTAL)
+                    litCells++;
+        ctx.record("portal.cells", litCells + "/6");
+        ctx.expect(litCells).as("nether portal blocks filling the frame's interior").isEqualTo(6);
     }
 
     /** The block a use would hit, clipped the way {@code Item.getPlayerPOVHitResult} clips it —
