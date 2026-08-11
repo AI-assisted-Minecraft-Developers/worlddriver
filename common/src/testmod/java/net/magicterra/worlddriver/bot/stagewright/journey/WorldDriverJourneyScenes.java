@@ -2383,7 +2383,18 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             }
             stepOntoDiggableColumn(rig, dig, lava, surfaceY, MAX_WALK_ATTEMPTS, () -> {
                 BotConfig.allowPlace = false;
-                descendByMining(rig, lava.getY() + 1, () -> {
+                // A cap of its own, not the shared default. OBSIDIAN's descent and this one are the
+                // same 36 blocks and get the same 128 attempts from `shaftAttemptsFor`, and this one
+                // ran out at 32 of 36: the wasted attempts are the ticks between "the block broke"
+                // and "the body has fallen into the hole", which the evidence shows as `broke=air`
+                // while `below=` is still solid. OBSIDIAN can afford to be tight because failing
+                // costs it one rung; this rung is carrying the run's only bucket of water down a
+                // hole it cannot re-dig, and it has a 250 000-tick budget to spend on getting there.
+                int depth = Math.max(0, rig.player().blockPosition().getY() - (lava.getY() + 1));
+                int cap = depth * 8 + 60;
+                rig.evidence("forge.descentCap", depth + " 格深，给 " + cap + " 次尝试（默认公式只给 "
+                        + (depth * 3 + 20) + "）");
+                descendByMining(rig, lava.getY() + 1, cap, cap, () -> {
                     BotConfig.allowPlace = true;
                     rig.evidence("forge.landedY", rig.player().blockPosition().getY());
                     carveTheForge(ctx, rig, lava, surfaceY);
