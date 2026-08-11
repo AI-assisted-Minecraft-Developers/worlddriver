@@ -8,6 +8,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`wd.serverBuildsAndLightsAPortal` — the whole of N5 from a flat floor.** A bucket, a
+  flint-and-steel and a pile of cobblestone go in; a lit nether portal comes out: 42 backing blocks,
+  24 wall blocks, ten casts from one bucket, six portal cells. 549 ms, green on both loaders first
+  try. The three scenes it builds on all work a wall that was **staged**, and in the field there is
+  no two-thick wall waiting beside the lava — so what this adds is the step the rung actually spends
+  its blocks on.
+
+  Two shapes worth keeping. **Placement is exact and reach-free**: `ServerPlayerAvatar.useBlock`
+  builds its own `BlockHitResult` rather than ray-tracing for one, and vanilla's distance check
+  lives on a packet path this body never uses — so the mould is bookkeeping, not navigation. And
+  **order is what makes every block placeable**: the backing slab goes up first, bottom-up, each
+  block resting on the one below; every solid cell of the front layer is then placed against the
+  backing behind it. Building the front layer first strands every cell whose lower neighbour is one
+  of the sixteen that must stay air.
+
+- **`wd.serverOpensTheEndPortal` — twelve eyes into the frame, then across.** Inserting an eye is
+  `EnderEyeItem.useOn`, the same `useOn`-only shape as the flint-and-steel, so a body reaching for
+  `useItemInHand` would get `PASS` and a frame that never fills. Green on both loaders: 12/12 eyes,
+  the portal forms, transit takes 2 ticks, and the landing is asserted against
+  `ServerLevel.END_SPAWN_POINT` rather than merely against the dimension — drift 0, standing on the
+  arrival platform's obsidian.
+
+- **`wd.serverEarnsABlazeRod` — a driven body's kill counts as a PLAYER kill.** The blaze rod is the
+  one drop on the road to the dragon that vanilla gates on `killed_by_player`, so a body that hits
+  hard enough to kill and does not register as a player clears fortresses and crafts no eyes.
+
+  **The first version of this scene could not tell three explanations apart.** It killed one blaze,
+  saw an empty floor, and asserted — but a blaze rod is a uniform 0..1 roll, so "the condition
+  failed", "the die came up zero" and "mob loot is off" all produce the same evidence. It now reads
+  the `doMobLoot` gamerule outright and kills **twenty-four**, recording the per-kill tally:
+  measured 11 rods from 24, which is the roll behaving normally and puts an all-zero run out of
+  reach of a gate that runs on every commit.
+
+  Scoped deliberately: the blaze is **pinned** the way `wd.serverCombat`'s zombie is, so a red means
+  "the drop does not reach a driven body" and cannot also mean "it flew away". Whether the melee
+  loop can reach a blaze that is actually hovering is a separate question with no scene yet, and the
+  javadoc says so — a green row that quietly meant "we never fought a flying mob" is the shape of
+  coverage this suite exists to refuse.
+
 - **`wd.serverCastsAPortalFrame` — ten obsidian from one bucket, and the route is not the obvious
   one.** A frame is a vertical ring around a 2x3 interior and every one of its ten cells touches that
   interior, so the water goes **into the interior cell adjacent to whatever is being cast** and is
