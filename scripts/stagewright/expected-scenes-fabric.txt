@@ -175,6 +175,7 @@ wd.serverPillarsOutOfAPit
 wd.serverTowersOutOfADeepShaft
 wd.serverCastsObsidian
 wd.serverCastsAPortalFrame
+wd.serverBuildsAndLightsAPortal
 wd.serverEntersTheNether
 wd.serverLightsPortal
 wd.debugSweepCourse

@@ -199,7 +199,12 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 // teleport fix — it was written as a frontier sensor, went red on BOTH loaders for
                 // the same reason, and is kept required so that reason cannot come back quietly.
                 Scene.of("wd.serverEntersTheNether", 4_000,
-                        WorldDriverProcessScenes::serverEntersTheNether));
+                        WorldDriverProcessScenes::serverEntersTheNether),
+                // The whole of N5 in one scene, from a flat floor: build the mould, cast the ten,
+                // light it. Written as a frontier sensor and green on both loaders first try, so it
+                // is required — it is the ladder's own plan, and the ladder is expensive to ask.
+                Scene.of("wd.serverBuildsAndLightsAPortal", 4_000,
+                        WorldDriverProcessScenes::serverBuildsAndLightsAPortal));
     }
 
     /** Inlined from {@code AgentGameTestSupport#buildFloor}: 11×11 stone floor at {@code floorY},
@@ -2580,6 +2585,179 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 .isAtMost(nether.dimensionType().logicalHeight());
         ctx.passNote("穿过自己点燃的传送门到达下界，用了 " + ticked + " tick，落在 "
                 + fp.blockPosition().toShortString() + "（期望附近 " + want.getX() + "," + want.getZ() + "）");
+    }
+
+    /**
+     * The whole of N5 end to end: a flat floor, a bucket, a flint-and-steel and a pile of
+     * cobblestone go in; a <b>lit nether portal</b> comes out.
+     *
+     * <p>Each step is already proven on its own — {@code wd.serverCastsObsidian} the cast,
+     * {@code wd.serverCastsAPortalFrame} the ten-from-one-bucket shuttle,
+     * {@code wd.serverLightsPortal} the ignition. What none of them covers is the step the rung
+     * actually spends its blocks on: those three all work a wall that was <b>staged</b>, and in the
+     * field there is no two-thick wall waiting beside the lava. The body has to build the mould.
+     *
+     * <p><b>Placement is exact and reach-free, which is why this is affordable.</b>
+     * {@code ServerPlayerAvatar.useBlock} constructs its own {@code BlockHitResult} from the cell
+     * and face it is given rather than ray-tracing for one, and vanilla's distance check lives in
+     * {@code ServerGamePacketListenerImpl.handleUseItemOn} — a packet this body never sends. So a
+     * driven body can place a block in a named cell from wherever it is standing, and the mould is
+     * bookkeeping rather than a navigation problem. The body is parked clear of the mould for the
+     * whole build for the one reason that does still bite: a block cannot be placed into a cell the
+     * placer is standing in ({@code isUnobstructed}).
+     *
+     * <p><b>Order is what makes every block placeable.</b> A free-standing wall has nothing to
+     * place against, so the backing slab at {@code z=cz+1} goes up first, bottom-up, each block
+     * supported by the one below and the lowest by the floor. Every solid cell of the front layer
+     * is then placed against the backing behind it — {@code useBlock(backing, NORTH)} — which needs
+     * no support of its own. Building the front layer first would strand every cell whose lower
+     * neighbour is one of the sixteen that must stay air.
+     *
+     * <p>Staged: the floor, the lava lake, the reservoir, and the block the body stands on to pour
+     * from. That is terrain and a pillar — the terrain the seed provides, and a climb
+     * {@code ascendByTowering} owns on the ladder. Everything the rung must MAKE is made here.
+     */
+    private static void serverBuildsAndLightsAPortal(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
+        ctx.cleanup(() -> {
+            for (int dx = -10; dx <= 20; dx++)
+                for (int dy = -1; dy <= 12; dy++)
+                    for (int dz = -12; dz <= 6; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                                Blocks.AIR.defaultBlockState());
+        });
+        for (int dx = -10; dx <= 20; dx++)
+            for (int dz = -12; dz <= 6; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+
+        final int x0 = cx, y0 = floorY + 1;
+
+        List<BlockPos> lake = new ArrayList<>();
+        for (int dx = 0; dx < 4; dx++)
+            for (int dz = 0; dz < 4; dz++) {
+                BlockPos at = new BlockPos(cx + 14 + dx, floorY, cz - 9 + dz);
+                level.setBlockAndUpdate(at, Blocks.LAVA.defaultBlockState());
+                lake.add(at);
+            }
+        BlockPos well = new BlockPos(cx - 8, floorY, cz - 8);
+        level.setBlockAndUpdate(well, Blocks.WATER.defaultBlockState());
+
+        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 7.5, floorY + 1, cz - 5.5);
+        ctx.cleanup(() -> driver.fakePlayer().discard());
+        var fp = driver.fakePlayer();
+        fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE, 1));
+        fp.getInventory().items.set(1, new ItemStack(Items.BUCKET, 1));
+        fp.getInventory().items.set(2, new ItemStack(Items.FLINT_AND_STEEL, 1));
+        for (int slot = 3; slot <= 5; slot++)
+            fp.getInventory().items.set(slot, new ItemStack(Items.COBBLESTONE, 64));
+        fp.getInventory().selected = 0;
+
+        // ---- 1. the backing slab, bottom-up, each block resting on the one below ----
+        int placed = 0, wanted = 0;
+        for (int dy = 0; dy <= 6; dy++)
+            for (int dx = -2; dx <= 3; dx++) {
+                BlockPos at = new BlockPos(x0 + dx, y0 + dy, cz + 1);
+                wanted++;
+                if (placeAt(driver, level, at, at.below(), Direction.UP)) placed++;
+                else ctx.record("backing.missed." + dx + "_" + dy,
+                        String.valueOf(level.getBlockState(at).getBlock()));
+            }
+        ctx.record("mould.backing", placed + "/" + wanted);
+
+        // ---- 2. the front layer's solid cells, each against the backing behind it ----
+        // Everything in the 6x8 face EXCEPT the ten ring cells, the six interior cells and the two
+        // cap notches the top row is cast against.
+        java.util.Set<BlockPos> hollow = new java.util.HashSet<>();
+        List<BlockPos[]> plan = new ArrayList<>();
+        plan.add(new BlockPos[]{ new BlockPos(x0, y0, cz),         new BlockPos(x0, y0 + 1, cz) });
+        plan.add(new BlockPos[]{ new BlockPos(x0 + 1, y0, cz),     new BlockPos(x0 + 1, y0 + 1, cz) });
+        for (int dy = 1; dy <= 3; dy++) {
+            plan.add(new BlockPos[]{ new BlockPos(x0 - 1, y0 + dy, cz), new BlockPos(x0, y0 + dy, cz) });
+            plan.add(new BlockPos[]{ new BlockPos(x0 + 2, y0 + dy, cz), new BlockPos(x0 + 1, y0 + dy, cz) });
+        }
+        List<BlockPos> caps = List.of(new BlockPos(x0, y0 + 5, cz), new BlockPos(x0 + 1, y0 + 5, cz));
+        plan.add(new BlockPos[]{ new BlockPos(x0, y0 + 4, cz),     caps.get(0) });
+        plan.add(new BlockPos[]{ new BlockPos(x0 + 1, y0 + 4, cz), caps.get(1) });
+        List<BlockPos> interior = new ArrayList<>();
+        for (int dx = 0; dx <= 1; dx++)
+            for (int dy = 1; dy <= 3; dy++) interior.add(new BlockPos(x0 + dx, y0 + dy, cz));
+        for (BlockPos[] step : plan) hollow.add(step[0]);
+        hollow.addAll(interior);
+        hollow.addAll(caps);
+
+        int wall = 0, wallWanted = 0;
+        for (int dy = 0; dy <= 6; dy++)
+            for (int dx = -2; dx <= 3; dx++) {
+                BlockPos at = new BlockPos(x0 + dx, y0 + dy, cz);
+                if (hollow.contains(at)) continue;
+                wallWanted++;
+                if (placeAt(driver, level, at, at.relative(Direction.SOUTH), Direction.NORTH)) wall++;
+                else ctx.record("wall.missed." + dx + "_" + dy,
+                        String.valueOf(level.getBlockState(at).getBlock()));
+            }
+        ctx.record("mould.wall", wall + "/" + wallWanted);
+        ctx.record("cobblestone.left", countItem(fp, Items.COBBLESTONE) + "");
+        ctx.expect(placed + wall).as("every block of the mould goes where it was named")
+                .isEqualTo(wanted + wallWanted);
+
+        // ---- 3. the ten casts, one bucket, exactly as wd.serverCastsAPortalFrame proves ----
+        ctx.expect(scoopSource(driver, fp, well, floorY, Items.WATER_BUCKET))
+                .as("the reservoir fills the bucket with water").isTrue();
+        int cast = 0;
+        for (int i = 0; i < plan.size(); i++) {
+            BlockPos cell = plan.get(i)[0], wet = plan.get(i)[1];
+            if (!pourInto(driver, fp, wet, floorY, Items.WATER_BUCKET, Blocks.WATER, level)) {
+                ctx.record("water.stuckAt", label(cell, x0, y0)); break;
+            }
+            if (!scoopSource(driver, fp, lake.get(i), floorY, Items.LAVA_BUCKET)) {
+                ctx.record("lava.stuckAt", label(cell, x0, y0)); break;
+            }
+            pourInto(driver, fp, cell, floorY, Items.LAVA_BUCKET, Blocks.OBSIDIAN, level);
+            if (level.getBlockState(cell).getBlock() == Blocks.OBSIDIAN) cast++;
+            else ctx.record("cast.missed." + label(cell, x0, y0),
+                    String.valueOf(level.getBlockState(cell).getBlock()));
+            scoopSource(driver, fp, wet, floorY, Items.WATER_BUCKET);
+        }
+        ctx.record("frame.cast", cast + "/" + plan.size());
+        ctx.expect(cast).as("ten obsidian cast into a mould the body built itself")
+                .isEqualTo(plan.size());
+
+        // ---- 4. light it ----
+        BlockPos hearth = new BlockPos(x0, y0, cz);
+        standTo(level, fp, hearth, floorY);
+        ServerAvatarManager.tickAll();
+        ctx.expect(driver.avatar().holdItem(Items.FLINT_AND_STEEL)).as("flint-and-steel in hand").isTrue();
+        driver.avatar().aimAtBlock(hearth);
+        ServerAvatarManager.tickAll();
+        driver.avatar().useBlock(hearth, Direction.UP);
+        ServerAvatarManager.tickAll();
+
+        int lit = 0;
+        for (BlockPos c : interior)
+            if (level.getBlockState(c).getBlock() == Blocks.NETHER_PORTAL) lit++;
+        ctx.record("portal.cells", lit + "/" + interior.size());
+        ctx.record("interior.after", String.valueOf(level.getBlockState(interior.get(0)).getBlock()));
+        ctx.expect(lit).as("the portal the body built and cast is lit end to end")
+                .isEqualTo(interior.size());
+        ctx.passNote("平地起门: 铺 " + (wanted + wallWanted) + " 块模具, 一只桶浇 " + cast
+                + " 块黑曜石, 点亮 " + lit + " 格");
+    }
+
+    /** Place a held cobblestone in {@code target} by clicking {@code face} of {@code support}.
+     *  No aim and no walk: {@code useBlock} builds its own hit result, and the reach check the
+     *  server applies lives on a packet path this body never uses. */
+    private static boolean placeAt(ServerWorldDriver driver, ServerLevel level, BlockPos target,
+                                   BlockPos support, Direction face) {
+        if (!driver.avatar().holdItem(Items.COBBLESTONE)) return false;
+        driver.avatar().useBlock(support, face);
+        ServerAvatarManager.tickAll();
+        return !level.getBlockState(target).isAir();
     }
 
     /**
