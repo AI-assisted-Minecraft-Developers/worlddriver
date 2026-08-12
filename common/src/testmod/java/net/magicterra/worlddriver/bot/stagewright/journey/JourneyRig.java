@@ -619,13 +619,22 @@ public final class JourneyRig {
      *
      * <p>Also writes the body's invulnerability into the record, so every green row on the headless
      * track carries the bound on what it proves.
+     *
+     * <p>And says so ON THE PASS ROW when the rung was rehearsed rather than climbed. The evidence
+     * map has carried {@code REHEARSAL} all along, but a PASS prints its note and nothing else —
+     * so the one line a reader quotes from a green rehearsal, {@code PORTAL_LIT 达成 — …}, was
+     * word-for-word the line a real climb prints. That is precisely the confusion the whole
+     * rehearsal mode is built to be incapable of.
      */
     public void reach(String detail) {
         claimed = true;
         evidence.put("body.invulnerable", bodyIsInvulnerable());
-        evidence.put("staging.calls", JourneyLedger.stagingCalls().size());
+        int staged = JourneyLedger.stagingCalls().size();
+        evidence.put("staging.calls", staged);
         JourneyLedger.reached(stage, detail, evidence, tick(ctx));
-        ctx.passNote(stage.name() + "(" + stage.label() + ") 达成 — " + detail);
+        String rehearsing = JourneyRehearsal.target() == null ? ""
+                : "【REHEARSAL — not a climb, staging.calls=" + staged + "】";
+        ctx.passNote(rehearsing + stage.name() + "(" + stage.label() + ") 达成 — " + detail);
         WorldDriverCommon.LOG.info("[journey] {} REACHED — {} {}", stage.name(), detail, evidence);
     }
 
