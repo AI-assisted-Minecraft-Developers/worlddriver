@@ -1,3 +1,34 @@
+## 🔴 两件必须处理的事(subagent 并行开工后暴露出来的)
+
+### 1. source-budget 硬闸现在是红的
+
+```
+3811  common/src/testmod/.../journey/WorldDriverJourneyScenes.java
+3713  common/src/testmod/.../scene/WorldDriverProcessScenes.java
+```
+
+两个都超了 3000 行硬上限。这是 `python scripts/check_source_budget.py` 的硬闸,现在不通过。
+等 agent 交还文件所有权后必须拆(参照 `WalkerTick*` 的机械拆分法)。
+**新写的 `JourneyEndRungs.java`(1433 行)不在其中**,它是干净的。
+
+### 2. 龙根本不会被创建 —— 因为身体不在 `level.players()` 里
+
+写第 20 级的 agent 读出来一条关键机制:
+
+> `EndDragonFight.tick` 每 20 tick 重扫 `ServerLevel.getPlayers(...)`, 只要那个列表是空的,
+> 它**什么都不做** —— 不建竞技场票据、不 `scanState`、不 `createNewDragon`。
+
+而这条链路上的身体是 `FakePlayer`, 从来没走过 `PlayerList.placeNewPlayer`, 所以**永远不在
+`level.players()` 里, 龙也就永远不会生成**(水晶照样存在, 那是世界生成放的, 会造成"看起来
+只差龙"的错觉)。
+
+这与 memory `a-fake-player-was-never-placed` 完全同源("joining beats copying Player.tick")。
+**解法是已有的开关 `-Dworlddriver.realPlayerBodies=true`(`JoinedPlayerBodies`), 不是造假龙** ——
+给龙摆一条也算 staging, 会毁掉 `staging.calls=0`。
+
+**待办**: `:fabric:runJourneyServer` 要带上这个 flag; 但 `fabric/build.gradle` 当前由另一个
+agent 持有, 等它交还后再接线。同时要确认这个 flag 不会破坏下面十几级已经绿的行为。
+
 # TODO
 
 > 镜像 Task 跟踪器的长期工作。重要根因写进 memory(reference/project)。
