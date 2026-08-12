@@ -236,6 +236,28 @@ public final class JourneyRoute {
      *  somebody else already cast, and a scripted run may legitimately prefer it to ROADMAP N4. */
     public static BlockPos ruinedPortal = new BlockPos(-384, 64, -368);
 
+    /**
+     * The nearest NETHER FORTRESS, <b>in nether coordinates</b> — where BLAZE_ROD walks.
+     *
+     * <p><b>Only X and Z are a claim.</b> The generator answers a structure query with
+     * {@code StructurePlacement.getLocatePos}, which fills Y in from the placement's own offset
+     * (zero for a fortress) and not from anything in the world — the same {@code ~} that
+     * {@code /locate} prints. A rung that trusted this Y would walk to a coordinate under the
+     * bedrock floor. The walk is therefore an {@link net.magicterra.worlddriver.bot.Goal.XZ}, and
+     * the rung re-derives its own Y once it is standing there and the chunks are real.
+     *
+     * <p><b>Nether coordinates, not overworld ones.</b> This is the one landmark in this class that
+     * lives in another world, and mixing the two is the exact failure {@code changeDimension}
+     * already produced once — a body that arrived 87 501 blocks out because a number meant for one
+     * dimension was used in the other. {@link #netherwards} is the only conversion; a caller with
+     * an overworld position uses {@link #surveyNetherFortress}, which applies it.
+     */
+    public static BlockPos netherFortress = UNSURVEYED;
+
+    /** What the last {@link #surveyNetherFortress} cost, in milliseconds, or -1 before the first
+     *  one. Kept because {@link Located} makes the price part of the answer — see its note. */
+    public static long netherFortressMs = -1;
+
     /** Whether every constant above has been filled in. */
     /**
      * Find the densest cluster of lava SOURCE blocks near spawn, and how many cells it has.
@@ -675,6 +697,157 @@ public final class JourneyRoute {
             return null;
         }
     }
+
+    // =====================================================================================
+    // Structures in ANOTHER dimension — the half /locate cannot answer from here.
+    // =====================================================================================
+
+    /**
+     * How long any survey in this class may take before it is itself the problem.
+     *
+     * <p>Five seconds, and the number is a scar rather than a preference. The first lava survey
+     * swept 64 blocks around spawn over y 5..40 — roughly 600 000 fluid lookups, each able to force
+     * chunk GENERATION — and blew a <b>ten-minute</b> budget on the ladder's very first rung, so the
+     * run that was supposed to measure the driver measured the survey instead. A survey that costs
+     * more than the run it informs is a failure, so from here on the price travels with the answer
+     * and a caller can assert on it.
+     */
+    public static final long SURVEY_MS_BUDGET = 5_000L;
+
+    /**
+     * A structure survey: what it found, what asking cost, and how far it was allowed to look.
+     *
+     * <p>All three, because two of them decide what the first one MEANS. A {@code NOT_FOUND} inside
+     * the bound is a statement about the seed; the same {@code NOT_FOUND} at the bound is a
+     * statement about the search — the distinction that cost the lava landmark two runs at the wrong
+     * depth (see {@code LAVA_SEARCH_RADIUS}). And a hit that took nine seconds to find is not a
+     * usable landmark for a ladder whose rungs are timed.
+     */
+    public record Located(Found found, long millis, int rings) {
+
+        /** Whether this answer cost more than {@link #SURVEY_MS_BUDGET}. */
+        public boolean overBudget() { return millis > SURVEY_MS_BUDGET; }
+
+        /** What a record line should say — the answer and its price, never one without the other. */
+        public String asRecord() {
+            return found.asRecord() + "（耗时 " + millis + " ms，最多搜 " + rings + " 圈放置区）"
+                    + (overBudget() ? " ⚠ 超出勘测预算 " + SURVEY_MS_BUDGET + " ms" : "");
+        }
+    }
+
+    /**
+     * The nether cell an overworld cell maps onto — the 8:1 rule a portal obeys.
+     *
+     * <p>Public and named because the alternative is the conversion being written inline at each
+     * call site, and this ladder has already paid for that once: a body reached the Nether holding
+     * its raw overworld X and landed 87 501 blocks from where it should have been. A coordinate that
+     * crosses a dimension boundary should cross it through one function.
+     */
+    public static BlockPos netherwards(BlockPos overworld) {
+        return new BlockPos(Math.floorDiv(overworld.getX(), 8), 64, Math.floorDiv(overworld.getZ(), 8));
+    }
+
+    /**
+     * Where the nearest nether fortress is, asked from the overworld, and what asking cost.
+     *
+     * <p><b>Why not {@code /locate}.</b> {@link #locate} runs a command, and a command runs in the
+     * source's dimension — which for every scene in this suite is the overworld. There is no nether
+     * fortress in the overworld, so the honest answer to the command is "none", and that answer
+     * would have been baked as a fact about seed 5471. {@code execute in the_nether run locate}
+     * would work and brings its own trap (the source keeps its overworld POSITION, so the search is
+     * centred 8× too far out); the generator API takes both the dimension and the centre as
+     * arguments and has neither problem.
+     *
+     * <p>Assigns {@link #netherFortress} and {@link #netherFortressMs} when it finds one, the way
+     * recon adopts {@code secondTree}: a landmark in a dimension nothing else in this class visits
+     * has no earlier value for a later run to check against, so the survey's answer IS the constant
+     * until somebody bakes one.
+     *
+     * @param overworldFrom where the run is standing in the OVERWORLD — converted by
+     *                      {@link #netherwards}, because the fortress is looked for near where this
+     *                      run's own portal comes out, not near the nether origin
+     */
+    public static Located surveyNetherFortress(SceneContext ctx, BlockPos overworldFrom) {
+        return surveyNetherFortressFrom(ctx, netherwards(overworldFrom));
+    }
+
+    /** {@link #surveyNetherFortress} for a caller whose centre is ALREADY in nether coordinates —
+     *  a rung that is standing in the Nether and asking about the ground under its own feet. */
+    public static Located surveyNetherFortressFrom(SceneContext ctx, BlockPos netherFrom) {
+        Located out = surveyStructure(ctx, net.minecraft.world.level.Level.NETHER,
+                net.minecraft.world.level.levelgen.structure.BuiltinStructures.FORTRESS,
+                "minecraft:fortress", netherFrom, FORTRESS_SEARCH_RINGS);
+        netherFortressMs = out.millis();
+        if (out.found().where() != null) netherFortress = out.found().where();
+        return out;
+    }
+
+    /**
+     * Ask the generator where the nearest instance of one structure is, in a named dimension.
+     *
+     * <p>{@code ServerLevel.findNearestMapStructure} takes a {@code TagKey}, which is the wrong
+     * shape for asking about exactly one structure — there is no tag containing only the fortress,
+     * and inventing one to ask a question is a data pack. The generator's own overload takes a
+     * {@code HolderSet}, so a set of one is built straight from the structure registry.
+     *
+     * <p><b>{@code skipExistingChunks} is false on purpose.</b> True means "only tell me about a
+     * structure in a chunk that has not generated yet", which is what a treasure map wants and the
+     * opposite of what a route wants: it would go quiet about the fortress the moment the run walked
+     * near enough to load it.
+     *
+     * @param rings how far out to look, counted in PLACEMENT REGIONS — see {@link #FORTRESS_SEARCH_RINGS}
+     */
+    public static Located surveyStructure(SceneContext ctx,
+                                          net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> where,
+                                          net.minecraft.resources.ResourceKey<net.minecraft.world.level.levelgen.structure.Structure> what,
+                                          String label, BlockPos from, int rings) {
+        long startedNs = System.nanoTime();
+        ServerLevel level = ctx.level().getServer().getLevel(where);
+        if (level == null) {
+            return new Located(new Found(label + " [维度 " + where.location() + " 没有加载]", null, -1),
+                    millisSince(startedNs), rings);
+        }
+        BlockPos at;
+        try {
+            var registry = level.registryAccess()
+                    .registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE);
+            var only = net.minecraft.core.HolderSet.direct(registry.getHolderOrThrow(what));
+            var hit = level.getChunkSource().getGenerator()
+                    .findNearestMapStructure(level, only, from, rings, false);
+            at = hit == null ? null : hit.getFirst();
+        } catch (RuntimeException | LinkageError e) {
+            // Carried, not dropped — the same lesson `locate` learned. A structure id nobody
+            // registered and a seed that genuinely has none are two different findings, and a
+            // survey that reports them identically is how "seed 5471 has no village" got written
+            // down about a seed with several.
+            String why = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            return new Located(new Found(label + " [" + why.replace('\n', ' ') + "]", null, -1),
+                    millisSince(startedNs), rings);
+        }
+        return new Located(
+                new Found(label, at, at == null ? -1 : Math.sqrt(from.distSqr(at))),
+                millisSince(startedNs), rings);
+    }
+
+    private static long millisSince(long startedNs) {
+        return (System.nanoTime() - startedNs) / 1_000_000L;
+    }
+
+    /**
+     * How far out the fortress search may look, <b>counted in placement regions, not chunks</b>.
+     *
+     * <p>The unit is the trap, and it is invisible from the call site: {@code findNearestMapStructure}
+     * multiplies this by the structure set's own {@code spacing} before it touches a coordinate, so
+     * for the nether complexes (spacing 27 chunks) twelve rings is roughly 5 200 blocks and not the
+     * twelve chunks it reads as. Passing {@code /locate}'s default of 100 here would be a search
+     * 43 000 blocks wide.
+     *
+     * <p>Twelve is bounded rather than generous, and the cost is bounded a second way by the search
+     * itself: it scans ring by ring and returns at the FIRST ring that yields anything, so a run only
+     * pays for the empty rings that are genuinely empty. A fortress shares its placement with the
+     * bastions and takes roughly two regions in five, which puts the usual answer in ring 0 or 1.
+     */
+    private static final int FORTRESS_SEARCH_RINGS = 12;
 
     /**
      * How far around spawn the survey forces chunks before it reads any of them.
