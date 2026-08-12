@@ -2764,11 +2764,18 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // Water in, from the block behind it: a bucket fills the neighbour of the face its ray lands
         // on, and an air cell stops no ray. Standing level with the target keeps that ray horizontal.
         placeFluid(ctx, rig, wet, away, Items.WATER_BUCKET, "water" + i, () -> {
-            if (ctx.level().getFluidState(wet).isEmpty()) {
-                ctx.fail("水没放进去：想放 " + wet.toShortString() + "（第 " + (i + 1) + " 格的相邻内框），"
-                        + "那格现在是 " + ctx.level().getBlockState(wet).getBlock());
-                return;
-            }
+            // Record where the water actually settled; do NOT fail on it. This precondition is the
+            // rung's own invention — the arena probe (wd.serverCastsAPortalFrame) casts all ten with
+            // the same geometry and never asserts it — and it is wrong for the bottom pair: `wet` is
+            // the cell ABOVE the target, whose floor IS the target, which is carved air at that
+            // moment. The water falls one block into the very cell about to be cast, and lava poured
+            // there still yields obsidian. Asserting the intermediate state failed a step that works.
+            //
+            // The claim is the obsidian, so let the cast decide: `cast.missed.i` names any cell that
+            // did not turn, and `frame.obsidian` gates the lighting on all ten.
+            if (ctx.level().getFluidState(wet).isEmpty())
+                rig.evidence("water.fell." + i, wet.toShortString() + " 空了，水多半落进了目标格 "
+                        + cell.toShortString() + "（现在是 " + ctx.level().getBlockState(cell).getBlock() + "）");
             BlockPos src = pool.get(Math.min(i, pool.size() - 1));
             fillFrom(ctx, rig, src, "lava" + i, () -> placeFluid(ctx, rig, cell, away, Items.LAVA_BUCKET,
                     "cast" + i, () -> rig.settle(new HoldStill(3), 12, () -> {
