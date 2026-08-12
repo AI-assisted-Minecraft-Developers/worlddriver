@@ -37,6 +37,57 @@ LevelWorldView.state(p) → Level.getBlockState(p)
 2. **外加一次 journey 阶梯实跑** —— 长距离那几级(第 13 级往上, 尤其下界横穿)正是
    "前沿之外不可通行"**最可能**弄坏的东西, 而 gate 里的场景都在小竞技场里, 压根走不到前沿。
 
+## 🔴 `BotConfig` 里装着**每个个体每 tick 的运行时状态**, 于是两个个体互相改对方的旋钮
+
+`wd.horizon` 在 integratedServerNeoforge 上红了一次: `off` 和 `on` **一模一样**
+(`firstExpanded=633` 两边都是, 健康时 `on=firstExpanded=50 firstEndX=49 segments=5`)。
+也就是说 `horizon=48` **完全没生效** —— 这一场什么都没量到, 却照样能报出一个颜色。
+
+**机制(读源码定的, 不是猜的)**:
+
+```java
+// BotConfig.java:882
+public static int pfHorizonBlocks() { return pathfinderBoxedEscalate ? 0 : pathfinderHorizonBlocks; }
+// WalkerTickPrelude.java:83  —— 每个 walker tick 都写一次这个全局
+BotConfig.pathfinderBoxedEscalate = escalating;
+```
+
+integrated 拓扑里**客户端的 Walker 活在同一个 JVM 的 Render 线程上**。日志里 06:22:50–52
+连着三次 `[Render thread] [pathfinder] search-begin owner=goto ... goal=137896,221,100000`
+—— 一个够不着的远目标反复重搜, 正是 boxed churn。它把 `pathfinderBoxedEscalate=true`
+写进全局; 06:22:53 服务器线程上的 `HorizonArena.run(48)` 调 `pfHorizonBlocks()` 拿到 **0**,
+于是和 `run(0)` 跑出完全相同的数。三件事一次对上: 只在 integrated 红(只有那儿有客户端 Walker)、
+偶发(取决于那一刻客户端在不在 churn)、以及 `on` 和 `off` **逐字节相同**(不是变弱, 是彻底关掉)。
+
+**这不是 `wd.horizon` 的 bug, 是一类 bug。** `BotConfig` 是进程级可变单例, 而下面三个
+被标成 "PURE RUNTIME STATE / NOT persisted" 的字段, 装的都是**每个个体每 tick 的状态**:
+
+| 字段 | 谁写 | 谁读 |
+|---|---|---|
+| `pathfinderBoxedEscalate` | `WalkerTickPrelude:83`(每 tick) | `pfHorizonBlocks/pfSoftCommitNodes/pfDepthPenalty` |
+| `fleeActive` | `RunAwayProcess:97` | 寻路地形代价 |
+| `walkerDigActive` | `WalkerTickClimb` 三处 + `WalkerTickPrelude:275` | `AutoSwim` 的防淹兜底 |
+
+一个 JVM 里只要有两个个体(客户端 Walker + 服务端场景 driver, 或者将来**并行跑的两个场景**),
+它们就在改对方的旋钮。**`pinnedBaseline()` 救不了**: 这三个字段在 `NON_PERSISTED` 里,
+`persistable()` 直接把它们排除, 所以 `snapshotAll/restoreAll` 根本不快照它们 ——
+让它"对持久化正确"的那个排除, 恰好让它**对隔离不可见**。何况就算快照了,
+另一个线程每 tick 还在重写。
+
+**正确的修法(还没做, 因为它是生产侧重构, 不该在没验证的情况下落地)**: 把这三个字段从
+`BotConfig` 挪到**个体**上(Walker / driver), 寻路的三个旋钮在 `PathFinder` **构造时**传进去,
+`pfHorizonBlocks()` 那三个 getter 变成实例解析。这样 `HorizonArena` 给自己那个
+`new PathFinder(...)` 设值, 一个字节的全局都不碰; 客户端 Walker 的 escalation 只影响它自己。
+
+**代价, 说清楚**: `new PathFinder(` 在 `common/src/main` 有 **7 处**
+(Walker 3、PlanProbeTool 2、PinchArena 1、HorizonArena 1), 在 testmod 有 **30 处**。
+加一个带默认值的重载, testmod 那 30 处可以不动, 真正要改的是 main 的 7 处
+外加把 Walker 自己的 escalation 状态穿进去。`fleeActive` / `walkerDigActive` 的读者
+(地形代价、AutoSwim)不在寻路构造路径上, 要把"哪个个体"穿到那两处, 是更大的一摊, 分开做。
+
+**在修好之前, 并行跑场景是不安全的** —— 今天它污染的是一个 Render 线程上的寻路,
+明天就是隔壁那个场景。
+
 ## 🔴 60 秒 watchdog 崩溃的真凶: 一个 server tick 里塞进了三千次寻路切片
 
 `wd.serverFightsOneBlaze` 让 NeoForge dedicated gate 在 8 轮里红了 3 轮
