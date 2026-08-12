@@ -58,6 +58,30 @@
   点的那一格如果自己不可点燃(黑曜石就不是), 火会放到 **`clickedPos.relative(clickedFace)`** 去,
   所以要**点门框的黑曜石、face 朝内框**。
 
+## 设计: 旅程场景应该能拒绝它从不使用的竞技场
+
+**第 7 轮死在第 9 级(铁)**, 报的是 `only 0 of 9 arena chunks ever loaded after 201 ticks`,
+`minecraft:overworld at 104608,100000`。诊断:
+
+- 服务器**没有**卡住 —— 201 tick / 9953 ms = 49.5 ms/tick, 正好 20 TPS; 上一级(熔炉)几秒前刚过。
+- 竞技场按 `z=100000` 一条巷、按场景递增 x 分配。第 9 级抽到 `x=104608` 这一列, 该列的区块
+  **一格都没生成过**(ready 从 0 开始就没动过), 而 1/2/3/5 轮在**同样的坐标**上都过了。
+  所以不是地形, 是异步区块生成的偶发停滞 —— StageWrightHarness 自己的注释里已经写过这个现象
+  (All the Mods 10 一轮 10s ENV_FAIL、下一轮 9s 通过)。
+
+**关键点: 这 9 个区块, 旅程场景一个都不用。** `JourneyRig` 的类注释自己就写着"竞技场被强制加载,
+而旅程立刻离开它 —— 它在出生点玩, 然后走上几公里"。也就是说梯子上**每一级**都在等一块
+十万格外、自己永远不会踏进去的地。这不是运气不好, 是一个纯多余的失败面。
+
+**做法**(在 stagewright 侧, 一个小改动):
+
+- `Scene` 加 `withArena(false)`(或 `Terrain.NONE`) —— 只影响 PREP: 跳过 `forceChunks` 与
+  `arenaReady` 等待, 直接进 RUN, 并跳过 `ArenaAudit`(对活世界里的场景本来就无意义)。
+- `SceneContext` 照常构造 —— 旅程场景**要** `ctx.level()`, 只是不需要那块地被强制加载。
+
+**代价**: 改的是 stagewright 的 API + harness, 要重新 publish 到 mavenLocal, 会撞上
+memory `loom-remap-cache-serves-stale-stagewright` 里那三层缓存。所以不要在一轮梯子在跑的时候动。
+
 ## 🚧 阶梯在前沿以下不稳，这才是挡住"跑通完整链路"的主因(2026-08-12)
 
 七轮实测: **只有 4 轮**跑到了第 12 级(1/2/3/5), 另外两轮死在与本次改动无关的上游:
