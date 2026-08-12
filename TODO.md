@@ -58,6 +58,24 @@
   点的那一格如果自己不可点燃(黑曜石就不是), 火会放到 **`clickedPos.relative(clickedFace)`** 去,
   所以要**点门框的黑曜石、face 朝内框**。
 
+## 第 15 轮(已回滚): 把竞技场缩到半径 0 = 把偶发故障变成必然故障
+
+我把每一级的 `withChunkRadius(0)`(1 个区块, 而不是默认的 9 个)当成"少等 9 倍的地"来用。
+结果**每一级都 ENV_FAIL**, 阶梯只爬到 RECON。已 `git revert`, 树是干净的, 能编译。
+
+**为什么错**: `arenaReady` 要的是 **entity-ticking** 区块, 而原版要求一个区块的**邻居**也加载
+才会升到那一级。半径 0 的票据永远造不出一个 entity-ticking 区块 —— 所以它不是"等得少",
+是"永远等不到"。
+
+**但这一轮买到了一件真东西**: 报错是 `only 0 of 1 arena chunks ever loaded`。
+**0/1 和 0/9 一样失败, 说明第 7、14 轮那条偶发故障也不是"数量/资源压力"问题** ——
+我上一条把它归给"连跑七轮的磁盘压力"是没有证据的猜测, 这里可以划掉。请求根本没被服务,
+和要几个区块无关。
+
+**因此结论不变、反而更硬**: 缩小竞技场无解, 唯一的解是**根本不等** ——
+stagewright 侧的 `Scene.withArena(false)`(PREP 跳过 `forceChunks`/`arenaReady`/`ArenaAudit`,
+照常构造 `SceneContext`)。旅程场景一个都不读 `ctx.origin()`(已 grep 确认), 所以不会有损失。
+
 ## 第 14 轮: 竞技场那条环境故障复发, 而且一轮里连中两级
 
 第 9、第 10 两级同时 `only 0 of 9 arena chunks ever loaded after 201 ticks`, 阶梯只爬到 FURNACE,
