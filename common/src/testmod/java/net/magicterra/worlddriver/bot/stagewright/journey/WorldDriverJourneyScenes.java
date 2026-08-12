@@ -2556,12 +2556,32 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * adjacent to air it can already stand in. An earlier version looped depth-then-width-then-height
      * and asked for a cell six blocks over the body's head while the floor beside it was still solid.
      */
-    private static List<BlockPos> forgeCells(BlockPos at, Direction away, int push) {
+    /**
+     * Only the corridor — the space the body walks and stands in. <b>Not</b> the frame cells.
+     *
+     * <p>This is the whole of the 0/10 bug. {@code RING}'s order encodes an invariant: every cell's
+     * floor is either rock nobody touched or the obsidian cast one step earlier — {@code (-1,2)}
+     * stands on {@code (-1,1)}, which is cast before it. The arena probe keeps that true by starting
+     * from solid stone and opening each cell only when its turn comes. Excavating all twelve up
+     * front turns every one of those floors into air before the first pour, so each fluid is placed
+     * and immediately runs off: both buckets report {@code CONSUME} and both cells read air.
+     *
+     * <p>So the corridor is carved here and each frame cell is opened in {@code castCell}, just
+     * before it is filled.
+     */
+    private static List<BlockPos> forgeCorridor(BlockPos at, Direction away, int push) {
         List<BlockPos> cells = new ArrayList<>();
         for (int y = 0; y <= 6; y++)
             for (int d = 0; d < push; d++)
                 for (int w = -2; w <= 2; w++)
                     cells.add(at.relative(away, d).relative(away.getClockWise(), w).above(y));
+        return cells;
+    }
+
+    /** Corridor plus the frame, for the "is this whole spot dry?" probe only — the frame cells are
+     *  checked for fluid but must NOT be pre-carved. See {@link #forgeCorridor}. */
+    private static List<BlockPos> forgeCells(BlockPos at, Direction away, int push) {
+        List<BlockPos> cells = forgeCorridor(at, away, push);
         // The frame itself, one further in: ten ring cells, six interior, two cap notches.
         BlockPos base = at.relative(away, push);
         for (int[] c : RING) cells.add(frameCell(base, away, c[0], c[1]));
@@ -2611,8 +2631,11 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         BlockPos base = at.relative(away, push);
         rig.evidence("forge.face", base.toShortString() + " 朝 " + away
                 + "（背离岩浆，外推 " + push + " 格）");
+        // Corridor only. The twelve frame cells were checked for fluid above (via `cells`) but are
+        // left SOLID here — each is opened in castCell just before it is filled, so that its floor
+        // is still rock or already-cast obsidian at the moment the fluid lands in it.
         List<BlockPos> todo = new ArrayList<>();
-        for (BlockPos c : cells) {
+        for (BlockPos c : forgeCorridor(at, away, push)) {
             if (level.getBlockState(c).isAir()) continue;
             if (!level.getFluidState(c).isEmpty()) {
                 ctx.fail("要挖的格子里有流体：" + c.toShortString() + " = "
@@ -2786,6 +2809,17 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         }
         BlockPos cell = frameCell(base, away, RING[i][0], RING[i][1]);
         BlockPos wet = wetCellFor(base, away, RING[i][0], RING[i][1]);
+        // Open exactly these two, now. Everything else in the frame is still solid, which is what
+        // gives this cell a floor — see forgeCorridor for why carving them all up front cast 0/10.
+        rig.mineCellOrGiveUp(cell, 400, () -> rig.mineCellOrGiveUp(wet, 400,
+                () -> castOpenedCell(ctx, rig, base, away, pool, i, cell, wet, then)));
+    }
+
+    private static void castOpenedCell(SceneContext ctx, JourneyRig rig, BlockPos base, Direction away,
+                                       List<BlockPos> pool, int i, BlockPos cell, BlockPos wet,
+                                       Runnable then) {
+        rig.evidence("opened." + i, cell.toShortString() + "=" + ctx.level().getBlockState(cell).getBlock()
+                + " 水位 " + wet.toShortString() + "=" + ctx.level().getBlockState(wet).getBlock());
         // Water in, from the block behind it: a bucket fills the neighbour of the face its ray lands
         // on, and an air cell stops no ray. Standing level with the target keeps that ray horizontal.
         placeFluid(ctx, rig, wet, away, Items.WATER_BUCKET, "water" + i, () -> {
