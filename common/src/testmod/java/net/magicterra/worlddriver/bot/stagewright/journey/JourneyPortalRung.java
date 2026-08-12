@@ -170,6 +170,40 @@ public final class JourneyPortalRung {
     private static BlockPos stairTop, stairBottom;
     private static Direction stairDir = Direction.SOUTH;
 
+    /** Every step's foot cell, top first — the route itself, not just its ends.
+     *
+     * <p>The ends alone are not enough, and that is a measurement rather than a precaution. Given
+     * {@code Goal.Block(stairBottom)} the walker takes the shortest line it can see, and from the top
+     * of the stairs the shortest line is ACROSS THE SURFACE: measured twice, the body walked to
+     * {@code -10,66,34} — ground level directly above the staircase at z=34 — and then re-searched
+     * for a cell eight blocks below it through untouched rock, every two seconds, until the leg ran
+     * out. Naming the mouth fixed the first half and the second half did it again from the mouth.
+     * Waypoints down the flight itself are what make the staircase the route and not merely a hole
+     * that happens to connect two places. */
+    private static final List<BlockPos> stairCells = new ArrayList<>();
+
+    /** Every fourth step is waypoint enough: consecutive waypoints are four blocks apart INSIDE the
+     *  stairwell, and there is no shorter way between two such cells that leaves it. */
+    private static final int STAIR_WAYPOINT_STRIDE = 4;
+
+    /** The flight as a list of waypoints, top-first when {@code down}. */
+    private static List<BlockPos> stairRoute(boolean down) {
+        List<BlockPos> out = new ArrayList<>();
+        for (int i = 0; i < stairCells.size(); i += STAIR_WAYPOINT_STRIDE) out.add(stairCells.get(i));
+        BlockPos last = stairCells.get(stairCells.size() - 1);
+        if (!out.get(out.size() - 1).equals(last)) out.add(last);
+        if (!down) java.util.Collections.reverse(out);
+        return out;
+    }
+
+    /** Walk the waypoints in order, best effort. A leg that falls short is not failed here — the
+     *  caller checks the height it actually reached, which is the only thing that matters. */
+    private static void walkTheStairs(JourneyRig rig, List<BlockPos> route, int i, Runnable then) {
+        if (i >= route.size()) { then.run(); return; }
+        rig.settle(new IntentProcess(new Intent(new Goal.Block(route.get(i)))), 600,
+                () -> walkTheStairs(rig, route, i + 1, then));
+    }
+
     /** Every cell the alcove was hollowed out of — the space the body walks in, and nothing else.
      *  {@link #clearPourLine} is allowed to break inside this and nowhere else, which is what stops
      *  a blocked pour from answering by digging a hole in the mould's own floor. */
@@ -261,6 +295,8 @@ public final class JourneyPortalRung {
             }
         }
         rig.evidence("stair." + step, at.toShortString() + " → " + foot.toShortString());
+        if (stairCells.isEmpty() || !stairCells.get(stairCells.size() - 1).equals(foot))
+            stairCells.add(foot);
         cutStairCells(rig, cut, 0, () ->
                 rig.settle(new IntentProcess(new Intent(new Goal.Block(foot))), 300, () -> {
             BlockPos now = rig.player().blockPosition();
@@ -308,7 +344,7 @@ public final class JourneyPortalRung {
         }
         rig.evidence(tag + ".up", rig.player().blockPosition().toShortString() + " → 楼梯顶 "
                 + stairTop.toShortString());
-        rig.settle(new IntentProcess(new Intent(new Goal.Block(stairTop))), 4_000, () -> {
+        walkTheStairs(rig, stairRoute(false), 0, () -> {
             BlockPos here = rig.player().blockPosition();
             rig.evidence(tag + ".upEnded", here.toShortString() + "（楼梯顶 "
                     + stairTop.toShortString() + "）");
@@ -347,8 +383,7 @@ public final class JourneyPortalRung {
         // separated from it by eight blocks of untouched rock. The stairs are a corridor and a
         // corridor is entered at its mouth; naming the mouth turns one impossible search into two
         // easy ones.
-        rig.settle(new IntentProcess(new Intent(new Goal.Block(stairTop))), 2_000, () ->
-        rig.settle(new IntentProcess(new Intent(new Goal.Block(stairBottom))), 4_000, () -> {
+        walkTheStairs(rig, stairRoute(true), 0, () -> {
             BlockPos here = rig.player().blockPosition();
             rig.evidence(tag + ".returnedY", here.getY() + "（楼梯底 y=" + stairBottom.getY()
                     + "，身体 " + here.toShortString() + "）");
@@ -359,7 +394,7 @@ public final class JourneyPortalRung {
                 return;
             }
             then.run();
-        }));
+        });
     }
 
     private static void descendToTheForge(SceneContext ctx, JourneyRig rig, BlockPos lava) {
@@ -382,6 +417,8 @@ public final class JourneyPortalRung {
                 BotConfig.allowPlace = false;
                 BlockPos start = rig.player().blockPosition();
                 stairTop = start;
+                stairCells.clear();
+                stairCells.add(start);
                 stairDir = awayFrom(lava, start);
                 int depth = Math.max(0, start.getY() - forgeFloorY(lava));
                 int cap = depth * STAIR_ATTEMPTS_PER_BLOCK + 40;
