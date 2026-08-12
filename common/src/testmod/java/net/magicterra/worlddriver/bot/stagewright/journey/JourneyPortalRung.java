@@ -687,9 +687,45 @@ public final class JourneyPortalRung {
             noteCellDig(rig, "cell." + i, cell);
             rig.mineCellOrGiveUp(wet, 1_200, () -> {
                 noteCellDig(rig, "wet." + i, wet);
-                castOpenedCell(ctx, rig, base, away, pool, i, cell, wet, then);
+                tidyTheAlcove(ctx, rig, "tidy." + i,
+                        () -> castOpenedCell(ctx, rig, base, away, pool, i, cell, wet, then));
             });
         });
+    }
+
+    /**
+     * Take the body's own scaffolding back out of the alcove before it pours into it.
+     *
+     * <p>{@code allowPlace} is off for the whole casting phase and the alcove fills with cobblestone
+     * anyway, because the placer is not the pathfinder: {@code MineProcess} reaches a cell above head
+     * height by planning a <b>pillar-up</b> stand, and the two frame cells opened at the top of every
+     * {@code castCell} are exactly that shape. So each cast leaves a column or two behind, in the
+     * only volume this rung has to stand and aim in.
+     *
+     * <p>Measured, run 29: cells 0–2 cast, and cell 3 at {@code -11,57,38} then had no ray-verified
+     * spot at all — {@code -11,57,36}, {@code -11,58,36}, {@code -11,59,36}, {@code -11,58,37} and
+     * {@code -10,58,37} were all cobblestone, so {@code standToPour} fell back to a standable cell
+     * three columns away and its ray stopped on the litter: {@code cast3.picks=-10,58,37
+     * cobblestone face=north → 落进 -10,58,36}. {@link #clearPourLine} cleans the LINE and that was
+     * not enough; what a pour needs clear is the room.
+     *
+     * <p>Cobblestone only, and only inside {@link #forgeCorridor}. The corridor is a volume this rung
+     * hollowed out itself, so anything solid in it arrived afterwards; naming the block as well is
+     * belt-and-braces, and keeps a stuck carve cell (natural stone the pick could not reach) from
+     * being re-attempted ten times. Top down, so each cell is adjacent to air when its turn comes and
+     * the body simply rides the column down as it goes.
+     */
+    private static void tidyTheAlcove(SceneContext ctx, JourneyRig rig, String tag, Runnable then) {
+        ServerLevel level = ctx.level();
+        List<BlockPos> litter = new ArrayList<>();
+        for (BlockPos c : forgeCorridor)
+            if (level.getBlockState(c).getBlock() == Blocks.COBBLESTONE) litter.add(c.immutable());
+        if (litter.isEmpty()) { then.run(); return; }
+        litter.sort((a, b) -> b.getY() - a.getY());
+        StringBuilder where = new StringBuilder();
+        for (BlockPos c : litter) where.append(where.isEmpty() ? "" : " ").append(c.toShortString());
+        rig.evidence(tag, litter.size() + " 格垫脚石要清（挖门框时 MineProcess 自己垒的）：" + where);
+        clearNext(rig, litter, 0, then);
     }
 
     /** Every pickaxe in the bag with the uses it has left, commonest failure first. */
