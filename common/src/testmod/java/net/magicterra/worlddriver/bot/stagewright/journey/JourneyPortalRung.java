@@ -1630,6 +1630,39 @@ public final class JourneyPortalRung {
      * run lands on the source. Sources are tried nearest-first by how far the BODY must walk, so the
      * answer is also the cheapest trip.
      */
+    /**
+     * Is the straight line from the body to this stand over the pool?
+     *
+     * <p>A stand is chosen by how far the BODY has to go, and straight-line distance is the only
+     * cheap measure of that — but a straight line across a lava lake is a route the walker will
+     * genuinely try, and this rung's lake sits between the stairwell's mouth and the far bank.
+     * Measured in four consecutive runs, and always the same shape: {@code lava2.spot=站 -13,64,21}
+     * chosen from the mouth at {@code -9,66,21}, and the very next reading is the body at
+     * {@code -10,60,20} — three blocks under the surface, {@code onGround=false}, with the scripted
+     * climb correctly refusing to mine a ceiling that has lava behind it. There is nothing to
+     * recover from down there, so the answer has to be not to go.
+     *
+     * <p>Sampled at half-block steps, and only across the MIDDLE of the line: both ends are supposed
+     * to be beside lava — that is what a lava fill is — so a check that read the endpoints would
+     * refuse every stand there is.
+     */
+    private static boolean acrossThePool(ServerLevel level, BlockPos from, BlockPos to) {
+        double span = Math.sqrt(from.distSqr(to));
+        int steps = (int) Math.max(1, Math.round(span * 2));
+        for (int i = 1; i < steps; i++) {
+            double t = (double) i / steps;
+            double x = from.getX() + 0.5 + (to.getX() - from.getX()) * t;
+            double y = from.getY() + (to.getY() - from.getY()) * t;
+            double z = from.getZ() + 0.5 + (to.getZ() - from.getZ()) * t;
+            if (span * t < 1.5 || span * (1 - t) < 1.5) continue;       // the two banks, not the pool
+            for (int dy = -1; dy <= 1; dy++) {
+                BlockPos c = BlockPos.containing(x, y + dy, z);
+                if (level.getFluidState(c).is(net.minecraft.tags.FluidTags.LAVA)) return true;
+            }
+        }
+        return false;
+    }
+
     private static FillSpot standToFill(ServerLevel level, JourneyRig rig, BlockPos pool, boolean lava,
                                         int radius, Map<String, Integer> why) {
         BlockPos from = rig.player().blockPosition();
@@ -1681,6 +1714,9 @@ public final class JourneyPortalRung {
                         }
                         if (!level.getBlockState(head).getCollisionShape(level, head).isEmpty()) {
                             why.merge("头顶被占", 1, Integer::sum); continue;
+                        }
+                        if (lava && acrossThePool(level, from, foot)) {
+                            why.merge("过去要横穿岩浆", 1, Integer::sum); continue;
                         }
                         var eye = new net.minecraft.world.phys.Vec3(foot.getX() + 0.5,
                                 foot.getY() + rig.player().getEyeHeight(), foot.getZ() + 0.5);
