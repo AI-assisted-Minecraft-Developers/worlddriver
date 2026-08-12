@@ -725,7 +725,7 @@ public final class JourneyPortalRung {
         StringBuilder where = new StringBuilder();
         for (BlockPos c : litter) where.append(where.isEmpty() ? "" : " ").append(c.toShortString());
         rig.evidence(tag, litter.size() + " 格垫脚石要清（挖门框时 MineProcess 自己垒的）：" + where);
-        clearNext(rig, litter, 0, then);
+        clearNext(rig, litter, 0, 240, then);
     }
 
     /** Every pickaxe in the bag with the uses it has left, commonest failure first. */
@@ -1249,8 +1249,17 @@ public final class JourneyPortalRung {
     }
 
     private static void clearNext(JourneyRig rig, List<BlockPos> blocked, int i, Runnable then) {
+        clearNext(rig, blocked, i, 600, then);
+    }
+
+    /** The per-cell budget is the caller's, because the two callers are not the same size. A pour's
+     *  line is three or four cells and each one is genuinely in the way; the alcove sweep can be
+     *  twenty, most of them already reachable, and a cell that will not open in four seconds there
+     *  is one to walk past rather than one to spend twenty on ten times over. */
+    private static void clearNext(JourneyRig rig, List<BlockPos> blocked, int i, int ticks,
+                                  Runnable then) {
         if (i >= blocked.size()) { then.run(); return; }
-        rig.mineCellOrGiveUp(blocked.get(i), 600, () -> clearNext(rig, blocked, i + 1, then));
+        rig.mineCellOrGiveUp(blocked.get(i), ticks, () -> clearNext(rig, blocked, i + 1, ticks, then));
     }
 
     /** Break whatever no-collider block the aim ray stops on before {@code want}, then continue.
