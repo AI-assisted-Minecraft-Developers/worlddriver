@@ -1404,6 +1404,29 @@ public final class JourneyPortalRung {
                                  net.minecraft.world.item.Item wanted, int tries, Runnable then) {
         String id = String.valueOf(BuiltInRegistries.ITEM.getKey(wanted));
         boolean lava = wanted == Items.LAVA_BUCKET;
+        // DO NOT WALK TO THE LAKE IF THE LAKE IS ALREADY IN REACH.
+        //
+        // The staircase's mouth is cut beside the pool, so a body that has just climbed it is
+        // usually two blocks from a source with a clear line to it — and the walk to a planned
+        // stand on the far side crosses the pool's own rim. That crossing is not a slow route, it
+        // is a drowning: measured in three consecutive runs, `lava2.spot=站 -13,64,21` and then
+        // `cast2.return` beginning at `-10,60,20`, three blocks UNDER the surface, `climb.0
+        // above=lava onGround=false`, and the scripted climb refusing to mine a ceiling with lava
+        // behind it — correctly, and with nothing left to try. The trip that fetched the lava is
+        // what buried the body, and it was a trip it did not need to make.
+        //
+        // First approach only: a fill that has already missed once needs a different question, and
+        // asking this one again would hand back the same cell.
+        if (tries == FILL_APPROACHES) {
+            BlockPos inReach = visibleSourceNear(rig, lava, FILL_RESEARCH);
+            if (inReach != null) {
+                rig.evidence(tag + ".fromHere", rig.player().blockPosition().toShortString()
+                        + " 已经看得见源块 " + inReach.toShortString() + "（够得着），不走过去了");
+                WorldDriverJourneyScenes.holdForUse(rig, Items.BUCKET, tag);
+                scoop(ctx, rig, src, inReach, tag, wanted, id, lava, tries, AIM_TRIES, then);
+                return;
+            }
+        }
         // WHERE TO STAND is chosen before the walk, not discovered after it. `Goal.Near(src, 2)` puts
         // the body within two blocks of a source and says nothing about what is between them, so
         // whether the bucket filled came down to where the climb happened to emerge: the same code
