@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **The driver's world view did not follow the body through a dimension change.**
+  `ServerWorldDriver` built one `LevelWorldView` in its constructor from the body's creation level
+  and handed that same view to every `BotProcess` and to the `Walker` for its whole life. From the
+  moment the body stepped through a nether portal, **every pathfind planned across overworld terrain
+  at nether coordinates** — and nothing said so: the walker planned, drove, and reported an ordinary
+  failure to arrive, indistinguishable from bad terrain or a tight budget. `world()` now rebuilds
+  when the body's level changes, and the two `tick()` call sites go through the accessor (they were
+  reading the field directly, so fixing only the getter would have changed nothing).
+
+  A cheap way to detect this class of bug: read the 27 cells around the body twice, once through
+  `view.isSolid` and once through `level.getBlockState(...).blocksMotion()`. On one level those are
+  the same expression and agree 27/27, so a *single* disagreement proves two levels.
+
+- **A finished smelt and a smelt that never happened were byte-identical.**
+  `SmeltProcess.collect()` shift-clicked the furnace result slot and then reported DONE
+  *unconditionally*. `AbstractFurnaceMenu.quickMoveStack` → `moveItemStackTo(stack, 3, 39, true)`
+  returns false and **moves nothing** when all 36 player slots are full, so the process ended with
+  `lastError == null` and the ingots still in the block entity. It read as "the mine produced no
+  ore". Intermittent for a reason unrelated to smelting: the body stands beside the furnace for 200
+  ticks per item with `touchNearbyEntities()` running every tick, so the slot its own ore vacated
+  refills from the ground. `collect()` now re-reads the result slot and reports what it could not
+  take back; `init()` also stops using one message for both "no furnace in the bag" and "furnace in
+  the bag, nowhere to put it".
+
+### Added
+- **A rehearsal mode for single rungs** — `./gradlew :fabric:runRehearsalServer -Prehearse=<STAGE>`.
+  The journey ladder runs 20 rungs on one persistent body, so testing an upper rung meant replaying
+  everything below it and winning a coin toss; measured, about half of runs never reached rung 12,
+  and two committed fixes to it went unexecuted across three consecutive runs. A rehearsal stages one
+  rung's preconditions and runs it alone in 2–5 minutes.
+
+  Staging is allowed there, so four independent guards stop a green rehearsal from ever reading as a
+  green climb: its own scene names (`wd.rehearse*`), its own property/task/runDir, every arrangement
+  counted so the row carries `staging.calls=N`, and its own verdict reading
+  `REHEARSAL — not a climb`. The real ladder's `staging.calls=0` assertion is byte-unchanged.
+
+- **The journey body now joins the player list** (`-Dworlddriver.realPlayerBodies=true` on
+  `runJourneyServer`). Vanilla gates a surprising amount of the endgame on `level.players()`, and a
+  `FakePlayer` that never went through `PlayerList.placeNewPlayer` is not in it: `EndDragonFight.tick`
+  creates **no dragon** while that list is empty, `BaseSpawner.isNearPlayer` never turns a fortress
+  spawner, and nothing spawns naturally. All three fail silently, and the End still builds its
+  crystals — so only the dragon looks missing. Verified not to destabilise the eleven rungs below it.
+
 ### Added
 - **All six topologies re-verified GREEN with the new scenes, and coverage is now stated as a
   matrix rather than a number.** No single topology runs everything, so "all scenes pass" is only
