@@ -117,6 +117,36 @@ public final class PathFinder {
      *  the Walker, so the plumbing stays single-source (producer → Walker → here). */
     private String owner = "?";
 
+    // ---- planner tuning: RESOLVED ONCE, HERE, instead of read off a global per node ----
+    //
+    // These three used to be read straight from BotConfig inside the search loop, through
+    // pfHorizonBlocks() / pfSoftCommitNodes() / pfDepthPenalty(). Those getters consult
+    // BotConfig.pathfinderBoxedEscalate, which is PER-BODY, PER-TICK runtime state that
+    // WalkerTickPrelude writes on EVERY walker tick — into a process-global. One JVM with two
+    // bodies in it therefore had them editing each other's planner.
+    //
+    // That is not hypothetical. On the integrated topology the client's Walker lives on the
+    // Render thread; while it churned on an unreachable far goal it held boxedEscalate true, and
+    // pfHorizonBlocks() returns 0 whenever that flag is set. A server-thread HorizonArena.run(48)
+    // running at that moment therefore searched with the horizon SWITCHED OFF and returned numbers
+    // byte-identical to run(0) — the scene measured nothing at all and still reported a colour.
+    // (`wd.horizon`, integratedServerNeoforge: off and on both firstExpanded=633, against a healthy
+    // on=50.) Byte-equality rather than a smaller difference is what named the cause: a weakened
+    // horizon and a disconnected one do not look alike.
+    //
+    // CAPTURED AT CONSTRUCTION, deliberately, and it matches the intended lifecycle rather than
+    // changing it: Walker.newPathFinder is documented as the single construction point for its
+    // deep searches and builds a fresh PathFinder per launch, and Walker arms or clears the
+    // escalation and then forces a repath (Walker:656, Walker:752). So the escalation was always
+    // meant to select the tuning for the NEXT search, not to mutate one already in flight. Freezing
+    // it also makes a time-sliced search self-consistent: it can no longer change its own rules
+    // between two slices of the same question.
+    private int horizonBlocks;
+    private int softCommitNodes;
+    private double depthPenalty;
+    /** Telemetry only: whether the escalation was armed when this finder was built. */
+    private boolean escalated;
+
     /** Default ctor reads live tunables from {@link net.magicterra.worlddriver.bot.BotConfig}
      *  so {@code mc.bot.setting{pathfinder.maxNodes:...}} can resize the budget
      *  without restarting the JVM. */
@@ -141,6 +171,29 @@ public final class PathFinder {
         this.maxNodes = maxNodes;
         this.maxMs = maxMs;
         this.profile = (profile == null) ? SearchProfile.NONE : profile;
+        this.horizonBlocks = BotConfig.pfHorizonBlocks();
+        this.softCommitNodes = BotConfig.pfSoftCommitNodes();
+        this.depthPenalty = BotConfig.pfDepthPenalty();
+        this.escalated = BotConfig.pathfinderBoxedEscalate;
+    }
+
+    /**
+     * Plan with an explicit tuning instead of whatever the globals happen to say.
+     *
+     * <p>For callers that are MEASURING the planner rather than driving a body — the debug arenas.
+     * Such a caller used to have to write the globals and put them back afterwards, which is unsound
+     * the moment anything else in the JVM is planning, and is what silently disconnected
+     * {@code wd.horizon}'s only variable (see the field comments above). Setting it here touches no
+     * shared state, so a concurrent body's Walker and this search no longer share a knob.
+     *
+     * <p>Clears the escalation flag: an explicit tuning IS the answer, so nothing may override it.
+     */
+    public PathFinder withTuning(int horizonBlocks, int softCommitNodes, double depthPenalty) {
+        this.horizonBlocks = horizonBlocks;
+        this.softCommitNodes = softCommitNodes;
+        this.depthPenalty = depthPenalty;
+        this.escalated = false;
+        return this;
     }
 
     /** gap#72-④: tag the searches launched from this PathFinder with the owning
@@ -399,7 +452,7 @@ public final class PathFinder {
                         sdE == null ? "null" : sdE.to.toShortString() + "/cost=" + sdE.cost,
                         swE == null ? "null" : swE.to.toShortString() + "/cost=" + swE.cost,
                         startInWater, world.isSubmergedFoot(start),
-                        maxNodes, maxMs, BotConfig.pfSoftCommitNodes(), BotConfig.pathfinderBoxedEscalate,
+                        maxNodes, maxMs, softCommitNodes, escalated,
                         constraints.size(), PathFinder.this.profile.bias().size());
             }
         }
@@ -433,9 +486,9 @@ public final class PathFinder {
             // Anti-basin-dive: an XZ goal's estimate ignores Y, so descending reads
             // as free progress and the search dives into a dead-end low valley. Charge
             // descent below this search's start (asymmetric — climbing stays free).
-            if (BotConfig.pfDepthPenalty() > 0) {
+            if (depthPenalty > 0) {
                 int below = start.getY() - BotConfig.pathfinderDepthSlack - p.getY();
-                if (below > 0) h += BotConfig.pfDepthPenalty() * below;
+                if (below > 0) h += depthPenalty * below;
             }
             return h;
         }
@@ -897,7 +950,6 @@ public final class PathFinder {
                     // real goal). Only real goal-ward progress, so a pinch/wall (no forward
                     // node) falls through to the unchanged best-effort backoff. Water starts
                     // excluded (bestAshore climb-out wins).
-                    int horizonBlocks = BotConfig.pfHorizonBlocks();
                     if (horizonBlocks > 0
                             && cur.h < startNode.h - 10.0 * horizonBlocks
                             && cur.pos.distSqr(start) > (long) MIN_DIST_PATH * MIN_DIST_PATH
@@ -991,11 +1043,11 @@ public final class PathFinder {
                     // now. The hard maxNodes still governs the "no segment yet" case (a deep
                     // pinch still hunting its first viable move / vertical escape), so hard
                     // reachability is unchanged.
-                    if (BotConfig.pfSoftCommitNodes() > 0
-                            && expanded >= BotConfig.pfSoftCommitNodes()
+                    if (softCommitNodes > 0
+                            && expanded >= softCommitNodes
                             && hasCommittableSegment()) {
-                        stopCause = "soft-commit(softNodes=" + BotConfig.pfSoftCommitNodes()
-                                + (startInWater && expanded >= BotConfig.pfSoftCommitNodes() * 4L
+                        stopCause = "soft-commit(softNodes=" + softCommitNodes
+                                + (startInWater && expanded >= softCommitNodes * 4L
                                         ? " water-relaxed-4x" : "") + ")";
                         break;
                     }
@@ -1231,8 +1283,8 @@ public final class PathFinder {
             // exemption) — an ashore node must never soft-stop a search whose goal
             // is underwater; the land tiering below (goal-ward gain) applies instead.
             if (startInWater && !diveRelief) {
-                boolean relaxedW = BotConfig.pfSoftCommitNodes() > 0
-                        && expanded >= BotConfig.pfSoftCommitNodes() * 4L;
+                boolean relaxedW = softCommitNodes > 0
+                        && expanded >= softCommitNodes * 4L;
                 return (bestAshore != null && (relaxedW || bestAshore.g <= ASHORE_CHEAP_G))
                         || (bestClimb != null && bestClimb.pos.getY() - start.getY() >= MIN_CLIMB_ESCAPE);
             }
@@ -1246,8 +1298,8 @@ public final class PathFinder {
             // terrain burns up to 4× hunting a worthwhile segment (canyon exits fit
             // here); only a truly walled-in search degrades to best-available at 4×,
             // capping the planning stall at ~a third of the hard budget.
-            boolean relaxed = BotConfig.pfSoftCommitNodes() > 0
-                    && expanded >= BotConfig.pfSoftCommitNodes() * 4L;
+            boolean relaxed = softCommitNodes > 0
+                    && expanded >= softCommitNodes * 4L;
             // Walled-to-frontier (progressive): reaching the edge of KNOWN terrain with no
             // goal-ward gain is committable NOW — the detour around the wall is beyond loaded
             // chunks, so grinding the hard budget can't find it (~3.4 s freeze for nothing).
@@ -1287,8 +1339,8 @@ public final class PathFinder {
          *  scrap and the bot paced a 15-block box — while the true exit (a +30 climb)
          *  needed ~24k nodes. Open terrain clears 24 blocks within the soft budget
          *  easily, keeping the early-stop (and its no-freeze feel) intact there. */
-        private static double softMinGain() {
-            int hb = BotConfig.pfHorizonBlocks();
+        private double softMinGain() {
+            int hb = horizonBlocks;                       // this finder's horizon, not the global's
             return hb > 0 ? hb * 10 / 2.0 : 240;
         }
 

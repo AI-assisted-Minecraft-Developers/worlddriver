@@ -77,16 +77,25 @@ public final class HorizonArena {
         BlockPos start = new BlockPos(0, 61, 0);
         Goal goal = new Goal.XZ(1000, 0);   // far beyond the corridor end → never reached in one search
 
-        int saved = BotConfig.pathfinderHorizonBlocks;
-        int savedSoft = BotConfig.pathfinderSoftCommitNodes;
-        BotConfig.pathfinderHorizonBlocks = horizonBlocks;
-        BotConfig.pathfinderSoftCommitNodes = softCommitNodes;
-        try {
-            int firstExpanded = -1, firstEndX = -1, segments = 0;
-            boolean firstGoalReached = false;
-            BlockPos from = start;
+        // NOTHING GLOBAL IS TOUCHED HERE, and that is the point of the shape.
+        //
+        // This used to write BotConfig.pathfinderHorizonBlocks / pathfinderSoftCommitNodes and put
+        // them back in a finally. That is unsound the moment anything else in the JVM is planning,
+        // and it silently disconnected this arena's only variable: pfHorizonBlocks() returns 0
+        // whenever BotConfig.pathfinderBoxedEscalate is set, and a client Walker on another thread
+        // writes that flag every tick it runs. On integratedServerNeoforge, with the client bot
+        // churning on an unreachable goal, run(48) planned with the horizon OFF and returned numbers
+        // byte-identical to run(0) — the scene measured nothing and still reported a colour.
+        //
+        // Per-finder tuning removes the shared knob rather than trying to time the sharing.
+        int firstExpanded = -1, firstEndX = -1, segments = 0;
+        boolean firstGoalReached = false;
+        BlockPos from = start;
+        {
             for (; segments < 60; segments++) {
-                PathFinder.Result r = new PathFinder(w, 8_000, 30_000).withOwner("debug.horizon").findPath(from, goal);
+                PathFinder.Result r = new PathFinder(w, 8_000, 30_000).withOwner("debug.horizon")
+                        .withTuning(horizonBlocks, softCommitNodes, BotConfig.pathfinderDepthPenalty)
+                        .findPath(from, goal);
                 List<BlockPos> path = r.path();
                 BlockPos end = path.isEmpty() ? from : path.get(path.size() - 1);
                 if (segments == 0) {
@@ -103,10 +112,7 @@ public final class HorizonArena {
                 if (goal.estimate(end) > goal.estimate(from)) break;
                 from = end;
             }
-            return new Result(firstExpanded, firstEndX, from.getX(), segments, firstGoalReached);
-        } finally {
-            BotConfig.pathfinderHorizonBlocks = saved;
-            BotConfig.pathfinderSoftCommitNodes = savedSoft;
         }
+        return new Result(firstExpanded, firstEndX, from.getX(), segments, firstGoalReached);
     }
 }
