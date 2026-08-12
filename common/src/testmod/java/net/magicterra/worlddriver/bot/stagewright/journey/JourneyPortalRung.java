@@ -717,10 +717,16 @@ public final class JourneyPortalRung {
      *  surface the body is already standing on. */
     private static final int STATION_REACH = 5;
 
-    /** How many sources a station must be able to see, at the moment it is chosen. Ten is what the
-     *  rung spends, and spending them is what makes the bank change shape underneath the station —
-     *  so this is the margin, not the requirement, and the richest candidate wins. */
-    private static final int STATION_SOURCES = 10;
+    /** How many sources a station must be able to see to be worth having at all. ONE, and the
+     *  richest candidate wins — not ten, which is what the rung spends.
+     *
+     *  <p>Asked as ten it found nothing: run 39 measured {@code 够得着的源块不足 10=99}, ninety-nine
+     *  cells that were dry, standable, near-bank and looking at the lake, all rejected, and the fills
+     *  fell back to the per-trip choice that drowns the body. A station that sees six is not a
+     *  station that fails on the seventh cast — the lake keeps flowing — and it is unconditionally
+     *  better than the route it replaces. The count goes in the evidence so a run that finished on a
+     *  thin one cannot read like a run that finished on a fat one. */
+    private static final int STATION_SOURCES = 1;
 
     /**
      * Cut the fetch trip down to one walk the body makes ten times, instead of ten choices.
@@ -1183,6 +1189,31 @@ public final class JourneyPortalRung {
                 : new PourSpot(standable, target.relative(away));
     }
 
+    /**
+     * Which block, aimed at from where the body is STANDING RIGHT NOW, puts the fluid in the target.
+     *
+     * <p>The same two candidates {@link #standToPour} weighs — the backing's near face and the
+     * target's own floor — clipped from the real eye rather than from a predicted one, and returning
+     * null when neither works so the caller's own gate can refuse to spend the bucket.
+     */
+    private static BlockPos aimThatLandsIn(ServerLevel level, JourneyRig rig, BlockPos target,
+                                           Direction away) {
+        var eye = rig.player().getEyePosition();
+        for (BlockPos aim : List.of(target.relative(away), target.below())) {
+            if (!level.getBlockState(aim).isSolidRender(level, aim)) continue;
+            var to = net.minecraft.world.phys.Vec3.atCenterOf(aim);
+            if (eye.distanceTo(to) > BUCKET_REACH) continue;
+            var hit = level.clip(new net.minecraft.world.level.ClipContext(eye, to,
+                    net.minecraft.world.level.ClipContext.Block.OUTLINE,
+                    net.minecraft.world.level.ClipContext.Fluid.NONE, rig.player()));
+            if (hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) continue;
+            if (!hit.getBlockPos().equals(aim)) continue;
+            if (!aim.relative(hit.getDirection()).equals(target)) continue;
+            return aim;
+        }
+        return null;
+    }
+
     /** The nearest cell the body could stand in at all, ray or no ray. Kept apart from the aim scan
      *  so a body is never left with nowhere to go because the ray test is stricter than it should be
      *  — the pour's own {@code .picks} gate still refuses to spend the bucket, so falling back here
@@ -1296,12 +1327,26 @@ public final class JourneyPortalRung {
                 + " 否决计数 " + why);
         rig.settle(new IntentProcess(new Intent(new Goal.Block(goal))), 1_200, () -> {
             WorldDriverJourneyScenes.holdForUse(rig, held, tag);
-            rig.body().avatar().aimAtBlock(backing);
+            // RE-ASK FROM WHERE THE BODY ACTUALLY ENDED UP. The fill has done this for a while and
+            // the pour never did, and it is the same bug on the other side of the trip: the stand
+            // and the aim are chosen together, so a walk that ends one cell off leaves the aim
+            // answering a question about a body that is not there. Measured, run 39 cell one —
+            // `water1.stand=-9,56,37 瞄 -10,57,39（背板近面）` and, an instant later,
+            // `water1.picks=… 身体 -9,57,37 → 落进 -9,58,37`: the body floated a block up between
+            // choosing and pouring, and from there the backing is the wrong thing to aim at while
+            // the target's floor would still have worked. Both are clipped from the real eye here,
+            // so whichever one lands in the target is the one used.
+            BlockPos aimNow = aimThatLandsIn(ctx.level(), rig, target, away);
+            if (aimNow != null && !aimNow.equals(backing))
+                rig.evidence(tag + ".reaimed", backing.toShortString() + " → " + aimNow.toShortString()
+                        + "（走完发现身体在 " + rig.player().blockPosition().toShortString() + "）");
+            BlockPos at = aimNow != null ? aimNow : backing;
+            rig.body().avatar().aimAtBlock(at);
             // Clear a plant off the line first. This rung's lake is at y=63 — on the SURFACE — so
             // unlike the underground forge it is standing in grass, and grass is REPLACEABLE: the
             // pour would not miss, it would succeed into the grass cell and be read as "no obsidian
             // here". Same swing the obsidian rung uses, and for the same reason mine cannot do it.
-            clearPlantOnLine(ctx, rig, backing, tag, () -> rig.settle(new HoldStill(2), 10, () -> {
+            clearPlantOnLine(ctx, rig, at, tag, () -> rig.settle(new HoldStill(2), 10, () -> {
                 // Where the fluid is actually going to land, recorded BEFORE it is spent. A filled
                 // bucket clips with `Fluid.NONE` and empties into the cell in front of the face it
                 // hits, so this pick IS the destination — and without it a pour that succeeded into
@@ -1316,8 +1361,8 @@ public final class JourneyPortalRung {
                         ? hit.getBlockPos().toShortString() + " " + lvl.getBlockState(hit.getBlockPos()).getBlock()
                           + " face=" + hit.getDirection() + " → 落进 " + lands.toShortString()
                         : String.valueOf(hit.getType()))
-                        + "（想浇 " + target.toShortString() + "，瞄 " + backing.toShortString()
-                        + "=" + lvl.getBlockState(backing).getBlock()
+                        + "（想浇 " + target.toShortString() + "，瞄 " + at.toShortString()
+                        + "=" + lvl.getBlockState(at).getBlock()
                         + "，身体 " + rig.player().blockPosition().toShortString() + "）");
                 rig.evidence(tag + ".before", target.toShortString() + "="
                         + lvl.getBlockState(target).getBlock());
