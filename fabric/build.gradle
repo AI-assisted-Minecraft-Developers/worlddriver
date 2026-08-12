@@ -285,6 +285,13 @@ loom {
             property 'stagewright.autorun', 'true'
             property 'worlddriver.journey', 'true'
             property 'worlddriver.journey.rehearse', project.findProperty('rehearse') ?: 'PORTAL_LIT'
+            // The tick cap, exposed because one rung is not like the others. Most rehearse in a
+            // minute; PORTAL_LIT makes ten round trips between a pool and a cell twelve blocks
+            // below it, and a run that runs out of budget mid-cast reports a timeout where the
+            // finding is "each trip costs N ticks". Raise it rather than read that twice:
+            //   ./gradlew :fabric:runRehearsalServer -PrehearseBudget=120000
+            property 'worlddriver.journey.rehearse.budget',
+                    (project.findProperty('rehearseBudget') ?: '40000').toString()
             // Same body the ladder climbs on, and that is a deliberate answer rather than a copied
             // line. PORTAL_LIT itself does not need it: it is overworld-only, it spawns nothing and
             // it never asks for the dragon, so it would rehearse identically without the flag. But
