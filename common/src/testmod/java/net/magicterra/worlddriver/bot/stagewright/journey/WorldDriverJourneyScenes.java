@@ -2542,8 +2542,25 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * shaft, so this is a walk to the shaft's mouth and then that. Nothing new is asked of the
      * engine; what was missing was the instruction.
      */
+    /**
+     * The column the last ascent actually TOWERED up, which is not always the shaft's.
+     *
+     * <p>The pair to {@link #forgeShaftX}, and the thing that makes an off-column climb harmless
+     * instead of cumulative. {@link JourneyShaft#ascendByTowering} builds under the body's own feet,
+     * so a climb that starts one cell over leaves a column of cobblestone standing in the corridor —
+     * measured as {@code lava0.upOffColumn=-9,51,22 不是井口 -9,21}, and the cost lands two casts
+     * later as {@code 落脚格被占} on the cells the pours have to stand in. Descending THIS column
+     * rather than the shaft's mines every one of those blocks back out on the way down, so the tower
+     * is self-cleaning wherever it went up.
+     *
+     * <p>Null when the last leg did not climb at all, in which case the shaft is the only column
+     * known to be clear the whole way and {@link #returnToTheForge} uses it.
+     */
+    private static BlockPos climbFrom;
+
     private static void goUpToThePool(SceneContext ctx, JourneyRig rig, int poolY, String tag,
                                       Runnable then) {
+        climbFrom = null;
         if (rig.player().blockPosition().getY() >= poolY - 1) { then.run(); return; }
         BlockPos mouth = new BlockPos(forgeShaftX, rig.player().blockPosition().getY(), forgeShaftZ);
         rig.evidence(tag + ".up", rig.player().blockPosition().toShortString() + " → 井口 "
@@ -2562,9 +2579,14 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                     new BlockPos(forgeShaftX, rig.player().blockPosition().getY(), forgeShaftZ)))),
                     800, () -> {
                 BlockPos here = rig.player().blockPosition();
+                // Whatever column it is standing on is the one the tower will fill, so remember THAT
+                // one and let the descent unbuild it. Recorded either way: a climb that started on
+                // the shaft is the good case and still wants its column mined back out, because the
+                // tower fills the shaft too.
+                climbFrom = here;
                 if (here.getX() != forgeShaftX || here.getZ() != forgeShaftZ) {
                     rig.evidence(tag + ".upOffColumn", here.toShortString() + " 不是井口 "
-                            + forgeShaftX + "," + forgeShaftZ + "，起塔会把鹅卵石垒进模腔");
+                            + forgeShaftX + "," + forgeShaftZ + "，塔会垒在这一柱上（回程照这一柱挖回来）");
                 }
                 JourneyShaft.climbOut(rig, poolY, then);
             });
@@ -2575,19 +2597,39 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                                          Runnable then) {
         BlockPos at = rig.player().blockPosition();
         if (at.getY() <= floorY + 1) { then.run(); return; }
-        rig.evidence(tag + ".return", at.toShortString() + " → 井口 " + forgeShaftX + ","
-                + forgeShaftZ + "，再挖回 y=" + floorY);
-        walkToColumn(rig, tag + ".shaft", forgeShaftX, forgeShaftZ, 1, 2_000, () -> {
+        // Come down whatever the climb went UP, when that is known and inside the alcove. Two blocks
+        // is the corridor's half-width (JourneyForge.corridor sweeps −2..2), so a column within it
+        // opens into the chamber the body is going to anyway, while a column outside it could hole
+        // the mould's ceiling — the one mistake down here that ends the rung. Falling back to the
+        // shaft is the old behaviour and is always safe; what it is not is self-cleaning.
+        int downX = forgeShaftX, downZ = forgeShaftZ;
+        if (climbFrom != null
+                && Math.hypot(climbFrom.getX() - forgeShaftX, climbFrom.getZ() - forgeShaftZ) <= 2.0) {
+            downX = climbFrom.getX();
+            downZ = climbFrom.getZ();
+        }
+        if (downX != forgeShaftX || downZ != forgeShaftZ)
+            rig.evidence(tag + ".downColumn", downX + "," + downZ + "（起塔那一柱，不是井口 "
+                    + forgeShaftX + "," + forgeShaftZ + "）—— 照它挖回去把塔的鹅卵石一并收回");
+        final int shaftX = downX, shaftZ = downZ;
+        rig.evidence(tag + ".return", at.toShortString() + " → 井口 " + shaftX + ","
+                + shaftZ + "，再挖回 y=" + floorY);
+        walkToColumn(rig, tag + ".shaft", shaftX, shaftZ, 1, 2_000, () -> {
             // `walkToColumn` calls five blocks "arrived", which is right for crossing a swamp and
             // wrong for standing over a hole: five blocks along `away` is the frame's own plane, and
             // digging down there opens the mould from above. Two is the whole of the corridor's
             // width, so a miss inside it lands the body in the chamber it was going to anyway.
             BlockPos here = rig.player().blockPosition();
+            // Measured from the SHAFT, not from the column being descended, even when those differ.
+            // The shaft is the corridor's anchor and two blocks is its half-width, so this is the
+            // test for "still inside the chamber"; the chosen column is only ever a cell or two off
+            // the shaft, so it inherits the same bound rather than widening it.
             double off = Math.hypot(here.getX() - forgeShaftX, here.getZ() - forgeShaftZ);
             if (off > 2.0) {
                 ctx.fail(String.format(java.util.Locale.ROOT,
-                        "回井口差了 %.1f 格：想站 %d,%d，停在 %s —— 在这儿往下挖会从上面挖穿门框那一面",
-                        off, forgeShaftX, forgeShaftZ, here.toShortString()));
+                        "回井口差了 %.1f 格：想站 %d,%d（井口 %d,%d），停在 %s"
+                        + " —— 在这儿往下挖会从上面挖穿门框那一面",
+                        off, shaftX, shaftZ, forgeShaftX, forgeShaftZ, here.toShortString()));
                 return;
             }
             BotConfig.allowPlace = false;          // a tower on the way DOWN is the bug, not the fix
@@ -2596,8 +2638,9 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 rig.evidence(tag + ".returnedY", rig.player().blockPosition().getY());
                 then.run();
             });
-        }, () -> ctx.fail("装完岩浆回不到井口：想去 " + forgeShaftX + "," + forgeShaftZ
-                + "，停在 " + rig.player().blockPosition() + " —— 在这儿往下挖会挖穿模腔的顶"));
+        }, () -> ctx.fail("装完岩浆回不到井口：想去 " + shaftX + "," + shaftZ + "（井口 "
+                + forgeShaftX + "," + forgeShaftZ + "），停在 " + rig.player().blockPosition()
+                + " —— 在这儿往下挖会挖穿模腔的顶"));
     }
 
     private static void descendToTheForge(SceneContext ctx, JourneyRig rig, BlockPos lava) {
