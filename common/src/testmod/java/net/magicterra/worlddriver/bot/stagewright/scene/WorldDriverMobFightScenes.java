@@ -364,13 +364,44 @@ public final class WorldDriverMobFightScenes {
 
         double highest = blaze.getY();
         int t = 0;
+        // WHAT THIS LOOP COSTS, on the clock, because it all happens inside ONE server tick.
+        //
+        // `ServerAvatarManager.tickAll()` is called here rather than left to the harness, so the
+        // whole fight — up to `budget` simulated ticks, each one a pathfinder search — is a single
+        // `MinecraftServer.tickServer()`. Fabric reports `PASS (1 ticks, 1104 ms)`: one scene tick,
+        // 1.1 seconds of wall clock. NeoForge dedicated crosses `max-tick-time=60000` and the
+        // watchdog kills the server mid-suite, twice out of two.
+        //
+        // Iterations, total and worst separate the two explanations, and they want opposite fixes:
+        // many more iterations means the blaze simply survives longer on that loader and the shape
+        // of this loop is the problem; the same iterations at a far higher per-iteration cost means
+        // a per-tick regression somewhere under `ServerWorldDriver.tick`.
+        long began = System.nanoTime();
+        long worst = 0;
+        int worstAt = -1;
         for (; t < budget && blaze.isAlive(); t++) {
+            long iter = System.nanoTime();
             ServerAvatarManager.tickAll();
             if (blaze.isAlive()) {
                 blaze.tick();
                 highest = Math.max(highest, blaze.getY());
             }
+            long spent = System.nanoTime() - iter;
+            if (spent > worst) { worst = spent; worstAt = t; }
+            // LOGGED, not merely recorded. On the loader where this matters the server is killed by
+            // the hang watchdog part way through this very loop, so every `ctx.record` below it never
+            // runs — the measurement has to already be in the log by then.
+            if ((t + 1) % 200 == 0)
+                net.magicterra.worlddriver.WorldDriverCommon.LOG.info(
+                        "[blazefight] {} iter={} elapsedMs={} worstMs={}", tag, t + 1,
+                        (System.nanoTime() - began) / 1_000_000L, worst / 1_000_000L);
         }
+        long wall = (System.nanoTime() - began) / 1_000_000L;
+        ctx.record(tag + ".wallMs", wall + " ms（" + t + " 次迭代，全都在同一个服务器 tick 里）");
+        ctx.record(tag + ".worstIterMs", String.format(java.util.Locale.ROOT, "%.1f ms（第 %d 次）",
+                worst / 1_000_000.0, worstAt));
+        ctx.record(tag + ".msPerIter", String.format(java.util.Locale.ROOT, "%.2f ms",
+                t == 0 ? 0.0 : (double) wall / t));
         var out = new BlazeFight(!blaze.isAlive(), t, blaze.getHealth(), highest - floorY);
         ctx.record(tag + ".dead", String.valueOf(out.dead()));
         ctx.record(tag + ".ticks", t + (t >= budget ? "（用尽）" : ""));
