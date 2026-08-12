@@ -940,21 +940,80 @@ public final class JourneyPortalRung {
      * backing's near face, which is what puts the fluid in {@code target} and nowhere else. Nearest
      * to the body wins, so a cell it is already standing in costs no walk at all.
      */
-    private static BlockPos standToPour(ServerLevel level, JourneyRig rig, BlockPos target,
+    private static PourSpot standToPour(ServerLevel level, JourneyRig rig, BlockPos target,
                                         Direction away, Map<String, Integer> why) {
         return standToPour(level, rig, target, away, why, false);
     }
 
-    /** {@code verifiedOnly} drops the standable fallback, which is what makes this answerable
-     *  as a QUESTION — "is there anywhere down here with a clear line to this cell" — rather
-     *  than only as a place to walk to. {@link #standLevelWith} asks it that way. */
-    private static BlockPos standToPour(ServerLevel level, JourneyRig rig, BlockPos target,
+    /** Where to stand and what to aim at — one answer, because the two are chosen together. */
+    private record PourSpot(BlockPos stand, BlockPos aim) {}
+
+    /**
+     * {@code verifiedOnly} drops the standable fallback, which is what makes this answerable as a
+     * QUESTION — "is there anywhere down here with a clear line to this cell" — rather than only as
+     * a place to walk to. {@link #standLevelWith} asks it that way.
+     *
+     * <h2>Two aims, because a floating body cannot use the first one</h2>
+     *
+     * The backing is the natural thing to aim at and it needs the eye almost exactly level with the
+     * target: the ray has to cross the frame's plane inside the target's own row, and the plane is
+     * two blocks away, so a body one block too high enters the row ABOVE and the fluid lands there.
+     * That is not a hypothetical — the alcove floods with the cast's own water, a body in water
+     * floats one block, and run 29's cell three recorded exactly it twice
+     * ({@code 射线停在 -11,58,38 granite}) with no verified spot left over.
+     *
+     * <p>So when the backing yields nothing, aim at the target's FLOOR instead and hit its top face:
+     * the fluid still lands in the target, and looking down at a block one row below is precisely
+     * what a body standing a block too high can do. That the floor is solid is not an assumption —
+     * it is {@link JourneyForge}'s first invariant, which is why the ring is cast in the order it is.
+     * The exception is the top pair, whose floor is an interior cell opened three casts earlier;
+     * there this finds nothing and {@link #standLevelWith} still has to build the step.
+     */
+    private static PourSpot standToPour(ServerLevel level, JourneyRig rig, BlockPos target,
                                         Direction away, Map<String, Integer> why,
                                         boolean verifiedOnly) {
-        BlockPos backing = target.relative(away);
+        BlockPos standable = firstStandable(level, rig, target, away);
+        for (BlockPos aim : List.of(target.relative(away), target.below())) {
+            if (!level.getBlockState(aim).isSolidRender(level, aim)) {
+                why.merge(aim.toShortString() + " 不是实心的，弹不出流体", 1, Integer::sum);
+                continue;
+            }
+            BlockPos best = standToAimAt(level, rig, target, away, aim, why);
+            if (best != null) return new PourSpot(best, aim);
+        }
+        return standable == null || verifiedOnly ? null
+                : new PourSpot(standable, target.relative(away));
+    }
+
+    /** The nearest cell the body could stand in at all, ray or no ray. Kept apart from the aim scan
+     *  so a body is never left with nowhere to go because the ray test is stricter than it should be
+     *  — the pour's own {@code .picks} gate still refuses to spend the bucket, so falling back here
+     *  cannot cause a wrong-cell pour. */
+    private static BlockPos firstStandable(ServerLevel level, JourneyRig rig, BlockPos target,
+                                           Direction away) {
         BlockPos from = rig.player().blockPosition();
-        BlockPos best = null, standable = null;
-        double bestD = Double.MAX_VALUE, standableD = Double.MAX_VALUE;
+        BlockPos standable = null;
+        double standableD = Double.MAX_VALUE;
+        for (int back = 1; back <= 4; back++)
+            for (int side = -2; side <= 2; side++)
+                for (int dy = 0; dy >= -6; dy--) {
+                    BlockPos foot = target.relative(away.getOpposite(), back)
+                            .relative(away.getClockWise(), side).above(dy);
+                    if (!level.getBlockState(foot.below()).blocksMotion()) continue;
+                    if (!level.getBlockState(foot).getCollisionShape(level, foot).isEmpty()) continue;
+                    BlockPos head = foot.above();
+                    if (!level.getBlockState(head).getCollisionShape(level, head).isEmpty()) continue;
+                    double d = foot.distSqr(from);
+                    if (d < standableD) { standableD = d; standable = foot; }
+                }
+        return standable;
+    }
+
+    private static BlockPos standToAimAt(ServerLevel level, JourneyRig rig, BlockPos target,
+                                         Direction away, BlockPos backing, Map<String, Integer> why) {
+        BlockPos from = rig.player().blockPosition();
+        BlockPos best = null;
+        double bestD = Double.MAX_VALUE;
         for (int back = 1; back <= 4; back++)
             for (int side = -2; side <= 2; side++)
                 for (int dy = 0; dy >= -6; dy--) {
@@ -990,11 +1049,6 @@ public final class JourneyPortalRung {
                             continue;
                         }
                     }
-                    // Standable, whatever the ray says. Kept separately so a body that can stand
-                    // somewhere sensible is never left with nowhere to go because the ray test is
-                    // stricter than it should be — the pour's own `.picks` gate still refuses to
-                    // spend the bucket, so falling back here cannot cause a wrong-cell pour.
-                    if (d < standableD) { standableD = d; standable = foot; }
                     // The eye a body standing here would have, and the clip a filled bucket runs
                     // from it. `Fluid.NONE`, because that is what a non-empty bucket uses.
                     var eye = new net.minecraft.world.phys.Vec3(foot.getX() + 0.5,
@@ -1002,7 +1056,7 @@ public final class JourneyPortalRung {
                             foot.getZ() + 0.5);
                     var aim = net.minecraft.world.phys.Vec3.atCenterOf(backing);
                     if (eye.distanceTo(aim) > BUCKET_REACH) {
-                        why.merge("够不着背板", 1, Integer::sum); continue;
+                        why.merge("够不着 " + backing.toShortString(), 1, Integer::sum); continue;
                     }
                     var hit = level.clip(new net.minecraft.world.level.ClipContext(eye, aim,
                             net.minecraft.world.level.ClipContext.Block.OUTLINE,
@@ -1016,27 +1070,32 @@ public final class JourneyPortalRung {
                         continue;
                     }
                     if (!backing.relative(hit.getDirection()).equals(target)) {
-                        why.merge("打中背板的 " + hit.getDirection() + " 面", 1, Integer::sum); continue;
+                        why.merge("打中 " + backing.toShortString() + " 的 "
+                                + hit.getDirection() + " 面", 1, Integer::sum); continue;
                     }
                     if (d < bestD) { bestD = d; best = foot; }
                 }
-        return best != null || verifiedOnly ? best : standable;
+        return best;
     }
 
     private static void placeFluid(SceneContext ctx, JourneyRig rig, BlockPos target, Direction away,
                                    net.minecraft.world.item.Item held, String tag, int tries,
                                    Runnable then) {
-        BlockPos backing = target.relative(away);
         Map<String, Integer> why = new java.util.LinkedHashMap<>();
-        BlockPos goal = standToPour(ctx.level(), rig, target, away, why);
-        if (goal == null) {
+        PourSpot spot = standToPour(ctx.level(), rig, target, away, why);
+        if (spot == null) {
             ctx.fail("模腔里没有能浇到 " + target.toShortString() + " 的落脚点："
-                    + "要求脚下实心、头顶两格空、射线打在背板 " + backing.toShortString()
-                    + " 的近面上 —— 身体在 " + rig.player().blockPosition()
+                    + "要求脚下实心、头顶两格空、射线打在背板 " + target.relative(away).toShortString()
+                    + " 的近面或地板 " + target.below().toShortString()
+                    + " 的顶面上 —— 身体在 " + rig.player().blockPosition()
                     + "，各项否决计数：" + why);
             return;
         }
-        rig.evidence(tag + ".stand", goal.toShortString() + " 否决计数 " + why);
+        BlockPos goal = spot.stand();
+        BlockPos backing = spot.aim();
+        rig.evidence(tag + ".stand", goal.toShortString() + " 瞄 " + backing.toShortString()
+                + (backing.equals(target.below()) ? "（地板顶面）" : "（背板近面）")
+                + " 否决计数 " + why);
         rig.settle(new IntentProcess(new Intent(new Goal.Block(goal))), 1_200, () -> {
             WorldDriverJourneyScenes.holdForUse(rig, held, tag);
             rig.body().avatar().aimAtBlock(backing);
@@ -1059,7 +1118,7 @@ public final class JourneyPortalRung {
                         ? hit.getBlockPos().toShortString() + " " + lvl.getBlockState(hit.getBlockPos()).getBlock()
                           + " face=" + hit.getDirection() + " → 落进 " + lands.toShortString()
                         : String.valueOf(hit.getType()))
-                        + "（想浇 " + target.toShortString() + "，背板 " + backing.toShortString()
+                        + "（想浇 " + target.toShortString() + "，瞄 " + backing.toShortString()
                         + "=" + lvl.getBlockState(backing).getBlock()
                         + "，身体 " + rig.player().blockPosition().toShortString() + "）");
                 rig.evidence(tag + ".before", target.toShortString() + "="
