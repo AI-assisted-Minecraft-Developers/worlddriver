@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.bot.stagewright.journey;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -2511,6 +2512,11 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      *  See {@link #returnToTheForge}. */
     private static int forgeShaftX, forgeShaftZ;
 
+    /** Every cell the alcove was hollowed out of — the space the body walks in, and nothing else.
+     *  {@link #clearPourLine} is allowed to break inside this and nowhere else, which is what stops
+     *  a blocked pour from answering by digging a hole in the mould's own floor. */
+    private static Set<BlockPos> forgeCorridor = Set.of();
+
     /**
      * Come back down to the mould after a trip to the pool.
      *
@@ -2763,6 +2769,10 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         }
         final int out = push;
         List<BlockPos> cells = JourneyForge.cells(at, away, push);
+        // Remembered as a SET, because a retry needs to know what it is allowed to break. See
+        // clearPourLine: a pour whose line is blocked may mine the blocker, and the difference
+        // between "a stray block in the corridor" and "the alcove's own floor" is exactly this set.
+        forgeCorridor = Set.copyOf(JourneyForge.corridor(at, away, push));
         BlockPos base = at.relative(away, push);
         rig.evidence("forge.face", base.toShortString() + " 朝 " + away
                 + "（背离岩浆，外推 " + push + " 格，井底 y=" + at.getY() + "，岩浆层 y=" + lava.getY() + "）");
@@ -3186,13 +3196,20 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 // outcome is which cell the fluid lands in, and that is knowable exactly.
                 if (lands == null || !lands.equals(target)) {
                     if (tries > 1) {
-                        placeFluid(ctx, rig, target, away, held, tag, tries - 1, then);
+                        // Clear the line before asking again, because asking again on its own is a
+                        // retry that changes nothing: standToPour is deterministic in the world it
+                        // reads, so three approaches from a body that only moved a block or two get
+                        // three identical answers. What changes is the world — and the thing in the
+                        // way is a block in a corridor the rung hollowed out itself.
+                        clearPourLine(ctx, rig, target, away, tag + ".clear" + tries,
+                                () -> placeFluid(ctx, rig, target, away, held, tag, tries - 1, then));
                         return;
                     }
                     ctx.fail("浇不到指定格：想浇 " + target.toShortString() + "（瞄背板 "
                             + backing.toShortString() + "），射线会把流体放进 "
                             + (lands == null ? String.valueOf(hit.getType()) : lands.toShortString())
                             + "，身体在 " + rig.player().blockPosition()
+                            + "；浇线上是 " + pourLine(lvl, target, away)
                             + " —— 没有倒；倒下去 use 照样报 CONSUME，"
                             + "然后这一级会把失败写成「浇不出黑曜石」");
                     return;
@@ -3201,6 +3218,62 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 then.run();
             }));
         });
+    }
+
+    /** How far back along its own line a pour may look. Three, which is one more than the usual
+     *  {@code push} and one less than {@code standToPour}'s reach — far enough to cover the cells a
+     *  body standing in the corridor sees through, short of the alcove's back wall. */
+    private static final int POUR_LINE = 3;
+
+    /** The cells the ray goes through on its way to the backing, and what is standing in them.
+     *
+     *  <p>Two rows: the target's own, and the one above it. A body pours from a foot cell one below
+     *  the target, so its eyes are in the upper row and the ray crosses into the lower one on the
+     *  way in — both have to be clear, and naming which is not is the difference between "the pour
+     *  does not work" and "there is a cobblestone at -9,52,22". */
+    private static String pourLine(ServerLevel level, BlockPos target, Direction away) {
+        StringBuilder out = new StringBuilder();
+        for (int k = 1; k <= POUR_LINE; k++)
+            for (int dy = 0; dy <= 1; dy++) {
+                BlockPos c = target.relative(away.getOpposite(), k).above(dy);
+                if (level.getBlockState(c).isAir()) continue;
+                out.append(out.isEmpty() ? "" : " ").append(c.toShortString()).append('=')
+                        .append(level.getBlockState(c).getBlock())
+                        .append(forgeCorridor.contains(c) ? "(壁龛内)" : "(壁龛外)");
+            }
+        return out.isEmpty() ? "全是空气" : out.toString();
+    }
+
+    /**
+     * Mine whatever is standing in the pour's line, but only inside the alcove.
+     *
+     * <p>The answer to a pour that cannot see its backing, and it is deliberately not a search. The
+     * corridor is a volume this rung hollowed out itself and recorded while doing it, so a solid
+     * block inside it is by definition something that arrived afterwards — {@code allowPlace} is off
+     * for the whole casting phase now, so this should find nothing, and finding something is itself
+     * the report. Outside that set nothing is touched: one cell below the bottom frame row is the
+     * mould's own floor, and answering a blocked ray by breaking it would drain every cast.
+     */
+    private static void clearPourLine(SceneContext ctx, JourneyRig rig, BlockPos target,
+                                      Direction away, String tag, Runnable then) {
+        ServerLevel level = ctx.level();
+        List<BlockPos> blocked = new ArrayList<>();
+        for (int k = 1; k <= POUR_LINE; k++)
+            for (int dy = 0; dy <= 1; dy++) {
+                BlockPos c = target.relative(away.getOpposite(), k).above(dy);
+                if (!forgeCorridor.contains(c)) continue;
+                if (level.getBlockState(c).isAir()) continue;
+                if (!level.getFluidState(c).isEmpty()) continue;   // the rung's own water, not a wall
+                blocked.add(c);
+            }
+        rig.evidence(tag, blocked.isEmpty() ? "浇线上没有可清的方块（" + pourLine(level, target, away) + "）"
+                : blocked.size() + " 格要清：" + pourLine(level, target, away));
+        clearNext(rig, blocked, 0, then);
+    }
+
+    private static void clearNext(JourneyRig rig, List<BlockPos> blocked, int i, Runnable then) {
+        if (i >= blocked.size()) { then.run(); return; }
+        rig.mineCellOrGiveUp(blocked.get(i), 600, () -> clearNext(rig, blocked, i + 1, then));
     }
 
     /** Break whatever no-collider block the aim ray stops on before {@code want}, then continue.
