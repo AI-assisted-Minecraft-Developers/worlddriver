@@ -2811,7 +2811,12 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         BlockPos wet = wetCellFor(base, away, RING[i][0], RING[i][1]);
         // Open exactly these two, now. Everything else in the frame is still solid, which is what
         // gives this cell a floor — see forgeCorridor for why carving them all up front cast 0/10.
-        rig.mineCellOrGiveUp(cell, 400, () -> rig.mineCellOrGiveUp(wet, 400,
+        // 1200, not 400. Twenty seconds has to cover pathing to the cell as well as breaking it, and
+        // `mineCellOrGiveUp` carries on regardless when it runs out — so a budget that is merely tight
+        // does not report itself, it reports a pour into rock two steps later. UNVERIFIED: this is a
+        // plausible reason run 20 left `wet` as stone, not a confirmed one; the assertion below is
+        // what will actually name the cause next run.
+        rig.mineCellOrGiveUp(cell, 1_200, () -> rig.mineCellOrGiveUp(wet, 1_200,
                 () -> castOpenedCell(ctx, rig, base, away, pool, i, cell, wet, then)));
     }
 
