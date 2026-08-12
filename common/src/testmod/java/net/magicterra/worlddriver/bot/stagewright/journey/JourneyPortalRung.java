@@ -890,6 +890,25 @@ public final class JourneyPortalRung {
                     if (!level.getBlockState(head).getCollisionShape(level, head).isEmpty()) {
                         why.merge("头顶被占", 1, Integer::sum); continue;
                     }
+                    // A BODY IN WATER FLOATS, and the whole aim turns on one block of height.
+                    //
+                    // The cast's own bucket floods the corridor — the source sits in an interior cell
+                    // open to it — so by the third cell the row the pours stand in is water. The body
+                    // then does not stand in the cell this loop picked; it bobs a block above it.
+                    // Measured, cell 2: `water2.stand=-9,56,37` chosen and `water2.picks=…身体
+                    // -9,57,37` an instant later, and from that extra block the ray to a backing two
+                    // away enters the plane one row high — `落进 -9,58,37` for a target at
+                    // `-9,57,38`. Nothing was wrong with the choice; the body was not where the
+                    // choice assumed. So predict the float instead of assuming it away, and require
+                    // the extra headroom the floating body actually occupies.
+                    boolean afloat = !level.getFluidState(foot).isEmpty();
+                    if (afloat) {
+                        BlockPos over = foot.above(2);
+                        if (!level.getBlockState(over).getCollisionShape(level, over).isEmpty()) {
+                            why.merge("浮起来会顶到 " + over.toShortString(), 1, Integer::sum);
+                            continue;
+                        }
+                    }
                     // Standable, whatever the ray says. Kept separately so a body that can stand
                     // somewhere sensible is never left with nowhere to go because the ray test is
                     // stricter than it should be — the pour's own `.picks` gate still refuses to
@@ -898,7 +917,8 @@ public final class JourneyPortalRung {
                     // The eye a body standing here would have, and the clip a filled bucket runs
                     // from it. `Fluid.NONE`, because that is what a non-empty bucket uses.
                     var eye = new net.minecraft.world.phys.Vec3(foot.getX() + 0.5,
-                            foot.getY() + rig.player().getEyeHeight(), foot.getZ() + 0.5);
+                            foot.getY() + (afloat ? 1 : 0) + rig.player().getEyeHeight(),
+                            foot.getZ() + 0.5);
                     var aim = net.minecraft.world.phys.Vec3.atCenterOf(backing);
                     if (eye.distanceTo(aim) > BUCKET_REACH) {
                         why.merge("够不着背板", 1, Integer::sum); continue;
