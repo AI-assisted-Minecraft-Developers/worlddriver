@@ -405,6 +405,11 @@ public final class JourneyNetherRungs {
         final Blaze target = here.get(0);
         final int before = rods;
         final int round = BLAZE_FIGHTS - roundsLeft + 1;
+        // Re-held every round, not once. Anything that walks or digs calls `selectTool`, which
+        // swaps the best TOOL for the block into the selected slot — so the hand a fight starts
+        // with is whatever the last approach or quarry leg left there, and a fight lost bare-handed
+        // reads exactly like a fight lost to a broken combat loop.
+        final String weapon = holdBestWeapon(rig);
         ServerWorldDriver driver = rig.body();
         ServerAvatarManager.register(driver.runProcess(
                 new CombatProcess(CombatProcess.Mode.KILL, target.getId(), null)));
@@ -420,7 +425,7 @@ public final class JourneyNetherRungs {
             int now = rig.carrying(BLAZE_ROD);
             tally.append(tally.length() == 0 ? "" : ",").append(dead ? String.valueOf(now - before) : "×没打死");
             rig.evidence("fight." + round, (dead ? "打死" : "没打死") + "，用了 " + waited[0]
-                    + " tick，最高离地 " + String.format(Locale.ROOT, "%.1f",
+                    + " tick，手里 " + weapon + "，最高离地 " + String.format(Locale.ROOT, "%.1f",
                             highest[0] - rig.player().getY()) + " 格");
             fightOneBlaze(ctx, rig, spawner, roundsLeft - 1, tally, killed);
         });
@@ -524,6 +529,9 @@ public final class JourneyNetherRungs {
                 huntOne(ctx, rig, roundsLeft - 1, foundAndKilled, tally);
                 return;
             }
+            // Re-held after the approach: the walk may have swapped a pickaxe into the hand — see
+            // the same note on the blaze fight.
+            final String weapon = holdBestWeapon(rig);
             ServerWorldDriver driver = rig.body();
             ServerAvatarManager.register(driver.runProcess(
                     new CombatProcess(CombatProcess.Mode.KILL, man.getId(), null)));
@@ -536,7 +544,8 @@ public final class JourneyNetherRungs {
                 int now = rig.carrying(ENDER_PEARL);
                 tally.append(tally.length() == 0 ? "" : ",")
                         .append(dead ? String.valueOf(now - before) : "×没打死");
-                rig.evidence("hunt." + round, (dead ? "打死" : "没打死") + "，用了 " + waited[0] + " tick");
+                rig.evidence("hunt." + round,
+                        (dead ? "打死" : "没打死") + "，用了 " + waited[0] + " tick，手里 " + weapon);
                 huntOne(ctx, rig, roundsLeft - 1, foundAndKilled, tally);
             });
         });
