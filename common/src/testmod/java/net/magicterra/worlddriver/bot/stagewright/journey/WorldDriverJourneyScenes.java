@@ -145,24 +145,9 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * <p>The scene's {@code required} flag is read from the stage rather than written here, so
      * promoting a rung is one edit in one place and cannot half-happen.
      */
-    /**
-     * A rung. Registered with the SMALLEST arena the framework will allocate, because the journey
-     * never sets foot in it.
-     *
-     * <p>{@code JourneyRig}'s own note says it: the harness force-loads each scene's arena and the
-     * journey leaves immediately — it plays at world spawn and walks for kilometres. The default
-     * radius of 1 makes every rung wait on <b>nine</b> freshly generated chunks a hundred thousand
-     * blocks away that have nothing to do with its claim, and that wait is a real failure mode:
-     * {@code only 0 of 9 arena chunks ever loaded after 201 ticks} took rung 9 in one run and rungs
-     * 9 AND 10 in another, dropping a ladder that was otherwise fine to below its promised floor.
-     *
-     * <p>Radius 0 is one chunk instead of nine. It does not remove the dependency — that needs a
-     * no-arena mode in StageWright, see TODO — but it cuts the surface by 9× with no API change and
-     * no republish, and no rung is giving anything up: none of them reads {@code ctx.origin()}.
-     */
     private static Scene stage(String name, JourneyStage rung, int budget,
                                java.util.function.Consumer<SceneContext> body) {
-        return Scene.of(name, budget, body).withRequired(rung.gating()).withChunkRadius(0);
+        return Scene.of(name, budget, body).withRequired(rung.gating());
     }
 
     /** A rung nobody has written the steps for yet. Never required — it is a placeholder for work,
