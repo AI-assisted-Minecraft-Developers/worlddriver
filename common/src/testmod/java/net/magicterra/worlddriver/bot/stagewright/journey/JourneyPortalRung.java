@@ -1260,8 +1260,20 @@ public final class JourneyPortalRung {
         rig.settle(new HoldStill(2), 10, () -> {
             ServerLevel level = ctx.level();
             var pre = WorldDriverJourneyScenes.aimedAt(rig.player(), BUCKET_REACH, true);
-            boolean onTarget = pre.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
-                    && pre.getBlockPos().equals(aim);
+            // A SOURCE, not merely the right cell with the right fluid in it. `BucketItem.use` clips
+            // with `Fluid.SOURCE_ONLY` and returns PASS — doing nothing whatsoever — when that clip
+            // finds none, and PASS is exactly what run 26 got: `recover1.result=PASS` beside
+            // `射线停在 -10,57,38 Block{minecraft:water}` at 1.8 m. The cell was water and was not a
+            // source, and nothing here could tell those apart, so a fill vanilla had refused outright
+            // read as a fill that missed — and the retry then aimed at the same non-source again.
+            var fluid = pre.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+                    ? level.getFluidState(pre.getBlockPos()) : null;
+            rig.evidence(tag + ".aimsAt", fluid == null ? String.valueOf(pre.getType())
+                    : pre.getBlockPos().toShortString() + " "
+                      + level.getBlockState(pre.getBlockPos()).getBlock()
+                      + " 源块=" + fluid.isSource() + " 液位=" + fluid.getAmount()
+                      + (pre.getBlockPos().equals(aim) ? "" : "（想瞄 " + aim.toShortString() + "）"));
+            boolean onTarget = fluid != null && pre.getBlockPos().equals(aim) && fluid.isSource();
             if (!onTarget && aims > 0) {
                 BlockPos again = visibleSourceNear(rig, lava, FILL_RESEARCH);
                 if (again != null && !again.equals(aim)) {
@@ -1307,9 +1319,36 @@ public final class JourneyPortalRung {
             ctx.fail("装不到 " + id + "：瞄了 " + aim.toShortString() + " 没装上，"
                     + (other == null ? "身边 " + FILL_RESEARCH + " 格内没有别的源块可换"
                                      : "改瞄 " + other + " 仍然不行")
+                    + "；身边的源块：" + sourcesNear(level, rig.player().blockPosition(),
+                            FILL_RESEARCH, lava)
                     + " —— 空着桶走下去只会把失败写成「浇不出黑曜石」，而真正的失败在这里"
                     + "（见 " + tag + ".miss.*）");
         });
+    }
+
+    /**
+     * Every source of the right fluid within reach of the body, listed.
+     *
+     * <p>The reading that separates "the bucket missed" from "there is nothing left to fill from",
+     * and this rung has spent runs unable to tell those apart. It matters most on the recover: the
+     * ten casts run on ONE water source, so a recover that comes back empty either aimed badly or
+     * has just discovered that the cast spends the water — and only the second means the rung as
+     * designed cannot finish.
+     */
+    private static String sourcesNear(ServerLevel level, BlockPos centre, int radius, boolean lava) {
+        StringBuilder out = new StringBuilder();
+        int n = 0;
+        for (int dx = -radius; dx <= radius; dx++)
+            for (int dy = -radius; dy <= radius; dy++)
+                for (int dz = -radius; dz <= radius; dz++) {
+                    BlockPos c = centre.offset(dx, dy, dz);
+                    var f = level.getFluidState(c);
+                    if (!f.isSource()) continue;
+                    if (f.is(net.minecraft.tags.FluidTags.LAVA) != lava) continue;
+                    if (++n > 6) continue;
+                    out.append(out.isEmpty() ? "" : " ").append(c.toShortString());
+                }
+        return n == 0 ? "一格也没有" : n + " 格（" + out + (n > 6 ? " …" : "") + "）";
     }
 
     /** The nearest source of the right fluid that is NOT the one just tried. */
