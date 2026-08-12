@@ -703,8 +703,120 @@ public final class JourneyPortalRung {
                     + "是一个独立的地标，不是同一个点（身体在 " + here + "）");
             return;
         }
+        pinTheFillStation(ctx, rig, lava, surfaceY);
         rig.attempting("一只桶浇十块黑曜石（水搬着走）");
         castCell(ctx, rig, base, away, pool, 0, () -> lightIt(ctx, rig, base, away, surfaceY));
+    }
+
+    /** Where every lava fill stands, chosen once and used ten times. Null means none qualified and
+     *  the fills fall back to picking a stand per trip — which is the thing this replaces. */
+    private static BlockPos fillStation;
+
+    /** How far from the stairwell's mouth a station may sit. Five: far enough to reach the rim of a
+     *  pool the shaft is deliberately cut clear of, near enough that the walk is a few steps on the
+     *  surface the body is already standing on. */
+    private static final int STATION_REACH = 5;
+
+    /** How many sources a station must be able to see, at the moment it is chosen. Ten is what the
+     *  rung spends, and spending them is what makes the bank change shape underneath the station —
+     *  so this is the margin, not the requirement, and the richest candidate wins. */
+    private static final int STATION_SOURCES = 10;
+
+    /**
+     * Cut the fetch trip down to one walk the body makes ten times, instead of ten choices.
+     *
+     * <p>This is the staircase's lesson applied to the other end of the trip. {@link #standToFill}
+     * ranks stands by straight-line distance from the body, and the straight line from the
+     * stairwell's mouth to the far bank goes over the lake — so the walker took it, and six runs
+     * running the body ended up UNDER the surface: {@code cast2.return=-10,60,20},
+     * {@code climb.0 above=Block{minecraft:lava} onGround=false},
+     * {@code climb.0.wouldOpenFluid=-10,62,20 挖开就会放出 lava —— 不挖}, {@code exit.gained=0/6}.
+     * There is no recovering from inside a lake whose ceiling the climb is (correctly) forbidden to
+     * mine, so the answer is not to go. A choice that is right sixty percent of the time fails a
+     * ten-trip rung almost always; a route walked once and proved is walked ten times.
+     *
+     * <h2>Why the rim was never a candidate</h2>
+     *
+     * {@code standToFill} looks at {@code src.offset(±1, -2..+1, ±1)} — cells beside or just under a
+     * source. The rim of a bowl-shaped lake is THREE above its surface, so no rim cell was ever in
+     * that set, and every stand it could offer was down at the waterline on the far side. Standing
+     * high and aiming DOWN is both in reach and on dry land, and it is the shape a player uses.
+     *
+     * <p>Chosen for the most sources in reach rather than the nearest, because the bank degrades:
+     * each fill takes a source away, and a station that only ever had one is a station that works
+     * once. Nothing is mined — the candidate has to be standable as it already is, so this cannot
+     * breach the pool and the fluid guard is never even asked.
+     */
+    private static void pinTheFillStation(SceneContext ctx, JourneyRig rig, BlockPos lava, int surfaceY) {
+        ServerLevel level = ctx.level();
+        fillStation = null;
+        if (stairTop == null) return;
+        List<BlockPos> sources = new ArrayList<>();
+        for (int dx = -12; dx <= 12; dx++)
+            for (int dy = -4; dy <= 2; dy++)
+                for (int dz = -12; dz <= 12; dz++) {
+                    BlockPos c = lava.offset(dx, dy, dz);
+                    if (level.getFluidState(c).isSource() && level.getBlockState(c).is(Blocks.LAVA))
+                        sources.add(c.immutable());
+                }
+        Map<String, Integer> why = new java.util.LinkedHashMap<>();
+        BlockPos best = null;
+        int bestSeen = 0;
+        double bestD = Double.MAX_VALUE;
+        for (int dx = -STATION_REACH; dx <= STATION_REACH; dx++)
+            for (int dz = -STATION_REACH; dz <= STATION_REACH; dz++)
+                for (int y = lava.getY() + 1; y <= surfaceY + 1; y++) {
+                    BlockPos foot = new BlockPos(stairTop.getX() + dx, y, stairTop.getZ() + dz);
+                    if (!level.getBlockState(foot.below()).blocksMotion()) {
+                        why.merge("脚下不实心", 1, Integer::sum); continue;
+                    }
+                    if (!level.getFluidState(foot).isEmpty()
+                            || !level.getFluidState(foot.above()).isEmpty()) {
+                        why.merge("站在流体里", 1, Integer::sum); continue;
+                    }
+                    if (!level.getBlockState(foot).getCollisionShape(level, foot).isEmpty()
+                            || !level.getBlockState(foot.above())
+                                    .getCollisionShape(level, foot.above()).isEmpty()) {
+                        why.merge("落脚或头顶被占", 1, Integer::sum); continue;
+                    }
+                    if (acrossThePool(level, stairTop, foot)) {
+                        why.merge("走过去要横穿岩浆", 1, Integer::sum); continue;
+                    }
+                    int seen = sourcesInReachFrom(level, rig, foot, sources);
+                    if (seen < STATION_SOURCES) {
+                        why.merge("够得着的源块不足 " + STATION_SOURCES, 1, Integer::sum); continue;
+                    }
+                    double d = foot.distSqr(stairTop);
+                    if (seen > bestSeen || (seen == bestSeen && d < bestD)) {
+                        best = foot; bestSeen = seen; bestD = d;
+                    }
+                }
+        fillStation = best;
+        rig.evidence("station", best == null
+                ? "没找到固定装料点（湖边 " + STATION_REACH + " 格内没有站得住又看得见 "
+                  + STATION_SOURCES + " 格源块的干地）—— 退回每趟各选一处，"
+                  + "这正是把身体淹进湖里的那条路；否决计数 " + why
+                : best.toShortString() + "：够得着 " + bestSeen + " 格源块，距楼梯口 "
+                  + Math.round(Math.sqrt(bestD)) + " 格（十趟都站这里）；否决计数 " + why);
+    }
+
+    /** How many lava sources a body standing here could actually fill from — same clip vanilla runs,
+     *  so this counts fills and not merely neighbours. */
+    private static int sourcesInReachFrom(ServerLevel level, JourneyRig rig, BlockPos foot,
+                                          List<BlockPos> sources) {
+        var eye = new net.minecraft.world.phys.Vec3(foot.getX() + 0.5,
+                foot.getY() + rig.player().getEyeHeight(), foot.getZ() + 0.5);
+        int seen = 0;
+        for (BlockPos src : sources) {
+            var aim = net.minecraft.world.phys.Vec3.atCenterOf(src);
+            if (eye.distanceToSqr(aim) > BUCKET_REACH * BUCKET_REACH) continue;
+            var hit = level.clip(new net.minecraft.world.level.ClipContext(eye, aim,
+                    net.minecraft.world.level.ClipContext.Block.OUTLINE,
+                    net.minecraft.world.level.ClipContext.Fluid.SOURCE_ONLY, rig.player()));
+            if (hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+                    && hit.getBlockPos().equals(src)) seen++;
+        }
+        return seen;
     }
 
 
@@ -1434,15 +1546,29 @@ public final class JourneyPortalRung {
         // apart, with nothing changed. That is the pour's old bug on the other side of the trip, and
         // this is the pour's fix on the other side of the trip.
         Map<String, Integer> why = new java.util.LinkedHashMap<>();
-        FillSpot spot = standToFill(ctx.level(), rig, src, lava, FILL_RESEARCH, why);
+        // THE STATION, for every lava fill, or nothing. `standToFill` still answers for the water
+        // recover — that one happens inside the alcove the rung carved, where there is no lake to
+        // walk into — but the fetch trip does not get to choose again. Choosing again is the bug.
+        FillSpot spot = lava && fillStation != null ? new FillSpot(fillStation, src)
+                : standToFill(ctx.level(), rig, src, lava, FILL_RESEARCH, why);
         rig.evidence(tag + ".spot", spot == null
                 ? "没找到能看见源块的落脚点，退回 Near(" + src.toShortString() + ",2)；否决计数 " + why
-                : "站 " + spot.stand().toShortString() + " 瞄 " + spot.source().toShortString());
+                : (lava && fillStation != null ? "站固定装料点 " : "站 ")
+                  + spot.stand().toShortString() + " 瞄 " + spot.source().toShortString());
         Goal where = spot == null ? new Goal.Near(src, 2) : new Goal.Block(spot.stand());
         rig.settle(new IntentProcess(new Intent(where)), 1_500, () -> {
             // Re-ask from where the body ACTUALLY ended up. The plan above is what makes a good spot
             // likely; this is what makes the aim correct, because a walk that stopped a cell short
             // has a different set of sources in view and only the clip from here knows which.
+            // WHAT THE STATION HAS LEFT. Each fill takes a source away, so the number that matters
+            // across a ten-trip rung is not "did this one work" but how much margin the station
+            // still has — a run whose last casts are down to one or two visible sources is a run
+            // that got away with it, and reads identically to a comfortable one without this line.
+            if (lava && fillStation != null && rig.player().blockPosition().equals(fillStation))
+                rig.evidence(tag + ".stationSees",
+                        sourcesInReachFrom(ctx.level(), rig, fillStation,
+                                JourneyTerrain.lavaSourcesNear(ctx.level(), fillStation, 6,
+                                        fillStation)) + " 格源块还够得着");
             BlockPos seen = visibleSourceNear(rig, lava, FILL_RESEARCH);
             BlockPos aim = seen != null ? seen : (spot == null ? src : spot.source());
             if (!aim.equals(src)) rig.evidence(tag + ".aim", src.toShortString() + " → "
