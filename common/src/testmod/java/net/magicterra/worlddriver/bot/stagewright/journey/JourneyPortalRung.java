@@ -1665,6 +1665,17 @@ public final class JourneyPortalRung {
 
     private static FillSpot standToFill(ServerLevel level, JourneyRig rig, BlockPos pool, boolean lava,
                                         int radius, Map<String, Integer> why) {
+        // PREFERENCE, not a rule. Asked as a rule it removed the only stands there were — run 37
+        // measured `没找到能看见源块的落脚点` on every cast with `过去要横穿岩浆=4..6`, and the fill
+        // then fell back to `Near(src,2)`, which is the arithmetic guess this whole method replaced.
+        // A worse route beats no route; a nearer-bank route beats both.
+        FillSpot nearSide = standToFill(level, rig, pool, lava, radius, new java.util.LinkedHashMap<>(), true);
+        if (nearSide != null) return nearSide;
+        return standToFill(level, rig, pool, lava, radius, why, false);
+    }
+
+    private static FillSpot standToFill(ServerLevel level, JourneyRig rig, BlockPos pool, boolean lava,
+                                        int radius, Map<String, Integer> why, boolean avoidCrossing) {
         BlockPos from = rig.player().blockPosition();
         List<BlockPos> sources = new ArrayList<>();
         for (int dx = -radius; dx <= radius; dx++)
@@ -1715,7 +1726,7 @@ public final class JourneyPortalRung {
                         if (!level.getBlockState(head).getCollisionShape(level, head).isEmpty()) {
                             why.merge("头顶被占", 1, Integer::sum); continue;
                         }
-                        if (lava && acrossThePool(level, from, foot)) {
+                        if (avoidCrossing && lava && acrossThePool(level, from, foot)) {
                             why.merge("过去要横穿岩浆", 1, Integer::sum); continue;
                         }
                         var eye = new net.minecraft.world.phys.Vec3(foot.getX() + 0.5,
