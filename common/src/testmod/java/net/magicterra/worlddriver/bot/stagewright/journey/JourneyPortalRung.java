@@ -338,8 +338,16 @@ public final class JourneyPortalRung {
             ctx.fail("没有楼梯底坐标：descendToTheForge 没有记下来，回不到模腔");
             return;
         }
-        rig.evidence(tag + ".return", at.toShortString() + " → 楼梯底 " + stairBottom.toShortString()
-                + "（模腔地板 y=" + floorY + "）");
+        rig.evidence(tag + ".return", at.toShortString() + " → 楼梯口 " + stairTop.toShortString()
+                + " → 楼梯底 " + stairBottom.toShortString() + "（模腔地板 y=" + floorY + "）");
+        // VIA THE STAIRWELL MOUTH, not straight at the bottom. The bottom is ten blocks down at the
+        // far end of fifteen steps, and asked for directly the walker takes the shortest line it can
+        // see — overland. Measured: the body walked to -9,66,34, which is the surface directly ABOVE
+        // the staircase at z=34, and then re-searched for -9,57,36 every two seconds from a spot
+        // separated from it by eight blocks of untouched rock. The stairs are a corridor and a
+        // corridor is entered at its mouth; naming the mouth turns one impossible search into two
+        // easy ones.
+        rig.settle(new IntentProcess(new Intent(new Goal.Block(stairTop))), 2_000, () ->
         rig.settle(new IntentProcess(new Intent(new Goal.Block(stairBottom))), 4_000, () -> {
             BlockPos here = rig.player().blockPosition();
             rig.evidence(tag + ".returnedY", here.getY() + "（楼梯底 y=" + stairBottom.getY()
@@ -351,7 +359,7 @@ public final class JourneyPortalRung {
                 return;
             }
             then.run();
-        });
+        }));
     }
 
     private static void descendToTheForge(SceneContext ctx, JourneyRig rig, BlockPos lava) {
