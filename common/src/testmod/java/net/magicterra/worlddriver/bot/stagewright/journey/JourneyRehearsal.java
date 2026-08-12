@@ -285,6 +285,10 @@ public final class JourneyRehearsal {
             stageNether(ctx);
             return;
         }
+        if (target == JourneyStage.BLAZE_ROD) {
+            stageBlazeRod(ctx);
+            return;
+        }
         // No recipe. Say so rather than starting the rung on whatever the placeholder rungs left
         // behind — which is an empty body at world spawn, and a rung that fails on that reports a
         // missing recipe as a driver bug.
@@ -435,6 +439,96 @@ public final class JourneyRehearsal {
         ctx.record("rehearsal.stand", front.toShortString() + "，距门 3 格");
         WorldDriverCommon.LOG.info("[rehearsal] staged NETHER: lit a portal at {} and stood the body at {}",
                 door, front);
+    }
+
+    /**
+     * Rung 14's starting conditions: a body standing in the Nether, with the kit, and NOTHING else.
+     *
+     * <p>The line this recipe is careful about is the one that makes a rehearsal worthless. Rung 14
+     * is "walk to the fortress, wall the spawner in, fight inside", and the walk is most of it — so
+     * the fortress is <b>not</b> staged, not searched for here, and not hinted at. What is handed
+     * over is what rungs 1–13 would have handed over: a body on the other side of a portal, a sword,
+     * food, and blocks to build the room with. Finding the fortress stays the rung's own problem.
+     *
+     * <p>Crossed with {@code teleportTo}, which is a real cross-level move for a {@code ServerPlayer}
+     * rather than a coordinate write — the driver's own view has to follow the body across, and if it
+     * does not, that is a finding this rung should surface rather than one the staging should hide.
+     */
+    private static void stageBlazeRod(SceneContext ctx) {
+        ServerWorldDriver body = JourneyRig.bodyOrNull();
+        if (body == null) {
+            ctx.fail("排练：没有身体 —— wd.rehearse02Spawn 没有创建 avatar");
+            return;
+        }
+        ServerPlayer fp = body.fakePlayer();
+        ServerLevel nether = ctx.level().getServer()
+                .getLevel(net.minecraft.world.level.Level.NETHER);
+        if (nether == null) {
+            ctx.fail("排练：这台服务器没有下界（allow-nether?）—— 布景摆不出 BLAZE_ROD 的起点");
+            return;
+        }
+        // Where a portal would have put it: the overworld body's coordinates divided by eight, which
+        // is the same arithmetic rung 13 asserts. Staging it anywhere else would quietly change which
+        // part of the Nether rung 14 has to search.
+        BlockPos want = new BlockPos(Math.floorDiv(fp.blockPosition().getX(), 8), 64,
+                Math.floorDiv(fp.blockPosition().getZ(), 8));
+        loadAround(nether, want, 2);
+        BlockPos stand = netherStandNear(nether, want);
+        if (stand == null) {
+            ctx.fail("排练：下界 " + want.toShortString() + " 附近找不到一处站得住又不挨岩浆的落脚点");
+            return;
+        }
+        Map<String, Integer> kit = new LinkedHashMap<>();
+        // What thirteen rungs would have left in the bag, at the tier they reach it at. An IRON sword
+        // because rung 9 mines iron and a blaze is what the ladder buys it for; cobblestone because
+        // the room is the rung's own plan; food because the fight is long.
+        kit.put("minecraft:iron_sword", 1);
+        kit.put("minecraft:stone_pickaxe", 1);
+        kit.put("minecraft:cobblestone", 128);
+        kit.put("minecraft:cooked_beef", 16);
+        StringBuilder gave = new StringBuilder();
+        for (var e : kit.entrySet()) {
+            give(fp, e.getKey(), e.getValue());
+            if (gave.length() > 0) gave.append(' ');
+            gave.append(e.getKey().substring(e.getKey().indexOf(':') + 1)).append('×').append(e.getValue());
+        }
+        JourneyLedger.staged("rehearsal: gave " + gave);
+        ctx.record("rehearsal.gave", gave.toString());
+        JourneyLedger.staged("rehearsal: crossed the body to the Nether at " + stand.toShortString()
+                + " instead of walking through a portal it lit");
+        fp.setDeltaMovement(Vec3.ZERO);
+        fp.teleportTo(nether, stand.getX() + 0.5, stand.getY(), stand.getZ() + 0.5,
+                java.util.Set.of(), fp.getYRot(), fp.getXRot());
+        fp.setOnGround(true);
+        loadAround(nether, stand, 2);
+        ctx.record("rehearsal.stand", stand.toShortString() + " @ " + fp.level().dimension().location()
+                + "（要塞没有布景，得这一级自己找）");
+        WorldDriverCommon.LOG.info("[rehearsal] staged BLAZE_ROD: gave {} and crossed the body to {}",
+                gave, stand);
+    }
+
+    /** A cell in the Nether with something solid under it, two clear above, and no lava touching.
+     *  Searched downward from the roof-clearance line, because a spot chosen at a fixed y is as
+     *  likely to be inside the netherrack as on it. */
+    private static BlockPos netherStandNear(ServerLevel nether, BlockPos want) {
+        for (int r = 0; r <= 16; r++)
+            for (int dx = -r; dx <= r; dx++)
+                for (int dz = -r; dz <= r; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
+                    for (int y = 100; y >= 32; y--) {
+                        BlockPos foot = new BlockPos(want.getX() + dx, y, want.getZ() + dz);
+                        if (!nether.getBlockState(foot.below()).blocksMotion()) continue;
+                        if (!nether.getBlockState(foot).isAir()
+                                || !nether.getBlockState(foot.above()).isAir()) continue;
+                        boolean wet = false;
+                        for (int ax = -1; ax <= 1 && !wet; ax++)
+                            for (int ay = -1; ay <= 1 && !wet; ay++)
+                                for (int az = -1; az <= 1 && !wet; az++)
+                                    if (!nether.getFluidState(foot.offset(ax, ay, az)).isEmpty()) wet = true;
+                        if (!wet) return foot;
+                    }
+                }
+        return null;
     }
 
     // =====================================================================================
