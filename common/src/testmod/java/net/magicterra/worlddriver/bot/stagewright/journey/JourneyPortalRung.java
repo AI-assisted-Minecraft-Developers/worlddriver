@@ -277,22 +277,24 @@ public final class JourneyPortalRung {
         final int shaftX = downX, shaftZ = downZ;
         rig.evidence(tag + ".return", at.toShortString() + " → 井口 " + shaftX + ","
                 + shaftZ + "，再挖回 y=" + floorY);
-        WorldDriverJourneyScenes.walkToColumn(rig, tag + ".shaft", shaftX, shaftZ, 1, 2_000, () -> {
-            // `WorldDriverJourneyScenes.walkToColumn` calls five blocks "arrived", which is right for crossing a swamp and
-            // wrong for standing over a hole: five blocks along `away` is the frame's own plane, and
-            // digging down there opens the mould from above. Two is the whole of the corridor's
-            // width, so a miss inside it lands the body in the chamber it was going to anyway.
+        // Tolerance ZERO. `walkToColumn` calls five blocks "arrived", which is right for crossing a
+        // swamp and wrong for standing over a hole, and one block is not right either: the corridor
+        // is five wide but only `push` DEEP, so a cell one step the wrong way along `away` is solid
+        // rock outside the chamber, and a descent there is a second shaft through untouched ground.
+        WorldDriverJourneyScenes.walkToColumn(rig, tag + ".shaft", shaftX, shaftZ, 0, 2_000, () -> {
             BlockPos here = rig.player().blockPosition();
-            // Measured from the SHAFT, not from the column being descended, even when those differ.
-            // The shaft is the corridor's anchor and two blocks is its half-width, so this is the
-            // test for "still inside the chamber"; the chosen column is only ever a cell or two off
-            // the shaft, so it inherits the same bound rather than widening it.
-            double off = Math.hypot(here.getX() - forgeShaftX, here.getZ() - forgeShaftZ);
-            if (off > 2.0) {
-                ctx.fail(String.format(java.util.Locale.ROOT,
-                        "回井口差了 %.1f 格：想站 %d,%d（井口 %d,%d），停在 %s"
-                        + " —— 在这儿往下挖会从上面挖穿门框那一面",
-                        off, shaftX, shaftZ, forgeShaftX, forgeShaftZ, here.toShortString()));
+            // Inside the alcove, asked as MEMBERSHIP rather than as a distance. `hypot ≤ 2` was the
+            // old test and it is the wrong shape: it passes -8,20 — one cell diagonally BEHIND the
+            // shaft, outside the excavation entirely — and run 21 dug there. What happened next is
+            // the reason this is a fail and not a shrug: the cell broke to air and read `stone`
+            // again on the next pass, sixty times, because the lava the run had let into the
+            // chamber kept flowing in and setting. The rung reported "方块破了但身体没下沉".
+            BlockPos foot = new BlockPos(here.getX(), floorY, here.getZ());
+            if (!forgeCorridor.contains(foot)) {
+                ctx.fail("回程站到壁龛外面了：想站 " + shaftX + "," + shaftZ + "（井口 "
+                        + forgeShaftX + "," + forgeShaftZ + "），停在 " + here.toShortString()
+                        + "，脚下这一柱 " + foot.toShortString() + " 不在挖出来的壁龛里"
+                        + " —— 在这儿往下挖是另开一口竖井，不是回家");
                 return;
             }
             BotConfig.allowPlace = false;          // a tower on the way DOWN is the bug, not the fix
