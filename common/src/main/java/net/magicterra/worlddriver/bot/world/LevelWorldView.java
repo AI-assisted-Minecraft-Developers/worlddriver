@@ -42,42 +42,7 @@ public final class LevelWorldView implements WorldView {
         this.controller = controller;
     }
 
-    /**
-     * Read a cell — and NEVER generate the world to do it.
-     *
-     * <p>{@code Level.getBlockState} routes to {@code getChunk(x, z, ChunkStatus.FULL, true)}, and
-     * that {@code requireChunk=true} branch does not return null for a missing chunk: it blocks the
-     * calling thread and generates one. This method is the single seam behind {@link #isSolid},
-     * {@link #isHazard}, {@link #isPassable}, {@link #isWater} and the break tests, so every move the
-     * pathfinder evaluates went through it — on the SERVER THREAD, inside an expansion the slice
-     * deadline does not cover (it is checked every sixteen node pops, never inside one). One search
-     * that fanned past the loaded frontier could therefore park the server for as long as worldgen
-     * took: measured twice as a sixty-second hang that the watchdog turned into a crash, in
-     * {@code Parkour3.valid → isHazard} one run and {@code SwimBankClimbBreak.eval} the next, while
-     * a healthy run's worst expansion is eight to nine milliseconds.
-     *
-     * <p><b>An unloaded cell reads as bedrock</b>, and that is the semantics the search was already
-     * built for rather than a new invention. {@code isKnown} is {@code level.isLoaded}, and
-     * {@code PathFinder.bordersUnknown} plus its frontier planning already say what to do at the
-     * edge of known terrain: commit to the goal-ward frontier, walk there, let the chunks load, and
-     * extend on the next search. Bedrock makes an unloaded cell impassable, not a hazard, not water,
-     * and not worth mining — so a plan stops AT the frontier instead of routing optimistically
-     * through terrain nobody has generated. Reading it as air would do the opposite and send the
-     * body into imagined ground.
-     *
-     * <p>The cost is stated plainly: a goal beyond the loaded radius is no longer reachable in one
-     * search. It never really was — it was reachable by generating the world from the server thread,
-     * which is the defect.
-     */
-    private BlockState state(BlockPos p) {
-        if (!level.isLoaded(p)) return UNLOADED;
-        return level.getBlockState(p);
-    }
-
-    /** What a cell in an unloaded chunk reads as. Solid, dry, safe and unbreakable — see
-     *  {@link #state}. */
-    private static final BlockState UNLOADED =
-            net.minecraft.world.level.block.Blocks.BEDROCK.defaultBlockState();
+    private BlockState state(BlockPos p) { return level.getBlockState(p); }
 
     @Override public boolean isSolid(BlockPos p) { return state(p).blocksMotion(); }
 
