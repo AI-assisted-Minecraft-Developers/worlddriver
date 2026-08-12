@@ -2355,10 +2355,30 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             rig.evidence("stand.at", at.toShortString());
             rig.evidence("stand.in", String.valueOf(
                     rig.player().serverLevel().getBlockState(at).getBlock()));
-            // A player's own portal wait is ~80 ticks; this budget is generous on purpose, because a
-            // run that spends it all has found a body the timer never STARTS for, which is a
-            // different finding from one it never fires for.
-            rig.await(() -> !"minecraft:overworld".equals(rig.dimension()), 1_200, () -> {
+            // KEEP WALKING while it waits, and record whether the body actually moves.
+            //
+            // A player's own portal wait is ~80 ticks. Rung 13's first execution spent 1 200 and
+            // never left: `stand.at=76,64,70`, `stand.in=Block{minecraft:nether_portal}` — the body
+            // was inside the portal for a minute of game time and the timer never started. The
+            // reason a real player's does is that vanilla only notices a portal from
+            // `Entity.checkInsideBlocks`, which runs inside `Entity.move` — a client sends movement
+            // every tick, so a standing player is still moving as far as the server is concerned,
+            // while a driven body that has arrived at its goal stops calling `move` at all.
+            //
+            // So the wait re-issues the walk instead of standing still, and `stand.moves` counts the
+            // ticks on which the body's position actually changed. That number is the finding: zero
+            // moves with the body in the portal says the cause is above, and a nonzero count with
+            // still no transfer says it is somewhere else entirely.
+            int[] moves = {0};
+            double[] last = {rig.player().getX(), rig.player().getY(), rig.player().getZ()};
+            rig.body().runProcess(new IntentProcess(new Intent(new Goal.Block(portal))));
+            rig.await(() -> {
+                var fp = rig.player();
+                if (fp.getX() != last[0] || fp.getY() != last[1] || fp.getZ() != last[2]) moves[0]++;
+                last[0] = fp.getX(); last[1] = fp.getY(); last[2] = fp.getZ();
+                return !"minecraft:overworld".equals(rig.dimension());
+            }, 1_200, () -> {
+                rig.evidence("stand.moves", moves[0] + " 个 tick 上身体真的动了（站在门里等的这段）");
                 rig.evidence("dimension", rig.dimension());
                 BlockPos now = rig.player().blockPosition();
                 rig.evidence("arrived.at", now.toShortString());
