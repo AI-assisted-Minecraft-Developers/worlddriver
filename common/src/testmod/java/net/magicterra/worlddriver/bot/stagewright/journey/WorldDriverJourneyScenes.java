@@ -2521,9 +2521,18 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 + (pool.isEmpty() ? "" : "，最近一格 " + pool.get(0).toShortString() + " 距身体 "
                         + Math.round(Math.sqrt(pool.get(0).distSqr(here))) + " 格"));
         if (pool.size() < RING.length) {
+            // Say where the lava ACTUALLY is before saying there is not enough of it. "0 within 16"
+            // and "the nearest source is 40 blocks that way" are the same red row and want opposite
+            // fixes — a wider search versus a different landmark.
+            List<BlockPos> wider = lavaSourcesNear(ctx.level(), here, 48, here);
+            rig.evidence("pool.nearestAnywhere", wider.isEmpty() ? "48 格内一格都没有"
+                    : wider.get(0).toShortString() + " 距身体 "
+                      + Math.round(Math.sqrt(wider.get(0).distSqr(here))) + " 格，共 "
+                      + wider.size() + " 格源块");
             ctx.fail("岩浆源不够：以勘测点 " + lava.toShortString() + " 为心 16 格内只找到 "
-                    + pool.size() + " 格源块，浇十块需要十格 —— 装一次桶拿走的是源块，"
-                    + "不是从同一格装十次（身体在 " + here + "）");
+                    + pool.size() + " 格源块，浇十块需要十格。**firstLava 是 OBSIDIAN 装桶用的那一处，"
+                    + "装一次拿走的就是源块本身** —— 这一级需要的是一片有十格以上源块的岩浆湖，"
+                    + "是一个独立的地标，不是同一个点（身体在 " + here + "）");
             return;
         }
         rig.attempting("一只桶浇十块黑曜石（水搬着走）");
