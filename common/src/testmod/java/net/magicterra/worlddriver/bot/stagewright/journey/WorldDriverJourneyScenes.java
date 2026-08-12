@@ -2820,6 +2820,20 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                                        Runnable then) {
         rig.evidence("opened." + i, cell.toShortString() + "=" + ctx.level().getBlockState(cell).getBlock()
                 + " 水位 " + wet.toShortString() + "=" + ctx.level().getBlockState(wet).getBlock());
+        // Say it outright when a cell did not open. `mineCellOrGiveUp` is "dig, and carry on either
+        // way" by design — which is right for an excavation and wrong here, where pouring into rock
+        // is not a smaller version of pouring into a cavity. Run 20 poured water at a `wet` that was
+        // still stone and the failure surfaced as `cobblestone` in the target, three inferences away
+        // from the cause. Flowing lava meeting water gives cobblestone; a lava SOURCE meeting water
+        // gives obsidian — so that reading also says the floor is now holding, and only the opening
+        // is missing.
+        if (!ctx.level().getBlockState(cell).isAir() || !ctx.level().getBlockState(wet).isAir()) {
+            ctx.fail("第 " + (i + 1) + " 格没挖开就要浇：" + cell.toShortString() + "="
+                    + ctx.level().getBlockState(cell).getBlock() + "，水位 " + wet.toShortString()
+                    + "=" + ctx.level().getBlockState(wet).getBlock()
+                    + "（两格都必须是空气；mineCellOrGiveUp 挖不动会静默继续）");
+            return;
+        }
         // Water in, from the block behind it: a bucket fills the neighbour of the face its ray lands
         // on, and an air cell stops no ray. Standing level with the target keeps that ray horizontal.
         placeFluid(ctx, rig, wet, away, Items.WATER_BUCKET, "water" + i, () -> {
