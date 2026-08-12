@@ -2510,28 +2510,40 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      */
     private static void castTheFrame(SceneContext ctx, JourneyRig rig, BlockPos base, Direction away,
                                      BlockPos lava, int surfaceY) {
-        List<BlockPos> pool = lavaSourcesNear(ctx.level(), rig.player().blockPosition(), 10);
-        rig.evidence("pool.sources", pool.size() + " 格岩浆源（需要 10）");
+        // Searched around the SURVEYED lava, not around the body — and that is the fix for a run
+        // that reported "0 格" while standing in a chamber it had just carved. The shaft column is
+        // chosen up to eight cells clear of the pool (it must not open into it), and then the alcove
+        // is carved further away again, so by the time the casting starts the body can be a dozen
+        // blocks from the lava it came down for. The caller knows where the pool is; ask there.
+        BlockPos here = rig.player().blockPosition();
+        List<BlockPos> pool = lavaSourcesNear(ctx.level(), lava, 16, here);
+        rig.evidence("pool.sources", pool.size() + " 格岩浆源（需要 " + RING.length + "）"
+                + (pool.isEmpty() ? "" : "，最近一格 " + pool.get(0).toShortString() + " 距身体 "
+                        + Math.round(Math.sqrt(pool.get(0).distSqr(here))) + " 格"));
         if (pool.size() < RING.length) {
-            ctx.fail("附近岩浆源不够：只找到 " + pool.size() + " 格，浇十块需要十格 —— "
-                    + "装一次桶拿走的是源块，不是从同一格装十次");
+            ctx.fail("岩浆源不够：以勘测点 " + lava.toShortString() + " 为心 16 格内只找到 "
+                    + pool.size() + " 格源块，浇十块需要十格 —— 装一次桶拿走的是源块，"
+                    + "不是从同一格装十次（身体在 " + here + "）");
             return;
         }
         rig.attempting("一只桶浇十块黑曜石（水搬着走）");
         castCell(ctx, rig, base, away, pool, 0, () -> lightIt(ctx, rig, base, away, surfaceY));
     }
 
-    /** Lava SOURCE cells within {@code r}, nearest first — ten distinct ones is the rung's bill. */
-    private static List<BlockPos> lavaSourcesNear(ServerLevel level, BlockPos from, int r) {
+    /** Lava SOURCE cells within {@code r} of {@code around}, ordered by how far the BODY has to walk
+     *  to each. Two centres because they are two different questions: where the pool is, and which
+     *  of its cells is cheapest to spend next. */
+    private static List<BlockPos> lavaSourcesNear(ServerLevel level, BlockPos around, int r,
+                                                  BlockPos walkFrom) {
         List<BlockPos> out = new ArrayList<>();
         for (int dx = -r; dx <= r; dx++)
-            for (int dy = -4; dy <= 2; dy++)
+            for (int dy = -6; dy <= 4; dy++)
                 for (int dz = -r; dz <= r; dz++) {
-                    BlockPos c = from.offset(dx, dy, dz);
+                    BlockPos c = around.offset(dx, dy, dz);
                     if (level.getFluidState(c).isSource() && level.getBlockState(c).is(Blocks.LAVA))
-                        out.add(c);
+                        out.add(c.immutable());
                 }
-        out.sort(java.util.Comparator.comparingDouble(a -> a.distSqr(from)));
+        out.sort(java.util.Comparator.comparingDouble(a -> a.distSqr(walkFrom)));
         return out;
     }
 
