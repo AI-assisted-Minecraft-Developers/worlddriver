@@ -2730,10 +2730,41 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             holdForUse(rig, held, tag);
             BlockPos backing = target.relative(away);
             rig.body().avatar().aimAtBlock(backing);
-            rig.settle(new HoldStill(2), 10, () -> {
+            // Clear a plant off the line first. This rung's lake is at y=63 — on the SURFACE — so
+            // unlike the underground forge it is standing in grass, and grass is REPLACEABLE: the
+            // pour would not miss, it would succeed into the grass cell and be read as "no obsidian
+            // here". Same swing the obsidian rung uses, and for the same reason mine cannot do it.
+            clearPlantOnLine(ctx, rig, backing, tag, () -> rig.settle(new HoldStill(2), 10, () -> {
                 rig.evidence(tag + ".result", String.valueOf(rig.body().avatar().useItemInHand()));
                 then.run();
-            });
+            }));
+        });
+    }
+
+    /** Break whatever no-collider block the aim ray stops on before {@code want}, then continue.
+     *  One swing only: if the line is blocked by something solid, that is a placement problem and
+     *  the caller's own evidence should say so rather than this quietly digging through it. */
+    private static void clearPlantOnLine(SceneContext ctx, JourneyRig rig, BlockPos want,
+                                         String tag, Runnable then) {
+        ServerLevel level = ctx.level();
+        var hit = aimedAt(rig.player(), TUNNEL_REACH, false);
+        if (hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK
+                || hit.getBlockPos().equals(want)
+                || !level.getBlockState(hit.getBlockPos()).getCollisionShape(level, hit.getBlockPos()).isEmpty()) {
+            then.run();
+            return;
+        }
+        BlockPos plant = hit.getBlockPos();
+        rig.evidence(tag + ".clearedPlant", plant.toShortString() + " "
+                + level.getBlockState(plant).getBlock());
+        var av = rig.body().avatar();
+        av.aimAtBlock(plant);
+        av.breakHold(true);
+        av.continueDestroy(plant);
+        av.breakHold(false);
+        rig.settle(new HoldStill(3), 12, () -> {
+            av.aimAtBlock(want);
+            then.run();
         });
     }
 
@@ -2920,8 +2951,34 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 BlockPos inTheWay = hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
                         ? hit.getBlockPos() : null;
                 if (clearings > 0 && inTheWay != null) {
+                    // A plant stops the RAY but not the BODY. short_grass and seagrass have no
+                    // collider — the body walks through them — yet `getPlayerPOVHitResult` clips on
+                    // Block.OUTLINE, which a plant has, so they land square on the aiming line. And
+                    // MineProcess will not remove them: measured, two clearings in a row left the
+                    // same seagrass standing, and short_grass cost run 9 this rung.
+                    //
+                    // So swing at it directly, which is what a player does — aim, hold, destroy.
+                    // This is the body's own verb, not staging: `staging.calls` stays 0 and the rung
+                    // keeps its claim. Solid blockers still go through mine, where the drop matters.
+                    boolean noCollider = level.getBlockState(inTheWay)
+                            .getCollisionShape(level, inTheWay).isEmpty();
                     rig.evidence("cast.blockedBy", inTheWay.toShortString() + " "
-                            + level.getBlockState(inTheWay).getBlock() + "（挡在瞄准线上，先清掉）");
+                            + level.getBlockState(inTheWay).getBlock()
+                            + (noCollider ? "（无碰撞箱的植物：直接挥手清掉，mine 清不动）"
+                                          : "（挡在瞄准线上，先清掉）"));
+                    if (noCollider) {
+                        var av = rig.body().avatar();
+                        av.aimAtBlock(inTheWay);
+                        av.breakHold(true);
+                        av.continueDestroy(inTheWay);
+                        av.breakHold(false);
+                        rig.settle(new HoldStill(3), 12, () -> {
+                            rig.evidence("cast.cleared." + inTheWay.toShortString(),
+                                    String.valueOf(level.getBlockState(inTheWay).getBlock()));
+                            pourInto(ctx, rig, target, clearings - 1);
+                        });
+                        return;
+                    }
                     rig.mineBlock(inTheWay, 600, () -> rig.settle(new HoldStill(5), 20,
                             () -> pourInto(ctx, rig, target, clearings - 1)));
                     return;
