@@ -2355,30 +2355,57 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             rig.evidence("stand.at", at.toShortString());
             rig.evidence("stand.in", String.valueOf(
                     rig.player().serverLevel().getBlockState(at).getBlock()));
-            // KEEP WALKING while it waits, and record whether the body actually moves.
+            // KEEP WALKING while it waits, in legs, and REPORT when it does not work.
             //
-            // A player's own portal wait is ~80 ticks. Rung 13's first execution spent 1 200 and
-            // never left: `stand.at=76,64,70`, `stand.in=Block{minecraft:nether_portal}` — the body
-            // was inside the portal for a minute of game time and the timer never started. The
-            // reason a real player's does is that vanilla only notices a portal from
-            // `Entity.checkInsideBlocks`, which runs inside `Entity.move` — a client sends movement
-            // every tick, so a standing player is still moving as far as the server is concerned,
-            // while a driven body that has arrived at its goal stops calling `move` at all.
+            // Rung 13's first two executions were harness TIMEOUTs — `await step exceeded
+            // within=1200` — with `stand.at=76,64,70` and `stand.in=Block{minecraft:nether_portal}`:
+            // the body stood inside a lit portal for a minute of game time and was never taken. A
+            // bare `await` is the wrong shape for that, twice over. It runs no process, so the body
+            // is motionless, and vanilla only notices a portal from `Entity.checkInsideBlocks`,
+            // which runs inside `Entity.move` — a real client sends movement every tick, so a
+            // standing player still moves as far as the server is concerned. And its timeout is the
+            // framework's, which kills the scene before the continuation that would have said any
+            // of this.
             //
-            // So the wait re-issues the walk instead of standing still, and `stand.moves` counts the
-            // ticks on which the body's position actually changed. That number is the finding: zero
-            // moves with the body in the portal says the cause is above, and a nonzero count with
-            // still no transfer says it is somewhere else entirely.
-            int[] moves = {0};
-            double[] last = {rig.player().getX(), rig.player().getY(), rig.player().getZ()};
-            rig.body().runProcess(new IntentProcess(new Intent(new Goal.Block(portal))));
-            rig.await(() -> {
-                var fp = rig.player();
-                if (fp.getX() != last[0] || fp.getY() != last[1] || fp.getZ() != last[2]) moves[0]++;
-                last[0] = fp.getX(); last[1] = fp.getY(); last[2] = fp.getZ();
-                return !"minecraft:overworld".equals(rig.dimension());
-            }, 1_200, () -> {
-                rig.evidence("stand.moves", moves[0] + " 个 tick 上身体真的动了（站在门里等的这段）");
+            // So: legs of a real walk at the portal, the reading taken after each, and the rung's
+            // own verdict at the end.
+            walkIntoThePortal(ctx, rig, portal, from, PORTAL_LEGS);
+        });
+    }
+
+    /** How many legs a body gets to be taken by a portal it is standing in, and how long each is.
+     *  Eight of 150 ticks is 1 200 — a player's own wait is about 80, so this is fifteen times the
+     *  budget and a body that spends it has not been unlucky. */
+    private static final int PORTAL_LEGS = 8;
+    private static final int PORTAL_LEG_TICKS = 150;
+
+    private static void walkIntoThePortal(SceneContext ctx, JourneyRig rig, BlockPos portal,
+                                          BlockPos from, int legs) {
+        if (!"minecraft:overworld".equals(rig.dimension())) {
+            arrivedInTheNether(ctx, rig, from);
+            return;
+        }
+        if (legs <= 0) {
+            BlockPos at = rig.player().blockPosition();
+            ctx.fail("站在传送门里 " + (PORTAL_LEGS * PORTAL_LEG_TICKS) + " tick 没被送走："
+                    + "身体在 " + at.toShortString() + "，脚下这格是 "
+                    + rig.player().serverLevel().getBlockState(at).getBlock()
+                    + "，维度仍是 " + rig.dimension()
+                    + " —— 玩家自己的等待约 80 tick，所以这不是运气问题，是这具身体的传送计时器"
+                    + "根本没有开始（见 portal.leg.*）");
+            return;
+        }
+        int leg = PORTAL_LEGS - legs;
+        rig.settle(new IntentProcess(new Intent(new Goal.Block(portal))), PORTAL_LEG_TICKS, () -> {
+            BlockPos at = rig.player().blockPosition();
+            rig.evidence("portal.leg." + leg, at.toShortString() + " 站的是 "
+                    + rig.player().serverLevel().getBlockState(at).getBlock()
+                    + "，维度 " + rig.dimension());
+            walkIntoThePortal(ctx, rig, portal, from, legs - 1);
+        });
+    }
+
+    private static void arrivedInTheNether(SceneContext ctx, JourneyRig rig, BlockPos from) {
                 rig.evidence("dimension", rig.dimension());
                 BlockPos now = rig.player().blockPosition();
                 rig.evidence("arrived.at", now.toShortString());
@@ -2395,8 +2422,6 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 rig.reach("从自己点亮的门走进下界，落在 " + now.toShortString()
                         + "（地表门在 " + from.toShortString() + "，按 8:1 应在 "
                         + wantX + "," + wantZ + "）");
-            });
-        });
     }
 
     /** Climb back to daylight carrying the lava, then cast. */
