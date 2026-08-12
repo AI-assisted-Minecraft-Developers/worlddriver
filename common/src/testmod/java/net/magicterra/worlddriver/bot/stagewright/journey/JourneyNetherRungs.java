@@ -154,8 +154,16 @@ public final class JourneyNetherRungs {
         BlockPos fortress = fortressLandmark(ctx, rig, here);
         if (fortress == null) return;
 
-        int away = (int) Math.round(Math.sqrt(here.distSqr(fortress)));
-        rig.evidence("fortress.at", fortress.toShortString() + "（距身体 " + away + " 格）");
+        // HORIZONTAL distance, and the "2D" is the whole point. The landmark comes from a structure
+        // locate, which reports y=0 — it is an XZ answer wearing a BlockPos. Measuring to it in 3D
+        // folds that fake y into the number and reports a crossing longer than the one the body will
+        // walk. The goal below is a `Goal.XZ`, whose `ignoresY()` is true and whose `reached()` and
+        // `estimate()` both use dx/dz only, so the walk never had a y to reach in the first place;
+        // only this evidence line was ever wrong. Resolving a real standable y here would not change
+        // the walk at all, and would cost a block read 390 blocks away in an unloaded chunk.
+        int away = (int) Math.round(Math.hypot(here.getX() - fortress.getX(), here.getZ() - fortress.getZ()));
+        rig.evidence("fortress.at", fortress.toShortString()
+                + "（距身体 " + away + " 格水平；地标的 y=" + fortress.getY() + " 是 locate 的占位，不是可站立高度）");
         rig.attempting("走到要塞 " + fortress.toShortString() + "（" + away + " 格）");
         walkToColumn(rig, "fortress", fortress.getX(), fortress.getZ(), FORTRESS_ARRIVE_WITHIN,
                 FORTRESS_WALK_TICKS,
@@ -869,6 +877,7 @@ public final class JourneyNetherRungs {
             rig.evidence(what + ".goto." + attempt,
                     "end=" + rig.body().botState().mc_goto.endReason
                             + " err=" + rig.body().botState().mc_goto.lastError);
+            rig.evidence(what + ".around." + attempt, surroundings(rig, at));
             if (left <= 1) { onStuck.run(); return; }
             double moved = Math.hypot(at.getX() - before.getX(), at.getZ() - before.getZ());
             if (moved >= WEDGED_UNDER) {
@@ -881,6 +890,44 @@ public final class JourneyNetherRungs {
             rig.settle(new IntentProcess(new Intent(new Goal.XZ(mx, mz, 3))), Math.max(600, budget / 2),
                     () -> walkToColumn(rig, what, x, z, tolerance, budget, left - 1, onArrived, onStuck));
         });
+    }
+
+    /**
+     * The cells touching the body, printed for every attempt that did not arrive.
+     *
+     * <p><b>Two different failures read alike without this, and they want opposite fixes.</b> A
+     * {@code goto} that ends {@code no path (expanded=1)} popped the start node and found not one
+     * legal move out of it: the body is sealed in, and more walking budget, more attempts and a
+     * nearer midpoint all change nothing. A {@code goto} that ends {@code no route progress after N
+     * consecutive searches (best dist=…)} is the opposite — the search worked, repeatedly, and the
+     * terrain beat it. The first is a hole the body dug or fell into; the second is a nether
+     * crossing that is genuinely too hard. The goto evidence alone cannot tell them apart, which is
+     * how one run reported both and read as a single flaky walk.
+     *
+     * <p>Read straight from the level rather than through the bot's world view on purpose: when the
+     * question is "is the view lying about where the body is", the view is not the witness to ask.
+     * The body's own chunk is loaded by definition, so this costs no chunk load.
+     */
+    private static String surroundings(JourneyRig rig, BlockPos at) {
+        ServerLevel level = rig.player().serverLevel();
+        StringBuilder sb = new StringBuilder();
+        sb.append("脚下=").append(blockName(level, at.below()))
+          .append(" 身处=").append(blockName(level, at))
+          .append(" 头顶=").append(blockName(level, at.above()));
+        int walls = 0;
+        for (Direction d : Direction.Plane.HORIZONTAL) {
+            BlockPos side = at.relative(d);
+            if (level.getBlockState(side).blocksMotion()) walls++;
+            sb.append(' ').append(d.getName()).append('=').append(blockName(level, side));
+        }
+        sb.append(walls == 4 ? "（四面封死 —— 这是 expanded=1 的样子）"
+                : "（" + walls + "/4 面是墙）");
+        return sb.toString();
+    }
+
+    /** A block's short id, so a surroundings line stays readable. */
+    private static String blockName(ServerLevel level, BlockPos p) {
+        return BuiltInRegistries.BLOCK.getKey(level.getBlockState(p).getBlock()).getPath();
     }
 
     // =====================================================================================
