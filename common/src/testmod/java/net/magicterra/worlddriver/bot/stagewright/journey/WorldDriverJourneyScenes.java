@@ -2596,6 +2596,10 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     private static void returnToTheForge(SceneContext ctx, JourneyRig rig, int floorY, String tag,
                                          Runnable then) {
         BlockPos at = rig.player().blockPosition();
+        // Before the early return, not after it. Everything downstream of this method is the pour,
+        // and the pour needs the alcove to stay exactly as it was carved — see the note at the end
+        // of carveTheForge. A leg that finds itself already down there still hands over to the pour.
+        BotConfig.allowPlace = false;
         if (at.getY() <= floorY + 1) { then.run(); return; }
         // Come down whatever the climb went UP, when that is known and inside the alcove. Two blocks
         // is the corridor's half-width (JourneyForge.corridor sweeps −2..2), so a column within it
@@ -2634,7 +2638,8 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             }
             BotConfig.allowPlace = false;          // a tower on the way DOWN is the bug, not the fix
             JourneyShaft.descendByMining(rig, floorY, () -> {
-                BotConfig.allowPlace = true;
+                // Still off. The next thing to happen is a pour, and a pathfinder that paves the
+                // alcove while walking a few blocks to it takes away the cell the pour stands in.
                 rig.evidence(tag + ".returnedY", rig.player().blockPosition().getY());
                 then.run();
             });
@@ -2773,7 +2778,18 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         rig.attempting("挖出浇筑用的壁龛和十二格门框");
         BotConfig.allowPlace = false;
         carveNext(ctx, rig, todo, 0, new ArrayList<>(), () -> {
-            BotConfig.allowPlace = true;
+            // Placing stays OFF from here to the last cast, and that is the fix run 16 asked for.
+            // The alcove is finished: every cell the body needs is already open, so anything the
+            // pathfinder puts down inside it is pure obstruction — and it does not land harmlessly.
+            // Measured: standToPour rejected all 140 candidates, with 头顶被占 on BOTH cells of the
+            // only line that can see the backing (-9,52,21 and -9,52,22) and stray cobblestone at
+            // -10,53,21. That is a body pillaring up its own shaft while walking to a frame cell,
+            // and it walls off exactly the two spots the pour has to stand in. The rung then had no
+            // ray-verified spot at all, fell back to a standable one, and stopped on its own gate.
+            //
+            // The only place that still needs to build is the ascent, and climbOut turns it back on
+            // for itself; returnToTheForge turns it off again on the way down.
+            BotConfig.allowPlace = false;
             rig.evidence("forge.carved", "完成");
             // Is the mould still a mould? The backings were solid when the spot was CHOSEN, and the
             // carve is the only thing that has happened since — but `allowBreak` stays on through it,
