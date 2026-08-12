@@ -1,3 +1,70 @@
+## 🔎 待重新落地(引擎侧, 已实现→已回滚): 寻路读格子会**从服务器线程生成区块**
+
+**这是一个真实的生产缺陷, 和 60 秒卡死那次崩溃无关** —— 两件事在一轮里撞到一起了,
+下面把它们分开记, 免得下一个人把回滚读成"这条不成立"。
+
+**链路(反编译字节码看出来的, 不是推断)**:
+
+```
+LevelWorldView.state(p) → Level.getBlockState(p)
+                        → getChunk(x, z, ChunkStatus.FULL, requireChunk=true)
+```
+
+`requireChunk=true` 那条分支**不会**对缺失的区块返回 null —— 它**阻塞调用线程并把区块生成出来**。
+证据是编译进该方法的断言字符串 `"Should always be able to create a chunk!"`。
+而 `state()` 是 `isSolid` / `isHazard` / `isPassable` / `isWater` 和几个破坏判定背后的**唯一**接缝,
+也就是说寻路每评估一步棋都走这里 —— 在**服务器线程**上。一次扇出到已加载边界之外的搜索,
+可以让服务器停在那里等世界生成。
+
+**已实现过的修法(commit 88dc06e, 已被 c653ca8 revert 掉)**: `state()` 先问 `level.isLoaded(p)`,
+未加载的格子读作**基岩**。
+
+**语义为什么选"不可通行"而不是"空气"**: 搜索本来就是照这个设计写的, 不是新发明 ——
+`LevelWorldView.isKnown` 就是 `level.isLoaded`, 而 `PathFinder.bordersUnknown`(`PathFinder.java:1094`)
+连同它的前沿规划已经把边界上的做法写死了: **认准朝目标那侧的前沿 → 走过去 → 让区块加载 → 下一次搜索再往前接**。
+基岩让未加载的格子不可通行、不是危险、不是水、也不值得挖, 于是计划**停在前沿**;
+读作空气则正相反, 会把身体送进想象出来的地形里。
+
+**代价要说清楚**: 已加载半径之外的目标, 一次搜索不再够得着。
+它本来也从来没真够得着过 —— 它是靠"从服务器线程把世界生成出来"够着的, 而那正是缺陷本身。
+
+**为什么回滚**: 它**没有**修好那次崩溃(见下一节 —— 真凶是战斗循环没有每 tick 预算);
+它是对生产寻路语义的一次大改; 而唯一的验证只有一次 Fabric gate(226 executed / 20 skipped, GREEN)。
+更要紧的是: 如果它和战斗循环的整形一起落地、NeoForge 随后转绿, 那就**分不清是哪一个修好的**。
+
+**重新落地的门槛**(不要偷懒, 一次 Fabric gate 看不见它):
+1. 六个 topology 全过;
+2. **外加一次 journey 阶梯实跑** —— 长距离那几级(第 13 级往上, 尤其下界横穿)正是
+   "前沿之外不可通行"**最可能**弄坏的东西, 而 gate 里的场景都在小竞技场里, 压根走不到前沿。
+
+## 🔴 60 秒 watchdog 崩溃的真凶: 一个 server tick 里塞进了三千次寻路切片
+
+`wd.serverFightsOneBlaze` 让 NeoForge dedicated gate 在 8 轮里红了 3 轮
+(`ServerHangWatchdog detected that a single server tick took 60000004.00 seconds` ——
+那是 60000004 微秒 = `max-tick-time=60000` + 4 µs, 显示单位是个 bug, 数字是真的)。
+
+**两个假设都被量掉了**:
+- *不是* loader 差异: 两个 loader 迭代次数一模一样(开阔天空 3000 / 封顶 40),
+  NeoForge 每次迭代还更快(0.26 ms vs Fabric 0.45 ms), 总耗时 785 ms vs 1355 ms。
+- *不是* 某一次失控的展开: 给 `PathFinder$Search.advance` 加了每次展开超过 100 ms 就报的护栏
+  (commit 9d26804), **在崩溃那一轮里一条都没打印**。tick 跑了 60 秒而护栏全程沉默,
+  所以**没有任何单次展开是慢的**。
+
+**真正的算术**: 场景在**一个 server tick 里**同步跑 3000 次迭代, 每次迭代都可能推进一次搜索;
+`BotConfig.pathfinderIdleSliceMs = 30`(`BotConfig.java:426`), 而 `WalkerTickSearch` 在身体
+没有可走路径时**故意**用这个 idle 切片 —— 追一只够不着的烈焰人, 正好每 tick 都是这个状态。
+3000 × 20 ms ≈ 60 s, 和 watchdog 的阈值严丝合缝。健康的一轮之所以只要 785–1355 ms,
+是因为大多数迭代立刻找到路、根本没花切片。
+
+**切片上限是好的, 没坏 —— 坏的是调用它的循环没有任何时钟预算。**
+所以修法是把战斗循环整形成**跨 server tick 分摊**, 而且必须是**每 tick 的时钟预算**,
+不是只加一次 yield: 一个 yield 了但仍然跑满 3000 次迭代的循环, 只是把问题减半。
+整形时要保住 `blaze.tick()` 和 avatar tick 的交错 —— 那是真实约束, 不是巧合。
+
+**留给以后的注意**: 上面那条"展开内部不检查 deadline"的结构性事实仍然成立
+(`advance` 每 16 次弹栈才看一次表, 一次展开内部不看), 只是**这次**不是它。
+9d26804 那条护栏留着不动: 它靠**不响**排除了一整个假设, 以后真响了就是真的。
+
 ## 第 23 轮: 全 20 级首次全部有实现 + 身体真正入服
 
 **结果**: 爬到 OBSIDIAN(11 级), `staging.calls=0`, 第 12 级红。
