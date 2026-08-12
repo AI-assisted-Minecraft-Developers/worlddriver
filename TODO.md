@@ -1,3 +1,30 @@
+## 并行攻坚的进展(subagent 四路 + 拆分一路)
+
+**已修并已验证**:
+- `SmeltProcess.collect()` 无条件报成功 —— 背包满时 `quickMoveStack` 一个也不搬, 铁锭留在炉里,
+  而 `lastError==null`。**炼成了和没炼过在断言上完全一样。** 已加负向对照复现症状后修掉。
+  新竞技场场景 `wd.serverSmeltDeliversTheIngot` 是仓库里第一个**真的让炉子烧起来**的场景
+  (原有三个 smelt 场景把 avatar tick 塞在一个 server tick 里, 炉子根本不 tick, 其中一个还是手工塞结果)。
+- `ServerWorldDriver` 的 `LevelWorldView` 是构造时建好、终身不换的 ——
+  **身体进了下界之后, 每一次寻路都在用主世界地形配下界坐标**, 而且只报"没走到", 看不出原因。
+  已改成 `world()` 发现层变了就重建, 并把 `tick()` 里两处直接读字段的地方改走访问器
+  (只改 getter 是没用的, 那两处才是真正在跑的)。
+- `WorldDriverProcessScenes.java` 3713 → 2036, 按主题拆成 portal/mobFight/smeltDelivery 三个类。
+  用 `git show HEAD` 做了逐字节比对 + 一次完整无过滤 gate: 253 scenes, `MISSING-EXPECTED: 0`,
+  `UNEXPECTED: 0`, **VERDICT GREEN**。
+
+**新写好但一次都没跑过**: 第 14/15 级(`JourneyNetherRungs`)、第 16–20 级(`JourneyEndRungs`)。
+两者都只暴露 `rungs()`, **还没接线**。
+
+**待办(等 journey 文件所有权交还)**:
+1. 接线两个 `rungs()`, 并删掉会重名的 7 条 `unscripted(...)`;
+2. `runJourneyServer` 加 `-Dworlddriver.realPlayerBodies=true` —— 一个开关同时解锁龙的生成、
+   烈焰人刷怪笼、末影人自然生成(三条都卡在 `level.players()` 为空);
+3. `WorldDriverJourneyScenes.java` 现在 3789 行, 还超预算, 要按同样的机械拆法拆掉。
+
+**顺带记录**: `wd.serverEscapeSealedShelter` 在三轮 gate 里绿一次红两次 —— 是**既有**的
+optional 传感器抖动, 与本次拆分无关(拆分那位没碰过它所在的文件)。
+
 ## 🔴 两件必须处理的事(subagent 并行开工后暴露出来的)
 
 ### 1. source-budget 硬闸现在是红的
