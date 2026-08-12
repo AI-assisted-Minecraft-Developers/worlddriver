@@ -1344,7 +1344,22 @@ public final class JourneyPortalRung {
                                    net.minecraft.world.item.Item held, String tag, int tries,
                                    Runnable then) {
         Map<String, Integer> why = new java.util.LinkedHashMap<>();
-        PourSpot spot = standToPour(ctx.level(), rig, target, away, why);
+        // IF IT CAN BE DONE FROM HERE, DO IT FROM HERE — before choosing anywhere to walk to.
+        //
+        // Otherwise the walk undoes the work that made the pour possible. Run 42's last cell:
+        // `cast9.lift=-9,56,36 → y=59`, `cast9.liftedY=59/59`, the body up its own pillar exactly
+        // level with the cell — and then the retry chose a stand, walked to it, and reported
+        // `身体在 -10,57,35`, two rows below the row it had just built to reach. The fill has had
+        // this short-circuit since run 36 for the same reason; this is it on the pour side.
+        PourSpot spot = null;
+        BlockPos already = aimThatLandsIn(ctx.level(), rig, target, away);
+        if (already != null) {
+            rig.evidence(tag + ".fromHere", rig.player().blockPosition().toShortString()
+                    + " 就地瞄 " + already.toShortString() + "，流体会落进 "
+                    + target.toShortString() + "（不走了）");
+            spot = new PourSpot(rig.player().blockPosition(), already);
+        }
+        if (spot == null) spot = standToPour(ctx.level(), rig, target, away, why);
         if (spot == null) {
             ctx.fail("模腔里没有能浇到 " + target.toShortString() + " 的落脚点："
                     + "要求脚下实心、头顶两格空、射线打在背板 " + target.relative(away).toShortString()
