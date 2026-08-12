@@ -145,9 +145,23 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * <p>The scene's {@code required} flag is read from the stage rather than written here, so
      * promoting a rung is one edit in one place and cannot half-happen.
      */
+    /**
+     * A rung. Registered with {@code withArena(false)}, because the journey never enters its plot.
+     *
+     * <p>{@code JourneyRig}'s class note says it plainly: the harness force-loads each scene's arena
+     * and the journey leaves it immediately — it plays at world spawn and walks for kilometres. So
+     * every rung was inheriting a wait on ground it does not use, and that wait failed real ladders:
+     * {@code only 0 of 9 arena chunks ever loaded} took rung 9 in one run and rungs 9 AND 10 in
+     * another. Shrinking the arena is not the fix and is actively worse — {@code 0 of 1} never loads
+     * either, since one chunk cannot have the loaded neighbours an entity-ticking promotion needs.
+     *
+     * <p>This drops only the WAIT; the plot is still force-loaded and still audited, and
+     * {@code ctx.level()} is unchanged. Safe here specifically because no rung reads
+     * {@code ctx.origin()} — the journey's coordinates all come from {@link JourneyRoute}.
+     */
     private static Scene stage(String name, JourneyStage rung, int budget,
                                java.util.function.Consumer<SceneContext> body) {
-        return Scene.of(name, budget, body).withRequired(rung.gating());
+        return Scene.of(name, budget, body).withRequired(rung.gating()).withArena(false);
     }
 
     /** A rung nobody has written the steps for yet. Never required — it is a placeholder for work,
