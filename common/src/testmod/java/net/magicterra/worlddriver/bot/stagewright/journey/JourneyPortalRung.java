@@ -1125,6 +1125,34 @@ public final class JourneyPortalRung {
         });
     }
 
+    /**
+     * Last resort before a pour gives up: pillar up where the body IS, rather than where it should be.
+     *
+     * <p>{@link #standLevelWith} builds a step when the geometry says no spot can see the target, and
+     * it is right about the geometry — but it is asked before the walk, and the walk is what fails.
+     * Run 40 cell six: {@code water6.stand=-9,56,37} verified, so no step was built, and the body
+     * then ended at {@code -8,56,37} one cell east and stayed there through both retries, its ray
+     * landing in {@code -9,58,38} every time. The one good cell existed and the walker could not
+     * reach it, which no amount of re-choosing fixes.
+     *
+     * <p>Pillaring under the body needs no walk at all, and lifting to the target's own row is what
+     * makes the backing aim horizontal wherever the body happens to be standing. The cobblestone is
+     * left behind on purpose — {@link #tidyTheAlcove} takes it out before the next cell.
+     */
+    private static void liftInPlace(SceneContext ctx, JourneyRig rig, BlockPos target, String tag,
+                                    int tries, Runnable then) {
+        int wantY = target.getY() - 1;
+        if (tries > 2 || rig.player().blockPosition().getY() >= wantY) { then.run(); return; }
+        rig.evidence(tag + ".lift", rig.player().blockPosition().toShortString() + " → y=" + wantY
+                + "（走不到选定的落脚格，就地垒上去和 " + target.toShortString() + " 同高）");
+        BotConfig.allowPlace = true;
+        JourneyShaft.climbOut(rig, wantY, () -> {
+            BotConfig.allowPlace = false;
+            rig.evidence(tag + ".liftedY", rig.player().blockPosition().getY() + "/" + wantY);
+            then.run();
+        });
+    }
+
     /** How many times a pour may re-walk at its cell before the rung stops. Two, plus the one it
      *  started with: this is a few blocks inside a chamber the body just carved, so a leg that ends
      *  out of reach three times is not a slow walk, it is a body that cannot get there. */
@@ -1380,7 +1408,8 @@ public final class JourneyPortalRung {
                         // three identical answers. What changes is the world — and the thing in the
                         // way is a block in a corridor the rung hollowed out itself.
                         clearPourLine(ctx, rig, target, away, tag + ".clear" + tries,
-                                () -> placeFluid(ctx, rig, target, away, held, tag, tries - 1, then));
+                                () -> liftInPlace(ctx, rig, target, tag, tries,
+                                () -> placeFluid(ctx, rig, target, away, held, tag, tries - 1, then)));
                         return;
                     }
                     ctx.fail("浇不到指定格：想浇 " + target.toShortString() + "（瞄背板 "
