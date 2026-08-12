@@ -180,6 +180,7 @@ wd.serverEarnsAnEnderPearl
 wd.serverFightsAFlyingBlaze
 wd.serverEarnsABlazeRod
 wd.serverOpensTheEndPortal
+wd.serverSmeltDeliversTheIngot
 wd.serverLightsPortal
 wd.debugSweepCourse
 wd.expectAlarmBlockedJump
