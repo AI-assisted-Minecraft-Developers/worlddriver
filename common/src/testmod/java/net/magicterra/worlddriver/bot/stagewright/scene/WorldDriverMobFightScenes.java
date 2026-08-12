@@ -389,8 +389,18 @@ public final class WorldDriverMobFightScenes {
      * or the fight being measured is not the fight the field sees.
      */
     private static final class BlazeFightRun {
-        /** How much wall clock one server tick may give this fight. Three orders of magnitude under
-         *  {@code max-tick-time=60000}, and under a vanilla 50 ms tick so the server keeps pace. */
+        /**
+         * How much wall clock one server tick may give this fight. Three orders of magnitude under
+         * {@code max-tick-time=60000}, and under a vanilla 50 ms tick so the server keeps pace.
+         *
+         * <p><b>Do not copy this number into a production process.</b> 40 ms inside a 50 ms tick
+         * means the server runs at roughly half speed for the ~30 ticks the fight spans, which is
+         * fine for a scene that owns the world and is measured on total wall clock, and not fine at
+         * all for anything sharing a tick with players. The pattern is worth copying — a pump with a
+         * per-tick clock budget that always makes at least one iteration of progress — but a live
+         * process wants a slice small enough to be invisible, single-digit milliseconds, not one
+         * that eats most of the tick.
+         */
         private static final long SLICE_MS = 40;
 
         private final SceneContext ctx;
