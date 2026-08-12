@@ -2555,6 +2555,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                     : wider.get(0).toShortString() + " 距身体 "
                       + Math.round(Math.sqrt(wider.get(0).distSqr(here))) + " 格，共 "
                       + wider.size() + " 格源块");
+            rig.evidence("pool.column", lavaColumnReport(ctx.level(), here, 24));
             ctx.fail("岩浆源不够：以勘测点 " + lava.toShortString() + " 为心 16 格内只找到 "
                     + pool.size() + " 格源块，浇十块需要十格。**firstLava 是 OBSIDIAN 装桶用的那一处，"
                     + "装一次拿走的就是源块本身** —— 这一级需要的是一片有十格以上源块的岩浆湖，"
@@ -2580,6 +2581,36 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 }
         out.sort(java.util.Comparator.comparingDouble(a -> a.distSqr(walkFrom)));
         return out;
+    }
+
+    /**
+     * Where the lava is down the WHOLE column, in 8-block bands.
+     *
+     * <p>Every probe above scans {@code dy ∈ [-6,4]} — eleven blocks around the body. So their
+     * answer, however wide the radius, is <b>"none at this depth"</b> and never "none here": a
+     * lava sea eighty blocks lower reddens exactly the same row, and reading it as absence sends
+     * the next round at the radius, which is not the dimension that is wrong. Widening x/z was
+     * already tried here (16 → 40 → 48) and bought nothing, which is only informative once this
+     * report says whether the column is empty too.
+     *
+     * <p>Runs only on the failure path, so its cost buys the next run's landmark.
+     */
+    private static String lavaColumnReport(ServerLevel level, BlockPos here, int r) {
+        java.util.TreeMap<Integer, Integer> bands = new java.util.TreeMap<>();
+        int floor = level.getMinBuildHeight() + 1;
+        for (int dx = -r; dx <= r; dx++)
+            for (int dz = -r; dz <= r; dz++)
+                for (int y = floor; y < 64; y++) {
+                    BlockPos c = new BlockPos(here.getX() + dx, y, here.getZ() + dz);
+                    if (level.getFluidState(c).isSource() && level.getBlockState(c).is(Blocks.LAVA))
+                        bands.merge(Math.floorDiv(y, 8) * 8, 1, Integer::sum);
+                }
+        if (bands.isEmpty())
+            return "半径 " + r + " 的整列（y=" + floor + "..63）一格源块都没有 —— 这里确实没有岩浆湖";
+        StringBuilder sb = new StringBuilder("半径 " + r + " 整列按 8 格分层（层=源块数）：");
+        bands.descendingMap().forEach((y0, n) -> sb.append(" y").append(y0).append("~")
+                .append(y0 + 7).append("=").append(n));
+        return sb.toString();
     }
 
     /** The interior (or, for the top pair, the notch above) that the water goes into for this cell. */
