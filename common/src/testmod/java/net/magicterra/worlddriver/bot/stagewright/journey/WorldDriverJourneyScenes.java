@@ -2447,13 +2447,30 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     }
 
     /** Walk to the surveyed lava and sink to its level, reusing OBSIDIAN's own descent. */
+    /**
+     * The floor the mould is carved on — deliberately NOT the lava's own level.
+     *
+     * <p>The frame is five cells tall plus a row of cap notches, and the technique is to carve that
+     * shape out of solid rock so every cell has a back for the buckets to aim at. Laid at the lava's
+     * level that holds underground and fails at a surface lake: run 10 walked to this seed's only
+     * usable lake, at <b>y=63</b>, cast the first two cells and died on the third with
+     * {@code 想放 -9,65,23 … 现在是 air} — the upper rows were open sky, so the water ran off.
+     *
+     * <p>Seven below the lava puts all twelve cells in rock whatever the lake's depth, and costs a
+     * seven-block climb per fill against the thirty-six the OBSIDIAN rung already climbs carrying
+     * lava — well inside proven ground.
+     */
+    private static int forgeFloorY(BlockPos lava) {
+        return lava.getY() - 7;
+    }
+
     private static void descendToTheForge(SceneContext ctx, JourneyRig rig, BlockPos lava) {
         rig.attempting("背着一桶水走到岩浆柱并下到岩浆层");
         walkToColumn(rig, "lava", lava.getX(), lava.getZ(), 0, 24_000, () -> {
             BlockPos at = rig.player().blockPosition();
             final int surfaceY = daylightY(rig, at);
             rig.evidence("forge.surfaceY", surfaceY + "（脚下 y=" + at.getY() + "）");
-            if (at.getY() <= lava.getY() + 2) { carveTheForge(ctx, rig, lava, surfaceY); return; }
+            if (at.getY() <= forgeFloorY(lava) + 1) { carveTheForge(ctx, rig, lava, surfaceY); return; }
             ServerLevel level = ctx.level();
             Map<String, Integer> rejected = new java.util.LinkedHashMap<>();
             BlockPos dig = pickDigColumn(level, lava, surfaceY, rejected);
@@ -2471,11 +2488,11 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 // while `below=` is still solid. OBSIDIAN can afford to be tight because failing
                 // costs it one rung; this rung is carrying the run's only bucket of water down a
                 // hole it cannot re-dig, and it has a 250 000-tick budget to spend on getting there.
-                int depth = Math.max(0, rig.player().blockPosition().getY() - (lava.getY() + 1));
+                int depth = Math.max(0, rig.player().blockPosition().getY() - forgeFloorY(lava));
                 int cap = depth * 8 + 60;
                 rig.evidence("forge.descentCap", depth + " 格深，给 " + cap + " 次尝试（默认公式只给 "
                         + (depth * 3 + 20) + "）");
-                descendByMining(rig, lava.getY() + 1, cap, cap, () -> {
+                descendByMining(rig, forgeFloorY(lava), cap, cap, () -> {
                     BotConfig.allowPlace = true;
                     rig.evidence("forge.landedY", rig.player().blockPosition().getY());
                     carveTheForge(ctx, rig, lava, surfaceY);
