@@ -228,13 +228,19 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         Map<String, JourneyRoute.Found> survey = JourneyRoute.survey(ctx);
         survey.forEach((name, found) -> rig.evidence("survey." + name, found.asRecord()));
 
-        // NOT surveying the lava lake here, and the reason is a measurement rather than a judgement:
-        // JourneyRoute.surveyLavaLake exists and works, but wiring it into recon pushed this rung
-        // past a ten-minute budget TWICE — once sweeping 64 blocks around spawn over y 5..40, and
-        // again after tightening it to 24 blocks around firstLava. Every one of those fluid lookups
-        // can force chunk generation, and recon runs before anything is loaded. A survey that costs
-        // more than the run it informs is not a survey, so this stays out of the ladder until it is
-        // cheap — see JourneyRoute.lavaLake for what still needs it and why.
+        // NOT surveying the lava lake here — and the reason it is out is weaker than it first looked,
+        // which is worth saying plainly rather than leaving a confident comment behind.
+        //
+        // JourneyRoute.surveyLavaLake exists and compiles. Two attempts to run it from here hit a
+        // ten-minute wall, and the first reading was "the scan forces chunk generation and is too
+        // slow". That reading is NOT established: the same wall was then hit by a run that executed
+        // ZERO scenes, so most or all of it is this task's own startup and world provisioning —
+        // `runJourneyServer` does not honour `-Pstagewright.scenes`, so there is no cheap way to
+        // exercise rung 1 alone, and nothing here was ever timed in isolation.
+        //
+        // So this is parked, not diagnosed. Before wiring it in, time the scan on its own (an arena
+        // scene can do it in ~200ms) instead of inferring its cost from a task that takes minutes to
+        // reach its first line. See JourneyRoute.lavaLake for what still needs it and why.
 
         // Pasteable, because the alternative is a human transcribing coordinates out of a log.
         for (String line : JourneyRoute.asConstants(survey)) {
