@@ -33,6 +33,10 @@ public final class LevelWorldView implements WorldView {
     private final Level level;
     private final Player controller;
 
+    /** The level this view reads. Exposed so a holder can notice the body has left it — a view
+     *  outlives a dimension change silently otherwise, and then plans over the wrong terrain. */
+    public Level level() { return level; }
+
     public LevelWorldView(Level level, Player controller) {
         this.level = level;
         this.controller = controller;

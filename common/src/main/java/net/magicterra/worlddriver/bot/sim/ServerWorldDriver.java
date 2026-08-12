@@ -32,7 +32,16 @@ import net.minecraft.server.level.ServerPlayer;
  */
 public class ServerWorldDriver {
     private final ServerPlayerAvatar avatar;
-    private final LevelWorldView world;
+    /**
+     * Not final: the body can change dimension, and a view does not follow it.
+     *
+     * <p>This was built once in the constructor from the body's creation level and handed to every
+     * {@code BotProcess} forever. The moment the body stepped through a nether portal, every
+     * pathfind was planning across <b>overworld</b> terrain at <b>nether</b> coordinates — and
+     * nothing says so from outside: the walker plans, drives, and reports an ordinary failure to
+     * arrive. See {@link #world()}, which rebuilds when the body has moved on.
+     */
+    private volatile LevelWorldView world;
     private final Walker walker = new Walker("server");
     private final BotState botState = new BotState();
     private volatile Walker.Step last = Walker.Step.WALKING;
@@ -112,7 +121,16 @@ public class ServerWorldDriver {
 
     public ServerPlayerAvatar avatar() { return avatar; }
     public ServerPlayer fakePlayer() { return avatar.fakePlayer(); }
-    public LevelWorldView world() { return world; }
+    /** The view of the level the body is in <b>now</b>, rebuilt if it has changed dimension. */
+    public LevelWorldView world() {
+        net.minecraft.world.level.Level now = avatar.fakePlayer().level();
+        LevelWorldView current = world;
+        if (current.level() != now) {
+            current = new LevelWorldView(now, avatar.fakePlayer());
+            world = current;
+        }
+        return current;
+    }
     public Walker.Step lastStep() { return last; }
     public boolean finished() { return finished; }
     public BotState botState() { return botState; }
@@ -123,13 +141,13 @@ public class ServerWorldDriver {
     public Walker.Step tick() {
         if (finished) return last;
         if (process != null) {                       // real BotProcess over the avatar
-            boolean done = process.tick(avatar, world, botState);
+            boolean done = process.tick(avatar, world(), botState);
             avatar.step();
             if (done) { finished = true; last = Walker.Step.ARRIVED; }
             else last = Walker.Step.WALKING;
             return last;
         }
-        Walker.Step s = walker.tick(avatar, world);
+        Walker.Step s = walker.tick(avatar, world());
         avatar.step();
         if (mineTarget != null) {
             if (!world.isSolid(mineTarget)) {        // already broken (or arrived + broke last tick)
