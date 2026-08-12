@@ -367,6 +367,15 @@ public final class JourneyPortalRung {
      */
     private static void returnToTheForge(SceneContext ctx, JourneyRig rig, int floorY, String tag,
                                          Runnable then) {
+        returnToTheForge(ctx, rig, floorY, tag, RETURN_TRIES, then);
+    }
+
+    /** How many times the return may try. Two: one for the walk, and one for a body that fell into
+     *  the hole its own bucket left in the lake — see the recovery leg below. */
+    private static final int RETURN_TRIES = 2;
+
+    private static void returnToTheForge(SceneContext ctx, JourneyRig rig, int floorY, String tag,
+                                         int tries, Runnable then) {
         BotConfig.allowPlace = false;
         BlockPos at = rig.player().blockPosition();
         if (at.getY() <= floorY + 1) { then.run(); return; }
@@ -388,6 +397,31 @@ public final class JourneyPortalRung {
             rig.evidence(tag + ".returnedY", here.getY() + "（楼梯底 y=" + stairBottom.getY()
                     + "，身体 " + here.toShortString() + "）");
             if (here.getY() > floorY + 1) {
+                // A BODY THAT CANNOT WALK TO THE STAIRS IS USUALLY IN A HOLE IT DUG ITSELF.
+                //
+                // Filling a bucket takes a lava SOURCE out of the lake, which leaves a pit where a
+                // source used to be — and the walk back crosses the lake's own rim. Run 33 measured
+                // it at the third cast: `lava2.aimsAt=-11,63,21 lava 源块=true`, `CONSUME`, and then
+                // `cast2.return` starting from `-11,60,21` — three blocks under the surface, inside
+                // the pit, with placing off so it could not build its way out. Every waypoint of the
+                // flight then failed in turn and the rung reported the last one.
+                //
+                // So the recovery is the one thing the descent deliberately forbids: let it place.
+                // That is safe HERE and nowhere else — the mouth is ten blocks above the alcove and
+                // fifteen across, so a pillar built to climb out of the lake cannot land in the room
+                // the pours have to stand in, and the leg turns placing off again on its way down.
+                if (tries > 1) {
+                    rig.evidence(tag + ".returnStuck." + tries, here.toShortString()
+                            + " 走不到楼梯（多半掉进了自己舀空的岩浆坑）—— 开着放置权爬回楼梯口 "
+                            + stairTop.toShortString() + " 再来一次");
+                    BotConfig.allowPlace = true;
+                    rig.settle(new IntentProcess(new Intent(new Goal.Block(stairTop))), 2_000, () -> {
+                        rig.evidence(tag + ".backToMouth", rig.player().blockPosition().toShortString()
+                                + "（楼梯口 " + stairTop.toShortString() + "）");
+                        returnToTheForge(ctx, rig, floorY, tag, tries - 1, then);
+                    });
+                    return;
+                }
                 ctx.fail("走不回模腔：停在 " + here.toShortString() + "，楼梯底 "
                         + stairBottom.toShortString() + " 在 y=" + stairBottom.getY()
                         + " —— 带着一桶岩浆停在半路，浇下去只会浇进楼梯");
