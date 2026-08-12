@@ -814,10 +814,19 @@ public final class PathFinder {
         /** Expand nodes until {@code sliceMs} of wall-clock elapses this call (or
          *  the search finishes / hits its total budget). Returns true once done;
          *  the {@link Result} is then available from {@link #result()}. */
+        /** How many runaway expansions one search may report before it stops repeating itself.
+         *  Enough to see whether it is one bad cell or a whole region. */
+        private static final int RUNAWAY_LOG_CAP = 8;
+        private int runawayLogged;
+
         public boolean advance(long sliceMs) {
             if (result != null) return true;
             long sliceStart = System.nanoTime();
             long sliceLimit = (sliceMs >= Long.MAX_VALUE / 2) ? Long.MAX_VALUE : sliceMs * 1_000_000L;
+            // Ten times the slice, floored at 100 ms so a thin slice does not cry wolf. Against a
+            // measured 8-9 ms worst healthy expansion this only fires on something pathological.
+            long runawayLimit = Math.max(100L * 1_000_000L,
+                    sliceLimit == Long.MAX_VALUE ? 1_000L * 1_000_000L : sliceLimit * 10L);
             int sinceCheck = 0;
             // Cache is LIVE only while this slice expands nodes (static-world memoise);
             // cleared off in finally so the Walker's between-slice reads stay fresh.
@@ -991,7 +1000,27 @@ public final class PathFinder {
                         break;
                     }
 
+                    // RUNAWAY WATCH. The slice deadline above is checked every TIME_CHECK_INTERVAL
+                    // EXPANSIONS, which bounds how many nodes may pass between clock reads and
+                    // nothing at all about how long one of them takes. Every move below does world
+                    // reads, and a world read that has to load or generate a chunk blocks the
+                    // calling thread for as long as that takes — so the cap holds for thousands of
+                    // expansions and then does not hold at all.
+                    //
+                    // Measured cost of this scene's healthy expansions: 8–9 ms for a whole 3 000-tick
+                    // fight's worst single walker tick, on both loaders. Twice out of three, a
+                    // NeoForge dedicated run instead spent SIXTY SECONDS inside one of these and was
+                    // killed by the server hang watchdog, in `SwimBankClimbBreak.eval` one run and
+                    // `Parkour3.valid` the next — both per-move world reads during expansion.
+                    //
+                    // This logs and carries on rather than bailing: bailing would change which paths
+                    // are found and hide the thing being measured, and the run has to survive to
+                    // produce the record. WARN so no filter drops it, and capped so one bad search
+                    // cannot flood the log.
+                    long nodeStart = System.nanoTime();
+                    Move slow = null;
                     for (Move m : activeMoves) {
+                        slow = m;
                         // eval() → null for an inadmissible move, else a concrete
                         // edge (dynamic cost + any break/place actions).
                         Move.Edge edge = m.eval(world, cur.pos);
@@ -1030,6 +1059,15 @@ public final class PathFinder {
                             existing.closed = false;
                             open.add(existing);
                         }
+                    }
+                    long nodeCost = System.nanoTime() - nodeStart;
+                    if (nodeCost > runawayLimit && runawayLogged < RUNAWAY_LOG_CAP) {
+                        runawayLogged++;
+                        LOG.warn("[pathfinder] RUNAWAY expansion {} ms at {} (limit {} ms) move={} goal={}"
+                                + " expanded={} open={} nodes={} owner={}",
+                                nodeCost / 1_000_000L, cur.pos.toShortString(),
+                                runawayLimit / 1_000_000L, slow == null ? "none" : slow.getClass().getSimpleName(),
+                                goal, expanded, open.size(), nodes.size(), owner);
                     }
                 }
                 // open empty / node budget / time budget → commit best-effort segment
