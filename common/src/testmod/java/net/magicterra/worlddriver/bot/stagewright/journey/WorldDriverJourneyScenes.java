@@ -2530,10 +2530,22 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // is carved further away again, so by the time the casting starts the body can be a dozen
         // blocks from the lava it came down for. The caller knows where the pool is; ask there.
         BlockPos here = rig.player().blockPosition();
-        List<BlockPos> pool = lavaSourcesNear(ctx.level(), lava, 16, here);
+        List<BlockPos> pool = lavaSourcesNear(ctx.level(), lava, 16, here);   // may be widened below
         rig.evidence("pool.sources", pool.size() + " 格岩浆源（需要 " + RING.length + "）"
                 + (pool.isEmpty() ? "" : "，最近一格 " + pool.get(0).toShortString() + " 距身体 "
                         + Math.round(Math.sqrt(pool.get(0).distSqr(here))) + " 格"));
+        // Widen before giving up. firstLava is the OBSIDIAN rung's fill point and a bucket takes the
+        // source block itself, so the surveyed cell can simply be gone by now — measured, zero
+        // sources within sixteen of it. The body is already standing at lava level with its chunks
+        // loaded, which is the one moment a wider look is cheap, so ask again from here before
+        // declaring the rung impossible.
+        if (pool.size() < RING.length) {
+            List<BlockPos> wider = lavaSourcesNear(ctx.level(), here, 40, here);
+            rig.evidence("pool.widened", pool.size() + " → " + wider.size() + " 格（以身体为心 40 格）"
+                    + (wider.isEmpty() ? "" : "，最近 " + wider.get(0).toShortString() + " 距 "
+                        + Math.round(Math.sqrt(wider.get(0).distSqr(here))) + " 格"));
+            if (wider.size() >= RING.length) pool = wider;
+        }
         if (pool.size() < RING.length) {
             // Say where the lava ACTUALLY is before saying there is not enough of it. "0 within 16"
             // and "the nearest source is 40 blocks that way" are the same red row and want opposite
