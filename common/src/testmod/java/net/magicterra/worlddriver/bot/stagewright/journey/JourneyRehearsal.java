@@ -281,6 +281,10 @@ public final class JourneyRehearsal {
             stagePortalLit(ctx);
             return;
         }
+        if (target == JourneyStage.NETHER) {
+            stageNether(ctx);
+            return;
+        }
         // No recipe. Say so rather than starting the rung on whatever the placeholder rungs left
         // behind — which is an empty body at world spawn, and a rung that fails on that reports a
         // missing recipe as a driver bug.
@@ -351,6 +355,86 @@ public final class JourneyRehearsal {
                 + Math.round(Math.sqrt(stand.distSqr(lake))) + " 格");
         WorldDriverCommon.LOG.info("[rehearsal] staged PORTAL_LIT: gave {} and stood the body at {}",
                 gave, stand);
+    }
+
+    /**
+     * Rung 13's starting conditions: a LIT portal, and a body standing in front of it.
+     *
+     * <p>Rung 13 is the first rung that had no recipe, which is why it had never executed a single
+     * tick: without one the rehearsal starts an empty body at world spawn, {@code nether} looks for a
+     * portal block within 24 and finds none, and the rung reports rung 12's absence rather than
+     * anything about itself.
+     *
+     * <p>Built and lit the way the world builds one, not by writing {@code nether_portal} blocks
+     * directly. Placing fire in the corner and letting {@code BaseFireBlock.onPlace} run
+     * {@code PortalShape} is the same code path a flint-and-steel takes, so a frame this staging
+     * accepts is a frame vanilla accepts — and if the shape were wrong the staging would say so here
+     * instead of handing the rung an inert box of obsidian to walk into.
+     *
+     * <p>The body is put three blocks in FRONT of the doorway, not in it. What rung 13 is for is the
+     * walk in and the dimension change; standing it in the portal would stage the very thing under
+     * test.
+     */
+    private static void stageNether(SceneContext ctx) {
+        ServerWorldDriver body = JourneyRig.bodyOrNull();
+        if (body == null) {
+            ctx.fail("排练：没有身体 —— wd.rehearse02Spawn 没有创建 avatar");
+            return;
+        }
+        ServerLevel level = ctx.level();
+        ServerPlayer fp = body.fakePlayer();
+        BlockPos at = fp.blockPosition();
+        loadAround(level, at, 2);
+        BlockPos stand = dryStandNear(level, at, 6, 24);
+        if (stand == null) {
+            ctx.fail("排练：身体周围 6..24 格内找不到一处干燥落脚点来搭传送门");
+            return;
+        }
+        loadAround(level, stand, 2);
+        // The doorway's bottom-left interior cell. The frame is in the X-Y plane, so the body walks
+        // into it along Z — the same orientation rung 12 casts.
+        BlockPos door = stand.above();
+        // Clear the box the frame and its doorway occupy, and floor it, so nothing of the terrain
+        // is left standing inside a portal that is supposed to be six cells of air.
+        for (int dx = -2; dx <= 3; dx++)
+            for (int dy = -1; dy <= 5; dy++)
+                for (int dz = -3; dz <= 1; dz++) {
+                    BlockPos c = door.offset(dx, dy, dz);
+                    level.setBlock(c, dy == -1 ? Blocks.STONE.defaultBlockState()
+                                               : Blocks.AIR.defaultBlockState(), 2);
+                }
+        List<BlockPos> frame = new ArrayList<>();
+        for (int dx = 0; dx <= 1; dx++) {                       // sill and lintel
+            frame.add(door.offset(dx, -1, 0));
+            frame.add(door.offset(dx, 3, 0));
+        }
+        for (int dy = 0; dy <= 2; dy++) {                       // the two jambs
+            frame.add(door.offset(-1, dy, 0));
+            frame.add(door.offset(2, dy, 0));
+        }
+        for (BlockPos c : frame) level.setBlock(c, Blocks.OBSIDIAN.defaultBlockState(), 3);
+        level.setBlock(door, net.minecraft.world.level.block.Blocks.FIRE.defaultBlockState(), 3);
+        int lit = 0;
+        for (int dx = 0; dx <= 1; dx++)
+            for (int dy = 0; dy <= 2; dy++)
+                if (level.getBlockState(door.offset(dx, dy, 0)).is(Blocks.NETHER_PORTAL)) lit++;
+        ctx.record("rehearsal.portal", door.toShortString() + " 门洞左下角，六格中 " + lit + " 格已点亮");
+        if (lit < 6) {
+            ctx.fail("排练：布景摆的传送门没点着（" + lit + "/6）—— 这是布景的问题，不是 NETHER 这一级的问题");
+            return;
+        }
+        JourneyLedger.staged("rehearsal: built and lit a portal at " + door.toShortString()
+                + " instead of casting one");
+        BlockPos front = door.offset(0, 0, 3);
+        loadAround(level, front, 1);
+        JourneyLedger.staged("rehearsal: moved the body to " + front.toShortString()
+                + " in front of the portal instead of walking there");
+        fp.setDeltaMovement(Vec3.ZERO);
+        fp.moveTo(front.getX() + 0.5, front.getY(), front.getZ() + 0.5, fp.getYRot(), fp.getXRot());
+        fp.setOnGround(true);
+        ctx.record("rehearsal.stand", front.toShortString() + "，距门 3 格");
+        WorldDriverCommon.LOG.info("[rehearsal] staged NETHER: lit a portal at {} and stood the body at {}",
+                door, front);
     }
 
     // =====================================================================================
