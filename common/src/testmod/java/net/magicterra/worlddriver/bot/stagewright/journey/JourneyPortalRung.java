@@ -370,9 +370,9 @@ public final class JourneyPortalRung {
         returnToTheForge(ctx, rig, floorY, tag, RETURN_TRIES, then);
     }
 
-    /** How many times the return may try. Two: one for the walk, and one for a body that fell into
+    /** How many times the return may try. Three: one for the walk and two for a body that fell into
      *  the hole its own bucket left in the lake — see the recovery leg below. */
-    private static final int RETURN_TRIES = 2;
+    private static final int RETURN_TRIES = 3;
 
     private static void returnToTheForge(SceneContext ctx, JourneyRig rig, int floorY, String tag,
                                          int tries, Runnable then) {
@@ -385,6 +385,16 @@ public final class JourneyPortalRung {
         }
         rig.evidence(tag + ".return", at.toShortString() + " → 楼梯口 " + stairTop.toShortString()
                 + " → 楼梯底 " + stairBottom.toShortString() + "（模腔地板 y=" + floorY + "）");
+        // LET THE LAKE CLOSE FIRST. A filled bucket takes a source out and leaves an air cell in the
+        // middle of the lava, and air is what the pathfinder plans through — so the route home ran
+        // straight into the hole the fill had just made, and the lava flowed back in on top of the
+        // body. Sixty ticks is longer than lava takes to spread one cell, so by the time the route
+        // is planned the pit reads as what it is.
+        rig.settle(new HoldStill(60), 80, () -> walkHome(ctx, rig, floorY, tag, tries, then));
+    }
+
+    private static void walkHome(SceneContext ctx, JourneyRig rig, int floorY, String tag,
+                                 int tries, Runnable then) {
         // VIA THE STAIRWELL MOUTH, not straight at the bottom. The bottom is ten blocks down at the
         // far end of fifteen steps, and asked for directly the walker takes the shortest line it can
         // see — overland. Measured: the body walked to -9,66,34, which is the surface directly ABOVE
@@ -412,14 +422,21 @@ public final class JourneyPortalRung {
                 // the pours have to stand in, and the leg turns placing off again on its way down.
                 if (tries > 1) {
                     rig.evidence(tag + ".returnStuck." + tries, here.toShortString()
-                            + " 走不到楼梯（多半掉进了自己舀空的岩浆坑）—— 开着放置权爬回楼梯口 "
-                            + stairTop.toShortString() + " 再来一次");
+                            + " 走不到楼梯（多半掉进了自己舀空的岩浆坑）—— 开着放置权垒回地面 y="
+                            + stairTop.getY() + " 再走去楼梯口 " + stairTop.toShortString());
+                    // TOWER, not walk. Asking the walker again is a retry that changes nothing: it
+                    // failed because there is no walkable route out of a pit, and run 34 measured
+                    // exactly that — `cast2.returnStuck.2` at `-10,60,21`, then two thousand ticks of
+                    // pathing, then the same cell. What gets a body out of a hole is the scripted
+                    // pillar the shaft already owns, and it needs placing, which is why this leg is
+                    // the one place in the casting phase that turns it back on.
                     BotConfig.allowPlace = true;
-                    rig.settle(new IntentProcess(new Intent(new Goal.Block(stairTop))), 2_000, () -> {
-                        rig.evidence(tag + ".backToMouth", rig.player().blockPosition().toShortString()
-                                + "（楼梯口 " + stairTop.toShortString() + "）");
-                        returnToTheForge(ctx, rig, floorY, tag, tries - 1, then);
-                    });
+                    JourneyShaft.climbOut(rig, stairTop.getY(), () ->
+                        rig.settle(new IntentProcess(new Intent(new Goal.Block(stairTop))), 2_000, () -> {
+                            rig.evidence(tag + ".backToMouth", rig.player().blockPosition().toShortString()
+                                    + "（楼梯口 " + stairTop.toShortString() + "）");
+                            returnToTheForge(ctx, rig, floorY, tag, tries - 1, then);
+                        }));
                     return;
                 }
                 ctx.fail("走不回模腔：停在 " + here.toShortString() + "，楼梯底 "
