@@ -1301,6 +1301,14 @@ public final class JourneyPortalRung {
                     return;
                 }
             }
+            // The bucket goes back in the hand HERE, not once at the top of the fill. Clearing the
+            // line above is a MINE, and mining selects the best tool for the block — so the branch
+            // that fixes the sightline is also the branch that swaps a stone pickaxe into the slot
+            // the use is about to read. Measured in run 28: `recover1.clearedLine.3` broke the
+            // cobblestone, `recover1.aimsAt=-10,57,38 water 源块=true 液位=8` said the ray was dead
+            // on the source, and `recover1.result=PASS` — a pickaxe's use, indistinguishable from a
+            // bucket that missed, which is the same trap `holdForUse` was written for.
+            WorldDriverJourneyScenes.holdForUse(rig, Items.BUCKET, tag);
             rig.evidence(tag + ".result", String.valueOf(rig.body().avatar().useItemInHand()));
             if (rig.carrying(id) >= 1) { then.run(); return; }
             var hit = WorldDriverJourneyScenes.aimedAt(rig.player(), BUCKET_REACH, true);
