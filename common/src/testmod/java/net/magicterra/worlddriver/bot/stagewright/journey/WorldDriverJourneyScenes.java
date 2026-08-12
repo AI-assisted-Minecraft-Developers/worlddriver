@@ -2789,15 +2789,15 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // Water in, from the block behind it: a bucket fills the neighbour of the face its ray lands
         // on, and an air cell stops no ray. Standing level with the target keeps that ray horizontal.
         placeFluid(ctx, rig, wet, away, Items.WATER_BUCKET, "water" + i, () -> {
-            // Record where the water actually settled; do NOT fail on it. This precondition is the
-            // rung's own invention — the arena probe (wd.serverCastsAPortalFrame) casts all ten with
-            // the same geometry and never asserts it — and it is wrong for the bottom pair: `wet` is
-            // the cell ABOVE the target, whose floor IS the target, which is carved air at that
-            // moment. The water falls one block into the very cell about to be cast, and lava poured
-            // there still yields obsidian. Asserting the intermediate state failed a step that works.
+            // Record where the water settled; do not fail on it. The claim is the obsidian, so let
+            // the cast decide — `cast.missed.i` names any cell that did not turn.
             //
-            // The claim is the obsidian, so let the cast decide: `cast.missed.i` names any cell that
-            // did not turn, and `frame.obsidian` gates the lighting on all ten.
+            // NOTE: this was relaxed on the theory that for the bottom pair the water falls into the
+            // very cell about to be cast and lava poured there still yields obsidian. Run 17 ran all
+            // ten cells on that assumption and returned `frame.cast=0/10` — so the theory is WRONG
+            // and the problem is not this precondition. Nothing casts in a carved mould at all,
+            // while the built arena mould casts 10/10. Keep the relaxation (the precondition was
+            // never the blocker) but do not read it as evidence the geometry works.
             if (ctx.level().getFluidState(wet).isEmpty())
                 rig.evidence("water.fell." + i, wet.toShortString() + " 空了，水多半落进了目标格 "
                         + cell.toShortString() + "（现在是 " + ctx.level().getBlockState(cell).getBlock() + "）");
@@ -2809,6 +2809,20 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                     rig.evidence("cast.missed." + i, cell.toShortString() + " = " + got
                             + "（旁边 " + wet.toShortString() + " 是 "
                             + ctx.level().getBlockState(wet).getBlock() + "）");
+                // Stop on the FIRST cell that will not cast. Nothing is forfeited: a frame missing
+                // one cell can reach 9/10 at best, and `lightIt` fails on anything under ten — so
+                // every run that would have continued was already a failing run. What it buys is the
+                // clock. Run 17 spent 39 240 ticks (32 minutes) walking all ten cells to report
+                // `0/10`, which is the same finding cell one had already made in about a minute, and
+                // that cost is paid on every future attempt at this geometry.
+                if (i == 0 && got != Blocks.OBSIDIAN) {
+                    ctx.fail("第一格就没浇成黑曜石：" + cell.toShortString() + " = " + got
+                            + "（水在 " + wet.toShortString() + " = "
+                            + ctx.level().getBlockState(wet).getBlock() + "）—— 十格都会一样，"
+                            + "不再走完。挖出来的模腔浇不出黑曜石，砌出来的竞技场模腔可以："
+                            + "差别在每一格有没有底和背，不在某一格");
+                    return;
+                }
                 // The bucket is empty again, which is exactly what taking the water back needs —
                 // and it is also what leaves the interior clear without a separate clean-up trip.
                 fillFrom(ctx, rig, wet, "recover" + i,
