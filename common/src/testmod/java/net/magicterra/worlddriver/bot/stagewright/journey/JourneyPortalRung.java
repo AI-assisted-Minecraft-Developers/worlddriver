@@ -161,9 +161,14 @@ public final class JourneyPortalRung {
         return lava.getY() - JourneyForge.BELOW_LAVA;
     }
 
-    /** The column the mould's shaft was sunk down, so the ten casts can come back down the same one.
-     *  See {@link #returnToTheForge}. */
-    private static int forgeShaftX, forgeShaftZ;
+    /** Where the staircase starts and ends, and which way it runs.
+     *
+     * <p>Both ends are walked to BY NAME — {@link #goUpToThePool} asks for {@link #stairTop} and
+     * {@link #returnToTheForge} for {@link #stairBottom} — which is the whole point of cutting a
+     * staircase instead of a shaft: the two legs of every cast become one {@code IntentProcess} walk
+     * each, with no scripted climb and no scripted descent to go wrong between them. */
+    private static BlockPos stairTop, stairBottom;
+    private static Direction stairDir = Direction.SOUTH;
 
     /** Every cell the alcove was hollowed out of — the space the body walks in, and nothing else.
      *  {@link #clearPourLine} is allowed to break inside this and nowhere else, which is what stops
@@ -171,146 +176,186 @@ public final class JourneyPortalRung {
     private static Set<BlockPos> forgeCorridor = Set.of();
 
     /**
-     * Come back down to the mould after a trip to the pool.
+     * Which way to run from the lava — one axis, never a diagonal.
      *
-     * <p>The leg the rung did not have, and the one that turned a working cast into a nine-block
-     * miss. Every fill is a climb: the mould is cut below the lava and the pool is at the lava's own
-     * level, so between "fill the bucket" and "pour it" the body has to descend a one-wide shaft it
-     * has just PILLARED SHUT climbing up — the walker places blocks to rise and then cannot walk
-     * back through them. Measured: {@code cast0.picks=-9,61,21 cobblestone face=up → 落进 -9,62,21}
-     * with {@code 身体 -9,62,21}. The body poured the run's only bucket of lava into the shaft at its
-     * own feet, eleven blocks above the cell it was aiming at, and {@code use} reported
-     * {@code CONSUME}.
-     *
-     * <p>So the descent is spelled out rather than searched, the same way the shaft that made it is:
-     * walk over the known column, then mine straight down. Over the COLUMN first and not from
-     * wherever the fill ended, because digging down through the mould's own ceiling is the one way
-     * this leg could make things worse than the walk it replaces.
+     * <p>Shared by the staircase and the mould so they cannot disagree. The staircase runs AWAY from
+     * the pool and the mould's face is cut on the same side, which is what keeps the two of them from
+     * meeting: the alcove sits at the foot of the last step, and every step above it is both higher
+     * and further back.
      */
-    /**
-     * Climb from the mould up to the pool's level, the way the rung came down.
-     *
-     * <p>The other half of {@link #returnToTheForge}, and it is needed for the same reason: the two
-     * ends of every cast are twelve blocks apart up a one-wide shaft, and the walker cannot find its
-     * way up one. Measured — the body sat at {@code -7,51,21} issuing
-     * {@code goal=Near[target=-10,63,20]} every three seconds, each search burning its whole
-     * 100 000-node budget, which is exactly the shape of a wedge this ladder has hit before: three
-     * identical questions get three identical answers.
-     *
-     * <p>{@link JourneyShaft#climbOut} is the scripted ascent that already exists for leaving a mine
-     * shaft, so this is a walk to the shaft's mouth and then that. Nothing new is asked of the
-     * engine; what was missing was the instruction.
-     */
-    /**
-     * The column the last ascent actually TOWERED up, which is not always the shaft's.
-     *
-     * <p>The pair to {@link #forgeShaftX}, and the thing that makes an off-column climb harmless
-     * instead of cumulative. {@link JourneyShaft#ascendByTowering} builds under the body's own feet,
-     * so a climb that starts one cell over leaves a column of cobblestone standing in the corridor —
-     * measured as {@code lava0.upOffColumn=-9,51,22 不是井口 -9,21}, and the cost lands two casts
-     * later as {@code 落脚格被占} on the cells the pours have to stand in. Descending THIS column
-     * rather than the shaft's mines every one of those blocks back out on the way down, so the tower
-     * is self-cleaning wherever it went up.
-     *
-     * <p>Null when the last leg did not climb at all, in which case the shaft is the only column
-     * known to be clear the whole way and {@link #returnToTheForge} uses it.
-     */
-    private static BlockPos climbFrom;
+    private static Direction awayFrom(BlockPos lava, BlockPos at) {
+        int dx = Integer.signum(at.getX() - lava.getX());
+        int dz = Integer.signum(at.getZ() - lava.getZ());
+        return Math.abs(at.getX() - lava.getX()) >= Math.abs(at.getZ() - lava.getZ())
+                ? (dx >= 0 ? Direction.EAST : Direction.WEST)
+                : (dz >= 0 ? Direction.SOUTH : Direction.NORTH);
+    }
 
+    /**
+     * Cut the way down as a STAIRCASE, and let the walker use it in both directions.
+     *
+     * <h2>What this replaces, and why</h2>
+     *
+     * A one-wide vertical shaft. It was the cheapest hole to dig and it has no route: the walker
+     * cannot climb one, so both legs of every cast had to be scripted, and each scripted leg failed
+     * in its own way. Four separate bugs, all of them the shaft's:
+     *
+     * <ul>
+     *   <li><b>The tower drifted.</b> {@code TowerProcess} places under the body and jumps, and where
+     *       the body lands is pinned to nothing. Measured: {@code -9,51,21} to {@code -9,54,23} in
+     *       three courses — two cells into the frame's own plane, which it then mined out and filled
+     *       with cobblestone on the way up.</li>
+     *   <li><b>The drift breached the lake.</b> Off the shaft the tower had to mine fresh rock, and
+     *       twelve blocks up that rock is the lava the mould is cut under. {@code drain.0=等了 200
+     *       tick 仍有流体：-7,54,21 = lava}, in an alcove far below it, with the corridor set to stone
+     *       where the lava met the cast's own water.</li>
+     *   <li><b>The descent needed the body exactly over the hole.</b> {@code 回程站到壁龛外面了：…
+     *       停在 -9,60,20}, one cell off and nine blocks up, with nowhere legal to dig.</li>
+     *   <li><b>And when it dug anyway, it dug outside the alcove</b> — sixty passes of
+     *       {@code below=stone → broke=air} at {@code -8,51,20}, because the lava that the breach had
+     *       let in kept flowing back and setting.</li>
+     * </ul>
+     *
+     * <p>A staircase costs more blocks and more ticks than a shaft and it is worth it: this rung has
+     * a 250 000-tick budget and has never spent a third of it. What it buys is that the descent, the
+     * ascent and the return are the same three cells of ordinary walking, so none of the four
+     * failures above has anywhere to happen.
+     *
+     * <h2>The shape</h2>
+     *
+     * One block along {@code stairDir}, one block down, per step. Three cells are cut for each: the
+     * step itself, the cell above it (head room standing there) and the cell above that. The third is
+     * not spare — going back UP, the body jumps from a step to the one behind it, and a jump needs
+     * clearance two above the feet it starts from. Leaving it out gives a staircase that descends
+     * perfectly and cannot be climbed, which is the same rung failure wearing a different hat.
+     *
+     * <p>Nothing is cut that touches a fluid, checked cell by cell before the pick swings — the
+     * lesson of the breach above, applied to the leg that does the digging rather than to the leg
+     * that discovered it.
+     */
+    private static void digStairsDown(SceneContext ctx, JourneyRig rig, int targetY, int budget,
+                                      int cap, Runnable then) {
+        BlockPos at = rig.player().blockPosition();
+        if (at.getY() <= targetY) {
+            stairBottom = at;
+            rig.evidence("stairs.bottom", at.toShortString() + "（" + stairDir + " 向，顶在 "
+                    + (stairTop == null ? "?" : stairTop.toShortString()) + "）");
+            then.run();
+            return;
+        }
+        if (budget <= 0) {
+            ctx.fail("楼梯挖不到底：目标 y=" + targetY + "，试了 " + cap + " 级仍停在 "
+                    + at.toShortString() + "（" + stairDir + " 向）");
+            return;
+        }
+        int step = cap - budget;
+        BlockPos foot = at.relative(stairDir).below();
+        List<BlockPos> cut = List.of(foot, foot.above(), foot.above(2));
+        for (BlockPos c : cut) {
+            String wet = JourneyShaft.fluidTouching(ctx.level(), c);
+            if (wet != null) {
+                ctx.fail("楼梯挖不下去：" + c.toShortString() + " 挖开会放出 " + wet
+                        + "（身体在 " + at.toShortString() + "，正往 " + stairDir + " 下挖到 y="
+                        + targetY + "）—— 这一段石头后面是流体，不能开");
+                return;
+            }
+        }
+        rig.evidence("stair." + step, at.toShortString() + " → " + foot.toShortString());
+        cutStairCells(rig, cut, 0, () ->
+                rig.settle(new IntentProcess(new Intent(new Goal.Block(foot))), 300, () -> {
+            BlockPos now = rig.player().blockPosition();
+            if (now.getY() >= at.getY()) {
+                // The cells are open and the body has not stepped into them yet. That is a settle,
+                // not a failure — the same "breaking the floor is not falling through it" the shaft
+                // descent learned — so give it the tick and try the same step again.
+                rig.evidence("stair." + step + ".waited", now.toShortString() + " 还没迈下去");
+                rig.settle(new HoldStill(20), 40,
+                        () -> digStairsDown(ctx, rig, targetY, budget - 1, cap, then));
+                return;
+            }
+            digStairsDown(ctx, rig, targetY, budget - 1, cap, then);
+        }));
+    }
+
+    private static void cutStairCells(JourneyRig rig, List<BlockPos> cells, int i, Runnable then) {
+        if (i >= cells.size()) { then.run(); return; }
+        // Top down. The cell two above the step is the one the body can already see; opening it
+        // first keeps every following cell adjacent to air, which is what `canBreak` asks for.
+        BlockPos c = cells.get(cells.size() - 1 - i);
+        if (rig.ctx().level().getBlockState(c).isAir()) { cutStairCells(rig, cells, i + 1, then); return; }
+        rig.mineCellOrGiveUp(c, 600, () -> cutStairCells(rig, cells, i + 1, then));
+    }
+
+    /** Attempts per block of depth. Four, because a step is three mines and a walk, and a body that
+     *  has not stepped down yet costs one of its own. */
+    private static final int STAIR_ATTEMPTS_PER_BLOCK = 4;
+
+    /**
+     * Walk up to the pool. An ordinary walk, up an ordinary staircase.
+     *
+     * <p>{@link JourneyShaft#climbOut} used to do this and does not any more — see
+     * {@link #digStairsDown} for the four bugs that were all really one bug. The goal is the
+     * staircase's own top cell rather than the lake or a Y level, because a named waypoint is a
+     * question the pathfinder can answer in one search, and "get to y=63 somehow" is the question
+     * that burnt a whole 100 000-node budget every three seconds.
+     */
     private static void goUpToThePool(SceneContext ctx, JourneyRig rig, int poolY, String tag,
                                       Runnable then) {
-        climbFrom = null;
         if (rig.player().blockPosition().getY() >= poolY - 1) { then.run(); return; }
-        BlockPos mouth = new BlockPos(forgeShaftX, rig.player().blockPosition().getY(), forgeShaftZ);
-        rig.evidence(tag + ".up", rig.player().blockPosition().toShortString() + " → 井口 "
-                + forgeShaftX + "," + forgeShaftZ + "，爬到 y=" + poolY);
-        // ON the shaft column, not near it. The ascent TOWERS, so wherever it starts is where a
-        // column of cobblestone goes — and started one cell over it fills the corridor instead of
-        // the shaft. That is not cosmetic: the pours stand in those cells, and the next cast then
-        // finds nowhere to stand with a clear line (measured, `落脚格被占=130`). Up the shaft the
-        // pillars are self-cleaning, because returnToTheForge mines straight back down through them.
-        rig.settle(new IntentProcess(new Intent(new Goal.Block(mouth))), 1_500, () -> {
-            // One more ask from wherever it stopped, then climb from where it is. Standing exactly
-            // on the column is worth a second attempt and NOT worth the rung: a tower one cell over
-            // costs the next cast a standing spot, which the pour's own ray gate will name, while
-            // refusing to climb costs the whole rung for a body that is one block out of place.
-            rig.settle(new IntentProcess(new Intent(new Goal.Block(
-                    new BlockPos(forgeShaftX, rig.player().blockPosition().getY(), forgeShaftZ)))),
-                    800, () -> {
-                BlockPos here = rig.player().blockPosition();
-                // Whatever column it is standing on is the one the tower will fill, so remember THAT
-                // one and let the descent unbuild it. Recorded either way: a climb that started on
-                // the shaft is the good case and still wants its column mined back out, because the
-                // tower fills the shaft too.
-                climbFrom = here;
-                if (here.getX() != forgeShaftX || here.getZ() != forgeShaftZ) {
-                    rig.evidence(tag + ".upOffColumn", here.toShortString() + " 不是井口 "
-                            + forgeShaftX + "," + forgeShaftZ + "，塔会垒在这一柱上（回程照这一柱挖回来）");
-                }
-                JourneyShaft.climbOut(rig, poolY, then);
-            });
+        if (stairTop == null) {
+            ctx.fail("没有楼梯顶坐标：descendToTheForge 没有记下来，走不上去装岩浆");
+            return;
+        }
+        rig.evidence(tag + ".up", rig.player().blockPosition().toShortString() + " → 楼梯顶 "
+                + stairTop.toShortString());
+        rig.settle(new IntentProcess(new Intent(new Goal.Block(stairTop))), 4_000, () -> {
+            BlockPos here = rig.player().blockPosition();
+            rig.evidence(tag + ".upEnded", here.toShortString() + "（楼梯顶 "
+                    + stairTop.toShortString() + "）");
+            if (here.getY() < poolY - 1) {
+                ctx.fail("走不上楼梯：停在 " + here.toShortString() + "，楼梯顶 "
+                        + stairTop.toShortString() + " 在 y=" + stairTop.getY()
+                        + " —— 楼梯是挖出来了，但走不上去（台阶被堵？跨不上去？）");
+                return;
+            }
+            then.run();
         });
     }
 
+    /**
+     * Walk back down to the mould. The mirror of {@link #goUpToThePool}, and equally unremarkable.
+     *
+     * <p>Placing stays OFF across it, which is the one thing this leg still has to say: everything
+     * downstream is a pour, and a pathfinder that paves the alcove on its way in takes away the cell
+     * the pour has to stand in.
+     */
     private static void returnToTheForge(SceneContext ctx, JourneyRig rig, int floorY, String tag,
                                          Runnable then) {
-        BlockPos at = rig.player().blockPosition();
-        // Before the early return, not after it. Everything downstream of this method is the pour,
-        // and the pour needs the alcove to stay exactly as it was carved — see the note at the end
-        // of carveTheForge. A leg that finds itself already down there still hands over to the pour.
         BotConfig.allowPlace = false;
+        BlockPos at = rig.player().blockPosition();
         if (at.getY() <= floorY + 1) { then.run(); return; }
-        // Come down whatever the climb went UP, when that is known and inside the alcove. Two blocks
-        // is the corridor's half-width (JourneyForge.corridor sweeps −2..2), so a column within it
-        // opens into the chamber the body is going to anyway, while a column outside it could hole
-        // the mould's ceiling — the one mistake down here that ends the rung. Falling back to the
-        // shaft is the old behaviour and is always safe; what it is not is self-cleaning.
-        int downX = forgeShaftX, downZ = forgeShaftZ;
-        if (climbFrom != null
-                && Math.hypot(climbFrom.getX() - forgeShaftX, climbFrom.getZ() - forgeShaftZ) <= 2.0) {
-            downX = climbFrom.getX();
-            downZ = climbFrom.getZ();
+        if (stairBottom == null) {
+            ctx.fail("没有楼梯底坐标：descendToTheForge 没有记下来，回不到模腔");
+            return;
         }
-        if (downX != forgeShaftX || downZ != forgeShaftZ)
-            rig.evidence(tag + ".downColumn", downX + "," + downZ + "（起塔那一柱，不是井口 "
-                    + forgeShaftX + "," + forgeShaftZ + "）—— 照它挖回去把塔的鹅卵石一并收回");
-        final int shaftX = downX, shaftZ = downZ;
-        rig.evidence(tag + ".return", at.toShortString() + " → 井口 " + shaftX + ","
-                + shaftZ + "，再挖回 y=" + floorY);
-        // Tolerance ZERO. `walkToColumn` calls five blocks "arrived", which is right for crossing a
-        // swamp and wrong for standing over a hole, and one block is not right either: the corridor
-        // is five wide but only `push` DEEP, so a cell one step the wrong way along `away` is solid
-        // rock outside the chamber, and a descent there is a second shaft through untouched ground.
-        WorldDriverJourneyScenes.walkToColumn(rig, tag + ".shaft", shaftX, shaftZ, 0, 2_000, () -> {
+        rig.evidence(tag + ".return", at.toShortString() + " → 楼梯底 " + stairBottom.toShortString()
+                + "（模腔地板 y=" + floorY + "）");
+        rig.settle(new IntentProcess(new Intent(new Goal.Block(stairBottom))), 4_000, () -> {
             BlockPos here = rig.player().blockPosition();
-            // Inside the alcove, asked as MEMBERSHIP rather than as a distance. `hypot ≤ 2` was the
-            // old test and it is the wrong shape: it passes -8,20 — one cell diagonally BEHIND the
-            // shaft, outside the excavation entirely — and run 21 dug there. What happened next is
-            // the reason this is a fail and not a shrug: the cell broke to air and read `stone`
-            // again on the next pass, sixty times, because the lava the run had let into the
-            // chamber kept flowing in and setting. The rung reported "方块破了但身体没下沉".
-            BlockPos foot = new BlockPos(here.getX(), floorY, here.getZ());
-            if (!forgeCorridor.contains(foot)) {
-                ctx.fail("回程站到壁龛外面了：想站 " + shaftX + "," + shaftZ + "（井口 "
-                        + forgeShaftX + "," + forgeShaftZ + "），停在 " + here.toShortString()
-                        + "，脚下这一柱 " + foot.toShortString() + " 不在挖出来的壁龛里"
-                        + " —— 在这儿往下挖是另开一口竖井，不是回家");
+            rig.evidence(tag + ".returnedY", here.getY() + "（楼梯底 y=" + stairBottom.getY()
+                    + "，身体 " + here.toShortString() + "）");
+            if (here.getY() > floorY + 1) {
+                ctx.fail("走不回模腔：停在 " + here.toShortString() + "，楼梯底 "
+                        + stairBottom.toShortString() + " 在 y=" + stairBottom.getY()
+                        + " —— 带着一桶岩浆停在半路，浇下去只会浇进楼梯");
                 return;
             }
-            BotConfig.allowPlace = false;          // a tower on the way DOWN is the bug, not the fix
-            JourneyShaft.descendByMining(rig, floorY, () -> {
-                // Still off. The next thing to happen is a pour, and a pathfinder that paves the
-                // alcove while walking a few blocks to it takes away the cell the pour stands in.
-                rig.evidence(tag + ".returnedY", rig.player().blockPosition().getY());
-                then.run();
-            });
-        }, () -> ctx.fail("装完岩浆回不到井口：想去 " + shaftX + "," + shaftZ + "（井口 "
-                + forgeShaftX + "," + forgeShaftZ + "），停在 " + rig.player().blockPosition()
-                + " —— 在这儿往下挖会挖穿模腔的顶"));
+            then.run();
+        });
     }
 
     private static void descendToTheForge(SceneContext ctx, JourneyRig rig, BlockPos lava) {
-        rig.attempting("背着一桶水走到岩浆柱并下到岩浆层");
+        rig.attempting("背着一桶水走到岩浆柱，挖一段楼梯下到岩浆层");
         WorldDriverJourneyScenes.walkToColumn(rig, "lava", lava.getX(), lava.getZ(), 0, 24_000, () -> {
             BlockPos at = rig.player().blockPosition();
             final int surfaceY = JourneyTerrain.daylightY(rig, at);
@@ -324,27 +369,17 @@ public final class JourneyPortalRung {
                         + "，地表 y=" + surfaceY + "）——各项否决计数：" + rejected);
                 return;
             }
-            WorldDriverJourneyScenes.stepOntoDiggableColumn(rig, dig, lava, surfaceY, WorldDriverJourneyScenes.MAX_WALK_ATTEMPTS, () -> {
+            WorldDriverJourneyScenes.stepOntoDiggableColumn(rig, dig, lava, surfaceY,
+                    WorldDriverJourneyScenes.MAX_WALK_ATTEMPTS, () -> {
                 BotConfig.allowPlace = false;
-                // Remember the column, because every one of the ten casts has to come back down it.
-                // See returnToTheForge: this is the one line from the mould to the surface that is
-                // known to be safe the whole way, and digging down anywhere else risks holing the
-                // mould's own ceiling.
-                forgeShaftX = rig.player().blockPosition().getX();
-                forgeShaftZ = rig.player().blockPosition().getZ();
-                // A cap of its own, not the shared default. OBSIDIAN's descent and this one are the
-                // same 36 blocks and get the same 128 attempts from `shaftAttemptsFor`, and this one
-                // ran out at 32 of 36: the wasted attempts are the ticks between "the block broke"
-                // and "the body has fallen into the hole", which the evidence shows as `broke=air`
-                // while `below=` is still solid. OBSIDIAN can afford to be tight because failing
-                // costs it one rung; this rung is carrying the run's only bucket of water down a
-                // hole it cannot re-dig, and it has a 250 000-tick budget to spend on getting there.
-                int depth = Math.max(0, rig.player().blockPosition().getY() - forgeFloorY(lava));
-                int cap = depth * 8 + 60;
-                rig.evidence("forge.descentCap", depth + " 格深，给 " + cap + " 次尝试（默认公式只给 "
-                        + (depth * 3 + 20) + "）");
-                JourneyShaft.descendByMining(rig, forgeFloorY(lava), cap, cap, () -> {
-                    BotConfig.allowPlace = true;
+                BlockPos start = rig.player().blockPosition();
+                stairTop = start;
+                stairDir = awayFrom(lava, start);
+                int depth = Math.max(0, start.getY() - forgeFloorY(lava));
+                int cap = depth * STAIR_ATTEMPTS_PER_BLOCK + 40;
+                rig.evidence("stairs.top", start.toShortString() + " 往 " + stairDir + " 下 "
+                        + depth + " 级到 y=" + forgeFloorY(lava) + "（给 " + cap + " 次）");
+                digStairsDown(ctx, rig, forgeFloorY(lava), cap, cap, () -> {
                     rig.evidence("forge.landedY", rig.player().blockPosition().getY());
                     carveTheForge(ctx, rig, lava, surfaceY);
                 });
@@ -380,12 +415,13 @@ public final class JourneyPortalRung {
     private static void carveTheForge(SceneContext ctx, JourneyRig rig, BlockPos lava, int surfaceY,
                                       int deepenings) {
         BlockPos at = rig.player().blockPosition();
-        int dx = Integer.signum(at.getX() - lava.getX());
-        int dz = Integer.signum(at.getZ() - lava.getZ());
-        // One axis only: a diagonal face has no flat back for the buckets to aim at.
-        Direction away = Math.abs(at.getX() - lava.getX()) >= Math.abs(at.getZ() - lava.getZ())
-                ? (dx >= 0 ? Direction.EAST : Direction.WEST)
-                : (dz >= 0 ? Direction.SOUTH : Direction.NORTH);
+        // The staircase's own direction, not a fresh guess. They are the same axis by construction —
+        // the stairs ran away from the pool and the body is standing at their foot — but saying so
+        // once removes the case where a body that stopped a cell short computes the OTHER axis and
+        // carves the mould back across its own way home.
+        Direction away = stairDir;
+        rig.evidence("forge.away", away + "（楼梯方向；从岩浆看这里是 "
+                + awayFrom(lava, at) + "）");
         // Two questions decide where the mould goes, and only one of them used to be asked.
         //
         // HOW FAR OUT (`push`) answers "is there fluid in what I am about to dig". That is a real
@@ -410,12 +446,15 @@ public final class JourneyPortalRung {
                 int deeper = at.getY() - FORGE_DEEPEN_BY;
                 rig.evidence("forge.deepen." + (FORGE_DEEPENINGS - deepenings + 1),
                         "y=" + at.getY() + " → " + deeper + "：" + bad);
-                rig.attempting("模腔外壳不干，再往下挖 " + FORGE_DEEPEN_BY + " 格");
+                rig.attempting("模腔外壳不干，楼梯再往下修 " + FORGE_DEEPEN_BY + " 级");
+                // Deepened as MORE STAIRCASE, not as a shaft. Sinking straight down here was the old
+                // behaviour and it severed the route the moment it was used: the stairs ended at
+                // y=56 and the alcove at y=51, with nothing walkable between them, which is exactly
+                // the disconnection this whole redesign exists to remove.
                 BotConfig.allowPlace = false;
-                JourneyShaft.descendByMining(rig, deeper, () -> {
-                    BotConfig.allowPlace = true;
-                    carveTheForge(ctx, rig, lava, surfaceY, deepenings - 1);
-                });
+                int cap = FORGE_DEEPEN_BY * STAIR_ATTEMPTS_PER_BLOCK + 20;
+                digStairsDown(ctx, rig, deeper, cap, cap,
+                        () -> carveTheForge(ctx, rig, lava, surfaceY, deepenings - 1));
                 return;
             }
             ctx.fail("模腔怎么摆都不成立：外推 2..8 格、下挖 " + (FORGE_DEEPENINGS * FORGE_DEEPEN_BY)
