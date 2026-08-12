@@ -3367,56 +3367,227 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                                  net.minecraft.world.item.Item wanted, int tries, Runnable then) {
         String id = String.valueOf(BuiltInRegistries.ITEM.getKey(wanted));
         boolean lava = wanted == Items.LAVA_BUCKET;
-        rig.settle(new IntentProcess(new Intent(new Goal.Near(src, 2))), 1_500, () -> {
-            // Aim at a source the body can SEE, not at the one the plan named. `Goal.Near` puts the
-            // body within two blocks of the target and says nothing about what is between them, and
-            // at a lake's edge that is routinely rock: measured at 2.3 m from a source with
-            // `射线停在 -10,63,21 Block{minecraft:stone}`, then again at 1.6 m from a different one,
-            // stopped by the same finger of bank. A pool of seventy-five sources always has one with
-            // a clear line, so the fix is to pick that one rather than to dig the bank away — which
-            // would also let the lake into the ground the rung is standing on.
+        // WHERE TO STAND is chosen before the walk, not discovered after it. `Goal.Near(src, 2)` puts
+        // the body within two blocks of a source and says nothing about what is between them, so
+        // whether the bucket filled came down to where the climb happened to emerge: the same code
+        // filled at `-12,63,21` one run and reported `射线停在 -10,63,21 stone` the next, two runs
+        // apart, with nothing changed. That is the pour's old bug on the other side of the trip, and
+        // this is the pour's fix on the other side of the trip.
+        Map<String, Integer> why = new java.util.LinkedHashMap<>();
+        FillSpot spot = standToFill(ctx.level(), rig, src, lava, FILL_RESEARCH, why);
+        rig.evidence(tag + ".spot", spot == null
+                ? "没找到能看见源块的落脚点，退回 Near(" + src.toShortString() + ",2)；否决计数 " + why
+                : "站 " + spot.stand().toShortString() + " 瞄 " + spot.source().toShortString());
+        Goal where = spot == null ? new Goal.Near(src, 2) : new Goal.Block(spot.stand());
+        rig.settle(new IntentProcess(new Intent(where)), 1_500, () -> {
+            // Re-ask from where the body ACTUALLY ended up. The plan above is what makes a good spot
+            // likely; this is what makes the aim correct, because a walk that stopped a cell short
+            // has a different set of sources in view and only the clip from here knows which.
             BlockPos seen = visibleSourceNear(rig, lava, FILL_RESEARCH);
-            BlockPos aim = seen == null ? src : seen;
+            BlockPos aim = seen != null ? seen : (spot == null ? src : spot.source());
             if (!aim.equals(src)) rig.evidence(tag + ".aim", src.toShortString() + " → "
                     + aim.toShortString() + "（计划的那格被挡住，改瞄看得见的一格）");
             holdForUse(rig, Items.BUCKET, tag);
-            rig.body().avatar().aimAtBlock(aim);
-            final BlockPos aimed = aim;
-            rig.settle(new HoldStill(2), 10, () -> {
-                rig.evidence(tag + ".result", String.valueOf(rig.body().avatar().useItemInHand()));
-                if (rig.carrying(id) >= 1) { then.run(); return; }
-                ServerLevel level = ctx.level();
-                var hit = aimedAt(rig.player(), BUCKET_REACH, true);
-                double range = rig.player().getEyePosition()
-                        .distanceTo(net.minecraft.world.phys.Vec3.atCenterOf(aimed));
-                rig.evidence(tag + ".miss." + tries, String.format(java.util.Locale.ROOT,
-                        "桶里还是空的；瞄 %s（现在是 %s），距 %.1fm，射线停在 %s",
-                        aimed.toShortString(), level.getBlockState(aimed).getBlock(), range,
-                        hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
-                                ? hit.getBlockPos().toShortString() + " "
-                                  + level.getBlockState(hit.getBlockPos()).getBlock()
-                                : String.valueOf(hit.getType())));
-                BlockPos other = lava
-                        ? JourneyTerrain.nearestLavaSource(level, rig.player().blockPosition(), FILL_RESEARCH)
-                        : JourneyTerrain.shallowWaterNear(rig, FILL_RESEARCH);
-                if (tries > 1 && other != null && !other.equals(aimed)) {
-                    rig.evidence(tag + ".retarget." + tries, aimed.toShortString() + " → "
-                            + other.toShortString());
-                    fillFrom(ctx, rig, other, tag, wanted, tries - 1, then);
+            scoop(ctx, rig, src, aim, tag, wanted, id, lava, tries, AIM_TRIES, then);
+        });
+    }
+
+    /** How many times a fill may re-aim, or clear its own line, before it spends the attempt.
+     *  Three, and each one changes something — see {@link #scoop}. */
+    private static final int AIM_TRIES = 3;
+
+    /**
+     * Aim, check where the ray actually goes, and only then use the bucket.
+     *
+     * <p>The pour has had this gate for a while and the fill did not, which is the whole of run 18's
+     * failure: {@code lava0.spot} planned a stand from which the clip landed on the source,
+     * {@code lava0.result=FAIL} an instant later, and {@code lava0.miss.3} explained why —
+     * {@code 瞄 -11,63,21（现在是 lava），距 1.8m，射线停在 -11,64,22 Block{minecraft:gravel}}. Between
+     * choosing the spot and using the bucket, <b>a gravel block fell into the line</b>. Nothing was
+     * wrong with the plan; the world moved under it.
+     *
+     * <p>So the ray is predicted rather than assumed, and a prediction that misses gets one of two
+     * answers, both of which change the world rather than repeat the question:
+     * <ul>
+     *   <li>the ray landed somewhere else and a DIFFERENT source is now visible — aim at that one;
+     *   <li>the ray stopped on a solid block inside arm's reach — break it. At a lake's edge that
+     *       block is gravel or a lip of stone, and breaking it is what a player does.
+     * </ul>
+     */
+    private static void scoop(SceneContext ctx, JourneyRig rig, BlockPos src, BlockPos aim, String tag,
+                              net.minecraft.world.item.Item wanted, String id, boolean lava,
+                              int tries, int aims, Runnable then) {
+        rig.body().avatar().aimAtBlock(aim);
+        rig.settle(new HoldStill(2), 10, () -> {
+            ServerLevel level = ctx.level();
+            var pre = aimedAt(rig.player(), BUCKET_REACH, true);
+            boolean onTarget = pre.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+                    && pre.getBlockPos().equals(aim);
+            if (!onTarget && aims > 0) {
+                BlockPos again = visibleSourceNear(rig, lava, FILL_RESEARCH);
+                if (again != null && !again.equals(aim)) {
+                    rig.evidence(tag + ".reaim." + aims, aim.toShortString() + " → "
+                            + again.toShortString() + "（射线没落在计划那格上）");
+                    scoop(ctx, rig, src, again, tag, wanted, id, lava, tries, aims - 1, then);
                     return;
                 }
-                ctx.fail("装不到 " + id + "：瞄了 " + aimed.toShortString() + " 没装上，"
-                        + (other == null ? "身边 " + FILL_RESEARCH + " 格内也没有别的源块"
-                                         : "改瞄 " + other + " 仍然不行")
-                        + " —— 空着桶走下去只会把失败写成「浇不出黑曜石」，而真正的失败在这里"
-                        + "（见 " + tag + ".miss.*）");
-            });
+                if (pre.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+                        && level.getFluidState(pre.getBlockPos()).isEmpty()) {
+                    BlockPos wall = pre.getBlockPos();
+                    rig.evidence(tag + ".clearedLine." + aims, wall.toShortString() + " "
+                            + level.getBlockState(wall).getBlock() + " 挡在眼睛和 "
+                            + aim.toShortString() + " 之间，敲掉它");
+                    rig.mineCellOrGiveUp(wall, 600,
+                            () -> scoop(ctx, rig, src, aim, tag, wanted, id, lava, tries, aims - 1, then));
+                    return;
+                }
+            }
+            rig.evidence(tag + ".result", String.valueOf(rig.body().avatar().useItemInHand()));
+            if (rig.carrying(id) >= 1) { then.run(); return; }
+            var hit = aimedAt(rig.player(), BUCKET_REACH, true);
+            double range = rig.player().getEyePosition()
+                    .distanceTo(net.minecraft.world.phys.Vec3.atCenterOf(aim));
+            rig.evidence(tag + ".miss." + tries, String.format(java.util.Locale.ROOT,
+                    "桶里还是空的；瞄 %s（现在是 %s），距 %.1fm，射线停在 %s",
+                    aim.toShortString(), level.getBlockState(aim).getBlock(), range,
+                    hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+                            ? hit.getBlockPos().toShortString() + " "
+                              + level.getBlockState(hit.getBlockPos()).getBlock()
+                            : String.valueOf(hit.getType())));
+            // A DIFFERENT source, explicitly. The old line asked for "the nearest one" and got back
+            // the cell that had just failed, so the guard below refused the retry and the rung died
+            // with two of its three approaches unspent — measured as
+            // 「瞄了 -11,63,21 没装上，改瞄 -11,63,21 仍然不行」.
+            BlockPos other = nextSourceBesides(ctx, rig, lava, aim);
+            if (tries > 1 && other != null) {
+                rig.evidence(tag + ".retarget." + tries, aim.toShortString() + " → "
+                        + other.toShortString());
+                fillFrom(ctx, rig, other, tag, wanted, tries - 1, then);
+                return;
+            }
+            ctx.fail("装不到 " + id + "：瞄了 " + aim.toShortString() + " 没装上，"
+                    + (other == null ? "身边 " + FILL_RESEARCH + " 格内没有别的源块可换"
+                                     : "改瞄 " + other + " 仍然不行")
+                    + " —— 空着桶走下去只会把失败写成「浇不出黑曜石」，而真正的失败在这里"
+                    + "（见 " + tag + ".miss.*）");
         });
+    }
+
+    /** The nearest source of the right fluid that is NOT the one just tried. */
+    private static BlockPos nextSourceBesides(SceneContext ctx, JourneyRig rig, boolean lava,
+                                              BlockPos tried) {
+        BlockPos here = rig.player().blockPosition();
+        if (!lava) {
+            BlockPos w = JourneyTerrain.shallowWaterNear(rig, FILL_RESEARCH);
+            return w == null || w.equals(tried) ? null : w;
+        }
+        for (BlockPos c : JourneyTerrain.lavaSourcesNear(ctx.level(), here, FILL_RESEARCH, here))
+            if (!c.equals(tried)) return c;
+        return null;
     }
 
     /** How far to look for another source when a fill did not take. Small: the body is standing at
      *  the pool it walked to, and a source further than this is a different walk, not a retry. */
     private static final int FILL_RESEARCH = 8;
+
+    /** Where to stand to fill a bucket, and which source to aim at from there. */
+    private record FillSpot(BlockPos stand, BlockPos source) {}
+
+    /** How many sources a fill spot may be searched around. The pool has seventy-five and they are
+     *  sorted by how far the body has to walk, so the near dozen is the whole useful set. */
+    private static final int FILL_SOURCES_TRIED = 16;
+
+    /**
+     * A cell beside the pool the body can STAND in, and a source it can provably reach from there.
+     *
+     * <p>The exact counterpart of {@link #standToPour}, and it is missing for the same reason that
+     * one was: the rung asked the walker to get NEAR a coordinate and then hoped the geometry worked
+     * out. It does not, at a lake's edge — a bucket clips from the eyes with {@code Fluid.SOURCE_ONLY}
+     * and a finger of bank one cell wide is enough to stop it, so "there is lava two blocks away" and
+     * "this bucket will fill" are different claims. Measured twice at 2.1 m and 1.9 m from live lava:
+     * {@code 射线停在 -10,63,21 Block{minecraft:stone}}, bucket still empty.
+     *
+     * <p>So both halves are decided before the walk: a cell that is standable (feet and head clear of
+     * blocks AND of fluid — this one stands next to lava) and from which the clip vanilla is about to
+     * run lands on the source. Sources are tried nearest-first by how far the BODY must walk, so the
+     * answer is also the cheapest trip.
+     */
+    private static FillSpot standToFill(ServerLevel level, JourneyRig rig, BlockPos pool, boolean lava,
+                                        int radius, Map<String, Integer> why) {
+        BlockPos from = rig.player().blockPosition();
+        List<BlockPos> sources = new ArrayList<>();
+        for (int dx = -radius; dx <= radius; dx++)
+            for (int dy = -4; dy <= 4; dy++)
+                for (int dz = -radius; dz <= radius; dz++) {
+                    BlockPos c = pool.offset(dx, dy, dz);
+                    var fluid = level.getFluidState(c);
+                    if (!fluid.isSource()) continue;
+                    if (fluid.is(net.minecraft.tags.FluidTags.LAVA) != lava) continue;
+                    if (lava && !level.getBlockState(c).is(Blocks.LAVA)) continue;
+                    sources.add(c.immutable());
+                }
+        sources.sort(java.util.Comparator.comparingDouble(a -> a.distSqr(from)));
+        FillSpot best = null;
+        double bestD = Double.MAX_VALUE;
+        int tried = 0;
+        for (BlockPos src : sources) {
+            if (++tried > FILL_SOURCES_TRIED) break;
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (dx == 0 && dz == 0) continue;             // not IN the pool
+                    // BELOW the source as well as level with it. Two rows down, because the cell a
+                    // bucket has to take back is usually one ABOVE the floor the body stands on: the
+                    // rung's own water sits in the frame's interior at y+1, and a search that only
+                    // looked at the source's own level and higher answered "没找到能看见源块的落脚点"
+                    // for a source two blocks away in a chamber the body was standing in.
+                    for (int dy = -2; dy <= 1; dy++) {
+                        BlockPos foot = src.offset(dx, dy, dz);
+                        double d = foot.distSqr(from);
+                        if (d >= bestD) continue;
+                        if (!level.getBlockState(foot.below()).blocksMotion()) {
+                            why.merge("脚下不实心", 1, Integer::sum); continue;
+                        }
+                        // Water underfoot is a wet floor, not a disqualification — and refusing it
+                        // is what left the recover with nowhere to stand, because the bucket the
+                        // rung is trying to take BACK is the thing that flooded the alcove. Lava is
+                        // still a refusal: standing in it costs the body, not the bucket.
+                        if (level.getFluidState(foot).is(net.minecraft.tags.FluidTags.LAVA)) {
+                            why.merge("落脚格是岩浆", 1, Integer::sum); continue;
+                        }
+                        if (!level.getBlockState(foot).getCollisionShape(level, foot).isEmpty()) {
+                            why.merge("落脚格被占", 1, Integer::sum); continue;
+                        }
+                        BlockPos head = foot.above();
+                        if (level.getFluidState(head).is(net.minecraft.tags.FluidTags.LAVA)) {
+                            why.merge("头顶是岩浆", 1, Integer::sum); continue;
+                        }
+                        if (!level.getBlockState(head).getCollisionShape(level, head).isEmpty()) {
+                            why.merge("头顶被占", 1, Integer::sum); continue;
+                        }
+                        var eye = new net.minecraft.world.phys.Vec3(foot.getX() + 0.5,
+                                foot.getY() + rig.player().getEyeHeight(), foot.getZ() + 0.5);
+                        var aim = net.minecraft.world.phys.Vec3.atCenterOf(src);
+                        if (eye.distanceTo(aim) > BUCKET_REACH) {
+                            why.merge("够不着源块", 1, Integer::sum); continue;
+                        }
+                        var hit = level.clip(new net.minecraft.world.level.ClipContext(eye, aim,
+                                net.minecraft.world.level.ClipContext.Block.OUTLINE,
+                                net.minecraft.world.level.ClipContext.Fluid.SOURCE_ONLY, rig.player()));
+                        if (hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) {
+                            why.merge("射线没打到方块", 1, Integer::sum); continue;
+                        }
+                        if (!hit.getBlockPos().equals(src)) {
+                            why.merge("射线停在 " + level.getBlockState(hit.getBlockPos()).getBlock(),
+                                    1, Integer::sum);
+                            continue;
+                        }
+                        bestD = d;
+                        best = new FillSpot(foot, src);
+                    }
+                }
+        }
+        return best;
+    }
 
     /** A survival player's block reach, which is what {@code Item.getPlayerPOVHitResult} traces with.
      *  {@link #TUNNEL_REACH} is half a block longer and is the digging figure; using it here made a
