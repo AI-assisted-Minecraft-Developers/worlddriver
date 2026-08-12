@@ -2057,7 +2057,18 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         stepOntoDiggableColumn(rig, dig, lava, surfaceY, MAX_WALK_ATTEMPTS, () -> {
             rig.attempting("下挖 " + (rig.player().blockPosition().getY() - (lava.getY() + 1)) + " 格到岩浆层");
             BotConfig.allowPlace = false;      // as on every mining rung: a paving walker will not sink
-            descendByMining(rig, lava.getY() + 1, () -> {
+            // The same generous cap the PORTAL rung gives its identical descent, and for the reason
+            // recorded when that one was added: `shaftAttemptsFor` grants depth*3+20 = 128 for these
+            // 36 blocks, and the attempts are eaten by the ticks between "the block broke" and "the
+            // body has fallen" — visible as `broke=air` while `below=` is still solid. That cap was
+            // called out then as sitting nearer its edge than this rung's green rows suggested, and
+            // it was left alone; it has now failed a run at y=31 of a target y=27, four blocks short.
+            // Two rungs running the same descent should not disagree about what it costs.
+            int depth = Math.max(0, rig.player().blockPosition().getY() - (lava.getY() + 1));
+            int cap = depth * 8 + 60;
+            rig.evidence("shaft.descentCap", depth + " 格深，给 " + cap + " 次尝试（默认公式只给 "
+                    + shaftAttemptsFor(depth) + "）");
+            descendByMining(rig, lava.getY() + 1, cap, cap, () -> {
                 BotConfig.allowPlace = true;
                 rig.evidence("shaft.landedY", rig.player().blockPosition().getY());
                 reachLava(ctx, rig, MAX_TUNNEL_STEPS, () -> leaveWithTheLava(ctx, rig, surfaceY));
