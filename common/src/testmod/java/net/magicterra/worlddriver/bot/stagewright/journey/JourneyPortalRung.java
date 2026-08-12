@@ -683,14 +683,45 @@ public final class JourneyPortalRung {
         // does not report itself, it reports a pour into rock two steps later. UNVERIFIED: this is a
         // plausible reason run 20 left `wet` as stone, not a confirmed one; the assertion below is
         // what will actually name the cause next run.
-        rig.mineCellOrGiveUp(cell, 1_200, () -> {
-            noteCellDig(rig, "cell." + i, cell);
-            rig.mineCellOrGiveUp(wet, 1_200, () -> {
-                noteCellDig(rig, "wet." + i, wet);
-                tidyTheAlcove(ctx, rig, "tidy." + i,
-                        () -> castOpenedCell(ctx, rig, base, away, pool, i, cell, wet, then));
-            });
-        });
+        reopen(ctx, rig, "cell." + i, cell, REOPEN_TRIES, () ->
+                reopen(ctx, rig, "wet." + i, wet, REOPEN_TRIES, () ->
+                        tidyTheAlcove(ctx, rig, "tidy." + i,
+                                () -> castOpenedCell(ctx, rig, base, away, pool, i, cell, wet, then))));
+    }
+
+    /** How many times a cell may be opened before the rung accepts that it is shut. Four: one dig
+     *  plus three refills, which is a gravel column three deep. */
+    private static final int REOPEN_TRIES = 4;
+
+    /**
+     * Open a cell and KEEP it open — gravel falls, and a cell is only air until the tick after.
+     *
+     * <p>Run 30 cast six cells and stopped on the seventh with {@code opened.6=-8,59,38=air} two
+     * lines above {@code cast6.before=-8,59,38=gravel}. Nothing had gone wrong with the dig: the cell
+     * directly over that one is gravel, mining out from under it dropped it in, and the reading that
+     * says the cell is open was taken in the same tick as the swing that opened it. The pour then
+     * aimed at the target, hit the gravel standing in it, and put the lava a cell short —
+     * {@code cast6.picks=-8,59,38 gravel face=north → 落进 -8,59,37}.
+     *
+     * <p>So the check is: dig, let the world settle, look again. Fluids are left alone — a cell with
+     * the rung's own water in it is not shut, and asking {@code mine} to break water spends the whole
+     * budget on a no-op. When the tries run out the cell is described rather than mined, which is
+     * {@link #noteCellDig}'s job and the reading that separates "walled in" from "out of reach".
+     */
+    private static void reopen(SceneContext ctx, JourneyRig rig, String tag, BlockPos cell,
+                               int tries, Runnable then) {
+        ServerLevel level = ctx.level();
+        if (level.getBlockState(cell).isAir() || !level.getFluidState(cell).isEmpty()) {
+            then.run();
+            return;
+        }
+        if (tries <= 0) { noteCellDig(rig, tag, cell); then.run(); return; }
+        if (tries < REOPEN_TRIES)
+            rig.evidence(tag + ".refilled." + tries, cell.toShortString() + " 又被 "
+                    + level.getBlockState(cell).getBlock() + " 填上了（上面塌下来的），再挖一次");
+        rig.mineCellOrGiveUp(cell, tries == REOPEN_TRIES ? 1_200 : 400,
+                () -> rig.settle(new HoldStill(10), 30,
+                        () -> reopen(ctx, rig, tag, cell, tries - 1, then)));
     }
 
     /**
@@ -832,6 +863,10 @@ public final class JourneyPortalRung {
             goUpToThePool(ctx, rig, src.getY(), "lava" + i, () ->
             fillFrom(ctx, rig, src, "lava" + i, Items.LAVA_BUCKET,
                     () -> returnToTheForge(ctx, rig, base.getY(), "cast" + i,
+                    // Again, because the round trip is thousands of ticks long and the cell was left
+                    // open at the top of it. Gravel that has not finished falling by the water pour
+                    // has certainly finished by the time the lava comes back.
+                    () -> reopen(ctx, rig, "cast" + i + ".reopen", cell, REOPEN_TRIES,
                     () -> placeFluid(ctx, rig, cell, away, Items.LAVA_BUCKET,
                     "cast" + i, () -> rig.settle(new HoldStill(3), 12, () -> {
                 var got = ctx.level().getBlockState(cell).getBlock();
@@ -861,7 +896,7 @@ public final class JourneyPortalRung {
                 fillFrom(ctx, rig, wet, "recover" + i, Items.WATER_BUCKET,
                         () -> drainTheAlcove(ctx, rig, i, DRAIN_LEGS,
                         () -> castCell(ctx, rig, base, away, pool, i + 1, then)));
-            })))));
+            }))))));
         });
     }
 
