@@ -1332,8 +1332,19 @@ public final class JourneyPortalRung {
                     rig.evidence(tag + ".clearedLine." + aims, wall.toShortString() + " "
                             + level.getBlockState(wall).getBlock() + " 挡在眼睛和 "
                             + aim.toShortString() + " 之间，敲掉它");
-                    rig.mineCellOrGiveUp(wall, 600,
-                            () -> scoop(ctx, rig, src, aim, tag, wanted, id, lava, tries, aims - 1, then));
+                    Runnable retry = () ->
+                            scoop(ctx, rig, src, aim, tag, wanted, id, lava, tries, aims - 1, then);
+                    // A PLANT is not a wall, and `mine` will not treat it as one. The lake's rim is
+                    // hung with vines, and run 29 spent all three aims on the same one:
+                    // `lava2.clearedLine.3/2/1 = -9,67,21 vine`, three identical lines, the vine
+                    // still there each time — a retry that changes nothing. The same one-swing
+                    // clear the pour uses breaks it, so use that whenever the blocker has no
+                    // collider and keep `mine` for things that actually are walls.
+                    if (level.getBlockState(wall).getCollisionShape(level, wall).isEmpty()) {
+                        clearPlantOnLine(ctx, rig, aim, tag + ".line" + aims, retry);
+                        return;
+                    }
+                    rig.mineCellOrGiveUp(wall, 600, retry);
                     return;
                 }
             }
