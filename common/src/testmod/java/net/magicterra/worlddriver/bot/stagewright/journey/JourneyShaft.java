@@ -117,7 +117,29 @@ public final class JourneyShaft {
      * climb and records the builder's own reason, because forty identical no-op legs report a
      * missing capability where "no placeable block in the hotbar" is the actual answer.
      */
+    /**
+     * How many courses a climb may lose to moving water before it gives up.
+     *
+     * <p>Flowing water PUSHES entities, and a body on top of a one-block pillar is the easiest thing
+     * in the game to push off one. Measured on the portal rung, whose alcove is flooded by the very
+     * bucket the cast needs: {@code climb.1.stalled=done (placed=1, feetY=53)} — the tower placed its
+     * block and the body did reach y=53 — beside {@code climb.1.state=onGround=false inWater=true
+     * y=51.63}. It rose two blocks and was washed back down, and the climb then stopped for good on
+     * that single lost course while forty-two of its forty-four remained.
+     *
+     * <p>This is not "a retry that changes nothing": the water is flowing, so each attempt starts
+     * from a different current, and two courses is all it takes to get above the flood. Losing a
+     * course on DRY land still ends the climb immediately — there the state does not change, and
+     * forty identical no-op legs is the failure this cap was written to prevent.
+     */
+    static final int WASHED_OFF_RETRIES = 8;
+
     static void ascendByTowering(JourneyRig rig, int surfaceY, int budget, int cap, Runnable then) {
+        ascendByTowering(rig, surfaceY, budget, cap, WASHED_OFF_RETRIES, then);
+    }
+
+    static void ascendByTowering(JourneyRig rig, int surfaceY, int budget, int cap, int washedOff,
+                                 Runnable then) {
         BlockPos at = rig.player().blockPosition();
         if (at.getY() >= surfaceY || budget <= 0) { then.run(); return; }
         int step = cap - budget;
@@ -129,7 +151,7 @@ public final class JourneyShaft {
         // blocksMotion, not !isAir: swamp groundwater is not air and mining it is a no-op, so an
         // air test would spend the whole budget breaking water that was never in the way.
         if (lvl.getBlockState(ceiling).blocksMotion()) {
-            rig.mineBlock(ceiling, 2_000, () -> ascendByTowering(rig, surfaceY, budget - 1, cap, then));
+            rig.mineBlock(ceiling, 2_000, () -> ascendByTowering(rig, surfaceY, budget - 1, cap, washedOff, then));
             return;
         }
         // Land before jumping. TowerProcess's READY phase waits for onGround and its stuck counter
@@ -137,7 +159,7 @@ public final class JourneyShaft {
         // whole 60-tick patience falling and reports "stuck (no Y gain — out of blocks?)" while
         // holding thirty cobblestone. HoldStill is the same non-steering settle the descent uses.
         if (!rig.player().onGround()) {
-            rig.settle(new HoldStill(40), 60, () -> ascendByTowering(rig, surfaceY, budget - 1, cap, then));
+            rig.settle(new HoldStill(40), 60, () -> ascendByTowering(rig, surfaceY, budget - 1, cap, washedOff, then));
             return;
         }
         String pillar = pillarBlock(rig);
@@ -164,7 +186,7 @@ public final class JourneyShaft {
         // every course "gained" a block it did not keep.
         rig.settle(new TowerProcess(at.getY() + 1, pillar), 200, () -> rig.settle(new HoldStill(20), 40, () -> {
             if (rig.player().blockPosition().getY() > at.getY()) {
-                ascendByTowering(rig, surfaceY, budget - 1, cap, then);
+                ascendByTowering(rig, surfaceY, budget - 1, cap, washedOff, then);
                 return;
             }
             // "stuck (no Y gain)" has two very different causes and the message cannot tell them
@@ -179,6 +201,17 @@ public final class JourneyShaft {
             // What it was holding when it gave up. "Out of blocks?" is the builder's guess and it is
             // usually wrong here — the stone rung stalled forty times holding thirty cobblestone.
             rig.evidence("climb." + step + ".stock", pillar + " ×" + rig.carrying(pillar));
+            // Washed off, not stuck. In moving water the state at the end of a course is not the
+            // state the next one starts from, so this is the one case where asking again is a real
+            // retry — see WASHED_OFF_RETRIES for the measurement. Recorded every time, so a climb
+            // that only got up because the water let go cannot read as one the tower simply made.
+            if (rig.player().isInWater() && washedOff > 0) {
+                rig.evidence("climb." + step + ".washedOff",
+                        "水把身体冲下柱子了，还剩 " + (washedOff - 1) + " 次重试");
+                rig.settle(new HoldStill(20), 40, () -> ascendByTowering(rig, surfaceY, budget - 1,
+                        cap, washedOff - 1, then));
+                return;
+            }
             then.run();
         }));
     }
