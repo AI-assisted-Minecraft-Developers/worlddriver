@@ -1702,7 +1702,59 @@ public final class JourneyPortalRung {
         }
         BlockPos hearth = frameCell(base, away, 0, 0);
         BlockPos doorway = hearth.above();
-        rig.attempting("点火");
+        rig.attempting("清门洞并点火");
+        clearTheDoorway(ctx, rig, base, away, () -> strike(ctx, rig, base, away, hearth, doorway));
+    }
+
+    /**
+     * Empty the six interior cells before striking, because casting fills two of them with slag.
+     *
+     * <p>A portal needs its doorway to be AIR, and this rung spends ten buckets of lava inside a
+     * mould full of water: flowing lava that meets water is cobblestone, and it sets in whichever
+     * cell the two met in. Measured, run 31 — {@code frame.cast=10/10}, {@code frame.obsidian=10/10},
+     * the flint struck and {@code light.cellAfter=fire}, and {@code portal.cells=0/6}, because
+     * {@code -9,58,38} and {@code -10,58,38} — the middle row of the doorway — had been cobblestone
+     * since the fifth cast. Every reading about the frame was right and the door was bricked up.
+     *
+     * <p>Cheap to do and expensive to skip: the frame is finished by this point, so the six cells are
+     * reachable from the alcove and nothing above them can fall in (the top pair is obsidian). The
+     * evidence names what was in there, because "the cast leaves slag in the doorway" is a finding
+     * about the mould's geometry and not a chore.
+     */
+    private static void clearTheDoorway(SceneContext ctx, JourneyRig rig, BlockPos base,
+                                        Direction away, Runnable then) {
+        ServerLevel level = ctx.level();
+        List<BlockPos> slag = new ArrayList<>();
+        StringBuilder what = new StringBuilder();
+        for (int ix = 0; ix <= 1; ix++)
+            for (int iy = 1; iy <= 3; iy++) {
+                BlockPos c = frameCell(base, away, ix, iy);
+                if (level.getBlockState(c).isAir()) continue;
+                slag.add(c);
+                what.append(what.isEmpty() ? "" : " ").append(c.toShortString()).append('=')
+                        .append(level.getBlockState(c).getBlock());
+            }
+        rig.evidence("portal.slag", slag.isEmpty() ? "门洞六格都是空气" : slag.size() + " 格要清：" + what);
+        if (slag.isEmpty()) { then.run(); return; }
+        clearNext(rig, slag, 0, 600, () -> {
+            StringBuilder left = new StringBuilder();
+            for (BlockPos c : slag)
+                if (!level.getBlockState(c).isAir())
+                    left.append(left.isEmpty() ? "" : " ").append(c.toShortString()).append('=')
+                            .append(level.getBlockState(c).getBlock());
+            rig.evidence("portal.doorway", left.isEmpty() ? "六格都清干净了" : "还堵着：" + left);
+            if (!left.isEmpty()) {
+                ctx.fail("门洞清不干净：" + left + " —— 传送门要的是六格空气，"
+                        + "浇筑时岩浆碰到水结成的圆石就卡在门洞里，点着了也只是一团火");
+                return;
+            }
+            then.run();
+        });
+    }
+
+    private static void strike(SceneContext ctx, JourneyRig rig, BlockPos base, Direction away,
+                               BlockPos hearth, BlockPos doorway) {
+        ServerLevel level = ctx.level();
         rig.settle(new IntentProcess(new Intent(new Goal.Near(hearth, 3))), 1_500, () -> {
             WorldDriverJourneyScenes.holdForUse(rig, Items.FLINT_AND_STEEL, "light");
             rig.body().avatar().aimAtBlock(hearth);
