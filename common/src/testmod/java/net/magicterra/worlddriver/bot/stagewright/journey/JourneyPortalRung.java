@@ -1108,7 +1108,7 @@ public final class JourneyPortalRung {
     private static String pourLine(ServerLevel level, BlockPos target, Direction away) {
         StringBuilder out = new StringBuilder();
         for (int k = 1; k <= POUR_LINE; k++)
-            for (int dy = 0; dy <= 1; dy++) {
+            for (int dy = -1; dy <= 2; dy++) {
                 BlockPos c = target.relative(away.getOpposite(), k).above(dy);
                 if (level.getBlockState(c).isAir()) continue;
                 out.append(out.isEmpty() ? "" : " ").append(c.toShortString()).append('=')
@@ -1120,6 +1120,14 @@ public final class JourneyPortalRung {
 
     /**
      * Mine whatever is standing in the pour's line, but only inside the alcove.
+     *
+     * <p><b>Four rows, not two.</b> One below the target (the cell the body's feet go in), the
+     * target's own (where the ray travels), and TWO above — because by the third cell the corridor is
+     * flooded by the cast's own water and the body floats a block higher, so the cell its head
+     * occupies is two above its feet, not one. Measured, run 27: {@code standToPour} correctly
+     * rejected the one standing spot with a clean line — {@code 浮起来会顶到 -10,58,37} — and the
+     * clear could not reach {@code y=58} to do anything about it, so the pour fell back to a cell one
+     * column over and its ray hit cell zero's obsidian on the way past.
      *
      * <p>The answer to a pour that cannot see its backing, and it is deliberately not a search. The
      * corridor is a volume this rung hollowed out itself and recorded while doing it, so a solid
@@ -1133,7 +1141,7 @@ public final class JourneyPortalRung {
         ServerLevel level = ctx.level();
         List<BlockPos> blocked = new ArrayList<>();
         for (int k = 1; k <= POUR_LINE; k++)
-            for (int dy = 0; dy <= 1; dy++) {
+            for (int dy = -1; dy <= 2; dy++) {
                 BlockPos c = target.relative(away.getOpposite(), k).above(dy);
                 if (!forgeCorridor.contains(c)) continue;
                 if (level.getBlockState(c).isAir()) continue;
