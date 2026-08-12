@@ -285,6 +285,15 @@ loom {
             property 'stagewright.autorun', 'true'
             property 'worlddriver.journey', 'true'
             property 'worlddriver.journey.rehearse', project.findProperty('rehearse') ?: 'PORTAL_LIT'
+            // Same body the ladder climbs on, and that is a deliberate answer rather than a copied
+            // line. PORTAL_LIT itself does not need it: it is overworld-only, it spawns nothing and
+            // it never asks for the dragon, so it would rehearse identically without the flag. But
+            // the task takes ANY rung, and the flag is exactly what BLAZE_ROD and DRAGON depend on —
+            // without it EndDragonFight.tick creates no dragon and BaseSpawner turns no fortress
+            // spawner, both silently, so rehearsing them here would produce a green run in an empty
+            // world. Parity is the other half: a fix proved on a body of a different kind from the
+            // one the ladder uses is not proved for the ladder.
+            property 'worlddriver.realPlayerBodies', 'true'
             property 'stagewright.scenes', 'wd.rehearse*'
             property 'worlddriver.rpcPort', '0'
             property 'worlddriver.mcpPort', '0'
