@@ -127,13 +127,11 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // the couple of steps from where the striking left the body.
         out.add(stage("wd.journey13Nether", JourneyStage.NETHER, 3_000,
                 WorldDriverJourneyScenes::nether));
-        out.add(unscripted("wd.journey14BlazeRod", JourneyStage.BLAZE_ROD));
-        out.add(unscripted("wd.journey15EnderPearl", JourneyStage.ENDER_PEARL));
-        out.add(unscripted("wd.journey16EyeOfEnder", JourneyStage.EYE_OF_ENDER));
-        out.add(unscripted("wd.journey17Stronghold", JourneyStage.STRONGHOLD));
-        out.add(unscripted("wd.journey18EndPortal", JourneyStage.END_PORTAL));
-        out.add(unscripted("wd.journey19End", JourneyStage.END));
-        out.add(unscripted("wd.journey20Dragon", JourneyStage.DRAGON));
+        // 14-15 (nether) and 16-20 (the End) live in their own classes: this file is over the
+        // 3000-line source budget, and those rungs are the two blocks that can leave cleanly.
+        // Order is the ladder's contract, so they are appended exactly where their placeholders were.
+        out.addAll(JourneyNetherRungs.rungs());
+        out.addAll(JourneyEndRungs.rungs());
 
         out.add(Scene.of("wd.journey99Verdict", 200, WorldDriverJourneyScenes::verdict));
 

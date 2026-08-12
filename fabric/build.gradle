@@ -254,6 +254,12 @@ loom {
             server()
             property 'stagewright.autorun', 'true'
             property 'worlddriver.journey', 'true'
+            // A body that never went through PlayerList.placeNewPlayer is not in level.players(),
+            // and vanilla asks that list before it does any of the endgame work: EndDragonFight.tick
+            // creates NO dragon while it is empty, BaseSpawner.isNearPlayer never turns a fortress
+            // spawner, and nothing spawns naturally. All three fail silently — the End even builds
+            // its crystals, so only the dragon looks missing. One flag, three rungs.
+            property 'worlddriver.realPlayerBodies', 'true'
             property 'stagewright.scenes', 'wd.journey*'
             property 'worlddriver.rpcPort', '0'
             property 'worlddriver.mcpPort', '0'
