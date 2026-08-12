@@ -2530,6 +2530,49 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * wherever the fill ended, because digging down through the mould's own ceiling is the one way
      * this leg could make things worse than the walk it replaces.
      */
+    /**
+     * Climb from the mould up to the pool's level, the way the rung came down.
+     *
+     * <p>The other half of {@link #returnToTheForge}, and it is needed for the same reason: the two
+     * ends of every cast are twelve blocks apart up a one-wide shaft, and the walker cannot find its
+     * way up one. Measured — the body sat at {@code -7,51,21} issuing
+     * {@code goal=Near[target=-10,63,20]} every three seconds, each search burning its whole
+     * 100 000-node budget, which is exactly the shape of a wedge this ladder has hit before: three
+     * identical questions get three identical answers.
+     *
+     * <p>{@link JourneyShaft#climbOut} is the scripted ascent that already exists for leaving a mine
+     * shaft, so this is a walk to the shaft's mouth and then that. Nothing new is asked of the
+     * engine; what was missing was the instruction.
+     */
+    private static void goUpToThePool(SceneContext ctx, JourneyRig rig, int poolY, String tag,
+                                      Runnable then) {
+        if (rig.player().blockPosition().getY() >= poolY - 1) { then.run(); return; }
+        BlockPos mouth = new BlockPos(forgeShaftX, rig.player().blockPosition().getY(), forgeShaftZ);
+        rig.evidence(tag + ".up", rig.player().blockPosition().toShortString() + " → 井口 "
+                + forgeShaftX + "," + forgeShaftZ + "，爬到 y=" + poolY);
+        // ON the shaft column, not near it. The ascent TOWERS, so wherever it starts is where a
+        // column of cobblestone goes — and started one cell over it fills the corridor instead of
+        // the shaft. That is not cosmetic: the pours stand in those cells, and the next cast then
+        // finds nowhere to stand with a clear line (measured, `落脚格被占=130`). Up the shaft the
+        // pillars are self-cleaning, because returnToTheForge mines straight back down through them.
+        rig.settle(new IntentProcess(new Intent(new Goal.Block(mouth))), 1_500, () -> {
+            // One more ask from wherever it stopped, then climb from where it is. Standing exactly
+            // on the column is worth a second attempt and NOT worth the rung: a tower one cell over
+            // costs the next cast a standing spot, which the pour's own ray gate will name, while
+            // refusing to climb costs the whole rung for a body that is one block out of place.
+            rig.settle(new IntentProcess(new Intent(new Goal.Block(
+                    new BlockPos(forgeShaftX, rig.player().blockPosition().getY(), forgeShaftZ)))),
+                    800, () -> {
+                BlockPos here = rig.player().blockPosition();
+                if (here.getX() != forgeShaftX || here.getZ() != forgeShaftZ) {
+                    rig.evidence(tag + ".upOffColumn", here.toShortString() + " 不是井口 "
+                            + forgeShaftX + "," + forgeShaftZ + "，起塔会把鹅卵石垒进模腔");
+                }
+                JourneyShaft.climbOut(rig, poolY, then);
+            });
+        });
+    }
+
     private static void returnToTheForge(SceneContext ctx, JourneyRig rig, int floorY, String tag,
                                          Runnable then) {
         BlockPos at = rig.player().blockPosition();
@@ -2919,8 +2962,10 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 rig.evidence("water.fell." + i, wet.toShortString() + " 空了，水多半落进了目标格 "
                         + cell.toShortString() + "（现在是 " + ctx.level().getBlockState(cell).getBlock() + "）");
             BlockPos src = pool.get(Math.min(i, pool.size() - 1));
-            // fill at the pool → climb back DOWN to the mould → pour. The middle leg is the one the
-            // rung was missing; see returnToTheForge for the bucket it cost.
+            // climb UP to the pool → fill → climb back DOWN to the mould → pour. Both climbs are
+            // spelled out; neither was, and each cost a run to find. See goUpToThePool and
+            // returnToTheForge.
+            goUpToThePool(ctx, rig, src.getY(), "lava" + i, () ->
             fillFrom(ctx, rig, src, "lava" + i, Items.LAVA_BUCKET,
                     () -> returnToTheForge(ctx, rig, base.getY(), "cast" + i,
                     () -> placeFluid(ctx, rig, cell, away, Items.LAVA_BUCKET,
@@ -2951,7 +2996,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 // actually complete.
                 fillFrom(ctx, rig, wet, "recover" + i, Items.WATER_BUCKET,
                         () -> castCell(ctx, rig, base, away, pool, i + 1, then));
-            }))));
+            })))));
         });
     }
 
