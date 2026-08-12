@@ -3062,7 +3062,8 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 // cell that cannot become portal, so `lightIt` would report 5/6 for a frame that is
                 // actually complete.
                 fillFrom(ctx, rig, wet, "recover" + i, Items.WATER_BUCKET,
-                        () -> castCell(ctx, rig, base, away, pool, i + 1, then));
+                        () -> drainTheAlcove(ctx, rig, i, DRAIN_LEGS,
+                        () -> castCell(ctx, rig, base, away, pool, i + 1, then)));
             })))));
         });
     }
@@ -3218,6 +3219,40 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 then.run();
             }));
         });
+    }
+
+    /** How long to let the alcove empty after the water is taken back, and how many such legs.
+     *  Water without a source is gone in under a second, so five legs of forty ticks is generous —
+     *  it is sized to be long enough that "still wet" means the SOURCE is still there. */
+    private static final int DRAIN_TICKS = 40;
+    private static final int DRAIN_LEGS = 5;
+
+    /**
+     * Wait for the water the cast borrowed to run out of the alcove.
+     *
+     * <p>Taking the bucket back is not the same as the alcove being dry, and the gap between those
+     * two is a whole cell. One source placed in an open mould floods everything below it: measured,
+     * the rung recovered its bucket, opened the next frame cell one tick later and read
+     * {@code opened.1=-10,51,23=water} — a cell it had just cut out of solid rock. Pouring into that
+     * is the mistake the "两格都必须是空气" gate exists to stop, so it stopped, and the finding read
+     * as a mining failure.
+     *
+     * <p>Flowing water with no source disappears on its own, so this is a wait and not a repair. If
+     * it is still wet after all the legs, the source was never picked up — a different failure, and
+     * this says so rather than letting the next cell report it second-hand.
+     */
+    private static void drainTheAlcove(SceneContext ctx, JourneyRig rig, int i, int legs,
+                                       Runnable then) {
+        String wet = JourneyForge.firstFluid(ctx.level(), List.copyOf(forgeCorridor));
+        if (wet == null || legs <= 0) {
+            rig.evidence("drain." + i, wet == null ? "壁龛已排干"
+                    : "等了 " + (DRAIN_LEGS * DRAIN_TICKS) + " tick 仍有流体：" + wet
+                      + " —— 水源没被收回来，下一格挖开就会灌满");
+            then.run();
+            return;
+        }
+        rig.settle(new HoldStill(DRAIN_TICKS / 2), DRAIN_TICKS,
+                () -> drainTheAlcove(ctx, rig, i, legs - 1, then));
     }
 
     /** How far back along its own line a pour may look. Three, which is one more than the usual
