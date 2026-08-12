@@ -2931,6 +2931,12 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         }
         BlockPos cell = frameCell(base, away, RING[i][0], RING[i][1]);
         BlockPos wet = wetCellFor(base, away, RING[i][0], RING[i][1]);
+        // What the rung has left to dig with, per cell. A snapped pickaxe and a cell the body cannot
+        // reach produce the same line — `opened.N=…=stone` — and they want opposite fixes. The kit is
+        // two stone pickaxes (262 uses) on purpose, and this rung breaks roughly a hundred cells plus
+        // whatever the ten descents re-mine, so "the tool ran out on cast eight" is a live possibility
+        // that nothing was recording.
+        rig.evidence("tools." + i, toolReport(rig));
         // Open exactly these two, now. Everything else in the frame is still solid, which is what
         // gives this cell a floor — see forgeCorridor for why carving them all up front cast 0/10.
         // 1200, not 400. Twenty seconds has to cover pathing to the cell as well as breaking it, and
@@ -2945,6 +2951,22 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 castOpenedCell(ctx, rig, base, away, pool, i, cell, wet, then);
             });
         });
+    }
+
+    /** Every pickaxe in the bag with the uses it has left, commonest failure first. */
+    private static String toolReport(JourneyRig rig) {
+        var inv = rig.player().getInventory();
+        StringBuilder out = new StringBuilder();
+        for (int s = 0; s < inv.getContainerSize(); s++) {
+            var stack = inv.getItem(s);
+            if (stack.isEmpty() || !stack.isDamageableItem()) continue;
+            String id = String.valueOf(BuiltInRegistries.ITEM.getKey(stack.getItem()));
+            if (!id.endsWith("_pickaxe")) continue;
+            out.append(out.isEmpty() ? "" : "  ").append(id).append(' ')
+                    .append(stack.getMaxDamage() - stack.getDamageValue()).append('/')
+                    .append(stack.getMaxDamage());
+        }
+        return out.isEmpty() ? "没有镐子了" : out.toString();
     }
 
     /**
