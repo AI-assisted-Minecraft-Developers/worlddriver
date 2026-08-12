@@ -314,103 +314,175 @@ public final class WorldDriverMobFightScenes {
         fp.getInventory().add(new ItemStack(Items.IRON_SWORD));
 
         // Round 1: open sky. Measured, not assumed — and it does NOT work.
-        var open = fightOneBlaze(ctx, level, driver, fp, cx, cz, floorY, 3_000, "open");
-        // Round 2: the same fight in a closed room. This is the hardcoded step, and it is what a
-        // player does at a spawner: not a new engine verb, a different room.
-        //
-        // A CEILING ALONE IS NOT ENOUGH, and that was measured too: a bare 9x9 lid over an 11x11
-        // floor took the blaze from 20 health to 2 and still lost it, because the mob drifted out
-        // past the lid's edge and climbed to 6.2 above a ceiling that was 4 up. Walls are not
-        // decoration here — the thing being contained moves sideways first.
-        final int rr = 5, hh = 4;
-        for (int dx = -rr; dx <= rr; dx++)
-            for (int dz = -rr; dz <= rr; dz++)
-                for (int dy = 1; dy <= hh; dy++)
-                    if (Math.abs(dx) == rr || Math.abs(dz) == rr || dy == hh)
-                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
-                                Blocks.STONE.defaultBlockState());
-        var roofed = fightOneBlaze(ctx, level, driver, fp, cx, cz, floorY, 3_000, "roofed");
+        var openRun = new BlazeFightRun(ctx, level, driver, fp, cx, cz, floorY, 3_000, "open");
+        ctx.await(openRun::pump).within(openRun.tickAllowance()).then(() -> {
+            var open = openRun.finish();
+            // Round 2: the same fight in a closed room. This is the hardcoded step, and it is what a
+            // player does at a spawner: not a new engine verb, a different room.
+            //
+            // A CEILING ALONE IS NOT ENOUGH, and that was measured too: a bare 9x9 lid over an 11x11
+            // floor took the blaze from 20 health to 2 and still lost it, because the mob drifted out
+            // past the lid's edge and climbed to 6.2 above a ceiling that was 4 up. Walls are not
+            // decoration here — the thing being contained moves sideways first.
+            final int rr = 5, hh = 4;
+            for (int dx = -rr; dx <= rr; dx++)
+                for (int dz = -rr; dz <= rr; dz++)
+                    for (int dy = 1; dy <= hh; dy++)
+                        if (Math.abs(dx) == rr || Math.abs(dz) == rr || dy == hh)
+                            level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                                    Blocks.STONE.defaultBlockState());
+            var roofedRun = new BlazeFightRun(ctx, level, driver, fp, cx, cz, floorY, 3_000, "roofed");
+            ctx.await(roofedRun::pump).within(roofedRun.tickAllowance()).then(() -> {
+                var roofed = roofedRun.finish();
 
-        ctx.record("body.invulnerable", "true —— 所以这一条只说打得赢, 不说活得下来");
-        // The open-sky round is RECORDED, not asserted, and that is a deliberate correction. It was
-        // written as `expect(open.dead).isFalse()` — "notice if the open fight ever becomes winnable"
-        // — until a NeoForge run finished it at 2.0 health left. An assertion that a fight is NOT won
-        // sits on the wrong side of the RNG: one lucky run reddens the gate for the one reason that
-        // is good news. The claim this scene makes is about the ROOM; the open number is the reason
-        // the room is in the plan, and it lives in the evidence where a human reads it.
-        ctx.expect(roofed.dead).as("in a closed room a driven body kills a blaze that is free to fly")
-                .isTrue();
-        ctx.passNote("露天 " + open.ticks + " tick 打不死（剩 " + String.format(java.util.Locale.ROOT, "%.1f", open.hp)
-                + " 血, 最高离地 " + String.format(java.util.Locale.ROOT, "%.1f", open.rise)
-                + " 格）；加个四格高的顶后 " + roofed.ticks + " tick 打死");
+                ctx.record("body.invulnerable", "true —— 所以这一条只说打得赢, 不说活得下来");
+                // The open-sky round is RECORDED, not asserted, and that is a deliberate correction.
+                // It was written as `expect(open.dead).isFalse()` — "notice if the open fight ever
+                // becomes winnable" — until a NeoForge run finished it at 2.0 health left. An
+                // assertion that a fight is NOT won sits on the wrong side of the RNG: one lucky run
+                // reddens the gate for the one reason that is good news. The claim this scene makes
+                // is about the ROOM; the open number is the reason the room is in the plan, and it
+                // lives in the evidence where a human reads it.
+                ctx.expect(roofed.dead)
+                        .as("in a closed room a driven body kills a blaze that is free to fly")
+                        .isTrue();
+                ctx.passNote("露天 " + open.ticks + " tick 打不死（剩 "
+                        + String.format(java.util.Locale.ROOT, "%.1f", open.hp)
+                        + " 血, 最高离地 " + String.format(java.util.Locale.ROOT, "%.1f", open.rise)
+                        + " 格）；加个四格高的顶后 " + roofed.ticks + " tick 打死");
+            });
+        });
     }
 
     /** One unpinned blaze fight, reported rather than asserted — the caller decides what it means. */
     private record BlazeFight(boolean dead, int ticks, float hp, double rise) {}
 
-    private static BlazeFight fightOneBlaze(SceneContext ctx, ServerLevel level, ServerWorldDriver driver,
-                                            ServerPlayer fp, int cx, int cz, int floorY,
-                                            int budget, String tag) {
-        var blaze = new net.minecraft.world.entity.monster.Blaze(
-                net.minecraft.world.entity.EntityType.BLAZE, level);
-        blaze.setPos(cx + 3.5, floorY + 1, cz + 0.5);
-        blaze.setPersistenceRequired();                       // AI ON: the whole point
-        level.addFreshEntity(blaze);
-        blaze.setTarget(fp);
-        fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);
+    /**
+     * A blaze fight that is spread ACROSS server ticks instead of crammed into one.
+     *
+     * <p><b>What the old shape cost, and why a yield alone would not have fixed it.</b> This fight
+     * used to be a plain {@code for} loop calling {@link ServerAvatarManager#tickAll()} up to
+     * {@code budget} times, so the entire fight — every one of those simulated ticks, each of which
+     * may run a pathfinder search — happened inside a single {@code MinecraftServer.tickServer()}.
+     * On a healthy run that is 785–1355 ms and nobody notices. On three dedicated-NeoForge runs out
+     * of eight the server crossed {@code max-tick-time=60000} and the hang watchdog killed it
+     * mid-suite.
+     *
+     * <p>The cause is arithmetic, not a bug in anything it calls, and two hypotheses were measured
+     * dead before it was found. It is <i>not</i> a loader difference: both loaders run the identical
+     * iteration count (3000 open / 40 roofed) and NeoForge is the faster one per iteration (0.26 ms
+     * vs 0.45 ms). It is <i>not</i> one runaway search either: a guard that reports any single
+     * pathfinder expansion over 100 ms printed nothing at all during a tick that lasted 60 seconds.
+     * What is left is the sum. {@code BotConfig.pathfinderIdleSliceMs} is 30 ms and
+     * {@code WalkerTickSearch} deliberately spends that idle slice on a tick where the body has no
+     * walkable path — which is every tick of a body chasing a blaze hovering out of reach. 3000
+     * iterations x ~20 ms lands exactly on the 60 s the watchdog measured. The slice cap was working
+     * the whole time; the loop calling it had no clock budget at all.
+     *
+     * <p>So the fix is a <b>per-tick wall-clock budget</b>, not merely a yield: a loop that yields
+     * once but still runs all 3000 iterations across two ticks has only halved the problem. Each
+     * {@link #pump()} spends at most {@link #SLICE_MS} and then returns false to be resumed on the
+     * next server tick, and it always completes at least one iteration so the fight cannot stall.
+     *
+     * <p>The {@code blaze.tick()} / {@code tickAll()} interleaving is preserved exactly, because it
+     * is a real requirement rather than an artifact: the mob and the body must advance in lockstep
+     * or the fight being measured is not the fight the field sees.
+     */
+    private static final class BlazeFightRun {
+        /** How much wall clock one server tick may give this fight. Three orders of magnitude under
+         *  {@code max-tick-time=60000}, and under a vanilla 50 ms tick so the server keeps pace. */
+        private static final long SLICE_MS = 40;
 
-        driver.runProcess(new CombatProcess(CombatProcess.Mode.KILL, null, "minecraft:blaze"));
-        ServerAvatarManager.register(driver);
+        private final SceneContext ctx;
+        private final ServerLevel level;
+        private final int cx, cz, floorY, budget;
+        private final String tag;
+        private final net.minecraft.world.entity.monster.Blaze blaze;
 
-        double highest = blaze.getY();
-        int t = 0;
-        // WHAT THIS LOOP COSTS, on the clock, because it all happens inside ONE server tick.
-        //
-        // `ServerAvatarManager.tickAll()` is called here rather than left to the harness, so the
-        // whole fight — up to `budget` simulated ticks, each one a pathfinder search — is a single
-        // `MinecraftServer.tickServer()`. Fabric reports `PASS (1 ticks, 1104 ms)`: one scene tick,
-        // 1.1 seconds of wall clock. NeoForge dedicated crosses `max-tick-time=60000` and the
-        // watchdog kills the server mid-suite, twice out of two.
-        //
-        // Iterations, total and worst separate the two explanations, and they want opposite fixes:
-        // many more iterations means the blaze simply survives longer on that loader and the shape
-        // of this loop is the problem; the same iterations at a far higher per-iteration cost means
-        // a per-tick regression somewhere under `ServerWorldDriver.tick`.
-        long began = System.nanoTime();
-        long worst = 0;
-        int worstAt = -1;
-        for (; t < budget && blaze.isAlive(); t++) {
-            long iter = System.nanoTime();
-            ServerAvatarManager.tickAll();
-            if (blaze.isAlive()) {
-                blaze.tick();
-                highest = Math.max(highest, blaze.getY());
-            }
-            long spent = System.nanoTime() - iter;
-            if (spent > worst) { worst = spent; worstAt = t; }
-            // LOGGED, not merely recorded. On the loader where this matters the server is killed by
-            // the hang watchdog part way through this very loop, so every `ctx.record` below it never
-            // runs — the measurement has to already be in the log by then.
-            if ((t + 1) % 200 == 0)
-                net.magicterra.worlddriver.WorldDriverCommon.LOG.info(
-                        "[blazefight] {} iter={} elapsedMs={} worstMs={}", tag, t + 1,
-                        (System.nanoTime() - began) / 1_000_000L, worst / 1_000_000L);
+        private double highest;
+        private int t;
+        private long worstIter, workNanos, worstPump;
+        private int worstAt = -1, serverTicks;
+
+        BlazeFightRun(SceneContext ctx, ServerLevel level, ServerWorldDriver driver, ServerPlayer fp,
+                      int cx, int cz, int floorY, int budget, String tag) {
+            this.ctx = ctx; this.level = level;
+            this.cx = cx; this.cz = cz; this.floorY = floorY; this.budget = budget; this.tag = tag;
+
+            blaze = new net.minecraft.world.entity.monster.Blaze(
+                    net.minecraft.world.entity.EntityType.BLAZE, level);
+            blaze.setPos(cx + 3.5, floorY + 1, cz + 0.5);
+            blaze.setPersistenceRequired();                       // AI ON: the whole point
+            level.addFreshEntity(blaze);
+            blaze.setTarget(fp);
+            fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);
+
+            driver.runProcess(new CombatProcess(CombatProcess.Mode.KILL, null, "minecraft:blaze"));
+            ServerAvatarManager.register(driver);
+            highest = blaze.getY();
         }
-        long wall = (System.nanoTime() - began) / 1_000_000L;
-        ctx.record(tag + ".wallMs", wall + " ms（" + t + " 次迭代，全都在同一个服务器 tick 里）");
-        ctx.record(tag + ".worstIterMs", String.format(java.util.Locale.ROOT, "%.1f ms（第 %d 次）",
-                worst / 1_000_000.0, worstAt));
-        ctx.record(tag + ".msPerIter", String.format(java.util.Locale.ROOT, "%.2f ms",
-                t == 0 ? 0.0 : (double) wall / t));
-        var out = new BlazeFight(!blaze.isAlive(), t, blaze.getHealth(), highest - floorY);
-        ctx.record(tag + ".dead", String.valueOf(out.dead()));
-        ctx.record(tag + ".ticks", t + (t >= budget ? "（用尽）" : ""));
-        ctx.record(tag + ".hpLeft", String.format(java.util.Locale.ROOT, "%.1f", out.hp()));
-        ctx.record(tag + ".highestAboveFloor", String.format(java.util.Locale.ROOT, "%.1f", out.rise()));
-        blaze.discard();
-        for (var d : level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
-                WorldDriverProcessScenes.entityBox(cx, floorY, cz))) d.discard();
-        return out;
+
+        /** Ticks the await step may wait. Worst case is one iteration per server tick, so the
+         *  allowance has to cover the whole iteration budget or a slow run fails as a timeout. */
+        int tickAllowance() { return budget + 200; }
+
+        private boolean done() { return t >= budget || !blaze.isAlive(); }
+
+        /** Advance the fight for at most {@link #SLICE_MS}; true when the fight is over. */
+        boolean pump() {
+            serverTicks++;
+            long pumpBegan = System.nanoTime();
+            long deadline = pumpBegan + SLICE_MS * 1_000_000L;
+            do {
+                if (done()) break;
+                long iter = System.nanoTime();
+                ServerAvatarManager.tickAll();
+                if (blaze.isAlive()) {
+                    blaze.tick();
+                    highest = Math.max(highest, blaze.getY());
+                }
+                long spent = System.nanoTime() - iter;
+                if (spent > worstIter) { worstIter = spent; worstAt = t; }
+                t++;
+                // LOGGED, not merely recorded. If this ever blows a tick budget again the server is
+                // killed part way through, and every `ctx.record` in `finish()` never runs — the
+                // measurement has to already be in the log by then.
+                if (t % 200 == 0)
+                    net.magicterra.worlddriver.WorldDriverCommon.LOG.info(
+                            "[blazefight] {} iter={} serverTicks={} workMs={} worstIterMs={}", tag, t,
+                            serverTicks, workNanos / 1_000_000L, worstIter / 1_000_000L);
+            } while (System.nanoTime() < deadline);
+            long pump = System.nanoTime() - pumpBegan;
+            workNanos += pump;
+            if (pump > worstPump) worstPump = pump;
+            return done();
+        }
+
+        /** Record the evidence, clear the arena, and hand back the outcome. */
+        BlazeFight finish() {
+            long workMs = workNanos / 1_000_000L;
+            ctx.record(tag + ".workMs", workMs + " ms（" + t + " 次迭代，摊在 " + serverTicks
+                    + " 个服务器 tick 上）");
+            // The number the hang watchdog actually measures. It is the one that must stay small;
+            // the total may legitimately be large, because the work is real.
+            ctx.record(tag + ".worstServerTickMs",
+                    String.format(java.util.Locale.ROOT, "%.1f ms（预算 %d ms）",
+                            worstPump / 1_000_000.0, SLICE_MS));
+            ctx.record(tag + ".worstIterMs", String.format(java.util.Locale.ROOT, "%.1f ms（第 %d 次）",
+                    worstIter / 1_000_000.0, worstAt));
+            ctx.record(tag + ".msPerIter", String.format(java.util.Locale.ROOT, "%.2f ms",
+                    t == 0 ? 0.0 : (double) workMs / t));
+            var out = new BlazeFight(!blaze.isAlive(), t, blaze.getHealth(), highest - floorY);
+            ctx.record(tag + ".dead", String.valueOf(out.dead()));
+            ctx.record(tag + ".ticks", t + (t >= budget ? "（用尽）" : ""));
+            ctx.record(tag + ".hpLeft", String.format(java.util.Locale.ROOT, "%.1f", out.hp()));
+            ctx.record(tag + ".highestAboveFloor",
+                    String.format(java.util.Locale.ROOT, "%.1f", out.rise()));
+            blaze.discard();
+            for (var d : level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+                    WorldDriverProcessScenes.entityBox(cx, floorY, cz))) d.discard();
+            return out;
+        }
     }
 
     /**
