@@ -53,12 +53,18 @@ public final class JourneyShaft {
      *  the fraction it actually covered rather than only the height it stopped at. */
     static int exitFromY, exitRise;
 
+    /** The column the current climb started on. A tower that wanders is not a tower: see
+     *  {@link #ascendByTowering}'s drift branch. */
+    static int climbColX, climbColZ;
+
     static void climbOut(JourneyRig rig, int surfaceY, Runnable then) {
         BotConfig.allowPlace = true;
         int rise = Math.max(0, surfaceY - rig.player().blockPosition().getY());
         int cap = climbCoursesFor(rise);
         exitFromY = rig.player().blockPosition().getY();
         exitRise = rise;
+        climbColX = rig.player().blockPosition().getX();
+        climbColZ = rig.player().blockPosition().getZ();
         rig.evidence("exit.fromY", rig.player().blockPosition().getY());
         rig.evidence("exit.rise", rise + " block(s), cap " + cap + " course(s)");
         ascendByTowering(rig, surfaceY, cap, cap, () -> {
@@ -144,6 +150,34 @@ public final class JourneyShaft {
         if (at.getY() >= surfaceY || budget <= 0) { then.run(); return; }
         int step = cap - budget;
         ServerLevel lvl = lvlOf(rig);
+        // Back onto the column before building another course.
+        //
+        // A tower that wanders is not a tower, and the wandering is not cosmetic. Measured on the
+        // portal rung: the climb started at -9,51,21 and by its third course was at -9,54,23 —
+        // it had drifted two cells into the FRAME'S OWN PLANE and then rose straight up through it,
+        // mining the mould's cells out and filling the hole with cobblestone. The rung's ten casts
+        // were being poured into a frame the exit had just eaten. `TowerProcess` places under the
+        // body and jumps; where the body lands after that is not pinned to anything, so a course
+        // that ends a cell over is normal and only the next course makes it permanent.
+        if (at.getX() != climbColX || at.getZ() != climbColZ) {
+            rig.evidence("climb." + step + ".drift", at.toShortString() + " 偏离起塔柱 "
+                    + climbColX + "," + climbColZ + "，先走回去再垒");
+            rig.settle(new IntentProcess(new Intent(new Goal.Block(
+                    new BlockPos(climbColX, at.getY(), climbColZ)))), 120, () -> {
+                BlockPos back = rig.player().blockPosition();
+                // One attempt, then adopt. A correction that cannot be made must not become the
+                // whole climb — forty courses of walking back to a cell the body cannot reach is
+                // the same wedge in a different costume, and the climb still has to happen.
+                if (back.getX() != climbColX || back.getZ() != climbColZ) {
+                    rig.evidence("climb." + step + ".driftKept", back.toShortString()
+                            + " 走不回 " + climbColX + "," + climbColZ + "，改以这一柱为准");
+                    climbColX = back.getX();
+                    climbColZ = back.getZ();
+                }
+                ascendByTowering(rig, surfaceY, budget - 1, cap, washedOff, then);
+            });
+            return;
+        }
         BlockPos ceiling = at.above(2);
         rig.evidence("climb." + step, String.format("%d,%d,%d above=%s onGround=%s water=%s",
                 at.getX(), at.getY(), at.getZ(), lvl.getBlockState(ceiling).getBlock(),
@@ -335,9 +369,16 @@ public final class JourneyShaft {
         // body sat at the same y for twelve legs and "the block broke but nothing fell" and "the
         // block was never solid to begin with" read identically from the outside.
         int step = cap - budget;
+        // WHICH cell is holding the body up, not just what it is made of. `supportUnder` falls back
+        // to a corner of the bounding box, so "below=stone" can name a different cell every pass —
+        // and without its coordinates fifty identical lines read as one block that will not break
+        // rather than as a body shuffling between two of them. Measured: 55 passes of
+        // `-9,52,21 below=stone` → `broke=air` with the body never sinking, and nothing in the run
+        // said where "below" was.
         rig.evidence("shaft." + step,
-                String.format("%d,%d,%d below=%s", at.getX(), at.getY(), at.getZ(),
-                        rig.ctx().level().getBlockState(below).getBlock()));
+                String.format("%d,%d,%d below=%s %s onGround=%s", at.getX(), at.getY(), at.getZ(),
+                        below.toShortString(), rig.ctx().level().getBlockState(below).getBlock(),
+                        rig.player().onGround()));
         // Already open — the previous pass broke it and the body has not dropped in yet. Mining
         // air is a no-op that still costs an attempt, and three of those in a row is how a shaft
         // with budget for four blocks ran out after one. Fluid counts as open for the same reason
