@@ -214,6 +214,22 @@ public final class JourneyRoute {
     public static BlockPos firstLava = new BlockPos(-6, 26, 54);
 
     /** The stronghold's location, from {@code /locate} — 1745 blocks out, across open world. */
+    /**
+     * A lava LAKE — ten or more source blocks in one place — as opposed to {@link #firstLava}, which
+     * is the single cell the obsidian rung fills its bucket from.
+     *
+     * <p>These are two landmarks and it took four field runs to learn that they cannot be one.
+     * Filling a bucket <b>takes the source block</b>, so by the time the portal rung arrives at
+     * {@code firstLava} the cell is air — measured, {@code pool.sources=0} within sixteen blocks of
+     * it. The portal rung needs ten DISTINCT sources for ten casts, so it needs somewhere that has
+     * ten to begin with.
+     */
+    public static BlockPos lavaLake = UNSURVEYED;
+
+    /** How many source blocks {@link #lavaLake} had when it was surveyed. Recorded because "a lake"
+     *  is a claim with a number in it, and the rung's whole bill is that number. */
+    public static int lavaLakeSources = 0;
+
     public static BlockPos stronghold = new BlockPos(-1168, 64, 1296);
 
     /** The nearest ruined portal — 620 blocks out. Not on the critical path, but it is obsidian
@@ -221,6 +237,46 @@ public final class JourneyRoute {
     public static BlockPos ruinedPortal = new BlockPos(-384, 64, -368);
 
     /** Whether every constant above has been filled in. */
+    /**
+     * Find the densest cluster of lava SOURCE blocks near spawn, and how many cells it has.
+     *
+     * <p>Deliberately a survey and not a search-at-use: the caller is assumed to know this seed, so
+     * the rung that needs a lake should be handed one rather than hunting for it forty blocks under
+     * the ground with a bucket of water it cannot re-fill.
+     */
+    public static java.util.Map.Entry<BlockPos, Integer> surveyLavaLake(net.minecraft.server.level.ServerLevel level,
+                                                                       BlockPos near, int radius) {
+        java.util.Set<Long> sources = new java.util.HashSet<>();
+        java.util.List<BlockPos> list = new java.util.ArrayList<>();
+        // Bounded tightly on purpose. The first version swept 64 blocks around spawn over y 5..40 —
+        // roughly 600 000 fluid lookups, each able to force chunk GENERATION — and blew a ten-minute
+        // budget on the ladder's very first rung. A survey that costs more than the run it informs
+        // is not a survey. This one is centred on ground already known to hold lava.
+        int y0 = Math.max(level.getMinBuildHeight() + 1, near.getY() - 12);
+        int y1 = Math.min(level.getMaxBuildHeight() - 1, near.getY() + 12);
+        for (int x = near.getX() - radius; x <= near.getX() + radius; x++)
+            for (int z = near.getZ() - radius; z <= near.getZ() + radius; z++)
+                for (int y = y0; y <= y1; y++) {
+                    BlockPos c = new BlockPos(x, y, z);
+                    if (level.getFluidState(c).isSource()
+                            && level.getBlockState(c).is(net.minecraft.world.level.block.Blocks.LAVA)) {
+                        sources.add(c.asLong());
+                        list.add(c);
+                    }
+                }
+        BlockPos best = UNSURVEYED;
+        int bestN = 0;
+        for (BlockPos c : list) {
+            int n = 0;
+            for (int dx = -5; dx <= 5; dx++)
+                for (int dy = -3; dy <= 3; dy++)
+                    for (int dz = -5; dz <= 5; dz++)
+                        if (sources.contains(new BlockPos(c.getX() + dx, c.getY() + dy, c.getZ() + dz).asLong())) n++;
+            if (n > bestN) { bestN = n; best = c; }
+        }
+        return java.util.Map.entry(best, bestN);
+    }
+
     public static boolean surveyed() {
         return !spawn.equals(UNSURVEYED) && !firstTree.equals(UNSURVEYED);
     }
