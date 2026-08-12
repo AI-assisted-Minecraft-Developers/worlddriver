@@ -182,6 +182,23 @@ public final class JourneyShaft {
         rig.evidence("climb." + step, String.format("%d,%d,%d above=%s onGround=%s water=%s",
                 at.getX(), at.getY(), at.getZ(), lvl.getBlockState(ceiling).getBlock(),
                 rig.player().onGround(), rig.player().isInWater()));
+        // Never open a ceiling with a fluid behind it. A climb out of a mine is a hole punched
+        // upward through rock nobody surveyed, and on the portal rung that hole runs the twelve
+        // blocks between the mould and the lava lake the mould is cut under. Measured, run 20: the
+        // tower drifted one cell off the shaft, mined fresh rock the rest of the way, and broke into
+        // the lake — `drain.0=等了 200 tick 仍有流体：-7,54,21 = lava` in an alcove twelve blocks
+        // BELOW it, with the corridor cells around it turned to stone where the lava met the cast's
+        // own water. The rung then read the next frame cell as "canBreak=false, 六邻全实心" and
+        // reported a mining failure. The shaft the body came down is already open, so a climb that
+        // needs to mine at all is a climb that has wandered — stopping here is the honest answer,
+        // and climbOut's walker fallback is what still gets the body out.
+        String wet = fluidTouching(lvl, ceiling);
+        if (wet != null) {
+            rig.evidence("climb." + step + ".wouldOpenFluid", ceiling.toShortString()
+                    + " 挖开就会放出 " + wet + " —— 不挖，这一段爬升到此为止");
+            then.run();
+            return;
+        }
         // blocksMotion, not !isAir: swamp groundwater is not air and mining it is a no-op, so an
         // air test would spend the whole budget breaking water that was never in the way.
         if (lvl.getBlockState(ceiling).blocksMotion()) {
@@ -349,6 +366,21 @@ public final class JourneyShaft {
     }
 
     static ServerLevel lvlOf(JourneyRig rig) { return rig.ctx().level(); }
+
+    /** The fluid in {@code cell} or in any of its six neighbours, described — or null when there is
+     *  none. Neighbours and not just the cell itself, because a dry block with lava behind it is
+     *  exactly as bad: breaking it is what lets the lava through. */
+    static String fluidTouching(ServerLevel level, BlockPos cell) {
+        if (!level.getFluidState(cell).isEmpty())
+            return cell.toShortString() + " = " + level.getBlockState(cell).getBlock();
+        for (net.minecraft.core.Direction d : net.minecraft.core.Direction.values()) {
+            BlockPos n = cell.relative(d);
+            if (!level.getFluidState(n).isEmpty())
+                return n.toShortString() + " = " + level.getBlockState(n).getBlock()
+                        + "（在 " + cell.toShortString() + " 的 " + d + " 面）";
+        }
+        return null;
+    }
 
     static void descendByMining(JourneyRig rig, int targetY, int budget, int cap, Runnable then) {
         BlockPos at = rig.player().blockPosition();
