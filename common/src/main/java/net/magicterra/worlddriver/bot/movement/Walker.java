@@ -98,9 +98,15 @@ public final class Walker {
      *  per-Walker budget override applies to every search launch site alike
      *  (foot repath, commit-end continuation, place-suppressed re-plan). */
     PathFinder newPathFinder(WorldView world) {
-        PathFinder pf = (searchMaxNodes > 0 && searchMaxMs > 0)
+        PathFinder pf = ((searchMaxNodes > 0 && searchMaxMs > 0)
                 ? new PathFinder(world, searchMaxNodes, searchMaxMs, profile)
-                : new PathFinder(world, profile);
+                : new PathFinder(world, profile))
+                // THIS Walker's churn clock, not a global every body writes. Read live, because the
+                // escalation is a sticky TIMER and a time-sliced search outlives it: a search that
+                // starts escalated must pick the re-capped horizon back up when the clock lapses, or
+                // it grinds on easy terrain instead of stopping early.
+                .withTuning(net.magicterra.worlddriver.bot.pathfinder.PathTuning
+                        .escalatedWhen(escal::armed));
         return pf.withOwner(owner);
     }
 
