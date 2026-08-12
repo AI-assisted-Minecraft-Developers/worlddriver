@@ -261,6 +261,31 @@ loom {
             vmArg '-Xmx2g'
             source sourceSets.testmod
         }
+        // ONE upper rung, with its preconditions put there by hand (wd.rehearse*).
+        //
+        // The ladder above is one body climbing twenty rungs in sequence, which is the point of it
+        // and also what makes its upper rungs nearly untestable: reaching rung 12 means replaying
+        // eleven rungs and being lucky, at twenty-five minutes a try. Two committed fixes to rung 12
+        // had therefore never once executed.
+        //
+        // This is NOT a second ladder and must never be read as one. It registers its scenes under
+        // `wd.rehearse*` so no results file can carry a rehearsal under a ladder row's name, it
+        // counts every arrangement through JourneyLedger.staged, and its verdict says
+        // "REHEARSAL — not a climb, staging.calls=N". See JourneyRehearsal's class note.
+        //
+        //   ./gradlew :fabric:runRehearsalServer -Prehearse=PORTAL_LIT
+        rehearsalServer {
+            server()
+            property 'stagewright.autorun', 'true'
+            property 'worlddriver.journey', 'true'
+            property 'worlddriver.journey.rehearse', project.findProperty('rehearse') ?: 'PORTAL_LIT'
+            property 'stagewright.scenes', 'wd.rehearse*'
+            property 'worlddriver.rpcPort', '0'
+            property 'worlddriver.mcpPort', '0'
+            runDir 'run-rehearsal'
+            vmArg '-Xmx2g'
+            source sourceSets.testmod
+        }
     }
     runConfigs.configureEach {
         // contractServer and dogfoodServer pin their own ephemeral ports
@@ -268,7 +293,7 @@ loom {
         // dev client on 39800/39801. Without this guard the defaults below would clobber that.
         // The three self-driving topologies do the same.
         if (it.name == 'contractServer' || it.name == 'dogfoodServer'
-                || it.name == 'journeyServer'
+                || it.name == 'journeyServer' || it.name == 'rehearsalServer'
                 || it.name.startsWith('stagewrightIntegrated')
                 || it.name.startsWith('stagewrightDedicated')
                 || it.name.startsWith('stagewrightJoining')) return
@@ -327,9 +352,15 @@ tasks.named('runDogfoodServer') { dependsOn installDogfoodScenes, installDogfood
 // which already duplicate each other for the reason documented there: the two live in builds that
 // cannot see one another. This is a third copy with the same excuse, and the recon assertion is
 // what keeps all three honest.
-def provisionJourneyRun = tasks.register('provisionJourneyRun') {
-    description = 'Seed fabric/run-journey with the EULA and the fixed world seed the journey is written against.'
-    def runDir = layout.projectDirectory.dir('run-journey').asFile
+//
+// Two runs need this, identically: the ladder and the rehearsal. They get separate directories
+// because they are separate worlds — a rehearsal digs a shaft and casts a portal frame, and a ladder
+// that inherited that would measure the rehearsal, which is the same trap the deletion below exists
+// to close one level down.
+def provisionRun = { String taskName, String dirName, String what ->
+  tasks.register(taskName) {
+    description = "Seed fabric/${dirName} with the EULA and the fixed world seed ${what} is written against."
+    def runDir = layout.projectDirectory.dir(dirName).asFile
     outputs.upToDateWhen { false }
     doLast {
         runDir.mkdirs()
@@ -362,5 +393,9 @@ def provisionJourneyRun = tasks.register('provisionJourneyRun') {
         }
         properties.text = body
     }
+  }
 }
+def provisionJourneyRun = provisionRun('provisionJourneyRun', 'run-journey', 'the journey')
+def provisionRehearsalRun = provisionRun('provisionRehearsalRun', 'run-rehearsal', 'the rehearsal')
 tasks.named('runJourneyServer') { dependsOn provisionJourneyRun }
+tasks.named('runRehearsalServer') { dependsOn provisionRehearsalRun }

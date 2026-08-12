@@ -136,6 +136,15 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         out.add(unscripted("wd.journey20Dragon", JourneyStage.DRAGON));
 
         out.add(Scene.of("wd.journey99Verdict", 200, WorldDriverJourneyScenes::verdict));
+
+        // A rehearsal is the SAME ladder with one rung isolated and its preconditions put there by
+        // hand — see JourneyRehearsal for why that is worth having and for the four things that keep
+        // a green rehearsal from ever reading as a green climb. It rewrites the list built above
+        // rather than registering a second one, so a rung added or re-budgeted here is rehearsable
+        // without a parallel list to keep in step. Off unless its own property is set: a normal run
+        // and all six gates never reach this line.
+        JourneyStage rehearse = JourneyRehearsal.target();
+        if (rehearse != null) return JourneyRehearsal.rewrite(out, rehearse);
         return List.copyOf(out);
     }
 
