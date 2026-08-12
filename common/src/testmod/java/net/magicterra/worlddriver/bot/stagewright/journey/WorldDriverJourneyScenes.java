@@ -2522,6 +2522,39 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * <p>The face is put on the side of the body AWAY from the pool, so that nothing carved opens
      * into lava — the one mistake down here that ends the run rather than costing it a retry.
      */
+    /**
+     * Every cell the forge excavation touches for a frame set {@code push} blocks along {@code away}.
+     *
+     * <p>The alcove is carved BOTTOM-UP and its depth tracks {@code push}, so however far out the
+     * frame is pushed the body still has a walked path to each cell. Order is not tidiness: the body
+     * digs what it can path to, so opening a whole layer before the one above keeps every next cell
+     * adjacent to air it can already stand in. An earlier version looped depth-then-width-then-height
+     * and asked for a cell six blocks over the body's head while the floor beside it was still solid.
+     */
+    private static List<BlockPos> forgeCells(BlockPos at, Direction away, int push) {
+        List<BlockPos> cells = new ArrayList<>();
+        for (int y = 0; y <= 6; y++)
+            for (int d = 0; d < push; d++)
+                for (int w = -2; w <= 2; w++)
+                    cells.add(at.relative(away, d).relative(away.getClockWise(), w).above(y));
+        // The frame itself, one further in: ten ring cells, six interior, two cap notches.
+        BlockPos base = at.relative(away, push);
+        for (int[] c : RING) cells.add(frameCell(base, away, c[0], c[1]));
+        for (int ix = 0; ix <= 1; ix++)
+            for (int iy = 1; iy <= 3; iy++) cells.add(frameCell(base, away, ix, iy));
+        cells.add(frameCell(base, away, 0, 5));
+        cells.add(frameCell(base, away, 1, 5));
+        return cells;
+    }
+
+    /** The first cell holding fluid, described — or null when the whole excavation is dry. */
+    private static String firstFluid(ServerLevel level, List<BlockPos> cells) {
+        for (BlockPos c : cells)
+            if (!level.getFluidState(c).isEmpty())
+                return c.toShortString() + " = " + level.getBlockState(c).getBlock();
+        return null;
+    }
+
     private static void carveTheForge(SceneContext ctx, JourneyRig rig, BlockPos lava, int surfaceY) {
         BlockPos at = rig.player().blockPosition();
         int dx = Integer.signum(at.getX() - lava.getX());
@@ -2530,27 +2563,29 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         Direction away = Math.abs(at.getX() - lava.getX()) >= Math.abs(at.getZ() - lava.getZ())
                 ? (dx >= 0 ? Direction.EAST : Direction.WEST)
                 : (dz >= 0 ? Direction.SOUTH : Direction.NORTH);
-        BlockPos base = at.relative(away, 2);               // frame's bottom-left, two clear of the body
-        rig.evidence("forge.face", base.toShortString() + " 朝 " + away + "（背离岩浆）");
-
-        List<BlockPos> cells = new ArrayList<>();
-        // The alcove the body stands in, carved BOTTOM-UP. Order is not tidiness: the body digs what
-        // it can path to, so opening a whole layer before starting the one above keeps every next
-        // cell adjacent to air the body can already stand in. The first version looped depth-then-
-        // width-then-height, which asked for a cell six blocks over the body's head while the floor
-        // beside it was still solid.
-        for (int y = 0; y <= 6; y++)
-            for (int d = 0; d <= 1; d++)
-                for (int w = -2; w <= 2; w++)
-                    cells.add(at.relative(away, d).relative(away.getClockWise(), w).above(y));
-        // The frame itself, one further in: ten ring cells, six interior, two cap notches.
-        for (int[] c : RING) cells.add(frameCell(base, away, c[0], c[1]));
-        for (int ix = 0; ix <= 1; ix++)
-            for (int iy = 1; iy <= 3; iy++) cells.add(frameCell(base, away, ix, iy));
-        cells.add(frameCell(base, away, 0, 5));
-        cells.add(frameCell(base, away, 1, 5));
-
+        // How far along `away` to set the frame. Two is right underground and wrong beside a SURFACE
+        // lake: descending seven below y=63 puts the body inside the lake's own body, and a mould two
+        // blocks from it is still in lava — run 12 died on `要挖的格子里有流体：-9,57,21 = lava`.
+        // Depth alone cannot fix that; the mould needs HORIZONTAL clearance. So push the frame out
+        // and deepen the alcove with it, so the body can still walk to every cell, and take the first
+        // distance whose whole excavation is fluid-free. Checked before digging rather than
+        // discovered while digging: the bucket of water is already underground by this point.
         ServerLevel level = ctx.level();
+        int push = 2;
+        List<BlockPos> cells = forgeCells(at, away, push);
+        String fluidAt = firstFluid(level, cells);
+        for (; fluidAt != null && push < 8; push++) {
+            cells = forgeCells(at, away, push + 1);
+            fluidAt = firstFluid(level, cells);
+        }
+        if (fluidAt != null) {
+            ctx.fail("模腔怎么摆都会挖到流体：离身体 2..8 格都试过，最后一处 " + fluidAt
+                    + "（岩浆湖在地表时，井底四周就是湖体本身）");
+            return;
+        }
+        BlockPos base = at.relative(away, push);
+        rig.evidence("forge.face", base.toShortString() + " 朝 " + away
+                + "（背离岩浆，外推 " + push + " 格）");
         List<BlockPos> todo = new ArrayList<>();
         for (BlockPos c : cells) {
             if (level.getBlockState(c).isAir()) continue;
