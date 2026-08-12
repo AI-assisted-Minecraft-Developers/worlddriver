@@ -3094,7 +3094,56 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      *  behind it. Level, because a steep ray enters the face a block low and lands in the wrong cell. */
     private static void placeFluid(SceneContext ctx, JourneyRig rig, BlockPos target, Direction away,
                                    net.minecraft.world.item.Item held, String tag, Runnable then) {
-        placeFluid(ctx, rig, target, away, held, tag, POUR_APPROACHES, then);
+        standLevelWith(ctx, rig, target, away, tag,
+                () -> placeFluid(ctx, rig, target, away, held, tag, POUR_APPROACHES, then));
+    }
+
+    /**
+     * Get the body up to the row it is about to pour into, building the step if there is none.
+     *
+     * <p>The alcove is hollow, so the only solid floor in it is the one seven cells down — and a
+     * bucket aimed from there at a cell four rows up traces a line that leaves the frame's plane
+     * before it reaches the backing. Worked through for this mould: from {@code y=51} the ray to the
+     * backing of {@code y=55} enters the plane at {@code y=53} and lands on the backing of the
+     * interior cell two rows low, so {@link #standToPour} rejects every candidate and the rung
+     * stops on its own gate. Rows up to {@code y=54} are reachable from the floor and the top pair
+     * is not, which is why the ladder has never yet been stopped by this: no run had ever cast
+     * eight cells.
+     *
+     * <p>So the step is BUILT, out of the cobblestone the rung is already carrying, by the same
+     * scripted tower that leaves the shaft — and taken down again by nothing, because the corridor
+     * is where the next pours stand and {@link #clearPourLine} owns that problem. Best-effort: a
+     * body that cannot get up says so and lets the pour's own ray gate decide, which is the only
+     * gate in this rung entitled to spend a bucket.
+     */
+    private static void standLevelWith(SceneContext ctx, JourneyRig rig, BlockPos target,
+                                       Direction away, String tag, Runnable then) {
+        int wantY = target.getY() - 1;
+        if (rig.player().blockPosition().getY() >= wantY) { then.run(); return; }
+        // Only when the geometry says so. Every row up to y+3 above the floor already has a spot
+        // with a clear line, and building a step for those would put cobblestone in the corridor
+        // that the NEXT pour then has to stand around. Asking standToPour in verified-only mode is
+        // the same question the pour is about to ask, so this cannot raise for a cell that would
+        // have poured anyway.
+        if (standToPour(ctx.level(), rig, target, away, new java.util.LinkedHashMap<>(), true) != null) {
+            then.run();
+            return;
+        }
+        BlockPos col = target.relative(away.getOpposite(), 1);
+        rig.evidence(tag + ".raise", rig.player().blockPosition().toShortString() + " → y=" + wantY
+                + "（在 " + col.getX() + "," + col.getZ() + " 这一柱上垒台阶，浇 "
+                + target.toShortString() + " 得跟它同高）");
+        walkToColumn(rig, tag + ".raiseTo", col.getX(), col.getZ(), 1, 800, () -> {
+            JourneyShaft.climbOut(rig, wantY, () -> {
+                BotConfig.allowPlace = false;      // the casting phase is place-free again
+                rig.evidence(tag + ".raisedY", rig.player().blockPosition().getY() + "/" + wantY);
+                then.run();
+            });
+        }, () -> {
+            rig.evidence(tag + ".raiseStuck", "走不到 " + col.getX() + "," + col.getZ()
+                    + "，从当前高度浇（多半会被射线闸拦下）");
+            then.run();
+        });
     }
 
     /** How many times a pour may re-walk at its cell before the rung stops. Two, plus the one it
@@ -3118,6 +3167,15 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      */
     private static BlockPos standToPour(ServerLevel level, JourneyRig rig, BlockPos target,
                                         Direction away, Map<String, Integer> why) {
+        return standToPour(level, rig, target, away, why, false);
+    }
+
+    /** {@code verifiedOnly} drops the standable fallback, which is what makes this answerable
+     *  as a QUESTION — "is there anywhere down here with a clear line to this cell" — rather
+     *  than only as a place to walk to. {@link #standLevelWith} asks it that way. */
+    private static BlockPos standToPour(ServerLevel level, JourneyRig rig, BlockPos target,
+                                        Direction away, Map<String, Integer> why,
+                                        boolean verifiedOnly) {
         BlockPos backing = target.relative(away);
         BlockPos from = rig.player().blockPosition();
         BlockPos best = null, standable = null;
@@ -3167,7 +3225,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                     }
                     if (d < bestD) { bestD = d; best = foot; }
                 }
-        return best != null ? best : standable;
+        return best != null || verifiedOnly ? best : standable;
     }
 
     private static void placeFluid(SceneContext ctx, JourneyRig rig, BlockPos target, Direction away,
