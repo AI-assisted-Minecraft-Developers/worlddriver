@@ -378,7 +378,12 @@ public final class JourneyPortalRung {
                                          int tries, Runnable then) {
         BotConfig.allowPlace = false;
         BlockPos at = rig.player().blockPosition();
-        if (at.getY() <= floorY + 1) { then.run(); return; }
+        // HOME IS THE ALCOVE, not a height. Height was a fine proxy while the only way to be in the
+        // mould was to be standing on its floor, and `liftInPlace` broke that: a body up a
+        // one-block pillar beside the cell it just poured into is at y=58 in a mould whose floor is
+        // y=56, so run 41 — which had cast NINE cells, every fill from the station and not one
+        // drowning — reported `走不回模腔：停在 -11,58,36` about a body already standing in it.
+        if (at.getY() <= floorY + 1 || forgeCorridor.contains(at)) { then.run(); return; }
         if (stairBottom == null) {
             ctx.fail("没有楼梯底坐标：descendToTheForge 没有记下来，回不到模腔");
             return;
