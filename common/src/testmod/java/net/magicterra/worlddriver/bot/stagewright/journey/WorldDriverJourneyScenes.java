@@ -2141,10 +2141,19 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             // far cheaper than towering twelve blocks up a shaft that has already refused twice, and
             // it is what a player who fell in would do: look, then go.
             BlockPos other = nearestLavaSource(level, rig.player().blockPosition(), FALLBACK_LAVA_SEARCH);
-            if (other != null && climbBacks > 0) {
+            // Budgeted on `left`, NOT on climbBacks. This search exists precisely because climbing
+            // gains nothing — see FALLBACK_LAVA_SEARCH's own note, where two climbs in a row moved
+            // the body zero blocks — so gating it behind the counter the climbs consume switches off
+            // the remedy at exactly the moment it is needed. Measured: run 11 failed with
+            // `已用完 2 次爬回机会` while standing in a cave at y=14, never once asking whether there
+            // was lava within twenty-four blocks of it.
+            //
+            // `left` is the tunnel's own step budget, so this terminates; and it cannot spin, because
+            // walking to within 3 of a SOURCE puts it inside the 8-block check at the top.
+            if (other != null && (climbBacks > 0 || left > 0)) {
                 rig.evidence("tunnel.otherPool", other.toShortString() + "（掉下来之后就近找到的）");
                 rig.settle(new IntentProcess(new Intent(new Goal.Near(other, 3))), 2_000,
-                        () -> reachLava(ctx, rig, left, climbBacks - 1, then));
+                        () -> reachLava(ctx, rig, left - 1, climbBacks, then));
                 return;
             }
             // Fell out of the gallery? The pool has not moved — the body has. Climb back to its
@@ -2162,8 +2171,12 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                         });
                 return;
             }
+            // Say whether the wider search found nothing or was never allowed to run — the two read
+            // identically in a red row and want opposite fixes.
             ctx.fail("下到岩浆层却看不到岩浆源：停在 " + rig.player().blockPosition()
-                    + "，周围 8 格内没有 source 级岩浆（流动岩浆不能装桶）"
+                    + "，周围 8 格内没有 source 级岩浆（流动岩浆不能装桶）；"
+                    + FALLBACK_LAVA_SEARCH + " 格内" + (other == null ? "也没有" : "有 "
+                        + other.toShortString() + "，但步数预算用尽了")
                     + (below > 2 ? "；比岩浆层低 " + below + " 格，且已用完 " + TUNNEL_CLIMB_BACKS
                                    + " 次爬回机会" : ""));
             return;
