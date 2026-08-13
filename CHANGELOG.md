@@ -28,6 +28,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for, no eye is handed over. Rungs 17–20 still have no recipe.
 
 ### Fixed
+- **The portal frame's middle rows had no cell the dig could start from.** `ServerWorldDriver.mine`
+  walks to `Goal.Near(cell, 2)`, and the alcove is hollowed floor-to-ceiling, so for a frame cell two
+  rows up the nearest corridor cell is the floor at 2.83 blocks — outside the gate, so the dig never
+  began and the cell reported itself simply shut. The stand is now chosen rather than assumed: the
+  cell behind the frame cell (1.00 away) or the one below that (1.41), whichever already has
+  something under it, and failing both a single cobblestone into the lower one's own support — a
+  corridor cell resting on the untouched rock under the alcove floor, so the body steps up exactly
+  one block onto it. `tidyTheAlcove` already sweeps cobblestone out of the corridor, so the step
+  does not survive the cast.
+
+  Bounded on purpose at one block. Rows four and five up would need two or three arranged as STAIRS
+  — a stacked column is a wall the body cannot climb — so they keep `mine`'s own goal and are told
+  by name how far short they were: `cell.8.noStand = -9,60,38 够不着：身体 -9,56,36 距 4.47 格（>2）
+  … 这一格要的是楼梯不是一块砖`.
+
+  Measured, and the measurement is the point. Three steps were placed and **all three were read back
+  off the world**, not off the call: `cell.4.step … → 站得住了（cobblestone）`. Asserting the body's
+  resulting position then found the next obstacle immediately —
+  `cell.5.standMissed = 想站 -11,57,37，停在 -11,57,36，距 -11,58,38 还有 2.24 格`: the step stood,
+  the body climbed it, and stopped one rank short. Without that assertion this would have read as a
+  step that did not help. Same terminal failure as the baseline (8 casts CONSUME, 9 cells opened),
+  so no regression.
+
 - **The dig that opens a portal frame cell tunnelled through the portal.** `ServerWorldDriver.mine`
   is `walker.setGoal(Near(cell, 2))` with breaking on, and a walker asked to get near a cell inside
   a wall will happily mine through the wall — which here is the mould. On the ladder run of

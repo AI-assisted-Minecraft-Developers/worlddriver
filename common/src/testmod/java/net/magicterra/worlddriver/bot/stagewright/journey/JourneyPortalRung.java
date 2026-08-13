@@ -1116,7 +1116,7 @@ public final class JourneyPortalRung {
                     cell.toShortString() + "=" + level.getBlockState(cell).getBlock()
                     + (wasOpen ? "：开过又被填上了（这一格上面是会掉的方块），再挖一次"
                                : "：这一格从头到尾没开过，不是被填上的 —— 挖没挖动，再试一次"));
-        standBehind(rig, cell, away, () ->
+        standBehind(rig, tag, cell, away, () ->
             rig.mineCellOrGiveUp(cell, tries == REOPEN_TRIES ? 1_200 : 400,
                 () -> rig.settle(new HoldStill(10), 30, () -> {
                     // Read the cell BETWEEN the swing and the settle, so "it opened and something
@@ -1149,18 +1149,99 @@ public final class JourneyPortalRung {
      * for a cell two rows up there is no standable cell inside the radius at all, and the dig never
      * arrives. That is the next cut in this rung and it wants a step to stand on, not a longer walk.
      *
-     * <p>Best effort even then. A body that cannot get there still gets its dig attempted from
+     * <p><b>And one step, when one step is all that is missing.</b> {@code behind} sits level with the
+     * cell (1.00 away) and {@code behind.below()} one row under it (1.41) — both inside the gate, and
+     * both corridor cells for every row above the floor. Whichever of the two already has something
+     * under it is walked to. When neither does, a single cobblestone goes into the lower one's own
+     * support, which is a corridor cell resting on the untouched rock below the alcove floor, and the
+     * body steps up exactly one block onto it — ordinary walking, no tower, no drift.
+     *
+     * <p>That covers the frame's bottom three rows and stops there, on purpose. A cell four or five
+     * rows up would need two or three blocks arranged as STAIRS, not stacked: a filled column is a
+     * wall the body cannot climb, and building a staircase in a corridor is a different piece of work
+     * from placing one block. Those rows keep {@code mine}'s own goal and get told, by name, how many
+     * blocks short they were — which is the reading the next attempt should start from rather than
+     * the silence that was there before.
+     *
+     * <p>Best effort throughout. A body that cannot get there still gets its dig attempted from
      * wherever it is, and {@link #noteCellDig} reports the geometry if it was not.
      */
-    private static void standBehind(JourneyRig rig, BlockPos cell, Direction away, Runnable then) {
+    private static void standBehind(JourneyRig rig, String tag, BlockPos cell, Direction away,
+                                    Runnable then) {
+        ServerLevel level = rig.ctx().level();
+        BlockPos here = rig.player().blockPosition();
+        if (forgeCorridor.isEmpty() || withinDigReach(here, cell)) { then.run(); return; }
+
         BlockPos behind = cell.relative(away.getOpposite());
-        if (!forgeCorridor.contains(behind) || rig.player().blockPosition().equals(behind)
-                || !rig.ctx().level().getBlockState(behind.below()).blocksMotion()) {
+        BlockPos lower = behind.below();
+        BlockPos spot = standableStand(level, behind) ? behind
+                : standableStand(level, lower) ? lower : null;
+        if (spot != null) { walkToStand(rig, tag, cell, spot, then); return; }
+
+        // One block, and only where it can rest on something. `lower`'s own support is the corridor
+        // cell at the alcove's floor level, whose floor is the untouched rock the alcove was cut
+        // into — so this is a step, not the first course of a pillar the body would then have to
+        // climb. Anywhere else and the honest answer is "not enough blocks", which is what it says.
+        BlockPos step = lower.below();
+        boolean canStep = forgeCorridor.contains(step)
+                && level.getBlockState(step).isAir() && level.getFluidState(step).isEmpty()
+                && level.getBlockState(step.below()).blocksMotion()
+                && !step.equals(here) && !step.equals(here.above())
+                && Math.sqrt(here.distSqr(step)) <= MEND_REACH;
+        if (!canStep) {
+            rig.evidence(tag + ".noStand", cell.toShortString() + " 够不着：身体 " + here.toShortString()
+                    + " 距 " + String.format(java.util.Locale.ROOT, "%.2f", Math.sqrt(here.distSqr(cell)))
+                    + " 格（>" + DIG_ARRIVE + "），" + behind.toShortString() + " 和 "
+                    + lower.toShortString() + " 都没有地板，而 " + step.toShortString() + "="
+                    + level.getBlockState(step).getBlock() + " 垫不了一格 —— 这一格要的是楼梯不是一块砖");
             then.run();
             return;
         }
-        rig.settle(new IntentProcess(new Intent(new Goal.Block(behind), List.of(),
-                CapabilityProfile.ALL, List.of(new NoBreak()))), 300, then);
+        boolean held = rig.body().avatar().holdItem(Items.COBBLESTONE);
+        if (held) placeInto(level, rig, step);
+        // THE WORLD, not the call. A placement can be refused for reasons the caller cannot see, and
+        // a step that was never there leaves exactly the "the dig just did not work" row this rung
+        // has already been misled by twice.
+        boolean stood = level.getBlockState(step).blocksMotion();
+        rig.evidence(tag + ".step", step.toShortString() + " 垫一格给 " + cell.toShortString() + " 用 → "
+                + (stood ? "站得住了（" + level.getBlockState(step).getBlock() + "）"
+                         : (held ? "没垫上（" + level.getBlockState(step).getBlock() + "）" : "手上没有圆石")));
+        if (!stood) { then.run(); return; }
+        walkToStand(rig, tag, cell, lower, then);
+    }
+
+    /** Walk to a chosen stand and say where the body actually ended up — a walk that fell short and
+     *  a walk that arrived produce identical digs otherwise, and only one of them is a bug. */
+    private static void walkToStand(JourneyRig rig, String tag, BlockPos cell, BlockPos spot,
+                                    Runnable then) {
+        if (rig.player().blockPosition().equals(spot)) { then.run(); return; }
+        rig.settle(new IntentProcess(new Intent(new Goal.Block(spot), List.of(),
+                CapabilityProfile.ALL, List.of(new NoBreak()))), 300, () -> {
+            BlockPos now = rig.player().blockPosition();
+            if (!withinDigReach(now, cell))
+                rig.evidence(tag + ".standMissed", "想站 " + spot.toShortString() + "，停在 "
+                        + now.toShortString() + "，距 " + cell.toShortString() + " 还有 "
+                        + String.format(java.util.Locale.ROOT, "%.2f", Math.sqrt(now.distSqr(cell)))
+                        + " 格");
+            then.run();
+        });
+    }
+
+    /** A corridor cell the body can actually stand in: itself and its head clear, something under it. */
+    private static boolean standableStand(ServerLevel level, BlockPos spot) {
+        return forgeCorridor.contains(spot)
+                && !level.getBlockState(spot).blocksMotion()
+                && !level.getBlockState(spot.above()).blocksMotion()
+                && level.getBlockState(spot.below()).blocksMotion();
+    }
+
+    /** {@code ServerWorldDriver.mine} walks to {@code Goal.Near(cell, 2)}, so this is the radius the
+     *  dig will and will not start inside. Named because it is the number the whole stand exists to
+     *  satisfy: measured, {@code -11,56,36} to {@code -11,58,38} is 2.83 and the dig never began. */
+    private static final int DIG_ARRIVE = 2;
+
+    private static boolean withinDigReach(BlockPos from, BlockPos cell) {
+        return from.distSqr(cell) <= (double) DIG_ARRIVE * DIG_ARRIVE;
     }
 
     /**
