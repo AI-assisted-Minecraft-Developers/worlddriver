@@ -292,6 +292,13 @@ loom {
             //   ./gradlew :fabric:runRehearsalServer -PrehearseBudget=120000
             property 'worlddriver.journey.rehearse.budget',
                     (project.findProperty('rehearseBudget') ?: '40000').toString()
+            // Make the portal rung's staircase audit TRIP. A healthy flight never faults, so the
+            // repair that answers a fault would otherwise ship having never once run:
+            //   ./gradlew :fabric:runRehearsalServer -Prehearse=PORTAL_LIT -PbreakAStair=true
+            // Rehearsal-only twice over — this task always sets a rehearse target, and the rung
+            // refuses the sabotage when none is set.
+            property 'worlddriver.journey.breakAStair',
+                    (project.findProperty('breakAStair') ?: 'false').toString()
             // Same body the ladder climbs on, and that is a deliberate answer rather than a copied
             // line. PORTAL_LIT itself does not need it: it is overworld-only, it spawns nothing and
             // it never asks for the dragon, so it would rehearse identically without the flag. But

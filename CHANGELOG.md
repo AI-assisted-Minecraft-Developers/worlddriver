@@ -8,6 +8,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **The portal rung ate its own staircase, and reported a walker bug.** Rung 12's ladder run of
+  2026-08-12 died at four casts with `走不上楼梯：停在 -10, 61, 21，楼梯顶 -9, 66, 21 在 y=66 ——
+  楼梯是挖出来了，但走不上去（台阶被堵？跨不上去？）`. Both of the message's guesses were wrong.
+  Read off the saved world, twelve of the thirteen steps were perfect and the thirteenth,
+  `-9,65,22`, had **lost the block underneath it**: `-9,64,22` was air, so the step was a two-deep
+  hole and the ascent fell into it. A missing support is invisible from above — the step cell reads
+  air whether or not anything holds it up — which is why five ascents' worth of evidence rows never
+  named it.
+
+  Where the block went: seed 5471's lava lake at `-9,63,19` is a **cave** lake, not a surface one.
+  Its roof is one block of grass at y=65 with open cavern at y=64 and lava at y=63, and both ferry
+  legs of every cast cross it. On the third cast's return the body fell through, landed in the
+  cave, dug down (making a 3-deep lava pit at `-10,61..63,19..21` that the lake then filled), and
+  dug its way back to daylight through `-9,64,22` — the one cell joining that pocket to the
+  stairwell. Positions in the run log trace the whole excursion: `-10,63,19` → `-10,62,19` →
+  `-10,62,22` → out at `-8,66,21`, and then `[walker] ascend dead-zone UNREACHABLE move=stepUp
+  node=-10,66,22 foot=-10,63,22` ninety times on the next ascent.
+
+  Three changes, all in the rung. The flight is **audited** before every leg (thirteen block reads:
+  support solid, foot clear, head clear) and the audit's one line is now in the failure message
+  instead of two guesses. A fault is **mended** — cobblestone clicked back under a step through
+  `useItemOn`, or the pick through a blocked cell — but only from arm's length, because `placeOn`
+  has no reach gate on the server avatar and a repair the body could not walk to is not a repair
+  the ladder earned. And the ferry walks now carry `NoBreak`: they cross ground the rung cut with
+  its own pick, so a planned dig there is never the answer to anything.
+
+  Verified by making the fault certain rather than by waiting for it —
+  `-Prehearse=PORTAL_LIT -PbreakAStair=true` removes `-9,64,22` before the second leg, and the
+  rehearsal read `cast0.stairsBroken=1/16 级坏了：-9, 65, 22 脚下 -9, 64, 22=air`,
+  `cast0.stairsMend.0=… → 垫上了 … 现在是 cobblestone`, then **nine** clean round trips. The same
+  run's first ascent found an unplanted fault nobody had known about: gravel had fallen into the
+  stair bottom (`-9,56,36`), and the audit mined it out.
+
 - **The planner's tuning lived in process-global statics, so any two bodies in one JVM overwrote
   each other's knobs.** `BotConfig.pfHorizonBlocks()` returned `0` whenever
   `pathfinderBoxedEscalate` was set, and `WalkerTickPrelude` wrote that static on *every* walker
