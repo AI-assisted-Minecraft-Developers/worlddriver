@@ -1116,13 +1116,51 @@ public final class JourneyPortalRung {
                     cell.toShortString() + "=" + level.getBlockState(cell).getBlock()
                     + (wasOpen ? "：开过又被填上了（这一格上面是会掉的方块），再挖一次"
                                : "：这一格从头到尾没开过，不是被填上的 —— 挖没挖动，再试一次"));
-        rig.mineCellOrGiveUp(cell, tries == REOPEN_TRIES ? 1_200 : 400,
+        standBehind(rig, cell, away, () ->
+            rig.mineCellOrGiveUp(cell, tries == REOPEN_TRIES ? 1_200 : 400,
                 () -> rig.settle(new HoldStill(10), 30, () -> {
                     // Read the cell BETWEEN the swing and the settle, so "it opened and something
                     // dropped into it" and "it never opened" stop being the same reading.
                     boolean open = wasOpen || level.getBlockState(cell).isAir();
                     reopen(ctx, rig, tag, cell, away, tries - 1, open, then);
-                }));
+                })));
+    }
+
+    /**
+     * Put the body in the corridor cell directly behind {@code cell} before digging it.
+     *
+     * <p>Behind, because that cell is in {@link #forgeCorridor} by construction — the corridor is the
+     * two ranks between the shaft and the frame plane, and every frame cell's own dx is inside the
+     * corridor's width — so it is a place the rung has already hollowed and is entitled to stand in.
+     * {@link NoBreak} on the walk is the whole point: the alternative is the walker inventing its own
+     * route, and the route it invented went through the doorway.
+     *
+     * <p><b>Only when that cell has a floor</b>, and the guard is a measurement rather than caution.
+     * The corridor is hollowed from the alcove floor to its ceiling, so the cell behind a frame cell
+     * is standable for the BOTTOM row and for nothing above it: behind {@code -11,58,38} is
+     * {@code -11,58,37}, which is air over {@code -11,57,37}, which is corridor and therefore also
+     * air. Sending the body there anyway is what the first version did, and it measurably made the
+     * rung worse — the rehearsal that had been reaching cast 9 stopped at cell 5, having spent the
+     * walk's whole budget failing to stand in mid-air and then digging from wherever that left it.
+     *
+     * <p>So the upper rows keep the behaviour they had: {@code mine}'s own {@code Near(cell, 2)}
+     * goal, which reaches them from the floor when it can. What that goal cannot do is the thing
+     * {@link #noteCellDig} now measures — {@code -11,56,36} to {@code -11,58,38} is 2.83 blocks, so
+     * for a cell two rows up there is no standable cell inside the radius at all, and the dig never
+     * arrives. That is the next cut in this rung and it wants a step to stand on, not a longer walk.
+     *
+     * <p>Best effort even then. A body that cannot get there still gets its dig attempted from
+     * wherever it is, and {@link #noteCellDig} reports the geometry if it was not.
+     */
+    private static void standBehind(JourneyRig rig, BlockPos cell, Direction away, Runnable then) {
+        BlockPos behind = cell.relative(away.getOpposite());
+        if (!forgeCorridor.contains(behind) || rig.player().blockPosition().equals(behind)
+                || !rig.ctx().level().getBlockState(behind.below()).blocksMotion()) {
+            then.run();
+            return;
+        }
+        rig.settle(new IntentProcess(new Intent(new Goal.Block(behind), List.of(),
+                CapabilityProfile.ALL, List.of(new NoBreak()))), 300, then);
     }
 
     /**

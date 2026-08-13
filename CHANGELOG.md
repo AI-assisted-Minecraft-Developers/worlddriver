@@ -28,6 +28,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for, no eye is handed over. Rungs 17–20 still have no recipe.
 
 ### Fixed
+- **The dig that opens a portal frame cell tunnelled through the portal.** `ServerWorldDriver.mine`
+  is `walker.setGoal(Near(cell, 2))` with breaking on, and a walker asked to get near a cell inside
+  a wall will happily mine through the wall — which here is the mould. On the ladder run of
+  2026-08-12 it ended at `-10,59,34`, and `-10,59,34` is not a corridor cell: the corridor is the
+  two ranks at z∈{32,33}, and that coordinate is an **interior cell of the portal's own doorway**.
+  The save shows three of the six interior cells opened and `-9,56,34`, the cell it was sent to
+  fetch, still granite. The rung then reported `第 1 格没挖开就要浇` about a hole it had dug in the
+  thing it was building.
+
+  The dig now walks to the corridor cell directly behind the frame cell first, under `NoBreak`.
+  Measured before and after on the same rehearsal: the body's position moved from inside the
+  doorway to `身体 -11,56,36（壁龛内）`.
+
+  **Only when that cell has a floor**, and that clause was bought the expensive way. The first
+  version sent the body behind *every* frame cell, including the upper rows — whose behind-cell is
+  air over corridor, i.e. mid-air. The rehearsal that had been reaching cast 9 stopped at cell 5.
+  Guarded on the support below, it is back to cast 9 (8 casts CONSUME, 9 cells opened, same
+  terminal pour-line failure as before the change), with the bottom row — the row the ladder
+  actually died on — now dug from the corridor.
+
 - **Two of rung 12's diagnostics were inventing causes they had never measured.** The ladder run of
   2026-08-12 died on the portal mould's first cell and explained itself twice, wrongly:
 
