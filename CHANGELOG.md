@@ -28,6 +28,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for, no eye is handed over. Rungs 17–20 still have no recipe.
 
 ### Fixed
+- **Two of rung 12's diagnostics were inventing causes they had never measured.** The ladder run of
+  2026-08-12 died on the portal mould's first cell and explained itself twice, wrongly:
+
+  - `cell.0.refilled.3/2/1 = -9,56,34 又被 granite 填上了（上面塌下来的）` — printed on every retry
+    that found the cell solid, which is *also* what a dig that never opened it looks like. Granite
+    is not a `FallingBlock`; nothing fell; the cell had never once been air. `reopen` now carries
+    whether it has ever seen the cell open and says `stillShut` when it has not.
+  - `dig.cell.0 = … end=collect swept everything it could reach (broke 64/64 …)` — read off
+    `botState().mine`, which only a `MineProcess` writes. This dig is not one:
+    `ServerWorldDriver.mine(BlockPos)` sets `mineTarget` plus a walker goal and explicitly clears
+    `process`. The line was reporting the last MineProcess to have run anywhere, so a cell that had
+    never been touched read as a dig that had succeeded sixty-four times. Dropped, and replaced with
+    the geometry of *this* dig: where the body stood, whether that was even a cell the rung
+    hollowed, and what is in the corridor cell it should have dug from.
+
+  The replacement paid for itself on the first run that used it: `dig.cell.5 = -11,58,38 仍是
+  granite：身体 -11,56,36（壁龛内），距 2.2m，canBreak=true，该站的壁龛格 -11,58,37=air` — three
+  facts, none of them previously obtainable, and together they name the next cut (see `TODO.md`).
+
 - **The portal rung ate its own staircase, and reported a walker bug.** Rung 12's ladder run of
   2026-08-12 died at four casts with `走不上楼梯：停在 -10, 61, 21，楼梯顶 -9, 66, 21 在 y=66 ——
   楼梯是挖出来了，但走不上去（台阶被堵？跨不上去？）`. Both of the message's guesses were wrong.

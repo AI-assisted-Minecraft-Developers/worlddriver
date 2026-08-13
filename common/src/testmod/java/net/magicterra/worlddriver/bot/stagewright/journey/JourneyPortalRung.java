@@ -1059,8 +1059,8 @@ public final class JourneyPortalRung {
         // does not report itself, it reports a pour into rock two steps later. UNVERIFIED: this is a
         // plausible reason run 20 left `wet` as stone, not a confirmed one; the assertion below is
         // what will actually name the cause next run.
-        reopen(ctx, rig, "cell." + i, cell, REOPEN_TRIES, () ->
-                reopen(ctx, rig, "wet." + i, wet, REOPEN_TRIES, () ->
+        reopen(ctx, rig, "cell." + i, cell, away, REOPEN_TRIES, () ->
+                reopen(ctx, rig, "wet." + i, wet, away, REOPEN_TRIES, () ->
                         tidyTheAlcove(ctx, rig, "tidy." + i,
                                 () -> castOpenedCell(ctx, rig, base, away, pool, i, cell, wet, then))));
     }
@@ -1083,21 +1083,46 @@ public final class JourneyPortalRung {
      * the rung's own water in it is not shut, and asking {@code mine} to break water spends the whole
      * budget on a no-op. When the tries run out the cell is described rather than mined, which is
      * {@link #noteCellDig}'s job and the reading that separates "walled in" from "out of reach".
+     *
+     * <p><b>"Refilled" is now a measurement, not a caption.</b> It used to be printed on every retry
+     * that found the cell solid — which is also what a dig that never opened it looks like — so the
+     * ladder run of 2026-08-12 reported {@code -9,56,34 又被 granite 填上了（上面塌下来的）} three
+     * times about a granite block that had never once been air. Granite is not a {@code FallingBlock}
+     * and nothing fell; the dig simply failed, and the line named a mechanism instead of saying so.
+     *
+     * <p><b>The body stands in the corridor first.</b> {@code ServerWorldDriver.mine} is
+     * {@code walker.setGoal(Near(cell, 2))} with breaking on, and a walker asked to get near a cell
+     * in a wall will happily tunnel through the wall — which here is the mould. That is what the same
+     * run did: it ended at {@code -10,59,34}, and {@code -10,59,34} is not a corridor cell at all, it
+     * is an <b>interior cell of the portal's own doorway</b>, three of which the save shows opened.
+     * The cell behind a frame cell is a corridor cell by construction, so the dig is aimed from
+     * there, and the walk to it may not break anything.
      */
     private static void reopen(SceneContext ctx, JourneyRig rig, String tag, BlockPos cell,
-                               int tries, Runnable then) {
+                               Direction away, int tries, Runnable then) {
+        reopen(ctx, rig, tag, cell, away, tries, false, then);
+    }
+
+    private static void reopen(SceneContext ctx, JourneyRig rig, String tag, BlockPos cell,
+                               Direction away, int tries, boolean wasOpen, Runnable then) {
         ServerLevel level = ctx.level();
         if (level.getBlockState(cell).isAir() || !level.getFluidState(cell).isEmpty()) {
             then.run();
             return;
         }
-        if (tries <= 0) { noteCellDig(rig, tag, cell); then.run(); return; }
+        if (tries <= 0) { noteCellDig(rig, tag, cell, away); then.run(); return; }
         if (tries < REOPEN_TRIES)
-            rig.evidence(tag + ".refilled." + tries, cell.toShortString() + " 又被 "
-                    + level.getBlockState(cell).getBlock() + " 填上了（上面塌下来的），再挖一次");
+            rig.evidence(tag + (wasOpen ? ".refilled." : ".stillShut.") + tries,
+                    cell.toShortString() + "=" + level.getBlockState(cell).getBlock()
+                    + (wasOpen ? "：开过又被填上了（这一格上面是会掉的方块），再挖一次"
+                               : "：这一格从头到尾没开过，不是被填上的 —— 挖没挖动，再试一次"));
         rig.mineCellOrGiveUp(cell, tries == REOPEN_TRIES ? 1_200 : 400,
-                () -> rig.settle(new HoldStill(10), 30,
-                        () -> reopen(ctx, rig, tag, cell, tries - 1, then)));
+                () -> rig.settle(new HoldStill(10), 30, () -> {
+                    // Read the cell BETWEEN the swing and the settle, so "it opened and something
+                    // dropped into it" and "it never opened" stop being the same reading.
+                    boolean open = wasOpen || level.getBlockState(cell).isAir();
+                    reopen(ctx, rig, tag, cell, away, tries - 1, open, then);
+                }));
     }
 
     /**
@@ -1162,8 +1187,19 @@ public final class JourneyPortalRung {
      *
      * <p>Recorded only for a cell that is still solid. Ten successful digs of two cells each would
      * bury the one that mattered, and this rung's evidence line is already the longest in the suite.
+     *
+     * <p><b>It no longer prints {@code mine.lastError} or {@code mine.endReason}, and that is a
+     * correction rather than a trim.</b> Those two live in {@code botState().mine}, which only a
+     * {@link net.magicterra.worlddriver.bot.process.MineProcess} ever writes — and this dig is not
+     * one. {@code ServerWorldDriver.mine(BlockPos)} sets {@code mineTarget} and a walker goal and
+     * explicitly clears {@code process}, so what the line reported was the LAST MineProcess to have
+     * run, from somewhere else entirely. On the ladder run of 2026-08-12 it printed
+     * {@code end=collect swept everything it could reach (broke 64/64 …)} beside a cell that had
+     * never been touched, which reads as a dig that succeeded 64 times and failed once. What replaces
+     * it is the geometry of THIS dig: where the body stood, and whether that was even a cell the rung
+     * hollowed — the run above ended inside the portal's own doorway and the line could not say so.
      */
-    private static void noteCellDig(JourneyRig rig, String tag, BlockPos cell) {
+    private static void noteCellDig(JourneyRig rig, String tag, BlockPos cell, Direction away) {
         ServerLevel level = rig.ctx().level();
         if (level.getBlockState(cell).isAir()) return;
         BlockPos at = rig.player().blockPosition();
@@ -1180,11 +1216,18 @@ public final class JourneyPortalRung {
             around.append(' ').append(d).append('=').append(level.getBlockState(n).getBlock())
                     .append(level.getBlockState(n).isSolidRender(level, n) ? "(实心)" : "");
         }
+        // WHERE THE BODY IS, in the rung's own vocabulary. "距 4.2m" alone cannot tell a body that
+        // stopped short in the corridor from one that tunnelled into the mould, and those want
+        // opposite fixes.
+        BlockPos behind = cell.relative(away.getOpposite());
+        String where = forgeCorridor.contains(at) ? "壁龛内"
+                : at.equals(behind) ? "正对着这一格的壁龛格"
+                : "壁龛之外（离壁龛最近的格都不是它）—— 多半是自己挖进门框里去了";
         rig.evidence("dig." + tag, String.format(java.util.Locale.ROOT,
-                "%s 仍是 %s：身体 %s 距 %.1fm，canBreak=%s，mine.lastError=%s end=%s，手上 %s；六邻%s",
-                cell.toShortString(), level.getBlockState(cell).getBlock(), at.toShortString(), eyes,
-                rig.body().avatar().canBreak(cell),
-                rig.body().botState().mine.lastError, rig.body().botState().mine.endReason,
+                "%s 仍是 %s：身体 %s（%s），距 %.1fm，canBreak=%s，该站的壁龛格 %s=%s，手上 %s；六邻%s",
+                cell.toShortString(), level.getBlockState(cell).getBlock(), at.toShortString(), where,
+                eyes, rig.body().avatar().canBreak(cell),
+                behind.toShortString(), level.getBlockState(behind).getBlock(),
                 BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem()), around));
     }
 
@@ -1242,7 +1285,7 @@ public final class JourneyPortalRung {
                     // Again, because the round trip is thousands of ticks long and the cell was left
                     // open at the top of it. Gravel that has not finished falling by the water pour
                     // has certainly finished by the time the lava comes back.
-                    () -> reopen(ctx, rig, "cast" + i + ".reopen", cell, REOPEN_TRIES,
+                    () -> reopen(ctx, rig, "cast" + i + ".reopen", cell, away, REOPEN_TRIES,
                     () -> placeFluid(ctx, rig, cell, away, Items.LAVA_BUCKET,
                     "cast" + i, () -> rig.settle(new HoldStill(3), 12, () -> {
                 var got = ctx.level().getBlockState(cell).getBlock();
