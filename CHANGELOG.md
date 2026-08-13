@@ -50,6 +50,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `onGround`, fall distance, health and the drop to the first solid block below — the readings the
   still-open half of that diagnosis (a plan that ends airborne over a cave) needs.
 
+- **`mc.test.reset`'s manifest traced its own code path instead of reporting an effect.** The
+  `keys` token was appended unconditionally after `releaseKeys()` returned, so a `releaseKeys()`
+  that became a no-op would have kept every assertion on it green forever; `screen` said only that
+  `setScreen(null)` had been called on something. They are now `keys:<names>` (absent when nothing
+  was down, `→still:<names>` when the release did not take) and `screen:<class>` — read off
+  `KeyMapping.isDown()` and `mc.screen` on the same client hop, before and after. Visible
+  immediately: `wd.clientResetClearsEntry` now records `resetTokens=[screen:InventoryScreen,
+  chat:11]` with **no** keys token, because that scene holds no key down.
+
 - **The planner's tuning lived in process-global statics, so any two bodies in one JVM overwrote
   each other's knobs.** `BotConfig.pfHorizonBlocks()` returned `0` whenever
   `pathfinderBoxedEscalate` was set, and `WalkerTickPrelude` wrote that static on *every* walker

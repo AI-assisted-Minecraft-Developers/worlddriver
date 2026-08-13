@@ -1135,8 +1135,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      * manifest: the screen through {@code mc.client.screen.info}, the chat log through
      * {@code mc.client.chat.history}. The keys token is only read off the manifest here and is
      * proved for real by {@link #clientResetReleasesKeys}, which is the entire reason that scene
-     * exists — the token is appended unconditionally, so on its own it says that
-     * {@code releaseKeys()} ran, not that anything was released.
+     * exists.
      *
      * <p>The reset is ALSO the cleanup, registered before anything is dirtied. Unlike the python
      * original this runs inside a suite of 180 other scenes, so a failure between "open the
@@ -1162,10 +1161,11 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             ctx.expect(r instanceof Map<?, ?> m && Boolean.TRUE.equals(m.get("ok")))
                     .as("mc.test.reset reported ok").isEqualTo(true);
             List<?> tokens = reset instanceof List<?> l ? l : List.of();
-            ctx.expect(tokens.contains("screen")).as("reset[] names the screen it closed")
-                    .isEqualTo(true);
-            ctx.expect(tokens.contains("keys")).as("reset[] names the keys it released")
-                    .isEqualTo(true);
+            // `screen:<class>` — the class it actually closed, and `→still:` appended when the
+            // close did not take. A bare "screen" was a code-path trace: it said setScreen(null)
+            // was called on something, which is what a broken close would say too.
+            ctx.expect(token(tokens, "screen:")).as("reset[] names the screen it closed")
+                    .isEqualTo("screen:InventoryScreen");
             boolean clearedChat = tokens.stream()
                     .anyMatch(t -> t instanceof String s && s.startsWith("chat:"));
             ctx.expect(clearedChat).as("reset[] names the chat log it cleared").isEqualTo(true);
@@ -1185,12 +1185,12 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      * {@code mc.test.reset} really releases a key that was really down.
      *
      * <p>Ported from {@code instrument_client.py}'s {@code reset.heldKeys}. The reason it is its own
-     * scene rather than a line in {@link #clientResetClearsEntry}: the {@code reset[]} manifest's
-     * "keys" token is unconditional, so it proves the release code PATH ran and nothing about its
-     * effect — a {@code releaseKeys()} that became a no-op would keep every existing assertion
-     * green. {@code mc.test.input.heldKeys} closes that from outside by reading
-     * {@code KeyMapping.isDown()} back: press forward, prove the readback SEES it held, reset, and
-     * prove every key in the surface is false.
+     * scene rather than a line in {@link #clientResetClearsEntry}: the manifest is the verb's own
+     * account of itself, and {@code mc.test.input.heldKeys} closes it from OUTSIDE by reading
+     * {@code KeyMapping.isDown()} back — press forward, prove the readback SEES it held, reset, and
+     * prove every key in the surface is false. The manifest's token is now an effect too
+     * ({@code keys:up}, and {@code →still:up} when the release did not take), which is checked here
+     * against the independent readback rather than instead of it.
      *
      * <p>The whole surface is compared, not just the key that was pressed. A readback that quietly
      * stopped reporting a keymapping would otherwise pass here forever, since a key it does not
@@ -1209,8 +1209,10 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ctx.await(() -> Boolean.TRUE.equals(heldKeys(api).get("up"))).within(100).then(() -> {
             Object r = api.route("mc.test.reset", Map.of());
             Object reset = r instanceof Map<?, ?> m ? m.get("reset") : null;
-            ctx.expect(reset instanceof List<?> l && l.contains("keys"))
-                    .as("reset[] names the keys it released").isEqualTo(true);
+            List<?> tokens = reset instanceof List<?> l ? l : List.of();
+            ctx.expect(token(tokens, "keys:"))
+                    .as("reset[] names the key it released, and nothing left held")
+                    .isEqualTo("keys:up");
 
             Map<?, ?> keys = heldKeys(api);
             ctx.expect(joinSorted(keys.keySet())).as("the keys mc.test.input.heldKeys reports")
@@ -1222,6 +1224,14 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                     .as("keys still held after mc.test.reset — a releaseKeys() no-op regression")
                     .isEqualTo("");
         });
+    }
+
+    /** The one {@code reset[]} token starting with {@code prefix}, or a readable stand-in naming
+     *  the whole list — so a missing token fails with what WAS there instead of {@code false}. */
+    private static String token(List<?> tokens, String prefix) {
+        for (Object t : tokens)
+            if (t instanceof String s && s.startsWith(prefix)) return s;
+        return "no " + prefix + "… token in " + tokens;
     }
 
     /** {@code mc.client.screen.info}, or empty when the verb answered with something else. */

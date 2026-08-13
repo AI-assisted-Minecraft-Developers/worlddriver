@@ -875,6 +875,14 @@ public final class BotApiImpl implements BotApi {
      * the {@code mc.client.screen.close} {@code setScreen(null)} path, {@link ClientChatLog#clear()}
      * and the scheduler's user-slot cancel. The {@code reset[]} list names exactly what changed so
      * P2b's reuse acceptance can diff it. Kept minimal — completeness is P2b's acceptance concern.
+     *
+     * <p><b>Every token reports an EFFECT, and that is a correction.</b> {@code chat:N} always did;
+     * {@code keys} did not — it was appended after {@link BotInteract#releaseKeys()} returned, so it
+     * said the release code ran and nothing about whether anything was released, and a
+     * {@code releaseKeys()} that became a no-op would have kept it green forever. It is now
+     * {@code keys:<names>}, read off {@link KeyMapping#isDown()} on the same client hop, before and
+     * after; it is absent when nothing was down. {@code screen} likewise names the screen class it
+     * closed, so "there was no screen" and "the close did nothing" stop reading alike.
      */
     @Override
     public Map<String, Object> resetClientEntry() {
@@ -896,15 +904,49 @@ public final class BotApiImpl implements BotApi {
                 cancelCurrent("mc.test.reset");
                 reset.add("look");
             }
-            releaseKeys();
-            reset.add("keys");
             Minecraft mc = Minecraft.getInstance();
-            if (mc.screen != null) { mc.setScreen(null); reset.add("screen"); }
+            String wereDown = heldKeyNames(mc);
+            releaseKeys();
+            String stillDown = heldKeyNames(mc);
+            // Named rather than counted, and the surviving names named too: "keys:up" and
+            // "keys:up→still:up" are the difference between a release that worked and one that
+            // did not, and a bare count cannot tell them apart.
+            if (!wereDown.isEmpty())
+                reset.add("keys:" + wereDown + (stillDown.isEmpty() ? "" : "→still:" + stillDown));
+            if (mc.screen != null) {
+                String was = mc.screen.getClass().getSimpleName();
+                mc.setScreen(null);
+                reset.add("screen:" + was + (mc.screen == null ? "" : "→still:"
+                        + mc.screen.getClass().getSimpleName()));
+            }
             return Map.of();
         });
         int chatCleared = ClientChatLog.clear();   // pure JVM buffer, no client thread needed
         reset.add("chat:" + chatCleared);
         return Map.of("ok", true, "reset", reset);
+    }
+
+    /** The movement keys {@link BotInteract#releaseKeys()} clears that are down right now, comma
+     *  separated in the same order {@link #heldKeys()} reports them. Client thread only — the
+     *  caller is already inside the hop. */
+    private static String heldKeyNames(Minecraft mc) {
+        if (mc.options == null) return "";
+        StringBuilder sb = new StringBuilder();
+        appendIfDown(sb, "up", mc.options.keyUp);
+        appendIfDown(sb, "down", mc.options.keyDown);
+        appendIfDown(sb, "left", mc.options.keyLeft);
+        appendIfDown(sb, "right", mc.options.keyRight);
+        appendIfDown(sb, "jump", mc.options.keyJump);
+        appendIfDown(sb, "sprint", mc.options.keySprint);
+        appendIfDown(sb, "attack", mc.options.keyAttack);
+        appendIfDown(sb, "shift", mc.options.keyShift);
+        return sb.toString();
+    }
+
+    private static void appendIfDown(StringBuilder sb, String name, KeyMapping key) {
+        if (!key.isDown()) return;
+        if (!sb.isEmpty()) sb.append(',');
+        sb.append(name);
     }
 
     /**
