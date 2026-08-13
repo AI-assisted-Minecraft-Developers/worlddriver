@@ -41,15 +41,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   run's first ascent found an unplanted fault nobody had known about: gravel had fallen into the
   stair bottom (`-9,56,36`), and the audit mined it out.
 
-- **Rung 14 spent two of its three walk attempts on a body that was underwater in lava.** The
-  nether crossing ends its attempt, records `脚下=lava … 0/4 面是墙`, and re-issues the identical
-  walk order — twice. `no path (expanded=1)` there means *submerged*, not entombed, and the
-  surroundings line said how many walls there were without ever saying the body was under the
-  lava. A retry is now refused, loudly and by name, when the body is in a fluid or still falling;
-  the surroundings line calls submersion out as the reason for `expanded=1`, and gained
-  `onGround`, fall distance, health and the drop to the first solid block below — the readings the
-  still-open half of that diagnosis (a plan that ends airborne over a cave) needs.
-
 - **`mc.test.reset`'s manifest traced its own code path instead of reporting an effect.** The
   `keys` token was appended unconditionally after `releaseKeys()` returned, so a `releaseKeys()`
   that became a no-op would have kept every assertion on it green forever; `screen` said only that
@@ -58,6 +49,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `KeyMapping.isDown()` and `mc.screen` on the same client hop, before and after. Visible
   immediately: `wd.clientResetClearsEntry` now records `resetTokens=[screen:InventoryScreen,
   chat:11]` with **no** keys token, because that scene holds no key down.
+
+- **`wd.clientResetClearsEntry` cleaned up with the verb it exists to break.** Its cleanup was
+  `mc.test.reset`, so the run where the reset stops closing screens is exactly the run where the
+  cleanup also stops closing them — and the open screen lands on `wd.clientResetReleasesKeys`,
+  which needs no screen and has no idea why it is looking at one. Both scenes now clean up by a
+  route they assert nothing about (`mc.client.screen.close`, and an explicit key release).
+
+- **Rung 14 spent two of its three walk attempts on a body that was underwater in lava.** The
+  nether crossing ends its attempt, records `脚下=lava … 0/4 面是墙`, and re-issues the identical
+  walk order — twice. `no path (expanded=1)` there means *submerged*, not entombed, and the
+  surroundings line said how many walls there were without ever saying the body was under the
+  lava. A retry is now refused, loudly and by name, when the body is in a fluid or still falling;
+  the surroundings line calls submersion out as the reason for `expanded=1`, and gained
+  `onGround`, fall distance, health and the drop to the first solid block below — the readings the
+  still-open half of that diagnosis (a plan that ends airborne over a cave) needs.
 
 - **The planner's tuning lived in process-global statics, so any two bodies in one JVM overwrote
   each other's knobs.** `BotConfig.pfHorizonBlocks()` returned `0` whenever

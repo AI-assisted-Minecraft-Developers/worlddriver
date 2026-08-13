@@ -1137,15 +1137,25 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      * proved for real by {@link #clientResetReleasesKeys}, which is the entire reason that scene
      * exists.
      *
-     * <p>The reset is ALSO the cleanup, registered before anything is dirtied. Unlike the python
-     * original this runs inside a suite of 180 other scenes, so a failure between "open the
-     * inventory" and "reset" must not hand the next scene a client with a screen up.
+     * <p><b>The cleanup does NOT use the verb under test.</b> It did, and that is not a shortcut —
+     * it is a hole. A cleanup exists to contain this scene's mess so the next scene starts clean,
+     * and one built out of the very verb this scene is here to break cannot do that: the run where
+     * {@code mc.test.reset} stops closing screens is exactly the run where the cleanup also stops
+     * closing them, so the failure lands on {@code clientResetReleasesKeys} — a scene that needs no
+     * open screen and has no idea why it is looking at one. {@code mc.client.screen.close} reaches
+     * the same state by a route this scene asserts nothing about.
+     *
+     * <p>The chat line this scene sends is deliberately NOT cleaned up: the readback log has no
+     * clear of its own — {@code mc.test.reset} is the only thing that empties it — and inventing a
+     * second way to empty it for a cleanup's sake would widen the API to work around a test. It
+     * leaks a JVM buffer no other scene in the suite reads; the screen was the one that leaked
+     * something the next scene could trip over.
      */
     private static void clientResetClearsEntry(SceneContext ctx) {
         if (ctx.server().isDedicatedServer())
             ctx.skip("mc.test.reset is client-only — only an integrated server has its handler here");
         DriverApi api = WorldDriverCommon.api();
-        ctx.cleanup(() -> api.route("mc.test.reset", Map.of()));
+        ctx.cleanup(() -> api.route("mc.client.screen.close", Map.of()));
 
         api.route("mc.client.screen.close", Map.of());          // start from a known no-screen state
         api.route("mc.client.chat.send", Map.of("text", "stagewright-reset-probe"));
@@ -1201,7 +1211,9 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             ctx.skip("mc.test.input.heldKeys is client-only — only an integrated server has its"
                     + " handler here");
         DriverApi api = WorldDriverCommon.api();
-        ctx.cleanup(() -> api.route("mc.test.reset", Map.of()));
+        // Not mc.test.reset — see clientResetClearsEntry. The key this scene holds down is released
+        // by pressing it again through the same input verb that pressed it.
+        ctx.cleanup(() -> api.route("mc.client.input.key", Map.of("key", "W", "action", "release")));
 
         api.route("mc.client.screen.close", Map.of());   // no screen → the key takes the keybind path
         api.route("mc.client.input.key", Map.of("key", "W", "action", "press"));
