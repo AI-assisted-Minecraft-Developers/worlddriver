@@ -1,4 +1,37 @@
-## 🔎 待重新落地(引擎侧, 已实现→已回滚): 寻路读格子会**从服务器线程生成区块**
+## ✅ 六拓扑复验(寻路调参隔离 + 安全上限之后) + 两个必须留档的**偶发红**
+
+改动: `PathTuning`(每个体的调参源, 活读) + `PathFinder.CEILING_MS = 8_000`(仅防进程死, 不改
+`maxNodes` 的确定性语义)。**安全上限在全部六个拓扑里一次都没触发** —— 这正是它要的性质:
+在本来就能跑通的运行里保持沉默。
+
+| 拓扑 | 结果 |
+|---|---|
+| dedicatedServerFabric | GREEN |
+| dedicatedServerNeoforge | GREEN |
+| integratedServerFabric | GREEN |
+| dedicatedServerWithClientFabric | GREEN(客户端半边也 GREEN) |
+| dedicatedServerWithClientNeoforge | GREEN(重跑, 240 executed / 5 skipped) |
+| integratedServerNeoforge | RED —— 见下面两条, 都不是寻路 |
+
+隔离对照 `wd.horizon`: 每个测过的拓扑都是 `off=633 / on=firstExpanded=50`。**这条就是它自己的
+回归测试** —— 哪天 `on` 又等于 `off`, 说明旋钮没接上, 别的再绿也没用。
+
+### ⬜ 偶发红 1: `wd.pinch` ENV_FAIL "0 of 9 arena chunks ever loaded"
+
+竞技场供给的偶发失败, 会**整个拓扑判红**。上一次出现后紧接着的一次重跑就过了。
+成本低、重新发现代价高, 所以在这里留一行。
+
+### ⬜ 偶发红 2: `wd.bridgeFootBlockStop` —— 4 次里红 1 次, 且**不是**改动引起的
+
+`never approached the barrier (maxX=7.916 < 8)`, 证据里带 `escal=ON`。
+统计: 改动前 GREEN ×2(`gate-`/`bar-`), 改动后 RED ×1 然后 GREEN ×1(同一棵树, 同一条命令)。
+
+**查过并排除的**: "转义泄漏到下一个 goto" —— `Walker.setGoal`(:665) 和 `forceRepath`(:761)
+都调了 `this.escal.disarm()`, 每体时钟确实被清了, 所以 `escal=ON` 是这一幕里**真的**触发了
+boxed churn, 不是残留。剩下没有能站住脚的机制假设, 靠猜没用。
+
+**不要当环境噪音划掉**: 这一轮里有两个"看着像 flake"的红, 里面各藏着一个真缺陷
+(`wd.horizon` 的全局态、`clientReset*` 的清理链)。下次它再红, 值得带着上面这些证据查一次。
 
 **这是一个真实的生产缺陷, 和 60 秒卡死那次崩溃无关** —— 两件事在一轮里撞到一起了,
 下面把它们分开记, 免得下一个人把回滚读成"这条不成立"。

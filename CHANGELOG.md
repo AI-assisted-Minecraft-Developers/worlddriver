@@ -8,6 +8,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **The planner's tuning lived in process-global statics, so any two bodies in one JVM overwrote
+  each other's knobs.** `BotConfig.pfHorizonBlocks()` returned `0` whenever
+  `pathfinderBoxedEscalate` was set, and `WalkerTickPrelude` wrote that static on *every* walker
+  tick. On the integrated topology the client's Walker runs in the same JVM, so its boxed churn
+  silently disabled the horizon for a search the **server** thread was running: `wd.horizon`
+  compared `off` against `on=48` and got byte-identical results (`firstExpanded=633` both), i.e. the
+  scene measured nothing and still reported a colour. `PathFinder` now takes a `PathTuning` source —
+  `escalatedWhen(body's own clock)` for a Walker, `fixed(…)` for scenes that want a fixed override,
+  `GLOBAL` only for finders with no body behind them. The `EscalationClock` was **already**
+  per-Walker; the static was just a mirror so the planner could see it, so this deletes a channel
+  rather than adding a mechanism.
+
+  Two follow-ons worth knowing. `pinnedBaseline()` could never have fixed this: the field is in
+  `NON_PERSISTED`, which `persistable()` excludes — **the exclusion that makes a field correct for
+  persistence makes it invisible to isolation.** And an intermediate version froze the tuning at
+  construction, which fixed isolation and broke *liveness*: escalation is a sticky tick timer and a
+  time-sliced search spans ticks, so a search that started while escalated stopped noticing the
+  lapse and ground on instead of re-capping — the JVM died under the 60 s watchdog with the Server
+  thread RUNNABLE in `Diagonal.clearColumn`. Isolation and liveness are separate properties and the
+  obvious fix for one traded away the other; the shipped version reads a per-body *source*, not
+  frozen *values*. Two other statics of the same kind (`fleeActive`, `walkerDigActive`) are still
+  globals — parallel scene execution stays unsound until they move too.
+
+- **A search could exceed the server's hang watchdog and kill the JVM.** `PathFinder` now enforces
+  `CEILING_MS = 8_000` across all of a search's slices, well above any legitimate search and well
+  below the 60 s watchdog, and `LOG.warn`s with owner/expanded/goal when it clamps. This is a
+  backstop against process death, **not** a policy about search length: the 58 scene sites that set
+  `pathfinderMaxMs = Long.MAX_VALUE/2` are correct and were left alone, because `maxNodes` is the
+  deterministic bound — a wall-clock cap would make the same scene pass or fail depending on how
+  busy the box is. The ceiling has fired zero times across all six topologies.
+
 - **The driver's world view did not follow the body through a dimension change.**
   `ServerWorldDriver` built one `LevelWorldView` in its constructor from the body's creation level
   and handed that same view to every `BotProcess` and to the `Walker` for its whole life. From the
