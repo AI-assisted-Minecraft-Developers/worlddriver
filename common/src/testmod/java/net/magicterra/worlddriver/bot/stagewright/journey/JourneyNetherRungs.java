@@ -19,6 +19,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.monster.Blaze;
 import net.minecraft.world.entity.monster.EnderMan;
 import net.minecraft.world.item.Item;
@@ -879,6 +880,23 @@ public final class JourneyNetherRungs {
                             + " err=" + rig.body().botState().mc_goto.lastError);
             rig.evidence(what + ".around." + attempt, surroundings(rig, at));
             if (left <= 1) { onStuck.run(); return; }
+            // A RETRY IS NOT FREE, AND SOME BODIES CANNOT SPEND IT.
+            //
+            // Measured on the crossing this rung exists for: the body walked 105 of 399 blocks,
+            // ended airborne over a cave, fell into a lava sea, and attempts 2 and 3 then issued
+            // the identical walk order to a body submerged in lava — two more minutes and two more
+            // `no path (expanded=1)` lines, which read as "the fortress is unreachable" instead of
+            // "the walker was underwater in lava the whole time". Walking is an order about the
+            // ground; a body that is not on any ground cannot carry it out, and asking again is
+            // the retry-that-changes-nothing in its purest form.
+            String hazard = hazardBlockingARetry(rig, at);
+            if (hazard != null) {
+                rig.evidence(what + ".noAttempt", "第 " + attempt + " 次之后不再重试：" + hazard
+                        + " —— 再下一次同样的行走指令只会得到同样的答案，"
+                        + "先要把身体从这里弄出来，那是另一件事");
+                onStuck.run();
+                return;
+            }
             double moved = Math.hypot(at.getX() - before.getX(), at.getZ() - before.getZ());
             if (moved >= WEDGED_UNDER) {
                 walkToColumn(rig, what, x, z, tolerance, budget, left - 1, onArrived, onStuck);
@@ -910,6 +928,7 @@ public final class JourneyNetherRungs {
      */
     private static String surroundings(JourneyRig rig, BlockPos at) {
         ServerLevel level = rig.player().serverLevel();
+        ServerPlayer fp = rig.player();
         StringBuilder sb = new StringBuilder();
         sb.append("脚下=").append(blockName(level, at.below()))
           .append(" 身处=").append(blockName(level, at))
@@ -920,10 +939,67 @@ public final class JourneyNetherRungs {
             if (level.getBlockState(side).blocksMotion()) walls++;
             sb.append(' ').append(d.getName()).append('=').append(blockName(level, side));
         }
-        sb.append(walls == 4 ? "（四面封死 —— 这是 expanded=1 的样子）"
+        // WHICH expanded=1. Four walls is one way to have no legal move out of the start node;
+        // being submerged is another, and it looks like the opposite (0/4 walls). One run spent a
+        // round misreading `脚下=lava … 0/4 面是墙` as "the body is entombed", because the line said
+        // how many walls there were and never said the body was under the lava.
+        if (fp.isInLava()) sb.append("（0/4 面是墙但身体泡在岩浆里 —— expanded=1 是这个原因）");
+        else sb.append(walls == 4 ? "（四面封死 —— 这是 expanded=1 的样子）"
                 : "（" + walls + "/4 面是墙）");
+        // The three readings that separate "the terrain beat the search" from "the body is not on
+        // any terrain". A plan that ends AIRBORNE OVER A CAVE is the open half of this rung's
+        // diagnosis, and it is invisible in a line that only names blocks: the body has walked
+        // itself off a ceiling and every later reading is about wherever it lands.
+        sb.append(" onGround=").append(fp.onGround())
+          .append(" 坠=").append(String.format(java.util.Locale.ROOT, "%.1f", fp.fallDistance))
+          .append(" 血=").append(Math.round(fp.getHealth()))
+          .append(" 脚下到实心=").append(dropBelow(level, at));
         return sb.toString();
     }
+
+    /** How far it is straight down to the first block that would hold the body, or {@code ">N"}
+     *  when nothing does within {@link #DROP_PROBE}. A body reporting a drop of 8 has not stopped
+     *  walking — it is still on its way to wherever the plan actually ends. */
+    private static String dropBelow(ServerLevel level, BlockPos at) {
+        for (int d = 1; d <= DROP_PROBE; d++) {
+            BlockPos p = at.below(d);
+            if (p.getY() < level.getMinBuildHeight()) return "虚空";
+            if (level.getBlockState(p).blocksMotion()) return String.valueOf(d - 1);
+        }
+        return ">" + DROP_PROBE;
+    }
+
+    /** How far down the drop probe looks. Sixteen: a nether cave ceiling is rarely thicker than
+     *  that above its floor, and a body more than sixteen blocks off the ground is in free fall
+     *  whatever the exact number. */
+    private static final int DROP_PROBE = 16;
+
+    /**
+     * Why another identical walk order would be pointless, or null when it would not be.
+     *
+     * <p>Deliberately narrow. This is not "is the body in trouble" — it is "is the body somewhere a
+     * WALK cannot act on", which is a different and much smaller question: fluid the body is inside
+     * (it swims, it does not walk), and a body still falling (its position is not where the next
+     * plan will start from). Anything else — low health, a mob on it, awkward terrain — is a reason
+     * a retry may fail, not a reason it cannot be attempted, and stopping on those would turn a
+     * hard crossing into a rung that never tries twice.
+     */
+    private static String hazardBlockingARetry(JourneyRig rig, BlockPos at) {
+        ServerPlayer fp = rig.player();
+        if (fp.isInLava())
+            return "身体泡在岩浆里（" + at.toShortString() + "，血 " + Math.round(fp.getHealth()) + "）";
+        if (fp.isInWater())
+            return "身体泡在水里（" + at.toShortString() + "）";
+        if (!fp.onGround() && fp.fallDistance > FALLING_OVER)
+            return "身体还在下坠（" + at.toShortString() + "，已坠 "
+                    + Math.round(fp.fallDistance) + " 格，脚下到实心 "
+                    + dropBelow(rig.player().serverLevel(), at) + " 格）";
+        return null;
+    }
+
+    /** Fall distance past which the body counts as falling rather than stepping down. Two blocks:
+     *  a step off a ledge is ordinary walking and must not consume the rung's retry budget. */
+    private static final float FALLING_OVER = 2.0f;
 
     /** A block's short id, so a surroundings line stays readable. */
     private static String blockName(ServerLevel level, BlockPos p) {
