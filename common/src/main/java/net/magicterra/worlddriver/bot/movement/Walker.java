@@ -59,7 +59,11 @@ public final class Walker {
      *  "goto") — threaded into every {@link PathFinder} it launches so latest.log's
      *  search-begin lines are attributable. "?" = an untagged caller (test rigs,
      *  direct arena walkers). Telemetry only; never read by planning/steering. */
-    String owner = "?";
+    /** Who owns this Walker's searches, for telemetry. Defaults to a name that at least says WHAT
+     *  it is: a thread dump reading {@code owner=?} cost a round of this investigation, because "?"
+     *  reads as "not a Walker's" when it actually means "a Walker nobody named". Scenes that drive
+     *  the bot directly never call {@link #setOwner}, so this default is what they get. */
+    String owner = "walker.unnamed";
 
     public Walker() {}
     /** gap#72-④: construct pre-tagged — the one-expression form for the processes'

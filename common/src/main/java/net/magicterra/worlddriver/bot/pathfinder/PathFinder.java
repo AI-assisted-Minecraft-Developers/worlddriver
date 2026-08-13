@@ -103,6 +103,14 @@ public final class PathFinder {
      *  {@code nanoTime()} cost stays negligible (~30ns × this ÷ work). */
     private static final int TIME_CHECK_INTERVAL = 16;
 
+    /** Hard wall-clock ceiling for ONE search, across all its slices — see the check in
+     *  {@code advance}. Eight seconds: far above any search this mod makes on a machine that is
+     *  keeping up (the worst measured healthy whole-fight walker tick is single-digit milliseconds,
+     *  and a 100k-node search finishes well inside a minute even uncontended), and far below the
+     *  60 s {@code max-tick-time} the server hang watchdog kills on. It exists so a pathological
+     *  search FAILS instead of taking the JVM with it. */
+    private static final long CEILING_MS = 8_000;
+
     private final WorldView world;
     private final int maxNodes;
     private final long maxMs;
@@ -1004,7 +1012,38 @@ public final class PathFinder {
                     }
 
                     if (expanded >= maxNodes) { stopCause = "maxNodes(" + maxNodes + ")"; break; }
-                    if (totalMs(sliceStart) > maxMs) { stopCause = "maxMs(" + maxMs + ")"; break; }
+                    long spentMs = totalMs(sliceStart);
+                    if (spentMs > maxMs) { stopCause = "maxMs(" + maxMs + ")"; break; }
+                    // SAFETY CEILING — a backstop against killing the JVM, not an opinion about
+                    // how long a search may take.
+                    //
+                    // Scenes deliberately set maxMs to Long.MAX_VALUE/2 (58 sites across nine
+                    // files) and bound their searches with maxNodes instead, and that is CORRECT
+                    // test design rather than an oversight: maxNodes is deterministic, so an
+                    // assertion on expanded/segments holds on any machine, while a wall-clock cap
+                    // would make the same scene pass or fail depending on how busy the box is that
+                    // day. Nothing here overrides that intent.
+                    //
+                    // What it does override is death. An uncapped search on the server thread is a
+                    // latent hang: the same 100k-node search that finishes well inside a minute on
+                    // a quiet machine crossed max-tick-time when two suites ran at once, and the
+                    // hang watchdog killed the server mid-suite — taking every later scene's result
+                    // with it. This ceiling sits far above any legitimate search and far below that
+                    // watchdog, so it cannot fire in a run that works today, and in the run that was
+                    // already doomed it turns a dead JVM into a search that RETURNS. A best-effort
+                    // result that a scene can assert on beats no results file at all.
+                    //
+                    // Loudly, always. A clamp that changed behaviour without saying so would be the
+                    // very shape of bug this ceiling exists because of — a knob nobody could see.
+                    if (spentMs > CEILING_MS) {
+                        stopCause = "ceiling(" + CEILING_MS + "ms)";
+                        LOG.warn("[pathfinder] SAFETY CEILING hit after {} ms — owner={} expanded={}"
+                                + " maxNodes={} maxMs={} goal={} start={}. The search is being cut"
+                                + " short so it cannot reach the server hang watchdog; treat this"
+                                + " as a real finding, not noise.",
+                                spentMs, owner, expanded, maxNodes, maxMs, goal, start.toShortString());
+                        break;
+                    }
                     // Soft commit (BotConfig.pathfinderSoftCommitNodes): the horizon
                     // early-stop above only fires on real forward progress; when the bot is
                     // BOXED at an obstacle no such node appears and the search would grind the
