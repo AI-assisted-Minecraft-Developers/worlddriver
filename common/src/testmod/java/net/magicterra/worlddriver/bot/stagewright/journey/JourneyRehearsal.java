@@ -289,6 +289,14 @@ public final class JourneyRehearsal {
             stageBlazeRod(ctx);
             return;
         }
+        if (target == JourneyStage.ENDER_PEARL) {
+            stageEnderPearl(ctx);
+            return;
+        }
+        if (target == JourneyStage.EYE_OF_ENDER) {
+            stageEyeOfEnder(ctx);
+            return;
+        }
         // No recipe. Say so rather than starting the rung on whatever the placeholder rungs left
         // behind — which is an empty body at world spawn, and a rung that fails on that reports a
         // missing recipe as a driver bug.
@@ -455,6 +463,89 @@ public final class JourneyRehearsal {
      * does not, that is a finding this rung should surface rather than one the staging should hide.
      */
     private static void stageBlazeRod(SceneContext ctx) {
+        Map<String, Integer> kit = new LinkedHashMap<>();
+        // What thirteen rungs would have left in the bag, at the tier they reach it at. An IRON sword
+        // because rung 9 mines iron and a blaze is what the ladder buys it for; cobblestone because
+        // the room is the rung's own plan; food because the fight is long.
+        kit.put("minecraft:iron_sword", 1);
+        kit.put("minecraft:stone_pickaxe", 1);
+        kit.put("minecraft:cobblestone", 128);
+        kit.put("minecraft:cooked_beef", 16);
+        crossToTheNether(ctx, "BLAZE_ROD", kit, "要塞没有布景，得这一级自己找");
+    }
+
+    /**
+     * Rung 15's starting conditions: the same body in the same Nether, one fortress richer.
+     *
+     * <p>Rung 15 hunts endermen, so the line to be careful about is a different one from rung 14's:
+     * what must NOT be staged here is a mob or the ground that spawns them. No warped forest is
+     * searched for, no enderman is summoned, and the body is put where a portal would have put it —
+     * exactly where rung 14 would have left it, give or take the walk to the fortress. Whether there
+     * are endermen within reach of that spot is the rung's problem and one of the things it is for.
+     *
+     * <p>The bag gains what rung 14 pays out — blaze rods — because rung 16 is the one that spends
+     * them and a rehearsal of 15 that came home rodless would make 16 unrehearsable for a reason
+     * that has nothing to do with 16.
+     */
+    private static void stageEnderPearl(SceneContext ctx) {
+        Map<String, Integer> kit = new LinkedHashMap<>();
+        kit.put("minecraft:iron_sword", 1);
+        kit.put("minecraft:stone_pickaxe", 1);
+        kit.put("minecraft:cobblestone", 64);
+        kit.put("minecraft:cooked_beef", 16);
+        // What rung 14 hands over. Seven rather than twelve: a blaze drops 0–1 rods and the ladder's
+        // own rung asserts a handful, so a rehearsal that started with a dozen would be rehearsing a
+        // run the ladder has never had.
+        kit.put("minecraft:blaze_rod", RODS_A_FORTRESS_PAYS);
+        crossToTheNether(ctx, "ENDER_PEARL", kit, "末影人和它们的林地都没有布景，得这一级自己找");
+    }
+
+    /**
+     * Rung 16's starting conditions: rods in one hand, pearls in the other, and no eyes.
+     *
+     * <p>The thinnest recipe in the file, because rung 16 is the thinnest rung: it grinds rods into
+     * powder and marries powder to pearls, both 2×2 recipes that need no table and no room. What it
+     * needs is stock, and stock is exactly what rungs 14 and 15 produce.
+     *
+     * <p>Not one {@code ender_eye} is handed over. The rung's whole subject is that the craft works
+     * and that twelve of them can be got, so an eye in the bag would be the tautology this mode
+     * exists to avoid — {@code eyeOfEnder} short-circuits on {@code already >= 1} and would report a
+     * pass over a craft it never ran.
+     */
+    private static void stageEyeOfEnder(SceneContext ctx) {
+        Map<String, Integer> kit = new LinkedHashMap<>();
+        kit.put("minecraft:iron_sword", 1);
+        kit.put("minecraft:cooked_beef", 16);
+        // Enough to make a set and no more. Twelve eyes want twelve powder and twelve pearls; six
+        // rods grind to exactly twelve powder, so a run that ends short is short because the CRAFT
+        // fell over and not because the staging was mean.
+        kit.put("minecraft:blaze_rod", EYES_A_PORTAL_COSTS / 2);
+        kit.put("minecraft:ender_pearl", EYES_A_PORTAL_COSTS);
+        crossToTheNether(ctx, "EYE_OF_ENDER", kit, "一只末影之眼都没给 —— 合成本身就是这一级要证明的事");
+    }
+
+    /** How many blaze rods a fortress trip is worth. Seven — see {@link #stageEnderPearl}. */
+    private static final int RODS_A_FORTRESS_PAYS = 7;
+
+    /** A portal frame's worth of eyes; the copy of {@code JourneyEndRungs.EYES_A_PORTAL_COSTS} this
+     *  file is allowed to have, for the same reason {@link #PORTAL_FRAME_CELLS} is duplicated: it is
+     *  the number the STAGING has to pay, not the number the rung asserts. */
+    private static final int EYES_A_PORTAL_COSTS = 12;
+
+    /**
+     * Hand over a bag and put the body where a portal would have put it.
+     *
+     * <p>Shared by all three Nether rungs, because their starting condition differs only in what is
+     * in the bag. The coordinate is the overworld body's divided by eight, which is the same
+     * arithmetic rung 13 asserts — staging it anywhere else would quietly change which part of the
+     * Nether the rung has to search.
+     *
+     * <p>Crossed with {@code teleportTo}, which is a real cross-level move for a {@code ServerPlayer}
+     * rather than a coordinate write — the driver's own view has to follow the body across, and if it
+     * does not, that is a finding these rungs should surface rather than one the staging should hide.
+     */
+    private static void crossToTheNether(SceneContext ctx, String what, Map<String, Integer> kit,
+                                         String notStaged) {
         ServerWorldDriver body = JourneyRig.bodyOrNull();
         if (body == null) {
             ctx.fail("排练：没有身体 —— wd.rehearse02Spawn 没有创建 avatar");
@@ -464,12 +555,9 @@ public final class JourneyRehearsal {
         ServerLevel nether = ctx.level().getServer()
                 .getLevel(net.minecraft.world.level.Level.NETHER);
         if (nether == null) {
-            ctx.fail("排练：这台服务器没有下界（allow-nether?）—— 布景摆不出 BLAZE_ROD 的起点");
+            ctx.fail("排练：这台服务器没有下界（allow-nether?）—— 布景摆不出 " + what + " 的起点");
             return;
         }
-        // Where a portal would have put it: the overworld body's coordinates divided by eight, which
-        // is the same arithmetic rung 13 asserts. Staging it anywhere else would quietly change which
-        // part of the Nether rung 14 has to search.
         BlockPos want = new BlockPos(Math.floorDiv(fp.blockPosition().getX(), 8), 64,
                 Math.floorDiv(fp.blockPosition().getZ(), 8));
         loadAround(nether, want, 2);
@@ -478,14 +566,6 @@ public final class JourneyRehearsal {
             ctx.fail("排练：下界 " + want.toShortString() + " 附近找不到一处站得住又不挨岩浆的落脚点");
             return;
         }
-        Map<String, Integer> kit = new LinkedHashMap<>();
-        // What thirteen rungs would have left in the bag, at the tier they reach it at. An IRON sword
-        // because rung 9 mines iron and a blaze is what the ladder buys it for; cobblestone because
-        // the room is the rung's own plan; food because the fight is long.
-        kit.put("minecraft:iron_sword", 1);
-        kit.put("minecraft:stone_pickaxe", 1);
-        kit.put("minecraft:cobblestone", 128);
-        kit.put("minecraft:cooked_beef", 16);
         StringBuilder gave = new StringBuilder();
         for (var e : kit.entrySet()) {
             give(fp, e.getKey(), e.getValue());
@@ -502,9 +582,9 @@ public final class JourneyRehearsal {
         fp.setOnGround(true);
         loadAround(nether, stand, 2);
         ctx.record("rehearsal.stand", stand.toShortString() + " @ " + fp.level().dimension().location()
-                + "（要塞没有布景，得这一级自己找）");
-        WorldDriverCommon.LOG.info("[rehearsal] staged BLAZE_ROD: gave {} and crossed the body to {}",
-                gave, stand);
+                + "（" + notStaged + "）");
+        WorldDriverCommon.LOG.info("[rehearsal] staged {}: gave {} and crossed the body to {}",
+                what, gave, stand);
     }
 
     /** A cell in the Nether with something solid under it, two clear above, and no lava touching.

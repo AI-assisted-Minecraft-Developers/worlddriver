@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Staging recipes for rungs 15 and 16, which had never executed a tick.** A rung with no recipe
+  can only be reached by a fifty-minute climb that must first get past twelve rungs, so the top of
+  the ladder was untestable by construction. `ENDER_PEARL` and `EYE_OF_ENDER` now share
+  `crossToTheNether` with `BLAZE_ROD` — same portal arithmetic, different bag — and both ran for
+  the first time within minutes of the recipe existing:
+
+  - **16 PASSED**: `末影之眼 ×12（够一套门）` in 93 ticks. Six rods grind to twelve powder, twelve
+    powder marry twelve pearls. Not one `ender_eye` is staged, because `eyeOfEnder` short-circuits
+    on `already >= 1` and would have reported a pass over a craft it never ran.
+  - **15 FAILED, usefully**: `身边 48.0 格内一只末影人都没有，等了也没等到`, with
+    `hunt.biome=minecraft:nether_wastes`, `level.players=1`, `doMobSpawning=true`,
+    `enderman.found=0/6` after 1200 ticks. The rung's own javadoc says the warped forest is the
+    densest enderman ground; the rung never walks to one, it hunts from wherever it is standing.
+    That is a gap in the rung, not in the recipe, and it was invisible while the rung could not
+    start.
+
+  Neither recipe stages the rung's subject: no enderman is summoned, no warped forest is searched
+  for, no eye is handed over. Rungs 17–20 still have no recipe.
+
 ### Fixed
 - **The portal rung ate its own staircase, and reported a walker bug.** Rung 12's ladder run of
   2026-08-12 died at four casts with `走不上楼梯：停在 -10, 61, 21，楼梯顶 -9, 66, 21 在 y=66 ——
