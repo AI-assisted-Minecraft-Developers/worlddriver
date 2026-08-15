@@ -91,6 +91,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one tick earlier and already carries a measured number.
 
 ### Changed
+- **Rung 15 hunts endermen where endermen are.** Its javadoc has named the warped forest as the
+  densest enderman ground since the first draft, and the rung has always hunted from wherever rung 14
+  stopped — a fortress, which is `nether_wastes`. It now surveys for a warped forest with
+  `findClosestBiome3d` (6 ms, bounded at 256 blocks because the crossing one rung below has been
+  watched fail whole at 399) and walks there. **Neither failing to find one nor failing to reach one
+  is a rung failure**: endermen do spawn in `nether_wastes`, the biome only changes the rate, so both
+  say so by name and hunt where the body stands.
+
+  Two supports went in with it, and both earned their place on the first run.
+  **A dry round now costs a round, not the rung** — one quiet minute used to jump straight to the
+  verdict, so "six hunts" meant sixty seconds and 118 000 ticks of budget went unspent; measured,
+  `enderman.found` went **0/6 → 2/6** with both found endermen killed (695 and 307 ticks).
+  And **`census`** counts what is actually alive at 48 and at 128 blocks, split into endermen and
+  everything else, with the pinned chunk radius printed beside it — because `enderman.found=0/6`
+  is printed by three different worlds (nothing spawns; plenty spawns but endermen are rare; endermen
+  exist outside the 48-block search box, and vanilla spawns 24–128) and it ends the search without
+  separating them.
+
+  **It separated them on the first run, decisively:**
+  `hunt.1.dry = … 末影人 0 只在 48 格内、0 只在 128 格内；128 格内怪物共 107 只
+  {zombified_piglin=62, piglin_brute=17, piglin=28}`. A hundred and seven monsters and not one
+  enderman — spawning is healthy and the biome is the whole answer. The rung is still red (two kills
+  against a bar of four, and both dropped nothing), and the walk that would fix it did not get
+  through: `warped.around.1 = 脚下=lava 身处=lava 头顶=lava … 身体泡在岩浆里` at `14,22,3`, which is
+  the same nether crossing that stops rung 14 — one upstream problem, not two bugs.
+
 - **`forge.carved` said `完成` directly above `carve.stuck=12 格挖不动`.** Two rows written by the
   same method one line apart, one of them a caption that the excavation finished and the other a
   measurement that twelve of its cells are still rock. It now reports what it did —
