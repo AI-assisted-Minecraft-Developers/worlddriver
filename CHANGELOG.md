@@ -61,6 +61,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the same `SOURCE_ONLY` clip the bucket runs is asked first, so on every cell whose recover already
   works it is a no-op and cannot perturb it.
 
+  **It is still not running, and the reading added alongside it says why — measured, not inferred.**
+  `eyeNow` prints the continuous eye on both sides of the question, and a single-bucket rehearsal
+  answered it: `recover9.fromHere … 眼睛 -9.38/60.16/35.64` and, an instant later,
+  `recover9.aimsAt … 眼睛 -9.40/59.62/35.61`. The eye fell 0.54 of a block between the two, so this
+  is the BODY MOVING and not float quantisation (which is a 1e-5 effect). The pitch to the target
+  centre is −25.09 from the earlier eye and −33.03 from the later one; the stored rotation is
+  −25.14, and fired from the later eye it reaches y=60.98 at the frame plane — inside the obsidian
+  the aim then reported. `60.16 − 1.62 = 58.54` is not a block floor, so the body was mid-fall when
+  it was asked; the two ticks `scoop` must settle (because `pick()` traces from the previous tick's
+  rotation) are the two ticks it lands in. `aimAtBlock` stores an ANGLE, not a target, so the angle
+  expires the moment the body moves — the third instance of this repo's ray-timing family, and it
+  means the fix is a matter of WHEN the question is asked, not which ray answers it.
+
   **The first version of it did nothing at all, and the reason is this repo's own fourth question
   about a diagnostic.** It raised through `standLevelWith`, whose gate is `standToPour` — so a
   question about a SCOOP was answered by whether a POUR spot exists, the gate said yes, and the run
