@@ -1187,26 +1187,22 @@ public final class JourneyPortalRung {
 
         BlockPos behind = cell.relative(away.getOpposite());
         BlockPos lower = behind.below();
-        BlockPos spot = standableStand(level, behind) ? behind
-                : standableStand(level, lower) ? lower : null;
-        if (spot != null) { walkToStand(rig, tag, cell, spot, then); return; }
+        String whyBehind = whyNotStandable(level, behind);
+        if (whyBehind == null) { walkToStand(rig, tag, cell, behind, then); return; }
+        String whyLower = whyNotStandable(level, lower);
+        if (whyLower == null) { walkToStand(rig, tag, cell, lower, then); return; }
 
         // One block, and only where it can rest on something. `lower`'s own support is the corridor
         // cell at the alcove's floor level, whose floor is the untouched rock the alcove was cut
         // into — so this is a step, not the first course of a pillar the body would then have to
         // climb. Anywhere else and the honest answer is "not enough blocks", which is what it says.
         BlockPos step = lower.below();
-        boolean canStep = forgeCorridor.contains(step)
-                && level.getBlockState(step).isAir() && level.getFluidState(step).isEmpty()
-                && level.getBlockState(step.below()).blocksMotion()
-                && !step.equals(here) && !step.equals(here.above())
-                && Math.sqrt(here.distSqr(step)) <= MEND_REACH;
-        if (!canStep) {
+        String whyStep = whyNotStep(level, step, here);
+        if (whyStep != null) {
             rig.evidence(tag + ".noStand", cell.toShortString() + " 够不着：身体 " + here.toShortString()
                     + " 距 " + String.format(java.util.Locale.ROOT, "%.2f", Math.sqrt(here.distSqr(cell)))
-                    + " 格（>" + DIG_ARRIVE + "），" + behind.toShortString() + " 和 "
-                    + lower.toShortString() + " 都没有地板，而 " + step.toShortString() + "="
-                    + level.getBlockState(step).getBlock() + " 垫不了一格 —— 这一格要的是楼梯不是一块砖");
+                    + " 格（>" + DIG_ARRIVE + "）；站不了：" + whyBehind + "；" + whyLower
+                    + "；垫不了：" + whyStep);
             then.run();
             return;
         }
@@ -1231,21 +1227,74 @@ public final class JourneyPortalRung {
         rig.settle(new IntentProcess(new Intent(new Goal.Block(spot), List.of(),
                 CapabilityProfile.ALL, List.of(new NoBreak()))), 300, () -> {
             BlockPos now = rig.player().blockPosition();
-            if (!withinDigReach(now, cell))
-                rig.evidence(tag + ".standMissed", "想站 " + spot.toShortString() + "，停在 "
-                        + now.toShortString() + "，距 " + cell.toShortString() + " 还有 "
-                        + String.format(java.util.Locale.ROOT, "%.2f", Math.sqrt(now.distSqr(cell)))
-                        + " 格");
+            if (withinDigReach(now, cell)) { then.run(); return; }
+            // THE CONTINUOUS POSITION, not only the cell. The run of 2026-08-13 reported
+            // `cell.5.standMissed=想站 -11,57,37，停在 -11,57,36` — the right height and the near
+            // rank — and two very different bodies produce that line: one that never got onto the
+            // step, and one that IS on the step with its centre a hand's width back, so that the
+            // cell its feet round to is the neighbour. A 0.6-wide box resting on a block edge is the
+            // second, and the two want opposite fixes (a second step versus a nudge). What is under
+            // the feet says which.
+            ServerLevel lvl = rig.ctx().level();
+            rig.evidence(tag + ".standMissed", "想站 " + spot.toShortString() + "，停在 "
+                    + now.toShortString() + "，距 " + cell.toShortString() + " 还有 "
+                    + String.format(java.util.Locale.ROOT, "%.2f", Math.sqrt(now.distSqr(cell)))
+                    + " 格（精确 " + String.format(java.util.Locale.ROOT, "%.2f/%.2f/%.2f",
+                            rig.player().getX(), rig.player().getY(), rig.player().getZ())
+                    + "，脚下 " + now.below().toShortString() + "="
+                    + lvl.getBlockState(now.below()).getBlock()
+                    + "，想站那格脚下 " + spot.below().toShortString() + "="
+                    + lvl.getBlockState(spot.below()).getBlock() + "）");
             then.run();
         });
     }
 
-    /** A corridor cell the body can actually stand in: itself and its head clear, something under it. */
-    private static boolean standableStand(ServerLevel level, BlockPos spot) {
-        return forgeCorridor.contains(spot)
-                && !level.getBlockState(spot).blocksMotion()
-                && !level.getBlockState(spot.above()).blocksMotion()
-                && level.getBlockState(spot.below()).blocksMotion();
+    /**
+     * Why the body cannot stand in {@code spot}, in the words of the clause that refused it — or
+     * null when it can.
+     *
+     * <p>Four clauses, and the message used to name one of them for all four:
+     * {@code cell.0.noStand} reported {@code -9,56,37 和 -9,55,37 都没有地板} about the mould's BOTTOM
+     * row, and an offline read of that run's saved world says {@code -9,55,37 = andesite} — a
+     * perfectly good floor. So the row was false, and WHICH of the other three refused it is not
+     * recoverable from the run: both remaining candidates are live in that alcove (the cell itself
+     * occupied — gravel arrives in a seven-tall excavation on its own, and the staircase audit caught
+     * exactly that at {@code -9,56,36} in the same run — or the head cell occupied). A row that names
+     * a mechanism it did not test is worse than no row, because it ends the search; this one filed
+     * the reading under "no floor" and it does not belong there.
+     */
+    private static String whyNotStandable(ServerLevel level, BlockPos spot) {
+        if (!forgeCorridor.contains(spot)) return spot.toShortString() + " 不是壁龛格";
+        if (level.getBlockState(spot).blocksMotion())
+            return spot.toShortString() + " 被 " + level.getBlockState(spot).getBlock() + " 占着";
+        if (level.getBlockState(spot.above()).blocksMotion())
+            return spot.toShortString() + " 头顶 " + spot.above().toShortString() + "="
+                    + level.getBlockState(spot.above()).getBlock() + " 被占";
+        if (!level.getBlockState(spot.below()).blocksMotion())
+            return spot.toShortString() + " 脚下 " + spot.below().toShortString() + "="
+                    + level.getBlockState(spot.below()).getBlock() + " 不是地板";
+        return null;
+    }
+
+    /** Why one cobblestone will not turn {@code step} into a stand, or null when it will. Same
+     *  discipline as {@link #whyNotStandable}: six clauses, six different sentences, because
+     *  "there is already something there" and "a brick here would hang in mid-air" are the two the
+     *  rung has actually met and they want completely different work. */
+    private static String whyNotStep(ServerLevel level, BlockPos step, BlockPos here) {
+        if (!forgeCorridor.contains(step)) return step.toShortString() + " 不是壁龛格";
+        if (!level.getBlockState(step).isAir())
+            return step.toShortString() + " 已经是 " + level.getBlockState(step).getBlock();
+        if (!level.getFluidState(step).isEmpty())
+            return step.toShortString() + " 里有流体";
+        if (!level.getBlockState(step.below()).blocksMotion())
+            return step.toShortString() + " 脚下 " + step.below().toShortString() + "="
+                    + level.getBlockState(step.below()).getBlock()
+                    + " 撑不住 —— 一块砖会悬空，这一格要的是楼梯不是一块砖";
+        if (step.equals(here) || step.equals(here.above()))
+            return step.toShortString() + " 正被身体占着";
+        double d = Math.sqrt(here.distSqr(step));
+        if (d > MEND_REACH) return step.toShortString() + " 距身体 " + Math.round(d) + " 格，够不着";
+        return null;
     }
 
     /** {@code ServerWorldDriver.mine} walks to {@code Goal.Near(cell, 2)}, so this is the radius the
