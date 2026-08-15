@@ -1256,12 +1256,47 @@ public final class JourneyPortalRung {
      */
     private static void standBehind(JourneyRig rig, String tag, BlockPos cell, Direction away,
                                     Runnable then) {
+        standBehind(rig, tag, cell, away, LITTER_CLEARS, then);
+    }
+
+    /** How many blocking cells one stand may clear before it gives up and digs from where it is.
+     *  Two: the stand is one cell and its head cell, and a third is a different finding. */
+    private static final int LITTER_CLEARS = 2;
+
+    private static void standBehind(JourneyRig rig, String tag, BlockPos cell, Direction away,
+                                    int clears, Runnable then) {
         ServerLevel level = rig.ctx().level();
         BlockPos here = rig.player().blockPosition();
         if (forgeCorridor.isEmpty() || withinDigReach(here, cell)) { then.run(); return; }
 
         BlockPos behind = cell.relative(away.getOpposite());
         BlockPos lower = behind.below();
+        // TAKE BACK WHAT THE DIG ITSELF PUT HERE, one cell, before deciding this stand is impossible.
+        //
+        // `MineProcess` reaches a cell above head height by pillaring, and it pillars with
+        // `JourneyShaft.pillarBlock` — whichever of seven spoils the body carries MOST of. Every
+        // rehearsal is handed `cobblestone×64`, so for thirty runs that was cobblestone and
+        // `tidyTheAlcove` swept it. A real climb arrives with what eleven rungs left: the ladder run
+        // of 2026-08-15 arrived holding DIRT, and its first frame cell then read `canBreak=false`
+        // with all six neighbours solid because the corridor cell behind it had become one of them —
+        // `cell.0.noStand = … 7,56,19 被 Block{minecraft:dirt} 占着`, at floor level, in a chamber cut
+        // through granite where dirt is not terrain. Three retries then re-asked an unchanged
+        // question and the rung died five casts' worth of wall clock later, at the pour.
+        //
+        // ONE CELL, not a sweep. The wider version — clear every corridor cell solid that the carve
+        // did not leave solid — was tried and regressed the rung twice from 2/2: gravel falls into a
+        // seven-tall excavation and PLUGS the alcove floor, and those plugs are what the cast's water
+        // drains through. See tidyTheAlcove for the measurement. What a dig needs is its own standing
+        // cell back, and that is all this takes.
+        BlockPos blocked = litterAt(level, behind, lower);
+        if (blocked != null && clears > 0) {
+            rig.evidence(tag + ".litter." + clears, blocked.toShortString() + "="
+                    + level.getBlockState(blocked).getBlock()
+                    + " 挖门框时自己垒进落脚格的，敲掉它再站（挖完之后才出现，不在 carve.stuck 里）");
+            rig.mineCellOrGiveUp(blocked, 300,
+                    () -> standBehind(rig, tag, cell, away, clears - 1, then));
+            return;
+        }
         String whyBehind = whyNotStandable(level, behind);
         if (whyBehind == null) { walkToStand(rig, tag, cell, behind, then); return; }
         String whyLower = whyNotStandable(level, lower);
@@ -1351,6 +1386,27 @@ public final class JourneyPortalRung {
         return null;
     }
 
+    /**
+     * The first of a stand's own cells that this rung put a block into after carving it — or null.
+     *
+     * <p>Feet and head of both candidate stands, because either one seals the stand and the head is
+     * the one the rehearsals actually hit ({@code cell.0.noStand = … -9,56,37 头顶 -9,57,37=
+     * cobblestone 被占}). {@link #forgeStuck} is what makes this answerable without guessing at block
+     * ids: a corridor cell that is solid and was left solid by the carve is rock the pick could not
+     * reach, and re-attempting it every cast is exactly the thrash the block-id test was protecting
+     * against; a corridor cell that is solid and was NOT is something that arrived since, and the
+     * only thing placing blocks down here is the rung's own digging.
+     */
+    private static BlockPos litterAt(ServerLevel level, BlockPos behind, BlockPos lower) {
+        for (BlockPos c : List.of(behind, behind.above(), lower, lower.above())) {
+            if (!forgeCorridor.contains(c)) continue;
+            if (forgeStuck.contains(c)) continue;
+            if (!level.getBlockState(c).blocksMotion()) continue;   // air, and the rung's own water
+            return c;
+        }
+        return null;
+    }
+
     /** Why one cobblestone will not turn {@code step} into a stand, or null when it will. Same
      *  discipline as {@link #whyNotStandable}: six clauses, six different sentences, because
      *  "there is already something there" and "a brick here would hang in mid-air" are the two the
@@ -1397,11 +1453,27 @@ public final class JourneyPortalRung {
      * cobblestone face=north → 落进 -10,58,36}. {@link #clearPourLine} cleans the LINE and that was
      * not enough; what a pour needs clear is the room.
      *
-     * <p>Cobblestone only, and only inside {@link #forgeCorridor}. The corridor is a volume this rung
-     * hollowed out itself, so anything solid in it arrived afterwards; naming the block as well is
-     * belt-and-braces, and keeps a stuck carve cell (natural stone the pick could not reach) from
-     * being re-attempted ten times. Top down, so each cell is adjacent to air when its turn comes and
-     * the body simply rides the column down as it goes.
+     * <p><b>Cobblestone only, and that is a MEASURED restriction rather than the original lazy one.</b>
+     * The sweep was widened once — to "any corridor cell that is solid and not in {@link #forgeStuck}",
+     * which is the honest reading of "anything solid in here arrived afterwards" — and it regressed
+     * the rung twice in a row from a standing 2/2. The reason is a block nobody had thought of as
+     * structural: <b>gravel falls into a seven-tall excavation and plugs the alcove's floor</b>, and
+     * those plugs are what the cast's water drains away through instead of pooling.
+     *
+     * <p>Measured, both runs, same three cells: {@code tidy.0} removed {@code -7,56,36=gravel},
+     * {@code -9,56,36=gravel}, {@code -8,57,36=gravel}, and from cast six onward
+     * {@code drain.6 = 等了 200 tick 仍有流体：-7,56,36 = water} — the very cell the gravel had been
+     * cleared from. With the alcove wet three casts earlier than before, the body then floated in it
+     * ({@code climb.4…10 = -7,56,36 onGround=false water=true}) and the top-row pours failed on their
+     * own flooded line. The two runs before the widening reported {@code drain.0…6 = 壁龛已排干}.
+     *
+     * <p>So the widening is reverted and the case that motivated it is answered where it actually
+     * bites: {@link #standBehind} clears the ONE corridor cell a dig needs, by the same
+     * {@link #forgeStuck} baseline and without touching the floor. See its note for the ladder run
+     * that could not open its first frame cell because {@code 7,56,19} had been pillared full of dirt.
+     *
+     * <p>Top down, so each cell is adjacent to air when its turn comes and the body simply rides the
+     * column down as it goes.
      */
     private static void tidyTheAlcove(SceneContext ctx, JourneyRig rig, String tag, Runnable then) {
         ServerLevel level = ctx.level();
@@ -1410,9 +1482,16 @@ public final class JourneyPortalRung {
             if (level.getBlockState(c).getBlock() == Blocks.COBBLESTONE) litter.add(c.immutable());
         if (litter.isEmpty()) { then.run(); return; }
         litter.sort((a, b) -> b.getY() - a.getY());
+        // WITH THE BLOCK, now that it is no longer cobblestone by definition. What the body pillars
+        // with is whatever it happens to be carrying most of, so the id is the reading that says
+        // which spoil this climb arrived on — and it is the one that would have named `dirt` in the
+        // run above instead of leaving the corridor silently full of it.
         StringBuilder where = new StringBuilder();
-        for (BlockPos c : litter) where.append(where.isEmpty() ? "" : " ").append(c.toShortString());
-        rig.evidence(tag, litter.size() + " 格垫脚石要清（挖门框时 MineProcess 自己垒的）：" + where);
+        for (BlockPos c : litter)
+            where.append(where.isEmpty() ? "" : " ").append(c.toShortString()).append('=')
+                    .append(level.getBlockState(c).getBlock());
+        rig.evidence(tag, litter.size() + " 格是挖完之后才出现的，要清（挖门框时 MineProcess 自己垒的）："
+                + where);
         clearNext(rig, litter, 0, 240, then);
     }
 
