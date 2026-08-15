@@ -398,6 +398,11 @@ public final class JourneyPortalRung {
      *  a blocked pour from answering by digging a hole in the mould's own floor. */
     private static Set<BlockPos> forgeCorridor = Set.of();
 
+    /** The corridor cells the carve could not open. Not a failure list — a BASELINE: it is what
+     *  makes "solid in the corridor" mean "something put it there" for every later reading. See
+     *  {@link #tidyTheAlcove}. */
+    private static Set<BlockPos> forgeStuck = Set.of();
+
     /**
      * Which way to run from the lava — one axis, never a diagonal.
      *
@@ -770,6 +775,10 @@ public final class JourneyPortalRung {
         // clearPourLine: a pour whose line is blocked may mine the blocker, and the difference
         // between "a stray block in the corridor" and "the alcove's own floor" is exactly this set.
         forgeCorridor = Set.copyOf(JourneyForge.corridor(at, away, push));
+        // Cleared WITH the corridor it describes. A stuck list belongs to one excavation, and a
+        // second spot's corridor can overlap the first's — carrying the old one across would tell
+        // litterAt that a cell of the new alcove is rock nobody could break, when it was never tried.
+        forgeStuck = Set.of();
         BlockPos base = at.relative(away, push);
         rig.evidence("forge.face", base.toShortString() + " 朝 " + away
                 + "（背离岩浆，外推 " + push + " 格，井底 y=" + at.getY() + "，岩浆层 y=" + lava.getY() + "）");
@@ -797,7 +806,24 @@ public final class JourneyPortalRung {
             // The only place that still needs to build is the ascent, and climbOut turns it back on
             // for itself; returnToTheForge turns it off again on the way down.
             BotConfig.allowPlace = false;
-            rig.evidence("forge.carved", "完成");
+            // NOT "完成" WHEN IT IS NOT. The ladder run of 2026-08-15 printed `forge.carved=完成`
+            // directly under `carve.stuck=12 格挖不动`, and the two rows were written by the same
+            // method one line apart. A caption that says the excavation finished, beside a
+            // measurement that says twelve of its cells are still rock, is a caption that can only
+            // mislead.
+            //
+            // It reports rather than FAILS, and that is a decision the data forced. Stuck cells are
+            // not uniformly fatal: the two rehearsals that cast 10/10 both carried
+            // `carve.stuck=4 格` at the alcove's ceiling, and the twelve that the ladder run carried
+            // were at the top two rows as well — the cell that actually killed that run,
+            // `7,56,19`, had been carved perfectly and was refilled afterwards. Failing here would
+            // have ended three runs earlier than their real finding, which is the opposite of what a
+            // gate is for.
+            int carved = todo.size() - forgeStuck.size();
+            rig.evidence("forge.carved", forgeStuck.isEmpty()
+                    ? todo.size() + "/" + todo.size() + " 格全开"
+                    : carved + "/" + todo.size() + " 格开了，" + forgeStuck.size()
+                      + " 格没挖动 —— 见 carve.stuck，壁龛不是完整的");
             // Is the mould still a mould? The backings were solid when the spot was CHOSEN, and the
             // carve is the only thing that has happened since — but `allowBreak` stays on through it,
             // so the pathfinder is free to chew a way through the back wall while reaching a corridor
@@ -832,6 +858,11 @@ public final class JourneyPortalRung {
     private static void carveNext(SceneContext ctx, JourneyRig rig, List<BlockPos> todo, int i,
                                   List<BlockPos> stuck, Runnable then) {
         if (i >= todo.size()) {
+            // The baseline every later tidy is read against — see tidyTheAlcove. A corridor cell
+            // that is solid AND in here was never opened; one that is solid and NOT in here arrived
+            // after the carve, which is the only way the rung can tell its own scaffolding from the
+            // rock it failed to break without guessing at block ids.
+            forgeStuck = Set.copyOf(stuck);
             rig.evidence("carve.stuck", stuck.isEmpty() ? "无"
                     : stuck.size() + " 格挖不动：" + describeStuck(rig, stuck));
             then.run();
