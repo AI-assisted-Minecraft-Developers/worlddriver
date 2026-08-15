@@ -1594,21 +1594,108 @@ public final class JourneyPortalRung {
             then.run();
             return;
         }
-        BlockPos col = target.relative(away.getOpposite(), 1);
-        rig.evidence(tag + ".raise", rig.player().blockPosition().toShortString() + " → y=" + wantY
+        BlockPos verified = raiseColumn(ctx.level(), rig, target, away, wantY);
+        BlockPos col = verified != null ? verified : target.relative(away.getOpposite(), 1);
+        BlockPos here = rig.player().blockPosition();
+        rig.evidence(tag + ".raise", here.toShortString() + " → y=" + wantY
                 + "（在 " + col.getX() + "," + col.getZ() + " 这一柱上垒台阶，浇 "
-                + target.toShortString() + " 得跟它同高）");
-        WorldDriverJourneyScenes.walkToColumn(rig, tag + ".raiseTo", col.getX(), col.getZ(), 1, 800, () -> {
-            JourneyShaft.climbOut(rig, wantY, () -> {
-                BotConfig.allowPlace = false;      // the casting phase is place-free again
-                rig.evidence(tag + ".raisedY", rig.player().blockPosition().getY() + "/" + wantY);
-                then.run();
-            });
-        }, () -> {
+                + target.toShortString() + " 得跟它同高）"
+                + (verified != null ? "：站上去射线落得进目标格，钉住这一柱"
+                        : "：没有一柱验得过射线，退回门框正后方那一柱，不钉"));
+        // ALREADY IN IT — do not walk. The walk is what put the body one cell out of the column in
+        // the first place (`raiseTo.arrivedDistance=1`), and a body standing in the right column has
+        // nothing to gain from a leg that can only move it out of one. Same short-circuit the fill
+        // and the pour both grew for the same reason.
+        if (here.getX() == col.getX() && here.getZ() == col.getZ()) {
+            raiseInColumn(rig, target, col, wantY, verified != null, tag, then);
+            return;
+        }
+        WorldDriverJourneyScenes.walkToColumn(rig, tag + ".raiseTo", col.getX(), col.getZ(), 1, 800,
+                () -> raiseInColumn(rig, target, col, wantY, verified != null, tag, then),
+                () -> {
             rig.evidence(tag + ".raiseStuck", "走不到 " + col.getX() + "," + col.getZ()
                     + "，从当前高度浇（多半会被射线闸拦下）");
             then.run();
         });
+    }
+
+    private static void raiseInColumn(JourneyRig rig, BlockPos target, BlockPos col, int wantY,
+                                      boolean pin, String tag, Runnable then) {
+        Runnable done = () -> {
+            BotConfig.allowPlace = false;          // the casting phase is place-free again
+            // THE COLUMN AS WELL AS THE HEIGHT. `water9.raisedY=60/60` was a true statement about a
+            // body two cells out of the column its aim had been computed for, and reading it alone
+            // is what made a lost raise look like a finished one.
+            BlockPos now = rig.player().blockPosition();
+            rig.evidence(tag + ".raisedY", now.getY() + "/" + wantY + "（停在 " + now.getX() + ","
+                    + now.getZ() + "，指定柱 " + col.getX() + "," + col.getZ()
+                    + (now.getX() == col.getX() && now.getZ() == col.getZ() ? "，同一柱"
+                            : "，不是同一柱 —— 射线是照那一柱算的") + "）");
+            then.run();
+        };
+        // Pinned only when the column was CHOSEN by the ray. Falling back to the arithmetic column
+        // means the rung does not know that column works, and pinning a guess buys nothing while it
+        // can still cost the climb — so that path keeps the exit's own adopt-on-drift policy.
+        if (pin) JourneyShaft.climbOutInColumn(rig, wantY, col.getX(), col.getZ(), done);
+        else JourneyShaft.climbOut(rig, wantY, done);
+    }
+
+    /**
+     * Which column to build the step in — one whose eye can actually see the target's backing.
+     *
+     * <p>It used to be arithmetic: one cell back along {@code away} from the target. That column is
+     * a good guess and it is not a checked one, and when the body cannot reach it the climb starts
+     * somewhere else and the aim silently becomes a different aim. Run 43's tenth cell went that way
+     * — the arithmetic column was {@code x=-10}, the body could only get to {@code x=-9} (there is
+     * no floor at {@code y=57} anywhere else in a hollow alcove), and the tower then drifted to
+     * {@code x=-8} and {@code x=-7} and adopted it.
+     *
+     * <p>So ask the question the pour is going to ask, one row down: standing HERE at {@code wantY},
+     * does the same clip vanilla runs land the fluid in the target? Nearest wins and the body's own
+     * column is at distance zero, so a column that already works costs no walk at all — which for
+     * that run is the fix, because {@code x=-9} verifies.
+     *
+     * <p>Corridor cells only, feet and head both, so the column is inside the volume this rung
+     * hollowed out and the head has somewhere to go. Null when none of them verify, and the caller
+     * says so rather than pretending.
+     */
+    private static BlockPos raiseColumn(ServerLevel level, JourneyRig rig, BlockPos target,
+                                        Direction away, int wantY) {
+        BlockPos here = rig.player().blockPosition();
+        BlockPos best = null;
+        long bestD = Long.MAX_VALUE;
+        for (int back = 1; back <= POUR_LINE; back++)
+            for (int side = -2; side <= 2; side++) {
+                BlockPos foot = target.relative(away.getOpposite(), back)
+                        .relative(away.getClockWise(), side).above(wantY - target.getY());
+                if (!forgeCorridor.contains(foot) || !forgeCorridor.contains(foot.above())) continue;
+                if (!pourLandsFrom(level, rig, foot, target, away)) continue;
+                long dx = foot.getX() - here.getX(), dz = foot.getZ() - here.getZ();
+                long d = dx * dx + dz * dz;
+                if (d < bestD) { bestD = d; best = foot; }
+            }
+        return best;
+    }
+
+    /** Would a bucket emptied by a body standing at {@code foot} land in {@code target}? The same
+     *  clip {@link #standToAimAt} runs, from the eye that body WOULD have — a prediction about a
+     *  cell the rung is about to build a floor under, which is why it cannot ask for one. */
+    private static boolean pourLandsFrom(ServerLevel level, JourneyRig rig, BlockPos foot,
+                                         BlockPos target, Direction away) {
+        var eye = new net.minecraft.world.phys.Vec3(foot.getX() + 0.5,
+                foot.getY() + rig.player().getEyeHeight(), foot.getZ() + 0.5);
+        for (BlockPos aim : List.of(target.relative(away), target.below())) {
+            if (!level.getBlockState(aim).isSolidRender(level, aim)) continue;
+            var to = net.minecraft.world.phys.Vec3.atCenterOf(aim);
+            if (eye.distanceTo(to) > BUCKET_REACH) continue;
+            var hit = level.clip(new net.minecraft.world.level.ClipContext(eye, to,
+                    net.minecraft.world.level.ClipContext.Block.OUTLINE,
+                    net.minecraft.world.level.ClipContext.Fluid.NONE, rig.player()));
+            if (hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) continue;
+            if (!hit.getBlockPos().equals(aim)) continue;
+            if (aim.relative(hit.getDirection()).equals(target)) return true;
+        }
+        return false;
     }
 
     /**
