@@ -1678,6 +1678,13 @@ public final class JourneyPortalRung {
      */
     private static void riseToTakeItBack(SceneContext ctx, JourneyRig rig, BlockPos wet,
                                          Direction away, String tag, Runnable then) {
+        // ASKED WHERE THE BODY IS, mid-air or not, and that is not an oversight. This clip decides a
+        // NO-OP, so a wrong「看得见」costs the fill one aim that {@link JourneyFill#scoop} re-takes
+        // from the far side of its own settle. Standing the body still first was tried on
+        // 2026-08-16 and cost far more than it saved: a ten-tick settle here and in the fill gave
+        // `recover8` eight extra ticks of falling (`眼睛 y 61.65→58.06`), after which the water was
+        // genuinely out of sight, the fill walked, and the walk mined a cast frame cell to get back
+        // up — `frame.lost.1 … 丢在「recover8 从 -9, 61, 38 收水」这一步里`. See HoldStill.
         if (JourneyFill.visibleSourceNear(rig, false, JourneyFill.FILL_RESEARCH) != null) {
             then.run();
             return;

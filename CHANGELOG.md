@@ -36,6 +36,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   own doorway.
 
 ### Fixed
+- **A bucket now aims from where the body is when it uses the bucket, not from where it was two
+  ticks earlier.** `Avatar.aimAtBlock` stores a yaw/pitch computed from the current eye; everything
+  that fires the ray — `aimedAt` for the prediction, `Item.getPlayerPOVHitResult` inside
+  `BucketItem.use` — re-derives a direction from those angles and starts it at the LIVE eye. `scoop`
+  aimed and THEN settled two ticks, so any fall in between left the fill firing a ray computed for
+  a position the body had left, and neither reading could show it: both print a cell, and a cell is
+  a metre wide.
+
+  The order is now `settle(2) → aimAtBlock → predict → use`, all three of the last steps in one
+  tick, at no extra tick cost. `topUpBuckets` was reordered the same way; the comment there
+  justifying its two ticks with `pick()` was wrong — the bucket never goes through `pick()`, so an
+  aim and a use in the same tick see exactly the same rotation.
+
+  Measured as an A/B on identical geometry. The single-bucket rehearsal that had failed twice at the
+  same cell reproduced its own starting state word for word — body `-10,58,35`, eye
+  `-9.38/60.16/35.64`, the same 0.54-block drop over the settle — and passed:
+
+  ```
+  recover9.aimsAt = -10,61,38 Block{minecraft:water} 源块=true 液位=8；眼睛 -9.40/59.62/35.61
+                    朝 yaw=1.96 pitch=-33.07；settle 这两 tick 里眼睛挪了 0.54 格（y 60.16→59.62）
+  recover9.result = CONSUME
+  ```
+
+  Pitch −25.14 → −33.07 (hand-checked as −33.03; the rest is float quantisation), and the ray now
+  passes over the obsidian it used to stop on. Four rehearsals on the fix — two single-bucket
+  passes at `frame.cast=10/10`/`portal.cells=6/6`, one single-bucket and one four-bucket failure
+  elsewhere — landed all twenty fills as `CONSUME` with no `frame.lost.*`, `frameOnLine` or
+  `frameStuck` at all.
+
+  `.aimsAt` also carries the settle drift now, so「was there anything to neutralise this run」is
+  read rather than assumed.
 - **Rung 12's mould digs no longer let the WALK to a cell break anything.** `ServerWorldDriver.mine`
   is a walker goal plus a swing, and the walker plans with `BotConfig.allowBreak` on for the whole
   casting phase — so a cell with no walkable approach gets one dug THROUGH the mould. `standBehind`

@@ -194,6 +194,14 @@ public final class JourneyFill {
         //
         // First approach only: a fill that has already missed once needs a different question, and
         // asking this one again would hand back the same cell.
+        //
+        // ASKED WHERE THE BODY IS, NOT WHERE IT COMES TO REST — deliberately, and the other way
+        // round has been tried. Settling first sounds strictly better (this clip is the reason the
+        // fill does not walk, so it deserves a still body) and measured worse: a ten-tick settle
+        // here gave `recover8` eight extra ticks of falling, `眼睛 y 61.65→58.06`, after which
+        // nothing was in view, the fill walked, and the walk mined a cast frame cell on its way back
+        // up. See HoldStill for the whole chain. A wrong answer from here costs one aim, which
+        // `scoop` re-takes; a body four blocks lower costs the rung.
         if (tries == FILL_APPROACHES) {
             BlockPos inReach = visibleSourceNear(rig, lava, FILL_RESEARCH);
             if (inReach != null) {
@@ -279,6 +287,30 @@ public final class JourneyFill {
                 eye.x, eye.y, eye.z, fp.getYRot(), fp.getXRot());
     }
 
+    /** How far the eye may drift across a settle before the drift itself is worth printing. Five
+     *  centimetres: under that the pitch to a cell at arm's length shifts by far less than the width
+     *  of a block face, and「挪了 0.00 格」on every fill is noise in a row that already has to carry
+     *  a cell, a fluid and a rotation. */
+    private static final double DRIFT_WORTH_A_ROW = 0.05;
+
+    /**
+     * How far the eye travelled across the settle the aim was taken after.
+     *
+     * <p>The measurement this whole fix is judged on, printed where it is checkable: {@code .aimsAt}
+     * says where the ray goes and this says how much the body had moved since the question that
+     * chose the target. Before the aim moved to AFTER the settle, that drift was the error in the
+     * aim — {@code recover9} carried 0.54 blocks of it and put the ray a full cell low. Now the aim
+     * is recomputed from the far side of it, so a large drift here is no longer an aiming bug; it is
+     * a body that is falling, and the row says so rather than leaving it to be inferred from two
+     * eye coordinates printed in different places.
+     */
+    private static String settleDrift(JourneyRig rig, net.minecraft.world.phys.Vec3 was) {
+        double moved = was.distanceTo(rig.player().getEyePosition());
+        return moved <= DRIFT_WORTH_A_ROW ? "" : String.format(java.util.Locale.ROOT,
+                "；settle 这两 tick 里眼睛挪了 %.2f 格（y %.2f→%.2f）—— 瞄准是落定后重算的",
+                moved, was.y, rig.player().getEyePosition().y);
+    }
+
     /**
      * Aim, check where the ray actually goes, and only then use the bucket.
      *
@@ -300,8 +332,37 @@ public final class JourneyFill {
     private static void scoop(SceneContext ctx, JourneyRig rig, BlockPos src, BlockPos aim, String tag,
                               net.minecraft.world.item.Item wanted, String id, boolean lava,
                               int tries, int aims, Runnable then) {
-        rig.body().avatar().aimAtBlock(aim);
+        // SETTLE FIRST, THEN AIM, AND USE IN THE SAME INSTANT. The order is the fix; the ticks are
+        // unchanged.
+        //
+        // `aimAtBlock` stores an ANGLE, not a target: it computes yaw/pitch from where the eye is
+        // when it is called and writes them to the body. Everything downstream —
+        // `WorldDriverJourneyScenes.aimedAt` here, and `Item.getPlayerPOVHitResult` inside
+        // `BucketItem.use` — re-derives a direction from those angles and starts it at the LIVE eye.
+        // So a body that moves between the aim and the use fires a ray computed for a position it
+        // has left, and neither reading can see that: both print a CELL, and a cell is a metre wide.
+        //
+        // Measured, single-bucket rehearsal 2026-08-15. `recover9` aimed at the water in
+        // `-10,61,38` from eye y=60.16, then settled two ticks to y=59.62 and landed there
+        // (`59.62 − 1.62 = 58.00`, an integer floor; `60.16 − 1.62 = 58.54` is mid-air), and the
+        // stored pitch of −25.14 put the ray into `-10,60,38` — the obsidian one row below, which
+        // the frame guard then correctly refused to mine, spending the attempt. Hand-checked with
+        // `atan2`: the pitch to that source is −25.09 from the old eye and −33.03 from the new one,
+        // and −33.03 from y=59.62 passes over `-10,60,38` at y≈61.2 and lands in the water. The aim
+        // was never wrong about the target; it was wrong about where it was standing. Third of this
+        // repo's ray-timing traps, after `pick()`'s previous-tick rotation and the bucket's own aim.
+        //
+        // The two ticks are NOT owed to `pick()`, which is what the comment here used to claim: the
+        // bucket never goes through `pick()`. `Item.getPlayerPOVHitResult` reads `getXRot()` /
+        // `getYRot()` / `getEyePosition()` live, so an aim, a prediction and a use in ONE tick all
+        // see the same thing. What the ticks buy is physics — an unregistered body does not fall at
+        // all — so they stay, and everything that depends on the aim moves to after them.
+        //
+        // Spending MORE of them is not the safer version of this; it is a different bug. See
+        // HoldStill for the run where a ten-tick wait dropped the body four blocks.
+        var eyeBeforeSettling = rig.player().getEyePosition();
         rig.settle(new HoldStill(2), 10, () -> {
+            rig.body().avatar().aimAtBlock(aim);
             ServerLevel level = ctx.level();
             var pre = WorldDriverJourneyScenes.aimedAt(rig.player(), BUCKET_REACH, true);
             // A SOURCE, not merely the right cell with the right fluid in it. `BucketItem.use` clips
@@ -317,7 +378,7 @@ public final class JourneyFill {
                       + level.getBlockState(pre.getBlockPos()).getBlock()
                       + " 源块=" + fluid.isSource() + " 液位=" + fluid.getAmount()
                       + (pre.getBlockPos().equals(aim) ? "" : "（想瞄 " + aim.toShortString() + "）"))
-                    + "；" + eyeNow(rig));
+                    + "；" + eyeNow(rig) + settleDrift(rig, eyeBeforeSettling));
             boolean onTarget = fluid != null && pre.getBlockPos().equals(aim) && fluid.isSource();
             if (!onTarget && aims > 0) {
                 BlockPos again = visibleSourceNear(rig, lava, FILL_RESEARCH);
@@ -536,17 +597,22 @@ public final class JourneyFill {
             then.run();
             return;
         }
-        BlockPos more = visibleSourceNear(rig, true, FILL_RESEARCH);
-        if (more == null) {
-            noteLoad(rig, tag, carried, "站 " + rig.player().blockPosition().toShortString()
-                    + " 再也看不见第 " + (carried + 1) + " 格源块（还有 " + empty + " 个空桶）");
-            then.run();
-            return;
-        }
-        rig.body().avatar().aimAtBlock(more);
-        // Two ticks between the aim and the use, exactly as `scoop` does: `pick()` traces from the
-        // PREVIOUS tick's rotation, so a use in the same tick as the aim asks the old direction.
+        // Ask, aim and use from ONE position, the way {@link #scoop} now does. The old shape here
+        // clipped for a source, aimed, waited two ticks and only then used — three questions from up
+        // to three different eyes, with the wait justified by a comment that blamed `pick()`. The
+        // bucket does not go through `pick()`: `Item.getPlayerPOVHitResult` reads the rotation and
+        // the eye live, so nothing here needs a tick between the aim and the use, and the aim must
+        // not be separated from it — `aimAtBlock` stores an angle computed from wherever the eye
+        // was. See `scoop` for the half-block measurement that says so.
         rig.settle(new HoldStill(2), 10, () -> {
+            BlockPos more = visibleSourceNear(rig, true, FILL_RESEARCH);
+            if (more == null) {
+                noteLoad(rig, tag, carried, "站 " + rig.player().blockPosition().toShortString()
+                        + " 再也看不见第 " + (carried + 1) + " 格源块（还有 " + empty + " 个空桶）");
+                then.run();
+                return;
+            }
+            rig.body().avatar().aimAtBlock(more);
             WorldDriverJourneyScenes.holdForUse(rig, Items.BUCKET, tag + ".more" + carried);
             int before = rig.carrying("minecraft:lava_bucket");
             var result = rig.body().avatar().useItemInHand();
