@@ -7,7 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **A flight recorder for the nether crossing, because every reading of it was a photograph of the
+  wreckage.** Rungs 14 and 15 both die the same way and every piece of evidence either had was taken
+  after the leg gave up — `fortress.around.1 = 脚下=cave_air 身处=cave_air 头顶=air`, then two
+  attempts of `六面全是 lava`. Three completely different bugs print that same line: a floor that
+  stopped being a floor, a body that walked off one, and a leg judged finished while the body was
+  already in the air. `JourneyFlight` watches the body on every tick of a walk instead — the wait's
+  predicate is the only code that runs that often — and records the transition rather than the
+  outcome. Three rehearsals of rung 15 separated the three in one round:
+
+  ```
+  warped.fell.1.0 = #1 t=56 从 15,41,3 走出了支撑格（上一 tick 踩着 [15,40,3=netherrack]，
+                    这一 tick 脚下是 [15,41,3=air 16,41,3=air]）→ 落进岩浆 18,30,0，坠 11 格
+                    （最快一 tick 掉 1.19 格），已走 8/272 格，计划第 1/8 步
+  warped.flight.1 = 收工那一刻：goalReached=false end=failed:no path (expanded=1) …泡在岩浆里
+  ```
+
+  The support block is still there — its POSITIONS are kept from the previous tick and re-read after
+  the fall starts, which is what makes "removed" and "walked off" separable — and the walk's own
+  verdict arrives 320 ticks later, so the lava is upstream of `expanded=1` rather than downstream of
+  it. It happens 8 to 32 blocks into a 272-block leg, not at the 105 blocks a rung-14 log suggested.
+
+  Two things it got wrong first and now does not: it read the single cell under
+  `blockPosition()`, which for a 0.6-wide body is frequently not its support, and printed
+  `原地离地（脚下 air）` — a line with two causes and no way to tell them apart. It now reads the
+  whole bounding-box footprint. And it kept the run-up until the fall LANDED, by which time an
+  eleven-block drop had rolled every pre-fall tick out of the ring; it is snapshotted at launch.
+
 ### Fixed
+- **`fp.fallDistance` is structurally always 0 on this body, so the guard built on it never once
+  fired.** `ServerPlayer.checkFallDamage` — the override `Entity.move()` calls — is an empty method
+  in 1.21.1; the accumulating one is `doCheckFallDamage`, reached only from the movement-packet path,
+  and a FakePlayer has no connection. Measured three times: `最快一 tick 掉 1.14~1.19 格` against a
+  `fallDistance` of `0.0` for the same fall. Two consequences, both now corrected. The nether rungs'
+  `hazardBlockingARetry` refused a retry for a body "still falling" via
+  `!onGround && fallDistance > 2.0f`, which is unreachable — only its lava and water branches ever
+  worked, and the note claiming otherwise was wrong. And `surroundings` printed `坠=0.0` about a body
+  in free fall, which is the worst kind of evidence row: one that ends an investigation with a
+  confident wrong answer. Both now read the body's own vertical velocity, which survives having no
+  client.
 - **The staircase audit asked three of the four questions the flight is cut for, and certified a
   flight the body could not climb.** `digStairsDown` cuts THREE cells per step and its javadoc says
   why the third exists: "going back UP, the body jumps from a step to the one behind it, and a jump

@@ -294,10 +294,39 @@ public final class JourneyRig {
      * backstop for a wait that somehow never evaluates, not the normal exit.
      */
     public void settle(BotProcess process, int ticks, Runnable then) {
+        settle(process, ticks, null, then);
+    }
+
+    /**
+     * Something that reads the body on every tick of a {@link #settle}.
+     *
+     * <p>Its own type rather than a second {@code Runnable} parameter: two adjacent {@code Runnable}s
+     * differing only in position is a call site nobody can read, and swapping them would silently
+     * run a leg's continuation once per tick.
+     */
+    public interface TickWatcher { void tick(); }
+
+    /**
+     * The same, with something watching the body while it runs.
+     *
+     * <p>Exists because <b>every reading this suite takes of a failed leg is a snapshot of the
+     * aftermath</b>. A body that ends a walk hanging over a cave and a body that ends one having
+     * been pushed off a ledge two hundred blocks earlier print the same surroundings line, and the
+     * difference is the whole diagnosis. The wait's predicate is the only code that runs on every
+     * tick of a leg, so it is the only place a trajectory can be recorded from.
+     *
+     * <p>The watcher runs BEFORE the completion test, so the tick on which the process first reports
+     * finished is a tick the watcher sees — which is what lets it say whether the body was on the
+     * ground when the walk decided it was done.
+     */
+    public void settle(BotProcess process, int ticks, TickWatcher watcher, Runnable then) {
         ServerWorldDriver d = body();
         ServerAvatarManager.register(d.runProcess(process));
         int[] waited = {0};
-        await(() -> d.finished() || ++waited[0] >= ticks, ticks + 100, () -> {
+        await(() -> {
+            if (watcher != null) watcher.tick();
+            return d.finished() || ++waited[0] >= ticks;
+        }, ticks + 100, () -> {
             ServerAvatarManager.unregister(d);
             then.run();
         });

@@ -984,10 +984,15 @@ public final class JourneyNetherRungs {
     private static void walkToColumn(JourneyRig rig, String what, int x, int z, int tolerance,
                                      int budget, int left, Runnable onArrived, Runnable onStuck) {
         BlockPos before = rig.player().blockPosition();
-        rig.settle(new IntentProcess(new Intent(new Goal.XZ(x, z, tolerance))), budget, () -> {
+        int attempt = MAX_WALK_ATTEMPTS - left + 1;
+        // The only reading anyone has of this crossing that is not a photograph of the wreckage.
+        // See JourneyFlight: three different bugs all end with a body hanging in cave_air, and the
+        // `around.N` line prints the same sentence for all three.
+        JourneyFlight flight = JourneyFlight.watching(rig, before, x, z);
+        rig.settle(new IntentProcess(new Intent(new Goal.XZ(x, z, tolerance))), budget, flight, () -> {
             BlockPos at = rig.player().blockPosition();
             double away = Math.hypot(at.getX() - x, at.getZ() - z);
-            int attempt = MAX_WALK_ATTEMPTS - left + 1;
+            flight.recordInto(what, String.valueOf(attempt));
             rig.evidence(what + ".arrivedDistance", Math.round(away));
             rig.evidence(what + ".walkAttempts", attempt);
             // The tolerance is the GOAL's own radius, so a leg that finished inside it arrived by
@@ -1025,8 +1030,12 @@ public final class JourneyNetherRungs {
             int mx = (at.getX() + x) / 2;
             int mz = (at.getZ() + z) / 2;
             rig.evidence(what + ".viaMidpoint", mx + "," + mz + "（卡在 " + at.toShortString() + "）");
+            JourneyFlight toMid = JourneyFlight.watching(rig, at, mx, mz);
             rig.settle(new IntentProcess(new Intent(new Goal.XZ(mx, mz, 3))), Math.max(600, budget / 2),
-                    () -> walkToColumn(rig, what, x, z, tolerance, budget, left - 1, onArrived, onStuck));
+                    toMid, () -> {
+                        toMid.recordInto(what, "mid" + attempt);
+                        walkToColumn(rig, what, x, z, tolerance, budget, left - 1, onArrived, onStuck);
+                    });
         });
     }
 
@@ -1070,8 +1079,15 @@ public final class JourneyNetherRungs {
         // any terrain". A plan that ends AIRBORNE OVER A CAVE is the open half of this rung's
         // diagnosis, and it is invisible in a line that only names blocks: the body has walked
         // itself off a ceiling and every later reading is about wherever it lands.
+        //
+        // NOT fallDistance. `ServerPlayer.checkFallDamage` — the override Entity.move() calls — is
+        // an EMPTY method: the accumulating one is `doCheckFallDamage`, which runs only when a
+        // movement packet arrives, and a FakePlayer sends none. So `fp.fallDistance` is 0 for this
+        // body always, and the `坠=0.0` this line used to print was a diagnostic that answered
+        // "not falling" about a body measured dropping 1.14 blocks in a single tick. The body's own
+        // vertical velocity is the reading that survives having no client.
         sb.append(" onGround=").append(fp.onGround())
-          .append(" 坠=").append(String.format(java.util.Locale.ROOT, "%.1f", fp.fallDistance))
+          .append(" 落速=").append(String.format(java.util.Locale.ROOT, "%.2f", fp.getDeltaMovement().y))
           .append(" 血=").append(Math.round(fp.getHealth()))
           .append(" 脚下到实心=").append(dropBelow(level, at));
         return sb.toString();
@@ -1110,16 +1126,28 @@ public final class JourneyNetherRungs {
             return "身体泡在岩浆里（" + at.toShortString() + "，血 " + Math.round(fp.getHealth()) + "）";
         if (fp.isInWater())
             return "身体泡在水里（" + at.toShortString() + "）";
-        if (!fp.onGround() && fp.fallDistance > FALLING_OVER)
-            return "身体还在下坠（" + at.toShortString() + "，已坠 "
-                    + Math.round(fp.fallDistance) + " 格，脚下到实心 "
+        if (!fp.onGround() && fp.getDeltaMovement().y < FALLING_OVER)
+            return "身体还在下坠（" + at.toShortString() + "，落速 "
+                    + String.format(java.util.Locale.ROOT, "%.2f", fp.getDeltaMovement().y)
+                    + " 格/tick，脚下到实心 "
                     + dropBelow(rig.player().serverLevel(), at) + " 格）";
         return null;
     }
 
-    /** Fall distance past which the body counts as falling rather than stepping down. Two blocks:
-     *  a step off a ledge is ordinary walking and must not consume the rung's retry budget. */
-    private static final float FALLING_OVER = 2.0f;
+    /**
+     * Downward velocity past which the body counts as falling rather than stepping down.
+     *
+     * <p>This used to read {@code fallDistance > 2.0f}, and <b>that branch could never fire</b>:
+     * {@code ServerPlayer.checkFallDamage} is an empty override, the accumulating
+     * {@code doCheckFallDamage} runs only off a movement packet, and this body has no connection —
+     * so the field is 0 through an eleven-block drop. The guard that this rung's whole "a retry that
+     * changes nothing" note is about therefore only ever worked through its lava and water branches.
+     *
+     * <p>−0.3 blocks per tick is roughly four ticks of gravity, which is past any step-down and well
+     * short of the −0.7 a three-block fall reaches. Measured on the crossing: 1.14 blocks in one
+     * tick, against a {@code fallDistance} of 0.0 for the same fall.
+     */
+    private static final double FALLING_OVER = -0.3;
 
     /** A block's short id, so a surroundings line stays readable. */
     private static String blockName(ServerLevel level, BlockPos p) {
