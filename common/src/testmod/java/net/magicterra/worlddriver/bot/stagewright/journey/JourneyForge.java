@@ -106,8 +106,21 @@ public final class JourneyForge {
      *  The frame cells are checked here but must not be pre-carved; see the class note. */
     public static List<BlockPos> cells(BlockPos at, Direction away, int push) {
         List<BlockPos> cells = corridor(at, away, push);
-        // The frame itself, one further in: ten ring cells, six interior, two cap notches.
-        BlockPos base = at.relative(away, push);
+        cells.addAll(aimedCells(at.relative(away, push), away));
+        return cells;
+    }
+
+    /**
+     * The fourteen cells a bucket is ever aimed into: ten ring cells, six interior, two cap notches.
+     *
+     * <p>One list, because there were three copies of it and they are the definition of what has to
+     * have a backing — {@link #cells} counted them as "must be dry", {@link #firstOpenBacking}
+     * counted them as "must have something behind", and the rung counts them again to audit those
+     * backings during the casting. A copy that drifts turns a checked invariant into an unchecked one
+     * silently.
+     */
+    public static List<BlockPos> aimedCells(BlockPos base, Direction away) {
+        List<BlockPos> cells = new ArrayList<>();
         for (int[] c : RING) cells.add(frameCell(base, away, c[0], c[1]));
         for (int ix = 0; ix <= 1; ix++)
             for (int iy = 1; iy <= 3; iy++) cells.add(frameCell(base, away, ix, iy));
@@ -183,20 +196,30 @@ public final class JourneyForge {
      * interior, the two notches — {@link #cells} minus the corridor, which nothing is poured into.
      */
     public static String firstOpenBacking(ServerLevel level, BlockPos at, Direction away, int push) {
-        BlockPos base = at.relative(away, push);
-        List<BlockPos> aimed = new ArrayList<>();
-        for (int[] c : RING) aimed.add(frameCell(base, away, c[0], c[1]));
-        for (int ix = 0; ix <= 1; ix++)
-            for (int iy = 1; iy <= 3; iy++) aimed.add(frameCell(base, away, ix, iy));
-        aimed.add(frameCell(base, away, 0, 5));
-        aimed.add(frameCell(base, away, 1, 5));
-        for (BlockPos cell : aimed) {
+        List<BlockPos> open = openBackings(level, at.relative(away, push), away);
+        if (open.isEmpty()) return null;
+        BlockPos backing = open.get(0);
+        return backing.toShortString() + " = " + level.getBlockState(backing).getBlock()
+                + "（在 " + backing.relative(away.getOpposite()).toShortString() + " 后面）";
+    }
+
+    /**
+     * Every backing that is no longer solid — the audit, not just its first line.
+     *
+     * <p>Asked once after the carve this is a go/no-go, which is what {@link #firstOpenBacking} was
+     * written for. Asked again during the casting it is a MEASUREMENT: the backings were all solid
+     * when the mould was declared sound and two of them were air by the ninth cast (run 43,
+     * {@code -9,59,39} and {@code -9,60,39}, both behind the column the upper cells are dug from), so
+     * what a cast needs to know is which ones went and when. A count per cast puts the loss inside one
+     * round trip instead of somewhere in ten.
+     */
+    public static List<BlockPos> openBackings(ServerLevel level, BlockPos base, Direction away) {
+        List<BlockPos> out = new ArrayList<>();
+        for (BlockPos cell : aimedCells(base, away)) {
             BlockPos backing = cell.relative(away);
-            if (!level.getBlockState(backing).isSolidRender(level, backing))
-                return backing.toShortString() + " = " + level.getBlockState(backing).getBlock()
-                        + "（在 " + cell.toShortString() + " 后面）";
+            if (!level.getBlockState(backing).isSolidRender(level, backing)) out.add(backing);
         }
-        return null;
+        return out;
     }
 
     /** How many of the ten ring cells are obsidian. */

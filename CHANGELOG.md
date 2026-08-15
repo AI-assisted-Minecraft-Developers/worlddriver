@@ -28,6 +28,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for, no eye is handed over. Rungs 17–20 still have no recipe.
 
 ### Fixed
+- **The digging opened the mould's own backing, and nothing re-asked.** `forge.backings=十四格背板
+  都还是实心` is a one-off declaration taken right after the carve, and by the ninth cast of the
+  2026-08-13 rehearsal two of the fourteen were air — `-9,59,39` and `-9,60,39`, both read out of the
+  saved world, both behind the column whose frame cells are dug from a body that pillars up into the
+  doorway. Every bucket in this rung is aimed at the block BEHIND the cell it fills, so an air backing
+  is not a leak, it is an aim with nothing to stop it: `cast8.stand` rejected both candidates with
+  `-9,60,39 不是实心的，弹不出流体`, fell back to a merely standable cell, and `cast8.picks` measured
+  the ray reaching `-9,60,40` and dropping the lava into `-9,60,39` — a cell behind the frame. The
+  rung's own ray gate refused to spend the bucket, which is why the run reported a pour rather than a
+  wall.
+
+  Every pour now audits the block it is about to aim at and rebuilds it out of the cobblestone the
+  body carries, at arm's length or not at all (`placeOn` reaches `gameMode.useItemOn`, which has no
+  reach gate on this avatar). Measured, and the mend is read off the world rather than off the call:
+  `cast8.backingMend = -9,60,39 背板是 air（在 -9,60,38 后面…）→ 补回来了（cobblestone）`, and the
+  cast that had never happened then did — `cast8.picks = -9,60,39 cobblestone face=north → 落进
+  -9,60,38`, `cast8.result=CONSUME`.
+
+  A per-cast count of the fourteen goes beside it, silent while they are intact. That is what dates
+  the loss: `backings.8` never fired and `cast8.backingMend` did, so the backing behind cell eight was
+  lost **inside cell eight's own two digs** — not somewhere in ten round trips.
+
+- **A climb refused a course it did not have to dig for.** `ascendByTowering` asked
+  `fluidTouching(ceiling)` before asking whether the ceiling was solid, and `fluidTouching` answers for
+  the six NEIGHBOURS as well as the cell — so an EMPTY ceiling beside the rung's own water ended a
+  climb that would have broken nothing at all. Measured on the portal rung:
+  `climb.0 = -9,57,36 above=Block{minecraft:air}` and, the same leg,
+  `climb.0.wouldOpenFluid = -9,59,36 挖开就会放出 -9,59,37 = water`, leaving `cast8.raisedY=58/59` —
+  a body one row short of the cell it had to pour into, in a column with nothing but air above it.
+
+  The guard now runs only on the branch that mines, which is what its own note always described. Two
+  raises in the next rehearsal went the whole way where they had stalled: `exit.gained=3/3 block(s)`
+  and `water9.raisedY=60/60`, against `1/2` and `58/59` before.
+
+- **`noStand` named the one cause it had not tested.** The stand refusal has four clauses and printed
+  a single sentence — `… 和 … 都没有地板` — for all of them. Run 43's `cell.0.noStand` said that about
+  the mould's BOTTOM row, and an offline read of the saved world says `-9,55,37 = andesite`: a
+  perfectly good floor, so the row was false. Naming the clause answered it on the next run:
+  `cell.0.noStand = … 站不了：-9,56,37 头顶 -9,57,37=Block{minecraft:cobblestone} 被占` — the head cell
+  was full of the rung's OWN pillar litter, which `tidyTheAlcove` sweeps up two steps later. Nothing
+  to do with floors. The step refusal is split the same way, and it is now the reading that says the
+  upper rows want stairs: `垫不了：-8,57,37 脚下 -8,56,37=air 撑不住 —— 一块砖会悬空`.
+
+- **`standMissed` could not tell a failed walk from a rounding artefact.** It reported the body's
+  block cell, and a 0.6-wide box resting on a block's edge rounds to the neighbouring cell. With the
+  continuous position beside it the reading is unambiguous:
+  `cell.5.standMissed = 想站 -11,57,37，停在 -11,57,36 … （精确 -10.54/57.18/36.91，脚下 -11,56,36=air，
+  想站那格脚下 -11,56,37=cobblestone）`. The body is at z=36.91 — **standing on the step it just laid**,
+  90 mm short of the cell that would satisfy `Near(cell,2)`. The walk did not fail and a second step
+  in the near rank would not help; what is 0.09 blocks out is the arrival test, which measures block
+  cells while the body has a real position.
+
 - **The portal frame's middle rows had no cell the dig could start from.** `ServerWorldDriver.mine`
   walks to `Goal.Near(cell, 2)`, and the alcove is hollowed floor-to-ceiling, so for a frame cell two
   rows up the nearest corridor cell is the floor at 2.83 blocks — outside the gate, so the dig never
