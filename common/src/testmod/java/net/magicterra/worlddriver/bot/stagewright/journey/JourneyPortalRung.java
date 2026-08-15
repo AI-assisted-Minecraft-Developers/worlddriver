@@ -1052,6 +1052,19 @@ public final class JourneyPortalRung {
         // whatever the ten descents re-mine, so "the tool ran out on cast eight" is a live possibility
         // that nothing was recording.
         rig.evidence("tools." + i, toolReport(rig));
+        // WHICH ROUND TRIP LOST A BACKING. `forge.backings` says the mould was sound when it was
+        // carved and a pour says it is not any more; between them lie ten trips, and without a
+        // per-cast count the loss can only be dated to "somewhere in the casting". Silent while the
+        // fourteen are intact — which a whole run has now been, so the silence is a real reading and
+        // not a wire that was never connected. See mendBacking for what it costs when it is not.
+        List<BlockPos> openBackings = JourneyForge.openBackings(ctx.level(), base, away);
+        if (!openBackings.isEmpty()) {
+            StringBuilder where = new StringBuilder();
+            for (BlockPos b : openBackings)
+                where.append(where.isEmpty() ? "" : " ").append(b.toShortString()).append('=')
+                        .append(ctx.level().getBlockState(b).getBlock());
+            rig.evidence("backings." + i, openBackings.size() + "/14 格背板已经不是实心：" + where);
+        }
         // Open exactly these two, now. Everything else in the frame is still solid, which is what
         // gives this cell a floor — see forgeCorridor for why carving them all up front cast 0/10.
         // 1200, not 400. Twenty seconds has to cover pathing to the cell as well as breaking it, and
@@ -1442,8 +1455,63 @@ public final class JourneyPortalRung {
      *  behind it. Level, because a steep ray enters the face a block low and lands in the wrong cell. */
     private static void placeFluid(SceneContext ctx, JourneyRig rig, BlockPos target, Direction away,
                                    net.minecraft.world.item.Item held, String tag, Runnable then) {
-        standLevelWith(ctx, rig, target, away, tag,
-                () -> placeFluid(ctx, rig, target, away, held, tag, POUR_APPROACHES, then));
+        mendBacking(ctx, rig, target, away, tag, () ->
+                standLevelWith(ctx, rig, target, away, tag,
+                        () -> placeFluid(ctx, rig, target, away, held, tag, POUR_APPROACHES, then)));
+    }
+
+    /**
+     * Put back the block this pour is about to aim at, when the digging has taken it out.
+     *
+     * <p>The mould is declared sound once, right after the carve, and {@code forge.backings=十四格
+     * 背板都还是实心} is that declaration. Nothing re-asked it, and by the ninth cast of the run of
+     * 2026-08-13 two backings were air — {@code -9,59,39} and {@code -9,60,39}, read out of the saved
+     * world, both behind the column whose frame cells are dug from a body that pillars up into the
+     * doorway. Every bucket in this rung is aimed at the block BEHIND the cell it fills, so an air
+     * backing is not a leak, it is an aim with nothing to stop it: {@code cast8.stand} rejected both
+     * candidates with {@code -9,60,39 不是实心的，弹不出流体}, fell back to a merely standable cell, and
+     * {@code cast8.picks} measured the ray reaching {@code -9,60,40} and dropping the lava into
+     * {@code -9,60,39} — a cell BEHIND the frame.
+     *
+     * <p><b>It does not happen every run, which is exactly why it is worth mending rather than
+     * hunting.</b> The next rehearsal on the same seed and the same geometry reached
+     * {@code cast8.picks=-9,60,39 Block{minecraft:granite}} — the backing untouched — and cast all ten
+     * without needing this at all. A cell that survives three runs in four is not a cell to reason
+     * about from one sample; it is a cell to re-read before aiming at it.
+     *
+     * <p><b>Arm's length or nothing</b>, for the reason {@link #mendNext} spells out: {@code placeOn}
+     * goes straight to {@code gameMode.useItemOn}, which has no reach gate on this avatar, so without
+     * the check a wall could be rebuilt through ten blocks of rock and read as a repair that worked.
+     * Out of reach is reported and the pour's own ray gate still refuses to spend the bucket.
+     */
+    private static void mendBacking(SceneContext ctx, JourneyRig rig, BlockPos target, Direction away,
+                                    String tag, Runnable then) {
+        ServerLevel level = ctx.level();
+        BlockPos backing = target.relative(away);
+        if (level.getBlockState(backing).isSolidRender(level, backing)) { then.run(); return; }
+        BlockPos here = rig.player().blockPosition();
+        double reach = Math.sqrt(here.distSqr(backing));
+        String was = String.valueOf(level.getBlockState(backing).getBlock());
+        if (reach > MEND_REACH) {
+            rig.evidence(tag + ".backingGone", backing.toShortString() + "=" + was
+                    + " 不是实心的（在 " + target.toShortString() + " 后面），身体 "
+                    + here.toShortString() + " 距 " + Math.round(reach) + " 格，够不着补不上"
+                    + " —— 这一桶会穿过去落在更远的一格");
+            then.run();
+            return;
+        }
+        boolean held = rig.body().avatar().holdItem(Items.COBBLESTONE);
+        if (held) placeInto(level, rig, backing);
+        // THE WORLD, not the call. Same reason the step and the stair mend read it back: a placement
+        // can be refused for reasons the caller cannot see, and a backing that was never rebuilt
+        // leaves exactly the "the cast just did not work" row this rung has been misled by twice.
+        boolean solid = level.getBlockState(backing).isSolidRender(level, backing);
+        rig.evidence(tag + ".backingMend", backing.toShortString() + " 背板是 " + was
+                + "（在 " + target.toShortString() + " 后面，挖门框时被打通的）→ "
+                + (solid ? "补回来了（" + level.getBlockState(backing).getBlock() + "）"
+                         : (held ? "补不上（现在是 " + level.getBlockState(backing).getBlock() + "）"
+                                 : "手上没有圆石")));
+        then.run();
     }
 
     /**
