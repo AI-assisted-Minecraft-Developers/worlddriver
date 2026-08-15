@@ -308,6 +308,30 @@ public final class JourneyShaft {
         // whole 60-tick patience falling and reports "stuck (no Y gain — out of blocks?)" while
         // holding thirty cobblestone. HoldStill is the same non-steering settle the descent uses.
         if (!rig.player().onGround()) {
+            // FLOATING IS NOT SETTLING, and the descent already learned this the expensive way:
+            // "no number of settles fixes floating". A body in water never becomes `onGround`, so
+            // this branch recurses on itself for as long as the budget lasts and every course is a
+            // no-op. Measured on the portal rung, 2026-08-15: `climb.4` through `climb.39` —
+            // THIRTY-SIX identical courses of `-7,56,36 above=air onGround=false water=true`, the
+            // whole cap spent standing still in the alcove's own flood.
+            //
+            // Bounded by the washed-off allowance rather than refused outright, because that is the
+            // same phenomenon seen one tick earlier and it already carries a measured number: the
+            // water is moving, so a few courses genuinely can end with the body back on a block.
+            // Past that it is a flood, not a stumble, and climbOut's walker fallback is what gets
+            // the body out.
+            if (rig.player().isInWater()) {
+                if (washedOff <= 0) {
+                    rig.evidence("climb." + step + ".afloat", at.toShortString()
+                            + " 浮在水里，" + WASHED_OFF_RETRIES + " 次都没落地 —— 塔要站在地上才垒得起来，"
+                            + "爬升到此为止");
+                    then.run();
+                    return;
+                }
+                rig.settle(new HoldStill(40), 60, () -> ascendByTowering(rig, surfaceY, budget - 1,
+                        cap, washedOff - 1, then));
+                return;
+            }
             rig.settle(new HoldStill(40), 60, () -> ascendByTowering(rig, surfaceY, budget - 1, cap, washedOff, then));
             return;
         }
