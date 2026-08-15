@@ -338,6 +338,9 @@ public final class JourneyRehearsal {
         // and walks to firstWater when it cannot, and that walk is a rung-10 capability being
         // re-tested at rung 12's expense — see fillWaterAtTheSurface's own short-circuit.
         kit.put("minecraft:water_bucket", 1);
+        // The EXTRA buckets, empty, and only when asked for. See stagedBuckets.
+        int buckets = stagedBuckets(ctx);
+        if (buckets > 1) kit.put("minecraft:bucket", buckets - 1);
         kit.put("minecraft:flint_and_steel", 1);
         kit.put("minecraft:cobblestone", 64);
         StringBuilder gave = new StringBuilder();
@@ -730,6 +733,45 @@ public final class JourneyRehearsal {
         ctx.record("rehearsal.forgeAway", want
                 + " 不是 north/south/east/west 之一 —— 按自然朝向摆，没有强制");
         return null;
+    }
+
+    /**
+     * How many buckets rung 12 gets, which is what decides how many trips to the pool it makes.
+     *
+     * <p>{@code castOpenedCell} climbs the staircase only when the bag has no lava left, and
+     * {@code loadBuckets} fills every empty bucket in one visit, so the trips a run makes are
+     * {@code ceil(10 / buckets-that-can-hold-lava)} — 10 trips on one bucket, 4 on four (one of them
+     * stays empty for the water). <b>That branch is unreachable on the real ladder today</b>: the
+     * kit's iron budget buys a bucket and a flint-and-steel and nothing more, so a climb arrives here
+     * with exactly one bucket and the loop stops before its first iteration. Code that cannot run is
+     * code nobody has tested, and this is what runs it.
+     *
+     * <p>Rehearsal-only twice over, like {@code breakAStair} and {@code forgeAway}: read only from
+     * the staging step, which only runs when {@link #target()} is set, and counted into the ledger so
+     * a run that somehow carried four buckets could never report {@code staging.calls=0}. The default
+     * is 1 — a plain rehearsal hands over exactly what it handed over before this existed.
+     *
+     * <p>The claim to judge it by is <b>the trip count</b>, not the colour: count
+     * {@code lava*.up} / {@code lava*.loaded} rows in the results file. Green proves the rung still
+     * casts; only a fall from ten trips to four proves this did anything.
+     */
+    private static int stagedBuckets(SceneContext ctx) {
+        String raw = System.getProperty("worlddriver.journey.buckets", "").trim();
+        if (raw.isEmpty()) return 1;
+        int n;
+        try {
+            n = Integer.parseInt(raw);
+        } catch (NumberFormatException e) {
+            ctx.record("rehearsal.buckets", raw + " 不是数字 —— 按 1 个桶摆（和真实爬升一样）");
+            return 1;
+        }
+        if (n <= 1) return 1;
+        JourneyLedger.staged("rehearsal: gave the body " + n + " buckets (" + (n - 1)
+                + " empty + 1 of water) so the pool trips become ceil(10/" + (n - 1) + ")"
+                + " — the real ladder can only afford one");
+        ctx.record("rehearsal.buckets", n + " 个桶（" + (n - 1) + " 个空桶 + 1 桶水）—— "
+                + "真实爬升只买得起 1 个，这是为了跑到多桶那条分支；判据是上楼趟数下降，不是绿");
+        return n;
     }
 
     private static BlockPos dryStandNear(ServerLevel level, BlockPos lake, int min, int max) {

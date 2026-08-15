@@ -309,6 +309,16 @@ loom {
             // rather than the direction forced.
             property 'worlddriver.journey.forgeAway',
                     (project.findProperty('forgeAway') ?: '').toString()
+            // How many buckets rung 12 starts with, which is what decides how many times it climbs
+            // the staircase: it goes up only when the bag has no lava left, and fills every empty
+            // bucket per visit, so the trips are ceil(10 / buckets-that-can-hold-lava).
+            //   ./gradlew :fabric:runRehearsalServer -Prehearse=PORTAL_LIT -Pbuckets=4
+            // Default 1, which is what the ladder's iron actually buys and therefore what a plain
+            // rehearsal must reproduce byte for byte. The multi-bucket branch is unreachable on a
+            // real climb, so this is the only thing that executes it — judge it by the trip count
+            // (`lava*.loaded` / `lava*.up` rows), not by the colour. See JourneyRehearsal.stagedBuckets.
+            property 'worlddriver.journey.buckets',
+                    (project.findProperty('buckets') ?: '1').toString()
             // Same body the ladder climbs on, and that is a deliberate answer rather than a copied
             // line. PORTAL_LIT itself does not need it: it is overworld-only, it spawns nothing and
             // it never asks for the dragon, so it would rehearse identically without the flag. But

@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Rung 12 climbs the staircase only when the bag has no lava left, so the ten round trips become
+  `ceil(10 / buckets)`.** The pour is cheap and the commute is where the rung dies — falling into the
+  pit the fill itself left in the lake, losing the way back to the stairwell mouth, water in the
+  doorway. Ten cells each did their own `goUpToThePool → fillFrom → returnToTheForge`; now
+  `castOpenedCell` pours straight from the bag when it can, and `loadBuckets` fills every empty
+  bucket in one visit (keeping one empty, because taking the water back needs one and a pour that
+  MISSED does not free the lava bucket — without that reserve the recover comes back dry and the next
+  cell reports 「开浇前手上没有水桶」 for a failure one cell upstream).
+
+  **This needed nothing to land with it.** With the one bucket the ladder's iron currently buys
+  (`IRON_INGOTS_THE_KIT_COSTS = 4` = bucket 3 + flint-and-steel 1), the top-up loop stops before its
+  first iteration and the rung walks the same ten trips it always walked. Measured both ways on
+  rehearsals of the same rung:
+
+  ```
+  -Prehearse=PORTAL_LIT              bucket.before=0  lava0..lava9.loaded = 1 桶  →  10 趟, REACHED 10/10
+  -Prehearse=PORTAL_LIT -Pbuckets=4  bucket.before=3  lava0.loaded = 3 桶（空桶只剩 1 个，留着收水）
+                                     lava1.fromBag = 2 桶岩浆还在包里 —— 这一格不上楼
+                                     lava2.fromBag = 1 桶岩浆还在包里 —— 这一格不上楼
+                                     lava3.loaded = 3 桶  →  2 趟浇了 4 格（旧代码要 4 趟）
+  ```
+
+  The first bucket still goes through the whole of `fillFrom` and still fails the rung when it comes
+  back empty; every bucket after it is attempted only when there is an empty bucket AND
+  `visibleSourceNear` already has a source in view, and the first attempt that does not take ends the
+  loading without a verdict. Coming home with two when three were possible costs one trip; failing
+  over it would cost the run.
+
+  The multi-bucket branch is unreachable on a real climb, so `-Pbuckets=N`
+  (`JourneyRehearsal.stagedBuckets`) exists to execute it — rehearsal-only, defaulting to 1, and
+  counted into `JourneyLedger.staged` like `breakAStair` and `forgeAway`. Judge it by the trip count,
+  not the colour.
+
 ### Added
 - **A flight recorder for the nether crossing, because every reading of it was a photograph of the
   wreckage.** Rungs 14 and 15 both die the same way and every piece of evidence either had was taken

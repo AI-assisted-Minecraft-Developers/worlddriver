@@ -1,3 +1,40 @@
+## ⬜ 9 级：多买两个桶，12 级的往返就从十趟掉到四趟（代码已就位，缺的是铁）
+
+12 级现在**按空桶数决定上楼次数**：`castOpenedCell` 只在 `lava_bucket == 0` 时才走
+`goUpToThePool → loadBuckets → returnToTheForge`，而 `loadBuckets` 一趟把所有空桶装满（留一个
+空桶收水）。趟数因此是 `ceil(10 / 能装岩浆的桶数)`：
+
+| 桶 | 能装岩浆的 | 上楼趟数 |
+|---|---|---|
+| 1（现在） | 1 | 10 |
+| 4 | 3 | 4 |
+
+**这条已经落地，不需要和铁同步。** 一个桶时 `loadBuckets` 的循环在第一次迭代前就停，行为和以前
+逐字相同。要跑到多桶分支只能用排练布景：
+`./gradlew :fabric:runRehearsalServer -Prehearse=PORTAL_LIT -Pbuckets=4`。
+
+### 缺的那一半：9 级挖不出四个桶的铁
+
+`WorldDriverJourneyScenes.mineVeinsUntilPaid` 只认三条矿脉（`case 0/1/2` →
+`firstIron/secondIron/thirdIron`，第四条起 `shaft`/`ore` 都是 `UNSURVEYED` 就收工去炼），而
+javadoc 实测**每条矿脉一到三个矿**，有一趟是 `vein1.raw_iron=0 / vein2.raw_iron=3` ——
+所以三条的**理论上限是 9 个原铁**，现实里常常只有 3~5 个。
+
+现在的账：`IRON_INGOTS_THE_KIT_COSTS = 4`（桶 3 锭 + 打火石 1 锭），
+`RAW_IRON_TO_MINE = 5`。要凑四个桶（12 锭）+ 打火石（1 锭）= **13 锭**，
+`RAW_IRON_TO_MINE` 得到 14，三条矿脉的上限 9 根本不够。
+
+所以这一步不是改个常量，是**先要有第四、第五条矿脉**：
+
+1. RECON 得勘测并烘入 `fourthIron`/`fourthIronDescent`……，或者把
+   `mineVeinsUntilPaid` 的 `switch` 换成一张列表；
+2. 每多一条矿脉就是一根新竖井加一次爬升，成本要量（现在 9 级的 tick 开销是多少，
+   加两条之后是多少），**不能只看能不能凑够**；
+3. 凑不够时要报**差多少**，而不是让 12 级在「桶只有 1 个」这条正常降级路径上悄悄跑十趟——
+   降级本身是对的，但账上要看得见。
+
+判据：**观测到上楼趟数下降**（数 `lavaN.up` / `lavaN.loaded` 行），不是绿。
+
 ## ✅ 12 级：真梯从 **0 浇** 到 **6 浇**，楼梯不再是卡点；新卡点是壁龛没挖开
 
 2026-08-15 深夜的真梯（改完之后第一趟，`staging.calls=0`，爬到 11 级，13–20 正确 BLOCKED）：

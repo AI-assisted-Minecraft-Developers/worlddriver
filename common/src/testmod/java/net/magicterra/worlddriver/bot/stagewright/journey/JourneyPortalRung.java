@@ -1517,16 +1517,12 @@ public final class JourneyPortalRung {
                 rig.evidence("water.fell." + i, wet.toShortString() + " 空了，水多半落进了目标格 "
                         + cell.toShortString() + "（现在是 " + ctx.level().getBlockState(cell).getBlock() + "）");
             BlockPos src = pool.get(Math.min(i, pool.size() - 1));
-            // climb UP to the pool → fill → climb back DOWN to the mould → pour. Both climbs are
-            // spelled out; neither was, and each cost a run to find. See goUpToThePool and
-            // returnToTheForge.
-            goUpToThePool(ctx, rig, src.getY(), "lava" + i, () ->
-            fillFrom(ctx, rig, src, "lava" + i, Items.LAVA_BUCKET,
-                    () -> returnToTheForge(ctx, rig, base.getY(), "cast" + i,
-                    // Again, because the round trip is thousands of ticks long and the cell was left
-                    // open at the top of it. Gravel that has not finished falling by the water pour
-                    // has certainly finished by the time the lava comes back.
-                    () -> reopen(ctx, rig, "cast" + i + ".reopen", cell, away, REOPEN_TRIES,
+            // Reopened first, because the trip that fetched this lava is thousands of ticks long and
+            // the cell was left open at the top of it. Gravel that has not finished falling by the
+            // water pour has certainly finished by the time the lava comes back. (Cheap and still
+            // right on a cell poured from a bucket already in the bag: the cell was opened moments
+            // ago and the reopen finds nothing to do.)
+            Runnable pour = () -> reopen(ctx, rig, "cast" + i + ".reopen", cell, away, REOPEN_TRIES,
                     () -> placeFluid(ctx, rig, cell, away, Items.LAVA_BUCKET,
                     "cast" + i, () -> rig.settle(new HoldStill(3), 12, () -> {
                 var got = ctx.level().getBlockState(cell).getBlock();
@@ -1556,7 +1552,24 @@ public final class JourneyPortalRung {
                 fillFrom(ctx, rig, wet, "recover" + i, Items.WATER_BUCKET,
                         () -> drainTheAlcove(ctx, rig, i, DRAIN_LEGS,
                         () -> castCell(ctx, rig, base, away, pool, i + 1, then)));
-            }))))));
+            })));
+            // THE STAIRS ARE THE EXPENSIVE PART, so climb them only when there is nothing to pour.
+            // A lava bucket does not survive the pour — it becomes obsidian and an empty bucket — so
+            // this is the one fluid the rung cannot recycle the way it recycles its single water
+            // source. What it CAN do is carry several at once, which turns ten commutes into
+            // ceil(10 / buckets) of them. See loadBuckets for why that number needs no flag.
+            int inBag = rig.carrying("minecraft:lava_bucket");
+            if (inBag >= 1) {
+                rig.evidence("lava" + i + ".fromBag", inBag + " 桶岩浆还在包里 —— 这一格不上楼");
+                pour.run();
+                return;
+            }
+            // climb UP to the pool → fill every bucket → climb back DOWN to the mould → pour. Both
+            // climbs are spelled out; neither was, and each cost a run to find. See goUpToThePool
+            // and returnToTheForge.
+            goUpToThePool(ctx, rig, src.getY(), "lava" + i,
+                    () -> loadBuckets(ctx, rig, src, "lava" + i,
+                    () -> returnToTheForge(ctx, rig, base.getY(), "cast" + i, pour)));
         });
     }
 
@@ -2429,6 +2442,98 @@ public final class JourneyPortalRung {
                     + " —— 空着桶走下去只会把失败写成「浇不出黑曜石」，而真正的失败在这里"
                     + "（见 " + tag + ".miss.*）");
         });
+    }
+
+    /**
+     * Fill EVERY empty bucket the body is carrying, in one visit to the pool.
+     *
+     * <p>The trip is what this rung fails in. Ten cells each did their own
+     * {@code goUpToThePool → fillFrom → returnToTheForge}, and the three failures that have ended
+     * runs — falling into the pit the fill itself left in the lake, not finding the way back to the
+     * stairwell mouth, water in the doorway — all live on that walk and nowhere else. The pour is
+     * cheap; the commute is the risk, and ten of them buy nothing that four do not.
+     *
+     * <p><b>Trips are decided by empty buckets, not by a flag.</b> This makes the count
+     * {@code ceil(10 / buckets-that-can-hold-lava)}, so it degrades on its own: with the kit the
+     * ladder can currently afford — one bucket, because {@code IRON_INGOTS_THE_KIT_COSTS} buys a
+     * bucket and a flint-and-steel and no more — the loop below stops before its first iteration and
+     * the rung walks the same ten trips it walks today, instruction for instruction. Give it four
+     * buckets and the same code makes four trips. That is why this is not gated on the iron: nothing
+     * has to land with it, and nothing breaks if the iron never arrives.
+     *
+     * <p><b>The first bucket is the one that matters, and only it may fail the rung.</b> It goes
+     * through the full {@link #fillFrom} — three approaches, re-aiming, clearing its own sightline —
+     * and keeps that method's verdict, because arriving at the mould empty-handed is exactly the
+     * failure that gets written down as「浇不出黑曜石」three inferences away from its cause. Every
+     * bucket after it is a bonus: it is attempted only when there is an empty bucket AND a source
+     * already in view from where the body stands, and the first attempt that does not take ends the
+     * loading. Coming home with two when three were possible costs one extra trip; failing the rung
+     * over it would cost the run.
+     */
+    private static void loadBuckets(SceneContext ctx, JourneyRig rig, BlockPos src, String tag,
+                                    Runnable then) {
+        fillFrom(ctx, rig, src, tag, Items.LAVA_BUCKET, () -> topUpBuckets(ctx, rig, tag, 1, then));
+    }
+
+    /**
+     * How many empty buckets a lava load must leave behind. One, for the water.
+     *
+     * <p>The cast spends a water source per cell and takes it back afterwards, and taking it back
+     * needs an empty bucket in the bag at that moment. Filling every bucket with lava would usually
+     * still work — the lava bucket empties itself into the cell one step before the recover — but
+     * only when the pour lands. When it does not, the recover finds no bucket to hold, comes back
+     * dry, and the NEXT cell fails with「开浇前手上没有水桶」: a pour that missed, reported one cell
+     * late under another cell's name. Keeping one empty bucket out of the lava makes that
+     * impossible, and costs at most one extra trip.
+     */
+    private static final int BUCKETS_KEPT_EMPTY_FOR_WATER = 1;
+
+    /**
+     * Top the load up while the body stands where the first fill already worked.
+     *
+     * <p>{@link #visibleSourceNear} is the gate rather than "is there lava nearby": it runs the same
+     * {@code SOURCE_ONLY} clip {@code BucketItem.use} runs, so a cell it returns is a cell this
+     * bucket fills from. That keeps the bonus fills honest — no walking, no re-aiming, no budget.
+     */
+    private static void topUpBuckets(SceneContext ctx, JourneyRig rig, String tag, int carried,
+                                     Runnable then) {
+        int empty = rig.carrying("minecraft:bucket");
+        if (empty <= BUCKETS_KEPT_EMPTY_FOR_WATER) {
+            noteLoad(rig, tag, carried, "空桶只剩 " + empty + " 个，留着收水");
+            then.run();
+            return;
+        }
+        BlockPos more = visibleSourceNear(rig, true, FILL_RESEARCH);
+        if (more == null) {
+            noteLoad(rig, tag, carried, "站 " + rig.player().blockPosition().toShortString()
+                    + " 再也看不见第 " + (carried + 1) + " 格源块（还有 " + empty + " 个空桶）");
+            then.run();
+            return;
+        }
+        rig.body().avatar().aimAtBlock(more);
+        // Two ticks between the aim and the use, exactly as `scoop` does: `pick()` traces from the
+        // PREVIOUS tick's rotation, so a use in the same tick as the aim asks the old direction.
+        rig.settle(new HoldStill(2), 10, () -> {
+            WorldDriverJourneyScenes.holdForUse(rig, Items.BUCKET, tag + ".more" + carried);
+            int before = rig.carrying("minecraft:lava_bucket");
+            var result = rig.body().avatar().useItemInHand();
+            int after = rig.carrying("minecraft:lava_bucket");
+            if (after <= before) {
+                noteLoad(rig, tag, carried, "第 " + (carried + 1) + " 桶没装上：瞄 "
+                        + more.toShortString() + "，" + result + "，lava_bucket " + before + "→"
+                        + after + " —— 带着已经装到的下去，不判红");
+                then.run();
+                return;
+            }
+            topUpBuckets(ctx, rig, tag, carried + 1, then);
+        });
+    }
+
+    /** What one trip to the pool actually brought home. The number this change is judged on: the
+     *  trips a run makes is {@code goUpToThePool}'s call count, and that only falls if this rises. */
+    private static void noteLoad(JourneyRig rig, String tag, int carried, String why) {
+        rig.evidence(tag + ".loaded", carried + " 桶岩浆（" + why + "）—— 这一趟够浇 "
+                + carried + " 格，浇完才会再上来");
     }
 
     /**
