@@ -36,6 +36,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   eleven-block drop had rolled every pre-fall tick out of the ring; it is snapshotted at launch.
 
 ### Fixed
+- **A fill asked whether the bag held a bucket, not whether THIS use had filled one.** `scoop`'s
+  success test was `rig.carrying(id) >= 1`, which is the same claim as "the fill worked" only while
+  the body can carry exactly one — and it could, so the two were indistinguishable and the weaker one
+  shipped. Carry two and the second fill passes before it is attempted: the first bucket is already
+  in the bag, so the test is true whatever `useItemInHand` did, and a fill that missed reports success
+  and walks a bucket short to a pour that reports 「浇不出黑曜石」. It now measures the delta, which
+  cannot be fooled at any bucket count, and the miss line says `这一次没装上（minecraft:lava_bucket
+  1→1）` instead of the now-wrong 「桶里还是空的」. `scoopWater` had the same shape and got the same
+  fix; there the short-circuit above it means the count was always 0, so it was correct today and
+  would have stopped being correct silently.
 - **`fp.fallDistance` is structurally always 0 on this body, so the guard built on it never once
   fired.** `ServerPlayer.checkFallDamage` — the override `Entity.move()` calls — is an empty method
   in 1.21.1; the accumulating one is `doCheckFallDamage`, reached only from the movement-packet path,

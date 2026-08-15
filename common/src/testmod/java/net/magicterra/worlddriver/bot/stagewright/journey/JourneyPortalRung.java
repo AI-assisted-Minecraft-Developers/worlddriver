@@ -132,11 +132,17 @@ public final class JourneyPortalRung {
             rig.body().avatar().aimAtBlock(aim);
             final BlockPos at = aim;
             rig.settle(new HoldStill(2), 10, () -> {
+                // Increment, for the same reason `scoop` measures one — see its own note. The
+                // short-circuit above means `before` is 0 today, so this changes nothing now and
+                // stops being a lie the moment the body arrives here already holding water.
+                int before = rig.carrying("minecraft:water_bucket");
                 rig.evidence("waterFill.result", String.valueOf(rig.body().avatar().useItemInHand()));
-                rig.evidence("water_bucket", rig.carrying("minecraft:water_bucket"));
+                int after = rig.carrying("minecraft:water_bucket");
+                rig.evidence("water_bucket", after);
                 rig.evidence("waterFill.cellAfter", String.valueOf(ctx.level().getBlockState(at).getBlock()));
-                if (rig.carrying("minecraft:water_bucket") < 1) {
-                    ctx.fail("装水失败：瞄了 " + at.toShortString() + "，桶里还是空的 —— "
+                if (after <= before) {
+                    ctx.fail("装水失败：瞄了 " + at.toShortString() + "，这一次没装上（water_bucket "
+                            + before + "→" + after + "）—— "
                             + "这一级底下全程靠这一桶水，装不上就没有下一步");
                     return;
                 }
@@ -2382,13 +2388,23 @@ public final class JourneyPortalRung {
             // on the source, and `recover1.result=PASS` — a pickaxe's use, indistinguishable from a
             // bucket that missed, which is the same trap `holdForUse` was written for.
             WorldDriverJourneyScenes.holdForUse(rig, Items.BUCKET, tag);
+            // WHAT THIS USE CHANGED, not what the bag happens to hold. `carrying(id) >= 1` is the
+            // same claim as "this fill worked" only while the body can carry exactly one — and it
+            // could, so the two were indistinguishable and the weaker one shipped. Carry two and the
+            // second fill passes before it is attempted: the first bucket is already in the bag, so
+            // the test is true whatever `useItemInHand` did, and a fill that missed reports success
+            // and walks a full bucket short to a pour that will report「浇不出黑曜石」. Measure the
+            // DELTA and that is impossible at any bucket count.
+            int before = rig.carrying(id);
             rig.evidence(tag + ".result", String.valueOf(rig.body().avatar().useItemInHand()));
-            if (rig.carrying(id) >= 1) { then.run(); return; }
+            int after = rig.carrying(id);
+            if (after > before) { then.run(); return; }
             var hit = WorldDriverJourneyScenes.aimedAt(rig.player(), BUCKET_REACH, true);
             double range = rig.player().getEyePosition()
                     .distanceTo(net.minecraft.world.phys.Vec3.atCenterOf(aim));
             rig.evidence(tag + ".miss." + tries, String.format(java.util.Locale.ROOT,
-                    "桶里还是空的；瞄 %s（现在是 %s），距 %.1fm，射线停在 %s",
+                    "这一次没装上（%s %d→%d）；瞄 %s（现在是 %s），距 %.1fm，射线停在 %s",
+                    id, before, after,
                     aim.toShortString(), level.getBlockState(aim).getBlock(), range,
                     hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
                             ? hit.getBlockPos().toShortString() + " "
