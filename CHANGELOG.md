@@ -27,7 +27,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Neither recipe stages the rung's subject: no enderman is summoned, no warped forest is searched
   for, no eye is handed over. Rungs 17–20 still have no recipe.
 
+### Added
+- **Rung 12 finishes. The body carves a mould beside the seed's lava lake, casts ten obsidian into
+  it and lights the portal** — twice in a row, on the rehearsal, with the ten casts driven by one
+  bucket that comes back full: `frame.cast=10/10`, `frame.obsidian=10/10`,
+  `portal.doorway=六格都清干净了`, `portal.cells=6/6`,
+  `light.cellAfter=Block{minecraft:nether_portal}`, `bucket.after=0 空 / 1 水`. 11 503 and 14 179
+  ticks. The previous best was eight casts and nine cells opened.
+
+  **This is a rehearsal, not a climb** — the rung's precondition is staged (`staging.calls=12`), so
+  it says the rung's own work is sound and says nothing about arriving there off eleven real rungs.
+  The ladder has not been run since.
+
+  **And two passes are not a rate.** The two runs did not fail in the same places or succeed for the
+  same reasons: one lost the backing behind cell eight and needed the mend below to get through
+  (`cast8.backingMend … → 补回来了`), the other found that same cell still granite and never called it.
+  The variance is in which cells the digging damages, and it is per-run.
+
 ### Fixed
+- **A raise for a pour may not change columns.** `climbOut` pins the tower to a column and, when the
+  body drifts off and cannot walk back, adopts wherever it landed — `driftKept`. That is right for an
+  exit, where any column that rises is as good as another, and wrong for a pour, where the column
+  **is** the geometry: move one cell sideways and the ray crosses the frame's plane somewhere else,
+  so a check that `x=-10` works says nothing about `x=-8`. Measured on the tenth cell:
+  `water9.raisedY=60/60` — the height reached exactly — over
+  `climb.3.driftKept=-8,58,37 走不回 -9,37，改以这一柱为准`, after which the pour fired the same wrong
+  ray from `-7,60,37` three approaches running, which is this file's own "a retry that changes
+  nothing" arriving as a consequence rather than as a separate bug.
+
+  Two changes, and the first is the one that matters. The raise column was arithmetic — one cell back
+  along `away` — and is now **chosen by the ray**: for each corridor cell at the row below the target,
+  run the clip a bucket would run from the eye a body standing there would have, and take the nearest
+  that lands the fluid in the target. The body's own column is at distance zero, so a column that
+  already works costs no walk at all — and on the next run it verified and was taken:
+  `water9.raise = … 在 -9,37 这一柱上垒台阶 … 站上去射线落得进目标格，钉住这一柱`, against the `-10,37`
+  the arithmetic would have picked and the body could not reach.
+
+  Second, such a climb refuses to adopt: `climb.1.pinnedLost = -9,56,36 走不回指定柱 -9,37 —— 爬升
+  到此为止，不改柱`. It stops, it does not loop, and it is not a failure — the pour's own ray gate
+  still decides, and on that run the cell cast anyway (`cast9.result=CONSUME`) off `liftInPlace`. A
+  pinned climb also skips the `Goal.YLevel` fallback, which is column-blind by construction.
+
+  `raisedY` now reports the column beside the height, because `60/60` was a true statement about a
+  body two cells out of the column its aim had been computed for, and reading the height alone is
+  what made a lost raise look like a finished one.
+
+- **A climb entered directly inherited another rung's column.** `climbColX/Z` are static and only
+  `climbOut` set them, so the obsidian rung's climb-back-to-the-gallery — which calls
+  `ascendByTowering` itself — reached the drift branch carrying whichever column the previous rung's
+  exit had left behind, and "corrected" toward a cell nowhere near the body. That entry point now
+  establishes its own column and clears the pin.
+
 - **The digging opened the mould's own backing, and nothing re-asked.** `forge.backings=十四格背板
   都还是实心` is a one-off declaration taken right after the carve, and by the ninth cast of the
   2026-08-13 rehearsal two of the fourteen were air — `-9,59,39` and `-9,60,39`, both read out of the
@@ -50,6 +100,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the loss: `backings.8` never fired and `cast8.backingMend` did, so the backing behind cell eight was
   lost **inside cell eight's own two digs** — not somewhere in ten round trips.
 
+  **The loss is intermittent, and that is the reason to mend rather than to hunt.** Three runs on the
+  same seed and the same geometry: one where the backing was gone and the pour could not spend its
+  bucket, one where it was gone and the mend carried the cast (`cast8.backingMend … → 补回来了
+  （cobblestone）` → `cast8.picks=-9,60,39 cobblestone face=north → 落进 -9,60,38` →
+  `cast8.result=CONSUME`), and one where the same cell was still `granite` and the mend was never
+  called. The silent run is a real reading rather than a wire that was never connected, which is what
+  the per-cast count is for. `backings.9=1/14 … -9,59,39=air` fired in both of the runs that finished:
+  the interior cell's backing goes too, and nothing aims at that one.
+
 - **A climb refused a course it did not have to dig for.** `ascendByTowering` asked
   `fluidTouching(ceiling)` before asking whether the ceiling was solid, and `fluidTouching` answers for
   the six NEIGHBOURS as well as the cell — so an EMPTY ceiling beside the rung's own water ended a
@@ -63,9 +122,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `water9.raisedY=60/60`, against `1/2` and `58/59` before.
 
 - **`noStand` named the one cause it had not tested.** The stand refusal has four clauses and printed
-  a single sentence — `… 和 … 都没有地板` — for all of them. Run 43's `cell.0.noStand` said that about
-  the mould's BOTTOM row, and an offline read of the saved world says `-9,55,37 = andesite`: a
-  perfectly good floor, so the row was false. Naming the clause answered it on the next run:
+  a single sentence — `… 和 … 都没有地板` — for all of them. `cell.0.noStand` said that about the
+  mould's BOTTOM row, and an offline read of that run's saved world says `-9,55,37 = andesite`: a
+  perfectly good floor, so the row was false. Naming the clause answered it, twice, on two later runs:
   `cell.0.noStand = … 站不了：-9,56,37 头顶 -9,57,37=Block{minecraft:cobblestone} 被占` — the head cell
   was full of the rung's OWN pillar litter, which `tidyTheAlcove` sweeps up two steps later. Nothing
   to do with floors. The step refusal is split the same way, and it is now the reading that says the
