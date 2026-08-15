@@ -215,8 +215,44 @@ opened.9             = -10, 60, 38=air 水位 -10, 61, 38=Block{minecraft:dirt}
 「垫一块砖会悬空 —— 这一格要的是楼梯不是一块砖」。挖不开是这个（第 5 趟），
 浇不准也是这个（第 4 趟：站不上去，只能从 y=57 斜着浇）。**这是下一刀的位置。**
 
+### 真实 ladder 一趟（2026-08-16，`:fabric:runJourneyServer`，27 分 29 秒）
+
+**爬到 OBSIDIAN（第 11 级），`journey.stagingCalls=0`，和上一次的战绩持平——没进也没退。**
+10 级 REACHED（RECON/SPAWN/WOOD/WOOD_TOOLS/STONE_TOOLS/FOOD/FURNACE/IRON/PORTAL_KIT/OBSIDIAN），
+BED 仍是 `尚未脚本化`，PORTAL_LIT 红，其后 8 级 `BLOCKED`（0 tick 的 skip，
+`BUILD SUCCESSFUL` 是前沿级 `required=false` 的结果，别读成绿）。
+
+**第 12 级红在第 1 格，本轮修的装桶代码一次都没跑到。** 不是最上一排、不是岩浆坑回程、
+不是 `stepOut`——比那三条都早，在开挖：
+
+```
+forge.carved     = 48/67 格开了，19 格没挖动（上一次真实 ladder 是 63/67）
+carve.stuck      = 19 格挖不动：{-7=3, -6=2, -5=4, -4=10}  ← 键是离 y=66 的高度，即壁龛上半截 y=59..62
+carve.firstStuck = -9, 59, 36=granite：身体 -9, 56, 34，距 3.6 格，canBreak=true
+cell.0.standMissed = 想站 -9, 56, 36，停在 -10, 66, 34，距 -9, 56, 37 还有 10.49 格
+                     （精确 -9.99/66.80/34.70，脚下 -10, 65, 34=Block{minecraft:grass_block}）
+dig.cell.0       = -9, 56, 37 仍是 andesite：身体 -13, 66, 34（壁龛之外），距 12.5m，canBreak=false
+tidy.0           = 10 格是挖完之后才出现的（挖门框时 MineProcess 自己垒的）：
+                   -9,59,35 -10,59,35 -7,57,35 … -10,56,36 全是 cobblestone
+```
+
+**机制点名了：身体把自己垒出了竖井，回到了地面。** `脚下 grass_block`、y=66 —— 那是地表，
+比模腔地板 y=56 高十格；`tidy.0` 那十格圆石是 `MineProcess` 一路垒上来的踏板。三次
+`cell.0.stillShut` 全是**从地面上**发的令，所以 `canBreak=false`、距 12.5m。
+`stairs.asCut=15 级都完好`，楼梯没坏——它是**走回去**的，不是掉出去的。
+
+**这是既有簇的加重，不是本轮引入的**：`HoldStill` 的改动经 `git diff` 核对**只有注释**
+（非注释行 diff 为空），`JourneyFill` 只碰装桶，开挖一行没动;上一次真实 ladder 同一处已经是
+`forge.carved=63/67`。变的是程度（4 格 → 19 格没挖动），而 19 格全在壁龛上半截 y=59..62——
+和排练里第 10 格那条「最上一排够不着」是**同一个几何**：越往上越站不住。
+
 ### ⬜ 下一个人从这里接
 
+0. **（真实 ladder 上的唯一切口）开挖时不许把自己垒出竖井。** `MineProcess` 在
+   `forge` 阶段开着放置权，于是够不着的上半截靠垒踏板去够，垒着垒着就上了地表，
+   再也回不来。`cell.0.standMissed` 那一行（想站 y=56、停在 y=66、脚下 grass_block）
+   是这条的判据：**修好之后它必须报一个 y=56 附近的落脚点**。注意别顺手关掉放置权——
+   上半截本来就够不着，那正是第 1 条要解决的同一件事。
 1. **最上一排要的是台阶，不是一块砖。** `standToPour`/`standToFill`/`mineCellOrGiveUp` 三处
    都在 `-10,61,37` 这一格上说了同一句「垫不了」。`raiseTo`/`climbOutInColumn` 已经会垒柱子，
    但第 4 趟 `recover8.rise.raisedY=56/60（停在 -11,36，指定柱 -10,36，不是同一柱）`——
