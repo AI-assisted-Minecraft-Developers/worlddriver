@@ -215,18 +215,26 @@ public final class JourneyPortalRung {
      * which {@link #walkHome}'s pillar-out recovery already handles and {@link JourneyStairs#faults} now
      * names.
      */
-    private static void walkTheStairs(JourneyRig rig, List<BlockPos> route, int i, Runnable then) {
+    private static void walkTheStairs(JourneyRig rig, List<BlockPos> route, int i, boolean down,
+                                      Runnable then) {
         if (i >= route.size()) { then.run(); return; }
         BlockPos want = route.get(i);
         rig.settle(new IntentProcess(new Intent(new Goal.Block(want), List.of(),
                 CapabilityProfile.ALL, List.of(new NoBreak()))), 600, () -> {
             BlockPos got = rig.player().blockPosition();
             double off = Math.sqrt(got.distSqr(want));
+            // BOTH CELLS, not just the one the body is standing in. `cast5.returnStopped` read
+            // `停在 -9,66,21 … 脚下 cobblestone，身处 air，头顶 air，起跳格 air` — four cells all
+            // clear, on a leg that moved zero blocks. They were clear because the body had climbed
+            // through them one leg earlier; the cell that stopped it is the one it was trying to
+            // REACH, and that cell was not in the message at all.
             if (off > LEG_ARRIVED && flightShortfall == null)
                 flightShortfall = "第 " + i + "/" + (route.size() - 1) + " 段：想到 "
                         + want.toShortString() + "，停在 " + got.toShortString() + "，差 "
-                        + String.format("%.2f", off) + " 格 —— " + cellStory(rig.ctx().level(), got);
-            walkTheStairs(rig, route, i + 1, then);
+                        + String.format("%.2f", off) + " 格 —— 身体处："
+                        + cellStory(rig.ctx().level(), got, !down) + "；要去的那格："
+                        + cellStory(rig.ctx().level(), want, !down);
+            walkTheStairs(rig, route, i + 1, down, then);
         });
     }
 
@@ -246,14 +254,22 @@ public final class JourneyPortalRung {
      */
     private static String flightShortfall;
 
-    /** The four cells {@code StepUp.valid} reads about a body: what holds it up, what it is standing
-     *  in, its head room, and the cell it must jump THROUGH to take a step up. Without this a leg
-     *  that stopped cannot say whether the body was blocked, flooded or merely slow. */
-    private static String cellStory(ServerLevel level, BlockPos foot) {
-        BlockPos jump = foot.above(2);
-        return "脚下 " + level.getBlockState(foot.below()).getBlock() + "，身处 "
+    /**
+     * What holds a cell up, what fills it, and its head room — plus, going UP only, the cell a body
+     * must jump THROUGH, which is the last line of {@code StepUp.valid}.
+     *
+     * <p>{@code upward} is not decoration. Those four cells are {@code StepUp.valid}'s question, and
+     * {@code StepUp} takes no part in a descent — so printing 起跳格 on a return leg answers a
+     * question nobody asked and reads like an all-clear. That is exactly how `cast5.returnStopped`
+     * certified a body that had not moved: 起跳格 air, on a leg that never needed to jump.
+     */
+    private static String cellStory(ServerLevel level, BlockPos foot, boolean upward) {
+        String story = "脚下 " + level.getBlockState(foot.below()).getBlock() + "，身处 "
                 + level.getBlockState(foot).getBlock() + "，头顶 "
-                + level.getBlockState(foot.above()).getBlock() + "，起跳格 " + jump.toShortString()
+                + level.getBlockState(foot.above()).getBlock();
+        if (!upward) return story;
+        BlockPos jump = foot.above(2);
+        return story + "，起跳格 " + jump.toShortString()
                 + "=" + level.getBlockState(jump).getBlock()
                 + (level.getBlockState(jump).blocksMotion() ? "（挡着，跳不起来）" : "");
     }
@@ -269,9 +285,10 @@ public final class JourneyPortalRung {
         flightShortfall = null;
         JourneyStairs.aboutToWalk(rig, tag);
         List<JourneyStairs.StairFault> faults = JourneyStairs.faults(rig.ctx().level());
-        if (faults.isEmpty()) { walkTheStairs(rig, stairRoute(down), 0, then); return; }
+        if (faults.isEmpty()) { walkTheStairs(rig, stairRoute(down), 0, down, then); return; }
         rig.evidence(tag + ".stairsBroken", JourneyStairs.report(rig.ctx().level()));
-        JourneyStairs.mend(rig, tag, faults, 0, () -> walkTheStairs(rig, stairRoute(down), 0, then));
+        JourneyStairs.mend(rig, tag, faults, 0,
+                () -> walkTheStairs(rig, stairRoute(down), 0, down, then));
     }
 
     /** Every cell the alcove was hollowed out of — the space the body walks in, and nothing else.
