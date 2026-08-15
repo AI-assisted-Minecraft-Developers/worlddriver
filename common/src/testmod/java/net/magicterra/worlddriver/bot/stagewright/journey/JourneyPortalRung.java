@@ -1083,13 +1083,46 @@ public final class JourneyPortalRung {
                     + (wasOpen ? "：开过又被填上了（这一格上面是会掉的方块），再挖一次"
                                : "：这一格从头到尾没开过，不是被填上的 —— 挖没挖动，再试一次"));
         standBehind(rig, tag, cell, away, () ->
-            rig.mineCellOrGiveUp(cell, tries == REOPEN_TRIES ? 1_200 : 400,
+            digWithoutTunnelling(rig, cell, tries == REOPEN_TRIES ? 1_200 : 400,
                 () -> rig.settle(new HoldStill(10), 30, () -> {
                     // Read the cell BETWEEN the swing and the settle, so "it opened and something
                     // dropped into it" and "it never opened" stop being the same reading.
                     boolean open = wasOpen || level.getBlockState(cell).isAir();
                     reopen(ctx, rig, tag, cell, away, tries - 1, open, then);
                 })));
+    }
+
+    /**
+     * Dig one cell of the mould WITHOUT letting the walk to it dig anything else.
+     *
+     * <p>{@code ServerWorldDriver.mine} is a walker goal plus a swing, and the walker plans with
+     * {@code BotConfig.allowBreak} on for the whole casting phase — so when the cell it is sent to
+     * has no walkable approach, it invents one THROUGH the mould. {@link #standBehind} was the first
+     * answer to that and it only covers the case where a corridor stand exists; when it reports
+     * {@code .noStand} the dig still runs, and the route it then takes is the one nothing was
+     * watching.
+     *
+     * <p>Measured the first time the frame watch ran on a single-bucket rehearsal:
+     * {@code frame.lost.1 = -9,60,38 浇成黑曜石之后又没了：现在是 air，丢在「wet.9 挖开水位格
+     * -10,61,38」这一步里，身体 -10,57,38}. The step is a dig of the NOTCH; the cell it cost is the
+     * top-left ring cell two rows below it; and {@code -10,57,38} is not a corridor cell at all, it
+     * is an interior cell of the portal's own doorway. The body was inside the mould, having eaten
+     * its way up through it, exactly as {@link #reopen}'s note describes — and the audit is what
+     * turned that from "four cells are missing" into one instruction with a coordinate.
+     *
+     * <p>Turning the pathfinder's breaking off does not disarm the dig: {@code allowBreak} prices
+     * the WALK's breaks ({@code LevelWorldView.breakCost} returns infinity), while the target itself
+     * is broken by {@code avatar.breakHold} once navigation stops, gated only by reach and exposure.
+     * So a cell with an approach is still opened, and a cell without one now reports
+     * {@code .stillShut} / {@code dig.*} instead of quietly paying for itself with a cast cell.
+     */
+    private static void digWithoutTunnelling(JourneyRig rig, BlockPos cell, int ticks, Runnable then) {
+        boolean was = BotConfig.allowBreak;
+        BotConfig.allowBreak = false;
+        rig.mineCellOrGiveUp(cell, ticks, () -> {
+            BotConfig.allowBreak = was;
+            then.run();
+        });
     }
 
     /**
@@ -1714,7 +1747,6 @@ public final class JourneyPortalRung {
                 + (verified != null
                         ? "：站上去射线" + (pouring ? "落得进目标格" : "打得到目标格里的液体") + "，钉住这一柱"
                         : "：没有一柱验得过射线，退回门框正后方那一柱，不钉"));
-
         // ALREADY IN IT — do not walk. The walk is what put the body one cell out of the column in
         // the first place (`raiseTo.arrivedDistance=1`), and a body standing in the right column has
         // nothing to gain from a leg that can only move it out of one. Same short-circuit the fill

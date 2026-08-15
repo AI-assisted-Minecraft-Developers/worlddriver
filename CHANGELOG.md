@@ -36,6 +36,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   own doorway.
 
 ### Fixed
+- **Rung 12's mould digs no longer let the WALK to a cell break anything.** `ServerWorldDriver.mine`
+  is a walker goal plus a swing, and the walker plans with `BotConfig.allowBreak` on for the whole
+  casting phase — so a cell with no walkable approach gets one dug THROUGH the mould. `standBehind`
+  only covered the case where a corridor stand exists; when it reported `.noStand` the dig ran
+  anyway, and the route it then took was the one nothing was watching.
+
+  The reopens now go through `digWithoutTunnelling`. That does not disarm the dig: `allowBreak`
+  prices the WALK's breaks (`LevelWorldView.breakCost` → infinity) while the target is still broken
+  by `avatar.breakHold` once navigation stops, gated only by reach and exposure. A cell with an
+  approach still opens; one without now reports `.stillShut` / `dig.*` instead of quietly paying for
+  itself with a cast cell.
+
+  **Where this leaves the rung.** One four-bucket rehearsal reached `frame.cast=10/10（…又丢了 0
+  格）` with `portal.cells=6/6`; three single-bucket ones are red — one on a gravel column plugging
+  the corridor cell a bottom-row dig has to stand in (upstream of all of this), one at 9/10 (the
+  `frame.lost.1` above, now fixed), one at `recover9` unable to fill. One run is not a pass rate.
 - **Rung 12 puts the eye back on the row the water was poured from before it goes to take the water
   back.** A cast pours water into the interior/notch cell from a row that was verified for it, then
   fetches lava and pours THAT into the frame cell below — and the pour's own walk is free to drop

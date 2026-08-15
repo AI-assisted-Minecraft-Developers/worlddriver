@@ -69,6 +69,25 @@ recover9.frameStuck.3  = 门框挡着 -10, 61, 38，而且没有别的落脚点�
 水本身）验，不再由 `pourLandsFrom`（`Fluid.NONE` clip 打到背板/地板）验。刚浇完的那一格
 正好是两者分叉的地方：浇的问题过得了，收的问题过不了。
 
+### 已修一条：挖模腔格时不许寻路破墙
+
+三处 reopen 改走 `digWithoutTunnelling` —— 挖之前把 `BotConfig.allowBreak` 关掉，挖完还原。
+这不会废掉这次挖：`allowBreak` 定的是**走路时破墙的价钱**（`LevelWorldView.breakCost` 返回
+无穷），目标格本身仍由 `avatar.breakHold` 在寻路停下后敲，只受 reach + 暴露面约束。
+有路的格照开，没路的格现在报 `.stillShut` / `dig.*`，**而不是拿一格已浇的黑曜石去换**。
+
+### 判据仍未满足
+
+四桶 1 趟绿（`frame.cast=10/10（…又丢了 0 格）`、`portal.cells=6/6`），单桶 3 趟全红：
+
+| 趟 | 死在哪 | 是不是本轮的锅 |
+|---|---|---|
+| 1 | 第 0 格 `cell.0.noStand … -9,56,36 被 gravel 占着 canBreak=false` | 否，在本轮改动的**上游**（见下面「壁龛没挖开」那条） |
+| 2 | 9/10，`frame.lost.1` | 是本轮点名并已修的那条 |
+| 3 | `recover9` 装不到水 | 门框保住了（无 `frame.lost.*`），卡在下面这一刀 |
+
+**一趟不是通过率，三趟也不是。**
+
 ### ⬜ 下一刀：`visibleSourceNear` 和真正的瞄准**不是同一条射线**
 
 单桶排练里这两行自相矛盾：
