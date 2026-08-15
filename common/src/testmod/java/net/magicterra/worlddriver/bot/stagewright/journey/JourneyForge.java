@@ -156,7 +156,14 @@ public final class JourneyForge {
     public static String firstFluid(ServerLevel level, List<BlockPos> cells) {
         for (BlockPos c : cells)
             if (!level.getFluidState(c).isEmpty())
-                return c.toShortString() + " = " + level.getBlockState(c).getBlock();
+                // SOURCE OR FLOWING, because that one boolean is the whole diagnosis and the caller
+                // that has been printing this for months could not act on it. Flowing water with
+                // nothing feeding it runs out on its own and a wait is the right answer; a source
+                // sits there forever and wants a bucket or a block. The drain gate says "waited 200
+                // ticks and it is still wet" for both, which is a true sentence about two different
+                // worlds.
+                return c.toShortString() + " = " + level.getBlockState(c).getBlock()
+                        + (level.getFluidState(c).isSource() ? "（源块）" : "（流动，没源就会自己退）");
         return null;
     }
 
