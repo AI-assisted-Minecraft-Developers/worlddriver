@@ -840,9 +840,49 @@ public final class JourneyPortalRung {
         BlockPos c = todo.get(i);
         if (ctx.level().getBlockState(c).isAir()) { carveNext(ctx, rig, todo, i + 1, stuck, then); return; }
         rig.mineCellOrGiveUp(c, 240, () -> {
-            if (!ctx.level().getBlockState(c).isAir()) stuck.add(c);
+            if (!ctx.level().getBlockState(c).isAir()) {
+                if (stuck.isEmpty()) noteStuckCarve(rig, c);   // the FIRST one, and only that one
+                stuck.add(c);
+            }
             carveNext(ctx, rig, todo, i + 1, stuck, then);
         });
+    }
+
+    /**
+     * Why the first corridor cell that would not open did not open.
+     *
+     * <p>{@code carve.stuck} has counted these for several runs and cannot say a word about the
+     * cause: a cell the body never got near, a cell it stood next to and ran out of budget on, and a
+     * cell walled in on all six faces all arrive as the same coordinate in the same list. They want
+     * completely different work — a different carve ORDER, a bigger number, a different standing spot
+     * — so the list on its own can only support guesses, and this rung has paid for guesses before.
+     *
+     * <p>Three readings separate them, and they are the same three {@link #noteCellDig} uses on the
+     * frame: how far the body was, what {@code canBreak} said, and how many of the six neighbours are
+     * full solid faces. {@code canBreak=false} with 6/6 solid is the walled-in clause and an ordering
+     * problem; {@code canBreak=false} at range is a body that never arrived; {@code canBreak=true}
+     * beside the cell is a budget that ran out.
+     *
+     * <p>The first only. Twelve of these would bury the one that matters, and they are consecutive
+     * cells of one wall — whatever stopped the first almost certainly stopped its neighbours.
+     */
+    private static void noteStuckCarve(JourneyRig rig, BlockPos c) {
+        ServerLevel level = rig.ctx().level();
+        BlockPos at = rig.player().blockPosition();
+        int solid = 0;
+        StringBuilder around = new StringBuilder();
+        for (Direction d : Direction.values()) {
+            BlockPos n = c.relative(d);
+            boolean s = level.getBlockState(n).isSolidRender(level, n);
+            if (s) solid++;
+            around.append(' ').append(d).append('=').append(level.getBlockState(n).getBlock())
+                    .append(s ? "(实心)" : "");
+        }
+        rig.evidence("carve.firstStuck", String.format(java.util.Locale.ROOT,
+                "%s=%s：身体 %s，距 %.1f 格，canBreak=%s，六邻实心 %d/6，手上 %s；六邻%s",
+                c.toShortString(), level.getBlockState(c).getBlock(), at.toShortString(),
+                Math.sqrt(at.distSqr(c)), rig.body().avatar().canBreak(c), solid,
+                BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem()), around));
     }
 
     /** Stuck cells summarised by height above the body's floor — the shape of the failure matters
@@ -859,7 +899,11 @@ public final class JourneyPortalRung {
         StringBuilder where = new StringBuilder();
         for (int i = 0; i < Math.min(stuck.size(), 8); i++)
             where.append(i == 0 ? "" : " ").append(stuck.get(i).toShortString());
-        return byHeight.toString() + "（键=离脚下的高度，值=格数）"
+        // SAY WHAT THE KEY IS RELATIVE TO. "离脚下的高度" is measured from wherever the body finished
+        // the carve, which is not the alcove floor and is not the same place twice — read without
+        // that y the histogram put the ladder run's twelve stuck cells at "0 and 1", which reads as
+        // the floor and is in fact the ceiling.
+        return byHeight + "（键=离 y=" + floor + " 的高度，即挖完时身体脚下那一层，值=格数）"
                 + " 分别在：" + where + (stuck.size() > 8 ? " …" : "");
     }
 
