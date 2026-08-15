@@ -6,6 +6,8 @@ import java.util.Map;
 
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
+import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.process.Intent;
 import net.magicterra.worlddriver.bot.process.IntentProcess;
 import net.minecraft.core.BlockPos;
@@ -295,11 +297,40 @@ public final class JourneyFill {
                 if (pre.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
                         && level.getFluidState(pre.getBlockPos()).isEmpty()) {
                     BlockPos wall = pre.getBlockPos();
+                    Runnable retry = () ->
+                            scoop(ctx, rig, src, aim, tag, wanted, id, lava, tries, aims - 1, then);
+                    // THE MOULD IS NOT A WALL. This branch answers a blocked sightline by mining the
+                    // blocker, and down in the alcove the tallest thing between an eye and a cell is
+                    // the frame the rung is there to build — measured, {@code recover9.clearedLine.3
+                    // = -10,60,38 Block{minecraft:obsidian} 挡在眼睛和 -10,61,38 之间，敲掉它}, one
+                    // cast cell taken back by the fill that came after it.
+                    //
+                    // <p>AND IT REALLY IS TAKEN BACK, which is the half that was worth checking
+                    // before writing this. Obsidian needs a diamond pickaxe and this body carries
+                    // stone, so "敲掉它" could have been a swing at nothing — three wasted aims and
+                    // an innocent line. It is not: {@code ServerPlayerAvatar.breakHold} calls
+                    // {@code Level#destroyBlock}, which has no tool-level gate at all (its own
+                    // javadoc says so outright — this avatar "harvests obsidian with its fists"),
+                    // so the swing lands and the frame cell is gone.
+                    //
+                    // Refused by COORDINATE, not by block id. The ten ring cells are a set this rung
+                    // computed itself; a block-id test would also protect obsidian that has nothing
+                    // to do with the frame, and would stop protecting a cell the moment something
+                    // else got into it.
+                    if (JourneyPortalRung.isFrameCell(wall)) {
+                        rig.evidence(tag + ".frameOnLine." + aims, wall.toShortString() + " "
+                                + level.getBlockState(wall).getBlock() + " 挡在眼睛和 "
+                                + aim.toShortString() + " 之间，但它是门框格 —— 不敲，"
+                                + "换个角度再看（身体 " + rig.player().blockPosition().toShortString()
+                                + "，眼睛 y=" + String.format(java.util.Locale.ROOT, "%.2f",
+                                        rig.player().getEyePosition().y) + "）");
+                        stepOutOfTheFrame(ctx, rig, src, aim, tag, wanted, id, lava, tries, aims,
+                                then);
+                        return;
+                    }
                     rig.evidence(tag + ".clearedLine." + aims, wall.toShortString() + " "
                             + level.getBlockState(wall).getBlock() + " 挡在眼睛和 "
                             + aim.toShortString() + " 之间，敲掉它");
-                    Runnable retry = () ->
-                            scoop(ctx, rig, src, aim, tag, wanted, id, lava, tries, aims - 1, then);
                     // A PLANT is not a wall, and `mine` will not treat it as one. The lake's rim is
                     // hung with vines, and run 29 spent all three aims on the same one:
                     // `lava2.clearedLine.3/2/1 = -9,67,21 vine`, three identical lines, the vine
@@ -314,55 +345,103 @@ public final class JourneyFill {
                     return;
                 }
             }
-            // The bucket goes back in the hand HERE, not once at the top of the fill. Clearing the
-            // line above is a MINE, and mining selects the best tool for the block — so the branch
-            // that fixes the sightline is also the branch that swaps a stone pickaxe into the slot
-            // the use is about to read. Measured in run 28: `recover1.clearedLine.3` broke the
-            // cobblestone, `recover1.aimsAt=-10,57,38 water 源块=true 液位=8` said the ray was dead
-            // on the source, and `recover1.result=PASS` — a pickaxe's use, indistinguishable from a
-            // bucket that missed, which is the same trap `holdForUse` was written for.
-            WorldDriverJourneyScenes.holdForUse(rig, Items.BUCKET, tag);
-            // WHAT THIS USE CHANGED, not what the bag happens to hold. `carrying(id) >= 1` is the
-            // same claim as "this fill worked" only while the body can carry exactly one — and it
-            // could, so the two were indistinguishable and the weaker one shipped. Carry two and the
-            // second fill passes before it is attempted: the first bucket is already in the bag, so
-            // the test is true whatever `useItemInHand` did, and a fill that missed reports success
-            // and walks a full bucket short to a pour that will report「浇不出黑曜石」. Measure the
-            // DELTA and that is impossible at any bucket count.
-            int before = rig.carrying(id);
-            rig.evidence(tag + ".result", String.valueOf(rig.body().avatar().useItemInHand()));
-            int after = rig.carrying(id);
-            if (after > before) { then.run(); return; }
-            var hit = WorldDriverJourneyScenes.aimedAt(rig.player(), BUCKET_REACH, true);
-            double range = rig.player().getEyePosition()
-                    .distanceTo(net.minecraft.world.phys.Vec3.atCenterOf(aim));
-            rig.evidence(tag + ".miss." + tries, String.format(java.util.Locale.ROOT,
-                    "这一次没装上（%s %d→%d）；瞄 %s（现在是 %s），距 %.1fm，射线停在 %s",
-                    id, before, after,
-                    aim.toShortString(), level.getBlockState(aim).getBlock(), range,
-                    hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
-                            ? hit.getBlockPos().toShortString() + " "
-                              + level.getBlockState(hit.getBlockPos()).getBlock()
-                            : String.valueOf(hit.getType())));
-            // A DIFFERENT source, explicitly. The old line asked for "the nearest one" and got back
-            // the cell that had just failed, so the guard below refused the retry and the rung died
-            // with two of its three approaches unspent — measured as
-            // 「瞄了 -11,63,21 没装上，改瞄 -11,63,21 仍然不行」.
-            BlockPos other = nextSourceBesides(ctx, rig, lava, aim);
-            if (tries > 1 && other != null) {
-                rig.evidence(tag + ".retarget." + tries, aim.toShortString() + " → "
-                        + other.toShortString());
-                fillFrom(ctx, rig, other, tag, wanted, tries - 1, then);
-                return;
-            }
-            ctx.fail("装不到 " + id + "：瞄了 " + aim.toShortString() + " 没装上，"
-                    + (other == null ? "身边 " + FILL_RESEARCH + " 格内没有别的源块可换"
-                                     : "改瞄 " + other + " 仍然不行")
-                    + "；身边的源块：" + sourcesNear(level, rig.player().blockPosition(),
-                            FILL_RESEARCH, lava)
-                    + " —— 空着桶走下去只会把失败写成「浇不出黑曜石」，而真正的失败在这里"
-                    + "（见 " + tag + ".miss.*）");
+            spendTheBucket(ctx, rig, aim, tag, wanted, id, lava, tries, then);
         });
+    }
+
+    /**
+     * Look PAST the frame rather than through it: walk to a cell the clip verifies, or give up.
+     *
+     * <p>The one response this may not make is the one it replaces. Everything else here is allowed
+     * to change the world — that is what makes a retry a retry — but the frame is the rung's own
+     * product, so the only thing left to change is where the eye is.
+     *
+     * <p>And when there is nowhere to move to, it says so and spends the attempt. That is
+     * deliberate: a recursion that walks nowhere and asks the same question is exactly the
+     *「retry that changes nothing」this file has already paid for twice, and a fill that reports
+     * {@code .miss} with its full geometry is a better row than three identical ones.
+     */
+    private static void stepOutOfTheFrame(SceneContext ctx, JourneyRig rig, BlockPos src, BlockPos aim,
+                                          String tag, net.minecraft.world.item.Item wanted, String id,
+                                          boolean lava, int tries, int aims, Runnable then) {
+        ServerLevel level = ctx.level();
+        Map<String, Integer> why = new java.util.LinkedHashMap<>();
+        FillSpot spot = standToFill(level, rig, aim, lava, FILL_RESEARCH, why);
+        BlockPos here = rig.player().blockPosition();
+        if (spot == null || spot.stand().equals(here)) {
+            rig.evidence(tag + ".frameStuck." + aims, "门框挡着 " + aim.toShortString()
+                    + "，而且没有别的落脚点看得见它（身体 " + here.toShortString()
+                    + (spot == null ? "，一处都没验过" : "，验得过的就是脚下这一格")
+                    + "）；否决计数 " + why);
+            spendTheBucket(ctx, rig, aim, tag, wanted, id, lava, tries, then);
+            return;
+        }
+        rig.evidence(tag + ".stepOut." + aims, here.toShortString() + " → " + spot.stand().toShortString()
+                + "（从那里射线落得到 " + aim.toShortString() + "，不用敲门框）");
+        rig.settle(new IntentProcess(new Intent(new Goal.Block(spot.stand()), List.of(),
+                CapabilityProfile.ALL, List.of(new NoBreak()))), 300,
+                () -> scoop(ctx, rig, src, aim, tag, wanted, id, lava, tries, aims - 1, then));
+    }
+
+    /**
+     * Aim taken, line accepted: use the bucket and judge it by what the bag GAINED.
+     *
+     * <p>Split out of {@link #scoop} so the frame guard above has somewhere to give up to. Every
+     * exit from the aiming loop ends here exactly once, which is what keeps「the attempt was spent」
+     * from ever meaning「the attempt vanished」.
+     */
+    private static void spendTheBucket(SceneContext ctx, JourneyRig rig, BlockPos aim,
+                                       String tag, net.minecraft.world.item.Item wanted,
+                                       String id, boolean lava, int tries, Runnable then) {
+        ServerLevel level = ctx.level();
+        // The bucket goes back in the hand HERE, not once at the top of the fill. Clearing the
+        // line above is a MINE, and mining selects the best tool for the block — so the branch
+        // that fixes the sightline is also the branch that swaps a stone pickaxe into the slot
+        // the use is about to read. Measured in run 28: `recover1.clearedLine.3` broke the
+        // cobblestone, `recover1.aimsAt=-10,57,38 water 源块=true 液位=8` said the ray was dead
+        // on the source, and `recover1.result=PASS` — a pickaxe's use, indistinguishable from a
+        // bucket that missed, which is the same trap `holdForUse` was written for.
+        WorldDriverJourneyScenes.holdForUse(rig, Items.BUCKET, tag);
+        // WHAT THIS USE CHANGED, not what the bag happens to hold. `carrying(id) >= 1` is the
+        // same claim as "this fill worked" only while the body can carry exactly one — and it
+        // could, so the two were indistinguishable and the weaker one shipped. Carry two and the
+        // second fill passes before it is attempted: the first bucket is already in the bag, so
+        // the test is true whatever `useItemInHand` did, and a fill that missed reports success
+        // and walks a full bucket short to a pour that will report「浇不出黑曜石」. Measure the
+        // DELTA and that is impossible at any bucket count.
+        int before = rig.carrying(id);
+        rig.evidence(tag + ".result", String.valueOf(rig.body().avatar().useItemInHand()));
+        int after = rig.carrying(id);
+        if (after > before) { then.run(); return; }
+        var hit = WorldDriverJourneyScenes.aimedAt(rig.player(), BUCKET_REACH, true);
+        double range = rig.player().getEyePosition()
+                .distanceTo(net.minecraft.world.phys.Vec3.atCenterOf(aim));
+        rig.evidence(tag + ".miss." + tries, String.format(java.util.Locale.ROOT,
+                "这一次没装上（%s %d→%d）；瞄 %s（现在是 %s），距 %.1fm，射线停在 %s",
+                id, before, after,
+                aim.toShortString(), level.getBlockState(aim).getBlock(), range,
+                hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+                        ? hit.getBlockPos().toShortString() + " "
+                          + level.getBlockState(hit.getBlockPos()).getBlock()
+                        : String.valueOf(hit.getType())));
+        // A DIFFERENT source, explicitly. The old line asked for "the nearest one" and got back
+        // the cell that had just failed, so the guard below refused the retry and the rung died
+        // with two of its three approaches unspent — measured as
+        // 「瞄了 -11,63,21 没装上，改瞄 -11,63,21 仍然不行」.
+        BlockPos other = nextSourceBesides(ctx, rig, lava, aim);
+        if (tries > 1 && other != null) {
+            rig.evidence(tag + ".retarget." + tries, aim.toShortString() + " → "
+                    + other.toShortString());
+            fillFrom(ctx, rig, other, tag, wanted, tries - 1, then);
+            return;
+        }
+        ctx.fail("装不到 " + id + "：瞄了 " + aim.toShortString() + " 没装上，"
+                + (other == null ? "身边 " + FILL_RESEARCH + " 格内没有别的源块可换"
+                                 : "改瞄 " + other + " 仍然不行")
+                + "；身边的源块：" + sourcesNear(level, rig.player().blockPosition(),
+                        FILL_RESEARCH, lava)
+                + " —— 空着桶走下去只会把失败写成「浇不出黑曜石」，而真正的失败在这里"
+                + "（见 " + tag + ".miss.*）");
     }
 
     /**

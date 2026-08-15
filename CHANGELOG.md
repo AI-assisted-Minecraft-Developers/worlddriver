@@ -35,6 +35,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   below it, and `-10,57,38` is not a corridor cell at all — it is an interior cell of the portal's
   own doorway.
 
+### Fixed
+- **Rung 12's bucket no longer answers a blocked sightline by mining the frame it is casting.** The
+  clear-line branch in `JourneyFill.scoop` breaks whatever the ray stops on, and down in the alcove
+  the only thing tall enough to block one is the mould itself — measured, `recover9.clearedLine.3 =
+  -10,60,38 Block{minecraft:obsidian} 挡在眼睛和 -10,61,38 之间，敲掉它`. **It really did break
+  it**: this body's `ServerPlayerAvatar.breakHold` goes to `Level#destroyBlock`, which has no
+  tool-level gate at all (its own javadoc says this avatar "harvests obsidian with its fists"), and
+  the journey never sets `faithfulBreak` — so a stone pickaxe takes obsidian here in one swing.
+
+  Refused by COORDINATE (`isFrameCell`, the ten ring cells this rung computed itself) rather than by
+  block id, which would also protect unrelated obsidian and would stop protecting a cell the moment
+  something else got into it. The blocked fill answers by walking to a stand the clip verifies
+  (`.stepOut`) or, when there is none, spending the attempt with its full geometry (`.frameStuck`)
+  instead of recursing on an unchanged question. Observed doing exactly that:
+  `recover9.frameOnLine.3 … 但它是门框格 —— 不敲` and `recover9.frameStuck.3`, with no
+  `frame.lost.*` anywhere in the run — the mould survived and the failure landed on the fill, with
+  its geometry, instead of silently on the count.
+
 ### Changed
 - **Rung 12 climbs the staircase only when the bag has no lava left, so the ten round trips become
   `ceil(10 / buckets)`.** The pour is cheap and the commute is where the rung dies — falling into the

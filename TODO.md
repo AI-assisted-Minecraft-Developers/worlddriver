@@ -35,6 +35,27 @@ wet.9.noStand = -10, 61, 38 够不着：身体 -8, 57, 36 距 4.90 格（>2）�
 walker 在整个浇筑阶段都开着 `allowBreak`，所以一个**没有可走通路**的格子会被它**从模腔里挖一条
 路出来**。`standBehind` 只挡住了「有壁龛落脚格」那一半；报了 `noStand` 之后照样挖。
 
+### 已修一条：清视线不许敲门框
+
+`JourneyFill.scoop` 的清线分支先问 `JourneyPortalRung.isFrameCell(wall)`，是门框就记
+`.frameOnLine.N` 并改走 `stepOutOfTheFrame`——换一个射线验得过的落脚点（`.stepOut.N`），
+换不到就把这次 attempt 花掉并打全套几何（`.frameStuck.N`），**不做原地重问的空转**。
+按**坐标**判（十格 RING），不按方块 id——id 判会连带保护无关的黑曜石，也会在这一格被别的
+东西占了之后停止保护。
+
+**跑到了**（单桶排练）：
+
+```
+recover9.aimsAt        = -10, 60, 38 Block{minecraft:obsidian} 源块=false 液位=0（想瞄 -10, 61, 38）
+recover9.frameOnLine.3 = … 但它是门框格 —— 不敲，换个角度再看（身体 -10, 58, 35，眼睛 y=59.62）
+recover9.frameStuck.3  = 门框挡着 -10, 61, 38，而且没有别的落脚点看得见它；
+                         否决计数 {脚下不实心=350, 落脚格被占=160, 头顶被占=2}
+一条 frame.lost.* 都没有
+```
+
+**这是设计要的形状**：门框没被敲，失败落在 `recover9` 的装水上并带全套几何，而不是悄悄变成
+9/10。但这一级仍然红——收水拿不回来。⚠️ `stepOut` 至今一次都没触发。
+
 ### 上一轮的原始记录（保留，因为它是这一轮的输入）
 
 2026-08-15 的排练（`-Prehearse=PORTAL_LIT -Pbuckets=4`，四趟浇满十格）以

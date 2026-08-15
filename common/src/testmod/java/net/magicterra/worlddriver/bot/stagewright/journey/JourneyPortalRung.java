@@ -893,11 +893,21 @@ public final class JourneyPortalRung {
         }
         JourneyFill.pinTheFillStation(ctx, rig, lava, surfaceY, stairTop);
         rig.attempting("一只桶浇十块黑曜石（水搬着走）");
-        openTheFrameWatch();
+        openTheFrameWatch(base, away);
         castCell(ctx, rig, base, away, pool, 0, () -> lightIt(ctx, rig, base, away, surfaceY));
     }
 
     // ---- the frame watch: CAST IS NOT KEPT ----
+
+    /**
+     * The ten cells of the frame being cast, whatever is standing in them right now.
+     *
+     * <p>Read through {@link #isFrameCell}, which is package-visible because the code that has to
+     * ask is not in this file: a bucket whose sightline is blocked answers by MINING the blocker,
+     * and down in the alcove the only thing tall enough to block one is the frame itself. See
+     * {@link JourneyFill}'s clear-line branch.
+     */
+    private static Set<BlockPos> frameCells = Set.of();
 
     /** Ring cells this run has watched turn to obsidian, and is therefore entitled to still have. */
     private static final Set<BlockPos> frameCast = new java.util.LinkedHashSet<>();
@@ -908,7 +918,13 @@ public final class JourneyPortalRung {
     /** The last step that ended with every cast cell still obsidian — the other half of "when". */
     private static String frameLastSound = "浇筑开始前";
 
-    private static void openTheFrameWatch() {
+    /** Is this one of the ten cells the frame is made of? */
+    static boolean isFrameCell(BlockPos c) { return frameCells.contains(c); }
+
+    private static void openTheFrameWatch(BlockPos base, Direction away) {
+        Set<BlockPos> ring = new java.util.LinkedHashSet<>();
+        for (int[] c : RING) ring.add(frameCell(base, away, c[0], c[1]).immutable());
+        frameCells = Set.copyOf(ring);
         frameCast.clear();
         frameLosses = 0;
         frameLastSound = "浇筑开始前";
