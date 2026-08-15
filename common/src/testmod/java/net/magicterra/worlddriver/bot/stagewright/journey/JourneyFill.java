@@ -198,7 +198,8 @@ public final class JourneyFill {
             BlockPos inReach = visibleSourceNear(rig, lava, FILL_RESEARCH);
             if (inReach != null) {
                 rig.evidence(tag + ".fromHere", rig.player().blockPosition().toShortString()
-                        + " 已经看得见源块 " + inReach.toShortString() + "（够得着），不走过去了");
+                        + " 已经看得见源块 " + inReach.toShortString() + "（够得着），不走过去了"
+                        + "；" + eyeNow(rig));
                 WorldDriverJourneyScenes.holdForUse(rig, Items.BUCKET, tag);
                 scoop(ctx, rig, src, inReach, tag, wanted, id, lava, tries, AIM_TRIES, then);
                 return;
@@ -248,6 +249,37 @@ public final class JourneyFill {
     private static final int AIM_TRIES = 3;
 
     /**
+     * The eye this ray actually starts from, to the centimetre, and the rotation it points along.
+     *
+     * <p>Printed on BOTH sides of a question two different rays answer. {@link #visibleSourceNear}
+     * clips the segment eye→block-centre; {@code WorldDriverJourneyScenes.aimedAt} traces
+     * {@code directionFromRotation(xRot, yRot)} for {@code BUCKET_REACH} from the same eye. Those
+     * are nominally the SAME line, and a single-bucket rehearsal had them disagree one cell apart:
+     * {@code recover9.fromHere = -10,58,35 已经看得见源块 -10,61,38（够得着）} and, an instant
+     * later, {@code recover9.aimsAt = -10,60,38 Block{minecraft:obsidian} 源块=false}.
+     *
+     * <p>Only two things can do that and the rows could not tell them apart, because both printed
+     * the CELL and a cell is 1 m wide:
+     * <ul>
+     *   <li>the rotation is float-quantised — {@code aimAtBlock} stores degrees as {@code float} and
+     *       the trace re-derives the direction from them, so it is not exactly at the centre;
+     *   <li>the BODY MOVED between the two questions. {@code scoop} aims and then settles two ticks
+     *       (it has to: {@code pick()} traces from the previous tick's rotation), and two ticks of
+     *       falling or floating leave the stored rotation aiming from a position the body has left.
+     * </ul>
+     *
+     * <p>A hundredth of a block separates those two answers, so that is what this prints. The second
+     * is the same family as the two ray traps this repo has already paid for; the first is a rounding
+     * error and would show as a body that did not move at all.
+     */
+    private static String eyeNow(JourneyRig rig) {
+        var fp = rig.player();
+        var eye = fp.getEyePosition();
+        return String.format(java.util.Locale.ROOT, "眼睛 %.2f/%.2f/%.2f 朝 yaw=%.2f pitch=%.2f",
+                eye.x, eye.y, eye.z, fp.getYRot(), fp.getXRot());
+    }
+
+    /**
      * Aim, check where the ray actually goes, and only then use the bucket.
      *
      * <p>The pour has had this gate for a while and the fill did not, which is the whole of run 18's
@@ -280,11 +312,12 @@ public final class JourneyFill {
             // read as a fill that missed — and the retry then aimed at the same non-source again.
             var fluid = pre.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
                     ? level.getFluidState(pre.getBlockPos()) : null;
-            rig.evidence(tag + ".aimsAt", fluid == null ? String.valueOf(pre.getType())
+            rig.evidence(tag + ".aimsAt", (fluid == null ? String.valueOf(pre.getType())
                     : pre.getBlockPos().toShortString() + " "
                       + level.getBlockState(pre.getBlockPos()).getBlock()
                       + " 源块=" + fluid.isSource() + " 液位=" + fluid.getAmount()
-                      + (pre.getBlockPos().equals(aim) ? "" : "（想瞄 " + aim.toShortString() + "）"));
+                      + (pre.getBlockPos().equals(aim) ? "" : "（想瞄 " + aim.toShortString() + "）"))
+                    + "；" + eyeNow(rig));
             boolean onTarget = fluid != null && pre.getBlockPos().equals(aim) && fluid.isSource();
             if (!onTarget && aims > 0) {
                 BlockPos again = visibleSourceNear(rig, lava, FILL_RESEARCH);

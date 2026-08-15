@@ -97,18 +97,27 @@ recover9.fromHere = -10, 58, 35 已经看得见源块 -10, 61, 38（够得着）
 recover9.aimsAt   = -10, 60, 38 Block{minecraft:obsidian} 源块=false 液位=0（想瞄 -10, 61, 38）
 ```
 
-- `visibleSourceNear` 用的是「眼睛 → 方块中心」这一条**线段** clip；
-- 真正用桶时用的是 `aimAtBlock` 算出的 yaw/pitch **视线向量**，再按 `BUCKET_REACH` 长度 trace。
-  `aimAtBlock` 是照身体的**连续坐标**（不是格中心）算的，所以两者在贴着方块边缘时会分叉。
+- `visibleSourceNear` 用的是「眼睛 → 方块中心」这一条**线段** clip（`level.clip(eye → atCenterOf(c))`）；
+- 真正用桶时是 `WorldDriverJourneyScenes.aimedAt`：**同一个眼睛**出发，方向取
+  `Vec3.directionFromRotation(fp.getXRot(), fp.getYRot())`，长度 `BUCKET_REACH`。
 
-后果不只是多一行不一致的读数：`riseToTakeItBack` 的前置判断问的就是 `visibleSourceNear`，
-它答「看得见」于是**没升排**，上面那条修法在这一趟根本没跑到。
+**读源码之后要修正我自己上面那句话**：`aimAtBlock` 也是从 `(getX(), getEyeY(), getZ())` 指向
+格**中心**的，所以两条射线**名义上是同一条线**。能让它们分叉的只有两件事，而且原来的读数
+**分不出是哪一件**（两边打印的都是**格**，一格宽一米）：
 
-**倾向的修法**：让 `visibleSourceNear` 用与 `useItemInHand` 同一条射线（即先 `aimAtBlock` 再按
-视线向量 trace，或直接复用 `WorldDriverJourneyScenes.aimedAt` 的那条），而不是各算各的。
-本项目在这上面已经栽过两次——`pick()` 用 `partialTicks=0.0F` 从上一 tick 的位置起线；
-桶是 `Item.use` 从眼睛 ray-trace 而不是点击目标格。**两个 API 回答同一个问题却用不同的射线，
-迟早会分叉。**
+1. **float 量化**：`aimAtBlock` 把角度存成 `float`，trace 再从角度反解方向，于是不是精确对准中心；
+2. **身体在两问之间动了**：`scoop` 是「先 `aimAtBlock`，再 settle 两 tick」（必须settle——
+   `pick()` 从上一 tick 的朝向起线），两 tick 的下落/浮起会让存下来的角度**从一个身体已经离开的
+   位置**去瞄。这一条和本仓库已经栽过的两个射线坑是同一族。
+
+**已加读数（本轮最后一条改动，纯证据、无行为变化，尚未跑过）**：`eyeNow(rig)` 现在挂在
+`.fromHere` 和 `.aimsAt` 两行末尾，打印**连续**眼睛坐标（两位小数）和 yaw/pitch。两行一比：
+坐标一样 → 是量化；坐标不一样 → 是身体动了。**先让它开口，再决定改哪条射线。**
+
+**倾向的修法（等读数点名之后再动）**：让 `visibleSourceNear` 用与 `useItemInHand` 同一条射线，
+而不是各算各的。本项目在这上面已经栽过两次——`pick()` 用 `partialTicks=0.0F` 从上一 tick 的
+位置起线；桶是 `Item.use` 从眼睛 ray-trace 而不是点击目标格。**两个 API 回答同一个问题却用
+不同的射线，迟早会分叉。**
 
 ### 上一轮的原始记录（保留，因为它是这一轮的输入）
 
