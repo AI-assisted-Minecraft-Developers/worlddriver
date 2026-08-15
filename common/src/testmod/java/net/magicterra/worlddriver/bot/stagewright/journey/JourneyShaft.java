@@ -200,7 +200,23 @@ public final class JourneyShaft {
      */
     static final int WASHED_OFF_RETRIES = 8;
 
+    /**
+     * A climb entered directly, without {@link #climbOut}'s bookkeeping — so it has to do that
+     * bookkeeping itself.
+     *
+     * <p>{@code climbColX/Z} and {@link #climbPinned} are static, which is safe for the reason the
+     * rest of this package's state is (one body, one run, one scene at a time) and only while every
+     * entry point SETS them. This one did not: the obsidian rung's climb-back-to-the-gallery reached
+     * the drift branch carrying whichever column the previous rung's exit had left behind, so the
+     * correction walked toward a cell that had nothing to do with where the body was. Inheriting a
+     * PIN would be worse still — a pin belongs to the caller that asked for one, and this caller
+     * wants the ordinary "any column that rises will do" policy.
+     */
     static void ascendByTowering(JourneyRig rig, int surfaceY, int budget, int cap, Runnable then) {
+        climbPinned = false;
+        BlockPos at = rig.player().blockPosition();
+        climbColX = at.getX();
+        climbColZ = at.getZ();
         ascendByTowering(rig, surfaceY, budget, cap, WASHED_OFF_RETRIES, then);
     }
 
