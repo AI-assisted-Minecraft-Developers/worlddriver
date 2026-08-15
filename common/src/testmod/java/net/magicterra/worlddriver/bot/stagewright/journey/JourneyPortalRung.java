@@ -893,9 +893,73 @@ public final class JourneyPortalRung {
         }
         JourneyFill.pinTheFillStation(ctx, rig, lava, surfaceY, stairTop);
         rig.attempting("一只桶浇十块黑曜石（水搬着走）");
+        openTheFrameWatch();
         castCell(ctx, rig, base, away, pool, 0, () -> lightIt(ctx, rig, base, away, surfaceY));
     }
 
+    // ---- the frame watch: CAST IS NOT KEPT ----
+
+    /** Ring cells this run has watched turn to obsidian, and is therefore entitled to still have. */
+    private static final Set<BlockPos> frameCast = new java.util.LinkedHashSet<>();
+
+    /** How many losses have been reported, so each gets its own evidence key. */
+    private static int frameLosses;
+
+    /** The last step that ended with every cast cell still obsidian — the other half of "when". */
+    private static String frameLastSound = "浇筑开始前";
+
+    private static void openTheFrameWatch() {
+        frameCast.clear();
+        frameLosses = 0;
+        frameLastSound = "浇筑开始前";
+    }
+
+    /**
+     * Check every cell already cast is STILL obsidian, and name the step that took one that is not.
+     *
+     * <p><b>Poured is not kept, and until this the rung could not tell the two apart.</b> The
+     * rehearsal of 2026-08-15 recorded {@code CONSUME} for all ten casts, not one
+     * {@code cast.missed.*} — so at the instant of each pour all ten cells WERE obsidian — and then
+     * finished {@code frame.cast=6/10}. Four cells went missing after being cast and the only
+     * reading that existed was the final count, which can date a loss to "somewhere in the ten
+     * round trips" and no closer. One of the four left a trace ({@code recover9.clearedLine.3},
+     * a fill breaking the frame to see past it); the other three left nothing at all.
+     *
+     * <p>So the frame is re-read after every step that can move a block, and a cell that has stopped
+     * being obsidian is reported ONCE, with the step it disappeared inside and the last step it was
+     * still whole after. That pair is the whole diagnosis: a count says four are gone, this says
+     * which four, and between which two instructions.
+     *
+     * <p>Reported and dropped rather than reported and kept, so ten later checks do not each
+     * re-announce the same cell. The running total goes on every row, which is what makes a second
+     * loss legible as a second loss.
+     */
+    private static void auditFrame(JourneyRig rig, String step) {
+        ServerLevel level = rig.ctx().level();
+        for (var it = frameCast.iterator(); it.hasNext(); ) {
+            BlockPos c = it.next();
+            if (level.getBlockState(c).getBlock() == Blocks.OBSIDIAN) continue;
+            it.remove();
+            BlockPos at = rig.player().blockPosition();
+            rig.evidence("frame.lost." + (++frameLosses), c.toShortString() + " 浇成黑曜石之后又没了："
+                    + "现在是 " + level.getBlockState(c).getBlock()
+                    + "，丢在「" + step + "」这一步里（上一次它还在，是「" + frameLastSound + "」之后）；"
+                    + "身体 " + at.toShortString() + " 距 "
+                    + String.format(java.util.Locale.ROOT, "%.1f", Math.sqrt(at.distSqr(c)))
+                    + " 格，手上 "
+                    + BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem())
+                    + "；已浇 " + (frameCast.size() + frameLosses) + " 格，现存 " + frameCast.size() + " 格");
+        }
+        // Unconditionally, INCLUDING after a loss. The cells still standing were verifiably whole at
+        // the end of this step, so this step is what the next loss should name as its last-seen —
+        // freezing the marker on a loss would date every later loss to the same stale instruction.
+        frameLastSound = step;
+    }
+
+    /** Run {@code then}, having first checked the frame survived {@code step}. */
+    private static Runnable watchFrame(JourneyRig rig, String step, Runnable then) {
+        return () -> { auditFrame(rig, step); then.run(); };
+    }
 
     private static BlockPos wetCellFor(BlockPos base, Direction away, int dx, int dy) {
         return JourneyForge.wetCellFor(base, away, dx, dy);
@@ -904,7 +968,12 @@ public final class JourneyPortalRung {
     private static void castCell(SceneContext ctx, JourneyRig rig, BlockPos base, Direction away,
                                  List<BlockPos> pool, int i, Runnable then) {
         if (i >= RING.length) {
-            rig.evidence("frame.cast", countObsidian(ctx.level(), base, away) + "/" + RING.length);
+            auditFrame(rig, "最后一格收尾之后");
+            // BOTH NUMBERS. "6/10" alone is the row that started this: it cannot say whether four
+            // cells never cast or four cast and were taken back, and those want opposite work.
+            rig.evidence("frame.cast", countObsidian(ctx.level(), base, away) + "/" + RING.length
+                    + "（浇成过 " + (frameCast.size() + frameLosses) + " 格，浇成之后又丢了 "
+                    + frameLosses + " 格 —— 见 frame.lost.*）");
             then.run();
             return;
         }
@@ -936,10 +1005,14 @@ public final class JourneyPortalRung {
         // does not report itself, it reports a pour into rock two steps later. UNVERIFIED: this is a
         // plausible reason run 20 left `wet` as stone, not a confirmed one; the assertion below is
         // what will actually name the cause next run.
-        reopen(ctx, rig, "cell." + i, cell, away, REOPEN_TRIES, () ->
-                reopen(ctx, rig, "wet." + i, wet, away, REOPEN_TRIES, () ->
+        reopen(ctx, rig, "cell." + i, cell, away, REOPEN_TRIES,
+                watchFrame(rig, "cell." + i + " 挖开门框格 " + cell.toShortString(), () ->
+                reopen(ctx, rig, "wet." + i, wet, away, REOPEN_TRIES,
+                watchFrame(rig, "wet." + i + " 挖开水位格 " + wet.toShortString(), () ->
                         tidyTheAlcove(ctx, rig, "tidy." + i,
-                                () -> castOpenedCell(ctx, rig, base, away, pool, i, cell, wet, then))));
+                                watchFrame(rig, "tidy." + i + " 清壁龛里自己垒的方块", () ->
+                                        castOpenedCell(ctx, rig, base, away, pool, i, cell, wet,
+                                                then)))))));
     }
 
     /** How many times a cell may be opened before the rung accepts that it is shut. Four: one dig
@@ -1386,7 +1459,8 @@ public final class JourneyPortalRung {
         }
         // Water in, from the block behind it: a bucket fills the neighbour of the face its ray lands
         // on, and an air cell stops no ray. Standing level with the target keeps that ray horizontal.
-        placeFluid(ctx, rig, wet, away, Items.WATER_BUCKET, "water" + i, () -> {
+        placeFluid(ctx, rig, wet, away, Items.WATER_BUCKET, "water" + i,
+                watchFrame(rig, "water" + i + " 放水进 " + wet.toShortString(), () -> {
             // Record where the water settled; do not fail on it. The claim is the obsidian, so let
             // the cast decide — `cast.missed.i` names any cell that did not turn.
             //
@@ -1406,9 +1480,14 @@ public final class JourneyPortalRung {
             // right on a cell poured from a bucket already in the bag: the cell was opened moments
             // ago and the reopen finds nothing to do.)
             Runnable pour = () -> reopen(ctx, rig, "cast" + i + ".reopen", cell, away, REOPEN_TRIES,
-                    () -> placeFluid(ctx, rig, cell, away, Items.LAVA_BUCKET,
+                    watchFrame(rig, "cast" + i + ".reopen 浇前再挖一次 " + cell.toShortString(), () ->
+                    placeFluid(ctx, rig, cell, away, Items.LAVA_BUCKET,
                     "cast" + i, () -> rig.settle(new HoldStill(3), 12, () -> {
                 var got = ctx.level().getBlockState(cell).getBlock();
+                // THE MOMENT THIS CELL BECAME OBSIDIAN, which is what makes every later check able
+                // to say it stopped being obsidian. Recorded here rather than counted at the end
+                // because the end can only say how many are left.
+                if (got == Blocks.OBSIDIAN) frameCast.add(cell.immutable());
                 if (got != Blocks.OBSIDIAN)
                     rig.evidence("cast.missed." + i, cell.toShortString() + " = " + got
                             + "（旁边 " + wet.toShortString() + " 是 "
@@ -1433,9 +1512,11 @@ public final class JourneyPortalRung {
                 // cell that cannot become portal, so `lightIt` would report 5/6 for a frame that is
                 // actually complete.
                 JourneyFill.fillFrom(ctx, rig, wet, "recover" + i, Items.WATER_BUCKET,
-                        () -> drainTheAlcove(ctx, rig, i, DRAIN_LEGS,
-                        () -> castCell(ctx, rig, base, away, pool, i + 1, then)));
-            })));
+                        watchFrame(rig, "recover" + i + " 从 " + wet.toShortString() + " 收水", () ->
+                        drainTheAlcove(ctx, rig, i, DRAIN_LEGS,
+                        watchFrame(rig, "drain." + i + " 等壁龛排干",
+                        () -> castCell(ctx, rig, base, away, pool, i + 1, then)))));
+            }))));
             // THE STAIRS ARE THE EXPENSIVE PART, so climb them only when there is nothing to pour.
             // A lava bucket does not survive the pour — it becomes obsidian and an empty bucket — so
             // this is the one fluid the rung cannot recycle the way it recycles its single water
@@ -1451,9 +1532,12 @@ public final class JourneyPortalRung {
             // climbs are spelled out; neither was, and each cost a run to find. See goUpToThePool
             // and returnToTheForge.
             goUpToThePool(ctx, rig, src.getY(), "lava" + i,
-                    () -> JourneyFill.loadBuckets(ctx, rig, src, "lava" + i,
-                    () -> returnToTheForge(ctx, rig, base.getY(), "cast" + i, pour)));
-        });
+                    watchFrame(rig, "lava" + i + " 上楼去岩浆池", () ->
+                    JourneyFill.loadBuckets(ctx, rig, src, "lava" + i,
+                    watchFrame(rig, "lava" + i + " 在池边装桶", () ->
+                    returnToTheForge(ctx, rig, base.getY(), "cast" + i,
+                    watchFrame(rig, "cast" + i + " 下楼回模腔", pour))))));
+        }));
     }
 
     /** Stand level with {@code target} and empty the held bucket into it, aiming at the solid block

@@ -1,4 +1,41 @@
-## ⬜ 12 级：清视线的那一镐会把自己刚浇出来的黑曜石敲掉（有确证一例，另外三格无证据）
+## ⬜ 12 级：门框浇完之后掉格 —— 读数已就位并已点名一条机制
+
+### 「石镐挖不动黑曜石」这条假设是**错的**（源码级，不是运气）
+
+`ServerPlayerAvatar.breakHold` 在 `faithfulBreak == false` 时直接
+`fp.level().destroyBlock(aimTarget, DROP_HARVEST, fp)`，**没有任何工具等级闸**——
+它自己的 javadoc 就写着这具身体「harvests obsidian with its fists」。而 journey 的关卡
+从不碰 `faithfulBreak`（全 testmod 只有 `wd.serverWalkerDeepslateNoTool` 和
+两个 water-bank 关卡翻它）。所以 `recover9.clearedLine.3` 那句「敲掉它」是**真的敲掉了**，
+不是白花三次 aim。四格里另外三格「没有任何证据行说得出去向」这件事，因此不是没发生，
+而是没人在看。
+
+### 仪器：`auditFrame` / `frame.lost.N`
+
+在每个可能动方块的步骤之后（两次 reopen、tidy、放水、上楼、装桶、下楼、浇前 reopen、
+收水、排干）重读所有「已经浇成黑曜石」的格，第一次发现少了就报一条 `frame.lost.N`，
+写明**丢在哪一步里**、**上一次它还在是哪一步之后**，外加身体位置、距离、手上拿的、
+已浇/现存计数。`frame.cast` 同时报「浇成过几格 / 之后丢了几格」——
+「少四格」和「四格没浇成」要的是相反的活。
+
+### 它第一次跑就点名了一条机制：**`mine` 的寻路自己挖穿门框**
+
+单桶排练（rung FAIL 9/10）：
+
+```
+frame.lost.1 = -9, 60, 38 浇成黑曜石之后又没了：现在是 air，
+               丢在「wet.9 挖开水位格 -10, 61, 38」这一步里
+               （上一次它还在，是「cell.9 挖开门框格 -10, 60, 38」之后）；
+               身体 -10, 57, 38 距 3.2 格，手上 minecraft:cobblestone；已浇 9 格，现存 8 格
+wet.9.noStand = -10, 61, 38 够不着：身体 -8, 57, 36 距 4.90 格（>2）；…垫不了…
+```
+
+那一步挖的是**壁龛口上方的水位格**，丢掉的是它下面两排的门框格，而 `-10, 57, 38` **根本不是
+壁龛格**——它是门洞自己的内部格。`ServerWorldDriver.mine` = 一个 walker 目标 + 一次挥击，而
+walker 在整个浇筑阶段都开着 `allowBreak`，所以一个**没有可走通路**的格子会被它**从模腔里挖一条
+路出来**。`standBehind` 只挡住了「有壁龛落脚格」那一半；报了 `noStand` 之后照样挖。
+
+### 上一轮的原始记录（保留，因为它是这一轮的输入）
 
 2026-08-15 的排练（`-Prehearse=PORTAL_LIT -Pbuckets=4`，四趟浇满十格）以
 `门框没浇满：只有 6/10 块黑曜石` 收尾，而**十格全部 `castN.result=CONSUME`，一条

@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Rung 12 re-reads its frame after every step that can move a block, so a cell that stops being
+  obsidian names the instruction that took it.** The rehearsal of 2026-08-15 recorded `CONSUME` for
+  all ten casts and not one `cast.missed.*` — every cell WAS obsidian at the instant it was poured —
+  and then finished `frame.cast=6/10`. Four cells disappeared *after* being cast, and the only
+  reading that existed was the final count, which can date a loss to "somewhere in ten round trips"
+  and no closer. Only one of the four had left any trace at all.
+
+  `auditFrame` checks every cell already cast after each of the two reopens, the tidy, the water
+  pour, the climb up, the load, the climb down, the pre-pour reopen, the recover and the drain, and
+  reports the first loss ONCE as `frame.lost.N` — naming the step it vanished inside, the last step
+  it was still whole after, and where the body was standing with what in its hand. `frame.cast`
+  now carries both numbers (`10/10（浇成过 10 格，浇成之后又丢了 0 格）`), because "four are
+  missing" and "four never cast" want opposite work.
+
+  It named a mechanism on its first reproduction, a single-bucket rehearsal that cast all ten and
+  finished 9/10:
+
+  ```
+  frame.lost.1 = -9,60,38 浇成黑曜石之后又没了：现在是 air，丢在「wet.9 挖开水位格 -10,61,38」
+                 这一步里（上一次它还在，是「cell.9 挖开门框格 -10,60,38」之后）；
+                 身体 -10,57,38 距 3.2 格，手上 minecraft:cobblestone；已浇 9 格，现存 8 格
+  ```
+
+  The step that lost it is a dig of the NOTCH, the cell it cost is the top-left ring cell two rows
+  below it, and `-10,57,38` is not a corridor cell at all — it is an interior cell of the portal's
+  own doorway.
+
 ### Changed
 - **Rung 12 climbs the staircase only when the bag has no lava left, so the ten round trips become
   `ceil(10 / buckets)`.** The pour is cheap and the commute is where the rung dies — falling into the
