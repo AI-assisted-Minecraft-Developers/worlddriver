@@ -9,6 +9,7 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.process.BotProcess;
+import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
@@ -269,6 +270,14 @@ public final class JourneyRig {
      * the caller checks whether the cell actually opened and decides what that means.
      */
     public void mineCellOrGiveUp(BlockPos target, int ticks, Runnable then) {
+        if (breakItWhereItStands(target)) {
+            // One tick, so the world gets to react — gravel falls, fluid moves — before the next
+            // cell is judged. Not zero: opening a whole alcove inside a single server tick would
+            // queue every block update behind the carve and is the shape of「a whole fight in one
+            // server tick」this repo has already paid for.
+            settle(new HoldStill(1), 4, then);
+            return;
+        }
         ServerWorldDriver d = body();
         ServerAvatarManager.register(d.mine(target));
         int[] waited = {0};
@@ -276,6 +285,67 @@ public final class JourneyRig {
             ServerAvatarManager.unregister(d);
             then.run();
         });
+    }
+
+    /** Cells opened by {@link #breakItWhereItStands} rather than by a walk, this stage. */
+    private int swungInPlace;
+
+    /** How many of this stage's digs never needed a route. Printed by the carve, because「48/67
+     *  开了」and「48/67 开了，其中 40 格是就地挥开的」describe different machines. */
+    public int swungInPlace() { return swungInPlace; }
+
+    /**
+     * If the body can already break this cell, break it — do not route to it.
+     *
+     * <p><b>{@code canBreak} is the same predicate the break itself enforces</b>, and that is what
+     * makes this exact rather than optimistic. {@code ServerPlayerAvatar.canBreak} delegates to
+     * {@code canBreakFromHere}, which is EXPOSED (some neighbour is not a full solid face) AND IN
+     * RANGE (eye to block centre within {@code blockInteractionRange() + 0.5}) — reach included,
+     * measured from the live eye. {@code breakHold(true)} then gates on that same
+     * {@code canBreakFromHere} and, with {@code faithfulBreak} off, calls {@code Level#destroyBlock}
+     * outright. So a true answer here is not「probably reachable」: it is「this swing lands, now,
+     * from exactly where the body is standing」.
+     *
+     * <p><b>Why this is worth a route.</b> {@code ServerWorldDriver.mine} is a walker goal plus a
+     * swing, and the walker carves and pillars its way to the goal. On the real ladder of
+     * 2026-08-16 that is what ended rung 12 at its FIRST cell: the mould carve left
+     * {@code forge.carved=48/67 格开了，19 格没挖动}, all nineteen in the alcove's upper half
+     * (y=59..62), and the diagnostic on the first of them read
+     * {@code carve.firstStuck = -9,59,36=granite：身体 -9,56,34，距 3.6 格，canBreak=true} —
+     * three and a half blocks away, exposed, breakable, and the 240-tick budget went on walking
+     * instead. Worse, the walking is what lost the run: the pillars {@code MineProcess} placed to
+     * reach the upper cells ({@code tidy.0} counted ten of them) walked the body out of its own
+     * shaft, and {@code cell.0.standMissed = 想站 -9,56,36，停在 -10,66,34 … 脚下 grass_block}
+     * put it on the SURFACE, ten blocks above the mould, from which every retry reported
+     * {@code canBreak=false} at 12.5 m.
+     *
+     * <p><b>This does not take the pillars away</b>, deliberately. Cells genuinely out of reach
+     * still fall through to {@code mine}, which still places, because building up to the alcove's
+     * top row is the only way to reach it — removing that would turn nineteen unopened cells into
+     * more. What changes is that reaching is no longer the FIRST answer to every cell.
+     *
+     * <p><b>The tool is selected first</b>, because {@code destroyBlock(pos, true, fp)} passes the
+     * held item to {@code dropResources}: swinging a fist at stone opens the cell and drops
+     * nothing, and this rung spends the cobblestone it mines. What is NOT reproduced is
+     * {@code MineProcess}'s COLLECT phase — nothing walks to the drop — so a cell opened here is
+     * collected only if it falls inside the avatar's own pickup sweep. That is the one thing this
+     * trades away, and {@code forge.cobblestone} measures it as a DELTA rather than leaving it to
+     * be argued about.
+     */
+    public boolean breakItWhereItStands(BlockPos target) {
+        if (ctx.level().getBlockState(target).isAir()) return true;
+        Avatar a = body().avatar();
+        if (!a.canBreak(target)) return false;
+        a.selectTool(target);
+        a.aimAtBlock(target);
+        a.breakHold(true);
+        a.breakHold(false);
+        // THE WORLD, not the call. `breakHold` returns nothing and refuses silently, so the only
+        // honest test of「did it open」is the block itself — the same rule every placement in this
+        // suite already follows.
+        if (!ctx.level().getBlockState(target).isAir()) return false;
+        swungInPlace++;
+        return true;
     }
 
     /**

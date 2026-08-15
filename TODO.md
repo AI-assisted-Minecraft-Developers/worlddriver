@@ -246,9 +246,64 @@ tidy.0           = 10 格是挖完之后才出现的（挖门框时 MineProcess 
 `forge.carved=63/67`。变的是程度（4 格 → 19 格没挖动），而 19 格全在壁龛上半截 y=59..62——
 和排练里第 10 格那条「最上一排够不着」是**同一个几何**：越往上越站不住。
 
+### ✅ 已修（2026-08-16）：够得着就地挥，不再为每一格找路
+
+`JourneyRig.mineCellOrGiveUp` 在派 `mine`（走过去 + 挥）之前先问一句
+`avatar().canBreak(target)`，为真就 `selectTool → aimAtBlock → breakHold(true)` 当场敲开。
+
+**先读码确认了 `canBreak` 的语义，这是整条修法的地基**：`ServerPlayerAvatar.canBreak`
+就是 `canBreakFromHere`，条件是**暴露**（六邻有一面不是完整实心）**且在触及范围内**
+（眼睛到格中心 ≤ `blockInteractionRange() + 0.5`，从当前眼睛实测）。所以它**含 reach**，
+不是「这块石头这具身体啃得动」。更关键：`breakHold(true)` 闸的是**同一个**
+`canBreakFromHere`，然后（`faithfulBreak` 关着时）直接 `Level#destroyBlock`。
+于是 `canBreak=true` 不是「大概够得着」，而是**「这一挥现在就落，从身体当前所站之处」**。
+
+**没有关掉放置权**——够不着的格子照旧落到 `mine`，照旧垒踏板，因为上半截本来就只能垒上去够。
+变的只是：找路不再是每一格的**第一**答案。
+
+**排练一趟（单桶）的读数**：
+
+```
+forge.carved     = 67/67 格全开        ← 真实 ladder 上一趟是 48/67，再上一趟 63/67
+carve.stuck      = 无
+forge.swung      = 59/67 格是就地挥开的（canBreak 已经为真，不用走过去）
+forge.cobblestone = 64 → 67（挖壁龛这一段的净变化）
+opened.0 … opened.9 = 十格全部 air/air   ← 含 -10,61,38，前两趟它是挖不动的 dirt
+cell.5.standMissed = … 停在 -11, 57, 36 …   ← y=57，在壁龛里；不是 y=66 那个地表签名
+19 次装桶全 CONSUME，无 frame.lost/frameOnLine/frameStuck；7032 tick（改前 9210~13293）
+```
+
+**跳过 COLLECT 的代价被量了，不是被猜的**：就地挥不走过去捡掉落，只靠身体自己的拾取范围，
+而 `forge.cobblestone` 报的是 **64 → 67，净 +3**——这一段没有把圆石吃穷。
+
+判据 2（`forge.carved` 显著回升）**达成**；判据 1 的签名（落脚点回到 y≈56 一带而不是地表）
+在排练里**达成**。判据 3（真实 ladder 走过开挖进到浇筑）**本轮没答上**，见下。
+
+### ⬜ 真实 ladder 第二趟：被第 11 级挡住，判据 3 未答
+
+爬到 **PORTAL_KIT（第 10 级）**，比上一趟**退了一级**，`stagingCalls=0`。第 11 级红：
+
+```
+wd.journey11Obsidian -> FAIL (663 ticks) — 竖井挖不动：身体浮在 Block{minecraft:water} 里
+（BlockPos{x=-4, y=62, z=56}，脚下是流体不是地板）——这根柱子不干燥，换一根
+```
+
+第 12 级因此 `BLOCKED`，**一次都没跑**，所以这一趟对本轮改动**没有信息量**。
+
+**这一红不可能是本轮改动造成的，理由是结构性的，不是推断**：
+`mineCellOrGiveUp` 的调用点**全部**在第 12 级及以上
+（`JourneyPortalRung` / `JourneyStairs` / `JourneyFill` / `JourneyNetherRungs` / `JourneyEndRungs`），
+而报错的 `JourneyShaft.java` 和实现 1~11 级的 `WorldDriverJourneyScenes.java` 里
+`mineCellOrGiveUp` 出现 **0 次**——**1~11 级根本执行不到被改的代码**。
+两趟前段也早就分岔了（WOOD 2726 vs 1272 tick、生肉 ×2 vs ×4、剩余圆石 18 vs 21），
+选竖井柱子挑到湿的那一根是这条既有的随机性。
+
 ### ⬜ 下一个人从这里接
 
-0. **（真实 ladder 上的唯一切口）开挖时不许把自己垒出竖井。** `MineProcess` 在
+0. **判据 3 还欠一趟**：真实 ladder 上让第 12 级真正走过开挖。上一趟被第 11 级的
+   「竖井柱子不干燥」挡住，那是**另一条**既有缺陷（`JourneyShaft` 选柱不看干湿，
+   见 `journey11Obsidian` 的 FAIL 行），修它或重跑都行，但**别把它算进第 12 级的账**。
+0.5. **原第 0 条已修**（就地挥），保留原文在上面一节。
    `forge` 阶段开着放置权，于是够不着的上半截靠垒踏板去够，垒着垒着就上了地表，
    再也回不来。`cell.0.standMissed` 那一行（想站 y=56、停在 y=66、脚下 grass_block）
    是这条的判据：**修好之后它必须报一个 y=56 附近的落脚点**。注意别顺手关掉放置权——

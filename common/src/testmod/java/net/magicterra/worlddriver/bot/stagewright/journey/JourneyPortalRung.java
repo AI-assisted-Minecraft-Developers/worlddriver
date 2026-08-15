@@ -699,6 +699,8 @@ public final class JourneyPortalRung {
         rig.evidence("forge.toCarve", todo.size() + "/" + cells.size() + " 格");
         rig.attempting("挖出浇筑用的壁龛和十二格门框");
         BotConfig.allowPlace = false;
+        int swungBefore = rig.swungInPlace();
+        int cobbleBefore = rig.carrying("minecraft:cobblestone");
         carveNext(ctx, rig, todo, 0, new ArrayList<>(), () -> {
             // Placing stays OFF from here to the last cast, and that is the fix run 16 asked for.
             // The alcove is finished: every cell the body needs is already open, so anything the
@@ -730,6 +732,20 @@ public final class JourneyPortalRung {
                     ? todo.size() + "/" + todo.size() + " 格全开"
                     : carved + "/" + todo.size() + " 格开了，" + forgeStuck.size()
                       + " 格没挖动 —— 见 carve.stuck，壁龛不是完整的");
+            // HOW MANY NEEDED A ROUTE AT ALL. `forge.carved` counts cells and cannot tell a carve
+            // that walked to all of them from one that walked to none, and those are different
+            // machines with different failure modes — the walk is what pillared the body onto the
+            // surface on 2026-08-16. A run where this number is near zero has NOT taken the fix.
+            rig.evidence("forge.swung", (rig.swungInPlace() - swungBefore) + "/" + todo.size()
+                    + " 格是就地挥开的（canBreak 已经为真，不用走过去）");
+            // WHAT THE SKIPPED COLLECT COST. An in-place swing breaks the block but nothing walks
+            // to the drop, so the alcove's cobblestone is now collected only by the avatar's own
+            // pickup sweep. This rung SPENDS cobblestone (backings, steps, pillars), so「carve 之后
+            // 手上多了几块」is the number that says whether that trade was affordable — measured as
+            // a delta, because the bag already held sixty-nine when the rung started.
+            rig.evidence("forge.cobblestone", cobbleBefore + " → "
+                    + rig.carrying("minecraft:cobblestone") + "（挖壁龛这一段的净变化；"
+                    + "就地挥不走过去捡，掉落只靠身体自己的拾取范围）");
             // Is the mould still a mould? The backings were solid when the spot was CHOSEN, and the
             // carve is the only thing that has happened since — but `allowBreak` stays on through it,
             // so the pathfinder is free to chew a way through the back wall while reaching a corridor
