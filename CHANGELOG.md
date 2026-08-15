@@ -7,7 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **The dig sealed the very cell it had to stand in, and only cobblestone was ever swept up.**
+  `MineProcess` reaches a frame cell above head height by pillaring, and it pillars with
+  `JourneyShaft.pillarBlock` — whichever of seven spoils the body carries **most** of. Every
+  rehearsal is handed `cobblestone×64`, so for thirty runs that was cobblestone and `tidyTheAlcove`
+  took it away. A real climb arrives with what eleven rungs left behind: the ladder run of
+  2026-08-15 arrived holding **dirt**, and the first frame cell then read
+  `dig.cell.0 … canBreak=false … west=Block{minecraft:dirt}(实心)` beside
+  `cell.0.noStand = … 7,56,19 被 Block{minecraft:dirt} 占着` — at floor level, in a chamber cut
+  through granite, where dirt is not terrain. `7,56,19` is not in `carve.stuck`; it had been carved
+  open and then filled by the rung's own pillar. Three retries re-asked the unchanged question and
+  the rung died five casts' worth of wall clock later, at a pour.
+
+  A stand now takes back the **one** cell that blocks it — feet or head, either candidate stand —
+  identified against the carve's own stuck list rather than by block id, and bounded at two clears.
+  Observed doing exactly that on the next rehearsal, at the cell the `noStand` rows had been naming
+  for three runs: `cell.0.litter.2 = -9,57,37=Block{minecraft:cobblestone} 挖门框时自己垒进落脚格的`,
+  and again at `cell.2.litter.2 = -8,56,37=Block{minecraft:gravel}` — a block no id list would have
+  had on it.
+
+  **One cell, not a sweep, and that restriction is measured.** The obvious wider fix — clear every
+  corridor cell that is solid and that the carve did not leave solid — was written, and it took the
+  rung from a standing 2/2 to **0/2**, twice, by the same mechanism: gravel falls into a seven-tall
+  excavation and **plugs the alcove floor**, and those plugs are what the cast's water drains away
+  through instead of pooling. Both failures show `tidy.0` removing `-7,56,36=gravel`,
+  `-9,56,36=gravel`, `-8,57,36=gravel`, then `drain.6 = 等了 200 tick 仍有流体：-7,56,36 = water`
+  where the passing runs read `drain.0…6 = 壁龛已排干`, then the body floating in it
+  (`climb.4…10 = -7,56,36 onGround=false water=true`) and the top-row pours failing on their own
+  flooded line. `tidyTheAlcove` stays cobblestone-only, with that measurement written beside it.
+
+- **A tower answered a flood by standing still in it, forty times.** `ascendByTowering` settles when
+  the body is not `onGround` and tries again, which is right for a stumble and unbounded for water:
+  a swimming body never becomes `onGround`, so the branch recursed on itself for the whole cap and
+  every course was a no-op. Measured on the portal rung: `climb.4` through `climb.39`, thirty-six
+  identical readings of `-7,56,36 above=air onGround=false water=true`.
+
+  It now spends the washed-off allowance and then says so by name rather than looping —
+  `climb.9.afloat = -8,58,36 浮在水里，8 次都没落地 —— 塔要站在地上才垒得起来，爬升到此为止` — after
+  which `climbOut`'s walker fallback carried the body out (`exit.walkerFallback=True`) and the run
+  finished 10/10. Bounded rather than refused outright, because the allowance is the same phenomenon
+  one tick earlier and already carries a measured number.
+
+### Changed
+- **`forge.carved` said `完成` directly above `carve.stuck=12 格挖不动`.** Two rows written by the
+  same method one line apart, one of them a caption that the excavation finished and the other a
+  measurement that twelve of its cells are still rock. It now reports what it did —
+  `63/67 格开了，4 格没挖动 —— 见 carve.stuck，壁龛不是完整的` — and deliberately does **not** fail:
+  stuck cells are not uniformly fatal (both 10/10 rehearsals carried four, at the ceiling), and the
+  cell that actually killed the ladder run had been carved perfectly and refilled afterwards.
+
+- **`carve.stuck`'s histogram now states what its key is measured from.** The key is height above
+  wherever the body finished the carve, which is not the alcove floor and is not the same place
+  twice; read without that y, the ladder run's twelve stuck cells sat at "0 and 1", which reads as
+  the floor and is in fact the ceiling.
+
 ### Added
+- **Why the first corridor cell the carve could not open resisted.** `carve.stuck` has counted these
+  for several runs and cannot say a word about the cause: a cell the body never reached, a cell it
+  stood beside and ran out of budget on, and a cell walled in on all six faces all arrive as the same
+  coordinate in the same list, and they want completely different work. The same three readings
+  `noteCellDig` uses on the frame now go beside the first one — distance, `canBreak`, and how many of
+  the six neighbours are full solid faces — and answered it on the first run that printed it, at both
+  sites: `carve.firstStuck = -9,62,36=Block{minecraft:dirt}：身体 -8,59,36，距 3.2 格，canBreak=true，
+  六邻实心 5/6，手上 minecraft:cobblestone`. **Not** walled in and **not** out of reach: the 240-tick
+  per-cell budget ran out while the body could already have broken it.
+
 - **Staging recipes for rungs 15 and 16, which had never executed a tick.** A rung with no recipe
   can only be reached by a fifty-minute climb that must first get past twelve rungs, so the top of
   the ladder was untestable by construction. `ENDER_PEARL` and `EYE_OF_ENDER` now share
