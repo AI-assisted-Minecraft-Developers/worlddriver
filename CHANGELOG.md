@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and again at `cell.2.litter.2 = -8,56,37=Block{minecraft:gravel}` — a block no id list would have
   had on it.
 
+  **Confirmed on a real climb.** The next ladder run took the same cell — `cell.0.litter.2 =
+  -9,57,37=Block{minecraft:cobblestone}` — cast cell 0, and went on to cast **all ten**:
+  `frame.cast=10/10`, `frame.obsidian=10/10`, the first time the ladder has ever filled the mould.
+  Eleven rungs climbed, `staging.calls=0`, rungs 13–20 correctly BLOCKED. It died one step later, on
+  the doorway, which is a different bug and is below.
+
   **One cell, not a sweep, and that restriction is measured.** The obvious wider fix — clear every
   corridor cell that is solid and that the carve did not leave solid — was written, and it took the
   rung from a standing 2/2 to **0/2**, twice, by the same mechanism: gravel falls into a seven-tall
@@ -36,6 +42,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   where the passing runs read `drain.0…6 = 壁龛已排干`, then the body floating in it
   (`climb.4…10 = -7,56,36 onGround=false water=true`) and the top-row pours failing on their own
   flooded line. `tidyTheAlcove` stays cobblestone-only, with that measurement written beside it.
+
+- **A pick cannot take water out of the doorway, and the doorway clear only had a pick.** A portal
+  wants six empty interior cells, and the cast leaves cobblestone slag in some of them — so
+  `clearTheDoorway` mines them, which is right for slag and a no-op for a fluid. The first ladder run
+  ever to cast all ten cells died exactly there: `portal.slag = 2 格要清：-9,57,38=water
+  -10,58,38=granite`, the granite went, six hundred ticks were swung at the water, and
+  `portal.doorway = 还堵着：-9,57,38=water`. The water is not condensation — it is the alcove's own,
+  arriving through the corridor cell immediately behind that doorway cell, which the same run's
+  `drain.9 = 等了 200 tick 仍有流体：-9,57,37 = water` names. The rung's long-standing wet alcove
+  stops being a cost here and becomes the failure.
+
+  Three steps now, in an order where each is useless without the one before: **dam** the corridor cell
+  behind an interior cell when it holds fluid (a corridor cell is this rung's own spoil heap and
+  nothing downstream stands in it), **wait** 120 ticks for what is already inside to run out now that
+  nothing replaces it, then **plug** any fluid that is left with a cobblestone so the existing pick
+  can take it out as a block. `portal.dam` and `portal.plug.<cell>` say which step acted, and on the
+  rehearsal that lit the portal afterwards they said something worth having: the **dam did not take**
+  (`-10,57,37(流动)→没堵上，还是 water`, most likely the body standing in the cell it was placing
+  into) and the wait plus the plug carried it anyway — `portal.plug.-10,57,38 = 流动
+  minecraft:flowing_water → 塞成 cobblestone`, `portal.doorway = 六格都清干净了`,
+  `portal.cells=6/6`. A three-step remedy that reports per step is why that is readable at all.
+
+- **The drain gate named a cause its own reading disproves.** `drain.N` has ended with
+  `—— 水源没被收回来` ("the source was never picked up") for months, in runs where every one of the
+  ten recovers reports `CONSUME`. With the source flag in place the answer arrived on the first run
+  that printed it: `drain.6` through `drain.9` all read `（流动，没源就会自己退）` — **flowing water,
+  no source anywhere**. Nothing is feeding the alcove; the water is still on its way out after 200
+  ticks, in a seven-tall room whose floor the tidy has just unplugged. That is a wait to lengthen or
+  a floor to leave alone, and the sentence that sent readers looking for a lost bucket is gone.
+
+- **`drain.N` printed one sentence about two different worlds.** "Waited 200 ticks and there is still
+  fluid" is true of flowing water whose source was recovered and of a source that never was, and the
+  two want a wait and a bucket respectively. `JourneyForge.firstFluid` now states which:
+  `（源块）` or `（流动，没源就会自己退）`. Read by the drain gate, by the mould's own flood check,
+  and by the doorway.
 
 - **A tower answered a flood by standing still in it, forty times.** `ascendByTowering` settles when
   the body is not `onGround` and tries again, which is right for a stumble and unbounded for water:
