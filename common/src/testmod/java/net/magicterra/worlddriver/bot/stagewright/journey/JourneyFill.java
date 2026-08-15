@@ -576,7 +576,7 @@ public final class JourneyFill {
 
     /** How far to look for another source when a fill did not take. Small: the body is standing at
      *  the pool it walked to, and a source further than this is a different walk, not a retry. */
-    private static final int FILL_RESEARCH = 8;
+    static final int FILL_RESEARCH = 8;
 
     /** Where to stand to fill a bucket, and which source to aim at from there. */
     private record FillSpot(BlockPos stand, BlockPos source) {}
@@ -741,7 +741,7 @@ public final class JourneyFill {
      * The same clip vanilla will do is done here first, which makes this a prediction rather than a
      * heuristic: a cell this returns is a cell the bucket fills from.
      */
-    private static BlockPos visibleSourceNear(JourneyRig rig, boolean lava, int radius) {
+    static BlockPos visibleSourceNear(JourneyRig rig, boolean lava, int radius) {
         ServerLevel level = rig.ctx().level();
         var fp = rig.player();
         net.minecraft.world.phys.Vec3 eye = fp.getEyePosition();

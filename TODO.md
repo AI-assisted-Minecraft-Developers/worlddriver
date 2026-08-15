@@ -56,6 +56,41 @@ recover9.frameStuck.3  = 门框挡着 -10, 61, 38，而且没有别的落脚点�
 **这是设计要的形状**：门框没被敲，失败落在 `recover9` 的装水上并带全套几何，而不是悄悄变成
 9/10。但这一级仍然红——收水拿不回来。⚠️ `stepOut` 至今一次都没触发。
 
+### 已修一条：收水之前先站回浇水那一排
+
+`riseToTakeItBack` 在每次 recover 之前，用 bucket 自己那条 `SOURCE_ONLY` clip 问
+「现在看得见水吗」，看不见且脚低于水位才升一排。看得见就是 no-op ——所以它动不了那些
+本来就成功的格子。
+
+⚠️ **第一版这里踩了本仓库自己的第四问**：它走 `standLevelWith`，而那个方法的闸是
+`standToPour`——**收水的事拿浇筑的问题去问**。四桶那趟因此打出了
+`recover8.rise = 看不见 -9,61,38 里的水` 然后**一格都没升**（没有 `.raise` / `.raisedY`）。
+现在升排是 `raiseTo(..., pouring=false)`，柱子由 `scoopSeesFrom`（`SOURCE_ONLY` clip 打到
+水本身）验，不再由 `pourLandsFrom`（`Fluid.NONE` clip 打到背板/地板）验。刚浇完的那一格
+正好是两者分叉的地方：浇的问题过得了，收的问题过不了。
+
+### ⬜ 下一刀：`visibleSourceNear` 和真正的瞄准**不是同一条射线**
+
+单桶排练里这两行自相矛盾：
+
+```
+recover9.fromHere = -10, 58, 35 已经看得见源块 -10, 61, 38（够得着），不走过去了
+recover9.aimsAt   = -10, 60, 38 Block{minecraft:obsidian} 源块=false 液位=0（想瞄 -10, 61, 38）
+```
+
+- `visibleSourceNear` 用的是「眼睛 → 方块中心」这一条**线段** clip；
+- 真正用桶时用的是 `aimAtBlock` 算出的 yaw/pitch **视线向量**，再按 `BUCKET_REACH` 长度 trace。
+  `aimAtBlock` 是照身体的**连续坐标**（不是格中心）算的，所以两者在贴着方块边缘时会分叉。
+
+后果不只是多一行不一致的读数：`riseToTakeItBack` 的前置判断问的就是 `visibleSourceNear`，
+它答「看得见」于是**没升排**，上面那条修法在这一趟根本没跑到。
+
+**倾向的修法**：让 `visibleSourceNear` 用与 `useItemInHand` 同一条射线（即先 `aimAtBlock` 再按
+视线向量 trace，或直接复用 `WorldDriverJourneyScenes.aimedAt` 的那条），而不是各算各的。
+本项目在这上面已经栽过两次——`pick()` 用 `partialTicks=0.0F` 从上一 tick 的位置起线；
+桶是 `Item.use` 从眼睛 ray-trace 而不是点击目标格。**两个 API 回答同一个问题却用不同的射线，
+迟早会分叉。**
+
 ### 上一轮的原始记录（保留，因为它是这一轮的输入）
 
 2026-08-15 的排练（`-Prehearse=PORTAL_LIT -Pbuckets=4`，四趟浇满十格）以

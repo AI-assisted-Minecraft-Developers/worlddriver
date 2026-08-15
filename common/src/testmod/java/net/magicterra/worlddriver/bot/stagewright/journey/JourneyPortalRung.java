@@ -1527,11 +1527,12 @@ public final class JourneyPortalRung {
                 // Strict, including on the last cell: water left standing in an interior cell is a
                 // cell that cannot become portal, so `lightIt` would report 5/6 for a frame that is
                 // actually complete.
+                riseToTakeItBack(ctx, rig, wet, away, "recover" + i, () ->
                 JourneyFill.fillFrom(ctx, rig, wet, "recover" + i, Items.WATER_BUCKET,
                         watchFrame(rig, "recover" + i + " 从 " + wet.toShortString() + " 收水", () ->
                         drainTheAlcove(ctx, rig, i, DRAIN_LEGS,
                         watchFrame(rig, "drain." + i + " 等壁龛排干",
-                        () -> castCell(ctx, rig, base, away, pool, i + 1, then)))));
+                        () -> castCell(ctx, rig, base, away, pool, i + 1, then))))));
             }))));
             // THE STAIRS ARE THE EXPENSIVE PART, so climb them only when there is nothing to pour.
             // A lava bucket does not survive the pour — it becomes obsidian and an empty bucket — so
@@ -1620,6 +1621,44 @@ public final class JourneyPortalRung {
     }
 
     /**
+     * Put the eye back on the row the water was poured from, before going to take it back.
+     *
+     * <p>A cast pours water into {@code wet} from a row {@link #standLevelWith} verified, then
+     * fetches lava and pours THAT into the cell below — and the pour's own walk is free to drop the
+     * body to whatever cell has a floor, which in a hollow alcove is seven rows down. From there the
+     * line to the water goes straight through the obsidian that was just cast into the cell between
+     * them, and the fill's answer to a blocked line used to be to mine the blocker: measured,
+     * {@code recover9.clearedLine.3 = -10,60,38 Block{minecraft:obsidian} 挡在眼睛和 -10,61,38
+     * 之间，敲掉它}. {@link JourneyFill} no longer does that; this is the other half, which is giving
+     * it a line that is not blocked in the first place.
+     *
+     * <p><b>Only when the body cannot already see water</b>, and that is a measurement rather than a
+     * geometry rule. The same {@code SOURCE_ONLY} clip the bucket runs is asked first, so on every
+     * cell whose recover already works this is a no-op and cannot perturb it — which matters,
+     * because a single-bucket rehearsal casts all ten today and the top pair is the only geometry
+     * where the frame HAS to stand between a floor-level eye and its own water.
+     *
+     * <p>It raises through {@link #raiseTo} and <b>not</b> through {@link #standLevelWith}, and that
+     * distinction cost a run's worth of confusion on its own: {@code standLevelWith}'s gate is
+     * {@code standToPour}, so it answered "a pour spot exists" to a question about a scoop and
+     * skipped the raise, leaving a {@code recover8.rise} row above a body that never moved.
+     */
+    private static void riseToTakeItBack(SceneContext ctx, JourneyRig rig, BlockPos wet,
+                                         Direction away, String tag, Runnable then) {
+        if (JourneyFill.visibleSourceNear(rig, false, JourneyFill.FILL_RESEARCH) != null) {
+            then.run();
+            return;
+        }
+        BlockPos here = rig.player().blockPosition();
+        int wantY = wet.getY() - 1;
+        if (here.getY() >= wantY) { then.run(); return; }
+        rig.evidence(tag + ".rise", here.toShortString() + " 看不见 " + wet.toShortString()
+                + " 里的水（脚在 y=" + here.getY() + "，水在 y=" + wet.getY()
+                + "，中间隔着刚浇的门框）—— 先站回浇水时那一排再收");
+        raiseTo(ctx, rig, wet, away, wantY, false, tag + ".rise", then);
+    }
+
+    /**
      * Get the body up to the row it is about to pour into, building the step if there is none.
      *
      * <p>The alcove is hollow, so the only solid floor in it is the one seven cells down — and a
@@ -1650,14 +1689,32 @@ public final class JourneyPortalRung {
             then.run();
             return;
         }
-        BlockPos verified = raiseColumn(ctx.level(), rig, target, away, wantY);
+        raiseTo(ctx, rig, target, away, wantY, true, tag, then);
+    }
+
+    /**
+     * Build the step and stand on it — the part of {@link #standLevelWith} that is not a pour.
+     *
+     * <p>Separate because the caller decides WHETHER a raise is needed and the two callers do not
+     * ask the same question. A pour needs a line to the target's backing or floor; a scoop needs a
+     * line to the fluid IN the target. {@link #riseToTakeItBack} had this wrong for exactly one
+     * run: it went through {@code standLevelWith}, whose gate is the pour's, and that gate said a
+     * pour spot exists — so the line printed {@code recover8.rise = 看不见 -9,61,37 里的水} and then
+     * nothing was raised. A guard that names one action and tests another is the fourth of this
+     * repo's four questions about a diagnostic, and this is what it looks like when it bites.
+     */
+    private static void raiseTo(SceneContext ctx, JourneyRig rig, BlockPos target, Direction away,
+                                int wantY, boolean pouring, String tag, Runnable then) {
+        BlockPos verified = raiseColumn(ctx.level(), rig, target, away, wantY, pouring);
         BlockPos col = verified != null ? verified : target.relative(away.getOpposite(), 1);
         BlockPos here = rig.player().blockPosition();
         rig.evidence(tag + ".raise", here.toShortString() + " → y=" + wantY
-                + "（在 " + col.getX() + "," + col.getZ() + " 这一柱上垒台阶，浇 "
-                + target.toShortString() + " 得跟它同高）"
-                + (verified != null ? "：站上去射线落得进目标格，钉住这一柱"
+                + "（在 " + col.getX() + "," + col.getZ() + " 这一柱上垒台阶，"
+                + (pouring ? "浇 " : "收 ") + target.toShortString() + " 得跟它同高）"
+                + (verified != null
+                        ? "：站上去射线" + (pouring ? "落得进目标格" : "打得到目标格里的液体") + "，钉住这一柱"
                         : "：没有一柱验得过射线，退回门框正后方那一柱，不钉"));
+
         // ALREADY IN IT — do not walk. The walk is what put the body one cell out of the column in
         // the first place (`raiseTo.arrivedDistance=1`), and a body standing in the right column has
         // nothing to gain from a leg that can only move it out of one. Same short-circuit the fill
@@ -1706,17 +1763,23 @@ public final class JourneyPortalRung {
      * no floor at {@code y=57} anywhere else in a hollow alcove), and the tower then drifted to
      * {@code x=-8} and {@code x=-7} and adopted it.
      *
-     * <p>So ask the question the pour is going to ask, one row down: standing HERE at {@code wantY},
-     * does the same clip vanilla runs land the fluid in the target? Nearest wins and the body's own
-     * column is at distance zero, so a column that already works costs no walk at all — which for
-     * that run is the fix, because {@code x=-9} verifies.
+     * <p>So ask the question the BUCKET is going to ask, one row down: standing HERE at
+     * {@code wantY}, does the same clip vanilla runs do what this leg needs? Nearest wins and the
+     * body's own column is at distance zero, so a column that already works costs no walk at all —
+     * which for that run is the fix, because {@code x=-9} verifies.
+     *
+     * <p>{@code pouring} picks WHICH clip, and it is not a stylistic parameter: a pour wants the ray
+     * to stop on the target's backing or floor ({@link #pourLandsFrom}, {@code Fluid.NONE}), a scoop
+     * wants it to reach the fluid inside the target itself ({@link #scoopSeesFrom},
+     * {@code Fluid.SOURCE_ONLY}). They disagree exactly where it matters — over a freshly cast cell,
+     * the pour question passes and the scoop question does not.
      *
      * <p>Corridor cells only, feet and head both, so the column is inside the volume this rung
      * hollowed out and the head has somewhere to go. Null when none of them verify, and the caller
      * says so rather than pretending.
      */
     private static BlockPos raiseColumn(ServerLevel level, JourneyRig rig, BlockPos target,
-                                        Direction away, int wantY) {
+                                        Direction away, int wantY, boolean pouring) {
         BlockPos here = rig.player().blockPosition();
         BlockPos best = null;
         long bestD = Long.MAX_VALUE;
@@ -1725,12 +1788,29 @@ public final class JourneyPortalRung {
                 BlockPos foot = target.relative(away.getOpposite(), back)
                         .relative(away.getClockWise(), side).above(wantY - target.getY());
                 if (!forgeCorridor.contains(foot) || !forgeCorridor.contains(foot.above())) continue;
-                if (!pourLandsFrom(level, rig, foot, target, away)) continue;
+                if (!(pouring ? pourLandsFrom(level, rig, foot, target, away)
+                              : scoopSeesFrom(level, rig, foot, target))) continue;
                 long dx = foot.getX() - here.getX(), dz = foot.getZ() - here.getZ();
                 long d = dx * dx + dz * dz;
                 if (d < bestD) { bestD = d; best = foot; }
             }
         return best;
+    }
+
+    /** Would a body standing at {@code foot} be able to FILL from the fluid in {@code target}? The
+     *  same {@code SOURCE_ONLY} clip {@code BucketItem.use} runs — the scoop's counterpart to
+     *  {@link #pourLandsFrom}, and the reason a raise has to be told which of the two it is for. */
+    private static boolean scoopSeesFrom(ServerLevel level, JourneyRig rig, BlockPos foot,
+                                         BlockPos target) {
+        var eye = new net.minecraft.world.phys.Vec3(foot.getX() + 0.5,
+                foot.getY() + rig.player().getEyeHeight(), foot.getZ() + 0.5);
+        var to = net.minecraft.world.phys.Vec3.atCenterOf(target);
+        if (eye.distanceTo(to) > JourneyFill.BUCKET_REACH) return false;
+        var hit = level.clip(new net.minecraft.world.level.ClipContext(eye, to,
+                net.minecraft.world.level.ClipContext.Block.OUTLINE,
+                net.minecraft.world.level.ClipContext.Fluid.SOURCE_ONLY, rig.player()));
+        return hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+                && hit.getBlockPos().equals(target);
     }
 
     /** Would a bucket emptied by a body standing at {@code foot} land in {@code target}? The same

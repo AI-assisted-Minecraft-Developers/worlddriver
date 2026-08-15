@@ -36,6 +36,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   own doorway.
 
 ### Fixed
+- **Rung 12 puts the eye back on the row the water was poured from before it goes to take the water
+  back.** A cast pours water into the interior/notch cell from a row that was verified for it, then
+  fetches lava and pours THAT into the frame cell below — and the pour's own walk is free to drop
+  the body to whatever cell has a floor, which in a hollow alcove is seven rows down. From there the
+  line to the water runs straight through the obsidian that was just cast between them, which is the
+  geometry the guard above now refuses to dig its way out of. `riseToTakeItBack` is the other half:
+  the same `SOURCE_ONLY` clip the bucket runs is asked first, so on every cell whose recover already
+  works it is a no-op and cannot perturb it.
+
+  **The first version of it did nothing at all, and the reason is this repo's own fourth question
+  about a diagnostic.** It raised through `standLevelWith`, whose gate is `standToPour` — so a
+  question about a SCOOP was answered by whether a POUR spot exists, the gate said yes, and the run
+  printed `recover8.rise = 看不见 -9,61,38 里的水` above a body that never moved (no `.raise`, no
+  `.raisedY`). The raise is now `raiseTo(..., pouring=false)` and the column is verified by
+  `scoopSeesFrom` (`SOURCE_ONLY`, onto the water itself) rather than by `pourLandsFrom`
+  (`Fluid.NONE`, onto the backing or floor). The two disagree exactly where it matters: over a
+  freshly cast cell the pour question passes and the scoop question does not.
 - **Rung 12's bucket no longer answers a blocked sightline by mining the frame it is casting.** The
   clear-line branch in `JourneyFill.scoop` breaks whatever the ray stops on, and down in the alcove
   the only thing tall enough to block one is the mould itself — measured, `recover9.clearedLine.3 =
