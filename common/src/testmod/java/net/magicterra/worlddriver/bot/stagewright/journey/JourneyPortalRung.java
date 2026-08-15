@@ -172,27 +172,27 @@ public final class JourneyPortalRung {
     private static BlockPos stairTop, stairBottom;
     private static Direction stairDir = Direction.SOUTH;
 
-    /** Every step's foot cell, top first — the route itself, not just its ends.
-     *
-     * <p>The ends alone are not enough, and that is a measurement rather than a precaution. Given
-     * {@code Goal.Block(stairBottom)} the walker takes the shortest line it can see, and from the top
-     * of the stairs the shortest line is ACROSS THE SURFACE: measured twice, the body walked to
-     * {@code -10,66,34} — ground level directly above the staircase at z=34 — and then re-searched
-     * for a cell eight blocks below it through untouched rock, every two seconds, until the leg ran
-     * out. Naming the mouth fixed the first half and the second half did it again from the mouth.
-     * Waypoints down the flight itself are what make the staircase the route and not merely a hole
-     * that happens to connect two places. */
-    private static final List<BlockPos> stairCells = new ArrayList<>();
-
     /** Every fourth step is waypoint enough: consecutive waypoints are four blocks apart INSIDE the
      *  stairwell, and there is no shorter way between two such cells that leaves it. */
     private static final int STAIR_WAYPOINT_STRIDE = 4;
 
-    /** The flight as a list of waypoints, top-first when {@code down}. */
+    /**
+     * The flight as a list of waypoints, top-first when {@code down}.
+     *
+     * <p>Waypoints down the flight ITSELF, not just its two ends, and that is a measurement rather
+     * than a precaution. Given {@code Goal.Block(stairBottom)} the walker takes the shortest line it
+     * can see, and from the top of the stairs the shortest line is ACROSS THE SURFACE: measured
+     * twice, the body walked to {@code -10,66,34} — ground level directly above the staircase at
+     * z=34 — and then re-searched for a cell eight blocks below it through untouched rock, every two
+     * seconds, until the leg ran out. Naming the mouth fixed the first half and the second half did
+     * it again from the mouth. These are what make the staircase the route and not merely a hole
+     * that happens to connect two places.
+     */
     private static List<BlockPos> stairRoute(boolean down) {
+        List<BlockPos> cells = JourneyStairs.cells;
         List<BlockPos> out = new ArrayList<>();
-        for (int i = 0; i < stairCells.size(); i += STAIR_WAYPOINT_STRIDE) out.add(stairCells.get(i));
-        BlockPos last = stairCells.get(stairCells.size() - 1);
+        for (int i = 0; i < cells.size(); i += STAIR_WAYPOINT_STRIDE) out.add(cells.get(i));
+        BlockPos last = cells.get(cells.size() - 1);
         if (!out.get(out.size() - 1).equals(last)) out.add(last);
         if (!down) java.util.Collections.reverse(out);
         return out;
@@ -212,185 +212,66 @@ public final class JourneyPortalRung {
      *
      * <p>These legs cross ground the rung cut with its own pick and nothing else, so a dig here is
      * never the answer to anything. A leg that genuinely cannot get through now stalls instead,
-     * which {@link #walkHome}'s pillar-out recovery already handles and {@link #stairFaults} now
+     * which {@link #walkHome}'s pillar-out recovery already handles and {@link JourneyStairs#faults} now
      * names.
      */
     private static void walkTheStairs(JourneyRig rig, List<BlockPos> route, int i, Runnable then) {
         if (i >= route.size()) { then.run(); return; }
-        rig.settle(new IntentProcess(new Intent(new Goal.Block(route.get(i)), List.of(),
-                CapabilityProfile.ALL, List.of(new NoBreak()))), 600,
-                () -> walkTheStairs(rig, route, i + 1, then));
+        BlockPos want = route.get(i);
+        rig.settle(new IntentProcess(new Intent(new Goal.Block(want), List.of(),
+                CapabilityProfile.ALL, List.of(new NoBreak()))), 600, () -> {
+            BlockPos got = rig.player().blockPosition();
+            double off = Math.sqrt(got.distSqr(want));
+            if (off > LEG_ARRIVED && flightShortfall == null)
+                flightShortfall = "第 " + i + "/" + (route.size() - 1) + " 段：想到 "
+                        + want.toShortString() + "，停在 " + got.toShortString() + "，差 "
+                        + String.format("%.2f", off) + " 格 —— " + cellStory(rig.ctx().level(), got);
+            walkTheStairs(rig, route, i + 1, then);
+        });
     }
 
-    /** One step that has stopped being a step, and which of the three ways it can stop being one. */
-    private record StairFault(BlockPos step, BlockPos cell, boolean missingSupport, String saw) {
-        String describe() {
-            return step.toShortString() + (missingSupport ? " 脚下 " : " 挡住 ") + cell.toShortString()
-                    + "=" + saw;
-        }
-    }
+    /** How far from a waypoint still counts as having arrived. A body standing on the right cell
+     *  reads one cell off when its 0.6-wide box straddles the edge — the {@code cell.5.standMissed}
+     *  lesson — and a leg that stops a cell short has still walked the flight. */
+    private static final double LEG_ARRIVED = 1.5;
 
     /**
-     * Is the staircase still a staircase?
+     * The FIRST leg of the current flight that did not arrive, or null. Reset per flight.
      *
-     * <p>A flight of thirteen cut cells is not a thing that stays cut. Two runs have now ended with
-     * the walker refusing to climb a staircase whose geometry the rung had never once re-read, and
-     * both times the answer was a single cell: the run of 2026-08-12 lost {@code -9,64,22}, the
-     * support under the second step from the top, and every one of the other twelve steps was
-     * perfect. "The stairs are dug but it will not climb them" is not a walker finding until this
-     * has been asked, and asking it costs thirteen block reads.
-     *
-     * <p>Three ways a step dies, and the order matters: no support is the one that cannot be seen
-     * from above (the cell reads air either way), so it is checked first.
+     * <p>Both ends of the flight used to read only the height the body finished at, which says the
+     * walk failed and nothing about where. The run of 2026-08-15 failed the ascent with
+     * {@code lava0.upEnded=-9,56,36} — the stair bottom, which is the FIRST of five waypoints — and
+     * the message it produced ({@code 走不上楼梯：停在 …}) reads identically whether the body never
+     * left the alcove or climbed four fifths of the flight and stalled.
      */
-    private static List<StairFault> stairFaults(ServerLevel level) {
-        List<StairFault> out = new ArrayList<>();
-        for (BlockPos step : stairCells) {
-            BlockPos under = step.below();
-            if (!level.getBlockState(under).blocksMotion()) {
-                out.add(new StairFault(step, under, true,
-                        String.valueOf(level.getBlockState(under).getBlock())));
-            } else if (level.getBlockState(step).blocksMotion()) {
-                out.add(new StairFault(step, step, false,
-                        String.valueOf(level.getBlockState(step).getBlock())));
-            } else if (level.getBlockState(step.above()).blocksMotion()) {
-                out.add(new StairFault(step, step.above(), false,
-                        String.valueOf(level.getBlockState(step.above()).getBlock())));
-            }
-        }
-        return out;
+    private static String flightShortfall;
+
+    /** The four cells {@code StepUp.valid} reads about a body: what holds it up, what it is standing
+     *  in, its head room, and the cell it must jump THROUGH to take a step up. Without this a leg
+     *  that stopped cannot say whether the body was blocked, flooded or merely slow. */
+    private static String cellStory(ServerLevel level, BlockPos foot) {
+        BlockPos jump = foot.above(2);
+        return "脚下 " + level.getBlockState(foot.below()).getBlock() + "，身处 "
+                + level.getBlockState(foot).getBlock() + "，头顶 "
+                + level.getBlockState(foot.above()).getBlock() + "，起跳格 " + jump.toShortString()
+                + "=" + level.getBlockState(jump).getBlock()
+                + (level.getBlockState(jump).blocksMotion() ? "（挡着，跳不起来）" : "");
     }
-
-    /** The audit as one line, for a failure message that would otherwise have to guess. */
-    private static String stairReport(ServerLevel level) {
-        if (stairCells.isEmpty()) return "还没挖楼梯";
-        List<StairFault> faults = stairFaults(level);
-        if (faults.isEmpty()) return stairCells.size() + " 级都完好";
-        StringBuilder sb = new StringBuilder(faults.size() + "/" + stairCells.size() + " 级坏了：");
-        for (int i = 0; i < Math.min(faults.size(), 5); i++)
-            sb.append(i == 0 ? "" : "，").append(faults.get(i).describe());
-        return sb + (faults.size() > 5 ? " …" : "");
-    }
-
-    /** How many faults one leg may mend before it gives up and walks anyway. Three: the body has
-     *  never broken more than one step in a trip, and a flight with four faults is a different
-     *  finding that should be read rather than patched over. */
-    private static final int MEND_PER_LEG = 3;
-
-    /** How far the body may be from a cell it mends. Five, which is a block or so past a player's
-     *  own reach and well inside "the body walked to it"; see the note in {@link #mendNext}. */
-    private static final double MEND_REACH = 5.0;
-
-    /** Running totals, so a leg that mends nothing still leaves a trace of having asked. */
-    private static int stairsChecked, stairsMended;
 
     /**
      * Put back what the flight has lost, then walk it.
      *
      * <p>Both legs of every cast go through here rather than straight into {@link #walkTheStairs},
      * because the damage is done BETWEEN legs and the only cheap moment to notice is just before
-     * the flight is used. A missing support is answered with cobblestone the body is already
-     * carrying (rung 10 leaves it about ninety), clicked onto a solid neighbour through
-     * {@code useItemOn} — the same path a right click takes, and nothing here is a {@code setBlock}.
-     * A blocked cell is answered with the pick.
+     * the flight is used. {@link JourneyStairs} holds the audit and the repair.
      */
     private static void walkTheFlight(JourneyRig rig, String tag, boolean down, Runnable then) {
-        stairsChecked++;
-        sabotageOnce(rig, tag);
-        List<StairFault> faults = stairFaults(rig.ctx().level());
+        flightShortfall = null;
+        JourneyStairs.aboutToWalk(rig, tag);
+        List<JourneyStairs.StairFault> faults = JourneyStairs.faults(rig.ctx().level());
         if (faults.isEmpty()) { walkTheStairs(rig, stairRoute(down), 0, then); return; }
-        rig.evidence(tag + ".stairsBroken", stairReport(rig.ctx().level()));
-        mendNext(rig, tag, faults, 0, () -> walkTheStairs(rig, stairRoute(down), 0, then));
-    }
-
-    private static void mendNext(JourneyRig rig, String tag, List<StairFault> faults, int i,
-                                 Runnable then) {
-        if (i >= faults.size() || i >= MEND_PER_LEG) { then.run(); return; }
-        StairFault f = faults.get(i);
-        ServerLevel level = rig.ctx().level();
-        // Get within arm's reach FIRST. The place and the mine both go through the body's own
-        // hands, so a repair aimed from the far end of the flight is a repair the ladder has not
-        // earned — and the walk is short by construction, because the step below the break is
-        // itself a step and the goal is satisfied from there.
-        rig.settle(new IntentProcess(new Intent(new Goal.Near(f.step(), 2), List.of(),
-                CapabilityProfile.ALL, List.of(new NoBreak()))), 400, () -> {
-            BlockPos body = rig.player().blockPosition();
-            // ARM'S LENGTH OR NOTHING. `placeOn` goes straight to `gameMode.useItemOn`, which has
-            // no reach gate on this avatar — so without this a mend the body could not walk to
-            // would still succeed, from the far end of the flight, through ten blocks of rock.
-            // That is a repair the ladder has not earned, and it would read as one that worked.
-            double reach = Math.sqrt(body.distSqr(f.cell()));
-            if (reach > MEND_REACH) {
-                rig.evidence(tag + ".stairsMend." + i, f.describe() + " → 够不着（身体 "
-                        + body.toShortString() + "，距 " + Math.round(reach) + " 格）");
-                mendNext(rig, tag, faults, i + 1, then);
-                return;
-            }
-            if (f.missingSupport()) {
-                boolean held = rig.body().avatar().holdItem(Items.COBBLESTONE);
-                boolean put = held && placeInto(level, rig, f.cell());
-                stairsMended += put ? 1 : 0;
-                rig.evidence(tag + ".stairsMend." + i, f.describe() + " → "
-                        + (put ? "垫上了" : (held ? "垫不上（贴不到实心面）" : "手上没有圆石"))
-                        + "（身体 " + body.toShortString() + "，现在是 "
-                        + level.getBlockState(f.cell()).getBlock() + "）");
-                mendNext(rig, tag, faults, i + 1, then);
-                return;
-            }
-            rig.mineCellOrGiveUp(f.cell(), 300, () -> {
-                boolean open = !level.getBlockState(f.cell()).blocksMotion();
-                stairsMended += open ? 1 : 0;
-                rig.evidence(tag + ".stairsMend." + i, f.describe() + " → "
-                        + (open ? "敲开了" : "敲不开") + "（身体 "
-                        + rig.player().blockPosition().toShortString() + "）");
-                mendNext(rig, tag, faults, i + 1, then);
-            });
-        });
-    }
-
-    /**
-     * Asks for the mend to be needed. <b>Rehearsal only, and inert on the ladder.</b>
-     *
-     * <p>{@code -Dworlddriver.journey.breakAStair=true}, with {@code -Dworlddriver.journey.rehearse}
-     * already naming a rung, takes the support out from under the second step the first time the
-     * flight is walked. The step it removes is exactly the one the run of 2026-08-12 lost, so a
-     * rehearsal with this on measures the repair against the failure it was written for.
-     *
-     * <p>It exists because a healthy flight never trips the audit, and a guard nobody has watched
-     * trip is a guard nobody has tested. The first leg is the control (audit silent, no mend); the
-     * second is the case (one fault, one mend, and the eight legs after it silent again).
-     *
-     * <p>Two locks, because a sabotage that reached the real ladder would be the worst possible
-     * bug in this file: it is off unless asked for, and it refuses outright when no rung is being
-     * rehearsed. It is also a {@link JourneyLedger#staged} call, so a run that somehow did it
-     * anyway could never report {@code staging.calls=0}.
-     */
-    private static boolean sabotaged;
-
-    private static void sabotageOnce(JourneyRig rig, String tag) {
-        if (sabotaged || stairsChecked < 2 || stairCells.size() < 3) return;
-        if (!Boolean.getBoolean("worlddriver.journey.breakAStair")) return;
-        if (JourneyRehearsal.target() == null) return;
-        sabotaged = true;
-        BlockPos gone = stairCells.get(1).below();
-        JourneyLedger.staged("rehearsal: broke " + gone.toShortString()
-                + ", the support under stair step 1, to make the flight's own audit trip");
-        rig.ctx().level().destroyBlock(gone, false);
-        rig.evidence("stairs.sabotage", gone.toShortString() + " 拆掉了（排练专用，只为让自检必须发现它）"
-                + " —— 下一步 " + tag + " 应当报出这一级并垫回去");
-    }
-
-    /** Click the block into {@code cell} against whichever neighbour is solid. Mirrors the nether
-     *  rung's own placer; the return value is read off the WORLD, because a placement can be
-     *  refused for reasons the caller cannot see. */
-    private static boolean placeInto(ServerLevel level, JourneyRig rig, BlockPos cell) {
-        for (Direction d : Direction.values()) {
-            BlockPos against = cell.relative(d);
-            if (!level.getBlockState(against).blocksMotion()) continue;
-            rig.body().avatar().placeOn(against, d.getOpposite());
-            if (level.getBlockState(cell).blocksMotion()) return true;
-        }
-        return false;
+        rig.evidence(tag + ".stairsBroken", JourneyStairs.report(rig.ctx().level()));
+        JourneyStairs.mend(rig, tag, faults, 0, () -> walkTheStairs(rig, stairRoute(down), 0, then));
     }
 
     /** Every cell the alcove was hollowed out of — the space the body walks in, and nothing else.
@@ -492,8 +373,7 @@ public final class JourneyPortalRung {
             }
         }
         rig.evidence("stair." + step, at.toShortString() + " → " + foot.toShortString());
-        if (stairCells.isEmpty() || !stairCells.get(stairCells.size() - 1).equals(foot))
-            stairCells.add(foot);
+        JourneyStairs.cut(foot);
         cutStairCells(rig, cut, 0, () ->
                 rig.settle(new IntentProcess(new Intent(new Goal.Block(foot))), 300, () -> {
             BlockPos now = rig.player().blockPosition();
@@ -545,6 +425,7 @@ public final class JourneyPortalRung {
             BlockPos here = rig.player().blockPosition();
             rig.evidence(tag + ".upEnded", here.toShortString() + "（楼梯顶 "
                     + stairTop.toShortString() + "）");
+            if (flightShortfall != null) rig.evidence(tag + ".upStopped", flightShortfall);
             if (here.getY() < poolY - 1) {
                 // The audit, not a guess. The two guesses this message used to make — "a step is
                 // blocked?" "it cannot make the jump?" — were both wrong the one time the message
@@ -552,8 +433,9 @@ public final class JourneyPortalRung {
                 // above because the cell reads air whether or not anything holds it up.
                 ctx.fail("走不上楼梯：停在 " + here.toShortString() + "，楼梯顶 "
                         + stairTop.toShortString() + " 在 y=" + stairTop.getY()
-                        + " —— 楼梯自检：" + stairReport(ctx.level())
-                        + "（本级共自检 " + stairsChecked + " 次，修好 " + stairsMended + " 级）");
+                        + " —— " + (flightShortfall == null ? "每一段都走到了" : flightShortfall)
+                        + "；楼梯自检：" + JourneyStairs.report(ctx.level())
+                        + "（本级共自检 " + JourneyStairs.tally() + "）");
                 return;
             }
             then.run();
@@ -613,6 +495,7 @@ public final class JourneyPortalRung {
             BlockPos here = rig.player().blockPosition();
             rig.evidence(tag + ".returnedY", here.getY() + "（楼梯底 y=" + stairBottom.getY()
                     + "，身体 " + here.toShortString() + "）");
+            if (flightShortfall != null) rig.evidence(tag + ".returnStopped", flightShortfall);
             if (here.getY() > floorY + 1) {
                 // A BODY THAT CANNOT WALK TO THE STAIRS IS USUALLY IN A HOLE IT DUG ITSELF.
                 //
@@ -648,8 +531,9 @@ public final class JourneyPortalRung {
                 }
                 ctx.fail("走不回模腔：停在 " + here.toShortString() + "，楼梯底 "
                         + stairBottom.toShortString() + " 在 y=" + stairBottom.getY()
-                        + " —— 带着一桶岩浆停在半路，浇下去只会浇进楼梯。楼梯自检："
-                        + stairReport(ctx.level()));
+                        + " —— 带着一桶岩浆停在半路，浇下去只会浇进楼梯。"
+                        + (flightShortfall == null ? "每一段都走到了" : flightShortfall)
+                        + "；楼梯自检：" + JourneyStairs.report(ctx.level()));
                 return;
             }
             then.run();
@@ -676,11 +560,7 @@ public final class JourneyPortalRung {
                 BotConfig.allowPlace = false;
                 BlockPos start = rig.player().blockPosition();
                 stairTop = start;
-                stairCells.clear();
-                stairsChecked = 0;
-                stairsMended = 0;
-                sabotaged = false;
-                stairCells.add(start);
+                JourneyStairs.reset(start);
                 stairDir = awayFrom(lava, start);
                 int depth = Math.max(0, start.getY() - forgeFloorY(lava));
                 int cap = depth * STAIR_ATTEMPTS_PER_BLOCK + 40;
@@ -691,7 +571,7 @@ public final class JourneyPortalRung {
                     // The baseline the twenty later audits are read against. A flight that is
                     // already faulty the moment it is cut is a digging bug; one that goes faulty
                     // later is a ferrying bug, and without this line the two read alike.
-                    rig.evidence("stairs.asCut", stairReport(ctx.level()));
+                    rig.evidence("stairs.asCut", JourneyStairs.report(ctx.level()));
                     carveTheForge(ctx, rig, lava, surfaceY);
                 });
             }, () -> ctx.fail("站不到可下挖的柱子上：想去 " + dig.getX() + "," + dig.getZ()
@@ -1320,7 +1200,7 @@ public final class JourneyPortalRung {
             return;
         }
         boolean held = rig.body().avatar().holdItem(Items.COBBLESTONE);
-        if (held) placeInto(level, rig, step);
+        if (held) JourneyStairs.placeInto(level, rig, step);
         // THE WORLD, not the call. A placement can be refused for reasons the caller cannot see, and
         // a step that was never there leaves exactly the "the dig just did not work" row this rung
         // has already been misled by twice.
@@ -1427,7 +1307,7 @@ public final class JourneyPortalRung {
         if (step.equals(here) || step.equals(here.above()))
             return step.toShortString() + " 正被身体占着";
         double d = Math.sqrt(here.distSqr(step));
-        if (d > MEND_REACH) return step.toShortString() + " 距身体 " + Math.round(d) + " 格，够不着";
+        if (d > JourneyStairs.MEND_REACH) return step.toShortString() + " 距身体 " + Math.round(d) + " 格，够不着";
         return null;
     }
 
@@ -1685,7 +1565,7 @@ public final class JourneyPortalRung {
      * without needing this at all. A cell that survives three runs in four is not a cell to reason
      * about from one sample; it is a cell to re-read before aiming at it.
      *
-     * <p><b>Arm's length or nothing</b>, for the reason {@link #mendNext} spells out: {@code placeOn}
+     * <p><b>Arm's length or nothing</b>, for the reason {@link JourneyStairs#mend} spells out: {@code placeOn}
      * goes straight to {@code gameMode.useItemOn}, which has no reach gate on this avatar, so without
      * the check a wall could be rebuilt through ten blocks of rock and read as a repair that worked.
      * Out of reach is reported and the pour's own ray gate still refuses to spend the bucket.
@@ -1698,7 +1578,7 @@ public final class JourneyPortalRung {
         BlockPos here = rig.player().blockPosition();
         double reach = Math.sqrt(here.distSqr(backing));
         String was = String.valueOf(level.getBlockState(backing).getBlock());
-        if (reach > MEND_REACH) {
+        if (reach > JourneyStairs.MEND_REACH) {
             rig.evidence(tag + ".backingGone", backing.toShortString() + "=" + was
                     + " 不是实心的（在 " + target.toShortString() + " 后面），身体 "
                     + here.toShortString() + " 距 " + Math.round(reach) + " 格，够不着补不上"
@@ -1707,7 +1587,7 @@ public final class JourneyPortalRung {
             return;
         }
         boolean held = rig.body().avatar().holdItem(Items.COBBLESTONE);
-        if (held) placeInto(level, rig, backing);
+        if (held) JourneyStairs.placeInto(level, rig, backing);
         // THE WORLD, not the call. Same reason the step and the stair mend read it back: a placement
         // can be refused for reasons the caller cannot see, and a backing that was never rebuilt
         // leaves exactly the "the cast just did not work" row this rung has been misled by twice.
@@ -2772,8 +2652,8 @@ public final class JourneyPortalRung {
         // Reported on the way past whether or not it ever fired. A guard that only speaks when it
         // trips cannot be told apart from a guard that was never wired up, and this one has to
         // survive twenty legs of a rung nobody watches.
-        rig.evidence("stairs.audit", "自检 " + stairsChecked + " 次，修好 " + stairsMended
-                + " 级，收工时 " + stairReport(level));
+        rig.evidence("stairs.audit", "自检 " + JourneyStairs.tally()
+                + "，收工时 " + JourneyStairs.report(level));
         if (cast < RING.length) {
             ctx.fail("门框没浇满：只有 " + cast + "/" + RING.length + " 块黑曜石 —— 点不着一个缺角的门");
             return;
@@ -2830,7 +2710,7 @@ public final class JourneyPortalRung {
             if (!forgeCorridor.contains(behind)) continue;
             if (level.getFluidState(behind).isEmpty()) continue;
             boolean was = level.getFluidState(behind).isSource();
-            if (held) placeInto(level, rig, behind);
+            if (held) JourneyStairs.placeInto(level, rig, behind);
             // READ IT BACK, and do not call it dammed until the world says so. The first run of this
             // reported `堵住…-10,57,37(流动)→Block{minecraft:water}` — a sentence that claims a dam
             // and prints the water still standing there, which is the shape of row this rung has
@@ -2861,7 +2741,7 @@ public final class JourneyPortalRung {
                     String fluid = BuiltInRegistries.FLUID.getKey(level.getFluidState(c).getType())
                             .toString();
                     boolean plugged = rig.body().avatar().holdItem(Items.COBBLESTONE)
-                            && placeInto(level, rig, c);
+                            && JourneyStairs.placeInto(level, rig, c);
                     rig.evidence("portal.plug." + c.toShortString(),
                             (source ? "源块 " : "流动 ") + fluid
                             + " → " + (plugged ? "塞成 " + level.getBlockState(c).getBlock()

@@ -8,6 +8,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **The staircase audit asked three of the four questions the flight is cut for, and certified a
+  flight the body could not climb.** `digStairsDown` cuts THREE cells per step and its javadoc says
+  why the third exists: "going back UP, the body jumps from a step to the one behind it, and a jump
+  needs clearance two above the feet it starts from." The audit written later never asked about that
+  cell. The ladder run of 2026-08-15 died on the very first ascent — no cast at all — with
+  `走不上楼梯：停在 -9, 56, 36 … 楼梯自检：16 级都完好`, and `-9,56,36` is `stairs.bottom`: the body was
+  standing exactly on the bottom step, on a flight the audit had just called perfect.
+
+  Read out of that run's saved world, the bottom step's clearance cell `-9,58,36` holds **dirt** —
+  the body's own pillar, part of a whole y=58 slab of it across the alcove mouth (`-10,58,36`,
+  `-9,58,36`, `-8,58,36`, `-9,58,37` all dirt), placed while `MineProcess` reached the frame's upper
+  rows. `StepUp.valid` refuses a +1 step unless `from.above(2)` is passable, and every flight leg
+  walks under `NoBreak`, so `StairUpBreak` — the variant that would have broken through it — was not
+  available to route around. A* therefore had no legal move upward out of the bottom step, and the
+  four remaining waypoints each burned their 600-tick settle against a question with no answer.
+
+  The audit now reads the clearance cell too, for every step except the top one (nothing is ever
+  climbed FROM the top cell, and it is also the one cell of the flight the dig never cut — asking
+  about it would report untouched surface rock as a broken stair). A blocked clearance is mended the
+  same way a blocked head is: with the pick, at arm's length. `stairs.asCut` and every
+  `<tag>.stairsBroken` now distinguish it in words — `起跳格` rather than `挡住`.
+
+  **Measured on the next real climb.** Six ascents, every one of them ending exactly on the
+  staircase's top cell — `lava0…lava5.upEnded = -9, 66, 21（楼梯顶 -9, 66, 21）` — and not one leg
+  of any ascent fell short, so `upStopped` never fired. Six cells cast (`cast0…cast5.result =
+  CONSUME`) against zero on the run before, with `staging.calls=0` and rungs 13–20 correctly
+  BLOCKED. The rung now dies further along, on a different bug: `第 7 格没挖开就要浇：-8, 59,
+  37=Block{minecraft:granite}`, with `forge.carved = 53/67 格开了，14 格没挖动`. That is the alcove
+  carve, not the staircase. One run is not a rate — 6 of 10 is not "stable".
+
+- **`N 级都完好` could not tell a dry staircase from a drowned one.** Every question the audit asks
+  is `blocksMotion()`, which is false for a water block, so a flooded flight reports as perfect. In
+  the same run the bottom step's foot cell was `water` — the cast's own pour at `-9,57,38` draining
+  back through the corridor — while the line said `16 级都完好`. That line is the one the last three
+  rounds of work on this rung quoted to rule the staircase out; it was wrong twice over on the run
+  that produced it. `stairReport` now appends `N 格泡在流体里：<cells>` when any step's foot or head
+  holds a fluid. Deliberately NOT a fault: a pick does not mend water, and the alcove's drainage is
+  its own open item — the point is only that the sentence can no longer be read as "dry". It fired
+  on the next real climb at the cell it was written for: `cast2.stairsBroken = 1/15 级坏了：-9,66,21
+  脚下 -9,65,21=air；2 格泡在流体里：-9,56,34=water，-9,56,35=water`, where `-9,56,35` is that run's
+  `stairs.bottom`.
+
+### Changed
+- **A flight leg now says where the body actually stopped, not just how high it got.** Both ends of
+  the staircase read only the finishing height, so `走不上楼梯：停在 …` read identically whether the
+  body never left the alcove or climbed four fifths of the flight and stalled. `walkTheStairs` now
+  records the FIRST waypoint it did not reach, with the leg index, the cell asked for, the cell
+  reached, the distance between them, and the four cells `StepUp.valid` reads about wherever it
+  stopped — what holds it up, what it is standing in, its head room, and the cell it must jump
+  through. Surfaces as `<tag>.upStopped` / `<tag>.returnStopped` and in both failure messages.
+
+  It earned itself twice on its first climb, with two readings the old message would have printed
+  identically. `cast2.returnStopped = 第 0/4 段：想到 -9,66,21，停在 -9,63,19，差 3.61 格 —— 脚下
+  stone，身处 lava，头顶 cave_air，起跳格 -9,65,19=stone（挡着，跳不起来）` — a body submerged in
+  lava under a stone ceiling, which the pillar-out recovery then rescued. `cast5.returnStopped =
+  第 1/4 段：想到 -9,62,25，停在 -9,66,21，差 5.66 格 —— 脚下 cobblestone，身处 air，头顶 air，
+  起跳格 -9,68,21=air` — a body standing at the stairwell mouth with all four cells clear, which is
+  a different finding entirely and still open.
+- The flight's audit, repair and rehearsal sabotage moved out of `JourneyPortalRung` into
+  `JourneyStairs`, which put that file back under the 3000-line source budget. Mechanical move; the
+  seam is that the rung cuts and walks the flight while `JourneyStairs` asks whether it is still one.
 - **The dig sealed the very cell it had to stand in, and only cobblestone was ever swept up.**
   `MineProcess` reaches a frame cell above head height by pillaring, and it pillars with
   `JourneyShaft.pillarBlock` — whichever of seven spoils the body carries **most** of. Every
