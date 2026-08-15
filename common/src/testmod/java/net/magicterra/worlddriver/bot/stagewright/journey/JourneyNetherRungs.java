@@ -2,8 +2,10 @@ package net.magicterra.worlddriver.bot.stagewright.journey;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 import net.magicterra.stagewright.scene.Scene;
@@ -22,9 +24,11 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.monster.Blaze;
 import net.minecraft.world.entity.monster.EnderMan;
+import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameRules;
+import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
 import net.minecraft.world.phys.AABB;
@@ -111,8 +115,11 @@ public final class JourneyNetherRungs {
         // fortress is far" into a timeout, which is the wrong sentence about the right world.
         out.add(rung("wd.journey14BlazeRod", JourneyStage.BLAZE_ROD, 360_000,
                 JourneyNetherRungs::blazeRod));
-        // 120 000: no build, and the walk is to whatever enderman is already loaded rather than to
-        // a landmark — six fights plus the waits between them.
+        // 120 000 still, and now it is the arithmetic rather than the absence of one. The old note
+        // said "no build, and the walk is to whatever enderman is already loaded rather than to a
+        // landmark", which is exactly what was wrong with the rung: the walk is now to a landmark,
+        // up to three attempts at WARPED_WALK_TICKS with a midpoint leg between them (≈36k), then
+        // six rounds of approach-and-fight (≈48k), then up to six dry waits (≈7k), which is 91k.
         out.add(rung("wd.journey15EnderPearl", JourneyStage.ENDER_PEARL, 120_000,
                 JourneyNetherRungs::enderPearl));
         return List.copyOf(out);
@@ -472,6 +479,14 @@ public final class JourneyNetherRungs {
      * walking back through the portal and waiting for an overworld night, which is a longer plan
      * for the same mob.
      *
+     * <p><b>And it now walks to one.</b> That paragraph was the plan from the first draft and the
+     * rung never carried it out: it hunted from wherever the rung below stopped, which is a fortress,
+     * which is {@code nether_wastes}. The first run this rung ever executed reported
+     * {@code enderman.found=0/6} with {@code hunt.biome=minecraft:nether_wastes} — and an enderman is
+     * one weight unit out of that biome's ~170, against a warped forest whose monster list is
+     * essentially endermen alone, four to a pack. Standing in the wrong biome is not a slow hunt, it
+     * is a different experiment.
+     *
      * <p>The bar is a MAJORITY of the hunts, with a per-kill tally beside it. An enderman's defence
      * is to stop being there, so every fight is a random process; the claim worth gating is
      * "teleport-on-hurt does not make it unkillable", which a majority establishes and which a
@@ -497,10 +512,101 @@ public final class JourneyNetherRungs {
                 nether.getGameRules().getBoolean(GameRules.RULE_DOMOBSPAWNING));
         rig.evidence("ender_pearl.before", rig.carrying(ENDER_PEARL));
         rig.evidence("weapon", holdBestWeapon(rig));
+        rig.evidence("hunt.census", census(nether, here));
 
         // found/killed, carried in an array because the hunt is a chain of continuations and a
         // local cannot survive one.
-        huntOne(ctx, rig, ENDERMAN_HUNTS, new int[]{0, 0}, new StringBuilder());
+        walkToEndermanGround(rig, here, () ->
+                huntOne(ctx, rig, ENDERMAN_HUNTS, new int[]{0, 0}, new StringBuilder()));
+    }
+
+    /**
+     * Walk to a warped forest before hunting, when the body is not already standing in one.
+     *
+     * <p>Asked of the generator rather than of a baked landmark, for the same reason the fortress is
+     * ({@link #fortressLandmark}): the recon scene never visits this dimension, so there is no
+     * earlier value for a later run to disagree with. The sampler answers from climate noise without
+     * generating a chunk, so the cost is a few thousand samples on the tick thread and it is
+     * measured into the evidence either way.
+     *
+     * <p><b>Not finding one is not a failure, and neither is not reaching one.</b> Endermen do spawn
+     * in {@code nether_wastes}; the biome only changes the rate. A rung that failed here would be
+     * reporting "the walk fell short" under the name of "the pearls could not be got", which is the
+     * wrong sentence about the right world — so both give up by name and hunt where the body stands.
+     * The bounded radius is part of that: a forest further away than the walk budget can carry is a
+     * landmark this rung cannot use, and searching further would only buy a longer timeout.
+     */
+    private static void walkToEndermanGround(JourneyRig rig, BlockPos here, Runnable then) {
+        ServerLevel nether = rig.player().serverLevel();
+        String want = Biomes.WARPED_FOREST.location().toString();
+        if (want.equals(biomeAt(rig, here))) {
+            rig.evidence("warped.already", "身体就站在 " + want + "，不用走");
+            then.run();
+            return;
+        }
+        long startedNs = System.nanoTime();
+        var hit = nether.findClosestBiome3d(b -> b.is(Biomes.WARPED_FOREST), here,
+                WARPED_SEARCH_RADIUS, WARPED_SEARCH_STEP, WARPED_SEARCH_VSTEP);
+        long ms = (System.nanoTime() - startedNs) / 1_000_000L;
+        if (hit == null) {
+            rig.evidence("warped.survey", "以 " + here.toShortString() + " 为心 " + WARPED_SEARCH_RADIUS
+                    + " 格内没有 " + want + "（找了 " + ms + " ms）—— 就地猎，"
+                    + "nether_wastes 也刷末影人，只是稀");
+            then.run();
+            return;
+        }
+        // HORIZONTAL, and the y is deliberately not resolved — same reading as the fortress landmark
+        // one rung below. The sampler returns whichever of its y slices matched, which in the Nether
+        // can be a cell inside the bedrock ceiling; the goal below is a `Goal.XZ`, so there was never
+        // a y to walk to and only this line could have been wrong about it.
+        BlockPos at = hit.getFirst();
+        int away = (int) Math.round(Math.hypot(here.getX() - at.getX(), here.getZ() - at.getZ()));
+        rig.evidence("warped.survey", want + " 在 " + at.toShortString() + "（距身体 " + away
+                + " 格水平，找了 " + ms + " ms；y=" + at.getY() + " 是采样层，不是可站立高度）");
+        rig.attempting("走到 " + want + " " + at.toShortString() + "（" + away + " 格）再猎");
+        walkToColumn(rig, "warped", at.getX(), at.getZ(), WARPED_ARRIVE_WITHIN, WARPED_WALK_TICKS,
+                () -> {
+                    BlockPos stood = rig.player().blockPosition();
+                    rig.evidence("warped.arrivedBiome", biomeAt(rig, stood)
+                            + "（停在 " + stood.toShortString() + "）");
+                    rig.evidence("warped.census", census(nether, stood));
+                    then.run();
+                },
+                () -> {
+                    rig.evidence("warped.notReached", "走不到 " + at.toShortString() + "：停在 "
+                            + rig.player().blockPosition().toShortString() + "，就地猎 —— "
+                            + "这一行说的是走位，不是这一级的成败");
+                    then.run();
+                });
+    }
+
+    /**
+     * What is actually alive around the body, at two radii and split into endermen and everything
+     * else.
+     *
+     * <p><b>{@code enderman.found=0/6} on its own cannot name a cause, and it ends the search.</b>
+     * Three different worlds print it: one where nothing spawns at all (a body outside
+     * {@code level.players()}, a gamerule, a difficulty), one where plenty spawns and endermen are
+     * merely rare (the wrong biome), and one where endermen exist but outside
+     * {@code ENDERMAN_SEARCH} — vanilla spawns 24 to 128 blocks from a player and this rung looks 48.
+     * They want a flag, a walk and a bigger box respectively.
+     *
+     * <p>The far count is honest about its own blind spot: entities exist only in loaded chunks, so
+     * the radius the run is holding is printed beside it. A zero at 128 from a body pinning 64 is a
+     * statement about the pin, not about the Nether.
+     */
+    private static String census(ServerLevel level, BlockPos from) {
+        int near = level.getEntitiesOfClass(EnderMan.class, box(from, ENDERMAN_SEARCH)).size();
+        int far = level.getEntitiesOfClass(EnderMan.class, box(from, ENDERMAN_CENSUS)).size();
+        List<Monster> mobs = level.getEntitiesOfClass(Monster.class, box(from, ENDERMAN_CENSUS));
+        Map<String, Integer> byType = new LinkedHashMap<>();
+        for (Monster m : mobs)
+            byType.merge(BuiltInRegistries.ENTITY_TYPE.getKey(m.getType()).getPath(), 1, Integer::sum);
+        return "末影人 " + near + " 只在 " + (int) ENDERMAN_SEARCH + " 格内、" + far + " 只在 "
+                + (int) ENDERMAN_CENSUS + " 格内；" + (int) ENDERMAN_CENSUS + " 格内怪物共 "
+                + mobs.size() + " 只 " + byType
+                + "（远处那个数只在已加载区块里算数，本级钉着 " + SEE_CHUNKS + " 区块 = "
+                + SEE_CHUNKS * 16 + " 格）";
     }
 
     private static void huntOne(SceneContext ctx, JourneyRig rig, int roundsLeft,
@@ -508,6 +614,7 @@ public final class JourneyNetherRungs {
         ServerLevel nether = rig.player().serverLevel();
         if (roundsLeft <= 0) { pearlVerdict(ctx, rig, foundAndKilled, tally); return; }
 
+        final int round = ENDERMAN_HUNTS - roundsLeft + 1;
         EnderMan target = nearestEnderman(nether, rig.player().blockPosition());
         if (target == null) {
             int[] waited = {0};
@@ -515,8 +622,15 @@ public final class JourneyNetherRungs {
                             || ++waited[0] >= ENDERMAN_WAIT_TICKS,
                     ENDERMAN_WAIT_TICKS + 100, () -> {
                 if (nearestEnderman(nether, rig.player().blockPosition()) == null) {
+                    // A DRY SPELL COSTS A ROUND, NOT THE RUNG. This used to go straight to the
+                    // verdict, so one quiet minute ended a hunt with 118 000 ticks of its budget
+                    // unspent and printed a single `×没找到` where six rounds were promised — an
+                    // enderman that wandered into range at minute two was never going to be met.
+                    // Six waits is still bounded and still says "found nothing" if that is the world.
                     tally.append(tally.length() == 0 ? "" : ",").append("×没找到");
-                    pearlVerdict(ctx, rig, foundAndKilled, tally);
+                    rig.evidence("hunt." + round + ".dry", "等了 " + ENDERMAN_WAIT_TICKS
+                            + " tick 没等到；" + census(nether, rig.player().blockPosition()));
+                    huntOne(ctx, rig, roundsLeft - 1, foundAndKilled, tally);
                 } else {
                     huntOne(ctx, rig, roundsLeft, foundAndKilled, tally);
                 }
@@ -525,7 +639,6 @@ public final class JourneyNetherRungs {
         }
 
         foundAndKilled[0]++;
-        final int round = ENDERMAN_HUNTS - roundsLeft + 1;
         final int before = rig.carrying(ENDER_PEARL);
         final EnderMan man = target;
         // Walk to it FIRST, then engage. CombatProcess scans 32 blocks and gives up in two ticks
@@ -571,9 +684,16 @@ public final class JourneyNetherRungs {
         rig.evidence("ender_pearl", pearls);
         rig.evidence("dropsNearby", rig.dropsNearby(ENDER_PEARL, 8) + " 颗掉在地上没捡");
         rig.evidence("arena", "真的下界，不是盒子 —— 瞬移可以真的把它带走");
+        BlockPos ended = rig.player().blockPosition();
+        rig.evidence("hunt.endedIn", biomeAt(rig, ended) + "（" + ended.toShortString() + "）");
+        rig.evidence("hunt.censusAfter", census(nether, ended));
         if (found == 0) {
-            ctx.fail("身边 " + ENDERMAN_SEARCH + " 格内一只末影人都没有，等了也没等到 —— "
-                    + whyNothingSpawns(nether));
+            // The census goes in the FAILURE, not only in the evidence. "No enderman came" is the
+            // one sentence three different worlds print, and a reader who has to go looking for the
+            // row that separates them usually stops at the sentence.
+            ctx.fail("身边 " + ENDERMAN_SEARCH + " 格内一只末影人都没有，"
+                    + ENDERMAN_HUNTS + " 轮都等了也没等到 —— " + census(nether, ended)
+                    + "；" + whyNothingSpawns(nether));
             return;
         }
         // A MAJORITY, and the bar is where it is because the alternative sits on the wrong side of
@@ -1088,6 +1208,36 @@ public final class JourneyNetherRungs {
     private static final int ENDERMAN_WAIT_TICKS = 1_200;
     private static final int ENDERMAN_APPROACH_TICKS = 4_000;
     private static final int ENDERMAN_FIGHT_TICKS = 4_000;
+
+    /** How far {@link #census} looks, as against how far the hunt looks. Deliberately WIDER than
+     *  {@link #ENDERMAN_SEARCH} and deliberately not used to pick a target: vanilla spawns 24 to 128
+     *  blocks from a player, so "there are none within 48" and "there are none at all" are different
+     *  worlds and the hunt's own radius cannot tell them apart. Reading only, never a goal. */
+    private static final double ENDERMAN_CENSUS = 128.0;
+
+    /**
+     * How far to ask the generator for a warped forest, and how finely.
+     *
+     * <p><b>256 is a WALK budget wearing a search radius, and it comes from a measurement.</b>
+     * Vanilla's own locate uses 6400 here; a forest at 2000 blocks would be a true answer this rung
+     * cannot use. The crossing the rung below attempts is 399 blocks and it has been watched fail
+     * whole — {@code fortress.goto.1 = no route progress after 5 consecutive searches … (best
+     * dist=3622)}, then two attempts of {@code no path (expanded=1)} — so a radius bigger than the
+     * one leg this rung can afford would only buy a longer timeout in place of a hunt. Past this,
+     * "none within 256" is a row that says hunt where you stand, which is a legal way to get pearls.
+     *
+     * <p>The steps are the sampler's stride: 16 blocks is fine enough not to step over a forest and
+     * coarse enough to keep the whole survey to a few thousand climate samples on the tick thread —
+     * an order of magnitude under the locate command's own 32-block stride over 6400.
+     */
+    private static final int WARPED_SEARCH_RADIUS = 256;
+    private static final int WARPED_SEARCH_STEP = 16;
+    private static final int WARPED_SEARCH_VSTEP = 32;
+
+    /** Arrival tolerance and one leg's budget for the walk to the forest. Eight blocks because the
+     *  target is a biome sample and a biome is not a point — anywhere inside it is arrival. */
+    private static final int WARPED_ARRIVE_WITHIN = 8;
+    private static final int WARPED_WALK_TICKS = 8_000;
 
     /** Everything the ladder might be carrying that a wall can be made of, plus everything the
      *  quarry below produces. Order does not matter — {@link #placeableBlock} takes the biggest
