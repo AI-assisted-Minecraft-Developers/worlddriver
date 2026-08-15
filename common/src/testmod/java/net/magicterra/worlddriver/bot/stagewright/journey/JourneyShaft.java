@@ -57,18 +57,70 @@ public final class JourneyShaft {
      *  {@link #ascendByTowering}'s drift branch. */
     static int climbColX, climbColZ;
 
+    /**
+     * May this climb adopt whatever column the tower drifts onto?
+     *
+     * <p><b>The answer depends on what the height is FOR, and that is the whole finding.</b> When the
+     * goal is to get out of a hole, any column that rises is as good as another, and
+     * {@code driftKept}'s "走不回原柱，改以这一柱为准" is right: refusing to adopt would leave a body
+     * stuck at the bottom of a shaft over a bookkeeping detail.
+     *
+     * <p>When the goal is a RAY — a bucket that has to land in one named cell — the column <b>is</b>
+     * the geometry. Moving one cell sideways moves where the ray crosses the frame's plane, so a hand
+     * check that {@code x=-10} works says nothing whatever about {@code x=-8}. Measured, run 43's
+     * tenth cell: {@code water9.raisedY=60/60} — the height was reached exactly — over
+     * {@code climb.3.driftKept=-8,58,37 走不回 -9,37，改以这一柱为准}, and the pour then fired the
+     * SAME wrong ray from {@code -7,60,37} three approaches running. Height alone made a failed raise
+     * read as a solved one.
+     *
+     * <p>So a pinned climb refuses to adopt, and stops rather than looping when the column genuinely
+     * cannot be reached — the caller's own gate is what decides whether to spend the bucket, and
+     * {@code raisedY} now reports the column as well as the height so a short pinned climb cannot be
+     * read as a successful one.
+     */
+    static boolean climbPinned;
+
     static void climbOut(JourneyRig rig, int surfaceY, Runnable then) {
+        climbPinned = false;
+        BlockPos at = rig.player().blockPosition();
+        climbFrom(rig, surfaceY, at.getX(), at.getZ(), then);
+    }
+
+    /** Climb to {@code surfaceY} without leaving the column {@code colX,colZ} — see
+     *  {@link #climbPinned} for why a pour needs that and an exit does not. */
+    static void climbOutInColumn(JourneyRig rig, int surfaceY, int colX, int colZ, Runnable then) {
+        climbPinned = true;
+        climbFrom(rig, surfaceY, colX, colZ, then);
+    }
+
+    private static void climbFrom(JourneyRig rig, int surfaceY, int colX, int colZ, Runnable then) {
         BotConfig.allowPlace = true;
         int rise = Math.max(0, surfaceY - rig.player().blockPosition().getY());
         int cap = climbCoursesFor(rise);
         exitFromY = rig.player().blockPosition().getY();
         exitRise = rise;
-        climbColX = rig.player().blockPosition().getX();
-        climbColZ = rig.player().blockPosition().getZ();
+        climbColX = colX;
+        climbColZ = colZ;
         rig.evidence("exit.fromY", rig.player().blockPosition().getY());
         rig.evidence("exit.rise", rise + " block(s), cap " + cap + " course(s)");
-        ascendByTowering(rig, surfaceY, cap, cap, () -> {
+        rig.evidence("exit.column", colX + "," + colZ
+                + (climbPinned ? "（钉住：换柱等于换射线，不许改）" : "（起塔柱，走不回就改）"));
+        // The six-arg form on purpose: the five-arg one is a standalone ENTRY point and resets the
+        // column and the pin, which are exactly the two things this method has just set.
+        ascendByTowering(rig, surfaceY, cap, cap, WASHED_OFF_RETRIES, () -> {
             if (rig.player().blockPosition().getY() >= surfaceY) { recordExit(rig, then); return; }
+            // NO WALKER FALLBACK FOR A PINNED CLIMB. `Goal.YLevel` is column-blind by construction —
+            // it is satisfied by any cell at the height — so handing a pinned climb to it is handing
+            // away the one property the pin exists to keep. A pour that could not get up its own
+            // column says so and lets its ray gate refuse the bucket; it is not in a hole and has
+            // nothing to be rescued from.
+            if (climbPinned) {
+                rig.evidence("exit.pinnedShort", rig.player().blockPosition().toShortString()
+                        + " 没垒到 y=" + surfaceY + "，指定柱 " + climbColX + "," + climbColZ
+                        + " —— 不交给 YLevel 兜底，那条路不认柱子");
+                recordExit(rig, then);
+                return;
+            }
             // The tower gave up. Hand the rest to the walker — the route
             // wd.serverPillarsOutOfAPit measured at 46 ticks — and RECORD that it was needed, so
             // a run whose exit depended on the fallback cannot be read as one where the scripted
@@ -82,6 +134,14 @@ public final class JourneyShaft {
 
     static void recordExit(JourneyRig rig, Runnable then) {
         rig.evidence("exit.toY", rig.player().blockPosition().getY());
+        // WHICH COLUMN IT ENDED ON, not only how high. A tower that drifts still gains height, so
+        // `exit.gained=3/3` is true of a body three cells from where the caller asked for it — and
+        // for a caller that wants a ray rather than an altitude those are different outcomes with
+        // identical readings. See climbPinned for the run this cost.
+        BlockPos end = rig.player().blockPosition();
+        rig.evidence("exit.endedIn", end.getX() + "," + end.getZ()
+                + (end.getX() == climbColX && end.getZ() == climbColZ ? "（就是那一柱）"
+                        : "（起塔柱是 " + climbColX + "," + climbColZ + " —— 不是同一柱）"));
         // How much of the climb actually happened, as a fraction rather than as a landing height.
         // `exit.toY=28` beside `exit.fromY=27` is only a shortfall if you remember the rise was 36,
         // and a rung that later finds what it needs underground will otherwise go green carrying a
@@ -168,7 +228,19 @@ public final class JourneyShaft {
                 // One attempt, then adopt. A correction that cannot be made must not become the
                 // whole climb — forty courses of walking back to a cell the body cannot reach is
                 // the same wedge in a different costume, and the climb still has to happen.
+                //
+                // …UNLESS THE COLUMN IS THE POINT. Adopting is right for an exit and wrong for a
+                // pour, because the caller computed its aim from a column and adopting silently
+                // answers a different question — see climbPinned. Stopping is not a loop and not a
+                // hard failure: it ends this climb with a named row and hands the decision back.
                 if (back.getX() != climbColX || back.getZ() != climbColZ) {
+                    if (climbPinned) {
+                        rig.evidence("climb." + step + ".pinnedLost", back.toShortString()
+                                + " 走不回指定柱 " + climbColX + "," + climbColZ
+                                + " —— 爬升到此为止，不改柱（换柱等于换射线）");
+                        then.run();
+                        return;
+                    }
                     rig.evidence("climb." + step + ".driftKept", back.toShortString()
                             + " 走不回 " + climbColX + "," + climbColZ + "，改以这一柱为准");
                     climbColX = back.getX();
