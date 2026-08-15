@@ -2193,9 +2193,16 @@ public final class JourneyPortalRung {
                                        Runnable then) {
         String wet = JourneyForge.firstFluid(ctx.level(), List.copyOf(forgeCorridor));
         if (wet == null || legs <= 0) {
+            // THE SENTENCE USED TO NAME A CAUSE THE ROW ITSELF DISPROVES. It said "水源没被收回来"
+            // — the source was never picked up — and every recover in the run reports CONSUME. Now
+            // that firstFluid states source-or-flowing, the answer is in: on the run that lit the
+            // portal, drain.6 through drain.9 all read `（流动，没源就会自己退）`. Nothing is
+            // feeding the alcove; the water is simply still on its way out after 200 ticks, in a
+            // seven-tall room whose floor the tidy has just unplugged. That is a wait to lengthen or
+            // a floor to leave alone, not a bucket to chase.
             rig.evidence("drain." + i, wet == null ? "壁龛已排干"
                     : "等了 " + (DRAIN_LEGS * DRAIN_TICKS) + " tick 仍有流体：" + wet
-                      + " —— 水源没被收回来，下一格挖开就会灌满");
+                      + " —— 挖开下一格它会灌进去；是不是源块见括号，流动的只是还没退完");
             then.run();
             return;
         }
@@ -2788,37 +2795,106 @@ public final class JourneyPortalRung {
      * reachable from the alcove and nothing above them can fall in (the top pair is obsidian). The
      * evidence names what was in there, because "the cast leaves slag in the doorway" is a finding
      * about the mould's geometry and not a chore.
+     *
+     * <p><b>And slag is not the only thing that gets in — WATER does, and a pick cannot take it
+     * out.</b> The first ladder run ever to cast all ten cells died here:
+     * {@code portal.slag = 2 格要清：-9,57,38=water -10,58,38=granite}, then
+     * {@code portal.doorway = 还堵着：-9,57,38=water}. The granite went; the water was swung at six
+     * hundred ticks' worth of nothing, because {@code mine} on a fluid cell is a no-op. It is fed
+     * from the alcove — {@code drain.9 = 等了 200 tick 仍有流体：-9,57,37 = water} names the cell
+     * immediately behind it — so the doorway is where this rung's long-standing wet alcove finally
+     * stops being a cost and becomes the failure.
+     *
+     * <p>Three steps, in this order, because each one is pointless without the one before:
+     * <b>dam</b> the corridor cell behind each interior cell when it holds fluid (a corridor cell is
+     * this rung's own spoil heap and nothing downstream stands there), <b>wait</b> for what is
+     * already inside to run out now that nothing feeds it, and only then <b>plug</b> whatever fluid
+     * is left with a cobblestone so the existing pick can take it out as a block. A portal needs
+     * {@code isEmpty()} in all six, and flowing water fails that exactly as hard as a source does.
      */
     private static void clearTheDoorway(SceneContext ctx, JourneyRig rig, BlockPos base,
                                         Direction away, Runnable then) {
         ServerLevel level = ctx.level();
-        List<BlockPos> slag = new ArrayList<>();
-        StringBuilder what = new StringBuilder();
+        List<BlockPos> interior = new ArrayList<>();
         for (int ix = 0; ix <= 1; ix++)
-            for (int iy = 1; iy <= 3; iy++) {
-                BlockPos c = frameCell(base, away, ix, iy);
-                if (level.getBlockState(c).isAir()) continue;
+            for (int iy = 1; iy <= 3; iy++) interior.add(frameCell(base, away, ix, iy));
+
+        // DAM FIRST. Clearing a cell that something is still pouring into buys one tick of air.
+        boolean held = rig.body().avatar().holdItem(Items.COBBLESTONE);
+        StringBuilder dammed = new StringBuilder();
+        for (BlockPos c : interior) {
+            BlockPos behind = c.relative(away.getOpposite());
+            if (!forgeCorridor.contains(behind)) continue;
+            if (level.getFluidState(behind).isEmpty()) continue;
+            boolean was = level.getFluidState(behind).isSource();
+            if (held) placeInto(level, rig, behind);
+            // READ IT BACK, and do not call it dammed until the world says so. The first run of this
+            // reported `堵住…-10,57,37(流动)→Block{minecraft:water}` — a sentence that claims a dam
+            // and prints the water still standing there, which is the shape of row this rung has
+            // been misled by twice. Best-effort is fine here (the wait and the plug below carried
+            // that run to 6/6 anyway); claiming success is not.
+            boolean now = level.getBlockState(behind).blocksMotion();
+            dammed.append(dammed.isEmpty() ? "" : " ").append(behind.toShortString())
+                    .append(was ? "(源块)" : "(流动)").append(now ? "→堵上了 " : "→没堵上，还是 ")
+                    .append(level.getBlockState(behind).getBlock());
+        }
+        rig.evidence("portal.dam", dammed.isEmpty() ? "门洞背后没有流体，不用堵"
+                : (held ? "" : "手上没有圆石，堵不上；") + "门洞背后的壁龛格：" + dammed);
+
+        rig.settle(new HoldStill(20), DOORWAY_DRAIN_TICKS, () -> {
+            List<BlockPos> slag = new ArrayList<>();
+            StringBuilder what = new StringBuilder();
+            for (BlockPos c : interior) {
+                if (level.getBlockState(c).isAir() && level.getFluidState(c).isEmpty()) continue;
+                // A FLUID BECOMES A BLOCK BEFORE IT BECOMES A JOB. `clearNext` mines, and mining
+                // water is the six hundred ticks of nothing that killed the run above.
+                if (!level.getFluidState(c).isEmpty()) {
+                    // BEFORE THE PLUG, because plugging is what empties the cell. The first run of
+                    // this read the fluid back after placing and printed
+                    // `流动 …material.EmptyFluid@1835b783` — the state it had just destroyed, under
+                    // an object identity nobody can read. What the row is for is naming the fluid
+                    // that was in the way.
+                    boolean source = level.getFluidState(c).isSource();
+                    String fluid = BuiltInRegistries.FLUID.getKey(level.getFluidState(c).getType())
+                            .toString();
+                    boolean plugged = rig.body().avatar().holdItem(Items.COBBLESTONE)
+                            && placeInto(level, rig, c);
+                    rig.evidence("portal.plug." + c.toShortString(),
+                            (source ? "源块 " : "流动 ") + fluid
+                            + " → " + (plugged ? "塞成 " + level.getBlockState(c).getBlock()
+                                               + "，接下来当方块挖掉" : "塞不上，挖也挖不动"));
+                }
                 slag.add(c);
                 what.append(what.isEmpty() ? "" : " ").append(c.toShortString()).append('=')
                         .append(level.getBlockState(c).getBlock());
             }
-        rig.evidence("portal.slag", slag.isEmpty() ? "门洞六格都是空气" : slag.size() + " 格要清：" + what);
-        if (slag.isEmpty()) { then.run(); return; }
-        clearNext(rig, slag, 0, 600, () -> {
-            StringBuilder left = new StringBuilder();
-            for (BlockPos c : slag)
-                if (!level.getBlockState(c).isAir())
-                    left.append(left.isEmpty() ? "" : " ").append(c.toShortString()).append('=')
-                            .append(level.getBlockState(c).getBlock());
-            rig.evidence("portal.doorway", left.isEmpty() ? "六格都清干净了" : "还堵着：" + left);
-            if (!left.isEmpty()) {
-                ctx.fail("门洞清不干净：" + left + " —— 传送门要的是六格空气，"
-                        + "浇筑时岩浆碰到水结成的圆石就卡在门洞里，点着了也只是一团火");
-                return;
-            }
-            then.run();
+            rig.evidence("portal.slag", slag.isEmpty() ? "门洞六格都是空气" : slag.size() + " 格要清：" + what);
+            if (slag.isEmpty()) { then.run(); return; }
+            clearNext(rig, slag, 0, 600, () -> {
+                StringBuilder left = new StringBuilder();
+                for (BlockPos c : slag)
+                    if (!level.getBlockState(c).isAir() || !level.getFluidState(c).isEmpty())
+                        left.append(left.isEmpty() ? "" : " ").append(c.toShortString()).append('=')
+                                .append(level.getBlockState(c).getBlock())
+                                .append(level.getFluidState(c).isEmpty() ? ""
+                                        : level.getFluidState(c).isSource() ? "(源块)" : "(流动)");
+                rig.evidence("portal.doorway", left.isEmpty() ? "六格都清干净了" : "还堵着：" + left);
+                if (!left.isEmpty()) {
+                    ctx.fail("门洞清不干净：" + left + " —— 传送门要的是六格空气；"
+                            + "圆石是浇筑时岩浆碰水结的渣，流体是壁龛里没排干的水顺着背后灌进来的，"
+                            + "两者要的手段不一样，看 portal.dam / portal.plug 哪一步没成");
+                    return;
+                }
+                then.run();
+            });
         });
     }
+
+    /** How long to let the doorway run dry once its feeders are dammed. Water clears a cell in a
+     *  handful of ticks when nothing replaces it, so this is generous by an order of magnitude on
+     *  purpose: it is the difference between "the dam worked" and "the dam worked slowly", and only
+     *  the first is worth a hundred ticks of a rung that has already spent eight thousand. */
+    private static final int DOORWAY_DRAIN_TICKS = 120;
 
     private static void strike(SceneContext ctx, JourneyRig rig, BlockPos base, Direction away,
                                BlockPos hearth, BlockPos doorway) {
