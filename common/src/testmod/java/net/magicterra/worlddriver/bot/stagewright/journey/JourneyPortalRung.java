@@ -411,7 +411,10 @@ public final class JourneyPortalRung {
      * meeting: the alcove sits at the foot of the last step, and every step above it is both higher
      * and further back.
      */
-    private static Direction awayFrom(BlockPos lava, BlockPos at) {
+    /** Package-visible so a rehearsal can pick a standing spot BY the answer this returns, rather
+     *  than re-deriving it. A second copy of this rule is a second thing to keep in step, and the
+     *  whole point of the orientation parameter is that the staged side and the carved side agree. */
+    static Direction awayFrom(BlockPos lava, BlockPos at) {
         int dx = Integer.signum(at.getX() - lava.getX());
         int dz = Integer.signum(at.getZ() - lava.getZ());
         return Math.abs(at.getX() - lava.getX()) >= Math.abs(at.getZ() - lava.getZ())

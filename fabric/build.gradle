@@ -299,6 +299,16 @@ loom {
             // refuses the sabotage when none is set.
             property 'worlddriver.journey.breakAStair',
                     (project.findProperty('breakAStair') ?: 'false').toString()
+            // Which side of the lava lake to stand the body on, which is what decides the forge's
+            // orientation and therefore the whole alcove geometry:
+            //   ./gradlew :fabric:runRehearsalServer -Prehearse=PORTAL_LIT -PforgeAway=north
+            // Empty means "whichever spot the search finds first", which is what every rehearsal did
+            // before this existed — one geometry, thirty runs. The real ladder picks a different one
+            // nearly every climb, so four directed six-minute runs cover what ten twenty-minute
+            // ladder runs only sample. See JourneyRehearsal.forcedSide for why the SIDE is staged
+            // rather than the direction forced.
+            property 'worlddriver.journey.forgeAway',
+                    (project.findProperty('forgeAway') ?: '').toString()
             // Same body the ladder climbs on, and that is a deliberate answer rather than a copied
             // line. PORTAL_LIT itself does not need it: it is overworld-only, it spawns nothing and
             // it never asks for the dragon, so it would rehearse identically without the flag. But

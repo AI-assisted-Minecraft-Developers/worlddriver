@@ -11,6 +11,7 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -352,11 +353,17 @@ public final class JourneyRehearsal {
         // approach under test; what is skipped is the eighty-block crossing from world spawn that
         // rung 11 would have paid for.
         loadAround(level, lake, 2);
-        BlockPos stand = dryStandNear(level, lake, 8, 20);
+        Direction side = forcedSide(ctx);
+        BlockPos stand = dryStandNear(level, lake, 8, 20, side);
         if (stand == null) {
-            ctx.fail("排练：岩浆湖 " + lake.toShortString() + " 周围 8..20 格内找不到一处干燥落脚点");
+            ctx.fail("排练：岩浆湖 " + lake.toShortString() + " 周围 8..20 格内"
+                    + (side == null ? "" : "的 " + side + " 侧") + "找不到一处干燥落脚点"
+                    + (side == null ? "" : " —— 这颗种子在这一侧摆不出这个朝向"));
             return;
         }
+        ctx.record("rehearsal.forgeAway", side == null
+                ? "自然朝向 " + JourneyPortalRung.awayFrom(lake, stand) + "（没有指定 -PforgeAway）"
+                : "指定 " + side + "，落脚点选在湖的这一侧，楼梯与模腔都会朝这边");
         loadAround(level, stand, 2);
         JourneyLedger.staged("rehearsal: moved the body to " + stand.toShortString()
                 + " beside the lake instead of walking there");
@@ -690,13 +697,59 @@ public final class JourneyRehearsal {
      * dropping a body into a surface lava lake is invisible on an invulnerable avatar and turns every
      * later reading into nonsense.
      */
+    /**
+     * Which side of the lake this rehearsal must stand on, or null for whichever comes first.
+     *
+     * <p><b>A rehearsal that always stands in one place tests one geometry.</b> The real ladder picks
+     * its forge orientation from wherever eleven rungs left the body relative to the pool, and it is
+     * a different one nearly every run: two consecutive ladder runs carved {@code forge.away=east}
+     * and {@code forge.away=south}, and the second failed in a way the first could not reach — the
+     * body could not walk back out of the alcove to the staircase. Thirty rehearsals had never once
+     * been in that geometry, so the rehearsal was structurally blind to it, which is the same
+     * blindness the inventory difference had (cobblestone here, dirt on the climb).
+     *
+     * <p><b>The side is staged, not the direction.</b> Forcing {@code stairDir} outright would let
+     * the mould be carved TOWARD the lake — the one mistake that ends a run rather than costing it a
+     * retry, and a state the real ladder can never be in, so anything found that way would not be a
+     * finding. Standing the body on the requested side makes {@link JourneyPortalRung#awayFrom} return
+     * that direction on its own, and every geometric invariant the rung relies on still holds. A seed
+     * with no dry ground on one side simply cannot rehearse that orientation, and says so.
+     *
+     * <p>Rehearsal-only twice over, like {@code breakAStair}: this is read only from the staging step,
+     * which only runs when {@link #target()} is set, and the choice goes into the staging ledger.
+     */
+    private static Direction forcedSide(SceneContext ctx) {
+        String want = System.getProperty("worlddriver.journey.forgeAway", "").trim();
+        if (want.isEmpty()) return null;
+        for (Direction d : Direction.Plane.HORIZONTAL)
+            if (d.getName().equalsIgnoreCase(want)) {
+                JourneyLedger.staged("rehearsal: stood the body on the " + d
+                        + " side of the lake so the forge faces " + d);
+                return d;
+            }
+        ctx.record("rehearsal.forgeAway", want
+                + " 不是 north/south/east/west 之一 —— 按自然朝向摆，没有强制");
+        return null;
+    }
+
     private static BlockPos dryStandNear(ServerLevel level, BlockPos lake, int min, int max) {
+        return dryStandNear(level, lake, min, max, null);
+    }
+
+    private static BlockPos dryStandNear(ServerLevel level, BlockPos lake, int min, int max,
+                                         Direction side) {
         for (int r = min; r <= max; r++) {
             for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
                     int x = lake.getX() + dx;
                     int z = lake.getZ() + dz;
+                    // THE RUNG'S OWN RULE, not a second copy of it. The staircase direction is
+                    // `awayFrom(lake, stand)`, so filtering candidates through the very same call is
+                    // what makes "stood on the north side" and "carved facing north" the same claim.
+                    if (side != null
+                            && JourneyPortalRung.awayFrom(lake, new BlockPos(x, lake.getY(), z)) != side)
+                        continue;
                     int y = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
                             new BlockPos(x, 0, z)).getY();
                     BlockPos foot = new BlockPos(x, y, z);
