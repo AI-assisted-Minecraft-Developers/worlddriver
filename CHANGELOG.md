@@ -43,6 +43,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   keeps its digging: it crosses open ground to a lake nowhere near the mould.
 
 ### Added
+- **A climb that gives up afloat now says why it never landed.** `HoldStill` releases the inputs and
+  nothing else, so gravity keeps running and eight sixty-tick legs are ample for a body to sink —
+  which means「浮在水里，8 次都没落地」fitted three different worlds (no floor under the feet, water
+  deep enough to buoy the body, or a body that is resting while `onGround` reads false) and could not
+  pick between them. The row now carries the first solid floor under the feet, how deep the fluid
+  reaches above it, and the body's sub-cell `y`. Its first run answered the question outright:
+  `脚下 0 格内有实底（-11,55,36 granite），水深 1 格，身体 y=56.00，头 air 脚 water` — standing on
+  rock, integer `y`, one block of water, and `onGround()` still false. The eight retries were eight
+  retries against a condition that never changes.
 - **Every climb records under its caller's name, and every pour approach under its own number.** The
   climb rows were bare `climb.<course>.*` / `exit.*` keys and one casting cell runs three climbs, so
   a ten-cell rung kept one `climb.0.driftInto` out of a dozen — and duly printed a self-contradicting
