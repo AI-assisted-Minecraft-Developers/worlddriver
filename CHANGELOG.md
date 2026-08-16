@@ -146,6 +146,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Nothing in the old evidence could distinguish that from a slow walk.
 
 ### Changed
+- **A `PORTAL_LIT` rehearsal hands the bucket over EMPTY, like a climb's.** It used to hand the water
+  already in it, reasoning that rung 12's walk to water re-tests a rung-10 capability at rung 12's
+  expense. That is sound about cost and wrong about fidelity: the climb fills its own bucket here
+  (`waterFill.hand = minecraft:bucket`, `waterFill.result = CONSUME`), and **where that trip leaves
+  the body is what decides where it is standing when the carve begins** — the exact quantity under
+  investigation, since the rehearsal's carve fails with the body up on the surface while the climb's
+  on identical geometry carved 67/67. A staging shortcut may skip a walk; it may not skip a walk that
+  decides the thing being measured. Measured: the fill itself works (`water_bucket = 1`,
+  `waterFill.cellAfter = air`) and the trip does move the return point — `lava.arrivedDistance` went
+  from 1 to 4 — which is the confirmation that this variable was worth aligning. That same run was
+  then **blocked upstream and measured nothing about the carve**: from four blocks out the body could
+  not reach the pinned column within `MAX_WALK_ATTEMPTS` (`站不到可下挖的柱子上：想去 -8,19，停在
+  -13, 66, 21`), because `-PshaftColumn` deliberately refuses to adopt any other column. The two
+  staging levers now interact, and that is the next thing to resolve; a rehearsal that stops there has
+  learnt nothing about digging and must not be read as if it had.
 - **A `PORTAL_LIT` rehearsal hands over the climb's measured cobblestone, not a convenient stack.**
   It was 64 because a stack is easy to type; the real ladder of 2026-08-16 reached this rung holding
   **111** (`cobblestone.before = 111`). The gap matters because a rehearsal stages the preconditions

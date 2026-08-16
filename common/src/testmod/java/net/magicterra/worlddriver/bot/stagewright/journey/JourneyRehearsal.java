@@ -342,13 +342,22 @@ public final class JourneyRehearsal {
         // and a mine that silently stops because the head snapped looks identical to a mine that
         // could not reach.
         kit.put("minecraft:stone_pickaxe", 2);
-        // The water is handed over already in the bucket. Rung 12 fills it at the surface when it can
-        // and walks to firstWater when it cannot, and that walk is a rung-10 capability being
-        // re-tested at rung 12's expense — see fillWaterAtTheSurface's own short-circuit.
-        kit.put("minecraft:water_bucket", 1);
-        // The EXTRA buckets, empty, and only when asked for. See stagedBuckets.
+        // EMPTY, like a climb's. This used to hand the water over already in the bucket, on the
+        // reasoning that rung 12's walk to water re-tests a rung-10 capability at rung 12's expense.
+        // That reasoning is sound about COST and wrong about FIDELITY, and the difference cost a round:
+        // the climb of 2026-08-16 fills its own bucket here (`waterFill.hand = minecraft:bucket`,
+        // `waterFill.result = CONSUME`), and where that trip leaves the body is what decides where it
+        // is standing when the carve begins — which is exactly the quantity under investigation, since
+        // the rehearsal's carve fails with the body up on the surface (`cell.0.standMissed 停在
+        // 3,64,20，脚下 grass_block`) while the climb's on the same geometry carved 67/67.
+        //
+        // A staging shortcut may skip a walk; it may not skip a walk that DECIDES the thing being
+        // measured. The cost is real — the trip to `firstWater 64,62,60` is its own long-standing
+        // failure (a ladder run died on it) — so a rehearsal that stops there has been blocked
+        // UPSTREAM and has measured nothing about the carve. Read `waterFill.*` before reading the
+        // carve rows.
         int buckets = stagedBuckets(ctx);
-        if (buckets > 1) kit.put("minecraft:bucket", buckets - 1);
+        kit.put("minecraft:bucket", buckets);
         kit.put("minecraft:flint_and_steel", 1);
         kit.put("minecraft:cobblestone", PORTAL_LIT_COBBLESTONE);
         StringBuilder gave = new StringBuilder();
@@ -361,9 +370,9 @@ public final class JourneyRehearsal {
         // THE NUMBER, not「对齐了」. A give is a claim about what a climb arrives holding, and the only
         // way to judge it later is against the climb's own measured row — so both go on the record.
         ctx.record("rehearsal.gave", gave.toString()
-                + "（圆石 " + PORTAL_LIT_COBBLESTONE + " 照真 ladder 2026-08-16 那趟实测的 "
-                + "cobblestone.before=111 对齐；水桶是满的、镐给两把，两者都是故意与真爬升不同，"
-                + "理由见 stagePortalLit 里那两处注释）");
+                + "（圆石 " + PORTAL_LIT_COBBLESTONE + " 与水桶为空，都照真 ladder 2026-08-16 那趟实测的 "
+                + "cobblestone.before=111 / bucket.before=1 对齐；仍然故意不同的只剩「镐给两把」，"
+                + "理由见 stagePortalLit 里那处注释）");
 
         // Beside the lake, not on it. The rung walks the last few blocks itself, which keeps its own
         // approach under test; what is skipped is the eighty-block crossing from world spawn that
