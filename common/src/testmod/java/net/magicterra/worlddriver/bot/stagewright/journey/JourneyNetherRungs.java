@@ -1303,12 +1303,15 @@ public final class JourneyNetherRungs {
      * ATTEMPT had moved more than four blocks, and attempt 2 moved 69 blocks and then stood still
      * for 1203 ticks, so attempt 3 re-asked the identical question from the identical cell and got
      * the identical answer. Measuring a whole attempt cannot detect a body that wedged at the end
-     * of it; a hop is short enough that "did this hop move" is the same question.
+     * of it; a hop is short enough to be judged on its own.
      *
      * <p><b>A hop that goes nowhere must change the question, not repeat it.</b> First by halving
      * the reach — a shorter question is a different one — and then by turning off the straight line,
      * because the thing a bee-line runs into in the Nether is usually a lava sea with ground either
-     * side of it. Three wedged hops in a row ends the crossing with every reading attached.
+     * side of it. Four such hops in a row ends the crossing with every reading attached.
+     *
+     * <p>What "goes nowhere" MEANS is {@link #PROGRESS_UNDER} — read it before touching this, because
+     * the obvious answer is wrong twice over and has cost this crossing two rounds.
      */
     private static void crossToColumn(JourneyRig rig, String what, int x, int z, int tolerance,
                                       int hopTicks, Runnable onArrived, Runnable onStuck) {
@@ -1404,9 +1407,11 @@ public final class JourneyNetherRungs {
     /** What a crossing carries from hop to hop. A chain of continuations cannot keep locals. */
     private static final class Crossing {
         int hop;                       // hops spent
-        int wedged;                    // CONSECUTIVE hops that went nowhere
+        int wedged;                    // hops since the crossing last got closer than it had ever been
         int reach = NETHER_HOP;        // how far the next hop aims, halved after a wedge
         int turn;                      // degrees off the straight line, spent after halving fails
+        double best = Double.MAX_VALUE; // the closest this crossing has ever been to the goal — the
+                                        // bar a hop must beat. See PROGRESS_UNDER for why a ratchet.
         int falls;
         int noPlan;                    // ticks, summed over hops — the crossing's headline reading
         String firstLava;
@@ -1418,6 +1423,7 @@ public final class JourneyNetherRungs {
                                int hopTicks, Crossing c, Runnable onArrived, Runnable onStuck) {
         BlockPos before = rig.player().blockPosition();
         double away = Math.hypot(x - before.getX(), z - before.getZ());
+        if (c.hop == 0) c.best = away;   // the record starts wherever the crossing does
         if (away <= tolerance + ARRIVED_WITHIN) {
             recordCrossing(rig, what, c, away);
             onArrived.run();
@@ -1448,15 +1454,23 @@ public final class JourneyNetherRungs {
                         List.of(), NO_PARKOUR, List.of())), hopTicks,
                 flight, () -> {
             BlockPos at = rig.player().blockPosition();
-            double moved = Math.hypot(at.getX() - before.getX(), at.getZ() - before.getZ());
             double left = Math.hypot(x - at.getX(), z - at.getZ());
+            // THE quantity. Not how far the body moved — how much closer to the goal the crossing
+            // has ever got. See PROGRESS_UNDER: displacement cannot see a shuttle, and per-hop net
+            // progress cannot either, because a shuttle's two halves cancel one hop apart.
+            double gained = c.best - left;
             c.falls += flight.fallCount();
             c.noPlan += flight.noPlanTicks();
             if (flight.lavaLine() != null && c.firstLava == null)
                 c.firstLava = "第 " + hop + " 段 " + flight.lavaLine();
+            // 纪录/净进 are the two numbers the shuttle was invisible without: every one of those 21
+            // hops printed a healthy 「走 44/48 格」, and only the pair (record, gain-against-record)
+            // says the crossing was standing still. c.best is still the PRE-hop record here on purpose
+            // — it is the bar this hop had to clear.
             c.lines.add("#" + hop + " " + before.toShortString() + "→" + wx + "," + wz
                     + (c.turn == 0 ? "" : "（偏 " + c.turn + "°）")
-                    + " " + flight.brief() + "，还差 " + Math.round(left));
+                    + " " + flight.brief() + "，还差 " + Math.round(left)
+                    + "（纪录 " + Math.round(c.best) + "，净进 " + Math.round(gained) + "）");
             // Falls get their own rows whatever the hop's outcome. A crossing that ARRIVES after
             // dropping nine blocks into a canyon arrived by the goal's definition and is still the
             // finding — and a PASS prints no evidence, so this is the only place it can be read.
@@ -1481,13 +1495,19 @@ public final class JourneyNetherRungs {
                 onStuck.run();
                 return;
             }
-            if (moved >= WEDGED_UNDER) {
+            if (gained >= PROGRESS_UNDER) {
+                c.best = left;
                 c.wedged = 0;
                 c.reach = NETHER_HOP;
                 c.turn = 0;
                 oneHop(rig, what, x, z, tolerance, hopTicks, c, onArrived, onStuck);
                 return;
             }
+            // The record is deliberately NOT lowered by a hop that gained less than the bar. A hop
+            // that comes 2 blocks closer is a wedge, but the next hop still gets credit for those 2:
+            // it needs PROGRESS_UNDER against the same record, so small gains accumulate instead of
+            // each being re-owed. Only walking backwards is charged nothing.
+            //
             // A HOP THAT WENT NOWHERE. Everything about it goes on the record — this is the state
             // the whole crossing used to die in, and the readings that name it (ticks with no plan,
             // the goto's own verdict, what is touching the body) are only worth having together.
@@ -1497,7 +1517,11 @@ public final class JourneyNetherRungs {
                     + " err=" + rig.body().botState().mc_goto.lastError);
             rig.evidence(what + ".around." + hop, surroundings(rig, at));
             if (c.wedged >= MAX_WEDGED_HOPS) {
-                c.why = "连着 " + c.wedged + " 段一格没挪（最后停在 " + at.toShortString()
+                // Says NOTHING about whether the body moved — it may have walked 200 blocks. What it
+                // says is that four hops in a row failed to get the crossing closer than its own
+                // record, which is the only sense of "stuck" that a shuttle cannot fake.
+                c.why = "连着 " + c.wedged + " 段没比纪录（" + Math.round(c.best)
+                        + " 格）更近（最后停在 " + at.toShortString()
                         + "，还差 " + Math.round(left) + " 格）";
                 recordCrossing(rig, what, c, left);
                 onStuck.run();
@@ -1517,7 +1541,10 @@ public final class JourneyNetherRungs {
         // 无计划 is the headline, and it is the reading that made the hop crossing worth writing:
         // one distant goal spent 2406 of its ticks with nothing to steer at, so a crossing that
         // reports a big number here has NOT been fixed by being cut up, whatever its distance says.
-        rig.evidence(what + ".crossing", c.hop + " 段，还差 " + Math.round(left) + " 格，离地 "
+        // 全程最近 is not the same as 还差, and the gap between them IS the finding when a crossing
+        // shuttles: the run that named this ended 265 blocks out having once been 244 out.
+        rig.evidence(what + ".crossing", c.hop + " 段，还差 " + Math.round(left) + " 格（全程最近 "
+                + Math.round(Math.min(c.best, left)) + " 格），离地 "
                 + c.falls + " 次，全程无计划 " + c.noPlan + " tick"
                 + (c.firstLava == null ? "，没进过岩浆" : "，" + c.firstLava)
                 + (c.why.isEmpty() ? "" : "；" + c.why));
@@ -1688,15 +1715,63 @@ public final class JourneyNetherRungs {
      *  24 × {@link #HOP_TICKS} — see {@link #rungs()} for how that adds up. */
     private static final int MAX_HOPS = 24;
 
-    /** Consecutive hops that may go nowhere before the crossing gives up. Four, because the crossing
-     *  has exactly four different questions to ask: the hop, the halved hop, and the halved hop
-     *  turned each way. A fifth would be the first repeat, and a repeat is the thing this whole
-     *  crossing was rewritten to stop doing. */
+    /** Hops that may pass without the crossing beating its own record before it gives up. Four,
+     *  because the crossing has exactly four different questions to ask: the hop, the halved hop,
+     *  and the halved hop turned each way. A fifth would be the first repeat, and a repeat is the
+     *  thing this whole crossing was rewritten to stop doing. Note this counts hops since the
+     *  RECORD moved, not hops the body stood still for — see {@link #PROGRESS_UNDER}. */
     private static final int MAX_WEDGED_HOPS = 4;
 
-    /** How far a hop must move to count as a hop rather than a wedge — see {@link #crossToColumn}
-     *  for the run where measuring a whole ATTEMPT instead of a hop hid a 1203-tick wedge. */
-    private static final int WEDGED_UNDER = 4;
+    /**
+     * How much closer to the goal than the crossing has EVER been a hop must get, to count as a hop
+     * rather than a wedge.
+     *
+     * <h2>This repo has now been caught by displacement twice, one level apart</h2>
+     *
+     * Both times the code measured how far the body MOVED and concluded it was therefore getting
+     * somewhere. Written out together because the second one was not recognised as the same mistake:
+     *
+     * <ul>
+     *   <li><b>A whole attempt hides a wedge at its end.</b> The old walk retried only when the
+     *       ATTEMPT had moved under four blocks. Attempt 2 moved 69 blocks and then stood still for
+     *       1203 ticks — displacement over the attempt was 69, so the wedge was invisible and
+     *       attempt 3 re-asked the identical question from the identical cell. Fixed by measuring a
+     *       hop instead of an attempt ({@link #crossToColumn}).
+     *   <li><b>Displacement cannot see a shuttle.</b> The fortress crossing of 2026-08-16 spent hops
+     *       4–24 bouncing between {@code (87,77)} and {@code (110,116)}. Every hop displaced 40+
+     *       blocks, so every hop passed the four-block test, so the counter reset every time and the
+     *       ladder below (halve, then turn) never fired once. 21 hops, <b>5 blocks</b> of net
+     *       progress, 18 339 ticks, and every line read healthy:
+     *       <pre>
+     *       #9  110,41,116→141,152 走 44/48 格 900t，还差 292   ← moved 44, and LOST 44
+     *       #10  89,41, 77→119,114 走 42/48 格 900t，还差 251
+     *       #11 108,41,114→139,150 走 43/48 格 900t，还差 293   ← moved 43, and LOST 42
+     *       </pre>
+     * </ul>
+     *
+     * <h2>Why a ratchet and not simply "net progress this hop"</h2>
+     *
+     * Because that fails too, and the archive says so. Replaying all 24 recorded hops under three
+     * criteria, counting how many hops it takes to reach {@link #MAX_WEDGED_HOPS}:
+     *
+     * <pre>
+     * moved >= 4          (what shipped)   never fires — 24 hops, ladder never used
+     * (away - left) >= 4  (per hop)        never fires — the shuttle's gains alternate −48, +41,
+     *                                      −49, +47, so a CONSECUTIVE counter resets every 2nd hop
+     * (best - left) >= 4  (this)           fires at hop 11
+     * </pre>
+     *
+     * A shuttle is exactly a sequence whose per-hop gains cancel one hop apart, so any criterion
+     * with a memory of one hop is blind to it. Measuring against the closest the crossing has ever
+     * been gives walking back and forth the credit it has earned, which is none.
+     *
+     * <p>(The replay is over the RECORDED trajectory. From the hop the ladder first fires, the body
+     * goes somewhere else, so this says the criterion fires — it does not say the crossing arrives.)
+     *
+     * <p>Four blocks, same as the displacement bar it replaces: under a chunk-quarter of gain, a hop
+     * has not bought a materially different vantage point on a 400-block crossing.
+     */
+    private static final int PROGRESS_UNDER = 4;
 
     /** Arrival slack. {@link #ARRIVED_WITHIN} is added to the caller's own tolerance for the final
      *  hop; {@link #HOP_ARRIVE_WITHIN} is a waypoint's own radius, and it is generous because a

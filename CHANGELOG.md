@@ -8,6 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **A nether crossing now judges a hop by how much closer to the goal it got, not by how far the
+  body moved.** The hop loop counted a hop as progress whenever its DISPLACEMENT was four blocks or
+  more, so the ladder it escalates through — halve the reach, then aim 60° off the straight line —
+  only ever fired for a body standing still. A body walking in circles displaces plenty. Measured on
+  the `BLAZE_ROD` rung at seed 5471: hops 4–24 of the fortress crossing shuttled between `(87,77)`
+  and `(110,116)`, every hop displacing 40+ blocks and passing the test, 21 hops and 18 339 ticks for
+  **five blocks** of net progress, and the escalation ladder was not used once.
+
+  This is the second time the same quantity has hidden a wedge here — the first was a whole ATTEMPT
+  whose 69 blocks of displacement concealed 1203 ticks of standing still at its end — so both cases
+  are now written side by side on the constant that decides it (`PROGRESS_UNDER`).
+
+  The replacement is a **ratchet**: a hop counts only when it gets the crossing closer than the
+  crossing has ever been. Plain per-hop net progress is not enough and the archive says so — replayed
+  over those 24 recorded hops, the shuttle's gains alternate −48, +41, −49, +47, so a consecutive
+  counter resets every second hop and never fires either; only the ratchet does, at hop 11. A
+  shuttle is precisely a sequence whose per-hop gains cancel one hop apart, so any criterion with one
+  hop of memory is blind to it. The record is not lowered by a hop that gains less than the bar, so
+  small gains accumulate instead of each being re-owed; only walking backwards earns nothing. Two
+  readings the shuttle was invisible without now ride on every hop line (`纪录`, `净进`) and on the
+  crossing summary (`全程最近`), and the give-up message no longer says "一格没挪" about a body that
+  may have walked 200 blocks.
 - **A driven body now tells the `ChunkMap` it moved, so the level will spawn mobs where it is.**
   A real player's movement arrives as a packet, and `ServerGamePacketListenerImpl.handleMovePlayer`
   ends in `getChunkSource().move(player)`. A body driven by `ServerPlayerAvatar.step()` sends no
