@@ -2189,6 +2189,17 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     static void stepOntoDiggableColumn(JourneyRig rig, BlockPos dig, BlockPos lava,
                                                int surfaceY, int left, List<BlockPos> banned,
                                                Runnable then, Runnable onStuck) {
+        stepOntoDiggableColumn(rig, dig, lava, surfaceY, left, banned, null, then, onStuck);
+    }
+
+    /**
+     * @param lastFrom where the previous attempt's walk STARTED, or null for the first one — see the
+     *        wedge branch below for why an attempt has to know that.
+     */
+    private static void stepOntoDiggableColumn(JourneyRig rig, BlockPos dig, BlockPos lava,
+                                               int surfaceY, int left, List<BlockPos> banned,
+                                               BlockPos lastFrom,
+                                               Runnable then, Runnable onStuck) {
         BlockPos at = rig.player().blockPosition();
         boolean overThePool = at.getX() == lava.getX() && at.getZ() == lava.getZ();
         boolean abandoned = JourneyTerrain.sameColumn(banned, at);
@@ -2213,7 +2224,8 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             return;
         }
         if (left <= 0) { onStuck.run(); return; }
-        rig.evidence("shaft.stepping." + (MAX_WALK_ATTEMPTS - left + 1),
+        int attempt = MAX_WALK_ATTEMPTS - left + 1;
+        rig.evidence("shaft.stepping." + attempt,
                 at.toShortString() + " → " + dig.getX() + "," + dig.getZ()
                         + (overThePool ? " (正站在岩浆柱上)"
                                 : abandoned ? " (正站在刚换掉的湿柱上)"
@@ -2223,8 +2235,58 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                                                   + wantCol.getZ() + "，脚下这一柱不是它)"
                                                 : " (排练指定了 " + wantSide + " 侧，脚下这一柱不在那一侧)"
                                 : " (脚下柱子不合格)"));
+        // A LEG THAT MOVED NOTHING MUST NOT BE ASKED AGAIN FROM THE SAME CELL. This method had no
+        // wedge handling at all — `walkToColumn` has carried some since the iron rung issued ninety
+        // searches from one cell — and the cost was measured on the PORTAL_LIT rehearsal of
+        // 2026-08-17: three legs, three `shaft.stepping.N` rows all reading `-13, 66, 21 → -8,19`,
+        // 3 600 ticks, and about 110 `[pathfinder] search-begin owner=goto start=-13, 66, 21` lines.
+        // The searches SUCCEEDED (1.4 s apart, the cadence of `guardPinStreak >= 30 → path = null`);
+        // what the body could not do was walk, because `[walker] footing guard: sole 0.0000 < 0.18 at
+        // -13,66,21 beside a lethal drop → sneak-pin` had it held on the lava crater's lip, and
+        // vanilla's sneak refuses every horizontal move that keeps a body off its floor.
+        //
+        // So the remedy is not more attempts — it is to ask from somewhere else, and the direction
+        // matters. `walkToColumn`'s answer is the MIDPOINT, which is wrong here: the midpoint of a
+        // body on the crater's lip and a column on the far rim is the pool. Away from the pool is
+        // where the footing is, and stepping back from an edge before walking around it is what a
+        // player does. Nothing is relaxed by this: the column asked for does not change.
+        if (lastFrom != null
+                && Math.hypot(at.getX() - lastFrom.getX(), at.getZ() - lastFrom.getZ()) < WEDGED_UNDER) {
+            int sx = Integer.signum(at.getX() - lava.getX());
+            int sz = Integer.signum(at.getZ() - lava.getZ());
+            if (sx == 0 && sz == 0) sx = 1;      // standing on the pool's own column: any way out
+            int rx = at.getX() + BACK_OFF_FROM_POOL * sx;
+            int rz = at.getZ() + BACK_OFF_FROM_POOL * sz;
+            rig.evidence("shaft.wedged." + attempt, at.toShortString()
+                    + " 这一腿一格没挪（上一腿从 " + lastFrom.toShortString()
+                    + " 起）—— 再问一次是同一个问题；先退到 " + rx + "," + rz + "（背对岩浆）站稳再问");
+            rig.settle(new IntentProcess(new Intent(new Goal.XZ(rx, rz, 1))), 600, () -> {
+                BlockPos back = rig.player().blockPosition();
+                rig.evidence("shaft.backOff." + attempt, back.toShortString()
+                        + (Math.hypot(back.getX() - rx, back.getZ() - rz) <= 1
+                                ? "（退到了，从这里重问）"
+                                : "（想退到 " + rx + "," + rz + "，只退到这里）"));
+                walkAtTheColumn(rig, dig, lava, surfaceY, left, banned, then, onStuck);
+            });
+            return;
+        }
+        walkAtTheColumn(rig, dig, lava, surfaceY, left, banned, then, onStuck);
+    }
+
+    /** How far back from the pool a wedged approach retreats before asking again. Four blocks: the
+     *  crater's lip is the cell the footing guard pins on and its neighbours, so anything shorter
+     *  re-asks from inside the same hazard ring; anything longer walks back over ground the leg has
+     *  to cross again anyway. */
+    private static final int BACK_OFF_FROM_POOL = 4;
+
+    /** One approach leg, recording where it started so the next one can tell a wedge from a walk. */
+    private static void walkAtTheColumn(JourneyRig rig, BlockPos dig, BlockPos lava, int surfaceY,
+                                        int left, List<BlockPos> banned,
+                                        Runnable then, Runnable onStuck) {
+        BlockPos from = rig.player().blockPosition();
         rig.settle(new IntentProcess(new Intent(new Goal.XZ(dig.getX(), dig.getZ(), 0))), 1_200,
-                () -> stepOntoDiggableColumn(rig, dig, lava, surfaceY, left - 1, banned, then, onStuck));
+                () -> stepOntoDiggableColumn(rig, dig, lava, surfaceY, left - 1, banned, from,
+                        then, onStuck));
     }
 
     /**

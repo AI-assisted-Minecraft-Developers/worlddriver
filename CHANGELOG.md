@@ -8,6 +8,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **An approach to a dig column no longer re-asks a question the body cannot answer.**
+  `stepOntoDiggableColumn` had no wedge handling at all — `walkToColumn` beside it has carried some
+  since the iron rung issued ninety searches from one cell — so its three attempts were three
+  identical 1 200-tick legs from the same cell. Measured on the `PORTAL_LIT` rehearsal of 2026-08-17
+  with the shaft column pinned to the climb's own `-8,19`: three `shaft.stepping.N` rows all reading
+  `-13, 66, 21 → -8,19`, 3 600 ticks, and about 110 `[pathfinder] search-begin owner=goto
+  start=-13, 66, 21` lines. **The searches were not failing.** They arrived 1.4 s apart, which is
+  exactly the cadence of `Walker`'s own `guardPinStreak >= 30 → path = null`: a route was found
+  ~150 times over. What the body could not do was walk. `[walker] footing guard: sole 0.0000 < 0.18
+  at -13,66,21 beside a lethal drop → sneak-pin` had it held on the lip of the lava lake's crater —
+  read out of the archived world save, `-13,65,21` and `-14,65,21` are open air over a cave, with
+  the lake's lava two rows under the neighbouring cells — and vanilla's sneak refuses every
+  horizontal move that would keep a body off its floor. So the remedy is not more attempts, and the
+  direction is the whole of it: `walkToColumn`'s midpoint answer is wrong here, because the midpoint
+  of a body on the crater's lip and a column on the far rim is the pool. A leg that moves less than
+  `WEDGED_UNDER` now backs the body four blocks AWAY from the pool and re-asks from there
+  (`shaft.wedged.N`, `shaft.backOff.N`). Nothing is relaxed — the column asked for does not change,
+  and a leg that moves is untouched.
+
+  This unblocked the whole rung on the climb's own geometry, one variable changed:
+  `shaft.wedged.2 = -13, 66, 21 这一腿一格没挪`, `shaft.backOff.2 = -17, 66, 24（退到了）`, then
+  `shaft.standingOn = -8,19 (选定柱)` and `stairs.top = -8, 66, 19 往 east 下 10 级`. The rehearsal
+  then **reached `PORTAL_LIT`** — `forge.face = 4, 56, 19 朝 east`, `forge.carved = 67/67 格全开`,
+  `carve.stuck = 无`, ten `recover*.result = CONSUME`, `frame.cast = 10/10`,
+  `frame.obsidian = 10/10`, `portal.cells = 6/6`, PASS in 19 807 ticks with `staging.calls = 13`.
+  **So the `east` mould's standing red was a shortfall of scenery, not a defect.** With the geometry,
+  the cobblestone (111) and the bucket (empty) all matched to the climb's measured values, and an
+  approach that actually arrives, the carve that used to stop at 66/67 with the body up on the grass
+  finishes. Two rules for any rehearsal follow and are worth stating once: **give what the climb was
+  measured carrying at that rung, not a convenient round number**, and **hand tools over in the state
+  the climb reaches them in** — a full bucket skips the walk that decides where the body stands when
+  the next phase starts.
+
+  The `south` regression arm is RED after this and **not because of it**: that run recorded one
+  `shaft.stepping.1` and no `shaft.wedged.*` at all, so the branch never ran and its code path is
+  byte-identical to before. It carved 67/67 and then lost the body inside the lake at cast seven
+  (`走不回模腔：停在 -15, 59, 19 … 身处 lava 头顶 lava`) from a loading station, `-14, 65, 21`, that
+  sits on the crater lip — the same lip, named by `sole 0.1798 < 0.18 at -14,66,21` in the same log.
+  The only behaviour still on the tree that differs from that arm's last archived PASS is the empty
+  bucket, and one run is not a distribution; both are written down rather than assumed.
 - **`walkToColumn` records the walker's own verdict on the ARRIVAL path too.**
   `arrivedDistance=4, walkAttempts=1` is the same two digits for two different worlds: a body that
   walked here and stopped inside the tolerance, and a body the walker gave up on four blocks out.
