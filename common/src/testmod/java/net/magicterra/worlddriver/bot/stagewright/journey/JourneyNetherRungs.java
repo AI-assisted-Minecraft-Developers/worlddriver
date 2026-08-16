@@ -11,10 +11,12 @@ import java.util.Set;
 
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
+import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.process.CombatProcess;
 import net.magicterra.worlddriver.bot.pathfinder.Capability;
 import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
+import net.magicterra.worlddriver.bot.pathfinder.moves.DiagonalAscend;
 import net.magicterra.worlddriver.bot.process.Intent;
 import net.magicterra.worlddriver.bot.process.IntentProcess;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
@@ -151,6 +153,7 @@ public final class JourneyNetherRungs {
         JourneyRig rig = JourneyRig.enter(ctx, JourneyStage.BLAZE_ROD);
         rig.attempting("走到下界要塞，把烈焰人刷怪笼围成一间封顶小屋，在屋里打出烈焰棒");
         rig.generousPathfinding();
+        dontCutCornersOverLava(rig);
         rig.liveWorld(true);
         JourneyRig.seeAtLeast(SEE_CHUNKS);
         ctx.cleanup(JourneyRig::seeNormally);
@@ -501,6 +504,7 @@ public final class JourneyNetherRungs {
         JourneyRig rig = JourneyRig.enter(ctx, JourneyStage.ENDER_PEARL);
         rig.attempting("在下界猎末影人，把末影珍珠攒进包里");
         rig.generousPathfinding();
+        dontCutCornersOverLava(rig);
         rig.liveWorld(true);
         JourneyRig.seeAtLeast(SEE_CHUNKS);
         ctx.cleanup(JourneyRig::seeNormally);
@@ -1008,6 +1012,58 @@ public final class JourneyNetherRungs {
                                       int hopTicks, Runnable onArrived, Runnable onStuck) {
         oneHop(rig, what, x, z, tolerance, hopTicks, new Crossing(), onArrived, onStuck);
     }
+
+    /**
+     * Make the planner pay for a DIAGONAL ascent, so a nether route climbs squarely or not at all.
+     *
+     * <h2>The measurement this is</h2>
+     *
+     * The rehearsal that fell into lava for the fourth time finally said why, in one row:
+     *
+     * <pre>
+     * 上一 tick：位置 (79.950, 41.0000, 81.963) 速度 (0.037, -0.078, -0.054) onGround=true 潜行=true
+     *   vanilla 自己那一问（脚下 0.0784 格内有碰撞吗）=有（和 onGround 一致 —— 它没有迟一拍）
+     *   实心接触面积 0.1180/0.36   支撑行 y=40 [79,40,81=netherrack(0.1180) …其余三格 air]
+     *   这一 tick 速度 y=0.333（是起跳，不是走出去的）
+     *   立足面 5×5：#####/#####/###!!/##!!!/#!!!!   （!=空的且下面有岩浆）
+     * </pre>
+     *
+     * <p>Three things at once, and none of them is what the previous three rounds went looking for.
+     * {@code onGround} was <b>not</b> lagging — vanilla's own ground question agreed with it on the
+     * same tick. The body was <b>already sneaking</b>: the walker's lethal-edge brake had seen the
+     * lava bay and pinned it. And it left the ground <b>by jumping</b> (+0.333 of upward velocity is
+     * a 0.42 jump one tick old), from a cell where a third of one sole was on rock and the rest was
+     * over an eleven-block drop into that bay. Vanilla's sneak pin clamps a body's WALK off a ledge;
+     * it has never clamped a jump, and the plan's next edge was a {@code diagUp}.
+     *
+     * <h2>Why the planner and not the jump</h2>
+     *
+     * Because the move itself is the bet. A diagonal ascent launches ACROSS the open corner between
+     * two shelves — here {@code 80,41,81}, which is the first {@code !} cell of the bay — and its
+     * cost says nothing about what is under that corner. {@link DiagonalAscend} already carries the
+     * knob for it, added when the same move proved "unmountable on steep terrain", and the note on
+     * it names the alternative this buys: <i>route around via cardinal stepUp</i>. A cardinal one is
+     * the same climb squared up, and it is the one the executor gates on being aligned and close
+     * before it launches ({@code ascendJumpReady}); the diagonal has no such gate and never had.
+     *
+     * <p>A PRICE, not a ban, and that distinction is the reason this is safe on terrain nobody has
+     * looked at: where a cardinal way up exists A* now takes it, and where the diagonal is the only
+     * way up it is still legal, merely dear. A ban would turn "this shelf is awkward" into "there is
+     * no route", 300 blocks from anywhere.
+     *
+     * <p>Restored with the rest of the config by {@link JourneyRig#generousPathfinding}'s pin, so it
+     * is this rung's policy and not the suite's — the six gates never see it.
+     */
+    private static void dontCutCornersOverLava(JourneyRig rig) {
+        BotConfig.pathfinderDiagAscendPenalty = DIAG_ASCEND_PENALTY;
+        rig.evidence("crossing.diagAscendPenalty", BotConfig.pathfinderDiagAscendPenalty
+                + "（对角上跳的加价；判断它有没有生效看 flight 行末尾的「走过的边」，不是看这一行）");
+    }
+
+    /** What a diagonal ascent costs on a nether rung, on top of its base 19. A cardinal way up is
+     *  walk(10) + stepUp(15) = 25, so 100 makes A* spend four squared-up steps rather than one
+     *  corner-cutting leap — and still take the leap when there is no other way up. */
+    private static final double DIAG_ASCEND_PENALTY = 100;
 
     /**
      * The mobility envelope a nether crossing gets: everything except a LEAP.
