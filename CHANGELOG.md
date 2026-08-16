@@ -261,6 +261,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `portal.cells=6/6`, `journey.stagingCalls=0`. The two rehearsals that bracket it (control on the
   reverted tree, then this one) both read 10/10, so the rehearsal is not what this fixed — it never
   reproduced the failure.
+- **The Nether rung walks to a portal cell it can stand in.** `nearestBlock` answers "nearest", and
+  nearest is not standable: a portal block has no collision, so the floor of every cell but the
+  lowest is another portal block. Which cell is nearest depends on where the previous rung left the
+  body, and rung 12 now finishes three rows up on the staircase it built. Measured on the ladder run
+  that first lit the portal: `portal.found=-9,58,36`, `stand.at=-9,58,35`, `stand.in=air`, then eight
+  legs of「走进去」each ending in the same cell one block short — while the failure message blamed the
+  teleport timer. The goal is now the bottom of the portal's column, whose floor is the frame's own
+  obsidian row.
 - **The shaft's「这根柱子不干燥，换一根」now actually changes columns.** It printed that sentence and
   then called `ctx.fail` for as long as it existed — a diagnostic that names a remedy nothing
   performs, which is worse than one that names nothing, because it ends the search. Two ladder runs

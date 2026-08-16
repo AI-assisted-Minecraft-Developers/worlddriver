@@ -2415,7 +2415,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      */
     private static void nether(SceneContext ctx) {
         JourneyRig rig = JourneyRig.enter(ctx, JourneyStage.NETHER);
-        BlockPos portal = rig.nearestBlock("minecraft:nether_portal", 24);
+        BlockPos portal = bottomOfThePortal(rig, rig.nearestBlock("minecraft:nether_portal", 24));
         rig.evidence("portal.found", portal == null ? "无" : portal.toShortString());
         if (portal == null) {
             ctx.fail("身边 24 格内没有传送门方块 —— PORTAL_LIT 说点着了，这里却找不到，"
@@ -2450,6 +2450,27 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             rig.evidence("portal.expectedTicks", portalDelay(rig));
             holdInThePortal(ctx, rig, portal, from, PORTAL_LEGS);
         });
+    }
+
+    /**
+     * The bottom cell of the portal column, which is the only one of the six a body can stand in.
+     *
+     * <p>{@code nearestBlock} answers "nearest", and nearest is not standable: a portal block has no
+     * collision, so the floor of every cell but the lowest is another portal block and the walker
+     * correctly refuses to occupy it. Which cell is nearest depends on where the previous rung left
+     * the body — and rung 12 now finishes on the staircase it built inside the alcove, three rows up.
+     *
+     * <p>Measured, real ladder 2026-08-16, the run that first lit the portal on the ladder:
+     * {@code portal.found=-9,58,36}, {@code stand.at=-9,58,35}, {@code stand.in=air}, and then eight
+     * legs of「走进去」that each ended in the same cell one block short. Nothing was wrong with the
+     * portal or with the timer the failure message blamed; the goal was a cell with no floor. The
+     * lowest cell's floor is the frame's own bottom row, which is obsidian by construction.
+     */
+    private static BlockPos bottomOfThePortal(JourneyRig rig, BlockPos any) {
+        if (any == null) return null;
+        BlockPos p = any;
+        while (rig.player().serverLevel().getBlockState(p.below()).is(Blocks.NETHER_PORTAL)) p = p.below();
+        return p;
     }
 
     /** How many legs a body gets to be taken by a portal it is standing in, and how long each is.
