@@ -1,111 +1,126 @@
-## ⬜ 12 级：接手点 —— **`onGround` 对一个站在水里的身体是假的**，塔因此永远起不了步
+## ⬜ 接手点 —— 下界那 400 格路：走了 108 格，泡进岩浆里出不来
 
-### 先回答「0/5 是不是退步」：**跑了对照组，不是退步**（这一条别再靠推理）
+**12 级的收水解掉了，真实 ladder 第一次爬到 13 级（NETHER），`staging.calls=0`。**
+14 级（BLAZE_ROD）因此第一次真正跑起来，红落在下界的行走上，不在传送门上。
 
-`git checkout 929d24b -- …/journey/`（本轮之前的 HEAD），同一处模腔（`forge.face=-9,56,38`）、
-同一条单桶排练命令，**红在同一格同一句**：
+### 真实 ladder 两趟（2026-08-16，同一份代码 `671cb85`）
 
-```
-基线（929d24b）：FAIL 浇不到指定格：想浇 -10, 60, 38（瞄背板 -10, 60, 39），
-                射线会把流体放进 -10, 59, 38，身体在 -9, 57, 38     ← 9 格浇成，第 10 格浇不进去
-```
+| 趟 | 爬到 | 12 级 | staging.calls |
+|---|---|---|---|
+| A | 11（OBSIDIAN） | FAIL：第 7 格 `cast6` 浇不到指定格 | 0 |
+| B | **13（NETHER）** | PASS：`frame.cast=10/10（丢 0 格）`、`portal.cells=6/6` | 0 |
 
-所以 TODO 里那条「单桶 2 趟 PASS」的基线**在这一处模腔上复现不出来**，本轮的 0/5 不是本轮打坏的。
-（那 2 趟 PASS 是更早的代码状态、多半也是另一处模腔；**我没有在改动前跑过对照组，这是本轮的纪律缺口**，
-现在补上了。）
+**判据「ladder ≥ 12」达成过，但 12 级在真梯上是 1/2，不是稳定的。** 别把 13 级当既得。
+两趟的模腔在同一处（`forge.face=-9,56,38`），所以这一次格号可以对比 —— A 趟停在第 7 格，
+上一轮那趟停在第 10 格，**这不是我这一刀造成的**：A 趟从头到尾没有一行 `pinnedFallback`、
+没有一行 `afloat`（`recover0..5` 全 CONSUME、`drain.0..5` 全排干），红落在**我没碰过的代码路径**上。
 
-### 但本轮确实把「卡在哪一步」搬了家，机制查实
-
-基线里 `cast8` 浇不到，要先 `liftInPlace`：
-
-```
-基线：cast8.lift = -9,56,36 → y=59   cast8.liftedY = 58/59
-     recover8.rise = -9, 58, 38 …    recover8.result = CONSUME     ← 收水成了
-本轮：cast8 直接从 -9,56,36 浇成（第三刀让浇筑从落定后的眼睛重算，射线通了，不用垒了）
-     recover8.rise = -9, 56, 36 …    afloat，gained 0/4            ← 收水起不来
-```
-
-**那次 lift 一直在兼职**：它是浇筑要的高度，也顺手把身体垫到了收水够得着的那一排。浇筑不再需要它，
-收水就露了底 —— 收水从来没有自己的抬升能力，只是一直在蹭。
-
-### 这一环的因，量到了，和之前所有猜测都不一样
-
-新加的 `afloatWhy` 一行就把三种世界分开了：
+### A 趟那一环（新的，没修）：不钉柱的 `cast6.lift` 在干地上一块砖也没垒
 
 ```
-recover8.rise#3.climb.10.afloat = -11, 56, 36 浮在水里，8 次都没落地 —— 塔要站在地上才垒得起来；
-    脚下 0 格内有实底（-11, 55, 36 Block{minecraft:granite}），水深 1 格（从 y=56 起），
-    身体 y=56.00，头 Block{minecraft:air} 脚 Block{minecraft:water}
+cast6.lift#5.climb.1          = -9,57,36 above=air onGround=true water=false
+cast6.lift#5.climb.1.with     = minecraft:cobblestone ×124
+cast6.lift#5.climb.1.stalled  = stuck (no Y gain in 60t — out of blocks?)
+cast6.lift#5.climb.1.state    = onGround=true inWater=false y=57.00
+cast6.lift#5.gained           = 1/2 block(s)   → cast6.liftedY = 57/58
 ```
 
-**身体正站在花岗岩上，`y` 是整数 56.00，水只有一格深，头顶是空气，而 `onGround()` 是 `false`。**
-不是没有地板，不是水太深浮起来，不是缺方块 —— 是**这个状态下 `onGround` 就是假的**。
-`TowerProcess` 的 READY 相 `if (!p.onGround()) return false;` 因此永不放行，
-`WASHED_OFF_RETRIES=8` 那八条腿是**八次不会改变任何东西的重试**（本仓库已经栽过的那一族）。
+**站在地上、身上干的、顶上是空气、手里 124 块圆石，塔一课都没起。** 这不是浮水那一族
+（`water=false`），也不是 `holdPlaceable` 那一族（`.with` 说方块已经在手上，没有 `.hand` 行）。
+`walkerFallback` 接手之后也只涨了 1 格，落在别的柱（`endedIn=-9,37`），于是 `cast6` 的射线
+三次都停在自己下面那格黑曜石 `-8,58,38` 上。**这一环没有量到因，只有症状。**
 
-顺带证伪两条：
-- **「先排干地板那排再抬升」是循环的**：喂这摊水的源块就是收水要收的那一块，源块还在就排不干
-  （`drain.6..9` 是在源块**被收走之后**才等 200 tick，仍然湿）。
-- **「`liftInPlace` 不受浮水影响」是假的**：它不是免疫，是**跑在 drain 之后**；收水是唯一必须在满
-  水位下跑的一步。同一格 `-9,56,36`，`cast9.lift` 那次读 `onGround=true water=true`，
-  `recover8.rise` 那次读 `onGround=false water=true`。
-
-### 下一刀（没跑，交回）
-
-要么给爬升一个「站在实底上、y 是整数、水不过腰」也算 grounded 的起步条件（但 `TowerProcess`
-自己的 READY 相也卡 `onGround`，那是引擎侧），要么给收水一条不经过塔的升排路。
-**别再往「排水 / 加重试 / 换柱」这三个方向走 —— 上面三条都已经被读数否掉。**
-
-### 原接手点（仍然有效的其余部分）
-
-单桶排练，四趟同一处模腔（`forge.face=-9,56,38`），链条现在只剩一环：
+### 14 级的读数（B 趟，全新，第一次有）
 
 ```
-recover8.rise        = -9, 56, 36 看不见 -9, 61, 38 里的水（脚在 y=56，水在 y=61，中间隔着刚浇的门框）
-recover8.rise#3.climb.0  = -9,56,36 above=air onGround=false water=true      ← 一开始就浮着
-recover8.rise#3.climb.1..3.driftKeptPinned = 被水推到 -10,56,36 → -11,56,36
-recover8.rise#3.climb.10.afloat = -11, 56, 36 浮在水里，8 次都没落地 —— 塔要站在地上才垒得起来
-recover8.rise#3.gained   = 0/4 block(s)
-recover8.spot        = 没找到能看见源块的落脚点，退回 Near(-9, 61, 38,2)
-recover8.frameOnLine.3 = -9, 60, 38 obsidian 挡在眼睛和 -9, 61, 38 之间，但它是门框格 —— 不敲
-recover8.frameStuck.3  = 门框挡着 -9, 61, 38，而且没有别的落脚点看得见它（一处都没验过）
-recover8.result      = FAIL   recover8.miss.3 = 距 1.7m，射线停在 -9, 60, 38 obsidian
+arrival.at   = 7, 41, 4（地表门 -9,56,37，按 8:1 应在 -2,4）    fortress.at = 272, 0, 304（水平 400 格）
+fortress.flight.1 = 走了 18/400 格；end=failed:no route progress after 5 consecutive searches
+                    — goal unreachable from here (best dist=3622) 在 14,52,21
+fortress.flight.2 = 走了 90/383 格；y 52→18；离地 2 次，最深 13 格；
+                    收工在 75,18,87 支撑[75,17,87=lava …] 泡在岩浆里；首次入岩浆 t=509
+fortress.fell.2.1 = #2 t=492 从 74,42,86 上一 tick 就已经没有支撑格了（[74,41,86=air]），
+                    onGround 却还报 true —— 支撑在别处，或者 onGround 迟了一拍
+                    → 落进岩浆 75,29,87，坠 13 格
+fortress.around.2 = 脚下=lava 身处=lava 头顶=lava …（expanded=1 是这个原因）
+fortress.noAttempt= 第 2 次之后不再重试：身体泡在岩浆里，再走一次只会得到同样的答案
 ```
 
-**`TowerProcess` 的 READY 相要 `onGround`，而壁龛地板那一排是自家浇的水**（`drain.6..9` 一直报
-`-11,56,37` 还是湿的）。游泳的身体永远不 `onGround`，`WASHED_OFF_RETRIES=8` 用完就收手 —— 这不是
-钉柱的问题（这一趟钉柱已经改柱了，见下），是**塔本身不能在水里起步**。所以最上面那一对门框格
-（`-9,61,38` / `-10,61,38`）的水，从地板高度永远收不回来。
+三件事各自独立，别混成一件：
 
-三条候选，都还没验：把地板那排的水先排干再抬升；用别的方式升排（放一块方块站上去，不走
-`TowerProcess`）；或者让 `standToFill` 认「从上方俯瞰」的落脚点（`recover9` 那格就是这么成的：
-`recover9.fromHere=-11,58,36 已经看得见源块 -10,61,38`）。
+1. **`no route progress … best dist=3622`** —— 400 格的直线目标在下界是问不出来的（熔岩海、峡谷）。
+   这是「A coordinate is not a plan」的下界版：要的是**分段航路**，不是一个远坐标。
+2. **`onGround` 迟一拍**（两次坠落都是这条），身体因此在没有支撑的格上继续走，然后掉下去。
+   注意 `fallDistance` 对这具 FakePlayer 恒为 0，**别拿它判有没有掉**。
+3. **掉进岩浆之后没有自救**。`fortress.noAttempt` 的判断是对的（同一条指令只会得到同一个答案），
+   但「把身体从岩浆里弄出来」这件事目前**根本不存在**。
 
-### 这一轮把红逐段推到了这里，每一段都有同几何 A/B
+### 12 级还剩的两条（都没修，都不该在 14 级之前追）
 
-| 趟 | 死在哪 | 与上一趟的差别 |
-|---|---|---|
-| 真梯（改前） | 第 4 格 `cast3` 「浇不到指定格」 | 上一轮的接手点 |
-| 真梯（本轮，带 tag + 射线闭环） | **第 10 格** `cast9` 「浇不到指定格」 | **模腔位置和排练一样**（`forge.face=-9,56,38`），所以这次不是「几何不同」的错觉 |
-| 排练 2（浇筑仍是先瞄后 settle） | 第 10 格 `cast9` 「浇不到指定格」，坐标与真梯逐字相同 | 复现，不是抖动 |
-| 排练 3（浇筑改成 settle 后再瞄） | `frame.cast=9/10（**浇成过 10 格**，浇成之后又丢了 1 格）` | **十格全浇成了**；红移到 `frame.lost.1` |
-| 排练 4（收水的路不许挖） | `recover8` 装不到水 | 门框保住了（无 `frame.lost.*`），红落在装水并带全套几何 |
+- **A 趟那一环**（上面）：干地上的塔停摆。
+- `cast9` 那格的最后一次尝试会**把刚垒好的台阶走掉**：`cast9.lift#9 gained=3/3、liftedY=59/59`，
+  然后 `placeFluid` 重来一遍，`aimThatLandsIn` 在 y=59 那一柱返回 null（线被自己刚浇的
+  `-9,60,38` 黑曜石挡住），于是退回 `standToPour`，选了一个**比身体低三排**的落脚点走下去。
+  `.fromHere` 短路本来就是为了防这个，但它只在「从这里浇得到」时生效。
 
-### 判据实际状态
+## ✅ 12 级收水：钉柱的爬升现在会交给 walker 兜底（不许挖）
 
-| 判据 | 状态 |
-|---|---|
-| 1 `climb.*`/`exit.*` 带调用方 tag | **达成**，真梯 + 三趟排练都验了 |
-| 2 预测与实际一致 | **达成**（浇筑侧）：同几何 A/B，排练 2 死在 `cast9` 的射线闸，排练 3 十格全浇成 |
-| 3 排练 10/10 + 6/6，多跑几趟 | **未达成**，0/3。最好一趟是「十格都浇成，丢了一格」 |
-| 4 真实 ladder ≥ 12 | **未达成**，仍 11，`staging.calls=0`；红从第 4 格推到第 10 格 |
+### 接手时给的判断「升排的时机错了」—— 对了一半，两条具体走法都被证否
 
-### ⚠️ 一条本轮量到、还没修的上游
+- **「浇这一格的水之前就站上去」活不过取岩浆那一趟上下楼。** 单桶流程是
+  浇水 → 上楼装岩浆 → **下楼** → 浇岩浆 → 收水，回程把身体放回壁龛地板：
+  `cast8.returnedY = 57（楼梯底 y=56）`、`cast8.lift#7.fromY = 56`。水之前垒的高度到不了收水。
+- **「先取岩浆、再浇水，一次抬升管三步」在单桶下不成立。** 一只桶不能同时装水和岩浆——
+  这正是本级「一只桶浇十块」的立足点（见 `portalLit` 的类注释）。
+- 所以那句「lift 一直在兼职」是对的，但**唯一能活到收水的抬升槽位**只有「回程之后、浇岩浆之前」
+  的 `cast{i}.lift`，而基线（929d24b）恰好每次都要那一次 lift。射线闸修通之后
+  `cast8.fromHere.3` 从 y=56 就地浇成，那次兼职的抬升就没了 —— 这一段接手时说的完全对。
 
-`cast9` 那格的最后一次尝试会**把刚垒好的台阶走掉**：`cast9.lift#9 gained=3/3、liftedY=59/59`，
-然后 `placeFluid` 重来一遍，`aimThatLandsIn` 在 y=59 那一柱返回 null（线被自己刚浇的
-`-9,60,38` 黑曜石挡住），于是退回 `standToPour`，选了一个**比身体低三排**的落脚点走下去。
-`.fromHere` 短路本来就是为了防这个，但它只在「从这里浇得到」时生效。
+### 真正的那一环：全级唯一钉柱的爬升，被禁止用唯一在水里管用的办法
+
+对照组（HEAD 未改动，单桶排练）：
+
+```
+recover8.rise#3.climb.0        = -9,56,36 above=air onGround=false water=true
+recover8.rise#3.climb.10.afloat= -11,56,36 浮在水里，8 次都没落地；脚下 0 格内有实底
+                                （-11,55,36 granite），水深 1 格，身体 y=56.00，头 air 脚 water
+recover8.rise#3.pinnedShort    = 没垒到 y=60 —— 不交给 YLevel 兜底，那条路不认柱子
+recover8.rise#3.gained         = 0/4 block(s)
+recover8.frameStuck.3          = 门框挡着 -9,61,38，而且没有别的落脚点看得见它
+FAIL: 装不到 minecraft:water_bucket
+```
+
+**同一趟、同一格，不钉柱的抬升 afloat 之后靠 `walkerFallback` 上去了**（上一轮真梯）：
+`cast6.lift#6` 和 `cast8.lift#7` 都打了 `climb.10.afloat = -11,56,36`，都接着
+`walkerFallback=true`、`toY=58`、`gained` 2/2 和 2/3。所以那条兜底不是「更差的上法」，
+**它是水里唯一管用的上法**，而钉柱是全级唯一被禁止用它的爬升。
+
+而且轮到那一行时**已经没有柱子可保**：偏柱修正（`e884486`）早就 adopt 过两次，
+`endedIn=-11,36（就是那一柱）` 而射线是照 `-9,36` 算的。**这条拒绝比它保护的东西活得久。**
+
+### 改法（`671cb85`，只动 `climbFrom` 的钉柱分支）
+
+不再 `recordExit` 收工，改为 `Goal.YLevel` + **`NoBreak`**，并打 `.pinnedFallback`。
+NoBreak 的理由和 `c42367d` 一样：壁龛里唯一高到能挡路的东西，就是本级自己在浇的门框。
+
+### 三趟单桶排练 + 真梯，全部拿到
+
+| 趟 | frame.cast | portal.cells | `recover8.rise` gained | frame.lost |
+|---|---|---|---|---|
+| 对照（改前） | 9 格浇成，FAIL 在收水 | —— | **0/4** | 无 |
+| 排练 A | 10/10（丢 0） | 6/6 | 4/4（pinnedFallback） | 无 |
+| 排练 B | 10/10（丢 0） | 6/6 | 4/4（pinnedFallback） | 无 |
+| 排练 C | 10/10（丢 0） | 6/6 | 4/4（pinnedFallback） | 无 |
+| 真梯 B | 10/10（丢 0） | 6/6 | 4/4（pinnedFallback） | 无 |
+
+### 判据 1 的措辞要修正，别照抄
+
+`afloat` **没有消失，也不应该消失**：塔在水里就是起不了步（`TowerProcess` 的 READY 相要
+`onGround`），那是引擎侧，这一轮按「先写死步骤」的规矩没碰。变的是 `gained`：0/4 → 4/4。
+
+**`onGround` 为什么对一具站在花岗岩上、`y=56.00`、水深一格、头顶空气的身体是 false，仍然没有量到机制。**
+同一格 `-9,56,36`，`recover9.rise#4.climb.0` 读 `onGround=true water=true` 而
+`recover8.rise#3.climb.0` 读 `false` —— **所以它是时序，不是几何**。别把它当已知，
+也别拿「水里就不 onGround」当解释去设计下一刀。
 
 ## ✅ `climb.*` / `exit.*` 现在带调用方 tag，一趟十几次爬升不再互相覆盖
 
@@ -152,8 +167,9 @@ computed for」）。来由是 run 43 第十格：`water9.raisedY=60/60` 压在�
 交给它的抬升是提示，不是契约。
 
 所以这不是「放宽一条守卫」，是**改正一条错的要求**。改法：钉柱的 climb 也改柱，但那行叫
-`driftKeptPinned`，写明这一柱是射线选的。留下的唯一拒绝是 **walker 兜底**（`Goal.YLevel` 按构造就
-不认柱子，能为了一个高度把身体带出壁龛）。
+`driftKeptPinned`，写明这一柱是射线选的。当时留下的唯一拒绝是 **walker 兜底**（`Goal.YLevel` 按构造就
+不认柱子，能为了一个高度把身体带出壁龛）—— **那一条也在同一天被读数推翻了，见本文件顶部第二节**：
+它的前提是「钉柱的爬升有自己的塔」，而收水那次爬升在满水位下**没有塔可用**。
 
 ## ✅ 浇筑：拍板的那条射线，就是真正会发出去的那条
 

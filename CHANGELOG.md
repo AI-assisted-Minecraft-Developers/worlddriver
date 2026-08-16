@@ -52,7 +52,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tall enough to be in a walker's way down there is the frame the rung is building. Same geometry
   A/B on one bucket: before, `recover8.rise gained=0/4` and `装不到 minecraft:water_bucket`; after,
   `pinnedFallback=true`, `gained=4/4`, `recover8.result=CONSUME`, `frame.cast=10/10（丢了 0 格）`,
-  `portal.cells=6/6`, twice.
+  `portal.cells=6/6`, three rehearsals out of three.
+
+  On the real ladder, with no staging at all (`staging.calls=0`), that carried rung 12 to PASS and
+  the body walked through its own portal: **the climb reached rung 13 (NETHER) for the first time**,
+  which is what finally put rung 14 on the clock. It is not yet reliable — rung 12 is 1 of 2 on the
+  ladder, and the run that failed did so in a cell whose lift never went near this code
+  (`cast6.lift#5.climb.1.stalled = stuck (no Y gain in 60t — out of blocks?)` on dry ground,
+  `onGround=true`, holding 124 cobblestone, with no `pinnedFallback` or `afloat` row anywhere in the
+  run). See `TODO.md` for that one and for where the nether walk stops.
 - **The water recover's walk may no longer mine.** Its source sits inside the frame the rung is
   building, so from floor level the only thing between the eye and it is the frame — and that walk
   ran with `allowBreak` on. Measured: `recover8.spot = 没找到能看见源块的落脚点，退回
