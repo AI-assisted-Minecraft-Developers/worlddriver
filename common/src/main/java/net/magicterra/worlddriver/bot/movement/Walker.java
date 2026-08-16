@@ -796,6 +796,20 @@ public final class Walker {
     /** Node the step-pointer currently targets (null when no path / consumed). Test seam. */
     public BlockPos pathNode() { return (path != null && step >= 0 && step < path.size()) ? path.get(step) : null; }
 
+    /**
+     * Name of the move that ENTERS {@link #pathNode()} — {@code walk}, {@code stepDown},
+     * {@code fall7}, {@code diagDown}… (null when there is no such edge).
+     *
+     * <p>The node alone cannot say whether a drop was planned. Every {@code Fall} edge carries its
+     * height in its own name, so this is the one reading that separates "the plan was to drop N"
+     * from "the body left a plan that never contained a drop at all" — and those two want opposite
+     * fixes (a planner budget vs. an executor that overshot).
+     */
+    public String pathMove() {
+        Move.Edge e = edgeAt(step);
+        return e == null ? null : e.move;
+    }
+
     /** TEST SEAM — run {@link #adoptPath} with an explicit {@code foot} so a harness can exercise the
      *  segment anchor-gate (the {@code mis-anchored segment} reject vs the deep-water-float open-water
      *  bee-line exemption) deterministically, INDEPENDENT of the full continuation/repath machinery the

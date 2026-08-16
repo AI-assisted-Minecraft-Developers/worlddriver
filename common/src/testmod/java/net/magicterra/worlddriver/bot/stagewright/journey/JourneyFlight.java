@@ -98,6 +98,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     private int launchTick;
     private int launchY;
     private String launchWhy = "";
+    private String launchPlan = "";
     private float deepestFallField;
     private double fastestDrop;
 
@@ -112,6 +113,16 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
 
     private int lowestY = Integer.MAX_VALUE;
     private int highestY = Integer.MIN_VALUE;
+
+    /** How far the body ever got from the node it was steering at, WHILE ON THE GROUND, and where.
+     *  Grounded only on purpose: a body mid-fall is trivially far from its plan and that says
+     *  nothing — the question this answers is whether the body walks off its own route before any
+     *  fall starts. */
+    private double worstOffPlan = -1;
+    private String worstOffPlanAt = "";
+    /** Ticks the walker had no node to steer at. A leg that spends most of itself here is not being
+     *  steered at all, which is a different machine from one steered at a bad node. */
+    private int ticksWithNoPlan;
 
     private final List<String> runUp = new ArrayList<>();
     private final List<String> track = new ArrayList<>();
@@ -147,6 +158,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         List<BlockPos> support = footprint(fp);
         int solid = 0;
         for (BlockPos p : support) if (level.getBlockState(p).blocksMotion()) solid++;
+        watchThePlan(level, fp, at, onGround);
 
         // The tick the leg was decided on, whatever the verdict.
         //
@@ -165,7 +177,8 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
 
         if (lava == null && inLava) {
             lava = "t=" + t + " " + at.toShortString() + " —— "
-                    + (airborne ? "从 y=" + launchY + " 掉进去的" : "走进去的");
+                    + (airborne ? "从 y=" + launchY + " 掉进去的" : "走进去的")
+                    + "；" + planCell(level, fp, at);
         }
 
         if (prev == null) {                        // first tick of the leg
@@ -179,7 +192,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
             fastestDrop = Math.max(fastestDrop, prevY - fp.getY());
             if (onGround || inLava || inWater) land(level, at, onGround, inLava, support);
         } else if (prevOnGround && !onGround && !inLava && !inWater) {
-            launch(level, at, support);
+            launch(level, fp, at, support);
         }
         rememberRunUp(at, onGround, solid);
         remember(fp, at, onGround, support, names(level, support), solid);
@@ -193,8 +206,15 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
      * a standing body. Still solid, and the body's footprint has moved off it, is a body that walked
      * over the edge — and the cells it walked ONTO name what it walked into. Still solid and the
      * footprint unchanged is neither, and says so rather than picking one.
+     *
+     * <p><b>And the plan, snapshotted HERE.</b> All three of those readings are about the cell under
+     * the body's own feet, and none of them can say whether the body was doing what it was told: a
+     * next node across a gap and a next node the body overshot leave identical footprints. See
+     * {@link #planCell}. It is taken at the launch tick and not at the landing tick because those
+     * are different plans — a fall lasts long enough for the walker to consume steps, repath, or run
+     * out of path entirely, and the question is what it was steering at when it left the ground.
      */
-    private void launch(ServerLevel level, BlockPos at, List<BlockPos> support) {
+    private void launch(ServerLevel level, ServerPlayer fp, BlockPos at, List<BlockPos> support) {
         int stillSolid = 0;
         for (BlockPos p : prevSupport) if (level.getBlockState(p).blocksMotion()) stillSolid++;
         boolean movedOff = !prevSupport.equals(support);
@@ -212,6 +232,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         // one-block step down also leaves the ground, and the run-up wanted is the one belonging to
         // the drop that gets written down.
         pendingRunUp = String.join(" | ", runUp);
+        launchPlan = planCell(level, fp, at);
         if (prevSupportSolid > 0 && stillSolid == 0) {
             launchWhy = "上一 tick 撑着它的 " + prevSupportSolid + " 格没了（" + prevSupportNames
                     + " → " + names(level, prevSupport) + "）";
@@ -254,7 +275,27 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
                 + String.format(Locale.ROOT, "%.1f", deepestFallField)
                 + " —— 这个字段对 FakePlayer 恒为 0，不是「没掉」）"
                 + "，已走 " + walkedAt(launchAt) + "/" + legLength + " 格"
-                + "，" + planAt());
+                + "，" + launchPlan);
+    }
+
+    /**
+     * Keep the worst distance between the body and the node it is being steered at.
+     *
+     * <p>The falls list answers "what happened at the edge". This answers the question one step
+     * earlier: was the body ON its route at all. A walk whose worst grounded offset is a block and a
+     * half is executing its plan and fell off a plan that went somewhere bad; one that reaches six
+     * blocks off is not executing it, and the plan's quality is beside the point.
+     */
+    private void watchThePlan(ServerLevel level, ServerPlayer fp, BlockPos at, boolean onGround) {
+        BlockPos node = rig.body().botState().mc_goto.pathNode;
+        if (node == null) { ticksWithNoPlan++; return; }
+        if (!onGround) return;
+        double gap = Math.hypot(node.getX() + 0.5 - fp.getX(), node.getZ() + 0.5 - fp.getZ());
+        if (gap <= worstOffPlan) return;
+        worstOffPlan = gap;
+        worstOffPlanAt = "t=" + t + " 身体 " + at.toShortString() + " 计划下一格 "
+                + node.toShortString() + "[" + rig.body().botState().mc_goto.pathMove + "]"
+                + "，其脚下 " + blockName(level, node.below());
     }
 
     private void remember(ServerPlayer fp, BlockPos at, boolean onGround,
@@ -311,11 +352,45 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
             sb.append("；结束时还在空中（从 ").append(launchAt.toShortString())
               .append(" y=").append(launchY).append(" 起，").append(launchWhy).append("）");
         }
+        // "没量到" and "从未有过计划" are different worlds and the counter beside it separates them:
+        // this is only sampled on a GROUNDED tick that had a node, so a leg spent entirely airborne
+        // and a leg the walker never steered both leave it unset.
+        sb.append("；离计划最远 ").append(worstOffPlan < 0 ? "没量到（没有一个 tick 是既在地上又有计划的）"
+                : String.format(Locale.ROOT, "%.2f 格（%s）", worstOffPlan, worstOffPlanAt));
+        sb.append("；").append(ticksWithNoPlan).append("/").append(t).append(" tick 身上没有计划");
         sb.append("；收工那一刻：").append(finishedAt == null
                 ? "没有 —— 这一段是跑满 tick 被叫停的，不是进程自己结束的" : finishedAt);
         if (lava != null) sb.append("；首次入岩浆 ").append(lava);
         return sb.toString();
     }
+
+    /**
+     * The same leg in one clause, for a crossing that records one of these per hop.
+     *
+     * <p>{@link #report()} is the right size for a leg that IS the crossing and the wrong size for
+     * one of twenty — twenty of them in one evidence row is a paragraph nobody reads. What survives
+     * the shortening is what differs between a healthy hop and a wedged one: distance, ticks, and
+     * the two readings that name WHY a hop went nowhere (ticks with no plan at all, and falls).
+     */
+    public String brief() {
+        BlockPos at = rig.player().blockPosition();
+        StringBuilder sb = new StringBuilder();
+        sb.append("走 ").append(walkedAt(at)).append('/').append(legLength).append(" 格 ")
+          .append(t).append("t（无计划 ").append(ticksWithNoPlan).append("t）");
+        if (fallCount > 0) sb.append("，离地 ").append(fallCount).append(" 次最深 ")
+                             .append(deepestDrop).append(" 格");
+        if (lava != null) sb.append("，入岩浆");
+        return sb.toString();
+    }
+
+    /** How many notable falls this leg had — see {@link #falls()} for what each was. */
+    public int fallCount() { return fallCount; }
+
+    /** Ticks the walker had nothing to steer at. See {@link #ticksWithNoPlan}. */
+    public int noPlanTicks() { return ticksWithNoPlan; }
+
+    /** How the body first entered lava on this leg, or null when it never did. */
+    public String lavaLine() { return lava; }
 
     /** The fall lines, in order. Empty when the leg never left the ground by more than a step. */
     public List<String> falls() {
@@ -384,6 +459,49 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     private String planAt() {
         var slot = rig.body().botState().mc_goto;
         return "计划第 " + slot.pathStep + "/" + slot.pathLen + " 步";
+    }
+
+    /**
+     * WHICH CELL the plan was steering at, and whether that cell could hold a body.
+     *
+     * <p><b>The reading every earlier diagnosis of this crossing was missing.</b> Everything the
+     * recorder knew was about the cell under the body's own FEET, and two completely different
+     * failures write the same feet: a plan whose next node really is across a lava shore (the
+     * planner is at fault) and a plan that is fine while the body slid past its node (the executor
+     * is). One says re-plan in shorter hops, the other says stop overshooting, and choosing between
+     * them without this row is guessing.
+     *
+     * <p>Three answers, and each is a different machine:
+     *
+     * <ul>
+     *   <li><b>No node at all</b> — the plan was consumed and the body was still moving. Nothing
+     *       was steering it off that edge, and no change to how routes are cut would help.</li>
+     *   <li><b>A node with nothing under it</b> — the plan asked for this. The move name says
+     *       whether it asked ON PURPOSE: every {@code Fall} edge carries its height in its name
+     *       ({@code fall3}), so {@code walk} over a hole is a planner that read the world wrong,
+     *       and {@code fall7} is a planner that was allowed to spend seven blocks of drop.</li>
+     *   <li><b>A node standing on solid ground, some way off</b> — the plan was walkable and the
+     *       body is not on it. That is the executor, and the horizontal gap is its size.</li>
+     * </ul>
+     *
+     * <p>Read off the LEVEL, not the bot's world view: this rung's own guard exists because the
+     * view can belong to another dimension, and a view is not a witness against itself.
+     */
+    private String planCell(ServerLevel level, ServerPlayer fp, BlockPos at) {
+        var slot = rig.body().botState().mc_goto;
+        BlockPos node = slot.pathNode;
+        if (node == null) {
+            return "计划里没有「下一格」（" + planAt() + "，move=" + slot.pathMove
+                    + "）—— 这一刻没有任何节点在牵着身体走";
+        }
+        BlockPos under = node.below();
+        boolean holds = level.getBlockState(under).blocksMotion();
+        double gap = Math.hypot(node.getX() + 0.5 - fp.getX(), node.getZ() + 0.5 - fp.getZ());
+        return "计划下一格 " + node.toShortString() + "[" + slot.pathMove + "]（" + planAt()
+                + "）：那一格=" + blockName(level, node) + "，其脚下 " + under.toShortString() + "="
+                + blockName(level, under) + (holds ? "（撑得住）" : "（撑不住）")
+                + "，距身体 " + String.format(Locale.ROOT, "%.2f", gap) + " 格水平、dy="
+                + (node.getY() - at.getY());
     }
 
     private int walkedAt(BlockPos at) {

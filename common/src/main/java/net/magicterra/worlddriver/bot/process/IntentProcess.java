@@ -90,6 +90,10 @@ public final class IntentProcess implements BotProcess {
         Walker.Step s = walker.tick(a, w);
         st.mc_goto.pathLen = walker.pathLen();
         st.mc_goto.pathStep = walker.pathStep();
+        // Published from the SAME tick as the two counters above, so a reader cannot pair a step
+        // index with a node the walker had already moved past. See BotState.ProcessSlot.pathNode.
+        st.mc_goto.pathNode = walker.pathNode();
+        st.mc_goto.pathMove = walker.pathMove();
         if (s == Walker.Step.WALKING) return false;
         if (s == Walker.Step.FAILED) st.mc_goto.lastError = walker.lastError;
         st.mc_goto.goalReached = walker.lastGoalReached;

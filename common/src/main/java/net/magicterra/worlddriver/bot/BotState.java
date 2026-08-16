@@ -118,6 +118,22 @@ public final class BotState {
         public volatile BlockPos target;   // current goal target if any
         public volatile int pathLen;       // remaining nodes
         public volatile int pathStep;      // current node index
+        /**
+         * WHERE the plan is steering, and by what move — the cell {@link #pathStep} names, plus the
+         * edge that enters it ({@code walk} / {@code stepDown} / {@code fall7} / …).
+         *
+         * <p>{@code pathLen}/{@code pathStep} say how far along a plan the body is and nothing about
+         * what the plan asked for. That gap ended a diagnosis: a nether crossing left the ground and
+         * fell eleven blocks into lava, and the only readings anyone had were about the cell under
+         * the body's FEET — which cannot distinguish "the next node really is across a gap" from
+         * "the node is fine and the body overshot it". Those want opposite fixes.
+         *
+         * <p>Deliberately NOT in {@link #snapshot()}: every {@code mc.bot.status} poll ships every
+         * slot's map to an LLM client, and this is a debugging reading for in-process consumers
+         * (the journey's {@code JourneyFlight}), not something an agent steers on.
+         */
+        public volatile BlockPos pathNode;
+        public volatile String pathMove;
         public volatile long startedAtMs;
         public volatile String lastError;  // null if last run ok or in-progress
         /** gap#68-R2: honest terminal verdict of the LAST run. Null/−1 until a run ends.
@@ -149,6 +165,8 @@ public final class BotState {
             target = null;
             pathLen = 0;
             pathStep = 0;
+            pathNode = null;
+            pathMove = null;
             startedAtMs = 0;
             // keep lastError so the agent can read it after wait.condition fires
         }
