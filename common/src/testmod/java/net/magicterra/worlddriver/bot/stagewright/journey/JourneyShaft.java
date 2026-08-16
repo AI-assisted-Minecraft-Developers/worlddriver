@@ -413,9 +413,17 @@ public final class JourneyShaft {
             // the body out.
             if (rig.player().isInWater()) {
                 if (washedOff <= 0) {
+                    // WHY IT NEVER LANDS, not only that it did not. `HoldStill` releases the inputs
+                    // and nothing else, so gravity still runs — eight legs of sixty ticks is ample
+                    // for a body to sink several blocks. A row that only says「浮在水里，8 次都没落地」
+                    // therefore fits three different worlds and cannot pick between them: the floor
+                    // under the feet is missing (nothing to land ON), the water is deep enough that
+                    // buoyancy holds the body up, or the body IS resting and `onGround` is simply
+                    // false in a fluid. They want three different remedies, and this rung has spent
+                    // two rounds on「垒不高」readings that turned out to be「从来没落地」.
                     rig.evidence(climbKey(step, ".afloat"), at.toShortString()
                             + " 浮在水里，" + WASHED_OFF_RETRIES + " 次都没落地 —— 塔要站在地上才垒得起来，"
-                            + "爬升到此为止");
+                            + "爬升到此为止；" + afloatWhy(rig, at));
                     then.run();
                     return;
                 }
@@ -769,6 +777,36 @@ public final class JourneyShaft {
      *  the portal rung's alcove is seven cells tall, so a body on its top row and a column whose
      *  only floor is the bottom one are the extremes this has to span. */
     static final int COLUMN_FOOTHOLD_DROP = 7;
+
+    /**
+     * The three readings that separate the three worlds a floating climb can be in.
+     *
+     * <p>How far the fluid reaches ABOVE the first solid floor under the body (a body cannot be
+     * pushed up by water that is not there), what that floor actually is and how far below the feet
+     * it sits, and the body's own sub-cell height. A body resting on a floor reads an integer
+     * {@code y}; a buoyed one does not, and the distinction is the whole question.
+     */
+    static String afloatWhy(JourneyRig rig, BlockPos at) {
+        ServerLevel lvl = lvlOf(rig);
+        BlockPos floor = at;
+        int drop = 0;
+        while (drop < 12 && !lvl.getBlockState(floor.below()).blocksMotion()) {
+            floor = floor.below();
+            drop++;
+        }
+        boolean grounded = lvl.getBlockState(floor.below()).blocksMotion();
+        int wet = 0;
+        for (int y = floor.getY(); y <= floor.getY() + 12; y++) {
+            if (lvl.getFluidState(new BlockPos(at.getX(), y, at.getZ())).isEmpty()) break;
+            wet++;
+        }
+        return String.format(java.util.Locale.ROOT,
+                "脚下 %d 格内%s（%s %s），水深 %d 格（从 y=%d 起），身体 y=%.2f，头 %s 脚 %s",
+                drop, grounded ? "有实底" : "没有实底",
+                floor.below().toShortString(), lvl.getBlockState(floor.below()).getBlock(),
+                wet, floor.getY(), rig.player().getY(),
+                lvl.getBlockState(at.above()).getBlock(), lvl.getBlockState(at).getBlock());
+    }
 
     static ServerLevel lvlOf(JourneyRig rig) { return rig.ctx().level(); }
 
