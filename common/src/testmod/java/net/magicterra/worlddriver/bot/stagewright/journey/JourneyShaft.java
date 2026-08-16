@@ -59,25 +59,68 @@ public final class JourneyShaft {
     static int climbColX, climbColZ;
 
     /**
-     * May this climb adopt whatever column the tower drifts onto?
+     * Is this climb's column part of the answer, or only its height?
      *
-     * <p><b>The answer depends on what the height is FOR, and that is the whole finding.</b> When the
-     * goal is to get out of a hole, any column that rises is as good as another, and
-     * {@code driftKept}'s "走不回原柱，改以这一柱为准" is right: refusing to adopt would leave a body
-     * stuck at the bottom of a shaft over a bookkeeping detail.
+     * <p>When the goal is to get out of a hole, any column that rises is as good as another. When the
+     * goal is a RAY — a bucket that has to land in one named cell — the column is the geometry:
+     * moving one cell sideways moves where the ray crosses the frame's plane, so a hand check that
+     * {@code x=-10} works says nothing whatever about {@code x=-8}. That distinction is real and is
+     * why this flag exists.
      *
-     * <p>When the goal is a RAY — a bucket that has to land in one named cell — the column <b>is</b>
-     * the geometry. Moving one cell sideways moves where the ray crosses the frame's plane, so a hand
-     * check that {@code x=-10} works says nothing whatever about {@code x=-8}. Measured, run 43's
-     * tenth cell: {@code water9.raisedY=60/60} — the height was reached exactly — over
-     * {@code climb.3.driftKept=-8,58,37 走不回 -9,37，改以这一柱为准}, and the pour then fired the
-     * SAME wrong ray from {@code -7,60,37} three approaches running. Height alone made a failed raise
-     * read as a solved one.
+     * <h2>What it must NOT be, and the audit that says so</h2>
      *
-     * <p>So a pinned climb refuses to adopt, and stops rather than looping when the column genuinely
-     * cannot be reached — the caller's own gate is what decides whether to spend the bucket, and
-     * {@code raisedY} now reports the column as well as the height so a short pinned climb cannot be
-     * read as a successful one.
+     * It was written (2026-08-15) as a refusal: a pinned climb that could not walk back to its column
+     * <b>stopped</b>, placing nothing. The failure it was written from is run 43's tenth cell —
+     * {@code water9.raisedY=60/60} over a {@code driftKept}, the pour then firing the same wrong ray
+     * from {@code -7,60,37} three approaches running, "height alone made a failed raise read as a
+     * solved one". Three things were checked against that before this was changed:
+     *
+     * <ul>
+     *   <li><b>Was a bucket ever spent into the wrong cell?</b> No. The pour's {@code .picks} gate —
+     *       "do not spend the bucket unless this ray lands in the target" — landed on 2026-08-12,
+     *       three days BEFORE the pin. The wrong ray was refused each time and the rung failed with a
+     *       diagnosis. The harm was a misdescribing row, not a wrong pour.
+     *   <li><b>Is the misdescribing row still possible?</b> No. {@code raisedY} names the column it
+     *       stopped in and whether that is the column the aim was computed for, and
+     *       {@code endedIn} does the same here. Both were added alongside the refusal and neither
+     *       needs it.
+     *   <li><b>Is the pin what stops a tower building into the mould?</b> <b>No</b> — that is the
+     *       drift correction in {@link #ascendByTowering}, which is unconditional and runs for every
+     *       climb. The pin only decides what happens after the correction has failed
+     *       {@link #DRIFT_ATTEMPTS} times.
+     * </ul>
+     *
+     * <h2>What the refusal cost, measured in one rung</h2>
+     *
+     * Six climbs, one single-bucket rehearsal, tagged so they could finally be told apart:
+     *
+     * <pre>
+     * cast4.returnStuck3#1  unpinned  gained 3/3   adopted, walker fallback
+     * water5.lift#2         unpinned  gained 1/1
+     * cast6.lift#3          unpinned  gained 2/2   adopted, walker fallback
+     * cast8.lift#4          unpinned  gained 2/3   adopted, walker fallback
+     * recover8.rise#5       PINNED    gained -1/2  pinnedLost, placed nothing
+     * cast9.lift#6          unpinned  gained 3/3
+     * </pre>
+     *
+     * The pinned one is not merely short: it ended a block <b>below</b> where it started, because the
+     * correction walks DOWN into the column's only foothold and the refusal then forbids the tower
+     * that would have paid that back. Three of the five unpinned climbs adopted a drifted column
+     * inside the alcove and the run recorded {@code forge.carved=67/67} with not one
+     * {@code frame.lost.*} — the mould was not eaten. And the pinned raise's own caller recovered its
+     * cell anyway ({@code recover8.spot=站 -8,62,38 瞄 -9,61,38}, {@code recover8.result=CONSUME}),
+     * for the third time on record: the fill re-chooses a stand and re-aims, so the raise it is
+     * handed is a hint and never a contract.
+     *
+     * <p>So the refusal is not a guard that is being relaxed; it is a requirement that was wrong. A
+     * pin now means <b>prefer, and say so when you leave</b>: the correction still runs, an adopted
+     * column is recorded as {@code driftKeptPinned} naming the column the aim was computed for, and
+     * three independent readings ({@code driftKeptPinned}, {@code raisedY}, the pour's own
+     * {@code .picks}) stand between a drifted body and a bucket.
+     *
+     * <p>The one refusal kept is the walker fallback. {@code Goal.YLevel} is column-blind by
+     * construction — satisfied by any cell at the height — so it can walk a body clean out of the
+     * alcove to satisfy an altitude, and it costs nothing to refuse it for a climb that has a tower.
      */
     static boolean climbPinned;
 
@@ -278,9 +321,10 @@ public final class JourneyShaft {
             // standable cell is its floor, several rows down. Measured, the rehearsal of 2026-08-16
             // cell eight: `recover8.rise.raise` chose the column `-9,37` and the body was at
             // `-9,58,38`, one cell out; the correction asked for `-9,58,37` — air with air under it
-            // — failed, and `climb.0.pinnedLost` ended the climb WITHOUT PLACING A SINGLE BLOCK,
-            // which the row `recover8.rise.raisedY=58/60` then reported as a short raise rather than
-            // as a raise that never happened.
+            // — failed, and the pinned climb (which then STOPPED — see climbPinned for why it no
+            // longer does) ended WITHOUT PLACING A SINGLE BLOCK, which the row
+            // `recover8.rise.raisedY=58/60` reported as a short raise rather than as a raise that
+            // never happened.
             //
             // A tower supplies the height; what the pin is about is the column, which is what
             // `driftKept`'s own wording ("改以这一柱为准") already says. So the correction asks for
@@ -288,24 +332,24 @@ public final class JourneyShaft {
             //
             walkBackToColumn(rig, step, DRIFT_ATTEMPTS, () -> {
                 BlockPos back = rig.player().blockPosition();
-                // The correction is over. Adopt, or stop — a bounded number of attempts must not
-                // become the whole climb: forty courses of walking back to a cell the body cannot
-                // reach is the same wedge in a different costume, and the climb still has to happen.
+                // The correction is over. Adopt — a bounded number of attempts must not become the
+                // whole climb: forty courses of walking back to a cell the body cannot reach is the
+                // same wedge in a different costume, and the climb still has to happen.
                 //
-                // …UNLESS THE COLUMN IS THE POINT. Adopting is right for an exit and wrong for a
-                // pour, because the caller computed its aim from a column and adopting silently
-                // answers a different question — see climbPinned. Stopping is not a loop and not a
-                // hard failure: it ends this climb with a named row and hands the decision back.
+                // A PINNED CLIMB ADOPTS TOO, and says louder that it did. Refusing was tried, for one
+                // round, and the readings are in climbPinned: it never once prevented a wrong pour
+                // (the pour's own ray gate predates it and does that), and it turned a two-course
+                // raise into a climb that ended a block LOWER than it started — because the
+                // correction descends into the column's only foothold and the refusal then forbids
+                // the tower that would have paid it back. What the pin is entitled to is that nobody
+                // downstream may mistake the result for the raise that was asked for, and that is a
+                // job for a row and for the pour's gate, not for a body left standing in a puddle.
                 if (back.getX() != climbColX || back.getZ() != climbColZ) {
-                    if (climbPinned) {
-                        rig.evidence(climbKey(step, ".pinnedLost"), back.toShortString()
-                                + " 走不回指定柱 " + climbColX + "," + climbColZ
-                                + " —— 爬升到此为止，不改柱（换柱等于换射线）");
-                        then.run();
-                        return;
-                    }
-                    rig.evidence(climbKey(step, ".driftKept"), back.toShortString()
-                            + " 走不回 " + climbColX + "," + climbColZ + "，改以这一柱为准");
+                    rig.evidence(climbKey(step, climbPinned ? ".driftKeptPinned" : ".driftKept"),
+                            back.toShortString() + " 走不回 " + climbColX + "," + climbColZ
+                            + "，改以这一柱为准"
+                            + (climbPinned ? " —— 这一柱是射线选的，换了柱就等于换了射线，"
+                                    + "接下来由浇筑/装水自己的射线闸判" : ""));
                     climbColX = back.getX();
                     climbColZ = back.getZ();
                 }
