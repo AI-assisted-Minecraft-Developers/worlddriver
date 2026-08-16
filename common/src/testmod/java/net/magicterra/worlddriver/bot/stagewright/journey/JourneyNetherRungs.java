@@ -108,18 +108,20 @@ public final class JourneyNetherRungs {
      */
     public static List<Scene> rungs() {
         List<Scene> out = new ArrayList<>();
-        // 360 000, and the number is the arithmetic of the plan rather than caution: the crossing
-        // may re-plan three times at FORTRESS_WALK_TICKS with a midpoint leg between each (≈192k),
-        // then the approach (6k), up to sixty quarry legs (18k), the wait for the spawner to turn
-        // (2.4k) and eight fights (9.6k). A budget sized for one clean walk would turn "the
-        // fortress is far" into a timeout, which is the wrong sentence about the right world.
+        // 360 000, and the number is the arithmetic of the plan rather than caution: the crossing is
+        // up to MAX_HOPS legs of HOP_TICKS (≈22k), then the approach (6k), up to sixty quarry legs
+        // (18k), the wait for the spawner to turn (2.4k) and eight fights (9.6k). A budget sized for
+        // one clean walk would turn "the fortress is far" into a timeout, which is the wrong
+        // sentence about the right world. The crossing's share fell by an order of magnitude when it
+        // stopped being three 48 000-tick attempts at one distant goal — see crossToColumn; what the
+        // headroom now buys is the fight, which is what this rung actually claims.
         out.add(rung("wd.journey14BlazeRod", JourneyStage.BLAZE_ROD, 360_000,
                 JourneyNetherRungs::blazeRod));
         // 120 000 still, and now it is the arithmetic rather than the absence of one. The old note
         // said "no build, and the walk is to whatever enderman is already loaded rather than to a
         // landmark", which is exactly what was wrong with the rung: the walk is now to a landmark,
-        // up to three attempts at WARPED_WALK_TICKS with a midpoint leg between them (≈36k), then
-        // six rounds of approach-and-fight (≈48k), then up to six dry waits (≈7k), which is 91k.
+        // up to MAX_HOPS legs of HOP_TICKS (≈22k), then
+        // six rounds of approach-and-fight (≈48k), then up to six dry waits (≈7k), which is 77k.
         out.add(rung("wd.journey15EnderPearl", JourneyStage.ENDER_PEARL, 120_000,
                 JourneyNetherRungs::enderPearl));
         return List.copyOf(out);
@@ -173,8 +175,8 @@ public final class JourneyNetherRungs {
         rig.evidence("fortress.at", fortress.toShortString()
                 + "（距身体 " + away + " 格水平；地标的 y=" + fortress.getY() + " 是 locate 的占位，不是可站立高度）");
         rig.attempting("走到要塞 " + fortress.toShortString() + "（" + away + " 格）");
-        walkToColumn(rig, "fortress", fortress.getX(), fortress.getZ(), FORTRESS_ARRIVE_WITHIN,
-                FORTRESS_WALK_TICKS,
+        crossToColumn(rig, "fortress", fortress.getX(), fortress.getZ(), FORTRESS_ARRIVE_WITHIN,
+                HOP_TICKS,
                 () -> findTheSpawner(ctx, rig),
                 () -> ctx.fail("走不到要塞 " + fortress.toShortString() + "：停在 "
                         + rig.player().blockPosition().toShortString()
@@ -564,7 +566,7 @@ public final class JourneyNetherRungs {
         rig.evidence("warped.survey", want + " 在 " + at.toShortString() + "（距身体 " + away
                 + " 格水平，找了 " + ms + " ms；y=" + at.getY() + " 是采样层，不是可站立高度）");
         rig.attempting("走到 " + want + " " + at.toShortString() + "（" + away + " 格）再猎");
-        walkToColumn(rig, "warped", at.getX(), at.getZ(), WARPED_ARRIVE_WITHIN, WARPED_WALK_TICKS,
+        crossToColumn(rig, "warped", at.getX(), at.getZ(), WARPED_ARRIVE_WITHIN, HOP_TICKS,
                 () -> {
                     BlockPos stood = rig.player().blockPosition();
                     rig.evidence("warped.arrivedBiome", biomeAt(rig, stood)
@@ -964,79 +966,160 @@ public final class JourneyNetherRungs {
     // =====================================================================================
 
     /**
-     * Walk to an XZ column, re-planning when a leg falls short.
+     * Walk to a far XZ column in BOUNDED HOPS along the straight line to it.
      *
-     * <p>A copy of the ladder's own {@code walkToColumn}, and a copy on purpose rather than a shared
-     * helper: that one lives in a file this class must not edit, and a nether crossing needs the
-     * same two behaviours it learned the hard way.
+     * <h2>Why not one goal</h2>
      *
-     * <p><b>A retry that changes nothing is not a retry.</b> A body can be WEDGED — an earlier rung
-     * spent two attempts and four minutes issuing ninety searches from one cell, every one of them
-     * burning its whole node budget. Three identical questions get three identical answers, so an
-     * attempt that ends where it began aims at the MIDPOINT first, which is a shorter question the
-     * pathfinder may be able to answer, and then resumes.
+     * Because a 397-block goal is not a question this pathfinder answers, and the run that proved it
+     * had never been measured before — every earlier reading was a photograph of where the body
+     * ended. Three attempts at one distant {@code Goal.XZ}, rehearsed 2026-08-16:
+     *
+     * <pre>
+     * flight.1 = 走了 15/397 格 … 13/289 tick 身上没有计划 … no route progress (best dist=3622)
+     * flight.2 = 走了 69/383 格 … 1203/1582 tick 身上没有计划 … no progress for 1200 ticks
+     * flight.3 = 走了  0/314 格 … 1203/1203 tick 身上没有计划 … no progress for 1200 ticks
+     * </pre>
+     *
+     * <p>and the server log carries <b>2402 {@code search-begin} lines from the one cell
+     * {@code 66,43,67}</b> — one full A* budget per tick, for two solid minutes, every one of them
+     * returning nothing the walker would adopt. The body was not stuck on terrain: it stood on
+     * netherrack, dry, with air on three sides. It was stuck on the QUESTION. Two thirds of the
+     * crossing's ticks went to a body that had no plan at all, which is the reading that separates
+     * this from "the nether is hard terrain" and it did not exist until {@code JourneyFlight}
+     * counted it.
+     *
+     * <p>So the crossing is cut into hops of {@link #NETHER_HOP} blocks. Each hop is a question the
+     * search can finish, and each one re-aims from where the body actually is — which is also the
+     * repair for the second half of that run: the old retry gave up its midpoint whenever the
+     * ATTEMPT had moved more than four blocks, and attempt 2 moved 69 blocks and then stood still
+     * for 1203 ticks, so attempt 3 re-asked the identical question from the identical cell and got
+     * the identical answer. Measuring a whole attempt cannot detect a body that wedged at the end
+     * of it; a hop is short enough that "did this hop move" is the same question.
+     *
+     * <p><b>A hop that goes nowhere must change the question, not repeat it.</b> First by halving
+     * the reach — a shorter question is a different one — and then by turning off the straight line,
+     * because the thing a bee-line runs into in the Nether is usually a lava sea with ground either
+     * side of it. Three wedged hops in a row ends the crossing with every reading attached.
      */
-    private static void walkToColumn(JourneyRig rig, String what, int x, int z, int tolerance,
-                                     int budget, Runnable onArrived, Runnable onStuck) {
-        walkToColumn(rig, what, x, z, tolerance, budget, MAX_WALK_ATTEMPTS, onArrived, onStuck);
+    private static void crossToColumn(JourneyRig rig, String what, int x, int z, int tolerance,
+                                      int hopTicks, Runnable onArrived, Runnable onStuck) {
+        oneHop(rig, what, x, z, tolerance, hopTicks, new Crossing(), onArrived, onStuck);
     }
 
-    private static void walkToColumn(JourneyRig rig, String what, int x, int z, int tolerance,
-                                     int budget, int left, Runnable onArrived, Runnable onStuck) {
+    /** What a crossing carries from hop to hop. A chain of continuations cannot keep locals. */
+    private static final class Crossing {
+        int hop;                       // hops spent
+        int wedged;                    // CONSECUTIVE hops that went nowhere
+        int reach = NETHER_HOP;        // how far the next hop aims, halved after a wedge
+        int turn;                      // degrees off the straight line, spent after halving fails
+        int falls;
+        int noPlan;                    // ticks, summed over hops — the crossing's headline reading
+        String firstLava;
+        String why = "";
+        final List<String> lines = new ArrayList<>();
+    }
+
+    private static void oneHop(JourneyRig rig, String what, int x, int z, int tolerance,
+                               int hopTicks, Crossing c, Runnable onArrived, Runnable onStuck) {
         BlockPos before = rig.player().blockPosition();
-        int attempt = MAX_WALK_ATTEMPTS - left + 1;
-        // The only reading anyone has of this crossing that is not a photograph of the wreckage.
-        // See JourneyFlight: three different bugs all end with a body hanging in cave_air, and the
+        double away = Math.hypot(x - before.getX(), z - before.getZ());
+        if (away <= tolerance + ARRIVED_WITHIN) {
+            recordCrossing(rig, what, c, away);
+            onArrived.run();
+            return;
+        }
+        if (c.hop >= MAX_HOPS) {
+            c.why = "走完了 " + MAX_HOPS + " 段还没到（还差 " + Math.round(away) + " 格）";
+            recordCrossing(rig, what, c, away);
+            onStuck.run();
+            return;
+        }
+        c.hop++;
+        final int hop = c.hop;
+        double bearing = Math.atan2(z - before.getZ(), x - before.getX()) + Math.toRadians(c.turn);
+        double reach = Math.min(c.reach, away);
+        // A hop that reaches the goal IS the goal, and must be judged by the caller's tolerance —
+        // a fortress is 24 blocks of bridges around its locate position and a hop tolerance would
+        // walk the body past it.
+        boolean lastHop = c.turn == 0 && reach >= away - 0.5;
+        int wx = (int) Math.round(before.getX() + Math.cos(bearing) * reach);
+        int wz = (int) Math.round(before.getZ() + Math.sin(bearing) * reach);
+        int hopTolerance = lastHop ? tolerance : HOP_ARRIVE_WITHIN;
+        // The only reading of this crossing that is not a photograph of the wreckage. See
+        // JourneyFlight: three different bugs all end with a body hanging in cave_air, and the
         // `around.N` line prints the same sentence for all three.
-        JourneyFlight flight = JourneyFlight.watching(rig, before, x, z);
-        rig.settle(new IntentProcess(new Intent(new Goal.XZ(x, z, tolerance))), budget, flight, () -> {
+        JourneyFlight flight = JourneyFlight.watching(rig, before, wx, wz);
+        rig.settle(new IntentProcess(new Intent(new Goal.XZ(wx, wz, hopTolerance))), hopTicks,
+                flight, () -> {
             BlockPos at = rig.player().blockPosition();
-            double away = Math.hypot(at.getX() - x, at.getZ() - z);
-            flight.recordInto(what, String.valueOf(attempt));
-            rig.evidence(what + ".arrivedDistance", Math.round(away));
-            rig.evidence(what + ".walkAttempts", attempt);
-            // The tolerance is the GOAL's own radius, so a leg that finished inside it arrived by
-            // the only definition the walker was given. The ladder's copy of this compares against
-            // a bare 5, which is right for its callers (they all pass tolerance 0) and would
-            // declare a 24-block fortress goal unreached the moment it was reached.
-            if (away <= tolerance + ARRIVED_WITHIN) { onArrived.run(); return; }
-            rig.evidence(what + ".goto." + attempt,
-                    "end=" + rig.body().botState().mc_goto.endReason
-                            + " err=" + rig.body().botState().mc_goto.lastError);
-            rig.evidence(what + ".around." + attempt, surroundings(rig, at));
-            if (left <= 1) { onStuck.run(); return; }
-            // A RETRY IS NOT FREE, AND SOME BODIES CANNOT SPEND IT.
-            //
-            // Measured on the crossing this rung exists for: the body walked 105 of 399 blocks,
-            // ended airborne over a cave, fell into a lava sea, and attempts 2 and 3 then issued
-            // the identical walk order to a body submerged in lava — two more minutes and two more
-            // `no path (expanded=1)` lines, which read as "the fortress is unreachable" instead of
-            // "the walker was underwater in lava the whole time". Walking is an order about the
-            // ground; a body that is not on any ground cannot carry it out, and asking again is
-            // the retry-that-changes-nothing in its purest form.
+            double moved = Math.hypot(at.getX() - before.getX(), at.getZ() - before.getZ());
+            double left = Math.hypot(x - at.getX(), z - at.getZ());
+            c.falls += flight.fallCount();
+            c.noPlan += flight.noPlanTicks();
+            if (flight.lavaLine() != null && c.firstLava == null)
+                c.firstLava = "第 " + hop + " 段 " + flight.lavaLine();
+            c.lines.add("#" + hop + " " + before.toShortString() + "→" + wx + "," + wz
+                    + (c.turn == 0 ? "" : "（偏 " + c.turn + "°）")
+                    + " " + flight.brief() + "，还差 " + Math.round(left));
+            // Falls get their own rows whatever the hop's outcome. A crossing that ARRIVES after
+            // dropping nine blocks into a canyon arrived by the goal's definition and is still the
+            // finding — and a PASS prints no evidence, so this is the only place it can be read.
+            List<String> fell = flight.falls();
+            for (int i = 0; i < fell.size(); i++) rig.evidence(what + ".fell." + hop + "." + i, fell.get(i));
+
+            // WALKING IS AN ORDER ABOUT THE GROUND. A body inside lava swims; it cannot carry one
+            // out, so the next hop would be the retry-that-changes-nothing in its purest form.
             String hazard = hazardBlockingARetry(rig, at);
             if (hazard != null) {
-                rig.evidence(what + ".noAttempt", "第 " + attempt + " 次之后不再重试：" + hazard
-                        + " —— 再下一次同样的行走指令只会得到同样的答案，"
-                        + "先要把身体从这里弄出来，那是另一件事");
+                c.why = "第 " + hop + " 段之后停手：" + hazard
+                        + " —— 再走一段只会得到同样的答案，先要把身体从这里弄出来，那是另一件事";
+                rig.evidence(what + ".flight." + hop, flight.report());
+                rig.evidence(what + ".around." + hop, surroundings(rig, at));
+                recordCrossing(rig, what, c, left);
                 onStuck.run();
                 return;
             }
-            double moved = Math.hypot(at.getX() - before.getX(), at.getZ() - before.getZ());
             if (moved >= WEDGED_UNDER) {
-                walkToColumn(rig, what, x, z, tolerance, budget, left - 1, onArrived, onStuck);
+                c.wedged = 0;
+                c.reach = NETHER_HOP;
+                c.turn = 0;
+                oneHop(rig, what, x, z, tolerance, hopTicks, c, onArrived, onStuck);
                 return;
             }
-            int mx = (at.getX() + x) / 2;
-            int mz = (at.getZ() + z) / 2;
-            rig.evidence(what + ".viaMidpoint", mx + "," + mz + "（卡在 " + at.toShortString() + "）");
-            JourneyFlight toMid = JourneyFlight.watching(rig, at, mx, mz);
-            rig.settle(new IntentProcess(new Intent(new Goal.XZ(mx, mz, 3))), Math.max(600, budget / 2),
-                    toMid, () -> {
-                        toMid.recordInto(what, "mid" + attempt);
-                        walkToColumn(rig, what, x, z, tolerance, budget, left - 1, onArrived, onStuck);
-                    });
+            // A HOP THAT WENT NOWHERE. Everything about it goes on the record — this is the state
+            // the whole crossing used to die in, and the readings that name it (ticks with no plan,
+            // the goto's own verdict, what is touching the body) are only worth having together.
+            c.wedged++;
+            rig.evidence(what + ".flight." + hop, flight.report());
+            rig.evidence(what + ".goto." + hop, "end=" + rig.body().botState().mc_goto.endReason
+                    + " err=" + rig.body().botState().mc_goto.lastError);
+            rig.evidence(what + ".around." + hop, surroundings(rig, at));
+            if (c.wedged >= MAX_WEDGED_HOPS) {
+                c.why = "连着 " + c.wedged + " 段一格没挪（最后停在 " + at.toShortString()
+                        + "，还差 " + Math.round(left) + " 格）";
+                recordCrossing(rig, what, c, left);
+                onStuck.run();
+                return;
+            }
+            if (c.wedged == 1) c.reach = Math.max(HOP_MIN, NETHER_HOP / 2);
+            else c.turn = c.turn <= 0 ? HOP_TURN : -HOP_TURN;
+            rig.evidence(what + ".reaim." + hop, "下一段改问 " + c.reach + " 格、偏 " + c.turn
+                    + "° —— 同一个问题问第二遍只会得到同一个答案");
+            oneHop(rig, what, x, z, tolerance, hopTicks, c, onArrived, onStuck);
         });
+    }
+
+    /** Everything the crossing did, in three rows rather than one per hop. */
+    private static void recordCrossing(JourneyRig rig, String what, Crossing c, double left) {
+        rig.evidence(what + ".hops", c.lines.isEmpty() ? "一段都没走" : String.join(" | ", c.lines));
+        // 无计划 is the headline, and it is the reading that made the hop crossing worth writing:
+        // one distant goal spent 2406 of its ticks with nothing to steer at, so a crossing that
+        // reports a big number here has NOT been fixed by being cut up, whatever its distance says.
+        rig.evidence(what + ".crossing", c.hop + " 段，还差 " + Math.round(left) + " 格，离地 "
+                + c.falls + " 次，全程无计划 " + c.noPlan + " tick"
+                + (c.firstLava == null ? "，没进过岩浆" : "，" + c.firstLava)
+                + (c.why.isEmpty() ? "" : "；" + c.why));
+        rig.evidence(what + ".arrivedDistance", Math.round(left));
     }
 
     /**
@@ -1172,16 +1255,52 @@ public final class JourneyNetherRungs {
      *  structure's locate position and a fortress is a hundred blocks of bridges around it. */
     private static final int FORTRESS_ARRIVE_WITHIN = 24;
 
-    /** Ticks for ONE attempt at the crossing. The nether is 8:1, so this leg is short in nether
-     *  blocks and long in terrain: lava seas, ravines, and ground the pathfinder has to break
-     *  through. Multiplied by {@link #MAX_WALK_ATTEMPTS} plus the midpoint legs, this is most of
-     *  the rung's registered budget — see {@link #rungs()} for that sum. */
-    private static final int FORTRESS_WALK_TICKS = 48_000;
+    /**
+     * How far one hop of a crossing aims, and how long it may take.
+     *
+     * <p><b>48 is the length of a question this pathfinder finishes.</b> The measurement is in
+     * {@link #crossToColumn}: a 397-block goal produced 2402 searches from one cell and not one
+     * adopted path, while the same run's healthy stretches covered 15 and 69 blocks between
+     * re-plans. Four chunks is also what the rung already pins ({@link #SEE_CHUNKS}), so a hop never
+     * aims at ground the run is not holding.
+     *
+     * <p>900 ticks is 45 seconds for a walk of 48 blocks, which is five times the ~270 ticks a
+     * healthy hop costs. It is deliberately under the walker's own 1200-tick no-progress stall, so a
+     * wedged hop is ended by THIS budget with the hop's readings attached rather than by a generic
+     * stall verdict inside the walker.
+     */
+    private static final int NETHER_HOP = 48;
+    private static final int HOP_TICKS = 900;
 
-    /** How far a leg must move for the next attempt to be a different question — see the walk. */
+    /** The shortest a halved hop may get. Under a chunk, a hop stops being a different question
+     *  from the one that just failed and starts being the same one asked slower. */
+    private static final int HOP_MIN = 16;
+
+    /** Degrees off the straight line a detour hop aims, once halving has failed. Sixty rather than
+     *  ninety: the obstacle a bee-line meets in the Nether is a lava sea with ground either side,
+     *  and a hop that turns square to the goal spends its whole reach going nowhere useful. */
+    private static final int HOP_TURN = 60;
+
+    /** How many hops a crossing may spend. Twenty-four covers the 397-block fortress leg (nine
+     *  clean hops) with room for halved hops and detours, and bounds the crossing at
+     *  24 × {@link #HOP_TICKS} — see {@link #rungs()} for how that adds up. */
+    private static final int MAX_HOPS = 24;
+
+    /** Consecutive hops that may go nowhere before the crossing gives up. Four, because the crossing
+     *  has exactly four different questions to ask: the hop, the halved hop, and the halved hop
+     *  turned each way. A fifth would be the first repeat, and a repeat is the thing this whole
+     *  crossing was rewritten to stop doing. */
+    private static final int MAX_WEDGED_HOPS = 4;
+
+    /** How far a hop must move to count as a hop rather than a wedge — see {@link #crossToColumn}
+     *  for the run where measuring a whole ATTEMPT instead of a hop hid a 1203-tick wedge. */
     private static final int WEDGED_UNDER = 4;
-    private static final int MAX_WALK_ATTEMPTS = 3;
+
+    /** Arrival slack. {@link #ARRIVED_WITHIN} is added to the caller's own tolerance for the final
+     *  hop; {@link #HOP_ARRIVE_WITHIN} is a waypoint's own radius, and it is generous because a
+     *  waypoint is a direction, not a destination — nothing is there. */
     private static final int ARRIVED_WITHIN = 5;
+    private static final int HOP_ARRIVE_WITHIN = 6;
 
     /** Chunks either side of the arrival to sweep for a spawner. Three is a 112-block square, which
      *  covers a fortress wing without pulling in a neighbour's chunks. */
@@ -1262,10 +1381,11 @@ public final class JourneyNetherRungs {
     private static final int WARPED_SEARCH_STEP = 16;
     private static final int WARPED_SEARCH_VSTEP = 32;
 
-    /** Arrival tolerance and one leg's budget for the walk to the forest. Eight blocks because the
-     *  target is a biome sample and a biome is not a point — anywhere inside it is arrival. */
+    /** Arrival tolerance for the walk to the forest. Eight blocks because the target is a biome
+     *  sample and a biome is not a point — anywhere inside it is arrival. The walk itself is the
+     *  same hop crossing rung 14 uses; a forest 256 blocks off is the same question a fortress 397
+     *  blocks off is, and it failed the same way. */
     private static final int WARPED_ARRIVE_WITHIN = 8;
-    private static final int WARPED_WALK_TICKS = 8_000;
 
     /** Everything the ladder might be carrying that a wall can be made of, plus everything the
      *  quarry below produces. Order does not matter — {@link #placeableBlock} takes the biggest
