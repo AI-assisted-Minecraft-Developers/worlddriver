@@ -2121,6 +2121,12 @@ public final class JourneyPortalRung {
                                    net.minecraft.world.item.Item held, String tag, int tries,
                                    Runnable then) {
         Map<String, Integer> why = new java.util.LinkedHashMap<>();
+        // EVERY ROW BELOW CARRIES ITS APPROACH NUMBER, for the reason the climb rows now carry their
+        // caller. Three approaches wrote one set of keys and the last writer won, so the results file
+        // showed `cast9.fromHere` from approach three beside `cast9.stand` and `cast9.picks` from
+        // approach one — a body at -9,56,36 in one row and a walk from -9,56,37 in the next, with
+        // nothing saying they were different attempts. That cost a reading on 2026-08-17: it looked
+        // like the short-circuit had fired and the walk had happened anyway.
         // IF IT CAN BE DONE FROM HERE, DO IT FROM HERE — before choosing anywhere to walk to.
         //
         // Otherwise the walk undoes the work that made the pour possible. Run 42's last cell:
@@ -2131,7 +2137,7 @@ public final class JourneyPortalRung {
         PourSpot spot = null;
         BlockPos already = aimThatLandsIn(ctx.level(), rig, target, away);
         if (already != null) {
-            rig.evidence(tag + ".fromHere", rig.player().blockPosition().toShortString()
+            rig.evidence(tag + ".fromHere." + tries, rig.player().blockPosition().toShortString()
                     + " 就地瞄 " + already.toShortString() + "，流体会落进 "
                     + target.toShortString() + "（不走了）");
             spot = new PourSpot(rig.player().blockPosition(), already);
@@ -2147,7 +2153,7 @@ public final class JourneyPortalRung {
         }
         BlockPos goal = spot.stand();
         BlockPos backing = spot.aim();
-        rig.evidence(tag + ".stand", goal.toShortString() + " 瞄 " + backing.toShortString()
+        rig.evidence(tag + ".stand." + tries, goal.toShortString() + " 瞄 " + backing.toShortString()
                 + (backing.equals(target.below()) ? "（地板顶面）" : "（背板近面）")
                 + " 否决计数 " + why);
         rig.settle(new IntentProcess(new Intent(new Goal.Block(goal))), 1_200, () -> {
@@ -2163,7 +2169,7 @@ public final class JourneyPortalRung {
             // so whichever one lands in the target is the one used.
             BlockPos aimNow = aimThatLandsIn(ctx.level(), rig, target, away);
             if (aimNow != null && !aimNow.equals(backing))
-                rig.evidence(tag + ".reaimed", backing.toShortString() + " → " + aimNow.toShortString()
+                rig.evidence(tag + ".reaimed." + tries, backing.toShortString() + " → " + aimNow.toShortString()
                         + "（走完发现身体在 " + rig.player().blockPosition().toShortString() + "）");
             BlockPos at = aimNow != null ? aimNow : backing;
             rig.body().avatar().aimAtBlock(at);
@@ -2182,14 +2188,14 @@ public final class JourneyPortalRung {
                 var hit = WorldDriverJourneyScenes.aimedAt(rig.player(), JourneyFill.BUCKET_REACH, false);
                 BlockPos lands = hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
                         ? hit.getBlockPos().relative(hit.getDirection()) : null;
-                rig.evidence(tag + ".picks", (hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+                rig.evidence(tag + ".picks." + tries, (hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
                         ? hit.getBlockPos().toShortString() + " " + lvl.getBlockState(hit.getBlockPos()).getBlock()
                           + " face=" + hit.getDirection() + " → 落进 " + lands.toShortString()
                         : String.valueOf(hit.getType()))
                         + "（想浇 " + target.toShortString() + "，瞄 " + at.toShortString()
                         + "=" + lvl.getBlockState(at).getBlock()
                         + "，身体 " + rig.player().blockPosition().toShortString() + "）");
-                rig.evidence(tag + ".before", target.toShortString() + "="
+                rig.evidence(tag + ".before." + tries, target.toShortString() + "="
                         + lvl.getBlockState(target).getBlock());
                 // Do not spend the bucket unless the ray lands where the plan says. This is the same
                 // clip vanilla is about to do, so it is a PREDICTION and not a heuristic — which is
