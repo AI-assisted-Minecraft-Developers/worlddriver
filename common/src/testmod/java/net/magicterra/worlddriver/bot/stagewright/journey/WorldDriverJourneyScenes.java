@@ -2182,8 +2182,10 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // ladder still adopts exactly as before; a rehearsal that named a side refuses to adopt off it
         // and walks to the column that was chosen for that side.
         Direction wantSide = JourneyRehearsal.stagedForgeSide;
-        boolean offTheStagedSide = wantSide != null
-                && JourneyPortalRung.awayFrom(lava, at) != wantSide;
+        BlockPos wantCol = JourneyRehearsal.stagedShaftColumn;
+        boolean offTheStagedSide = wantCol != null
+                ? at.getX() != wantCol.getX() || at.getZ() != wantCol.getZ()
+                : wantSide != null && JourneyPortalRung.awayFrom(lava, at) != wantSide;
         if (!overThePool && !abandoned && !offTheStagedSide
                 && JourneyTerrain.columnIsSafeToSink(rig.ctx().level(),
                 new BlockPos(at.getX(), lava.getY(), at.getZ()), surfaceY)) {
@@ -2197,7 +2199,11 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 at.toShortString() + " → " + dig.getX() + "," + dig.getZ()
                         + (overThePool ? " (正站在岩浆柱上)"
                                 : abandoned ? " (正站在刚换掉的湿柱上)"
-                                : offTheStagedSide ? " (排练指定了 " + wantSide + " 侧，脚下这一柱不在那一侧)"
+                                : offTheStagedSide
+                                        ? wantCol != null
+                                                ? " (排练把井柱钉在 " + wantCol.getX() + ","
+                                                  + wantCol.getZ() + "，脚下这一柱不是它)"
+                                                : " (排练指定了 " + wantSide + " 侧，脚下这一柱不在那一侧)"
                                 : " (脚下柱子不合格)"));
         rig.settle(new IntentProcess(new Intent(new Goal.XZ(dig.getX(), dig.getZ(), 0))), 1_200,
                 () -> stepOntoDiggableColumn(rig, dig, lava, surfaceY, left - 1, banned, then, onStuck));

@@ -318,6 +318,14 @@ loom {
             // rather than the direction forced.
             property 'worlddriver.journey.forgeAway',
                     (project.findProperty('forgeAway') ?: '').toString()
+            // The shaft column itself, which is the only lever that REPRODUCES a ladder's mould:
+            //   ./gradlew :fabric:runRehearsalServer -Prehearse=PORTAL_LIT -PshaftColumn=-8,19
+            // forgeAway can only ask for a side, and pickDigColumn answers it from its r>=2 ring —
+            // but a climb reaches its column by adopting whatever it is standing on, which can be
+            // r=1 and therefore unreachable by any side request. See JourneyRehearsal.stagedShaftColumn
+            // for the measurement (ladder -8,19 vs rehearsal -9,21, same pool).
+            property 'worlddriver.journey.shaftColumn',
+                    (project.findProperty('shaftColumn') ?: '').toString()
             // How many buckets rung 12 starts with, which is what decides how many times it climbs
             // the staircase: it goes up only when the bag has no lava left, and fills every empty
             // bucket per visit, so the trips are ceil(10 / buckets-that-can-hold-lava).

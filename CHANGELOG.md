@@ -146,6 +146,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Nothing in the old evidence could distinguish that from a slow walk.
 
 ### Fixed
+- **A rehearsal can pin the shaft COLUMN, which is what reproduces a ladder's mould.** Staging a side
+  can turn a mould but cannot reproduce one, and the reason is arithmetic: the climb of 2026-08-16 cut
+  its `east` mould from the column `-8,19`, which is `dx=+1, dz=0` from the pool — **r=1** — while
+  `pickDigColumn` rings outward from **r=2**. The column a ladder actually used is one that search can
+  never propose; the climb reached it by `stepOntoDiggableColumn` adopting whatever it was standing on
+  after `walkToColumn(lava)` stopped one block out (`lava.arrivedDistance = 1`). Asking for the east
+  side instead returns `-7,17`, the nearest east column on the r≥2 ring, and a geometry the ladder
+  never visits. `-PshaftColumn=x,z` pins it: `pickDigColumn` is bypassed and the adopt short-circuit
+  accepts only that column. Verified — `-PshaftColumn=-8,19` reproduces the climb's mould to the
+  block: same pool (`lavaLake -9,63,19`, 72 sources), `forge.away = east`,
+  `forge.face = 4,56,19 朝 east`. That geometry had until now appeared only by luck, roughly one climb
+  in three, twenty-seven minutes a draw.
+
+  This also corrects a wrong inference recorded here earlier: the climb's `east` mould did **not**
+  come from a second pool. The disproof was in the same evidence map, one line from the reading that
+  prompted it — both runs name `lavaLake -9, 63, 19（勘测到 72 格源块）`.
 - **A rehearsal's staged forge orientation now actually turns the mould.** `-PforgeAway=<side>`
   stood the body on that side of the lava lake and its evidence row promised
   「楼梯与模腔都会朝这边」. It could not keep that promise, and four directed rehearsals on

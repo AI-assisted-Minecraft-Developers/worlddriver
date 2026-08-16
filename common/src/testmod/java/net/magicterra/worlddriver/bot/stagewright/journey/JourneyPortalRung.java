@@ -572,11 +572,16 @@ public final class JourneyPortalRung {
             if (at.getY() <= forgeFloorY(lava) + 1) { carveTheForge(ctx, rig, lava, surfaceY); return; }
             ServerLevel level = ctx.level();
             Map<String, Integer> rejected = new java.util.LinkedHashMap<>();
-            // The rehearsal's staged side, null on every climb — see JourneyRehearsal#stagedForgeSide.
-            // The mould's orientation is decided HERE and nowhere earlier, which is why staging the
-            // body's stand never turned it.
-            BlockPos dig = JourneyTerrain.pickDigColumn(level, lava, surfaceY, rejected, List.of(),
-                    JourneyRehearsal.stagedForgeSide);
+            // The rehearsal's staged column/side, both null on every climb — see
+            // JourneyRehearsal#stagedShaftColumn. The mould's orientation is decided HERE and nowhere
+            // earlier, which is why staging the body's stand never turned it. A pinned column bypasses
+            // the search outright, because the column a ladder actually used can be one this search
+            // cannot reach: it rings outward from r=2 and the climb of 2026-08-16 used r=1.
+            BlockPos pinned = JourneyRehearsal.stagedShaftColumn;
+            BlockPos dig = pinned != null
+                    ? new BlockPos(pinned.getX(), lava.getY(), pinned.getZ())
+                    : JourneyTerrain.pickDigColumn(level, lava, surfaceY, rejected, List.of(),
+                            JourneyRehearsal.stagedForgeSide);
             if (dig == null) {
                 ctx.fail("岩浆柱周围没有可下挖的柱子（目标 " + lava.toShortString()
                         + "，地表 y=" + surfaceY + "）——各项否决计数：" + rejected);

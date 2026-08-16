@@ -375,6 +375,7 @@ public final class JourneyRehearsal {
         // So the side is PUBLISHED for that choice to honour, and this row now says which of the two
         // things it is claiming.
         stagedForgeSide = side;
+        stagedShaftColumn = forcedShaftColumn(ctx);
         ctx.record("rehearsal.forgeAway", side == null
                 ? "自然朝向 " + JourneyPortalRung.awayFrom(lake, stand) + "（没有指定 -PforgeAway）"
                 : "指定 " + side + "：落脚点摆在湖的这一侧，并且下挖柱也只在这一侧挑"
@@ -814,8 +815,66 @@ public final class JourneyRehearsal {
      */
     static Direction stagedForgeSide;
 
-    /** Forget it between suites, so a rehearsal cannot colour a later run in the same JVM. */
-    static void resetStagedForgeSide() { stagedForgeSide = null; }
+    /**
+     * The exact shaft column a rehearsal staged — the only lever that reproduces a ladder's mould.
+     *
+     * <h2>Why a side is not enough, measured</h2>
+     *
+     * The real ladder of 2026-08-16 cut an {@code east} mould at {@code forge.face = 4,56,19}. It was
+     * natural to assume that came from a different lava pool — rung 11 spends one, so rung 12 often
+     * gets another — and that assumption was <b>wrong</b>, which the archived evidence map said in a
+     * line sitting right beside the one that prompted it:
+     *
+     * <pre>
+     * ladder    lava.landmark = lavaLake -9, 63, 19（勘测到 72 格源块）  shaft.standingOn = -8,19 (就近合格柱)
+     * rehearsal lava.landmark = lavaLake -9, 63, 19（勘测到 72 格源块）  shaft.standingOn = -9,21 (选定柱)
+     * </pre>
+     *
+     * <b>The same pool.</b> The whole difference is the shaft column — and {@code -8,19} is
+     * {@code dx=+1, dz=0}, i.e. <b>r=1</b>, while {@link JourneyTerrain#pickDigColumn} rings outward
+     * from <b>r=2</b>. So the column the ladder actually used is one that method can never propose;
+     * the climb reached it only through {@code stepOntoDiggableColumn}'s adopt-where-you-stand
+     * short-circuit, after {@code walkToColumn(lava)} stopped one block out
+     * ({@code lava.arrivedDistance = 1}).
+     *
+     * <p>That is why {@link #stagedForgeSide} can turn a mould but cannot REPRODUCE one: asking for
+     * the east side got {@code -7,17} — the nearest east column on the r≥2 ring — and a geometry the
+     * ladder never visits. Naming the column is the faithful lever.
+     *
+     * <p>Rehearsal-only on the same three counts as the side: written only by the staging step,
+     * counted into the ledger, and cleared by the ladder's own {@code recon}.
+     */
+    static BlockPos stagedShaftColumn;
+
+    /** Forget them between suites, so a rehearsal cannot colour a later run in the same JVM. */
+    static void resetStagedForgeSide() {
+        stagedForgeSide = null;
+        stagedShaftColumn = null;
+    }
+
+    /** {@code -PshaftColumn=x,z}, or null. Rehearsal-only, read from the staging step. */
+    private static BlockPos forcedShaftColumn(SceneContext ctx) {
+        String raw = System.getProperty("worlddriver.journey.shaftColumn", "").trim();
+        if (raw.isEmpty()) return null;
+        String[] parts = raw.split(",");
+        if (parts.length != 2) {
+            ctx.record("rehearsal.shaftColumn", raw + " 不是 x,z 形式 —— 忽略，按自然选柱");
+            return null;
+        }
+        try {
+            BlockPos col = new BlockPos(Integer.parseInt(parts[0].trim()), 0,
+                    Integer.parseInt(parts[1].trim()));
+            JourneyLedger.staged("rehearsal: pinned the shaft column to "
+                    + col.getX() + "," + col.getZ());
+            ctx.record("rehearsal.shaftColumn", col.getX() + "," + col.getZ()
+                    + "：井柱被钉死（pickDigColumn 不参与，就地采纳也只认这一柱）"
+                    + " —— 这是复现某一趟 ladder 模腔的办法，比指定方位精确");
+            return col;
+        } catch (NumberFormatException e) {
+            ctx.record("rehearsal.shaftColumn", raw + " 解析不了 —— 忽略，按自然选柱");
+            return null;
+        }
+    }
 
     private static Direction forcedSide(SceneContext ctx) {
         String want = System.getProperty("worlddriver.journey.forgeAway", "").trim();

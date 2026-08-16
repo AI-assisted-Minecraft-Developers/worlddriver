@@ -183,7 +183,39 @@ shaft.standingOn = -7,17 (选定柱)      forge.away = east      forge.face = 6,
 
 真 ladder 上这个静态是 `null`（`recon` 里显式清掉），所以攀爬的选柱一个字节都没变。
 
-### ⚠️ 但 `exactRow` 那条分支**仍然没有被执行过**，east 这一趟死在更早的地方
+### ✅ 用 `-PshaftColumn=-8,19` 把真 ladder 那个模腔**逐格复现出来了**
+
+```
+rehearsal.shaftColumn = -8,19：井柱被钉死（pickDigColumn 不参与，就地采纳也只认这一柱）
+shaft.stepping.1 = -9, 66, 19 → -8,19 (正站在岩浆柱上)     shaft.standingOn = -8,19 (选定柱)
+lava.landmark = lavaLake -9, 63, 19（勘测到 72 格源块）      ← 和真 ladder 同一个池子
+forge.away = east      forge.face = 4, 56, 19 朝 east       ← 和真 ladder 逐字相同
+```
+
+**判据 1 达成**：不是「方位是 east」，是**同一个池子 + 同一根井柱 + 同一个模腔坐标**。
+这一级的 east 几何从此**可以按需复现**，不再是随机事件——这是这一轮真正拿到手的东西。
+
+### ⛔️ 但它死在开挖，判据 2/3 没到；而且几何对齐之后**故障还在**
+
+```
+forge.landedY = 56                       ← 身体确实下到了井底
+forge.carved  = 66/67 格开了，1 格没挖动    carve.stuck = {-2=1}：2, 62, 17
+carve.firstStuck = 2, 62, 17=dirt：身体 -5, 63, 19，距 7.3 格，canBreak=false
+cell.0.standMissed = 想站 3, 56, 19，停在 -1, 65, 17，距 4, 56, 19 还有 10.49 格
+                     （脚下 -1, 64, 17=grass_block）
+cell.0.stillShut.1/2/3 = 4, 56, 19=stone：这一格从头到尾没开过
+```
+
+身体下到 y=56 之后，**开挖过程中又把自己垒回了地表**（y=63~65），然后隔着 10.49 格去开井底那一格。
+真 ladder 同一处几何是 `forge.carved = 67/67 格全开` 并一路走到 `recover6`。
+
+**按上一条指示的判法：几何已经对齐，故障没有消失，所以这就是「够不着的那一半」需要一个不上地表
+的办法。** 但那是新的一刀，本轮按边界没有动它——只把它变成了一个**可复现**的红。
+
+⚠️ 一个还没排除的差异：排练给 `cobblestone×64`，真 ladder 那趟 `cobblestone.before = 111`。
+几何对齐了，**手里的东西还没对齐**，下一个人先把这个补齐再判「是不是真缺陷」。
+
+### ⚠️ `exactRow` 那条分支**仍然没有被执行过**，两趟 east 都死在更早的地方
 
 ```
 forge.carved = 63/67 格开了，4 格没挖动     carve.stuck = {-2=4}（都在 y=62）
@@ -194,9 +226,28 @@ cell.0.stillShut.1/2/3 = 6, 56, 17=granite：这一格从头到尾没开过
 身体**站在地表 y=64** 去挖井底 y=56 的第一格 —— 老一族「`mine` 把身体垒上地表」，
 和归档第 1 趟的死因同源。收水（`recover*`）离这里还有三个阶段，**根本没跑到**。
 
-而且这根 `-7,17` 是**排练指定 east 才会选的柱**，ladder 自己未必会选它；真 ladder 那趟
-east 模腔是 `4,56,19`，来自**另一个池子**。所以：杠杆修好了，但在这颗种子的这个池子上，
-**east 侧摆出来的井，身体待不住** —— `exactRow` 的回测仍然欠着。
+而且这根 `-7,17` 是**排练指定 east 才会选的柱**，ladder 自己未必会选它。
+
+### ⛔️ 更正一条我自己的错误推断：真 ladder 那个 east 模腔**不是另一个池子**
+
+我上一段写过「真 ladder 的 east 模腔来自另一个池子（11 级用掉第一个之后的那个）」。**这是错的**，
+而反证就躺在同一份证据 map 里、紧挨着我据以推断的那一行：
+
+```
+真 ladder  lava.landmark = lavaLake -9, 63, 19（勘测到 72 格源块）   shaft.standingOn = -8,19 (就近合格柱)
+排练       lava.landmark = lavaLake -9, 63, 19（勘测到 72 格源块）   shaft.standingOn = -9,21 (选定柱)
+```
+
+**同一个池子。**全部差别是井柱。我是看模腔坐标离得远（`4,56,19` vs `-9,56,38`）就推了个池子出来，
+**没去看同一张表里的 `lava.landmark`** —— 和这一轮抓到的另外两次同型。
+
+而且 `-8,19` 是 `dx=+1, dz=0`，即 **r=1**，而 `pickDigColumn` 从 **r=2** 起往外扫 ——
+**ladder 真正用的那根柱，这个搜索永远提不出来**。它是靠 `stepOntoDiggableColumn` 的就地采纳
+拿到的（`lava.arrivedDistance = 1`，走到离池子 1 格就停下并采纳了脚下）。
+
+**所以「跳过最近的池子」这条下一刀的前提不成立，不要照做。** 要复现的是**井柱**，不是池子、
+也不是方位：`-PforgeAway=east` 只能从 r≥2 的环上给出 `-7,17`，那是 ladder 从不去的地方。
+本轮因此加了 `-PshaftColumn=x,z`（钉死井柱，`pickDigColumn` 不参与、就地采纳也只认这一柱）。
 
 ### 跑过的
 
@@ -210,7 +261,8 @@ east 模腔是 `4,56,19`，来自**另一个池子**。所以：杠杆修好了�
 | `-Prehearse=PORTAL_LIT -PforgeAway=east/south/west/north`（杠杆修好**前**） | 四趟全 **PASS**，但四趟**同一处几何**（见上表）—— 这是「杠杆是空的」的证据，不是四朝向覆盖 |
 | `-Prehearse=PORTAL_LIT -PforgeAway=east`（只修 `pickDigColumn`） | FAIL —— 就地采纳短路把它拐去 `north`，证明只修一处不够 |
 | `-Prehearse=PORTAL_LIT -PforgeAway=east`（两处都修） | FAIL 8931t —— **但 `forge.away = east` 第一次出现**；死在 `cell.0` 挖不开（身体站地表 y=64 挖 y=56），收水没跑到 |
-| `stagewrightDedicatedServerFabric` ×3 | **VERDICT: GREEN**（226 执行 / 20 skip，ec=0），三刀各跑一次 |
+| `-Prehearse=PORTAL_LIT -PshaftColumn=-8,19` | FAIL 8055t —— **模腔与真 ladder 逐字相同**（`lavaLake -9,63,19` + `forge.face = 4,56,19 朝 east`）；`forge.carved = 66/67`，死在 `cell.0`（身体 `-1,65,17`，距 10.49 格） |
+| `stagewrightDedicatedServerFabric` ×4 | **VERDICT: GREEN**（226 执行 / 20 skip，ec=0） |
 | `check_source_budget.py`、`check_scene_arena.py` | 过 |
 
 ⚠️ **`exactRow` 这条分支至今一次都没执行过**：所有回归臂的 `.rise` 都是**矮**的那一种
@@ -220,12 +272,18 @@ east 模腔是 `4,56,19`，来自**另一个池子**。所以：杠杆修好了�
 
 ### 下一个人怎么把 `exactRow` 真的回测掉
 
-杠杆现在是通的，但这颗种子的第一个池子在 east 侧摆不出能用的井。三条路，按便宜排序：
+**几何这一关已经过了**（`-PshaftColumn=-8,19` 逐格复现），卡在它前面的是开挖。按顺序：
 
-1. **`-PforgeAway=north/west` 再各试一趟**（现在会真的转向了）—— 也许某一侧的井是好的。
-2. **让排练用第二个池子**：真 ladder 的 east 模腔 `4,56,19` 来自 11 级用掉第一个池子之后的
-   那一个。给排练加一个「跳过最近的池子」的布景参数，比逼 east 侧更贴近真实几何。
-3. 实在不行就等 ladder 自己抽到 —— 但那正是这一整轮想摆脱的赌法。
+1. **先把手里的东西也对齐**：排练给 `cobblestone×64`，真 ladder 那趟是 111。
+   改 `stagePortalLit` 的给予量再跑一趟 `-PshaftColumn=-8,19`。**这是最便宜的一步**，
+   而且它决定下一步是「修缺陷」还是「修布景」。
+2. 如果对齐之后仍然 `cell.0` 开不了，那就是**「够不着的那一半」**：`canBreak` 为真时就地挥
+   已经生效（`forge.swung = 63/67`），够不着时落回 `mine`，而 `mine` 会把身体垒上地表
+   （`cell.0.standMissed 停在 -1, 65, 17`）。要的是一个**不上地表**的够法。
+3. 开挖过了，才轮得到 `recover6` 那一格去执行 `exactRow`。
+
+**不要再用 `-PforgeAway` 当回测手段**（它只能从 r≥2 的环上给柱，给不出 ladder 用的 r=1），
+也**不要去做「跳过最近的池子」**——那条基于我一个已被证伪的推断，见上面的更正。
 
 ### 下一个人从这里开始
 
