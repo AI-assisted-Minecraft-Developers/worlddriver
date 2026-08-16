@@ -2003,13 +2003,56 @@ public final class JourneyPortalRung {
      * Which block, aimed at from where the body is STANDING RIGHT NOW, puts the fluid in the target.
      *
      * <p>The same two candidates {@link #standToPour} weighs — the backing's near face and the
-     * target's own floor — clipped from the real eye rather than from a predicted one, and returning
-     * null when neither works so the caller's own gate can refuse to spend the bucket.
+     * target's own floor — and the answer is decided by <b>the ray the bucket is actually going to
+     * fire</b>, not by the segment that chose the candidate. Null when neither survives that, so the
+     * caller's own gate can refuse to spend the bucket.
+     *
+     * <h2>Why the two rays are not the same ray, even standing still</h2>
+     *
+     * The segment version clips {@code eye → atCenterOf(aim)} in doubles. The bucket does not: it
+     * reads {@code getXRot()}/{@code getYRot()}, which {@code aimAtBlock} stored as <b>floats</b>
+     * computed from the same eye, and re-derives a direction from them through {@code Mth}'s
+     * lookup-table trigonometry. Nominally the same line; not bit-for-bit the same line.
+     *
+     * <p>Normally that costs a ten-thousandth of a block and decides nothing. It decides a whole cell
+     * when the line runs along a block EDGE, and the real ladder of 2026-08-16 hit exactly that at
+     * cell three:
+     *
+     * <pre>
+     * cast3.fromHere = -9,56,32 就地瞄 -11,57,34，流体会落进 -11,57,33（不走了）
+     * cast3.picks    = -10,57,34 granite face=north → 落进 -10,57,33
+     * </pre>
+     *
+     * Hand-computed from those two rows, and stated as the likely mechanism rather than as a measured
+     * one, because the rows print CELLS and the arithmetic needs the sub-cell position: a body at the
+     * centre of {@code -9,56,32} has its eye at {@code (-8.5, 57.62, 32.5)}, the aim's centre is
+     * {@code (-10.5, 57.5, 34.5)}, so {@code dx = -2.0} and {@code dz = +2.0} — {@code yaw} is
+     * exactly 45° and the whole segment lies on the plane {@code x + z = 24}, which is the diagonal
+     * through block corners. Every cell boundary it crosses, it crosses at a corner, and which of the
+     * four cells meeting there counts as hit is then decided by the last bit of the direction vector.
+     * Two rays that differ in that bit tie-break opposite ways, one cell apart, which is exactly the
+     * shape of the recorded disagreement.
+     *
+     * <p>Note what this is NOT: the fill's stale-aim trap, where the body moved between the question
+     * and the shot. Here it is one tick and one eye. The measurement that ruled quantisation out for
+     * that one was taken on a much steeper aim and does not carry over — an eye-drift row of 0.00
+     * says nothing about a ray riding an edge.
+     *
+     * <p>And the fix does not rest on the mechanism being right. Whatever splits the two rays, the
+     * one that decides is now the one that fires.
+     *
+     * <p>So the candidate is not accepted on the segment's word. It is aimed at for real, and the
+     * SAME {@code aimedAt} the {@code .picks} gate runs a moment later has to agree; a candidate that
+     * disagrees is skipped and the next one tried, which is why the two-element list matters — the
+     * backing is a nearly horizontal shot and the floor is a steep one, and an edge-riding geometry
+     * is very unlikely to be shared by both.
      */
     private static BlockPos aimThatLandsIn(ServerLevel level, JourneyRig rig, BlockPos target,
-                                           Direction away) {
+                                           Direction away, String tag) {
         var eye = rig.player().getEyePosition();
+        int candidate = 0;
         for (BlockPos aim : List.of(target.relative(away), target.below())) {
+            candidate++;
             if (!level.getBlockState(aim).isSolidRender(level, aim)) continue;
             var to = net.minecraft.world.phys.Vec3.atCenterOf(aim);
             if (eye.distanceTo(to) > JourneyFill.BUCKET_REACH) continue;
@@ -2019,7 +2062,26 @@ public final class JourneyPortalRung {
             if (hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) continue;
             if (!hit.getBlockPos().equals(aim)) continue;
             if (!aim.relative(hit.getDirection()).equals(target)) continue;
-            return aim;
+            // THE SHOT, not the prediction of it. Aiming here is not a side effect to apologise for:
+            // the caller's very next act is to aim at whatever this returns, so the body ends up
+            // pointing at the candidate either way — this only makes the decision and the aim the
+            // same act.
+            rig.body().avatar().aimAtBlock(aim);
+            var fired = WorldDriverJourneyScenes.aimedAt(rig.player(), JourneyFill.BUCKET_REACH, false);
+            BlockPos into = fired.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+                    ? fired.getBlockPos().relative(fired.getDirection()) : null;
+            if (target.equals(into)) return aim;
+            // Named, and named per candidate. A row that only said「没有能浇的落脚点」would send the
+            // next reader looking at the geometry, which is fine — and this one says the geometry was
+            // fine and the two rays disagreed, which is a different search entirely.
+            rig.evidence(tag + ".aimForked." + candidate, "线段 clip 说瞄 "
+                    + aim.toShortString() + " 会落进 " + target.toShortString()
+                    + "，但存成角度之后真正的射线落进 "
+                    + (into == null ? String.valueOf(fired.getType()) : into.toShortString())
+                    + " —— 换下一个候选（身体 " + rig.player().blockPosition().toShortString()
+                    + "，眼睛 " + String.format(java.util.Locale.ROOT, "%.2f/%.2f/%.2f", eye.x, eye.y, eye.z)
+                    + " 朝 yaw=" + String.format(java.util.Locale.ROOT, "%.2f", rig.player().getYRot())
+                    + " pitch=" + String.format(java.util.Locale.ROOT, "%.2f", rig.player().getXRot()) + "）");
         }
         return null;
     }
@@ -2135,11 +2197,11 @@ public final class JourneyPortalRung {
         // `身体在 -10,57,35`, two rows below the row it had just built to reach. The fill has had
         // this short-circuit since run 36 for the same reason; this is it on the pour side.
         PourSpot spot = null;
-        BlockPos already = aimThatLandsIn(ctx.level(), rig, target, away);
+        BlockPos already = aimThatLandsIn(ctx.level(), rig, target, away, tag + "." + tries);
         if (already != null) {
             rig.evidence(tag + ".fromHere." + tries, rig.player().blockPosition().toShortString()
                     + " 就地瞄 " + already.toShortString() + "，流体会落进 "
-                    + target.toShortString() + "（不走了）");
+                    + target.toShortString() + "（不走了）；" + JourneyFill.eyeNow(rig));
             spot = new PourSpot(rig.player().blockPosition(), already);
         }
         if (spot == null) spot = standToPour(ctx.level(), rig, target, away, why);
@@ -2167,24 +2229,45 @@ public final class JourneyPortalRung {
             // choosing and pouring, and from there the backing is the wrong thing to aim at while
             // the target's floor would still have worked. Both are clipped from the real eye here,
             // so whichever one lands in the target is the one used.
-            BlockPos aimNow = aimThatLandsIn(ctx.level(), rig, target, away);
+            // …and the post-walk ask is tagged apart from the pre-walk one, because the whole point of
+            // asking twice is that the body is somewhere else now.
+            BlockPos aimNow = aimThatLandsIn(ctx.level(), rig, target, away,
+                    tag + "." + tries + ".walked");
             if (aimNow != null && !aimNow.equals(backing))
                 rig.evidence(tag + ".reaimed." + tries, backing.toShortString() + " → " + aimNow.toShortString()
                         + "（走完发现身体在 " + rig.player().blockPosition().toShortString() + "）");
-            BlockPos at = aimNow != null ? aimNow : backing;
-            rig.body().avatar().aimAtBlock(at);
+            BlockPos planned = aimNow != null ? aimNow : backing;
             // Clear a plant off the line first. This rung's lake is at y=63 — on the SURFACE — so
             // unlike the underground forge it is standing in grass, and grass is REPLACEABLE: the
             // pour would not miss, it would succeed into the grass cell and be read as "no obsidian
             // here". Same swing the obsidian rung uses, and for the same reason mine cannot do it.
-            clearPlantOnLine(ctx, rig, at, tag, () -> rig.settle(new HoldStill(2), 10, () -> {
+            clearPlantOnLine(ctx, rig, planned, tag, () -> rig.settle(new HoldStill(2), 10, () -> {
+                // SETTLE FIRST, THEN AIM, THEN PREDICT AND USE — all from one eye. The order was the
+                // other way round here long after `JourneyFill.scoop` was fixed for exactly this, and
+                // the pour is where it still cost cells. `aimAtBlock` stores an ANGLE computed from
+                // wherever the eye was; these two ticks are the ticks a body falls in.
+                //
+                // Measured, single-bucket rehearsal 2026-08-17, cell ten, approach three:
+                // `cast9.fromHere.3 = -9,57,36 就地瞄 -10,60,39，流体会落进 -10,60,38` and then
+                // `cast9.picks.3 = … 身体 -9,56,36` — a WHOLE BLOCK of eye height between the
+                // decision and the shot, and the ray duly entered the frame's plane one row low.
+                // Approach two then repeated it inside one cell: same block position both times, the
+                // body floating in the alcove's own water, and the two rays still disagreed — sub-cell
+                // motion, which is why the eye is now printed to the centimetre on both rows.
+                //
+                // So the aim is decided here, after the last settle, by the same closed loop
+                // `aimThatLandsIn` runs — and what it returns is what fires.
+                ServerLevel lvl = ctx.level();
+                BlockPos settled = aimThatLandsIn(ctx.level(), rig, target, away,
+                        tag + "." + tries + ".settled");
+                BlockPos at = settled != null ? settled : planned;
+                rig.body().avatar().aimAtBlock(at);
                 // Where the fluid is actually going to land, recorded BEFORE it is spent. A filled
                 // bucket clips with `Fluid.NONE` and empties into the cell in front of the face it
                 // hits, so this pick IS the destination — and without it a pour that succeeded into
                 // the wrong cell is indistinguishable from a pour that did not work, which is the
                 // shape of the last three rounds of this rung's investigation. `pourInto` has had
                 // this instrument for a while; the ten casts that matter never did.
-                ServerLevel lvl = ctx.level();
                 var hit = WorldDriverJourneyScenes.aimedAt(rig.player(), JourneyFill.BUCKET_REACH, false);
                 BlockPos lands = hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
                         ? hit.getBlockPos().relative(hit.getDirection()) : null;
@@ -2194,7 +2277,8 @@ public final class JourneyPortalRung {
                         : String.valueOf(hit.getType()))
                         + "（想浇 " + target.toShortString() + "，瞄 " + at.toShortString()
                         + "=" + lvl.getBlockState(at).getBlock()
-                        + "，身体 " + rig.player().blockPosition().toShortString() + "）");
+                        + "，身体 " + rig.player().blockPosition().toShortString()
+                        + "，" + JourneyFill.eyeNow(rig) + "）");
                 rig.evidence(tag + ".before." + tries, target.toShortString() + "="
                         + lvl.getBlockState(target).getBlock());
                 // Do not spend the bucket unless the ray lands where the plan says. This is the same
@@ -2215,8 +2299,13 @@ public final class JourneyPortalRung {
                                 () -> placeFluid(ctx, rig, target, away, held, tag, tries - 1, then)));
                         return;
                     }
-                    ctx.fail("浇不到指定格：想浇 " + target.toShortString() + "（瞄背板 "
-                            + backing.toShortString() + "），射线会把流体放进 "
+                    // THE BLOCK THAT WAS ACTUALLY AIMED AT, not the one chosen before the walk. Those
+                    // differ whenever the settled re-ask moved the aim, and quoting the stale one
+                    // sends the reader to a geometry that was never fired.
+                    ctx.fail("浇不到指定格：想浇 " + target.toShortString() + "（瞄 "
+                            + at.toShortString()
+                            + (at.equals(backing) ? "" : "，选落脚点时瞄的是 " + backing.toShortString())
+                            + "），射线会把流体放进 "
                             + (lands == null ? String.valueOf(hit.getType()) : lands.toShortString())
                             + "，身体在 " + rig.player().blockPosition()
                             + "；浇线上是 " + pourLine(lvl, target, away)

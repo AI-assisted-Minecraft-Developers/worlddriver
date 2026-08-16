@@ -280,7 +280,7 @@ public final class JourneyFill {
      * is the same family as the two ray traps this repo has already paid for; the first is a rounding
      * error and would show as a body that did not move at all.
      */
-    private static String eyeNow(JourneyRig rig) {
+    static String eyeNow(JourneyRig rig) {
         var fp = rig.player();
         var eye = fp.getEyePosition();
         return String.format(java.util.Locale.ROOT, "眼睛 %.2f/%.2f/%.2f 朝 yaw=%.2f pitch=%.2f",
