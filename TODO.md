@@ -1,4 +1,195 @@
-## ⬜ 接手点 —— 真 ladder 爬到 14 级（BLAZE_ROD）；12 级 2/2，13/14 级第一次执行
+## ⬜ 接手点 —— 15 级红在「游戏不认为这里有玩家」：身体从不告诉 ChunkMap 它挪过窝
+
+**机制查死了，改动在排练里 A/B 观测到了。真 ladder 两趟只到 10 级和 11 级（上一轮 14 级），
+但那两条红都不是刷怪，而且「是这一刀干的」的两条候选机制已被逐条证伪、第 12 级还做了单级
+A/B 对照归档臂 —— 剩下的解释是方差。判据「ladder 回到 14 级」本轮没有达成。
+改动已提交，读数和这一刀分两笔。**
+
+### 15 级的红不是光照、不是同类上限、不是 14 级那间屋子，也不只是生物群系
+
+`ServerChunkCache.tickChunks` 在调 `NaturalSpawner.spawnForChunk` 之前先问
+`chunkMap.anyPlayerCloseEnoughForSpawning(chunk)`。这一问里有两半：一半是拿玩家**实时坐标**算的
+128 格距离（这半是好的），另一半是 `DistanceManager.hasPlayersNearby` —— 一张
+`FixedPlayerDistanceChunkTracker(8)`，**只有 `ChunkMap.updatePlayerStatus`（join / 换维度）和
+`ChunkMap.move` 会更新**。真玩家的 `move` 是移动包处理器 `handleMovePlayer` 每收一个包调一次；
+这具身体自己积分位移、不发包，**于是从 `placeNewPlayer` 把它放下的那一刻起，ChunkMap 就一直
+认为它站在当初落地的那个区段**。身体走出 8 区块，就走出了这一层唯一会刷怪的窗口，
+而且没有任何一行会说这件事 —— 怪照刷，刷在它来的地方。
+
+（传播是切比雪夫：`ChunkTracker.checkNeighborsAfterUpdate` 往 8 个邻居各 +1，所以窗口是正方形，
+`max(|dx|,|dz|)` 才是能和 8 比的那个数。）
+
+### 读数：`census(...)` 尾部现在带 `spawnGate(...)`，一句话分开四个世界
+
+```
+刷怪三闸：身体在区块 [8, -15]，实体在跑=true，
+ChunkMap 认为这一格近旁有 0 个玩家（它记的身体在区块 [0, 0]，差 15 区块；那张表只认 8 区块以内，
+而只有 join 和 ChunkMap.move 会更新它）；本层怪物 69/70 只（上限 = 70 × 可刷区块 289 / 289）
+```
+
+`enderman.found=0/6` 以前是四个世界共用的一句话（什么都不刷 / 站错生物群系 / 上限被别处占满 /
+刷了但在搜索半径外），旁边那行 biome 只替得了其中一个说话。
+
+### 改了什么：`ServerPlayerAvatar.step()` 末尾补上那次 `move`
+
+守卫 `level.players().contains(fp)` **不是防御性的**：`ChunkMap.move` 末端是
+`DistanceManager.removePlayer`，它会去 `playersPerChunk` 取「离开的那个区段」的集合并解引用，
+没被 place 过的身体那里没有条目，直接 NPE。而填 `ServerLevel.players()` 的回调和调
+`ChunkMap.addEntity` 的是同一个回调，两者同进同出，所以这个问法恰好正确。
+六条 gate 全部不受影响：它们的身体是 FakePlayer，不在 `players()` 里，这一句直接返回。
+
+### A/B：同一颗种子、同一个起点、同一条 rung 的两趟 `-Prehearse=ENDER_PEARL` 排练
+
+| | 基线 | 带这一刀 |
+|---|---|---|
+| ChunkMap 记的区块 vs 身体所在 | `差 15 区块` | **`差 0 区块`** |
+| `getPlayersCloseForSpawning(身体这一格)` | **0 个玩家** | **1 个玩家** |
+| 身体 128 格内的怪物 | 66 只（全刷在「旧窗口 ∩ 实时 128 格圆」那条缝里，离身体 100–128 格） | 106–109 只，上限打满 `72/70` |
+| 末影人 | 一趟都没有 | `hunt.1.dry` 里出现 `enderman=1`（128 格内，本 rung 有史以来第一只） |
+
+**两趟排练都 FAIL，但死因换了，而且换的是往下一层的死因**：基线死在「刷怪闸关着」；
+带这一刀那趟死在**穿越第 1 段就掉进岩浆**（`warped.hops = #1 走 11/48 格 865t … 入岩浆`，
+收工 `泡在岩浆里 17,21,14`），于是就地在 nether_wastes 猎，而那里 `本层怪物 70/70` 全是
+猪灵（`zombified_piglin=68, piglin=23, piglin_brute=17`）—— **上限被猪灵占满，末影人再也挤不进来**。
+这是这一刀之后 15 级的下一道闸，还没有人碰过。
+
+### 基线那趟还顺手量到一件事：`warped.arrivedBiome = nether_wastes`
+
+`WARPED_ARRIVE_WITHIN = 8` 比生物群系的边界还宽，身体停在离采样点 7 格的地方，
+脚下那一格是 `nether_wastes` 不是 `warped_forest`。**「走到了」和「站进去了」是两回事**，
+这一级的整套设计（疣林是末影人最密的地）建立在后者上。
+
+### ⚠️ 真 ladder 跑了两趟，都没走到 15 级：**10 级**和 **11 级**（上一轮是 14 级）
+
+| | 第 1 趟 22:16→22:39 | 第 2 趟 22:42→23:05 |
+|---|---|---|
+| 1–10 级 | 全 PASS，且**比归档那趟都快** | 全 PASS |
+| 11 级 OBSIDIAN | **FAIL** 6163t | **PASS** 2820t |
+| 12 级 PORTAL_LIT | BLOCKED | **FAIL** 8651t |
+| `journey.height` | `PORTAL_KIT`（10） | `OBSIDIAN`（11） |
+
+```
+第 1 趟 11 级：走不到岩浆柱：目标 -6,54，停在 29, 61, 77（水平相距 42 格，已重规划 3 次）
+              lava.goto.1/2/3 = end=failed:no progress for 1200 ticks (best dist=438 / 442 / 442)
+第 2 趟 12 级：走不回模腔：停在 -9, 60, 28，楼梯底 -9, 56, 32 在 y=56 ——
+              带着一桶岩浆停在半路，浇下去只会浇进楼梯。第 2/3 段
+```
+
+**两条红都不是刷怪，而且「怪物把身体挤住了」这个第一直觉可以一句话排除**：suite 开场就打
+`WORLD PINNED … clock=frozen@midnight doDaylightCycle=false doMobSpawning=false`，
+只有 14/15 级自己调 `rig.liveWorld(true)` 把 `doMobSpawning` 打开、并在 cleanup 里还回去。
+**11/12 级跑的时候整个世界一只怪都刷不出来**，所以这一刀新引入的「世界会刷怪了」在那里没生效。
+两条红都落在早就有名有姓的老族里（走位空转、壁龛几何），不是新故障。
+
+**但也不能就此判它无罪。** 上一轮两趟都过了 11、12 级，这一轮两趟一个没过（0/2 对 2/2），
+所以下面这两条候选机制被逐条问死了 —— **两条都不用再跑一趟，归档里就有答案**。
+
+#### 候选一「泡泡跟着身体走 = 每 tick 大量区块装卸的开销」——**证伪**
+
+两趟 ladder 每一条 rung 的 `ticks / wallMs` 全是 **20.00 tick/s**，包括两条红的：
+
+```
+run1: 03Wood 20.01  05StoneTools 19.29  06Food 20.01  09Iron 20.00  10PortalKit 20.00  11Obsidian(FAIL) 20.00
+run2: 03Wood 20.01  05StoneTools 19.30  06Food 20.01  09Iron 20.00  10PortalKit 20.01  11Obsidian 20.00  12PortalLit(FAIL) 20.00
+```
+
+服务端全程有富余，红的那两条也一样。（`05StoneTools` 的 19.3 两趟一模一样，是那一级固定的一段
+非 tick 工作，不是回归。）**开销假说要求掉 tps，而 tps 一点没掉。**
+
+#### 候选二「以前白拿一大片常驻加载区，现在没了」——**证伪，靠几何**
+
+先把前提量出来而不是假设：日志里写着身体 join 在哪一格 ——
+`[realbody] agent-body-1 joined minecraft:overworld at BlockPos{x=56, y=67, z=59}` → **区块 (3,3)**，
+出生区块是 (4,3)。改之前那个泡泡就钉在这里：`simulation-distance=10` →
+`getPlayerTicketLevel()=31-10=21`，实体 tick 到 10 区块；`view-distance=10` →
+`updatePlayerTickets(11)`，11 区块内每格各拿一张 `PLAYER` 票，而那张票的等级就是
+`ChunkLevel.byStatus(ENTITY_TICKING)=31`，所以实际的实体 tick 半径不小于 10。
+
+再把每一级实际用到的最远坐标量出来（从 results 里扫）：
+
+```
+02Spawn 5 区块   03Wood 1   05StoneTools 1   06Food 5   09Iron 2
+10PortalKit 3    11Obsidian 5（-6,26,54）   12PortalLit 5（-9,63,19）
+```
+
+（`01Recon` 那个 78 区块是勘测采样点，身体没去过。）
+
+**2–12 级用到的每一格都在出生区块 5 区块以内，也就是同时落在「旧泡泡」和「新泡泡」里面。**
+旧的以 (3,3) 为心、实体 tick 半径 10；新的以身体为心，而身体本来就在这片区域里。
+换句话说，**这两种配置下，1–12 级碰到的每一个区块的「加载/实体在跑」状态是一样的** ——
+「免费加载区没了」这条要成立，得让工作区落到新泡泡外面，而它一次都没有落出去。
+
+#### 候选三：直接把红的那一级单独跑一遍，和归档的对照臂比
+
+12 级有一个**现成的、跑过的、记在树上的对照臂**：上一轮那趟
+「对照组（回退代码，单桶排练）**PASS** `frame.cast=10/10`、`portal.cells=6/6`（模腔 `-9,56,38`）」。
+本轮拿同一条 `-Prehearse=PORTAL_LIT`、同一颗种子、同一处模腔，**带着这一刀**再跑一遍：
+
+```
+wd.rehearse12PortalLit -> PASS (7468 ticks)
+forge.face = -9, 56, 38 朝 south      forge.carved = 67/67 格全开
+frame.cast = 10/10（丢 0 格）          frame.obsidian = 10/10      portal.cells = 6/6
+recover0..9.result = CONSUME ×10
+```
+
+**和对照臂逐行相同。** 同一条 rung、同一处几何，改前 PASS，改后 PASS，十次收水全 CONSUME。
+ladder run2 那条 12 级红（`走不回模腔：停在 -9,60,28`）**不是这一刀造出来的系统性故障**。
+
+#### 结论
+
+三条候选机制两条被证伪、一条被单级 A/B 反证，剩下的解释是**方差**，而基线支持它：
+12 级在更早一轮就是 1/2（`第二趟换了一处模腔…12 级红`），11 级那条
+`no progress for 1200 ticks` 是 TODO 里点了名的老族（执行器离开自己的计划再也回不去）。
+这一轮 11 级 1/2、12 级 0/1，**样本量本来就分不开**。
+
+**但判据 1（真 ladder 回到 14 级）本轮没有达成，也没有再跑** —— 上面是三条反证加一次单级 A/B，
+不是一趟 14 级的 ladder。别把它读成后者。
+
+### 跑过的
+
+| 跑法 | 结果 |
+|---|---|
+| `-Prehearse=ENDER_PEARL` 基线（只加读数，不改行为） | FAIL —— `0 个玩家 / 差 15 区块`，红因确诊 |
+| `-Prehearse=ENDER_PEARL`（带这一刀） | FAIL —— `1 个玩家 / 差 0 区块`，刷怪闸开了，红因换成穿越掉岩浆 + 上限被猪灵占满 |
+| 真 ladder 第 1 趟 | `journey.height = PORTAL_KIT`（10），红在 11 级走位 |
+| 真 ladder 第 2 趟 | `journey.height = OBSIDIAN`（11），红在 12 级壁龛楼梯 |
+| `-Prehearse=PORTAL_LIT`（带这一刀，对照归档的回退臂） | **PASS** 7468t，`frame.cast=10/10`、`portal.cells=6/6`、`recover0..9=CONSUME` —— 与对照臂逐行相同 |
+| `stagewrightDedicatedServerFabric` | **VERDICT: GREEN**（226 执行 / 20 skip，ec=0） |
+| `check_source_budget.py`、`check_scene_arena.py` | 过 |
+
+### 下一个人从这里开始
+
+1. **这一刀的等级是 `backtested`（排练 A/B 观测到），不是 `live`。**
+   真 ladder 上 15 级一次都没在这一刀之下执行过 —— 两趟都被 11/12 级挡在下面。
+   提交分两笔：`say which spawn gate is shut when a nether census comes back empty`（读数）、
+   `tell the chunk map where a driven body actually is`（这一刀）。
+2. **别再跑 `view-distance=4` 那个对照了 —— 它要证的两条机制都已经被证伪**（见上）。
+   缩小泡泡只会引入第三种配置（加载半径 5 区块，比改前的 11 和改后的 11 都小），
+   A/B 反而不干净。真要继续查，查的是「过区块边界那一刻 ticket 等级的短暂抖动」，
+   那要看 ticket 类型和 `PlayerTicketTracker` 的节流队列，不是看半径。
+3. **要判这一刀有没有责任，别再靠爬 ladder 的级数**：11、12 级各自都有 50% 上下的老故障率，
+   两趟根本分不开。**用单级排练对照归档臂**，本轮 12 级就是这么做的，一趟 6 分钟而不是 27 分钟；
+   11 级还没有这样比过（`-Prehearse=OBSIDIAN`），那是最便宜的下一刀。
+4. **⚠️ 退化这笔账没有平：ladder 至今没有在这一刀之下回到 14 级，本轮也没有再跑。**
+   **下一趟真 ladder 的第一件事就是看它回不回得去。**
+   - 回得去 → 方差假说成立，这一刀结案，等级可以从 backtested 升到 live；
+   - 回不去 → 靶子是**唯一还没排干净的那条**：过区块边界那一刻 ticket 等级的短暂抖动。
+     查它要看 **ticket 类型和 `PlayerTicketTracker` 的节流队列**（`ChunkTaskPriorityQueueSorter`
+     异步发票，身体快速移动时前沿的 `PLAYER` 票可能来不及提升到 `ENTITY_TICKING`），
+     **不是看半径** —— 半径那条已经被上面的几何证伪了，再调它只是换一种配置。
+5. **15 级的下一道闸已经量到了，有两条，都还没人碰**：
+   - **怪物上限**：身体站在 nether_wastes 里时 `本层怪物 70/70` 全是猪灵
+     （`zombified_piglin=68, piglin=23, piglin_brute=17`）。上限是全层共享的
+     （`canSpawnForCategory` 在 `mobCategoryCounts[MONSTER] >= 70` 时对**整层**返回 false），
+     所以猪灵占满 = 末影人一只也挤不进来，跟站在哪儿无关。
+   - **「走到了」和「站进去了」不是一回事**：`warped.arrivedBiome = minecraft:nether_wastes（停在
+     130, 41, -229）`，`WARPED_ARRIVE_WITHIN = 8` 比生物群系边界还宽，身体停在离采样点 7 格、
+     脚下那一格根本不是疣林。这一级的整套设计（疣林是末影人最密的地）建立在后者上。
+   两条互相咬着：真正站进疣林深处，附近可刷区块才大多是疣林，末影人才抢得过猪灵。
+   备选是把 `ENDERMAN_SEARCH`/`SEE_CHUNKS` 放宽到能看见并走到 48–128 格外那几只
+   （实测 `末影人 0 只在 48 格内、1 只在 128 格内`）。
+
+## ⬜ 上一轮的接手点 —— 真 ladder 爬到 14 级（BLAZE_ROD）；12 级 2/2，13/14 级第一次执行
 
 **新高：`journey.height = BLAZE_ROD`（第 14 级），`journey.stagingCalls = 0`。**
 在此之前真 ladder 最高只到 12 级。两趟都跑完全程，没有中途收手。
