@@ -283,6 +283,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   regression on a `south` mould (10/10 cast, 6/6 cells, ten `recover*` CONSUME)** — that rehearsal's
   two `.rise` rows were both the *too low* kind, so the new branch has not yet executed anywhere, and
   `east` moulds are drawn at random.
+
+  **Now `backtested`, and the honest reading is that the branch runs and does not yet do what it
+  claims.** The rehearsal of 2026-08-17 reproduced the climb's `east` mould and reached cell six, so
+  the branch executed for the first time: `recover6.rise = … 高度已经够了 —— 差的是柱`,
+  `recover6.rise.raiseTo.arrivedDistance = 0`, and the flight the old `>=` skipped now exists —
+  `recover6.rise.ramp.flight = 2 级：3, 56, 20 → 3, 57, 19`, `ramp.laid = 2/2 级垫好了`. But
+  `ramp.rampedY = 59/58` and `raisedY = 59/58（停在 3,20，指定柱 3,19，不是同一柱 … 比要站的排高
+  1 排）`: the ramp built its steps and the body still ended one row high and one column over, so the
+  scoop was NOT fired from the row its column was verified for. What saved the cell is the fill's own
+  re-choice — `recover6.fromHere = 3, 59, 20 已经看得见源块 4, 59, 19（够得着）` → `CONSUME` — which
+  is the third time on record that `raiseColumn`'s answer is a hint rather than a contract. So of the
+  five things this change was to be judged on, four hold (`.ramp.*` present, ten `recover*` CONSUME,
+  `frame.cast = 10/10`, `portal.cells = 6/6`) and the fifth — the raise landing on the verified row —
+  does not. The rung is green over it, which is why it is written down.
 - **The portal rung's water recover no longer accepts a height as an answer about a sightline.**
   `riseToTakeItBack` held two gates: the `SOURCE_ONLY` clip the bucket runs, and
   `if (here.getY() >= wantY) return;`. The second is what lost the real ladder of 2026-08-16 on its

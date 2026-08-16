@@ -1,4 +1,142 @@
-## ⬜ 接手点 —— 穿越的 wedge 判据换成棘轮，阶梯这才第一次真正跑起来；但真 ladder 两趟都红在 12 级，没走到穿越
+## ⬜ 接手点 —— 12 级 `east` 那条红是**假红**：差异排空之后排练一趟走通，10/10、6/6；新红在 south 臂的装料点
+
+**这一轮只改了一个变量：`stepOntoDiggableColumn` 里那一腿「一格没挪」时不再重问同一个问题，
+而是背对岩浆退四格再问。** 在与真 ladder 逐字相同的 `east` 几何上，这一刀把整条 12 级打通了：
+
+```
+shaft.wedged.2   = -13, 66, 21 这一腿一格没挪（上一腿从 -13, 66, 21 起）—— 先退到 -17,25（背对岩浆）站稳再问
+shaft.backOff.2  = -17, 66, 24（退到了，从这里重问）
+shaft.standingOn = -8,19 (选定柱)         stairs.top = -8, 66, 19 往 east 下 10 级到 y=56
+forge.face       = 4, 56, 19 朝 east      forge.carved = 67/67 格全开     carve.stuck = 无
+recover0..9.result = CONSUME（十个全 CONSUME）
+frame.cast = 10/10   frame.obsidian = 10/10   portal.cells = 6/6
+PASS 19807t，staging.calls = 13
+```
+
+**所以判据 2/3 到了，差异清单排空了：那条「开挖 66/67、身体垒回地表」的红是布景不足造成的假红，
+不是缺陷。** 之前它在 `-PshaftColumn=-8,19` 下逐字重现过两趟（圆石 64 / 111，都是 `FAIL 8055t`），
+唯一还差的是水桶——空桶那趟被走位挡在前面没测到，这一轮把走位修通之后，同一处几何一次走通。
+
+### 归档直接定死了死因，没有再花一趟去猜
+
+上一轮留的两条路（**给更多尝试** / **退回就地采纳**）**都被归档否掉了**，理由都在同一份日志里：
+
+```
+shaft.stepping.1 = -13, 66, 21 → -8,19        ← 三腿的起点一模一样
+shaft.stepping.2 = -13, 66, 21 → -8,19
+shaft.stepping.3 = -13, 66, 21 → -8,19
+[pathfinder] search-begin owner=goto start=-13, 66, 21 goal=XZ[x=-8, z=19, radius=0]   ×约 110 条
+[walker] footing guard: sole 0.0000 < 0.18 at -13,66,21 beside a lethal drop → sneak-pin
+```
+
+1. **不是「找不到路」。** 那 110 次搜索**间隔 1.4 秒**，正好是 `Walker` 自己
+   `guardPinStreak >= 30 → path = null` 的节拍 —— 路每次都找到了，30 tick 后被钉住的 pin 丢掉，
+   再找。搜索失败会是 4 s（`maxMs`）一条，不是 1.4 s。
+2. **走不动的原因是它自己的 footing guard。** 身体站在岩浆湖坑沿上：从存档世界里读出来
+   `-13,65,21`、`-14,65,21` 是通向洞穴的空气，隔壁 `-12,65,21` 是草方块，岩浆在 y=63。
+   sole=0.0000 触发 sneak-pin，而 vanilla 的 `maybeBackOffFromEdge` 会把**任何**水平位移收缩到 0
+   ——脚下全空的身体，钉住就等于完全不能动。
+3. **所以「更多尝试」是零。** 三腿 3600 tick、约 110 次同样的搜索、一格没挪：第四腿也一样。
+   这正是归档里那条「a retry that changes nothing」。
+4. **「退回就地采纳」会把复现丢掉。** `-13,21` 在坑沿上，退回去等于换一处几何、换一个开挖起点，
+   而这一轮要测的恰恰是 `east` 那一处。
+
+**方向是这一刀的全部**：`walkToColumn` 现成的补救是走**中点**，在这里是错的 —— 坑沿上的身体和对岸
+柱子的中点就是那个岩浆湖。退的方向必须是**背对水池**。这一刀没有放宽任何判据：要去的柱子一个字没改，
+挪得动的那一腿一个字节没变。
+
+### 顺手补上的那条证据行（它的缺席是这一轮之前那趟白跑的原因）
+
+`lava.arrivedDistance = 4` + `lava.walkAttempts = 1` **两个世界一模一样的读数**：走到了、停在容差内，
+和走不动了、walker 放弃。`walkToColumn` 的 end reason 一直存在，只写在**没到达**那条分支上。现在两边都写：
+
+```
+lava.gotoEnd.1 = end=failed:no progress for 1200 ticks (best dist=44)（判为到达：停在 -13, 66, 21，距 -9,19 4 格，容差 5）
+```
+
+`ARRIVED_WITHIN = 5` **故意没动** —— 下一步是搜索的调用方，五格容差是对的；下一步要精确柱子的调用方，
+现在能看见自己收到的是哪一种到达。
+
+### 排练的两条规矩（写下来，别再靠记）
+
+1. **给予量照真 ladder 那一级的实测值**，不是一个方便的整数（圆石 111，不是 64）。
+2. **工具要按爬升到手时的状态给** —— 水桶给**空**的。满桶省掉的那趟走水路，正是决定「开挖开始时
+   身体站在哪」的那一段；省掉它，测的就不再是同一件事。
+
+`rehearsal.gave` 现在把这两条和「仍然故意不同的只剩镐给两把」一起打在证据行里。
+
+### `exactRow` 回测：分支**执行了**，五条判据过四条，**第五条没兑现**
+
+`east` 几何这一趟第一次跑到 cell 6，上一轮预言的那一格原样出现：
+
+```
+recover6.rise = 3, 58, 18 看不见 4, 59, 19 里的水（… 高度已经够了 —— 差的是柱）
+recover6.rise.raiseTo.arrivedDistance = 0
+recover6.rise.ramp.flight = 2 级：3, 56, 20 → 3, 57, 19      ← 旧的 `>=` 会整段跳过，现在修了
+recover6.rise.ramp.laid   = 2/2 级垫好了
+recover6.rise.ramp.rampedY = 59/58（停在 3, 59, 20，要的落脚格 3, 58, 19，不是同一柱）
+recover6.rise.raisedY      = 59/58（… 比要站的排高 1 排 —— 从这里打出去的不是验过的那条）
+recover6.fromHere = 3, 59, 20 已经看得见源块 4, 59, 19（够得着）    recover6.result = CONSUME
+```
+
+- ✅ `.ramp.*` 出现 ✅ `recover*.result = CONSUME`（十个）✅ `frame.cast = 10/10` ✅ `portal.cells = 6/6`
+- ❌ **`raisedY` 的排数与要站的排一致 —— 没做到**：楼梯垫好了，身体仍然高一排、偏一柱。
+
+**等级：`backtested`（分支已观测执行，一趟 PASS），但它自己的判据没有兑现。**
+救回这一格的是 fill 自己重新选站位（`recover6.fromHere`）——这是第三次记录到
+「`raiseColumn` 给的是提示，不是契约」。**别把这一格的绿读成 `exactRow` 做到了它承诺的事。**
+
+### ⛔️ 新的红：south 回归臂 `FAIL 12595t`，身体**掉进岩浆湖**，cast7
+
+```
+走不回模腔：停在 -15, 59, 19 …… 身体处：脚下 stone，身处 lava，头顶 lava
+station = -14, 65, 21：够得着 3 格源块，距楼梯口 5 格（十趟都站这里）
+cast7.returnStuck3#1.climb.0 = -15,59,19 above=Block{minecraft:lava} onGround=true water=false
+cast7.returnStuck3#1.gained  = 0/7 block(s)（握着 128 圆石，stalled=stuck (no Y gain)）
+forge.carved = 67/67 格全开      shaft.standingOn = -9,21 (选定柱)
+```
+
+**这不是本轮改动造成的，证据是它没有触发**：整趟只有 `shaft.stepping.1` 一条，`shaft.wedged.*` /
+`shaft.backOff.*` 一条都没有 —— `lastFrom` 首次进入是 null，退避分支进不去；另一处改动只是多写一行
+证据。这一臂的代码路径与改动前逐字相同。
+
+**它相对归档那趟 south PASS（6723t）唯一还在树上的行为差别是「水桶换成空的」**（上一轮已上树，
+south 臂在那之后**从没跑过**）。空桶把 `lava.arrivedDistance` 从 1 变成 4，落脚、选柱、
+装料点都跟着变了。**下一个人的第一件事就是这条**，而且已经有一条很具体的线索：装料点
+`-14, 65, 21` 就压在坑沿上 —— 同一趟日志里 `[walker] footing guard: sole 0.1798 < 0.18 at -14,66,21
+beside a lethal drop` 说的就是那一格。**一个「十趟都站这里」的装料点选在会把身体抖进湖里的格子上，
+这是选站位的账，不是走路的账。**
+
+⚠️ **一次样本不是分布**：south 臂只跑了这一趟，还不知道是必然还是抽到的。**别在没有第二趟之前
+就说「空桶把 south 臂弄红了」** —— 那正是归档里「小样本会撒谎」栽过的地方。
+
+### 记下来、本轮按边界没碰的引擎发现
+
+`Walker.footingGuard` 在 `sole = 0.0000` 时也会钉，而**它自己的 javadoc 写着**「已经悬空的身体
+钉不钉都会掉，所以阈值取半个脚掌而不是零」。实际后果是：脚下全空时 vanilla 的
+`maybeBackOffFromEdge` 把每个方向都收缩到 0，钉住 = 一动不能动；`guardPinStreak >= 30 → path = null`
+这条自救只是每 30 tick 重问一次同一条路。**按「不要一上来补引擎」不碰**，本轮用关卡侧的退避解决了
+它在 12 级的表现。真要动它，先想清楚「钉一个已经悬空的身体」买到了什么。
+
+### 跑过的
+
+| 跑法 | 结果 |
+|---|---|
+| `-Prehearse=PORTAL_LIT -PshaftColumn=-8,19`（本轮改动后） | **PASS 19807t** —— `forge.face = 4,56,19 朝 east`、`forge.carved = 67/67`、十个 `recover*` CONSUME、`frame.cast=10/10`、`portal.cells=6/6`、`staging.calls=13`；`shaft.wedged.2` / `shaft.backOff.2` 都观测到 |
+| `-Prehearse=PORTAL_LIT`（south 回归臂，本轮改动后） | **FAIL 12595t** —— 退避未触发（代码路径未变）；`forge.carved = 67/67` 之后走到 cast7，身体停在 `-15,59,19` 岩浆里 |
+| `check_source_budget.py` / `check_scene_arena.py` | 过 |
+
+### 下一个人从这里开始
+
+1. **south 臂那条红**（装料点 `-14,65,21` 压在坑沿上）。先**再跑一趟 south** 定它是必然还是抽签，
+   再谈修法。修法的形状大概率是「装料点不能选会把身体抖下去的格子」，**不是**放宽 `returnStuck`。
+2. **12 级现在值得让真 ladder 再爬一次**：`east` 几何这一族在排练里已经走通，而归档 14 趟里
+   6 趟停在 11 级、死因全是 12 级模腔这一族。**进度仍按分布报：稳定前沿 11 级，最好一趟到过 14。**
+3. `exactRow` 的第五条判据（`raisedY` 排数一致）**还欠着**，见上。
+4. 边界照旧：15 级 `20,41,-23` 那道深渊、`JourneyEndRungs.march`（17 级）第三处用位移当进展的
+   现场（换棘轮，别换「每段净进」）、16–20 级没有 staging 配方 —— **只记不碰**。
+
+## ⬜ 上一轮的接手点 —— 穿越的 wedge 判据换成棘轮，阶梯这才第一次真正跑起来；但真 ladder 两趟都红在 12 级，没走到穿越
 
 **这一轮只改了一个变量：`oneHop` 判「这一段有没有白走」看的是**位移**，来回走的身体每段位移
 40+ 格，于是减半和偏 60° 的阶梯一次都没触发过。换成「比这趟穿越到过的最近点还近多少」之后，
