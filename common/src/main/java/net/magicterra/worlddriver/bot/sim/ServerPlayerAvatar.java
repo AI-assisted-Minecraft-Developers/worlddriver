@@ -816,5 +816,43 @@ public class ServerPlayerAvatar implements Avatar {
         // Ground jump is a one-shot edge (like AvatarInput); the buoyant bob must
         // repeat each tick underwater, so only clear when NOT floating in water.
         if (!inWater) pendingJump = false;
+        tellTheChunkMapWeMoved();
+    }
+
+    /**
+     * Tell the {@code ChunkMap} the body is somewhere else now — the one thing a moving player does
+     * that arrives by PACKET rather than by ticking.
+     *
+     * <p>{@code ServerGamePacketListenerImpl.handleMovePlayer} ends in
+     * {@code player.serverLevel().getChunkSource().move(player)} for every movement packet a client
+     * sends. A driven body sends none, so for a body that JOINED the server
+     * ({@link JoinedPlayerBodies}) the chunk map keeps the section the body was at when it was
+     * placed — and three separate things read that stale section rather than the body's position:
+     * the player's chunk tickets, its entity tracking, and {@code DistanceManager
+     * .hasPlayersNearby}, which is the gate {@code ServerChunkCache.tickChunks} puts in front of
+     * {@code NaturalSpawner.spawnForChunk}. That last one is a fixed 8-chunk window, so a body that
+     * walks more than 128 blocks from where it joined walks out of the only place the level will
+     * spawn a mob, and nothing says so: mobs keep spawning, back where it came from.
+     *
+     * <p>Measured on the ladder's nether rungs: 107 monsters within 128 blocks while the body was
+     * still beside its portal, 2 after it had walked to a fortress 360 blocks away, and 0 for 7200
+     * ticks in a warped forest — a biome whose monster list is endermen and nothing else.
+     *
+     * <p>The guard is load-bearing rather than defensive. {@code ChunkMap.move} ends in
+     * {@code DistanceManager.removePlayer}, which reaches into {@code playersPerChunk} for the
+     * section it is leaving and dereferences what it finds; a body that was never placed has no
+     * entry there and the call would NPE. Membership of {@code ServerLevel.players()} is exactly the
+     * right question, because the callback that fills that list is the same one that calls
+     * {@code ChunkMap.addEntity} — a body is in both or in neither.
+     */
+    private void tellTheChunkMapWeMoved() {
+        if (!(fp.level() instanceof ServerLevel level)) return;
+        // NOT a defensive null-check — deleting this line crashes every fake-player body in the
+        // repo, which is most of them. ChunkMap.move ends in DistanceManager.removePlayer, which
+        // does playersPerChunk.get(sectionBeingLeft).remove(player) with no null guard, and a body
+        // that never went through placeNewPlayer has no entry there. See the javadoc for why
+        // membership of players() is exactly the "was this body placed?" question.
+        if (!level.players().contains(fp)) return;
+        level.getChunkSource().move(fp);
     }
 }

@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **A driven body now tells the `ChunkMap` it moved, so the level will spawn mobs where it is.**
+  A real player's movement arrives as a packet, and `ServerGamePacketListenerImpl.handleMovePlayer`
+  ends in `getChunkSource().move(player)`. A body driven by `ServerPlayerAvatar.step()` sends no
+  packets, so for a body that JOINED the server (`-Dworlddriver.realPlayerBodies=true`) the chunk
+  map kept the section it was PLACED at, for the whole run. Three things read that stale section
+  rather than the body's position — its chunk tickets, its entity tracking, and
+  `DistanceManager.hasPlayersNearby`, which is the gate `ServerChunkCache.tickChunks` puts in front
+  of `NaturalSpawner.spawnForChunk`. That gate is a fixed 8-chunk window, so a body that walked more
+  than ~128 blocks from where it joined walked out of the only place the level would spawn anything,
+  and nothing said so: mobs kept spawning, back where it came from. Measured on the ladder's nether
+  rungs — 107 monsters within 128 blocks while the body was still beside its portal, 2 after it had
+  walked to a fortress 360 blocks away, and 0 for 7200 ticks in a warped forest, a biome whose
+  monster list is endermen and nothing else. `step()` now calls `move` for a body that is in
+  `ServerLevel.players()`; the guard is load-bearing, not defensive, because `ChunkMap.move` ends in
+  `DistanceManager.removePlayer`, which dereferences the `playersPerChunk` entry for the section
+  being left and a never-placed body has none. A/B on one rehearsal of the `ENDER_PEARL` rung, same
+  seed and same start: `ChunkMap 认为这一格近旁有 0 个玩家（它记的身体在区块 [0,0]，差 15 区块）`
+  became `1 个玩家（差 0 区块）`, and the monsters within 128 blocks of the body went from 66 —
+  spawned in the sliver where the stale window still overlapped the live 128-block disc — to a
+  saturated 106–109. **Backtested, not live**: the rung this was for has not once executed under it
+  on a real ladder, and the two ladder runs that carried it stopped at rungs 11 and 12 on older
+  walking failures. Those two stops were chased rather than assumed, and neither is this change's:
+  every rung of both runs ran at 20.00 ticks/s including the two that failed, which is not what a
+  chunk-churn cost looks like; the body joins at chunk (3,3) — logged, not assumed — and rungs 2–12
+  never work further than 5 chunks from the spawn chunk, so their whole working set sits inside both
+  the old spawn-pinned ticket bubble and the new body-following one, and the loaded/ticking state of
+  every cell they touch is identical either way; and rung 12 re-run alone as `-Prehearse=PORTAL_LIT`
+  under this change is a row-for-row match with the archived pre-change control
+  (`frame.cast=10/10`, `portal.cells=6/6`, ten `recover*.result=CONSUME`). See `TODO.md`.
+
 ### Added
 - **A census of zero now says WHICH spawn gate is shut.** `JourneyNetherRungs.spawnGate`, appended
   to every `census(...)` the two nether rungs print, asks `ServerChunkCache.tickChunks`'s own three
