@@ -24,6 +24,7 @@ import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.QuartPos;
+import net.minecraft.core.SectionPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerChunkCache;
@@ -823,8 +824,13 @@ public final class JourneyNetherRungs {
      * They want a flag, a walk and a bigger box respectively.
      *
      * <p>The far count is honest about its own blind spot: entities exist only in loaded chunks, so
-     * the radius the run is holding is printed beside it. A zero at 128 from a body pinning 64 is a
-     * statement about the pin, not about the Nether.
+     * a zero at 128 could be a statement about the tickets rather than about the Nether. It used to
+     * quote {@link #SEE_CHUNKS} for that — "this rung pins 4 chunks = 64 blocks" — which is a row
+     * that names the wrong bound and would have ended a search in the wrong place. That pin is a
+     * FLOOR, not a limit: a body that joined the server also holds its own view-distance tickets, and
+     * the same run whose census claimed a 64-block horizon counted 106 monsters inside 128. So the
+     * line asks instead, and prints the answer: is the chunk on the census's own rim loaded right
+     * now.
      */
     private static String census(ServerLevel level, ServerPlayer body) {
         BlockPos from = body.blockPosition();
@@ -834,11 +840,16 @@ public final class JourneyNetherRungs {
         Map<String, Integer> byType = new LinkedHashMap<>();
         for (Monster m : mobs)
             byType.merge(BuiltInRegistries.ENTITY_TYPE.getKey(m.getType()).getPath(), 1, Integer::sum);
+        boolean rimLoaded = level.getChunkSource().hasChunk(
+                SectionPos.blockToSectionCoord(from.getX() + (int) ENDERMAN_CENSUS),
+                SectionPos.blockToSectionCoord(from.getZ()));
         return "末影人 " + near + " 只在 " + (int) ENDERMAN_SEARCH + " 格内、" + far + " 只在 "
                 + (int) ENDERMAN_CENSUS + " 格内；" + (int) ENDERMAN_CENSUS + " 格内怪物共 "
                 + mobs.size() + " 只 " + byType
-                + "（远处那个数只在已加载区块里算数，本级钉着 " + SEE_CHUNKS + " 区块 = "
-                + SEE_CHUNKS * 16 + " 格）；" + spawnGate(level, body);
+                + "（远处那个数只在已加载区块里算数：" + (int) ENDERMAN_CENSUS + " 格外沿那一格现在"
+                + (rimLoaded ? "装着" : "没装 —— 这个数是被票截断的")
+                + "，本级至少钉 " + SEE_CHUNKS + " 区块，进了 players() 的身体另有 view-distance 的票）；"
+                + spawnGate(level, body);
     }
 
     /**

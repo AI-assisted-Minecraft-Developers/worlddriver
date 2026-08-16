@@ -73,6 +73,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only the inner region, so no candidate is scored on a truncated neighbourhood and none is silently
   excluded; the miss reports how far the nearest sampled warped column actually was.
 
+### Fixed
+- **The nether census named the wrong bound for its own blind spot.** It claimed the 128-block count
+  was limited by the rung's 4-chunk pin ("= 64 格"). That pin is a FLOOR, not a limit: a body that
+  joined the server also holds its view-distance tickets, and the same run whose census quoted a
+  64-block horizon counted 106 monsters inside 128. A reader who believed the row would have gone
+  looking for a truncated count instead of a full one. It now asks whether the chunk on the census's
+  own rim is loaded and prints the answer — measured `装着` on the run that followed.
+
 ### Added
 - **A census of zero now says WHICH spawn gate is shut.** `JourneyNetherRungs.spawnGate`, appended
   to every `census(...)` the two nether rungs print, asks `ServerChunkCache.tickChunks`'s own three
