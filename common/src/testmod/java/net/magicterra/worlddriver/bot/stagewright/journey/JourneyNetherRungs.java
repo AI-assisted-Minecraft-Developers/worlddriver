@@ -23,6 +23,7 @@ import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.QuartPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerChunkCache;
@@ -533,13 +534,40 @@ public final class JourneyNetherRungs {
     }
 
     /**
-     * Walk to a warped forest before hunting, when the body is not already standing in one.
+     * Walk INTO a warped forest before hunting, when the body is not already standing deep in one.
      *
      * <p>Asked of the generator rather than of a baked landmark, for the same reason the fortress is
      * ({@link #fortressLandmark}): the recon scene never visits this dimension, so there is no
      * earlier value for a later run to disagree with. The sampler answers from climate noise without
      * generating a chunk, so the cost is a few thousand samples on the tick thread and it is
      * measured into the evidence either way.
+     *
+     * <h2>Why the aim is a SHARE and not the nearest sample</h2>
+     *
+     * The first version of this walk asked {@code findClosestBiome3d} and walked at the answer. That
+     * call returns the CLOSEST matching cell, which is by construction a point on the biome's
+     * boundary — and the run that carried it out arrived and reported
+     * {@code warped.arrivedBiome = minecraft:nether_wastes（停在 130, 41, -229）} against a sample
+     * point at {@code 136, 41, -233}. Seven blocks off a boundary sample is outside the biome about
+     * half the time, and {@link #WARPED_ARRIVE_WITHIN} is wider than that. <b>"Walked to it" and
+     * "standing in it" were never the same claim</b>, and only the second one is what this rung's
+     * design rests on.
+     *
+     * <p>What replaces it is the quantity vanilla actually consults. A spawn attempt picks a random
+     * cell in a chunk — {@code NaturalSpawner.getRandomPosWithin} draws y uniformly from the floor to
+     * the surface — and then reads {@code level.getBiome(pos)} at that cell to choose the mob list.
+     * Nether biomes are three-dimensional, so the deciding quantity is not "which biome is the block
+     * under the boots" but <b>what fraction of the spawnable VOLUME around the body is warped
+     * forest</b>. Warped forest's monster list is endermen alone; {@code nether_wastes} is
+     * zombified piglins at weight 100 against an enderman's 1. So {@link WarpedGrid} samples that
+     * fraction on a coarse grid and the walk aims at the cell where it is highest — the interior,
+     * not the rim — and the same number is printed again from wherever the body ends up.
+     *
+     * <p>The radius that matters for the aim is {@link #ENDERMAN_SEARCH}, because a pearl needs an
+     * enderman the hunt can SEE, and the hunt looks 48 blocks. The wider {@link #ENDERMAN_CENSUS}
+     * share is reported beside it because that is the one that speaks to the CAP: the monster cap is
+     * shared by the whole level, so a body whose 128-block spawn window is mostly wastes has its 70
+     * slots filled by piglins however warped the ground under its own feet is.
      *
      * <p><b>Not finding one is not a failure, and neither is not reaching one.</b> Endermen do spawn
      * in {@code nether_wastes}; the biome only changes the rate. A rung that failed here would be
@@ -550,46 +578,237 @@ public final class JourneyNetherRungs {
      */
     private static void walkToEndermanGround(JourneyRig rig, BlockPos here, Runnable then) {
         ServerLevel nether = rig.player().serverLevel();
-        String want = Biomes.WARPED_FOREST.location().toString();
-        if (want.equals(biomeAt(rig, here))) {
-            rig.evidence("warped.already", "身体就站在 " + want + "，不用走");
-            then.run();
-            return;
-        }
         long startedNs = System.nanoTime();
-        var hit = nether.findClosestBiome3d(b -> b.is(Biomes.WARPED_FOREST), here,
-                WARPED_SEARCH_RADIUS, WARPED_SEARCH_STEP, WARPED_SEARCH_VSTEP);
+        WarpedGrid survey = new WarpedGrid(nether, here, WARPED_SEARCH_RADIUS,
+                (int) ENDERMAN_SEARCH, SURVEY_STEP);
+        BlockPos aim = survey.densest();
         long ms = (System.nanoTime() - startedNs) / 1_000_000L;
-        if (hit == null) {
+        if (aim == null) {
+            // NAME WHAT WAS SEEN, not what was wanted. The first version of this row said "not one
+            // warped column was sampled within 256" whenever no column QUALIFIED, and the run it was
+            // written for printed exactly that over a survey that had sampled the seed's nearest
+            // warped forest — 272 blocks out, outside the candidate margin. A row that reports an
+            // empty world when the world was merely out of reach sends the next round at the biome
+            // source. So the miss says how far the nearest sampled warped column actually was.
             rig.evidence("warped.survey", "以 " + here.toShortString() + " 为心 " + WARPED_SEARCH_RADIUS
-                    + " 格内没有 " + want + "（找了 " + ms + " ms）—— 就地猎，"
-                    + "nether_wastes 也刷末影人，只是稀");
+                    + " 格内没有一处可以走的 " + WARPED + "：" + survey.nearestWarped()
+                    + "（" + survey.howSampled() + "，找了 " + ms
+                    + " ms）—— 就地猎，nether_wastes 也刷末影人，只是稀");
+            rig.evidence("warped.standing", standingIn(nether, here));
             then.run();
             return;
         }
-        // HORIZONTAL, and the y is deliberately not resolved — same reading as the fortress landmark
-        // one rung below. The sampler returns whichever of its y slices matched, which in the Nether
-        // can be a cell inside the bedrock ceiling; the goal below is a `Goal.XZ`, so there was never
-        // a y to walk to and only this line could have been wrong about it.
-        BlockPos at = hit.getFirst();
-        int away = (int) Math.round(Math.hypot(here.getX() - at.getX(), here.getZ() - at.getZ()));
-        rig.evidence("warped.survey", want + " 在 " + at.toShortString() + "（距身体 " + away
-                + " 格水平，找了 " + ms + " ms；y=" + at.getY() + " 是采样层，不是可站立高度）");
-        rig.attempting("走到 " + want + " " + at.toShortString() + "（" + away + " 格）再猎");
-        crossToColumn(rig, "warped", at.getX(), at.getZ(), WARPED_ARRIVE_WITHIN, HOP_TICKS,
+        double aimShare = survey.shareAround(aim, (int) ENDERMAN_SEARCH);
+        double hereShare = survey.shareAround(here, (int) ENDERMAN_SEARCH);
+        // The y is deliberately not resolved — same reading as the fortress landmark one rung below.
+        // The grid says nothing about which y is standable and the goal below is a `Goal.XZ`, so
+        // there was never a y to walk to and only this line could have been wrong about it.
+        int away = (int) Math.round(Math.hypot(here.getX() - aim.getX(), here.getZ() - aim.getZ()));
+        rig.evidence("warped.survey", "最密的一处在 " + aim.getX() + ", ?, " + aim.getZ() + "（距身体 "
+                + away + " 格水平）：那里 " + (int) ENDERMAN_SEARCH + " 格内可刷体积疣林占 " + pct(aimShare)
+                + "，身体现在这处只占 " + pct(hereShare) + "；" + survey.nearestWarped()
+                + "（" + survey.howSampled() + "，找了 " + ms + " ms）");
+        if (hereShare >= aimShare - SHARE_TIE) {
+            rig.evidence("warped.already", "身体脚下这一带已经和最密的那处一样疣（" + pct(hereShare)
+                    + " 对 " + pct(aimShare) + "），不用走");
+            rig.evidence("warped.standing", standingIn(nether, here));
+            then.run();
+            return;
+        }
+        rig.attempting("走进疣林深处 " + aim.getX() + ", ?, " + aim.getZ() + "（" + away + " 格，那里 "
+                + (int) ENDERMAN_SEARCH + " 格内疣林占 " + pct(aimShare) + "）再猎");
+        crossToColumn(rig, "warped", aim.getX(), aim.getZ(), WARPED_ARRIVE_WITHIN, HOP_TICKS,
                 () -> {
                     BlockPos stood = rig.player().blockPosition();
                     rig.evidence("warped.arrivedBiome", biomeAt(rig, stood)
                             + "（停在 " + stood.toShortString() + "）");
+                    rig.evidence("warped.standing", standingIn(nether, stood));
                     rig.evidence("warped.census", census(nether, rig.player()));
                     then.run();
                 },
                 () -> {
-                    rig.evidence("warped.notReached", "走不到 " + at.toShortString() + "：停在 "
-                            + rig.player().blockPosition().toShortString() + "，就地猎 —— "
+                    BlockPos stood = rig.player().blockPosition();
+                    rig.evidence("warped.notReached", "走不到 " + aim.getX() + ", ?, " + aim.getZ()
+                            + "：停在 " + stood.toShortString() + "，就地猎 —— "
                             + "这一行说的是走位，不是这一级的成败");
+                    rig.evidence("warped.standing", standingIn(nether, stood));
                     then.run();
                 });
+    }
+
+    /**
+     * Where the body is standing, in the two numbers that decide whether it can hunt there.
+     *
+     * <p>Three rows, and each answers a different question a bare {@code enderman.found=0/6} cannot:
+     * the biome under the boots says whether the walk ended inside the forest at all; the
+     * {@link #ENDERMAN_SEARCH} share says whether the volume the hunt can SEE spawns endermen; the
+     * {@link #ENDERMAN_CENSUS} share says whether the level's shared monster cap is going to be
+     * filled by this neighbourhood's piglins before an enderman gets a slot.
+     *
+     * <p>They can disagree, and the disagreement is the finding. A body one block inside the rim
+     * reads {@code warped_forest} underfoot with a 10% share at 48 — which is a hunt that will come
+     * home empty for a reason that has nothing to do with combat.
+     */
+    private static String standingIn(ServerLevel level, BlockPos at) {
+        WarpedGrid around = new WarpedGrid(level, at, 0, (int) ENDERMAN_CENSUS, SURVEY_STEP);
+        return "脚下 " + biomeName(level, at) + "；" + (int) ENDERMAN_SEARCH + " 格内可刷体积疣林占 "
+                + pct(around.shareAround(at, (int) ENDERMAN_SEARCH)) + "（猎的半径）、"
+                + (int) ENDERMAN_CENSUS + " 格内占 " + pct(around.shareAround(at, (int) ENDERMAN_CENSUS))
+                + "（刷怪窗口，决定上限被谁占）；" + around.howSampled();
+    }
+
+    private static String pct(double share) {
+        return Math.round(share * 100) + "%";
+    }
+
+    /**
+     * How much of the volume a mob could spawn in is warped forest, on a coarse grid.
+     *
+     * <p>Sampled through {@code ServerLevel.getUncachedNoiseBiome}, which asks the biome source
+     * directly and <b>loads no chunk</b> — the same call {@code findClosestBiome3d} makes underneath.
+     * A whole 256-radius survey is a few thousand climate samples and lands in single-digit
+     * milliseconds on the tick thread, which is what makes it affordable to ask about the interior of
+     * a biome rather than about its nearest edge.
+     *
+     * <p><b>Why a column of y slices and not one reading.</b> Nether biomes are three-dimensional and
+     * {@code NaturalSpawner.getRandomPosWithin} draws its y uniformly from the build floor to the
+     * surface, so the mob list a chunk rolls is decided at a height nobody chose. Sampling the column
+     * at {@link #SPAWN_SLICES} approximates that draw; reading a single y would answer a question
+     * vanilla never asks.
+     *
+     * <p><b>The grid is bigger than the ground it ranks, and that is the point.</b> A share is an
+     * average over a neighbourhood, so a column scored with half its neighbourhood missing scores as
+     * though the missing half were warped — the rim would outrank the interior. Sampling
+     * {@code candidateRadius + neighbourhoodRadius} and ranking only the inner
+     * {@code candidateRadius} is what makes every candidate's number mean the same thing. The first
+     * version instead RANKED the inner region and sampled nothing beyond it, which silently made the
+     * outer 48 blocks ineligible — and at this seed that is exactly where the only warped forest is.
+     */
+    private static final class WarpedGrid {
+        private final int cx, cz, step, half, span, candidateCells;
+        private final int[] warpedSlices;     // per column, 0..SPAWN_SLICES.length
+
+        WarpedGrid(ServerLevel level, BlockPos centre, int candidateRadius, int neighbourhoodRadius,
+                   int step) {
+            this.cx = centre.getX();
+            this.cz = centre.getZ();
+            this.step = step;
+            this.candidateCells = candidateRadius / step;
+            this.half = (candidateRadius + neighbourhoodRadius) / step;
+            this.span = half * 2 + 1;
+            this.warpedSlices = new int[span * span];
+            for (int i = 0; i < span; i++) {
+                int qx = QuartPos.fromBlock(cx + (i - half) * step);
+                for (int j = 0; j < span; j++) {
+                    int qz = QuartPos.fromBlock(cz + (j - half) * step);
+                    int n = 0;
+                    for (int y : SPAWN_SLICES) {
+                        if (level.getUncachedNoiseBiome(qx, QuartPos.fromBlock(y), qz)
+                                .is(Biomes.WARPED_FOREST)) n++;
+                    }
+                    warpedSlices[i * span + j] = n;
+                }
+            }
+        }
+
+        /** Fraction of the sampled volume within {@code radius} of a block position, 0..1. */
+        double shareAround(BlockPos at, int radius) {
+            return share(cell(at.getX() - cx), cell(at.getZ() - cz), radius);
+        }
+
+        private int cell(int offset) {
+            return Math.max(0, Math.min(span - 1, half + Math.round((float) offset / step)));
+        }
+
+        private double share(int i, int j, int radius) {
+            int reach = radius / step;
+            int warped = 0, total = 0;
+            for (int di = -reach; di <= reach; di++) {
+                for (int dj = -reach; dj <= reach; dj++) {
+                    if ((di * di + dj * dj) * step * step > radius * radius) continue;
+                    int ii = i + di, jj = j + dj;
+                    // Out of the survey: skipped, not counted as wastes. Callers either sit far
+                    // enough from the edge that this cannot fire (a candidate keeps a whole
+                    // neighbourhood inside the grid, by construction) or are asking about the grid
+                    // they just built around themselves.
+                    if (ii < 0 || jj < 0 || ii >= span || jj >= span) continue;
+                    warped += warpedSlices[ii * span + jj];
+                    total += SPAWN_SLICES.length;
+                }
+            }
+            return total == 0 ? 0 : (double) warped / total;
+        }
+
+        /**
+         * The candidate column with the densest warped volume around it, or null if none is warped.
+         *
+         * <p>Ties go to the NEAREST column. A plateau of equally good ground is the common case in a
+         * large forest, and picking its far side would buy a longer crossing for nothing — and this
+         * crossing is the part of the rung that has actually been watched fail.
+         */
+        BlockPos densest() {
+            double best = 0;
+            for (int i = half - candidateCells; i <= half + candidateCells; i++) {
+                for (int j = half - candidateCells; j <= half + candidateCells; j++) {
+                    if (warpedSlices[i * span + j] == 0) continue;
+                    best = Math.max(best, share(i, j, (int) ENDERMAN_SEARCH));
+                }
+            }
+            if (best <= 0) return null;
+            BlockPos closest = null;
+            long closestD2 = Long.MAX_VALUE;
+            for (int i = half - candidateCells; i <= half + candidateCells; i++) {
+                for (int j = half - candidateCells; j <= half + candidateCells; j++) {
+                    if (warpedSlices[i * span + j] == 0) continue;
+                    if (share(i, j, (int) ENDERMAN_SEARCH) < best - SHARE_TIE) continue;
+                    long dx = (long) (i - half) * step, dz = (long) (j - half) * step;
+                    long d2 = dx * dx + dz * dz;
+                    if (d2 < closestD2) {
+                        closestD2 = d2;
+                        closest = new BlockPos(cx + (int) dx, 0, cz + (int) dz);
+                    }
+                }
+            }
+            return closest;
+        }
+
+        /**
+         * The nearest warped column ANYWHERE in the sampled square, said in blocks.
+         *
+         * <p>This exists so a survey that found nothing worth walking to cannot be read as a survey
+         * that found nothing. Those are different worlds — one wants a wider radius, the other wants
+         * a different plan — and the row that could not tell them apart cost a run.
+         */
+        String nearestWarped() {
+            BlockPos closest = null;
+            long closestD2 = Long.MAX_VALUE;
+            for (int i = 0; i < span; i++) {
+                for (int j = 0; j < span; j++) {
+                    if (warpedSlices[i * span + j] == 0) continue;
+                    long dx = (long) (i - half) * step, dz = (long) (j - half) * step;
+                    long d2 = dx * dx + dz * dz;
+                    if (d2 < closestD2) {
+                        closestD2 = d2;
+                        closest = new BlockPos(cx + (int) dx, 0, cz + (int) dz);
+                    }
+                }
+            }
+            if (closest == null) {
+                return "采样的 " + (half * step) + " 格见方里一柱 " + WARPED + " 都没有";
+            }
+            return "采到的最近一柱 " + WARPED + " 在 " + closest.getX() + ", ?, " + closest.getZ()
+                    + "（" + (int) Math.round(Math.sqrt(closestD2)) + " 格）";
+        }
+
+        String howSampled() {
+            // The candidate clause only when there ARE candidates: a grid built to measure ONE
+            // point has none, and printing "0 格以内的柱才可以当目标" beside a standing measurement
+            // reads as a truncated survey rather than as a survey that was not ranking anything.
+            return "每 " + step + " 格一柱、每柱 " + SPAWN_SLICES.length + " 层高度，采样半径 "
+                    + (half * step) + " 格"
+                    + (candidateCells > 0 ? "、其中 " + (candidateCells * step) + " 格以内的柱可以当目标" : "")
+                    + "，直接问生成器不装载区块";
+        }
     }
 
     /**
@@ -751,11 +970,14 @@ public final class JourneyNetherRungs {
         rig.evidence("hunt.endedIn", biomeAt(rig, ended) + "（" + ended.toShortString() + "）");
         rig.evidence("hunt.censusAfter", census(nether, rig.player()));
         if (found == 0) {
-            // The census goes in the FAILURE, not only in the evidence. "No enderman came" is the
-            // one sentence three different worlds print, and a reader who has to go looking for the
-            // row that separates them usually stops at the sentence.
+            // The census AND the ground go in the FAILURE, not only in the evidence. "No enderman
+            // came" is the one sentence four different worlds print, and a reader who has to go
+            // looking for the rows that separate them usually stops at the sentence. The share is
+            // there because it is the only one of the four this rung can act on: a hunt that ended
+            // on 90% warped ground and a hunt that ended on 5% want opposite next moves.
             ctx.fail("身边 " + ENDERMAN_SEARCH + " 格内一只末影人都没有，"
                     + ENDERMAN_HUNTS + " 轮都等了也没等到 —— " + census(nether, rig.player())
+                    + "；站的地方：" + standingIn(nether, ended)
                     + "；" + whyNothingSpawns(nether));
             return;
         }
@@ -933,8 +1155,11 @@ public final class JourneyNetherRungs {
     }
 
     private static String biomeAt(JourneyRig rig, BlockPos at) {
-        return rig.player().serverLevel().getBiome(at).unwrapKey()
-                .map(k -> k.location().toString()).orElse("?");
+        return biomeName(rig.player().serverLevel(), at);
+    }
+
+    private static String biomeName(ServerLevel level, BlockPos at) {
+        return level.getBiome(at).unwrapKey().map(k -> k.location().toString()).orElse("?");
     }
 
     // =====================================================================================
@@ -1542,26 +1767,50 @@ public final class JourneyNetherRungs {
     /**
      * How far to ask the generator for a warped forest, and how finely.
      *
-     * <p><b>256 is a WALK budget wearing a search radius, and it comes from a measurement.</b>
-     * Vanilla's own locate uses 6400 here; a forest at 2000 blocks would be a true answer this rung
-     * cannot use. The crossing the rung below attempts is 399 blocks and it has been watched fail
-     * whole — {@code fortress.goto.1 = no route progress after 5 consecutive searches … (best
-     * dist=3622)}, then two attempts of {@code no path (expanded=1)} — so a radius bigger than the
-     * one leg this rung can afford would only buy a longer timeout in place of a hunt. Past this,
-     * "none within 256" is a row that says hunt where you stand, which is a legal way to get pearls.
+     * <p>A WALK budget wearing a search radius. Vanilla's own locate uses 6400 here; a forest at 2000
+     * blocks would be a true answer this rung cannot use, so past this radius "none in range" is a
+     * row that says hunt where you stand, which is a legal way to get pearls.
      *
-     * <p>The steps are the sampler's stride: 16 blocks is fine enough not to step over a forest and
-     * coarse enough to keep the whole survey to a few thousand climate samples on the tick thread —
-     * an order of magnitude under the locate command's own 32-block stride over 6400.
+     * <p><b>384 rather than 256, and the number is this seed's, not a guess.</b> The survey run on
+     * 2026-08-16 sampled the whole 256-block square around the nether entry at {@code 8, 41, 7} and
+     * the nearest warped column in it was {@code 136, ?, -233} — <b>272 blocks out</b>, on the rim.
+     * At 256 this rung could therefore only ever report "hunt where you stand" at this seed, which is
+     * what both of its runs did. The crossing has been watched carry a body 272 blocks to that same
+     * forest once already, and {@link #MAX_HOPS} × {@link #NETHER_HOP} is 1152 blocks of reach, so
+     * the extra 128 is inside what the walk is built for — it is the SURVEY that was the binding
+     * constraint, not the legs.
+     *
+     * <p>The step is the survey's stride: 16 blocks is fine enough not to step over a forest and
+     * coarse enough to keep the whole survey to a few tens of thousands of climate samples on the
+     * tick thread — the 256-block version measured 3 ms. The biome source's own resolution is 4
+     * blocks, so this samples one column in sixteen and every number it prints is an estimate of a
+     * share, never a count of cells.
      */
-    private static final int WARPED_SEARCH_RADIUS = 256;
-    private static final int WARPED_SEARCH_STEP = 16;
-    private static final int WARPED_SEARCH_VSTEP = 32;
+    private static final int WARPED_SEARCH_RADIUS = 384;
+    private static final int SURVEY_STEP = 16;
 
-    /** Arrival tolerance for the walk to the forest. Eight blocks because the target is a biome
-     *  sample and a biome is not a point — anywhere inside it is arrival. The walk itself is the
-     *  same hop crossing rung 14 uses; a forest 256 blocks off is the same question a fortress 397
-     *  blocks off is, and it failed the same way. */
+    /**
+     * The heights a column is sampled at, and why there are eight of them.
+     *
+     * <p>{@code NaturalSpawner.getRandomPosWithin} draws y uniformly between the build floor and the
+     * {@code WORLD_SURFACE} heightmap, which in the Nether is the bedrock roof — so a spawn attempt
+     * is as likely to roll its mob list at y=8 as at y=120, and a survey that read one height would
+     * be answering a question vanilla never asks. Eight slices 16 apart cover 0–128 evenly.
+     */
+    private static final int[] SPAWN_SLICES = {8, 24, 40, 56, 72, 88, 104, 120};
+
+    /** How close two shares have to be to count as the same ground. Two points of an estimate made
+     *  from one column in sixteen is noise, and spending a longer crossing to chase it is the kind of
+     *  precision this survey does not have. */
+    private static final double SHARE_TIE = 0.02;
+
+    /** The biome this rung is walking into, spelled once. */
+    private static final String WARPED = "minecraft:warped_forest";
+
+    /** Arrival tolerance for the walk into the forest. Eight blocks, and it stopped mattering when
+     *  the aim moved from the biome's nearest EDGE sample to its densest interior column — off by
+     *  eight at the rim decides which biome the boots are in, off by eight in the middle of a forest
+     *  does not. Kept where it was so the crossing is the same question rung 14 asks. */
     private static final int WARPED_ARRIVE_WITHIN = 8;
 
     /** Everything the ladder might be carrying that a wall can be made of, plus everything the

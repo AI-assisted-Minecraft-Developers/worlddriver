@@ -38,6 +38,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   under this change is a row-for-row match with the archived pre-change control
   (`frame.cast=10/10`, `portal.cells=6/6`, ten `recover*.result=CONSUME`). See `TODO.md`.
 
+### Changed
+- **The enderman rung walks at a warped forest's INTERIOR, not at its nearest edge.** It used to ask
+  `findClosestBiome3d`, which by construction returns a cell on the biome's boundary, and walk there
+  with an 8-block tolerance — so "walked to it" and "standing in it" were never the same claim. The
+  run that carried it out arrived and reported `warped.arrivedBiome = minecraft:nether_wastes（停在
+  130, 41, -229）` against a sample point at `136, 41, -233`. What replaces it is the quantity vanilla
+  actually consults: a spawn attempt picks a random cell in a chunk with its y drawn uniformly from
+  the floor to the surface (`NaturalSpawner.getRandomPosWithin`) and reads the biome AT THAT CELL to
+  choose the mob list, so the deciding number is not which biome is under the boots but what share of
+  the spawnable VOLUME nearby is warped forest — a biome whose monster list is endermen and nothing
+  else, against `nether_wastes` where an enderman is weight 1 against a zombified piglin's 100. A new
+  `WarpedGrid` samples that share off `getUncachedNoiseBiome` (no chunk loads; a 432-block survey
+  measured 9 ms) on a 16-block grid, eight heights per column, and the walk aims at the column where
+  the share within the hunt's own 48-block radius is highest. Both shares are then printed from
+  wherever the body ends up — 48 blocks because that is what the hunt can see, 128 because that is the
+  window whose biomes decide who fills the level's shared 70-monster cap. Measured at seed 5471 from
+  the nether entry at `8, 41, 7`: the nearest warped column is 272 blocks out, and the densest is at
+  `168, ?, -281`, 329 blocks out, where the 48-block share is **100%** against **0%** where the body
+  stands. **Backtested, not live**: no run has yet stood in that forest — the crossing to it fell into
+  lava on its first hop, which is the crossing's own long-standing account and not this change's.
+- **The survey radius is 384 rather than 256, because 256 could not see this seed's only forest.**
+  The 256-block square around the nether entry contains no warped column at all; the nearest is at
+  272. At the old radius this rung could only ever report "hunt where you stand", which is what every
+  run of it did. `MAX_HOPS × NETHER_HOP` is 1152 blocks of reach and the crossing has been watched
+  carry a body 272 blocks to that forest once, so the binding constraint was the survey, not the legs.
+
+- **A survey that found nothing worth walking to no longer reports finding nothing.** The first
+  version of the row above printed "not one warped column was sampled within 256" whenever no column
+  QUALIFIED as a target — and the first run carrying it printed exactly that over a survey that had
+  sampled this seed's warped forest, 272 blocks out at the rim, outside the candidate margin. Those
+  are different worlds with opposite next moves (widen the radius / change the plan), and the row
+  could not tell them apart. The grid now samples `candidateRadius + neighbourhoodRadius` and ranks
+  only the inner region, so no candidate is scored on a truncated neighbourhood and none is silently
+  excluded; the miss reports how far the nearest sampled warped column actually was.
+
 ### Added
 - **A census of zero now says WHICH spawn gate is shut.** `JourneyNetherRungs.spawnGate`, appended
   to every `census(...)` the two nether rungs print, asks `ServerChunkCache.tickChunks`'s own three
