@@ -7,7 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **A pour now decides its aim with the ray that will fire it, and decides it after the settle it
+  fires from.** Two separate splits between prediction and execution, both closed:
+
+  `aimThatLandsIn` used to answer with a segment clip (`eye → block centre`, in doubles) while the
+  bucket fires a ray re-derived from the float yaw/pitch `aimAtBlock` stored. Nominally the same
+  line; not bit-for-bit. It now stores the angle and re-checks with the same `aimedAt` the `.picks`
+  gate runs, tries the next candidate when they disagree, and records `.aimForked.N` when they do.
+
+  And `placeFluid` aimed, then settled two ticks, then read `.picks` — the order `JourneyFill.scoop`
+  was fixed out of on 2026-08-16 and the pour never was. Measured, single-bucket rehearsal
+  2026-08-17 cell ten: `cast9.fromHere.3 = -9,57,36 就地瞄 -10,60,39，流体会落进 -10,60,38` and then
+  `cast9.picks.3 = …身体 -9,56,36` — a whole block of eye height between the decision and the shot.
+  Same geometry A/B: the run before poured nine cells and died on the tenth's ray gate; the run after
+  poured **all ten** (`frame.cast=9/10（浇成过 10 格，浇成之后又丢了 1 格）`).
+- **A pinned climb adopts the column it can actually reach, instead of stopping.** The refusal was
+  audited before it was changed, and it prevented nothing on record: the pour's own `.picks` gate —
+  "do not spend the bucket unless this ray lands in the target" — predates it by three days, so no
+  bucket was ever spent from a drifted column; `raisedY` and `endedIn` already report the column, so
+  the misdescribing row it was written against is impossible either way; and the guard that keeps a
+  tower out of the mould is the unconditional drift correction, not the pin. What it did cost is
+  measured: with the climbs finally tagged apart, one rung's six climbs read `3/3, 1/1, 2/2, 2/3,
+  3/3` unpinned against `-1/2` pinned — the pinned one ended a block **below** where it started,
+  because the correction descends into the column's only foothold and the refusal then forbids the
+  tower that would have paid it back. Reproduced on the real ladder the same day
+  (`recover8.rise#8.gained=-1/2`). An adopted column is now recorded as `driftKeptPinned`; the one
+  refusal kept is the column-blind `Goal.YLevel` fallback.
+- **The water recover's walk may no longer mine.** Its source sits inside the frame the rung is
+  building, so from floor level the only thing between the eye and it is the frame — and that walk
+  ran with `allowBreak` on. Measured: `recover8.spot = 没找到能看见源块的落脚点，退回
+  Near(-9,61,38,2)` and then `frame.lost.1 = -9,60,38 浇成黑曜石之后又没了：现在是 water，丢在
+  「recover8 从 -9,61,38 收水」这一步里；身体 -9,59,38 距 1.0 格` — the body standing directly under
+  the cell it had just broken, on a run where every one of the ten cells had cast. The lava fetch
+  keeps its digging: it crosses open ground to a lake nowhere near the mould.
+
 ### Added
+- **Every climb records under its caller's name, and every pour approach under its own number.** The
+  climb rows were bare `climb.<course>.*` / `exit.*` keys and one casting cell runs three climbs, so
+  a ten-cell rung kept one `climb.0.driftInto` out of a dozen — and duly printed a self-contradicting
+  pair from two different climbs. The pour had the same defect one level up: `.fromHere` from
+  approach three sat beside `.stand` and `.picks` from approach one, which reads as "the
+  short-circuit fired and the walk happened anyway". Keys are now `<caller>#<n>.climb.<course>.*` and
+  `<tag>.<approach>`. The ordinal is not redundant with the caller — `liftInPlace` climbs twice under
+  one tag.
 - **A rehearsal can now flood a shaft on purpose, and rung 11 can be rehearsed at all.**
   `-Prehearse=OBSIDIAN` stages the rung's own starting conditions (an empty bucket, two stone
   pickaxes, the body a few blocks from the lava column at the surface — `JourneyRoute.firstLava` is
