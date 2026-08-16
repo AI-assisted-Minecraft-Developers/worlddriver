@@ -852,6 +852,7 @@ public final class Walker {
         // stride floor-guard here, after EVERY decision path, before the avatar integrates.
         Step s = tickInner(a, world);
         boolean fired = strideFloorGuard(a, world);
+        boolean footing = footingGuard(a, world);
         // Pin HYSTERESIS: the guard's fire predicate needs translation (h ≥ 0.03), so the
         // pin's own deceleration un-fires it the next tick — pin/release alternation. On a
         // spinning-drive arc at a lip that alternation is fatal twice over: the release
@@ -888,7 +889,8 @@ public final class Walker {
                 hp.setSprinting(false);
             }
         } else guardHoldTicks = 0;
-        boolean pinned = fired || guardHoldTicks > 0;
+        if (!footing) footingPinned = false;
+        boolean pinned = fired || footing || guardHoldTicks > 0;
         // Self-releasing latch: the pin must last exactly as long as the hazard (plus the
         // hold tail). A sneak that nothing releases turns a one-stride save into a
         // permanent stall (ridge descent pinned at maxNoProgress=205 in the first
@@ -919,6 +921,74 @@ public final class Walker {
         } else guardPinStreak = 0;
         return s;
     }
+
+    /**
+     * Pin a body that is grounded on almost nothing, beside a drop that would kill it.
+     *
+     * <h2>Why here and not in the drive</h2>
+     *
+     * The lethal-edge gate in {@code WalkerTickDrive} is the natural home and it cannot do this job,
+     * for two measured reasons. It probes FORWARD — the cell 0.6 blocks toward the waypoint — so a
+     * body that has drifted off its floor sideways, or that is being steered at a node behind it,
+     * reads perfectly clean: on the tick before an eleven-block drop into a nether lava lake,
+     * {@code gapAhead} was false (the cell toward the waypoint was netherrack), {@code offCentre}
+     * was 0.17, and the body's own sole was on <b>0.0000 of 0.36</b>. And it lives in the drive
+     * TAIL, which dozens of branches — dig, pillar, escape, step-up — return before reaching: the
+     * next rehearsal fell on exactly such a tick, {@code drive=null}, while the crossing was digging
+     * its way along. That is the same lesson {@link #strideFloorGuard} was hoisted here for.
+     *
+     * <h2>What it asks, in the order that makes it cheap</h2>
+     *
+     * The sole first ({@link WalkerGeometry#soleOnSolid}, four block reads, and on ordinary ground
+     * it answers 0.36 immediately), and only for a body already down to half a sole does it pay for
+     * {@link WalkerGeometry#lethalDropAdjacent}'s eight columns. So a walk over solid ground costs
+     * four reads a tick and nothing else.
+     *
+     * <h2>What the pin is, and what it is not</h2>
+     *
+     * Vanilla sneak: {@code Player.maybeBackOffFromEdge} refuses the part of a move that would take
+     * a shift-held body off its floor. It is a REFUSAL to step further out, not a rescue — a body
+     * already over the void falls whatever this does, which is why the sole threshold is half a sole
+     * and not zero. Jump is cancelled with it, because sneak has never clamped a jump and the nether
+     * crossing's first fatal launch was exactly that: sneak held, {@code diagUp} planned, +0.42 of
+     * upward velocity, into the lake.
+     *
+     * <p>Lethal-only, so ordinary ledge-hopping keeps its speed, and the same {@code lethalEdgeBrake}
+     * switch the drive's gate answers to.
+     */
+    boolean footingGuard(Avatar a, WorldView world) {
+        if (!BotConfig.lethalEdgeBrake) return false;
+        Player p = a.player();
+        if (p == null || !p.onGround() || p.isInWater()) return false;
+        if (soleOnSolid(world, p) >= FOOTING_MIN) return false;
+        BlockPos foot = BlockPos.containing(p.getX(), p.getY() + 0.05, p.getZ());
+        // A PLANNED DESCENT is exempt, and this is not a nicety — it is the same release the drive's
+        // own lethal-edge gate has carried since DEATH #8, for the same reason: vanilla's sneak
+        // refuses to walk off ANY edge, so a pin held over a step the route means to take deadlocks
+        // the descent instead of protecting it. Left out of the first cut, and the suite named the
+        // cost in one run: wd.descent "crouch-deadlock: did not reach the bottom step",
+        // wd.bridgeDescend "descending bridge wedged (sneak ledge-guard?)", wd.descentYaw thrashing
+        // to 2463°. Every fall this guard is for was a body walking or jumping at a node level with
+        // it or above it, so nothing it protects is given up here.
+        if (path != null && step >= 0 && step < path.size()
+                && path.get(step).getY() < foot.getY()) return false;
+        if (!lethalDropAdjacent(world, p, foot)) return false;
+        avatarSneak(a, true);
+        a.commandJump(false);
+        p.setSprinting(false);
+        // Edge-triggered: a ridge walk pins for runs of ticks and a line per tick would bury the
+        // rest of the log. The entry is the event — "the body reached a cell it is barely on".
+        if (!footingPinned) {
+            LOG.info("[walker] footing guard: sole {} < {} at {},{},{} beside a lethal drop → sneak-pin",
+                    String.format(java.util.Locale.ROOT, "%.4f", soleOnSolid(world, p)), FOOTING_MIN,
+                    foot.getX(), foot.getY(), foot.getZ());
+        }
+        footingPinned = true;
+        return true;
+    }
+
+    /** True while {@link #footingGuard} is holding, so the log records the entry and not every tick. */
+    private boolean footingPinned;
 
     /** Consecutive ticks the stride floor-guard has pinned; sustained pinning forces a repath. */
     int guardPinStreak;

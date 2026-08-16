@@ -5,7 +5,9 @@ import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.world.SurvivalMath;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.AABB;
 
 import java.util.List;
 
@@ -95,6 +97,39 @@ final class WalkerGeometry {
     }
 
     public static float angleDiff(float a, float b) { return ((b - a) % 360f + 540f) % 360f - 180f; }
+
+    /**
+     * How much of the body's own sole is resting on solid ground, in blocks² out of 0.36.
+     *
+     * <p><b>The reading every edge guard here was missing.</b> They all ask about a CELL — the foot
+     * cell, its neighbours, the cell 0.6 blocks toward the waypoint — and a player is 0.6 wide, so
+     * its support is whatever its bounding box happens to overlap. A body can be grounded with a
+     * twentieth of one sole on the corner of a block, and every cell-shaped question about it comes
+     * back clean: {@code foot.below()} is solid because the FEET position is still inside that
+     * block, the cell ahead is solid because it is real ground, and the neighbours are whatever they
+     * are. Measured on the nether crossing, one tick before an eleven-block drop into lava:
+     * {@code 实心接触面积 0.0000/0.36} while {@code onGround} said true.
+     *
+     * <p>The row is {@code floor(minY − 1e-7)} — the row the sole SITS ON, which is the block below
+     * for a body flush on a full cube and the block itself for one on a shorter shape. The cells are
+     * enumerated OUTWARD (vanilla's own 1e-7), so a sliver of overlap counts as the sliver it is
+     * rather than being rounded away: a body walking off a ledge really is held by 0.0004 of a block
+     * for one tick, and a reading that discarded that would report "no support" about a body vanilla
+     * still calls grounded.
+     */
+    public static double soleOnSolid(WorldView w, Player p) {
+        AABB box = p.getBoundingBox();
+        int y = Mth.floor(box.minY - 1.0E-7);
+        double area = 0;
+        for (int x = Mth.floor(box.minX - 1.0E-7); x <= Mth.floor(box.maxX + 1.0E-7); x++) {
+            for (int z = Mth.floor(box.minZ - 1.0E-7); z <= Mth.floor(box.maxZ + 1.0E-7); z++) {
+                if (!w.isSolid(new BlockPos(x, y, z))) continue;
+                area += Math.max(0, Math.min(box.maxX, x + 1.0) - Math.max(box.minX, x))
+                      * Math.max(0, Math.min(box.maxZ, z + 1.0) - Math.max(box.minZ, z));
+            }
+        }
+        return area;
+    }
 
     /** Horizontal neighbour offsets (4 cardinals + 4 diagonals) of the foot cell. */
     public static final int[][] EDGE_NEIGHBOURS = {

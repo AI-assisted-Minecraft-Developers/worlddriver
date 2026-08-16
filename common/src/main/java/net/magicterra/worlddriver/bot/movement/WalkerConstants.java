@@ -279,6 +279,12 @@ final class WalkerConstants {
      *  Widened 6→10 (2026-06-28): tall +2 walls (e.g. -722 boxed-pinch) have their nearest steppable
      *  +1/flat exit further along the bank; a 6-cell reach missed it → 3-min floating deadlock. */
     public static final int BANK_FOLLOW_SCAN = 10;
+    /** How little of the body's own sole may be on solid ground before the lethal-edge / bridge
+     *  gate brakes, out of the 0.36 blocks² a player's 0.6-wide box has. Half a sole: a body
+     *  centred on a one-wide ridge keeps the full 0.36 and one drifted more than 0.2 off that
+     *  centre is past the point where an ordinary walk tick can recover. Measured on the nether
+     *  crossing, where the two falls that ended runs launched from 0.118 and 0.000. */
+    public static final double FOOTING_MIN = 0.18;
     /** No-step-progress ticks before the ≥2 ascentRamSlide desync recovers — DELIBERATELY well
      *  below STEPUP_FREEZE_TICKS. A node ≥2 above a GROUNDED foot is never a planned move (steps/
      *  parkour/pillar all rise +1), so it is ALWAYS an execution slide-back the bot can never
