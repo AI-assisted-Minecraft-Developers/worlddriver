@@ -230,7 +230,21 @@ public final class JourneyFill {
                 : (lava && fillStation != null ? "站固定装料点 " : "站 ")
                   + spot.stand().toShortString() + " 瞄 " + spot.source().toShortString());
         Goal where = spot == null ? new Goal.Near(src, 2) : new Goal.Block(spot.stand());
-        rig.settle(new IntentProcess(new Intent(where)), 1_500, () -> {
+        // THE WATER RECOVER MAY NOT DIG ITS WAY THERE. Its source sits inside the frame the rung is
+        // building, so the only thing between a floor-level body and it is the frame — and a walker
+        // with `allowBreak` on treats that as terrain. Measured, single-bucket rehearsal 2026-08-17:
+        // `recover8.spot = 没找到能看见源块的落脚点，退回 Near(-9,61,38,2)` and then
+        // `frame.lost.1 = -9,60,38 浇成黑曜石之后又没了：现在是 water，丢在「recover8 从 -9,61,38 收水」
+        // 这一步里；身体 -9,59,38 距 1.0 格` — the body one cell under the cell it had just cast, which
+        // is where you stand after breaking it. Every cell was poured that run (`frame.cast=9/10（浇成过
+        // 10 格，浇成之后又丢了 1 格）`) and the rung still failed, on a cell the fetch destroyed.
+        //
+        // The LAVA fetch keeps its digging: it walks across open ground to a lake, nowhere near the
+        // mould, and taking the capability away there would only make an ordinary route fail. Same
+        // distinction `digWithoutTunnelling` and the mould walk already draw.
+        Intent walk = lava ? new Intent(where)
+                : new Intent(where, List.of(), CapabilityProfile.ALL, List.of(new NoBreak()));
+        rig.settle(new IntentProcess(walk), 1_500, () -> {
             // Re-ask from where the body ACTUALLY ended up. The plan above is what makes a good spot
             // likely; this is what makes the aim correct, because a walk that stopped a cell short
             // has a different set of sources in view and only the clip from here knows which.
