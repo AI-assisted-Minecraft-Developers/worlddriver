@@ -1104,6 +1104,12 @@ public final class JourneyNetherRungs {
             // finding — and a PASS prints no evidence, so this is the only place it can be read.
             List<String> fell = flight.falls();
             for (int i = 0; i < fell.size(); i++) rig.evidence(what + ".fell." + hop + "." + i, fell.get(i));
+            // The physics under the body on the tick before each of those. A fall line names a cell
+            // and a move; this names whether the body JUMPED off it, whether onGround agreed with
+            // vanilla's own ground question, and how much of the sole was still on rock — the three
+            // readings three rounds of this crossing each had to guess at.
+            List<String> ground = flight.grounds();
+            for (int i = 0; i < ground.size(); i++) rig.evidence(what + ".ground." + hop + "." + i, ground.get(i));
 
             // WALKING IS AN ORDER ABOUT THE GROUND. A body inside lava swims; it cannot carry one
             // out, so the next hop would be the retry-that-changes-nothing in its purest form.

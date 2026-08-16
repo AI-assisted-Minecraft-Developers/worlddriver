@@ -1,15 +1,19 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * How the body actually travelled one leg — recorded tick by tick, not read off the wreckage.
@@ -85,6 +89,21 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     private final int goalZ;
     private final int legLength;
 
+    /** How far down vanilla's own "am I standing on something" question reaches: one tick of
+     *  gravity (0.08 × 0.98). A grounded body's {@code deltaMovement.y} sits there every tick —
+     *  the collision that clips it is exactly what sets {@code onGround}. */
+    private static final double GROUND_PROBE = 0.0784;
+
+    /** A player box is 0.6 × 0.6 = 0.36 of ground. Below a quarter of that the body is cornering
+     *  on one block rather than standing on the ground, which is the state a walk cannot survive
+     *  any drift from. */
+    private static final double FULL_CONTACT = 0.36;
+    private static final double EDGE_CONTACT = 0.09;
+
+    /** How far the neighbourhood map looks down for lava. Twelve: past that a drop is fatal on
+     *  its own and the map's job is to say which cells are a lava rim, not how deep it is. */
+    private static final int LAVA_PROBE = 12;
+
     private int t;
     private BlockPos prev;
     private boolean prevOnGround;
@@ -92,6 +111,28 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     private List<BlockPos> prevSupport = List.of();
     private String prevSupportNames = "无";
     private int prevSupportSolid;
+    private AABB prevBox;
+    private Vec3 prevDelta = Vec3.ZERO;
+    private double prevContact;
+    private boolean prevSwept;
+    private boolean prevSneak;
+    private String prevDrive;
+    private String prevJumpTag;
+
+    /** The least of the body's own footprint that was ever holding it up, while grounded. A leg
+     *  that never drops below {@link #FULL_CONTACT} walked on ground; one that spends ticks near
+     *  zero walked a knife edge, and that is a property of the ROUTE, not of the fall it ends in. */
+    private double leastContact = Double.MAX_VALUE;
+    private String leastContactAt = "";
+    private int edgeTicks;
+    private int groundedTicks;
+
+    /** One physics dump per recorded fall — see {@link #groundDump}. */
+    private final List<String> grounds = new ArrayList<>();
+
+    /** Which move entered each node this leg walked, counted once per node. */
+    private final Map<String, Integer> moveTally = new LinkedHashMap<>();
+    private BlockPos lastPlanNode;
 
     private boolean airborne;
     private BlockPos launchAt;
@@ -99,6 +140,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     private int launchY;
     private String launchWhy = "";
     private String launchPlan = "";
+    private String launchGround = "";
     private float deepestFallField;
     private double fastestDrop;
 
@@ -158,6 +200,16 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         List<BlockPos> support = footprint(fp);
         int solid = 0;
         for (BlockPos p : support) if (level.getBlockState(p).blocksMotion()) solid++;
+        AABB box = fp.getBoundingBox();
+        double contact = contactArea(level, box);
+        if (onGround) {
+            groundedTicks++;
+            if (contact < EDGE_CONTACT) edgeTicks++;
+            if (contact < leastContact) {
+                leastContact = contact;
+                leastContactAt = "t=" + t + " " + at.toShortString();
+            }
+        }
         watchThePlan(level, fp, at, onGround);
 
         // The tick the leg was decided on, whatever the verdict.
@@ -183,7 +235,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
 
         if (prev == null) {                        // first tick of the leg
             startedAirborne = !onGround;
-            remember(fp, at, onGround, support, names(level, support), solid);
+            remember(fp, at, onGround, support, names(level, support), solid, box, contact);
             return;
         }
 
@@ -194,8 +246,8 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         } else if (prevOnGround && !onGround && !inLava && !inWater) {
             launch(level, fp, at, support);
         }
-        rememberRunUp(at, onGround, solid);
-        remember(fp, at, onGround, support, names(level, support), solid);
+        rememberRunUp(at, onGround, solid, contact);
+        remember(fp, at, onGround, support, names(level, support), solid, box, contact);
     }
 
     /**
@@ -233,6 +285,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         // the drop that gets written down.
         pendingRunUp = String.join(" | ", runUp);
         launchPlan = planCell(level, fp, at);
+        launchGround = groundDump(level, fp);
         if (prevSupportSolid > 0 && stillSolid == 0) {
             launchWhy = "上一 tick 撑着它的 " + prevSupportSolid + " 格没了（" + prevSupportNames
                     + " → " + names(level, prevSupport) + "）";
@@ -258,6 +311,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         fallCount++;
         if (runUpOfFirstFall == null) runUpOfFirstFall = pendingRunUp;
         if (falls.size() >= MAX_FALLS) return;
+        grounds.add("#" + fallCount + " " + launchGround);
         String ended = inLava ? "落进岩浆 " + at.toShortString()
                 : onGround ? "落到 " + at.toShortString() + "（脚下 " + names(level, support) + "）"
                 : "落进水里 " + at.toShortString();
@@ -289,6 +343,16 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     private void watchThePlan(ServerLevel level, ServerPlayer fp, BlockPos at, boolean onGround) {
         BlockPos node = rig.body().botState().mc_goto.pathNode;
         if (node == null) { ticksWithNoPlan++; return; }
+        // WHICH EDGES THIS LEG ACTUALLY WALKED, counted once per node rather than per tick.
+        // A leg's fall names one move; this names the diet. It is also the only honest check that
+        // a change to what the PLANNER is allowed to cost reached the plan at all — a cost knob
+        // set on a static and read on another tick can silently do nothing, and a leg that still
+        // walks the move it was told to avoid says so here instead of being argued about.
+        if (!node.equals(lastPlanNode)) {
+            lastPlanNode = node;
+            String move = rig.body().botState().mc_goto.pathMove;
+            moveTally.merge(move == null ? "?" : move, 1, Integer::sum);
+        }
         if (!onGround) return;
         double gap = Math.hypot(node.getX() + 0.5 - fp.getX(), node.getZ() + 0.5 - fp.getZ());
         if (gap <= worstOffPlan) return;
@@ -299,18 +363,29 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     }
 
     private void remember(ServerPlayer fp, BlockPos at, boolean onGround,
-                          List<BlockPos> support, String supportNames, int solid) {
+                          List<BlockPos> support, String supportNames, int solid,
+                          AABB box, double contact) {
         prev = at;
         prevY = fp.getY();
         prevOnGround = onGround;
         prevSupport = support;
         prevSupportNames = supportNames;
         prevSupportSolid = solid;
+        prevBox = box;
+        prevDelta = fp.getDeltaMovement();
+        prevContact = contact;
+        prevSwept = !fp.serverLevel().noCollision(fp, groundSlab(box));
+        prevSneak = rig.body().avatar().dbgSneak();
+        prevDrive = rig.body().botState().mc_goto.driveTag;
+        prevJumpTag = rig.body().botState().mc_goto.jumpTag;
     }
 
-    /** The last few ticks, kept so the FIRST notable fall can show its run-up. */
-    private void rememberRunUp(BlockPos at, boolean onGround, int solid) {
-        runUp.add("t=" + t + " " + at.toShortString() + (onGround ? " 地" : " 空") + " 撑" + solid);
+    /** The last few ticks, kept so the FIRST notable fall can show its run-up. The contact area
+     *  is what makes the run-up readable as a DRIFT: a body walking a knife edge sheds it tick by
+     *  tick, and the count of solid cells cannot show that (it is 1 the whole way). */
+    private void rememberRunUp(BlockPos at, boolean onGround, int solid, double contact) {
+        runUp.add("t=" + t + " " + at.toShortString() + (onGround ? " 地" : " 空") + " 撑" + solid
+                + " 接触" + String.format(Locale.ROOT, "%.3f", contact));
         if (runUp.size() > RUN_UP) runUp.remove(0);
     }
 
@@ -358,6 +433,8 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         sb.append("；离计划最远 ").append(worstOffPlan < 0 ? "没量到（没有一个 tick 是既在地上又有计划的）"
                 : String.format(Locale.ROOT, "%.2f 格（%s）", worstOffPlan, worstOffPlanAt));
         sb.append("；").append(ticksWithNoPlan).append("/").append(t).append(" tick 身上没有计划");
+        sb.append("；").append(contactLine());
+        sb.append("；走过的边 ").append(moveTally.isEmpty() ? "没有（这一段没执行过任何计划边）" : moveTally);
         sb.append("；收工那一刻：").append(finishedAt == null
                 ? "没有 —— 这一段是跑满 tick 被叫停的，不是进程自己结束的" : finishedAt);
         if (lava != null) sb.append("；首次入岩浆 ").append(lava);
@@ -383,8 +460,26 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         return sb.toString();
     }
 
+    /**
+     * How narrow the ground under this leg got, as a property of the whole leg.
+     *
+     * <p>The falls list says where the body came off. This says whether it was ever properly on:
+     * a body that spends a third of its grounded ticks under a quarter of a sole's worth of
+     * contact is walking a knife edge, and the next fall is the terrain's, not the executor's.
+     */
+    private String contactLine() {
+        if (groundedTicks == 0) return "没有一个 tick 是在地上的";
+        return "落脚最窄时接触 " + (leastContact == Double.MAX_VALUE ? "没量到"
+                : String.format(Locale.ROOT, "%.4f/%.2f（%s）", leastContact, FULL_CONTACT, leastContactAt))
+                + "；" + edgeTicks + "/" + groundedTicks + " 个着地 tick 接触面积不足 "
+                + String.format(Locale.ROOT, "%.2f", EDGE_CONTACT) + "（等于只踩住一个角）";
+    }
+
     /** How many notable falls this leg had — see {@link #falls()} for what each was. */
     public int fallCount() { return fallCount; }
+
+    /** The physics under the body on the tick before each recorded fall — see {@link #groundDump}. */
+    public List<String> grounds() { return List.copyOf(grounds); }
 
     /** Ticks the walker had nothing to steer at. See {@link #ticksWithNoPlan}. */
     public int noPlanTicks() { return ticksWithNoPlan; }
@@ -417,6 +512,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         rig.evidence(what + ".flight." + tag, report());
         List<String> lines = falls();
         for (int i = 0; i < lines.size(); i++) rig.evidence(what + ".fell." + tag + "." + i, lines.get(i));
+        for (int i = 0; i < grounds.size(); i++) rig.evidence(what + ".ground." + tag + "." + i, grounds.get(i));
         if (runUpOfFirstFall != null) rig.evidence(what + ".runUp." + tag, runUpOfFirstFall);
         rig.evidence(what + ".track." + tag, trackLine());
     }
@@ -442,6 +538,208 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         for (int x = x0; x <= x1; x++)
             for (int z = z0; z <= z1; z++) out.add(new BlockPos(x, y, z));
         return List.copyOf(out);
+    }
+
+    /**
+     * The slab immediately under the body's box — the volume vanilla sweeps to decide
+     * {@code onGround}.
+     *
+     * <p>{@code Entity.move} asks for a collision against the box displaced by this tick's
+     * {@code deltaMovement}, and a standing body's y-component is one tick of gravity, so a
+     * collision inside this slab is EXACTLY the thing that sets {@code onGround}. Asking it
+     * directly is what separates "onGround is lying" from "the reading looked at the wrong cells":
+     * the two produce the same evidence line and want opposite fixes.
+     */
+    private static AABB groundSlab(AABB box) {
+        return new AABB(box.minX, box.minY - GROUND_PROBE, box.minZ, box.maxX, box.minY, box.maxZ);
+    }
+
+    /**
+     * How much of the body's 0.36 m² of sole is actually resting on something solid.
+     *
+     * <p><b>Enumerated the way VANILLA's collision does — outward by 1e-7 — and not the way
+     * {@link #footprint} does, inward by 1e-4.</b> That difference is not pedantry: a body walking
+     * off a ledge spends its last grounded tick overlapping the ledge by a hair, and an inward
+     * epsilon DISCARDS exactly that cell. The old reading then printed "the previous tick had no
+     * support at all and onGround still said true", which reads as an engine lie and is really a
+     * body standing on a sliver. The area says which: a real sliver is a small positive number.
+     *
+     * <p>The row is {@code floor(minY − 1e-7)} — the row the sole sits ON, which is the block below
+     * for a body flush on a full cube and the block ITSELF for one resting on a shorter shape
+     * (soul sand, a slab). {@code floor(minY − 0.02)} answers the same for the first case and the
+     * WRONG row for a body that has risen even 0.02 off the floor — the first tick of a jump.
+     */
+    private static double contactArea(ServerLevel level, AABB box) {
+        int y = Mth.floor(box.minY - 1.0E-7);
+        double area = 0;
+        for (int x = Mth.floor(box.minX - 1.0E-7); x <= Mth.floor(box.maxX + 1.0E-7); x++) {
+            for (int z = Mth.floor(box.minZ - 1.0E-7); z <= Mth.floor(box.maxZ + 1.0E-7); z++) {
+                if (!level.getBlockState(new BlockPos(x, y, z)).blocksMotion()) continue;
+                area += overlap(box.minX, box.maxX, x) * overlap(box.minZ, box.maxZ, z);
+            }
+        }
+        return area;
+    }
+
+    private static double overlap(double lo, double hi, int cell) {
+        return Math.max(0, Math.min(hi, cell + 1.0) - Math.max(lo, cell));
+    }
+
+    /**
+     * Everything about the ground under the body on the tick BEFORE it left it.
+     *
+     * <p>The five questions the last three rounds each answered by guessing, in one row:
+     * <ol>
+     *   <li><b>Did it jump or did it walk off?</b> The y-velocity says so outright — a jump seeds
+     *       +0.42 and a step off a ledge is −0.08. Every fall so far was argued about without it.</li>
+     *   <li><b>Was {@code onGround} telling the truth?</b> {@code 脚下 0.08 格} is vanilla's own
+     *       question, asked again here. Agreeing with {@code onGround} closes the "it lags a tick"
+     *       theory; disagreeing is the first evidence for it.</li>
+     *   <li><b>Which row did the old reading look at?</b> Both rows are printed when they differ.</li>
+     *   <li><b>How much ground was left?</b> The contact area, in m² out of 0.36.</li>
+     *   <li><b>Was it a one-block ridge over lava?</b> The 5×5 map, where {@code !} is an open cell
+     *       with lava under it — the cells a drift lands in.</li>
+     * </ol>
+     */
+    private String groundDump(ServerLevel level, ServerPlayer fp) {
+        if (prevBox == null) return "上一 tick 没有记录";
+        AABB box = prevBox;
+        int row = Mth.floor(box.minY - 1.0E-7);
+        int oldRow = Mth.floor(box.minY - 0.02);
+        Vec3 now = fp.getDeltaMovement();
+        StringBuilder sb = new StringBuilder();
+        sb.append("上一 tick：位置 ")
+          .append(String.format(Locale.ROOT, "(%.3f, %.4f, %.3f)", box.minX + 0.3, box.minY, box.minZ + 0.3))
+          .append(" 速度 ").append(String.format(Locale.ROOT, "(%.3f, %.3f, %.3f)",
+                  prevDelta.x, prevDelta.y, prevDelta.z))
+          .append(" onGround=").append(prevOnGround)
+          .append(" 潜行=").append(prevSneak)
+          .append("；walker 那一 tick：")
+          .append(prevDrive == null
+                  ? "没走到 drive 收尾（提前返回的分支 —— 致命边刹车/冲刺/跳跃都在收尾里，这一 tick 一条都没跑）"
+                  : "drive=" + prevDrive)
+          .append(" 跳=").append(prevJumpTag == null ? "没有分支命令跳" : prevJumpTag);
+        sb.append("；vanilla 自己那一问（脚下 ").append(GROUND_PROBE).append(" 格内有碰撞吗）=")
+          .append(prevSwept ? "有" : "没有")
+          .append(prevSwept == prevOnGround ? "（和 onGround 一致 —— 它没有迟一拍）"
+                  : "（和 onGround 不一致 —— onGround 说的是别的 tick 的事）");
+        sb.append("；实心接触面积 ").append(String.format(Locale.ROOT, "%.4f/%.2f", prevContact, FULL_CONTACT));
+        sb.append("；支撑行 y=").append(row);
+        if (row != oldRow) sb.append("（旧读数用的 floor(minY-0.02)=").append(oldRow).append("，问错了行）");
+        sb.append(" ").append(contactCells(level, box, row));
+        sb.append("；这一 tick 速度 y=").append(String.format(Locale.ROOT, "%.3f", now.y))
+          .append(now.y > 0.15 ? "（是起跳，不是走出去的）" : "（不是起跳）");
+        sb.append("；").append(edgeBrakeVerdict(level,
+                new BlockPos(Mth.floor(box.minX + 0.3), Mth.floor(box.minY), Mth.floor(box.minZ + 0.3))));
+        sb.append("；立足面 5×5（y=").append(row).append("，行 z=")
+          .append(Mth.floor(box.minZ + 0.3) - 2).append("..").append(Mth.floor(box.minZ + 0.3) + 2)
+          .append("，列 x=").append(Mth.floor(box.minX + 0.3) - 2).append("..")
+          .append(Mth.floor(box.minX + 0.3) + 2).append("）：").append(neighbourhood(level, box, row))
+          .append("（#=实心 ~=岩浆 !=空的且下面有岩浆 .=空的且下面没岩浆）");
+        return sb.toString();
+    }
+
+    /**
+     * Re-ask the walker's own lethal-edge question here, off the LEVEL, cell by cell.
+     *
+     * <p>"The body was not sneaking beside a lava lake" has three causes and the walker's telemetry
+     * separates only one of them ({@code driveTag} says whether the tick reached the brake at all).
+     * The other two are "the brake asked and got false" and "the brake asked about the wrong cells",
+     * and nothing in the run could tell them apart — so this recomputes
+     * {@code WalkerGeometry.dropAdjacentExceeds}'s loop verbatim and prints every neighbour's
+     * verdict, plus the one cell that loop never looks at: <b>the body's own floor</b>.
+     *
+     * <p>Verdicts: {@code 固} the neighbour is solid (the loop skips it), {@code 底} it has a floor
+     * one down, {@code 落N} an N-block dry drop, {@code 岩N} lava N down — lethal at any depth.
+     */
+    private static String edgeBrakeVerdict(ServerLevel level, BlockPos foot) {
+        StringBuilder sb = new StringBuilder("致命边刹车照 level 重算（foot=" + foot.toShortString()
+                + "，自己这一格的地板 " + blockName(level, foot.below())
+                + (level.getBlockState(foot.below()).blocksMotion() ? "（撑得住）" : "（撑不住，而这一格守卫从来不问）")
+                + "）：");
+        boolean lethal = false;
+        for (int[] o : EDGE_NEIGHBOURS) {
+            BlockPos n = foot.offset(o[0], 0, o[1]);
+            String verdict;
+            if (level.getBlockState(n).blocksMotion()) {
+                verdict = "固";
+            } else if (isLava(level, n.below())) {
+                verdict = "岩0";
+            } else if (level.getBlockState(n.below()).blocksMotion()) {
+                verdict = "底";
+            } else {
+                int fall = 1;
+                BlockPos pr = n.below(2);
+                String hit = null;
+                while (fall <= SURVIVABLE_FALL + 2 && !level.getBlockState(pr).blocksMotion()) {
+                    if (isLava(level, pr)) { hit = "岩" + fall; break; }
+                    fall++;
+                    pr = pr.below();
+                }
+                verdict = hit != null ? hit : fall > SURVIVABLE_FALL ? "落>" + SURVIVABLE_FALL : "落" + fall;
+            }
+            if (verdict.startsWith("岩") || verdict.startsWith("落>")) lethal = true;
+            sb.append(' ').append(o[0]).append('/').append(o[1]).append('=').append(verdict);
+        }
+        return sb.append(lethal ? " → 该响" : " → 不该响").toString();
+    }
+
+    /** The walker's own neighbour set, copied rather than imported: this is a re-derivation and it
+     *  must stay one even if the walker's list changes — a copy that drifted would be visible, a
+     *  shared constant would hide the drift. */
+    private static final int[][] EDGE_NEIGHBOURS = {
+            {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
+
+    /** {@code SurvivalMath.survivableFall(20)} — the threshold a full-health body's brake uses. */
+    private static final int SURVIVABLE_FALL = 22;
+
+    private static boolean isLava(ServerLevel level, BlockPos p) {
+        return level.getBlockState(p).getFluidState().is(FluidTags.LAVA);
+    }
+
+    /** Every cell the box touches at {@code y}, with how much of the box each one holds up. A
+     *  cell whose share is a ten-thousandth of a block is the whole diagnosis of one fall. */
+    private static String contactCells(ServerLevel level, AABB box, int y) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int x = Mth.floor(box.minX - 1.0E-7); x <= Mth.floor(box.maxX + 1.0E-7); x++) {
+            for (int z = Mth.floor(box.minZ - 1.0E-7); z <= Mth.floor(box.maxZ + 1.0E-7); z++) {
+                BlockPos c = new BlockPos(x, y, z);
+                double share = overlap(box.minX, box.maxX, x) * overlap(box.minZ, box.maxZ, z);
+                if (sb.length() > 1) sb.append(' ');
+                sb.append(c.toShortString()).append('=').append(blockName(level, c))
+                  .append(String.format(Locale.ROOT, "(%.4f)", share));
+            }
+        }
+        return sb.append(']').toString();
+    }
+
+    /** The 5×5 of the support row around the body, and what a drift off each open cell lands in. */
+    private static String neighbourhood(ServerLevel level, AABB box, int y) {
+        int cx = Mth.floor(box.minX + 0.3);
+        int cz = Mth.floor(box.minZ + 0.3);
+        StringBuilder sb = new StringBuilder();
+        for (int dz = -2; dz <= 2; dz++) {
+            if (dz > -2) sb.append('/');
+            for (int dx = -2; dx <= 2; dx++) {
+                BlockPos c = new BlockPos(cx + dx, y, cz + dz);
+                if (level.getBlockState(c).blocksMotion()) { sb.append('#'); continue; }
+                if (level.getBlockState(c).getFluidState().is(FluidTags.LAVA)) {
+                    sb.append('~');
+                    continue;
+                }
+                sb.append(lavaUnder(level, c) ? '!' : '.');
+            }
+        }
+        return sb.toString();
+    }
+
+    private static boolean lavaUnder(ServerLevel level, BlockPos from) {
+        for (int d = 1; d <= LAVA_PROBE; d++) {
+            BlockPos c = from.below(d);
+            if (level.getBlockState(c).getFluidState().is(FluidTags.LAVA)) return true;
+            if (level.getBlockState(c).blocksMotion()) return false;
+        }
+        return false;
     }
 
     private static String names(ServerLevel level, List<BlockPos> cells) {
