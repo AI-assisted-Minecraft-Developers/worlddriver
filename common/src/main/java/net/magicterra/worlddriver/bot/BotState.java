@@ -134,6 +134,24 @@ public final class BotState {
          */
         public volatile BlockPos pathNode;
         public volatile String pathMove;
+        /**
+         * WHICH BRANCH of the walker's tick actuated this one, and who commanded its jump.
+         *
+         * <p>The same debugging channel as {@link #pathNode}, and it exists for the same reason a
+         * fall could not be read without that one. {@code Walker.tickInner} has dozens of early
+         * returns — pillar, dig, escape, step-up — and the drive TAIL, where the lethal-edge
+         * sneak-pin and the sprint/jump decision live, runs only on the ticks that reach it. So
+         * "the body was not sneaking beside a lava drop" has two completely different causes: the
+         * pin evaluated false, or the tick never got to the pin. {@code Walker.driveTag} already
+         * distinguishes them (it is null on an early return) and nothing outside the walker could
+         * read it — the journey's crossing runs its own {@code IntentProcess} walker, not the
+         * driver's.
+         *
+         * <p>Excluded from {@link #snapshot()} for the same reason {@code pathNode} is: this is for
+         * an in-process recorder, not for an agent to steer on.
+         */
+        public volatile String driveTag;
+        public volatile String jumpTag;
         public volatile long startedAtMs;
         public volatile String lastError;  // null if last run ok or in-progress
         /** gap#68-R2: honest terminal verdict of the LAST run. Null/−1 until a run ends.
@@ -167,6 +185,8 @@ public final class BotState {
             pathStep = 0;
             pathNode = null;
             pathMove = null;
+            driveTag = null;
+            jumpTag = null;
             startedAtMs = 0;
             // keep lastError so the agent can read it after wait.condition fires
         }

@@ -94,6 +94,11 @@ public final class IntentProcess implements BotProcess {
         // index with a node the walker had already moved past. See BotState.ProcessSlot.pathNode.
         st.mc_goto.pathNode = walker.pathNode();
         st.mc_goto.pathMove = walker.pathMove();
+        // Same tick, same reason (see BotState.ProcessSlot.driveTag): whether this tick reached the
+        // drive tail at all is what separates "the edge guard said no" from "the edge guard never
+        // ran", and only the walker knows.
+        st.mc_goto.driveTag = walker.driveTag;
+        st.mc_goto.jumpTag = walker.jumpTag;
         if (s == Walker.Step.WALKING) return false;
         if (s == Walker.Step.FAILED) st.mc_goto.lastError = walker.lastError;
         st.mc_goto.goalReached = walker.lastGoalReached;
