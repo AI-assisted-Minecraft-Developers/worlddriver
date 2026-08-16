@@ -735,7 +735,25 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             int attempt = MAX_WALK_ATTEMPTS - left + 1;
             rig.evidence(what + ".arrivedDistance", Math.round(away));
             rig.evidence(what + ".walkAttempts", attempt);
-            if (away <= ARRIVED_WITHIN) { onArrived.run(); return; }
+            if (away <= ARRIVED_WITHIN) {
+                // WHAT THE WALKER SAID, on the ARRIVAL path as well — the row this pair could not
+                // carry. `arrivedDistance=4, walkAttempts=1` is the same two digits for two different
+                // worlds: a body that walked here and stopped inside the tolerance, and a body the
+                // walker GAVE UP ON four blocks out. Measured, the PORTAL_LIT rehearsal of
+                // 2026-08-17: the leg ended `failed:no progress for 1200 ticks` with the body
+                // sneak-pinned on the lava crater's lip at -13,66,21 (`[walker] footing guard: sole
+                // 0.0000 … beside a lethal drop`), ARRIVED_WITHIN accepted it because 4 ≤ 5, and the
+                // rung then spent every remaining tick asking that same body to walk five more
+                // blocks — about 110 searches from one cell. The end reason existed the whole time
+                // and was written only on the branch below, so the results file said nothing.
+                rig.evidence(what + ".gotoEnd." + attempt,
+                        "end=" + rig.body().botState().mc_goto.endReason
+                                + " err=" + rig.body().botState().mc_goto.lastError
+                                + "（判为到达：停在 " + at.toShortString() + "，距 " + x + "," + z
+                                + " " + Math.round(away) + " 格，容差 " + ARRIVED_WITHIN + "）");
+                onArrived.run();
+                return;
+            }
             // What the walker itself said about the leg. Ninety searches in a row left no record of
             // WHY beyond the search-begin lines, so a wedge and a slow crossing read the same.
             rig.evidence(what + ".goto." + attempt,

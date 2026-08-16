@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **`walkToColumn` records the walker's own verdict on the ARRIVAL path too.**
+  `arrivedDistance=4, walkAttempts=1` is the same two digits for two different worlds: a body that
+  walked here and stopped inside the tolerance, and a body the walker gave up on four blocks out.
+  The end reason existed the whole time and was written only on the not-arrived branch, so the
+  `PORTAL_LIT` rehearsal of 2026-08-17 filed a textbook-looking arrival for a body that had been
+  sneak-pinned on a lava crater's lip for 1 200 ticks, and the rung downstream spent every remaining
+  tick asking it to walk five more blocks. It now prints either way:
+  `lava.gotoEnd.1 = end=failed:no progress for 1200 ticks (best dist=44) …（判为到达：停在
+  -13, 66, 21，距 -9,19 4 格，容差 5）`. `ARRIVED_WITHIN` is deliberately unchanged — five blocks of
+  slack is right for a caller whose next step is a search — but a caller whose next step needs an
+  exact column can now see which kind of arrival it was handed.
 - **A nether crossing now judges a hop by how much closer to the goal it got, not by how far the
   body moved.** The hop loop counted a hop as progress whenever its DISPLACEMENT was four blocks or
   more, so the ladder it escalates through — halve the reach, then aim 60° off the straight line —
