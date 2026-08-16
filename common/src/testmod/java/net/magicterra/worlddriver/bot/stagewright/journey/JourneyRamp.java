@@ -109,9 +109,37 @@ final class JourneyRamp {
      */
     static void buildTo(JourneyRig rig, Set<BlockPos> corridor, BlockPos landing, String tag,
                         Runnable then) {
+        buildTo(rig, corridor, landing, false, tag, then);
+    }
+
+    /**
+     * As above, with {@code exactRow} deciding what "already there" means.
+     *
+     * <p><b>A body ABOVE its landing is not a body on it, and only the caller knows whether that
+     * matters.</b> A POUR aims at the target's backing and is genuinely served from any row high
+     * enough, so it keeps the {@code >=}. A SCOOP is not: its column is verified by
+     * {@code JourneyPortalRung#raiseColumn} for ONE row — the eye is placed at exactly that row's
+     * foot — so a body one row up fires a line nobody checked.
+     *
+     * <p>Measured on the real ladder of 2026-08-16, cell six of an {@code east} mould. The column
+     * {@code 3,19} verified for {@code wantY=58}; {@code walkToColumn} is a {@code Goal.XZ} and has no
+     * opinion about the row, so it delivered the body to {@code y=59}
+     * ({@code recover6.rise.raisedY = 59/58}); this method then returned on {@code >=} without
+     * building anything, which is why <b>no {@code .ramp.*} row exists in that run at all</b>. From one
+     * row up, the line into the water at {@code 4,59,19} enters the frame cell {@code 4,60,19} and the
+     * fill correctly refuses to break a frame — so the run reported {@code frameStuck} and the frame
+     * took the blame for a row the body should never have been standing on. The landing itself was
+     * free and merely floorless ({@code standToFill} vetoed 13 candidates as {@code 脚下不实心} against
+     * 17 as {@code 落脚格被占}), which is exactly the work this flight exists to do.
+     */
+    static void buildTo(JourneyRig rig, Set<BlockPos> corridor, BlockPos landing, boolean exactRow,
+                        String tag, Runnable then) {
         ServerLevel level = rig.ctx().level();
         BlockPos here = rig.player().blockPosition();
-        if (here.getY() >= landing.getY()) { then.run(); return; }
+        if (exactRow ? here.getY() == landing.getY() : here.getY() >= landing.getY()) {
+            then.run();
+            return;
+        }
         int floorY = floorOf(corridor);
         int courses = landing.getY() - floorY;
         if (corridor.isEmpty() || courses <= 0 || courses > MAX_COURSES) {

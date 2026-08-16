@@ -146,6 +146,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Nothing in the old evidence could distinguish that from a slow walk.
 
 ### Changed
+- **The portal rung's water recover now requires the row its column was verified for, not merely
+  "high enough".** `raiseColumn` verifies a scoop column by putting the eye at exactly `wantY`
+  (`scoopSeesFrom`'s eye is `foot.getY() + eyeHeight`, and `foot` is on that row), but the walk to
+  that column is a `Goal.XZ`, which has no opinion about the row at all — and `JourneyRamp.buildTo`
+  then returned immediately on `here.getY() >= landing.getY()`. So a walk that delivered the body one
+  row high skipped the flight entirely, the landing never got its floor, and the scoop fired a line
+  nobody had checked. Measured on the real ladder of 2026-08-16, cell six of an `east` mould:
+  `recover6.rise.raiseTo.arrivedDistance = 0` (the column was hit exactly),
+  `recover6.rise.raisedY = 59/58`, and **no `.ramp.*` row exists in that run at all**. From one row
+  up, the line into the water at `4,59,19` enters the frame cell `4,60,19`; `JourneyFill` rightly
+  refuses to break a frame, so the run reported `frameStuck` and the frame took the blame for a row
+  the body should not have been on. The landing was free and merely floorless — `standToFill` vetoed
+  13 candidates as `脚下不实心` against 17 as `落脚格被占` — which is exactly the work the flight
+  exists to do. `buildTo` gains an `exactRow` flag: pours keep `>=` (a pour aims at a backing and is
+  genuinely served from any row high enough), scoops require equality. `raisedY` now names which side
+  of the row it ended on, because one row high and one row low read alike and want opposite repairs.
+  **No widening of the frame rule**, deliberately: this rung has three times shown that tolerating an
+  upstream error just moves the failure. **`compiled`, plus one `-Prehearse=PORTAL_LIT` with no
+  regression on a `south` mould (10/10 cast, 6/6 cells, ten `recover*` CONSUME)** — that rehearsal's
+  two `.rise` rows were both the *too low* kind, so the new branch has not yet executed anywhere, and
+  `east` moulds are drawn at random.
 - **The portal rung's water recover no longer accepts a height as an answer about a sightline.**
   `riseToTakeItBack` held two gates: the `SOURCE_ONLY` clip the bucket runs, and
   `if (here.getY() >= wantY) return;`. The second is what lost the real ladder of 2026-08-16 on its
@@ -162,6 +183,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `standToFill` refuting that same cell from its centre as `射线停在 Block{minecraft:obsidian}=1`).
   The raise now runs for its column whether or not the row is already right, and `.rise` names which
   of the two states it is in rather than describing only the shorter one.
+
+  **Backtested on 2026-08-16, and the verdict is: the branch executes and is not enough to save an
+  `east` mould.** Every earlier run drew the `-9,56,38 朝 south` geometry, which does not produce the
+  wrong-column state at all, so this branch had never once run. The ladder of 2026-08-16 drew
+  `forge.face = 4,56,19 朝 east` and it did: `recover6.rise = 3,58,18 看不见 4,59,19 里的水（脚在
+  y=58，要站的排 y=58，高度已经够了 —— 差的是柱）`, followed by `recover6.rise.raisedY = 59/58（停在
+  3,19，指定柱 3,19，同一柱）` — it moved to the right column and rose. The cell was still not
+  collected, on a **new** cause the height gate had been hiding: from the right column the body now
+  stands one row too HIGH, eyes at `y=61.29` looking down at `pitch=65.78` into water at `y=59`, and
+  the frame cell `4,60,19` (dirt) sits on that line — `recover6.frameOnLine.3`, and the frame is not
+  allowed to be broken, so `recover6.frameStuck.3 = 门框挡着 4,59,19，而且没有别的落脚点看得见它`.
+  So `east` moulds have now lost the portal rung on both sides of this change. Not `live`.
 - **A body grounded on almost nothing beside a lethal drop is now pinned, whatever branch actuated
   the tick.** New `Walker.footingGuard`, in the single-exit wrapper beside `strideFloorGuard`: sole on
   solid under `FOOTING_MIN` (0.18 of 0.36) plus a lethal drop in the eight neighbours holds vanilla

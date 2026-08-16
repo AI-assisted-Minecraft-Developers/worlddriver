@@ -1836,7 +1836,7 @@ public final class JourneyPortalRung {
         // nothing to gain from a leg that can only move it out of one. Same short-circuit the fill
         // and the pour both grew for the same reason.
         if (here.getX() == col.getX() && here.getZ() == col.getZ()) {
-            raiseInColumn(rig, target, col, wantY, verified != null, tag, then);
+            raiseInColumn(rig, target, col, wantY, verified != null, pouring, tag, then);
             return;
         }
         // THE EXACT COLUMN, radius 0. It was 1, and a radius-1 disk is not a rounding allowance here
@@ -1857,7 +1857,7 @@ public final class JourneyPortalRung {
                         + col.getX() + "," + col.getZ() + " 上就算到了（walkToColumn 判到达用的是 5 格）"
                         + " —— 接下来由塔的偏柱修正把身体带回这一柱");
             }
-            raiseInColumn(rig, target, col, wantY, verified != null, tag, then);
+            raiseInColumn(rig, target, col, wantY, verified != null, pouring, tag, then);
         },
                 () -> {
             rig.evidence(tag + ".raiseStuck", "走不到 " + col.getX() + "," + col.getZ()
@@ -1867,17 +1867,26 @@ public final class JourneyPortalRung {
     }
 
     private static void raiseInColumn(JourneyRig rig, BlockPos target, BlockPos col, int wantY,
-                                      boolean pin, String tag, Runnable then) {
+                                      boolean pin, boolean pouring, String tag, Runnable then) {
         Runnable done = () -> {
             BotConfig.allowPlace = false;          // the casting phase is place-free again
             // THE COLUMN AS WELL AS THE HEIGHT. `water9.raisedY=60/60` was a true statement about a
             // body two cells out of the column its aim had been computed for, and reading it alone
             // is what made a lost raise look like a finished one.
             BlockPos now = rig.player().blockPosition();
+            // AND WHICH SIDE OF THE ROW. A scoop's column is verified with the eye at wantY exactly,
+            // so「高了」is as wrong as「矮了」and reads nothing like it in the failure that follows:
+            // one row high, the line into the water clips the frame cell above it and the run blames
+            // the frame. `recover6.rise.raisedY = 59/58` said this and nobody could see it.
+            String row = now.getY() == wantY ? ""
+                    : now.getY() > wantY
+                            ? "，比要站的排高 " + (now.getY() - wantY)
+                              + " 排 —— 射线是照 y=" + wantY + " 那一排验的，从这里打出去的不是验过的那条"
+                            : "，比要站的排矮 " + (wantY - now.getY()) + " 排";
             rig.evidence(tag + ".raisedY", now.getY() + "/" + wantY + "（停在 " + now.getX() + ","
                     + now.getZ() + "，指定柱 " + col.getX() + "," + col.getZ()
                     + (now.getX() == col.getX() && now.getZ() == col.getZ() ? "，同一柱"
-                            : "，不是同一柱 —— 射线是照那一柱算的") + "）");
+                            : "，不是同一柱 —— 射线是照那一柱算的") + row + "）");
             then.run();
         };
         // THE STAIRCASE FIRST. It is the only one of the two that puts the body in the column it was
@@ -1892,7 +1901,10 @@ public final class JourneyPortalRung {
             if (pin) JourneyShaft.climbOutInColumn(rig, wantY, col.getX(), col.getZ(), tag, done);
             else JourneyShaft.climbOut(rig, wantY, tag, done);
         };
-        JourneyRamp.buildTo(rig, forgeCorridor, new BlockPos(col.getX(), wantY, col.getZ()),
+        // EXACT ROW for a scoop, 「够高就行」 for a pour — see JourneyRamp#buildTo(…, exactRow, …).
+        // A body that walked into the column one row high used to skip the flight entirely, so the
+        // landing never got its floor and the scoop fired a ray verified for a row it was not on.
+        JourneyRamp.buildTo(rig, forgeCorridor, new BlockPos(col.getX(), wantY, col.getZ()), !pouring,
                 tag + ".ramp", () -> {
             // Handed on rather than replaced: the tower is what carried this rung out of its own
             // flood on 2026-08-17 (`cast9` 59/59), where the body floats and no placement is what
