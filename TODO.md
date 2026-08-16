@@ -1,4 +1,103 @@
-## ⬜ 接手点 —— 真 ladder 第一次点亮传送门（12 级）；两趟 1/2，新红点在收水
+## ⬜ 接手点 —— 真 ladder 爬到 14 级（BLAZE_ROD）；12 级 2/2，13/14 级第一次执行
+
+**新高：`journey.height = BLAZE_ROD`（第 14 级），`journey.stagingCalls = 0`。**
+在此之前真 ladder 最高只到 12 级。两趟都跑完全程，没有中途收手。
+
+| | 第 1 趟 | 第 2 趟 |
+|---|---|---|
+| 12 级 PORTAL_LIT | **PASS** 7881t | **PASS** 7951t |
+| 13 级 NETHER | **PASS** 175t（**首次执行**） | **PASS** 175t |
+| 14 级 BLAZE_ROD | FAIL 6665t（**首次执行**，穿越掉岩浆） | **PASS** 7567t |
+| 15 级 ENDER_PEARL | 没跑到 | FAIL 7916t（末影人一只都没刷） |
+| `journey.height` | NETHER | **BLAZE_ROD** |
+
+两趟的 12 级都是 `forge.face = -9, 56, 38 朝 south`、`frame.cast = 10/10（丢 0 格）`、
+`frame.obsidian = 10/10`、`portal.cells = 6/6`，十个 `recover*.result` 全是 `CONSUME`，
+一条 `frame.lost.*` 都没有。
+
+### 改了什么：`riseToTakeItBack` 不再拿高度回答射线的问题
+
+上一轮点名但没验证的那条，**这一轮先用归档的 results 文件证死了，没有再花一趟**：
+
+- 那趟的 `recover0..5` 每一条都打了 `.fromHere`（`fillFrom` 在「同一条 `SOURCE_ONLY` 射线看得见
+  源块」时打的行），而 `recover6` 打的是 `.spot`（看不见那一支）。两处问的是**同一个函数、同样的
+  参数**，而且是 `then.run()` 同一 tick 里前后脚调用，中间没有任何能挪动身体的东西。
+- 所以第一个早退（`visibleSourceNear != null`）**没有**触发；两个早退只剩高度那个。
+  全run 一条 `.rise` 都没有，和这个推断一致。
+
+死因的几何也从同一份归档里读出来了：第 6 格浇的是 `4,59,18`，它的水在旁边的
+`4,59,19`，浇筑把身体留在 `3,58,18` —— 正好是 `wantY`，但**柱错了一格**，
+于是射线得斜着从刚浇成黑曜石的那一格旁边挤过去，挤不过去
+（`recover6.aimsAt = 4, 59, 18 Block{minecraft:obsidian} 源块=false（想瞄 4, 59, 19）`；
+`standToFill` 从**格心**重问同一格也否了：`射线停在 Block{minecraft:obsidian}=1`）。
+对的柱是水正后方的 `3,·,19`，射线是轴对齐的；`standToFill` 给不出它，因为它只返回**已经有地板**
+的格，而 `3,57,19` 是空气 —— `raiseColumn` 不要求地板（射线闸自己问），`JourneyRamp` 把地板垒出来。
+
+改动就一条：删掉 `if (here.getY() >= wantY) return;`，看不见水就去换柱，够不够高由 `raiseTo`
+自己判。`.rise` 那一行现在会说清楚是「还差 N 排」还是「高度已经够了 —— 差的是柱」。
+
+### ⚠️ 这一刀自己的分支两趟都没执行过
+
+**必须写下来**：两趟的模腔都落在 `-9, 56, 38 朝 south`，那处几何**不产生**「对的高度、错的柱」
+这个状态 —— 两趟里 `.rise` 只出现在 `recover8`/`recover9`，说的都是「还差 4 排 / 还差 3 排」，
+即改动前就存在的那条路。出问题的那趟模腔是 `4, 56, 19 朝 east`，模腔位置每趟随机，这两趟没抽到。
+
+所以这一刀的等级是 **compiled + 两趟真 ladder 无回归**，**不是 backtested**。
+判据 1（`recover*` 不再死在「对的高度、错的柱」）**没有被观测到**，只是**没有复发**。
+下次抽到 east 那类模腔时，去 results 里 grep `高度已经够了` —— 那一行出现且随后
+`recover*.result=CONSUME`，才算真的验过。
+
+### 13 级：`bottomOfThePortal` 第一次执行就成了
+
+```
+portal.found = -10, 57, 38    stand.at = -10, 58, 38    stand.in = Block{minecraft:nether_portal}
+arrived.at = 6, 41, 4         underfoot = Block{minecraft:obsidian}
+scaled.expectedXZ = -2,4（漂移 8 格）    175 tick
+```
+
+对照上一轮那趟：`stand.in = air`，八条腿全停在同一格。**这一次身体站进的是传送门方块本身**，
+两趟都是 175 tick。`advancement.enter_the_nether = not-earned`（服务端 avatar 成就那半的老账，
+本级判据不看它）。
+
+### 14 级：第 1 趟掉岩浆，第 2 趟打出棒子
+
+**第 2 趟（PASS）**：13 段穿越，`fortress.arrivedDistance = 18`，离地 4 次；
+`spawner.at = 226, 64, 281`，`stoodAt` 距刷怪笼 2.0 格；
+`room.placed = 106 格（墙 68，顶 38）`，`refused = 0`、`stillOpen = 0`、`ranOut = 0`；
+`blaze.appeared = 2 只（等了 0 tick）`，五场架 119–254 tick，**手里是 `stone_pickaxe`**
+（排练那两趟是 `iron_sword`），`最高离地 -0.4 ~ 0.2 格`；
+`rods.perKill = 0,0,0,0,1`，`blaze_rod = 1`。
+
+**第 1 趟（FAIL）**：`fortress.at = 272, 0, 304（401 格）`，11 段只走了 143 格，
+`还差 258`，第 11 段 `t=474` 从 `y=42` 掉进岩浆 `95, 29, 115`，收工时泡在
+`96, 23, 115`（血 20，`expanded=1` 就是这个原因）。那一 tick 的读数是已知那一族：
+`实心接触面积 0.0000/0.36`、`onGround=true` 而 vanilla 自己那一问说没有、
+`致命边刹车照 level 重算 … → 该响` 而 `潜行=false`。**这是 14/15 级的账，不是这一刀的。**
+
+第 2 趟的穿越也不干净：`全程无计划 2373 tick`，第 5、6 段各 900 tick **一格没挪、全程无计划**，
+靠第 7 段的「偏 60°」重问才走出去。
+
+### 15 级：第一次跑到，红在刷怪不在移动
+
+```
+身边 48.0 格内一只末影人都没有，6 轮都等了也没等到 —— 0 只在 48 格内、0 只在 128 格内；
+128 格内怪物共 2 只 {blaze=2}（远处那个数只在已加载区块里算数，本级钉着 4 区块 = 64 格）；
+本层 level.players() 里有 1 个玩家，所以这不是 isNearPlayer 的问题
+```
+
+它自己已经把 `isNearPlayer` 排除了，指向刷怪条件（光照、脚下方块、同类上限、
+或者 14 级围的那间屋子把刷怪点堵死了）。**这一级还没有人查过。**
+
+### 下一个人从这里开始
+
+1. **12 级还欠一次真正的验证**（见上「⚠️」）。别把 2/2 读成「验过了」—— 验的是没回归。
+2. **15 级**：末影人刷不出来。先量清楚是钉的 4 区块太小、还是屋子/光照堵死了刷怪点。
+3. **14 级第 1 趟那条穿越**：从 `y=42` 走进岩浆，`该响` 而没响。上游真凶更可能是
+   `离计划最远 40.13 格` 那一族 —— 执行器离开自己的计划再也回不去。
+4. **12 级的两条老账仍在**：`cast9` 最后一次尝试会走掉刚垒的台阶；干地上的塔停摆
+   （`JourneyRamp` 只是让它不再是唯一的路，塔本身没修）。
+
+## ⬜ 上一轮的接手点 —— 真 ladder 第一次点亮传送门（12 级）；两趟 1/2，新红点在收水
 
 **判据 3 达成过一次**：真实 ladder 一趟走到 `journey.height = PORTAL_LIT`（第 12 级），
 `journey.stagingCalls = 0`，`frame.cast = 10/10（丢 0 格）`、`portal.cells = 6/6`。
