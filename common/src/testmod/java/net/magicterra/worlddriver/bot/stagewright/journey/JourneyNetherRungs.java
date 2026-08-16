@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -12,6 +13,8 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.process.CombatProcess;
+import net.magicterra.worlddriver.bot.pathfinder.Capability;
+import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
 import net.magicterra.worlddriver.bot.process.Intent;
 import net.magicterra.worlddriver.bot.process.IntentProcess;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
@@ -1006,6 +1009,40 @@ public final class JourneyNetherRungs {
         oneHop(rig, what, x, z, tolerance, hopTicks, new Crossing(), onArrived, onStuck);
     }
 
+    /**
+     * The mobility envelope a nether crossing gets: everything except a LEAP.
+     *
+     * <p>Measured, twice, in two rehearsals of this rung. A crossing plans aerial moves over nether
+     * terrain and the executor does not land where the plan says:
+     *
+     * <pre>
+     * 计划下一格 50, 50, 49[fall4]     … 距身体 1.66 格 → 落到 51, 44, 52，坠 9 格
+     * 计划下一格 16, 53, 22[parkour3]  … 距身体 2.90 格 → 落进岩浆 14, 29, 23，坠 24 格
+     * </pre>
+     *
+     * <p>The second one ended the crossing fifteen blocks in. Both landing cells were real ground —
+     * {@code 16,52,22=netherrack（撑得住）} — so neither plan was wrong about the world. What is
+     * wrong is the BET: <b>a leap's cost does not include what is under the gap.</b> Over rock a
+     * missed {@code parkour3} costs a few hearts; over a lava chasm it costs the run, and the stride
+     * floor-guard is explicitly disarmed on a parkour tick ({@code guardParkourTick}) because a leap's
+     * landing is supposed to be the plan.
+     *
+     * <p>So the crossing does not leap. It still bridges — {@code BridgePlace} is not a
+     * {@code PARKOUR} move and the rung arrives carrying 128 blocks — which is what a player does at
+     * a lava chasm, and it still walks, climbs and steps down.
+     *
+     * <p><b>This is not the general fix for a fall, and must not be read as one.</b> The rehearsal
+     * after it fell again, on a plain {@code walk} edge to a cell 0.97 blocks away standing on
+     * netherrack. What all four falls share is not the move: it is that the previous tick's whole
+     * footprint was air while {@code onGround} still read true.
+     *
+     * <p>Scoped to the crossing hops on purpose. This is a statement about walking a kilometre over
+     * lava, not about the driver: the approach to a spawner three blocks away has no chasm to leap
+     * and no reason to lose a capability.
+     */
+    private static final CapabilityProfile NO_PARKOUR =
+            new CapabilityProfile(EnumSet.of(Capability.PARKOUR));
+
     /** What a crossing carries from hop to hop. A chain of continuations cannot keep locals. */
     private static final class Crossing {
         int hop;                       // hops spent
@@ -1049,7 +1086,8 @@ public final class JourneyNetherRungs {
         // JourneyFlight: three different bugs all end with a body hanging in cave_air, and the
         // `around.N` line prints the same sentence for all three.
         JourneyFlight flight = JourneyFlight.watching(rig, before, wx, wz);
-        rig.settle(new IntentProcess(new Intent(new Goal.XZ(wx, wz, hopTolerance))), hopTicks,
+        rig.settle(new IntentProcess(new Intent(new Goal.XZ(wx, wz, hopTolerance),
+                        List.of(), NO_PARKOUR, List.of())), hopTicks,
                 flight, () -> {
             BlockPos at = rig.player().blockPosition();
             double moved = Math.hypot(at.getX() - before.getX(), at.getZ() - before.getZ());
