@@ -239,12 +239,27 @@ public final class JourneyShaft {
         if (at.getX() != climbColX || at.getZ() != climbColZ) {
             rig.evidence("climb." + step + ".drift", at.toShortString() + " 偏离起塔柱 "
                     + climbColX + "," + climbColZ + "，先走回去再垒");
-            rig.settle(new IntentProcess(new Intent(new Goal.Block(
-                    new BlockPos(climbColX, at.getY(), climbColZ)))), 120, () -> {
+            // THE COLUMN, AT WHATEVER HEIGHT IT CAN BE ENTERED — not the cell level with the body.
+            //
+            // `Goal.Block(climbColX, at.getY(), climbColZ)` is only the right cell on flat ground.
+            // The portal rung's raise asks for a column inside a HOLLOW alcove, so the cell at the
+            // body's own height is air over air and no route exists to it; the column's only
+            // standable cell is its floor, several rows down. Measured, the rehearsal of 2026-08-16
+            // cell eight: `recover8.rise.raise` chose the column `-9,37` and the body was at
+            // `-9,58,38`, one cell out; the correction asked for `-9,58,37` — air with air under it
+            // — failed, and `climb.0.pinnedLost` ended the climb WITHOUT PLACING A SINGLE BLOCK,
+            // which the row `recover8.rise.raisedY=58/60` then reported as a short raise rather than
+            // as a raise that never happened.
+            //
+            // A tower supplies the height; what the pin is about is the column, which is what
+            // `driftKept`'s own wording ("改以这一柱为准") already says. So the correction asks for
+            // the column and lets the walker pick a height it can stand at.
+            //
+            walkBackToColumn(rig, step, DRIFT_ATTEMPTS, () -> {
                 BlockPos back = rig.player().blockPosition();
-                // One attempt, then adopt. A correction that cannot be made must not become the
-                // whole climb — forty courses of walking back to a cell the body cannot reach is
-                // the same wedge in a different costume, and the climb still has to happen.
+                // The correction is over. Adopt, or stop — a bounded number of attempts must not
+                // become the whole climb: forty courses of walking back to a cell the body cannot
+                // reach is the same wedge in a different costume, and the climb still has to happen.
                 //
                 // …UNLESS THE COLUMN IS THE POINT. Adopting is right for an exit and wrong for a
                 // pour, because the caller computed its aim from a column and adopting silently
@@ -575,6 +590,110 @@ public final class JourneyShaft {
             }
         return centre;
     }
+
+    /**
+     * How many times a drift correction re-plans before the climb adopts or stops.
+     *
+     * <p>Three, and the number comes from what the walker actually says. Measured on the rehearsal
+     * of 2026-08-16, cell eight: {@code climb.0.driftInto=-9,56,37} — the column's foothold, found —
+     * and {@code climb.0.driftGoto=end=path-consumed err=null（想去 -9,56,37，停在 -9,57,38）}. Not
+     * "no route": the walker planned, walked one block of it, and reported the path CONSUMED. That
+     * is this repo's own {@code wd.serverWalkerArrivedShort} — {@code IntentProcess} reports its
+     * goal reached for a partial path — and the answer to it everywhere else in this suite is to
+     * ask again from where the body now is, which {@link WorldDriverJourneyScenes#walkToColumn}
+     * has done for cross-country legs since the iron rung ended one 88 blocks short.
+     *
+     * <p>One attempt was therefore not a policy, it was a bug: a correction that could have been
+     * made in two legs reported "走不回指定柱" and ended a pinned raise <b>without placing a single
+     * block</b>.
+     */
+    static final int DRIFT_ATTEMPTS = 3;
+
+    /**
+     * Walk back onto the pinned column, re-planning from wherever each leg ends.
+     *
+     * <p>Two guards keep this from becoming the wedge the single attempt was protecting against.
+     * It is bounded at {@link #DRIFT_ATTEMPTS}; and <b>a leg that did not move the body ends it
+     * immediately</b> — three identical questions get three identical answers, which is the
+     * measured lesson behind {@code walkToColumn}'s own wedge check.
+     *
+     * <p>It may not BREAK its way there. The casting phase runs with {@code allowBreak} on, and a
+     * correction that mines is how a cast frame cell gets eaten by the body's own repositioning —
+     * the failure {@code frame.lost.1} recorded twice. Walking inside a room the rung just hollowed
+     * out needs no digging.
+     */
+    private static void walkBackToColumn(JourneyRig rig, int step, int tries, Runnable then) {
+        BlockPos at = rig.player().blockPosition();
+        if (tries <= 0 || (at.getX() == climbColX && at.getZ() == climbColZ)) { then.run(); return; }
+        ServerLevel lvl = lvlOf(rig);
+        // A 3D GOAL, NOT AN XZ ONE, whenever the column has a cell to name. `Goal.XZ` reports
+        // `ignoresY`, and the pathfinder's own contract says what that costs: the descend-tax
+        // applies ONLY to Y-ignoring goals, because for them going down reads as free progress.
+        // Here going down is most of the move — the column's foothold is its floor, under a body
+        // standing rows above it on the frame — so the one goal shape that is taxed for descending
+        // was the one being used. `Goal.Block` carries a real 3D heuristic and is not taxed.
+        BlockPos into = footholdInColumn(lvl, climbColX, climbColZ, at.getY());
+        Goal goal = into != null ? new Goal.Block(into) : new Goal.XZ(climbColX, climbColZ, 0);
+        int n = DRIFT_ATTEMPTS - tries + 1;
+        rig.evidence("climb." + step + ".driftInto." + n, into != null
+                ? into.toShortString() + "（这一柱里站得住的那一格，身体在 " + at.toShortString() + "）"
+                : "这一柱 y=" + (at.getY() + 1) + ".." + (at.getY() - COLUMN_FOOTHOLD_DROP)
+                        + " 没有一格站得住 —— 只能按列走，多半走不到");
+        boolean couldBreak = BotConfig.allowBreak;
+        BotConfig.allowBreak = false;
+        // Longer than the 120 ticks the same-height cell needed, because the column's foothold can
+        // be several rows under the body in a hollow alcove and the leg now includes that descent.
+        rig.settle(new IntentProcess(new Intent(goal)), 200, () -> {
+            BotConfig.allowBreak = couldBreak;
+            BlockPos back = rig.player().blockPosition();
+            if (back.getX() == climbColX && back.getZ() == climbColZ) { then.run(); return; }
+            // WHY it did not get there, from the walker itself. `pinnedLost` and `driftKept` both
+            // used to report only that the body was somewhere else, which is the same sentence for
+            // "no route exists", "the search ran out of time" and "it walked part of a plan and
+            // stopped" — three findings needing three different answers, and it was the third.
+            rig.evidence("climb." + step + ".driftGoto." + n,
+                    "end=" + rig.body().botState().mc_goto.endReason
+                            + " err=" + rig.body().botState().mc_goto.lastError
+                            + "（想去 " + (into != null ? into.toShortString()
+                                    : climbColX + "," + climbColZ) + "，停在 "
+                            + back.toShortString() + "）");
+            if (back.equals(at)) {
+                rig.evidence("climb." + step + ".driftWedged." + n, back.toShortString()
+                        + " 这一腿一格没挪 —— 再问一次也是同一个答案，不问了");
+                then.run();
+                return;
+            }
+            walkBackToColumn(rig, step, tries - 1, then);
+        });
+    }
+
+    /**
+     * The highest cell in one column, at or below {@code fromY}, that a body could stand in.
+     *
+     * <p>Standable in the walker's own terms — something solid under the feet, feet and head both
+     * clear of collision — and highest first, so a correction descends as little as it has to.
+     *
+     * <p>It exists because a pinned climb's column is often a column with nothing in it: the portal
+     * rung's raise names a corridor column in a HOLLOW alcove, where every cell from the ceiling to
+     * the floor is air and only the floor can be occupied. Naming that cell is what lets the
+     * correction ask a 3D question instead of a Y-ignoring one.
+     */
+    static BlockPos footholdInColumn(ServerLevel level, int x, int z, int fromY) {
+        for (int y = fromY + 1; y >= fromY - COLUMN_FOOTHOLD_DROP; y--) {
+            BlockPos foot = new BlockPos(x, y, z);
+            if (!level.getBlockState(foot.below()).blocksMotion()) continue;
+            if (!level.getBlockState(foot).getCollisionShape(level, foot).isEmpty()) continue;
+            BlockPos head = foot.above();
+            if (!level.getBlockState(head).getCollisionShape(level, head).isEmpty()) continue;
+            return foot;
+        }
+        return null;
+    }
+
+    /** How far below the body a drift correction will look for a foothold in its own column. Seven:
+     *  the portal rung's alcove is seven cells tall, so a body on its top row and a column whose
+     *  only floor is the bottom one are the extremes this has to span. */
+    static final int COLUMN_FOOTHOLD_DROP = 7;
 
     static ServerLevel lvlOf(JourneyRig rig) { return rig.ctx().level(); }
 

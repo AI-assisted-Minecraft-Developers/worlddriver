@@ -1778,8 +1778,26 @@ public final class JourneyPortalRung {
             raiseInColumn(rig, target, col, wantY, verified != null, tag, then);
             return;
         }
-        WorldDriverJourneyScenes.walkToColumn(rig, tag + ".raiseTo", col.getX(), col.getZ(), 1, 800,
-                () -> raiseInColumn(rig, target, col, wantY, verified != null, tag, then),
+        // THE EXACT COLUMN, radius 0. It was 1, and a radius-1 disk is not a rounding allowance here
+        // — it is a different ray. Worse, `walkToColumn` judges arrival against its own
+        // `ARRIVED_WITHIN` and not against the radius asked for, so the leg reports success from up
+        // to five cells out: `recover8.rise.raiseTo.arrivedDistance=1` was an ARRIVAL, and the
+        // pinned climb it handed over to then refused to place anything because the body was not in
+        // the column. Asking for radius 0 at least makes the walker try for the cell the aim was
+        // computed from; the tower's own drift correction is what finishes the job when it cannot.
+        WorldDriverJourneyScenes.walkToColumn(rig, tag + ".raiseTo", col.getX(), col.getZ(), 0, 800,
+                () -> {
+            // SAY SO WHEN THE ARRIVAL IS NOT AN ARRIVAL. `arrivedDistance` is a number nobody reads
+            // as a verdict, and without this row a raise that started out of its own column looks
+            // identical to one that started in it right up until `raisedY` reports a shortfall.
+            BlockPos landed = rig.player().blockPosition();
+            if (landed.getX() != col.getX() || landed.getZ() != col.getZ()) {
+                rig.evidence(tag + ".raiseColumnMissed", landed.toShortString() + " 不在指定柱 "
+                        + col.getX() + "," + col.getZ() + " 上就算到了（walkToColumn 判到达用的是 5 格）"
+                        + " —— 接下来由塔的偏柱修正把身体带回这一柱");
+            }
+            raiseInColumn(rig, target, col, wantY, verified != null, tag, then);
+        },
                 () -> {
             rig.evidence(tag + ".raiseStuck", "走不到 " + col.getX() + "," + col.getZ()
                     + "，从当前高度浇（多半会被射线闸拦下）");
