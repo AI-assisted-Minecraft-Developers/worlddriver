@@ -7,7 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **A walk now says WHICH CELL it is steering at, not only how far along the plan it is.**
+  `BotState.ProcessSlot` gained `pathNode` / `pathMove` beside `pathLen` / `pathStep`, published by
+  `IntentProcess` from the same tick, and `Walker.pathMove()` names the edge that enters the node
+  (`walk`, `stepDown`, `fall4`, `parkour3`, …). Every earlier reading of a body that left the ground
+  was about the cell under its FEET, and two opposite failures write identical feet: a next node
+  genuinely across a gap (the planner is at fault) and a fine node the body slid past (the executor
+  is). The journey's `JourneyFlight` snapshots it at the launch tick — not at the landing tick, which
+  is a different plan — and it named the nether crossing's killer on the first run that carried it:
+  `计划下一格 16, 53, 22[parkour3] … 距身体 2.90 格` followed by `落进岩浆 14, 29, 23，坠 24 格`.
+  Deliberately not in `snapshot()`: it is a debugging reading for in-process consumers, and every
+  `mc.bot.status` poll ships every slot to an LLM client.
+- **`JourneyFlight` counts the ticks a leg had no plan at all.** The reading that separates "the
+  nether is hard terrain" from "the walker never answered": the crossing's second and third attempts
+  spent `1203/1582` and `1203/1203` ticks with nothing to steer at, and the server log carries 2402
+  `search-begin` lines from the single cell `66,43,67` — one full A* budget per tick for two minutes.
+  Nothing in the old evidence could distinguish that from a slow walk.
+
 ### Changed
+- **The nether crossing walks in bounded hops instead of aiming at one distant goal.** A 397-block
+  `Goal.XZ` is not a question this pathfinder answers; three attempts at it walked 15, 69 and 0
+  blocks. The retry that was supposed to catch that measured the whole ATTEMPT — attempt 2 moved 69
+  blocks and then stood still for 1203 ticks, so it passed the "did it move" test and attempt 3
+  re-asked the identical question from the identical cell. A hop is short enough that "did this hop
+  move" is the same question, and a wedged hop changes the question rather than repeating it: half
+  the reach first, then 60° off the straight line. Measured on the same seed and start: 3072 ticks
+  for ~110 blocks with a 2400-search wedge, against 1029 ticks for 103 blocks with `无计划` ticks of
+  3, 2 and 12. Rung 15's walk to a warped forest is the same crossing and takes the same route.
+- **The nether crossing does not leap.** Its hops carry a `CapabilityProfile` forbidding
+  `Capability.PARKOUR`. A leap's cost does not include what is under the gap: over rock a missed
+  `parkour3` costs a few hearts, over a lava chasm it costs the run, and the stride floor-guard is
+  explicitly disarmed on a parkour tick because a leap's landing is supposed to be the plan.
+  Measured — the crossing died fifteen blocks in on a `parkour3` whose landing cell was real ground.
+  Bridging is untouched (`BridgePlace` is not a `PARKOUR` move and the rung arrives with 128 blocks),
+  and the scope is the crossing only: an approach to a spawner three blocks away has no chasm to leap.
+  **Not the general fix for a fall, and the record says so**: the run after it fell again on a plain
+  `walk` edge to a cell 0.97 blocks away standing on netherrack. What all four measured falls share
+  is not the move — it is `上一 tick 就已经没有支撑格了 … onGround 却还报 true`.
 - **A pour now decides its aim with the ray that will fire it, and decides it after the settle it
   fires from.** Two separate splits between prediction and execution, both closed:
 
