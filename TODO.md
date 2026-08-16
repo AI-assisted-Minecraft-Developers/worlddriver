@@ -124,6 +124,7 @@ journey.height = NETHER(13)   journey.stagingCalls = 0
 | `-Prehearse=ENDER_PEARL`（survey 第一版，半径 256） | FAIL 7195t —— 没走一步，`就地猎`；证据行撒谎，据此修了两处 |
 | `-Prehearse=ENDER_PEARL`（半径 384） | FAIL 8094t —— 目标 `168,?,-281`（48 格内 **100%**），第 1 段掉岩浆，`还差 338` |
 | `:fabric:runJourneyServer` | `journey.height = NETHER`(13)，`staging.calls=0`，14 级红在穿越；全程 20.00 tick/s |
+| `stagewrightDedicatedServerFabric` | **VERDICT: GREEN**（226 执行 / 20 skip，ec=0） |
 | `check_source_budget.py`、`check_scene_arena.py` | 过 |
 
 ### 下一个人从这里开始
