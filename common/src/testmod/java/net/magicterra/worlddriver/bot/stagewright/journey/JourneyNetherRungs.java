@@ -846,8 +846,20 @@ public final class JourneyNetherRungs {
         }
     }
 
+    /**
+     * The blazes near the spawner that are still ALIVE.
+     *
+     * <p>The filter is the whole method. A killed mob stays in the world for its twenty-tick death
+     * animation, so the unfiltered query hands the next round the corpse of the previous one — and
+     * every check downstream agrees it is dead: {@code !target.isAlive()} is true on the first tick,
+     * the round books a kill and ends in 0 ticks. The first run to get this far reported
+     * {@code blaze.killed=8 只} and {@code fight.2…8 = 打死，用了 0 tick} against ONE real fight of 54
+     * ticks, with {@code rods.perKill=0,0,0,0,0,0,0,0} beside it. Eight kills and no drops reads as
+     * the {@code killed_by_player} gate this rung was written to expect; one kill and no drops is a
+     * blaze's ordinary 50/50. The rung could not tell those apart while it was counting corpses.
+     */
     private static List<Blaze> blazesNear(ServerLevel level, BlockPos centre) {
-        return level.getEntitiesOfClass(Blaze.class, box(centre, BLAZE_SEARCH));
+        return level.getEntitiesOfClass(Blaze.class, box(centre, BLAZE_SEARCH), Blaze::isAlive);
     }
 
     private static EnderMan nearestEnderman(ServerLevel level, BlockPos from) {
