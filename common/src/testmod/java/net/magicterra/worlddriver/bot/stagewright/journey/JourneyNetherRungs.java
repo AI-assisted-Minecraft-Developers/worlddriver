@@ -25,14 +25,17 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerChunkCache;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.monster.Blaze;
 import net.minecraft.world.entity.monster.EnderMan;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameRules;
+import net.minecraft.world.level.NaturalSpawner;
 import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
@@ -521,7 +524,7 @@ public final class JourneyNetherRungs {
                 nether.getGameRules().getBoolean(GameRules.RULE_DOMOBSPAWNING));
         rig.evidence("ender_pearl.before", rig.carrying(ENDER_PEARL));
         rig.evidence("weapon", holdBestWeapon(rig));
-        rig.evidence("hunt.census", census(nether, here));
+        rig.evidence("hunt.census", census(nether, rig.player()));
 
         // found/killed, carried in an array because the hunt is a chain of continuations and a
         // local cannot survive one.
@@ -578,7 +581,7 @@ public final class JourneyNetherRungs {
                     BlockPos stood = rig.player().blockPosition();
                     rig.evidence("warped.arrivedBiome", biomeAt(rig, stood)
                             + "（停在 " + stood.toShortString() + "）");
-                    rig.evidence("warped.census", census(nether, stood));
+                    rig.evidence("warped.census", census(nether, rig.player()));
                     then.run();
                 },
                 () -> {
@@ -604,7 +607,8 @@ public final class JourneyNetherRungs {
      * the radius the run is holding is printed beside it. A zero at 128 from a body pinning 64 is a
      * statement about the pin, not about the Nether.
      */
-    private static String census(ServerLevel level, BlockPos from) {
+    private static String census(ServerLevel level, ServerPlayer body) {
+        BlockPos from = body.blockPosition();
         int near = level.getEntitiesOfClass(EnderMan.class, box(from, ENDERMAN_SEARCH)).size();
         int far = level.getEntitiesOfClass(EnderMan.class, box(from, ENDERMAN_CENSUS)).size();
         List<Monster> mobs = level.getEntitiesOfClass(Monster.class, box(from, ENDERMAN_CENSUS));
@@ -615,7 +619,57 @@ public final class JourneyNetherRungs {
                 + (int) ENDERMAN_CENSUS + " 格内；" + (int) ENDERMAN_CENSUS + " 格内怪物共 "
                 + mobs.size() + " 只 " + byType
                 + "（远处那个数只在已加载区块里算数，本级钉着 " + SEE_CHUNKS + " 区块 = "
-                + SEE_CHUNKS * 16 + " 格）";
+                + SEE_CHUNKS * 16 + " 格）；" + spawnGate(level, body);
+    }
+
+    /**
+     * Whether vanilla would spawn ANYTHING where the body stands — its three gates, read one by one.
+     *
+     * <p>The census alone cannot say which world it is in. It counts what is alive; when that is
+     * zero, "the biome is wrong", "the chunks are not ticking", "the game does not think a player is
+     * here" and "the cap is already full elsewhere" all print the same number, and only the first of
+     * them is about the biome row printed beside it. This asks {@code ServerChunkCache.tickChunks}'s
+     * own conditions, in its order:
+     *
+     * <ol>
+     *   <li>{@code level.isNaturalSpawningAllowed(chunk)} — the chunk is entity-ticking;</li>
+     *   <li>{@code chunkMap.getPlayersCloseForSpawning(chunk)} — the public twin of the
+     *       {@code anyPlayerCloseEnoughForSpawning} the loop actually calls. It is two tests: a live
+     *       distance check against the player's real position, AND
+     *       {@code distanceManager.hasPlayersNearby}, which reads a tracker fed <b>only</b> by
+     *       {@code ChunkMap.updatePlayerStatus} (join / dimension change) and {@code ChunkMap.move}.
+     *       Nothing else moves it — for a real player {@code move} is called by the movement-packet
+     *       handler, once per packet;</li>
+     *   <li>the category cap: global is {@code maxPerChunk × spawnableChunks / 289}, and mobs
+     *       anywhere in the level count against it.</li>
+     * </ol>
+     *
+     * <p>Hence the drift figure: the chunk the ChunkMap has on file for this body against the chunk
+     * the body is standing in. It is a plain observation of two fields, and it is here because it is
+     * the only one of the three inputs above that a WALK can change on its own.
+     */
+    private static String spawnGate(ServerLevel level, ServerPlayer body) {
+        ChunkPos here = body.chunkPosition();
+        ChunkPos tracked = body.getLastSectionPos().chunk();
+        int drift = Math.max(Math.abs(tracked.x - here.x), Math.abs(tracked.z - here.z));
+        ServerChunkCache source = level.getChunkSource();
+        NaturalSpawner.SpawnState state = source.getLastSpawnState();
+        String cap;
+        if (state == null) {
+            cap = "本层还没算过刷怪账";
+        } else {
+            int monsters = state.getMobCategoryCounts().getInt(MobCategory.MONSTER);
+            int chunks = state.getSpawnableChunkCount();
+            // 289 = 17², vanilla's NaturalSpawner.MAGIC_NUMBER: the cap is quoted per 17×17 chunks.
+            int allowed = MobCategory.MONSTER.getMaxInstancesPerChunk() * chunks / 289;
+            cap = "本层怪物 " + monsters + "/" + allowed + " 只（上限 = "
+                    + MobCategory.MONSTER.getMaxInstancesPerChunk() + " × 可刷区块 " + chunks + " / 289）";
+        }
+        return "刷怪三闸：身体在区块 " + here + "，实体在跑=" + level.isNaturalSpawningAllowed(here)
+                + "，ChunkMap 认为这一格近旁有 " + source.chunkMap.getPlayersCloseForSpawning(here).size()
+                + " 个玩家（它记的身体在区块 " + tracked + "，差 " + drift
+                + " 区块；那张表只认 " + SPAWN_WINDOW_CHUNKS
+                + " 区块以内，而只有 join 和 ChunkMap.move 会更新它）；" + cap;
     }
 
     private static void huntOne(SceneContext ctx, JourneyRig rig, int roundsLeft,
@@ -638,7 +692,7 @@ public final class JourneyNetherRungs {
                     // Six waits is still bounded and still says "found nothing" if that is the world.
                     tally.append(tally.length() == 0 ? "" : ",").append("×没找到");
                     rig.evidence("hunt." + round + ".dry", "等了 " + ENDERMAN_WAIT_TICKS
-                            + " tick 没等到；" + census(nether, rig.player().blockPosition()));
+                            + " tick 没等到；" + census(nether, rig.player()));
                     huntOne(ctx, rig, roundsLeft - 1, foundAndKilled, tally);
                 } else {
                     huntOne(ctx, rig, roundsLeft, foundAndKilled, tally);
@@ -695,13 +749,13 @@ public final class JourneyNetherRungs {
         rig.evidence("arena", "真的下界，不是盒子 —— 瞬移可以真的把它带走");
         BlockPos ended = rig.player().blockPosition();
         rig.evidence("hunt.endedIn", biomeAt(rig, ended) + "（" + ended.toShortString() + "）");
-        rig.evidence("hunt.censusAfter", census(nether, ended));
+        rig.evidence("hunt.censusAfter", census(nether, rig.player()));
         if (found == 0) {
             // The census goes in the FAILURE, not only in the evidence. "No enderman came" is the
             // one sentence three different worlds print, and a reader who has to go looking for the
             // row that separates them usually stops at the sentence.
             ctx.fail("身边 " + ENDERMAN_SEARCH + " 格内一只末影人都没有，"
-                    + ENDERMAN_HUNTS + " 轮都等了也没等到 —— " + census(nether, ended)
+                    + ENDERMAN_HUNTS + " 轮都等了也没等到 —— " + census(nether, rig.player())
                     + "；" + whyNothingSpawns(nether));
             return;
         }
@@ -1459,6 +1513,17 @@ public final class JourneyNetherRungs {
     /** How many rods to stop at. One is what this rung claims; the eyes of ender above it will want
      *  more, and asking for them here would make this rung fail for the rung above's bill. */
     private static final int BLAZE_RODS_WANTED = 1;
+
+    /**
+     * The radius of the window {@code DistanceManager.hasPlayersNearby} answers from, in chunks.
+     *
+     * <p>Copied rather than imported, because vanilla writes it as a bare {@code 8} — the field is
+     * {@code new FixedPlayerDistanceChunkTracker(8)} and there is no constant to read. The metric is
+     * CHEBYSHEV: {@code ChunkTracker.checkNeighborsAfterUpdate} propagates {@code level+1} into all
+     * eight neighbours, so the window is a square and {@code max(|dx|,|dz|)} is the distance to
+     * compare against it.
+     */
+    private static final int SPAWN_WINDOW_CHUNKS = 8;
 
     /** Six hunts and a bar of four — a MAJORITY. See {@link #enderPearl} for why not six of six. */
     private static final int ENDERMAN_HUNTS = 6;

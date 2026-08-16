@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **A census of zero now says WHICH spawn gate is shut.** `JourneyNetherRungs.spawnGate`, appended
+  to every `census(...)` the two nether rungs print, asks `ServerChunkCache.tickChunks`'s own three
+  conditions in its order: `level.isNaturalSpawningAllowed(chunk)` (the chunk is entity-ticking),
+  `chunkMap.getPlayersCloseForSpawning(chunk)` (the public twin of `anyPlayerCloseEnoughForSpawning`),
+  and the category cap with its arithmetic spelled out (`70 × spawnableChunks / 289`). Beside the
+  second it prints the chunk the `ChunkMap` has on file for the body against the chunk the body is
+  standing in, because that drift is the only one of the three inputs a WALK can break by itself.
+  Before it, `enderman.found=0/6` was the one sentence four different worlds printed — nothing
+  spawns, the wrong biome, the cap is full elsewhere, they spawned outside the search radius — and
+  the biome row beside it could only speak for one of them. The first run carrying it separated
+  them in one line.
 - **A fall now says what the body was standing on when it left the ground.** `JourneyFlight` records,
   for the tick before each fall, the sole's actual contact area with solid ground (enumerated the way
   vanilla's collision does — outward by 1e-7, not the old footprint's inward 1e-4, which discards
