@@ -39,6 +39,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Nothing in the old evidence could distinguish that from a slow walk.
 
 ### Changed
+- **The portal rung's water recover no longer accepts a height as an answer about a sightline.**
+  `riseToTakeItBack` held two gates: the `SOURCE_ONLY` clip the bucket runs, and
+  `if (here.getY() >= wantY) return;`. The second is what lost the real ladder of 2026-08-16 on its
+  sixth cell — and the archived results file dates it without another run, because both gates were
+  silent and only one of them can have fired. `recover0..5` each printed `.fromHere`, the row
+  `JourneyFill.fillFrom` prints when the identical clip finds a source in reach; `recover6` printed
+  `.spot` instead, the not-in-reach branch, from a call made in the same tick through `then.run()`
+  with nothing in between that could move the body. So the clip had already answered *null* and the
+  raise was skipped on height alone; no `.rise` row exists anywhere in that run. What the height gate
+  could not see is that the body was in the wrong COLUMN: cell six casts `4,59,18` and its water sits
+  beside it at `4,59,19`, the pour left the body at `3,58,18` — `wantY` exactly, one column north —
+  and from there the line is a diagonal that has to squeeze past the cell the cast had just turned to
+  obsidian (`recover6.aimsAt = 4,59,18 Block{minecraft:obsidian} 源块=false（想瞄 4,59,19）`, with
+  `standToFill` refuting that same cell from its centre as `射线停在 Block{minecraft:obsidian}=1`).
+  The raise now runs for its column whether or not the row is already right, and `.rise` names which
+  of the two states it is in rather than describing only the shorter one.
 - **A body grounded on almost nothing beside a lethal drop is now pinned, whatever branch actuated
   the tick.** New `Walker.footingGuard`, in the single-exit wrapper beside `strideFloorGuard`: sole on
   solid under `FOOTING_MIN` (0.18 of 0.36) plus a lethal drop in the eight neighbours holds vanilla

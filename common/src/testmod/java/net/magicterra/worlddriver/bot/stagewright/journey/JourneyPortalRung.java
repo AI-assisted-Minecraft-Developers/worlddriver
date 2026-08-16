@@ -1692,7 +1692,7 @@ public final class JourneyPortalRung {
     }
 
     /**
-     * Put the eye back on the row the water was poured from, before going to take it back.
+     * Put the eye on a COLUMN the water can be seen from, before going to take it back.
      *
      * <p>A cast pours water into {@code wet} from a row {@link #standLevelWith} verified, then
      * fetches lava and pours THAT into the cell below — and the pour's own walk is free to drop the
@@ -1713,6 +1713,35 @@ public final class JourneyPortalRung {
      * distinction cost a run's worth of confusion on its own: {@code standLevelWith}'s gate is
      * {@code standToPour}, so it answered "a pour spot exists" to a question about a scoop and
      * skipped the raise, leaving a {@code recover8.rise} row above a body that never moved.
+     *
+     * <h2>A height is not a column</h2>
+     *
+     * <p>This used to hold a second gate — {@code if (here.getY() >= wantY) return;} — and that gate
+     * is what lost the real ladder of 2026-08-16 on its sixth cell. The archived run says so without
+     * needing another one: {@code recover0..5} each printed {@code .fromHere}, the row
+     * {@link JourneyFill#fillFrom} prints when the identical {@code SOURCE_ONLY} clip finds a source
+     * in reach, and {@code recover6} printed {@code .spot} instead — the not-in-reach branch — from a
+     * call made in the same tick, through {@code then.run()}, with nothing in between that could move
+     * the body. So the clip above answered <i>null</i> for cell six, the raise was skipped anyway, and
+     * the only remaining exit is the height one. No {@code .rise} row exists in that run at all.
+     *
+     * <p>What the height gate could not see is that the body was in the WRONG COLUMN. Cell six casts
+     * {@code 4,59,18} and its water sits in the interior cell beside it, {@code 4,59,19}; the pour's
+     * own flight left the body at {@code 3,58,18} — {@code wantY} exactly, one column north of the
+     * water — and from there the line to the water is a DIAGONAL that has to squeeze past the cell
+     * the cast has just turned to obsidian. It does not:
+     * {@code recover6.aimsAt = 4,59,18 Block{minecraft:obsidian} 源块=false（想瞄 4,59,19）}, and
+     * {@code standToFill} refuted the very same cell from its centre —
+     * {@code 射线停在 Block{minecraft:obsidian}=1} — so this is not an artefact of where in its cell
+     * the body happened to be standing.
+     *
+     * <p>The column that works is the one directly behind the water, {@code 3,·,19}: from there the
+     * ray is axis-aligned and cannot clip a neighbour. {@code standToFill} cannot offer it, because it
+     * only returns cells that ALREADY have a floor and {@code 3,57,19} is air — but {@link #raiseTo}
+     * can, because {@link #raiseColumn} asks the scoop's own clip without asking for a floor and
+     * {@link JourneyRamp} then builds one. Height is therefore never again an answer to a question
+     * about sightline: when the clip above says no water is visible, the raise runs, and it runs for
+     * its column whether or not the row is already right.
      */
     private static void riseToTakeItBack(SceneContext ctx, JourneyRig rig, BlockPos wet,
                                          Direction away, String tag, Runnable then) {
@@ -1729,10 +1758,16 @@ public final class JourneyPortalRung {
         }
         BlockPos here = rig.player().blockPosition();
         int wantY = wet.getY() - 1;
-        if (here.getY() >= wantY) { then.run(); return; }
+        // WHICH OF THE TWO STATES, named in the row itself.「看不见」covers a body that is too low and
+        // a body that is high enough and beside the wrong column, and those are different repairs —
+        // the first wants a flight, the second wants one step sideways. Before this row said only the
+        // first, and the run it was wrong about produced no row at all.
         rig.evidence(tag + ".rise", here.toShortString() + " 看不见 " + wet.toShortString()
-                + " 里的水（脚在 y=" + here.getY() + "，水在 y=" + wet.getY()
-                + "，中间隔着刚浇的门框）—— 先站回浇水时那一排再收");
+                + " 里的水（脚在 y=" + here.getY() + "，要站的排 y=" + wantY + "，"
+                + (here.getY() >= wantY
+                        ? "高度已经够了 —— 差的是柱：从这一柱望过去，射线要斜着穿过刚浇的门框"
+                        : "还差 " + (wantY - here.getY()) + " 排，中间隔着刚浇的门框")
+                + "）—— 先挪到一条望得见水的柱上再收");
         raiseTo(ctx, rig, wet, away, wantY, false, tag + ".rise", then);
     }
 
@@ -1786,8 +1821,12 @@ public final class JourneyPortalRung {
         BlockPos verified = raiseColumn(ctx.level(), rig, target, away, wantY, pouring);
         BlockPos col = verified != null ? verified : target.relative(away.getOpposite(), 1);
         BlockPos here = rig.player().blockPosition();
+        // 「去这一柱」rather than「在这一柱上垒台阶」: a raise asked for by riseToTakeItBack may be a
+        // pure column change on a body that is already at wantY, and a row that names a staircase
+        // there would be describing work nobody does. What was built is JourneyRamp's own .flight /
+        // .laid / .rampedY, which say it without being guessed at from here.
         rig.evidence(tag + ".raise", here.toShortString() + " → y=" + wantY
-                + "（在 " + col.getX() + "," + col.getZ() + " 这一柱上垒台阶，"
+                + "（去 " + col.getX() + "," + col.getZ() + " 这一柱，不够高就在那儿垒台阶，"
                 + (pouring ? "浇 " : "收 ") + target.toShortString() + " 得跟它同高）"
                 + (verified != null
                         ? "：站上去射线" + (pouring ? "落得进目标格" : "打得到目标格里的液体") + "，钉住这一柱"
