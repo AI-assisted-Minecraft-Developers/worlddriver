@@ -334,6 +334,10 @@ public final class JourneyRehearsal {
 
         Map<String, Integer> kit = new LinkedHashMap<>();
         // Two pickaxes, not one. A stone pickaxe has 131 uses and this rung breaks about a hundred
+        // (Aside on tools: the climb of 2026-08-16 arrived with `stone_pickaxe 131/131` AND
+        //  `wooden_pickaxe 59/59`, so its stone head was full too — durability was not what stopped
+        //  it, and both bodies carve holding `minecraft:stone_pickaxe`. Left as two stone heads on
+        //  purpose; changing it would be a second variable with no measurement behind it.)
         // cells; one tool makes durability a hidden variable in exactly the leg under investigation,
         // and a mine that silently stops because the head snapped looks identical to a mine that
         // could not reach.
@@ -346,7 +350,7 @@ public final class JourneyRehearsal {
         int buckets = stagedBuckets(ctx);
         if (buckets > 1) kit.put("minecraft:bucket", buckets - 1);
         kit.put("minecraft:flint_and_steel", 1);
-        kit.put("minecraft:cobblestone", 64);
+        kit.put("minecraft:cobblestone", PORTAL_LIT_COBBLESTONE);
         StringBuilder gave = new StringBuilder();
         for (var e : kit.entrySet()) {
             give(fp, e.getKey(), e.getValue());
@@ -354,7 +358,12 @@ public final class JourneyRehearsal {
             gave.append(e.getKey().substring(e.getKey().indexOf(':') + 1)).append('×').append(e.getValue());
         }
         JourneyLedger.staged("rehearsal: gave " + gave);
-        ctx.record("rehearsal.gave", gave.toString());
+        // THE NUMBER, not「对齐了」. A give is a claim about what a climb arrives holding, and the only
+        // way to judge it later is against the climb's own measured row — so both go on the record.
+        ctx.record("rehearsal.gave", gave.toString()
+                + "（圆石 " + PORTAL_LIT_COBBLESTONE + " 照真 ladder 2026-08-16 那趟实测的 "
+                + "cobblestone.before=111 对齐；水桶是满的、镐给两把，两者都是故意与真爬升不同，"
+                + "理由见 stagePortalLit 里那两处注释）");
 
         // Beside the lake, not on it. The rung walks the last few blocks itself, which keeps its own
         // approach under test; what is skipped is the eighty-block crossing from world spawn that
@@ -845,6 +854,26 @@ public final class JourneyRehearsal {
      * counted into the ledger, and cleared by the ladder's own {@code recon}.
      */
     static BlockPos stagedShaftColumn;
+
+    /**
+     * How much cobblestone a {@code PORTAL_LIT} rehearsal hands over — the climb's MEASURED figure,
+     * not a convenient round number.
+     *
+     * <p>It was 64, which is one stack because a stack is easy to type. The real ladder of 2026-08-16
+     * arrived at this rung holding <b>111</b> ({@code cobblestone.before = 111}, and 116 by the time
+     * the carve started). That gap matters because <b>a rehearsal stages the preconditions while a
+     * climb arrives carrying eleven rungs of residue</b>, and inventory is the commonest thing left
+     * out of that sentence — this repo has already been fooled by it once, when a rehearsal carried
+     * cobblestone and a climb carried dirt, {@code tidyTheAlcove} matched only {@code Blocks.COBBLESTONE},
+     * and the dig sealed its own foothold. Any conclusion drawn from a rehearsal whose bag differs
+     * from the climb's is a conclusion about the rehearsal.
+     *
+     * <p>Two differences REMAIN deliberate and are named in the evidence row rather than quietly
+     * lived with: the bucket is handed over full (rung 12's water walk is a rung-10 capability, see
+     * {@code fillWaterAtTheSurface}) and there are two pickaxes (durability must not be a hidden
+     * variable in the leg under investigation).
+     */
+    private static final int PORTAL_LIT_COBBLESTONE = 111;
 
     /** Forget them between suites, so a rehearsal cannot colour a later run in the same JVM. */
     static void resetStagedForgeSide() {

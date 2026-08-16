@@ -145,6 +145,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `search-begin` lines from the single cell `66,43,67` — one full A* budget per tick for two minutes.
   Nothing in the old evidence could distinguish that from a slow walk.
 
+### Changed
+- **A `PORTAL_LIT` rehearsal hands over the climb's measured cobblestone, not a convenient stack.**
+  It was 64 because a stack is easy to type; the real ladder of 2026-08-16 reached this rung holding
+  **111** (`cobblestone.before = 111`). The gap matters because a rehearsal stages the preconditions
+  while a climb arrives carrying eleven rungs of residue, and inventory is the commonest thing left
+  out of that sentence — this repo has already been fooled by it once, when a rehearsal carried
+  cobblestone and a climb carried dirt, `tidyTheAlcove` matched only `Blocks.COBBLESTONE`, and the dig
+  sealed its own foothold. `rehearsal.gave` now prints the figure alongside the climb's row it was
+  matched to, and names the two differences that remain deliberate (the bucket is handed over full;
+  there are two pickaxes) rather than leaving them to be rediscovered. **Measured on the change
+  itself, with the shaft column pinned to the climb's own `-8,19` so the geometry is identical: it
+  makes no difference to the failure under investigation** — `forge.carved = 66/67`, the same stuck
+  cell `2,62,17`, the same `cell.0` unopened, the same 8055 ticks, on both 64 and 111. So the
+  cobblestone is exonerated; recorded because an exoneration nobody wrote down gets re-tested.
+
 ### Fixed
 - **A rehearsal can pin the shaft COLUMN, which is what reproduces a ladder's mould.** Staging a side
   can turn a mould but cannot reproduce one, and the reason is arithmetic: the climb of 2026-08-16 cut

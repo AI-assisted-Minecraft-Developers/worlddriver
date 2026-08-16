@@ -212,8 +212,49 @@ cell.0.stillShut.1/2/3 = 4, 56, 19=stone：这一格从头到尾没开过
 **按上一条指示的判法：几何已经对齐，故障没有消失，所以这就是「够不着的那一半」需要一个不上地表
 的办法。** 但那是新的一刀，本轮按边界没有动它——只把它变成了一个**可复现**的红。
 
-⚠️ 一个还没排除的差异：排练给 `cobblestone×64`，真 ladder 那趟 `cobblestone.before = 111`。
-几何对齐了，**手里的东西还没对齐**，下一个人先把这个补齐再判「是不是真缺陷」。
+### 库存也对齐了，**红一模一样** —— 圆石这条洗清了
+
+只改一个变量（`cobblestone` 64 → **111**，照真 ladder 那趟实测的 `cobblestone.before = 111`），
+其余不动，同一根钉死的井柱重跑：
+
+| | 给 64 | 给 111（对齐） |
+|---|---|---|
+| `cobblestone.before` | 64 | **111** |
+| `forge.face` | `4, 56, 19 朝 east` | 同 |
+| `forge.carved` | `66/67` | **`66/67`** |
+| `carve.stuck` | `2, 62, 17` | **同一格** |
+| `cell.0.standMissed` | 停在 `-1, 65, 17`，距 10.49 | 停在 `3, 64, 20`，距 8.12 |
+| 结果 | FAIL 8055t | **FAIL 8055t** |
+
+**所以圆石不是原因。** 判据 1 达成（数值进了 `rehearsal.gave` 证据行，连同「哪些差异是故意留的」）。
+
+### 但还不能宣布「这是真缺陷」—— 排练仍然不等于爬升，还差两条
+
+真 ladder 在**同一处几何**上是 `forge.carved = 67/67` 并一路走到 `recover6`。几何对齐、库存对齐之后
+仍然分道扬镳，说明差别在别处，而**还有两条已知的、故意留下的差异没有排除**：
+
+1. **水桶是满的。** 真 ladder 这一级自己先 `fillWaterAtTheSurface` / 走到 `firstWater` 装水
+   （那趟 `waterFill.hand = minecraft:bucket`、`waterFill.result = CONSUME`），**装完水身体在哪、
+   走过什么，直接决定开挖开始时它站在哪** —— 而红恰恰是「开挖时身体在地表」。
+   **这是下一个要对齐的变量，而且它比圆石更贴近病灶。**
+2. 镐给两把（真 ladder 是 `stone_pickaxe 131/131` + `wooden_pickaxe 59/59`，同样满耐久，
+   两边开挖时手上都是 `stone_pickaxe`）—— 这条不像有关，先不动。
+
+另外排练**天然**不带前十一级的残留（真爬升是在自己刚挖过的地形里就近开工的），这一条排练消不掉。
+
+### 那条红本身长什么样（留给下一个人，别在前提没对齐前先修）
+
+```
+forge.landedY = 56                     ← 身体确实下到了井底
+forge.swung   = 63/67 格是就地挥开的（canBreak 已经为真，不用走过去）
+carve.firstStuck = 2, 62, 17=dirt：身体 -5, 63, 19，距 7.3 格，canBreak=false
+cell.0.standMissed = 想站 3, 56, 19，停在 3, 64, 20（脚下 grass_block），距 8.12 格
+cell.0.stillShut.1/2/3 = 4, 56, 19=stone：这一格从头到尾没开过
+```
+
+形状是：**够得着就地挥（63/67 都是这么开的），够不着就落回 `mine`，而 `mine` 会把身体垒上地表**，
+于是井底那一格从此够不着。真要修，修的是「够不着的那一半」要有一个**不上地表**的够法 ——
+**不许用「允许敲门框/放宽判据」那类容忍**，这一级已经四次证明容忍只是把失败搬家。
 
 ### ⚠️ `exactRow` 那条分支**仍然没有被执行过**，两趟 east 都死在更早的地方
 
@@ -261,7 +302,8 @@ cell.0.stillShut.1/2/3 = 6, 56, 17=granite：这一格从头到尾没开过
 | `-Prehearse=PORTAL_LIT -PforgeAway=east/south/west/north`（杠杆修好**前**） | 四趟全 **PASS**，但四趟**同一处几何**（见上表）—— 这是「杠杆是空的」的证据，不是四朝向覆盖 |
 | `-Prehearse=PORTAL_LIT -PforgeAway=east`（只修 `pickDigColumn`） | FAIL —— 就地采纳短路把它拐去 `north`，证明只修一处不够 |
 | `-Prehearse=PORTAL_LIT -PforgeAway=east`（两处都修） | FAIL 8931t —— **但 `forge.away = east` 第一次出现**；死在 `cell.0` 挖不开（身体站地表 y=64 挖 y=56），收水没跑到 |
-| `-Prehearse=PORTAL_LIT -PshaftColumn=-8,19` | FAIL 8055t —— **模腔与真 ladder 逐字相同**（`lavaLake -9,63,19` + `forge.face = 4,56,19 朝 east`）；`forge.carved = 66/67`，死在 `cell.0`（身体 `-1,65,17`，距 10.49 格） |
+| `-Prehearse=PORTAL_LIT -PshaftColumn=-8,19`（圆石 64） | FAIL 8055t —— **模腔与真 ladder 逐字相同**（`lavaLake -9,63,19` + `forge.face = 4,56,19 朝 east`）；`forge.carved = 66/67`，死在 `cell.0`（身体 `-1,65,17`，距 10.49 格） |
+| 同上，**圆石对齐到 111**（只改这一个变量） | FAIL 8055t —— `forge.carved = 66/67`、`carve.stuck` 同一格、`cell.0` 同样开不了（身体 `3,64,20`，距 8.12 格）。**圆石洗清** |
 | `stagewrightDedicatedServerFabric` ×4 | **VERDICT: GREEN**（226 执行 / 20 skip，ec=0） |
 | `check_source_budget.py`、`check_scene_arena.py` | 过 |
 
@@ -272,14 +314,14 @@ cell.0.stillShut.1/2/3 = 6, 56, 17=granite：这一格从头到尾没开过
 
 ### 下一个人怎么把 `exactRow` 真的回测掉
 
-**几何这一关已经过了**（`-PshaftColumn=-8,19` 逐格复现），卡在它前面的是开挖。按顺序：
+**几何对齐了**（`-PshaftColumn=-8,19` 逐格复现），**库存也对齐了**（圆石 111，红没变）。
+卡在前面的仍是开挖。按顺序：
 
-1. **先把手里的东西也对齐**：排练给 `cobblestone×64`，真 ladder 那趟是 111。
-   改 `stagePortalLit` 的给予量再跑一趟 `-PshaftColumn=-8,19`。**这是最便宜的一步**，
-   而且它决定下一步是「修缺陷」还是「修布景」。
-2. 如果对齐之后仍然 `cell.0` 开不了，那就是**「够不着的那一半」**：`canBreak` 为真时就地挥
-   已经生效（`forge.swung = 63/67`），够不着时落回 `mine`，而 `mine` 会把身体垒上地表
-   （`cell.0.standMissed 停在 -1, 65, 17`）。要的是一个**不上地表**的够法。
+1. **对齐水桶**：给空桶而不是满桶，让这一级自己走去装水。真 ladder 装完水回来才下井，
+   **开挖开始时身体站在哪**多半由这一段决定，而红正是「开挖时身体在地表」。
+   代价：可能引入「走不到 `firstWater 64,62,60`」那条老红（第 14 趟 ladder 就是死在它上面），
+   所以要看着 `waterFill.*` 判，别把它的红当成开挖的红。
+2. 水桶对齐之后**还红**，才算「够不着的那一半」的真缺陷，那时才谈修法（见上，不许用容忍）。
 3. 开挖过了，才轮得到 `recover6` 那一格去执行 `exactRow`。
 
 **不要再用 `-PforgeAway` 当回测手段**（它只能从 r≥2 的环上给柱，给不出 ladder 用的 r=1），
