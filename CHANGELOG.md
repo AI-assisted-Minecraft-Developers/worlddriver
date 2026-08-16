@@ -145,6 +145,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `search-begin` lines from the single cell `66,43,67` — one full A* budget per tick for two minutes.
   Nothing in the old evidence could distinguish that from a slow walk.
 
+### Fixed
+- **A rehearsal's staged forge orientation now actually turns the mould.** `-PforgeAway=<side>`
+  stood the body on that side of the lava lake and its evidence row promised
+  「楼梯与模腔都会朝这边」. It could not keep that promise, and four directed rehearsals on
+  2026-08-16 disproved it four times for four: `east`, `south`, `west` and `north` staged four
+  different `rehearsal.stand` values and every one of them came back
+  `shaft.standingOn = -9,21` with `forge.away = south`. The reason is structural — rung 12 opens with
+  `walkToColumn(lava)`, which discards the staged stand, and `JourneyTerrain.pickDigColumn` then rings
+  outward from the pool in a fixed scan order and returns the first qualifying column, which for a
+  given pool is the same column every run. (The real ladder's mould varies only because rung 11 spends
+  a pool, so rung 12 gets a different one.) So the side is now applied where the orientation is
+  actually decided: `pickDigColumn` takes an optional preferred side, keeps only columns whose
+  `awayFrom` matches — the rung's own rule, not a second copy of it — and falls through to the
+  unrestricted scan, counting why, when that side offers none. A null preference iterates exactly as
+  before, and the ladder's own `recon` clears the static, so a climb is unaffected by construction
+  rather than by which gradle task ran. This is what makes "one directed six-minute run per
+  orientation" a real substitute for "climb the ladder ten times and hope"; without it the lever had
+  been staging nothing but the walk to the pool since it was written.
+
 ### Changed
 - **The portal rung's water recover now requires the row its column was verified for, not merely
   "high enough".** `raiseColumn` verifies a scoop column by putting the eye at exactly `wantY`

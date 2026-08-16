@@ -122,8 +122,10 @@ final class JourneyRamp {
      * foot — so a body one row up fires a line nobody checked.
      *
      * <p>Measured on the real ladder of 2026-08-16, cell six of an {@code east} mould. The column
-     * {@code 3,19} verified for {@code wantY=58}; {@code walkToColumn} is a {@code Goal.XZ} and has no
-     * opinion about the row, so it delivered the body to {@code y=59}
+     * {@code 3,19} verified for {@code wantY=58}; {@code walkToColumn} is a {@code Goal.XZ}, whose
+     * heuristic ignores Y — see {@link net.magicterra.worlddriver.bot.Goal#ignoresY()}, which carries
+     * the other half of this account: the same property that lets A* dive for free is what makes such
+     * a goal ARRIVE without an opinion about the row. So it delivered the body to {@code y=59}
      * ({@code recover6.rise.raisedY = 59/58}); this method then returned on {@code >=} without
      * building anything, which is why <b>no {@code .ramp.*} row exists in that run at all</b>. From one
      * row up, the line into the water at {@code 4,59,19} enters the frame cell {@code 4,60,19} and the

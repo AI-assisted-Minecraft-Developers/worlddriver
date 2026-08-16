@@ -368,9 +368,17 @@ public final class JourneyRehearsal {
                     + (side == null ? "" : " —— 这颗种子在这一侧摆不出这个朝向"));
             return;
         }
+        // NOT「摆在这一侧就朝这一侧」—— that is what this row used to promise and it was false. Rung 12
+        // opens by walking to the lava, which discards the staged stand entirely; the orientation is
+        // decided later by pickDigColumn. Measured 2026-08-16: east / south / west staged three
+        // different stands and all three came out `shaft.standingOn = -9,21`, `forge.face … 朝 south`.
+        // So the side is PUBLISHED for that choice to honour, and this row now says which of the two
+        // things it is claiming.
+        stagedForgeSide = side;
         ctx.record("rehearsal.forgeAway", side == null
                 ? "自然朝向 " + JourneyPortalRung.awayFrom(lake, stand) + "（没有指定 -PforgeAway）"
-                : "指定 " + side + "，落脚点选在湖的这一侧，楼梯与模腔都会朝这边");
+                : "指定 " + side + "：落脚点摆在湖的这一侧，并且下挖柱也只在这一侧挑"
+                        + "（这一侧挑不出合格柱就退回四周找，看 forge.away 与否决计数）");
         loadAround(level, stand, 2);
         JourneyLedger.staged("rehearsal: moved the body to " + stand.toShortString()
                 + " beside the lake instead of walking there");
@@ -794,6 +802,21 @@ public final class JourneyRehearsal {
      * <p>Rehearsal-only twice over, like {@code breakAStair}: this is read only from the staging step,
      * which only runs when {@link #target()} is set, and the choice goes into the staging ledger.
      */
+    /**
+     * The side a rehearsal staged, for {@code JourneyTerrain.pickDigColumn} to honour — {@code null}
+     * on every real climb, which is what makes this inert there.
+     *
+     * <p>Rehearsal-only three times over: it is written only by the staging step (which only runs when
+     * {@link #target()} is set), the choice is already in the staging ledger, and a climb that somehow
+     * set it could not report {@code staging.calls=0}. It is a static because the rung reads it four
+     * calls deep and threading a rehearsal concern through the ladder's own signatures would put it
+     * where a real climb could reach it.
+     */
+    static Direction stagedForgeSide;
+
+    /** Forget it between suites, so a rehearsal cannot colour a later run in the same JVM. */
+    static void resetStagedForgeSide() { stagedForgeSide = null; }
+
     private static Direction forcedSide(SceneContext ctx) {
         String want = System.getProperty("worlddriver.journey.forgeAway", "").trim();
         if (want.isEmpty()) return null;

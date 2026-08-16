@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;
 
@@ -108,11 +109,55 @@ public final class JourneyTerrain {
      */
     public static BlockPos pickDigColumn(ServerLevel level, BlockPos lava, int surfaceY,
                                           Map<String, Integer> rejected, List<BlockPos> banned) {
+        return pickDigColumn(level, lava, surfaceY, rejected, banned, null);
+    }
+
+    /**
+     * The same, preferring columns that lie on one SIDE of the lava — the only lever that actually
+     * turns the mould.
+     *
+     * <p><b>Written because the lever that claimed to do this did not.</b> A rehearsal could already
+     * stage which side of the lake the BODY starts on ({@code -PforgeAway}), and its evidence row
+     * promised 「楼梯与模腔都会朝这边」. It cannot keep that promise, and three directed rehearsals on
+     * 2026-08-16 proved it in one line each: {@code east}, {@code south} and {@code west} produced
+     * three different {@code rehearsal.stand} values and then the SAME
+     * {@code shaft.standingOn = -9,21} and the same {@code forge.face … 朝 south}. The reason is
+     * structural rather than incidental — rung 12 opens with {@code walkToColumn(lava)}, which throws
+     * the staged stand away, and this method then rings outward from the pool in a fixed scan order
+     * and returns the first qualifying column, which for a given pool is the same column every run.
+     * The real ladder's mould varies only because rung 11 spends a pool and rung 12 therefore gets a
+     * different one.
+     *
+     * <p>So the side has to be applied HERE. A first pass keeps only columns whose
+     * {@link JourneyPortalRung#awayFrom} matches, and a null preference — every ladder climb, always
+     * — skips that pass entirely and iterates exactly as it did before. When no column on the
+     * requested side qualifies the search falls through to the unrestricted one rather than failing:
+     * a seed that cannot offer an orientation should still rehearse, and {@code rejected} carries the
+     * count that says which happened.
+     */
+    public static BlockPos pickDigColumn(ServerLevel level, BlockPos lava, int surfaceY,
+                                          Map<String, Integer> rejected, List<BlockPos> banned,
+                                          Direction prefer) {
+        if (prefer != null) {
+            BlockPos onTheSide = scanForDigColumn(level, lava, surfaceY, rejected, banned, prefer);
+            if (onTheSide != null) return onTheSide;
+            rejected.merge("这一侧（" + prefer + "）没有合格的柱，改在四周找", 1, Integer::sum);
+        }
+        return scanForDigColumn(level, lava, surfaceY, rejected, banned, null);
+    }
+
+    private static BlockPos scanForDigColumn(ServerLevel level, BlockPos lava, int surfaceY,
+                                             Map<String, Integer> rejected, List<BlockPos> banned,
+                                             Direction prefer) {
         for (int r = 2; r <= 8; r++) {
             for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;   // the ring, not the disc
                     BlockPos c = new BlockPos(lava.getX() + dx, lava.getY(), lava.getZ() + dz);
+                    // THE RUNG'S OWN RULE, not a second copy of it: the staircase direction is
+                    // awayFrom(lava, start), so filtering candidates through that very call is what
+                    // makes 「站在南侧」 and 「模腔朝南」 the same claim rather than two hopes.
+                    if (prefer != null && JourneyPortalRung.awayFrom(lava, c) != prefer) continue;
                     if (sameColumn(banned, c)) {
                         rejected.merge("下挖时发现中段有水，这一柱已换掉", 1, Integer::sum);
                         continue;

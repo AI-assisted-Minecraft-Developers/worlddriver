@@ -572,7 +572,11 @@ public final class JourneyPortalRung {
             if (at.getY() <= forgeFloorY(lava) + 1) { carveTheForge(ctx, rig, lava, surfaceY); return; }
             ServerLevel level = ctx.level();
             Map<String, Integer> rejected = new java.util.LinkedHashMap<>();
-            BlockPos dig = JourneyTerrain.pickDigColumn(level, lava, surfaceY, rejected);
+            // The rehearsal's staged side, null on every climb — see JourneyRehearsal#stagedForgeSide.
+            // The mould's orientation is decided HERE and nowhere earlier, which is why staging the
+            // body's stand never turned it.
+            BlockPos dig = JourneyTerrain.pickDigColumn(level, lava, surfaceY, rejected, List.of(),
+                    JourneyRehearsal.stagedForgeSide);
             if (dig == null) {
                 ctx.fail("岩浆柱周围没有可下挖的柱子（目标 " + lava.toShortString()
                         + "，地表 y=" + surfaceY + "）——各项否决计数：" + rejected);

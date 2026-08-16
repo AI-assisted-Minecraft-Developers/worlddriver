@@ -151,6 +151,53 @@ recover6.frameStuck.3  = 门框挡着 4, 59, 19，而且没有别的落脚点看
 `east` 类第一次跑就红。这一条按边界没有碰，等级应从「compiled + 无回归」改成
 **「backtested：分支已观测执行，且不足以救 `east` 类模腔」**。
 
+### ⚠️ 定向排练那个杠杆一直是空的：`-PforgeAway` 从来没有转动过模腔（已修）
+
+想用「四个朝向各定向跑一次」代替「赌 27 分钟的 ladder」，先得确认那个杠杆真的连着。**它没有。**
+四个朝向各跑一趟，四个不同的落脚点，**同一根柱、同一个朝向**：
+
+| `-PforgeAway` | `rehearsal.stand` | `shaft.standingOn` | `forge.away` | 结果 |
+|---|---|---|---|---|
+| east | `-1, 65, 11` | `-9,21 (选定柱)` | **south** | PASS 7751t，10/10、6/6 |
+| south | `-16, 67, 27` | `-9,21 (选定柱)` | **south** | PASS 6611t，10/10、6/6 |
+| west | `-17, 64, 13` | `-9,21 (选定柱)` | **south** | PASS 7604t，10/10、6/6 |
+| north | `-10, 66, 11` | `-9,21 (选定柱)` | **south** | PASS 8229t，10/10、6/6 |
+
+**所以那四趟绿是同一处几何跑了四遍，不是四个朝向。**「四朝向定向排练通过」这句话写不得。
+
+原因是结构性的，两处，都得改才管用：
+
+1. 12 级开头就是 `walkToColumn(lava)`，**把布景摆的落脚点整个丢掉**；随后
+   `pickDigColumn` 从池子往外一圈圈扫、返回第一根合格柱 —— 对同一个池子每趟都是同一根。
+   （真 ladder 的模腔会变，只是因为 11 级把第一个池子用掉了，12 级拿到的是**另一个池子**。）
+2. 更要命的是 `stepOntoDiggableColumn` 里那个**就地采纳**短路：只要身体脚下这根柱合格，
+   它**根本不去走** `pickDigColumn` 选的那根。所以只改 1 还是不管用 —— 第一次修完跑出来是
+   `shaft.standingOn = -8,17 (就近合格柱)`、`forge.away = north`，**要的是 east**。
+
+两处都接上 `JourneyRehearsal.stagedForgeSide` 之后，**排练第一次摆出了 east 模腔**：
+
+```
+shaft.stepping.1 = -10, 66, 19 → -7,17 (排练指定了 east 侧，脚下这一柱不在那一侧)
+shaft.standingOn = -7,17 (选定柱)      forge.away = east      forge.face = 6, 56, 17 朝 east
+```
+
+真 ladder 上这个静态是 `null`（`recon` 里显式清掉），所以攀爬的选柱一个字节都没变。
+
+### ⚠️ 但 `exactRow` 那条分支**仍然没有被执行过**，east 这一趟死在更早的地方
+
+```
+forge.carved = 63/67 格开了，4 格没挖动     carve.stuck = {-2=4}（都在 y=62）
+cell.0.standMissed = 想站 5, 56, 17，停在 4, 64, 19（脚下 grass_block），距 8.49 格
+cell.0.stillShut.1/2/3 = 6, 56, 17=granite：这一格从头到尾没开过
+```
+
+身体**站在地表 y=64** 去挖井底 y=56 的第一格 —— 老一族「`mine` 把身体垒上地表」，
+和归档第 1 趟的死因同源。收水（`recover*`）离这里还有三个阶段，**根本没跑到**。
+
+而且这根 `-7,17` 是**排练指定 east 才会选的柱**，ladder 自己未必会选它；真 ladder 那趟
+east 模腔是 `4,56,19`，来自**另一个池子**。所以：杠杆修好了，但在这颗种子的这个池子上，
+**east 侧摆出来的井，身体待不住** —— `exactRow` 的回测仍然欠着。
+
 ### 跑过的
 
 | 跑法 | 结果 |
@@ -160,13 +207,25 @@ recover6.frameStuck.3  = 门框挡着 4, 59, 19，而且没有别的落脚点看
 | `:fabric:runJourneyServer` 第 1 趟 | `journey.height = OBSIDIAN`(11)、`stagingCalls = 0`；红在 12 级（`east` 模腔），13/14/15 全 BLOCKED |
 | `:fabric:runJourneyServer` 第 2 趟 | `journey.height = PORTAL_KIT`(10)、`stagingCalls = 0`；红在 **11** 级：`走不到 firstWater 64, 62, 60：停在 6, 13, 37`（挖了 36 格深的井，爬不出自己的井 —— 老一族），12 级往上全 BLOCKED |
 | `-Prehearse=PORTAL_LIT`（12 级那一刀的回归臂） | **PASS 6723t** —— 模腔又是 `-9,56,38 朝 south`；`frame.cast=10/10`、`frame.obsidian=10/10`、`portal.cells=6/6`，十条 `recover*.result` 全 `CONSUME` |
-| `stagewrightDedicatedServerFabric` ×2 | **VERDICT: GREEN**（226 执行 / 20 skip，ec=0），两刀各跑一次 |
+| `-Prehearse=PORTAL_LIT -PforgeAway=east/south/west/north`（杠杆修好**前**） | 四趟全 **PASS**，但四趟**同一处几何**（见上表）—— 这是「杠杆是空的」的证据，不是四朝向覆盖 |
+| `-Prehearse=PORTAL_LIT -PforgeAway=east`（只修 `pickDigColumn`） | FAIL —— 就地采纳短路把它拐去 `north`，证明只修一处不够 |
+| `-Prehearse=PORTAL_LIT -PforgeAway=east`（两处都修） | FAIL 8931t —— **但 `forge.away = east` 第一次出现**；死在 `cell.0` 挖不开（身体站地表 y=64 挖 y=56），收水没跑到 |
+| `stagewrightDedicatedServerFabric` ×3 | **VERDICT: GREEN**（226 执行 / 20 skip，ec=0），三刀各跑一次 |
 | `check_source_budget.py`、`check_scene_arena.py` | 过 |
 
-⚠️ **那趟回归臂没有执行到 `exactRow` 这条分支**：它两处 `.rise` 都是**矮**的那一种
+⚠️ **`exactRow` 这条分支至今一次都没执行过**：所有回归臂的 `.rise` 都是**矮**的那一种
 （`还差 4 排`），而新分支只在**高**的时候才有别于旧行为。新的 `raisedY` 读数打出来了
 （`recover8.rise.raisedY = 59/60（…，比要站的排矮 1 排）`），但只是那半。
-**所以 12 级这一刀是 `compiled` + `south` 模腔无回归，不是 `backtested`。**
+**所以 12 级这一刀是 `compiled` + `south` 模腔五趟无回归，不是 `backtested`。**
+
+### 下一个人怎么把 `exactRow` 真的回测掉
+
+杠杆现在是通的，但这颗种子的第一个池子在 east 侧摆不出能用的井。三条路，按便宜排序：
+
+1. **`-PforgeAway=north/west` 再各试一趟**（现在会真的转向了）—— 也许某一侧的井是好的。
+2. **让排练用第二个池子**：真 ladder 的 east 模腔 `4,56,19` 来自 11 级用掉第一个池子之后的
+   那一个。给排练加一个「跳过最近的池子」的布景参数，比逼 east 侧更贴近真实几何。
+3. 实在不行就等 ladder 自己抽到 —— 但那正是这一整轮想摆脱的赌法。
 
 ### 下一个人从这里开始
 
@@ -187,9 +246,15 @@ recover6.frameStuck.3  = 门框挡着 4, 59, 19，而且没有别的落脚点看
    **动 17 级的人第一件事就是把它换成棘轮**（`best - left`，别换成「每段净进」——
    那个方案已经被上面的回放判死了）。
 3. **15 级的下一刀是 `20, 41, -23` 那道深渊**，不是刷怪、不是生物群系、也不再是 wedge 判据。
-4. **挡路的已经是 10–12 这一段，不是穿越。** 四趟里三趟红在这里，两种死因：12 级
-   `east` 模腔门框压射线（见上），11 级爬不出自己挖的 36 格井。想再看一眼 14 级，
-   得先让 ladder 过得去这一段 —— 或者干脆用 `-Prehearse=BLAZE_ROD` 判，它一趟只要 7 分钟。
+4. **挡路的已经是 10–12 这一段，不是穿越。** 想再看一眼 14 级，得先让 ladder 过得去这一段
+   —— 或者干脆用 `-Prehearse=BLAZE_ROD` 判，它一趟只要 7 分钟。
+   **进度的说法**：ladder 的**稳定前沿是 11 级**，最好的一趟到过 14；别再拿最好那趟当前沿。
+5. **排练的四道防护都还在**（本轮逐条查过）：不同 scene 名（`REHEARSAL_PREFIX = "wd.rehearse"`）、
+   自己的 property/task/runDir（`worlddriver.journey.rehearse` / `runRehearsalServer` /
+   `runDir 'run-rehearsal'`）、每次布景都进 `JourneyLedger`（verdict 读 `stagingCalls()`，
+   和真 ladder 断言为 0 的是同一个计数器）、独立 verdict scene 在 PASS 和 FAIL 两条路上都带
+   `staging.calls=N`。新加的 `stagedForgeSide` 也是第四类布景：写入只发生在 staging 步、
+   进账本、并且 `recon` 会清掉它。
 5. **ChunkMap 那一刀仍是 `backtested`。**
 
 ## ⬜ 上一轮的接手点 —— 15 级的闸换了主语：疣林深处存在（48 格内 100%），但走不到；真 ladder 停在 13 级

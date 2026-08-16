@@ -230,6 +230,10 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     private static void recon(SceneContext ctx) {
         JourneyRig rig = JourneyRig.enter(ctx, JourneyStage.RECON);
         JourneyLedger.reset(ctx.level().getGameTime());
+        // A CLIMB CHOOSES ITS OWN MOULD. The rehearsal's staged side is a static, so clearing it on
+        // the ladder's first scene is what makes「climbs are unaffected」structural rather than a
+        // claim about which gradle task ran. Cheap, and it cannot be forgotten the way an argument can.
+        JourneyRehearsal.resetStagedForgeSide();
         rig.attempting("侦察这颗种子的地标");
 
         ServerLevel level = ctx.level();
@@ -2170,7 +2174,18 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         BlockPos at = rig.player().blockPosition();
         boolean overThePool = at.getX() == lava.getX() && at.getZ() == lava.getZ();
         boolean abandoned = JourneyTerrain.sameColumn(banned, at);
-        if (!overThePool && !abandoned && JourneyTerrain.columnIsSafeToSink(rig.ctx().level(),
+        // ADOPTING WHERE YOU STAND IS WHAT DECIDES THE MOULD, and that is why staging a side had to
+        // reach this line too. `pickDigColumn` proposes, but this short-circuit adopts the body's own
+        // column whenever it qualifies — so on 2026-08-16 a rehearsal that asked for an east column
+        // got one, never walked to it, and reported `shaft.standingOn = -8,17 (就近合格柱)` with the
+        // mould facing north. Null on every climb (see JourneyRehearsal#stagedForgeSide), so a real
+        // ladder still adopts exactly as before; a rehearsal that named a side refuses to adopt off it
+        // and walks to the column that was chosen for that side.
+        Direction wantSide = JourneyRehearsal.stagedForgeSide;
+        boolean offTheStagedSide = wantSide != null
+                && JourneyPortalRung.awayFrom(lava, at) != wantSide;
+        if (!overThePool && !abandoned && !offTheStagedSide
+                && JourneyTerrain.columnIsSafeToSink(rig.ctx().level(),
                 new BlockPos(at.getX(), lava.getY(), at.getZ()), surfaceY)) {
             rig.evidence("shaft.standingOn", at.getX() + "," + at.getZ()
                     + (at.getX() == dig.getX() && at.getZ() == dig.getZ() ? " (选定柱)" : " (就近合格柱)"));
@@ -2181,7 +2196,9 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         rig.evidence("shaft.stepping." + (MAX_WALK_ATTEMPTS - left + 1),
                 at.toShortString() + " → " + dig.getX() + "," + dig.getZ()
                         + (overThePool ? " (正站在岩浆柱上)"
-                                : abandoned ? " (正站在刚换掉的湿柱上)" : " (脚下柱子不合格)"));
+                                : abandoned ? " (正站在刚换掉的湿柱上)"
+                                : offTheStagedSide ? " (排练指定了 " + wantSide + " 侧，脚下这一柱不在那一侧)"
+                                : " (脚下柱子不合格)"));
         rig.settle(new IntentProcess(new Intent(new Goal.XZ(dig.getX(), dig.getZ(), 0))), 1_200,
                 () -> stepOntoDiggableColumn(rig, dig, lava, surfaceY, left - 1, banned, then, onStuck));
     }
