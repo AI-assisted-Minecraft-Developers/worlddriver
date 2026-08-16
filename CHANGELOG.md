@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **A fall now says what the body was standing on when it left the ground.** `JourneyFlight` records,
+  for the tick before each fall, the sole's actual contact area with solid ground (enumerated the way
+  vanilla's collision does — outward by 1e-7, not the old footprint's inward 1e-4, which discards
+  exactly the sliver a body walking off a ledge is held by), vanilla's own "is there anything within
+  0.0784 below me" question asked again, the vertical velocity that separates a JUMP from a walk-off,
+  a 5×5 map of the support row marking which open cells end in lava, and the walker's lethal-edge
+  predicate recomputed off the level. Three rounds of this crossing had each guessed at one of those;
+  the first run carrying it split four falls into three different mechanisms in one reading.
+- **`BotState.ProcessSlot.driveTag` / `jumpTag`.** `Walker` already kept both as telemetry and nothing
+  outside it could read them — the journey's crossing runs its own `IntentProcess` walker, not the
+  driver's. `driveTag` is null when a tick returned early from `tickInner`, which is what separates
+  "the edge guard said no" from "the edge guard never ran"; one nether fall was measured to be the
+  second, while the crossing was digging its way along.
 - **A walk now says WHICH CELL it is steering at, not only how far along the plan it is.**
   `BotState.ProcessSlot` gained `pathNode` / `pathMove` beside `pathLen` / `pathStep`, published by
   `IntentProcess` from the same tick, and `Walker.pathMove()` names the edge that enters the node
@@ -26,6 +39,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Nothing in the old evidence could distinguish that from a slow walk.
 
 ### Changed
+- **A body grounded on almost nothing beside a lethal drop is now pinned, whatever branch actuated
+  the tick.** New `Walker.footingGuard`, in the single-exit wrapper beside `strideFloorGuard`: sole on
+  solid under `FOOTING_MIN` (0.18 of 0.36) plus a lethal drop in the eight neighbours holds vanilla
+  sneak, cancels the jump and drops sprint. The lethal-edge gate in the drive could not do this job
+  for two measured reasons — it probes only FORWARD (on the tick before an eleven-block drop into
+  lava, `gapAhead` was false because the cell toward the waypoint was netherrack, `offCentre` was
+  0.17, and the sole was on 0.0000 of 0.36), and it lives in the drive tail that dozens of branches
+  return before reaching. Planned descents are exempt, and that is not a nicety: without it the suite
+  reported `wd.descent` crouch-deadlocked, `wd.bridgeDescend` wedged and `wd.descentYaw` thrashing to
+  2463°, all in one run.
+- **The nether rungs price the diagonal ascent out of their routes.** `pathfinderDiagAscendPenalty` is
+  set to 100 for the two nether rungs (restored by `generousPathfinding`'s pin, so the six gates never
+  see it). A `diagUp` launches ACROSS the open corner between two shelves and its cost says nothing
+  about what is under that corner; unlike a cardinal `stepUp` it has no alignment gate before it
+  jumps. Measured: the crossing's reproducing fall was a `diagUp` jump from a cell holding 0.118 of
+  one sole, with sneak already held. A price and not a ban — where the diagonal is the only way up it
+  is still legal, merely dear.
+- **The blaze rung stops counting corpses.** `blazesNear` filters `isAlive`. A killed mob stays in the
+  world for its twenty-tick death animation, so every round after the first was handed the previous
+  round's corpse and booked a kill in 0 ticks: one run reported `blaze.killed=8 只` with
+  `rods.perKill=0,0,0,0,0,0,0,0` beside it, against a single real 54-tick fight. Eight kills and no
+  drops reads as the `killed_by_player` gate; one kill and no drops is a blaze's ordinary 50/50.
+  Re-measured with the filter in: seven fights of 52–57 ticks each — no more 0-tick ones — and two
+  rods off seven kills, so that gate was never the problem.
 - **The nether crossing walks in bounded hops instead of aiming at one distant goal.** A 397-block
   `Goal.XZ` is not a question this pathfinder answers; three attempts at it walked 15, 69 and 0
   blocks. The retry that was supposed to catch that measured the whole ATTEMPT — attempt 2 moved 69
