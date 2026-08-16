@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
@@ -453,11 +454,99 @@ public final class JourneyShaft {
      * new await steps, which reads as a hung suite rather than as the failure it is.
      */
     static void descendByMining(JourneyRig rig, int targetY, Runnable then) {
+        descendByMining(rig, targetY, then, null);
+    }
+
+    static void descendByMining(JourneyRig rig, int targetY, Runnable then,
+                                Consumer<BlockPos> onWetColumn) {
         int depth = Math.max(0, rig.player().blockPosition().getY() - targetY);
         int cap = shaftAttemptsFor(depth);
         rig.evidence("shaft.depth", depth + " block(s), cap " + cap + " attempt(s)");
-        descendByMining(rig, targetY, cap, cap, then);
+        descendByMining(rig, targetY, cap, cap, then, onWetColumn);
     }
+
+    /**
+     * Rehearsal only: put water in the shaft so the wet-column guard has to fire.
+     *
+     * <p>Same shape and the same two locks as {@link JourneyStairs#aboutToWalk}'s sabotage — off
+     * unless asked for, refused outright when no rung is being rehearsed, and counted into
+     * {@link JourneyLedger#staged} so a run that somehow did it anyway could never report
+     * {@code staging.calls=0}.
+     *
+     * <p>It exists because the failure it reproduces is <b>random</b>. The obsidian rung's descent
+     * floods on some climbs and not others — the same seed, the same column {@code -4,56}, read
+     * {@code below=dirt} on one ladder run and {@code below=water} on the next — so the remedy that
+     * answers it cannot be verified by climbing: a green ladder proves only that this run was not
+     * the unlucky one. Flooding on purpose is what makes {@code shaft.reColumn.1} reachable in one
+     * six-minute rehearsal instead of in however many twenty-five-minute climbs it takes to be
+     * unlucky again.
+     *
+     * <p><b>A lens, not a plug, and the first version got that wrong in a way worth keeping.</b> It
+     * flooded three cells in the one column — the support, the body's cell and its head — and the
+     * descent walked straight past it: {@code shaft.4 … below=stone}, {@code shaft.sabotage}, then
+     * {@code shaft.5 = -4,58,56 below=-4,57,56 stone} and no guard at all. Two reasons, both
+     * structural. {@code player.isInWater()} is set by the entity's own tick, so on the tick the
+     * blocks change it is still false; and by the next pass the body had SUNK into the water it was
+     * given, which put dry rock back under it. The guard needs the support to be fluid too, and
+     * {@link #supportUnder} falls back to the corners of the bounding box — so a one-cell-wide
+     * flood leaves a solid corner holding the body up.
+     *
+     * <p><b>And DEEP, which the second version got wrong.</b> A three-wide lens four cells deep
+     * still did nothing: {@code shaft.4 … below=stone}, {@code shaft.sabotage}, then
+     * {@code shaft.5 = -4,57,56 below=-4,56,56 stone}. The body sank through all four cells inside
+     * one 60-tick settle and came to rest on the dry rock underneath, so the pass that followed saw
+     * a SOLID support and the guard's first condition was never met. The state the guard is written
+     * for is a body still inside the water with more water under it, and the only way to hold a
+     * sinking body in that state for a whole pass is to give it further to sink. Eight cells below
+     * the support is what an aquifer looks like anyway — the natural failure read
+     * {@code below=-4,61,56 water} with every corner of the footprint gone too.
+     */
+    static void floodTheColumnOnce(JourneyRig rig, BlockPos at, BlockPos below, int step) {
+        if (flooded || step < FLOOD_AFTER) return;
+        if (!Boolean.getBoolean("worlddriver.journey.wetShaft")) return;
+        if (JourneyRehearsal.target() == null) return;
+        flooded = true;
+        ServerLevel level = lvlOf(rig);
+        int cells = 0;
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                for (int y = below.getY() - FLOOD_DEPTH; y <= at.getY() + 1; y++) {
+                    level.setBlock(new BlockPos(at.getX() + dx, y, at.getZ() + dz),
+                            net.minecraft.world.level.block.Blocks.WATER.defaultBlockState(), 3);
+                    cells++;
+                }
+        JourneyLedger.staged("rehearsal: flooded a " + cells + "-cell lens around "
+                + at.toShortString() + ", to make the shaft's wet-column guard fire");
+        rig.evidence("shaft.sabotage", at.toShortString() + " 周围 3×3、y=" + (below.getY() - FLOOD_DEPTH)
+                + ".." + (at.getY() + 1) + " 共 " + cells + " 格灌成水了"
+                + "（排练专用，只为让「这根柱子不干燥」那条守卫必须触发）"
+                + " —— 下一步应当报 shaft.reColumn.1 并换一根柱子接着挖");
+    }
+
+    /** Whether this run has already staged its flood. One per run: the point is to see the swap
+     *  happen, and a second flood would only test the swap's own budget. */
+    private static boolean flooded;
+
+    /** How deep the descent must already be before the flood is staged. Four blocks, so the body is
+     *  in a shaft it dug rather than standing at the mouth — which is where the real failures were
+     *  ({@code shaft.8}, eight passes in). */
+    private static final int FLOOD_AFTER = 4;
+
+    /**
+     * How far below the support the staged lens reaches.
+     *
+     * <p>Twenty, and the number is measured rather than generous. A body in water SINKS — it does
+     * not float unless something makes it swim — and the descent's own settle is 60 ticks, which is
+     * long enough for it to fall <b>nine blocks</b>: with the lens eight deep the run recorded
+     * {@code shaft.4 = -4,59,56} and then {@code shaft.5 = -4,50,56 below=-4,49,56 stone}, the body
+     * having crossed the whole pocket and landed on its dry floor inside one leg. The guard's state
+     * is a body still IN the water with more water under it, so the lens has to be deeper than one
+     * settle's fall or the run never passes through that state at all.
+     *
+     * <p>Which is also why the natural failure is random: it is the same race, decided by where the
+     * groundwater's floor happens to be relative to how far the body got that leg.
+     */
+    private static final int FLOOD_DEPTH = 20;
 
 
     /**
@@ -505,6 +594,23 @@ public final class JourneyShaft {
     }
 
     static void descendByMining(JourneyRig rig, int targetY, int budget, int cap, Runnable then) {
+        descendByMining(rig, targetY, budget, cap, then, null);
+    }
+
+    /**
+     * @param onWetColumn what to do when the column turns out to be wet PART WAY DOWN, given the
+     *        cell the body was floating in. Null means there is no alternative column here and the
+     *        descent fails — which is the honest answer for a rung digging a surveyed ore column,
+     *        and the wrong one for a rung that chose its column at runtime and can choose again.
+     *
+     *        <p>This parameter is the whole of a fix, and the bug it closes is worth stating: the
+     *        guard below has always PRINTED「这根柱子不干燥，换一根」and then called {@code ctx.fail}.
+     *        A diagnostic that names a remedy the code does not run is worse than one that names
+     *        nothing — it ends the search. Two ladder runs were lost to that row before anyone
+     *        checked whether anything ever changed columns.
+     */
+    static void descendByMining(JourneyRig rig, int targetY, int budget, int cap, Runnable then,
+                                Consumer<BlockPos> onWetColumn) {
         BlockPos at = rig.player().blockPosition();
         if (at.getY() <= targetY) { then.run(); return; }
         if (budget <= 0) {
@@ -533,6 +639,7 @@ public final class JourneyShaft {
                 String.format("%d,%d,%d below=%s %s onGround=%s", at.getX(), at.getY(), at.getZ(),
                         below.toShortString(), rig.ctx().level().getBlockState(below).getBlock(),
                         rig.player().onGround()));
+        floodTheColumnOnce(rig, at, below, step);
         // Already open — the previous pass broke it and the body has not dropped in yet. Mining
         // air is a no-op that still costs an attempt, and three of those in a row is how a shaft
         // with budget for four blocks ran out after one. Fluid counts as open for the same reason
@@ -544,12 +651,20 @@ public final class JourneyShaft {
             // "the block broke but the body did not sink" about a body that was swimming. A shaft
             // that cannot start says so in one line instead of after seven thousand ticks.
             if (!lvlOf(rig).getFluidState(below).isEmpty() && rig.player().isInWater()) {
+                if (onWetColumn != null) {
+                    onWetColumn.accept(at.immutable());
+                    return;
+                }
+                // NO REMEDY IS NAMED HERE, because none runs. This rung digs the column its survey
+                // named and has no second one to move to; saying「换一根」would be the same lie the
+                // callback above exists to stop telling.
                 rig.ctx().fail("竖井挖不动：身体浮在" + lvlOf(rig).getBlockState(below).getBlock()
-                        + "里（" + at + "，脚下是流体不是地板）——这根柱子不干燥，换一根");
+                        + "里（" + at + "，脚下是流体不是地板）—— 这根柱子中段有水，"
+                        + "而这一级的柱子是勘测定死的，换不了");
                 return;
             }
             rig.settle(new HoldStill(40), 60,
-                    () -> descendByMining(rig, targetY, budget - 1, cap, then));
+                    () -> descendByMining(rig, targetY, budget - 1, cap, then, onWetColumn));
             return;
         }
         rig.mineBlock(below, 2_000, () -> {
@@ -572,7 +687,7 @@ public final class JourneyShaft {
                 // still under 83,75. A shaft is a column, and only a goal that names the column
                 // keeps the body over its own hole.
                 rig.settle(new HoldStill(40), 60,
-                        () -> descendByMining(rig, targetY, budget - 1, cap, then));
+                        () -> descendByMining(rig, targetY, budget - 1, cap, then, onWetColumn));
         });
     }
 }

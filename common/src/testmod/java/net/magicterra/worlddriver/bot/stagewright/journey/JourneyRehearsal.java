@@ -282,6 +282,10 @@ public final class JourneyRehearsal {
             stagePortalLit(ctx);
             return;
         }
+        if (target == JourneyStage.OBSIDIAN) {
+            stageObsidian(ctx);
+            return;
+        }
         if (target == JourneyStage.NETHER) {
             stageNether(ctx);
             return;
@@ -376,6 +380,75 @@ public final class JourneyRehearsal {
         ctx.record("rehearsal.stand", stand.toShortString() + "，距湖 "
                 + Math.round(Math.sqrt(stand.distSqr(lake))) + " 格");
         WorldDriverCommon.LOG.info("[rehearsal] staged PORTAL_LIT: gave {} and stood the body at {}",
+                gave, stand);
+    }
+
+    /**
+     * Rung 11's starting conditions: an empty bucket, a pickaxe, and a body beside the lava column.
+     *
+     * <p>Written for one subject and it is worth naming, because a rehearsal without a subject drifts
+     * into being a second ladder: <b>the shaft</b>. Rung 11 sinks the deepest hole the ladder digs —
+     * 36 blocks on this seed — and it is the only rung that CHOOSES its column at runtime, which
+     * makes it the only place a wet column can be answered by moving to a dry one. That answer is
+     * unreachable on a real climb without luck (the flood is random: the same column read
+     * {@code below=dirt} on one ladder run and {@code below=water} on the next), so
+     * {@code -Dworlddriver.journey.wetShaft=true} makes it certain — see
+     * {@link JourneyShaft#floodTheColumnOnce}.
+     *
+     * <p>What is handed over is what rungs 1–10 would leave: the empty bucket PORTAL_KIT buys, and
+     * stone pickaxes, because the ladder's iron pays for the bucket and the flint-and-steel and has
+     * none left for a tool. Two of them for the same reason rung 12's recipe gives two — a 36-block
+     * shaft plus a tunnel is around a hundred breaks against a stone head's 131, and a mine that
+     * stops because the tool snapped looks exactly like a mine that could not reach.
+     *
+     * <p>The body is stood a few blocks from the lava's own column at the SURFACE. Not on it: the
+     * step onto a checked column is part of what the shaft does, and staging the body onto the
+     * chosen column would stage the very check the descent depends on.
+     */
+    private static void stageObsidian(SceneContext ctx) {
+        ServerWorldDriver body = JourneyRig.bodyOrNull();
+        if (body == null) {
+            ctx.fail("排练：没有身体 —— wd.rehearse02Spawn 没有创建 avatar");
+            return;
+        }
+        ServerLevel level = ctx.level();
+        ServerPlayer fp = body.fakePlayer();
+        BlockPos lava = JourneyRoute.firstLava;
+        if (lava.equals(JourneyRoute.UNSURVEYED)) {
+            ctx.fail("排练：JourneyRoute.firstLava 还是 UNSURVEYED —— 这一级没有目标可去");
+            return;
+        }
+
+        Map<String, Integer> kit = new LinkedHashMap<>();
+        kit.put("minecraft:stone_pickaxe", 2);
+        kit.put("minecraft:bucket", 1);
+        kit.put("minecraft:cobblestone", 64);
+        StringBuilder gave = new StringBuilder();
+        for (var e : kit.entrySet()) {
+            give(fp, e.getKey(), e.getValue());
+            if (gave.length() > 0) gave.append(' ');
+            gave.append(e.getKey().substring(e.getKey().indexOf(':') + 1)).append('×').append(e.getValue());
+        }
+        JourneyLedger.staged("rehearsal: gave " + gave);
+        ctx.record("rehearsal.gave", gave.toString());
+
+        loadAround(level, lava, 2);
+        BlockPos stand = dryStandNear(level, lava, 4, 16);
+        if (stand == null) {
+            ctx.fail("排练：岩浆柱 " + lava.toShortString() + " 上方 4..16 格内找不到一处干燥落脚点");
+            return;
+        }
+        loadAround(level, stand, 2);
+        JourneyLedger.staged("rehearsal: moved the body to " + stand.toShortString()
+                + " beside the lava column instead of walking there");
+        fp.setDeltaMovement(Vec3.ZERO);
+        fp.moveTo(stand.getX() + 0.5, stand.getY(), stand.getZ() + 0.5, fp.getYRot(), fp.getXRot());
+        fp.setOnGround(true);
+        ctx.record("rehearsal.stand", stand.toShortString() + "，岩浆柱 "
+                + lava.getX() + "," + lava.getZ() + " 在 " + Math.round(Math.hypot(
+                        stand.getX() - lava.getX(), stand.getZ() - lava.getZ())) + " 格外，下挖 "
+                + (stand.getY() - lava.getY()) + " 格");
+        WorldDriverCommon.LOG.info("[rehearsal] staged OBSIDIAN: gave {} and stood the body at {}",
                 gave, stand);
     }
 

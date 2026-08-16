@@ -93,11 +93,30 @@ public final class JourneyTerrain {
      */
     public static BlockPos pickDigColumn(ServerLevel level, BlockPos lava, int surfaceY,
                                           Map<String, Integer> rejected) {
+        return pickDigColumn(level, lava, surfaceY, rejected, List.of());
+    }
+
+    /**
+     * The same, refusing columns a descent has already tried and found wet part way down.
+     *
+     * <p>{@link #whyNotDiggable} only asks about the two ENDS of a column — deliberately, and the
+     * measurement is in its own note: requiring the whole thing dry rejected 280 candidates out of
+     * 280 around this seed's pool, because that is what an aquifer is. So the middle is the
+     * descent's problem, and when the descent finds water there the only thing that knows the column
+     * is bad is the descent. Without this list the next pick rings outward from the same centre and
+     * returns the same column, and「换一根」becomes a loop rather than a remedy.
+     */
+    public static BlockPos pickDigColumn(ServerLevel level, BlockPos lava, int surfaceY,
+                                          Map<String, Integer> rejected, List<BlockPos> banned) {
         for (int r = 2; r <= 8; r++) {
             for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;   // the ring, not the disc
                     BlockPos c = new BlockPos(lava.getX() + dx, lava.getY(), lava.getZ() + dz);
+                    if (sameColumn(banned, c)) {
+                        rejected.merge("下挖时发现中段有水，这一柱已换掉", 1, Integer::sum);
+                        continue;
+                    }
                     String why = whyNotDiggable(level, c, surfaceY);
                     if (why == null) return c;
                     rejected.merge(why, 1, Integer::sum);
@@ -105,6 +124,15 @@ public final class JourneyTerrain {
             }
         }
         return null;
+    }
+
+    /** Whether {@code c}'s x/z appears in {@code columns}. Y is ignored on purpose: a column is an
+     *  x/z, and the cells a descent reports are at whatever depth it drowned. */
+    public static boolean sameColumn(List<BlockPos> columns, BlockPos c) {
+        for (BlockPos b : columns) {
+            if (b.getX() == c.getX() && b.getZ() == c.getZ()) return true;
+        }
+        return false;
     }
 
     /** Whether the column the body is actually standing on will do. */

@@ -2042,10 +2042,32 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             reachLava(ctx, rig, MAX_TUNNEL_STEPS, () -> leaveWithTheLava(ctx, rig, surfaceY));
             return;
         }
+        sinkInSomeColumn(ctx, rig, lava, surfaceY, new java.util.ArrayList<>(), WET_COLUMN_SWAPS);
+    }
 
+    /**
+     * How many times this rung may abandon a wet column and sink the shaft somewhere else.
+     *
+     * <p>Two. The remedy has to be bounded — a swamp can wet every column within eight blocks, and
+     * an unbounded loop would spend the rung's whole budget re-digging — and it has to be more than
+     * one, because the columns {@code pickDigColumn} rings outward to are neighbours and neighbours
+     * share their groundwater. Each swap costs a climb out and a fresh descent, which on this
+     * seed's obsidian rung is about 36 blocks each way.
+     */
+    private static final int WET_COLUMN_SWAPS = 2;
+
+    /**
+     * Pick a column, prove it, sink the shaft — and start over somewhere else if the descent drowns.
+     *
+     * <p>Separate from {@link #sinkToLava} so the retry re-enters HERE. Re-entering at the top would
+     * meet the「already at the fluid's level」short-circuit with a body that is at that level only
+     * because it drowned part way down the wrong column, and skip the shaft entirely.
+     */
+    private static void sinkInSomeColumn(SceneContext ctx, JourneyRig rig, BlockPos lava, int surfaceY,
+                                         List<BlockPos> wetColumns, int swapsLeft) {
         ServerLevel level = ctx.level();
         Map<String, Integer> rejected = new java.util.LinkedHashMap<>();
-        BlockPos dig = JourneyTerrain.pickDigColumn(level, lava, surfaceY, rejected);
+        BlockPos dig = JourneyTerrain.pickDigColumn(level, lava, surfaceY, rejected, wetColumns);
         if (dig == null) {
             // Say which rule did the rejecting. "Nothing qualified" is a shrug; a tally is the next
             // change's evidence, and this rung has already spent one run per guess.
@@ -2062,7 +2084,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // within ARRIVED_WITHIN blocks, which is right when the next step is a search and fatal when
         // the next step is a hole. Five blocks of slack over a lava pool is a shaft sunk into the
         // pool — the one outcome this whole rung is arranged to avoid.
-        stepOntoDiggableColumn(rig, dig, lava, surfaceY, MAX_WALK_ATTEMPTS, () -> {
+        stepOntoDiggableColumn(rig, dig, lava, surfaceY, MAX_WALK_ATTEMPTS, wetColumns, () -> {
             rig.attempting("下挖 " + (rig.player().blockPosition().getY() - (lava.getY() + 1)) + " 格到岩浆层");
             BotConfig.allowPlace = false;      // as on every mining rung: a paving walker will not sink
             // The same generous cap the PORTAL rung gives its identical descent, and for the reason
@@ -2080,10 +2102,46 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 BotConfig.allowPlace = true;
                 rig.evidence("shaft.landedY", rig.player().blockPosition().getY());
                 reachLava(ctx, rig, MAX_TUNNEL_STEPS, () -> leaveWithTheLava(ctx, rig, surfaceY));
-            });
+            }, afloat -> swapWetColumn(ctx, rig, lava, surfaceY, wetColumns, swapsLeft, afloat));
         }, () -> ctx.fail("站不到可下挖的柱子上：想去 " + dig.getX() + "," + dig.getZ()
                 + "，停在 " + rig.player().blockPosition()
                 + "（该柱在岩浆层不是实心, 或柱子里还有岩浆）"));
+    }
+
+    /**
+     * Abandon a column the descent drowned in, and sink the shaft in a different one.
+     *
+     * <p>This is the code that makes the descent's「这根柱子不干燥，换一根」true. It printed that
+     * sentence and called {@code ctx.fail} for as long as it existed, which is the worst kind of
+     * evidence row: one that names a remedy nothing performs. Two ladder runs ended on it.
+     *
+     * <p><b>Climb out first.</b> The body is floating in a hole it dug, and the next column is a
+     * surface walk away — the same {@code climbOut} every mining rung already uses to leave a shaft,
+     * which turns placing back on for the pillar. Recorded as {@code shaft.reColumn.N} with the cell
+     * that drowned, so a run that swapped can never read as one that walked straight down.
+     */
+    private static void swapWetColumn(SceneContext ctx, JourneyRig rig, BlockPos lava, int surfaceY,
+                                      List<BlockPos> wetColumns, int swapsLeft, BlockPos afloat) {
+        int n = wetColumns.size() + 1;
+        wetColumns.add(new BlockPos(afloat.getX(), lava.getY(), afloat.getZ()));
+        // The two outcomes must not read alike. A row that says「换一根」when nothing will change
+        // columns is the very defect this whole callback exists to remove, and writing the sentence
+        // once with a suffix is how that happens by accident.
+        rig.evidence("shaft.reColumn." + n, afloat.toShortString() + " 这一柱中段有水，身体浮起来了"
+                + "（脚下 " + rig.ctx().level().getBlockState(afloat.below()).getBlock() + "）—— "
+                + (swapsLeft <= 0
+                        ? "换柱次数已用完，不再换，这一级到此为止"
+                        : "爬回 y=" + surfaceY + " 换第 " + (n + 1) + " 根柱子重挖，还剩 "
+                                + (swapsLeft - 1) + " 次换柱"));
+        if (swapsLeft <= 0) {
+            ctx.fail("竖井连着 " + n + " 根柱子都在中段见水：已换掉 " + wetColumns
+                    + "（岩浆 " + lava.toShortString() + "，地表 y=" + surfaceY
+                    + "）—— 这一片是含水层，不是一根柱子的运气");
+            return;
+        }
+        rig.attempting("这一柱中段有水，爬回地面换一根重挖");
+        JourneyShaft.climbOut(rig, surfaceY, () ->
+                sinkInSomeColumn(ctx, rig, lava, surfaceY, wetColumns, swapsLeft - 1));
     }
 
     /**
@@ -2095,9 +2153,24 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      */
     static void stepOntoDiggableColumn(JourneyRig rig, BlockPos dig, BlockPos lava,
                                                int surfaceY, int left, Runnable then, Runnable onStuck) {
+        stepOntoDiggableColumn(rig, dig, lava, surfaceY, left, List.of(), then, onStuck);
+    }
+
+    /**
+     * The same, refusing to adopt a column an earlier descent drowned in.
+     *
+     * <p>Without the ban list this method is what turns a column swap into a loop, and quietly:
+     * {@code columnIsSafeToSink} asks {@code whyNotDiggable}, which by design does not look at the
+     * MIDDLE of a column — so the wet column the descent just abandoned still answers "fine", and a
+     * body that climbed out of it and has not walked far enough yet gets sent straight back down it.
+     */
+    static void stepOntoDiggableColumn(JourneyRig rig, BlockPos dig, BlockPos lava,
+                                               int surfaceY, int left, List<BlockPos> banned,
+                                               Runnable then, Runnable onStuck) {
         BlockPos at = rig.player().blockPosition();
         boolean overThePool = at.getX() == lava.getX() && at.getZ() == lava.getZ();
-        if (!overThePool && JourneyTerrain.columnIsSafeToSink(rig.ctx().level(),
+        boolean abandoned = JourneyTerrain.sameColumn(banned, at);
+        if (!overThePool && !abandoned && JourneyTerrain.columnIsSafeToSink(rig.ctx().level(),
                 new BlockPos(at.getX(), lava.getY(), at.getZ()), surfaceY)) {
             rig.evidence("shaft.standingOn", at.getX() + "," + at.getZ()
                     + (at.getX() == dig.getX() && at.getZ() == dig.getZ() ? " (选定柱)" : " (就近合格柱)"));
@@ -2107,9 +2180,10 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         if (left <= 0) { onStuck.run(); return; }
         rig.evidence("shaft.stepping." + (MAX_WALK_ATTEMPTS - left + 1),
                 at.toShortString() + " → " + dig.getX() + "," + dig.getZ()
-                        + (overThePool ? " (正站在岩浆柱上)" : " (脚下柱子不合格)"));
+                        + (overThePool ? " (正站在岩浆柱上)"
+                                : abandoned ? " (正站在刚换掉的湿柱上)" : " (脚下柱子不合格)"));
         rig.settle(new IntentProcess(new Intent(new Goal.XZ(dig.getX(), dig.getZ(), 0))), 1_200,
-                () -> stepOntoDiggableColumn(rig, dig, lava, surfaceY, left - 1, then, onStuck));
+                () -> stepOntoDiggableColumn(rig, dig, lava, surfaceY, left - 1, banned, then, onStuck));
     }
 
     /**

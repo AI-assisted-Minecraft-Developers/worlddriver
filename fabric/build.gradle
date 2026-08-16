@@ -299,6 +299,15 @@ loom {
             // refuses the sabotage when none is set.
             property 'worlddriver.journey.breakAStair',
                     (project.findProperty('breakAStair') ?: 'false').toString()
+            // Make the shaft's wet-column guard TRIP, and its remedy run. The flood that fires it is
+            // random on a real climb — the same seed, the same column, dirt on one ladder run and
+            // water on the next — so「换一根柱子」could only ever be verified by being unlucky at
+            // twenty-five minutes a try:
+            //   ./gradlew :fabric:runRehearsalServer -Prehearse=OBSIDIAN -PwetShaft=true
+            // Same two locks as breakAStair: off unless asked for, and refused when no rung is being
+            // rehearsed. See JourneyShaft.floodTheColumnOnce.
+            property 'worlddriver.journey.wetShaft',
+                    (project.findProperty('wetShaft') ?: 'false').toString()
             // Which side of the lava lake to stand the body on, which is what decides the forge's
             // orientation and therefore the whole alcove geometry:
             //   ./gradlew :fabric:runRehearsalServer -Prehearse=PORTAL_LIT -PforgeAway=north
