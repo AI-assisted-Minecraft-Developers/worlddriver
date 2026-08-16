@@ -5,6 +5,8 @@ import java.util.function.Consumer;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
+import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.process.Intent;
 import net.magicterra.worlddriver.bot.process.IntentProcess;
 import net.magicterra.worlddriver.bot.process.TowerProcess;
@@ -118,9 +120,38 @@ public final class JourneyShaft {
      * three independent readings ({@code driftKeptPinned}, {@code raisedY}, the pour's own
      * {@code .picks}) stand between a drifted body and a bucket.
      *
-     * <p>The one refusal kept is the walker fallback. {@code Goal.YLevel} is column-blind by
-     * construction — satisfied by any cell at the height — so it can walk a body clean out of the
-     * alcove to satisfy an altitude, and it costs nothing to refuse it for a climb that has a tower.
+     * <h2>The last refusal went the same way, and for a reason the first audit could not see</h2>
+     *
+     * <p>What was kept was the walker fallback: {@code Goal.YLevel} is column-blind by construction —
+     * satisfied by any cell at the height — so refusing it "costs nothing to a climb that has a
+     * tower". <b>The premise is the part that fails.</b> This rung's raise is the one climb in the
+     * ladder that must run at full water level: the recover happens while the cast's own source is
+     * still sitting in the frame, so the alcove floor is flowing water, and a tower cannot START
+     * there. Measured, single-bucket rehearsal 2026-08-17, cell nine:
+     *
+     * <pre>
+     * recover8.rise#3.climb.0        = -9,56,36 above=air onGround=false water=true
+     * recover8.rise#3.climb.10.afloat= -11,56,36 浮在水里，8 次都没落地；脚下 0 格内有实底
+     *                                 （-11,55,36 granite），水深 1 格，身体 y=56.00
+     * recover8.rise#3.pinnedShort    = 没垒到 y=60
+     * recover8.rise#3.gained         = 0/4 block(s)
+     * </pre>
+     *
+     * <p>The same run's UNPINNED lifts hit the identical puddle and got out of it: {@code
+     * cast6.lift#6} and {@code cast8.lift#7} each recorded {@code climb.10.afloat} at {@code
+     * -11,56,36} and then {@code walkerFallback=true}, {@code toY=58}, {@code gained} 2/2 and 2/3.
+     * So the fallback is not a worse way up here — it is the only one that works in water, and the
+     * pinned raise was the single climb forbidden to use it.
+     *
+     * <p><b>And by the time it is reached there is no column left to protect.</b> The correction now
+     * adopts on drift, so a pinned climb arrives at this point having already printed
+     * {@code driftKeptPinned} twice: the run above ended {@code endedIn=-11,36（就是那一柱）} against
+     * an aim computed for {@code -9,36}. Refusing the fallback to keep the ray's column defends a
+     * column the climb gave up two courses earlier.
+     *
+     * <p>So a pinned climb falls back too, and the one thing its fallback may not do is DIG. Its
+     * source sits inside the frame the rung is building, which is the only thing down there tall
+     * enough to be in a walker's way — the same reason the recover's fill leg carries {@link NoBreak}.
      */
     static boolean climbPinned;
 
@@ -182,16 +213,28 @@ public final class JourneyShaft {
         // column and the pin, which are exactly the two things this method has just set.
         ascendByTowering(rig, surfaceY, cap, cap, WASHED_OFF_RETRIES, () -> {
             if (rig.player().blockPosition().getY() >= surfaceY) { recordExit(rig, then); return; }
-            // NO WALKER FALLBACK FOR A PINNED CLIMB. `Goal.YLevel` is column-blind by construction —
-            // it is satisfied by any cell at the height — so handing a pinned climb to it is handing
-            // away the one property the pin exists to keep. A pour that could not get up its own
-            // column says so and lets its ray gate refuse the bucket; it is not in a hole and has
-            // nothing to be rescued from.
+            // A PINNED CLIMB FALLS BACK TOO — WITHOUT DIGGING. This used to stop here on the grounds
+            // that `Goal.YLevel` is column-blind and a pinned climb has a tower of its own; see
+            // climbPinned for the measurement that killed both halves of that. In one sentence: the
+            // pinned raise is the only climb in this rung that runs while the alcove is flooded, a
+            // tower cannot start in water (`afloat`, gained 0/4), the unpinned lifts in the same
+            // puddle got out on this very fallback, and the correction has already adopted a
+            // different column by the time this line is reached — so the ray's column is not what is
+            // being protected.
+            //
+            // NoBreak, and only for the pinned path. The unpinned exits cross rock this rung dug and
+            // ordinary terrain; a pinned raise stands inside the mould, where the tallest thing on
+            // any route is the frame the rung is there to build. The fill leg beside it already
+            // carries NoBreak for exactly that, after a walk mined a cast cell to climb back up
+            // (`frame.lost.1 … 丢在「recover8 从 -9, 61, 38 收水」这一步里`).
             if (climbPinned) {
                 rig.evidence(climbName + ".pinnedShort", rig.player().blockPosition().toShortString()
                         + " 没垒到 y=" + surfaceY + "，指定柱 " + climbColX + "," + climbColZ
-                        + " —— 不交给 YLevel 兜底，那条路不认柱子");
-                recordExit(rig, then);
+                        + " —— 塔到此为止，交给 YLevel 兜底（不许挖）；落在哪一柱由装水/浇筑自己的射线闸判");
+                rig.evidence(climbName + ".pinnedFallback", true);
+                rig.settle(new IntentProcess(new Intent(new Goal.YLevel(surfaceY), List.of(),
+                                CapabilityProfile.ALL, List.of(new NoBreak()))), 3_000,
+                        () -> recordExit(rig, then));
                 return;
             }
             // The tower gave up. Hand the rest to the walker — the route

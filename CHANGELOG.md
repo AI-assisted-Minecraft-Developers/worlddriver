@@ -32,8 +32,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   3/3` unpinned against `-1/2` pinned — the pinned one ended a block **below** where it started,
   because the correction descends into the column's only foothold and the refusal then forbids the
   tower that would have paid it back. Reproduced on the real ladder the same day
-  (`recover8.rise#8.gained=-1/2`). An adopted column is now recorded as `driftKeptPinned`; the one
-  refusal kept is the column-blind `Goal.YLevel` fallback.
+  (`recover8.rise#8.gained=-1/2`). An adopted column is now recorded as `driftKeptPinned`. The one
+  refusal kept at the time was the column-blind `Goal.YLevel` fallback — see the next entry for the
+  measurement that took that one too.
+- **A pinned climb takes the walker fallback as well, without digging.** Keeping that last refusal
+  rested on "it costs nothing to a climb that has a tower", and this rung's raise is the one climb in
+  the ladder with no tower to fall back on: the recover runs while the cast's own source is still in
+  the frame, so the alcove floor is flowing water and `TowerProcess`'s READY phase never sees
+  `onGround`. Measured, single-bucket rehearsal, cell nine: `recover8.rise#3.climb.10.afloat =
+  -11,56,36 …脚下 0 格内有实底（-11,55,36 granite），水深 1 格，身体 y=56.00`, then `pinnedShort`,
+  then `gained=0/4` — and the rung died in the fill that followed
+  (`recover8.frameStuck.3 = 门框挡着 -9,61,38，而且没有别的落脚点看得见它`). The **unpinned** lifts of
+  the same run hit the identical puddle at the identical cell and got out of it on this very
+  fallback (`cast6.lift#6` / `cast8.lift#7`: `afloat` → `walkerFallback=true` → `toY=58`,
+  `gained` 2/2 and 2/3), so the fallback is not a worse way up here, it is the only one that works in
+  water. By the time the refusal fires there is also no column left to defend: the correction has
+  already adopted twice (`endedIn=-11,36（就是那一柱）` against an aim computed for `-9,36`).
+  The fallback carries `NoBreak`, for the same reason the recover's fill leg does — the only thing
+  tall enough to be in a walker's way down there is the frame the rung is building. Same geometry
+  A/B on one bucket: before, `recover8.rise gained=0/4` and `装不到 minecraft:water_bucket`; after,
+  `pinnedFallback=true`, `gained=4/4`, `recover8.result=CONSUME`, `frame.cast=10/10（丢了 0 格）`,
+  `portal.cells=6/6`, twice.
 - **The water recover's walk may no longer mine.** Its source sits inside the frame the rung is
   building, so from floor level the only thing between the eye and it is the frame — and that walk
   ran with `allowBreak` on. Measured: `recover8.spot = 没找到能看见源块的落脚点，退回
