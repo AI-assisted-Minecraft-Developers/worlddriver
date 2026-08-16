@@ -685,6 +685,9 @@ public final class JourneyPortalRung {
         // second spot's corridor can overlap the first's — carrying the old one across would tell
         // litterAt that a cell of the new alcove is rock nobody could break, when it was never tried.
         forgeStuck = Set.of();
+        // Same reasoning, same instant: a step set that outlived its corridor would exempt a cell of
+        // the NEW alcove from every sweep, on the strength of a flight built in a different hole.
+        JourneyRamp.reset();
         BlockPos base = at.relative(away, push);
         rig.evidence("forge.face", base.toShortString() + " 朝 " + away
                 + "（背离岩浆，外推 " + push + " 格，井底 y=" + at.getY() + "，岩浆层 y=" + lava.getY() + "）");
@@ -1239,8 +1242,14 @@ public final class JourneyPortalRung {
             rig.evidence(tag + ".noStand", cell.toShortString() + " 够不着：身体 " + here.toShortString()
                     + " 距 " + String.format(java.util.Locale.ROOT, "%.2f", Math.sqrt(here.distSqr(cell)))
                     + " 格（>" + DIG_ARRIVE + "）；站不了：" + whyBehind + "；" + whyLower
-                    + "；垫不了：" + whyStep);
-            then.run();
+                    + "；垫不了：" + whyStep + " —— 改修一段楼梯上去");
+            // A FLIGHT, because one brick is what this row has just finished saying is not enough.
+            // The two cells a single step can reach are the frame's bottom three rows; from the
+            // fourth row up the brick's own support is air as well, and the honest answer is a
+            // staircase resting on the alcove's floor. See JourneyRamp for why it is walked rather
+            // than towered.
+            JourneyRamp.buildTo(rig, forgeCorridor, lower, tag + ".ramp",
+                    () -> walkToStand(rig, tag, cell, lower, then));
             return;
         }
         boolean held = rig.body().avatar().holdItem(Items.COBBLESTONE);
@@ -1328,6 +1337,11 @@ public final class JourneyPortalRung {
         for (BlockPos c : List.of(behind, behind.above(), lower, lower.above())) {
             if (!forgeCorridor.contains(c)) continue;
             if (forgeStuck.contains(c)) continue;
+            // A step of the flight is not something that "arrived since" — it is the floor a stand
+            // one row up rests on, and `behind`'s own support is exactly the cell a taller cell's
+            // landing was built over. Breaking it here would clear the stand this dig is about to
+            // choose. Same exemption tidyTheAlcove and clearPourLine carry, for the same reason.
+            if (JourneyRamp.isStep(c)) continue;
             if (!level.getBlockState(c).blocksMotion()) continue;   // air, and the rung's own water
             return c;
         }
@@ -1406,7 +1420,15 @@ public final class JourneyPortalRung {
         ServerLevel level = ctx.level();
         List<BlockPos> litter = new ArrayList<>();
         for (BlockPos c : forgeCorridor)
-            if (level.getBlockState(c).getBlock() == Blocks.COBBLESTONE) litter.add(c.immutable());
+            // A STEP IS NOT LITTER. This sweep exists to take back the columns MineProcess pillars
+            // up while reaching a cell over head height — blocks that arrived by accident, in the
+            // volume the pours have to stand in. The flight JourneyRamp lays is the opposite: it IS
+            // where the next pour stands, and sweeping it puts the top rows back out of reach one
+            // cell after they were reached. Same distinction forgeStuck draws for the carve, and for
+            // the same reason: "solid, and the rung put it there on purpose" is not a question a
+            // block id can answer.
+            if (level.getBlockState(c).getBlock() == Blocks.COBBLESTONE && !JourneyRamp.isStep(c))
+                litter.add(c.immutable());
         if (litter.isEmpty()) { then.run(); return; }
         litter.sort((a, b) -> b.getY() - a.getY());
         // WITH THE BLOCK, now that it is no longer cobblestone by definition. What the body pillars
@@ -1819,11 +1841,26 @@ public final class JourneyPortalRung {
                             : "，不是同一柱 —— 射线是照那一柱算的") + "）");
             then.run();
         };
-        // Pinned only when the column was CHOSEN by the ray. Falling back to the arithmetic column
-        // means the rung does not know that column works, and pinning a guess buys nothing while it
-        // can still cost the climb — so that path keeps the exit's own adopt-on-drift policy.
-        if (pin) JourneyShaft.climbOutInColumn(rig, wantY, col.getX(), col.getZ(), tag, done);
-        else JourneyShaft.climbOut(rig, wantY, tag, done);
+        // THE STAIRCASE FIRST. It is the only one of the two that puts the body in the column it was
+        // asked for by construction — a tower is pinned to a column only in the sense that it keeps
+        // walking back to one — and it is the only one that works on dry alcove floor at all; see
+        // JourneyRamp for the two runs where the tower gained one course of two holding 130 blocks.
+        Runnable tower = () -> {
+            // Pinned only when the column was CHOSEN by the ray. Falling back to the arithmetic
+            // column means the rung does not know that column works, and pinning a guess buys
+            // nothing while it can still cost the climb — so that path keeps the exit's own
+            // adopt-on-drift policy.
+            if (pin) JourneyShaft.climbOutInColumn(rig, wantY, col.getX(), col.getZ(), tag, done);
+            else JourneyShaft.climbOut(rig, wantY, tag, done);
+        };
+        JourneyRamp.buildTo(rig, forgeCorridor, new BlockPos(col.getX(), wantY, col.getZ()),
+                tag + ".ramp", () -> {
+            // Handed on rather than replaced: the tower is what carried this rung out of its own
+            // flood on 2026-08-17 (`cast9` 59/59), where the body floats and no placement is what
+            // raises it. A flight that reached the row has nothing left for it to do.
+            if (rig.player().blockPosition().getY() >= wantY) { done.run(); return; }
+            tower.run();
+        });
     }
 
     /**
@@ -1861,6 +1898,14 @@ public final class JourneyPortalRung {
                 BlockPos foot = target.relative(away.getOpposite(), back)
                         .relative(away.getClockWise(), side).above(wantY - target.getY());
                 if (!forgeCorridor.contains(foot) || !forgeCorridor.contains(foot.above())) continue;
+                // A LANDING HAS TO BE A PLACE A BODY CAN BE. This asked only whether the eye at that
+                // cell would see the backing, which is true of a cell full of cobblestone — and by
+                // the ninth cast some of them are: the raise for the notch one row up rests its own
+                // top step in exactly the cell the ring cell below it wants to stand in. Measured,
+                // rehearsal 2026-08-16: `wet.9` ramped to -10,60,37 over a step at -10,59,37, and
+                // `cast9.lift` then chose -10,59,37 and reported「被 cobblestone 占着」.
+                if (level.getBlockState(foot).blocksMotion()
+                        || level.getBlockState(foot.above()).blocksMotion()) continue;
                 if (!(pouring ? pourLandsFrom(level, rig, foot, target, away)
                               : scoopSeesFrom(level, rig, foot, target))) continue;
                 long dx = foot.getX() - here.getX(), dz = foot.getZ() - here.getZ();
@@ -1917,21 +1962,63 @@ public final class JourneyPortalRung {
      * landing in {@code -9,58,38} every time. The one good cell existed and the walker could not
      * reach it, which no amount of re-choosing fixes.
      *
-     * <p>Pillaring under the body needs no walk at all, and lifting to the target's own row is what
-     * makes the backing aim horizontal wherever the body happens to be standing. The cobblestone is
-     * left behind on purpose — {@link #tidyTheAlcove} takes it out before the next cell.
+     * <p>Lifting to the target's own row is what makes the backing aim horizontal wherever the body
+     * happens to be standing. The cobblestone is left behind on purpose — the pours after this one
+     * stand on it, and {@link JourneyRamp} is what keeps {@link #tidyTheAlcove} from sweeping it.
+     *
+     * <p><b>A staircase, not a pillar, and the column is chosen by the ray.</b> Two things were
+     * wrong with towering straight up from wherever the body was. The tower does not work on this
+     * geometry — see {@link JourneyRamp}'s note for the two verbatim reproductions of
+     * {@code climb.1.stalled} on dry land with 130 cobblestone in hand — and even a tower that
+     * worked would put the eye in the BODY's column rather than in one whose ray reaches the
+     * backing. The real ladder of 2026-08-16 measured exactly that second half: {@code cast6} lifted
+     * in {@code x=-9} for a target in {@code x=-8}, and the diagonal that makes grazed the corner of
+     * the obsidian it had cast two rows below ({@code picks=-8,58,38 obsidian → 落进 -9,58,38}). So
+     * the landing is {@link #raiseColumn}'s answer — the same clip the bucket will run, asked from
+     * the eye a body standing there WOULD have — and the flight is built to reach it.
+     *
+     * <p>The tower is still run behind it, and only behind it: it has carried this rung before (the
+     * rehearsal of 2026-08-17 lifted {@code cast9} 59/59 out of the alcove's own flood, where a body
+     * floats and a placement is not what raises it), so a flight that falls short hands over rather
+     * than ending the cast.
      */
-    private static void liftInPlace(SceneContext ctx, JourneyRig rig, BlockPos target, String tag,
-                                    int tries, Runnable then) {
+    private static void liftInPlace(SceneContext ctx, JourneyRig rig, BlockPos target, Direction away,
+                                    String tag, int tries, Runnable then) {
         int wantY = target.getY() - 1;
         if (tries > 2 || rig.player().blockPosition().getY() >= wantY) { then.run(); return; }
-        rig.evidence(tag + ".lift", rig.player().blockPosition().toShortString() + " → y=" + wantY
-                + "（走不到选定的落脚格，就地垒上去和 " + target.toShortString() + " 同高）");
-        BotConfig.allowPlace = true;
-        JourneyShaft.climbOut(rig, wantY, tag + ".lift", () -> {
-            BotConfig.allowPlace = false;
-            rig.evidence(tag + ".liftedY", rig.player().blockPosition().getY() + "/" + wantY);
-            then.run();
+        // DIRECTLY BEHIND FIRST, then whatever else verifies. `raiseColumn` ranks by distance and the
+        // body's own column is at distance zero, so on a lift it always wins — and the shot from the
+        // body's column to a target one cell sideways is the diagonal this whole rung keeps losing
+        // cells to: it crosses the frame's plane at a block CORNER, where the segment clip and the
+        // fired ray tie-break opposite ways (see aimThatLandsIn). The cell one back and one down
+        // from the target is the only geometry that makes the backing shot horizontal, which is what
+        // placeFluid's own contract asks for.
+        BlockPos behindLow = target.relative(away.getOpposite()).below();
+        BlockPos verified = forgeCorridor.contains(behindLow) && forgeCorridor.contains(behindLow.above())
+                && !ctx.level().getBlockState(behindLow).blocksMotion()
+                && !ctx.level().getBlockState(behindLow.above()).blocksMotion()
+                && pourLandsFrom(ctx.level(), rig, behindLow, target, away)
+                ? behindLow : raiseColumn(ctx.level(), rig, target, away, wantY, true);
+        BlockPos here = rig.player().blockPosition();
+        BlockPos landing = verified != null ? verified : new BlockPos(here.getX(), wantY, here.getZ());
+        rig.evidence(tag + ".lift", here.toShortString() + " → " + landing.toShortString()
+                + "（走不到选定的落脚格，修一段楼梯上到和 " + target.toShortString() + " 同高）"
+                + (verified != null ? "：站上去射线落得进目标格"
+                        : "：没有一柱验得过射线，就在身体这一柱上修，不钉"));
+        JourneyRamp.buildTo(rig, forgeCorridor, landing, tag + ".lift", () -> {
+            if (rig.player().blockPosition().getY() >= wantY) {
+                rig.evidence(tag + ".liftedY", rig.player().blockPosition().getY() + "/" + wantY);
+                then.run();
+                return;
+            }
+            rig.evidence(tag + ".liftTower", "楼梯到 y=" + rig.player().blockPosition().getY()
+                    + " 就修不上去了，交给塔兜底");
+            BotConfig.allowPlace = true;
+            JourneyShaft.climbOut(rig, wantY, tag + ".lift", () -> {
+                BotConfig.allowPlace = false;
+                rig.evidence(tag + ".liftedY", rig.player().blockPosition().getY() + "/" + wantY);
+                then.run();
+            });
         });
     }
 
@@ -2295,7 +2382,7 @@ public final class JourneyPortalRung {
                         // three identical answers. What changes is the world — and the thing in the
                         // way is a block in a corridor the rung hollowed out itself.
                         clearPourLine(ctx, rig, target, away, tag + ".clear" + tries,
-                                () -> liftInPlace(ctx, rig, target, tag, tries,
+                                () -> liftInPlace(ctx, rig, target, away, tag, tries,
                                 () -> placeFluid(ctx, rig, target, away, held, tag, tries - 1, then)));
                         return;
                     }
@@ -2412,6 +2499,12 @@ public final class JourneyPortalRung {
                 if (!forgeCorridor.contains(c)) continue;
                 if (level.getBlockState(c).isAir()) continue;
                 if (!level.getFluidState(c).isEmpty()) continue;   // the rung's own water, not a wall
+                // NOR THE FLOOR THE POUR IS STANDING ON. A step of the flight can fall inside this
+                // window — the row under a target is `dy=-1` — and breaking it is the same mistake
+                // as the clear that mined the frame it was pouring into: the remedy destroys the
+                // thing that made the pour possible. A step that genuinely blocks a line is a wrong
+                // LANDING, and the ray gate refuses that pour without anybody digging.
+                if (JourneyRamp.isStep(c)) continue;
                 blocked.add(c);
             }
         rig.evidence(tag, blocked.isEmpty() ? "浇线上没有可清的方块（" + pourLine(level, target, away) + "）"

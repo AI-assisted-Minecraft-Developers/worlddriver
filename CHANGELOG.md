@@ -209,6 +209,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   own doorway.
 
 ### Fixed
+- **Rung 12 builds a staircase inside its own mould, and the real ladder lit its first portal.**
+  The alcove is a box cut out of rock, so every cell above its bottom row has air underneath, and
+  three separate places in the rung had been saying so about the same geometry —
+  `standBehind`'s `.noStand`, the pour's stand search and the fill's — all ending in
+  「垫不了：… 撑不住 —— 一块砖会悬空」. One brick reaches the frame's bottom three rows and nothing
+  above them.
+
+  The tool that already existed for gaining height does not work here. Measured twice, verbatim, on
+  two real ladder runs, with the body on dry land, standing, holding the blocks:
+
+  ```
+  cast6.lift#7.climb.1        = -9,57,36 above=air onGround=true water=false
+  cast6.lift#7.climb.1.stalled= stuck (no Y gain in 60t — out of blocks?)
+  cast6.lift#7.climb.1.stock  = minecraft:cobblestone ×130
+  cast6.lift#7.gained         = 1/2 block(s)
+  ```
+
+  Sixty ticks, six jump-and-place cycles, stock unmoved. The one course that run did gain was the
+  one the body spent IN WATER, where buoyancy lifts a body whether or not a block goes under it —
+  which is also why the single-bucket rehearsal had been passing 10/10 over this the whole time: its
+  alcove floods a cast earlier and the body floats a row higher than the ladder's does.
+
+  So `JourneyRamp` plans a flight down from the landing over the corridor's own floor plan, lays each
+  step by hand through `useItemOn` (the call `JourneyStairs.placeInto` already uses, measured working
+  in this alcove), reads every placement back off the world, and the body WALKS up ordinary +1 steps
+  — no jump, nothing that needs `onGround` to be trustworthy on this body. Every cell is checked
+  before a block is spent: inside the corridor, feet and head clear, a solid face to click against
+  (the descent flight cuts a notch through the back wall, so that is a real refusal, not a
+  formality), never a cell of the descent flight, and never a fluid source — burying one loses the
+  water bucket the next cell needs.
+
+  The landing is chosen by the ray rather than by proximity. `liftInPlace` used to pillar straight up
+  wherever the body was, which puts the eye in the BODY's column: the ladder of 2026-08-16 lifted in
+  `x=-9` for a target in `x=-8` and the diagonal grazed the corner of the obsidian it had cast two
+  rows below (`picks=-8,58,38 obsidian → 落进 -9,58,38`). It now prefers the cell one back and one
+  down from the target — the only geometry that makes the backing shot horizontal — and falls back to
+  `raiseColumn`. The tower is still run behind the flight, because it is what carries this rung
+  through its own flood.
+
+  `raiseColumn` additionally requires the landing to be a cell a body can occupy. It asked only
+  whether the eye there would see the backing, which is true of a cell full of cobblestone, and by
+  the ninth cast some of them are: the raise for the notch one row up rests its top step in exactly
+  the cell the ring cell below it wants to stand in.
+
+  `tidyTheAlcove`, `clearPourLine` and `litterAt` all skip the steps. Each exists to remove blocks
+  that arrived by accident — the columns `MineProcess` pillars up — and a step is the opposite of
+  that: it is the floor the next pour stands on.
+
+  Real ladder, seed 5471: `rung.PORTAL_LIT = REACHED`, `frame.cast=10/10（丢 0 格）`,
+  `portal.cells=6/6`, `journey.stagingCalls=0`. The two rehearsals that bracket it (control on the
+  reverted tree, then this one) both read 10/10, so the rehearsal is not what this fixed — it never
+  reproduced the failure.
 - **The shaft's「这根柱子不干燥，换一根」now actually changes columns.** It printed that sentence and
   then called `ctx.fail` for as long as it existed — a diagnostic that names a remedy nothing
   performs, which is worse than one that names nothing, because it ends the search. Two ladder runs
