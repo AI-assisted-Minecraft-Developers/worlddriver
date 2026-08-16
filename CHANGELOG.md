@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **A rehearsal can now flood a shaft on purpose, and rung 11 can be rehearsed at all.**
+  `-Prehearse=OBSIDIAN` stages the rung's own starting conditions (an empty bucket, two stone
+  pickaxes, the body a few blocks from the lava column at the surface — `JourneyRoute.firstLava` is
+  already baked, so no survey is paid for), and `-PwetShaft=true` floods a lens around the descent
+  once it is four blocks down. Same two locks as `breakAStair`: off unless asked for, refused when
+  no rung is being rehearsed, and counted into `JourneyLedger.staged`.
+
+  It exists because the failure it reproduces is random. The obsidian rung's descent floods on some
+  climbs and not others — the same seed and the same column `-4,56` read `below=dirt` on one ladder
+  run and `below=water` on the next — so a remedy for it could only be verified by being unlucky, at
+  twenty-five minutes a try.
+
+  **Sizing the lens is itself the finding.** Three cells in one column did nothing; three wide and
+  four deep did nothing either. A body in water SINKS, and the descent's settle is 60 ticks, which
+  is long enough to fall nine blocks: with a four-deep pocket the run recorded `shaft.4 = -4,59,56`
+  and then `shaft.5 = -4,50,56 below=-4,49,56 stone` — the body crossed the whole pocket inside one
+  leg and came to rest on its dry floor, so the pass that followed saw a solid support and the
+  guard's first condition was never met. Twenty deep is what holds the body in the state the guard
+  is written for, and it is also why the natural failure is random: the same race, decided by where
+  the groundwater's floor happens to sit.
 - **Rung 12 re-reads its frame after every step that can move a block, so a cell that stops being
   obsidian names the instruction that took it.** The rehearsal of 2026-08-15 recorded `CONSUME` for
   all ten casts and not one `cast.missed.*` — every cell WAS obsidian at the instant it was poured —
@@ -36,6 +56,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   own doorway.
 
 ### Fixed
+- **The shaft's「这根柱子不干燥，换一根」now actually changes columns.** It printed that sentence and
+  then called `ctx.fail` for as long as it existed — a diagnostic that names a remedy nothing
+  performs, which is worse than one that names nothing, because it ends the search. Two ladder runs
+  died on that row before anyone checked whether anything ever swapped.
+
+  `descendByMining` takes an `onWetColumn` callback; rung 11 wires it to climb out, ban the drowned
+  column and sink the shaft somewhere else, twice at most. The ban list is needed on both halves of
+  the choice: `whyNotDiggable` deliberately does not look at the MIDDLE of a column (requiring the
+  whole thing dry rejected 280 candidates out of 280 around this seed's pool — that is what an
+  aquifer is), so without it `pickDigColumn` rings outward from the same centre and returns the same
+  column, and `stepOntoDiggableColumn` re-adopts it as「就近合格柱」.
+
+  Rungs whose column is a surveyed constant pass no callback, and their failure message no longer
+  names a swap they cannot make.
+
+  Verified point-blank rather than by climbing (`-Prehearse=OBSIDIAN -PwetShaft=true`):
+
+  ```
+  shaft.sabotage   = -4, 59, 56 周围 3×3、y=38..60 共 207 格灌成水了
+  shaft.reColumn.1 = -4, 47, 56 这一柱中段有水，身体浮起来了（脚下 water）—— 爬回 y=63 换第 2 根柱子重挖
+  shaft.column     = -10,51 (岩浆柱偏 4 格)     shaft.landedY = 27     cast.cellAfter = obsidian
+  ```
+- **A climb's drift correction asks a question the walker can answer, and asks it more than once.**
+  Three separate defects in one branch, all found in one rehearsal of rung 12's cell eight:
+
+  1. It walked to `Goal.Block(climbColX, at.getY(), climbColZ)` — the cell level with the body,
+     which is only the right cell on flat ground. The portal rung's raise pins a corridor column
+     inside a HOLLOW alcove, where that cell is air over air and no route to it exists. The
+     correction now aims at the highest cell in the column a body could actually stand in.
+  2. That goal is a `Goal.Block`, not a `Goal.XZ`. `Goal.XZ` reports `ignoresY`, and the
+     pathfinder's own contract applies its descend-tax to exactly those goals — while here
+     descending IS the move.
+  3. It took ONE attempt. The walker's own verdict was `end=path-consumed err=null（想去 -9,56,37，
+     停在 -9,57,38）`: not "no route" but a partial path walked and reported done, which is
+     `wd.serverWalkerArrivedShort` and which everywhere else in this suite is answered by asking
+     again from where the body now is. Three attempts, and a leg that moved the body zero cells ends
+     the retry immediately (`driftWedged`) rather than asking an identical question a third time.
+
+  It also stops the correction breaking blocks: the casting phase runs with `allowBreak` on, and a
+  reposition that mines is how a cast frame cell gets eaten (`frame.lost.1`, twice). Walking inside
+  a room the rung just hollowed out needs no digging.
+
+  The row this was hiding behind: `recover8.rise.raisedY=58/60（停在 -9,38，指定柱 -9,37）` read as
+  a raise that fell short. It was a raise that **never placed a single block** — the correction
+  failed on course zero and `pinnedLost` ended the climb before the tower ran once.
 - **A bucket now aims from where the body is when it uses the bucket, not from where it was two
   ticks earlier.** `Avatar.aimAtBlock` stores a yaw/pitch computed from the current eye; everything
   that fires the ray — `aimedAt` for the prediction, `Item.getPlayerPOVHitResult` inside
