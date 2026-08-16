@@ -910,7 +910,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                     // and crafts on the grass. Doing it at the bottom also made the rung's outcome
                     // depend on how the last shaft course happened to be shaped, which is why it
                     // passed one run and failed the next on identical code.
-                    JourneyShaft.climbOut(rig, JourneyRoute.stoneDescent.getY(), () -> {
+                    JourneyShaft.climbOut(rig, JourneyRoute.stoneDescent.getY(), "stone.exit", () -> {
                     rig.attempting("合成石镐：CraftProcess 走不完");
                     // The table check belongs here too, and its absence is what failed this rung
                     // once already: the wooden-pickaxe craft one rung below can eat the table, so
@@ -1435,7 +1435,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 BlockPos landed = rig.player().blockPosition();
                 rig.evidence(tag + ".landedY", landed.getY());
                 rig.evidence(tag + ".column", landed.getX() + "," + landed.getZ());
-                mineOreHere(ctx, rig, tag, ore, () -> JourneyShaft.climbOut(rig, shaft.getY(), then));
+                mineOreHere(ctx, rig, tag, ore, () -> JourneyShaft.climbOut(rig, shaft.getY(), tag + ".exit", then));
             });
         }, () -> {
             BlockPos at = rig.player().blockPosition();
@@ -1929,7 +1929,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                         rig.evidence("iron_ingot.after", rig.carrying("minecraft:iron_ingot"));
                         rig.evidence("craft.lastError", String.valueOf(rig.body().botState().craft.lastError));
                         ctx.expect(fas).as("flint and steel crafted").isAtLeast(1);
-                        JourneyShaft.climbOut(rig, surfaceY, () ->
+                        JourneyShaft.climbOut(rig, surfaceY, "kit.exit", () ->
                                 rig.reach("桶 ×" + rig.carrying("minecraft:bucket")
                                         + "、打火石 ×" + fas + " 到手"));
                     });
@@ -2009,7 +2009,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         if (here.getY() < sky - 2) {
             rig.evidence("start.underground", here.toShortString() + " → 地表 y=" + sky);
             rig.attempting("上一级把身体留在井里，先爬回地面再出发");
-            JourneyShaft.climbOut(rig, sky, () -> walkToTheLava(ctx, rig, lava));
+            JourneyShaft.climbOut(rig, sky, "start.exit", () -> walkToTheLava(ctx, rig, lava));
             return;
         }
         walkToTheLava(ctx, rig, lava);
@@ -2140,7 +2140,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             return;
         }
         rig.attempting("这一柱中段有水，爬回地面换一根重挖");
-        JourneyShaft.climbOut(rig, surfaceY, () ->
+        JourneyShaft.climbOut(rig, surfaceY, "shaft.reColumn" + n + ".exit", () ->
                 sinkInSomeColumn(ctx, rig, lava, surfaceY, wetColumns, swapsLeft - 1));
     }
 
@@ -2271,8 +2271,8 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 rig.evidence("tunnel.fell", rig.player().blockPosition().toShortString()
                         + "，比岩浆层低 " + below + " 格（挖穿了洞顶）");
                 BotConfig.allowPlace = true;
-                JourneyShaft.ascendByTowering(rig, pool.getY() + 1, JourneyShaft.climbCoursesFor(below), JourneyShaft.climbCoursesFor(below),
-                        () -> {
+                JourneyShaft.ascendByTowering(rig, pool.getY() + 1, JourneyShaft.climbCoursesFor(below),
+                        JourneyShaft.climbCoursesFor(below), "tunnel.fell", () -> {
                             rig.evidence("tunnel.climbedBackTo", rig.player().blockPosition().toShortString());
                             reachLava(ctx, rig, left, climbBacks - 1, then);
                         });
@@ -2526,7 +2526,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     /** Climb back to daylight carrying the lava, then cast. */
     private static void leaveWithTheLava(SceneContext ctx, JourneyRig rig, int surfaceY) {
         rig.attempting("背着岩浆爬回地面");
-        JourneyShaft.climbOut(rig, surfaceY, () -> {
+        JourneyShaft.climbOut(rig, surfaceY, "lava.exit", () -> {
             rig.evidence("lava_bucket.atSurface", rig.carrying("minecraft:lava_bucket"));
             castBesideWater(ctx, rig);
         });

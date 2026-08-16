@@ -544,7 +544,7 @@ public final class JourneyPortalRung {
                     // pillar the shaft already owns, and it needs placing, which is why this leg is
                     // the one place in the casting phase that turns it back on.
                     BotConfig.allowPlace = true;
-                    JourneyShaft.climbOut(rig, stairTop.getY(), () ->
+                    JourneyShaft.climbOut(rig, stairTop.getY(), tag + ".returnStuck" + tries, () ->
                         rig.settle(new IntentProcess(new Intent(new Goal.Block(stairTop))), 2_000, () -> {
                             rig.evidence(tag + ".backToMouth", rig.player().blockPosition().toShortString()
                                     + "（楼梯口 " + stairTop.toShortString() + "）");
@@ -1822,8 +1822,8 @@ public final class JourneyPortalRung {
         // Pinned only when the column was CHOSEN by the ray. Falling back to the arithmetic column
         // means the rung does not know that column works, and pinning a guess buys nothing while it
         // can still cost the climb — so that path keeps the exit's own adopt-on-drift policy.
-        if (pin) JourneyShaft.climbOutInColumn(rig, wantY, col.getX(), col.getZ(), done);
-        else JourneyShaft.climbOut(rig, wantY, done);
+        if (pin) JourneyShaft.climbOutInColumn(rig, wantY, col.getX(), col.getZ(), tag, done);
+        else JourneyShaft.climbOut(rig, wantY, tag, done);
     }
 
     /**
@@ -1928,7 +1928,7 @@ public final class JourneyPortalRung {
         rig.evidence(tag + ".lift", rig.player().blockPosition().toShortString() + " → y=" + wantY
                 + "（走不到选定的落脚格，就地垒上去和 " + target.toShortString() + " 同高）");
         BotConfig.allowPlace = true;
-        JourneyShaft.climbOut(rig, wantY, () -> {
+        JourneyShaft.climbOut(rig, wantY, tag + ".lift", () -> {
             BotConfig.allowPlace = false;
             rig.evidence(tag + ".liftedY", rig.player().blockPosition().getY() + "/" + wantY);
             then.run();

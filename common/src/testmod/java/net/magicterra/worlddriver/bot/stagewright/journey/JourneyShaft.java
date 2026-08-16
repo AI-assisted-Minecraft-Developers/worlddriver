@@ -81,30 +81,59 @@ public final class JourneyShaft {
      */
     static boolean climbPinned;
 
-    static void climbOut(JourneyRig rig, int surfaceY, Runnable then) {
+    /**
+     * Whose climb this is, and which of that caller's climbs — the prefix on every row below.
+     *
+     * <p><b>A reading that cannot tell itself apart is worse than no reading</b>, and this group had
+     * been printing under bare {@code climb.<course>.*} / {@code exit.*} keys since it was written.
+     * One casting cell alone runs three climbs ({@code standLevelWith} for the water, again for the
+     * lava, {@code riseToTakeItBack} for the recover) and the rung runs ten cells, so the results
+     * file kept ONE {@code climb.0.driftInto} out of a dozen — whichever climb wrote last. The
+     * rehearsal of 2026-08-16 duly printed a self-contradicting pair, {@code climb.3.driftInto}
+     * naming one column and {@code climb.3.driftGoto} another, because they came from two different
+     * climbs. Five rounds of this rung's investigation have already been ended by a row that could
+     * not say which state produced it.
+     *
+     * <p>The ordinal is not redundant with the tag: {@code liftInPlace} climbs twice under one tag
+     * and the portal rung's return can climb three times, so the tag alone would still collide.
+     * Monotonic across the run, so the numbers also say which climb happened first.
+     */
+    private static String climbName = "exit";
+
+    private static int climbSeq;
+
+    /** The evidence key for one course of the current climb — see {@link #climbName}. */
+    private static String climbKey(int step, String what) {
+        return climbName + ".climb." + step + what;
+    }
+
+    static void climbOut(JourneyRig rig, int surfaceY, String tag, Runnable then) {
         climbPinned = false;
         BlockPos at = rig.player().blockPosition();
-        climbFrom(rig, surfaceY, at.getX(), at.getZ(), then);
+        climbFrom(rig, surfaceY, at.getX(), at.getZ(), tag, then);
     }
 
     /** Climb to {@code surfaceY} without leaving the column {@code colX,colZ} — see
      *  {@link #climbPinned} for why a pour needs that and an exit does not. */
-    static void climbOutInColumn(JourneyRig rig, int surfaceY, int colX, int colZ, Runnable then) {
+    static void climbOutInColumn(JourneyRig rig, int surfaceY, int colX, int colZ, String tag,
+                                 Runnable then) {
         climbPinned = true;
-        climbFrom(rig, surfaceY, colX, colZ, then);
+        climbFrom(rig, surfaceY, colX, colZ, tag, then);
     }
 
-    private static void climbFrom(JourneyRig rig, int surfaceY, int colX, int colZ, Runnable then) {
+    private static void climbFrom(JourneyRig rig, int surfaceY, int colX, int colZ, String tag,
+                                  Runnable then) {
         BotConfig.allowPlace = true;
+        climbName = tag + "#" + (++climbSeq);
         int rise = Math.max(0, surfaceY - rig.player().blockPosition().getY());
         int cap = climbCoursesFor(rise);
         exitFromY = rig.player().blockPosition().getY();
         exitRise = rise;
         climbColX = colX;
         climbColZ = colZ;
-        rig.evidence("exit.fromY", rig.player().blockPosition().getY());
-        rig.evidence("exit.rise", rise + " block(s), cap " + cap + " course(s)");
-        rig.evidence("exit.column", colX + "," + colZ
+        rig.evidence(climbName + ".fromY", rig.player().blockPosition().getY());
+        rig.evidence(climbName + ".rise", rise + " block(s), cap " + cap + " course(s)");
+        rig.evidence(climbName + ".column", colX + "," + colZ
                 + (climbPinned ? "（钉住：换柱等于换射线，不许改）" : "（起塔柱，走不回就改）"));
         // The six-arg form on purpose: the five-arg one is a standalone ENTRY point and resets the
         // column and the pin, which are exactly the two things this method has just set.
@@ -116,7 +145,7 @@ public final class JourneyShaft {
             // column says so and lets its ray gate refuse the bucket; it is not in a hole and has
             // nothing to be rescued from.
             if (climbPinned) {
-                rig.evidence("exit.pinnedShort", rig.player().blockPosition().toShortString()
+                rig.evidence(climbName + ".pinnedShort", rig.player().blockPosition().toShortString()
                         + " 没垒到 y=" + surfaceY + "，指定柱 " + climbColX + "," + climbColZ
                         + " —— 不交给 YLevel 兜底，那条路不认柱子");
                 recordExit(rig, then);
@@ -127,32 +156,32 @@ public final class JourneyShaft {
             // a run whose exit depended on the fallback cannot be read as one where the scripted
             // ascent worked. Two ways up is belt-and-braces; hiding which one carried the body is
             // how a capability quietly stops being tested.
-            rig.evidence("exit.walkerFallback", true);
+            rig.evidence(climbName + ".walkerFallback", true);
             rig.settle(new IntentProcess(new Intent(new Goal.YLevel(surfaceY))), 3_000,
                     () -> recordExit(rig, then));
         });
     }
 
     static void recordExit(JourneyRig rig, Runnable then) {
-        rig.evidence("exit.toY", rig.player().blockPosition().getY());
+        rig.evidence(climbName + ".toY", rig.player().blockPosition().getY());
         // WHICH COLUMN IT ENDED ON, not only how high. A tower that drifts still gains height, so
         // `exit.gained=3/3` is true of a body three cells from where the caller asked for it — and
         // for a caller that wants a ray rather than an altitude those are different outcomes with
         // identical readings. See climbPinned for the run this cost.
         BlockPos end = rig.player().blockPosition();
-        rig.evidence("exit.endedIn", end.getX() + "," + end.getZ()
+        rig.evidence(climbName + ".endedIn", end.getX() + "," + end.getZ()
                 + (end.getX() == climbColX && end.getZ() == climbColZ ? "（就是那一柱）"
                         : "（起塔柱是 " + climbColX + "," + climbColZ + " —— 不是同一柱）"));
         // How much of the climb actually happened, as a fraction rather than as a landing height.
         // `exit.toY=28` beside `exit.fromY=27` is only a shortfall if you remember the rise was 36,
         // and a rung that later finds what it needs underground will otherwise go green carrying a
         // capability failure nobody reads. This is the number to grep across runs.
-        rig.evidence("exit.gained", (rig.player().blockPosition().getY() - exitFromY)
+        rig.evidence(climbName + ".gained", (rig.player().blockPosition().getY() - exitFromY)
                 + "/" + exitRise + " block(s)");
-        rig.evidence("exit.cobblestone", rig.carrying("minecraft:cobblestone"));
+        rig.evidence(climbName + ".cobblestone", rig.carrying("minecraft:cobblestone"));
         // What the climb would spend NEXT, which is the reading that says whether an exit stopped
         // for want of blocks. Cobblestone alone answered that while every shaft ended above y=0.
-        rig.evidence("exit.pillarStock", pillarBlock(rig) + " ×" + rig.carrying(pillarBlock(rig)));
+        rig.evidence(climbName + ".pillarStock", pillarBlock(rig) + " ×" + rig.carrying(pillarBlock(rig)));
         then.run();
     }
 
@@ -213,8 +242,10 @@ public final class JourneyShaft {
      * PIN would be worse still — a pin belongs to the caller that asked for one, and this caller
      * wants the ordinary "any column that rises will do" policy.
      */
-    static void ascendByTowering(JourneyRig rig, int surfaceY, int budget, int cap, Runnable then) {
+    static void ascendByTowering(JourneyRig rig, int surfaceY, int budget, int cap, String tag,
+                                 Runnable then) {
         climbPinned = false;
+        climbName = tag + "#" + (++climbSeq);
         BlockPos at = rig.player().blockPosition();
         climbColX = at.getX();
         climbColZ = at.getZ();
@@ -237,7 +268,7 @@ public final class JourneyShaft {
         // body and jumps; where the body lands after that is not pinned to anything, so a course
         // that ends a cell over is normal and only the next course makes it permanent.
         if (at.getX() != climbColX || at.getZ() != climbColZ) {
-            rig.evidence("climb." + step + ".drift", at.toShortString() + " 偏离起塔柱 "
+            rig.evidence(climbKey(step, ".drift"), at.toShortString() + " 偏离起塔柱 "
                     + climbColX + "," + climbColZ + "，先走回去再垒");
             // THE COLUMN, AT WHATEVER HEIGHT IT CAN BE ENTERED — not the cell level with the body.
             //
@@ -267,13 +298,13 @@ public final class JourneyShaft {
                 // hard failure: it ends this climb with a named row and hands the decision back.
                 if (back.getX() != climbColX || back.getZ() != climbColZ) {
                     if (climbPinned) {
-                        rig.evidence("climb." + step + ".pinnedLost", back.toShortString()
+                        rig.evidence(climbKey(step, ".pinnedLost"), back.toShortString()
                                 + " 走不回指定柱 " + climbColX + "," + climbColZ
                                 + " —— 爬升到此为止，不改柱（换柱等于换射线）");
                         then.run();
                         return;
                     }
-                    rig.evidence("climb." + step + ".driftKept", back.toShortString()
+                    rig.evidence(climbKey(step, ".driftKept"), back.toShortString()
                             + " 走不回 " + climbColX + "," + climbColZ + "，改以这一柱为准");
                     climbColX = back.getX();
                     climbColZ = back.getZ();
@@ -283,7 +314,7 @@ public final class JourneyShaft {
             return;
         }
         BlockPos ceiling = at.above(2);
-        rig.evidence("climb." + step, String.format("%d,%d,%d above=%s onGround=%s water=%s",
+        rig.evidence(climbKey(step, ""), String.format("%d,%d,%d above=%s onGround=%s water=%s",
                 at.getX(), at.getY(), at.getZ(), lvl.getBlockState(ceiling).getBlock(),
                 rig.player().onGround(), rig.player().isInWater()));
         // blocksMotion, not !isAir: swamp groundwater is not air and mining it is a no-op, so an
@@ -311,7 +342,7 @@ public final class JourneyShaft {
             // itself, in a column with nothing but air between the feet and the target.
             String wet = fluidTouching(lvl, ceiling);
             if (wet != null) {
-                rig.evidence("climb." + step + ".wouldOpenFluid", ceiling.toShortString()
+                rig.evidence(climbKey(step, ".wouldOpenFluid"), ceiling.toShortString()
                         + " 挖开就会放出 " + wet + " —— 不挖，这一段爬升到此为止");
                 then.run();
                 return;
@@ -338,7 +369,7 @@ public final class JourneyShaft {
             // the body out.
             if (rig.player().isInWater()) {
                 if (washedOff <= 0) {
-                    rig.evidence("climb." + step + ".afloat", at.toShortString()
+                    rig.evidence(climbKey(step, ".afloat"), at.toShortString()
                             + " 浮在水里，" + WASHED_OFF_RETRIES + " 次都没落地 —— 塔要站在地上才垒得起来，"
                             + "爬升到此为止");
                     then.run();
@@ -352,7 +383,7 @@ public final class JourneyShaft {
             return;
         }
         String pillar = pillarBlock(rig);
-        rig.evidence("climb." + step + ".with", pillar + " ×" + rig.carrying(pillar));
+        rig.evidence(climbKey(step, ".with"), pillar + " ×" + rig.carrying(pillar));
         // Put the block in the HAND before the tower asks for it, because the tower can only look in
         // the hotbar. `Avatar.holdPlaceable` scans slots 0..8 and gives up; `Avatar.holdItem` scans
         // all 36 and swaps one up. So a body four rungs deep — whose hotbar is pickaxes, a bucket,
@@ -364,7 +395,7 @@ public final class JourneyShaft {
         // Recorded only when it fails: a course that got what it asked for is already described by
         // `.with`, and thirty-six successful hand-swaps would bury the one that did not.
         if (!rig.body().avatar().holdItem(pillarItem)) {
-            rig.evidence("climb." + step + ".hand", "拿不到 " + pillar + "，手上是 "
+            rig.evidence(climbKey(step, ".hand"), "拿不到 " + pillar + "，手上是 "
                     + BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem()));
         }
         // Land before judging, and that is a bug fix rather than politeness: a jump is not a gain.
@@ -383,19 +414,19 @@ public final class JourneyShaft {
             // in the groundwater that seeped into its own shaft never is), or it jumped and the
             // place was rejected. The state at the moment it gave up is what separates them —
             // measured once already as `climb.0.stalled` with a clear ceiling and zero blocks spent.
-            rig.evidence("climb." + step + ".stalled",
+            rig.evidence(climbKey(step, ".stalled"),
                     String.valueOf(rig.body().botState().builder.lastError));
-            rig.evidence("climb." + step + ".state", String.format("onGround=%s inWater=%s y=%.2f",
+            rig.evidence(climbKey(step, ".state"), String.format("onGround=%s inWater=%s y=%.2f",
                     rig.player().onGround(), rig.player().isInWater(), rig.player().getY()));
             // What it was holding when it gave up. "Out of blocks?" is the builder's guess and it is
             // usually wrong here — the stone rung stalled forty times holding thirty cobblestone.
-            rig.evidence("climb." + step + ".stock", pillar + " ×" + rig.carrying(pillar));
+            rig.evidence(climbKey(step, ".stock"), pillar + " ×" + rig.carrying(pillar));
             // Washed off, not stuck. In moving water the state at the end of a course is not the
             // state the next one starts from, so this is the one case where asking again is a real
             // retry — see WASHED_OFF_RETRIES for the measurement. Recorded every time, so a climb
             // that only got up because the water let go cannot read as one the tower simply made.
             if (rig.player().isInWater() && washedOff > 0) {
-                rig.evidence("climb." + step + ".washedOff",
+                rig.evidence(climbKey(step, ".washedOff"),
                         "水把身体冲下柱子了，还剩 " + (washedOff - 1) + " 次重试");
                 rig.settle(new HoldStill(20), 40, () -> ascendByTowering(rig, surfaceY, budget - 1,
                         cap, washedOff - 1, then));
@@ -635,7 +666,7 @@ public final class JourneyShaft {
         BlockPos into = footholdInColumn(lvl, climbColX, climbColZ, at.getY());
         Goal goal = into != null ? new Goal.Block(into) : new Goal.XZ(climbColX, climbColZ, 0);
         int n = DRIFT_ATTEMPTS - tries + 1;
-        rig.evidence("climb." + step + ".driftInto." + n, into != null
+        rig.evidence(climbKey(step, ".driftInto." + n), into != null
                 ? into.toShortString() + "（这一柱里站得住的那一格，身体在 " + at.toShortString() + "）"
                 : "这一柱 y=" + (at.getY() + 1) + ".." + (at.getY() - COLUMN_FOOTHOLD_DROP)
                         + " 没有一格站得住 —— 只能按列走，多半走不到");
@@ -651,14 +682,14 @@ public final class JourneyShaft {
             // used to report only that the body was somewhere else, which is the same sentence for
             // "no route exists", "the search ran out of time" and "it walked part of a plan and
             // stopped" — three findings needing three different answers, and it was the third.
-            rig.evidence("climb." + step + ".driftGoto." + n,
+            rig.evidence(climbKey(step, ".driftGoto." + n),
                     "end=" + rig.body().botState().mc_goto.endReason
                             + " err=" + rig.body().botState().mc_goto.lastError
                             + "（想去 " + (into != null ? into.toShortString()
                                     : climbColX + "," + climbColZ) + "，停在 "
                             + back.toShortString() + "）");
             if (back.equals(at)) {
-                rig.evidence("climb." + step + ".driftWedged." + n, back.toShortString()
+                rig.evidence(climbKey(step, ".driftWedged." + n), back.toShortString()
                         + " 这一腿一格没挪 —— 再问一次也是同一个答案，不问了");
                 then.run();
                 return;
