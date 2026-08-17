@@ -13,6 +13,7 @@ import net.magicterra.worlddriver.bot.process.IntentProcess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 
@@ -38,10 +39,18 @@ public final class JourneyFill {
      *  the fills fall back to picking a stand per trip — which is the thing this replaces. */
     private static BlockPos fillStation;
 
-    /** How far from the stairwell's mouth a station may sit. Five: far enough to reach the rim of a
-     *  pool the shaft is deliberately cut clear of, near enough that the walk is a few steps on the
-     *  surface the body is already standing on. */
-    private static final int STATION_REACH = 5;
+    /** How far from the stairwell's mouth a station may sit.
+     *
+     *  <p>Was five, on the reasoning that a near station is a short walk. That is the right GOAL and
+     *  distance is the wrong measure of it: what makes a walk cheap is the ground it crosses, and
+     *  five blocks of it can be the pool's own mouth. Measured on the archived {@code south}
+     *  rehearsal (2026-08-16, {@code FAIL 12595t}): every cell within five of the stairwell mouth
+     *  that could see a source had lava under the line to it, so the station HAD to be the one that
+     *  drops the body in. The four that do not are seven and eight out — {@code -9,64,13},
+     *  {@code -9,64,14}, {@code -8,64,13}, {@code -8,64,14} — which is what this number now has to
+     *  reach. It is a widening only in company with {@link #lavaUnderTheWalk}: on its own it would
+     *  just offer the ranking more cells over the same hole. */
+    private static final int STATION_REACH = 8;
 
     /** How many sources a station must be able to see to be worth having at all. ONE, and the
      *  richest candidate wins — not ten, which is what the rung spends.
@@ -78,6 +87,43 @@ public final class JourneyFill {
      * each fill takes a source away, and a station that only ever had one is a station that works
      * once. Nothing is mined — the candidate has to be standable as it already is, so this cannot
      * breach the pool and the fluid guard is never even asked.
+     *
+     * <h2>Standable is not the same as standable ten times</h2>
+     *
+     * The body walks here ten times, so a cell that is legal to stand in but sits in a notch over the
+     * lake is a cell it visits ten times and falls off once. That is measured, twice, on the
+     * {@code south} rehearsal geometry ({@code station = -14, 65, 21}, whose east side is open air
+     * down to the lava at {@code y=63}):
+     *
+     * <pre>
+     * run A (FAIL 12595t)  trip 7  06:39:49 search-begin start=-9, 66, 21 goal=-14,65,21
+     *                              06:39:55 footing guard: sole 0.0938 at -12,66,21
+     *                              06:39:58 search-begin start=-13, 62, 19   ← in the lake
+     *                              …sank to -15,59,19; ascendByTowering cannot pillar out of lava
+     *                              (climb.0 above=lava … stuck (no Y gain)) holding 128 cobblestone
+     * run B (FAIL 17410t)  trip 8  lava8.aimsAt … 眼睛 -13.70/63.62/22.84    ← filled from y=62
+     *                              cast8.returnStuck3#1.gained = 4/4         ← pillared back out
+     *                              cast8.returnStopped 停在 -14, 66, 21 …脚下 air  ← and wedged
+     * </pre>
+     *
+     * <p>Two runs, two different deaths, one cell. Run B's is the plainer of the two: the body ends
+     * up in the cell ABOVE the station with nothing under its feet, {@code soleOnSolid} at zero, and
+     * vanilla's {@code maybeBackOffFromEdge} then shrinks every horizontal move to nothing — pinned
+     * on the doorstep of the stand it was pinned to. Eleven {@code footing guard} lines in run A say
+     * the same thing about the approach.
+     *
+     * <p>So a candidate is refused when the lake is a step away from it — {@link #onThePoolsLip},
+     * the hazard half of the walker's own {@code lethalDropAdjacent}, asked at the cell AND at the
+     * cell above it, because the body arrives there first and run B never got any further.
+     *
+     * <p><b>A preference, not a rule</b>, the same two-pass shape and for the same reason as
+     * {@link #standToFill}: a bank the strict pass empties is a bank the fills would answer by
+     * choosing per trip, which is the route that drowned six earlier runs. The evidence row says
+     * which pass answered, so a station kept on the lip can never read like one chosen clear of it.
+     *
+     * <p>Refusing the ROUTE instead was tried first and measured inert: a check for lava under the
+     * straight line from the mouth turned away four candidates and kept {@code -14,65,21}, which is
+     * run B. The lake there is not under the walk, it is beside the destination.
      */
     static void pinTheFillStation(SceneContext ctx, JourneyRig rig, BlockPos lava, int surfaceY,
                                   BlockPos stairTop) {
@@ -93,9 +139,39 @@ public final class JourneyFill {
                         sources.add(c.immutable());
                 }
         Map<String, Integer> why = new java.util.LinkedHashMap<>();
-        BlockPos best = null;
-        int bestSeen = 0;
-        double bestD = Double.MAX_VALUE;
+        Pick strict = pickStation(level, rig, lava, surfaceY, stairTop, sources, why, true);
+        Pick chosen = strict;
+        String how = "脚边一步之内没有通向岩浆的空洞（严格判据）";
+        if (strict == null) {
+            Map<String, Integer> loose = new java.util.LinkedHashMap<>();
+            chosen = pickStation(level, rig, lava, surfaceY, stairTop, sources, loose, false);
+            if (chosen != null) {
+                BlockPos over = onThePoolsLip(level, chosen.foot());
+                if (over == null) over = onThePoolsLip(level, chosen.foot().above());
+                how = "严格判据一格都没有，退回旧判据 —— 这一格在坑沿上（一步之外 " + over
+                        + " 是岩浆），十趟里迟早有一趟掉下去，"
+                        + "被它否掉的计数见「脚边就是通向岩浆的空洞」";
+            }
+            why.putAll(loose);
+        }
+        fillStation = chosen == null ? null : chosen.foot();
+        rig.evidence("station", chosen == null
+                ? "没找到固定装料点（湖边 " + STATION_REACH + " 格内没有站得住又看得见 "
+                  + STATION_SOURCES + " 格源块的干地）—— 退回每趟各选一处，"
+                  + "这正是把身体淹进湖里的那条路；否决计数 " + why
+                : chosen.foot().toShortString() + "：够得着 " + chosen.seen() + " 格源块，距楼梯口 "
+                  + Math.round(Math.sqrt(chosen.dist())) + " 格（十趟都站这里）；" + how
+                  + "；否决计数 " + why);
+    }
+
+    /** A station candidate and the two numbers it was ranked on. */
+    private record Pick(BlockPos foot, int seen, double dist) {}
+
+    /** One pass of the station scan. {@code refuseTheLip} is what separates the two. */
+    private static Pick pickStation(ServerLevel level, JourneyRig rig, BlockPos lava, int surfaceY,
+                                    BlockPos stairTop, List<BlockPos> sources,
+                                    Map<String, Integer> why, boolean refuseTheLip) {
+        Pick best = null;
         for (int dx = -STATION_REACH; dx <= STATION_REACH; dx++)
             for (int dz = -STATION_REACH; dz <= STATION_REACH; dz++)
                 for (int y = lava.getY() + 1; y <= surfaceY + 1; y++) {
@@ -115,22 +191,72 @@ public final class JourneyFill {
                     if (acrossThePool(level, stairTop, foot)) {
                         why.merge("走过去要横穿岩浆", 1, Integer::sum); continue;
                     }
+                    if (refuseTheLip && (onThePoolsLip(level, foot) != null
+                            || onThePoolsLip(level, foot.above()) != null)) {
+                        why.merge("脚边就是通向岩浆的空洞", 1, Integer::sum); continue;
+                    }
                     int seen = sourcesInReachFrom(level, rig, foot, sources);
                     if (seen < STATION_SOURCES) {
                         why.merge("够得着的源块不足 " + STATION_SOURCES, 1, Integer::sum); continue;
                     }
                     double d = foot.distSqr(stairTop);
-                    if (seen > bestSeen || (seen == bestSeen && d < bestD)) {
-                        best = foot; bestSeen = seen; bestD = d;
-                    }
+                    if (best == null || seen > best.seen()
+                            || (seen == best.seen() && d < best.dist()))
+                        best = new Pick(foot, seen, d);
                 }
-        fillStation = best;
-        rig.evidence("station", best == null
-                ? "没找到固定装料点（湖边 " + STATION_REACH + " 格内没有站得住又看得见 "
-                  + STATION_SOURCES + " 格源块的干地）—— 退回每趟各选一处，"
-                  + "这正是把身体淹进湖里的那条路；否决计数 " + why
-                : best.toShortString() + "：够得着 " + bestSeen + " 格源块，距楼梯口 "
-                  + Math.round(Math.sqrt(bestD)) + " 格（十趟都站这里）；否决计数 " + why);
+        return best;
+    }
+
+    /** How deep a hole beside a stand still counts as a way into the lake. Eight: run A's fall went
+     *  from the walking row {@code y=66} to the basin floor at {@code y=59} — see
+     *  {@link #pinTheFillStation}. The scan stops at the first solid cell, so on closed ground it
+     *  costs one block read per neighbour. */
+    private static final int LIP_DEPTH = 8;
+
+    /** The eight cells a body can drift into from a stand — four cardinals and four diagonals, the
+     *  same set {@code WalkerGeometry.EDGE_NEIGHBOURS} pins and for the same reason: the drift that
+     *  takes a body off a lip is as often sideways along it as forward over it. */
+    private static final int[][] EDGE_NEIGHBOURS = {
+            {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
+
+    /**
+     * Is the lake one sideways step from this cell — the reading that makes a stand a trap?
+     *
+     * <p>The hazard half of {@code WalkerGeometry.lethalDropAdjacent}, written out here rather than
+     * called: that class is package-private to {@code bot.movement} and opening it up to a scene is
+     * an engine change this finding does not need. It is also deliberately narrower — the rung's
+     * hazard is <b>the lake</b> and not any deep hole, because a dry shaft beside a stand costs a
+     * climb and this one costs the run.
+     *
+     * <p>A neighbour counts when its own foot cell AND the cell below it are both open — a floor
+     * there is a flat walk or a one-block step down — and the column then falls to lava within
+     * {@link #LIP_DEPTH}. Water is a splash, not a drop, exactly as the walker treats it.
+     *
+     * <p>It is asked of a cell that is EMPTY, so it is a question about the cell rather than about
+     * the body in it, which is what makes it usable before any body is standing there. The reading
+     * it is a proxy for is {@code soleOnSolid}, and that one needs a body: run B's dead stop printed
+     * {@code 脚下 Block{minecraft:air}} at {@code -14,66,21}, which is this predicate's answer taken
+     * the expensive way, eleven trips too late.
+     */
+    private static BlockPos onThePoolsLip(ServerLevel level, BlockPos foot) {
+        for (int[] o : EDGE_NEIGHBOURS) {
+            BlockPos n = foot.offset(o[0], 0, o[1]);
+            if (open(level, n) == null || open(level, n.below()) == null) continue;
+            BlockPos c = n.below();
+            for (int d = 0; d < LIP_DEPTH; d++) {
+                c = c.below();
+                if (level.getFluidState(c).is(FluidTags.LAVA)) return c;
+                if (open(level, c) == null) break;
+            }
+        }
+        return null;
+    }
+
+    /** The cell itself when nothing in it would hold a body up; null when something would. Water
+     *  holds one up for this purpose — a body that lands in it has not fallen into the lake. */
+    private static BlockPos open(ServerLevel level, BlockPos c) {
+        if (level.getBlockState(c).blocksMotion()) return null;
+        return level.getFluidState(c).is(FluidTags.WATER) ? null : c;
     }
 
     /** How many lava sources a body standing here could actually fill from — same clip vanilla runs,

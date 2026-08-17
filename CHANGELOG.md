@@ -8,6 +8,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **A loading station may no longer sit on the lava lake's lip.**
+  `pinTheFillStation` ranked candidates by how many sources a bucket could see from them and said
+  nothing about whether a body could stand there — which matters because the station is walked to
+  **ten times**. On the `south` rehearsal geometry it chose `-14, 65, 21`, a cell in a notch whose
+  east side is open air down to the lake, and two consecutive runs died on that one cell in two
+  different ways:
+
+  ```
+  run A  FAIL 12595t  trip 7  06:39:49 search-begin start=-9, 66, 21 goal=-14,65,21
+                              06:39:55 [walker] footing guard: sole 0.0938 at -12,66,21
+                              06:39:58 search-begin start=-13, 62, 19          ← in the lake
+                              …sank to -15,59,19; ascendByTowering cannot pillar out of lava
+                              (climb.0 above=lava … stuck (no Y gain)) holding 128 cobblestone
+  run B  FAIL 17410t  trip 8  lava8.aimsAt … 眼睛 -13.70/63.62/22.84           ← filled from y=62
+                              cast8.returnStuck3#1.gained = 4/4                ← pillared back out
+                              cast8.returnStopped 停在 -14, 66, 21 …脚下 air    ← and wedged there
+  ```
+
+  **Read the distribution off ONE run, not off the pair**: run A's log carries eleven
+  `[walker] footing guard … at -12/-13/-14,66,21 beside a lethal drop` lines and *two* falls — the
+  sixth trip fell as well and happened to land on the lava's own surface at `y=63`, where it could
+  climb out. A stand the rung visits ten times and falls off twice is not a stand that was unlucky.
+  Run B's death is the plainer statement of the same fact: the body ends up in the cell **above** the
+  station with nothing under its feet, `soleOnSolid` at zero, and vanilla's `maybeBackOffFromEdge`
+  then shrinks every horizontal move to nothing — pinned on the doorstep of the stand it was pinned
+  to.
+
+  So a candidate is refused when the lake is one sideways step from it: `onThePoolsLip` is the
+  hazard half of the walker's own `lethalDropAdjacent` (any of the eight horizontal neighbours whose
+  foot cell and the cell below it are both open, whose column then falls to lava within eight),
+  asked at the cell **and at the cell above it** — because the body arrives there first and run B
+  never got any further. A preference and not a rule, the two-pass shape `standToFill` already uses,
+  so a bank with no clear stand is no worse off than before; the `station` row now names which pass
+  answered. `STATION_REACH` goes 5 → 8 in the same breath and only in company with it: at five,
+  every candidate that could see a source on this geometry was on the lip, so the rule would have
+  had nowhere to go.
+
+  Measured, one variable, `south` rehearsal: `station = -17, 65, 15：够得着 2 格源块，距楼梯口 10 格；
+  脚边一步之内没有通向岩浆的空洞（严格判据）；否决计数 {…脚边就是通向岩浆的空洞=4…}`, then
+  `forge.carved = 67/67`, ten `recover*.result = CONSUME`, `frame.cast = 10/10`,
+  `frame.obsidian = 10/10`, `portal.cells = 6/6`, **PASS 18608t**, `staging.calls = 12`. Ten trips,
+  no fall, no `returnStuck`.
+
+  Two things the run says that are worth not re-deriving. **`stationSees` is not a budget**: it read
+  `1` on trip 1 and `0` from trip 2 onward and all ten fills still took, because `visibleSourceNear`
+  re-asks from wherever the body actually stands and `clearedLine` opens new sightlines — the same
+  way the archived `east` PASS finished ten casts from a station that never saw more than one. And
+  **the approach is still expensive**: 117 `search-begin … goal=-17,65,15` lines and 47 footing-guard
+  pins, because the route to any station on this seed crosses the crater's rim whatever the
+  destination. That is a cost, not a failure, and it is why the run takes 18 608 ticks.
+
+  *Negative result, so it is not re-tried:* refusing the **route** rather than the destination was
+  implemented first and measured **inert**. A check for lava under the straight line from the
+  stairwell mouth (`lavaUnderTheWalk`, scanning down from the interpolated row to the first solid
+  cell) turned away four candidates and kept `-14, 65, 21` — the run-B station, whose walk really
+  does have `(-12,63,21)` under it in the archived world but not in the pinned one. The lake there is
+  not under the walk, it is beside the destination. Reverted; the reading that works is the
+  destination's own neighbourhood.
+
+  *And the `east` regression arm is NOT green, on causes upstream of all of this.* Counting every
+  archived run of `-PshaftColumn=-8,19`, it is **one green in five**, and the one green is what the
+  last handoff called that arm's proof: `FAIL 8055t`, `FAIL 5001t`, `PASS 19807t`, then on this tree
+  `FAIL 10608t` and `FAIL 206t`. Both new reds land before the station is ever walked to —
+  `forge.carved = 66/67 格开了，1 格没挖动` with `cell.0.standMissed 想站 3, 56, 19，停在 2, 65, 19`,
+  and `lava.gotoEnd.1 = end=failed:no path (expanded=1)（判为到达：停在 -12, 63, 20）` with
+  `forge.surfaceY = 64（脚下 y=63）`, i.e. the body standing **in** the lake at the lava row after the
+  rung's own opening walk. So they say nothing about the station rule, and the station rule cannot
+  have caused them: `pinTheFillStation` runs inside `castTheFrame`, after the carve. What they do say
+  is that this arm's red was promoted to「假红」on a single green — the same one-sample mistake the
+  archive already charges twice — and that the crater lip kills rung 12 in at least three more places
+  than the station: the opening walk to the lava, the step onto the dig column (`shaft.backOff.N` now
+  observed *failing to move a body that is already in the pool*: `想退到 -16,24，只退到这里`), and the
+  carve's own reach.
 - **An approach to a dig column no longer re-asks a question the body cannot answer.**
   `stepOntoDiggableColumn` had no wedge handling at all — `walkToColumn` beside it has carried some
   since the iron rung issued ninety searches from one cell — so its three attempts were three
