@@ -265,6 +265,201 @@ public final class JourneyTerrain {
         return true;
     }
 
+    /** How deep a hole beside a stand still counts as a way into the lake. Eight: the fall this was
+     *  written from went from the walking row {@code y=66} to the basin floor at {@code y=59}. The
+     *  scan stops at the first solid cell, so on closed ground it costs one block read per
+     *  neighbour. */
+    public static final int LIP_DEPTH = 8;
+
+    /** The eight cells a body can drift into from a stand — four cardinals and four diagonals, the
+     *  same set {@code WalkerGeometry.EDGE_NEIGHBOURS} pins and for the same reason: the drift that
+     *  takes a body off a lip is as often sideways along it as forward over it. */
+    private static final int[][] EDGE_NEIGHBOURS = {
+            {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
+
+    /**
+     * Is the lake one sideways step from this cell — the reading that makes a stand a trap?
+     *
+     * <p>The hazard half of {@code WalkerGeometry.lethalDropAdjacent}, written out here rather than
+     * called: that class is package-private to {@code bot.movement} and opening it up to a scene is
+     * an engine change this finding does not need. It is also deliberately narrower — the rung's
+     * hazard is <b>the lake</b> and not any deep hole, because a dry shaft beside a stand costs a
+     * climb and this one costs the run.
+     *
+     * <p>A neighbour counts when its own foot cell AND the cell below it are both open — a floor
+     * there is a flat walk or a one-block step down — and the column then falls to lava within
+     * {@link #LIP_DEPTH}. Water is a splash, not a drop, exactly as the walker treats it.
+     *
+     * <p>It is asked of a cell that is EMPTY, so it is a question about the cell rather than about
+     * the body in it, which is what makes it usable before any body is standing there. The reading
+     * it is a proxy for is {@code soleOnSolid}, and that one needs a body: a dead stop printed
+     * {@code 脚下 Block{minecraft:air}} at {@code -14,66,21}, which is this predicate's answer taken
+     * the expensive way, eleven trips too late.
+     *
+     * <p>It lives here rather than beside the first caller because it turned out to answer for two:
+     * {@code JourneyFill.pinTheFillStation} picks a cell the body visits ten times, and
+     * {@link #bankStandNear} picks the cell rung 12's opening walk ENDS on, and both were choosing
+     * cells on the same rim.
+     */
+    public static BlockPos onThePoolsLip(ServerLevel level, BlockPos foot) {
+        for (int[] o : EDGE_NEIGHBOURS) {
+            BlockPos n = foot.offset(o[0], 0, o[1]);
+            if (openToFallThrough(level, n) == null
+                    || openToFallThrough(level, n.below()) == null) continue;
+            BlockPos c = n.below();
+            for (int d = 0; d < LIP_DEPTH; d++) {
+                c = c.below();
+                if (level.getFluidState(c).is(net.minecraft.tags.FluidTags.LAVA)) return c;
+                if (openToFallThrough(level, c) == null) break;
+            }
+        }
+        return null;
+    }
+
+    /** The cell itself when nothing in it would hold a body up; null when something would. Water
+     *  holds one up for this purpose — a body that lands in it has not fallen into the lake. */
+    private static BlockPos openToFallThrough(ServerLevel level, BlockPos c) {
+        if (level.getBlockState(c).blocksMotion()) return null;
+        return level.getFluidState(c).is(net.minecraft.tags.FluidTags.WATER) ? null : c;
+    }
+
+    /**
+     * Every cell around the pool that {@link #onThePoolsLip} refuses — the rim, as a set.
+     *
+     * <p>Because the destination was never the thing that killed this approach: the ROUTE is.
+     * Measured on the {@code east} rehearsal of 2026-08-17, with the walk already re-aimed at a
+     * chosen bank cell one block from the pool ({@code lava.bank = -8, 66, 19}) rather than at the
+     * lake's own column, the walker put the body on the rim anyway and all three legs died there:
+     *
+     * <pre>
+     * [walker] footing guard: sole 0.0362 &lt; 0.18 at -14,66,21 beside a lethal drop → sneak-pin
+     * [walker] footing guard: sole 0.0025 &lt; 0.18 at -13,66,20 beside a lethal drop → sneak-pin
+     * [walker] footing guard: sole 0.0000 &lt; 0.18 at -13,66,21 beside a lethal drop → sneak-pin
+     * lava.goto.1/2/3 = end=failed:no progress for 1200 ticks     FAIL 3826t
+     * </pre>
+     *
+     * <p>Those three cells are consecutive steps of ONE planned route, and the last of them holds a
+     * body that can then never move: vanilla's sneak refuses every horizontal move that would take a
+     * body off its support, and at {@code sole = 0.0000} there is no support to keep. So the reading
+     * that picks stands has to reach the cells BETWEEN them too, and the pathfinder is the only
+     * thing that chooses those.
+     *
+     * <p>Handed to a search as a {@code CostModifier} rather than a {@code Constraint}: a tax leaves
+     * the route available when it is the only one, which a prune does not, and「a rule nothing can
+     * satisfy is not a strict rule, it is a broken one」is a lesson this file already carries once
+     * (see {@link #whyNotDiggable}). Precomputed as a set on the server thread, so the per-edge cost
+     * is one hash lookup — the predicate itself reads up to eighty cells and the search expands a
+     * hundred thousand nodes.
+     */
+    public static java.util.Set<BlockPos> poolsLipCells(ServerLevel level, BlockPos lava,
+                                                        int radius, int rise) {
+        java.util.Set<BlockPos> out = new java.util.HashSet<>();
+        for (int dx = -radius; dx <= radius; dx++)
+            for (int dz = -radius; dz <= radius; dz++)
+                for (int y = lava.getY() + 1; y <= lava.getY() + rise; y++) {
+                    BlockPos c = new BlockPos(lava.getX() + dx, y, lava.getZ() + dz);
+                    // Only cells a body could be standing in: a solid cell is not a step and the
+                    // tax on it would only make the set bigger for nothing.
+                    if (level.getBlockState(c).blocksMotion()) continue;
+                    if (onThePoolsLip(level, c) != null) out.add(c.immutable());
+                }
+        return java.util.Set.copyOf(out);
+    }
+
+    /** How far from the pool an approach may end and still count as having reached it. Eight, the
+     *  same figure {@link #pickDigColumn} rings out to and {@code JourneyFill.STATION_REACH} uses:
+     *  everything the rung does next is sized off this distance, so a bank further out than the
+     *  shaft column could be is a bank the rung would have to walk back in from anyway. */
+    public static final int BANK_REACH = 8;
+
+    /** How far above the fluid's own row a bank stand may sit. Eight. The crater's rim on this seed
+     *  is three above the lake, so this is slack — what it is really for is the other end of the
+     *  heightmap: {@code MOTION_BLOCKING_NO_LEAVES} stops on a LOG, so without a ceiling the
+     *  nearest「standable, dry, off the lip」cell to a pool in a forest is the top of a tree. */
+    private static final int BANK_RISE = 8;
+
+    /**
+     * Where an approach to the pool should END — a cell beside it a body can stand on.
+     *
+     * <p>Rung 12 opens by walking to {@code XZ(lava.x, lava.z)}: the lake's own centre column, a
+     * destination no body can ever occupy. Every archived rehearsal leg says so in one row —
+     * {@code lava.gotoEnd.1 = end=failed:…} in <b>six runs of six</b>, not one arrival among them —
+     * because the walker plans INTO the crater and then either is pinned on its rim
+     * ({@code footing guard: sole 0.0000 … beside a lethal drop}, ending
+     * {@code failed:no progress for 1200 ticks} at {@code -13,66,21}) or gets all the way in
+     * ({@code failed:no path (expanded=1)} from {@code -12,63,20} at the lava's own row, which is
+     * the signature of a start node the pathfinder judges lethal). {@code ARRIVED_WITHIN} then reads
+     * the wreck as an arrival — the leg is inside five blocks of a goal it never reached — and the
+     * rung carries on from wherever the body came to rest. Both of that arm's failure shapes are
+     * downstream of this one line: a body on the lip cannot walk at all, and a body in the pool
+     * cannot even be planned for.
+     *
+     * <p>So the destination becomes a cell that was CHOSEN rather than one that was survived: the
+     * column's own daylight cell — one candidate per column, which is what「walk overland to the
+     * bank」means — standable, dry, no higher than {@link #BANK_RISE} over the fluid, and with
+     * {@link #onThePoolsLip} answering null at the foot AND at the cell above it, the same pair the
+     * loading station asks and for the same reason (the body arrives in the upper cell first).
+     *
+     * <p>Ranked by how close it is to the pool, because everything the rung does next is sized off
+     * that distance, and tie-broken by how far the BODY has to walk — which on a ring around a lake
+     * is what keeps the answer on the side the body is already standing on.
+     *
+     * @param refuseTheLip false runs the same scan without the lip rule, so a bank that has no clear
+     *        cell at all is no worse off than it is today — a preference, not a rule, the two-pass
+     *        shape {@code standToFill} and {@code pinTheFillStation} both already use.
+     */
+    public static BlockPos bankStandNear(ServerLevel level, BlockPos lava, BlockPos from,
+                                         Map<String, Integer> why, boolean refuseTheLip) {
+        BlockPos best = null;
+        long bestToPool = Long.MAX_VALUE;
+        long bestToBody = Long.MAX_VALUE;
+        for (int dx = -BANK_REACH; dx <= BANK_REACH; dx++) {
+            for (int dz = -BANK_REACH; dz <= BANK_REACH; dz++) {
+                int x = lava.getX() + dx;
+                int z = lava.getZ() + dz;
+                BlockPos foot = new BlockPos(x, daylightAt(level, new BlockPos(x, 0, z)), z);
+                if (foot.getY() <= lava.getY() || foot.getY() > lava.getY() + BANK_RISE) {
+                    why.merge("这一柱的地表不在岩浆层上方 " + BANK_RISE + " 格以内", 1, Integer::sum);
+                    continue;
+                }
+                if (!level.getBlockState(foot.below()).blocksMotion()) {
+                    why.merge("脚下不实心", 1, Integer::sum);
+                    continue;
+                }
+                if (!level.getFluidState(foot).isEmpty()
+                        || !level.getFluidState(foot.above()).isEmpty()) {
+                    why.merge("站在流体里", 1, Integer::sum);
+                    continue;
+                }
+                if (!level.getBlockState(foot).getCollisionShape(level, foot).isEmpty()
+                        || !level.getBlockState(foot.above())
+                                .getCollisionShape(level, foot.above()).isEmpty()) {
+                    why.merge("落脚或头顶被占", 1, Integer::sum);
+                    continue;
+                }
+                if (refuseTheLip && (onThePoolsLip(level, foot) != null
+                        || onThePoolsLip(level, foot.above()) != null)) {
+                    why.merge("脚边就是通向岩浆的空洞", 1, Integer::sum);
+                    continue;
+                }
+                // HORIZONTAL, both of them. A bank cell three rows over a lake is not further from
+                // it than one two rows over, and the rung's next question is a COLUMN — see the
+                // archive's「a radius is not a distance」for the search this repo has already had
+                // truncated by mixing the vertical in.
+                long toPool = (long) dx * dx + (long) dz * dz;
+                long ddx = x - from.getX();
+                long ddz = z - from.getZ();
+                long toBody = ddx * ddx + ddz * ddz;
+                if (toPool < bestToPool || (toPool == bestToPool && toBody < bestToBody)) {
+                    best = foot;
+                    bestToPool = toPool;
+                    bestToBody = toBody;
+                }
+            }
+        }
+        return best;
+    }
+
     /** The nearest lava SOURCE — flowing lava reads as the same block and does not fill a bucket. */
     public static BlockPos nearestLavaSource(ServerLevel level, BlockPos from, int radius) {
         BlockPos best = null;

@@ -13,7 +13,6 @@ import net.magicterra.worlddriver.bot.process.IntentProcess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.tags.FluidTags;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 
@@ -112,7 +111,7 @@ public final class JourneyFill {
      * on the doorstep of the stand it was pinned to. Eleven {@code footing guard} lines in run A say
      * the same thing about the approach.
      *
-     * <p>So a candidate is refused when the lake is a step away from it — {@link #onThePoolsLip},
+     * <p>So a candidate is refused when the lake is a step away from it — {@link JourneyTerrain#onThePoolsLip},
      * the hazard half of the walker's own {@code lethalDropAdjacent}, asked at the cell AND at the
      * cell above it, because the body arrives there first and run B never got any further.
      *
@@ -146,8 +145,8 @@ public final class JourneyFill {
             Map<String, Integer> loose = new java.util.LinkedHashMap<>();
             chosen = pickStation(level, rig, lava, surfaceY, stairTop, sources, loose, false);
             if (chosen != null) {
-                BlockPos over = onThePoolsLip(level, chosen.foot());
-                if (over == null) over = onThePoolsLip(level, chosen.foot().above());
+                BlockPos over = JourneyTerrain.onThePoolsLip(level, chosen.foot());
+                if (over == null) over = JourneyTerrain.onThePoolsLip(level, chosen.foot().above());
                 how = "严格判据一格都没有，退回旧判据 —— 这一格在坑沿上（一步之外 " + over
                         + " 是岩浆），十趟里迟早有一趟掉下去，"
                         + "被它否掉的计数见「脚边就是通向岩浆的空洞」";
@@ -191,8 +190,8 @@ public final class JourneyFill {
                     if (acrossThePool(level, stairTop, foot)) {
                         why.merge("走过去要横穿岩浆", 1, Integer::sum); continue;
                     }
-                    if (refuseTheLip && (onThePoolsLip(level, foot) != null
-                            || onThePoolsLip(level, foot.above()) != null)) {
+                    if (refuseTheLip && (JourneyTerrain.onThePoolsLip(level, foot) != null
+                            || JourneyTerrain.onThePoolsLip(level, foot.above()) != null)) {
                         why.merge("脚边就是通向岩浆的空洞", 1, Integer::sum); continue;
                     }
                     int seen = sourcesInReachFrom(level, rig, foot, sources);
@@ -205,58 +204,6 @@ public final class JourneyFill {
                         best = new Pick(foot, seen, d);
                 }
         return best;
-    }
-
-    /** How deep a hole beside a stand still counts as a way into the lake. Eight: run A's fall went
-     *  from the walking row {@code y=66} to the basin floor at {@code y=59} — see
-     *  {@link #pinTheFillStation}. The scan stops at the first solid cell, so on closed ground it
-     *  costs one block read per neighbour. */
-    private static final int LIP_DEPTH = 8;
-
-    /** The eight cells a body can drift into from a stand — four cardinals and four diagonals, the
-     *  same set {@code WalkerGeometry.EDGE_NEIGHBOURS} pins and for the same reason: the drift that
-     *  takes a body off a lip is as often sideways along it as forward over it. */
-    private static final int[][] EDGE_NEIGHBOURS = {
-            {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
-
-    /**
-     * Is the lake one sideways step from this cell — the reading that makes a stand a trap?
-     *
-     * <p>The hazard half of {@code WalkerGeometry.lethalDropAdjacent}, written out here rather than
-     * called: that class is package-private to {@code bot.movement} and opening it up to a scene is
-     * an engine change this finding does not need. It is also deliberately narrower — the rung's
-     * hazard is <b>the lake</b> and not any deep hole, because a dry shaft beside a stand costs a
-     * climb and this one costs the run.
-     *
-     * <p>A neighbour counts when its own foot cell AND the cell below it are both open — a floor
-     * there is a flat walk or a one-block step down — and the column then falls to lava within
-     * {@link #LIP_DEPTH}. Water is a splash, not a drop, exactly as the walker treats it.
-     *
-     * <p>It is asked of a cell that is EMPTY, so it is a question about the cell rather than about
-     * the body in it, which is what makes it usable before any body is standing there. The reading
-     * it is a proxy for is {@code soleOnSolid}, and that one needs a body: run B's dead stop printed
-     * {@code 脚下 Block{minecraft:air}} at {@code -14,66,21}, which is this predicate's answer taken
-     * the expensive way, eleven trips too late.
-     */
-    private static BlockPos onThePoolsLip(ServerLevel level, BlockPos foot) {
-        for (int[] o : EDGE_NEIGHBOURS) {
-            BlockPos n = foot.offset(o[0], 0, o[1]);
-            if (open(level, n) == null || open(level, n.below()) == null) continue;
-            BlockPos c = n.below();
-            for (int d = 0; d < LIP_DEPTH; d++) {
-                c = c.below();
-                if (level.getFluidState(c).is(FluidTags.LAVA)) return c;
-                if (open(level, c) == null) break;
-            }
-        }
-        return null;
-    }
-
-    /** The cell itself when nothing in it would hold a body up; null when something would. Water
-     *  holds one up for this purpose — a body that lands in it has not fallen into the lake. */
-    private static BlockPos open(ServerLevel level, BlockPos c) {
-        if (level.getBlockState(c).blocksMotion()) return null;
-        return level.getFluidState(c).is(FluidTags.WATER) ? null : c;
     }
 
     /** How many lava sources a body standing here could actually fill from — same clip vanilla runs,

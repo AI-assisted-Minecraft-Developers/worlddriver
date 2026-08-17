@@ -8,6 +8,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Rung 12's opening walk had never once arrived, and a destination could not fix it — the ROUTE
+  had to be priced.** The leg was `walkToColumn(lava.x, lava.z)`: the lake's own centre column, a
+  cell no body can occupy. Every archived rehearsal that carries the end-reason row says so, **six
+  runs of six**, and `ARRIVED_WITHIN` passed each wreck off as an arrival because it happened to
+  stop inside five blocks of a goal it never reached:
+
+  ```
+  east FAIL 10608t  end=failed:no progress for 1200 ticks   停在 -13, 66, 21   ← pinned on the rim
+  east FAIL   206t  end=failed:no path (expanded=1)         停在 -12, 63, 20   ← in the pool
+  ```
+
+  Both of that arm's upstream deaths are downstream of that one line. The first is the crater's lip:
+  `[walker] footing guard: sole 0.0000 < 0.18 at -13,66,21 beside a lethal drop → sneak-pin`, after
+  which vanilla refuses every horizontal move and the three legs of `stepOntoDiggableColumn` are
+  three identical questions from one cell. The second needs no guard to explain it — `expanded=1` is
+  a start node the pathfinder judges lethal, at the lava's own row — and that run died 206 ticks in
+  with the back-off itself unable to move (`shaft.backOff.2 = -12, 63, 20（想退到 -16,24，只退到这里）`).
+
+  *Negative result, measured, and the reason the fix is where it is:* **naming a bank cell instead
+  of the pool is inert.** `JourneyTerrain.bankStandNear` picks the closest cell to the pool that is
+  standable, dry and off the rim by `onThePoolsLip` (the loading station's own rule, moved here from
+  `JourneyFill` so both callers share it) — a real reading, which vetoed 37 of 289 columns and
+  answered `lava.bank = -8, 66, 19`. The leg then walked the body onto the rim anyway
+  (`footing guard` at `-14,66,21`, `-13,66,20`, `-13,66,21`, three consecutive steps of one planned
+  route) and **failed harder than before**: FAIL 3826t, `lava.goto.1/2/3 = end=failed:no progress
+  for 1200 ticks`, because the new destination sits 5.39 blocks from the wreck instead of 4.47, so
+  `ARRIVED_WITHIN` no longer hid it and `walkToColumn`'s wedge recovery took over — aiming at
+  `lava.viaMidpoint = -10,20`, which is the pool. A destination cannot steer a path, and the
+  midpoint remedy is wrong at a lake for the reason `stepOntoDiggableColumn` already had written
+  down and `walkToColumn` never got.
+
+  So the rim is priced instead. `JourneyTerrain.poolsLipCells` precomputes every cell around the
+  pool that `onThePoolsLip` refuses, once, on the server thread, and the approach carries it as a
+  `CostModifier` — 300 per rim cell against a plain walk edge's 10, so thirty blocks of detour is
+  cheaper than one step onto the rim. A tax and not a `Constraint` on purpose: it leaves the route
+  available when it is the only one. `Intent` has taken a bias list since it was written and nothing
+  in this suite had ever passed one; `walkToColumn` now threads it onto the midpoint leg as well,
+  because an unbiased recovery from a biased leg walks into exactly what the leg was told to avoid.
+
+  Measured, one variable on top of the destination that had just been measured alone:
+
+  ```
+  lava.rimTax  = 613 格坑沿每踏一格加价 300（普通走一格是 10，即绕 30 格也比踏上去便宜）
+  lava.gotoEnd.1 = end=arrived err=null（判为到达：停在 -8, 66, 19，距 -8,19 0 格，容差 5）
+  lava.arrivedDistance = 0    lava.walkAttempts = 1    footing-guard lines on the leg: 0
+  ```
+
+  The first `end=arrived` in this rung's archive, in one attempt, from eleven searches.
 - **A loading station may no longer sit on the lava lake's lip.**
   `pinTheFillStation` ranked candidates by how many sources a bucket could see from them and said
   nothing about whether a body could stand there — which matters because the station is walked to

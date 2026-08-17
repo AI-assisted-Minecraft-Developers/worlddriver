@@ -9,6 +9,7 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
+import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
 import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.process.Intent;
 import net.magicterra.worlddriver.bot.process.IntentProcess;
@@ -413,6 +414,7 @@ public final class JourneyPortalRung {
         }));
     }
 
+
     private static void cutStairCells(JourneyRig rig, List<BlockPos> cells, int i, Runnable then) {
         if (i >= cells.size()) { then.run(); return; }
         // Top down. The cell two above the step is the one the body can already see; opening it
@@ -563,9 +565,96 @@ public final class JourneyPortalRung {
         });
     }
 
+    /**
+     * Where the opening walk aims — the bank, not the pool.
+     *
+     * <p>This leg used to be handed {@code XZ(lava.x, lava.z)}, the lake's own centre column, and
+     * <b>it has never once arrived</b>: every archived rehearsal that carries the row reads
+     * {@code lava.gotoEnd.1 = end=failed:…}, six of six, and {@code ARRIVED_WITHIN} passed each of
+     * them off as an arrival because the wreck was inside five blocks of the goal. The two shapes
+     * the wreck takes are this rung's two upstream deaths:
+     *
+     * <pre>
+     * east FAIL 10608t  end=failed:no progress for 1200 ticks   停在 -13, 66, 21   ← pinned on the rim
+     * east FAIL 206t    end=failed:no path (expanded=1)         停在 -12, 63, 20   ← in the pool
+     * </pre>
+     *
+     * <p>The first is the crater's lip: {@code footing guard: sole 0.0000 … beside a lethal drop}
+     * sneak-pins the body and vanilla then shrinks every horizontal move to nothing, so the three
+     * legs of {@code stepOntoDiggableColumn} that follow are three identical questions from one
+     * cell. The second is worse and needs no guard to explain it — {@code expanded=1} is a start
+     * node the pathfinder judges lethal, at the lava's own row, so nothing downstream can plan at
+     * all: that run died 206 ticks in with the back-off itself unable to move
+     * ({@code shaft.backOff.2 = -12, 63, 20（想退到 -16,24，只退到这里）}).
+     *
+     * <p>Both are the same mistake, and it is not a tolerance: <b>the destination was a cell no body
+     * can occupy</b>, so where the leg ended was decided by how the walker gave up. Naming a bank
+     * cell instead makes the landing a choice, and {@link JourneyTerrain#bankStandNear} makes it
+     * with the same lip rule the loading station is already chosen by.
+     *
+     * <p>A preference and not a rule — a lake with no clear bank falls back to the loose scan and
+     * then to the old destination, so this cannot leave the rung with less than it has today. The
+     * evidence row says which of the three answered, because a run that walked to a chosen bank and
+     * a run that walked at the pool must never read alike.
+     */
+    private static BlockPos pinTheApproach(SceneContext ctx, JourneyRig rig, BlockPos lava) {
+        ServerLevel level = ctx.level();
+        BlockPos from = rig.player().blockPosition();
+        Map<String, Integer> why = new java.util.LinkedHashMap<>();
+        BlockPos bank = JourneyTerrain.bankStandNear(level, lava, from, why, true);
+        String how = "脚边一步之内没有通向岩浆的空洞（严格判据）";
+        if (bank == null) {
+            Map<String, Integer> loose = new java.util.LinkedHashMap<>();
+            bank = JourneyTerrain.bankStandNear(level, lava, from, loose, false);
+            if (bank != null) {
+                BlockPos over = JourneyTerrain.onThePoolsLip(level, bank);
+                if (over == null) over = JourneyTerrain.onThePoolsLip(level, bank.above());
+                how = "严格判据一格都没有，退回旧判据 —— 这一格在坑沿上（一步之外 " + over
+                        + " 是岩浆），被它否掉的计数见「脚边就是通向岩浆的空洞」";
+            }
+            why.putAll(loose);
+        }
+        rig.evidence("lava.bank", bank == null
+                ? "湖边 " + JourneyTerrain.BANK_REACH + " 格内没有站得住的干地 —— 退回走岩浆柱本身 "
+                  + lava.getX() + "," + lava.getZ() + "（这正是把身体走进湖里的那条路）；否决计数 " + why
+                : bank.toShortString() + "：距岩浆柱 "
+                  + Math.round(Math.hypot(bank.getX() - lava.getX(), bank.getZ() - lava.getZ()))
+                  + " 格，距身体 "
+                  + Math.round(Math.hypot(bank.getX() - from.getX(), bank.getZ() - from.getZ()))
+                  + " 格；" + how + "；否决计数 " + why);
+        return bank == null ? lava : bank;
+    }
+
+    /** How much a step onto the crater's rim costs the search, in the pathfinder's own units. Three
+     *  hundred: a plain walk edge is 10, so this is thirty blocks of detour per rim cell, and the
+     *  route that has to be beaten crosses three or four of them. Wide enough that any way round is
+     *  cheaper; finite, so a pool whose every approach is rim still has a route — see
+     *  {@link JourneyTerrain#poolsLipCells} for why this is a tax and not a prune. */
+    private static final double LIP_TAX = 300;
+
+    /** How far around the pool the rim is priced, and how far up. Twelve out covers the whole
+     *  crater on this seed's lake — the bank scan's own tally found its 37 lip columns inside
+     *  eight — and nine up spans the fluid's row to the walking row three above it. */
+    private static final int LIP_TAX_RADIUS = 12;
+    private static final int LIP_TAX_RISE = 9;
+
     private static void descendToTheForge(SceneContext ctx, JourneyRig rig, BlockPos lava) {
-        rig.attempting("背着一桶水走到岩浆柱，挖一段楼梯下到岩浆层");
-        WorldDriverJourneyScenes.walkToColumn(rig, "lava", lava.getX(), lava.getZ(), 0, 24_000, () -> {
+        rig.attempting("背着一桶水走到岩浆湖边站得住的一格，挖一段楼梯下到岩浆层");
+        BlockPos bank = pinTheApproach(ctx, rig, lava);
+        // THE ROUTE, not only its end. See JourneyTerrain#poolsLipCells: a chosen bank cell did not
+        // stop the walker planning along the rim and pinning the body on it, because a destination
+        // cannot steer a path. The set is built once, here, on the server thread; the search's own
+        // thread only ever does a hash lookup against an immutable set.
+        Set<BlockPos> rim = JourneyTerrain.poolsLipCells(ctx.level(), lava,
+                LIP_TAX_RADIUS, LIP_TAX_RISE);
+        rig.evidence("lava.rimTax", rim.size() + " 格坑沿每踏一格加价 " + (int) LIP_TAX
+                + "（普通走一格是 10，即绕 " + (int) (LIP_TAX / 10) + " 格也比踏上去便宜）；半径 "
+                + LIP_TAX_RADIUS + "、y=" + (lava.getY() + 1) + ".." + (lava.getY() + LIP_TAX_RISE)
+                + "；这一段和它的中点腿都带着这份加价");
+        List<CostModifier> avoidTheRim = List.of(
+                (from, to, edge, goal, world) -> rim.contains(to) ? LIP_TAX : 0.0);
+        WorldDriverJourneyScenes.walkToColumn(rig, "lava", bank.getX(), bank.getZ(), 0, 24_000,
+                avoidTheRim, () -> {
             BlockPos at = rig.player().blockPosition();
             final int surfaceY = JourneyTerrain.daylightY(rig, at);
             rig.evidence("forge.surfaceY", surfaceY + "（脚下 y=" + at.getY() + "）");
@@ -608,8 +697,9 @@ public final class JourneyPortalRung {
                 });
             }, () -> ctx.fail("站不到可下挖的柱子上：想去 " + dig.getX() + "," + dig.getZ()
                     + "，停在 " + rig.player().blockPosition()));
-        }, () -> ctx.fail("走不到岩浆柱：目标 " + lava.getX() + "," + lava.getZ()
-                + "，停在 " + rig.player().blockPosition()));
+        }, () -> ctx.fail("走不到岩浆湖边：目标 " + bank.getX() + "," + bank.getZ()
+                + "（岩浆柱 " + lava.getX() + "," + lava.getZ() + "，见 lava.bank 是怎么选的），停在 "
+                + rig.player().blockPosition()));
     }
 
     /**

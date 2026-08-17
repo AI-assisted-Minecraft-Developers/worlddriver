@@ -11,6 +11,7 @@ import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
 import net.magicterra.worlddriver.bot.process.CombatProcess;
 import net.magicterra.worlddriver.bot.process.CraftProcess;
 import net.magicterra.worlddriver.bot.process.Intent;
@@ -723,13 +724,41 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      */
     static void walkToColumn(JourneyRig rig, String what, int x, int z, int tolerance,
                                      int budget, Runnable onArrived, Runnable onStuck) {
-        walkToColumn(rig, what, x, z, tolerance, budget, MAX_WALK_ATTEMPTS, onArrived, onStuck);
+        walkToColumn(rig, what, x, z, tolerance, budget, MAX_WALK_ATTEMPTS, List.of(),
+                onArrived, onStuck);
+    }
+
+    /**
+     * The same leg, with a per-intent cost bias every attempt of it carries.
+     *
+     * <p>{@code Intent} has taken a bias list since it was written — 「avoid a region, prefer a Y
+     * band, leash to an anchor」 is its own javadoc — and nothing in this suite had ever passed one.
+     * The rung that needed it is 12: the pathfinder's route to the lava runs along the crater's rim,
+     * where the walker's footing guard sneak-pins the body at {@code sole = 0.0000} and it can then
+     * never move, and no choice of DESTINATION can steer a route (measured — see
+     * {@link JourneyTerrain#poolsLipCells}).
+     *
+     * <p>It is threaded onto the midpoint leg as well, and that is not tidiness: the midpoint of a
+     * body wedged on the rim and a column on the far side <b>is the pool</b>, which the same run
+     * printed as {@code lava.viaMidpoint = -10,20 (卡在 -13, 66, 21)}. An unbiased recovery from a
+     * biased leg would walk into exactly what the leg was told to avoid.
+     */
+    static void walkToColumn(JourneyRig rig, String what, int x, int z, int tolerance,
+                                     int budget, List<CostModifier> bias,
+                                     Runnable onArrived, Runnable onStuck) {
+        walkToColumn(rig, what, x, z, tolerance, budget, MAX_WALK_ATTEMPTS, bias, onArrived, onStuck);
     }
 
     static void walkToColumn(JourneyRig rig, String what, int x, int z, int tolerance,
                                      int budget, int left, Runnable onArrived, Runnable onStuck) {
+        walkToColumn(rig, what, x, z, tolerance, budget, left, List.of(), onArrived, onStuck);
+    }
+
+    static void walkToColumn(JourneyRig rig, String what, int x, int z, int tolerance,
+                                     int budget, int left, List<CostModifier> bias,
+                                     Runnable onArrived, Runnable onStuck) {
         BlockPos before = rig.player().blockPosition();
-        rig.settle(new IntentProcess(new Intent(new Goal.XZ(x, z, tolerance))), budget, () -> {
+        rig.settle(new IntentProcess(new Intent(new Goal.XZ(x, z, tolerance), bias)), budget, () -> {
             BlockPos at = rig.player().blockPosition();
             double away = Math.hypot(at.getX() - x, at.getZ() - z);
             int attempt = MAX_WALK_ATTEMPTS - left + 1;
@@ -762,14 +791,16 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             if (left <= 1) { onStuck.run(); return; }
             double moved = Math.hypot(at.getX() - before.getX(), at.getZ() - before.getZ());
             if (moved >= WEDGED_UNDER) {
-                walkToColumn(rig, what, x, z, tolerance, budget, left - 1, onArrived, onStuck);
+                walkToColumn(rig, what, x, z, tolerance, budget, left - 1, bias, onArrived, onStuck);
                 return;
             }
             int mx = (at.getX() + x) / 2;
             int mz = (at.getZ() + z) / 2;
             rig.evidence(what + ".viaMidpoint", mx + "," + mz + " (卡在 " + at.toShortString() + ")");
-            rig.settle(new IntentProcess(new Intent(new Goal.XZ(mx, mz, 3))), Math.max(600, budget / 2),
-                    () -> walkToColumn(rig, what, x, z, tolerance, budget, left - 1, onArrived, onStuck));
+            rig.settle(new IntentProcess(new Intent(new Goal.XZ(mx, mz, 3), bias)),
+                    Math.max(600, budget / 2),
+                    () -> walkToColumn(rig, what, x, z, tolerance, budget, left - 1, bias,
+                            onArrived, onStuck));
         });
     }
 
