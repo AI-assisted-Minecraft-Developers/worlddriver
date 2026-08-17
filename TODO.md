@@ -1,4 +1,124 @@
-## ⬜ 接手点 —— 装料点治好了（south 2 红 → 绿，10/10、6/6）；但 `east` 臂**五趟只绿过一趟**，红在装料点上游
+## ⬜ 接手点 —— 12 级的开局走位修好了：**坑沿不是终点问题，是路线问题**；三处红各自治好，一趟 PASS 10/10、6/6
+
+**本轮改了三处，每一处都是先量到才改的，而且中间那次「只改终点」是量出来的阴性结果。**
+
+### 1. ⛔️ 阴性结果先说：**换个终点是无效的**（FAIL 3826t）
+
+`walkToColumn(lava.x, lava.z)` 把身体送去的是**湖心那一柱，没有身体能站的格子**。归档里**六趟六条**
+`lava.gotoEnd.1 = end=failed:…`，一条 `arrived` 都没有；`ARRIVED_WITHIN=5` 把每一次翻车当成到达。
+
+于是先做了「选一格站得住、不在坑沿上的岸边格」（`JourneyTerrain.bankStandNear`，复用
+`onThePoolsLip`，它从 `JourneyFill` 挪到 `JourneyTerrain` 让两个调用方共用）。判据本身是真的
+——289 柱里 **37 柱**被坑沿否掉，选出 `lava.bank = -8, 66, 19`。**但整条腿照样死在坑沿上**，而且
+**比原来更红**：
+
+```
+[walker] footing guard: sole 0.0362 at -14,66,21 / 0.0025 at -13,66,20 / 0.0000 at -13,66,21
+lava.goto.1/2/3 = end=failed:no progress for 1200 ticks       FAIL 3826t
+lava.viaMidpoint = -10,20 (卡在 -13, 66, 21)     ← 中点就是那片湖
+```
+
+三条 footing guard 是**同一条计划路线的连续三步**。新终点距翻车点 5.39 格（旧的是 4.47），
+`ARRIVED_WITHIN` 不再兜底，于是掉进 `walkToColumn` 的中点补救 —— 而中点是湖。
+**终点操纵不了路线**；`stepOntoDiggableColumn` 里早就写着的「中点在湖边是错的」，`walkToColumn` 一直没有。
+
+### 2. ✅ 有效的那一刀：**给坑沿标价**（首次 `end=arrived`）
+
+`JourneyTerrain.poolsLipCells` 在服务器线程上一次算出湖周所有 `onThePoolsLip` 格子，开局那条腿把它当
+`CostModifier` 带上：每踏一格 **+300**（普通走一格是 10，即绕 30 格也比踏上去便宜）。
+**是加价不是 `Constraint`** —— 唯一一条路是坑沿时仍然走得通。`Intent` 的 bias 表自诞生起就写着
+「avoid a region」，这套里从来没人传过。中点那条腿也带同一份加价，否则补救会走进被禁的地方。
+
+```
+lava.rimTax    = 613 格坑沿每踏一格加价 300
+lava.gotoEnd.1 = end=arrived err=null（判为到达：停在 -8, 66, 19，距 -8,19 0 格）
+lava.arrivedDistance = 0    lava.walkAttempts = 1    这条腿上的 footing guard：0 条
+```
+
+**这是这一级归档里第一条 `arrived`。**之后三趟全部复现（`arrived` / `path-consumed`，距离都是 0）。
+
+### 3. ✅ 楼梯第一级：`end=path-consumed`，差半格
+
+开局修好之后身体每趟都精确落在 `-8,66,19`，于是**楼梯在自己第一级上卡死了 3 趟里的 2 趟**：
+80 条一模一样的 `stair.N = -8,66,19 → -7,65,19` / `stair.N.waited`。新增的 `stair.wedged` 一趟就答了：
+
+```
+stair.wedged = -8, 66, 19 连着 3 腿一格没挪（精确 -7.00/66.00/19.35）；想去 -7, 65, 19；
+               end=path-consumed err=null；台阶四格：脚下 -7,64,19=dirt，落脚 -7,65,19=air，
+               头 -7,66,19=air，起跳 -7,67,19=air；canBreak(落脚)=true
+```
+
+台阶挖好了、站得住；身体**差半格、高一排**，`x = -7.00` 正是还托着它那块砖的东面。walker 把这个叫到达
+并「consume」了路径 —— `wd.serverWalkerArrivedShort` 的微缩版。所以补救是**换问题不是放宽判据**：
+被拒三次的一级连同下一级一起挖开，瞄第二级（横 2 竖 2，任何容差都不可能把它当成已到）。两级照样都挖开，
+回程走的还是同一段楼梯。`stair.3 = -8, 66, 19 → -6, 64, 19（上一级被拒了三次，这一腿一次挖两级）`，
+之后 `forge.landedY = 56`。
+
+### 4. ✅ 开挖完不回模腔（三趟同样的两行）
+
+壁龛顶离草皮只有两格，`breakItWhereItStands` 挥不到的那几格，`MineProcess` 最便宜的路线就是**爬上楼梯从外面往下挖**。
+`carve.stuck` 自己的键就写着「挖完时身体脚下那一层」= **y=64**，而模腔地板是 56。
+
+```
+FAIL 8055t / 10608t / 8169t   forge.carved=66/67  forge.swung=63..64/67  carve.stuck={-2=1}
+                              cell.0.standMissed=想站 3, 56, 19，停在 2, 65, 19
+```
+
+浇筑自己的走位补不了（`walkToStand` 只有 300 tick 且 `NoBreak`，要跨九排石头）。现在这个交接点走
+`returnToTheForge` —— **取岩浆的每一趟本来就走它**，只是这一处漏了。身体本来就在模腔里则第一行就返回。
+PASS 那趟 `forge.return = 4, 64, 18 → 楼梯口 -8, 66, 19 → 楼梯底 3, 56, 19`，顺手还修了一级
+（`forge.stairsBroken = 1/16 级坏了`），`forge.returnedY = 57`。
+
+### 判据对账（如实）
+
+| 判据 | 状态 |
+|---|---|
+| 1. east 多趟 PASS（≥3） | ❌ **没达到**：本树三趟 **1 绿 2 红**，但三趟**全都走到了浇筑**（上一轮是 5 趟里 1 趟） |
+| 2. south 不回归 | ⚠️ **这条判据本身失效了**，见下一节 |
+| 3. 两臂稳定后跑一趟真实 ladder | **没跑**，门没开 |
+
+本树三趟（同一柱 `-8,19`，同一份代码）：
+
+```
+不钉柱   PASS 11993t   frame.cast=10/10  frame.obsidian=10/10  portal.cells=6/6  十个 recover CONSUME
+钉柱 A   FAIL 30867t   cast0..8 CONSUME  recover0..7 CONSUME   死在 recover8 收水（装不到 water_bucket）
+钉柱 B   FAIL 15936t   cast0..7 CONSUME  recover0..7 CONSUME   死在第 9 格浇筑的射线闸（浇线穿出壁龛）
+```
+
+**两条红都在第 9 格附近、都在模腔里，没有一条在坑沿。**开局那条腿三趟都 `arrivedDistance ≤ 1`。
+
+**等级：`backtested`。**开局走位、楼梯两级、回模腔三处都在运行里执行并兑现了判据；**没有 live**。
+
+### ⚠️ 「south 臂」这个对照组已经不存在了
+
+不带 `-PshaftColumn` 那一趟现在报 `shaft.standingOn = -8,19 (就近合格柱)`、`forge.away = east`。
+**模腔朝向以前的「每趟随机」，来源就是开局那条腿在哪儿翻的车** —— 终点定死之后就近采纳也定死了。
+要复现 south 那处几何，只能 `-PshaftColumn=-9,21`（`JourneyRehearsal` 的 javadoc 早就说了钉柱才是忠实的杠杆）。
+**上一轮那处装料点修法没有在 south 几何上回测过**，这一条要补。
+
+### 下一个人从这里开始
+
+1. **红移到了门框顶上那几格（第 9 格前后），两条红是同一处几何的两种死法。**
+   - 钉柱 A：`recover8.spot = 没找到能看见源块的落脚点，退回 Near(8,61,19,2)`、
+     `recover8.rise#13.…driftKeptPinned`、`recover8.rise.raisedY = 60/60（停在 1,…）` ——
+     **抬升落在了 1 号柱、瞄的是 6 号柱**，然后 `recover8.aimsAt = MISS；眼睛 3.50/59.62/19.30`，
+     离 `8,61,19` 4.5 格。归档里那条「pinned raise 换了柱就等于换了射线」的账。
+   - 钉柱 B：`浇不到指定格：想浇 7, 61, 19（瞄 8, 61, 19），射线会把流体放进 6, 60, 18，
+     身体在 5, 58, 19；浇线上是 6,63,19 dirt(壁龛外) …` —— 射线闸**正确地拒绝了**，
+     问题是身体根本没站到能看见那格的地方。两条都指向同一件事：**门框上两排的站位**。
+   - 顺带：`JourneyRamp` 的 `exactRow` 就长在这条链上（`recover8.rise.ramp.rampedY = 56/60`）。
+2. **east 钉柱要再跑几趟**：本树 1 绿 2 红。**一个绿不是一个结论**，一红也不是。
+3. **`-PshaftColumn=-9,21` 补一趟**，把上一轮的装料点修法在它原本的几何上回测掉。
+4. **rung 11（`WorldDriverJourneyScenes.walkToTheLava`）还在走湖心那一柱**，一字未动 —— 同一个缺陷，
+   同一套 `bankStandNear` + `poolsLipCells` 可以直接用。故意没动：本轮只准改一个变量，而 11 级现在是绿的。
+5. `exactRow` 那条欠账本轮**没碰也没顺手治**，仍是 6/14。
+6. 边界照旧：15 级 `20,41,-23` 那道深渊、`JourneyEndRungs.march`（17 级）第三处用位移当进展的现场、
+   16–20 级没有 staging 配方 —— **只记不碰**。
+7. 引擎侧只记不碰的三条：`Walker.footingGuard` 在 `sole = 0.0000` 时也钉（javadoc 与代码相反）、
+   `ascendByTowering` 在岩浆里垒不起来却报 `out of blocks?`、以及**新增的这条**：walker 对「横 1 竖 1」
+   的目标会 `path-consumed` 在半格之外，把没走完的路报成到达。
+
+## ⬜ 上一轮的接手点 —— 装料点治好了（south 2 红 → 绿，10/10、6/6）；但 `east` 臂**五趟只绿过一趟**，红在装料点上游
 
 **这一轮只改了一个变量：`pinTheFillStation` 选装料点时，把「一步之外就是通向岩浆的空洞」也算进否决判据。**
 判据 2 达成，判据 1、3 没有 —— `east` 那条「假红」的结论是**在一个绿上下的，站不住**。
