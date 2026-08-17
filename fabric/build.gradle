@@ -308,6 +308,21 @@ loom {
             // rehearsed. See JourneyShaft.floodTheColumnOnce.
             property 'worlddriver.journey.wetShaft',
                     (project.findProperty('wetShaft') ?: 'false').toString()
+            // Land rung 12's return ON the bottom step instead of in the cell above it. The flight's
+            // last waypoint IS that step, and LEG_ARRIVED=1.5 calls a body one cell short "arrived",
+            // so which of the two happened is invisible in the log — while it decides where the raise
+            // starts, and therefore whether the cell pours or is lost. Naturally about one run in
+            // three at eleven minutes a run:
+            //   ./gradlew :fabric:runRehearsalServer -Prehearse=PORTAL_LIT -PshaftColumn=-8,19 -PlandOnFloor=true
+            // Same two locks as breakAStair. It WALKS the step the flight skipped — no block and no
+            // fluid is touched — which is why nothing in the alcove's own water can undo it. The
+            // earlier `-PdryAlcove`, which cleared the stairwell's water instead, is gone: its own
+            // staging rows disproved the theory it rested on (eight casts found ONE wet cell, the two
+            // above it already air, and returnedY was 57 all eight times). Judge this by
+            // `cast*.returnedY` on EVERY cast, and judge the flag itself by running it OFF too: that
+            // run must still show the natural 57/56 mixture. See JourneyPortalRung.landOnFloor.
+            property 'worlddriver.journey.landOnFloor',
+                    (project.findProperty('landOnFloor') ?: 'false').toString()
             // Which side of the lava lake to stand the body on, which is what decides the forge's
             // orientation and therefore the whole alcove geometry:
             //   ./gradlew :fabric:runRehearsalServer -Prehearse=PORTAL_LIT -PforgeAway=north
@@ -336,6 +351,23 @@ loom {
             // (`lava*.loaded` / `lava*.up` rows), not by the colour. See JourneyRehearsal.stagedBuckets.
             property 'worlddriver.journey.buckets',
                     (project.findProperty('buckets') ?: '1').toString()
+            // How many ender eyes rung 18 starts with. Default empty = twelve, which is what rung
+            // 16's own rehearsal measured; this exists only to reach the short-stock branch that a
+            // full bag can never run:
+            //   ./gradlew :fabric:runRehearsalServer -Prehearse=END_PORTAL -Peyes=8
+            // Judge it by `eyes.ranOutAt` and `frames.filled`, not by the colour — same rule as
+            // buckets. See JourneyRehearsal.stagedEyes.
+            property 'worlddriver.journey.eyes',
+                    (project.findProperty('eyes') ?: '').toString()
+            // How wide the STAGING's stronghold frame scan is. Default empty = rung 17's own
+            // ROOM_SCAN_CHUNKS, and paying exactly that is the point: an 18-level rehearsal then
+            // answers rung 17's open question (is ±96 blocks from the /locate START piece enough to
+            // reach the portal room?) in minutes instead of an hour of marching.
+            //   ./gradlew :fabric:runRehearsalServer -Prehearse=END_PORTAL -ProomScanChunks=12
+            // It widens the STAGING only; rung 17 keeps its constant, or the question could never
+            // be answered no. See JourneyRehearsal.roomScanChunks.
+            property 'worlddriver.journey.roomScanChunks',
+                    (project.findProperty('roomScanChunks') ?: '').toString()
             // Same body the ladder climbs on, and that is a deliberate answer rather than a copied
             // line. PORTAL_LIT itself does not need it: it is overworld-only, it spawns nothing and
             // it never asks for the dragon, so it would rehearse identically without the flag. But

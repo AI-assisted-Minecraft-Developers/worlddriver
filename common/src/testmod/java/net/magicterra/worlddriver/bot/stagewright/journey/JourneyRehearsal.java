@@ -97,6 +97,31 @@ public final class JourneyRehearsal {
      */
     private static final BlockPos BAKED_LAVA_LAKE = new BlockPos(-9, 63, 19);
 
+    /**
+     * Whether the rung being rehearsed needs {@link JourneyRoute#lavaLake} to have been surveyed.
+     *
+     * <p><b>The question this answers is not「is this rung about lava」but「does this rung's own
+     * staging read {@code JourneyRoute.lavaLake}」</b>, and that is deliberate, because the second
+     * question can be checked with one grep of this file while the first is a judgement about the
+     * game. Today exactly one does: {@link #stagePortalLit} at the {@code UNSURVEYED} check, which
+     * is why the list has one entry. {@code stageObsidian} reads {@code firstLava} — a different,
+     * baked landmark — and needs nothing from here.
+     *
+     * <p><b>Why the survey was unconditional and why that had to stop.</b> It costs a chunk load
+     * and a fluid sweep, and it {@code ctx.fail}s the rung when it comes up short. RECON is the
+     * FIRST scene of every rehearsal, so that failure blocks SPAWN and every rung above it — which
+     * means a rehearsal of rung 18, which has never heard of lava, died on a lake.
+     *
+     * <p><b>Wrong in either direction is safe, which is the point of putting it here.</b> An extra
+     * entry costs one survey. A MISSING entry leaves {@code JourneyRoute.lavaLake} at
+     * {@code UNSURVEYED} — its declared initial value — rather than at a wrong-but-plausible
+     * coordinate, so the consumer reports「没有岩浆湖坐标 —— wd.rehearse01Recon 没有跑成功」and
+     * names the fix instead of casting into the wrong pool.
+     */
+    private static boolean needsTheLavaLake(JourneyStage target) {
+        return target == JourneyStage.PORTAL_LIT;
+    }
+
     private JourneyRehearsal() {}
 
     // =====================================================================================
@@ -154,8 +179,20 @@ public final class JourneyRehearsal {
     private static Scene rehearsalFor(Scene original, String name, JourneyStage rung, JourneyStage target) {
         if (rung == target) {
             Consumer<SceneContext> real = original.body();
-            int budget = Math.min(original.budgetTicks(), budgetCap());
+            int declared = original.budgetTicks();
+            int budget = Math.min(declared, capFor(rung, declared));
             return bare(name, budget, ctx -> {
+                // SAY IT WHEN THE FIXTURE SHORTENED THE RUNG, and say it in words no rung ever uses
+                // about itself. A run clipped here dies as a timeout, and a timeout on rung 20 reads
+                // as「龙没打死」— a failure message naming the wrong mechanism, which is the family
+                // this rung's investigation has lost the most rounds to. The row appears only when
+                // the cap actually bit, so its ABSENCE is a reading too.
+                if (budget < declared) {
+                    ctx.record("rehearse.budgetCapped", budget + "（scene 自己声明 " + declared
+                            + "，被排练的预算帽砍掉 " + (declared - budget) + "）—— "
+                            + "⚠️ 这一趟如果超时，先看这一行：是夹具把预算砍短了，不是这一级判负。"
+                            + "要跑满就 -PrehearseBudget=" + declared);
+                }
                 stageFor(ctx, target);
                 real.accept(ctx);
             });
@@ -182,6 +219,64 @@ public final class JourneyRehearsal {
         String raw = System.getProperty(BUDGET_PROPERTY);
         if (raw == null || raw.isBlank()) return DEFAULT_BUDGET;
         return Integer.parseInt(raw.trim());
+    }
+
+    /**
+     * The cap this rung actually gets — the default one, unless the rung's own scripted waits are
+     * longer than it.
+     *
+     * <h2>A cap below a rung's own waits is not a shorter rehearsal, it is one that cannot finish</h2>
+     *
+     * <p>{@link #DEFAULT_BUDGET} is 40 000 and it is the right number for a rehearsal whose whole
+     * point is dying in minutes rather than in the ladder's hours. Rung 20 does not fit in it by an
+     * order of magnitude: its duel alone is scripted at 200 000 ticks and it waits a little past
+     * that. Capped at 40 000 the duel could never end — the rehearsal would report a timeout for
+     * every dragon, forever, and <b>the timeout would say nothing about the dragon</b>. See
+     * {@link #budgetFloor} for which rungs get a floor and why the list is explicit, and
+     * {@code rehearse.budgetCapped} for the row that fires whenever a cap did shorten a rung.
+     *
+     * <p><b>An explicit {@code -PrehearseBudget=N} still wins outright</b>, floor or no floor: that
+     * property is how a wedged run gets killed early, and a floor that overrode it would take the
+     * brake away exactly when it is wanted.
+     *
+     * <p>PROVISIONAL, like every other number about rungs 17–20: no climb has reached them, so the
+     * duel's 200 000 is itself an estimate. The key to replace it with is {@code duel.ticks} on
+     * {@code wd.journey20Dragon} once a ladder run gets there.
+     */
+    private static int capFor(JourneyStage rung, int declared) {
+        int cap = budgetCap();
+        String raw = System.getProperty(BUDGET_PROPERTY);
+        boolean explicit = raw != null && !raw.isBlank();
+        return explicit ? cap : Math.max(cap, budgetFloor(rung, declared));
+    }
+
+    /**
+     * The tick floor below which capping this rung stops being「a shorter rehearsal」.
+     *
+     * <p><b>Zero for every rung but one, and that is what keeps this invisible to the rungs already
+     * being measured.</b> {@code PORTAL_LIT} declares 250 000 of its own and has been rehearsed at
+     * 40 000 all along, so a blanket「never cap below the scene's own budget」would raise it and
+     * change a path that is currently a regression gate. The list is explicit for that reason and
+     * must stay explicit: the next rung added to it has to be argued for, not inherited.
+     *
+     * <p><b>{@code DRAGON} gets its own DECLARED budget, and the middle number it used to get was a
+     * mistake I made against my own rule.</b> The first version returned {@code DUEL_TICKS + 2 000}
+     * = 202 000, on the reasoning that the duel is what does not fit in 40 000. But the duel is
+     * 200 000 of that, which leaves two thousand ticks for reaching the End, building the platform,
+     * bridging to the island and finding the dragon — and「just barely enough」is precisely the shape
+     * this suite forbids in staging (see {@code stagedEyes}: an amount fitted to the requirement makes
+     * the reading a tautology, and here it would make every over-run report「龙没打死」when the truth
+     * is「预算到顶」). Worse, 202 000 was MY number, invented with no measurement behind it, standing
+     * in front of a number the rung's own author chose. No climb has ever reached rung 20, so I have
+     * nothing to justify a middle value with; the scene's declared 500 000 is at least a considered
+     * ceiling and it is still a ceiling, not「无限跑」.
+     *
+     * <p>So the floor here is the declaration itself, which makes the default cap a no-op for this
+     * one rung. An explicit {@code -PrehearseBudget=N} still wins outright — that is the brake, and a
+     * floor that overrode it would take the brake away exactly when it is wanted.
+     */
+    private static int budgetFloor(JourneyStage rung, int declared) {
+        return rung == JourneyStage.DRAGON ? declared : 0;
     }
 
     // =====================================================================================
@@ -231,6 +326,23 @@ public final class JourneyRehearsal {
         ctx.record("seed", level.getSeed());
         ctx.expect(level.getSeed()).as("world seed (the rehearsal's baked coordinates are this seed's)")
                 .isEqualTo(JourneyRoute.SEED);
+
+        // The lake is a landmark ONE rung's staging reads. Surveying it for the others buys nothing
+        // and can cost everything: this is the first scene of the run, so its failure blocks SPAWN
+        // and with it every rung above. See needsTheLavaLake.
+        //
+        // `target == null` keeps the old path on purpose — that is the un-targeted start-up, and a
+        // change that only bites when a target was named is a change with a smaller blast radius.
+        if (target != null && !needsTheLavaLake(target)) {
+            ctx.record("rehearsal.lake", "未勘测 —— " + target.name() + "(" + target.label()
+                    + ") 的布景不读 JourneyRoute.lavaLake（见 needsTheLavaLake）");
+            JourneyLedger.reached(JourneyStage.RECON, "REHEARSAL：只做了排练需要的最小勘测（未勘岩浆湖）",
+                    Map.of("rehearsal.lake", "skipped"), level.getGameTime());
+            ctx.passNote("REHEARSAL 勘测 — 种子 " + level.getSeed() + "，未勘岩浆湖（"
+                    + target.name() + " 用不到）。这不是攀爬。");
+            WorldDriverCommon.LOG.info("[rehearsal] lake=skipped target={}", target);
+            return;
+        }
 
         // Generate the lake's neighbourhood before counting it: every fluid read below would force
         // the same generation one chunk at a time, and doing it deliberately keeps the cost in one
@@ -300,6 +412,10 @@ public final class JourneyRehearsal {
         }
         if (target == JourneyStage.EYE_OF_ENDER) {
             stageEyeOfEnder(ctx);
+            return;
+        }
+        if (target == JourneyStage.END_PORTAL) {
+            stageEndPortal(ctx);
             return;
         }
         // No recipe. Say so rather than starting the rung on whatever the placeholder rungs left
@@ -641,6 +757,224 @@ public final class JourneyRehearsal {
      *  file is allowed to have, for the same reason {@link #PORTAL_FRAME_CELLS} is duplicated: it is
      *  the number the STAGING has to pay, not the number the rung asserts. */
     private static final int EYES_A_PORTAL_COSTS = 12;
+
+    /** How many frames one stronghold portal room has — the ring
+     *  {@code EndPortalFrameBlock.getOrCreatePortalShape()} matches. The staging asserts on this
+     *  before it claims to have put the body「in the room」: eleven frames is not a room, it is a
+     *  scan whose box clipped one. */
+    private static final int FRAMES_A_ROOM_HAS = 12;
+
+    /** {@code JourneyEndRungs.ROOM_SCAN_CHUNKS} as it stands. Duplicated on the same licence as
+     *  {@link #PORTAL_FRAME_CELLS}, and paying EXACTLY it is the point — see {@link #roomScanChunks}. */
+    private static final int STRONGHOLD_ROOM_SCAN_CHUNKS = 6;
+
+    /** What rung 16 hands over, measured on ITS rehearsal (not on a climb). See {@link #stagedEyes}. */
+    private static final int EYES_A_CLIMB_ARRIVES_WITH = 12;
+
+    /**
+     * Rung 18's starting conditions: a body standing in the stronghold's portal room, holding eyes.
+     *
+     * <p>Rung 18 is twelve {@code useOn}-only interactions and nothing else. Everything ELSE about
+     * the rung is somebody else's: finding the stronghold is rung 17's, making the eyes is rung
+     * 16's. So this recipe stages exactly those two and stages <b>nothing about the frames</b>.
+     *
+     * <p><b>Not one frame is pre-filled and the portal is not opened.</b> Whatever eyes the room
+     * already has are the world's own — vanilla pre-fills each of the twelve with probability 0.1 —
+     * and {@code rehearsal.framesWithEye} records the count so that {@code ender_eye.left} at the
+     * end is a cross-check rather than a number nobody can read.
+     *
+     * <p><b>No cobblestone, deliberately.</b> {@code generousPathfinding} leaves
+     * {@code allowPlace = true} and rung 18 never turns it off, so a bag of blocks lets the walker
+     * pillar to a frame — which replaces「walk to within EYE_REACH」, the thing under test, with
+     * something else. What a climb actually arrives here carrying is unknown: rung 17 records no
+     * inventory at all, so there is no key to calibrate against yet. Adding a {@code stock.*}
+     * evidence row to rung 17 is the fix, and it belongs to whoever writes rung 17's recipe.
+     *
+     * <p><b>Every number here is PROVISIONAL.</b> No climb has ever reached rung 16, so none of them
+     * has a ladder measurement behind it; {@code rehearsal.gave} says so in the results file rather
+     * than only here.
+     */
+    private static void stageEndPortal(SceneContext ctx) {
+        Map<String, Integer> kit = new LinkedHashMap<>();
+        kit.put("minecraft:ender_eye", stagedEyes(ctx));
+        // Two, and the reason is the one stagePortalLit already paid for: rung 17 sinks a shaft
+        // into the stronghold and a climb arrives here with a WORN head. A rehearsal that handed
+        // over one fresh stone pickaxe would be reproducing an inventory no climb has.
+        kit.put("minecraft:stone_pickaxe", 2);
+        kit.put("minecraft:iron_sword", 1);
+        kit.put("minecraft:cooked_beef", 16);
+        ctx.record("rehearsal.noBlocks", "没给圆石 —— 这一级不放置任何方块，而 allowPlace 是开着的；"
+                + "给了石料就等于允许 walker 垒到框架跟前，把「走进 EYE_REACH」换成别的事。"
+                + "真梯到这一级带多少石料今天查不到（17 级没记库存）—— 校准要先给 17 级加 stock.* 行");
+        standInThePortalRoom(ctx, "END_PORTAL", kit,
+                "框架一格没补、门也没开 —— 那两件正是这一级要证明的事");
+    }
+
+    /**
+     * Put the body in the stronghold's portal room, with a bag, and arrange nothing else.
+     *
+     * <p>Shared the way {@code crossToTheNether} is shared by rungs 14/15/16: what differs between
+     * rung 18 and rung 19 is the bag and what the room already contains, not how a body gets there.
+     *
+     * <p><b>The frames are read through {@link JourneyEndRungs#framesAround} rather than through a
+     * second scan written here.</b> Two scans that disagree put「the room the staging found」and
+     *「the room the rung found」in different places, and there is no reading that tells them apart
+     * afterwards. This file is licensed to duplicate CONSTANTS with a stated reason (see
+     * {@link #PORTAL_FRAME_CELLS}); an algorithm is not the same licence.
+     *
+     * @return the frame ring's centre, which rung 19's recipe will need — unused by rung 18
+     */
+    private static BlockPos standInThePortalRoom(SceneContext ctx, String what,
+                                                 Map<String, Integer> kit, String notStaged) {
+        ServerWorldDriver body = JourneyRig.bodyOrNull();
+        if (body == null) {
+            ctx.fail("排练：没有身体 —— wd.rehearse02Spawn 没有创建 avatar");
+            return null;
+        }
+        ServerLevel level = ctx.level();
+        ServerPlayer fp = body.fakePlayer();
+        BlockPos baked = JourneyRoute.stronghold;
+
+        // Generate before scanning, and TIME it. framesAround loads what it reads on its own, so
+        // this is not needed for correctness — it is needed so the price of a kilometre-out block
+        // of fresh chunks lands in one recorded number instead of hiding inside a call that looks
+        // like it is only reading.
+        int scan = roomScanChunks(ctx);
+        long startedNs = System.nanoTime();
+        loadAround(level, baked, scan);
+        List<BlockPos> frames = JourneyEndRungs.framesAround(level, baked, scan);
+        long ms = (System.nanoTime() - startedNs) / 1_000_000L;
+        ctx.record("rehearsal.roomScanMs", ms + " ms（" + (2 * scan + 1) + "×" + (2 * scan + 1)
+                + " 区块，全新世界）");
+        ctx.record("rehearsal.frames", frames.size() + " 格 end_portal_frame（以烘入的 stronghold "
+                + baked.toShortString() + " 为心，±" + (scan * 16) + " 格）");
+        if (frames.size() < FRAMES_A_ROOM_HAS) {
+            ctx.fail("排练摆不出传送门房间：以 " + baked.toShortString() + " 为心 ±" + (scan * 16)
+                    + " 格内只有 " + frames.size() + " 格 end_portal_frame，一间房要 "
+                    + FRAMES_A_ROOM_HAS + " 格 —— 这是布景的问题，不是 " + what + " 这一级的问题。"
+                    + "0 格 = 烘入的坐标过期，或半径远不够；1..11 格 = 半径把房间切了。"
+                    + "用 -ProomScanChunks=12 再跑一次分辨这两者");
+            return null;
+        }
+        BlockPos centre = JourneyEndRungs.centreOf(frames);
+        int away = Math.max(Math.abs(centre.getX() - baked.getX()),
+                            Math.abs(centre.getZ() - baked.getZ()));
+        ctx.record("rehearsal.frameCentre", centre.toShortString() + "，距烘入的 stronghold "
+                + away + " 格（切比雪夫）—— rung 17 的 ROOM_SCAN_CHUNKS 至少要 " + (away / 16 + 1)
+                + " 才扫得到，它现在是 " + STRONGHOLD_ROOM_SCAN_CHUNKS);
+        BlockPos stand = JourneyEndRungs.standingCellInTheRoom(level, centre);
+        if (stand == null) {
+            ctx.fail("排练：扫到了 " + frames.size() + " 格框架（中心 " + centre.toShortString()
+                    + "）却没有能落脚的格子 —— 这是布景的问题，不是 " + what + " 这一级的问题");
+            return null;
+        }
+        int withEye = 0;
+        for (BlockPos f : frames) if (JourneyEndRungs.hasEye(level, f)) withEye++;
+        ctx.record("rehearsal.framesWithEye", withEye + "/" + frames.size()
+                + "（世界自带的，一格都没补 —— 收尾时 ender_eye.left 应该等于这个数）");
+
+        StringBuilder gave = new StringBuilder();
+        for (var e : kit.entrySet()) {
+            give(fp, e.getKey(), e.getValue());
+            if (gave.length() > 0) gave.append(' ');
+            gave.append(e.getKey().substring(e.getKey().indexOf(':') + 1)).append('×').append(e.getValue());
+        }
+        JourneyLedger.staged("rehearsal: gave " + gave);
+        // THE NUMBERS AND WHERE THEY CAME FROM. Every one is PROVISIONAL: no climb has ever reached
+        // rung 16, so none has a ladder measurement behind it and the record must not read as if it
+        // did — see the ladder-calibration table in TODO.md for which key replaces which number.
+        ctx.record("rehearsal.gave", gave + "（全部 PROVISIONAL：真梯从未爬到 12 级以上，"
+                + "这些数没有 ladder 实测。ender_eye 照 16 级排练实测的 " + EYES_A_CLIMB_ARRIVES_WITH
+                + "；镐 2 把是故意与真梯不同，理由见 stageEndPortal 里那处注释）");
+
+        loadAround(level, stand, 2);
+        JourneyLedger.staged("rehearsal: put the body in the stronghold portal room at "
+                + stand.toShortString() + " instead of marching there and sinking a shaft");
+        fp.setDeltaMovement(Vec3.ZERO);
+        fp.moveTo(stand.getX() + 0.5, stand.getY(), stand.getZ() + 0.5, fp.getYRot(), fp.getXRot());
+        fp.setOnGround(true);
+        ctx.record("rehearsal.stand", stand.toShortString() + "，距框架中心 "
+                + Math.round(Math.sqrt(stand.distSqr(centre))) + " 格（" + notStaged + "）");
+        WorldDriverCommon.LOG.info("[rehearsal] staged {}: gave {} and stood the body at {} ({} frames)",
+                what, gave, stand, frames.size());
+        return centre;
+    }
+
+    /**
+     * How many eyes rung 18 starts with — twelve, and twelve is a MEASUREMENT, not a fit.
+     *
+     * <p>Rung 16's rehearsal ended {@code 末影之眼 ×12（够一套门）}, so twelve is what the rung below
+     * actually hands over. It is emphatically <b>not</b>「as many as there are empty frames」and must
+     * never become that: vanilla pre-fills each of the twelve with probability 0.1, so a staging that
+     * matched the empty count would make {@code ender_eye.left} unreadable. Left at twelve,
+     * {@code ender_eye.left} measures exactly what the WORLD pre-filled and can be checked against
+     * {@code rehearsal.framesWithEye} — a cross-check instead of a tautology. (Rung 16's own recipe
+     * has the tautology this avoids: it hands over exactly {@link #EYES_A_PORTAL_COSTS} pearls, so
+     * {@code ender_eye.shortfall = 0} is arithmetic rather than a finding.)
+     *
+     * <p>What twelve DOES make unreachable is the short-stock branch. That is code nobody has run,
+     * and this lever is the only thing that runs it, on exactly the discipline of {@code stagedBuckets}:
+     * <b>judge it by {@code eyes.ranOutAt} and {@code frames.filled}, never by the colour.</b> A short
+     * run SHOULD end red at {@code portal.cells = 0}; what is being tested is that it says so in the
+     * right words.
+     *
+     * <pre>./gradlew :fabric:runRehearsalServer -Prehearse=END_PORTAL -Peyes=8</pre>
+     */
+    private static int stagedEyes(SceneContext ctx) {
+        String raw = System.getProperty("worlddriver.journey.eyes", "").trim();
+        if (raw.isEmpty()) return EYES_A_CLIMB_ARRIVES_WITH;
+        int n;
+        try {
+            n = Integer.parseInt(raw);
+        } catch (NumberFormatException e) {
+            ctx.record("rehearsal.eyes", raw + " 不是数字 —— 按 " + EYES_A_CLIMB_ARRIVES_WITH
+                    + " 只摆（16 级排练实测的数）");
+            return EYES_A_CLIMB_ARRIVES_WITH;
+        }
+        if (n == EYES_A_CLIMB_ARRIVES_WITH) return n;
+        JourneyLedger.staged("rehearsal: gave " + n + " eyes instead of the " + EYES_A_CLIMB_ARRIVES_WITH
+                + " rung 16 measured, to reach the short-stock branch");
+        ctx.record("rehearsal.eyes", n + " 只（16 级排练实测是 " + EYES_A_CLIMB_ARRIVES_WITH
+                + "）—— 这是为了跑到「眼不够」那条分支；判据是 eyes.ranOutAt 出现且 frames.filled < 12，"
+                + "不是颜色");
+        return Math.max(0, n);
+    }
+
+    /**
+     * How wide the STAGING's own frame scan is.
+     *
+     * <p>Defaults to {@link #STRONGHOLD_ROOM_SCAN_CHUNKS}, i.e. to rung 17's own
+     * {@code ROOM_SCAN_CHUNKS}, and paying exactly that number is the whole point: this staging
+     * makes the same call rung 17 makes, on the same centre, at the same radius, so what it finds is
+     * what rung 17 will find. A rehearsal of rung 18 therefore answers rung 17's open question —
+     * <b>is ±96 blocks from the {@code /locate} START piece enough to reach the portal room?</b> —
+     * in minutes instead of in an hour of marching.
+     *
+     * <p><b>The lever widens the STAGING scan only; rung 17 keeps its constant untouched.</b> If it
+     * raised the rung's radius too, that question could never be answered「no」— the widening would
+     * hide the very shortfall it was raised to measure.
+     *
+     * <pre>./gradlew :fabric:runRehearsalServer -Prehearse=END_PORTAL -ProomScanChunks=12</pre>
+     */
+    private static int roomScanChunks(SceneContext ctx) {
+        String raw = System.getProperty("worlddriver.journey.roomScanChunks", "").trim();
+        if (raw.isEmpty()) return STRONGHOLD_ROOM_SCAN_CHUNKS;
+        int n;
+        try {
+            n = Integer.parseInt(raw);
+        } catch (NumberFormatException e) {
+            ctx.record("rehearsal.roomScanChunks", raw + " 不是数字 —— 按 "
+                    + STRONGHOLD_ROOM_SCAN_CHUNKS + " 区块扫（和 rung 17 一样）");
+            return STRONGHOLD_ROOM_SCAN_CHUNKS;
+        }
+        if (n == STRONGHOLD_ROOM_SCAN_CHUNKS) return n;
+        JourneyLedger.staged("rehearsal: widened the STAGING's frame scan to " + n
+                + " chunks (rung 17 still uses " + STRONGHOLD_ROOM_SCAN_CHUNKS + ")");
+        ctx.record("rehearsal.roomScanChunks", n + " 区块（±" + (n * 16) + " 格）—— "
+                + "只放宽布景这一侧的扫描，rung 17 的 ROOM_SCAN_CHUNKS 仍是 "
+                + STRONGHOLD_ROOM_SCAN_CHUNKS + "，否则「6 够不够」这个问题永远不可能答「不够」");
+        return Math.max(1, n);
+    }
 
     /**
      * Hand over a bag and put the body where a portal would have put it.

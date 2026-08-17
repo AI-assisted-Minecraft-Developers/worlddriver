@@ -8,6 +8,97 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Rung 12 chose where to pour from an eye no body ever has, and the cell it cost was decided long
+  before the bucket was spent.** `standToAimAt` weighed each candidate by clipping from the exact
+  centre of the cell, at a height guessed by adding a whole block when the cell holds fluid. A real
+  body is at neither: its box is 0.6 wide, so its centre rests anywhere in `[0.2, 0.8]` of its own
+  cell — the walker leaves it wherever the last path edge ended, which `JourneyRamp#approach` had
+  already measured from the other side — and one block of water floats it about a third of a block,
+  not a whole one. Measured on the south rehearsal of 2026-08-17, cell eight:
+
+  ```
+  cast8.stand.3 = -10, 56, 32 瞄 -9, 60, 35（背板近面） 否决计数 {…}
+  cast8.picks.3 = -9, 58, 33 Block{minecraft:cobblestone} face=west → 落进 -10, 58, 33
+                  （…，身体 -10, 56, 32，眼睛 -9.15/57.98/32.57 …）
+  ```
+
+  The eye it was chosen for is `-9.50/58.62/32.50`; the eye that fired is `-9.15/57.98/32.57`. The
+  shot is a diagonal (`dx=1, dz=3`), so a third of a block of x is a whole column of crossings.
+  Traced against the block states that same run recorded, the centre eye crosses
+  `(-10,58,32) (-10,58,33) (-10,59,33) (-9,59,34) (-9,60,34) (-9,60,35)` and reaches the backing,
+  while the eye offset to `x=0.8` crosses `… (-9,58,33) (-9,59,33) …` — cell for cell the list the
+  measured eye produced, and `-9,58,33` is the cobblestone `.picks` stopped on. Both archived
+  refusals of that cell (`.picks.2` stopped on `-9,59,33`) are reproducible from the archive alone.
+
+  The `.picks` gate caught the bad shot, as it is built to. What it could not catch is that
+  `standLevelWith` asks this same chooser whether a raise is needed at all and skips the raise on a
+  yes — so a maybe there costs the cell, not an approach. The whole south failure hung off that one
+  answer: raise skipped, walk to a floating cell out of column, three refused picks, `liftInPlace`,
+  an UNPINNED tower from a body that never lands (`climb.0 … onGround=false`, eight tries), and
+  `liftedY = 58/59` for the ray gate to correctly refuse. The east arm, which has no such spot at
+  that cell, raises instead and pours it 5 times in 5.
+
+  So a stand is graded rather than accepted (`JourneySight.pourGrade`): the existing clip is re-asked
+  from the four corners of the body's own footprint and, in fluid, at both heights a floating body
+  can sit at. `ANYWHERE` is a verified stand; `CENTRE_ONLY` stays usable as a place to WALK to — the
+  `.picks` gate is what spends the bucket, and refusing it outright would leave a body with nowhere
+  to go — but it is no answer to「要不要垒台阶」. This widens nothing: it asks the same question more
+  times, and an axis-aligned shot, which is the shape of every successful cast in this rung, is
+  unaffected by construction, because sliding the eye along its own axis does not change which cells
+  the line crosses. It is a new file because `JourneyPortalRung.java` stood at exactly the 3000-line
+  budget.
+
+  **That grade alone made the rung raise for cells that needed no raise, and a raise is not free.**
+  Measured immediately, south run 2 of the new tree: casts 0–7 all `CONSUME` — the cell that had been
+  the deterministic wall now pours — and the run died climbing home,
+  `走不上楼梯：停在 -7, 59, 32 … 楼梯自检：1/12 级坏了：-9, 56, 32 挡住 -9, 57, 32=Block{minecraft:cobblestone}`.
+  On the PRE-change tree that cell had never raised at all: it poured off the alcove floor through the
+  real-ray short-circuit, `cast7.fromHere.3 = -9, 56, 32 就地瞄 -11, 59, 35，流体会落进 -11, 59, 34（不走了）`
+  → `CONSUME`. The order was the defect and the stricter grade is what made it bite:
+  `placeFluid` → `mendBacking` → `standLevelWith` (predict where the body COULD stand) → and only then
+  `aimThatLandsIn` (fire the real ray from where the body IS). 权威的测试跑在它本该决定的那个决定之后。
+  `standLevelWith` now asks the real ray first, so a raise is conditional on the pour being impossible
+  from here rather than on any prediction about elsewhere. Checked against the archive before it was
+  run: the old `cast7` has a `fromHere` row, so it stops raising; the old `cast8` has none at all and
+  three refused picks, so it still raises, which is the change that made that cell pour.
+
+### Changed
+- **`JourneyPortalRung` split along the pour/scoop seam; `JourneyPour` is the pour half.** Pure
+  relocation, done before the measuring runs rather than after, because a file at exactly its budget
+  schedules its own next edit at the most expensive moment available: this rung's verdicts are read as
+  distributions, a distribution is void the moment the tree changes, and a split after five runs would
+  have voided five. Before: 3000/3000 lines, zero headroom. After: **2454 for `JourneyPortalRung`,
+  577 for `JourneyPour`** — 546 lines of headroom, deliberately not shaved closer, since splitting to
+  2900 would only re-arm the same trap.
+
+  The seam already existed: `JourneyFill` is the scoop half and was split out first, and the two ask
+  opposite questions of the same geometry (`Fluid.NONE` against the target's backing, against
+  `Fluid.SOURCE_ONLY` into the target's own fluid). No new abstraction was invented to make the count
+  work. Nothing changed in the move — the only edits are the qualifications a second file forces
+  (`JourneyPortalRung.forgeCorridor`, `JourneyPortalRung.POUR_LINE`, the members the rung still calls
+  becoming package-private) and one continuation line's indentation.
+
+  **How to verify a split is a pure move, and it is not "I read the diff".** Undo the qualifications
+  the split forced, re-insert the moved block at the offset it came from, and diff the reconstruction
+  against the parent commit: a pure move reconstitutes the old file exactly, so every surviving hunk
+  must be one you can name. Here that was seven — three forced by the split, four being the two
+  deliberate behaviour edits above — and no unaccounted hunk. Reading the diff of a 545-line move
+  cannot distinguish "moved" from "moved and quietly altered"; this can, and it costs one script.
+  It also catches what eyes do not: the `PourSpot`-returning `standToPour` overload kept its `private`
+  through the move and failed at compile time, which is the same slip one line further along a
+  `void` signature would have hidden.
+
+### Known, measured, not fixed
+- **`JourneyStairs.needsOpen` is honoured by the ramp and bypassed by the tower behind it.**
+  `JourneyRamp.fillable` refuses to lay a step into the descent flight; `JourneyShaft.climbOut*` →
+  `TowerProcess`, which runs when that refusal ends the flight, places under itself and has never
+  heard of a staircase. So the fallback does the thing the rule just refused:
+  `cast7.ramp.noFlight = … -9, 57, 32 是下井楼梯 -9, 56, 32 那一级的头顶格，不能堵`, and the tower that
+  took over filled precisely `-9,57,32`. Both south runs of the first post-change tree hit it; one
+  survived because the audit's mend landed before the ascent and one did not, which is luck rather
+  than safety. Recorded rather than repaired: the same decision point had already been edited twice
+  in that session, and a third edit would have voided the distribution being measured. The general
+  shape — a guard only the polite path consults — is written onto `needsOpen` itself.
 - **Rung 12's staircase could hold two steps in one column, and the repair that answered it was what
   broke the staircase.** `digStairsDown` measured each course from `blockPosition()`. A step is opened
   by removing the floor of the cell the body is about to occupy, so the reading taken right after is

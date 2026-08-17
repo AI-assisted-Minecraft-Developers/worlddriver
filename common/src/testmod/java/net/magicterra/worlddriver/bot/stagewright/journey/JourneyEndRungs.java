@@ -1129,6 +1129,13 @@ public final class JourneyEndRungs {
 
     // =====================================================================================
     // Reading the world.
+    //
+    // Four of these are package-private rather than private, for JourneyRehearsal: a rehearsal of
+    // rung 18 or 19 has to put the body in the room the RUNG would find, and two scans that
+    // disagree put「where the staging thinks the room is」and「where the rung thinks it is」in
+    // different places, with no reading afterwards that tells them apart. Duplicating a CONSTANT
+    // across with a stated reason is licensed here (see PORTAL_FRAME_CELLS over there);
+    // duplicating an ALGORITHM is not.
     // =====================================================================================
 
     /**
@@ -1144,7 +1151,7 @@ public final class JourneyEndRungs {
      * past what it loaded does not report "nothing out there", it reports whatever ungenerated chunks
      * say, which is nothing, in exactly the shape of a real answer.
      */
-    private static List<BlockPos> framesAround(ServerLevel level, BlockPos centre, int chunkRadius) {
+    static List<BlockPos> framesAround(ServerLevel level, BlockPos centre, int chunkRadius) {
         List<BlockPos> out = new ArrayList<>();
         java.util.function.Predicate<BlockState> isFrame = s -> s.is(Blocks.END_PORTAL_FRAME);
         ChunkPos c = new ChunkPos(centre);
@@ -1192,14 +1199,14 @@ public final class JourneyEndRungs {
         return out;
     }
 
-    private static boolean hasEye(ServerLevel level, BlockPos frame) {
+    static boolean hasEye(ServerLevel level, BlockPos frame) {
         BlockState st = level.getBlockState(frame);
         return st.hasProperty(EndPortalFrameBlock.HAS_EYE) && st.getValue(EndPortalFrameBlock.HAS_EYE);
     }
 
     /** The middle of a set of frames — the doorway sits inside their ring, so this is where the
      *  portal will appear and where the interior cells are read from. */
-    private static BlockPos centreOf(List<BlockPos> frames) {
+    static BlockPos centreOf(List<BlockPos> frames) {
         long x = 0;
         long y = 0;
         long z = 0;
@@ -1217,7 +1224,7 @@ public final class JourneyEndRungs {
      * pools under the portal's own interior. {@link #ROOM_STAND_MIN} keeps the whole search clear of
      * the frame ring, because a shaft that lands on a frame destroys the thing the next rung came for.
      */
-    private static BlockPos standingCellInTheRoom(ServerLevel level, BlockPos centre) {
+    static BlockPos standingCellInTheRoom(ServerLevel level, BlockPos centre) {
         BlockPos best = null;
         double bestD = Double.MAX_VALUE;
         for (int dx = -ROOM_STAND_SEARCH; dx <= ROOM_STAND_SEARCH; dx++)
