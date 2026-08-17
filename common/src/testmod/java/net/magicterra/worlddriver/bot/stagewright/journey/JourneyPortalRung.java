@@ -372,30 +372,32 @@ public final class JourneyPortalRung {
     private static void digStairsDown(SceneContext ctx, JourneyRig rig, int targetY, int budget,
                                       int cap, Runnable then) {
         BlockPos body = rig.player().blockPosition();
-        // WHERE THE FLIGHT IS, not where the body reads. A body one row over the step it has just cut
-        // is falling into it, and a course measured from there stacks two steps in one column — see
-        // JourneyStairs#courseFrom for the pair that made the audit unsatisfiable on both arms.
-        BlockPos at = JourneyStairs.courseFrom(body);
-        if (at.getY() <= targetY) {
-            // THE BOTTOM IS DECLARED FROM THE FLOOR, NOT FROM THE AIR. `courseFrom` answers with the
-            // step the body is falling into, which is right for planning the next course and wrong
-            // for finishing: `carveTheForge` reads `blockPosition()`, so a bottom called mid-fall
-            // hollowed the alcove one row ABOVE its own staircase. Measured twice on the south
-            // geometry, 2026-08-17: `stairs.bottom = -9, 56, 31` against `forge.landedY = 57`, and
-            // the second of those runs then failed on the first waypoint of the very first ascent —
-            // `第 0/3 段：想到 -9, 56, 31，停在 -9, 61, 32` — because the alcove and the flight no
-            // longer met. A fall takes a tick or two; give it one and ask again.
-            if (!at.equals(body)) {
-                rig.settle(new HoldStill(20), 40,
-                        () -> digStairsDown(ctx, rig, targetY, budget - 1, cap, then));
-                return;
-            }
-            stairBottom = at;
-            rig.evidence("stairs.bottom", at.toShortString() + "（" + stairDir + " 向，顶在 "
+        // THE BOTTOM IS THE BODY'S, ALWAYS. `carveTheForge` hollows the alcove from
+        // `blockPosition()`, so a bottom declared for a cell the body is merely OVER puts the alcove
+        // a row above its own staircase. Measured twice on the south geometry, 2026-08-17, when this
+        // read the anchored cell instead: `stairs.bottom = -9, 56, 31` against `forge.landedY = 57`,
+        // and the second of those runs then failed on the first waypoint of the first ascent —
+        // `第 0/3 段：想到 -9, 56, 31，停在 -9, 61, 32` — because the two no longer met.
+        if (body.getY() <= targetY) {
+            stairBottom = body;
+            rig.evidence("stairs.bottom", body.toShortString() + "（" + stairDir + " 向，顶在 "
                     + (stairTop == null ? "?" : stairTop.toShortString()) + "）");
             then.run();
             return;
         }
+        // WHERE THE FLIGHT IS, not where the body reads. A body one row over the step it has just cut
+        // is falling into it, and a course measured from there stacks two steps in one column — see
+        // JourneyStairs#courseFrom for the pair that made the audit unsatisfiable on both arms.
+        //
+        // Only WHILE THE FLIGHT IS STILL ABOVE THE FLOOR, though. Anchoring the last course would aim
+        // it below the target, and the first version of this instead treated the anchored cell as the
+        // bottom and waited for the body to drop into it — which it never did, because the body was
+        // standing on a step that had not opened. The run spent its whole 40000-tick budget in that
+        // hold and produced no `stairs.bottom` at all, while the course the ORIGINAL code would have
+        // cut (`-9, 57, 31 → -9, 56, 32`, one cell along the other axis) is the one every healthy
+        // south run in the archive got to the floor by.
+        BlockPos anchored = JourneyStairs.courseFrom(body);
+        final BlockPos at = anchored.getY() <= targetY ? body : anchored;
         if (budget <= 0) {
             ctx.fail("楼梯挖不到底：目标 y=" + targetY + "，试了 " + cap + " 级仍停在 "
                     + at.toShortString() + "（" + stairDir + " 向）");
