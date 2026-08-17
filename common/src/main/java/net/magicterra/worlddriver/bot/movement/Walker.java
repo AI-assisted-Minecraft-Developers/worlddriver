@@ -917,6 +917,18 @@ public final class Walker {
                 .append(" jump=").append(jump)
                 .append(" sprinting=").append(p.isSprinting())
                 .append(String.format(java.util.Locale.ROOT, " h=%.4f", h))
+                // ASK THE ATTRIBUTE, do not extrapolate the curve. Sprint is ×1.3 through
+                // Attributes.MOVEMENT_SPEED (verified in 1.21.1: SPEED_MODIFIER_SPRINTING = 0.3,
+                // ADD_MULTIPLIED_TOTAL), so 0.13 here means the channel works and 0.1 means the
+                // modifier never took. The expected steady-state cap is printed beside it so nobody
+                // has to redo the arithmetic.
+                .append(String.format(java.util.Locale.ROOT, " 属性=%.4f(稳态上限应为 %.4f)",
+                        p.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED),
+                        p.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED) * 2.1585))
+                // THE QUANTITY THE JUMP BRANCHES ON, printed as an input rather than as truth: this
+                // body's onGround is wrong in both directions, and ServerPlayerAvatar's ground-jump
+                // — which carries vanilla's whole sprint boost — is gated on exactly it.
+                .append(" onGround=").append(p.onGround())
                 .append(" 身体=").append(foot.toShortString());
         parkourSamples++;
         parkourTakeoff = parkourTakeoffBuf.toString();
