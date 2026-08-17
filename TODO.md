@@ -1,4 +1,123 @@
-## ⬜ 起跳闸换量：`onGround` → 脚底实心（等级 `compiled`，2026-08-18）
+## 🧾 两条账，从此分开记
+
+| 账 | 状态 | 门 |
+|---|---|---|
+| **A. 起跳闸问错量** | **已修**（`onGround` → 脚底实心） | `wd.flushJumpIgnoresOnGround` 红→绿、`wd.airborneJumpInert` 绿 |
+| **B. 20 级第一跤** | **未修**，病因缩到「边与腾空的时序」 | 无（判据见下） |
+| **C. `wd.buriedOre` 回归** | **未修**，方向未定 | 新增 `[avatar] 起跳闸分歧` 读数 |
+
+**A 不是 B 的原因**——判别读数已经把这一条结掉了，不要再合着写。
+
+---
+
+## ⬜ B：20 级——parkour 边成为当前边时身体已在空中（等级 `compiled`，只加读数）
+
+判别读数（跑前写死的判据，五笔全 `0.0000` ⇒ 不命中）：
+
+```
+t+0 jump=true sprinting=true 脚底实心=0.0000 y=50.1768 身体=98,50,0
+t+1 ...                      脚底实心=0.0000 y=50.0244
+t+2 ...                      脚底实心=0.0000 y=49.79..
+```
+
+平台面 y=49，身体在 50.18 且单调下落。**闸没问题，边轮到得太晚（或身体腾空得太早）。** 两支修法相反：
+
+- **(i) 身体先自己跳了一次**（上一条边是 `stepUp`/别的跳），落地前 parkour 边就轮到 ⇒ 病在**步进时机**；
+- **(ii) 走出边缘后自由下落，从来没跳过** ⇒ 那 1.18 格必须另有来源（走路到不了那里），先解释来源。
+
+**分开它们的读数（本轮加，零行为）**：`首次起跳` 现在带
+`t+<样本序>@<gameTime>` 与 `距上次起跳=<n|无>`。后者取自 `Avatar#dbgLastJumpTick()`——
+**身体真正发出过冲量**的那一 tick，不是「被请求跳」的 tick，两者差的正好是要读的东西。
+
+| 读数 | 结论 |
+|---|---|
+| `距上次起跳` 是个小数（≈1–4） | **(i)**：身体是被自己上一跳抛到 50.18 的，刀落在步进时机 |
+| `距上次起跳=无`，或大到与这一跤无关 | **(ii)**：从没起跳，1.18 格另有来源，先查来源再动刀 |
+| `@gameTime` 五笔不连续 | 顺带确认「t+N 不是第 N 个 tick」，任何「往前 N tick」的说法都要按这个改写 |
+
+⛔ 不许：为了让边晚点轮到而加等待、把 parkour 边换成别的 move、给 20 级预铺桥。
+
+---
+
+## ⬜ C：`wd.buriedOre` 回归——**病不在预筛，在执行侧的某一 tick 起跳**（等级 `compiled`）
+
+### 先把那条边确认掉：**gap#60 预筛没有用「能不能跳上去」当可达性**
+
+`MineProcess.findStandableAdjacent` / `canStandHere` / `findDigStand` 全是**纯几何的方块状态判定**——
+不碰 Walker、不碰 Avatar、没有任何跳跃能力项。而且有**日志级的证据**：两趟的**第一条**搜索逐字相同
+
+```
+[pathfinder] search-begin owner=mine start=106656, 221, 100000 goal=Block[target=BlockPos{x=106660, y=224, z=100000}]
+```
+
+⇒ 预筛跑了、给出了同一个目标和同一个目标格。**分歧发生在执行。**
+
+`lastError=no reachable target` 是 `MineProcess` 在**走失败、矿被拉黑之后**发出的通用中止语
+（gap#60 的 javadoc 自己写了：「A genuinely unreachable ore … makes the Walker FAIL, which
+blacklists the ore — still a clean abort」）。场景那句 `stand pre-filter rejected a dig-reachable
+target` 是**断言的标签**，不是诊断。⇒ **这一场此前的绿不是「预筛靠错误跳跃能力才通过」**，
+而是「执行侧把一段挖出来的楼梯走完了」；那一跳是不是 vanilla 会给真玩家的，正是要读的。
+
+### 两趟的分岔点（同一份日志读出来的）
+
+竞技场：`cx=106656 cz=100000 floorY=220`，石方块 x 106659–106663 / y 221–223，矿 `106661,222`。
+
+| | 基线（PASS） | 换闸后（FAIL） |
+|---|---|---|
+| 第 1 条搜索 | `start=106656,221 goal=106660,224` | **逐字相同** |
+| 之后 | `owner=mine.collect start=106660,223` —— 一趟走完，挖到、去捡 | `owner=mine start=106659,222` **×2** —— 走失败、重搜、拉黑 |
+| 收尾 | `pos=(106661.7, 222.0, 100000.7) oreMined=true` | `pos=(106659.7, 222.0, 100000.593) oreMined=false` |
+
+⇒ 身体爬到了石方块里的 `106659,222`（+1），**差一级** `106659,222 → 106660,223`（又一个 +1）。
+路线是**一级一级挖出来的楼梯**，每一级的台阶都是刚破出来的。
+
+### 归类：**是第四类，但它不是新机制，是旧行的例子太窄**
+
+上一轮那张表把「少跳（`onGround=true` 但脚底=0）」写成「迈出崖沿那一 tick」。**机制对、例子窄**：
+它其实是「上一次 `move()` 的竖直分量在**起点**被截断、水平分量随后把脚底带离支撑」这一类，
+**在挖出来的楼梯里同样成立**，和崖沿无关。所以第四类的正确说法是：
+
+> **运行时才长出来的台阶**——竞技场里没有任何东西写着「这一场要跳」，台阶是 break 出来的。
+> 按场景名/几何去枚举影响面，**结构上**看不见它们。
+
+⚠️ 另一支还没被排除：**多跳**。落在台阶顶上正好贴合（无可截断）⇒ `onGround=false`、旧闸拒、
+新闸放行，多出来的一跳会让本该站着破方块的身体腾空。**两支在同一格上都成立，现有证据分不开。**
+
+### 本轮不猜，加一条能**跨全部 255 场**回答归属的读数
+
+`ServerPlayerAvatar.noteGateDisagreement`：新旧两个量**不一致**的那一 tick，
+每具身体每个方向**只打第一条**：
+
+```
+[avatar] 起跳闸分歧 站着却报没站: t=… 脚底实心=… y=… 落速=… 身体=…   ← 多出来的一跳
+[avatar] 起跳闸分歧 悬空却报站着: t=… 脚底实心=… y=… 落速=… 身体=…   ← 被拿掉的一跳
+```
+
+**归属从此是量出来的，不是猜出来的**：一场属于这一类，当且仅当它的窗口里出现过这两行之一——
+**颜色有没有变都算**。这正好回答「同一类里还有哪些场景没翻但本该翻」。
+
+| 下一趟读到 | 结论 | 刀落在哪 |
+|---|---|---|
+| `wd.buriedOre` 窗口里只有 `悬空却报站着` | **少跳**：一次 `onGround` 撒谎的起跳以前在替它爬楼梯 | 楼梯这一级的**执行**（破了台阶之后身体为什么不在支撑上），不是闸 |
+| 只有 `站着却报没站` | **多跳**：多出来的一跳把该站着破方块的身体抛起来 | 请求侧：`WalkerTickClimb` 的破/跳次序 |
+| 两行都有 | 先按**时间**取靠近 `106659,222` 的那一条 | 同上 |
+| 一行都没有 | 病不在这一刀，回查另有变量 | 重开 |
+
+**同一类里的其他候选**（运行时长出台阶、服务端身体驱动）：`wd.serverMine` / `wd.serverMineProcess` /
+`wd.serverMineHarvest` / `wd.serverMineHarvestBuried` / `wd.serverMineCanopyRadius` / `wd.serverMineNoTool` /
+`wd.serverWalkerDeepslateNoTool` / `wd.selfShaftDigUp` / `wd.serverSelfShaftDescends` / `wd.digUpY` /
+`wd.digDownY` / `wd.bridgeDigShortcut` / `wd.bridgeBreakThrough` / `wd.tallBankDigClimb` /
+`wd.serverPillarsOutOfAPit` / `wd.serverTowersOutOfADeepShaft` / `wd.escapeFarthestNoRockDrill` /
+`wd.budgetAwayTunnelChurn` / `wd.boxedChurnEscalate` / `wd.aboveNodeStallPitFill`。
+
+**它们没翻不等于不受影响**——但也有一个**实测的反例**：`wd.selfShaftDigUp` 两趟
+`maxY=222.25220341510126 worstBackslide=0.2522034151012633` **逐位相同**，说明挖/垒这一族
+**不是整族受影响**，归属确实是**逐 tick**的。（顺带更正：场景注释里那个
+`worstBackslide=1.2522034151012633` 是更早的历史值，与本轮无关。）
+
+---
+
+## ⬜ A：起跳闸换量：`onGround` → 脚底实心（等级 `compiled`，2026-08-18，**已修**）
 
 ### ✅ 反编译核过：`verticalCollisionBelow` **不能**当替代量——它就是 `onGround`
 

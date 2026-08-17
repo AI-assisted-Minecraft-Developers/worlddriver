@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **The ground-jump gate now reports where it disagrees with `onGround`.** Swapping a predicate is
+  only visible where the old and new answers differ, and a suite that reports PASS/FAIL cannot show
+  that: 253 scenes moved one colour, and the one that moved (`wd.buriedOre`) was in no category
+  anybody had named, because its riser is *dug at runtime* — nothing about that arena says "this
+  scene jumps". So `ServerPlayerAvatar` logs the first disagreement per body per direction
+  (`起跳闸分歧 站着却报没站` for a jump that now fires, `悬空却报站着` for one that no longer does),
+  with the sole area, the exact y and the fall speed. Membership of the affected class becomes a
+  measurement — a scene is in it iff one of those lines falls inside its window, whether or not its
+  colour moved — instead of a guess from arena names.
+
+- **`Avatar#dbgLastJumpTick()`**, and the parkour takeoff latch now prints the absolute game tick
+  beside each sample. The latch lives in the drive tail, which a dozen branches return before
+  reaching, so its samples are not consecutive ticks and the phrase "N ticks before takeoff" had no
+  meaning without the tick. The new field answers the question the first End-rung reading raised and
+  could not settle: a takeoff sample that says the body was already airborne cannot say whether the
+  body *jumped itself* off the platform (an impulse a few ticks earlier, so the parkour edge became
+  current mid-arc) or simply walked off the lip (no impulse at all). `dbgLastJumpTick` is the tick an
+  impulse was **emitted**, not one where a jump was asked for — the walker holds jump for runs of
+  ticks and the body's own gate decides which of them become an impulse, and that difference is
+  exactly the reading.
+
 ### Fixed
 - **A server-driven body asked the wrong question about whether it was standing, so a planned leap
   went unjumped.** `ServerPlayerAvatar.step()` gated its ground jump — vanilla's `+0.42` plus the

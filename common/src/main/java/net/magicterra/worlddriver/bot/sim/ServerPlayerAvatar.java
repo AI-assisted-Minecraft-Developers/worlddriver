@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.bot.sim;
 import java.util.ArrayList;
 import java.util.List;
 
+import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.movement.BodyCapabilities;
 import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
@@ -782,6 +783,47 @@ public class ServerPlayerAvatar implements Avatar {
     @Override public boolean dbgForwardImpulse() { return pendingForward != 0; }
     @Override public boolean dbgJumping() { return pendingJump; }
     @Override public boolean dbgSneak() { return pendingSneak; }
+    @Override public long dbgLastJumpTick() { return lastJumpTick; }
+
+    /** Game tick of the last EMITTED jump impulse — see {@link Avatar#dbgLastJumpTick()}. */
+    private long lastJumpTick = -1;
+
+    private boolean loggedFiredOffGround, loggedRefusedOnGround;
+
+    /**
+     * Say, once per body per direction, that the ground gate and vanilla's {@code onGround}
+     * disagreed about this tick.
+     *
+     * <p>The swap from {@code onGround()} to the sole reading is only visible where the two differ,
+     * and a suite that reports PASS/FAIL cannot show that: a scene is in the affected class if and
+     * only if one of these lines appears inside its window, whether or not its colour moved. Guessing
+     * the class membership from arena names is what missed {@code wd.buriedOre} — its riser is dug at
+     * runtime, so nothing about the arena says "this scene jumps". Two lines per body is the whole
+     * budget: the FIRST of each direction is the event, and a body beside a ledge produces hundreds.
+     *
+     * <p>{@code 站着却报没站} is the direction this change was made for (a jump that now fires);
+     * {@code 悬空却报站着} is the one it takes away (a jump that no longer does). Both carry the sole
+     * area and the exact y, because a block coordinate cannot tell a body resting at 222.0 from one
+     * falling through 222.9.
+     */
+    private void noteGateDisagreement(boolean footed, double sole) {
+        if (footed == fp.onGround()) return;
+        if (footed && !loggedFiredOffGround) {
+            loggedFiredOffGround = true;
+            WorldDriverCommon.LOG.info("[avatar] 起跳闸分歧 站着却报没站: t={} 脚底实心={} y={} 落速={} 身体={}",
+                    fp.level().getGameTime(), String.format(java.util.Locale.ROOT, "%.4f", sole),
+                    String.format(java.util.Locale.ROOT, "%.4f", fp.getY()),
+                    String.format(java.util.Locale.ROOT, "%.4f", fp.getDeltaMovement().y),
+                    fp.blockPosition().toShortString());
+        } else if (!footed && !loggedRefusedOnGround) {
+            loggedRefusedOnGround = true;
+            WorldDriverCommon.LOG.info("[avatar] 起跳闸分歧 悬空却报站着: t={} 脚底实心={} y={} 落速={} 身体={}",
+                    fp.level().getGameTime(), String.format(java.util.Locale.ROOT, "%.4f", sole),
+                    String.format(java.util.Locale.ROOT, "%.4f", fp.getY()),
+                    String.format(java.util.Locale.ROOT, "%.4f", fp.getDeltaMovement().y),
+                    fp.blockPosition().toShortString());
+        }
+    }
 
     /**
      * Advance one tick of faithful vanilla physics AFTER the agent has set its
@@ -831,8 +873,11 @@ public class ServerPlayerAvatar implements Avatar {
             // through a block boundary — buoyancy at a water surface, a slime bounce — is touching
             // the floor, not standing on it, and must not get a ground jump instead of its bob.
             // Four block reads, and only on ticks the walker actually asks for a jump.
-            if (WalkerGeometry.soleOnSolid(new ServerWorldView(fp.serverLevel()), fp) > 0.0
-                    && fp.getDeltaMovement().y <= 0.0) {
+            double sole = WalkerGeometry.soleOnSolid(new ServerWorldView(fp.serverLevel()), fp);
+            boolean footed = sole > 0.0 && fp.getDeltaMovement().y <= 0.0;
+            noteGateDisagreement(footed, sole);
+            if (footed) {
+                lastJumpTick = fp.level().getGameTime();
                 // Ground / shallow-water jump: vanilla jumpFromGround (y=0.42 on
                 // normal blocks + a sprint forward boost). One-shot edge.
                 double jp = 0.42;

@@ -915,12 +915,23 @@ public final class Walker {
      *  {@code 站住=false} therefore does NOT by itself distinguish a body that was standing and
      *  refused the jump from a body that was already falling when the parkour edge became current —
      *  the exact y and the sole area are what separate them, which is why both are printed. */
-    void noteParkourTakeoff(WorldView world, net.minecraft.world.entity.player.Player p, boolean jump, BlockPos foot) {
+    void noteParkourTakeoff(WorldView world, Avatar a, net.minecraft.world.entity.player.Player p, boolean jump, BlockPos foot) {
         if (parkourSamples >= 5) return;
         double h = Math.hypot(p.getDeltaMovement().x, p.getDeltaMovement().z);
         if (parkourSamples == 0) parkourTakeoffBuf = new StringBuilder();
+        long now = p.level().getGameTime();
+        long lastJump = a.dbgLastJumpTick();
         parkourTakeoffBuf.append(parkourSamples == 0 ? "" : " | ")
-                .append("t+").append(parkourSamples)
+                // The SAMPLE index and the GAME TICK, because they are not the same thing: this
+                // latch sits in the drive tail, which a dozen branches return before reaching, so
+                // "t+2" is the third sample, not the third tick. Without the absolute tick the
+                // phrase "N ticks before takeoff" has no meaning to argue over.
+                .append("t+").append(parkourSamples).append("@").append(now)
+                // Ticks since the body last actually EMITTED an impulse (not since one was asked
+                // for). This is what separates a body that jumped ITSELF off the platform — the
+                // parkour edge became current mid-arc — from one that simply walked off the lip:
+                // the first has a small number here, the second has 无.
+                .append(" 距上次起跳=").append(lastJump < 0 ? "无" : String.valueOf(now - lastJump))
                 .append(" jump=").append(jump)
                 .append(" sprinting=").append(p.isSprinting())
                 .append(String.format(java.util.Locale.ROOT, " h=%.4f", h))

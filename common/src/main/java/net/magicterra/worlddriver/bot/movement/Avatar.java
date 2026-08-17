@@ -205,4 +205,12 @@ public interface Avatar {
     default boolean dbgForwardImpulse() { return false; }
     default boolean dbgJumping() { return false; }
     default boolean dbgSneak() { return false; }
+
+    /** Game tick on which this body last actually EMITTED a jump impulse, or {@code -1} for never.
+     *  Not "was asked to jump" — {@link #commandJump} is held for runs of ticks and the body's own
+     *  ground gate decides which of them become an impulse, so the two answers differ by exactly
+     *  the thing worth reading. A takeoff sample that says the body was already airborne cannot say
+     *  WHY without this: an impulse a few ticks earlier means the body jumped itself off its floor
+     *  (the edge became current mid-arc), none at all means it walked off. Diagnostic only. */
+    default long dbgLastJumpTick() { return -1; }
 }
