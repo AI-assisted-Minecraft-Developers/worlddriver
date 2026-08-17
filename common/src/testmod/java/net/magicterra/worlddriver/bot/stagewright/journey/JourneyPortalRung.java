@@ -245,9 +245,25 @@ public final class JourneyPortalRung {
         });
     }
 
-    /** How far from a waypoint still counts as having arrived. A body standing on the right cell
-     *  reads one cell off when its 0.6-wide box straddles the edge — the {@code cell.5.standMissed}
-     *  lesson — and a leg that stops a cell short has still walked the flight. */
+    /**
+     * How far from a waypoint still counts as having arrived. A body standing on the right cell
+     * reads one cell off when its 0.6-wide box straddles the edge — the {@code cell.5.standMissed}
+     * lesson — and a leg that stops a cell short has still walked the flight.
+     *
+     * <p><b>{@code LEG_ARRIVED = 1.5} 让「迈没迈下最后一级」这件事在日志里从来没被区分过。</b> The
+     * flight's last waypoint IS {@link #stairBottom}, and a body that stops in the cell directly above
+     * it is exactly 1.0 away — inside this tolerance, so the leg reports arrival and
+     * {@code returnStopped} never fires. Measured over four rehearsals: {@code returnedY} is 57 on
+     * some casts and 56 on others, {@code returnStopped} appears zero times in any of them, and the
+     * raise that follows starts from whichever row that was — which is the difference between the
+     * cell pouring and the cell being lost. Three rounds of this rung's investigation went into water
+     * models before anyone read this constant.
+     *
+     * <p><b>This is a fact about the ladder, not about the rehearsal.</b> The same coin is flipped on
+     * a real climb by the same line, and the log says nothing there either. Narrowing the tolerance is
+     * NOT the answer taken here: this is shared walking code and every caller would feel it. See
+     * {@link #landOnFloor} for the rehearsal lever that makes the losing side reproducible first.
+     */
     private static final double LEG_ARRIVED = 1.5;
 
     /**
@@ -298,10 +314,123 @@ public final class JourneyPortalRung {
                 () -> walkTheStairs(rig, stairRoute(down), 0, down, then));
     }
 
+    /**
+     * Rehearsal only: finish the last step-down the flight's arrival tolerance let it skip.
+     *
+     * <p><b>What it pins.</b> The row this rung's raise starts from is decided by whether the descent
+     * actually stepped into {@link #stairBottom} or stopped in the cell above it — and
+     * {@link #LEG_ARRIVED} passes both off as arrivals, so the two look identical in the log and turn
+     * up roughly one run in three at eleven minutes a run. Landing on the floor row is the losing side
+     * ({@code cast8#1.fromY=56}, {@code climb.0 onGround=false}, washed off three times, the pin
+     * adopted twice, the pour's ray gate correctly refusing the diagonal that made), so it is the side
+     * that has to be reachable on demand — the same argument that bought {@code -PforgeAway} and
+     * {@code -PshaftColumn}.
+     *
+     * <p><b>Nothing is edited: not a block, not a fluid.</b> This walks. That is deliberate and it is
+     * the whole difference from the version before it, which cleared the water out of the stairwell's
+     * foot on the theory that a flooded foot floats the body one row up. <b>That theory is dead</b>,
+     * and its own staging rows are what killed it: on eight of ten casts the lever found exactly ONE
+     * wet cell ({@code 1 格抽干了：[2,56,19]}) — the two cells above it were already air — and a body
+     * cannot float in a cell of air, yet {@code returnedY} was 57 all eight times. The correlation
+     * failed at both ends too: the leg that cleared nothing at all returned 56, the one that cleared
+     * two returned 56, and the ones that cleared one or three returned 57. Backfill is real (a live
+     * connected body sits one cell away, {@code drain.6/7/9 = 3,56,19 = water}) and it explains only
+     * why clearing did not stick — never which row the body ended on. So this lever cannot be eaten by
+     * backfill, because it does not fight the water at all.
+     *
+     * <p><b>Two locks, the same two {@link JourneyStairs#aboutToWalk} and
+     * {@link JourneyShaft#floodTheColumnOnce} carry</b>: off unless asked for, and refused outright
+     * when no rung is being rehearsed — so on the real ladder this is unreachable, not merely unused.
+     * It is a {@link JourneyLedger#staged} call as well, so a run that somehow did it anyway could
+     * never report {@code staging.calls=0}.
+     *
+     * <p><b>It does not fix the coin.</b> The ladder flips it too, from the same line, just as
+     * silently; this only makes the losing side reproducible so the remedy can be measured against it.
+     * See {@link #LEG_ARRIVED}.
+     *
+     * <p><b>How to tell it worked, and it is not "the property was read".</b> The downstream量 is
+     * {@code cast*.returnedY}: with the flag on, EVERY cast must report the floor row and
+     * {@code cast8#1.fromY} must be that row. The other half is the run with the flag OFF, which must
+     * still show the natural 57/56 mixture — a lever that quietly moved the baseline would pass the
+     * first half and fail nothing, which is how {@code -PforgeAway} once ran four directions and wrote
+     * the same {@code forge.away} four times, and how the water version passed every check except the
+     * one that mattered.
+     */
+    private static void landOnFloor(JourneyRig rig, String tag, Runnable then) {
+        if (!Boolean.getBoolean("worlddriver.journey.landOnFloor")) { then.run(); return; }
+        if (JourneyRehearsal.target() == null || stairBottom == null) { then.run(); return; }
+        BlockPos here = rig.player().blockPosition();
+        if (here.equals(stairBottom)) {
+            JourneyLedger.staged("rehearsal: the return already ended on the bottom step "
+                    + stairBottom.toShortString() + " — nothing to finish");
+            rig.evidence(tag + ".floorLeg", "已经在楼梯底 " + stairBottom.toShortString()
+                    + " 上，不用补腿（排练专用）");
+            then.run();
+            return;
+        }
+        JourneyLedger.staged("rehearsal: walked the last step-down that LEG_ARRIVED=1.5 let the flight"
+                + " skip, " + here.toShortString() + " → " + stairBottom.toShortString());
+        rig.evidence(tag + ".floorLeg", here.toShortString() + " → " + stairBottom.toShortString()
+                + "（排练专用：最后一段的到达容差 1.5 格把「停在上一级」判成到达，这里把那一步走完；"
+                + "一格方块、一格流体都不动）");
+        rig.settle(new IntentProcess(new Intent(new Goal.Block(stairBottom), List.of(),
+                CapabilityProfile.ALL, List.of(new NoBreak()))), FLOOR_LEG_TICKS,
+                () -> rig.settle(new HoldStill(10), 30, () -> {
+            // SAY SO WHEN THE LEG DID NOT LAND IT. A lever that silently fails is the half v1 was
+            // missing: its own rows said「抽干了」and nothing said the row never moved. And this
+            // particular miss is worth more than the lever — it is the reading that finally names what
+            // is in the bottom step's cell when the body cannot get into it.
+            if (!rig.player().blockPosition().equals(stairBottom)) {
+                rig.evidence(tag + ".floorLegMissed", rig.player().blockPosition().toShortString()
+                        + " 补腿走完仍不在楼梯底 " + stairBottom.toShortString() + " 上 —— "
+                        + landingStory(rig));
+            }
+            then.run();
+        }));
+    }
+
+    /** How long the staged step-down gets. One ordinary +(-1) step inside a flight the body has just
+     *  walked the whole of, so a leg that needs longer than this is not slow, it is blocked — and the
+     *  {@code .floorLegMissed} row is the answer worth having. */
+    private static final int FLOOR_LEG_TICKS = 200;
+
+    /**
+     * Where the body actually ended the descent, and what is under it — always, for every return.
+     *
+     * <p><b>Zero behaviour, and the most valuable line of this change.</b> {@code returnedY} prints a
+     * BlockPos, and a BlockPos cannot tell「站在楼梯底那一级上」from「浮在它上面一格」from「悬在半空
+     * 还没落下去」— three worlds that want three different remedies. Three rounds of this rung went
+     * into water models that all fitted the rows there were, and every one of them would have died in
+     * one run against {@code onGround} plus the two cells' block and fluid states. The precise
+     * position matters for the same reason it did in {@code JourneyRamp#approach}: a 0.6-wide box a
+     * fifth of a cell off centre rests on the cell next door, so「身体 2,57,19」and「x=2.37」are
+     * different facts and only the second one says what is holding it up.
+     */
+    private static String landingStory(JourneyRig rig) {
+        ServerLevel level = rig.ctx().level();
+        var body = rig.player();
+        return String.format(java.util.Locale.ROOT,
+                "精确 %.2f/%.2f/%.2f，onGround=%s，inWater=%s；楼梯底 %s=%s%s，其上 %s=%s%s",
+                body.getX(), body.getY(), body.getZ(), body.onGround(), body.isInWater(),
+                stairBottom.toShortString(), level.getBlockState(stairBottom).getBlock(),
+                fluidStory(level, stairBottom), stairBottom.above().toShortString(),
+                level.getBlockState(stairBottom.above()).getBlock(),
+                fluidStory(level, stairBottom.above()));
+    }
+
+    /** The fluid in one cell, named rather than left to a Fluid's own toString — and「无」when there
+     *  is none, because an absent fluid is a reading too. */
+    private static String fluidStory(ServerLevel level, BlockPos c) {
+        var fluid = level.getFluidState(c);
+        if (fluid.isEmpty()) return "（无流体）";
+        return "（" + (fluid.isSource() ? "源块 " : "流动 ")
+                + BuiltInRegistries.FLUID.getKey(fluid.getType()) + "）";
+    }
+
     /** Every cell the alcove was hollowed out of — the space the body walks in, and nothing else.
      *  {@link #clearPourLine} is allowed to break inside this and nowhere else, which is what stops
      *  a blocked pour from answering by digging a hole in the mould's own floor. */
-    private static Set<BlockPos> forgeCorridor = Set.of();
+    static Set<BlockPos> forgeCorridor = Set.of();
 
     /** The corridor cells the carve could not open. Not a failure list — a BASELINE: it is what
      *  makes "solid in the corridor" mean "something put it there" for every later reading. See
@@ -435,9 +564,17 @@ public final class JourneyPortalRung {
         rig.evidence("stair." + step, at.toShortString() + " → " + foot.toShortString()
                 + (stride > 1 ? "（上一级被拒了三次，这一腿一次挖两级、直接瞄第二级）" : ""));
         if (!at.equals(body))
+            // SAY WHICH OF THE TWO, do not assert the falling one. The anchor is unconditional now,
+            // so this fires whenever the body is anywhere other than the deepest step — including the
+            // case it was built for, a body that has not moved off the course above yet, which is NOT
+            // "falling into" anything. Claiming that would be a row asserting a mechanism it never
+            // checked, the trap this rung has paid for repeatedly.
             rig.evidence("stair." + step + ".fromStep", "身体读作 " + body.toShortString()
-                    + "，那是上一级 " + at.toShortString() + " 的上方格（正落进去）—— 这一级从台阶起算，"
-                    + "否则下一级会落在同一柱里");
+                    + "，这一级改从楼梯最深那级 " + at.toShortString() + " 起算（"
+                    + (body.getX() == at.getX() && body.getZ() == at.getZ()
+                            ? "同一柱、身体在它上方 " + (body.getY() - at.getY()) + " 排，正落进去"
+                            : "身体还在别的柱上 —— 多半是还没迈下去")
+                    + "）—— 否则下一级会落在同一柱里，或把上一级再切一遍");
         for (int s = 1; s <= stride; s++) JourneyStairs.cut(at.relative(stairDir, s).below(s));
         cutStairCells(rig, cut, 0, () ->
                 rig.settle(new IntentProcess(new Intent(new Goal.Block(foot))), 300, () -> {
@@ -611,10 +748,13 @@ public final class JourneyPortalRung {
         // separated from it by eight blocks of untouched rock. The stairs are a corridor and a
         // corridor is entered at its mouth; naming the mouth turns one impossible search into two
         // easy ones.
-        walkTheFlight(rig, tag, true, () -> {
+        walkTheFlight(rig, tag, true, () -> landOnFloor(rig, tag, () -> {
             BlockPos here = rig.player().blockPosition();
             rig.evidence(tag + ".returnedY", here.getY() + "（楼梯底 y=" + stairBottom.getY()
                     + "，身体 " + here.toShortString() + "）");
+            // ALWAYS, flag or no flag. See landingStory: a BlockPos alone cannot tell standing on the
+            // bottom step from floating over it from still falling into it.
+            rig.evidence(tag + ".landing", landingStory(rig));
             if (flightShortfall != null) rig.evidence(tag + ".returnStopped", flightShortfall);
             if (here.getY() > floorY + 1) {
                 // A BODY THAT CANNOT WALK TO THE STAIRS IS USUALLY IN A HOLE IT DUG ITSELF.
@@ -657,7 +797,7 @@ public final class JourneyPortalRung {
                 return;
             }
             then.run();
-        });
+        }));
     }
 
     /**
@@ -1854,8 +1994,8 @@ public final class JourneyPortalRung {
     private static void placeFluid(SceneContext ctx, JourneyRig rig, BlockPos target, Direction away,
                                    net.minecraft.world.item.Item held, String tag, Runnable then) {
         mendBacking(ctx, rig, target, away, tag, () ->
-                standLevelWith(ctx, rig, target, away, tag,
-                        () -> placeFluid(ctx, rig, target, away, held, tag, POUR_APPROACHES, then)));
+                JourneyPour.standLevelWith(ctx, rig, target, away, tag,
+                        () -> placeFluid(ctx, rig, target, away, held, tag, JourneyPour.POUR_APPROACHES, then)));
     }
 
     /**
@@ -1915,7 +2055,7 @@ public final class JourneyPortalRung {
     /**
      * Put the eye on a COLUMN the water can be seen from, before going to take it back.
      *
-     * <p>A cast pours water into {@code wet} from a row {@link #standLevelWith} verified, then
+     * <p>A cast pours water into {@code wet} from a row {@link JourneyPour#standLevelWith} verified, then
      * fetches lava and pours THAT into the cell below — and the pour's own walk is free to drop the
      * body to whatever cell has a floor, which in a hollow alcove is seven rows down. From there the
      * line to the water goes straight through the obsidian that was just cast into the cell between
@@ -1930,7 +2070,7 @@ public final class JourneyPortalRung {
      * because a single-bucket rehearsal casts all ten today and the top pair is the only geometry
      * where the frame HAS to stand between a floor-level eye and its own water.
      *
-     * <p>It raises through {@link #raiseTo} and <b>not</b> through {@link #standLevelWith}, and that
+     * <p>It raises through {@link JourneyPour#raiseTo} and <b>not</b> through {@link JourneyPour#standLevelWith}, and that
      * distinction cost a run's worth of confusion on its own: {@code standLevelWith}'s gate is
      * {@code standToPour}, so it answered "a pour spot exists" to a question about a scoop and
      * skipped the raise, leaving a {@code recover8.rise} row above a body that never moved.
@@ -1958,8 +2098,8 @@ public final class JourneyPortalRung {
      *
      * <p>The column that works is the one directly behind the water, {@code 3,·,19}: from there the
      * ray is axis-aligned and cannot clip a neighbour. {@code standToFill} cannot offer it, because it
-     * only returns cells that ALREADY have a floor and {@code 3,57,19} is air — but {@link #raiseTo}
-     * can, because {@link #raiseColumn} asks the scoop's own clip without asking for a floor and
+     * only returns cells that ALREADY have a floor and {@code 3,57,19} is air — but {@link JourneyPour#raiseTo}
+     * can, because {@link JourneyPour#raiseColumn} asks the scoop's own clip without asking for a floor and
      * {@link JourneyRamp} then builds one. Height is therefore never again an answer to a question
      * about sightline: when the clip above says no water is visible, the raise runs, and it runs for
      * its column whether or not the row is already right.
@@ -1989,553 +2129,7 @@ public final class JourneyPortalRung {
                         ? "高度已经够了 —— 差的是柱：从这一柱望过去，射线要斜着穿过刚浇的门框"
                         : "还差 " + (wantY - here.getY()) + " 排，中间隔着刚浇的门框")
                 + "）—— 先挪到一条望得见水的柱上再收");
-        raiseTo(ctx, rig, wet, away, wantY, false, tag + ".rise", then);
-    }
-
-    /**
-     * Get the body up to the row it is about to pour into, building the step if there is none.
-     *
-     * <p>The alcove is hollow, so the only solid floor in it is the one seven cells down — and a
-     * bucket aimed from there at a cell four rows up traces a line that leaves the frame's plane
-     * before it reaches the backing. Worked through for this mould: from {@code y=51} the ray to the
-     * backing of {@code y=55} enters the plane at {@code y=53} and lands on the backing of the
-     * interior cell two rows low, so {@link #standToPour} rejects every candidate and the rung
-     * stops on its own gate. Rows up to {@code y=54} are reachable from the floor and the top pair
-     * is not, which is why the ladder has never yet been stopped by this: no run had ever cast
-     * eight cells.
-     *
-     * <p>So the step is BUILT, out of the cobblestone the rung is already carrying, by the same
-     * scripted tower that leaves the shaft — and taken down again by nothing, because the corridor
-     * is where the next pours stand and {@link #clearPourLine} owns that problem. Best-effort: a
-     * body that cannot get up says so and lets the pour's own ray gate decide, which is the only
-     * gate in this rung entitled to spend a bucket.
-     */
-    private static void standLevelWith(SceneContext ctx, JourneyRig rig, BlockPos target,
-                                       Direction away, String tag, Runnable then) {
-        int wantY = target.getY() - 1;
-        if (rig.player().blockPosition().getY() >= wantY) { then.run(); return; }
-        // Only when the geometry says so. Every row up to y+3 above the floor already has a spot
-        // with a clear line, and building a step for those would put cobblestone in the corridor
-        // that the NEXT pour then has to stand around. Asking standToPour in verified-only mode is
-        // the same question the pour is about to ask, so this cannot raise for a cell that would
-        // have poured anyway.
-        if (standToPour(ctx.level(), rig, target, away, new java.util.LinkedHashMap<>(), true) != null) {
-            then.run();
-            return;
-        }
-        raiseTo(ctx, rig, target, away, wantY, true, tag, then);
-    }
-
-    /**
-     * Build the step and stand on it — the part of {@link #standLevelWith} that is not a pour.
-     *
-     * <p>Separate because the caller decides WHETHER a raise is needed and the two callers do not
-     * ask the same question. A pour needs a line to the target's backing or floor; a scoop needs a
-     * line to the fluid IN the target. {@link #riseToTakeItBack} had this wrong for exactly one
-     * run: it went through {@code standLevelWith}, whose gate is the pour's, and that gate said a
-     * pour spot exists — so the line printed {@code recover8.rise = 看不见 -9,61,37 里的水} and then
-     * nothing was raised. A guard that names one action and tests another is the fourth of this
-     * repo's four questions about a diagnostic, and this is what it looks like when it bites.
-     */
-    private static void raiseTo(SceneContext ctx, JourneyRig rig, BlockPos target, Direction away,
-                                int wantY, boolean pouring, String tag, Runnable then) {
-        BlockPos verified = raiseColumn(ctx.level(), rig, target, away, wantY, pouring);
-        BlockPos col = verified != null ? verified : target.relative(away.getOpposite(), 1);
-        BlockPos here = rig.player().blockPosition();
-        // 「去这一柱」rather than「在这一柱上垒台阶」: a raise asked for by riseToTakeItBack may be a
-        // pure column change on a body that is already at wantY, and a row that names a staircase
-        // there would be describing work nobody does. What was built is JourneyRamp's own .flight /
-        // .laid / .rampedY, which say it without being guessed at from here.
-        rig.evidence(tag + ".raise", here.toShortString() + " → y=" + wantY
-                + "（去 " + col.getX() + "," + col.getZ() + " 这一柱，不够高就在那儿垒台阶，"
-                + (pouring ? "浇 " : "收 ") + target.toShortString() + " 得跟它同高）"
-                + (verified != null
-                        ? "：站上去射线" + (pouring ? "落得进目标格" : "打得到目标格里的液体") + "，钉住这一柱"
-                        : "：没有一柱验得过射线，退回门框正后方那一柱，不钉"));
-        // ALREADY IN IT — do not walk. The walk is what put the body one cell out of the column in
-        // the first place (`raiseTo.arrivedDistance=1`), and a body standing in the right column has
-        // nothing to gain from a leg that can only move it out of one. Same short-circuit the fill
-        // and the pour both grew for the same reason.
-        if (here.getX() == col.getX() && here.getZ() == col.getZ()) {
-            raiseInColumn(rig, target, col, wantY, verified != null, pouring, tag, then);
-            return;
-        }
-        // THE EXACT COLUMN, radius 0. It was 1, and a radius-1 disk is not a rounding allowance here
-        // — it is a different ray. Worse, `walkToColumn` judges arrival against its own
-        // `ARRIVED_WITHIN` and not against the radius asked for, so the leg reports success from up
-        // to five cells out: `recover8.rise.raiseTo.arrivedDistance=1` was an ARRIVAL, and the
-        // pinned climb it handed over to then refused to place anything because the body was not in
-        // the column. Asking for radius 0 at least makes the walker try for the cell the aim was
-        // computed from; the tower's own drift correction is what finishes the job when it cannot.
-        WorldDriverJourneyScenes.walkToColumn(rig, tag + ".raiseTo", col.getX(), col.getZ(), 0, 800,
-                () -> {
-            // SAY SO WHEN THE ARRIVAL IS NOT AN ARRIVAL. `arrivedDistance` is a number nobody reads
-            // as a verdict, and without this row a raise that started out of its own column looks
-            // identical to one that started in it right up until `raisedY` reports a shortfall.
-            BlockPos landed = rig.player().blockPosition();
-            if (landed.getX() != col.getX() || landed.getZ() != col.getZ()) {
-                rig.evidence(tag + ".raiseColumnMissed", landed.toShortString() + " 不在指定柱 "
-                        + col.getX() + "," + col.getZ() + " 上就算到了（walkToColumn 判到达用的是 5 格）"
-                        + " —— 接下来由塔的偏柱修正把身体带回这一柱");
-            }
-            raiseInColumn(rig, target, col, wantY, verified != null, pouring, tag, then);
-        },
-                () -> {
-            rig.evidence(tag + ".raiseStuck", "走不到 " + col.getX() + "," + col.getZ()
-                    + "，从当前高度浇（多半会被射线闸拦下）");
-            then.run();
-        });
-    }
-
-    private static void raiseInColumn(JourneyRig rig, BlockPos target, BlockPos col, int wantY,
-                                      boolean pin, boolean pouring, String tag, Runnable then) {
-        Runnable done = () -> {
-            BotConfig.allowPlace = false;          // the casting phase is place-free again
-            // THE COLUMN AS WELL AS THE HEIGHT. `water9.raisedY=60/60` was a true statement about a
-            // body two cells out of the column its aim had been computed for, and reading it alone
-            // is what made a lost raise look like a finished one.
-            BlockPos now = rig.player().blockPosition();
-            // AND WHICH SIDE OF THE ROW. A scoop's column is verified with the eye at wantY exactly,
-            // so「高了」is as wrong as「矮了」and reads nothing like it in the failure that follows:
-            // one row high, the line into the water clips the frame cell above it and the run blames
-            // the frame. `recover6.rise.raisedY = 59/58` said this and nobody could see it.
-            String row = now.getY() == wantY ? ""
-                    : now.getY() > wantY
-                            ? "，比要站的排高 " + (now.getY() - wantY)
-                              + " 排 —— 射线是照 y=" + wantY + " 那一排验的，从这里打出去的不是验过的那条"
-                            : "，比要站的排矮 " + (wantY - now.getY()) + " 排";
-            rig.evidence(tag + ".raisedY", now.getY() + "/" + wantY + "（停在 " + now.getX() + ","
-                    + now.getZ() + "，指定柱 " + col.getX() + "," + col.getZ()
-                    + (now.getX() == col.getX() && now.getZ() == col.getZ() ? "，同一柱"
-                            : "，不是同一柱 —— 射线是照那一柱算的") + row + "）");
-            then.run();
-        };
-        // THE STAIRCASE FIRST. It is the only one of the two that puts the body in the column it was
-        // asked for by construction — a tower is pinned to a column only in the sense that it keeps
-        // walking back to one — and it is the only one that works on dry alcove floor at all; see
-        // JourneyRamp for the two runs where the tower gained one course of two holding 130 blocks.
-        Runnable tower = () -> {
-            // Pinned only when the column was CHOSEN by the ray. Falling back to the arithmetic
-            // column means the rung does not know that column works, and pinning a guess buys
-            // nothing while it can still cost the climb — so that path keeps the exit's own
-            // adopt-on-drift policy.
-            if (pin) JourneyShaft.climbOutInColumn(rig, wantY, col.getX(), col.getZ(), tag, done);
-            else JourneyShaft.climbOut(rig, wantY, tag, done);
-        };
-        // EXACT ROW for a scoop, 「够高就行」 for a pour — see JourneyRamp#buildTo(…, exactRow, …).
-        // A body that walked into the column one row high used to skip the flight entirely, so the
-        // landing never got its floor and the scoop fired a ray verified for a row it was not on.
-        JourneyRamp.buildTo(rig, forgeCorridor, new BlockPos(col.getX(), wantY, col.getZ()), !pouring,
-                tag + ".ramp", () -> {
-            // Handed on rather than replaced: the tower is what carried this rung out of its own
-            // flood on 2026-08-17 (`cast9` 59/59), where the body floats and no placement is what
-            // raises it. A flight that reached the row has nothing left for it to do.
-            if (rig.player().blockPosition().getY() >= wantY) { done.run(); return; }
-            tower.run();
-        });
-    }
-
-    /**
-     * Which column to build the step in — one whose eye can actually see the target's backing.
-     *
-     * <p>It used to be arithmetic: one cell back along {@code away} from the target. That column is
-     * a good guess and it is not a checked one, and when the body cannot reach it the climb starts
-     * somewhere else and the aim silently becomes a different aim. Run 43's tenth cell went that way
-     * — the arithmetic column was {@code x=-10}, the body could only get to {@code x=-9} (there is
-     * no floor at {@code y=57} anywhere else in a hollow alcove), and the tower then drifted to
-     * {@code x=-8} and {@code x=-7} and adopted it.
-     *
-     * <p>So ask the question the BUCKET is going to ask, one row down: standing HERE at
-     * {@code wantY}, does the same clip vanilla runs do what this leg needs? Nearest wins and the
-     * body's own column is at distance zero, so a column that already works costs no walk at all —
-     * which for that run is the fix, because {@code x=-9} verifies.
-     *
-     * <p>{@code pouring} picks WHICH clip, and it is not a stylistic parameter: a pour wants the ray
-     * to stop on the target's backing or floor ({@link #pourLandsFrom}, {@code Fluid.NONE}), a scoop
-     * wants it to reach the fluid inside the target itself ({@link #scoopSeesFrom},
-     * {@code Fluid.SOURCE_ONLY}). They disagree exactly where it matters — over a freshly cast cell,
-     * the pour question passes and the scoop question does not.
-     *
-     * <p>Corridor cells only, feet and head both, so the column is inside the volume this rung
-     * hollowed out and the head has somewhere to go. Null when none of them verify, and the caller
-     * says so rather than pretending.
-     */
-    private static BlockPos raiseColumn(ServerLevel level, JourneyRig rig, BlockPos target,
-                                        Direction away, int wantY, boolean pouring) {
-        BlockPos here = rig.player().blockPosition();
-        BlockPos best = null;
-        long bestD = Long.MAX_VALUE;
-        for (int back = 1; back <= POUR_LINE; back++)
-            for (int side = -2; side <= 2; side++) {
-                BlockPos foot = target.relative(away.getOpposite(), back)
-                        .relative(away.getClockWise(), side).above(wantY - target.getY());
-                if (!forgeCorridor.contains(foot) || !forgeCorridor.contains(foot.above())) continue;
-                // A LANDING HAS TO BE A PLACE A BODY CAN BE. This asked only whether the eye at that
-                // cell would see the backing, which is true of a cell full of cobblestone — and by
-                // the ninth cast some of them are: the raise for the notch one row up rests its own
-                // top step in exactly the cell the ring cell below it wants to stand in. Measured,
-                // rehearsal 2026-08-16: `wet.9` ramped to -10,60,37 over a step at -10,59,37, and
-                // `cast9.lift` then chose -10,59,37 and reported「被 cobblestone 占着」.
-                if (level.getBlockState(foot).blocksMotion()
-                        || level.getBlockState(foot.above()).blocksMotion()) continue;
-                if (!(pouring ? pourLandsFrom(level, rig, foot, target, away)
-                              : scoopSeesFrom(level, rig, foot, target))) continue;
-                long dx = foot.getX() - here.getX(), dz = foot.getZ() - here.getZ();
-                long d = dx * dx + dz * dz;
-                if (d < bestD) { bestD = d; best = foot; }
-            }
-        return best;
-    }
-
-    /** Would a body standing at {@code foot} be able to FILL from the fluid in {@code target}? The
-     *  same {@code SOURCE_ONLY} clip {@code BucketItem.use} runs — the scoop's counterpart to
-     *  {@link #pourLandsFrom}, and the reason a raise has to be told which of the two it is for. */
-    private static boolean scoopSeesFrom(ServerLevel level, JourneyRig rig, BlockPos foot,
-                                         BlockPos target) {
-        var eye = new net.minecraft.world.phys.Vec3(foot.getX() + 0.5,
-                foot.getY() + rig.player().getEyeHeight(), foot.getZ() + 0.5);
-        var to = net.minecraft.world.phys.Vec3.atCenterOf(target);
-        if (eye.distanceTo(to) > JourneyFill.BUCKET_REACH) return false;
-        var hit = level.clip(new net.minecraft.world.level.ClipContext(eye, to,
-                net.minecraft.world.level.ClipContext.Block.OUTLINE,
-                net.minecraft.world.level.ClipContext.Fluid.SOURCE_ONLY, rig.player()));
-        return hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
-                && hit.getBlockPos().equals(target);
-    }
-
-    /** Would a bucket emptied by a body standing at {@code foot} land in {@code target}? The same
-     *  clip {@link #standToAimAt} runs, from the eye that body WOULD have — a prediction about a
-     *  cell the rung is about to build a floor under, which is why it cannot ask for one. */
-    private static boolean pourLandsFrom(ServerLevel level, JourneyRig rig, BlockPos foot,
-                                         BlockPos target, Direction away) {
-        var eye = new net.minecraft.world.phys.Vec3(foot.getX() + 0.5,
-                foot.getY() + rig.player().getEyeHeight(), foot.getZ() + 0.5);
-        for (BlockPos aim : List.of(target.relative(away), target.below())) {
-            if (!level.getBlockState(aim).isSolidRender(level, aim)) continue;
-            var to = net.minecraft.world.phys.Vec3.atCenterOf(aim);
-            if (eye.distanceTo(to) > JourneyFill.BUCKET_REACH) continue;
-            var hit = level.clip(new net.minecraft.world.level.ClipContext(eye, to,
-                    net.minecraft.world.level.ClipContext.Block.OUTLINE,
-                    net.minecraft.world.level.ClipContext.Fluid.NONE, rig.player()));
-            if (hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) continue;
-            if (!hit.getBlockPos().equals(aim)) continue;
-            if (aim.relative(hit.getDirection()).equals(target)) return true;
-        }
-        return false;
-    }
-
-    /**
-     * Last resort before a pour gives up: pillar up where the body IS, rather than where it should be.
-     *
-     * <p>{@link #standLevelWith} builds a step when the geometry says no spot can see the target, and
-     * it is right about the geometry — but it is asked before the walk, and the walk is what fails.
-     * Run 40 cell six: {@code water6.stand=-9,56,37} verified, so no step was built, and the body
-     * then ended at {@code -8,56,37} one cell east and stayed there through both retries, its ray
-     * landing in {@code -9,58,38} every time. The one good cell existed and the walker could not
-     * reach it, which no amount of re-choosing fixes.
-     *
-     * <p>Lifting to the target's own row is what makes the backing aim horizontal wherever the body
-     * happens to be standing. The cobblestone is left behind on purpose — the pours after this one
-     * stand on it, and {@link JourneyRamp} is what keeps {@link #tidyTheAlcove} from sweeping it.
-     *
-     * <p><b>A staircase, not a pillar, and the column is chosen by the ray.</b> Two things were
-     * wrong with towering straight up from wherever the body was. The tower does not work on this
-     * geometry — see {@link JourneyRamp}'s note for the two verbatim reproductions of
-     * {@code climb.1.stalled} on dry land with 130 cobblestone in hand — and even a tower that
-     * worked would put the eye in the BODY's column rather than in one whose ray reaches the
-     * backing. The real ladder of 2026-08-16 measured exactly that second half: {@code cast6} lifted
-     * in {@code x=-9} for a target in {@code x=-8}, and the diagonal that makes grazed the corner of
-     * the obsidian it had cast two rows below ({@code picks=-8,58,38 obsidian → 落进 -9,58,38}). So
-     * the landing is {@link #raiseColumn}'s answer — the same clip the bucket will run, asked from
-     * the eye a body standing there WOULD have — and the flight is built to reach it.
-     *
-     * <p>The tower is still run behind it, and only behind it: it has carried this rung before (the
-     * rehearsal of 2026-08-17 lifted {@code cast9} 59/59 out of the alcove's own flood, where a body
-     * floats and a placement is not what raises it), so a flight that falls short hands over rather
-     * than ending the cast.
-     */
-    private static void liftInPlace(SceneContext ctx, JourneyRig rig, BlockPos target, Direction away,
-                                    String tag, int tries, Runnable then) {
-        int wantY = target.getY() - 1;
-        if (tries > 2 || rig.player().blockPosition().getY() >= wantY) { then.run(); return; }
-        // DIRECTLY BEHIND FIRST, then whatever else verifies. `raiseColumn` ranks by distance and the
-        // body's own column is at distance zero, so on a lift it always wins — and the shot from the
-        // body's column to a target one cell sideways is the diagonal this whole rung keeps losing
-        // cells to: it crosses the frame's plane at a block CORNER, where the segment clip and the
-        // fired ray tie-break opposite ways (see aimThatLandsIn). The cell one back and one down
-        // from the target is the only geometry that makes the backing shot horizontal, which is what
-        // placeFluid's own contract asks for.
-        BlockPos behindLow = target.relative(away.getOpposite()).below();
-        BlockPos verified = forgeCorridor.contains(behindLow) && forgeCorridor.contains(behindLow.above())
-                && !ctx.level().getBlockState(behindLow).blocksMotion()
-                && !ctx.level().getBlockState(behindLow.above()).blocksMotion()
-                && pourLandsFrom(ctx.level(), rig, behindLow, target, away)
-                ? behindLow : raiseColumn(ctx.level(), rig, target, away, wantY, true);
-        BlockPos here = rig.player().blockPosition();
-        BlockPos landing = verified != null ? verified : new BlockPos(here.getX(), wantY, here.getZ());
-        rig.evidence(tag + ".lift", here.toShortString() + " → " + landing.toShortString()
-                + "（走不到选定的落脚格，修一段楼梯上到和 " + target.toShortString() + " 同高）"
-                + (verified != null ? "：站上去射线落得进目标格"
-                        : "：没有一柱验得过射线，就在身体这一柱上修，不钉"));
-        JourneyRamp.buildTo(rig, forgeCorridor, landing, tag + ".lift", () -> {
-            if (rig.player().blockPosition().getY() >= wantY) {
-                rig.evidence(tag + ".liftedY", rig.player().blockPosition().getY() + "/" + wantY);
-                then.run();
-                return;
-            }
-            rig.evidence(tag + ".liftTower", "楼梯到 y=" + rig.player().blockPosition().getY()
-                    + " 就修不上去了，交给塔兜底");
-            BotConfig.allowPlace = true;
-            JourneyShaft.climbOut(rig, wantY, tag + ".lift", () -> {
-                BotConfig.allowPlace = false;
-                rig.evidence(tag + ".liftedY", rig.player().blockPosition().getY() + "/" + wantY);
-                then.run();
-            });
-        });
-    }
-
-    /** How many times a pour may re-walk at its cell before the rung stops. Two, plus the one it
-     *  started with: this is a few blocks inside a chamber the body just carved, so a leg that ends
-     *  out of reach three times is not a slow walk, it is a body that cannot get there. */
-    private static final int POUR_APPROACHES = 3;
-
-    /**
-     * A cell the body can STAND in and from which this pour provably lands in {@code target}.
-     *
-     * <p>The spot used to be arithmetic — two blocks back along {@code away}, at the target's own
-     * height — and level with the target is the right idea for the ray. It is the wrong idea for the
-     * body: the alcove is hollow, so "level with a cell four rows up" is a cell with nothing under
-     * it, and asking the walker to occupy thin air is what wedged a run at {@code -9,53,20}, three
-     * blocks outside the corridor it had just carved, unable to move for three identical attempts.
-     *
-     * <p>So both halves are asked properly. <b>Standable</b> — feet and head clear, something solid
-     * underfoot — and <b>useful</b>, meaning the same clip vanilla is about to run lands on the
-     * backing's near face, which is what puts the fluid in {@code target} and nowhere else. Nearest
-     * to the body wins, so a cell it is already standing in costs no walk at all.
-     */
-    private static PourSpot standToPour(ServerLevel level, JourneyRig rig, BlockPos target,
-                                        Direction away, Map<String, Integer> why) {
-        return standToPour(level, rig, target, away, why, false);
-    }
-
-    /** Where to stand and what to aim at — one answer, because the two are chosen together. */
-    private record PourSpot(BlockPos stand, BlockPos aim) {}
-
-    /**
-     * {@code verifiedOnly} drops the standable fallback, which is what makes this answerable as a
-     * QUESTION — "is there anywhere down here with a clear line to this cell" — rather than only as
-     * a place to walk to. {@link #standLevelWith} asks it that way.
-     *
-     * <h2>Two aims, because a floating body cannot use the first one</h2>
-     *
-     * The backing is the natural thing to aim at and it needs the eye almost exactly level with the
-     * target: the ray has to cross the frame's plane inside the target's own row, and the plane is
-     * two blocks away, so a body one block too high enters the row ABOVE and the fluid lands there.
-     * That is not a hypothetical — the alcove floods with the cast's own water, a body in water
-     * floats one block, and run 29's cell three recorded exactly it twice
-     * ({@code 射线停在 -11,58,38 granite}) with no verified spot left over.
-     *
-     * <p>So when the backing yields nothing, aim at the target's FLOOR instead and hit its top face:
-     * the fluid still lands in the target, and looking down at a block one row below is precisely
-     * what a body standing a block too high can do. That the floor is solid is not an assumption —
-     * it is {@link JourneyForge}'s first invariant, which is why the ring is cast in the order it is.
-     * The exception is the top pair, whose floor is an interior cell opened three casts earlier;
-     * there this finds nothing and {@link #standLevelWith} still has to build the step.
-     */
-    private static PourSpot standToPour(ServerLevel level, JourneyRig rig, BlockPos target,
-                                        Direction away, Map<String, Integer> why,
-                                        boolean verifiedOnly) {
-        BlockPos standable = firstStandable(level, rig, target, away);
-        for (BlockPos aim : List.of(target.relative(away), target.below())) {
-            if (!level.getBlockState(aim).isSolidRender(level, aim)) {
-                why.merge(aim.toShortString() + " 不是实心的，弹不出流体", 1, Integer::sum);
-                continue;
-            }
-            BlockPos best = standToAimAt(level, rig, target, away, aim, why);
-            if (best != null) return new PourSpot(best, aim);
-        }
-        return standable == null || verifiedOnly ? null
-                : new PourSpot(standable, target.relative(away));
-    }
-
-    /**
-     * Which block, aimed at from where the body is STANDING RIGHT NOW, puts the fluid in the target.
-     *
-     * <p>The same two candidates {@link #standToPour} weighs — the backing's near face and the
-     * target's own floor — and the answer is decided by <b>the ray the bucket is actually going to
-     * fire</b>, not by the segment that chose the candidate. Null when neither survives that, so the
-     * caller's own gate can refuse to spend the bucket.
-     *
-     * <h2>Why the two rays are not the same ray, even standing still</h2>
-     *
-     * The segment version clips {@code eye → atCenterOf(aim)} in doubles. The bucket does not: it
-     * reads {@code getXRot()}/{@code getYRot()}, which {@code aimAtBlock} stored as <b>floats</b>
-     * computed from the same eye, and re-derives a direction from them through {@code Mth}'s
-     * lookup-table trigonometry. Nominally the same line; not bit-for-bit the same line.
-     *
-     * <p>Normally that costs a ten-thousandth of a block and decides nothing. It decides a whole cell
-     * when the line runs along a block EDGE, and the real ladder of 2026-08-16 hit exactly that at
-     * cell three:
-     *
-     * <pre>
-     * cast3.fromHere = -9,56,32 就地瞄 -11,57,34，流体会落进 -11,57,33（不走了）
-     * cast3.picks    = -10,57,34 granite face=north → 落进 -10,57,33
-     * </pre>
-     *
-     * Hand-computed from those two rows, and stated as the likely mechanism rather than as a measured
-     * one, because the rows print CELLS and the arithmetic needs the sub-cell position: a body at the
-     * centre of {@code -9,56,32} has its eye at {@code (-8.5, 57.62, 32.5)}, the aim's centre is
-     * {@code (-10.5, 57.5, 34.5)}, so {@code dx = -2.0} and {@code dz = +2.0} — {@code yaw} is
-     * exactly 45° and the whole segment lies on the plane {@code x + z = 24}, which is the diagonal
-     * through block corners. Every cell boundary it crosses, it crosses at a corner, and which of the
-     * four cells meeting there counts as hit is then decided by the last bit of the direction vector.
-     * Two rays that differ in that bit tie-break opposite ways, one cell apart, which is exactly the
-     * shape of the recorded disagreement.
-     *
-     * <p>Note what this is NOT: the fill's stale-aim trap, where the body moved between the question
-     * and the shot. Here it is one tick and one eye. The measurement that ruled quantisation out for
-     * that one was taken on a much steeper aim and does not carry over — an eye-drift row of 0.00
-     * says nothing about a ray riding an edge.
-     *
-     * <p>And the fix does not rest on the mechanism being right. Whatever splits the two rays, the
-     * one that decides is now the one that fires.
-     *
-     * <p>So the candidate is not accepted on the segment's word. It is aimed at for real, and the
-     * SAME {@code aimedAt} the {@code .picks} gate runs a moment later has to agree; a candidate that
-     * disagrees is skipped and the next one tried, which is why the two-element list matters — the
-     * backing is a nearly horizontal shot and the floor is a steep one, and an edge-riding geometry
-     * is very unlikely to be shared by both.
-     */
-    private static BlockPos aimThatLandsIn(ServerLevel level, JourneyRig rig, BlockPos target,
-                                           Direction away, String tag) {
-        var eye = rig.player().getEyePosition();
-        int candidate = 0;
-        for (BlockPos aim : List.of(target.relative(away), target.below())) {
-            candidate++;
-            if (!level.getBlockState(aim).isSolidRender(level, aim)) continue;
-            var to = net.minecraft.world.phys.Vec3.atCenterOf(aim);
-            if (eye.distanceTo(to) > JourneyFill.BUCKET_REACH) continue;
-            var hit = level.clip(new net.minecraft.world.level.ClipContext(eye, to,
-                    net.minecraft.world.level.ClipContext.Block.OUTLINE,
-                    net.minecraft.world.level.ClipContext.Fluid.NONE, rig.player()));
-            if (hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) continue;
-            if (!hit.getBlockPos().equals(aim)) continue;
-            if (!aim.relative(hit.getDirection()).equals(target)) continue;
-            // THE SHOT, not the prediction of it. Aiming here is not a side effect to apologise for:
-            // the caller's very next act is to aim at whatever this returns, so the body ends up
-            // pointing at the candidate either way — this only makes the decision and the aim the
-            // same act.
-            rig.body().avatar().aimAtBlock(aim);
-            var fired = WorldDriverJourneyScenes.aimedAt(rig.player(), JourneyFill.BUCKET_REACH, false);
-            BlockPos into = fired.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
-                    ? fired.getBlockPos().relative(fired.getDirection()) : null;
-            if (target.equals(into)) return aim;
-            // Named, and named per candidate. A row that only said「没有能浇的落脚点」would send the
-            // next reader looking at the geometry, which is fine — and this one says the geometry was
-            // fine and the two rays disagreed, which is a different search entirely.
-            rig.evidence(tag + ".aimForked." + candidate, "线段 clip 说瞄 "
-                    + aim.toShortString() + " 会落进 " + target.toShortString()
-                    + "，但存成角度之后真正的射线落进 "
-                    + (into == null ? String.valueOf(fired.getType()) : into.toShortString())
-                    + " —— 换下一个候选（身体 " + rig.player().blockPosition().toShortString()
-                    + "，眼睛 " + String.format(java.util.Locale.ROOT, "%.2f/%.2f/%.2f", eye.x, eye.y, eye.z)
-                    + " 朝 yaw=" + String.format(java.util.Locale.ROOT, "%.2f", rig.player().getYRot())
-                    + " pitch=" + String.format(java.util.Locale.ROOT, "%.2f", rig.player().getXRot()) + "）");
-        }
-        return null;
-    }
-
-    /** The nearest cell the body could stand in at all, ray or no ray. Kept apart from the aim scan
-     *  so a body is never left with nowhere to go because the ray test is stricter than it should be
-     *  — the pour's own {@code .picks} gate still refuses to spend the bucket, so falling back here
-     *  cannot cause a wrong-cell pour. */
-    private static BlockPos firstStandable(ServerLevel level, JourneyRig rig, BlockPos target,
-                                           Direction away) {
-        BlockPos from = rig.player().blockPosition();
-        BlockPos standable = null;
-        double standableD = Double.MAX_VALUE;
-        for (int back = 1; back <= 4; back++)
-            for (int side = -2; side <= 2; side++)
-                for (int dy = 0; dy >= -6; dy--) {
-                    BlockPos foot = target.relative(away.getOpposite(), back)
-                            .relative(away.getClockWise(), side).above(dy);
-                    if (!level.getBlockState(foot.below()).blocksMotion()) continue;
-                    if (!level.getBlockState(foot).getCollisionShape(level, foot).isEmpty()) continue;
-                    BlockPos head = foot.above();
-                    if (!level.getBlockState(head).getCollisionShape(level, head).isEmpty()) continue;
-                    double d = foot.distSqr(from);
-                    if (d < standableD) { standableD = d; standable = foot; }
-                }
-        return standable;
-    }
-
-    private static BlockPos standToAimAt(ServerLevel level, JourneyRig rig, BlockPos target,
-                                         Direction away, BlockPos backing, Map<String, Integer> why) {
-        BlockPos from = rig.player().blockPosition();
-        BlockPos best = null;
-        double bestD = Double.MAX_VALUE;
-        for (int back = 1; back <= 4; back++)
-            for (int side = -2; side <= 2; side++)
-                for (int dy = 0; dy >= -6; dy--) {
-                    BlockPos foot = target.relative(away.getOpposite(), back)
-                            .relative(away.getClockWise(), side).above(dy);
-                    double d = foot.distSqr(from);
-                    if (!level.getBlockState(foot.below()).blocksMotion()) {
-                        why.merge("脚下不实心", 1, Integer::sum); continue;
-                    }
-                    if (!level.getBlockState(foot).getCollisionShape(level, foot).isEmpty()) {
-                        why.merge("落脚格被占", 1, Integer::sum); continue;
-                    }
-                    BlockPos head = foot.above();
-                    if (!level.getBlockState(head).getCollisionShape(level, head).isEmpty()) {
-                        why.merge("头顶被占", 1, Integer::sum); continue;
-                    }
-                    // A BODY IN WATER FLOATS, and the whole aim turns on one block of height.
-                    //
-                    // The cast's own bucket floods the corridor — the source sits in an interior cell
-                    // open to it — so by the third cell the row the pours stand in is water. The body
-                    // then does not stand in the cell this loop picked; it bobs a block above it.
-                    // Measured, cell 2: `water2.stand=-9,56,37` chosen and `water2.picks=…身体
-                    // -9,57,37` an instant later, and from that extra block the ray to a backing two
-                    // away enters the plane one row high — `落进 -9,58,37` for a target at
-                    // `-9,57,38`. Nothing was wrong with the choice; the body was not where the
-                    // choice assumed. So predict the float instead of assuming it away, and require
-                    // the extra headroom the floating body actually occupies.
-                    boolean afloat = !level.getFluidState(foot).isEmpty();
-                    if (afloat) {
-                        BlockPos over = foot.above(2);
-                        if (!level.getBlockState(over).getCollisionShape(level, over).isEmpty()) {
-                            why.merge("浮起来会顶到 " + over.toShortString(), 1, Integer::sum);
-                            continue;
-                        }
-                    }
-                    // The eye a body standing here would have, and the clip a filled bucket runs
-                    // from it. `Fluid.NONE`, because that is what a non-empty bucket uses.
-                    var eye = new net.minecraft.world.phys.Vec3(foot.getX() + 0.5,
-                            foot.getY() + (afloat ? 1 : 0) + rig.player().getEyeHeight(),
-                            foot.getZ() + 0.5);
-                    var aim = net.minecraft.world.phys.Vec3.atCenterOf(backing);
-                    if (eye.distanceTo(aim) > JourneyFill.BUCKET_REACH) {
-                        why.merge("够不着 " + backing.toShortString(), 1, Integer::sum); continue;
-                    }
-                    var hit = level.clip(new net.minecraft.world.level.ClipContext(eye, aim,
-                            net.minecraft.world.level.ClipContext.Block.OUTLINE,
-                            net.minecraft.world.level.ClipContext.Fluid.NONE, rig.player()));
-                    if (hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) {
-                        why.merge("射线没打到方块", 1, Integer::sum); continue;
-                    }
-                    if (!hit.getBlockPos().equals(backing)) {
-                        why.merge("射线停在 " + hit.getBlockPos().toShortString() + " "
-                                + level.getBlockState(hit.getBlockPos()).getBlock(), 1, Integer::sum);
-                        continue;
-                    }
-                    if (!backing.relative(hit.getDirection()).equals(target)) {
-                        why.merge("打中 " + backing.toShortString() + " 的 "
-                                + hit.getDirection() + " 面", 1, Integer::sum); continue;
-                    }
-                    if (d < bestD) { bestD = d; best = foot; }
-                }
-        return best;
+        JourneyPour.raiseTo(ctx, rig, wet, away, wantY, false, tag + ".rise", then);
     }
 
     private static void placeFluid(SceneContext ctx, JourneyRig rig, BlockPos target, Direction away,
@@ -2555,15 +2149,15 @@ public final class JourneyPortalRung {
         // level with the cell — and then the retry chose a stand, walked to it, and reported
         // `身体在 -10,57,35`, two rows below the row it had just built to reach. The fill has had
         // this short-circuit since run 36 for the same reason; this is it on the pour side.
-        PourSpot spot = null;
-        BlockPos already = aimThatLandsIn(ctx.level(), rig, target, away, tag + "." + tries);
+        JourneyPour.PourSpot spot = null;
+        BlockPos already = JourneyPour.aimThatLandsIn(ctx.level(), rig, target, away, tag + "." + tries);
         if (already != null) {
             rig.evidence(tag + ".fromHere." + tries, rig.player().blockPosition().toShortString()
                     + " 就地瞄 " + already.toShortString() + "，流体会落进 "
                     + target.toShortString() + "（不走了）；" + JourneyFill.eyeNow(rig));
-            spot = new PourSpot(rig.player().blockPosition(), already);
+            spot = new JourneyPour.PourSpot(rig.player().blockPosition(), already);
         }
-        if (spot == null) spot = standToPour(ctx.level(), rig, target, away, why);
+        if (spot == null) spot = JourneyPour.standToPour(ctx.level(), rig, target, away, why);
         if (spot == null) {
             ctx.fail("模腔里没有能浇到 " + target.toShortString() + " 的落脚点："
                     + "要求脚下实心、头顶两格空、射线打在背板 " + target.relative(away).toShortString()
@@ -2590,7 +2184,7 @@ public final class JourneyPortalRung {
             // so whichever one lands in the target is the one used.
             // …and the post-walk ask is tagged apart from the pre-walk one, because the whole point of
             // asking twice is that the body is somewhere else now.
-            BlockPos aimNow = aimThatLandsIn(ctx.level(), rig, target, away,
+            BlockPos aimNow = JourneyPour.aimThatLandsIn(ctx.level(), rig, target, away,
                     tag + "." + tries + ".walked");
             if (aimNow != null && !aimNow.equals(backing))
                 rig.evidence(tag + ".reaimed." + tries, backing.toShortString() + " → " + aimNow.toShortString()
@@ -2617,7 +2211,7 @@ public final class JourneyPortalRung {
                 // So the aim is decided here, after the last settle, by the same closed loop
                 // `aimThatLandsIn` runs — and what it returns is what fires.
                 ServerLevel lvl = ctx.level();
-                BlockPos settled = aimThatLandsIn(ctx.level(), rig, target, away,
+                BlockPos settled = JourneyPour.aimThatLandsIn(ctx.level(), rig, target, away,
                         tag + "." + tries + ".settled");
                 BlockPos at = settled != null ? settled : planned;
                 rig.body().avatar().aimAtBlock(at);
@@ -2654,7 +2248,7 @@ public final class JourneyPortalRung {
                         // three identical answers. What changes is the world — and the thing in the
                         // way is a block in a corridor the rung hollowed out itself.
                         clearPourLine(ctx, rig, target, away, tag + ".clear" + tries,
-                                () -> liftInPlace(ctx, rig, target, away, tag, tries,
+                                () -> JourneyPour.liftInPlace(ctx, rig, target, away, tag, tries,
                                 () -> placeFluid(ctx, rig, target, away, held, tag, tries - 1, then)));
                         return;
                     }
@@ -2722,7 +2316,7 @@ public final class JourneyPortalRung {
     /** How far back along its own line a pour may look. Three, which is one more than the usual
      *  {@code push} and one less than {@code standToPour}'s reach — far enough to cover the cells a
      *  body standing in the corridor sees through, short of the alcove's back wall. */
-    private static final int POUR_LINE = 3;
+    static final int POUR_LINE = 3;
 
     /** The cells the ray goes through on its way to the backing, and what is standing in them.
      *

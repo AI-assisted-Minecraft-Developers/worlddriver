@@ -276,8 +276,11 @@ final class JourneyRamp {
 
     /** One leg of ordinary walking inside the alcove. NoBreak throughout: the tallest thing on any
      *  route down here is the mould this rung is building, and a walker sent at a cell it cannot
-     *  reach eats it — see {@code reopen}'s note for the run that lost three cast cells that way. */
-    private static void walkTo(JourneyRig rig, BlockPos spot, Runnable then) {
+     *  reach eats it — see {@code reopen}'s note for the run that lost three cast cells that way.
+     *
+     *  <p>Package-private because {@link JourneyPour#footBeforeTower} walks the same alcove under the
+     *  same rule, and a second copy of「一段带 NoBreak 的短腿」would be a second place to forget it. */
+    static void walkTo(JourneyRig rig, BlockPos spot, Runnable then) {
         rig.settle(new IntentProcess(new Intent(new Goal.Block(spot), List.of(),
                 CapabilityProfile.ALL, List.of(new NoBreak()))), STEP_WALK_TICKS,
                 () -> rig.settle(new HoldStill(10), 30, then));
@@ -396,7 +399,7 @@ final class JourneyRamp {
     /** The alcove's own floor row — the one course that rests on rock rather than on the course
      *  below it. Derived from the corridor rather than passed in, so it cannot disagree with the
      *  volume the rung actually hollowed. */
-    private static int floorOf(Set<BlockPos> corridor) {
+    static int floorOf(Set<BlockPos> corridor) {
         int min = Integer.MAX_VALUE;
         for (BlockPos c : corridor) min = Math.min(min, c.getY());
         return min;
