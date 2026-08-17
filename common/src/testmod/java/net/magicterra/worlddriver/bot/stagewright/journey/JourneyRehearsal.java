@@ -17,8 +17,13 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.EndPortalFrameBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.pattern.BlockPattern;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.levelgen.feature.EndPlatformFeature;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -416,6 +421,14 @@ public final class JourneyRehearsal {
         }
         if (target == JourneyStage.END_PORTAL) {
             stageEndPortal(ctx);
+            return;
+        }
+        if (target == JourneyStage.END) {
+            stageEnd(ctx);
+            return;
+        }
+        if (target == JourneyStage.DRAGON) {
+            stageDragon(ctx);
             return;
         }
         // No recipe. Say so rather than starting the rung on whatever the placeholder rungs left
@@ -900,6 +913,268 @@ public final class JourneyRehearsal {
         return centre;
     }
 
+    /** How many {@code end_portal} cells one open door is. Vanilla lays a 3×3 and nothing else does,
+     *  so this is what the STAGING must produce before it may claim the door is open — the same
+     *  duplication licence as {@link #PORTAL_FRAME_CELLS}, not a number any rung asserts. */
+    private static final int PORTAL_CELLS_A_DOOR_HAS = 9;
+
+    /**
+     * Rung 19's starting conditions: the same room as rung 18, with the door already open.
+     *
+     * <p>Rung 19 is「step into an open end portal and come out on the End's arrival platform」. So
+     * what this stages is exactly the one thing rung 18 produces — an open door — and it stages it
+     * <b>through vanilla's own code path, not through the verb rung 18 is tested on</b>. See
+     * {@link #openTheDoorLikeVanilla} for why that distinction is the whole recipe.
+     *
+     * <p><b>No cobblestone, for the same reason rung 18 gets none, and it costs more here.</b> The
+     * stronghold's nine portal cells sit over the room's lava pool, and rung 19's own failure message
+     *（{@code 要塞的门开在熔岩池上方，走进去和站到旁边是两码事}）is a finding it must be able to
+     * report. {@code generousPathfinding} leaves {@code allowPlace = true}, so a bag of blocks lets
+     * the walker bridge over that pool — which would silently convert「the walker can reach a portal
+     * cell」into「the walker can build a path to one」and make the rung permanently unable to report
+     * the thing it exists to catch. What a climb actually arrives with is unknown: rung 19 records no
+     * inventory, so there is no key to calibrate against and the fix is a {@code stock.*} row on rung
+     * 19, exactly as for rung 17.
+     *
+     * <p><b>Every number here is PROVISIONAL</b> — no climb has reached rung 16, let alone 19.
+     */
+    private static void stageEnd(SceneContext ctx) {
+        Map<String, Integer> kit = new LinkedHashMap<>();
+        // The same bag rung 18 gets, because rung 18 is what would have handed it over and rung 18
+        // spends nothing but eyes. The eyes themselves are NOT handed over: they are spent by then,
+        // and giving them back would let a reader mistake this for a rehearsal of rung 18.
+        kit.put("minecraft:stone_pickaxe", 2);
+        kit.put("minecraft:iron_sword", 1);
+        kit.put("minecraft:cooked_beef", 16);
+        ctx.record("rehearsal.noBlocks", "没给圆石 —— 门开在熔岩池上方，而 allowPlace 是开着的；"
+                + "给了石料就等于允许 walker 在池子上架桥，把「走得到门格」换成「造得出通往门格的路」，"
+                + "这一级最该报的那个发现就永远报不出来了。真梯到这一级带多少石料今天查不到"
+                + "（19 级没记库存）—— 校准要先给 19 级加 stock.* 行");
+        BlockPos centre = standInThePortalRoom(ctx, "END", kit,
+                "门是布景开的，走进去、活着到达降落台是这一级自己的事");
+        if (centre == null) return;
+        openTheDoorLikeVanilla(ctx, centre);
+    }
+
+    /**
+     * Open the end portal the way <b>vanilla</b> opens it, which is emphatically not the way rung 18
+     * opens it.
+     *
+     * <h2>Why the path matters more than the result</h2>
+     *
+     * Rung 18's entire subject is {@code Avatar.useBlock} → {@code EnderEyeItem.useOn}: that a DRIVEN
+     * BODY can spend an eye into a frame. If this staging opened the door by driving the avatar, then
+     * a rehearsal of rung 19 would be running rung 18's tested verb as scenery — and a staging that
+     * performs the thing another rung is judged on has stopped being staging. Worse, it would be
+     * silently load-bearing in the wrong direction: a regression in {@code useBlock} would fail rung
+     * 19's SETUP, which reads as「rung 19 is broken」.
+     *
+     * <p>So the eyes go in as block state and the door is opened by the <b>tail of
+     * {@code EnderEyeItem.useOn} itself</b> — {@code EndPortalFrameBlock.getOrCreatePortalShape()
+     * .find(...)}, then vanilla's own {@code getFrontTopLeft().offset(-3, 0, -3)} 3×3 of
+     * {@code END_PORTAL}. Copying the tail rather than re-deriving where the door goes is deliberate:
+     * a hand-rolled「the door is the 3×3 inside the ring」puts it in the right place for a ring the
+     * staging laid itself and in the WRONG place for a ring worldgen laid, and no reading afterwards
+     * tells the two apart.
+     *
+     * <p>The two {@code levelEvent} broadcasts vanilla also makes (1503 and 1038) are left out on
+     * purpose: they carry no world state, and a staging must not be judgeable by an effect packet.
+     *
+     * <p><b>It asserts, because a door that did not open is a staging failure and must not reach the
+     * rung as one of its own.</b> If the pattern does not match, or fewer than
+     * {@link #PORTAL_CELLS_A_DOOR_HAS} cells came out, this fails naming the staging — otherwise rung
+     * 19 reports {@code 身边 12 格内没有 end_portal 方块}, which is a true sentence about a world
+     * nobody staged correctly and reads as a bug in rung 18.
+     */
+    private static void openTheDoorLikeVanilla(SceneContext ctx, BlockPos centre) {
+        ServerLevel level = ctx.level();
+        // One chunk each way round the ring's own chunk. The ring spans five blocks, so this cannot
+        // miss it and cannot reach a second room — a stronghold has one.
+        List<BlockPos> frames = JourneyEndRungs.framesAround(level, centre, 1);
+        int lit = 0;
+        BlockPos last = null;
+        for (BlockPos f : frames) {
+            BlockState was = level.getBlockState(f);
+            if (!was.hasProperty(EndPortalFrameBlock.HAS_EYE)) continue;
+            last = f;
+            if (was.getValue(EndPortalFrameBlock.HAS_EYE)) continue;
+            // The four lines EnderEyeItem.useOn runs per eye, minus the item shrink and the effect.
+            BlockState now = was.setValue(EndPortalFrameBlock.HAS_EYE, true);
+            Block.pushEntitiesUp(was, now, level, f);
+            level.setBlock(f, now, 2);
+            level.updateNeighbourForOutputSignal(f, Blocks.END_PORTAL_FRAME);
+            lit++;
+        }
+        JourneyLedger.staged("rehearsal: set " + lit + " eyes as block state and ran the tail of "
+                + "EnderEyeItem.useOn, instead of driving the avatar's useBlock (that is rung 18)");
+        ctx.record("rehearsal.eyesSet", lit + " 只（直接写 HAS_EYE，没走 Avatar.useBlock —— "
+                + "那是 18 级的被测动作，布景不许替它做）");
+        BlockPattern.BlockPatternMatch match = last == null ? null
+                : EndPortalFrameBlock.getOrCreatePortalShape().find(level, last);
+        if (match == null) {
+            ctx.fail("排练开不了门：" + frames.size() + " 格框架全填了眼，"
+                    + "EndPortalFrameBlock.getOrCreatePortalShape().find(" + xyzOf(last) + ") 仍不匹配"
+                    + " —— 这是布景的问题，不是 END 这一级的问题（多半是扫到的框架不属于同一个环）");
+            return;
+        }
+        BlockPos topLeft = match.getFrontTopLeft().offset(-3, 0, -3);
+        for (int i = 0; i < 3; i++)
+            for (int j = 0; j < 3; j++)
+                level.setBlock(topLeft.offset(i, 0, j), Blocks.END_PORTAL.defaultBlockState(), 2);
+        int cells = 0;
+        for (int i = 0; i < 3; i++)
+            for (int j = 0; j < 3; j++)
+                if (level.getBlockState(topLeft.offset(i, 0, j)).is(Blocks.END_PORTAL)) cells++;
+        JourneyLedger.staged("rehearsal: opened the end portal at " + topLeft.toShortString()
+                + " instead of walking the stronghold and spending twelve eyes");
+        ctx.record("rehearsal.doorway", topLeft.toShortString() + " 起 3×3，开出 " + cells + " 格 "
+                + "end_portal（vanilla 的 getFrontTopLeft().offset(-3,0,-3)，不是自己算的中心）");
+        if (cells < PORTAL_CELLS_A_DOOR_HAS) {
+            ctx.fail("排练开不全门：3×3 只成了 " + cells + "/" + PORTAL_CELLS_A_DOOR_HAS
+                    + " 格 end_portal —— 这是布景的问题，不是 END 这一级的问题");
+        }
+    }
+
+    /** {@code toShortString} that survives a null, for a failure message whose whole job is to be
+     *  readable when something upstream returned nothing. */
+    private static String xyzOf(BlockPos pos) { return pos == null ? "无框架" : pos.toShortString(); }
+
+    /** How many blocks rung 20 starts with. See {@link #stageDragon} for the arithmetic; the point of
+     *  the number is that it is roughly TWICE the worst case, so that「跑到一半没方块了」can never be
+     *  the thing that decides a rehearsal of the bridge and the towers. */
+    private static final int BLOCKS_A_DRAGON_TRIP_NEEDS = 1_024;
+
+    /**
+     * Rung 20's starting conditions: a body on the End's arrival platform, with something to bridge
+     * with.
+     *
+     * <h2>The platform is built by vanilla's own feature, not by a teleport</h2>
+     *
+     * {@code EndPortalBlock.getPortalDestination} does two things when it sends a body to the End,
+     * and a staging that copies only the second one drops the body into the void:
+     *
+     * <pre>
+     * EndPlatformFeature.createEndPlatform(end, BlockPos.containing(END_SPAWN_POINT.getBottomCenter()).below(), true);
+     * vec3 = END_SPAWN_POINT.getBottomCenter().subtract(0, 1, 0);   // for a ServerPlayer
+     * yRot = Direction.WEST.toYRot();
+     * </pre>
+     *
+     * Both are reproduced here, from that call verbatim, because the platform is a 5×5 of obsidian
+     * that <b>does not exist in a freshly generated End</b> — vanilla builds it at arrival time.
+     *
+     * <p><b>⚠️ THE PLATFORM THIS BUILDS IS RUNG 20'S PRECONDITION, NEVER RUNG 19'S OUTPUT.</b> The two
+     * read identically in a results file — a body standing on obsidian at (100, 49, 0) — and they
+     * mean opposite things. Rung 19 is judged on whether the CROSSING put it there; this staging puts
+     * it there so that rung 20 can start. On 2026-08-17 rung 19 passed with the body 4426 blocks down
+     * the void, and a rehearsal of rung 20 would have been green over that same defect on the same
+     * afternoon, because it never asks the question — it lays the floor itself. So a green
+     * {@code wd.rehearse20Dragon} is evidence about the dragon and about nothing upstream of it, and
+     * anyone reading「20 级过了，所以进末地是好的」has read this row backwards.
+     *
+     * <h2>The landing cell is pinned, and that is a correctness requirement rather than tidiness</h2>
+     *
+     * {@code EndDragonFight.validPlayer} is
+     * {@code EntitySelector.withinDistance(0, 128, 0, 192.0)}, and {@code tick()} does <b>nothing at
+     * all</b> — no arena ticket, no {@code scanState}, no {@code createNewDragon} — while no valid
+     * player is in range. {@code END_SPAWN_POINT} (100, 50, 0) is 126.8 blocks from (0, 128, 0), so a
+     * body that lands there counts. Move it a few dozen blocks out「for a shorter bridge」and the
+     * dragon is never created — at which point rung 20 prints its {@code FakePlayer 不在玩家表里}
+     * diagnostic, <b>which would then be a false statement</b>: the body would be in the list and
+     * merely out of range. A staging that can make an existing diagnostic lie is worse than no
+     * staging, so the cell is fixed and the distance is recorded next to its own threshold.
+     *
+     * <h2>The player list is read, not fixed</h2>
+     *
+     * The other half of the same mechanism is that the body must be in {@code level.players()} at
+     * all, which only {@code JoinedPlayerBodies} ({@code -Dworlddriver.realPlayerBodies=true}) does;
+     * {@code runRehearsalServer} already sets it. This records the answer rather than asserting it,
+     * on purpose: when the flag is off, rung 20's own {@code noDragonHere} is <b>correct</b> and
+     * costs only {@link JourneyEndRungs} {@code DRAGON_WAIT_TICKS} to reach, and exercising a true
+     * diagnostic is worth more than short-circuiting it here.
+     *
+     * <h2>Why 1024 blocks, and why not fewer</h2>
+     *
+     * Worst case is about 60 blocks of bridge from x=100 to the island's edge plus ten spikes at
+     * roughly 40 blocks of tower each — call it 460. The rule against staging「just barely enough」
+     * bites hardest here, because a shortfall does not report itself as a shortfall: it reports as
+     * {@code 走不到主岛中央} or a tower that stops early, i.e. as a bug in the two mechanisms this
+     * rung exists to exercise. Only cobblestone is handed over so that {@code pillarBlock} is
+     * deterministic — it picks whichever of {@code PILLAR_BLOCKS} the body carries most of.
+     *
+     * <p><b>Every number here is PROVISIONAL and the shape of the bag is a guess</b>: no climb has
+     * reached rung 16. The calibration key is a {@code stock.*} row on rung 19, which does not exist
+     * yet either.
+     */
+    private static void stageDragon(SceneContext ctx) {
+        ServerWorldDriver body = JourneyRig.bodyOrNull();
+        if (body == null) {
+            ctx.fail("排练：没有身体 —— wd.rehearse02Spawn 没有创建 avatar");
+            return;
+        }
+        ServerPlayer fp = body.fakePlayer();
+        ServerLevel end = ctx.level().getServer().getLevel(net.minecraft.world.level.Level.END);
+        if (end == null) {
+            ctx.fail("排练：这个运行时没有末地维度（数据包移除了 minecraft:the_end）—— "
+                    + "布景摆不出 DRAGON 的起点");
+            return;
+        }
+
+        BlockPos platform = BlockPos.containing(ServerLevel.END_SPAWN_POINT.getBottomCenter()).below();
+        loadAround(end, platform, 2);
+        // Vanilla's own call, arguments included. A fresh End has no arrival platform: the 5x5 of
+        // obsidian is built at arrival time by EndPortalBlock, so a body teleported to the same
+        // coordinates without this falls through the void and the rung reports a walk that failed.
+        EndPlatformFeature.createEndPlatform(end, platform, true);
+        JourneyLedger.staged("rehearsal: built the End arrival platform at " + platform.toShortString()
+                + " with EndPlatformFeature.createEndPlatform, the call EndPortalBlock makes");
+
+        Map<String, Integer> kit = new LinkedHashMap<>();
+        kit.put("minecraft:iron_sword", 1);
+        kit.put("minecraft:cobblestone", BLOCKS_A_DRAGON_TRIP_NEEDS);
+        // Carried for parity with the recipes below, not for a reading: this body is invulnerable and
+        // never hungers, so nothing in rung 20 consumes it.
+        kit.put("minecraft:cooked_beef", 16);
+        StringBuilder gave = new StringBuilder();
+        for (var e : kit.entrySet()) {
+            give(fp, e.getKey(), e.getValue());
+            if (gave.length() > 0) gave.append(' ');
+            gave.append(e.getKey().substring(e.getKey().indexOf(':') + 1)).append('×').append(e.getValue());
+        }
+        JourneyLedger.staged("rehearsal: gave " + gave);
+        ctx.record("rehearsal.gave", gave + "（全部 PROVISIONAL：真梯从未爬到 12 级以上。"
+                + "圆石 " + BLOCKS_A_DRAGON_TRIP_NEEDS + " 是最坏情况（约 60 格架桥 + 10 座塔 × 约 40）"
+                + "的两倍上下 —— 缺料不会报成缺料，会报成「走不到主岛」或塔提前停，"
+                + "那正是这一级要考的两个机制；只给圆石是为了让 pillarBlock 的选择确定）");
+
+        Vec3 land = ServerLevel.END_SPAWN_POINT.getBottomCenter().subtract(0, 1, 0);
+        fp.setDeltaMovement(Vec3.ZERO);
+        fp.teleportTo(end, land.x, land.y, land.z, java.util.Set.of(),
+                Direction.WEST.toYRot(), fp.getXRot());
+        fp.setOnGround(true);
+        loadAround(end, fp.blockPosition(), 2);
+        JourneyLedger.staged("rehearsal: put the body on the End arrival platform at "
+                + fp.blockPosition().toShortString() + " instead of stepping through a portal");
+        ctx.record("rehearsal.stand", fp.blockPosition().toShortString() + " @ "
+                + fp.level().dimension().location() + "（脚下 "
+                + end.getBlockState(fp.blockPosition().below()).getBlock() + "，"
+                + "水晶、龙、主岛一律没有布景，架桥和爬塔是这一级自己的事）");
+
+        // THE TWO READINGS THAT DECIDE WHETHER THIS RUNG HAS AN OPPONENT AT ALL. Neither is asserted:
+        // both failure modes have a correct diagnostic inside rung 20 already, and both are cheap to
+        // reach. What they must not do is stay unrecorded, because "no dragon" has two causes that
+        // look identical in the results file.
+        double away = Math.sqrt(fp.distanceToSqr(0.0, 128.0, 0.0));
+        ctx.record("rehearsal.fightRange", String.format(java.util.Locale.ROOT,
+                "距 (0,128,0) %.1f 格，EndDragonFight.validPlayer 的门限是 192 —— %s", away,
+                away <= 192.0 ? "在范围内，龙会被创建" : "超了：龙永远不会出现，而 rung 20 会打出"
+                        + "「FakePlayer 不在玩家表里」那句话，在这里那句话是错的"));
+        ctx.record("rehearsal.inPlayerList", end.players().contains(fp) + "（level.players() 有 "
+                + end.players().size() + " 人）—— false 时 EndDragonFight.tick 每 20 tick 扫一次"
+                + "空表、什么都不做，要 -Dworlddriver.realPlayerBodies=true（JoinedPlayerBodies）");
+        WorldDriverCommon.LOG.info("[rehearsal] staged DRAGON: gave {}, platform {}, body {} inList={}",
+                gave, platform, fp.blockPosition(), end.players().contains(fp));
+    }
+
     /**
      * How many eyes rung 18 starts with — twelve, and twelve is a MEASUREMENT, not a fit.
      *
@@ -907,8 +1182,16 @@ public final class JourneyRehearsal {
      * actually hands over. It is emphatically <b>not</b>「as many as there are empty frames」and must
      * never become that: vanilla pre-fills each of the twelve with probability 0.1, so a staging that
      * matched the empty count would make {@code ender_eye.left} unreadable. Left at twelve,
-     * {@code ender_eye.left} measures exactly what the WORLD pre-filled and can be checked against
-     * {@code rehearsal.framesWithEye} — a cross-check instead of a tautology. (Rung 16's own recipe
+     * {@code ender_eye.left} measures what the WORLD pre-filled and can be checked against
+     * {@code rehearsal.framesWithEye} — a cross-check instead of a tautology, <b>but ONLY WHILE THE
+     * BAG IS ENOUGH</b>. Measured 2026-08-17, both halves came back identical:
+     * {@code -Peyes=12} ended {@code ender_eye.left = 0} because twelve were spent on twelve empty
+     * frames, and {@code -Peyes=8} ended {@code ender_eye.left = 0} because eight were spent on the
+     * first eight. <b>One reading, two mechanisms</b> — a bag that fitted and a bag that ran dry are
+     * indistinguishable in it — so {@code left} may never be read on its own. What does tell them
+     * apart is {@code eyes.ranOutAt} (written only when the bag ran dry) and {@code frames.filled};
+     * the cross-check against {@code rehearsal.framesWithEye} is valid only when neither says short.
+     * (Rung 16's own recipe
      * has the tautology this avoids: it hands over exactly {@link #EYES_A_PORTAL_COSTS} pearls, so
      * {@code ender_eye.shortfall = 0} is arithmetic rather than a finding.)
      *

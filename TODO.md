@@ -1,4 +1,149 @@
-## ⬜ 17–20 级布景（本轮转向；只编译，未跑）
+## 🟥 19 级的假绿：**判据漏了一维**（已修，等级 `compiled`）
+
+```
+dimension = minecraft:the_end     ✅        arrived.at = 87, -4376, -1
+spawnPoint = 100, 50, 0（漂移 13） ✅        underfoot  = void_air
+portal.cells = 9   eyesSet = 12   doorway = 9   step.2 跨维度成功   →  PASS 2413t
+```
+
+**「漂移 13 格」是水平量**（`max(|100−87|,|0−(−1)|)`），Y 从来没进过判据 ⇒ 一具**正在坠入虚空**、
+比落点低 **4426 格**的身体拿到了「进入末地」。**能同时满足全部判据、又完全没达成目的的，
+就是判据漏了一维。**
+
+### 改法：三个互相独立的量，且不许只加 Y
+
+`JourneyEndRungs.judgeTheCrossing` 现在断言 **维度 ✅ 且 垂直差 ≤ `END_ARRIVAL_FALL`(4) 且
+脚下 `blocksMotion()`**。为什么第三条不能省：**「y 对了」和「脚下有东西」是两件事**——身体可以在
+迈出台子边缘的那一 tick 恰好还在 y=49，也可以在 y=49 悬在洞上。用 `blocksMotion()` 不用 `onGround`
+（这具身体的 `onGround` 两个方向都错），也不靠名字认 `void_air`（那是**建筑高度以下**的返回值，
+和「没有台子」区分不开）。
+
+`END_ARRIVAL_FALL = 4` 的依据是 vanilla 几何：`createEndPlatform` 在 **y=48** 铺黑曜石、49–51 留空，
+`EndPortalBlock` 把 `ServerPlayer` 放在 `END_SPAWN_POINT.getBottomCenter().subtract(0,1,0)` 即 **y=49**
+（比 `END_SPAWN_POINT` 低一排）⇒ 48..52 才是「在台子上」，±4 留一排余量，同时仍以三个数量级压住 4426。
+
+**这一趟会变红**：`|−4376−50| = 4426 > 4`，且 `void_air.blocksMotion() = false` —— **两条独立地翻红**。
+水平 13 ≤ 16 仍然过，那是对的：它查的是另一族缺陷（吞掉目的地）。
+
+### 台子为什么没有：**不是下界那一族**，而且我还没证明是哪一族
+
+⚠️ 先更正两个名字：1.21.1 **没有** `ServerLevel.makeObsidianPlatform`，也**没有**
+`ServerPlayer.findDimensionEntryPoint`（本仓库 grep 0 命中）——那是 1.20.x 的名字。1.21.1 的链是
+
+```
+EndPortalBlock.entityInside → Entity.setAsInsidePortal → Entity.handlePortal
+  → PortalProcessor.getPortalDestination → EndPortalBlock.getPortalDestination → changeDimension
+```
+
+而 **`createEndPlatform` 就在 `getPortalDestination` 里面**，在构造 `DimensionTransition` **之前**，
+和「目的地 = `END_SPAWN_POINT`」同一个 `bl` 分支（反编译原文）：
+
+```java
+boolean bl = resourceKey == Level.END;
+BlockPos blockPos2 = bl ? ServerLevel.END_SPAWN_POINT : ...;
+Vec3 vec3 = blockPos2.getBottomCenter();
+if (bl) { EndPlatformFeature.createEndPlatform(serverLevel2, BlockPos.containing(vec3).below(), true); ... }
+```
+
+⇒ **目的地和台子出自同一次调用**：拿不到 `(100,·,0)` 就不会走到那里，走到了就一定调过 `createEndPlatform`。
+身体的 X/Z 是 `87,-1`（= `100,0` 掉了 1100+ tick 之后的水平漂移）⇒ **目的地到位了**。
+而下界那一族丢的是**目的地本身**（差 87 501 格）。**所以这不是同一处，我不硬套。**
+
+**当前假说（未证明）**：`stepIn` 用 `settle(IntentProcess(Goal.Block(cell)), PORTAL_WALK_TICKS=1200, …)`
+包住整个跨维度，过界发生在这次 settle **内部**；过去之后 walker 仍在朝一个**主世界**目标
+`-1092,25,1314` 推，而台子只有 5×5。1130 tick × 终端速度 ≈3.92 ≈ **4430 格**，与实测 4426 对得上。
+这是「**一个视角不跟着身体走**」那一族，不是吞目的地那一族。
+
+**判据已经放进树里，下一趟自动裁决**：`platform.obsidian` 数 y=48 那层 5×5。
+**25/25 ⇒ 台子建好了、身体是自己走掉的（我的假说成立，修驱动的过界收尾，不是修布景）；
+0/25 ⇒ 我读错了，那是驱动的过界缺陷。** 它在 PASS 和 FAIL 两侧都记，否则健康态长什么样没人知道。
+
+⚠️ `advancement.enter_the_end = not-earned` 是**第二个独立信号，本轮故意不并进这个诊断**——
+`一个挣不到东西的服务器身体` 那条记录里成就支持还有一半是红的，不先分开它就不能当跨维度的证据。
+
+### 连带：这个缺陷差点被 20 级掩盖
+
+20 级布景**自己** `createEndPlatform`，所以它永远问不到这一条。`stageDragon` 的 javadoc 已写死：
+**布景铺的台子是 20 级的前置条件，不是 19 级的产出**——两者在结果文件里长得一模一样
+（身体站在 `(100,49,0)` 的黑曜石上），含义相反。**绿的 `wd.rehearse20Dragon` 是关于龙的证据，
+不是关于它上游的证据**；读成「20 级过了所以进末地是好的」就是把这一行读反了。
+
+---
+
+## ⬜ 19/20 级布景（第二批；只编译，未跑，等级 `compiled`）
+
+| 项 | 状态 | 位置 |
+|---|---|---|
+| **19 级 END 配方** | **本轮改的** | `JourneyRehearsal.java:426-433`（分派）、`:916-1040`（`PORTAL_CELLS_A_DOOR_HAS:919`／`stageEnd:941`／`openTheDoorLikeVanilla:989`／`xyzOf:1040`） |
+| **20 级 DRAGON 配方** | **本轮改的** | `JourneyRehearsal.java:1042-1167`（`BLOCKS_A_DRAGON_TRIP_NEEDS:1045`／`stageDragon:1099`） |
+| 四处 import | **本轮改的** | `JourneyRehearsal.java:20-26` |
+| `stagedEyes` javadoc 限定 | **本轮改的** | `JourneyRehearsal.java:1176-1185` |
+| `framesAround`／`centreOf`／`standingCellInTheRoom` 可见性 | **本来就在**（上一批放宽的） | `JourneyEndRungs.java` |
+| `standInThePortalRoom` | **本来就在**，一行未动 | `JourneyRehearsal.java` |
+| rung 19/20 自己的代码 | **本来就在**，一行未动 | `JourneyEndRungs.java:729-996` |
+
+### 回归闸：两条路径都逐字不变
+
+`git diff` 全部内容只有四处：import、分派里**追加在 `END_PORTAL` 之后**的两个 `if`、一整块新方法、
+一段 javadoc。⇒ `target == PORTAL_LIT` 在第一支就 `return`，`target == END_PORTAL` 在第七支就 `return`，
+两者都到不了新代码；`standInThePortalRoom`／`stagedEyes`／`roomScanChunks`／`budgetFloor` 的**实现**零改动。
+rung 19 自己声明 20 000 tick < 默认帽 40 000 ⇒ `min` 取 20 000，不触发 `rehearse.budgetCapped`。
+
+### 三条硬约束怎么落实的
+
+| 约束 | 落实 | 位置 |
+|---|---|---|
+| 19 级开门**照 vanilla 抄**，不许走 `Avatar.useBlock` | 眼直接写 `HAS_EYE` 块态（走 `EnderEyeItem.useOn` 的前四行去掉 `shrink`/特效），门走**它的尾巴**：`EndPortalFrameBlock.getOrCreatePortalShape().find(...)` → `getFrontTopLeft().offset(-3,0,-3)` 的 3×3 | `openTheDoorLikeVanilla` |
+| 20 级**先建台**，落点钉死 `END_SPAWN_POINT` | `EndPlatformFeature.createEndPlatform(end, BlockPos.containing(END_SPAWN_POINT.getBottomCenter()).below(), true)`，再 `teleportTo` 到 `getBottomCenter().subtract(0,1,0)`、`yRot = Direction.WEST.toYRot()` —— 全部照 `EndPortalBlock.getPortalDestination` 逐参数抄 | `stageDragon` |
+| 龙要问 `level.players()` | `runRehearsalServer` 早就带 `-Dworlddriver.realPlayerBodies=true`（`fabric/build.gradle:379`）；布景**只读不改**，写成 `rehearsal.inPlayerList` | `stageDragon` |
+
+**为什么落点不许挪**（这条是我加的，不在你的清单里）：`EndDragonFight.validPlayer` 是
+`EntitySelector.withinDistance(0, 128, 0, 192.0)`（1.21.1 反编译原文），`(100,50,0)` 距 `(0,128,0)`
+**126.8 格**，在内。为「桥短一点」把身体往岛边挪几十格，龙就永不创建，而 rung 20 会打出
+「FakePlayer 不在玩家表里」——**那句话届时是错的**（身体在表里，只是超距）。
+**一个能让既有诊断撒谎的布景，比没有布景更坏**，所以落点固定，并把距离连同门限一起记进
+`rehearsal.fightRange`。
+
+### 起点状态：全部 PROVISIONAL，附真梯校准 key
+
+| 级 | 项 | 值 | 理由 / 校准 key |
+|---|---|---|---|
+| 19 | 门 | 布景开（3×3 `end_portal`） | 这是 18 级的产出；校准 key `wd.journey18EndPortal` 的 `portal.at` |
+| 19 | `cobblestone` | **0**，故意 | 门开在熔岩池上方 + `allowPlace=true`，给石料就把「走得到门格」换成「造得出路」，这一级最该报的发现就报不出来了。key：19 级要先加 `stock.*` 行 |
+| 19 | 镐/剑/食物 | 2 / 1 / 16 | 沿用 18 级配方，PROVISIONAL |
+| 20 | 降落台 | `createEndPlatform` 建 | 全新末地**没有**这块黑曜石台，vanilla 是到达时才建的 |
+| 20 | `cobblestone` | **1024** | 最坏约 460（≈60 格桥 + 10 座塔 × ≈40）的两倍上下。**缺料不会报成缺料**，会报成「走不到主岛」或塔提前停，那正是这一级要考的两个机制。key：19 级的 `stock.*`（同样还不存在） |
+| 20 | 只给圆石一种垫块 | 故意 | 让 `pillarBlock`（取 `PILLAR_BLOCKS` 里持有最多的）选择确定 |
+| 20 | `cooked_beef` 16 | 摆设 | 这具身体无敌、不饿，rung 20 没有任何读数读它；给了只是与下面几级配方对齐 |
+
+### 判据：跑之前写死（19 级）
+
+| 读数 | GREEN | 说明 |
+|---|---|---|
+| `rehearsal.eyesSet` | `12 只` | 少于 12 ⇒ 扫到的框架不属于同一个环 |
+| `rehearsal.doorway` | `开出 9 格 end_portal` | < 9 ⇒ **布景**失败，已在 `openTheDoorLikeVanilla` 里 `ctx.fail`，不许当成 19 级判负 |
+| rung 的 `portal.cells` | `9` | 布景说开了 9 格、rung 自己只找到 0 ⇒ 两处看的不是同一个门（rung 用 `PORTAL_SEARCH=12` 以身体为心重扫） |
+| **这一级成没成** | `dimension = minecraft:the_end` **且** `spawnPoint` 的漂移 ≤ 16 | 只看维度会让「站在虚空里」也算过——rung 自己已经断言了漂移，别只读第一行 |
+| 失败该怎么读 | 有 `step.0..3` 行 ⇒ 走到了门格附近但没过去；没有 ⇒ 连门格都没走到（`stand.goto` 给 endReason） | 20 000 tick 用尽而无 `step.*` = 走不动，不是过不去 |
+
+### 判据：跑之前写死（20 级）
+
+| 读数 | GREEN | 说明 |
+|---|---|---|
+| `rehearsal.inPlayerList` | `true` | `false` ⇒ 后面全部无效，直接看 `-Dworlddriver.realPlayerBodies` |
+| `rehearsal.fightRange` | `126.8 格 … 在范围内` | 这一行只要不是「在范围内」，`dragon.present=false` 就与 rung 的诊断无关 |
+| `level.realPlayers` | `≥ 1` | rung 自己记的，和 `rehearsal.inPlayerList` 是两处独立读数，对不上说明中途掉出了表 |
+| `dragonFight.dragonUUID` | 非 `null` | `null` + `crystalsAlive=0` ⇒ 龙从没被创建，**不是打不过** |
+| `island.legs` | ≤ 8 且有 `island.reached` 不为 false | 架桥成了 |
+| `crystals.left` | `0/N` | 水晶没清完就开打 ⇒ 龙会被治疗，`dragon.hp` 读数无意义 |
+| **这一级成没成** | `dragon.dead = true` | — |
+| **多少 tick 算超时而不是打不过** | 预算 500 000（`budgetFloor(DRAGON)` = scene 自己声明的数，默认帽对它是 no-op）。**先看 `rehearse.budgetCapped` 在不在**：在 ⇒ 是夹具砍的，不是这一级判负 | 有 `duel.swings` 且 `dragon.hp` 在掉 = 打得动只是没打完（→ 提预算）；`duel.swings=0` 或 `duel.closest` 始终 > 4.5 = 够不着，那是机制问题不是时长问题 |
+
+⚠️ **`DUEL_TICKS = 200 000` 仍是估的**，校准 key `wd.journey20Dragon` 的 `duel.ticks`。
+
+---
+
+## ⬜ 17–18 级布景（第一批；只编译，未跑）
 
 **每一项标明「本轮改的」还是「本来就在」。** 全部编译过 + `check_source_budget.py` 过，等级 `compiled`。
 
@@ -87,6 +232,89 @@ rehearse.budgetCapped = 40000（scene 自己声明 250000，被排练的预算�
 
 **顺带的第二个数** `rehearsal.roomScanMs`：< 30 000 ms 接受；≥ 30 000 ms 或死在框架看门狗上 ⇒ 改成分批
 `getChunk`。**阈值先写在这里，免得跑完再论证。**
+
+#### 读数（2026-08-17，`-Prehearse=END_PORTAL` 无杆，PASS 136 tick）——**表没动过，逐行对**
+
+```
+rehearsal.frames      = 12 格 end_portal_frame（以烘入的 stronghold -1168,64,1296 为心，±96 格）
+rehearsal.frameCentre = -1091,25,1313，距 stronghold 77 格（切比雪夫）—— 至少要 5，它现在是 6
+rehearsal.roomScanMs  = 22938 ms（13×13 区块，全新世界）
+frames.filled = 12/12   ender_eye.left = 0   portal.cells = 9   portal.at = -1092,25,1312
+```
+
+- `frames = 12` ⇒ 落「够」那一行：**不动 `ROOM_SCAN_CHUNKS`**；配套核对 `至少要 5 ≤ 6` 成立。
+- `roomScanMs = 22938 < 30 000` ⇒ **接受，不改分批**。
+
+**⇒ 压着 17/18/19 三级的那条未验证前提，答案是「够」。** 转移得过去的理由是可检的，不是布景自证：
+18 级调的是 `framesAround(level, JourneyRoute.stronghold, roomScanChunks)`，与 rung 17 **同一个函数、
+同一个圆心（烘入的 `/locate` START 件）、同一个半径**。
+
+> ⚠️ **只富余一个区块，而且是单点。** 房间中心距 START 件 **77 格**（切比雪夫），需要 5 个区块，
+> 常数给的是 6。这是 **单一种子（5471）上的单点测量**，不是「6 有余量」——`/locate` 返回的是结构
+> 起点，房间在结构里的偏移由该种子的生成决定，换种子它就作废。
+> **校准 key**：`wd.journey01Recon` 的 `stronghold`（圆心）配 `wd.journey17Stronghold` 的
+> `frames.inReach`；这两行只要有一行换了种子/换了坐标来源，这条结论要重测，不能沿用。
+
+**这一趟没检验到的那半边**：世界一格都没预填（`framesWithEye = 0/12`），所以 `ender_eye.left = 0`
+仍然是 `12−12` 的算术——上面「一格没补 ⇒ `left == rehearsal.framesWithEye`」那条**交叉核对本轮
+没被执行**，正是它要防的恒等式形状。这颗种子给不出 k>0，只能靠 `-Peyes=N` 从另一头打（判
+`eyes.ranOutAt` 与 `frames.filled`，**不判颜色**）。
+
+#### `-Peyes=8`（2026-08-17）：短缺分支**执行到了**，且报的是「眼不够」
+
+```
+eyes.ranOutAt = -1090,25,1315（第 8 个空框架）    frames.filled = 8/12
+eyes.short    = 缺 4 只                          portal.cells  = 0
+```
+
+按跑前定的规矩判：`eyes.ranOutAt` 出现 ✅、`frames.filled < 12` ✅ ⇒ **杆生效**。红是预期，
+**不判颜色**。可贵的是它没有笼统地报「门没开」，而是指名了原因和那一格。
+
+#### ⚠️ 由这两趟对照抓出的一条会撒谎的证据行：`ender_eye.left`
+
+| 趟 | `ender_eye.left` | 真实机制 |
+|---|---|---|
+| `-Peyes=12` | **0** | 12 只全填进 12 个空框架 —— 够用 |
+| `-Peyes=8` | **0** | 8 只全填进前 8 个 —— **不够用** |
+
+**同一个读数，两种机制。** 它现在分辨不了「够用」和「不够用」，能分辨的是 `eyes.short` /
+`eyes.ranOutAt` / `frames.filled`。`stagedEyes` 的 javadoc 已把
+「`ender_eye.left` 精确度量世界预填了多少」限定成**「仅当包够用时」**，并把两趟数字写进去
+（`JourneyRehearsal.java:1176-1185`）。**判据：`left` 永远不许单独读**——先看 `eyes.ranOutAt`
+在不在，不在才谈得上和 `rehearsal.framesWithEye` 对账。
+
+---
+
+## ✅ 南臂 11 级分叉：结案，**不切 `:510`**（分析完成，无刀可切）
+
+s5 与 s3/s6 的唯一差别：**在 `JourneyPortalRung.java:591` 那次 `HoldStill(20)/40 tick` 静置里，
+身体有没有迈完最后一步。** 三趟到第 9 级为止逐字相同（`stair.8`、`stair.8.waited`、`stair.9`、
+`stair.9.waited` 全等），而 `stair.9` 的落点 y=56 **已经等于 `targetY`——楼梯此刻已经到底**。
+
+- **s3/s6**：静置里身体掉到 y=56 ⇒ `:510` 的 `body.getY() <= targetY` 成立 ⇒ 退出，`bottom = -9,56,31`，11 级。
+- **s5**：身体仍在 y=57 ⇒ 不成立 ⇒ 再切一级。`courseFrom` 给的最深级 `-9,56,31` 的 y ≤ targetY，
+  于是 `:529` 的具名例外把身体的格子还回来，切出 `-9,57,31 → -9,56,32`，`bottom = -9,56,32`，12 级。
+
+同一个竞态**在第 9 级入口先响过一次却没有后果**（s3/s6 有 `stair.9.fromStep`、s5 没有，两条路切出同一级）
+——**锚是好的，没被保护的是退出**。竞态是扳机；能改变结果是因为**退出判据问「身体」、锚问「楼梯」**，
+两个主语。
+
+### 但这一刀不切，理由是反转
+
+多切的那一级 `-9,57,31 → -9,56,32` **不加深度**（在 y=56 横着走），只把 `stairs.bottom` 沿 z 挪一格。
+而**「正确」的提前退出（s3/s6，`-9,56,31`）是 0/2，越界的那趟（s1/s2/s4/s5，`-9,56,32`）是 3/4**。
+把 `:510` 改成按楼梯停 = **把模腔钉死在输的座位上**。病灶在底座下游，不在退出判据。南臂这条线挂起。
+
+（另有两条已付过学费的约束，任何后来者动 `:510` 前必须先读：`stairBottom` 必须是身体的格
+（`:504-509`，实测两次）；「等身体掉下去」已被证伪（`:521-527`，烧光 40 000 tick 且没产出 `stairs.bottom`）。）
+
+### 📌 通则（这一刀是靠它免掉的）
+
+> **在决定切哪里之前，先问：被我判为错误的那个行为，是不是正好落在赢的那一侧。**
+> 一个越界如果和好结果 3/4 同现，它多半在补偿另一处缺陷；直接改掉它会暴露那处缺陷，
+> 而暴露出来的样子看起来像是「修复引入了回归」。
+
+同族先例：`一个会自己重新落座的模腔`、`修复会暴露搭便车的人`。
 
 ---
 
