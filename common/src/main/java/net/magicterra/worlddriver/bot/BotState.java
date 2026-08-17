@@ -159,6 +159,21 @@ public final class BotState {
         public volatile Boolean goalReached;
         public volatile String endReason;
         public volatile double finalDist = -1;
+        /**
+         * The FIRST plan this run ever held, latched once and never overwritten — where the body was
+         * standing, how long the path was, and which move entered its first node.
+         *
+         * <p>{@code pathLen}/{@code pathMove} are live values, and a run that ends somewhere the body
+         * should never have been reports the planning of that somewhere. Measured 2026-08-17 on the
+         * End arrival platform: the leg's closing row read {@code pathLen=7 move=bridgePlace} while
+         * the body was 23 000 blocks down a void in which every {@code BridgePlace} premise trivially
+         * holds — a true statement about a plan made in free fall, mistaken for the plan made on the
+         * platform. This field is the sample taken while there was still ground under the question.
+         *
+         * <p>Kept across {@link #reset()} for the same reason {@code lastError} is: it is read after
+         * the run it describes has ended.
+         */
+        public volatile String firstPlan;
 
         ProcessSlot(String name) { this.name = name; }
 

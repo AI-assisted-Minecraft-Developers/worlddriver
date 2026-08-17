@@ -112,6 +112,15 @@ public final class IntentProcess implements BotProcess {
         Walker.Step s = walker.tick(a, w);
         st.mc_goto.pathLen = walker.pathLen();
         st.mc_goto.pathStep = walker.pathStep();
+        // LATCH THE FIRST PLAN, ONCE. See BotState.ProcessSlot.firstPlan: everything else in this
+        // slot is a live value, and a leg that ends where the body should never have been reports
+        // the planning of THAT place. Latched on the first tick that actually holds a path, so it
+        // records the plan the run started from rather than the one it died in.
+        if (st.mc_goto.firstPlan == null && walker.pathLen() > 0) {
+            st.mc_goto.firstPlan = "身体 " + (body == null ? "?" : body.blockPosition().toShortString())
+                    + " pathLen=" + walker.pathLen() + " move=" + walker.pathMove()
+                    + " node=" + (walker.pathNode() == null ? "?" : walker.pathNode().toShortString());
+        }
         // Published from the SAME tick as the two counters above, so a reader cannot pair a step
         // index with a node the walker had already moved past. See BotState.ProcessSlot.pathNode.
         st.mc_goto.pathNode = walker.pathNode();
