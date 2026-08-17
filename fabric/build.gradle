@@ -290,8 +290,16 @@ loom {
             // below it, and a run that runs out of budget mid-cast reports a timeout where the
             // finding is "each trip costs N ticks". Raise it rather than read that twice:
             //   ./gradlew :fabric:runRehearsalServer -PrehearseBudget=120000
+            //
+            // EMPTY WHEN NOT ASKED FOR, like every other lever in this block — the default lives in
+            // Java (JourneyRehearsal.DEFAULT_BUDGET, also 40 000), NOT here. Substituting '40000'
+            // here made System.getProperty return a non-blank string on every run, so capFor's
+            // "an explicit -PrehearseBudget wins outright" branch was taken ALWAYS and budgetFloor
+            // was never consulted. Measured 2026-08-17: rung 20 declares 500 000 and got 40 000, and
+            // the floor written to prevent exactly that was dead code from the day it landed. The
+            // escape hatch was in Java; the build file held it permanently open.
             property 'worlddriver.journey.rehearse.budget',
-                    (project.findProperty('rehearseBudget') ?: '40000').toString()
+                    (project.findProperty('rehearseBudget') ?: '').toString()
             // Make the portal rung's staircase audit TRIP. A healthy flight never faults, so the
             // repair that answers a fault would otherwise ship having never once run:
             //   ./gradlew :fabric:runRehearsalServer -Prehearse=PORTAL_LIT -PbreakAStair=true
