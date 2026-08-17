@@ -371,7 +371,11 @@ public final class JourneyPortalRung {
      */
     private static void digStairsDown(SceneContext ctx, JourneyRig rig, int targetY, int budget,
                                       int cap, Runnable then) {
-        BlockPos at = rig.player().blockPosition();
+        BlockPos body = rig.player().blockPosition();
+        // WHERE THE FLIGHT IS, not where the body reads. A body one row over the step it has just cut
+        // is falling into it, and a course measured from there stacks two steps in one column — see
+        // JourneyStairs#courseFrom for the pair that made the audit unsatisfiable on both arms.
+        BlockPos at = JourneyStairs.courseFrom(body);
         if (at.getY() <= targetY) {
             stairBottom = at;
             rig.evidence("stairs.bottom", at.toShortString() + "（" + stairDir + " 向，顶在 "
@@ -415,6 +419,10 @@ public final class JourneyPortalRung {
         }
         rig.evidence("stair." + step, at.toShortString() + " → " + foot.toShortString()
                 + (stride > 1 ? "（上一级被拒了三次，这一腿一次挖两级、直接瞄第二级）" : ""));
+        if (!at.equals(body))
+            rig.evidence("stair." + step + ".fromStep", "身体读作 " + body.toShortString()
+                    + "，那是上一级 " + at.toShortString() + " 的上方格（正落进去）—— 这一级从台阶起算，"
+                    + "否则下一级会落在同一柱里");
         for (int s = 1; s <= stride; s++) JourneyStairs.cut(at.relative(stairDir, s).below(s));
         cutStairCells(rig, cut, 0, () ->
                 rig.settle(new IntentProcess(new Intent(new Goal.Block(foot))), 300, () -> {
@@ -422,7 +430,10 @@ public final class JourneyPortalRung {
             if (now.getY() >= at.getY()) {
                 // The cells are open and the body has not stepped into them yet. That is a settle,
                 // not a failure — the same "breaking the floor is not falling through it" the shaft
-                // descent learned — so give it the tick and try the same step again.
+                // descent learned — so give it the tick and ask again. It is `courseFrom`, not this
+                // branch, that decides where the retry measures from: this comment used to claim the
+                // same step was retried and the retry re-read `blockPosition()`, so a body that had
+                // drifted one cell sideways into the new step's head room cut a course out of THAT.
                 rig.evidence("stair." + step + ".waited", now.toShortString() + " 还没迈下去");
                 noteStairWedge(rig, now, foot);
                 rig.settle(new HoldStill(20), 40,

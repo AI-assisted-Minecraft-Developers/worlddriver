@@ -64,6 +64,43 @@ final class JourneyStairs {
         if (cells.isEmpty() || !cells.get(cells.size() - 1).equals(foot)) cells.add(foot);
     }
 
+    /**
+     * Where the next course starts, which is not always the cell the body is standing in.
+     *
+     * <p>{@code digStairsDown} used to read {@code blockPosition()} and cut the next step diagonally
+     * out of it. A step is opened by removing the floor of the cell the body is about to occupy, so
+     * the reading it takes right after is often of a body one row ABOVE that step, falling into it.
+     * A course measured from there is one row too high, and the course AFTER it — taken once the body
+     * has landed — lands its step in the same column. The flight is then a contradiction no world
+     * state satisfies: {@link #faults} wants the upper step's support solid and the lower step's own
+     * cell open, and those are one cell.
+     *
+     * <pre>
+     * stair.3 = -8, 66, 19 → -6, 64, 19（一次挖两级）   ← the step is cut at y=64
+     * stair.4 = -6, 65, 19 → -5, 64, 19                 ← read from its HEAD ROOM, one row high
+     * stair.5 = -6, 64, 19 → -5, 63, 19                 ← same column as the step above it
+     * </pre>
+     *
+     * <p>Not theoretical, and not rare where it happens: over every archived rehearsal and ladder run
+     * of this rung that cut a staircase, exactly two flights carry such a stacked pair, and they are
+     * the two runs handed over on 2026-08-17. Both spend their whole mend budget flipping that one
+     * cell — {@code cast*.stairsMend.0 = … → 垫上了} against {@code lava*.stairsMend.0 = … → 敲开了},
+     * eighteen audits and sixteen mends on the south geometry — and on the east arm the fill is what
+     * ended the run: {@code cast6.returnStopped = 停在 -5, 64, 19 … 脚下 cobblestone} is the body
+     * standing on the block its own repair had just dropped into the staircase, facing a two-block
+     * drop where a step used to be.
+     *
+     * <p>So the course is anchored to the flight rather than to the body. This does not widen any
+     * judgement: the cell it returns is the step the body is already falling into, and it is only
+     * ever consulted when the body is directly over the flight's own deepest step.
+     */
+    static BlockPos courseFrom(BlockPos body) {
+        if (cells.isEmpty()) return body;
+        BlockPos deepest = cells.get(cells.size() - 1);
+        boolean sameColumn = body.getX() == deepest.getX() && body.getZ() == deepest.getZ();
+        return sameColumn && body.getY() > deepest.getY() ? deepest : body;
+    }
+
     /** How much asking has been done, for a message that would otherwise imply none. */
     static String tally() { return checked + " 次，修好 " + mended + " 级"; }
 
