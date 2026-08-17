@@ -385,8 +385,25 @@ public final class JourneyPortalRung {
             return;
         }
         int step = cap - budget;
-        BlockPos foot = at.relative(stairDir).below();
-        List<BlockPos> cut = List.of(foot, foot.above(), foot.above(2));
+        // ONE STEP, OR TWO WHEN ONE HAS ALREADY BEEN REFUSED. See noteStairWedge: a leg that ends
+        // `path-consumed` with the body half a block short of a step it has verified open is the
+        // walker calling a partial path an arrival, and asking it again is the retry that changes
+        // nothing — measured as eighty identical legs, twice.
+        //
+        // Cutting the NEXT step too and aiming at THAT changes the question rather than relaxing it:
+        // the goal moves from one cell across and one down — close enough that the walker's own
+        // arrival tolerance swallows it — to two and two, which no tolerance can call reached from
+        // here. Every cell of both steps is still cut, so the flight the return legs walk is the
+        // same flight; the body simply does not stop on the first of them.
+        int stride = wedgedHere(at) && at.getY() - 2 >= targetY ? 2 : 1;
+        BlockPos foot = at.relative(stairDir, stride).below(stride);
+        List<BlockPos> cut = new ArrayList<>();
+        for (int s = 1; s <= stride; s++) {
+            BlockPos f = at.relative(stairDir, s).below(s);
+            cut.add(f);
+            cut.add(f.above());
+            cut.add(f.above(2));
+        }
         for (BlockPos c : cut) {
             String wet = JourneyShaft.fluidTouching(ctx.level(), c);
             if (wet != null) {
@@ -396,8 +413,9 @@ public final class JourneyPortalRung {
                 return;
             }
         }
-        rig.evidence("stair." + step, at.toShortString() + " → " + foot.toShortString());
-        JourneyStairs.cut(foot);
+        rig.evidence("stair." + step, at.toShortString() + " → " + foot.toShortString()
+                + (stride > 1 ? "（上一级被拒了三次，这一腿一次挖两级、直接瞄第二级）" : ""));
+        for (int s = 1; s <= stride; s++) JourneyStairs.cut(at.relative(stairDir, s).below(s));
         cutStairCells(rig, cut, 0, () ->
                 rig.settle(new IntentProcess(new Intent(new Goal.Block(foot))), 300, () -> {
             BlockPos now = rig.player().blockPosition();
@@ -421,9 +439,15 @@ public final class JourneyPortalRung {
     private static int stairWaits;
     private static BlockPos stairWaitedAt;
 
-    /** How many identical waits it takes before one of them is worth explaining. Three: one is the settle this branch was written for, two is a slow
+    /** How many identical waits it takes before one of them is worth explaining — and before the
+     *  step is cut differently. Three: one is the settle this branch was written for, two is a slow
      *  world tick, and three is a body that is not going to step down at all. */
     private static final int STAIR_WEDGE_WAITS = 3;
+
+    /** Has this exact cell already refused the step {@link #STAIR_WEDGE_WAITS} times? */
+    private static boolean wedgedHere(BlockPos at) {
+        return at.equals(stairWaitedAt) && stairWaits >= STAIR_WEDGE_WAITS;
+    }
 
     /**
      * Why the flight's next step is not being taken — written once, not eighty times.

@@ -56,6 +56,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ```
 
   The first `end=arrived` in this rung's archive, in one attempt, from eleven searches.
+- **The staircase's first step could be refused forever, and the row that said so could not say
+  why.** With the approach fixed the body now arrives at the shaft column exactly, and the flight
+  then wedged on its own first step in **two of three** runs: eighty legs of
+  `stair.N = -8, 66, 19 → -7, 65, 19` / `stair.N.waited = -8, 66, 19 还没迈下去`, byte-identical,
+  ending 「楼梯挖不到底：试了 80 级仍停在 -8, 66, 19」. One sentence, at least four worlds: the cells
+  were never cut, the step has no floor, a route exists and the body cannot walk it, or the body is
+  still falling. `stair.wedged` now prints the walker's own end reason beside the four cells that
+  decide whether the step exists, once rather than eighty times, and it answered on the first run
+  that carried it:
+
+  ```
+  stair.wedged = -8, 66, 19 连着 3 腿一格没挪（精确 -7.00/66.00/19.35）；想去 -7, 65, 19；
+                 end=path-consumed err=null；台阶四格：脚下 -7, 64, 19=dirt，落脚 -7, 65, 19=air，
+                 头 -7, 66, 19=air，起跳 -7, 67, 19=air；canBreak(落脚)=true，allowBreak=true
+  ```
+
+  The step exists, is cut, and is standable. The body is **half a block short of it and one row up**,
+  at `x = -7.00` — the exact face of the block still holding it — and the walker calls that arrived
+  and consumes the path: `wd.serverWalkerArrivedShort` in miniature, a goal one cell across and one
+  down being swallowed by the walker's own arrival tolerance. So the remedy changes the question
+  rather than the tolerance: a step already refused three times is cut **together with the one below
+  it** and the walk aims at the second, two across and two down, which no tolerance can call reached
+  from here. Both steps are still cut, so the flight the return legs walk is the same flight; the
+  body simply does not stop on the first of them. Measured: `stair.0/1/2` refused,
+  `stair.3 = -8, 66, 19 → -6, 64, 19（上一级被拒了三次，这一腿一次挖两级、直接瞄第二级）`, and the
+  flight then reached `forge.landedY = 56`.
 - **A loading station may no longer sit on the lava lake's lip.**
   `pinTheFillStation` ranked candidates by how many sources a bucket could see from them and said
   nothing about whether a body could stand there — which matters because the station is walked to
