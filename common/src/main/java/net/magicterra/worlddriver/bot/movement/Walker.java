@@ -919,6 +919,21 @@ public final class Walker {
      * <p>Reports each segment's cell count and lists the cells whose support is missing, so a healthy
      * segment is still visible (「缺口无」) rather than merely absent — an all-clear that is only ever
      * printed by silence cannot be told from a check that never ran.
+     *
+     * <h2>Which path this samples, and ⚠️ what a「缺口」does and does not mean</h2>
+     *
+     * <b>The CURRENT adopted path</b> — {@link #path}, the same list {@link #planTally()} and
+     * {@link #planTerrain} read, in the same statement. There is no second copy: all three are called
+     * from one string concatenation in {@code IntentProcess}, so「发出全清」and「采纳有缺口」are
+     * statements about the same nodes and the contradiction between them is real rather than an
+     * artefact of comparing two plans.
+     *
+     * <p><b>But an unsupported cell is only a defect under an edge that walks.</b> This method判s
+     * support cell by cell and originally said nothing about the MOVE crossing them — and a
+     * {@code parkour3} or a {@code fall} is supposed to cross thin air; that is what it is for. A row
+     * reading「缺口2格」under a jump edge names a fault that does not exist, which is exactly the
+     * shape of evidence this rung has lost rounds to. The move entering each segment is therefore
+     * printed beside it, and the gap count must never be read without it.
      */
     public String planSpans(WorldView w, int segments) {
         if (path == null || path.size() < 2 || w == null) return "无路径";
@@ -940,10 +955,18 @@ public final class Walker {
                 if (nHoles <= 6) holes.append(nHoles == 1 ? "" : ",").append(c.toShortString())
                         .append(w.isKnown(c.below()) ? "" : "(未加载)");
             }
+            Move.Edge into = edgeAt(i + 1);
+            String move = into == null || into.move == null ? "?" : into.move;
             sb.append(i == 0 ? "" : " ").append("段").append(i).append(' ')
               .append(a.toShortString()).append("→").append(b.toShortString())
+              .append(" move=").append(move)
               .append(" 共").append(steps + 1).append("格 ")
-              .append(nHoles == 0 ? "缺口无" : "缺口" + nHoles + "格[" + holes + "]");
+              .append(nHoles == 0 ? "缺口无"
+                      : "缺口" + nHoles + "格[" + holes + "]"
+                        // A jump is SUPPOSED to cross thin air. Saying so here, beside the count, is
+                        // what keeps the row from naming a fault that does not exist.
+                        + (move.startsWith("parkour") || move.startsWith("fall")
+                                ? "（这是跳跃边，跨空是它的用途，不是缺陷）" : ""));
         }
         return sb.toString();
     }
