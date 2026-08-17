@@ -65,9 +65,11 @@ import net.minecraft.world.phys.AABB;
  * because a step only has to be steppable, not to be a solid wedge.
  *
  * <p>Every cell of it is checked before anything is placed: inside the corridor, feet and head clear,
- * something to click against, and never a cell of the descent flight ({@link JourneyStairs#cells}) —
- * that flight is the only way back up to the lava, and a step built into it would seal the rung's own
- * route home.
+ * something to click against, and never a cell the descent flight needs open
+ * ({@link JourneyStairs#needsOpen} — the step, its head room and the clearance a climb jumps through,
+ * three per step and not the one {@link JourneyStairs#cells} lists). That flight is the only way back
+ * up to the lava, and a step built into it does not merely seal the route home: the flight's own audit
+ * finds it, mends it with the pick, and takes this raise out from under the body standing on it.
  *
  * <h2>The flight carries its own wall</h2>
  *
@@ -472,7 +474,7 @@ final class JourneyRamp {
      *  {@link #supportable}, split out because the shoulder has to pass it too and must not be held
      *  to the face test — having no face is the whole reason a shoulder exists. */
     private static boolean fillable(ServerLevel level, Set<BlockPos> corridor, BlockPos c) {
-        return corridor.contains(c) && !JourneyStairs.cells.contains(c)
+        return corridor.contains(c) && !JourneyStairs.needsOpen(c)
                 && level.getBlockState(c).canBeReplaced() && !level.getFluidState(c).isSource();
     }
 
@@ -536,7 +538,8 @@ final class JourneyRamp {
     /** Why the block under a step cannot go in first — the four ways {@link #fillable} says no. */
     private static String whyShoulder(ServerLevel level, Set<BlockPos> corridor, BlockPos c) {
         if (!corridor.contains(c)) return "不是壁龛格";
-        if (JourneyStairs.cells.contains(c)) return "是下井楼梯的一级，不能堵";
+        String flight = JourneyStairs.flightCell(c);
+        if (flight != null) return flight + "，不能堵";
         if (!level.getBlockState(c).canBeReplaced())
             return "是 " + level.getBlockState(c).getBlock() + "，放不进去";
         if (level.getFluidState(c).isSource()) return "里是源块 —— 埋掉它这一级就收不回水桶了";
@@ -546,7 +549,8 @@ final class JourneyRamp {
     /** Why one cell cannot hold a step — one sentence per clause, never one for all four. */
     private static String whySupport(ServerLevel level, Set<BlockPos> corridor, BlockPos c) {
         if (!corridor.contains(c)) return c.toShortString() + " 不是壁龛格";
-        if (JourneyStairs.cells.contains(c)) return c.toShortString() + " 是下井楼梯的一级，不能堵";
+        String flight = JourneyStairs.flightCell(c);
+        if (flight != null) return c.toShortString() + " " + flight + "，不能堵";
         if (!level.getBlockState(c).canBeReplaced())
             return c.toShortString() + " 是 " + level.getBlockState(c).getBlock() + "，放不进去";
         if (level.getFluidState(c).isSource())

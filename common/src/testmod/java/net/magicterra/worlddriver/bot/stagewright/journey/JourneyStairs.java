@@ -104,6 +104,44 @@ final class JourneyStairs {
     /** How much asking has been done, for a message that would otherwise imply none. */
     static String tally() { return checked + " 次，修好 " + mended + " 级"; }
 
+    /**
+     * Which of the flight's cells this is, or null — the question everything that wants to put a
+     * block down in the alcove has to ask.
+     *
+     * <p><b>Three cells per step, not one.</b> {@code digStairsDown} cuts the step, its head room and
+     * the cell two above it, and {@link #faults} audits all three ({@code s > 0} for the third,
+     * because nothing is ever climbed from the top cell). {@link #cells} holds only the first of the
+     * three, so {@code cells.contains(...)} — which is what the alcove's own staircase builder used to
+     * ask — is a third of the question.
+     *
+     * <p>The other two thirds cost a run. The alcove's floor row IS the flight's bottom step's row, so
+     * a raise out of the alcove starts beside that step and rises straight through the clearance the
+     * ascent jumps through. Measured on the south geometry, 2026-08-17: the raise laid
+     * {@code wet.8.ramp.flight = -7,56,32 → -8,57,32 → -9,58,32 → -9,59,33}, whose third block is
+     * {@code stairs.bottom(-9,56,32).above(2)}. The next audit read it as a broken stair, which it
+     * genuinely was, and mended it the only way a blocked cell can be mended:
+     * {@code lava8.stairsMend.1 = -9, 56, 32 起跳格 -9, 58, 32=cobblestone → 敲开了}. The raise the
+     * body was standing on came out from under it and the run ended in the flooded mould,
+     * {@code lava8.upStopped = 停在 -9, 58, 34 … 脚下/身处/头顶 都是 water}.
+     *
+     * <p>Named rather than lumped: a step, its head room and its jump clearance are refused for one
+     * reason but a reader chasing a refusal needs to know which cell of which step it hit.
+     */
+    static String flightCell(BlockPos c) {
+        for (int s = 0; s < cells.size(); s++) {
+            BlockPos step = cells.get(s);
+            if (step.equals(c)) return "是下井楼梯 " + step.toShortString() + " 那一级本身";
+            if (step.above().equals(c))
+                return "是下井楼梯 " + step.toShortString() + " 那一级的头顶格";
+            if (s > 0 && step.above(2).equals(c))
+                return "是下井楼梯 " + step.toShortString() + " 那一级的起跳格（爬上去要从这里穿过）";
+        }
+        return null;
+    }
+
+    /** Does the flight need this cell OPEN? The boolean half of {@link #flightCell}. */
+    static boolean needsOpen(BlockPos c) { return flightCell(c) != null; }
+
     /** One step that has stopped being a step, and which of the four ways it can stop being one. */
     record StairFault(BlockPos step, BlockPos cell, boolean missingSupport, String saw) {
         String describe() {
