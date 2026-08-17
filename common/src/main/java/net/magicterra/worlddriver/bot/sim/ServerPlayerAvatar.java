@@ -289,15 +289,57 @@ public class ServerPlayerAvatar implements Avatar {
         return hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK ? hit.getBlockPos() : null;
     }
 
+    // HOW OFTEN THE WALKER ASKED, AND THE TWO SILENT WAYS THAT ASK ENDS IN NOTHING.
+    //
+    // Both early returns below used to be invisible: no log, no counter, no return value. A caller
+    // that watched its own inventory could see that no block had been spent and could not see WHY —
+    // and the two causes want opposite fixes. Measured 2026-08-17 on the End arrival platform: a
+    // 7-node `bridgePlace` plan, 1024 cobblestone carried, and zero blocks placed while the body
+    // fell 23 000 blocks into the void.
+    //
+    // The FIRSTs matter more than the totals and are kept separately for that reason. A body that
+    // falls keeps asking for thousands of ticks with nothing solid anywhere near it, so the totals
+    // are dominated by the aftermath; the first call, and the first refusal, are the only samples
+    // taken while there was still ground under the question.
+    private int placeCalls, placeNoFace, placeNoBlock;
+    private String firstCallAt, firstNoFaceAt, firstNoBlockAt;
+
+    /** Where this body was and what it was aiming at, for the place tally's first-sample rows. */
+    private String placeSample(BlockPos cell) {
+        return "身体 " + fp.blockPosition().toShortString() + " → 目标 " + cell.toShortString();
+    }
+
+    /** The place actuator's own tally, for a caller that can see「no block was spent」and cannot see
+     *  why. Read it as a partition: {@code calls=0} means the actuator never ran at all (an ordering
+     *  or momentum fault upstream, not a placement one); {@code 无面>0} means it ran and found no
+     *  solid neighbour to click; {@code 无块>0} means the body was not holding anything placeable. */
+    public String placeTally() {
+        return "calls=" + placeCalls + " 无面=" + placeNoFace + " 无块=" + placeNoBlock
+                + "；首次调用 " + (firstCallAt == null ? "无" : firstCallAt)
+                + "；首次无面 " + (firstNoFaceAt == null ? "无" : firstNoFaceAt)
+                + "；首次无块 " + (firstNoBlockAt == null ? "无" : firstNoBlockAt);
+    }
+
     @Override public void place(WorldView w, BlockPos cell) {
+        placeCalls++;
+        if (firstCallAt == null) firstCallAt = placeSample(cell);
         for (Direction d : Direction.values()) {
             BlockPos against = cell.relative(d);
             if (w.isSolid(against)) { placeOn(against, d.getOpposite()); return; }
         }
+        // NOTHING TO CLICK. Not an error and not a no-op worth hiding: this body places by clicking a
+        // face, so a cell with six non-solid neighbours cannot be placed into at all, however much
+        // the inventory holds and however firmly the planner intended it.
+        placeNoFace++;
+        if (firstNoFaceAt == null) firstNoFaceAt = placeSample(cell);
     }
 
     @Override public void placeOn(BlockPos clickBlock, Direction face) {
-        if (!holdPlaceable()) return;
+        if (!holdPlaceable()) {
+            placeNoBlock++;
+            if (firstNoBlockAt == null) firstNoBlockAt = placeSample(clickBlock);
+            return;
+        }
         Vec3 hit = new Vec3(
                 clickBlock.getX() + 0.5 + face.getStepX() * 0.5,
                 clickBlock.getY() + 0.5 + face.getStepY() * 0.5,

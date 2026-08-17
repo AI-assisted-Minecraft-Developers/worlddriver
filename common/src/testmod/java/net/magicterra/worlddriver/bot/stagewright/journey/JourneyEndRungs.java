@@ -1006,7 +1006,13 @@ public final class JourneyEndRungs {
                 + " pathLen=" + slot.pathLen + " move=" + slot.pathMove
                 + " end=" + slot.endReason + " err=" + slot.lastError
                 + (slot.active ? "" : "（进程已终止，pathLen/move 是 reset 之后的空值，"
-                        + "不要读成「压根没有计划」）");
+                        + "不要读成「压根没有计划」）")
+                // ⚠️ pathLen/move above are the state at the END of the leg, and a leg that fell out
+                // of the world spends most of itself in the void — where BridgePlace.eval's every
+                // premise holds, because it deliberately does not check for support underfoot. So
+                // that half describes the planning of a falling body. The place tally's FIRST rows
+                // are the ones taken while there was still ground under the question.
+                + "；place " + rig.body().avatar().placeTally();
     }
 
     /**

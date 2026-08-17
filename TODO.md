@@ -1,3 +1,57 @@
+## ⬜ `bridgePlace` 没落下方块：**定性 = 已有能力的缺陷**,本轮只加读数(等级 `compiled`)
+
+### 1. 执行侧在哪
+
+| 层 | 位置 | 做什么 |
+|---|---|---|
+| 规划 | `pathfinder/moves/BridgePlace.java` | 产出 `move=bridgePlace` 的边,`toPlace = to.below()` |
+| 执行 | **`movement/WalkerTickClimb.java:1027-1054`** | 遍历 `edge.toPlace`,`a.aimAtBlock(b)` + `a.place(world, b)`;入口闸在 `:957` `hasPendingEdge(...)`,进入后把 forward/jump 归零 |
+| 服务器致动器 | **`sim/ServerPlayerAvatar.java:292-307`** | `place` 扫 `cell` 的六个邻居找**实心**面 → `placeOn` → `holdPlaceable()` → `fp.gameMode.useItemOn` |
+
+⇒ **`bridgePlace` 的执行侧是实现了的,不是缺一项能力。** 按项目规矩确认过了:这是已有能力的缺陷。
+
+### 2. 它在别处工作过 —— **有,而且是同一具身体、同一个致动器**
+
+`wd.bridgeGap`(`WorldDriverTerrainScenes`)挖出 **3 格宽的沟**并把沟底下方 4 排也清空,
+`allowBreak=false` 逼它架桥,用 `ServerPlayerAvatar` + `Walker` 跑 600 tick,断言身体**过去了**。
+`wd.bridgeDescendPlaceLip` / `wd.bridgeFootholdPlace` 更进一步,断言 **dirt 被消耗**
+(「arrived but no block was consumed」)。这些都在 222 绿里。
+
+⇒ **服务器身体在真沟上确实放得下方块。** 所以病**不在**「执行侧从来没放过一块」那一支,
+而在「虚空里的某一步失效」。**这两支修法相反,先证伪了一支。**
+
+### 3. 为什么现在还不能动手:**三处静默早退,一条读数都没有**
+
+```java
+place(w, cell):   六个邻居都不实心 → 直接 return，无日志无计数
+placeOn(...):     !holdPlaceable() → 直接 return，无日志无计数
+placeOn(...):     useItemOn 的 InteractionResult 被丢弃
+```
+
+而且 `island.0.plan` 的 `pathLen=7 move=bridgePlace` 是**这一腿末尾**采的,
+那时身体已在 −23228 —— **虚空里 `BridgePlace.eval` 的每一条前提都成立**
+(不查脚下支撑是它的设计),所以那一行描述的是坠落中的规划,不是站在台子上时的规划。
+**这是我自己那张表的缺陷,先说清楚。**
+
+### 📌 预测(写在动手之前)
+
+**这一轮只加读数,20 级不会变绿,也不该变绿。** 判据是下面这张表命中哪一行。
+
+新读数 `island.N.place`：`calls / 无面 / 无块`,外加 **`firstCallAt`** 和 **`firstNoFaceAt`**
+(各带身体坐标 + 目标格)。后两个是关键:总计数会被 5900 tick 的坠落淹没,**第一次**不会。
+
+| 首次读数 | 结论 | 刀落在哪 |
+|---|---|---|
+| `calls=0` | 致动器**从没跑过**,身体在有地面时就走掉了 | 驱动侧的**次序/动量**(`WalkerTickClimb:957` 入口闸或 drive 的残余速度) |
+| `firstCallAt` 身体 **y=49** 且 `firstNoFaceAt` 也在 **y=49** | 站在台子上就找不到可点的面 | **`ServerPlayerAvatar.place` 的找面算法**(它只认 `cell` 的邻居,不认身体脚下那块) |
+| `firstCallAt` y=49、`firstNoFaceAt` **y<48 或不存在**,而 `放了 0 块` | 面找到了、`useItemOn` 拒了 | 放置本身(`BlockPlaceContext`),要再加一层 |
+| `无块 > 0` | `holdPlaceable` 说没方块 | 快捷栏那一族(**我算过应当不成立**:kit 是 sword→slot0、cobblestone→slot1..16,槽 1–8 全是圆石) |
+
+我**预计**落在第一或第二行,但**不预先挑一个**——上一轮正是因为没挑才一趟判完。
+`无面` 的总数几乎必然很大(坠落中每一 tick 都找不到面),**所以只读总数会误导,必须读首次**。
+
+---
+
 ## ⬜ 20 级 TIMEOUT 40001 tick：三件事(等级 `compiled`)
 
 ### 1. 预算 floor 是死代码,**逃生口在 Java、闸门被 build 文件永久顶开**
