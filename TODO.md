@@ -1,3 +1,61 @@
+## ⬜ 一个朝主世界目标走的进程,在身体已经在末地之后继续走(刀在 `bot/`,等级 `compiled`)
+
+**裁决已出**:`platform.obsidian = 25/25` ⇒ 台子建好了 ⇒ **身体是自己走掉的**。两趟落点还不同
+(水平漂移 13 vs 16、垂直 4426 vs 4340)⇒ 不是传送错的,是走掉的。
+
+**病灶**:`IntentProcess` 的 `Goal` 坐标是**有维度的**,而进程在脚下的维度换掉之后**照旧推**。
+19 级的过界发生在 `settle(IntentProcess(Goal.Block(-1092,25,1314)), 1200, …)` 内部,过去之后
+walker 仍朝那个**主世界**坐标推,而台子只有 5×5。
+
+### 这条边的全部使用者(动手前查的,`grep "new IntentProcess"` 40 处,只有 3 处能跨维度)
+
+| 使用者 | 现在 | 这一刀之后 |
+|---|---|---|
+| `JourneyEndRungs.stepIn`(19 级) | 过界后继续走 1200 tick ⇒ 掉出台子 | **被治的就是它** |
+| `JourneyEndRungs.backToTheOverworld`(17 级) | 下界→主世界,过界后继续朝一个**下界**坐标走 3000 tick | 同一缺陷,顺带修好;17 级从没爬到过,**无实测基线** |
+| `WorldDriverJourneyScenes.holdInThePortal` 的走路腿(13 级) | 只在身体飘出门时才是 `IntentProcess`,且只有 150 tick;**正常过界发生在 `HoldStill` 下** | 多半一字不变 |
+
+**其余 37 处全部是单维度内的行走**,够不到这条边。
+全仓 `endReason` 的使用者**没有一个是断言**——testmod 里全是 `rig.evidence(...)` 证据行,
+`WorldDriverCoverageScenes` 读的是 `walker.lastEndReason`(Walker 层、单维度竞技场)。⇒ **没有断言会被这个新值翻**。
+
+### 📌 预测(写在动手之前,不许事后改)
+
+**19 级(`-Prehearse=END`)**
+
+| 读数 | 预测 |
+|---|---|
+| 颜色 | **绿**——但不是必然:刀移除的是「继续推」,没有清除**过界瞬间的残余速度**。若动量仍把身体带下 5×5,它会再红一次 |
+| `arrived.at` 的 y | **绿的话落在 48–52,最可能正好 49**(vanilla 把 `ServerPlayer` 放在 `END_SPAWN_POINT.getBottomCenter()-(0,1,0)` 即 y=49;台子地板 48、空气 49–51)。**红的话仍是数千格之下**——这两种差三个数量级,不会看混 |
+| `platform.obsidian` | **仍是 25/25**。这一刀只改「进程什么时候停」,改不了 `createEndPlatform` 铺过的方块。**它要是变了,说明刀切到了别处** |
+| `spawnPoint` 水平漂移 | **0 或 1**(现在是 13/16)——身体到站之后不再走 |
+| `step.2` 的「停在」 | 从 `84,-4290,4` 变成**台子上那一格** |
+| scene 总 tick | 从 2413 降到 **约 1200–1400**(1200 tick 的 settle 在过界处提前结束) |
+| 新 `endReason` | `dimension-changed`,与 `arrived` / `path-consumed` 三者互不相同 |
+
+**13 级(六道闸里的 `wd.journey13Nether`)**
+
+| 读数 | 预测 |
+|---|---|
+| 判决 | **不变,仍 PASS** |
+| `dimension` / `arrived.at` / 8:1 缩放断言 | **一字不变** |
+| `portal.leg.*` | **最多少一行**,且只在「身体飘出门、恰好在走路腿里被传走」那一支;正常路径走的是 `HoldStill`,一行不变 |
+| 总 tick | 最多少 150 |
+
+**17 级**:无实测基线,只预测方向——`return.at` 从「一次朝下界坐标的无意义 3000 tick 行走的终点」
+变成「过界落点」。判决不变(它本来就在之后查维度)。
+
+**在线 `mc.bot.goto`**:跨维度的 goto 现在会以 `endReason=dimension-changed` 终止而不是继续推。
+这是 RPC 面的行为变化,**明写在这里**,不当无声副作用。
+
+### ⚠️ 这一刀没有覆盖到的洞(明说,不假装)
+
+守卫放在 `IntentProcess` 里,**不在 `Walker` 里**。所以 `MineProcess` / `BuildProcess` 等其他持 `Goal`
+的进程仍有同样的洞。选 `IntentProcess` 是因为它是本缺陷的唯一现场、且爆炸半径可预测;
+`Walker` 一改就同时动六道闸,我给不出那么紧的预测。**要不要扩到 `Walker` 由你定,别默认已覆盖。**
+
+---
+
 ## 🟥 19 级的假绿：**判据漏了一维**（已修，等级 `compiled`）
 
 ```

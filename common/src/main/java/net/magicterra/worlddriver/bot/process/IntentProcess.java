@@ -12,8 +12,10 @@ import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.pathfinder.constraints.LeashHardRadius;
 import net.magicterra.worlddriver.bot.pathfinder.modifiers.LeashAnchor;
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,8 +32,22 @@ import java.util.List;
  * status reporting, and {@code UserTaskChain} mapping are unchanged.
  */
 public final class IntentProcess implements BotProcess {
+
+    /**
+     * {@code endReason} for a run that ended because the body left the world its goal was set in.
+     *
+     * <p><b>Distinct from both of the two verdicts it used to be indistinguishable from</b>, which is
+     * the whole reason it is a third value rather than a flavour of {@code path-consumed}: "arrived",
+     * "could not get there" and "the goal is not in this world any more" want three different things
+     * from the caller, and only the last one means the goal itself has stopped meaning anything.
+     */
+    public static final String DIMENSION_CHANGED = "dimension-changed";
+
     private final Intent intent;
     private final Walker walker = new Walker("goto");
+    /** The dimension the goal's coordinates belong to, latched on the first tick that has a body.
+     *  Not taken in {@link #attach} because that is handed a {@link BotState} and no Avatar. */
+    private ResourceKey<Level> plannedIn;
     private BlockPos lastAnchor;           // last solved anchor block (null = not yet solved)
     private int ticksSinceAnchorSolve;     // rate limiter
     private static final int ANCHOR_RESOLVE_MIN_TICKS = 20;
@@ -64,6 +80,12 @@ public final class IntentProcess implements BotProcess {
      *  or a server FakePlayer (ServerWorldDriver) identically — pure movement, so
      *  it just hands the Walker the same Avatar. */
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
+        Player body = a.player();
+        ResourceKey<Level> here = body == null ? null : body.level().dimension();
+        if (here != null) {
+            if (plannedIn == null) plannedIn = here;
+            else if (!plannedIn.equals(here)) return crossedOut(st, here);
+        }
         EntityLeash el = intent.entityLeash();
         if (el != null) {
             ticksSinceAnchorSolve++;
@@ -105,6 +127,53 @@ public final class IntentProcess implements BotProcess {
         st.mc_goto.endReason = walker.lastEndReason;
         st.mc_goto.finalDist = walker.lastFinalDist;
         st.mc_goto.reset();
+        return true;
+    }
+
+    /**
+     * The body changed worlds under a goal that was set in the old one: stop, and say which of the
+     * three things happened.
+     *
+     * <h2>Why a walk must not survive a portal</h2>
+     *
+     * A {@link Goal}'s coordinates are dimension-scoped. Nothing in the walker knows that, so a
+     * process that keeps ticking after a transfer plans a route across the NEW world's terrain toward
+     * the OLD world's numbers — and then drives the body along it. Measured on rung 19,
+     * 2026-08-17: the End crossing happened inside a 1200-tick {@code settle} aimed at the
+     * stronghold's portal cell {@code -1092,25,1314}. Vanilla delivered the body correctly onto the
+     * 5x5 arrival platform at {@code 100,49,0} — {@code platform.obsidian = 25/25} proves the
+     * platform was there — and the walker, still pushing toward an overworld coordinate a thousand
+     * blocks away, walked it straight off the edge. Two runs, {@code arrived.at = 87,-4376,-1} and
+     * {@code 84,-4290,4}: different landing spots, which is what a body that WALKED off looks like
+     * and not what a mis-delivered teleport looks like.
+     *
+     * <h2>Why it is stopped rather than re-aimed or waited out</h2>
+     *
+     * Re-aiming would mean this class deciding where the body should go in a world it was never
+     * told about — the caller set that goal, and only the caller knows what it meant. Waiting
+     * "a few more ticks" waits for an event that cannot happen: the goal will never become reachable
+     * because it does not exist here. So the honest move is to end the run, and to end it with a
+     * verdict the caller can act on.
+     *
+     * <p><b>{@code finalDist} stays −1 deliberately.</b> {@code goal.estimate(foot)} would happily
+     * return a number here, and that number would be the distance from this world's body to another
+     * world's coordinates — an evidence row asserting a quantity that does not exist. There is no
+     * distance to report, so none is reported.
+     */
+    private boolean crossedOut(BotState st, ResourceKey<Level> here) {
+        // Fire the pathfinder's terminal so an in-flight path archive is flushed for the partial run,
+        // exactly as an external cancel does. Without it the trace for this run is never closed.
+        walker.abort(DIMENSION_CHANGED);
+        st.mc_goto.goalReached = false;
+        st.mc_goto.endReason = DIMENSION_CHANGED;
+        st.mc_goto.lastError = "goal was set in " + plannedIn.location()
+                + ", the body is now in " + here.location()
+                + " — those coordinates mean nothing here, so the walk was stopped rather than "
+                + "re-aimed (a goal belongs to whoever set it)";
+        st.mc_goto.finalDist = -1;
+        st.mc_goto.reset();
+        WorldDriverCommon.LOG.info("[IntentProcess] {} → {}: goal {} abandoned, {}",
+                plannedIn.location(), here.location(), intent.target(), DIMENSION_CHANGED);
         return true;
     }
 
