@@ -8,6 +8,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Rung 12's flight out of the alcove refused to build more often than it built, and the row that
+  said why named the wrong thing twice over.** The raise that puts the body level with the mould's
+  top rows is `JourneyRamp.buildTo`, and reading the archive rather than running anything says it
+  was mostly not raising at all. Over the four distinct ladder runs in `fabric/run-journey/logs` that
+  carry its rows, it was called **22 times, refused 12 of them before laying a single block, and all
+  12 refusals were the same sentence** — the landing's own support with six air neighbours:
+
+  ```
+  water8.ramp.noFlight = 6, 60, 19 修不出楼梯：这一格自己的垫脚 6, 59, 19 垫不了：
+                         6, 59, 19 六邻没有能贴的实心面（放方块要贴着一个面点）：
+                         down=air up=air north=air south=air west=air east=air
+  ```
+
+  A refusal there is not a fallback: the two things behind it are the scripted tower, which stalls on
+  this geometry, and the walker's Y-level goal, which on the same run left the body seven columns out
+  of the one the aim was computed for (`water8#3.endedIn = 0,19（起塔柱是 6,19 —— 不是同一柱）`). So
+  the pour or the scoop that followed fired a ray nobody had verified, and the failure surfaced as a
+  frame the rung would not break or a bucket that would not fill. **5 of those 22 calls landed on the
+  row AND the column asked for.**
+
+  What the test missed is that a flight is laid bottom-up and one cell of it is always face-adjacent
+  to the course below. The steps are not — `support(i+1) - support(i)` is a diagonal by construction,
+  which is why a staircase alone can never hold itself up in a hollow box — but the block directly
+  UNDER a step lies in the previous step's own row, one cell along it. So the flight now hands itself
+  the face it needs: lay that shoulder against the step below, then lay the step against the
+  shoulder. Only the bottom course still borrows a face from the world, and its support rests on the
+  rock under the alcove, so it always has one. Two blocks a course out of the ninety-odd cobblestone
+  the rung already carries; both are registered as steps, because a shoulder is as much floor as the
+  step on top of it and `tidyTheAlcove` would otherwise sweep it. A shoulder that would land in a
+  cell the flight itself walks through is refused — the planner picks each course's direction
+  independently, so a flight that folds back on itself would otherwise seal its own staircase from
+  underneath.
+
+  Measured on the final tree, three pinned rehearsals (`-PshaftColumn=-8,19` ×1, `-9,21` ×2):
+  **12 `buildTo` calls, 0 refused, 8 landed on the exact row and column — 23% → 67%.** The
+  top-two-row landings the archive had never once reached now get built:
+  `wet.8.ramp.laid = 4/4 级垫好了`, `wet.8.ramp.rampedY = 60/60（同一柱）`, and the south geometry's
+  PASS is the first in this rung's archive where the flight, rather than a floor-level spot, carried
+  cells nine and ten (`frame.cast = 10/10`, `portal.cells = 6/6`, ten `recover*` CONSUME).
+- **A flight's builder was standing on the flight.** With the shoulder in, the next thing to fail was
+  the placement itself, and the row that reported it had been asserting a mechanism it never
+  measured: `.step.N` printed 「六邻没有能贴的实心面」 unconditionally whenever the body held a
+  cobblestone and the cell stayed air. The archive already contained its own refutation —
+  `cell.6.ramp.step.1 = -8,57,37 垫不上（…六邻没有能贴的实心面？），身体 -8,57,37`, about a cell the
+  body was **standing in**. Nine of the ten archived `.step.N` rows name a cell face-adjacent to the
+  body at its own feet row.
+
+  So the row now asks the world. It separates "no face at all" from "a face, and the body's own box
+  in the cell", and on the first run that carried it the answer came back in one line:
+
+  ```
+  cell.6.ramp.step.1 = 6, 57, 18 垫不上（现在是 air，贴得到实心面（但身体自己的碰撞箱压在这一格里
+                       —— vanilla 的 isUnobstructed 会拒，身体精确位置 6.60/57.00/17.78）），身体 6, 57, 17
+  ```
+
+  A player's box is 0.6 wide, so 0.28 off centre is enough, and the walker leaves a body wherever the
+  last edge ended rather than in the middle of a cell. `approach` had been asked to keep the body out
+  of the bottom step only; it now keeps it off the whole footprint — steps, shoulders, stands and
+  head room — and `lay` steps aside to such a cell instead of climbing onto the course below when a
+  cell it needs is blocked. One variable, measured against a baseline that had become deterministic
+  (two runs, 8104 and 8096 ticks, the same cell and the same reason):
+  `cell.6.ramp` went from `57/58，laid 1/2` to **`58/58（同一柱），laid 2/2`**, and the run carried
+  cells 0–6 instead of dying on cell 7 — 8104 → 26748 ticks.
+
+  *The rung's red has moved rather than gone, and the round's own bar was not met.* The east arm
+  (`-PshaftColumn=-8,19`) is **0 PASS in 3**, so the ≥3 it was asked for is not close; what it now
+  dies on is the walk back to the alcove — `cast6.returnStopped = 想到 -1, 60, 19，停在 -5, 64, 19`,
+  after the body's own `returnStuck` pillar broke a stair that the mend then had to knock back out.
+  The south geometry (`-9,21`) is **1 PASS in 2** against **1 PASS in 1** on the parent commit, which
+  is too few runs either way to say whether it moved. Neither death is the flight.
+
+  *Negative result worth not re-deriving, from the control run:* **on south the rung passed while the
+  flight refused 7 of its 9 calls.** The cells it refused for — nine and ten, both ranks — were served
+  from the alcove floor by `standToPour` / `fillFrom`, exactly as the one archived east PASS had
+  served them. So "the flight refuses" was never by itself the thing that decided this rung, and the
+  first read of the changed tree's south FAIL as a regression was wrong: the repeat passed. A refusal
+  rate is a property of the flight, not a verdict on the rung.
 - **Rung 12's opening walk had never once arrived, and a destination could not fix it — the ROUTE
   had to be priced.** The leg was `walkToColumn(lava.x, lava.z)`: the lake's own centre column, a
   cell no body can occupy. Every archived rehearsal that carries the end-reason row says so, **six
