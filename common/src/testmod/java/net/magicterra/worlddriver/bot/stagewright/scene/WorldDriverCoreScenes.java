@@ -107,6 +107,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 Scene.of("wd.physicsParity", 200, WorldDriverCoreScenes::physicsParity),
                 Scene.of("wd.airborneJumpInert", 200, WorldDriverCoreScenes::airborneJumpInert),
                 Scene.of("wd.flushJumpIgnoresOnGround", 200, WorldDriverCoreScenes::flushJumpIgnoresOnGround),
+                Scene.of("wd.climbableGroundJump", 200, WorldDriverCoreScenes::climbableGroundJump),
                 Scene.of("wd.buildBlockWhitelist", 200, WorldDriverCoreScenes::buildBlockWhitelist),
                 Scene.of("wd.pathArchiveJson", 200, WorldDriverCoreScenes::pathArchiveJson),
                 Scene.of("wd.nodePhysics", 200, WorldDriverCoreScenes::nodePhysics),
@@ -686,6 +687,106 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                     + worstRise + " at t=" + riseAt + " (jump held every tick, floor 8+ blocks below)");
         if (fp.getY() >= standY + 8)
             ctx.fail("airborneJumpInert: body never fell, so the watch proved nothing: y=" + fp.getY());
+    }
+
+    /**
+     * The coverage the ground gate's SECOND half never had: a body standing on solid rock beside —
+     * and then inside — a climbable must still be able to jump while the walker holds jump.
+     *
+     * <p>The gate is {@code soleOnSolid > 0 && deltaMovement.y <= 0}. Every other scene exercises
+     * only the first term: {@code wd.airborneJumpInert} refuses on sole 0 with {@code dy} negative
+     * the whole fall, {@code wd.flushJumpIgnoresOnGround} fires on sole 0.36 with
+     * {@code dy = −0.0784}. Neither can move the {@code dy} term, so it shipped untested — and it
+     * has a named way to be wrong, which is why this arena exists rather than a note.
+     *
+     * <p><b>The mechanism under test.</b> {@code LivingEntity.handleRelativeFrictionAndCalculateMovement}
+     * (1.21.1) rewrites the post-move vertical component to {@code +0.2} whenever
+     * {@code (horizontalCollision || jumping) && (onClimbable() || powder snow)}; {@code travel()}'s
+     * tail then leaves {@code (0.2 − 0.08) × 0.98 = +0.1176}. {@code ServerPlayerAvatar.step()} mirrors
+     * {@code fp.jumping = pendingJump} EVERY tick — deliberately, it is the only thing that drives a
+     * wall-less vine — so merely ASKING for a jump arms that rewrite. A body that lands back on rock
+     * with the ask still held therefore reads {@code dy > 0} while standing, and the gate refuses it.
+     * Vanilla would not: {@code LivingEntity.aiStep} calls {@code jumpFromGround()} for a grounded
+     * jumping body on a ladder (rate-limited by {@code noJumpDelay}, not forbidden).
+     *
+     * <h2>Two arms, and they answer different questions</h2>
+     * <ul>
+     *   <li><b>adjacent</b> — ladder one cell to the side, body's own cell empty. {@code onClimbable()}
+     *       reads {@code getInBlockState()}, i.e. the FEET cell, so a neighbour does not arm the
+     *       rewrite and nothing should interfere. A failure here is the ARENA, not the gate.</li>
+     *   <li><b>underfoot</b> — the ladder occupies the body's own cell, floor still solid beneath.
+     *       {@code onClimbable()} is true, so the rewrite is armed from the first held tick. The body
+     *       must be able to leave the ground by a JUMP more than once.</li>
+     * </ul>
+     *
+     * <h2>The criterion, fixed before the run</h2>
+     * A single-tick rise {@code > 0.3} can only be the {@code 0.42} ground jump: the climbable
+     * rewrite tops out at {@code 0.1176} per tick and gravity only subtracts. So "jumped again" is
+     * countable without reading any internal state. Each arm must produce at least TWO such rises
+     * inside the window. One rise means the first jump fired and no later one could — exactly the
+     * self-lock. <b>A red here is a verdict on the {@code dy} term, not a scene to relax:</b> the fix
+     * is to make that term say what it meant (a body being carried UP is not standing) without
+     * catching a body that is merely holding jump next to a ladder — and whatever replaces it owes
+     * buoyancy its own arena, since that is what the term was added for.
+     */
+    private static void climbableGroundJump(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
+        final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
+        buildFloor(level, cx, cz, floorY);
+
+        // ADJACENT: wall at dx+2, ladder at dx+1 facing away from it; the body's own cell stays air.
+        level.setBlockAndUpdate(new BlockPos(cx + 2, standY, cz - 3), Blocks.STONE.defaultBlockState());
+        level.setBlockAndUpdate(new BlockPos(cx + 1, standY, cz - 3), ladderFacingWest());
+        // UNDERFOOT: wall at dx+1, ladder in the very cell the body stands in.
+        level.setBlockAndUpdate(new BlockPos(cx + 1, standY, cz + 3), Blocks.STONE.defaultBlockState());
+        level.setBlockAndUpdate(new BlockPos(cx, standY, cz + 3), ladderFacingWest());
+
+        int adjacent = countGroundJumps(ctx, level, cx, standY, cz - 3, "adjacent");
+        int underfoot = countGroundJumps(ctx, level, cx, standY, cz + 3, "underfoot");
+        WorldDriverCommon.LOG.info("[wd.climbableGroundJump] adjacent={} underfoot={}", adjacent, underfoot);
+
+        if (adjacent < 2)
+            ctx.fail("climbableGroundJump: adjacent arm jumped " + adjacent + " time(s), expected >=2. "
+                    + "A ladder one cell away must not reach the body at all (onClimbable reads the FEET "
+                    + "cell) — so this is the arena or the ground gate's FIRST term, not the dy term.");
+        if (underfoot < 2)
+            ctx.fail("climbableGroundJump: underfoot arm jumped " + underfoot + " time(s), expected >=2 — "
+                    + "the body could not jump again while standing on rock in a ladder cell with jump "
+                    + "held. That is the `dy <= 0` half of the ground gate self-locking: vanilla rewrites "
+                    + "the post-move dy to +0.2 whenever `jumping` is set on a climbable, and the avatar "
+                    + "sets `jumping` from the ask every tick, so a standing body reads dy>0 forever. "
+                    + "Fix the term, do not relax this arena.");
+    }
+
+    /** A ladder hung on a wall to its EAST (so it faces west). */
+    private static net.minecraft.world.level.block.state.BlockState ladderFacingWest() {
+        return Blocks.LADDER.defaultBlockState().setValue(
+                net.minecraft.world.level.block.LadderBlock.FACING, net.minecraft.core.Direction.WEST);
+    }
+
+    /** Hold jump for 60 ticks and count the single-tick rises only a {@code 0.42} ground jump can
+     *  produce. Returns the count; logs the first ten ticks so a red is diagnosable from the run that
+     *  produced it rather than from a second one with logging turned on. */
+    private static int countGroundJumps(SceneContext ctx, ServerLevel level, int cx, int standY, int cz, String arm) {
+        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayer fp = av.fakePlayer();
+        ctx.cleanup(() -> fp.discard());
+        for (int i = 0; i < 3; i++) av.step();
+        StringBuilder head = new StringBuilder();
+        double prev = fp.getY();
+        int jumps = 0;
+        for (int i = 0; i < 60; i++) {
+            av.commandJump(true);
+            av.step();
+            double rise = fp.getY() - prev;
+            if (rise > 0.3) jumps++;
+            if (i < 10) head.append(String.format(java.util.Locale.ROOT, " t%d:y=%.4f dy=%.4f", i, fp.getY(), rise));
+            prev = fp.getY();
+        }
+        WorldDriverCommon.LOG.info("[wd.climbableGroundJump] {} jumps={} climbable={}{}",
+                arm, jumps, fp.onClimbable(), head);
+        return jumps;
     }
 
     /**
