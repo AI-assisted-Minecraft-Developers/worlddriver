@@ -141,6 +141,8 @@ public final class Walker {
     List<Move.Edge> edges;   // aligned with path; edges.get(i) enters path.get(i)
     /** The A* result before stringPull, as a tally — see {@link #rawPlanTally()}. */
     private String rawPlan;
+    /** The first parkour takeoff this walk ever made — see WalkerTickDrive's latch. */
+    String parkourTakeoff;
     int step;
     int ticksSinceRepath;
     int stuckTicks;
@@ -896,6 +898,23 @@ public final class Walker {
      * evidence and it cannot tell them apart.
      */
     public String rawPlanTally() { return rawPlan == null ? "无" : rawPlan; }
+
+    /** What the first parkour leap of this walk was launched with. {@code Parkour3} is costed as the
+     *  <b>sprint-jump maximum</b>, so {@code sprinting=false} at takeoff means the executor attempted
+     *  a leap the planner priced for a run-up it was not allowed to take. Deliberately not read from
+     *  {@code onGround}: this body's is wrong in both directions. */
+    public String parkourTakeoff() { return parkourTakeoff == null ? "无" : parkourTakeoff; }
+
+    /** Latch the FIRST parkour takeoff of this walk. The sprint decision is taken a tick before the
+     *  jump, so {@code isSprinting()} here is the state the leap actually launches with. Only the
+     *  first is kept: a body that has already fallen keeps producing these. */
+    void noteParkourTakeoff(net.minecraft.world.entity.player.Player p, boolean jump, BlockPos foot) {
+        if (parkourTakeoff != null) return;
+        parkourTakeoff = "jump=" + jump + " sprinting=" + p.isSprinting()
+                + String.format(java.util.Locale.ROOT, " 水平速度=%.3f",
+                        Math.hypot(p.getDeltaMovement().x, p.getDeltaMovement().z))
+                + " 身体=" + foot.toShortString();
+    }
 
     /** String-pull the search result, keeping a tally of what it looked like BEFORE — see
      *  {@link #rawPlanTally()}. The latch lives here rather than at the call site so

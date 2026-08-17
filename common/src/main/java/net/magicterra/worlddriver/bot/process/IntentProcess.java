@@ -134,6 +134,7 @@ public final class IntentProcess implements BotProcess {
         // Same tick, same reason (see BotState.ProcessSlot.driveTag): whether this tick reached the
         // drive tail at all is what separates "the edge guard said no" from "the edge guard never
         // ran", and only the walker knows.
+        if (walker.parkourTakeoff() != "无") st.mc_goto.parkourTakeoff = walker.parkourTakeoff();
         st.mc_goto.driveTag = walker.driveTag;
         st.mc_goto.jumpTag = walker.jumpTag;
         if (s == Walker.Step.WALKING) return false;

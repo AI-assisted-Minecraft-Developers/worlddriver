@@ -1012,6 +1012,7 @@ public final class JourneyEndRungs {
                 // premise holds, because it deliberately does not check for support underfoot. So
                 // that half describes the planning of a falling body. The place tally's FIRST rows
                 // are the ones taken while there was still ground under the question.
+                + "；首次起跳 " + slot.parkourTakeoff
                 + "；首个计划 " + slot.firstPlan
                 + "；place " + rig.body().avatar().placeTally();
     }

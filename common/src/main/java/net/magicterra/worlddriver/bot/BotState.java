@@ -174,6 +174,9 @@ public final class BotState {
          * the run it describes has ended.
          */
         public volatile String firstPlan;
+        /** The first parkour leap's takeoff state — see Walker.parkourTakeoff(). Kept across
+         *  reset() like lastError: it is read after the run it describes has ended. */
+        public volatile String parkourTakeoff;
 
         ProcessSlot(String name) { this.name = name; }
 

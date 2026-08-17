@@ -252,6 +252,78 @@ if (walkerCommitTailPlatform && bestEffort && path.size() > 4) { …只截尾…
 - 若 `move=walk`,那矛盾是真的,回到控制流那条线继续查。
 - 20 级仍然不该绿;222 场闸**仍应一条读数都不许变**(本轮只多打印一个字段)。
 
+### 🗄️ 已证伪,归档(**不要当线索重走**)
+
+| 曾经的怀疑 | 状态 | 被什么否掉 |
+|---|---|---|
+| `stringPull` 只验端点 | **证伪** | 合并循环里就有 `losWalkable`,逐格查支撑/头顶/危险/对角 |
+| 支撑判据漏了虚空 | **证伪** | `沿路` 每个节点下方都实心 |
+| 区块没加载,世界是假的 | **证伪** | `known=true/true` 全线成立 |
+| 发出与采纳之间有人改节点 | **证伪** | 平滑返回与赋值之间**零语句**;尾部回撤只截尾 |
+| 「那是一条 walk 边」 | **证伪,且它是上面四条的共同前提** | `段1 move=parkour3` |
+
+它们不是白跑——逐个排除了真实候选;但**必须标成已证伪**。
+
+### 📌 `parkour3` 的 vanilla 硬事实:**它按定义就需要冲刺**
+
+`Parkour3` 的类 javadoc 原文:**「3-block cardinal leap (sprint-jump max distance)」**,
+`cost 32 ≈ 3×walk + jump+sprint overhead`,且 `valid` 要求 `Move.hasRunway(w, from)`。
+⇒ 3 格平跳**不冲刺跳不过去**,这是规划侧写死的前提。
+
+**而执行侧有一条与之直接冲突的规则**(`WalkerTickDrive.java:1167` 的 sprint 条件):
+
+```java
+&& (!lethalNear || parkourAscend)   // never sprint NEAR a lethal edge — incl. a planned descent past it
+```
+
+唯一豁免是 **`parkourAscend`(上行 parkour)**,**平的 `parkour3` 不在豁免里**。
+而末地那两格缺口下面是**无底虚空**,正是 `lethalNear` 要防的东西。
+
+⇒ **当前假说(未证明,但两侧代码都指着它)**:
+规划器按「冲刺跳的最大距离」把这条边算进来,执行器的临边安全规则**恰好在这里禁止冲刺**,
+于是身体**起跳了、初速不足、掉进自己规划要跳过的缺口**。
+`首次调用 96,46,0`(跳跃边中途、y 已 49→46)与此一致。
+
+**这是规划与执行的契约分叉**:`Parkour3.valid` 没有把「执行器在这里允许冲刺」当成前提。
+按本仓规矩,**这不是禁掉一条 move 的理由**(禁用是把失败搬家);要么让前提成立,要么让判据知道它不成立。
+
+**下一轮读数**(起跳那一刻):`isSprinting`、水平速度、跳跃冲量有没有发出、`lethalNear` 是否为真。
+⚠️ `onGround` 两个方向都错过,**不许单独信它**。
+
+### 🔍 `lethalNear` 当初为什么被加上 —— 找到了,**而且它的前提正是这一刀要打的地方**
+
+`BotConfig.lethalEdgeBrake` 的 javadoc 原文(事故编号都在):
+
+> Fixes **DEATH #8**(RetreatChain/RunAwayProcess 逃跑路径沿着崖沿走,控制器漂移出 23 格落差)。
+> **The planner can't prevent it: PathFinder caps planned falls at survivableFall,
+> so a lethal fall is pure controller drift, never a planned move** — hence lethal-only here
+> never blocks a legitimate planned step-down.
+
+**它自己写明的前提是:「致命落差永远不会是计划的一部分」。**
+而一条跨越无底缺口的 `parkour3` **恰恰就是**「计划好的、要跨过致命落差的移动」——
+这个前提在末地这道缺口上**不成立**,而规则正是靠这个前提才敢无条件禁冲刺。
+
+⇒ **(a) 会不会把 DEATH #8 放回来:不会。** 那次事故里没有 parkour 边——
+是 flee 沿崖沿走时的控制器漂移,`parkourEdge` 为假,豁免不触发。
+豁免若写成「**当前正在执行的、`valid` 已验过落点的 parkour 边**」,
+命中的正是该规则自己声明为不可能的那一类,**不放宽任何漂移场景**。
+
+### 📌 本轮读数:`首次起跳`
+
+`Walker.noteParkourTakeoff` 在 parkour 边的**驱动那一 tick**锁存一次(只锁第一次:
+已经在坠落的身体会不断产出这些):`jump=` / `sprinting=` / `水平速度=` / `身体=`。
+冲刺决定在跳跃前一 tick 做出,所以此处的 `isSprinting()` **就是**起跳时的状态。
+**没有读 `onGround`** —— 这具身体两个方向都错过。
+
+| `首次起跳` | 结论 |
+|---|---|
+| `jump=false` | **根本没起跳**(候选 1),病在跳跃触发 |
+| `jump=true sprinting=false` | **起跳了但没冲刺**(候选 2)⇒ 契约分叉坐实,(a) 就是修法 |
+| `jump=true sprinting=true 水平速度` 正常 | **起跳且冲刺了还是没过去**(候选 3)⇒ 中途被改向,回查续段重规划/漂移 |
+
+⚠️ 行数预算:`WalkerTickDrive.run()` 被 grandfather 在 1262 行「只许缩不许涨」,
+所以锁存调用**并到了既有的 `Walker.avatarJump(a, jump);` 那一行**,净行数为 0,解释放在 `noteParkourTakeoff` 的 javadoc 里。**没有改门。**
+
 ### ⚠️ `wd.bridgeGap` 一族:本轮**一条读数都不许变**
 
 这一轮是**纯仪表**(两个新字段 + 一个 `+=`,没有一处改变分支),所以对照标准不是「哪些允许变」
