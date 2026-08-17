@@ -948,6 +948,30 @@ public final class WorldDriverScenes implements SceneProvider {
      * revisiting; the targeted {@code unregister} teardown (not {@code clear()}) is
      * already the pattern that survives that transition.
      *
+     * <p><b>WHAT THIS SCENE ACTUALLY COVERS — corrected 2026-08-18, and it is not what the name
+     * and the failure text say.</b> It has two halves and only the first is the pre-filter's:
+     * <ol>
+     *   <li>the pre-filter hands the walker a DIG GOAL instead of aborting "no reachable target"
+     *       (gap#60 proper). This half is real and is not in dispute — with the ore encased,
+     *       {@code findStandableAdjacent} returns null, the buried-target fallback produces a goal,
+     *       and one {@code [pathfinder] search-begin owner=mine} line appears;</li>
+     *   <li>the walker then CLIMBS the staircase it digs into the cube, four cells and three risers
+     *       away. This half is the bulk of the run and nothing in the arena announces it.</li>
+     * </ol>
+     * Half 2's green was, until 2026-08-18, riding a defect. Measured with the ground-gate
+     * disagreement reading: at {@code t=260} the body stood flush at {@code y=223.0000} with
+     * {@code 脚底实心=0.0000} and {@code 落速=-0.0784} — one tick of gravity from rest, so it had been
+     * resting on that support the tick before and the support was gone this tick — while vanilla's
+     * {@code onGround}, which describes the PREVIOUS move, still said true. {@code ServerPlayerAvatar}
+     * gated its ground jump on that bit and handed the body a {@code +0.42} it had no standing to
+     * take; that jump is what got it up the staircase. Gating the jump on the body's own sole (which
+     * {@code wd.airborneJumpInert} now requires) removes it, and the climb stalls one riser short.
+     *
+     * <p>So a RED here is ambiguous by construction, and the two readings want opposite fixes. It is
+     * NOT evidence that the pre-filter regressed unless the {@code search-begin} line is missing.
+     * Do not "fix" a red by relaxing this assertion, pre-cutting the staircase, or restoring the
+     * jump: the ore being encased is the whole point, and the jump was illegal.
+     *
      * <p><b>Footprint audit</b> (origin-relative dx/dz; default 3×3 window = dx/dz
      * [−16,+31]): the DIRT floor spans dx [−1,+9] / dz [−2,+2]; the STONE cube spans
      * dx [+3,+7] / dz [−1,+1] (dy +1..+3); the IRON_ORE sits at dx +5, dy +2. Full
@@ -1022,7 +1046,16 @@ public final class WorldDriverScenes implements SceneProvider {
         WorldDriverCommon.LOG.info("[wd.buriedOre] pos=({},{},{}) finished={} active={} oreMined={} lastError={}",
                 fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAvatarManager.activeCount(), oreMined, err);
         if (!oreMined)
-            ctx.fail("buriedOre: buried ore not mined (gap#60: stand pre-filter rejected a dig-reachable target): lastError=" + err);
+            // TWO failures wear this outcome and they want opposite fixes — see the class-level
+            // "what this scene actually covers" note. lastError is MineProcess's generic abort after
+            // the ore is blacklisted, so it reads "no reachable target" for BOTH; the pre-filter's
+            // own verdict is visible only as the presence of a search-begin line.
+            ctx.fail("buriedOre: buried ore not mined. Separate the two causes by the "
+                    + "'[pathfinder] search-begin owner=mine' lines in this window: NONE = gap#60 "
+                    + "proper (the stand pre-filter refused to hand the walker a dig goal); ONE OR "
+                    + "MORE = the pre-filter did its job and the walker failed to CLIMB the "
+                    + "staircase it digs — check for '[avatar] 挖掉了自己的落脚' and "
+                    + "'[avatar] 起跳闸分歧' in the same window. lastError=" + err);
         if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
             ctx.fail("buriedOre: buried-ore MineProcess did not finish+unregister: finished="
                     + driver.finished() + " active=" + ServerAvatarManager.activeCount());

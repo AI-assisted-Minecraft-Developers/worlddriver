@@ -364,7 +364,7 @@ public class ServerPlayerAvatar implements Avatar {
             return;
         }
         if (!faithfulBreak) {
-            fp.level().destroyBlock(aimTarget, DROP_HARVEST, fp);
+            destroyAimed();
             return;
         }
         // Faithful slow-mine: accumulate the SAME per-tick destroy fraction the live client
@@ -376,11 +376,46 @@ public class ServerPlayerAvatar implements Avatar {
         if (!aimTarget.equals(breakProgPos)) { breakProgPos = aimTarget; breakProg = 0f; }
         breakProg += st.getDestroyProgress(fp, fp.level(), aimTarget);
         if (breakProg >= 1.0f) {
-            fp.level().destroyBlock(aimTarget, DROP_HARVEST, fp);
+            destroyAimed();
             breakProgPos = null;
             breakProg = 0f;
         }
     }
+
+    /**
+     * Break the aimed cell, and say so once if the body was standing on it.
+     *
+     * <p>Asked with the SAME predicate the ground gate uses, before and after, so there is no second
+     * notion of "standing" to keep in sync: sole area {@code > 0} then {@code 0} means the block that
+     * vanished was the one carrying this body. That is a real invariant break — a body may dig its
+     * own floor deliberately (a descent, a shaft), but it must then FALL, and what the log records is
+     * the tick the fall becomes owed.
+     *
+     * <p>Why it earns a line: {@code wd.buriedOre} regressed on exactly this. The disagreement
+     * reading pinned the tick — {@code 悬空却报站着 t=260 脚底实心=0.0000 y=223.0000 落速=-0.0784},
+     * i.e. a body flush at a block boundary whose fall speed is precisely one tick of gravity from
+     * rest, so it was resting on that cell the tick before and the cell was gone this tick. Under the
+     * old gate vanilla's stale {@code onGround} then handed it a {@code +0.42} it had no standing to
+     * take, and that illegal jump was what carried it up the staircase it had just dug out from under
+     * itself. This line names the cell and the tick so the next run can say WHICH break did it;
+     * without it the evidence stops at "the support was gone" and the planner move stays anonymous.
+     */
+    private void destroyAimed() {
+        BlockPos target = aimTarget;
+        double soleBefore = loggedDugOwnFloor ? 0.0
+                : WalkerGeometry.soleOnSolid(new ServerWorldView(fp.serverLevel()), fp);
+        fp.level().destroyBlock(target, DROP_HARVEST, fp);
+        if (soleBefore <= 0.0) return;
+        if (WalkerGeometry.soleOnSolid(new ServerWorldView(fp.serverLevel()), fp) > 0.0) return;
+        loggedDugOwnFloor = true;
+        WorldDriverCommon.LOG.info("[avatar] 挖掉了自己的落脚: t={} 目标={} 脚底实心 {}→0.0000 y={} 身体={}",
+                fp.level().getGameTime(), target.toShortString(),
+                String.format(java.util.Locale.ROOT, "%.4f", soleBefore),
+                String.format(java.util.Locale.ROOT, "%.4f", fp.getY()),
+                fp.blockPosition().toShortString());
+    }
+
+    private boolean loggedDugOwnFloor;
 
     /**
      * Can a player standing here actually break that block?

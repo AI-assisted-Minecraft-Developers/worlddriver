@@ -18,6 +18,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   measurement — a scene is in it iff one of those lines falls inside its window, whether or not its
   colour moved — instead of a guess from arena names.
 
+- **A server body now says when it breaks the block it is standing on.** Asked with the same
+  predicate the ground gate uses, before and after the destroy, so there is no second notion of
+  "standing" to keep in sync: sole area `> 0` then `0` means the block that vanished was the one
+  carrying this body. It earns a line because `wd.buriedOre` regressed on exactly that, and the
+  evidence otherwise stops one step short: the disagreement reading pinned the tick
+  (`悬空却报站着 t=260 脚底实心=0.0000 y=223.0000 落速=-0.0784` — flush at a block boundary, falling
+  at precisely one tick of gravity from rest, so it *had* been resting on that support the tick
+  before) but could not name which break took it. Deliberately a report and not a guard: a body may
+  dig its own floor on purpose, and a silent "skip that break" would be one more fallback that
+  ignores the invariant instead of surfacing it.
+
 - **`Avatar#dbgLastJumpTick()`**, and the parkour takeoff latch now prints the absolute game tick
   beside each sample. The latch lives in the drive tail, which a dozen branches return before
   reaching, so its samples are not consecutive ticks and the phrase "N ticks before takeoff" had no
