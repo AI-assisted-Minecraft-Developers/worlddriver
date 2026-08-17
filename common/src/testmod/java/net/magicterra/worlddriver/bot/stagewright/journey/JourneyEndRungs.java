@@ -918,12 +918,53 @@ public final class JourneyEndRungs {
         rig.evidence("dragonFight.dragonUUID", String.valueOf(fight.getDragonUUID()));
     }
 
-    /** The walk from the arrival platform to the middle of the island, in the same re-planning legs
-     *  the overworld march uses — shorter, because forty blocks of bridging is not a kilometre. */
+    /**
+     * The End's own build floor. Its dimension type is {@code min_y = 0}, so a body below this is not
+     *「low」— it is outside the world, in free fall, and every further leg is an order issued to
+     * something that cannot obey it. <b>Not a tuned threshold</b>: it is the build limit, so it needs
+     * no calibration and cannot drift.
+     */
+    private static final int END_VOID_BELOW = 0;
+
+    /**
+     * The walk from the arrival platform to the middle of the island, in the same re-planning legs
+     * the overworld march uses — shorter, because forty blocks of bridging is not a kilometre.
+     *
+     * <h2>Why every leg carries a stock count and a plan</h2>
+     *
+     * Measured 2026-08-17, a rehearsal of this rung fell out of the world on leg 0 and then issued
+     * six more legs to a body dropping 23 500 blocks each: {@code island.1 = 145,-23228,0} …
+     * {@code island.6 = 383,-140809,8}. It carried 1024 cobblestone and the bridge never happened.
+     * <b>Three different mechanisms produce exactly that trace</b> and the rung recorded nothing that
+     * could tell them apart:
+     *
+     * <ul>
+     *   <li><b>The placement never happened</b> — the body stepped out before putting a block down.
+     *       An execution-order fault.</li>
+     *   <li><b>It happened and the body did not end up on it</b> — a footing fault.</li>
+     *   <li><b>The planner never intended to bridge</b> — it treated the void as walkable, or gave up
+     *       and the executor pushed the body anyway. A cost/passability fault.</li>
+     * </ul>
+     *
+     * So each leg now records what a climb SPENT and what the walker was actually holding:
+     * {@code island.N.plan} carries {@code 放了 K 块}, {@code pathLen}, the name of the move entering
+     * the current node, and the run's own verdict. The three read differently — {@code K > 0} is the
+     * footing fault; {@code K = 0} with a bridge move planned is the ordering fault; {@code K = 0}
+     * with {@code move=walk} over void, or with no path at all while the body still moved, is the
+     * planner fault.
+     *
+     * <p><b>And the march now stops at the first leg that starts in the void.</b> Six wasted legs cost
+     * this run 33 minutes and produced six copies of one fact. The guard cannot rescue anything — it
+     * only fails sooner, in words that name the void rather than「走不到主岛中央」.
+     */
     private static void marchInTheEnd(SceneContext ctx, JourneyRig rig, int leg) {
         BlockPos at = rig.player().blockPosition();
         double away = Math.hypot(at.getX(), at.getZ());
-        rig.evidence("island." + leg, xyz(at) + " 距中心 " + Math.round(away) + " 格");
+        String pillar = pillarBlock(rig);
+        int stock = rig.carrying(pillar);
+        rig.evidence("island." + leg, xyz(at) + " 距中心 " + Math.round(away) + " 格，脚下 "
+                + blockAt(rig, at.below()) + "，" + pillar + " ×" + stock);
+        if (at.getY() < END_VOID_BELOW) { fellOffTheIsland(ctx, rig, leg, at, pillar, stock); return; }
         if (away <= 8) {
             rig.evidence("island.legs", leg);
             gatherTheCrystals(ctx, rig);
@@ -932,18 +973,75 @@ public final class JourneyEndRungs {
         if (leg >= 8) {
             rig.evidence("island.reached", false);
             ctx.fail("走不到主岛中央：" + leg + " 段之后仍在 " + at + "，距中心 " + Math.round(away)
-                    + " 格。降落台和主岛之间是虚空，过去要架桥 —— 身上有 " + pillarBlock(rig) + " ×"
-                    + rig.carrying(pillarBlock(rig)) + "，allowPlace=" + BotConfig.allowPlace);
+                    + " 格。降落台和主岛之间是虚空，过去要架桥 —— 身上有 " + pillar + " ×"
+                    + stock + "，allowPlace=" + BotConfig.allowPlace
+                    + "。哪一段花掉了方块、哪一段根本没有计划，见 island.*.plan");
             return;
         }
         rig.settle(new IntentProcess(new Intent(new Goal.XZ(0, 0, 6))), 6_000, () -> {
             BlockPos now = rig.player().blockPosition();
+            rig.evidence("island." + leg + ".plan", planOf(rig, pillar, stock));
             if (flatDistance(at, now) >= WEDGED_UNDER) { marchInTheEnd(ctx, rig, leg + 1); return; }
             rig.evidence("island." + leg + ".wedged", xyz(now) + " 一段没挪动（goto end="
                     + rig.body().botState().mc_goto.endReason + " err="
                     + rig.body().botState().mc_goto.lastError + "）");
             marchInTheEnd(ctx, rig, leg + 1);
         });
+    }
+
+    /**
+     * What the leg spent and what the walker was holding — the row that separates the three ways a
+     * bridge fails to happen.
+     *
+     * <p><b>{@code active} is printed because {@code pathLen}/{@code move} lie without it.</b>
+     * {@code ProcessSlot.reset()} clears both at every terminal exit while keeping {@code endReason}
+     * and {@code lastError}, so a leg whose process FINISHED reports {@code pathLen=0 move=null}
+     * — indistinguishable, without {@code active}, from a planner that never produced a path. A leg
+     * that merely ran out of ticks still holds live values.
+     */
+    private static String planOf(JourneyRig rig, String pillar, int stockBefore) {
+        var slot = rig.body().botState().mc_goto;
+        int spent = stockBefore - rig.carrying(pillar);
+        return "放了 " + spent + " 块 " + pillar + "；active=" + slot.active
+                + " pathLen=" + slot.pathLen + " move=" + slot.pathMove
+                + " end=" + slot.endReason + " err=" + slot.lastError
+                + (slot.active ? "" : "（进程已终止，pathLen/move 是 reset 之后的空值，"
+                        + "不要读成「压根没有计划」）");
+    }
+
+    /**
+     * The body is under the End's build floor: stop, and hand the reader the fork rather than a
+     * distance.
+     *
+     * <p>The failure this replaces said「走不到主岛中央」after eight legs. That sentence is true and
+     * useless — it names the goal instead of naming that the body left the only ground there was, and
+     * it arrives half an hour late.
+     */
+    private static void fellOffTheIsland(SceneContext ctx, JourneyRig rig, int leg, BlockPos at,
+                                         String pillar, int stock) {
+        rig.evidence("island.fellAt", xyz(at) + "（末地建筑下限 y=" + END_VOID_BELOW
+                + "，所以这是虚空，不是「低」）");
+        // The staging measured this once, before anything moved. It is wrong by now and the whole
+        // point of re-reading it here is that the stale one reads like an all-clear.
+        rig.evidence("dragon.rangeNow", fightRangeNow(rig));
+        ctx.fail("掉出末地：第 " + leg + " 段开始时身体已在 " + xyz(at) + "，低于末地的建筑下限 y="
+                + END_VOID_BELOW + " —— 这是虚空，不是走得慢。降落台是 5×5，主岛在 "
+                + Math.round(Math.hypot(at.getX(), at.getZ())) + " 格外，中间要架桥；"
+                + "身上还有 " + pillar + " ×" + stock + "，allowPlace=" + BotConfig.allowPlace
+                + "。哪一种失败看 island.*.plan：放了>0 块 = 放下了却没踩上（落脚判据）；"
+                + "放了 0 块且计划里有 bridge = 没放就迈出去（执行顺序）；"
+                + "放了 0 块且 move=walk 或压根没有路 = 寻路没打算架桥（代价/可通行判据）。"
+                + "⚠️ rehearsal.fightRange 是布景时刻测的，此刻的距离见 dragon.rangeNow");
+    }
+
+    /** How far the body is from the dragon fight's own centre, <b>right now</b>. {@code EndDragonFight}
+     *  builds {@code validPlayer} as {@code EntitySelector.withinDistance(0, 128, 0, 192.0)} and its
+     *  {@code tick()} does nothing at all while no valid player is in range — so this number, taken at
+     *  the moment of the failure, is the difference between「打不过」and「没有对手，因为身体不在场」. */
+    private static String fightRangeNow(JourneyRig rig) {
+        double away = Math.sqrt(rig.player().distanceToSqr(0.0, 128.0, 0.0));
+        return String.format(Locale.ROOT, "距 (0,128,0) %.1f 格（EndDragonFight.validPlayer 门限 192）—— %s",
+                away, away <= 192.0 ? "在范围内" : "超出：updatePlayers 看不到这具身体，龙不会被创建");
     }
 
     /** Snapshot the crystals once, nearest first, then work the list by index — re-taking "the
@@ -1050,13 +1148,22 @@ public final class JourneyEndRungs {
         rig.evidence("dragon.present", false);
         rig.evidence("level.realPlayers", end.players().size());
         rig.evidence("body.inPlayerList", end.players().contains(rig.player()));
+        // BEFORE blaming the player list, read the distance AGAIN. The list and the range are two
+        // independent halves of `validPlayer`, a rehearsal records the range once at staging time,
+        // and a body that has since moved makes that stale row read as an all-clear for the one
+        // cause that is actually in play. Measured 2026-08-17: staged at 127.8 blocks (in range),
+        // failed 23 000 blocks below the island, and `dragonUUID = null` was read as「没有对手」
+        // rather than as「身体不在场」.
+        rig.evidence("dragon.rangeNow", fightRangeNow(rig));
         ctx.fail("末地里没有龙可打。EndDragonFight.tick 每 20 tick 重扫一次 ServerLevel 的玩家列表，"
                 + "列表为空时它什么都不做 —— 不占 arena ticket、不 scanState、更不会 createNewDragon。"
                 + "这条赛道的身体是 FakePlayer，从没走过 PlayerList.placeNewPlayer，所以永远不在那张表里"
                 + "（level.realPlayers=" + end.players().size() + "，crystalsAlive="
                 + (fight == null ? "无龙战" : String.valueOf(fight.getCrystalsAlive()))
                 + "，dragonUUID=" + (fight == null ? "无" : String.valueOf(fight.getDragonUUID()))
-                + "）。这不是打不过，是这一级没有对手：要让它有对手，身体得真的加入服务器"
+                + "）。⚠️ 先读 dragon.rangeNow：玩家列表和 192 格是 validPlayer 的两半，"
+                + "任何一半不成立都会得到同一个 dragonUUID=null，而排练的 rehearsal.fightRange "
+                + "是布景时刻测的、此刻多半已过期。这不是打不过，是这一级没有对手：要让它有对手，身体得真的加入服务器"
                 + "（-Dworlddriver.realPlayerBodies=true，见 JoinedPlayerBodies）");
     }
 

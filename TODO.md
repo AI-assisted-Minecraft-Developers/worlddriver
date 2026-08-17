@@ -1,3 +1,65 @@
+## ⬜ 20 级 TIMEOUT 40001 tick：三件事(等级 `compiled`)
+
+### 1. 预算 floor 是死代码,**逃生口在 Java、闸门被 build 文件永久顶开**
+
+```groovy
+// fabric/build.gradle:293（改之前）
+property 'worlddriver.journey.rehearse.budget',
+        (project.findProperty('rehearseBudget') ?: '40000').toString()
+```
+
+**默认值填在 Gradle 侧,而不是留空。** 于是 `System.getProperty(BUDGET_PROPERTY)` **每一趟都是非空**,
+`capFor` 里那句「显式 `-PrehearseBudget` 一律胜出」的分支**永远成立**,`budgetFloor` 从落地那天起
+**一次都没被调用过**。我上一轮写的「默认帽对 DRAGON 是 no-op」因此是假的——机制对,前提不对。
+
+**改法**:`?: ''`,和这个 block 里其他每一根杆一致;默认值只留在 Java 里
+(`JourneyRehearsal.DEFAULT_BUDGET`,同样是 40 000)。
+
+**回归闸逐条**:DRAGON 之外 `budgetFloor` 恒 0 ⇒ `max(40000, 0) = 40000`,与改前
+`parse("40000") = 40000` **逐字相同**。PORTAL_LIT 40 000、END_PORTAL 30 000、END 20 000 全不变;
+显式 `-PrehearseBudget=N` 改前改后都取 N。**唯一变的是 DRAGON:40 000 → 500 000。**
+
+⚠️ 你说的 7 小时风险:**由第 2 条的虚空守卫抵消**。身体在第 0 段就掉出世界,守卫在第 1 段开头
+(≈6000–7000 tick,按这一趟 40001 tick/33 分钟的速率约 **5 分钟**)判红。**不是几秒,是 5 分钟**,
+不夸大。要退回旧天花板就 `-PrehearseBudget=40000`。
+
+### 2. 真正的病:出了降落台就掉下去——**先加读数,没动机制**
+
+```
+island.0 = 100,49,0（距中心 100）   island.1 = 145,-23228,0   …   island.6 = 383,-140809,8
+```
+
+每段掉约 23 500 格,rung 一段一段继续下发目标;身上 1024 圆石,桥没架起来。
+**三种机制会产生一模一样的轨迹,而这一趟什么都没记下来分开它们。** 所以本轮只加读数:
+
+| 读数 | 「没放就迈出去」(执行顺序) | 「放了没踩上」(落脚判据) | 「压根没打算架桥」(代价/可通行) |
+|---|---|---|---|
+| `island.N.plan` 的 `放了 K 块` | **0** | **>0** | **0** |
+| 同行的 `move=` | `bridge*` | `bridge*` | `walk`（把虚空当可走）**或**根本没有路 |
+| `pathLen` / `active` | 有计划 | 有计划 | `pathLen=0` 且 `active=true` = A* 真的没给出路 |
+
+⚠️ `active` 必须一起读:`ProcessSlot.reset()` 在每次终止时清掉 `pathLen`/`pathMove` 而保留
+`endReason`/`lastError`,所以**一条跑完的腿会报 `pathLen=0 move=null`**,不加 `active` 就和
+「规划器从没出过路」分不开。这一点写进了 `planOf` 的 javadoc。
+
+另加 `island.N` 每段的**脚下方块**和**垫块存量**,以及 `island.fellAt`。
+**虚空判据不是调出来的**:末地 `min_y = 0`,所以 `y < 0` 就是「在世界之外」,是建筑下限本身。
+
+**没有给 20 级预铺桥**——理由和拒绝给 19 级补台子一样,桥是这一级要考的机制。
+守卫只会更早判红,救不了任何东西。
+
+### 3. `fightRange` 的镜像陷阱:布景时刻的读数在失败时刻撒谎
+
+`rehearsal.fightRange`(布景时刻 127.8 格,在范围内)+ `inPlayerList=true` + `dragonUUID=null` ⇒
+下一个人会拿前两行**排除距离**,而距离恰恰就是原因(失败时身体在 23 000 格之下)。
+
+两头都堵:布景那一行文本前缀改成 **「【布景时刻测的,之后不再成立 —— 失败时看 dragon.rangeNow】」**;
+新增 `JourneyEndRungs.fightRangeNow`,在 `fellOffTheIsland` 和 `noDragonHere` 两处以
+**失败时刻**重测并记成 `dragon.rangeNow`,`noDragonHere` 的失败文案也改成先读它
+(玩家列表和 192 格是 `validPlayer` 的两半,任何一半不成立都得到同一个 `dragonUUID=null`)。
+
+---
+
 ## ⬜ 一个朝主世界目标走的进程,在身体已经在末地之后继续走(刀在 `bot/`,等级 `compiled`)
 
 **裁决已出**:`platform.obsidian = 25/25` ⇒ 台子建好了 ⇒ **身体是自己走掉的**。两趟落点还不同

@@ -1164,8 +1164,14 @@ public final class JourneyRehearsal {
         // reach. What they must not do is stay unrecorded, because "no dragon" has two causes that
         // look identical in the results file.
         double away = Math.sqrt(fp.distanceToSqr(0.0, 128.0, 0.0));
+        // ⚠️ A STAGING-TIME MEASUREMENT, and it says so in its own text. Nothing keeps it true: the
+        // body moves, and on 2026-08-17 it moved 23 000 blocks below the island, at which point this
+        // row still read「在范围内，龙会被创建」while the range was the actual cause of
+        // dragonUUID=null. The failure-time re-read is JourneyEndRungs.fightRangeNow, published as
+        // dragon.rangeNow — this row must never be the one a reader uses to rule the distance out.
         ctx.record("rehearsal.fightRange", String.format(java.util.Locale.ROOT,
-                "距 (0,128,0) %.1f 格，EndDragonFight.validPlayer 的门限是 192 —— %s", away,
+                "【布景时刻测的，之后不再成立 —— 失败时看 dragon.rangeNow】"
+                        + "距 (0,128,0) %.1f 格，EndDragonFight.validPlayer 的门限是 192 —— %s", away,
                 away <= 192.0 ? "在范围内，龙会被创建" : "超了：龙永远不会出现，而 rung 20 会打出"
                         + "「FakePlayer 不在玩家表里」那句话，在这里那句话是错的"));
         ctx.record("rehearsal.inPlayerList", end.players().contains(fp) + "（level.players() 有 "
