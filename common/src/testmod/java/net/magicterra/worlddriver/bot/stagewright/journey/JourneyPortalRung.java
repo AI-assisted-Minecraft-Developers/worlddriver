@@ -406,14 +406,59 @@ public final class JourneyPortalRung {
                 // not a failure — the same "breaking the floor is not falling through it" the shaft
                 // descent learned — so give it the tick and try the same step again.
                 rig.evidence("stair." + step + ".waited", now.toShortString() + " 还没迈下去");
+                noteStairWedge(rig, now, foot);
                 rig.settle(new HoldStill(20), 40,
                         () -> digStairsDown(ctx, rig, targetY, budget - 1, cap, then));
                 return;
             }
+            stairWaits = 0;
             digStairsDown(ctx, rig, targetY, budget - 1, cap, then);
         }));
     }
 
+
+    /** Consecutive「还没迈下去」legs taken from the same cell — see {@link #noteStairWedge}. */
+    private static int stairWaits;
+    private static BlockPos stairWaitedAt;
+
+    /** How many identical waits it takes before one of them is worth explaining. Three: one is the settle this branch was written for, two is a slow
+     *  world tick, and three is a body that is not going to step down at all. */
+    private static final int STAIR_WEDGE_WAITS = 3;
+
+    /**
+     * Why the flight's next step is not being taken — written once, not eighty times.
+     *
+     * <p>{@code stair.N.waited} says the body is still on the step above and nothing else, and the
+     * run of 2026-08-17 printed <b>eighty of them</b>, byte-identical
+     * ({@code stair.0..79 = -8, 66, 19 → -7, 65, 19}, {@code stair.N.waited = -8, 66, 19 还没迈下去}),
+     * before failing with「楼梯挖不到底：试了 80 级仍停在 -8, 66, 19」. Eighty rows, one sentence, and
+     * at least four worlds produce it: the three cells were never cut, the step below has no floor so
+     * the goal cell is not standable at all, a route exists and the body cannot walk it, or the body
+     * is simply still falling. They want four different answers and the row could not pick.
+     *
+     * <p>So this prints the walker's own end reason beside the four cells that decide whether the
+     * step exists — and the capability flags, because a goal the body would have to BREAK its way to
+     * is reachable or not depending on a global this rung turns off on its way down.
+     */
+    private static void noteStairWedge(JourneyRig rig, BlockPos now, BlockPos foot) {
+        if (!now.equals(stairWaitedAt)) { stairWaitedAt = now; stairWaits = 0; }
+        if (++stairWaits != STAIR_WEDGE_WAITS) return;
+        ServerLevel level = rig.ctx().level();
+        rig.evidence("stair.wedged", String.format(java.util.Locale.ROOT,
+                "%s 连着 %d 腿一格没挪（精确 %.2f/%.2f/%.2f）；想去 %s；"
+                + "end=%s err=%s；台阶四格：脚下 %s=%s，落脚 %s=%s，头 %s=%s，起跳 %s=%s；"
+                + "canBreak(落脚)=%s，allowBreak=%s allowPlace=%s",
+                now.toShortString(), STAIR_WEDGE_WAITS,
+                rig.player().getX(), rig.player().getY(), rig.player().getZ(),
+                foot.toShortString(),
+                rig.body().botState().mc_goto.endReason, rig.body().botState().mc_goto.lastError,
+                foot.below().toShortString(), level.getBlockState(foot.below()).getBlock(),
+                foot.toShortString(), level.getBlockState(foot).getBlock(),
+                foot.above().toShortString(), level.getBlockState(foot.above()).getBlock(),
+                foot.above(2).toShortString(), level.getBlockState(foot.above(2)).getBlock(),
+                rig.body().avatar().canBreak(foot),
+                BotConfig.allowBreak, BotConfig.allowPlace));
+    }
 
     private static void cutStairCells(JourneyRig rig, List<BlockPos> cells, int i, Runnable then) {
         if (i >= cells.size()) { then.run(); return; }
@@ -682,6 +727,8 @@ public final class JourneyPortalRung {
                 BlockPos start = rig.player().blockPosition();
                 stairTop = start;
                 JourneyStairs.reset(start);
+                stairWaits = 0;
+                stairWaitedAt = null;
                 stairDir = awayFrom(lava, start);
                 int depth = Math.max(0, start.getY() - forgeFloorY(lava));
                 int cap = depth * STAIR_ATTEMPTS_PER_BLOCK + 40;
