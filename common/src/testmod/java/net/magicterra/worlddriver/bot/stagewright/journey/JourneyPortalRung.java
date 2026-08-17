@@ -377,6 +377,19 @@ public final class JourneyPortalRung {
         // JourneyStairs#courseFrom for the pair that made the audit unsatisfiable on both arms.
         BlockPos at = JourneyStairs.courseFrom(body);
         if (at.getY() <= targetY) {
+            // THE BOTTOM IS DECLARED FROM THE FLOOR, NOT FROM THE AIR. `courseFrom` answers with the
+            // step the body is falling into, which is right for planning the next course and wrong
+            // for finishing: `carveTheForge` reads `blockPosition()`, so a bottom called mid-fall
+            // hollowed the alcove one row ABOVE its own staircase. Measured twice on the south
+            // geometry, 2026-08-17: `stairs.bottom = -9, 56, 31` against `forge.landedY = 57`, and
+            // the second of those runs then failed on the first waypoint of the very first ascent —
+            // `第 0/3 段：想到 -9, 56, 31，停在 -9, 61, 32` — because the alcove and the flight no
+            // longer met. A fall takes a tick or two; give it one and ask again.
+            if (!at.equals(body)) {
+                rig.settle(new HoldStill(20), 40,
+                        () -> digStairsDown(ctx, rig, targetY, budget - 1, cap, then));
+                return;
+            }
             stairBottom = at;
             rig.evidence("stairs.bottom", at.toShortString() + "（" + stairDir + " 向，顶在 "
                     + (stairTop == null ? "?" : stairTop.toShortString()) + "）");
