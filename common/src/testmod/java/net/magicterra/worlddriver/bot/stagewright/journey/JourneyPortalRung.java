@@ -933,7 +933,32 @@ public final class JourneyPortalRung {
                         + "寻路自己会破墙）把背板打通的。背板一旦是空的，瞄它的每一桶都会穿过去");
                 return;
             }
-            castTheFrame(ctx, rig, base, away, lava, surfaceY);
+            // HOME BEFORE THE FIRST CAST. Every other phase of this rung that can leave the alcove
+            // ends by walking back into it — {@link #returnToTheForge} is called after every fetch
+            // trip — and the carve, which leaves it more reliably than anything else, did not.
+            //
+            // It leaves it because the alcove's ceiling is TWO BLOCKS UNDER THE GRASS: the mould's
+            // top row is y=62 under a surface at y=64, so the cheapest way for `MineProcess` to
+            // reach a cell it cannot swing at is to walk up the staircase and dig down from
+            // outside. `forge.swung` says how often that happens — 63 of 67 cells were opened where
+            // the body stood and the remaining four were enough — and `carve.stuck`'s own key is
+            // the giveaway, since it measures each cell's height against「the row the body's feet
+            // ended on」and that row read y=64 on runs whose alcove floor is y=56.
+            //
+            // Measured three times on the east arm, always the same two rows, never any others:
+            //
+            //   FAIL 8055t / FAIL 10608t   forge.carved=66/67  forge.swung=63/67  carve.stuck={-2=1}
+            //                              cell.0.standMissed=想站 3, 56, 19，停在 2, 65, 19
+            //
+            // The cast's own walk cannot fix it: `walkToStand` gets 300 ticks and NoBreak to cross
+            // nine rows of rock it would have to go round by the stairs, so it reports a stand it
+            // missed by 9.22 blocks and the dig then reports `canBreak=false` at 12 m — three
+            // readings, none of which names the body being outside. Walking home is not a widened
+            // tolerance: it is the same leg, with the same audit and the same pillar-out recovery,
+            // that the fetch trips have always used, asked at the one transition that skipped it. A
+            // body still in the alcove returns from its first line without moving.
+            returnToTheForge(ctx, rig, base.getY(), "forge",
+                    () -> castTheFrame(ctx, rig, base, away, lava, surfaceY));
         });
     }
 

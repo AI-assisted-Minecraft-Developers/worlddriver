@@ -82,6 +82,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   body simply does not stop on the first of them. Measured: `stair.0/1/2` refused,
   `stair.3 = -8, 66, 19 → -6, 64, 19（上一级被拒了三次，这一腿一次挖两级、直接瞄第二级）`, and the
   flight then reached `forge.landedY = 56`.
+- **The carve left the body on the surface and the casting started from there.** Every other phase of
+  rung 12 that can leave the alcove ends by walking back into it — `returnToTheForge` runs after
+  every fetch trip — and the carve, which leaves it most reliably of all, did not. It leaves because
+  the alcove's ceiling is two blocks under the grass, so for the handful of cells `breakItWhereItStands`
+  cannot swing at, `MineProcess`'s cheapest route is up the staircase and down from outside;
+  `carve.stuck`'s own key gives it away, measuring each cell against「the row the body's feet ended
+  on」and reading `y=64` for an alcove whose floor is `y=56`. Three east runs, the same two rows and
+  no others:
+
+  ```
+  FAIL 8055t / 10608t / 8169t   forge.carved=66/67   forge.swung=63..64/67   carve.stuck={-2=1}
+                                cell.0.standMissed=想站 3, 56, 19，停在 2, 65, 19
+  ```
+
+  The cast's own walk cannot answer it — `walkToStand` gets 300 ticks and `NoBreak` to cross nine
+  rows of rock it would have to go round by the stairs — so it reported a stand missed by 9.22
+  blocks and the dig then reported `canBreak=false` at 12 m, three readings none of which names the
+  body being outside. The transition now walks home through the same leg, with the same audit and
+  the same pillar-out recovery, that the fetch trips have always used; a body still in the alcove
+  returns from its first line without moving. Measured on the run that carried all three of this
+  round's fixes: `forge.return = -8, 66, 19 → 楼梯口 … → 楼梯底 6, 56, 19`, which also mended a step
+  on the way (`forge.stairsBroken = 1/16 级坏了`), then `forge.returnedY = 56` and
+  `cast0.result = CONSUME`. That run cast and recovered **eight cells** and poured a ninth
+  (`cast0..cast8 = CONSUME`, `recover0..recover7 = CONSUME`) before dying at `recover8` on a water
+  fill — a failure this arm had never lived long enough to reach.
 - **A loading station may no longer sit on the lava lake's lip.**
   `pinTheFillStation` ranked candidates by how many sources a bucket could see from them and said
   nothing about whether a body could stand there — which matters because the station is walked to
