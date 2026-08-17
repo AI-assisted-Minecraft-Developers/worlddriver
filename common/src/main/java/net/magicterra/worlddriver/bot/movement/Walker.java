@@ -791,8 +791,44 @@ public final class Walker {
         this.stepProg.noStepProgressTicks = 0;
     }
 
+    /**
+     * How many NODES the current path holds, <b>including the one the body starts on</b>.
+     *
+     * <p><b>Nodes, not steps.</b> {@link #edges} is index-aligned with {@link #path} — {@code edges
+     * .get(i)} is the edge that ENTERS {@code path.get(i)} — so node 0 is where the walk began and
+     * carries no traversal of its own. A path of N nodes is <b>N−1 moves</b>, and reading it as「N 格」
+     * overstates the reach of every plan by one. It is also NOT a distance: a single {@code fall7}
+     * or a smoothed diagonal covers several blocks in one node.
+     *
+     * <p><b>The last node is the goal only when the search reached it.</b>
+     * {@code seg.pathBestEffort = !res.goalReached()} — a best-effort partial ends at the closest
+     * node A* could get to, which for a body on a small island is its own edge. So「路的末节点」and
+     *「要去的地方」are different questions and {@link #planTally()} answers the first one.
+     */
     public int pathLen() { return path == null ? 0 : path.size(); }
     public int pathStep() { return step; }
+
+    /**
+     * The shape of the whole current plan, for a caller that can only otherwise see the ONE move
+     * entering the current node.
+     *
+     * <p>Reports the last node, whether the search actually reached the goal, and a count of every
+     * move name in the path. That last part is what separates「the planner routed a bridge and the
+     * body never executed it」from「the planner never planned one」— two diagnoses that
+     * {@link #pathMove()} alone reports identically whenever the step pointer happens to sit on a
+     * walk.
+     */
+    public String planTally() {
+        if (path == null || path.isEmpty()) return "无路径";
+        java.util.Map<String, Integer> byMove = new java.util.LinkedHashMap<>();
+        if (edges != null)
+            for (Move.Edge e : edges)
+                if (e != null && e.move != null) byMove.merge(e.move, 1, Integer::sum);
+        return "节点=" + path.size() + "（即 " + (path.size() - 1) + " 步）"
+                + " 末节点=" + path.get(path.size() - 1).toShortString()
+                + " 到得了目标=" + !seg.pathBestEffort
+                + " 各 move " + (byMove.isEmpty() ? "{}" : byMove.toString());
+    }
     /** Node the step-pointer currently targets (null when no path / consumed). Test seam. */
     public BlockPos pathNode() { return (path != null && step >= 0 && step < path.size()) ? path.get(step) : null; }
 

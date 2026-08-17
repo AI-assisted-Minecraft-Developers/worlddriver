@@ -118,8 +118,9 @@ public final class IntentProcess implements BotProcess {
         // records the plan the run started from rather than the one it died in.
         if (st.mc_goto.firstPlan == null && walker.pathLen() > 0) {
             st.mc_goto.firstPlan = "身体 " + (body == null ? "?" : body.blockPosition().toShortString())
-                    + " pathLen=" + walker.pathLen() + " move=" + walker.pathMove()
-                    + " node=" + (walker.pathNode() == null ? "?" : walker.pathNode().toShortString());
+                    + " 首步 move=" + walker.pathMove()
+                    + " 首节点=" + (walker.pathNode() == null ? "?" : walker.pathNode().toShortString())
+                    + "；" + walker.planTally();
         }
         // Published from the SAME tick as the two counters above, so a reader cannot pair a step
         // index with a node the walker had already moved past. See BotState.ProcessSlot.pathNode.
