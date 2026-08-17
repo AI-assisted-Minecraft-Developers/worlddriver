@@ -1092,6 +1092,21 @@ public final class JourneyRehearsal {
      * costs only {@link JourneyEndRungs} {@code DRAGON_WAIT_TICKS} to reach, and exercising a true
      * diagnostic is worth more than short-circuiting it here.
      *
+     * <h2>⚠️ The bridge may not be the mechanism under test at all</h2>
+     *
+     * This recipe's own note used to say「架桥和爬塔是这一级自己的事」, and the first half of that was
+     * an assumption nobody had measured. Sampled 2026-08-17 along the plan the walker actually made
+     * from the arrival platform: <b>every node had solid ground under it and every chunk was
+     * loaded</b> — {@code [0]100,49,0 下方实心 … [16]51,57,0 下方实心}, with eight {@code stepUp}
+     * edges climbing y 49→57. The planner was not routing over the void; it was routing up a real
+     * slope toward the island.
+     *
+     * <p>So「从降落台到主岛之间是虚空,过去要架桥」is not established for this seed and this
+     * platform. If the ground is in fact continuous, the CORRECT outcome of this leg is that the body
+     * <b>walks</b> there, and a run that bridges would be doing unnecessary work rather than passing.
+     * The blocks below are therefore stock against a gap that may or may not exist — not a
+     * declaration that one does.
+     *
      * <h2>Why 1024 blocks, and why not fewer</h2>
      *
      * Worst case is about 60 blocks of bridge from x=100 to the island's edge plus ten spikes at
@@ -1157,7 +1172,9 @@ public final class JourneyRehearsal {
         ctx.record("rehearsal.stand", fp.blockPosition().toShortString() + " @ "
                 + fp.level().dimension().location() + "（脚下 "
                 + end.getBlockState(fp.blockPosition().below()).getBlock() + "，"
-                + "水晶、龙、主岛一律没有布景，架桥和爬塔是这一级自己的事）");
+                + "水晶、龙、主岛一律没有布景 —— 走过去（或架桥过去）和爬塔都是这一级自己的事。"
+                + "⚠️「中间是虚空、必须架桥」未经证实：2026-08-17 沿计划采样，每个节点下方都是实心地面，"
+                + "地面若真是连的，这一段的正确结局是走过去，不是架桥）");
 
         // THE TWO READINGS THAT DECIDE WHETHER THIS RUNG HAS AN OPPONENT AT ALL. Neither is asserted:
         // both failure modes have a correct diagnostic inside rung 20 already, and both are cheap to

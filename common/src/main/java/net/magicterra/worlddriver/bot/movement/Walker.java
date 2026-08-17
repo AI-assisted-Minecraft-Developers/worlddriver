@@ -139,6 +139,8 @@ public final class Walker {
     boolean goalSnapChecked;   // one-shot per goal: snap an unstandable Goal.Block target to the nearest standable cell (see snapGoalToStandable) — needs a live WorldView so it runs on the first tick, not at setGoal
     List<BlockPos> path;
     List<Move.Edge> edges;   // aligned with path; edges.get(i) enters path.get(i)
+    /** The A* result before stringPull, as a tally — see {@link #rawPlanTally()}. */
+    private String rawPlan;
     int step;
     int ticksSinceRepath;
     int stuckTicks;
@@ -868,15 +870,82 @@ public final class Walker {
     }
 
     public String planTally() {
-        if (path == null || path.isEmpty()) return "无路径";
+        return tallyOf(path, edges) + " 到得了目标=" + !seg.pathBestEffort;
+    }
+
+    private static String tallyOf(List<BlockPos> nodes, List<Move.Edge> es) {
+        if (nodes == null || nodes.isEmpty()) return "无路径";
         java.util.Map<String, Integer> byMove = new java.util.LinkedHashMap<>();
-        if (edges != null)
-            for (Move.Edge e : edges)
+        if (es != null)
+            for (Move.Edge e : es)
                 if (e != null && e.move != null) byMove.merge(e.move, 1, Integer::sum);
-        return "节点=" + path.size() + "（即 " + (path.size() - 1) + " 步）"
-                + " 末节点=" + path.get(path.size() - 1).toShortString()
-                + " 到得了目标=" + !seg.pathBestEffort
+        return "节点=" + nodes.size() + "（即 " + (nodes.size() - 1) + " 步）"
+                + " 末节点=" + nodes.get(nodes.size() - 1).toShortString()
                 + " 各 move " + (byMove.isEmpty() ? "{}" : byMove.toString());
+    }
+
+    /**
+     * The plan as A* returned it, before {@code stringPull} — the pre-image {@link #planTally()}
+     * describes the optimised version of.
+     *
+     * <p><b>Two different faults produce the same smoothed path and need opposite fixes.</b> Either
+     * A* itself routed an edge across ground that is not there — then the defect is in that move's
+     * feasibility check — or A* laid a correct cell-by-cell run and the string-pull joined two of its
+     * nodes with a straight line nobody re-verified, which would make the optimiser the thing that
+     * broke an invariant its own input satisfied. Without this row the smoothed path is the only
+     * evidence and it cannot tell them apart.
+     */
+    public String rawPlanTally() { return rawPlan == null ? "无" : rawPlan; }
+
+    /** String-pull the search result, keeping a tally of what it looked like BEFORE — see
+     *  {@link #rawPlanTally()}. The latch lives here rather than at the call site so
+     *  {@code adoptPath} does not grow: it is already grandfathered at its line budget. */
+    private SmoothResult smoothAndRemember(WorldView world, PathFinder.Result res,
+                                           List<net.magicterra.worlddriver.bot.pathfinder.CostModifier> bias) {
+        rawPlan = tallyOf(res.path(), res.edges());
+        return stringPull(world, res.path(), res.edges(), bias);
+    }
+
+    /**
+     * Every cell the plan's straight lines actually cross, for the first few segments — the reading
+     * that node samples structurally cannot give.
+     *
+     * <p>{@link #planTerrain} samples NODES, and after smoothing consecutive nodes can be nine blocks
+     * apart. Measured 2026-08-17: node [0] {@code 100,49,0} and node [4] {@code 91,50,0} both sat on
+     * solid ground with their chunks loaded, and the body began falling at {@code 96,46,0} — inside
+     * the span between them, where nothing had been sampled. A reading that only looks where the plan
+     * stops cannot see what the plan crosses.
+     *
+     * <p>Reports each segment's cell count and lists the cells whose support is missing, so a healthy
+     * segment is still visible (「缺口无」) rather than merely absent — an all-clear that is only ever
+     * printed by silence cannot be told from a check that never ran.
+     */
+    public String planSpans(WorldView w, int segments) {
+        if (path == null || path.size() < 2 || w == null) return "无路径";
+        StringBuilder sb = new StringBuilder();
+        int last = Math.min(segments, path.size() - 1);
+        for (int i = 0; i < last; i++) {
+            BlockPos a = path.get(i), b = path.get(i + 1);
+            int steps = Math.max(Math.abs(b.getX() - a.getX()), Math.abs(b.getZ() - a.getZ()));
+            StringBuilder holes = new StringBuilder();
+            int nHoles = 0;
+            for (int s = 0; s <= steps; s++) {
+                double t = steps == 0 ? 0 : (double) s / steps;
+                BlockPos c = new BlockPos(
+                        (int) Math.round(a.getX() + (b.getX() - a.getX()) * t),
+                        (int) Math.round(a.getY() + (b.getY() - a.getY()) * t),
+                        (int) Math.round(a.getZ() + (b.getZ() - a.getZ()) * t));
+                if (w.isSolid(c.below())) continue;
+                nHoles++;
+                if (nHoles <= 6) holes.append(nHoles == 1 ? "" : ",").append(c.toShortString())
+                        .append(w.isKnown(c.below()) ? "" : "(未加载)");
+            }
+            sb.append(i == 0 ? "" : " ").append("段").append(i).append(' ')
+              .append(a.toShortString()).append("→").append(b.toShortString())
+              .append(" 共").append(steps + 1).append("格 ")
+              .append(nHoles == 0 ? "缺口无" : "缺口" + nHoles + "格[" + holes + "]");
+        }
+        return sb.toString();
     }
     /** Node the step-pointer currently targets (null when no path / consumed). Test seam. */
     public BlockPos pathNode() { return (path != null && step >= 0 && step < path.size()) ? path.get(step) : null; }
@@ -1532,7 +1601,7 @@ public final class Walker {
         // String-pull flat walk runs so the heading stays steady over the
         // staircase (no left-right camera wobble) and the bot walks straight;
         // action/vertical/parkour nodes are preserved.
-        SmoothResult sm = stringPull(world, res.path(), res.edges(), profile.bias());
+        SmoothResult sm = smoothAndRemember(world, res, profile.bias());
         path = sm.path;
         edges = sm.edges;
         seg.pathBestEffort = !res.goalReached();
