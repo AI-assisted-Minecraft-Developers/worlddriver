@@ -224,10 +224,31 @@ public final class JourneyEndRungs {
      *  is a different finding from one it never fires for. */
     private static final int PORTAL_TRANSIT_TICKS = 600;
 
-    /** How far the End arrival may sit from {@code ServerLevel.END_SPAWN_POINT}. Sixteen blocks: the
-     *  platform vanilla builds for arrivals is 5x5, so anything inside this is on it, and anything
-     *  outside it is the swallowed-teleport bug wearing a correct dimension. */
+    /** How far the End arrival may sit from {@code ServerLevel.END_SPAWN_POINT}, <b>horizontally</b>.
+     *  Sixteen blocks: the platform vanilla builds for arrivals is 5x5, so anything inside this is
+     *  over it, and anything outside it is the swallowed-teleport bug wearing a correct dimension.
+     *  <p><b>Horizontal alone is not arrival</b> — see {@link #END_ARRIVAL_FALL}. */
     private static final int END_ARRIVAL_DRIFT = 16;
+
+    /**
+     * How far the End arrival may sit from {@code END_SPAWN_POINT} <b>vertically</b>. Four, and the
+     * tightness is the point.
+     *
+     * <p><b>Measured 2026-08-17, this rung passed with the body 4426 blocks below the platform.</b>
+     * {@code arrived.at = 87,-4376,-1} against {@code END_SPAWN_POINT = 100,50,0}: the dimension was
+     * right, {@link #END_ARRIVAL_DRIFT} is a horizontal quantity and 13 ≤ 16 satisfied it, and
+     * nothing in the judgement looked at Y at all — so a body in free fall through the void reported
+     * 「进入末地」. A criterion that can be fully satisfied by a run that achieved nothing is missing a
+     * dimension of the thing it claims to measure.
+     *
+     * <p>Four is what vanilla's own geometry allows: {@code EndPlatformFeature.createEndPlatform}
+     * lays obsidian at {@code y = 48} and air at 49–51, and {@code EndPortalBlock} puts a
+     * {@code ServerPlayer} at {@code END_SPAWN_POINT.getBottomCenter().subtract(0, 1, 0)}, i.e. y=49
+     * — one row below {@code END_SPAWN_POINT} before anything moves. So 48..52 is「on the platform」
+     * and ±4 covers it with a row to spare, while still catching a 4426-block fall by three orders
+     * of magnitude.
+     */
+    private static final int END_ARRIVAL_FALL = 4;
 
     /** Chunks pinned around the body in the End. The obsidian pillars stand ~43 blocks from the
      *  centre and the walking radius of 2 (32 blocks) cannot see them — an entity search over
@@ -770,22 +791,66 @@ public final class JourneyEndRungs {
                 }));
     }
 
+    /**
+     * Judge the crossing on three independent quantities, because any two of them can hold while the
+     * rung has achieved nothing.
+     *
+     * <p><b>The horizontal / vertical split is not pedantry, it is the bug this method shipped
+     * with.</b> See {@link #END_ARRIVAL_FALL}: {@code dimension} and a 13-block horizontal drift both
+     * held for a body 4426 blocks down the void.
+     *
+     * <p><b>And Y alone would not have been enough either.</b>「y 对了」and「脚下有东西」are different
+     * claims: a body can be at y=49 in the instant it steps off the platform's edge, and a body can
+     * be at y=49 over a hole. So the third quantity is the block underfoot, read through
+     * {@code blocksMotion()} rather than {@code onGround} — this body's {@code onGround} is wrong in
+     * both directions, and {@code void_air} is what {@code getBlockState} returns for anything below
+     * the build limit, so it cannot be told from「no platform」by name alone.
+     *
+     * <h2>The reading that separates the two ways this fails</h2>
+     *
+     * A body that ends in the void got there one of two ways, and they need opposite fixes:
+     * <b>(a)</b> vanilla never built the arrival platform, or <b>(b)</b> it did and the body left it.
+     * Nothing about the body can tell them apart after the fall — but the platform is world state and
+     * <b>stays</b>, so {@code platform.obsidian} counts the 5×5 that
+     * {@code EndPlatformFeature.createEndPlatform} lays at {@code y = 48} and answers it outright, for
+     * the cost of twenty-five block reads. It is recorded on every crossing, pass or fail, because a
+     * reading that only appears on failures cannot establish what the healthy case looks like.
+     */
     private static void judgeTheCrossing(SceneContext ctx, JourneyRig rig) {
         BlockPos now = rig.player().blockPosition();
         BlockPos want = ServerLevel.END_SPAWN_POINT;
         int drift = Math.max(Math.abs(now.getX() - want.getX()), Math.abs(now.getZ() - want.getZ()));
+        int off = Math.abs(now.getY() - want.getY());
+        ServerLevel end = levelOf(rig);
+        // Vanilla's own arithmetic, not a guessed offset: createEndPlatform is called with
+        // BlockPos.containing(END_SPAWN_POINT.getBottomCenter()).below() and lays its floor one row
+        // under that.
+        BlockPos floor = BlockPos.containing(want.getBottomCenter()).below().below();
+        int obsidian = 0;
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                if (end.getBlockState(floor.offset(dx, 0, dz)).is(Blocks.OBSIDIAN)) obsidian++;
+        boolean standing = end.getBlockState(now.below()).blocksMotion();
         rig.evidence("dimension", rig.dimension());
         rig.evidence("arrived.at", xyz(now));
-        rig.evidence("underfoot", blockAt(rig, now.below()));
-        rig.evidence("spawnPoint", xyz(want) + "（漂移 " + drift + " 格）");
+        rig.evidence("underfoot", blockAt(rig, now.below()) + "（挡得住 " + standing + "）");
+        rig.evidence("spawnPoint", xyz(want) + "（水平漂移 " + drift + " 格，垂直差 " + off + " 格）");
+        rig.evidence("platform.obsidian", obsidian + "/25 格黑曜石在 " + xyz(floor)
+                + " 那一层 —— 25 = 台子建好了（那么身体是自己离开的），0 = 台子根本没建"
+                + "（那么这是驱动的过界缺陷，不是走路问题）");
         rig.noteAdvancement("minecraft:story/enter_the_end");
         ctx.expect(rig.dimension()).as("the body is in the End").isEqualTo(THE_END);
-        // The platform, not merely the dimension — "somewhere in the End" and "on the obsidian island
-        // vanilla builds for arrivals" are different claims and only the second one can fight.
-        ctx.expect(drift).as("the arrival is on the End's own spawn platform, not a swallowed teleport")
+        // Three quantities, three claims. "somewhere in the End", "over the platform", "on the
+        // platform" and "standing on anything at all" are different things, and this rung passed once
+        // on the first two alone.
+        ctx.expect(drift).as("the arrival is over the End's spawn platform, not a swallowed teleport")
                 .isAtMost(END_ARRIVAL_DRIFT);
+        ctx.expect(off).as("the arrival is at the platform's own height, not falling past it")
+                .isAtMost(END_ARRIVAL_FALL);
+        ctx.expect(standing).as("the body has something under it, not void").isTrue();
         rig.reach("从要塞的门过到末地，落在 " + xyz(now) + "（END_SPAWN_POINT " + xyz(want)
-                + "，漂移 " + drift + " 格，脚下 " + blockAt(rig, now.below()) + "）");
+                + "，水平 " + drift + " 格、垂直 " + off + " 格，脚下 " + blockAt(rig, now.below())
+                + "，台子 " + obsidian + "/25）");
     }
 
     // =====================================================================================
