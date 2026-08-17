@@ -67,6 +67,38 @@ import net.minecraft.world.item.Items;
  * something to click against, and never a cell of the descent flight ({@link JourneyStairs#cells}) —
  * that flight is the only way back up to the lava, and a step built into it would seal the rung's own
  * route home.
+ *
+ * <h2>The flight carries its own wall</h2>
+ *
+ * <p>It used to need one from the world. {@link #placeable} asked for a solid face beside each step,
+ * and in a hollow alcove the top rows have none — which is not a rare shape here, it is the shape.
+ * Counted over the eleven archived runs that carry this code, {@code buildTo} was called 63 times and
+ * refused 51 of them before laying anything; <b>43 of those 51 printed the same sentence</b>, about
+ * the landing's own support and its six air neighbours:
+ *
+ * <pre>
+ * water8.ramp.noFlight = 6, 60, 19 修不出楼梯：这一格自己的垫脚 6, 59, 19 垫不了：
+ *                        6, 59, 19 六邻没有能贴的实心面（放方块要贴着一个面点）：
+ *                        down=air up=air north=air south=air west=air east=air
+ * </pre>
+ *
+ * <p>A refusal here is not a fallback. The two things behind it are the scripted tower, which stalls
+ * on this geometry, and the walker's own Y-level goal, which on the same run put the body seven
+ * columns out of the one its aim had been computed for ({@code water8#3.endedIn = 0,19（起塔柱是
+ * 6,19 —— 不是同一柱）}) — so the pour or the scoop that follows fires a ray nobody verified.
+ *
+ * <p>What the old test missed is that a flight is laid BOTTOM-UP, and one cell of it is always
+ * face-adjacent to the course below. The steps are not: {@code support(i+1) - support(i)} is a
+ * diagonal by construction, which is why a staircase alone can never hold itself up. But the block
+ * directly UNDER a step — {@code shoulder = support.below()} — lies in the previous step's own row,
+ * one cell along it, and is therefore face-adjacent to it. So the flight hands itself the face it
+ * needs: lay the shoulder against the step below, then lay the step against the shoulder. The only
+ * course that still borrows a face from the world is the bottom one, and its support rests on the
+ * rock under the alcove, so it always has one.
+ *
+ * <p>Two blocks a course instead of one, out of the ninety-odd cobblestone this rung already carries.
+ * Both go into {@link #steps}, because a shoulder is as much floor as the step on top of it and
+ * {@code tidyTheAlcove} would otherwise sweep it as a stray pillar.
  */
 final class JourneyRamp {
 
@@ -162,7 +194,7 @@ final class JourneyRamp {
         }
         rig.evidence(tag + ".flight", flight.size() + " 级：" + describe(flight)
                 + "（壁龛地板 y=" + floorY + "，身体 " + here.toShortString() + "）");
-        approach(rig, corridor, flight, () -> lay(rig, flight, 0, landing, tag, then));
+        approach(rig, corridor, flight, () -> lay(rig, corridor, flight, 0, landing, tag, then));
     }
 
     /**
@@ -217,8 +249,8 @@ final class JourneyRamp {
      * the block that refused is the one the next stand rests on, and this rung has paid for retries
      * that re-asked an unchanged question before.
      */
-    private static void lay(JourneyRig rig, List<BlockPos> flight, int from, BlockPos landing,
-                            String tag, Runnable then) {
+    private static void lay(JourneyRig rig, Set<BlockPos> corridor, List<BlockPos> flight, int from,
+                            BlockPos landing, String tag, Runnable then) {
         ServerLevel level = rig.ctx().level();
         BlockPos body = rig.player().blockPosition();
         int laid = from;
@@ -227,6 +259,20 @@ final class JourneyRamp {
             if (level.getBlockState(support).blocksMotion()) { laid++; continue; }
             if (support.equals(body) || support.equals(body.above())) break;
             if (Math.sqrt(body.distSqr(support)) > JourneyStairs.MEND_REACH) break;
+            // THE SHOULDER FIRST, and only when the world offers nothing else. It is the cell under
+            // the step, which lies in the previous course's own row — so it is the one cell of this
+            // flight that can be clicked against what the flight has already built. Laid on its own
+            // terms: it is floor, not a step, so it is not what the body walks on, and a shoulder
+            // that fails is not a course lost — the placement below reads the world either way.
+            BlockPos shoulder = support.below();
+            if (!placeable(level, support) && fillable(level, corridor, shoulder)
+                    && !walkedThrough(flight, shoulder)
+                    && !shoulder.equals(body) && !shoulder.equals(body.above())
+                    && Math.sqrt(body.distSqr(shoulder)) <= JourneyStairs.MEND_REACH
+                    && rig.body().avatar().holdItem(Items.COBBLESTONE)) {
+                JourneyStairs.placeInto(level, rig, shoulder);
+                if (level.getBlockState(shoulder).blocksMotion()) steps.add(shoulder.immutable());
+            }
             boolean held = rig.body().avatar().holdItem(Items.COBBLESTONE);
             if (held) JourneyStairs.placeInto(level, rig, support);
             // THE WORLD, not the call — the same discipline the stair mend and the backing mend
@@ -249,7 +295,24 @@ final class JourneyRamp {
             return;
         }
         int next = laid;
-        walkTo(rig, flight.get(next - 1), () -> lay(rig, flight, next, landing, tag, then));
+        walkTo(rig, flight.get(next - 1), () -> lay(rig, corridor, flight, next, landing, tag, then));
+    }
+
+    /**
+     * Is this cell one the flight itself needs open — a step's standing cell or its head room?
+     *
+     * <p>Asked only of the shoulder, and it is not defensive. A flight may turn back on itself: the
+     * planner picks each course's direction independently, so two courses that go out and back leave
+     * {@code support(i).below()} sitting exactly in {@code stand(i-2)}, and a longer fold puts it in
+     * that stand's head room. Filling either seals the staircase the body is about to climb, from
+     * underneath, after it has been paid for — the same shape of mistake as the sweep that took back
+     * its own steps. The step above the shoulder then falls back to needing a real face, and a
+     * refusal there costs a course rather than the route home.
+     */
+    private static boolean walkedThrough(List<BlockPos> flight, BlockPos c) {
+        for (BlockPos stand : flight)
+            if (stand.equals(c) || stand.above().equals(c)) return true;
+        return false;
     }
 
     /** The alcove's own floor row — the one course that rests on rock rather than on the course
@@ -317,12 +380,24 @@ final class JourneyRamp {
      * has to be scooped back before the next cell — a cobblestone dropped on the source is a water
      * bucket the rung can no longer recover, which surfaces four steps later as「手上没有水桶」.
      * Flowing water is fair game; it is on its way out anyway.
+     *
+     * <p>A face to click against is asked for LAST and in two ways: one the world already provides,
+     * or one the flight will provide itself by laying this step's shoulder first. See the class note
+     * for why the second is not optimism — the shoulder is face-adjacent to the course below by
+     * construction, so it is placeable the moment that course is, and {@link #lay} builds bottom-up.
      */
     private static boolean supportable(ServerLevel level, Set<BlockPos> corridor, BlockPos c) {
         if (level.getBlockState(c).blocksMotion()) return true;
+        return fillable(level, corridor, c)
+                && (placeable(level, c) || fillable(level, corridor, c.below()));
+    }
+
+    /** Is this a cell the rung is allowed to drop a cobblestone into? The membership half of
+     *  {@link #supportable}, split out because the shoulder has to pass it too and must not be held
+     *  to the face test — having no face is the whole reason a shoulder exists. */
+    private static boolean fillable(ServerLevel level, Set<BlockPos> corridor, BlockPos c) {
         return corridor.contains(c) && !JourneyStairs.cells.contains(c)
-                && level.getBlockState(c).canBeReplaced() && !level.getFluidState(c).isSource()
-                && placeable(level, c);
+                && level.getBlockState(c).canBeReplaced() && !level.getFluidState(c).isSource();
     }
 
     /**
@@ -382,6 +457,16 @@ final class JourneyRamp {
                 + "：壁龛五格宽、" + corridor.size() + " 格，每一级只能挪一格，中间某一级没有能贴的墙";
     }
 
+    /** Why the block under a step cannot go in first — the four ways {@link #fillable} says no. */
+    private static String whyShoulder(ServerLevel level, Set<BlockPos> corridor, BlockPos c) {
+        if (!corridor.contains(c)) return "不是壁龛格";
+        if (JourneyStairs.cells.contains(c)) return "是下井楼梯的一级，不能堵";
+        if (!level.getBlockState(c).canBeReplaced())
+            return "是 " + level.getBlockState(c).getBlock() + "，放不进去";
+        if (level.getFluidState(c).isSource()) return "里是源块 —— 埋掉它这一级就收不回水桶了";
+        return "本该垫得上 —— 这一行不该出现，去看 fillable";
+    }
+
     /** Why one cell cannot hold a step — one sentence per clause, never one for all four. */
     private static String whySupport(ServerLevel level, Set<BlockPos> corridor, BlockPos c) {
         if (!corridor.contains(c)) return c.toShortString() + " 不是壁龛格";
@@ -393,7 +478,14 @@ final class JourneyRamp {
         StringBuilder around = new StringBuilder();
         for (Direction d : Direction.values())
             around.append(' ').append(d).append('=').append(level.getBlockState(c.relative(d)).getBlock());
-        return c.toShortString() + " 六邻没有能贴的实心面（放方块要贴着一个面点）：" + around;
+        // BOTH ROUTES, because both are now tried. Saying only the first is what made 43 of 51
+        // refusals read as a fact about the alcove's walls when the walls were never the whole
+        // question — see the class note. The shoulder's own clause says which of the four ways it is
+        // barred, so a reader can tell a stair cell from a source from a cell outside the corridor.
+        BlockPos shoulder = c.below();
+        return c.toShortString() + " 六邻没有能贴的实心面（放方块要贴着一个面点）：" + around
+                + "；垫肩 " + shoulder.toShortString() + " 也不能先垫上（" + whyShoulder(level, corridor, shoulder)
+                + "）—— 两条路都断了";
     }
 
     private static String describe(List<BlockPos> flight) {
