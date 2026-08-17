@@ -211,22 +211,65 @@ final class JourneyRamp {
      * <p>So the body works from the floor: {@link #lay} places every step it can reach from where it
      * stands and only then climbs. Nothing here is a walk the flight needs; it is a walk that makes
      * the flight buildable.
+     *
+     * <p><b>Off the WHOLE flight, not just its bottom step.</b> The first version asked only that the
+     * body not be standing in the cell it was about to fill, and that is one cell of a footprint with
+     * many. Measured twice on the pinned east arm, 2026-08-17, byte-identical both runs: the body
+     * stood at {@code 6,56,18} — the cell directly under the second course's step — so the loop broke
+     * out, climbed onto the course below, and from there its own box reached into the very cell it
+     * was placing:
+     *
+     * <pre>
+     * cell.6.ramp.step.1 = 6, 57, 18 垫不上（现在是 air，贴得到实心面
+     *                      （但身体自己的碰撞箱压在这一格里 —— vanilla 的 isUnobstructed 会拒，
+     *                        身体精确位置 6.60/57.00/17.78）），身体 6, 57, 17
+     * cell.6.ramp.laid   = 1/2 级垫好了
+     * </pre>
+     *
+     * <p>A player's box is 0.6 wide, so 0.28 off centre is enough — and the walker leaves a body
+     * wherever the last edge ended, not in the middle of a cell. The remedy is therefore not a
+     * tolerance anywhere: it is to stand somewhere the flight does not pass through at all, which in
+     * a five-wide corridor is an ordinary floor cell one rank over.
      */
     private static void approach(JourneyRig rig, Set<BlockPos> corridor, List<BlockPos> flight,
                                  Runnable then) {
-        ServerLevel level = rig.ctx().level();
-        BlockPos support = flight.get(0).below();
-        if (level.getBlockState(support).blocksMotion()) { then.run(); return; }
-        BlockPos from = null;
-        for (Direction d : Direction.Plane.HORIZONTAL) {
-            BlockPos n = support.relative(d);
-            if (standable(level, corridor, n) && level.getBlockState(n.below()).blocksMotion()) {
-                from = n;
-                break;
-            }
-        }
+        BlockPos from = builderStand(rig, corridor, flight);
         if (from == null || rig.player().blockPosition().equals(from)) { then.run(); return; }
         walkTo(rig, from, then);
+    }
+
+    /**
+     * A floor cell to build from: solid underfoot, clear for feet and head, and not a cell this
+     * flight needs — neither a step nor a shoulder nor a cell the body will walk through.
+     *
+     * <p>Nearest to the bottom step wins, because reach is what decides how much of the flight one
+     * stand can lay and {@link JourneyStairs#MEND_REACH} is only five. Null when the corridor has no
+     * such cell, and the caller then does what it did before rather than refusing to build.
+     */
+    private static BlockPos builderStand(JourneyRig rig, Set<BlockPos> corridor,
+                                         List<BlockPos> flight) {
+        ServerLevel level = rig.ctx().level();
+        BlockPos bottom = flight.get(0).below();
+        BlockPos best = null;
+        double bestD = Double.MAX_VALUE;
+        for (BlockPos c : corridor) {
+            if (!standable(level, corridor, c)) continue;
+            if (!level.getBlockState(c.below()).blocksMotion()) continue;
+            if (onTheFlight(flight, c) || onTheFlight(flight, c.above())) continue;
+            double d = c.distSqr(bottom);
+            if (d < bestD) { bestD = d; best = c.immutable(); }
+        }
+        return best;
+    }
+
+    /** Is this cell part of the flight's own footprint — a step, a shoulder, a stand or its head
+     *  room? The one question {@link #approach} and {@link #lay} both have to ask about the body's
+     *  position, and asking it about only the step is what cost a course a run. */
+    private static boolean onTheFlight(List<BlockPos> flight, BlockPos c) {
+        for (BlockPos stand : flight)
+            if (stand.equals(c) || stand.above().equals(c)
+                    || stand.below().equals(c) || stand.below(2).equals(c)) return true;
+        return false;
     }
 
     /** One leg of ordinary walking inside the alcove. NoBreak throughout: the tallest thing on any
@@ -295,7 +338,14 @@ final class JourneyRamp {
             return;
         }
         int next = laid;
-        walkTo(rig, flight.get(next - 1), () -> lay(rig, corridor, flight, next, landing, tag, then));
+        // STEP ASIDE RATHER THAN CLIMB. Climbing onto the course below is what put the body's own
+        // box inside the next step's cell — see approach's note for the two runs that measured it.
+        // A stand off the footprint is the same cell approach chose and is still legal; the climb
+        // stays only as the fallback for a corridor that has no such cell, where doing nothing would
+        // be worse than doing the thing that sometimes works.
+        BlockPos aside = builderStand(rig, corridor, flight);
+        BlockPos to = aside != null && !aside.equals(body) ? aside : flight.get(next - 1);
+        walkTo(rig, to, () -> lay(rig, corridor, flight, next, landing, tag, then));
     }
 
     /**
