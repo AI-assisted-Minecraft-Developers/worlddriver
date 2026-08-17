@@ -8,7 +8,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-- **Rung 12's flight out of the alcove refused to build more often than it built, and the row that
+- **Rung 12's staircase could hold two steps in one column, and the repair that answered it was what
+  broke the staircase.** `digStairsDown` measured each course from `blockPosition()`. A step is opened
+  by removing the floor of the cell the body is about to occupy, so the reading taken right after is
+  often of a body one row ABOVE that step, falling into it — and a course measured from up there is
+  one row too high, while the course after it, taken once the body has landed, puts its step in the
+  same column. Both arms of 2026-08-17's handover carry exactly that pair, and they are the only two
+  flights in this rung's whole archive that do (21 archived FAILs cut a staircase; the other 19 read
+  `N 级都完好` at cut time):
+
+  ```
+  stair.3 = -8, 66, 19 → -6, 64, 19（一次挖两级）   ← the step is cut at y=64
+  stair.4 = -6, 65, 19 → -5, 64, 19                 ← read from its HEAD ROOM, one row high
+  stair.5 = -6, 64, 19 → -5, 63, 19                 ← same column as the step above it
+  ```
+
+  A flight shaped like that is a contradiction no world state satisfies: `JourneyStairs.faults` wants
+  the upper step's support solid and the lower step's own cell open, and they are one cell. So the
+  audit could never fall silent, and every leg spent a mend flipping that cell — measured on the south
+  geometry, **18 audits and 16 mends**, alternating `cast*.stairsMend.0 = … → 垫上了` against
+  `lava*.stairsMend.0 = … → 敲开了`. On east the fill is what ended the run:
+  `cast6.returnStopped = 停在 -5, 64, 19 … 脚下 cobblestone` is the body standing on the cobblestone
+  its own repair had just dropped into the staircase, facing a two-block drop where a step used to be.
+  Physically the flight was fine — column x=-5 was a four-tall air shaft on native rock — until the
+  mend filled it.
+
+  The course is therefore anchored to the flight (`JourneyStairs.courseFrom`): when the body is
+  directly over the flight's own deepest step, that step is where the next course starts. It widens
+  no judgement — the cell it names is the one the body is falling into — and it says so when it fires
+  (`stair.N.fromStep`). **Anchoring the LAST course is wrong**, though, and that cost two runs to
+  learn: it aims below the target row, and the first attempt at handling that instead declared the
+  anchored cell the bottom and waited for the body to drop into it. The body never dropped — it was
+  standing on a step that had not opened — and the wait had no escape, so the run spent its whole
+  40 000-tick budget with no `stairs.bottom` at all (`TIMEOUT 40001t`, last row
+  `stair.9.waited = -9, 57, 31 还没迈下去`). Declaring the bottom from the anchored cell is also what
+  put `stairs.bottom = -9, 56, 31` against `forge.landedY = 57`, an alcove hollowed one row above its
+  own staircase, twice; the second of those runs then failed on the first waypoint of the first
+  ascent, `第 0/3 段：想到 -9, 56, 31，停在 -9, 61, 32`. Both are answered by the same two lines: the
+  bottom is the BODY's cell, always, and the anchor is dropped once it would reach the target row —
+  which lets the last course be cut exactly as before (`-9, 57, 31 → -9, 56, 32`, one cell along the
+  other axis), the course every healthy south run in the archive got to the floor by.
+
+  Measured, ten pinned rehearsals: the east arm (`-PshaftColumn=-8,19`) is **5 PASS in 5**, each
+  `frame.cast = 10/10`, `portal.cells = 6/6`, ten `recover*.result = CONSUME`, against 0 in 3 on the
+  parent tree and 1 in 5 historically. `stairs.asCut` reads `N 级都完好` in every run, no flight
+  carries a stacked column, and **`stairs.audit` reports 21–23 checks and 0 mends** where the handed-
+  over south run reported 16.
+- **The alcove's raise built into cells the descent flight needs open, and the flight's own audit then
+  took the raise out from under the body.** `JourneyRamp.fillable` asked `JourneyStairs.cells
+  .contains(c)`, and `cells` holds one cell per step — but `digStairsDown` cuts THREE (the step, its
+  head room, and the clearance a climb jumps through) and `faults` audits all three. The alcove's
+  floor row IS the flight's bottom step's row, so a raise out of the alcove starts beside that step
+  and rises straight through its clearance. Measured on the south geometry: the raise laid
+  `wet.8.ramp.flight = -7,56,32 → -8,57,32 → -9,58,32 → -9,59,33`, whose third block is
+  `stairs.bottom(-9,56,32).above(2)`; the next audit read it as a broken stair, which it genuinely
+  was, and mended it the only way a blocked cell can be mended —
+  `lava8.stairsMend.1 = -9, 56, 32 起跳格 -9, 58, 32=cobblestone → 敲开了`. The run ended with the body
+  in the flooded mould, `lava8.upStopped = 停在 -9, 58, 34 … 脚下/身处/头顶 都是 water`.
+
+  `JourneyStairs.needsOpen` now answers for all three cells and `flightCell` names which one, so a
+  refusal reads `2, 58, 19 是下井楼梯 2, 56, 19 那一级的起跳格（爬上去要从这里穿过），不能堵` instead of
+  a sentence about the alcove's walls.
+
+  *What it cost, said plainly:* across the nine rehearsals that finished, `buildTo` was called **61
+  times and refused 11 before laying a block — 7 of those 11 are this new rule**, so the old kind of
+  refusal is down to 4/61 (7%) from 12/22 (55%) in the archive. **27 of 61 landed on the exact row AND
+  column (44%); 38 of 61 landed on the exact row (62%).** The east arm passes with the refusal in it
+  (`cast8.ramp.noFlight` fires in all five). The south geometry does not: the lava cast for cell eight
+  asks for a landing at `-9,59,32`, whose support is that same clearance cell, and the tower fallback
+  cannot start in the flooded alcove
+  (`cast8.lift#1.climb.8.afloat = -10, 56, 32 浮在水里，8 次都没落地`), so it stops one row short
+  (`cast8.liftedY = 58/59`) and the pour's ray gate correctly refuses. Two runs, the same rows.
+  **The refusal is right and the landing is what should move** — a legal column one rank over is built
+  successfully in the same run (`cell.8.ramp.rampedY = 59/59（同一柱）`).
   said why named the wrong thing twice over.** The raise that puts the body level with the mould's
   top rows is `JourneyRamp.buildTo`, and reading the archive rather than running anything says it
   was mostly not raising at all. Over the four distinct ladder runs in `fabric/run-journey/logs` that
