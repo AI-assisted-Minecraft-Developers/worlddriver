@@ -324,6 +324,38 @@ if (walkerCommitTailPlatform && bestEffort && path.size() > 4) { …只截尾…
 ⚠️ 行数预算:`WalkerTickDrive.run()` 被 grandfather 在 1262 行「只许缩不许涨」,
 所以锁存调用**并到了既有的 `Walker.avatarJump(a, jump);` 那一行**,净行数为 0,解释放在 `noteParkourTakeoff` 的 javadoc 里。**没有改门。**
 
+### ✅ 契约分叉:**未被这道缺口证实**(但它作为不一致仍然存在,两件事分开记)
+
+`首次起跳 jump=true sprinting=true` ⇒ 起跳了、也在冲刺,**(a) 那一刀不必落**。
+`Parkour3` 按冲刺跳定价 vs `lethalNear` 禁冲刺,这处不一致**依然真实**,只是**不是这道缺口的死因**。
+
+### 🔬 核过的 vanilla 常量(从 1.21.1 named jar 反编译,不是记忆)
+
+```
+SPEED_MODIFIER_SPRINTING = new AttributeModifier(SPRINTING_MODIFIER_ID,
+        0.30000001192092896d, ADD_MULTIPLIED_TOTAL)
+LivingEntity.setSprinting(b): 在 Attributes.MOVEMENT_SPEED 上 removeModifier / addTransientModifier
+```
+
+⇒ **冲刺的 ×1.3 完全走属性通道**,你算的倍率**成立**。走路 0.1 属性 → 0.21585 格/tick、
+冲刺 → 0.2806 的换算与之一致(这一步是换算,不是我从 jar 里读到的字面量)。
+
+**口径(我的读数,我来定义清楚)**:`h` 取自 `p.getDeltaMovement()` 的水平分量,
+在 `Walker.avatarJump(a, jump)` **发出跳跃输入的那一行之前**取 —— 即**上一 tick 行走产生的速度**,
+不含本 tick 的跳跃冲量。所以 `0.216` 是**带进起跳的水平速度**。
+
+### 📌 本轮读数:起跳前后连续 5 tick
+
+`noteParkourTakeoff` 改成锁存 **`t+0..t+4`** 每 tick 的 `jump / sprinting / h / 身体`。三条候选据此分开:
+
+| 读数形状 | 结论 |
+|---|---|
+| 5 tick 里 `sprinting=true` 而 `h` 始终 ≈0.216 | **位移不吃属性**(候选 1)—— 影响面远不止这一跳:每一次冲刺、每一次迅捷药水都在同一条通道上 |
+| `t+0 → t+1` 的 `h` 没有跳增 ≈0.2 | **跳跃没走 `jumpFromGround`**(候选 2),冲刺跳那份朝向冲量没拿到 |
+| 前几 tick `sprinting=false`、`t+0` 才 true | **冲刺置位太晚**(候选 3),速度还没建立 |
+
+⚠️ 若落到候选 1,**先说清影响面再决定切多大** —— 那不是这一跳的修法,是整具身体的运动通道。
+
 ### ⚠️ `wd.bridgeGap` 一族:本轮**一条读数都不许变**
 
 这一轮是**纯仪表**(两个新字段 + 一个 `+=`,没有一处改变分支),所以对照标准不是「哪些允许变」

@@ -909,12 +909,21 @@ public final class Walker {
      *  jump, so {@code isSprinting()} here is the state the leap actually launches with. Only the
      *  first is kept: a body that has already fallen keeps producing these. */
     void noteParkourTakeoff(net.minecraft.world.entity.player.Player p, boolean jump, BlockPos foot) {
-        if (parkourTakeoff != null) return;
-        parkourTakeoff = "jump=" + jump + " sprinting=" + p.isSprinting()
-                + String.format(java.util.Locale.ROOT, " 水平速度=%.3f",
-                        Math.hypot(p.getDeltaMovement().x, p.getDeltaMovement().z))
-                + " 身体=" + foot.toShortString();
+        if (parkourSamples >= 5) return;
+        double h = Math.hypot(p.getDeltaMovement().x, p.getDeltaMovement().z);
+        if (parkourSamples == 0) parkourTakeoffBuf = new StringBuilder();
+        parkourTakeoffBuf.append(parkourSamples == 0 ? "" : " | ")
+                .append("t+").append(parkourSamples)
+                .append(" jump=").append(jump)
+                .append(" sprinting=").append(p.isSprinting())
+                .append(String.format(java.util.Locale.ROOT, " h=%.4f", h))
+                .append(" 身体=").append(foot.toShortString());
+        parkourSamples++;
+        parkourTakeoff = parkourTakeoffBuf.toString();
     }
+
+    private int parkourSamples;
+    private StringBuilder parkourTakeoffBuf;
 
     /** String-pull the search result, keeping a tally of what it looked like BEFORE — see
      *  {@link #rawPlanTally()}. The latch lives here rather than at the call site so
