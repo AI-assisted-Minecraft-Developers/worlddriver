@@ -817,7 +817,56 @@ public final class Walker {
      * body never executed it」from「the planner never planned one」— two diagnoses that
      * {@link #pathMove()} alone reports identically whenever the step pointer happens to sit on a
      * walk.
+     *
+     * <p><b>A move count is not a block count, and the gap is large.</b> {@link #adoptPath} runs
+     * {@code PathSmoothing.stringPull} before the path is ever driven, and that collapses a whole run
+     * of flat same-Y {@code walk}/{@code diag} edges into ONE edge spanning the straight line between
+     * its endpoints; only vertical, parkour, climb, break and place edges survive as hard waypoints.
+     * So {@code walk×7} may be seven cells or seventy. Measured 2026-08-17: {@code {walk=7,
+     * parkour3=1, stepUp=8}} — 18 cells if every move were one cell — spanned x 98→51, forty-seven
+     * blocks. Nothing was inconsistent; the eight {@code stepUp} and one {@code parkour3} are
+     * per-cell waypoints and the seven smoothed walks carried the remaining thirty-six.
+     *
+     * <p>That is the third reading in this family to be mistaken for a distance, after
+     * {@link #pathLen()} (nodes, not blocks) and {@link #pathMove()} (one edge, not the plan). The
+     * rule they share: <b>ask what a path reading counts before dividing by it.</b>
      */
+    /**
+     * What the world looks like UNDER the plan, sampled along it — the reading that separates a
+     * broken support check from a world that was never there to check.
+     *
+     * <p>Both produce the same plan. A {@code stepUp}/{@code walk} chain laid across empty space is
+     * what you get when the support predicate forgot to ask, AND what you get when the predicate
+     * asked correctly and an ungenerated chunk answered「passable」— and the two want opposite fixes
+     * (fix the predicate vs. load before planning / treat unknown as impassable). {@code isKnown} is
+     * the only thing that tells them apart, so it is sampled beside every cell.
+     *
+     * <p>Reported in {@link WorldView}'s own vocabulary rather than as block names, deliberately: the
+     * planner never sees a {@code BlockState}, so a row naming one would describe a world the
+     * decision under investigation did not consult.
+     */
+    public String planTerrain(WorldView w) {
+        if (path == null || path.isEmpty() || w == null) return "无路径";
+        StringBuilder sb = new StringBuilder();
+        int n = path.size();
+        int stride = Math.max(1, (n - 1) / 4);
+        for (int i = 0; i < n; i += stride) {
+            if (sb.length() > 0) sb.append(' ');
+            sb.append(sample(w, i));
+        }
+        if ((n - 1) % stride != 0) sb.append(' ').append(sample(w, n - 1));
+        return sb.toString();
+    }
+
+    private String sample(WorldView w, int i) {
+        BlockPos c = path.get(i);
+        BlockPos under = c.below();
+        return "[" + i + "]" + c.toShortString()
+                + " 本格" + (w.isSolid(c) ? "实心" : w.isWater(c) ? "水" : "空")
+                + " 下方" + (w.isSolid(under) ? "实心" : w.isWater(under) ? "水" : "空")
+                + " known=" + w.isKnown(c) + "/" + w.isKnown(under);
+    }
+
     public String planTally() {
         if (path == null || path.isEmpty()) return "无路径";
         java.util.Map<String, Integer> byMove = new java.util.LinkedHashMap<>();

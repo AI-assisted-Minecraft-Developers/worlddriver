@@ -120,7 +120,8 @@ public final class IntentProcess implements BotProcess {
             st.mc_goto.firstPlan = "身体 " + (body == null ? "?" : body.blockPosition().toShortString())
                     + " 首步 move=" + walker.pathMove()
                     + " 首节点=" + (walker.pathNode() == null ? "?" : walker.pathNode().toShortString())
-                    + "；" + walker.planTally();
+                    + "；" + walker.planTally()
+                    + "；沿路 " + walker.planTerrain(w);
         }
         // Published from the SAME tick as the two counters above, so a reader cannot pair a step
         // index with a node the walker had already moved past. See BotState.ProcessSlot.pathNode.
