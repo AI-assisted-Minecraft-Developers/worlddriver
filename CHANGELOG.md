@@ -8,6 +8,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **A server-driven body asked the wrong question about whether it was standing, so a planned leap
+  went unjumped.** `ServerPlayerAvatar.step()` gated its ground jump — vanilla's `+0.42` plus the
+  whole sprint forward boost — on `fp.onGround()`. Decompiled from the 1.21.1 named jar,
+  `Entity.move` ends in
+
+  ```java
+  this.verticalCollisionBelow = this.verticalCollision && pos.y < 0.0;
+  this.setOnGroundWithMovement(this.verticalCollisionBelow, vec3);
+  ```
+
+  so `onGround()` is not an independent reading at all: it *is* `verticalCollisionBelow`, i.e. "the
+  move I asked for last was downward and something clipped it". That is a claim about the previous
+  move, not about where the body is, and it is wrong in both directions. It is **false about a body
+  that is standing** when the body landed flush (the requested drop fitted, leaving nothing to clip)
+  or was set into place instead of moved — and for a driven body, `Entity.move` and
+  `ServerGamePacketListenerImpl` are the only writers of that field in the whole game, so nothing
+  else was going to correct it. It is **true about a body that is not**, on the tick a fall is
+  clipped at the start and the horizontal half then carries the body off the lip; that one was
+  already measured beside a nether lava lake as `实心接触面积 0.0000/0.36` with `onGround` true.
+
+  Both directions cost a leap. The false one refused the impulse on rung 20's planned `parkour3`,
+  which `Parkour3` prices as a *sprint-jump maximum*, so the body walked off the platform edge at
+  0.216/tick into the two-cell gap the plan meant it to clear, landed outside
+  `EndDragonFight.validPlayer`'s 192 blocks, and the fight was never created. The true one fired
+  `+0.42` off a lip into lava.
+
+  The gate now asks the world instead of the bookkeeping: `WalkerGeometry.soleOnSolid > 0` — how
+  much of the body's own 0.6-wide sole overlaps a solid block in the row its box sits on — plus
+  vanilla's own other term, `deltaMovement.y <= 0`, so a body being carried *up* through a block
+  boundary (buoyancy at a surface, a slime bounce) is still touching rather than standing. That is
+  the same reading `Walker#footingGuard` already steers by, so the executor and the guard cannot
+  drift apart; no new notion of "standing" was introduced, and `WalkerGeometry` became public for
+  exactly that reason. `ClientPlayerAvatar` is untouched — it writes the real input and vanilla's
+  own `aiStep` runs the gate there.
+
+  Two scenes now hold the gate from both sides, because 222 of them watched only jumps that were
+  supposed to happen: `wd.airborneJumpInert` (jump held for ten airborne ticks, y must never rise —
+  this one passes before and after) and `wd.flushJumpIgnoresOnGround` (sole flush on stone with
+  `setOnGround(false)` forced, the jump must still fire).
+
 - **Rung 12 chose where to pour from an eye no body ever has, and the cell it cost was decided long
   before the bucket was spent.** `standToAimAt` weighed each candidate by clipping from the exact
   centre of the cell, at a height guessed by adding a whole block when the cell holds fluid. A real

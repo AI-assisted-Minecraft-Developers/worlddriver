@@ -1,3 +1,104 @@
+## ⬜ 起跳闸换量：`onGround` → 脚底实心（等级 `compiled`，2026-08-18）
+
+### ✅ 反编译核过：`verticalCollisionBelow` **不能**当替代量——它就是 `onGround`
+
+上一轮的倾向是「用 vanilla 在同一次 `move()` 里算出的落地量（`verticalCollisionBelow` 一族）」。
+从 1.21.1 named jar 反编译 `net.minecraft.world.entity.Entity`（不是凭记忆）：
+
+```java
+public boolean verticalCollisionBelow;                       // ← public，不需要 AW/AT
+...
+this.verticalCollision = pos.y != vec3.y;                    // pos=请求位移，vec3=碰撞后位移
+this.verticalCollisionBelow = this.verticalCollision && pos.y < 0.0;
+this.setOnGroundWithMovement(this.verticalCollisionBelow, vec3);   // ← onGround 就是它
+```
+
+**可见性过了，语义没过**：`onGround` 是在同一条语句里从 `verticalCollisionBelow` 赋出去的，
+两者在 `move()` 结束时**逐位相同**。换成它是**可证明的 no-op**。
+
+还剩「中间有没有别人改 `onGround`」这一支，也查了。扫全 jar 的 `.class`，写这个字段的只有：
+`Entity`（`move` / `load`）、`ServerGamePacketListenerImpl`（移动包——被驱动的身体一个包都不发）、
+`Player.tick`（**只在 `isSpectator()` 时** `setOnGround(false)`）、`TeleportCommand`、以及几个鱼/海豚/
+炽足兽。而 `JoinedPlayerBodies.JoinedBody` 把 `tick()` 覆盖成空，所以这具身体一个 tick 里只有
+`ServerPlayerAvatar.step()` 会调 `move()`。⇒ **读点上 `onGround() == verticalCollisionBelow`，倾向证伪。**
+
+⚠️ 由此还得到一条**更正**：`onGround` 两个方向都错**不是假玩家的毛病**，是 vanilla 自己的语义——
+它描述的是**上一次 `move()`**（「我请求了向下、被截断了」），不是「我现在站在哪」。
+「站着却说没站」= 落地时请求的下落量**正好合适、无可截断**（或身体是被 `setPos` 摆进去的，没走 `move`）；
+「悬空却说站着」= 竖直分量在**起点**被截断、水平分量随后把身体带出了那块地（归档 3267 行那条）。
+
+### 🔪 落刀：`ServerPlayerAvatar.step()` 的起跳闸
+
+```java
+- if (fp.onGround()) {
++ if (WalkerGeometry.soleOnSolid(new ServerWorldView(fp.serverLevel()), fp) > 0.0
++         && fp.getDeltaMovement().y <= 0.0) {
+```
+
+- `soleOnSolid` **是 main 里已有的谓词**（`WalkerGeometry`，`Walker#footingGuard` 一直用它），
+  没有新造第三个：足迹 0.6 宽的 AABB 与 `floor(minY − 1e-7)` 那一排的实心块的**重叠面积**，
+  按 vanilla 自己的 1e-7 向外枚举。>0 就是贴合接触，抬高 0.02 格那一排就变成空气 ⇒ **空中恒为 0**。
+  只有 class 的可见性从包私有改成 public（成员本来就是 public），理由写在它自己的 javadoc 里。
+- `dy <= 0` 是 vanilla 那半条 `pos.y < 0.0` 保留下来的：被浮力/黏液块**往上托**着穿过格边界的身体
+  是「碰到了」不是「站着」，不能把水面浮沉的 `+0.04` 换成 `+0.42`。
+- ⛔ `JourneyShaft.supportUnder` / `JourneyFlight.contactArea` 都在 **testmod**，够不着；后者本来就是
+  `soleOnSolid` 的副本（同样 `blocksMotion`、同样 `floor(minY − 1e-7)`），可以互相印证。
+
+### ⚠️ 更正一条前提：**跳跃不是「从来没执行过」**
+
+`wd.physicsParity` 第 2 段断言站立起跳顶点 ∈ [1.0, 1.5]，第 3 段断言 forward+jump 爬上 +1 台阶
+`climbed ≥ 0.9`——**只有 0.42 冲量真的发出来才可能过**。所以「222 场绿是在身体基本不跳的前提下拿到的」
+**不成立**；一直在跳的是「vanilla 说站着」的那些 tick，20 级死在「vanilla 说没站、其实站着」的那一 tick。
+
+### 📌 预测（写在跑之前，只有一种读法）
+
+| 读数 | 结论 |
+|---|---|
+| `wd.flushJumpIgnoresOnGround` **PASS** | 闸确实换成了脚底实心（改之前这一场必红） |
+| `wd.airborneJumpInert` **PASS** | 新闸在空中仍然跳不动（改之前也应当 PASS——那时跳跃根本不发生） |
+| 20 级第一段 `首次起跳` 里 `脚底实心 > 0` 且这一跳过去了 | **本刀命中**，下一个障碍是落点之后的续段（`Parkour3.valid` 只验过落点） |
+| `首次起跳` 里 `脚底实心 = 0.0000` 五笔全是 0 | **本刀不命中**：身体在 parkour 边成为当前边时**已经离地**，课题移到「跳跃请求来得太晚」，与闸无关 |
+
+第 4 行是本轮**没有被现有读数排除**的另一支：`noteParkourTakeoff` 挂在 drive 尾部，十几条分支会在到达
+它之前 `return`，所以 `t+0..t+4` 是「drive 走到这里的头五个 tick」，**不保证连续**；而落脚格 `98,49,0`
+对「停在 49.0」和「从 49.9 往下掉」这两种身体是**同一个读数**。因此本轮把
+`脚底实心=%.4f y=%.4f` 加进了 `首次起跳`（零行为，只多两个字段），下一趟一眼分开。
+
+### 📋 影响面：哪些允许变、为什么（**逐字对照，不是只看颜色**）
+
+闸只在 `ServerPlayerAvatar`（服务端被驱动的身体）。`ClientPlayerAvatar` 写的是真实输入、由 vanilla
+自己的 `aiStep` 判 `onGround`，**一行都没碰**。新旧闸只在两种 tick 上不同：
+
+| 差异方向 | 何时发生 | 谁会看见 |
+|---|---|---|
+| **多跳**（`站着但 onGround=false`） | 正好贴合落地那一 tick；身体被 `setPos` 摆进去后的第一 tick | 所有 `wd.server*` 造完身体立刻开跑的场景；20 级 |
+| **少跳**（`onGround=true 但脚底=0`） | 迈出崖沿那一 tick（迟一拍的那条） | `wd.ledgeOvershoot` `wd.ridgeOvershoot` `wd.descent` `wd.descentYaw` `wd.bridgeDescend*` `wd.bridgeStairDown*` `wd.serverLowHpEdgePin` |
+| **少跳**（`dy > 0`） | 藤蔓 `+0.2` 抬升、水面浮沉、黏液块 | `wd.vine*` `wd.surfaceDive` `wd.deepWater*` `wd.drownEscape*` `wd.waterClimbOutRoute` `wd.buoyantWall` `wd.waterLowBank` `wd.riverSheerBank` `wd.tallBankDigClimb` `wd.pad*Cross` `wd.shorelineHug` `wd.waterStepDownFloat` `wd.waterPhysicsParity` `wd.underwaterBase` |
+
+**靠跳跃才过得去、必须逐条对读数的**：`wd.physicsParity`（直接量顶点/爬升）、
+`wd.expectAlarmBlockedJump` 与 `wd.stepUpBackoffCeiling`（天花板压住 step-up 跳，**要求跳是真发生的**，
+少跳会让告警不响）、`wd.selfShaftDigUp`（`worstBackslide` 是塔的起跳弧线，界 5、实测 1.25）、
+`wd.serverPillarsOutOfAPit` / `wd.serverTowersOutOfADeepShaft`（TowerProcess 跳起来填自己离开的格）、
+`wd.parkourAscend`、`wd.summit` / `wd.ascentSpeed` / `wd.diagonalAscentSpeed` / `wd.ascendMovement*` /
+`wd.ascentRamSlideBack` / `wd.ascendDeadZoneWatchdog` / `wd.verticalResyncSlideBack`（step-up 跳）。
+
+**断言方向是「跳不过去」的，本刀不该动它**：`wd.bridgeHurdle1` / `wd.bridgeHurdle2Bypass` /
+`wd.bridgeHurdleSlabBypass`（1.5 格 > 起跳可达 1.25，0.42 还是过不去）。
+
+**一条读数都不许变**：所有不请求跳的纯 CPU / craft / smelt / recipe / observe / matrix 场景。
+`wd.vineOverWaterClimb` 仍是已知 optional 红。
+
+### ⚠️ 仍然开着的洞（不要假装被覆盖了）
+
+- 「悬空却说站着」这一支**被同一个谓词覆盖了**（脚底=0 ⇒ 不跳），但这意味着**行为被拿掉**了一条：
+  以前迈出崖沿那一 tick 还能起跳，现在不能。上表第二行就是它的影响面。
+- `Parkour3` 按冲刺跳定价 vs `WalkerTickDrive` 的 `lethalNear` 禁冲刺——**这处契约分叉依然真实**，
+  只是不是这道缺口的死因（`首次起跳 sprinting=true`）。**分开归档，不要合并。**
+- `soleOnSolid` 读的是 `ServerWorldView.isSolid` = `blocksMotion()`，服务端 `getBlockState` 在未加载
+  区块上会阻塞主线程做世界生成；这里读的是**身体自己脚下**，那块区块按定义是加载的。
+
+---
+
 ## ⬜ `bridgePlace` 没落下方块：**定性 = 已有能力的缺陷**,本轮只加读数(等级 `compiled`)
 
 ### 1. 执行侧在哪

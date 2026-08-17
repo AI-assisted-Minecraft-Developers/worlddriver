@@ -17,8 +17,14 @@ import static net.magicterra.worlddriver.bot.movement.WalkerConstants.*;
  *  side-effect-free function of its arguments (and the world view) — no Walker instance
  *  state — so they lift out verbatim. {@link Walker} static-imports them
  *  ({@code import static WalkerGeometry.*}) so every call site is unchanged. Visibility
- *  widened private->public only; bodies and doc comments preserved exactly. No behaviour change. */
-final class WalkerGeometry {
+ *  widened private->public only; bodies and doc comments preserved exactly. No behaviour change.
+ *
+ *  <p>The CLASS is public (its members already were) because {@code ServerPlayerAvatar} — in
+ *  {@code bot.sim}, one package over — gates its ground jump on {@link #soleOnSolid}. That is the
+ *  point of it living here: "is this body standing on something" must have exactly ONE answer in
+ *  this repo, and an actuator asking a different one from {@link Walker#footingGuard} is how an
+ *  executor and a guard come to disagree about the same tick. */
+public final class WalkerGeometry {
     private WalkerGeometry() {}
 
     /** The 4 horizontal unit offsets, scanned when locating a vine's backing wall. */

@@ -907,8 +907,15 @@ public final class Walker {
 
     /** Latch the FIRST parkour takeoff of this walk. The sprint decision is taken a tick before the
      *  jump, so {@code isSprinting()} here is the state the leap actually launches with. Only the
-     *  first is kept: a body that has already fallen keeps producing these. */
-    void noteParkourTakeoff(net.minecraft.world.entity.player.Player p, boolean jump, BlockPos foot) {
+     *  first is kept: a body that has already fallen keeps producing these.
+     *
+     *  <p><b>The five samples are not guaranteed to be five CONSECUTIVE ticks.</b> This call sits in
+     *  the drive tail, which a dozen branches (dig, pillar, escape, step-up) return before reaching,
+     *  so "t+0..t+4" means "the first five ticks the drive got this far". A run of five with
+     *  {@code 站住=false} therefore does NOT by itself distinguish a body that was standing and
+     *  refused the jump from a body that was already falling when the parkour edge became current —
+     *  the exact y and the sole area are what separate them, which is why both are printed. */
+    void noteParkourTakeoff(WorldView world, net.minecraft.world.entity.player.Player p, boolean jump, BlockPos foot) {
         if (parkourSamples >= 5) return;
         double h = Math.hypot(p.getDeltaMovement().x, p.getDeltaMovement().z);
         if (parkourSamples == 0) parkourTakeoffBuf = new StringBuilder();
@@ -925,10 +932,18 @@ public final class Walker {
                 .append(String.format(java.util.Locale.ROOT, " 属性=%.4f(稳态上限应为 %.4f)",
                         p.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED),
                         p.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED) * 2.1585))
-                // THE QUANTITY THE JUMP BRANCHES ON, printed as an input rather than as truth: this
-                // body's onGround is wrong in both directions, and ServerPlayerAvatar's ground-jump
-                // — which carries vanilla's whole sprint boost — is gated on exactly it.
+                // THE QUANTITY THE JUMP USED TO BRANCH ON, kept as an input rather than as truth:
+                // onGround IS vanilla's verticalCollisionBelow (Entity.move assigns one from the
+                // other in a single statement), so it describes the previous MOVE and is wrong in
+                // both directions about where the body is.
                 .append(" onGround=").append(p.onGround())
+                // WHAT THE GATE ASKS NOW — see ServerPlayerAvatar.step(). Printed beside onGround
+                // so a run says which of the two was lying, and printed with the EXACT y because
+                // that is the only thing that tells a standing body from a falling one when the
+                // block coordinate below is the same for both (a body falling from y=49.9 spends
+                // three ticks inside block y=49, exactly like a body resting on y=49.0).
+                .append(String.format(java.util.Locale.ROOT, " 脚底实心=%.4f y=%.4f",
+                        WalkerGeometry.soleOnSolid(world, p), p.getY()))
                 .append(" 身体=").append(foot.toShortString());
         parkourSamples++;
         parkourTakeoff = parkourTakeoffBuf.toString();

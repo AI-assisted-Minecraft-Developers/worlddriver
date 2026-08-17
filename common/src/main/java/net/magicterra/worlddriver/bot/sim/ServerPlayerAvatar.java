@@ -5,7 +5,9 @@ import java.util.List;
 
 import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.movement.BodyCapabilities;
+import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
+import net.magicterra.worlddriver.bot.world.ServerWorldView;
 import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -804,7 +806,33 @@ public class ServerPlayerAvatar implements Avatar {
         boolean inWater = fp.isInWater();
 
         if (pendingJump) {
-            if (fp.onGround()) {
+            // THE GATE — and deliberately NOT fp.onGround(). Vanilla writes that field from exactly
+            // one place, Entity.move's `setOnGroundWithMovement(this.verticalCollisionBelow, vec3)`,
+            // so onGround() IS verticalCollisionBelow: "the move I asked for last was downward and
+            // something clipped it". That is a claim about the previous MOVE, not about where the
+            // body is now, and it is wrong in both directions. False for a body that is standing:
+            // one that landed flush (its requested drop fitted exactly, so nothing was clipped) or
+            // that was set into place without a move. True for a body that is not: a fall clipped at
+            // the START of a tick whose horizontal half then carried the body off the lip — measured
+            // one tick before an eleven-block drop into a nether lava lake as 实心接触面积
+            // 0.0000/0.36 with onGround true. Both directions cost a leap: the false one refused the
+            // 0.42 (and with it the sprint boost) on a planned parkour3 the planner had priced as a
+            // sprint-jump, dropping the body into the gap it was meant to clear; the true one fired
+            // +0.42 off a lip into lava. Swapping the gate closes both, because it asks a different
+            // KIND of question.
+            //
+            // soleOnSolid asks the world: how much of this body's own 0.6-wide sole overlaps a solid
+            // block in the row its bounding box sits on (floor(minY − 1e-7) — the block below for a
+            // body flush on a full cube, the block itself for one on a slab). Any positive area is
+            // flush contact, which a body in mid-air cannot have: even 0.02 blocks of rise moves the
+            // row up to the air the body is passing through. It is the same reading
+            // Walker#footingGuard already steers by, so this adds no second notion of "standing".
+            // `dy <= 0` is vanilla's own other term (`pos.y < 0.0`) kept: a body being carried UP
+            // through a block boundary — buoyancy at a water surface, a slime bounce — is touching
+            // the floor, not standing on it, and must not get a ground jump instead of its bob.
+            // Four block reads, and only on ticks the walker actually asks for a jump.
+            if (WalkerGeometry.soleOnSolid(new ServerWorldView(fp.serverLevel()), fp) > 0.0
+                    && fp.getDeltaMovement().y <= 0.0) {
                 // Ground / shallow-water jump: vanilla jumpFromGround (y=0.42 on
                 // normal blocks + a sprint forward boost). One-shot edge.
                 double jp = 0.42;

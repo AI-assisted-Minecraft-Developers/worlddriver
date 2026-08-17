@@ -105,6 +105,8 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 Scene.of("wd.mouseYieldGate", 200, WorldDriverCoreScenes::mouseYieldGate),
                 Scene.of("wd.schemaUnionRendering", 200, WorldDriverCoreScenes::schemaUnionRendering),
                 Scene.of("wd.physicsParity", 200, WorldDriverCoreScenes::physicsParity),
+                Scene.of("wd.airborneJumpInert", 200, WorldDriverCoreScenes::airborneJumpInert),
+                Scene.of("wd.flushJumpIgnoresOnGround", 200, WorldDriverCoreScenes::flushJumpIgnoresOnGround),
                 Scene.of("wd.buildBlockWhitelist", 200, WorldDriverCoreScenes::buildBlockWhitelist),
                 Scene.of("wd.pathArchiveJson", 200, WorldDriverCoreScenes::pathArchiveJson),
                 Scene.of("wd.nodePhysics", 200, WorldDriverCoreScenes::nodePhysics),
@@ -636,6 +638,93 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             ctx.fail("physicsParity: jumped +1 step-up failed: climbed=" + climbed);
 
         WorldDriverCommon.LOG.info("[wd.physicsParity] disp={} apex={} climbed={}", disp, apex, climbed);
+    }
+
+    /**
+     * The negative half of the ground-jump gate: a body in mid-air that is asking to jump must not
+     * rise. <b>Nothing in the suite asserted this before</b>, which is why the gate could be changed
+     * with no way to see the new one failing in the permissive direction — 222 scenes all watched
+     * jumps that were supposed to happen.
+     *
+     * <p>The lift is followed by ONE ungated tick before the watch begins, on purpose: {@code setPos}
+     * moves a body without a {@code move()}, so vanilla's own collision bookkeeping still describes
+     * where the body USED to be, and a watch started on that tick would be testing staleness rather
+     * than airborneness. After one tick the body has re-derived its state and is honestly falling.
+     *
+     * <p>Ten ticks is a fall of about 4.9 blocks from +8, so the body never reaches the floor inside
+     * the watch and every tick of it is a real airborne tick. The bound is exact rather than tolerant
+     * — a jump is +0.42 and gravity only ever subtracts, so ANY positive step is an impulse that a
+     * mid-air body was handed.
+     */
+    private static void airborneJumpInert(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
+        final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
+        buildFloor(level, cx, cz, floorY);
+
+        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayer fp = av.fakePlayer();
+        ctx.cleanup(() -> fp.discard());
+        for (int i = 0; i < 3; i++) av.step();
+
+        fp.setPos(cx + 0.5, standY + 8, cz + 0.5);
+        fp.setDeltaMovement(Vec3.ZERO);
+        av.step();
+
+        double prev = fp.getY(), worstRise = 0, riseAt = -1;
+        for (int i = 0; i < 10; i++) {
+            av.commandJump(true);
+            av.step();
+            double rise = fp.getY() - prev;
+            if (rise > worstRise) { worstRise = rise; riseAt = i; }
+            prev = fp.getY();
+        }
+        WorldDriverCommon.LOG.info("[wd.airborneJumpInert] y={} worstRise={} at t={}",
+                fp.getY(), worstRise, riseAt);
+        if (worstRise > 1.0E-9)
+            ctx.fail("airborneJumpInert: a mid-air body was given an upward impulse: worstRise="
+                    + worstRise + " at t=" + riseAt + " (jump held every tick, floor 8+ blocks below)");
+        if (fp.getY() >= standY + 8)
+            ctx.fail("airborneJumpInert: body never fell, so the watch proved nothing: y=" + fp.getY());
+    }
+
+    /**
+     * The positive half: a body whose sole is flush on a full block must jump even when vanilla's
+     * {@code onGround} says otherwise.
+     *
+     * <p>{@code onGround} is not an independent reading — {@code Entity.move} ends in
+     * {@code setOnGroundWithMovement(this.verticalCollisionBelow, vec3)}, so it is exactly
+     * "the move I asked for last was downward and got clipped". A body that lands flush (its
+     * requested drop fitted with nothing left to clip) or that is placed rather than moved is
+     * standing on solid rock with that bit false. {@code setOnGround(false)} here reproduces that
+     * state directly rather than hunting for terrain that produces it, which is the whole point:
+     * the arena tests the GATE, not the geometry that happens to trip it.
+     *
+     * <p>See {@code ServerPlayerAvatar.step()} for why the gate reads the body's own sole instead.
+     */
+    private static void flushJumpIgnoresOnGround(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
+        final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
+        buildFloor(level, cx, cz, floorY);
+
+        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayer fp = av.fakePlayer();
+        ctx.cleanup(() -> fp.discard());
+        for (int i = 0; i < 3; i++) av.step();
+
+        double y0 = fp.getY();
+        if (Math.abs(y0 - standY) > 1.0E-6)
+            ctx.fail("flushJumpIgnoresOnGround: body did not settle flush on the floor: y=" + y0
+                    + " (expected " + standY + ") — the arena, not the gate, is wrong");
+        fp.setOnGround(false);
+        av.commandJump(true);
+        av.step();
+        double rise = fp.getY() - y0;
+        WorldDriverCommon.LOG.info("[wd.flushJumpIgnoresOnGround] rise={} onGround={}", rise, fp.onGround());
+        if (rise < 0.3)
+            ctx.fail("flushJumpIgnoresOnGround: sole flush on stone and the jump did not fire:"
+                    + " rise=" + rise + " (a ground jump is +0.42) — the gate is still reading onGround");
     }
 
     /** Ported from {@code AgentGameTest#buildBlockWhitelistArena}: gates {@link BotConfig#isUsableBuildBlock}
