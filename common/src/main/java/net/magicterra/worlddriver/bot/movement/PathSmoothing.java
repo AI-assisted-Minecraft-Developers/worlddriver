@@ -119,6 +119,7 @@ public final class PathSmoothing {
                     ne.add(edges.get(k));
                 }
             } else {
+                auditEmit(w, path.get(i), path.get(j));
                 np.add(path.get(j));
                 ne.add(new Move.Edge(path.get(j), 0, List.of(), List.of(), "walk"));
             }
@@ -127,6 +128,55 @@ public final class PathSmoothing {
         // ne.get(0) is the null start edge — List.copyOf rejects nulls, so use a
         // null-tolerant unmodifiable wrapper for the edges (path has no nulls).
         return new SmoothResult(List.copyOf(np), Collections.unmodifiableList(ne));
+    }
+
+    /**
+     * Does the line this merge is about to emit actually pass the test that admitted it?
+     *
+     * <h2>Why this is a QUESTION and not a fix</h2>
+     *
+     * A rehearsal of rung 20 produced a smoothed segment {@code 98,49,0 → 95,49,0} whose middle two
+     * cells ({@code 97,49,0}, {@code 96,49,0}) have nothing under them, and the body began falling at
+     * {@code 96,46,0}. The natural reading — "the string-pull only checked its endpoints" — is
+     * <b>contradicted by this file</b>: the merge loop above extends {@code j} only while
+     * {@link #losWalkable}{@code (w, path.get(i), path.get(j + 1))} holds, and {@code losWalkable}
+     * samples EVERY cell and rejects one whose floor is not solid (and not water, and not climbable).
+     * Applied to that span it must return false at {@code 97,49,0}. So the emitted segment cannot
+     * have come from a merge this loop admitted — and yet the move counts ({@code stepUp} and
+     * {@code parkour3} unchanged at 8 and 1, {@code walk} 38→7) are this loop's own signature.
+     *
+     * <p>Writing a "verify each cell" fix on top of a loop that already verifies each cell would add
+     * a no-op and credit it with a pass. So this re-asks the question at the moment of emission and
+     * records the answer instead:
+     *
+     * <ul>
+     *   <li><b>It fires</b> ⇒ a segment left here that the admitting test rejects, so the merge
+     *       reached the emit point by a path that skipped the test — the defect is in this loop's
+     *       control flow, and the recorded span says which one.</li>
+     *   <li><b>It never fires</b> ⇒ every segment this file emits is walkable, and the unwalkable one
+     *       observed downstream was produced by something else between here and
+     *       {@code adoptPath}'s assignment — the search moves to that stretch, not to smoothing.</li>
+     * </ul>
+     *
+     * <p>Static because it is read from a scene through {@link #smoothingAudit()}: this is a pure
+     * function with no instance to hang state on, and the alternative — threading a recorder through
+     * a call the Walker makes on every adopt — would cost more than the question is worth.
+     */
+    private static void auditEmit(WorldView w, BlockPos a, BlockPos b) {
+        emits++;
+        if (losWalkable(w, a, b)) return;
+        unwalkableEmits++;
+        lastUnwalkableEmit = a.toShortString() + "→" + b.toShortString();
+    }
+
+    private static volatile int emits, unwalkableEmits;
+    private static volatile String lastUnwalkableEmit;
+
+    /** What {@link #auditEmit} has seen. A count of zero unwalkable emits is the load-bearing half:
+     *  it says the smoother is not the source, which is the harder claim to establish. */
+    public static String smoothingAudit() {
+        return "收段=" + emits + " 其中不可走=" + unwalkableEmits
+                + "（最后一条 " + (lastUnwalkableEmit == null ? "无" : lastUnwalkableEmit) + "）";
     }
 
     /** True if the straight horizontal line from {@code a} to {@code b} is
