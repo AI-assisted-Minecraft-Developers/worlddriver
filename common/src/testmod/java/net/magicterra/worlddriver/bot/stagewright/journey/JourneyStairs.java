@@ -90,15 +90,44 @@ final class JourneyStairs {
      * standing on the block its own repair had just dropped into the staircase, facing a two-block
      * drop where a step used to be.
      *
-     * <p>So the course is anchored to the flight rather than to the body. This does not widen any
-     * judgement: the cell it returns is the step the body is already falling into, and it is only
-     * ever consulted when the body is directly over the flight's own deepest step.
+     * <p>So the course is anchored to the flight rather than to the body — <b>unconditionally</b>.
+     *
+     * <h2>A CONDITIONAL ANCHOR FALLS BACK TO THE THING IT REPLACED</h2>
+     *
+     * <p>Worth the general statement, because it outlives this cell: <b>a rule whose condition fails
+     * silently is bypassed by its own fallback</b>. This anchor first shipped guarded — it applied
+     * only while the body stood directly over the flight's deepest step — and the {@code else} behind
+     * that guard was {@code return body}, i.e. exactly the "measure from {@code blockPosition()}"
+     * algorithm the anchor exists to abolish. So the defect was not removed, only made intermittent,
+     * and it came back as a coin flip. It is the same shape as {@link #needsOpen} being honoured by
+     * the ramp and ignored by the tower behind it; there the fallback was another class, here it hid
+     * inside a boolean.
+     *
+     * <p>Measured on the east arm, four pinned rehearsals that split two-and-two on this one cell:
+     *
+     * <pre>
+     * {e4,e5}  stair.1 = -7, 65, 19 → -6, 64, 19     the next course
+     * {e3,e6}  stair.1 = -8, 66, 19 → -7, 65, 19     stair.0's course, cut a second time
+     *          stair.1.waited = -8, 66, 19 还没迈下去
+     * </pre>
+     *
+     * In {e3,e6} the body had not yet stepped off the top, so it was not over the deepest step, so the
+     * guard failed and the course was re-measured from the body — re-cutting the course just made.
+     * Every repeat walks the flight one cell further out, which moved {@code stairs.bottom} from
+     * {@code 2,56,19} to {@code 3,56,19}, dragged the whole mould with it, and killed the scoop
+     * ({@code recover6}) on a seat whose only sightline is blocked by this rung's own obsidian. The
+     * race is real — whether the body has begun falling when the next course is measured is tick
+     * timing — but <b>the fix is not to wait for it</b>: waiting on a body standing on a step that
+     * never opened burned a whole 40000-tick budget and produced no {@code stairs.bottom} at all.
+     * The fix is to stop asking the body.
+     *
+     * <p>The one course that must NOT be anchored is the last, and that exception is <b>named at the
+     * call site</b> ({@code anchored.getY() <= targetY ? body : anchored}) rather than hidden here:
+     * anchoring it aims below the target row. Keeping it there is deliberate — this method now has no
+     * silent branch at all.
      */
     static BlockPos courseFrom(BlockPos body) {
-        if (cells.isEmpty()) return body;
-        BlockPos deepest = cells.get(cells.size() - 1);
-        boolean sameColumn = body.getX() == deepest.getX() && body.getZ() == deepest.getZ();
-        return sameColumn && body.getY() > deepest.getY() ? deepest : body;
+        return cells.isEmpty() ? body : cells.get(cells.size() - 1);
     }
 
     /** How much asking has been done, for a message that would otherwise imply none. */
@@ -139,7 +168,23 @@ final class JourneyStairs {
         return null;
     }
 
-    /** Does the flight need this cell OPEN? The boolean half of {@link #flightCell}. */
+    /**
+     * Does the flight need this cell OPEN? The boolean half of {@link #flightCell}.
+     *
+     * <p><b>A RULE IS ONLY AS STRONG AS ITS WEAKEST FALLBACK, and this one has a fallback that does
+     * not ask.</b> Worth knowing in the general shape, because it outlives the cell it was found on:
+     * {@code JourneyRamp.fillable} honours this rule and refuses to lay a step into the flight, and
+     * the thing that runs BEHIND that refusal — the scripted tower, {@code JourneyShaft.climbOut*}
+     * into {@code TowerProcess} — then does the very thing the ramp just refused, because a bot
+     * process places under itself and has never heard of a staircase. Measured on the south geometry,
+     * 2026-08-17: {@code cast7.ramp.noFlight = … -9, 57, 32 是下井楼梯 -9, 56, 32 那一级的头顶格，
+     * 不能堵}, and the tower that took over filled exactly {@code -9,57,32}, which the next leg read
+     * back as {@code cast8.stairsBroken = 1/12 级坏了}. One run of two survived it because the audit's
+     * mend happened to land before the ascent — that is luck, not safety.
+     *
+     * <p>So when a refusal here matters, check what runs after it. A guard that only the polite path
+     * consults reads as enforced right up until the impolite path is the one that runs.
+     */
     static boolean needsOpen(BlockPos c) { return flightCell(c) != null; }
 
     /** One step that has stopped being a step, and which of the four ways it can stop being one. */
