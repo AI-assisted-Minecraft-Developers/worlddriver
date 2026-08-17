@@ -18,6 +18,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   measurement — a scene is in it iff one of those lines falls inside its window, whether or not its
   colour moved — instead of a guess from arena names.
 
+- **The stuck-wiggle recovery hop now reports the two numbers its own safety gate turns on.** That
+  gate suppresses the hop when a lethal drop sits within Chebyshev 2 of the foot, while the hop's
+  own javadoc prices the arc it is guarding against at "~3 blocks" — so the guard's reach and the
+  throw it guards against were never comparable, and neither number was ever printed. The boolean is
+  now a ring distance thresholded at the radius (`WalkerGeometry.nearestLethalHopRing`, the gate's
+  own per-column test lifted verbatim so the two cannot disagree about what a lethal drop is), and
+  entering the stuck window logs the radius and the measured ring side by side, once per event
+  rather than once per tick. Behaviour is term-for-term unchanged; the scan still runs only inside
+  the window. It matters because rung 20's takeoff samples put the body airborne with an impulse
+  seven ticks earlier, and eliminating every jump term that needs a riser or water leaves this hop
+  as the only one that can fire on a flat dry level walk — an elimination that is reasoning until
+  something measures it, and the rehearsal log has no per-tick walker lines to measure it with.
+
 - **A server body now says when it breaks the block it is standing on.** Asked with the same
   predicate the ground gate uses, before and after the destroy, so there is no second notion of
   "standing" to keep in sync: sole area `> 0` then `0` means the block that vanished was the one

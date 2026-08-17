@@ -1230,6 +1230,59 @@ public final class Walker {
         return true;
     }
 
+    /** How far out {@link #wiggleHop} measures the nearest lethal drop. Beyond {@link
+     *  WalkerGeometry#HOP_RANGE} on purpose: the point of the reading is to show whether the gate's
+     *  radius is SHORTER than the throw it guards against, and a scan that stops at the gate's own
+     *  radius can only ever answer "clean", which is the answer already in doubt. */
+    private static final int WIGGLE_SCAN_MAX = 4;
+
+    /**
+     * The stuck-wiggle recovery hop — and the one place that says why it did or did not fire.
+     *
+     * <p>Moved out of {@code WalkerTickDrive}'s jump expression (it was two lines there, this call
+     * is one) because the decision needs a number the expression threw away. {@code
+     * lethalDropWithinHopRange} is a boolean over Chebyshev ≤{@link WalkerGeometry#HOP_RANGE}, and
+     * the question on the table is whether that radius is smaller than the ~3 blocks the hop's own
+     * javadoc says the arc travels. A boolean cannot answer it; the RING can, so the gate is now
+     * that ring thresholded, and the ring is printed beside the radius. <b>Both numbers are inputs
+     * — do not read the conclusion off the comment.</b>
+     *
+     * <p>Semantics are unchanged from the expression it replaces, term for term:
+     * {@code precond && stuckTicks > 10 && stuckTicks < 18 && !(gate && lethalDropWithinHopRange)}.
+     * The scan still runs only inside the stuck window, exactly as the old short-circuit arranged.
+     *
+     * <p>One line per EVENT, not per tick: the window is 7 ticks wide and a body sits in it for
+     * runs of them, so a per-tick line would be a hose. Entry to the window is the event. Capped at
+     * {@link #WIGGLE_EVENTS} so a body that stalls repeatedly still cannot flood a rehearsal log.
+     *
+     * <p>Why this earns a line at all: rung 20's takeoff samples showed the body already airborne
+     * with {@code 距上次起跳=7}, and eliminating the jump terms that need a riser or water leaves
+     * {@code wiggle} as the only one that can fire on a flat dry level walk. That elimination is
+     * REASONING, not a reading — the rehearsal log has no per-tick walker lines to check it against.
+     * This is the reading.
+     */
+    boolean wiggleHop(WorldView world, net.minecraft.world.entity.player.Player p, BlockPos foot, boolean precond) {
+        if (!(precond && stuckTicks > 10 && stuckTicks < 18)) return false;
+        int ring = WalkerGeometry.nearestLethalHopRing(world, p, foot, WIGGLE_SCAN_MAX);
+        boolean gated = BotConfig.walkerRecoveryHopFloorGate && ring >= 0 && ring <= WalkerGeometry.HOP_RANGE;
+        long now = p.level().getGameTime();
+        if (wiggleEvents < WIGGLE_EVENTS && now - wiggleLastTick > 1) {
+            wiggleEvents++;
+            LOG.info("[walker] 恢复跳: t={} 卡住={} 身体={} 精确=({}) 扫描半径={} 最近致命格={} 闸={} 起跳={}",
+                    now, stuckTicks, foot.toShortString(),
+                    String.format(java.util.Locale.ROOT, "%.3f,%.3f,%.3f", p.getX(), p.getY(), p.getZ()),
+                    WalkerGeometry.HOP_RANGE, ring < 0 ? ">" + WIGGLE_SCAN_MAX : String.valueOf(ring),
+                    BotConfig.walkerRecoveryHopFloorGate, !gated);
+        }
+        wiggleLastTick = now;
+        return !gated;
+    }
+
+    /** Recovery-hop events logged per walker before the latch goes quiet. */
+    private static final int WIGGLE_EVENTS = 4;
+    private int wiggleEvents;
+    private long wiggleLastTick = Long.MIN_VALUE / 4;
+
     /** True while {@link #footingGuard} is holding, so the log records the entry and not every tick. */
     private boolean footingPinned;
 

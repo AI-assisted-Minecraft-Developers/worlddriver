@@ -943,8 +943,7 @@ final class WalkerTickDrive {
         // along a mid-slew heading clean over the deck (bridge battery, every shed).
         // Hop-range (Chebyshev ≤2) because the arc travels ~3 blocks: the sheds launched
         // from a floored cell one stride INSIDE the rim, so foot-adjacent scans stay blind.
-        boolean wiggle = !bridging && !flatWaterWalk && !pivotForStepUp && wk.stuckTicks > 10 && wk.stuckTicks < 18
-                && !(BotConfig.walkerRecoveryHopFloorGate && lethalDropWithinHopRange(world, p, foot));
+        boolean wiggle = wk.wiggleHop(world, p, foot, !bridging && !flatWaterWalk && !pivotForStepUp);
         // Climbing a +1 ledge out of a SHALLOW water film needs a BALLISTIC,
         // GROUNDED jump: |Δy|=0.8 exceeds the 0.6 auto-step, and a *held* jump in
         // water just swims the bot up to bob at the surface (y+0.2, onGround=false)

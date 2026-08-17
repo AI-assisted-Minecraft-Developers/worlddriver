@@ -198,25 +198,58 @@ public final class WalkerGeometry {
      *  suppressing a hop near a killer edge degrades to a grounded stall, which the
      *  futile-search cap converts into an honest repath/FAILED instead of a corpse. */
     public static boolean lethalDropWithinHopRange(WorldView world, Player p, BlockPos foot) {
+        return nearestLethalHopRing(world, p, foot, HOP_RANGE) >= 0;
+    }
+
+    /** The Chebyshev radius {@link #lethalDropWithinHopRange} scans. Named rather than inlined
+     *  because it is one of the two numbers this guard's correctness turns on, and the other —
+     *  the arc a recovery hop actually travels — lives only in prose ("~3 blocks") in the javadoc
+     *  above. A guard whose reach is 2 against a throw of 3 is a guard with a hole exactly one ring
+     *  wide, and on a 5-wide platform the centre cell is the single cell that sits in it. Reading
+     *  the two side by side is what {@link Walker#wiggleHop} prints; do not infer either from the
+     *  comment. */
+    public static final int HOP_RANGE = 2;
+
+    /**
+     * The Chebyshev RING of the nearest lethal drop column around {@code foot}, scanning outward
+     * ring by ring to {@code scanTo}, or {@code -1} when none is inside it.
+     *
+     * <p>Extracted from {@link #lethalDropWithinHopRange} rather than written beside it: the two
+     * must agree by construction, because the gate's decision and the diagnostic that judges the
+     * gate cannot be allowed to disagree about what "a lethal drop" is. The boolean is now this
+     * function thresholded at {@link #HOP_RANGE}, so the only difference between them is how far
+     * they look. Visiting in ring order changes nothing for the boolean (an OR over the same cell
+     * set) and is what lets the distance be reported at all.
+     */
+    public static int nearestLethalHopRing(WorldView world, Player p, BlockPos foot, int scanTo) {
         int threshold = SurvivalMath.survivableFall(p.getHealth());
-        for (int dx = -2; dx <= 2; dx++)
-            for (int dz = -2; dz <= 2; dz++) {
-                if (dx == 0 && dz == 0) continue;
-                BlockPos n = foot.offset(dx, 0, dz);
-                if (world.isSolid(n) || world.isWater(n)) continue;
-                BlockPos below = n.below();
-                if (world.isHazard(below)) return true;
-                if (world.isSolid(below) || world.isWater(below)) continue;
-                int fall = 1;
-                BlockPos pr = below.below();
-                while (fall <= threshold + 2 && !world.isSolid(pr) && !world.isWater(pr)) {
-                    if (world.isHazard(pr)) return true;
-                    fall++;
-                    pr = pr.below();
+        for (int r = 1; r <= scanTo; r++)
+            for (int dx = -r; dx <= r; dx++)
+                for (int dz = -r; dz <= r; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
+                    if (isLethalDropColumn(world, foot.offset(dx, 0, dz), threshold)) return r;
                 }
-                if (fall > threshold) return true;
-            }
-        return false;
+        return -1;
+    }
+
+    /** One column's worth of {@link #lethalDropWithinHopRange}: open foot cell, no floor, and the
+     *  fall below it either hazardous anywhere or deeper than {@code threshold}. Lifted verbatim
+     *  from that loop's body. ({@link #dropAdjacentExceeds} carries its own copy of this test and is
+     *  deliberately left alone — it is on the footing-guard and sprint-brake paths, and folding it in
+     *  would put an unrelated blast radius into a diagnostic change.) */
+    private static boolean isLethalDropColumn(WorldView world, BlockPos n, int threshold) {
+        if (world.isSolid(n) || world.isWater(n)) return false;
+        BlockPos below = n.below();
+        if (world.isHazard(below)) return true;
+        if (world.isSolid(below) || world.isWater(below)) return false;
+        int fall = 1;
+        BlockPos pr = below.below();
+        while (fall <= threshold + 2 && !world.isSolid(pr) && !world.isWater(pr)) {
+            if (world.isHazard(pr)) return true;
+            fall++;
+            pr = pr.below();
+        }
+        return fall > threshold;
     }
 
     /** Y-MISLABELED-RISER RAM detector (executor-side, see {@code levelRiserJump} below).
