@@ -1203,12 +1203,20 @@ public final class JourneyEndRungs {
                 // 「最近 5.2 格，挥 0 刀」and crystal 4「最近 7.4 格，挥 0 刀」— both a short step from a
                 // hit that was never attempted. Radius 3 rather than MELEE_REACH so arriving at the
                 // goal is comfortably inside reach instead of exactly on its edge.
+                // ONLY when out of reach. Measured on the run that introduced this walk: crystal 0
+                // started at 3.6 — already a hit — and the walk left it at 13.3, costing a crystal
+                // that needed no walking at all. A remedy must not run where there is nothing to
+                // remedy; the goal cell here is the pillar the crystal sits on, so「go nearer」can
+                // mean「come down off the tower you are standing on」.
                 double beforeApproach = rig.player().distanceTo(crystal);
-                rig.settle(new IntentProcess(new Intent(new Goal.Near(base, CRYSTAL_APPROACH))),
-                        CRYSTAL_APPROACH_TICKS, () -> {
+                BotProcess approach = beforeApproach <= MELEE_REACH - 0.5
+                        ? new HoldStill(1)
+                        : new IntentProcess(new Intent(new Goal.Near(base, CRYSTAL_APPROACH)));
+                rig.settle(approach, CRYSTAL_APPROACH_TICKS, () -> {
                 rig.evidence("crystal." + i + ".approach", String.format(Locale.ROOT,
-                        "砸之前收尾走位：%.1f 格 → %.1f 格（门限 %.1f）%s", beforeApproach,
+                        "砸之前收尾走位：%.1f 格 → %.1f 格（门限 %.1f）%s%s", beforeApproach,
                         rig.player().distanceTo(crystal), MELEE_REACH,
+                        beforeApproach <= MELEE_REACH - 0.5 ? "（本来就够得着，没走）" : "",
                         rig.player().distanceTo(crystal) <= MELEE_REACH ? "" : " —— 仍够不着"));
                 SwingAt swing = new SwingAt(crystal, CRYSTAL_SWING_TICKS, MELEE_REACH);
                 rig.settle(swing, CRYSTAL_SWING_TICKS + 50, () -> {
