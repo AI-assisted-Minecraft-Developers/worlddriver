@@ -359,7 +359,11 @@ public final class BotTools {
                 "fired early still lands, just for a FRACTION of the weapon's damage (vanilla scales " +
                 "damage by the recharge bar, and a crit needs a full one). So read " +
                 "observe.player.attack first: swing when ready is true, otherwise wait cooldownTicks. " +
-                "Spamming this verb is not more DPS — it is the same DPS at a worse hit rate.",
+                "Spamming this verb is not more DPS — it is the same DPS at a worse hit rate. " +
+                "One refusal exists: hitting a target that explodes when hurt (end crystal) while " +
+                "standing on a block that blast would destroy returns ok:false with the footing " +
+                "block and its resistance in error — move to blast-proof footing (obsidian/bedrock) " +
+                "and call again.",
                 object()
                     .req("entityId", integer().min(0)
                         .desc("Entity.getId() — find via mc.query q='entities' (rows include id) or observe.player.hit.entityId"))

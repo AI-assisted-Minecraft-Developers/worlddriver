@@ -618,9 +618,17 @@ public class ServerPlayerAvatar implements Avatar {
         return false;
     }
 
-    @Override public void attackEntity(net.minecraft.world.entity.Entity target) {
+    @Override public void attackEntityUnchecked(net.minecraft.world.entity.Entity target) {
         fp.attack(target);   // server-authoritative: applies damage/knockback/crit directly
     }
+
+    /** Why the last swing was declined by {@code Avatar.attackEntity}'s footing guard, or null.
+     *  Unlike the client's, this body outlives the tick — so a stale reading here would be a lie
+     *  the next tick; {@code attackEntity} therefore writes it on EVERY call, pass or refuse. */
+    private String lastAttackRefusal;
+
+    @Override public void noteAttackRefusal(String why) { this.lastAttackRefusal = why; }
+    @Override public String lastAttackRefusal() { return lastAttackRefusal; }
 
     /**
      * Last stack seen in each slot, so a change can be detected the way vanilla detects it.

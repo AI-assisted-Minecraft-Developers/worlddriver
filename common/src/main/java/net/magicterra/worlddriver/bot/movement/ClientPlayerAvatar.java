@@ -55,9 +55,17 @@ public final class ClientPlayerAvatar implements Avatar {
     @Override public void place(WorldView w, BlockPos cell) { BotInteract.walkerPlace(mc, p, w, cell); }
     @Override public void placeOn(BlockPos cell, Direction face) { BotInteract.clientUseItemOn(mc, p, cell, face); }
     @Override public void breakHold(boolean v) { mc.options.keyAttack.setDown(v); }
-    @Override public void attackEntity(net.minecraft.world.entity.Entity target) {
+    @Override public void attackEntityUnchecked(net.minecraft.world.entity.Entity target) {
         if (mc.gameMode != null && p != null) mc.gameMode.attack(p, target);
     }
+
+    /** Within-tick only: Walker.tick builds a fresh ClientPlayerAvatar every tick, so this field
+     *  never outlives the call its caller is reading it for — which is the only window anyone
+     *  should be asking about anyway. */
+    private String lastAttackRefusal;
+
+    @Override public void noteAttackRefusal(String why) { this.lastAttackRefusal = why; }
+    @Override public String lastAttackRefusal() { return lastAttackRefusal; }
     @Override public boolean breakHeld() { return mc.options.keyAttack.isDown(); }
 
     /** The cell {@link #continueDestroy} already drove this client tick, and the tick it drove

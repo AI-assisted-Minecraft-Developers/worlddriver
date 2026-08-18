@@ -124,17 +124,47 @@ public final class WalkerGeometry {
      * still calls grounded.
      */
     public static double soleOnSolid(WorldView w, Player p) {
+        double[] area = { 0 };
+        eachSoleCell(p, (cell, cellArea) -> { if (w.isSolid(cell)) area[0] += cellArea; });
+        return area[0];
+    }
+
+    /** The row {@link #soleOnSolid} sums over: {@code floor(minY − 1e-7)}, the row the sole SITS ON
+     *  — the block below for a body flush on a full cube, the block itself for one on a shorter
+     *  shape. Named so a caller can print or reason about the row without re-deriving the epsilon. */
+    public static int soleRowY(Player p) {
+        return Mth.floor(p.getBoundingBox().minY - 1.0E-7);
+    }
+
+    /** What {@link #eachSoleCell} hands back: one cell of the sole row and how much of the body's
+     *  0.6x0.6 footprint lies over it. */
+    @FunctionalInterface
+    public interface SoleCellVisitor {
+        void cell(BlockPos at, double area);
+    }
+
+    /**
+     * Every cell of {@link #soleRowY}'s row that the body's own bounding box overlaps, with that
+     * cell's share of the footprint.
+     *
+     * <p><b>The single enumeration.</b> {@link #soleOnSolid}, {@link #soleRow} and
+     * {@link BlastFooting#refuseSwing} all run through here, so「身体站在哪一格上」has exactly one
+     * answer in this repo — the rule this class's header states, applied to the one piece of it
+     * that used to be copied by eye. Cells are walked OUTWARD with vanilla's own {@code 1e-7}, so a
+     * sliver of overlap is reported as the sliver it is (a body walking off a ledge really is held
+     * by 0.0004 of a block for one tick) rather than being rounded away, and the x-outer/z-inner
+     * order is what {@link #soleRow}'s printed evidence has always used.
+     */
+    public static void eachSoleCell(Player p, SoleCellVisitor v) {
         AABB box = p.getBoundingBox();
         int y = Mth.floor(box.minY - 1.0E-7);
-        double area = 0;
         for (int x = Mth.floor(box.minX - 1.0E-7); x <= Mth.floor(box.maxX + 1.0E-7); x++) {
             for (int z = Mth.floor(box.minZ - 1.0E-7); z <= Mth.floor(box.maxZ + 1.0E-7); z++) {
-                if (!w.isSolid(new BlockPos(x, y, z))) continue;
-                area += Math.max(0, Math.min(box.maxX, x + 1.0) - Math.max(box.minX, x))
-                      * Math.max(0, Math.min(box.maxZ, z + 1.0) - Math.max(box.minZ, z));
+                v.cell(new BlockPos(x, y, z),
+                        Math.max(0, Math.min(box.maxX, x + 1.0) - Math.max(box.minX, x))
+                      * Math.max(0, Math.min(box.maxZ, z + 1.0) - Math.max(box.minZ, z)));
             }
         }
-        return area;
     }
 
     /**
@@ -150,16 +180,9 @@ public final class WalkerGeometry {
      * one and this print changes with it.
      */
     public static String soleRow(WorldView w, Player p) {
-        AABB box = p.getBoundingBox();
-        int y = Mth.floor(box.minY - 1.0E-7);
-        StringBuilder sb = new StringBuilder("排y=").append(y);
-        for (int x = Mth.floor(box.minX - 1.0E-7); x <= Mth.floor(box.maxX + 1.0E-7); x++)
-            for (int z = Mth.floor(box.minZ - 1.0E-7); z <= Mth.floor(box.maxZ + 1.0E-7); z++) {
-                double a = Math.max(0, Math.min(box.maxX, x + 1.0) - Math.max(box.minX, x))
-                         * Math.max(0, Math.min(box.maxZ, z + 1.0) - Math.max(box.minZ, z));
-                sb.append(String.format(java.util.Locale.ROOT, " [%d,%d]%s%.4f",
-                        x, z, w.isSolid(new BlockPos(x, y, z)) ? "实" : "空", a));
-            }
+        StringBuilder sb = new StringBuilder("排y=").append(soleRowY(p));
+        eachSoleCell(p, (cell, area) -> sb.append(String.format(java.util.Locale.ROOT,
+                " [%d,%d]%s%.4f", cell.getX(), cell.getZ(), w.isSolid(cell) ? "实" : "空", area)));
         return sb.toString();
     }
 

@@ -8,6 +8,7 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.movement.BlastFooting;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -56,24 +57,58 @@ import net.minecraft.world.phys.AABB;
  * promote-on-first-green rule.
  *
  * <ul>
- *   <li>{@code wd.crystalBlastOnTheCage} — <b>expected RED.</b> It falsifies「砍水晶时可以站在笼上」.
- *       It is written so that a fix can turn it green WITHOUT touching this file: the criterion is
- *       anchored on the stand the body <i>swung from</i>, not on the stand it was placed on, so a
- *       body that steps off the bars onto the obsidian before swinging satisfies it (see 判据 below).
- *       Today nothing chooses a stand, so the hand-rolled loop swings from where it is put.</li>
+ *   <li>{@code wd.crystalBlastOnTheCage} — it falsifies「砍水晶时可以站在笼上」. <b>The way it goes
+ *       green is a REFUSAL</b>, not a better stand: {@code BlastFooting} declines the swing and
+ *       names the footing, so the crystal survives and the body keeps its lid. Read 判据 and the
+ *       X1/X2/X3 note below before assuming this arm proves the bot can relocate — it cannot, and
+ *       nothing here has ever asked it to.</li>
  *   <li>{@code wd.crystalBlastOnThePillar} — <b>expected GREEN, and it is the anti-overfit arm.</b>
  *       Without it,「一律不许靠近水晶，远远地放弃」is a full-marks answer to the arm above. This one
  *       asserts positively that the crystal still gets broken from a blast-proof stand.</li>
  * </ul>
  *
- * <h2>判据 — why the anchor is the swing, not the staging</h2>
+ * <h2>判据 — three clauses, and none of them may be dropped</h2>
  *
- * Both arms assert {@code 最低y(挥刀之后) > 挥刀时站立y − 2}. Anchoring instead on the pillar top
- * would make the cage arm <b>green today while measuring nothing</b>: with no knockback in play (see
- * below) the body simply drops the four blocks from the destroyed lid onto the obsidian, which is
- * still「在柱子上」. Anchoring on the swing says the thing that actually matters — <i>whatever stand
- * you chose, the blast must not take it out from under you</i> — and it is the phrasing a stand-
- * choosing fix passes.
+ * <ol>
+ *   <li><b>落脚不许被抽走.</b> Both arms assert {@code 最低y(挥刀之后) > 挥刀时站立y − 2}. Anchoring
+ *       instead on the pillar top would make the cage arm <b>green while measuring nothing</b>: with
+ *       no knockback in play (see below) a body whose lid was destroyed simply drops the four blocks
+ *       onto the obsidian, which is still「在柱子上」. This is the real invariant and it is
+ *       unchanged.</li>
+ *   <li><b>要么砸碎，要么带理由地拒绝.</b> {@code 水晶=碎了}, <i>or</i> the driver's
+ *       {@code Avatar.lastAttackRefusal} is non-empty AND carries
+ *       {@code BlastFooting.footingTag(块id, 抗性)} for the block the scene itself read under the
+ *       swing stand before the hit. The pair is checked as ONE token on purpose: iron bars are 6.0
+ *       and the blast is 6.0, so asking separately for the id and for「6.0」would be satisfied by
+ *       the {@code power=6.0} every refusal prints. A message that merely says「不行」, or names
+ *       another block, or the right block with a wrong number, does not satisfy it — that is what
+ *       keeps this clause out of「只要报个错就算过」.</li>
+ *   <li><b>⛔ 既没砸碎、也没有理由 ⇒ 红.</b> The clause that plugs the {@code 0==0} hole: a run that
+ *       never swings, or one where the driver silently declined, fails here. Without it a body that
+ *       stood still for 200 ticks would pass clause 1 perfectly.</li>
+ * </ol>
+ *
+ * <p><b>今天这条臂转绿的方式是第 2 条的后半句 —— 带理由地拒绝，不是站到黑曜石上砍.</b> Do not read a
+ * green row here as「bot 会自己换落脚了」. It does not, and this rig could not observe it if it did:
+ *
+ * <ul>
+ *   <li><b>X1 — a process that owns「接近 + 挥刀」两步.</b> {@code Avatar.attackEntity} is one-shot
+ *       and single-tick; it can swing or decline, and it must never teleport. Choosing a stand is a
+ *       multi-tick job and belongs to whatever walks the body in ({@code SwingAt} on rung 20,
+ *       {@code CombatProcess} in production).</li>
+ *   <li><b>X2 — the scene must hand control over BEFORE it latches the stand it judges.</b>
+ *       {@link #swingAndWatch} reads {@code swingStand} on the line above the driver call, so a
+ *       relocation performed inside that call is invisible to the anchor and reads as a fall. A rig
+ *       that wants to grade stand-choosing has to drive the X1 process tick by tick instead of
+ *       calling the verb itself.</li>
+ *   <li><b>X3 — the staging must contain a blast-proof stand the body can REACH.</b> In vanilla's
+ *       caged spike there is exactly one — the 3x3 obsidian floor inside the cage — and it is sealed
+ *       under a solid 5x5 iron lid, four blocks below a body standing on that lid. Every blast-proof
+ *       sole row in this arena is at {@code y = 柱顶}, i.e. {@code 挥刀站立y − 4}, so clause 1's
+ *       {@code −2} tolerance can never be met by relocating. That is a fact about the geometry
+ *       vanilla builds, not about this file: fixing it means a different staging (or a bot that
+ *       breaks in), never a looser number here.</li>
+ * </ul>
  *
  * <p>{@code 最低y} <b>excludes the swing tick's own y</b>, for the reason this ladder has already
  * paid for once: a minimum that includes its own starting sample can never contradict the start, and
@@ -123,8 +158,9 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
     @Override
     public List<Scene> scenes() {
         return List.of(
-                // Expected RED — the sensor. PROMOTE TO REQUIRED the first time it goes green,
-                // which can only happen once something chooses the stand before swinging.
+                // PROMOTE TO REQUIRED once a gate run confirms it green — the repo's
+                // promote-on-first-green rule, and the green it is waiting for is「带理由地拒绝」
+                // (BlastFooting), not「换了个落脚」. See 判据 / X1-X3 above.
                 Scene.of("wd.crystalBlastOnTheCage", 600,
                         WorldDriverCrystalBlastScenes::crystalBlastOnTheCage).withRequired(false),
                 // Expected GREEN. Optional only until one gate run confirms it, per the same rule;
@@ -301,10 +337,11 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
         fp.getInventory().selected = 0;
 
         final double startY = fp.getY();
-        int swings = 0, sinceSwing = 0, firstSwingTick = -1;
+        int swings = 0, sinceSwing = 0, firstSwingTick = -1, refused = 0;
         double minYAfterSwing = Double.MAX_VALUE, closest = Double.MAX_VALUE;
         BlockPos swingStand = null;
-        String underAtSwing = null, underAfterSwing = null;
+        String underAtSwing = null, underAfterSwing = null, refusal = null;
+        float resAtSwing = Float.NaN;
 
         for (int t = 0; t < TICKS; t++) {
             av.commandMove(0, 0);
@@ -319,14 +356,28 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
                     if (firstSwingTick < 0) {
                         // Read the stand BEFORE the hit. Asked afterwards it would describe the
                         // world the explosion left, while claiming to describe the one it found.
+                        // The resistance is taken here for the same reason, and it is the scene's
+                        // OWN derivation — clause 2 feeds it back as a substring test, so a driver
+                        // message that names some other block cannot satisfy it.
                         swingStand = fp.blockPosition();
                         underAtSwing = blockIdAt(level, swingStand.below());
+                        resAtSwing = level.getBlockState(swingStand.below())
+                                .getBlock().getExplosionResistance();
                         firstSwingTick = t;
                     }
                     av.attackEntity(crystal);   // EndCrystal.hurt explodes INSIDE this call
                     sinceSwing = 0;
-                    swings++;
-                    swungNow = true;
+                    // A refused call is NOT a swing. Counting it as one would print「挥了 10 刀」
+                    // over a crystal nothing ever touched, and 挥刀 is the row that says whether
+                    // this arm measured anything at all.
+                    String why = av.lastAttackRefusal();
+                    if (why != null) {
+                        refused++;
+                        if (refusal == null) refusal = why;
+                    } else {
+                        swings++;
+                        swungNow = true;
+                    }
                 }
             }
             if (swungNow && underAfterSwing == null)
@@ -338,10 +389,22 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
                 minYAfterSwing = Math.min(minYAfterSwing, fp.getY());
         }
 
-        boolean swung = firstSwingTick >= 0;
+        // "tried", not "swung": the driver may decline (BlastFooting), and the tick the loop
+        // COMMITTED to a swing is still the right anchor for clause 1 — that is the tick from
+        // which the footing had to survive, whoever ended up deciding whether the sword moved.
+        boolean tried = firstSwingTick >= 0;
         boolean broke = !crystal.isAlive();
-        int swingStandY = swung ? swingStand.getY() : Integer.MIN_VALUE;
-        boolean heldItsGround = swung && minYAfterSwing > swingStandY - 2;
+        int swingStandY = tried ? swingStand.getY() : Integer.MIN_VALUE;
+        boolean heldItsGround = tried && minYAfterSwing > swingStandY - 2;
+        String resAtSwingText = tried ? String.format(Locale.ROOT, "%.1f", resAtSwing) : null;
+        // Clause 2's second half. The block id and the resistance are the scene's OWN readings of
+        // the world, taken before the hit, and they are checked as ONE token: iron bars are 6.0 and
+        // the blast is 6.0, so two separate contains() calls would be satisfied by the 「power=6.0」
+        // any refusal carries — the same coincidence that would have made the threshold itself a
+        // silent no-op. A refusal that does not quote this exact pair is not「带理由地拒绝」.
+        String footingTag = tried ? BlastFooting.footingTag(underAtSwing, resAtSwing) : null;
+        boolean namedTheFooting = refusal != null && footingTag != null
+                && refusal.contains(footingTag);
         BlockPos endAt = fp.blockPosition();
 
         // EVERY row below is written on PASS as well as on FAIL — the harness only prints the
@@ -352,18 +415,30 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
                 + "| 水晶 (%d.5,%d,%d.5) | 身体起始站位 y=%d（站立面 +%d）| 柱周围 %d 格空到接住地板 y=%d",
                 topY, standY, standY, standY + CAGE_LID_DY, standY + CAGE_LID_DY,
                 cx, standY + 1, cz, standAt, standAt - standY, VOID_DEPTH, standY - VOID_DEPTH));
-        ctx.record("站位", swung
+        ctx.record("站位", tried
                 ? swingStand.toShortString() + " 脚下=" + underAtSwing
                 : "从没挥过刀（水晶始终不在 " + MELEE_REACH + " 格内，或身体先掉了）");
         ctx.record("砍后脚下", underAfterSwing == null ? "未采样（没挥过刀）" : underAfterSwing);
         ctx.record("水晶", broke ? "碎了" : "还在");
-        ctx.record("最低y", swung
+        ctx.record("最低y", tried
                 ? String.format(Locale.ROOT, "%.3f（不含挥刀那一刻的 y=%d；判据 > %d）",
                         minYAfterSwing, swingStandY, swingStandY - 2)
                 : "未采样");
         ctx.record("挥刀", swings + " 刀（最近 "
                 + (closest == Double.MAX_VALUE ? "未测" : String.format(Locale.ROOT, "%.2f", closest))
                 + " 格，门限 " + MELEE_REACH + "）");
+        // The control reading for clause 2, written on BOTH arms: the pillar arm's「无」is what
+        // says the guard did not simply forbid every crystal, and the cage arm's text is the
+        // evidence its green rests on. A green cage arm with an empty 拒绝 row would mean the
+        // clause-3 hole reopened — that combination must never be read as a pass.
+        ctx.record("拒绝", refusal == null
+                ? "无 —— 驱动放行（脚下抗性合格；本趟真正挥出 " + swings + " 刀）"
+                : "被拒 " + refused + " 次 / 真正挥出 " + swings + " 刀；首次理由：" + refusal);
+        ctx.record("抗爆门槛", String.format(Locale.ROOT,
+                "power=%.1f ⇒ 落脚抗性需 ≥ %.1f（13*power/3−0.3，推导见 BlastFooting）；挥刀那一格脚下 %s 抗性 %s",
+                BlastFooting.CRYSTAL_BLAST_POWER,
+                BlastFooting.blastProofResistance(BlastFooting.CRYSTAL_BLAST_POWER),
+                tried ? underAtSwing : "——", tried ? resAtSwingText : "未采样"));
         ctx.record("落点", String.format(Locale.ROOT, "%s 脚下=%s（起始 y=%.1f，净掉 %.1f 格）",
                 endAt.toShortString(), blockIdAt(level, endAt.below()), startY, startY - fp.getY()));
         ctx.record("笼子残存", barsLeft(level, cx, cz, standY) + "/" + cageCells()
@@ -377,21 +452,29 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
                 level.getGameRules().getBoolean(GameRules.RULE_BLOCK_EXPLOSION_DROP_DECAY)));
         ctx.record("gamerule.mobGriefing", level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)
                 + "（记录用：ExplosionInteraction.BLOCK 不看这条，看它的是 MOB）");
-        WorldDriverCommon.LOG.info("[wd.{}] standAt={} swung={}@{} under={}->{} broke={} minY={} "
-                + "end={} inIndex={}", name, standAt, swings, firstSwingTick, underAtSwing,
-                underAfterSwing, broke, minYAfterSwing, endAt, level.getEntity(fp.getId()) != null);
+        WorldDriverCommon.LOG.info("[wd.{}] standAt={} swung={}@{} refused={} under={}->{} broke={} "
+                + "minY={} end={} inIndex={}", name, standAt, swings, firstSwingTick, refused,
+                underAtSwing, underAfterSwing, broke, minYAfterSwing, endAt,
+                level.getEntity(fp.getId()) != null);
 
-        // Soft checks, so both verdicts are always reported: "the crystal survived" and "the body
-        // was dropped" are different failures and one merged line prints them the same.
-        ctx.check(broke).as("A 水晶必须碎（否则这条臂什么都没测：挥了 " + swings
-                + " 刀，最近 " + (closest == Double.MAX_VALUE ? "未测"
+        // Soft checks, so both verdicts are always reported: "the crystal survived unexplained" and
+        // "the body was dropped" are different failures and one merged line prints them the same.
+        ctx.check(broke || namedTheFooting).as("A 要么砸碎，要么带理由地拒绝：水晶"
+                + (broke ? "碎了" : "还在")
+                + "，驱动" + (refusal == null ? "没有给出拒绝理由" : "拒绝了 " + refused + " 次")
+                + (namedTheFooting ? "并点名了落脚（" + footingTag + "）"
+                        : refusal == null ? "" : "但理由里找不到成对的【" + footingTag
+                                + "】，那不算带理由（分开匹配会被 power=6.0 蒙混过去）")
+                + "。⛔ 既没砸碎、也没有带落脚读数的理由 = 红：这一条堵的是「从没挥过刀」以 0==0 白过"
+                + "（本趟真正挥出 " + swings + " 刀，最近 "
+                + (closest == Double.MAX_VALUE ? "未测"
                         : String.format(Locale.ROOT, "%.2f", closest)) + " 格）").isTrue();
-        ctx.check(heldItsGround).as("B 爆炸不许抽走落脚：挥刀时站在 "
-                + (swung ? swingStand.toShortString() + "（脚下 " + underAtSwing + "）" : "——")
-                + "，其后最低 y=" + (swung ? String.format(Locale.ROOT, "%.3f", minYAfterSwing) : "未采样")
-                + "，判据 > " + (swung ? String.valueOf(swingStandY - 2) : "无锚点")
-                + "。锚点是【挥刀那一刻】的站立 y，不是布景放下的位置 —— 先挪到黑曜石再砍是合格答案，"
-                + "从没挥过刀不是（那样这条会以 0 > 0 白过）").isTrue();
+        ctx.check(heldItsGround).as("B 爆炸不许抽走落脚：挥刀（含被拒的那一次）时站在 "
+                + (tried ? swingStand.toShortString() + "（脚下 " + underAtSwing + "）" : "——")
+                + "，其后最低 y=" + (tried ? String.format(Locale.ROOT, "%.3f", minYAfterSwing) : "未采样")
+                + "，判据 > " + (tried ? String.valueOf(swingStandY - 2) : "无锚点")
+                + "。锚点是【决定挥刀那一刻】的站立 y，不是布景放下的位置。⚠️ 这条臂今天绿在【带理由地"
+                + "拒绝】上，不是绿在【换了落脚】上——换落脚要 X1/X2/X3，见类注释").isTrue();
     }
 
     // ------------------------------------------------------------- readings ----

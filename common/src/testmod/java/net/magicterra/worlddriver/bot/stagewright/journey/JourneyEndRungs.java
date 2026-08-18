@@ -1168,7 +1168,9 @@ public final class JourneyEndRungs {
                     rig.evidence("crystal." + i + ".result", (crystal.isAlive() ? "还在" : "碎了")
                             + "（站到 y=" + rig.player().blockPosition().getY() + "，最近 "
                             + String.format(Locale.ROOT, "%.1f", swing.closest()) + " 格，挥 "
-                            + swing.swings() + " 刀）");
+                            + swing.swings() + " 刀"
+                            + (swing.refused() == 0 ? "" : "，被拒 " + swing.refused() + " 次：»"
+                                    + swing.refusal() + "«") + "）");
                     smashCrystal(ctx, rig, crystals, i + 1);
                 });
             });
@@ -1606,6 +1608,8 @@ public final class JourneyEndRungs {
         private int elapsed;
         private int sinceSwing = SWING_EVERY;
         private int swings;
+        private int refused;
+        private String refusal;
         private double closest = Double.MAX_VALUE;
 
         SwingAt(Entity target, int maxTicks, double reach) {
@@ -1631,12 +1635,25 @@ public final class JourneyEndRungs {
             if (d <= reach && sinceSwing >= SWING_EVERY) {
                 a.attackEntity(target);
                 sinceSwing = 0;
-                swings++;
+                // A swing the driver DECLINED is not a swing. Rung 20 broke because a crystal took
+                // the cage lid out from under the body, and BlastFooting now refuses that hit — so
+                // this loop can legitimately run its whole budget without the sword ever moving,
+                // and「挥 60 刀，水晶还在」would describe that as a damage problem. Count what
+                // happened, and carry the reason out: a refusal nobody prints is the silent failure
+                // this rung has already been bitten by.
+                String why = a.lastAttackRefusal();
+                if (why != null) { refused++; if (refusal == null) refusal = why; }
+                else swings++;
             }
             return ++elapsed >= maxTicks;
         }
 
         int swings() { return swings; }
+
+        int refused() { return refused; }
+
+        /** Why the driver declined the first refused swing, or {@code null} if it never declined. */
+        String refusal() { return refusal; }
 
         double closest() { return closest == Double.MAX_VALUE ? -1 : closest; }
     }
