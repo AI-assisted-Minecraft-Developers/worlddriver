@@ -69,6 +69,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+**`holdPlaceable` stopped at slot 8, so a body with a full bag was "out of blocks".** The server
+avatar's scan looked at the hand and hotbar slots 0..8 and gave up, while the tool selector directly
+below it in the same class has always swapped up from the bag. Two arms of `wd.serverWidens*` differ
+by exactly one variable and nothing else: 64 cobblestone in slot 0 → the footing remedy spends a
+block and the sole one tick later goes **0.168 → 0.360**; the same stack in slot 20 → **zero** blocks
+spent, sole 0.168 → 0.184, body off the ledge. With the bag in scope the backpack arm reads
+identically to the hotbar arm. This is why rung 20 logged five footing pins and not one 垫脚: the
+body walks its End legs with the haul wherever picking it up put it. No other scene changed colour.
+
+
+
 **`Walker.widenFooting` was never observed to fire, and the arena was why.** The remedy only spends
 a block over a column that is bottomless all the way to `BOTTOMLESS_SCAN_FLOOR` (-70), and rightly
 so — over an ordinary drop a thin sole is a graze, and paying a block per ridge walk eats a bridging

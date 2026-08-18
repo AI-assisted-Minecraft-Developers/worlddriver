@@ -189,8 +189,27 @@ public class ServerPlayerAvatar implements Avatar {
     @Override public boolean holdPlaceable() {
         ItemStack main = fp.getMainHandItem();
         if (isSupport(main)) return true;
+        var inv = fp.getInventory();
         for (int slot = 0; slot < 9; slot++) {
-            if (isSupport(fp.getInventory().items.get(slot))) { fp.getInventory().selected = slot; return true; }
+            if (isSupport(inv.items.get(slot))) { inv.selected = slot; return true; }
+        }
+        // The bag counts, and this scan not reaching it is a defect with a measured price. A body
+        // holding 110 cobblestone in slots 9..35 is not out of blocks; it is out of reach of a scan
+        // that stops at 8. Two arms of wd.serverWidens* differ by exactly that and nothing else:
+        // stack in slot 0 -> the footing remedy spends a block and the sole goes 0.168 -> 0.360;
+        // the same stack in slot 20 -> zero blocks spent, sole 0.168 -> 0.184, body off the ledge.
+        // Rung 20 walks its End legs with the haul wherever picking it up put it, which is why the
+        // ladder logged five footing pins and not one 垫脚. Swapping up from the bag is what the
+        // tool selector below has always done for exactly the same reason.
+        for (int slot = 9; slot < inv.items.size(); slot++) {
+            if (!isSupport(inv.items.get(slot))) continue;
+            int to = inv.selected;
+            for (int h = 0; h < 9; h++) if (inv.items.get(h).isEmpty()) { to = h; break; }
+            ItemStack bag = inv.items.get(slot);
+            inv.items.set(slot, inv.items.get(to));
+            inv.items.set(to, bag);
+            inv.selected = to;
+            return true;
         }
         return false;
     }

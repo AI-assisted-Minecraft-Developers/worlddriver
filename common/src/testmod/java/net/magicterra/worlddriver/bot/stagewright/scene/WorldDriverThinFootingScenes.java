@@ -72,11 +72,20 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
 
     @Override
     public List<Scene> scenes() {
-        return List.of(Scene.of("wd.serverWidensAThinFooting", 600,
-                WorldDriverThinFootingScenes::widensAThinFooting).withRequired(false));
+        return List.of(
+                Scene.of("wd.serverWidensAThinFooting", 600,
+                        ctx -> widensAThinFooting(ctx, 0)).withRequired(false),
+                // Same cell, same stack, one difference: the blocks are in the backpack rather than
+                // the hotbar. holdPlaceable() has only ever looked at slots 0..8 (a tower once
+                // reported "out of blocks?" while the body held 110 cobblestone), and rung 20 walks
+                // its End legs with the haul wherever picking it up put it. Two arms differing by
+                // exactly one variable is the only way to tell "the remedy is wrong" from "the
+                // remedy could not see the blocks".
+                Scene.of("wd.serverWidensFromTheBackpack", 600,
+                        ctx -> widensAThinFooting(ctx, 20)).withRequired(false));
     }
 
-    private static void widensAThinFooting(SceneContext ctx) {
+    private static void widensAThinFooting(SceneContext ctx, int slot) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int deckY = ctx.origin().getY() + 40;
@@ -173,8 +182,10 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                 + " lethalDropAdjacent=" + WalkerGeometry.lethalDropAdjacent(w, fp, footCell));
 
         fp.getInventory().clearContent();
-        fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));
+        fp.getInventory().setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
         fp.getInventory().selected = 0;
+        ctx.record("stock", "64 cobblestone in slot " + slot + " ("
+                + (slot <= 8 ? "hotbar" : "backpack") + "), holdPlaceable=" + av.holdPlaceable());
 
         Walker walker = new Walker();
         walker.setGoal(new Goal.Block(landing.above()));
