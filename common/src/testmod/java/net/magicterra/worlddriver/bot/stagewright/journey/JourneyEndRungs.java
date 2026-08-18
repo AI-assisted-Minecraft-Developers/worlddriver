@@ -1491,9 +1491,25 @@ public final class JourneyEndRungs {
                     + podium.toShortString() + " → 停在 " + me.toShortString() + "（距 "
                     + String.format(Locale.ROOT, "%.1f", Math.sqrt(me.distSqr(podium)))
                     + " 格，高差 " + (me.getY() - podium.getY()) + "）"
-                    + (close ? " 到了" : " 没到"));
-            if (close) then.run();
-            else marchToPodium(rig, podium, left - 1, then);
+                    + (close ? " 到了" : " 没到 end=" + rig.body().botState().mc_goto.endReason
+                            + " err=" + rig.body().botState().mc_goto.lastError));
+            if (close) { then.run(); return; }
+            // Six rounds of the same stall at (43,52,13) — 46 格 out and EIGHT BELOW the podium —
+            // is not bad luck a seventh round fixes. Below the target the walk has to solve「climb
+            // back onto the island」and「cross 46」at once, and the climb is a different verb: the
+            // crystal legs already tower when they need height. Do that here before re-asking, so
+            // the retry differs from the attempt it repeats by more than its serial number.
+            if (me.getY() < podium.getY() - 2) {
+                rig.settle(new TowerProcess(podium.getY(), pillarBlock(rig)), DUEL_MARCH_TICKS / 3,
+                        () -> {
+                    rig.evidence("duel.march." + left + ".tower", "先垒到台面高度 y=" + podium.getY()
+                            + " → 脚在 y=" + rig.player().blockPosition().getY() + "，"
+                            + rig.body().botState().builder.lastError);
+                    marchToPodium(rig, podium, left - 1, then);
+                });
+                return;
+            }
+            marchToPodium(rig, podium, left - 1, then);
         });
     }
 
