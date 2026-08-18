@@ -290,6 +290,13 @@ public final class JourneyEndRungs {
     /** Budget for that walk. Small on purpose — it is closing a few blocks, not crossing the island,
      *  and a body that cannot close them has a finding to report rather than a budget to spend. */
     private static final int CRYSTAL_APPROACH_TICKS = 600;
+    /** Passes over the crystal list. Every survivor heals the dragon, so one pass that leaves five
+     *  of them alive has not「基本完成」— it has made the fight unwinnable. */
+    private static final int CRYSTAL_SWEEPS = 2;
+    /** Which pass over the crystal list is running. Static because the rung is one scene at a time
+     *  and the recursion that walks the list cannot carry it without threading it through every
+     *  continuation; reset where the list is built. */
+    private static int sweep;
 
     /** How long to wait for a dragon to exist before reporting that none does. */
     private static final int DRAGON_WAIT_TICKS = 600;
@@ -301,6 +308,10 @@ public final class JourneyEndRungs {
     /** Budget for walking back to (0,0) before the duel. Generous next to a crystal leg (3 000)
      *  because the body starts this walk on top of whatever tower the last crystal needed. */
     private static final int DUEL_MARCH_TICKS = 6_000;
+    /** Attempts at the podium walk before the fight starts wherever the body got to. */
+    private static final int DUEL_MARCH_ROUNDS = 3;
+    /** How close to the podium counts as「在中央」. A 3D radius, unlike the old {@code Goal.XZ}. */
+    private static final int DUEL_STAND_RADIUS = 6;
     /** Ticks the duel tolerates with the dragon never once inside reach before it stops waiting.
      *
      *  <p>{@link #DUEL_TICKS} is 200 000 — 2.8 hours at the server's own rate — and it is spent
@@ -1138,6 +1149,7 @@ public final class JourneyEndRungs {
         crystals.sort(Comparator.comparingDouble(c -> c.distanceToSqr(here)));
         if (crystals.size() > MAX_CRYSTALS) crystals = new ArrayList<>(crystals.subList(0, MAX_CRYSTALS));
         rig.evidence("crystals.found", crystals.size());
+        sweep = 0;
         smashCrystal(ctx, rig, List.copyOf(crystals), 0);
     }
 
@@ -1156,7 +1168,20 @@ public final class JourneyEndRungs {
         if (i >= crystals.size()) {
             int left = 0;
             for (EndCrystal c : crystals) if (c.isAlive()) left++;
-            rig.evidence("crystals.left", left + "/" + crystals.size());
+            // SWEEP AGAIN before fighting. Every surviving crystal heals the dragon, so a duel begun
+            // with any of them alive is a duel that cannot be won — and the first pass has been
+            // leaving 2 to 8 of them (measured 3→3→2→2→8→1→5 smashed across seven runs). A crystal
+            // is skipped for reasons that are usually LOCAL and transient — the leg timed out, the
+            // tower stopped short, the body was one block out of reach — and the pass that follows
+            // starts from somewhere else entirely, so「再走一遍」is a genuinely different attempt
+            // rather than the retry-that-changes-nothing this repo has been bitten by.
+            rig.evidence("crystals.left" + (sweep == 0 ? ".pass1" : ""),
+                    left + "/" + crystals.size() + (sweep == 0 && left > 0 ? " —— 再扫一遍" : ""));
+            if (left > 0 && sweep + 1 < CRYSTAL_SWEEPS) {
+                sweep++;
+                smashCrystal(ctx, rig, crystals, 0);
+                return;
+            }
             duel(ctx, rig, 0);
             return;
         }
@@ -1385,6 +1410,31 @@ public final class JourneyEndRungs {
         }
     }
 
+    /** Top of the central bedrock fountain — where the dragon perches, and therefore the only cell
+     *  a stand-still melee fight can be won from. Scanned rather than hard-coded so a world whose
+     *  podium sits at a different height still answers correctly. */
+    private static BlockPos podiumTop(ServerLevel end) {
+        for (int y = 100; y > 40; y--) {
+            BlockPos at = new BlockPos(0, y, 0);
+            if (!end.getBlockState(at).isAir()) return at.above();
+        }
+        return new BlockPos(0, 65, 0);
+    }
+
+    /** Walk to the podium, retrying: one stall on ground the body broke and bridged itself is not
+     *  proof the centre cannot be reached. Runs {@code then} either way — the duel's evidence row
+     *  says where it actually ended up, and a fight from the wrong cell is a finding, not a crash. */
+    private static void marchToPodium(JourneyRig rig, BlockPos podium, int left, Runnable then) {
+        if (left <= 0) { then.run(); return; }
+        rig.settle(new IntentProcess(new Intent(new Goal.Near(podium, DUEL_STAND_RADIUS))),
+                DUEL_MARCH_TICKS, () -> {
+            boolean close = rig.player().blockPosition().distSqr(podium)
+                    <= DUEL_STAND_RADIUS * DUEL_STAND_RADIUS;
+            if (close) then.run();
+            else marchToPodium(rig, podium, left - 1, then);
+        });
+    }
+
     /**
      * How many of {@code item} a leg put into the world, as a NET inventory difference.
      *
@@ -1423,11 +1473,19 @@ public final class JourneyEndRungs {
         // crystal left the body, 42 blocks off-centre on a pillar top at y=103, and burned 11 400 of
         // its 200 000 ticks without the dragon once coming within reach. The dragon circles (0,y,0);
         // a body that is not there is not in the fight.
-        rig.attempting("走回竞技场中心，龙绕着 (0,0) 飞，不在那里就打不到");
-        rig.settle(new IntentProcess(new Intent(new Goal.XZ(0, 0, 6))), DUEL_MARCH_TICKS, () -> {
+        // A Y-AWARE goal, and retried. `Goal.XZ.ignoresY()` is true, so「走到中心」was satisfied on
+        // top of whatever tower the last crystal needed — measured, the duel began at y=103 while
+        // the dragon perches on the bedrock fountain near y=63, six blocks away horizontally and
+        // forty vertically. Vanilla's melee window IS the perch; a body above it never gets one.
+        // Three attempts because the walk crosses ground the body itself broke and bridged, and one
+        // stall there is not evidence that the centre is unreachable.
+        BlockPos podium = podiumTop(end);
+        rig.attempting("走回竞技场中心的基岩台（" + xyz(podium) + "），龙落在那里才够得着");
+        marchToPodium(rig, podium, DUEL_MARCH_ROUNDS, () -> {
         rig.evidence("duel.stand", xyz(rig.player().blockPosition()) + " 距中心 "
                 + String.format(Locale.ROOT, "%.1f",
-                        Math.hypot(rig.player().getX(), rig.player().getZ())) + " 格"
+                        Math.hypot(rig.player().getX(), rig.player().getZ())) + " 格，"
+                + "高出基岩台 " + (rig.player().blockPosition().getY() - podium.getY()) + " 格"
                 + "（DuelTheDragon 原地不动，所以这一格就是整场架的位置）");
         rig.attempting("在中央等龙够得着，够得着就打头（头部不分摊伤害，其余部位除以四）");
         DuelTheDragon fight = new DuelTheDragon(DUEL_TICKS, MELEE_REACH);
