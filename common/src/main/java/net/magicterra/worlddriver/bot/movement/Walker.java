@@ -1511,6 +1511,11 @@ public final class Walker {
      * ridge walk is how a bridging contract gets eaten. Over the void it is the difference between
      * continuing and falling forever.
      */
+    /** The footing guard's own threshold, for scenes that must stage a body it actually looks at.
+     *  An accessor rather than a copied literal: a rig that assumes 0.18 stops being a test of this
+     *  guard the day the guard changes its mind. */
+    public static double footingMin() { return FOOTING_MIN; }
+
     private void widenFooting(Avatar a, WorldView world, Player p, BlockPos foot) {
         if (!BotConfig.allowPlace || a.breakHeld() || !a.holdPlaceable()) return;
         var box = p.getBoundingBox();

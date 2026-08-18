@@ -305,3 +305,7 @@ wd.serverTowersWithoutOnGround
 wd.serverTowersOnAFreePillar
 wd.serverTowersToWhereItStands
 wd.serverTowersWithAFullBackpack
+
+# The cell rung 20 died at twice, alone: 1-wide ledge, 16% sole, void, diagUp next.
+# RED BY DESIGN until the body widens its own footing — see the class note.
+wd.serverWidensAThinFooting

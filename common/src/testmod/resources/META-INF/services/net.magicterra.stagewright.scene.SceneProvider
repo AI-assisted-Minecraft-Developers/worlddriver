@@ -18,3 +18,4 @@ net.magicterra.worlddriver.bot.stagewright.journey.WorldDriverJourneyScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverParkourVoidScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverCrystalBlastScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverTowerScenes
+net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverThinFootingScenes
