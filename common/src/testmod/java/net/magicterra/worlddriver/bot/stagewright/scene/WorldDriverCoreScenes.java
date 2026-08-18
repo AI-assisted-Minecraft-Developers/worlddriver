@@ -705,10 +705,17 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      * {@code (horizontalCollision || jumping) && (onClimbable() || powder snow)}; {@code travel()}'s
      * tail then leaves {@code (0.2 − 0.08) × 0.98 = +0.1176}. {@code ServerPlayerAvatar.step()} mirrors
      * {@code fp.jumping = pendingJump} EVERY tick — deliberately, it is the only thing that drives a
-     * wall-less vine — so merely ASKING for a jump arms that rewrite. A body that lands back on rock
-     * with the ask still held therefore reads {@code dy > 0} while standing, and the gate refuses it.
-     * Vanilla would not: {@code LivingEntity.aiStep} calls {@code jumpFromGround()} for a grounded
-     * jumping body on a ladder (rate-limited by {@code noJumpDelay}, not forbidden).
+     * wall-less vine — so merely ASKING for a jump arms that rewrite.
+     *
+     * <p><b>The consequence, measured, that this scene originally got backwards.</b> The first draft
+     * demanded TWO jumps per arm, reasoning that a body would land back on rock with the ask still
+     * held, read {@code dy > 0} while standing, and be refused. It never lands. Held-jump on a ladder
+     * IS climbing, and the rewrite catches the body every tick its feet are inside the ladder cell:
+     * <pre>t0 +0.4200 | t1..t5 +0.1176 | t6 +0.0368 t7 −0.0423 t8 −0.1198 | t9 +0.1176</pre>
+     * — it climbs out of the cell, falls a fraction, re-enters, and is pushed up again, hovering at
+     * the cell's ceiling ({@code 底y=221.42}, floor at {@code 221.0}) for the whole window. A second
+     * ground jump needs a landing, and vanilla forbids the landing. <b>"Jumped twice" was a demand on
+     * physics, not on the driver</b>, so the arm below asks what is actually under test instead.
      *
      * <h2>Two arms, and they answer different questions</h2>
      * <ul>
@@ -717,18 +724,28 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *       rewrite and nothing should interfere. A failure here is the ARENA, not the gate.</li>
      *   <li><b>underfoot</b> — the ladder occupies the body's own cell, floor still solid beneath.
      *       {@code onClimbable()} is true, so the rewrite is armed from the first held tick. The body
-     *       must be able to leave the ground by a JUMP more than once.</li>
+     *       must take its ground jump from the floor, and must NOT take another one from the hover.</li>
      * </ul>
      *
      * <h2>The criterion, fixed before the run</h2>
      * A single-tick rise {@code > 0.3} can only be the {@code 0.42} ground jump: the climbable
-     * rewrite tops out at {@code 0.1176} per tick and gravity only subtracts. So "jumped again" is
-     * countable without reading any internal state. Each arm must produce at least TWO such rises
-     * inside the window. One rise means the first jump fired and no later one could — exactly the
-     * self-lock. <b>A red here is a verdict on the {@code dy} term, not a scene to relax:</b> the fix
-     * is to make that term say what it meant (a body being carried UP is not standing) without
-     * catching a body that is merely holding jump next to a ladder — and whatever replaces it owes
-     * buoyancy its own arena, since that is what the term was added for.
+     * rewrite tops out at {@code 0.1176} per tick and gravity only subtracts. So each question is
+     * answerable without reading any internal state.
+     * <ul>
+     *   <li><b>adjacent</b> ≥ 2 rises — a neighbouring ladder must not reach the body at all, so this
+     *       arm is plain ground and lands and re-jumps freely. A red is the ARENA or the support
+     *       term, never the climbable path.</li>
+     *   <li><b>underfoot, first tick ≥ 0.4</b> — a body standing on rock inside a ladder cell is
+     *       standing. An over-correction that refuses every jump on a climbable fails here.</li>
+     *   <li><b>underfoot, later rises = 0</b> — the opposite direction, and the one that needs the
+     *       arm to exist: while hovering in the rewrite the body is NOT footed, and a support test
+     *       widened to "solid somewhere below" or defaulting to "can't tell → standing" would launch
+     *       0.42s out of mid-air here.</li>
+     *   <li><b>underfoot, {@code 底y}</b> — the guard on the guard. If the body ever does come back
+     *       to the floor ({@code minY ≤ standY + 0.1}) it MUST jump again; only a body that never
+     *       landed is excused. That keeps the original self-lock detectable if the physics changes,
+     *       instead of the excuse silently covering it.</li>
+     * </ul>
      */
     private static void climbableGroundJump(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -743,21 +760,38 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         level.setBlockAndUpdate(new BlockPos(cx + 1, standY, cz + 3), Blocks.STONE.defaultBlockState());
         level.setBlockAndUpdate(new BlockPos(cx, standY, cz + 3), ladderFacingWest());
 
-        int adjacent = countBigRises(ctx, level, cx, standY, cz - 3, "adjacent");
-        int underfoot = countBigRises(ctx, level, cx, standY, cz + 3, "underfoot");
+        HeldJump adjacent = heldJump(ctx, level, cx, standY, cz - 3, "adjacent");
+        HeldJump underfoot = heldJump(ctx, level, cx, standY, cz + 3, "underfoot");
         WorldDriverCommon.LOG.info("[wd.climbableGroundJump] adjacent={} underfoot={}", adjacent, underfoot);
+        ctx.passNote("adjacent=" + adjacent.rises() + " underfoot首跳="
+                + String.format(Locale.ROOT, "%.4f", underfoot.first()) + " 之后=" + underfoot.later()
+                + " 底y=" + String.format(Locale.ROOT, "%.4f", underfoot.minY()));
 
-        if (adjacent < 2)
-            ctx.fail("climbableGroundJump: adjacent arm jumped " + adjacent + " time(s), expected >=2. "
+        if (adjacent.rises() < 2)
+            ctx.fail("climbableGroundJump: adjacent arm jumped " + adjacent.rises() + " time(s), expected >=2. "
                     + "A ladder one cell away must not reach the body at all (onClimbable reads the FEET "
-                    + "cell) — so this is the arena or the ground gate's FIRST term, not the dy term.");
-        if (underfoot < 2)
-            ctx.fail("climbableGroundJump: underfoot arm jumped " + underfoot + " time(s), expected >=2 — "
-                    + "the body could not jump again while standing on rock in a ladder cell with jump "
-                    + "held. That is the `dy <= 0` half of the ground gate self-locking: vanilla rewrites "
-                    + "the post-move dy to +0.2 whenever `jumping` is set on a climbable, and the avatar "
-                    + "sets `jumping` from the ask every tick, so a standing body reads dy>0 forever. "
-                    + "Fix the term, do not relax this arena.");
+                    + "cell) — so this is the arena or the ground gate's support term, not the climbable path.");
+        // The arm is worthless if the ladder never armed the rewrite; say so instead of reading a
+        // plain-ground trajectory as if it proved something about climbables.
+        if (!underfoot.climbable())
+            ctx.fail("climbableGroundJump: the underfoot body is not on a climbable at all — the ladder"
+                    + " did not place, or the body left its cell. This arm measured plain ground.");
+        if (underfoot.first() < 0.4)
+            ctx.fail("climbableGroundJump: a body standing on rock inside a ladder cell rose "
+                    + String.format(Locale.ROOT, "%.4f", underfoot.first()) + " on its first held tick,"
+                    + " not the 0.42 ground jump. Standing in a climbable cell is still standing;"
+                    + " refusing every jump on a climbable is an over-correction, not a fix.");
+        if (underfoot.later() > 0 && underfoot.minY() > standY + 0.1)
+            ctx.fail("climbableGroundJump: the underfoot body launched " + underfoot.later()
+                    + " further ground jump(s) without ever returning to the floor (底y="
+                    + String.format(Locale.ROOT, "%.4f", underfoot.minY()) + ", floor at " + standY
+                    + "). Hovering inside the climbable rewrite is not standing — the support test is"
+                    + " answering for a body whose sole is flush against nothing.");
+        if (underfoot.later() == 0 && underfoot.minY() <= standY + 0.1)
+            ctx.fail("climbableGroundJump: the underfoot body DID come back to the floor (底y="
+                    + String.format(Locale.ROOT, "%.4f", underfoot.minY()) + ") and never jumped again."
+                    + " That is the ground gate self-locking on a climbable, and it is the defect this"
+                    + " arm exists to catch. Fix the gate, do not relax this arena.");
     }
 
     /**
@@ -803,9 +837,10 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             for (int dz = 1; dz <= 5; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 1, cz + dz), Blocks.WATER.defaultBlockState());
 
-        int afloat = countBigRises(ctx, level, cx, standY + 4, cz - 3, "afloat");
-        int bottomed = countBigRises(ctx, level, cx, standY, cz + 3, "bottomed");
+        int afloat = heldJump(ctx, level, cx, standY + 4, cz - 3, "afloat").rises();
+        int bottomed = heldJump(ctx, level, cx, standY, cz + 3, "bottomed").rises();
         WorldDriverCommon.LOG.info("[wd.buoyantJumpStaysABob] afloat={} bottomed={}", afloat, bottomed);
+        ctx.passNote("afloat=" + afloat + " bottomed=" + bottomed);
 
         if (afloat > 0)
             ctx.fail("buoyantJumpStaysABob: a body floating in deep water launched " + afloat
@@ -823,29 +858,52 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 net.minecraft.world.level.block.LadderBlock.FACING, net.minecraft.core.Direction.WEST);
     }
 
-    /** Hold jump for 60 ticks and count the single-tick rises only a {@code 0.42} ground jump can
+    /**
+     * What one arm of a held-jump arena measured.
+     *
+     * <p>{@code first} and {@code later} are kept apart because they answer opposite questions: the
+     * first tick asks whether a jump is ALLOWED at all from the starting stance, every later tick
+     * asks whether one is allowed from a stance the body reached by moving. A single total conflates
+     * "refused the only jump it could take" with "took jumps it should not have".
+     *
+     * <p>{@code minY} is the reading that keeps a silent arm honest: "never jumped again" and "never
+     * came back down to jump from" produce the same count and mean opposite things, so the floor of
+     * the trajectory has to be recorded, not inferred from the count.
+     */
+    private record HeldJump(double first, int later, double minY, boolean climbable, boolean inWater) {
+        int rises() {
+            return (first > 0.3 ? 1 : 0) + later;
+        }
+    }
+
+    /** Hold jump for 60 ticks and measure the single-tick rises only a {@code 0.42} ground jump can
      *  produce (the buoyant bob adds 0.04 and the climbable rewrite tops out at 0.1176, so 0.3
-     *  separates them with room to spare). Returns the count; logs the first ten ticks so a red is
-     *  diagnosable from the run that produced it rather than from a second one with logging on. */
-    private static int countBigRises(SceneContext ctx, ServerLevel level, int cx, int standY, int cz, String arm) {
+     *  separates them with room to spare). Logs the first ten ticks and the trajectory's floor so a
+     *  red is diagnosable from the run that produced it rather than from a second one with logging
+     *  on. */
+    private static HeldJump heldJump(SceneContext ctx, ServerLevel level, int cx, int standY, int cz, String arm) {
         ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         for (int i = 0; i < 3; i++) av.step();
         StringBuilder head = new StringBuilder();
-        double prev = fp.getY();
-        int jumps = 0;
+        double prev = fp.getY(), first = 0.0, minY = fp.getY();
+        int later = 0;
         for (int i = 0; i < 60; i++) {
             av.commandJump(true);
             av.step();
             double rise = fp.getY() - prev;
-            if (rise > 0.3) jumps++;
+            if (i == 0) first = rise;
+            else if (rise > 0.3) later++;
+            minY = Math.min(minY, fp.getY());
             if (i < 10) head.append(String.format(java.util.Locale.ROOT, " t%d:y=%.4f dy=%.4f", i, fp.getY(), rise));
             prev = fp.getY();
         }
-        WorldDriverCommon.LOG.info("[held-jump] {} rises>0.3={} climbable={} inWater={}{}",
-                arm, jumps, fp.onClimbable(), fp.isInWater(), head);
-        return jumps;
+        HeldJump out = new HeldJump(first, later, minY, fp.onClimbable(), fp.isInWater());
+        WorldDriverCommon.LOG.info("[held-jump] {} 首跳={} 之后>0.3={} 底y={} climbable={} inWater={}{}",
+                arm, String.format(java.util.Locale.ROOT, "%.4f", first), later,
+                String.format(java.util.Locale.ROOT, "%.4f", minY), out.climbable(), out.inWater(), head);
+        return out;
     }
 
     /**
