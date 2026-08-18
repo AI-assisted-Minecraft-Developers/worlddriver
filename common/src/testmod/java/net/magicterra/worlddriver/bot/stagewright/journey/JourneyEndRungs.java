@@ -331,7 +331,7 @@ public final class JourneyEndRungs {
      *  body whose position the dragon's circle never passes, which is what a duel started off-centre
      *  is. Measured: 11 400 ticks off-centre with `closest` never falling to reach. Any approach
      *  resets it, so a long fight with lulls is unaffected. */
-    private static final int DUEL_OUT_OF_REACH_TICKS = 4_000;
+    private static final int DUEL_OUT_OF_REACH_TICKS = 20_000;
 
     /** Everything a shaft yields that a tower can stand on, commonest first — copied from the
      *  overworld rungs, where the lesson was learned that a tower asked for a block the body does not
@@ -1969,7 +1969,17 @@ public final class JourneyEndRungs {
             Player p = a.player();
             if (p == null) return true;
             EnderDragon dragon = nearestDragon(p.level(), p.position());
-            if (dragon == null || dragon.isDeadOrDying()) return true;
+            if (dragon != null && dragon.isDeadOrDying()) return true;
+            if (dragon == null) {
+                // 「盒子里查不到」不等于死了 —— this file's own death criterion says exactly that,
+                // and the fight loop was not applying it: a dragon that merely flew past the search
+                // box ended the duel as if it were finished. Measured: 5 swings, 5 of them on the
+                // head, then the dragon crossed to -66,87,26 and the fight stopped there with the
+                // body standing on the fountain doing nothing wrong. A circling dragon leaving and
+                // returning is the NORMAL shape of this fight; only death or the budget ends it.
+                if (++outOfReach >= DUEL_OUT_OF_REACH_TICKS) { gaveUp = true; return true; }
+                return ++elapsed >= maxTicks;
+            }
 
             Entity head = null;
             Entity nearest = null;
