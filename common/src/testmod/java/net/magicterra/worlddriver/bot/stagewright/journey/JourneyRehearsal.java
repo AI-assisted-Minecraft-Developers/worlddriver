@@ -1163,9 +1163,22 @@ public final class JourneyRehearsal {
 
         Vec3 land = ServerLevel.END_SPAWN_POINT.getBottomCenter().subtract(0, 1, 0);
         fp.setDeltaMovement(Vec3.ZERO);
+        // Where the body was standing WHEN IT LEFT, in the terms the swim branches read. A cross-
+        // dimension teleport does not recompute the fluid flags — those are written by baseTick, and
+        // the walker ticks BEFORE the avatar's step — so whatever is true here is what WalkerTickDrive
+        // sees on its first tick in the End. Measured 2026-08-17: `支=swimColumn 水=true 没顶=true`
+        // fired a jump on the dry obsidian platform, and the flags read false again seven ticks later.
+        // Recorded on BOTH sides of the teleport, because a flag that was already false before it
+        // moves the question somewhere else entirely.
+        String wetBefore = fp.level().dimension().location() + " 水=" + fp.isInWater()
+                + " 没顶=" + fp.isUnderWater() + " 脚格="
+                + fp.level().getBlockState(fp.blockPosition()).getBlock();
         fp.teleportTo(end, land.x, land.y, land.z, java.util.Set.of(),
                 Direction.WEST.toYRot(), fp.getXRot());
         fp.setOnGround(true);
+        ctx.record("rehearsal.wetOnDeparture", wetBefore + " → 落地后 水=" + fp.isInWater()
+                + " 没顶=" + fp.isUnderWater() + " 脚格="
+                + end.getBlockState(fp.blockPosition()).getBlock());
         loadAround(end, fp.blockPosition(), 2);
         JourneyLedger.staged("rehearsal: put the body on the End arrival platform at "
                 + fp.blockPosition().toShortString() + " instead of stepping through a portal");
