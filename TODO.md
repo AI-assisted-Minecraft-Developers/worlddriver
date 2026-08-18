@@ -277,7 +277,47 @@ vanilla 也会让真玩家在那里起跳。
 
 ---
 
-## ⬜ B：20 级——parkour 边成为当前边时身体已在空中（等级 `compiled`，只加读数）
+## ⬜ B：20 级——**那一跳来自 `swimColumn` 分支，打在干黑曜石上**（2026-08-17 排练实测）
+
+`[walker] 起跳来源` 落地后第一趟排练，全程**只有两条起跳事件**，间隔正好是先前那个 `距上次起跳=7`：
+
+```
+146 [rehearsal] staged DRAGON: platform BlockPos{x=100,y=49,z=0}, body BlockPos{x=100,y=49,z=0}
+147 [pathfinder] search-begin owner=goto start=100,49,0 goal=XZ[x=0,z=0,radius=6]
+149 [walker] 起跳来源: t=116 支=swimColumn 处=WalkerTickDrive.java:1113 身体=100,49,0
+             精确=(100.500,49.000,0.500) 路点=98,49,0 wp.y-foot.y=0      ← 平走边上起跳
+153 [walker] 起跳来源: t=123 支=parkour    处=同上          身体=98,50,0
+             精确=(98.834,50.177,0.500)  路点=95,49,0 wp.y-foot.y=-1     ← 请求时人在半空
+156 [walker] footing guard: sole 0.0000 < 0.18 at 97,49,0 beside a lethal drop → sneak-pin
+157 [pathfinder] search-begin owner=goto start=96,46,0                    ← 已经掉到 y=46
+```
+
+⇒ 因果链闭合：**t=116 `swimColumn` 把身体抬离台面** → t=123 parkour 边轮到时身体在 `y=50.177`
+（台面 y=49）→ 起跳闸**正确地**拒绝这次请求（脚底确实不贴合）→ 身体以走路速度迈出台沿。
+
+**⚠️ 这说明 A 的修复不足以救 20 级**：parkour 那一跳被拒是**对的**，病在它之前那 7 tick。
+
+### 未决：`swimColumn` 的前置条件在末地怎么会成立
+
+```java
+// WalkerTickDrive.java:970
+boolean swimColumn = p.isInWater() && (p.isUnderWater() || world.isWater(foot.above()));
+```
+
+标签链在 `swimColumn` 之前已逐项排除 `stepUp/parkour/stepUpFreeze/levelRiser/wiggle/swimUp`，
+所以这条读数在断言 **`p.isInWater()` 为真**——而那是降落台的干黑曜石。
+**日志里没有第二个独立的水读数，不能拿标签自证。** 已在 `起跳来源` 行加印
+`水=`（`p.isInWater()`，分支真正读的量）/`没顶=`/`脚格=`/`脚上=`（世界的方块），三种解释各占一行：
+
+| 读到 | 结论 |
+|---|---|
+| `水=true 脚格=air` | 身体自己的水标志是错的（陈旧／没更新）⇒ avatar 的账 |
+| `水=true 脚格=water` | 那一格真有水 ⇒ 布景／世界的账 |
+| `水=false` | 标签与自己的前置条件矛盾 ⇒ 先查标签链取的是不是同一批状态，别信标签 |
+
+---
+
+## 🗄️（存档）B：20 级——parkour 边成为当前边时身体已在空中（等级 `compiled`，只加读数）
 
 判别读数（跑前写死的判据，五笔全 `0.0000` ⇒ 不命中）：
 
