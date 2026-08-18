@@ -1,3 +1,33 @@
+## ✅ 第 20 级：**行军段通了**（2026-08-17，两把刀之后）
+
+```
+t+0 sprinting=true h=0.1530 onGround=true 脚底实心=0.3600 y=49.0000
+t+1 sprinting=true h=0.2637        ← 冲量发出（修复前 0.1382 = 纯空气衰减）
+island.0.plan  end=arrived         island.1 = 距中心 6 格      island.legs = 1
+```
+
+身体从末地 5×5 降落台走到了**离主岛中心 6 格**，`parkour3` 那条边不再是终点。
+⇒ 「掉出末地」这一族（`island.fellAt=146,-23223,0`）**关闭**。
+
+### ⬜ 新战线：龙。而失败文案**与自己的证据打架**
+
+21094 tick / 预算 60000 ⇒ **不是超时**。文案说「末地里没有龙可打……身体从没走过
+`PlayerList.placeNewPlayer`，所以永远不在那张表里」，**而它自己内插的值是
+`dragonUUID=967f837e-…`（非空）、`crystalsAlive=5`**，同一条 reason 里还有
+`rehearsal.inPlayerList=true（level.players() 有 1 人）`。
+
+另有一组独立证据行：`dragonFight.crystalsAlive=0`、`dragonFight.dragonUUID=null`、
+`dragonFight.previouslyKilled=false`、`dragon.present=false`、`level.realPlayers=1`。
+
+⇒ **两组值必然取自不同时刻**，多半是「布景时刻 0/null（健康）」对「失败时刻 5/967f837e（龙已创建）」。
+已派工把每个读数的**取样时刻**钉清楚、找出真正触发失败的那条判据、并修这条撒谎的文案
+（`dragonUUID` 非空时不许说「没有龙」；两个时刻都记——只在失败时记的读数说不出健康态长什么样）。
+
+⚠️ 这一晚已经因为「拿 A 读数的坐标去算 B 读数的判据」栽过一次
+（`cur2≈0.68` vs 实测 0.425）。**同一条 reason 里的两个数不保证同一时刻。**
+
+---
+
 ## ✅ 2026-08-17 全闸 **GREEN**（`GATE_EXIT=0`，`VERDICT: GREEN`）
 
 ```
