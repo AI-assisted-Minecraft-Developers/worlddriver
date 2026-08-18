@@ -32,11 +32,11 @@ import net.minecraft.world.level.block.Blocks;
  * The manifest's only execution-level jump scene is {@code wd.parkourAscend}
  * ({@link WorldDriverTerrainScenes}), and it leaps a gap that lands <b>+1 higher</b>. That single
  * fact is what exempts it from the defect this family is built around: the sprint gate in
- * {@code WalkerTickDrive} reads
+ * {@code WalkerTickDrive} used to read
  *
  * <pre>{@code
  * boolean parkourAscend = parkourEdge && wp.getY() > foot.getY();   // RISING leaps only
- * boolean sprint = ... && (!lethalNear || parkourAscend) && ...;
+ * boolean sprint = ... && (!lethalNear || parkourAscend) && ...;    // now: (!lethalNear || parkourEdge)
  * }</pre>
  *
  * so a <b>rising</b> parkour keeps its sprint next to a killer edge and a <b>flat</b> one does not.
@@ -53,11 +53,13 @@ import net.minecraft.world.level.block.Blocks;
  *
  * <h2>What these three scenes are, and what they are NOT</h2>
  *
- * They are <b>sensors, not fixes</b>. Nothing in this file touches the product. Two of the three are
- * expected to be RED on the run that lands them, and are registered
- * {@link Scene#withRequired(boolean) withRequired(false)} for exactly that reason — <b>each is to be
- * promoted to required the first time it goes green</b>, which is the whole point of writing the
- * criterion down before the fix rather than after.
+ * They are <b>sensors, not fixes</b>. Nothing in this file touches the product. Two of the three
+ * shipped RED and {@link Scene#withRequired(boolean) withRequired(false)} for exactly that reason —
+ * <b>each was to be promoted to required the first time it went green</b>, which is the whole point
+ * of writing the criterion down before the fix rather than after. Both execution arms have since
+ * been promoted, in the commit that narrowed the sprint gate to {@code parkourEdge}; only the
+ * planner arm ({@code wd.parkourVoidRunwayGate}) is still optional, because nothing has yet touched
+ * the run-up modelling it measures.
  *
  * <p>The family is deliberately a POSITIVE arm, a NEGATIVE arm and a PLANNER arm, because the
  * cheapest wrong fixes are all invisible to any one of them:
@@ -100,20 +102,23 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
     @Override
     public List<Scene> scenes() {
         return List.of(
-                // Expected RED on the run that lands this. PROMOTE TO REQUIRED the first time it
-                // goes green — an optional sensor that stays optional after the fix is a sensor
-                // nobody will notice regressing.
+                // REQUIRED since the sprint gate was narrowed to `parkourEdge` — this arm was the
+                // green half of the pair that measured the defect (takeoff h 0.1232 -> 0.2475: the
+                // impulse fires when the body launches from BEHIND the lip), so it now guards
+                // against the fix being reverted along with the long arm it made possible.
                 Scene.of("wd.parkourVoidShortRunway", 200,
-                        WorldDriverParkourVoidScenes::parkourVoidShortRunway).withRequired(false),
-                // The reverse arm, and it ships OPTIONAL for the same reason the forward one does:
-                // "a long run-up clears this gap" is a claim nobody has measured. `lethalNear` reads
-                // only the CURRENT foot cell's eight neighbours, so eleven blocks of runway behind
-                // the body change it by not one bit — both arms may launch with sprint already off,
-                // in which case a run-up buys nothing and this arm is red for a reason that has
-                // nothing to do with over-correction. PROMOTE TO REQUIRED the first time it is green:
-                // only then does it start guarding against a fix that kills parkour outright.
+                        WorldDriverParkourVoidScenes::parkourVoidShortRunway),
+                // REQUIRED, and the answer to its own open question is now on record: the run-up
+                // did NOT buy the leap anything, it COST it. `lethalNear` reads only the CURRENT
+                // foot cell's eight neighbours, so eleven blocks of runway behind the body change
+                // it by not one bit — what they change is WHICH cell the body launches from, and a
+                // fuller run-up puts it ON the lip, where the eight neighbours include void and the
+                // old `parkourAscend` exemption (rising leaps only) let the gate close. Measured
+                // 0.1563 -> 0.1400 across the takeoff: x0.896 air decay, no impulse, into the gap.
+                // With the gate keyed on `parkourEdge` this is the anti-overfit arm it was written
+                // to be — "forbid every parkour and always bridge" now fails it on place.spent.
                 Scene.of("wd.parkourVoidLongRunway", 200,
-                        WorldDriverParkourVoidScenes::parkourVoidLongRunway).withRequired(false),
+                        WorldDriverParkourVoidScenes::parkourVoidLongRunway),
                 // Records the CURRENT answer of an unmodelled run-up threshold; its short half is
                 // expected RED. PROMOTE TO REQUIRED the first time it goes green.
                 Scene.of("wd.parkourVoidRunwayGate", 200,

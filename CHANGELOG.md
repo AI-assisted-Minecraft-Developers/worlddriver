@@ -68,6 +68,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exactly the reading.
 
 ### Fixed
+- **A run-up made a leap over void *less* likely to clear it, because the lip switched off the
+  sprint.** The lethal-edge sprint brake asks `lethalDropAdjacent(world, p, foot)` — does any of the
+  *foot cell's* eight horizontal neighbours drop further than `survivableFall` — and its only
+  exemption was `parkourAscend`, i.e. `parkourEdge && wp.y > foot.y`, rising leaps. A flat leap is
+  identically false there, and `lethalNear` is only ever true over a drop, so the one class of jump
+  that cannot be finished without momentum was the one class that never got any. Which cell the body
+  launched from decided it: two scenes with the same geometry and different run-up lengths split
+  cleanly, `wd.parkourVoidShortRunway` taking off one cell *behind* the lip (all eight neighbours on
+  the pad, `h 0.1232 → 0.2475`, the impulse fires) and `wd.parkourVoidLongRunway` taking off *on* it
+  (`h 0.1563 → 0.1400`, x0.896 air decay, no impulse, into the gap). More runway means a fuller
+  approach means the body ends up standing on the lip, so the run-up was not a second-order help —
+  it was the thing that broke the leap.
+
+  The exemption is now keyed on `parkourEdge`. Narrowed to the leap rather than loosened to a
+  blanket `!lethalNear`, because the non-parkour half of that predicate is load-bearing: a plain
+  walk-off lip must still lose its sprint, which is what `wd.bridgeLethalGapStop` exists to hold.
+  The dynamic sneak brake gets the same exclusion — on the lip, `edgeBrake` held shift through the
+  takeoff and `ServerPlayerAvatar`'s `pendingSneak ? 0.3f : 1f` then served the leap 30% of its
+  steering, so restoring sprint alone would have been half a fix. Both execution arms of the
+  parkour-void family are promoted to required; the planner arm (`wd.parkourVoidRunwayGate`) stays
+  optional, since nothing here touches the run-up modelling it measures.
+
 - **The ground gate's fall-speed term refused a body that was standing, and shipped with nothing
   able to say so.** The gate was `soleOnSolid > 0 && deltaMovement.y <= 0`; the second term was added
   for buoyancy — a body carried *up* through a block boundary is touching the floor, not standing on

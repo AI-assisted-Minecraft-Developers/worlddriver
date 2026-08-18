@@ -46,6 +46,48 @@ import static net.magicterra.worlddriver.bot.movement.WalkerGeometry.*;
  * {@link WalkerTickCtx} for the shared per-tick locals. Bodies are UNCHANGED from the
  * original tick body except for the {@code w.}/{@code Walker.} member prefixes; do not
  * restructure here without live/testkit evidence (this file is state-machine surgery).
+ *
+ * <h2>Why the lethal-edge sprint exemption is {@code parkourEdge}, not {@code parkourAscend}</h2>
+ *
+ * Two gates in {@link #run} carry a {@code parkourEdge} term whose reason is one measurement, so it
+ * is written here once rather than twice inline (and here rather than inline at all, because
+ * {@code run} is on the source-budget grandfather list and may only shrink):
+ *
+ * <ul>
+ *   <li>the sprint expression's {@code (!lethalNear || parkourEdge)} term, and</li>
+ *   <li>the dynamic brake block's {@code && !parkourEdge} exclusion.</li>
+ * </ul>
+ *
+ * <p>{@code lethalNear} asks {@code lethalDropAdjacent(world, p, foot)} — does ANY of the FOOT
+ * cell's eight horizontal neighbours drop further than {@code survivableFall}. On the rim of a pad
+ * over void that is true on the lip cell and false one cell back, so the sprint channel closes or
+ * opens purely on <b>which cell the body happens to launch from</b>. Two scenes with identical
+ * geometry and different run-up lengths measured exactly that split:
+ *
+ * <pre>
+ * wd.parkourVoidShortRunway  takeoff.x=223905.02  (lip=223904 ⇒ launched from BEHIND the lip)
+ *     t+0 sprinting=true h=0.1232 → t+1 sprinting=true  h=0.2475    (+0.124: the impulse fired)
+ * wd.parkourVoidLongRunway   takeoff.x=224416.93  (lip=224416 ⇒ launched ON the lip)
+ *     t+0 sprinting=true h=0.1563 → t+1 sprinting=false h=0.1400    (x0.896: plain air decay, no impulse)
+ * </pre>
+ *
+ * The only difference between the arms is {@code sprinting} on the takeoff tick, and the long arm
+ * fell into the gap. A fuller run-up makes the body MORE likely to stand on the lip, so under the
+ * old gate a run-up was actively harmful — the exemption has to key on the leap, not on the cell.
+ *
+ * <p>It keys on {@code parkourEdge} and not on {@code parkourAscend} ({@code = parkourEdge &&
+ * wp.y > foot.y}) because a FLAT leap is identically {@code false} there: the old term said "a jump
+ * onto a shallow ledge needs the impulse, a jump over an abyss does not", and it is only over an
+ * abyss that {@code lethalNear} is true at all. Narrowed to {@code parkourEdge} rather than
+ * loosened to a blanket {@code !lethalNear} drop, because the non-parkour half of {@code lethalNear}
+ * is what {@code wd.bridgeLethalGapStop} guards — a walk-off lip must still lose its sprint.
+ *
+ * <p>The brake exclusion is the same launch tick seen from the other side: {@code edgeBrake} on the
+ * lip makes {@code bridgeBrake} hold sneak through the takeoff, and
+ * {@code ServerPlayerAvatar} (the {@code pendingSneak ? 0.3f : 1f} steering multiplier) then serves
+ * the leap 30% of its control input. Sprint alone does not clear the gap while sneak is throttling
+ * it. Sibling {@code parkourEdge} exclusions already exist in this file on the lane-keep strafe and
+ * on {@code descentAirborneDriftClamp}; the brake block was the one that was missing.
  */
 final class WalkerTickDrive {
     private WalkerTickDrive() {}
@@ -841,7 +883,7 @@ final class WalkerTickDrive {
                     }
             }
         }
-        if ((bridging || edgeBrake) && (!plannedDescent || descentPlacePending)) {
+        if ((bridging || edgeBrake) && (!plannedDescent || descentPlacePending) && !parkourEdge) {   // !parkourEdge: sneak on the takeoff tick costs the leap 70% of its steering (ServerPlayerAvatar's pendingSneak?0.3f:1f) — same lip, same measurement as the sprint term; see this class's javadoc. Sibling exclusions: the lane-keep strafe and descentAirborneDriftClamp above
             double bdx = (wp.getX() + 0.5) - p.getX();
             double bdz = (wp.getZ() + 0.5) - p.getZ();
             double blen = Math.sqrt(bdx * bdx + bdz * bdz);
@@ -1163,7 +1205,7 @@ final class WalkerTickDrive {
         boolean sprint = !bridging && !steppingOffFall && !steppingOffWaterFall && !diagAscent
                 && !lowHpCareful  // low-HP care: sprint is the drift amplifier behind every unplanned fall — at ≤lowHealthCareful HP walk everything (DEATH #3)
                 && !hazardAhead   // never carry sprint momentum INTO a lava/hazard cell — in water too (no sneak there, but dropping sprint kills the drift that pushed the swimmer in)
-                && !descendBrake && (!lethalNear || parkourAscend) && !steepDescentNear && !deepWaterDriftNear && !descentStepSkip && (!needJumpForStep || parkourAscend || sprintAscend)   // !descentStepSkip: pointer ran ahead down the staircase (wp >maxDryFall below the grounded foot) — kill sprint so no residual momentum launches the body off the stair edge while sneak (brakeSneak) edge-guards it down. !lethalNear (not !edgeBrake): never sprint NEAR a lethal edge — incl. a planned descent past it — so no drift/overshoot momentum off the lip while sneak is released for the step-down. !deepWaterDriftNear: same, for a deep-water pocket bordering a descent/edge-walk (drift-in bob-stall). Baritone doesn't sprint a jumped CARDINAL ascend (overshoots/bonks) but DOES sprint a parkour leap; a horse auto-walk-up keeps sprint
+                && !descendBrake && (!lethalNear || parkourEdge) && !steepDescentNear && !deepWaterDriftNear && !descentStepSkip && (!needJumpForStep || parkourAscend || sprintAscend)   // parkourEdge (was parkourAscend): a FLAT leap over an abyss is exactly the case parkourAscend excludes, and lethalNear is only ever true over an abyss — measured 0.1563→0.1400 (no impulse, fell in) vs 0.1232→0.2475 one cell back; narrowed to parkourEdge, NOT loosened to a blanket !lethalNear, so wd.bridgeLethalGapStop's walk-off lip still loses its sprint. Full evidence: this class's javadoc. !descentStepSkip: pointer ran ahead down the staircase (wp >maxDryFall below the grounded foot) — kill sprint so no residual momentum launches the body off the stair edge while sneak (brakeSneak) edge-guards it down. !lethalNear (not !edgeBrake): never sprint NEAR a lethal edge — incl. a planned descent past it — so no drift/overshoot momentum off the lip while sneak is released for the step-down. !deepWaterDriftNear: same, for a deep-water pocket bordering a descent/edge-walk (drift-in bob-stall). Baritone doesn't sprint a jumped CARDINAL ascend (overshoots/bonks) but DOES sprint a parkour leap; a horse auto-walk-up keeps sprint
                 // A/B-DISPROVEN (2026-06-06): re-enabling sprint on an aligned ascend (sprintableAscend)
                 // regressed hCol 13%→36% / mean hSpd .112→.082 — because the jump fires CLOSE to the riser
                 // (ascendJumpReady flatDist≤1.2), the sprint forward-boost rams the riser face HARDER instead
