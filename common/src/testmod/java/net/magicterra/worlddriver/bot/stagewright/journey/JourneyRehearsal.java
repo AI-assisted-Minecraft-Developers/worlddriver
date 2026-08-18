@@ -1176,10 +1176,46 @@ public final class JourneyRehearsal {
         fp.teleportTo(end, land.x, land.y, land.z, java.util.Set.of(),
                 Direction.WEST.toYRot(), fp.getXRot());
         fp.setOnGround(true);
-        ctx.record("rehearsal.wetOnDeparture", wetBefore + " → 落地后 水=" + fp.isInWater()
-                + " 没顶=" + fp.isUnderWater() + " 脚格="
-                + end.getBlockState(fp.blockPosition()).getBlock());
+        String wetOnArrival = "水=" + fp.isInWater() + " 没顶=" + fp.isUnderWater();
         loadAround(end, fp.blockPosition(), 2);
+        // MAKE THE FIXTURE DO WHAT THE PORTAL DOES. On the real ladder the crossing happens inside
+        // Entity.baseTick() — handlePortal() first, then updateInWaterStateAndDoFluidPushing() and
+        // updateFluidOnEyes() a few lines later — so a body that walks through the End portal has its
+        // fluid flags recomputed AT THE DESTINATION, in the same tick. Those two calls are the ONLY
+        // writers of wasTouchingWater/wasEyeInWater, and baseTick reaches this body only through
+        // ServerPlayerAvatar.step(), which does not run while the driver is unregistered — which is
+        // exactly when staging runs. So a fixture teleport left the flags frozen at whatever the body
+        // last saw: measured 2026-08-17, rung 20 arrived on the dry obsidian platform still reading
+        // 水=true 没顶=true from an overworld pool, and WalkerTickDrive's `swimColumn` (both of whose
+        // terms are body flags, so it never reads the world when isUnderWater is set) fired a 0.42 on
+        // the platform. The body was still airborne seven ticks later when the parkour edge came up,
+        // the ground gate correctly refused it, and it walked into the void.
+        //
+        // This is a FIXTURE bug, not a product one — the portal path recomputes and rung 20 is not
+        // supposed to be testing a teleport. Refreshing here removes the artefact without hiding it:
+        // rehearsal.wetOnDeparture still records what the body carried out of the world it left.
+        // AFTER loadAround, deliberately: updateFluidHeightAndDoFluidPushing returns early on an
+        // unloaded chunk, which would report "in no fluid at all" and re-freeze a wrong answer.
+        //
+        // baseTick() and not the two update* methods: both of those are protected/private on Entity,
+        // and reaching them would mean widening product visibility to fix a fixture. baseTick is also
+        // the FAITHFUL call — it is the one the portal crossing itself runs, and the one
+        // ServerPlayerAvatar.step() runs every tick, so this stages no behaviour the driver does not
+        // already perform on the body once a tick.
+        fp.baseTick();
+        ctx.record("rehearsal.wetOnDeparture", wetBefore + " → 落地时 " + wetOnArrival
+                + " → 重算后 水=" + fp.isInWater() + " 没顶=" + fp.isUnderWater() + " 脚格="
+                + end.getBlockState(fp.blockPosition()).getBlock());
+        // The record above is not an assertion, so make the fixture refuse to hand rung 20 a body
+        // whose flags disagree with the world it is standing in. A rehearsal that stages a defect
+        // reports it as the rung's, and this one cost a full round of investigation before the two
+        // readings sat side by side.
+        if (fp.isInWater() || fp.isUnderWater())
+            ctx.fail("rehearsal staging: the body reached the End platform still reporting 水="
+                    + fp.isInWater() + " 没顶=" + fp.isUnderWater() + " while standing in "
+                    + end.getBlockState(fp.blockPosition()).getBlock()
+                    + ". The fixture's teleport left the fluid flags frozen — rung 20 would be"
+                    + " judging a staging artefact, not the rung.");
         JourneyLedger.staged("rehearsal: put the body on the End arrival platform at "
                 + fp.blockPosition().toShortString() + " instead of stepping through a portal");
         ctx.record("rehearsal.stand", fp.blockPosition().toShortString() + " @ "
