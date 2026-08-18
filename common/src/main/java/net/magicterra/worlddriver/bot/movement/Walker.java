@@ -21,6 +21,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluids;
@@ -646,6 +647,69 @@ public final class Walker {
                 sb.append('[').append(edges.get(i).move).append(']');
         }
         return sb.toString();
+    }
+
+    /**
+     * {@link #planProbe}'s companion, read against the WORLD instead of against itself: for every
+     * node of the CURRENT plan, the three cells that node's own geometry occupies — the node cell
+     * ({@code 本格}, where the feet go), its support ({@code 支撑} = {@code below}) and its head
+     * ({@code 头顶} = {@code above}) — each as {@code 实}/{@code 空} (the {@code blocksMotion}
+     * predicate {@code ServerWorldView.isSolid} steers by) plus the block.
+     *
+     * <p><b>Why the coordinates must come from the plan and not from a scene's arithmetic.</b> A
+     * scene that hand-derives cells from its own arena origin audits the cells its AUTHOR expects
+     * the body to use. {@code wd.buriedOre}'s fixed staircase audit did exactly that and read seven
+     * cells all at {@code z=cz}, while the node the body could not reach sat at {@code z=cz−1}: the
+     * reading was complete, consistent, and blind to the one column that mattered. Nodes come from
+     * {@link #path}, so the audit follows the plan wherever the planner actually put it.
+     *
+     * <p><b>The three outcomes this separates, for a body stalled before node {@code i}:</b>
+     * <ol>
+     *   <li>{@code 本格=实} — the plan wants the feet INSIDE a solid cell and the entering edge is
+     *       not a break move ({@code [stepUp]}, not {@code [stairUpBreak]}): a planning-side account.
+     *       The node is not enterable by any execution, so no executor fix can reach it.</li>
+     *   <li>{@code 本格=空 且 支撑=实} — the node is legal and standable; the body simply fails to
+     *       GET there: an execution-side account (for the trail this was written from, the one-cell
+     *       lateral move in {@code z}). Look at the drive/jump gates, not at the planner.</li>
+     *   <li>{@code 支撑=空} — nothing under the node's feet, so the body could not stand there even
+     *       if it arrived: planning-side again, but a DIFFERENT mechanism from (1) — an edge whose
+     *       floor the plan assumed, or whose floor a later break removed.</li>
+     * </ol>
+     * {@code 头顶=实} on a node the body must stand in is a fourth, weaker signal (the head cell is
+     * occupied) and is printed rather than judged.
+     *
+     * <p>A plan that is absent must not read like a probe that never ran: {@code 节点=无(plan=null)}
+     * and {@code 节点=无(plan为空)} are distinct strings, and both are distinct from the absence of
+     * the fragment. Callers embed this in {@code ctx.fail} for the same reason as
+     * {@link #progressProbe} — the log stream drops lines under end-of-suite load, {@code
+     * results.jsonl} does not.
+     *
+     * <p>Read-only: takes a {@link BlockGetter}, touches no walker state, and must stay that way.
+     * It also must be called BEFORE any scene cleanup — a cleanup that fills the arena with AIR
+     * makes every node read {@code 空} and the audit becomes a very convincing lie.
+     */
+    public String planCellAudit(BlockGetter lvl) {
+        if (lvl == null) return "节点=无(level=null)";
+        if (path == null) return "节点=无(plan=null)";
+        if (path.isEmpty()) return "节点=无(plan为空)";
+        StringBuilder sb = new StringBuilder("节点数=").append(path.size()).append(" 指针=").append(step);
+        for (int i = 0; i < path.size(); i++) {
+            BlockPos n = path.get(i);
+            sb.append(" 节点").append(i).append('=')
+              .append(n.getX()).append(',').append(n.getY()).append(',').append(n.getZ());
+            String mv = (edges != null && i < edges.size() && edges.get(i) != null)
+                    ? String.valueOf(edges.get(i).move) : "无边";
+            sb.append('[').append(mv).append(']');
+            appendCell(sb, lvl, " 本格=", n);
+            appendCell(sb, lvl, " 支撑=", n.below());
+            appendCell(sb, lvl, " 头顶=", n.above());
+        }
+        return sb.toString();
+    }
+
+    private static void appendCell(StringBuilder sb, BlockGetter lvl, String label, BlockPos p) {
+        BlockState st = lvl.getBlockState(p);
+        sb.append(label).append(st.blocksMotion() ? "实" : "空").append(st.getBlock());
     }
 
     public void setGoal(Goal g) {

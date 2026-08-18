@@ -29,6 +29,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -1150,6 +1151,21 @@ public final class MineProcess implements BotProcess {
                 + " walkerErr=" + walker.lastError
                 + " | " + walker.progressProbe()
                 + " | " + walker.planProbe();
+    }
+
+    /**
+     * {@link #approachProbe}'s world-side companion: the same plan, but every node read against the
+     * blocks that are actually there — see {@link Walker#planCellAudit} for what the three cells per
+     * node separate (plan wants the feet in stone / node is legal but unreachable / node has no
+     * floor).
+     *
+     * <p>A separate call rather than a suffix on {@code approachProbe} because it needs a level and
+     * that probe deliberately takes none — its callers include paths with no level in hand. Same
+     * one-string, no-walker-handle rule as its sibling: a scene must be able to READ this walker's
+     * plan without being able to steer it.
+     */
+    public String approachPlanAudit(BlockGetter lvl) {
+        return walker.planCellAudit(lvl);
     }
 
     /** A reachable mining target: the block + adjacent stand position + face direction.

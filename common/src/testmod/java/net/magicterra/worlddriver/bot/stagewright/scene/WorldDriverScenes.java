@@ -1048,9 +1048,15 @@ public final class WorldDriverScenes implements SceneProvider {
         // AIR, so a staircase audit taken afterwards would read "all empty" every single time).
         String approach = mine.approachProbe();
         String stairs = buriedOreStairAudit(level, cx, cz, floorY);
-        WorldDriverCommon.LOG.info("[wd.buriedOre] pos=({},{},{}) finished={} active={} oreMined={} lastError={} {} {}",
+        // The audit that reads the cells the PLANNER chose, not the cells this scene's author
+        // expected it to choose: {@code stairs} above is seven hand-derived cells all at z=cz, and
+        // the node the body could not reach sat at z=cz−1, so that fragment was blind to the one
+        // column under investigation. Both are kept — the fixed window is the arena's shape, this
+        // one is the plan's.
+        String planCells = mine.approachPlanAudit(level);
+        WorldDriverCommon.LOG.info("[wd.buriedOre] pos=({},{},{}) finished={} active={} oreMined={} lastError={} {} {} {}",
                 fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAvatarManager.activeCount(), oreMined,
-                err, stairs, approach);
+                err, stairs, planCells, approach);
         if (!oreMined)
             // TWO failures wear this outcome and they want opposite fixes — see the class-level
             // "what this scene actually covers" note. lastError is MineProcess's generic abort after
@@ -1068,11 +1074,11 @@ public final class WorldDriverScenes implements SceneProvider {
                     + "MORE = the pre-filter did its job and the walker failed to CLIMB the "
                     + "staircase it digs — check for '[avatar] 挖掉了自己的落脚' and "
                     + "'[avatar] 起跳闸分歧' in the same window. lastError=" + err
-                    + " ;; " + stairs + " ;; " + approach);
+                    + " ;; " + stairs + " ;; " + planCells + " ;; " + approach);
         if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
             ctx.fail("buriedOre: buried-ore MineProcess did not finish+unregister: finished="
                     + driver.finished() + " active=" + ServerAvatarManager.activeCount()
-                    + " ;; " + stairs + " ;; " + approach);
+                    + " ;; " + stairs + " ;; " + planCells + " ;; " + approach);
     }
 
     /**
