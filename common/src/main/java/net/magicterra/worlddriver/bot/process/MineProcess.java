@@ -1124,6 +1124,34 @@ public final class MineProcess implements BotProcess {
         return BuiltInRegistries.BLOCK.getKey(lvl.getBlockState(currentTarget).getBlock()).toString();
     }
 
+    /**
+     * Read-only post-mortem of the APPROACH walk, for a scene to embed in {@code ctx.fail}.
+     *
+     * <p>{@code st.mine.lastError} is this process's generic abort text and says the same thing
+     * ("no reachable target") for every way the approach can end — the pre-filter never handing over
+     * a goal, the walk failing, the walk arriving somewhere that is not the stand. The walker has
+     * carried the readings that separate those for a while ({@link Walker#lastEndReason},
+     * {@link Walker#lastGoalReached}, {@link Walker#lastFinalDist}, {@link Walker#goalSnapped()},
+     * {@link Walker#progressProbe()}, {@link Walker#planProbe()}) and their javadoc says they exist
+     * to be embedded in a failure — but they are package-private-adjacent state on a private field,
+     * so no scene could reach them and {@code wd.buriedOre} has been failing on the bare abort text.
+     *
+     * <p>Deliberately one STRING and not the walker itself: a scene must not be able to steer the
+     * process's walker, and the log stream drops lines under end-of-suite load, so the value of
+     * these readings is that they land in {@code results.jsonl} beside the verdict.
+     */
+    public String approachProbe() {
+        return "phase=" + phase + " broken=" + broken + "/" + desiredQty
+                + " target=" + currentTarget + " stand=" + currentStand
+                + " endReason=" + walker.lastEndReason
+                + " goalReached=" + walker.lastGoalReached
+                + " finalDist=" + String.format(java.util.Locale.ROOT, "%.3f", walker.lastFinalDist)
+                + " goalSnapped=" + walker.goalSnapped()
+                + " walkerErr=" + walker.lastError
+                + " | " + walker.progressProbe()
+                + " | " + walker.planProbe();
+    }
+
     /** A reachable mining target: the block + adjacent stand position + face direction.
      *  {@code clearing} marks an intermediate occluding-leaf break that opens reach/LOS
      *  to a real target — it does NOT count toward the requested quota. */

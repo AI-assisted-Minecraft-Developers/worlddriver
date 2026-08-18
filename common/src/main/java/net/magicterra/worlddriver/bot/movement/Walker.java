@@ -597,6 +597,12 @@ public final class Walker {
      *  standable cell — arrival then means "arrived NEAR", not "arrived AT". */
     boolean goalSnapped;
 
+    /** {@link #goalSnapped} for the post-mortem channel. Package-private fields are invisible to
+     *  testmod scene classes, and this bit is half of what "the walker arrived and the ore is still
+     *  there" means: a snapped goal says the cell the process asked for was not the cell the walker
+     *  drove at, so the two can be judged separately. */
+    public boolean goalSnapped() { return goalSnapped; }
+
     /** Read-only one-line probe of the follow state (step pointer, carrot node,
      *  best-effort/burst/churn/escalation counters) for test-scene diagnostics —
      *  the package-private fields are invisible to testmod scene classes and the

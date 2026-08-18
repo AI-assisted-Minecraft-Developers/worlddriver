@@ -1035,7 +1035,8 @@ public final class WorldDriverScenes implements SceneProvider {
         // Stone pickaxe harvests iron_ore AND digs the stone cover.
         fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));
         fp.getInventory().selected = 0;
-        driver.runProcess(new MineProcess(List.of("minecraft:iron_ore"), 1, 16));
+        MineProcess mine = new MineProcess(List.of("minecraft:iron_ore"), 1, 16);
+        driver.runProcess(mine);
         ServerAvatarManager.register(driver);
 
         for (int t = 0; t < 800 && ServerAvatarManager.activeCount() > 0; t++)
@@ -1043,22 +1044,75 @@ public final class WorldDriverScenes implements SceneProvider {
 
         boolean oreMined = !level.getBlockState(ore).is(Blocks.IRON_ORE);
         String err = driver.botState().mine.lastError;
-        WorldDriverCommon.LOG.info("[wd.buriedOre] pos=({},{},{}) finished={} active={} oreMined={} lastError={}",
-                fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAvatarManager.activeCount(), oreMined, err);
+        // The two post-mortems, computed BEFORE ctx.cleanup runs (it fills the whole envelope with
+        // AIR, so a staircase audit taken afterwards would read "all empty" every single time).
+        String approach = mine.approachProbe();
+        String stairs = buriedOreStairAudit(level, cx, cz, floorY);
+        WorldDriverCommon.LOG.info("[wd.buriedOre] pos=({},{},{}) finished={} active={} oreMined={} lastError={} {} {}",
+                fp.getX(), fp.getY(), fp.getZ(), driver.finished(), ServerAvatarManager.activeCount(), oreMined,
+                err, stairs, approach);
         if (!oreMined)
             // TWO failures wear this outcome and they want opposite fixes — see the class-level
             // "what this scene actually covers" note. lastError is MineProcess's generic abort after
             // the ore is blacklisted, so it reads "no reachable target" for BOTH; the pre-filter's
             // own verdict is visible only as the presence of a search-begin line.
+            //
+            // The walker's own terminal readings ride along because the log stream drops lines under
+            // end-of-suite load and a verdict that names no mechanism costs a whole extra run:
+            // endReason/goalReached/finalDist say whether the walk FAILED or "arrived" somewhere
+            // that was not the stand, goalSnapped says whether the cell it drove at was even the one
+            // MineProcess asked for, and planProbe names the edges of the staircase it committed to.
             ctx.fail("buriedOre: buried ore not mined. Separate the two causes by the "
                     + "'[pathfinder] search-begin owner=mine' lines in this window: NONE = gap#60 "
                     + "proper (the stand pre-filter refused to hand the walker a dig goal); ONE OR "
                     + "MORE = the pre-filter did its job and the walker failed to CLIMB the "
                     + "staircase it digs — check for '[avatar] 挖掉了自己的落脚' and "
-                    + "'[avatar] 起跳闸分歧' in the same window. lastError=" + err);
+                    + "'[avatar] 起跳闸分歧' in the same window. lastError=" + err
+                    + " ;; " + stairs + " ;; " + approach);
         if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
             ctx.fail("buriedOre: buried-ore MineProcess did not finish+unregister: finished="
-                    + driver.finished() + " active=" + ServerAvatarManager.activeCount());
+                    + driver.finished() + " active=" + ServerAvatarManager.activeCount()
+                    + " ;; " + stairs + " ;; " + approach);
+    }
+
+    /**
+     * The seven cells of the staircase {@code wd.buriedOre}'s walker digs into the stone cube, as
+     * one {@code 楼梯=} fragment — block id plus the {@code blocksMotion} verdict, the same
+     * predicate {@code ServerWorldView.isSolid} steers by.
+     *
+     * <p><b>Read it as a two-way test on {@code (cx+4, floorY+3)}</b> — {@code (106660,223)} in the
+     * run this was written from ({@code cx=106656 cz=100000 floorY=220}, stone {@code x} 106659–106663
+     * {@code y} 221–223, ore at {@code 106661,222}):
+     * <ul>
+     *   <li><b>EMPTY ⇒ the self-destroying staircase is real.</b> {@code MineProcess.findDigStand}
+     *       picks the ore's same-Y neighbour {@code (cx+4, floorY+2)}, {@code Walker
+     *       .snapGoalToStandable} then snaps it to the nearest standable cell within 6, which is
+     *       {@code (cx+4, floorY+4)} on TOP of the cube — and {@code StairUpBreak} climbing
+     *       {@code (cx+3, floorY+2) → (cx+4, floorY+3)} breaks {@code (cx+4, floorY+3)}, which is
+     *       precisely that snapped goal's FLOOR. {@code Move.eval} reads only the CURRENT world and
+     *       has no model of the world after the digging, so a first search can hand out exactly this
+     *       self-contradicting staircase.</li>
+     *   <li><b>SOLID ⇒ the body never got up the second step at all</b> and the defect is on the
+     *       FIRST riser; the self-destruction hypothesis is dead and the search reopens there.</li>
+     * </ul>
+     * Same family as "the staircase fought itself" but NOT the same shape — that one was two rungs
+     * in one column, this is a riser that IS the destination's floor — so that fix does not
+     * necessarily cover it.
+     *
+     * <p>Everything is derived from {@code cx}/{@code cz}/{@code floorY}: the harness hands every
+     * run a different grid slot, so the absolute coordinates above are an example, never a constant.
+     */
+    private static String buriedOreStairAudit(ServerLevel level, int cx, int cz, int floorY) {
+        int[][] cells = {{3, 1}, {3, 2}, {3, 3}, {4, 2}, {4, 3}, {5, 2}, {5, 3}};
+        StringBuilder sb = new StringBuilder("楼梯=");
+        for (int[] c : cells) {
+            BlockPos p = new BlockPos(cx + c[0], floorY + c[1], cz);
+            BlockState st = level.getBlockState(p);
+            sb.append('[').append(p.getX()).append(',').append(p.getY()).append(']')
+              .append(st.blocksMotion() ? "实" : "空")
+              .append(st.getBlock());
+        }
+        return sb.toString();
     }
 
     /**
