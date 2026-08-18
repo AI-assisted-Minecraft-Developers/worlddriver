@@ -1,3 +1,17 @@
+## ✅ E 结清（2026-08-17 闸，等级 `backtested`）
+
+```
+wd.climbableGroundJump  PASS  adjacent=10 underfoot首跳=0.4200 之后=0 之后底y=221.5376 底tick=1 地板=221
+wd.buoyantJumpStaysABob PASS  afloat=0 bottomed=15
+```
+
+`之后底y=221.5376`（地板 221）⇒ **极限环确实够不到地板**，「按住跳就再也落不回去」是真的。
+全闸 **252 PASS / 4 FAIL / 1 TIMEOUT**，相对基线**只有 `wd.climbableGroundJump` 由 FAIL 变 PASS**，
+其余读数一个没动。剩余红集全是既有的：两只金丝雀（设计如此）、`wd.vineOverWaterClimb`（可选）、
+`wd.serverEscapeSealedShelter`（`withRequired(false)`）、`wd.buriedOre`（账目 C，仍开）。
+
+---
+
 ## ⚠️ E 更正：`jumps=1` **不是自锁的证据**，是判据要求了 vanilla 禁止的事
 
 删掉 `dy <= 0` 之后 `wd.climbableGroundJump` 的 underfoot 臂**仍然 `jumps=1`**。逐 tick 读数
