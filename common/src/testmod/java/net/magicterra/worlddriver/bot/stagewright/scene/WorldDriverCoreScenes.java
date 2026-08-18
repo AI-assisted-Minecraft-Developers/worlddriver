@@ -108,6 +108,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 Scene.of("wd.airborneJumpInert", 200, WorldDriverCoreScenes::airborneJumpInert),
                 Scene.of("wd.flushJumpIgnoresOnGround", 200, WorldDriverCoreScenes::flushJumpIgnoresOnGround),
                 Scene.of("wd.climbableGroundJump", 200, WorldDriverCoreScenes::climbableGroundJump),
+                Scene.of("wd.buoyantJumpStaysABob", 200, WorldDriverCoreScenes::buoyantJumpStaysABob),
                 Scene.of("wd.buildBlockWhitelist", 200, WorldDriverCoreScenes::buildBlockWhitelist),
                 Scene.of("wd.pathArchiveJson", 200, WorldDriverCoreScenes::pathArchiveJson),
                 Scene.of("wd.nodePhysics", 200, WorldDriverCoreScenes::nodePhysics),
@@ -742,8 +743,8 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         level.setBlockAndUpdate(new BlockPos(cx + 1, standY, cz + 3), Blocks.STONE.defaultBlockState());
         level.setBlockAndUpdate(new BlockPos(cx, standY, cz + 3), ladderFacingWest());
 
-        int adjacent = countGroundJumps(ctx, level, cx, standY, cz - 3, "adjacent");
-        int underfoot = countGroundJumps(ctx, level, cx, standY, cz + 3, "underfoot");
+        int adjacent = countBigRises(ctx, level, cx, standY, cz - 3, "adjacent");
+        int underfoot = countBigRises(ctx, level, cx, standY, cz + 3, "underfoot");
         WorldDriverCommon.LOG.info("[wd.climbableGroundJump] adjacent={} underfoot={}", adjacent, underfoot);
 
         if (adjacent < 2)
@@ -759,6 +760,63 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                     + "Fix the term, do not relax this arena.");
     }
 
+    /**
+     * The motive that {@code dy <= 0} was carrying, kept after that term was deleted — and built so
+     * it can FALSIFY the thing that replaced it rather than accompany it.
+     *
+     * <p>The deleted term existed to stop a body being carried UP by water from taking a {@code 0.42}
+     * ground jump instead of its {@code 0.04} bob. The claim now standing in its place is narrower and
+     * geometric: a body afloat is not FLUSH on anything, so {@code soleOnSolid} — which reads the row
+     * {@code floor(minY − 1e-7)}, the row the sole sits on — already answers 0 for it, and the only
+     * way a body in water answers {@code > 0} is by genuinely resting on the bottom.
+     *
+     * <p>That claim has two failure directions and this arena holds both, because a scene that could
+     * only fail one way would let the opposite mistake through:
+     * <ul>
+     *   <li><b>afloat</b> — five blocks of water over rock, body released at the surface, jump held.
+     *       Rises must stay bob-sized. A fix that widened the support test (say "solid anywhere below
+     *       within N", or a "can't tell → count it as standing" fallback) makes this arm launch a
+     *       {@code 0.42} and the arm goes red. This is the direction the deleted term was aimed at.</li>
+     *   <li><b>bottomed</b> — one block of water over rock, body resting on the floor, jump held. It
+     *       must still make a {@code 0.42}. This is the "ground / shallow-water jump" the branch has
+     *       always promised, and it is the direction an over-correction breaks — a fix that refused
+     *       all jumps in water would pass the afloat arm and fail here.</li>
+     * </ul>
+     *
+     * <p>The discriminator is the same one {@code wd.climbableGroundJump} uses and needs no internal
+     * state: a single-tick rise {@code > 0.3} can only be the ground jump, since the buoyant bob adds
+     * {@code 0.04} and vanilla's own water travel is slower still.
+     */
+    private static void buoyantJumpStaysABob(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
+        final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
+        buildFloor(level, cx, cz, floorY);
+
+        // AFLOAT: a 5-deep pool. The body is released near the surface, far above the rock.
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -5; dz <= -1; dz++)
+                for (int dy = 1; dy <= 5; dy++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.WATER.defaultBlockState());
+        // BOTTOMED: one block of water, so the body stands on rock with its feet wet.
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = 1; dz <= 5; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 1, cz + dz), Blocks.WATER.defaultBlockState());
+
+        int afloat = countBigRises(ctx, level, cx, standY + 4, cz - 3, "afloat");
+        int bottomed = countBigRises(ctx, level, cx, standY, cz + 3, "bottomed");
+        WorldDriverCommon.LOG.info("[wd.buoyantJumpStaysABob] afloat={} bottomed={}", afloat, bottomed);
+
+        if (afloat > 0)
+            ctx.fail("buoyantJumpStaysABob: a body floating in deep water launched " + afloat
+                    + " ground jump(s) (single-tick rise >0.3). Afloat is not standing: the support test"
+                    + " must read the row the sole SITS on, not 'solid somewhere below'.");
+        if (bottomed < 1)
+            ctx.fail("buoyantJumpStaysABob: a body resting on rock under one block of water never"
+                    + " jumped. The shallow-water ground jump is what this branch has always promised;"
+                    + " refusing every jump in water is an over-correction, not a fix.");
+    }
+
     /** A ladder hung on a wall to its EAST (so it faces west). */
     private static net.minecraft.world.level.block.state.BlockState ladderFacingWest() {
         return Blocks.LADDER.defaultBlockState().setValue(
@@ -766,9 +824,10 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     }
 
     /** Hold jump for 60 ticks and count the single-tick rises only a {@code 0.42} ground jump can
-     *  produce. Returns the count; logs the first ten ticks so a red is diagnosable from the run that
-     *  produced it rather than from a second one with logging turned on. */
-    private static int countGroundJumps(SceneContext ctx, ServerLevel level, int cx, int standY, int cz, String arm) {
+     *  produce (the buoyant bob adds 0.04 and the climbable rewrite tops out at 0.1176, so 0.3
+     *  separates them with room to spare). Returns the count; logs the first ten ticks so a red is
+     *  diagnosable from the run that produced it rather than from a second one with logging on. */
+    private static int countBigRises(SceneContext ctx, ServerLevel level, int cx, int standY, int cz, String arm) {
         ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
@@ -784,8 +843,8 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             if (i < 10) head.append(String.format(java.util.Locale.ROOT, " t%d:y=%.4f dy=%.4f", i, fp.getY(), rise));
             prev = fp.getY();
         }
-        WorldDriverCommon.LOG.info("[wd.climbableGroundJump] {} jumps={} climbable={}{}",
-                arm, jumps, fp.onClimbable(), head);
+        WorldDriverCommon.LOG.info("[held-jump] {} rises>0.3={} climbable={} inWater={}{}",
+                arm, jumps, fp.onClimbable(), fp.isInWater(), head);
         return jumps;
     }
 

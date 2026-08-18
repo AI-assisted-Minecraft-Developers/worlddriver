@@ -54,6 +54,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exactly the reading.
 
 ### Fixed
+- **The ground gate's fall-speed term refused a body that was standing, and shipped with nothing
+  able to say so.** The gate was `soleOnSolid > 0 && deltaMovement.y <= 0`; the second term was added
+  for buoyancy — a body carried *up* through a block boundary is touching the floor, not standing on
+  it, and must keep its 0.04 bob rather than take a 0.42 jump. The motive is right and `dy` is the
+  wrong quantity for it. `LivingEntity.handleRelativeFrictionAndCalculateMovement` rewrites the
+  post-move vertical component to `+0.2` whenever `(horizontalCollision || jumping)` and the body is
+  on a climbable, and `ServerPlayerAvatar` mirrors `fp.jumping = pendingJump` every tick — so merely
+  *asking* for a jump arms the rewrite, a body standing on rock in a ladder cell reads `dy > 0`
+  forever, and after its first jump it can never jump again. The term conflated "the world is lifting
+  me" with "I am on a ladder holding jump", and only the first was ever meant.
+
+  It is deleted rather than replaced, because the flush-contact test already carries the motive:
+  `soleOnSolid` reads the row `floor(minY − 1e-7)`, the row the sole *sits on*, so a body held up by
+  water is flush with nothing and answers 0. The only way a body in water answers `> 0` is by resting
+  on the bottom — which is the shallow-water ground jump this branch has always promised.
+
+  Both halves are now pinned by arenas built to fail in opposite directions.
+  `wd.climbableGroundJump` stands a body on rock beside a ladder (untouched) and inside one (armed),
+  and requires more than one jump from each while the ask is held. `wd.buoyantJumpStaysABob` floats a
+  body over five blocks of water — every rise must stay bob-sized, so widening the support test or
+  adding a "can't tell, call it standing" fallback turns it red — and rests another on the bottom of
+  a one-deep pool, which must still make a 0.42, so refusing all jumps in water turns *that* red. The
+  discriminator needs no internal state: a single-tick rise above 0.3 can only be the ground jump.
+
 - **A server-driven body asked the wrong question about whether it was standing, so a planned leap
   went unjumped.** `ServerPlayerAvatar.step()` gated its ground jump — vanilla's `+0.42` plus the
   whole sprint forward boost — on `fp.onGround()`. Decompiled from the 1.21.1 named jar,

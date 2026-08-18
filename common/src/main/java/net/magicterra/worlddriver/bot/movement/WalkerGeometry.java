@@ -137,6 +137,32 @@ public final class WalkerGeometry {
         return area;
     }
 
+    /**
+     * The cells {@link #soleOnSolid} sums over, written out — the row index, each column, and what
+     * that column contributes.
+     *
+     * <p>Exists because a bare area is not falsifiable. {@code 脚底实心=0.0000} is consistent with
+     * three different worlds — the body is not in the cell the block coordinate suggests, the terrain
+     * is not what the arena's comments say, or the row being read is not the row a reader assumed —
+     * and they want different fixes. The area alone cannot separate them; the row and the per-column
+     * contributions can, and they are the very numbers the sum is built from, so no second opinion
+     * about "standing" is introduced by asking. Same enumeration, same 1e-7 outward epsilon: change
+     * one and this print changes with it.
+     */
+    public static String soleRow(WorldView w, Player p) {
+        AABB box = p.getBoundingBox();
+        int y = Mth.floor(box.minY - 1.0E-7);
+        StringBuilder sb = new StringBuilder("排y=").append(y);
+        for (int x = Mth.floor(box.minX - 1.0E-7); x <= Mth.floor(box.maxX + 1.0E-7); x++)
+            for (int z = Mth.floor(box.minZ - 1.0E-7); z <= Mth.floor(box.maxZ + 1.0E-7); z++) {
+                double a = Math.max(0, Math.min(box.maxX, x + 1.0) - Math.max(box.minX, x))
+                         * Math.max(0, Math.min(box.maxZ, z + 1.0) - Math.max(box.minZ, z));
+                sb.append(String.format(java.util.Locale.ROOT, " [%d,%d]%s%.4f",
+                        x, z, w.isSolid(new BlockPos(x, y, z)) ? "实" : "空", a));
+            }
+        return sb.toString();
+    }
+
     /** Horizontal neighbour offsets (4 cardinals + 4 diagonals) of the foot cell. */
     public static final int[][] EDGE_NEIGHBOURS = {
             {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};

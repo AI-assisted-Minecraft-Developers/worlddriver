@@ -845,18 +845,20 @@ public class ServerPlayerAvatar implements Avatar {
         if (footed == fp.onGround()) return;
         if (footed && !loggedFiredOffGround) {
             loggedFiredOffGround = true;
-            WorldDriverCommon.LOG.info("[avatar] 起跳闸分歧 站着却报没站: t={} 脚底实心={} y={} 落速={} 身体={}",
+            WorldDriverCommon.LOG.info("[avatar] 起跳闸分歧 站着却报没站: t={} 脚底实心={} y={} 落速={} 身体={} {}",
                     fp.level().getGameTime(), String.format(java.util.Locale.ROOT, "%.4f", sole),
                     String.format(java.util.Locale.ROOT, "%.4f", fp.getY()),
                     String.format(java.util.Locale.ROOT, "%.4f", fp.getDeltaMovement().y),
-                    fp.blockPosition().toShortString());
+                    fp.blockPosition().toShortString(),
+                    WalkerGeometry.soleRow(new ServerWorldView(fp.serverLevel()), fp));
         } else if (!footed && !loggedRefusedOnGround) {
             loggedRefusedOnGround = true;
-            WorldDriverCommon.LOG.info("[avatar] 起跳闸分歧 悬空却报站着: t={} 脚底实心={} y={} 落速={} 身体={}",
+            WorldDriverCommon.LOG.info("[avatar] 起跳闸分歧 悬空却报站着: t={} 脚底实心={} y={} 落速={} 身体={} {}",
                     fp.level().getGameTime(), String.format(java.util.Locale.ROOT, "%.4f", sole),
                     String.format(java.util.Locale.ROOT, "%.4f", fp.getY()),
                     String.format(java.util.Locale.ROOT, "%.4f", fp.getDeltaMovement().y),
-                    fp.blockPosition().toShortString());
+                    fp.blockPosition().toShortString(),
+                    WalkerGeometry.soleRow(new ServerWorldView(fp.serverLevel()), fp));
         }
     }
 
@@ -904,12 +906,31 @@ public class ServerPlayerAvatar implements Avatar {
             // flush contact, which a body in mid-air cannot have: even 0.02 blocks of rise moves the
             // row up to the air the body is passing through. It is the same reading
             // Walker#footingGuard already steers by, so this adds no second notion of "standing".
-            // `dy <= 0` is vanilla's own other term (`pos.y < 0.0`) kept: a body being carried UP
-            // through a block boundary — buoyancy at a water surface, a slime bounce — is touching
-            // the floor, not standing on it, and must not get a ground jump instead of its bob.
             // Four block reads, and only on ticks the walker actually asks for a jump.
+            //
+            // THIS USED TO CARRY A SECOND TERM, `deltaMovement.y <= 0`, AND IT WAS WRONG. It was
+            // added for buoyancy: a body carried UP through a block boundary — a water surface, a
+            // slime bounce — is touching the floor, not standing on it, and must keep its 0.04 bob
+            // rather than take a 0.42 jump. The motive is sound; `dy` is the wrong quantity for it.
+            // `LivingEntity.handleRelativeFrictionAndCalculateMovement` rewrites the post-move
+            // vertical component to +0.2 whenever `(horizontalCollision || jumping) && onClimbable()`
+            // (or powder snow), and travel()'s tail leaves (0.2 − 0.08) × 0.98 = +0.1176. This class
+            // mirrors `fp.jumping = pendingJump` every tick — deliberately; it is the only thing that
+            // drives a wall-less vine — so merely ASKING for a jump arms that rewrite. A body standing
+            // on rock in a ladder cell with the ask held therefore reads dy > 0 while standing, was
+            // refused, and could never jump again: `wd.climbableGroundJump` measured exactly one jump
+            // where two were required. The term conflated "the world is lifting me" with "I am on a
+            // ladder holding jump", and only the first was ever meant.
+            //
+            // The flush-contact test already covers the buoyancy motive, which is why nothing replaces
+            // the term. soleOnSolid reads the row `floor(minY − 1e-7)` — the row the sole SITS on — so
+            // a body held up by water is not flush on anything and answers 0; the only way a body in
+            // water answers > 0 is by genuinely resting on the bottom, which is the shallow-water
+            // ground jump this branch is documented to serve. `wd.buoyantJumpStaysABob` pins both
+            // halves: afloat over deep water the rise must stay bob-sized, resting on the bottom of a
+            // shallow pool it must still be a 0.42.
             double sole = WalkerGeometry.soleOnSolid(new ServerWorldView(fp.serverLevel()), fp);
-            boolean footed = sole > 0.0 && fp.getDeltaMovement().y <= 0.0;
+            boolean footed = sole > 0.0;
             noteGateDisagreement(footed, sole);
             if (footed) {
                 lastJumpTick = fp.level().getGameTime();
