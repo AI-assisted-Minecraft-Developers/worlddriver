@@ -1164,6 +1164,9 @@ public final class JourneyEndRungs {
             // whose hotbar is tools reports "no placeable block" while carrying a stack of stone.
             rig.body().avatar().holdItem(itemOf(pillar));
             int climbStock = rig.carrying(pillar);
+            // Read BEFORE the tower runs. Taken afterwards it is the tower's own answer, and the one
+            // question this row exists to settle is whether the tower had anything to do.
+            int climbFromY = rig.player().blockPosition().getY();
             // `.climb.plan`, not `.climb`: this is what the climb SET OUT to do, and `.climb` is now
             // what it achieved. One key for both would be the silent overwrite JourneyRig.evidence
             // exists to shout about, and the two rows answer different questions.
@@ -1172,7 +1175,7 @@ public final class JourneyEndRungs {
             LegWatch climb = new LegWatch(rig);
             rig.settle(new TowerProcess(top, pillar), CRYSTAL_CLIMB_TICKS, climb, () -> {
                 rig.evidence("crystal." + i + ".climb",
-                        climbRow(rig, crystal, top, pillar, climbStock, climb));
+                        climbRow(rig, crystal, top, pillar, climbStock, climbFromY, climb));
                 holdBestWeapon(rig);
                 SwingAt swing = new SwingAt(crystal, CRYSTAL_SWING_TICKS, MELEE_REACH);
                 rig.settle(swing, CRYSTAL_SWING_TICKS + 50, () -> {
@@ -1281,17 +1284,29 @@ public final class JourneyEndRungs {
      * knowing that {@code TowerProcess} aims two blocks under the crystal. A row that says
      * {@code 结论=没到顶} needs none of that.
      *
-     * <p>{@code 差} is {@code 目标y − 实到y}: positive is how far short it stopped. Negative would
-     * mean it overshot, which {@code TowerProcess} should never do and would itself be the finding.
+     * <p>{@code 差} is {@code 目标y − 实到y}: positive is how far short it stopped. <b>Negative does
+     * NOT mean it overshot</b> — this line claimed so for months and it was wrong. It means the body
+     * was already above the target when the tower was ordered, so nothing was built; the walk to the
+     * previous crystal left it up there and {@code Goal.XZ.ignoresY()} gives that walk no reason to
+     * come down. Four consecutive climbs of the 2026-08-18 run read {@code 差=-1 放了 0 块 结论=到顶},
+     * which is what「垒完了」looks like, and the tower had in fact never once been exercised.
+     *
+     * <p>Hence three outcomes, not two, and the starting height stated on the row rather than left to
+     * be inferred from the previous crystal's block: a climb that built and a climb that was never
+     * needed must not be readable as the same event.
      */
     private static String climbRow(JourneyRig rig, EndCrystal crystal, int top, String pillar,
-                                   int stockBefore, LegWatch watch) {
+                                   int stockBefore, int fromY, LegWatch watch) {
         int y = rig.player().blockPosition().getY();
+        String verdict = fromY >= top
+                ? "不需要垒（起塔时脚格已在 y=" + fromY + " ≥ 目标 " + top + "）"
+                : (y >= top ? "到顶（从 y=" + fromY + " 垒到 y=" + y + "）"
+                            : "没到顶（从 y=" + fromY + " 只到 y=" + y + "）");
         return "目标y=" + top + "（水晶在 y=" + Mth.floor(crystal.getY()) + "，塔停在它下面 2 格）"
-                + " 实到y=" + y + " 差=" + (top - y)
+                + " 起塔y=" + fromY + " 实到y=" + y + " 差=" + (top - y)
                 + " 放了 " + blocksSpent(rig, pillar, stockBefore) + " 块 " + pillar
                 + " 用了 " + watch.ticks() + " tick"
-                + " 结论=" + (y >= top ? "到顶" : "没到顶");
+                + " 结论=" + verdict;
     }
 
     /**
