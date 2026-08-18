@@ -1350,15 +1350,32 @@ public final class JourneyEndRungs {
         DuelTheDragon fight = new DuelTheDragon(DUEL_TICKS, MELEE_REACH);
         rig.settle(fight, DUEL_TICKS + 200, () -> {
             EnderDragon still = nearestDragon(end, rig.player().position());
-            boolean dead = still == null || still.isDeadOrDying();
+            // `still == null` is NOT death. nearestDragon is a box search around the body over the
+            // LOADED entity index, and this rung's own failure path carries a paragraph about exactly
+            // that ambiguity — an unloaded arena answers null for a dragon in perfect health. The
+            // success path used to collapse the two, and on 2026-08-18 it declared「屠龙成功」on a run
+            // with 8 of 10 crystals still healing the dragon, ZERO swings, and
+            // `advancement.kill_dragon = not-earned`. Three independent readings said no kill and the
+            // criterion said yes.
+            //
+            // vanilla's own record is the authority: EndDragonFight.setDragonKilled writes
+            // `previouslyKilled`, and it survives the arena unloading. A dragon SEEN dying also
+            // counts; a dragon merely out of the box never does.
+            boolean seenDying = still != null && still.isDeadOrDying();
+            boolean fightSaysKilled = end.getDragonFight() != null
+                    && end.getDragonFight().hasPreviouslyKilledDragon();
+            boolean dead = seenDying || fightSaysKilled;
             rig.evidence("duel.swings", fight.swings() + "（其中打到头 " + fight.headHits() + " 次）");
             rig.evidence("duel.closest", String.format(Locale.ROOT, "%.1f 格（%s）",
                     fight.closest(), fight.closestPart()));
-            rig.evidence("dragon.hp", still == null ? "不在了"
+            rig.evidence("dragon.hp", still == null ? "盒子里没有 —— 这不等于死了，见 dragon.dead"
                     : String.format(Locale.ROOT, "%.1f", still.getHealth()));
-            rig.evidence("dragon.dead", dead);
+            rig.evidence("dragon.dead", dead + "（看见它在死=" + seenDying
+                    + "，EndDragonFight.hasPreviouslyKilledDragon=" + fightSaysKilled
+                    + "；盒子里查不到本身不算数）");
             rig.noteAdvancement("minecraft:end/kill_dragon");
-            ctx.expect(dead).as("the ender dragon is dead").isTrue();
+            ctx.expect(dead).as("the ender dragon is dead — seen dying, or EndDragonFight says it was"
+                    + " killed; a dragon merely absent from the search box does not count").isTrue();
             rig.reach("屠龙成功：挥 " + fight.swings() + " 刀（打到头 " + fight.headHits() + " 次）");
         });
     }
