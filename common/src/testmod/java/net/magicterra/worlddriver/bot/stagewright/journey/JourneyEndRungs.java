@@ -1484,6 +1484,13 @@ public final class JourneyEndRungs {
      *  proof the centre cannot be reached. Runs {@code then} either way — the duel's evidence row
      *  says where it actually ended up, and a fight from the wrong cell is a finding, not a crash. */
     private static void marchToPodium(JourneyRig rig, BlockPos podium, int left, Runnable then) {
+        // A body in the void gets no more orders. settle() already refuses to run a process for one,
+        // but a recursion that keeps calling settle() turns that refusal into SILENCE: the six rows
+        // this produced all reported 「停在 -47,-66,23 没到」 with end=null, and each tower row read
+        // 「not needed (feetY=111 already ≥ targetY=90)」—— a targetY nobody asked for this run,
+        // left in builder.lastError by the crystal sweep's tower because the new one never ran.
+        // Every one of those rows described a body that had already left the world 126 格 earlier.
+        if (rig.lostTheWorld() != null) { then.run(); return; }
         if (left <= 0) { then.run(); return; }
         // Alternate the goal SHAPE between rounds, because a retry that asks the identical question
         // gets the identical answer: this rung has already spent a run watching ninety repeats of
@@ -1514,6 +1521,7 @@ public final class JourneyEndRungs {
             // back onto the island」and「cross 46」at once, and the climb is a different verb: the
             // crystal legs already tower when they need height. Do that here before re-asking, so
             // the retry differs from the attempt it repeats by more than its serial number.
+            if (rig.lostTheWorld() != null) { then.run(); return; }
             if (me.getY() < podium.getY() - 2) {
                 rig.settle(new TowerProcess(podium.getY(), pillarBlock(rig)), DUEL_MARCH_TICKS / 3,
                         () -> {
