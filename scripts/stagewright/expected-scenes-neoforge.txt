@@ -288,3 +288,9 @@ wd.buoyantJumpStaysABob
 wd.parkourVoidShortRunway
 wd.parkourVoidLongRunway
 wd.parkourVoidRunwayGate
+
+# Breaking an end crystal destroys its own iron cage (resistance 6.0 vs a power-6 blast) and leaves
+# the obsidian pillar (1200). A body that climbed onto the cage to get in range loses its footing to
+# its own swing — journey rung 20, 2026-08-18. Two arms, the stand is the only variable.
+wd.crystalBlastOnTheCage
+wd.crystalBlastOnThePillar
