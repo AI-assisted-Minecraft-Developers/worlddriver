@@ -1,3 +1,29 @@
+## ✅ 2026-08-17 全闸 **GREEN**（`GATE_EXIT=0`，`VERDICT: GREEN`）
+
+```
+260 场  255 PASS / 4 FAIL / 1 TIMEOUT
+非 PASS 全部是设计如此或 optional：
+  canaryMustFail / canaryMustTimeout        两只金丝雀，设计如此
+  wd.vineOverWaterClimb                     已知 optional（−711 藤蔓）
+  wd.serverEscapeSealedShelter              withRequired(false)
+  wd.parkourVoidRunwayGate                  required=false，记录规划侧尚未建模的助跑
+```
+
+**本轮两把刀，只动了它们各自该动的两场**：
+
+| 场景 | 变化 | 证据 |
+|---|---|---|
+| `wd.buriedOre` | **FAIL → PASS** | 腾空推进守卫（刀二） |
+| `wd.parkourVoidLongRunway` | **FAIL → PASS** | `h 0.1563→0.2655`、`place.spent=0`（跳过去的不是架桥）、`minY=231.0`（全程没掉到台面以下） |
+| `wd.bridgeLethalGapStop` / `wd.parkourAscend` / `wd.parkourVoidShortRunway` | 逐字不动 | 守门臂 |
+| 水路一族 / 攀爬一族 | 读数一个没动 | 刀二的 `!isInWater()` 与 `nx.y > w.y` 两项按预期收窄 |
+
+⚠️ 判决曾因**清单漂移守卫**报 RED —— 与任何一场失败无关，是这一晚新增的 7 条场景注册了却没写进
+`scripts/stagewright/expected-scenes-{fabric,neoforge}.txt`。框架要求「注册它的那个提交里同时写进
+清单」，补齐后才 GREEN。**新增场景时把清单和注册放进同一个提交。**
+
+---
+
 ## ✅ E 结清（2026-08-17 闸，等级 `backtested`）
 
 ```
