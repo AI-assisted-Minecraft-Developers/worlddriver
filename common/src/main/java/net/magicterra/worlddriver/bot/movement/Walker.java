@@ -1609,6 +1609,11 @@ public final class Walker {
      *  (r32: 7 fires accumulated before the recovery steered off the cell — 2 dirt).
      *  Construction plans (see canPlug) bypass this entirely. */
     static final int GUARD_PLUG_ARM_FIRES = 12;
+    /** How far down「no floor at all」is checked before a drop counts as bottomless. Below every
+     *  dimension's floor (the End starts at 0, the Overworld at -64), so a column clear to here is
+     *  clear to the void. Scanned only on a tick the stride guard already fired — about 1% of them
+     *  on the End island — so the cost is a rounding error next to being right about the void. */
+    static final int BOTTOMLESS_SCAN_FLOOR = -70;
 
     /** True while this tick's edge is a parkour launch — the guard must not sneak-pin or
      *  jump-cancel a deliberate leap over void (its landing is the plan). Set inside
@@ -1710,8 +1715,23 @@ public final class Walker {
                     constructionPlan = true;
                     break;
                 }
+        // BOTTOMLESS arms the plug at once. The dwell above exists so a transient corner-cut graze
+        // over an ordinary drop does not spend blocks — a fall of 23 onto stone costs health the bot
+        // can walk off. A column with NO floor at all is a different thing: in the End it is the
+        // void, and this body cannot even die of it (isInvulnerableTo is true on both fake players),
+        // so instead of a death there is a body falling forever and a rung spending its budget on
+        // orders to it. Measured on journey rung 20 across seven runs, that was the dominant failure,
+        // and the guard was sneak-pinning correctly at the lip every time while declining to place
+        // the one block that would have made the lip a floor.
+        boolean bottomless = true;
+        for (int y = strideCell.getY() - lethalDepth - 1; y >= BOTTOMLESS_SCAN_FLOOR; y--) {
+            if (!world.isPassable(new BlockPos(strideCell.getX(), y, strideCell.getZ()))) {
+                bottomless = false;
+                break;
+            }
+        }
         boolean canPlug = BotConfig.allowPlace && !a.breakHeld()
-                && (constructionPlan || guardPlugFires >= GUARD_PLUG_ARM_FIRES);
+                && (bottomless || constructionPlan || guardPlugFires >= GUARD_PLUG_ARM_FIRES);
         boolean held = canPlug && a.holdPlaceable();
         if (held) a.place(world, strideCell.below());
         // place() has no return value, so read the WORLD for the outcome. A client-side place
