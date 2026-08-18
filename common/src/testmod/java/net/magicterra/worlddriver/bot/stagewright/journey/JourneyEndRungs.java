@@ -1607,6 +1607,7 @@ public final class JourneyEndRungs {
             boolean fightSaysKilled = end.getDragonFight() != null
                     && end.getDragonFight().hasPreviouslyKilledDragon();
             boolean dead = seenDying || fightSaysKilled;
+            rig.evidence("duel.end", fight.why() + "（打了 " + fight.elapsedTicks() + " tick）");
             rig.evidence("duel.swings", fight.swings() + "（其中打到头 " + fight.headHits()
                     + " 次）；射出 " + fight.arrows() + " 箭（近战只在龙俯冲落座那几秒有效，"
                     + "非头部命中被 vanilla 打四折，所以盘旋期的伤害全靠箭）");
@@ -1989,6 +1990,9 @@ public final class JourneyEndRungs {
         private int ammoBefore = -1;
         private int arrowsAtLastReach;
         private boolean gaveUp;
+        /** Why this fight stopped. Four exits produce the identical outside view — a live dragon and
+         *  a body standing still — and guessing between them has already cost a round. */
+        private String why = "还在打";
         private String closestPart = "无";
 
         DuelTheDragon(int maxTicks, double reach) {
@@ -2006,9 +2010,9 @@ public final class JourneyEndRungs {
             a.commandJump(false);
             a.breakHold(false);
             Player p = a.player();
-            if (p == null) return true;
+            if (p == null) { why = "身体没了（a.player()==null）"; return true; }
             EnderDragon dragon = nearestDragon(p.level(), p.position());
-            if (dragon != null && dragon.isDeadOrDying()) return true;
+            if (dragon != null && dragon.isDeadOrDying()) { why = "龙在死"; return true; }
             if (dragon == null) {
                 // 「盒子里查不到」不等于死了 —— this file's own death criterion says exactly that,
                 // and the fight loop was not applying it: a dragon that merely flew past the search
@@ -2016,8 +2020,11 @@ public final class JourneyEndRungs {
                 // head, then the dragon crossed to -66,87,26 and the fight stopped there with the
                 // body standing on the fountain doing nothing wrong. A circling dragon leaving and
                 // returning is the NORMAL shape of this fight; only death or the budget ends it.
-                if (++outOfReach >= DUEL_OUT_OF_REACH_TICKS) { gaveUp = true; return true; }
-                return ++elapsed >= maxTicks;
+                if (++outOfReach >= DUEL_OUT_OF_REACH_TICKS) {
+                    gaveUp = true; why = "放弃：盒子里连续 " + outOfReach + " tick 没有龙"; return true;
+                }
+                if (++elapsed >= maxTicks) { why = "预算用完（" + maxTicks + " tick）"; return true; }
+                return false;
             }
 
             Entity head = null;
@@ -2072,12 +2079,15 @@ public final class JourneyEndRungs {
             // counts as being in the fight — giving up while landing hits would report「没在架里」
             // about a body that is winning.
             if (aim == null && arrows == arrowsAtLastReach) {
-                if (++outOfReach >= DUEL_OUT_OF_REACH_TICKS) { gaveUp = true; return true; }
+                if (++outOfReach >= DUEL_OUT_OF_REACH_TICKS) {
+                    gaveUp = true; why = "放弃：连续 " + outOfReach + " tick 够不着"; return true;
+                }
             } else {
                 outOfReach = 0;
                 arrowsAtLastReach = arrows;
             }
-            return ++elapsed >= maxTicks;
+            if (++elapsed >= maxTicks) { why = "预算用完（" + maxTicks + " tick）"; return true; }
+            return false;
         }
 
         int swings() { return swings; }
@@ -2086,7 +2096,11 @@ public final class JourneyEndRungs {
          *  out — the two look identical from the outside and mean different things. */
         boolean gaveUp() { return gaveUp; }
 
+        String why() { return why; }
+
         int arrows() { return arrows; }
+
+        int elapsedTicks() { return elapsed; }
 
         /** Vanilla's own full-draw window: 20 ticks of use is maximum power. */
         private static final int BOW_FULL_DRAW = 20;
