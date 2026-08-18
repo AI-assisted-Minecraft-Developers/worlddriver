@@ -314,7 +314,7 @@ public final class JourneyEndRungs {
      *  because the body starts this walk on top of whatever tower the last crystal needed. */
     private static final int DUEL_MARCH_TICKS = 6_000;
     /** Attempts at the podium walk before the fight starts wherever the body got to. */
-    private static final int DUEL_MARCH_ROUNDS = 3;
+    private static final int DUEL_MARCH_ROUNDS = 6;
     /** How close to the podium counts as「在中央」. A 3D radius, unlike the old {@code Goal.XZ}.
      *
      *  <p>Was 6, and 6 is what lost a fight that had already earned itself: with every crystal down
@@ -1470,14 +1470,28 @@ public final class JourneyEndRungs {
      *  says where it actually ended up, and a fight from the wrong cell is a finding, not a crash. */
     private static void marchToPodium(JourneyRig rig, BlockPos podium, int left, Runnable then) {
         if (left <= 0) { then.run(); return; }
-        rig.settle(new IntentProcess(new Intent(new Goal.Near(podium, DUEL_STAND_RADIUS))),
-                DUEL_MARCH_TICKS, () -> {
+        // Alternate the goal SHAPE between rounds, because a retry that asks the identical question
+        // gets the identical answer: this rung has already spent a run watching ninety repeats of
+        // one 22-block query. The body finishes the crystals on top of whatever tower the last one
+        // needed (measured: -32,91,-24 — 39.4 格 off-centre and 31 up), and a 3D goal at the podium
+        // has to solve「come down 31」and「cross 39」at once. Goal.XZ ignores Y, so the odd rounds
+        // ask only for the horizontal half and let the descent fall out of it; the even rounds then
+        // finish the last cells in 3D. Either shape alone has been observed to stall.
+        boolean flat = (left % 2) == 0;
+        Goal goal = flat ? new Goal.XZ(podium.getX(), podium.getZ(), DUEL_STAND_RADIUS)
+                : new Goal.Near(podium, DUEL_STAND_RADIUS);
+        rig.settle(new IntentProcess(new Intent(goal)), DUEL_MARCH_TICKS, () -> {
             // Height is its own clause, not a component of the distance: standing 2 below the
             // platform is 2 units of error in a radius but the whole fight in reach, because the
             // head hovers ABOVE the fountain and every block down is a block of reach spent.
             BlockPos me = rig.player().blockPosition();
             boolean close = me.distSqr(podium) <= DUEL_STAND_RADIUS * DUEL_STAND_RADIUS
                     && me.getY() >= podium.getY() - 1;
+            rig.evidence("duel.march." + left, (flat ? "XZ" : "3D") + " 目标 "
+                    + podium.toShortString() + " → 停在 " + me.toShortString() + "（距 "
+                    + String.format(Locale.ROOT, "%.1f", Math.sqrt(me.distSqr(podium)))
+                    + " 格，高差 " + (me.getY() - podium.getY()) + "）"
+                    + (close ? " 到了" : " 没到"));
             if (close) then.run();
             else marchToPodium(rig, podium, left - 1, then);
         });
@@ -1933,6 +1947,7 @@ public final class JourneyEndRungs {
         private double closest = Double.MAX_VALUE;
         private int outOfReach;
         private int arrows;
+        private int ammoBefore = -1;
         private int arrowsAtLastReach;
         private boolean gaveUp;
         private String closestPart = "无";
@@ -1991,7 +2006,14 @@ public final class JourneyEndRungs {
                 aimAtPart(p, head, headAway * 0.12);      // lead high for arrow drop
                 if (p.isUsingItem() && p.getTicksUsingItem() >= BOW_FULL_DRAW) {
                     a.commandUseItem(false);              // up-edge = release = shoot
-                    arrows++;
+                    // Count AMMO, not releases. The first cut incremented here and reported 9516
+                    // shots from a quiver of 256: once the arrows run out stopUsingItem still gets
+                    // called every cycle, so the counter went on climbing while nothing was fired.
+                    // A number that keeps rising after the thing it counts has stopped happening is
+                    // worse than no number.
+                    int now = p.getInventory().countItem(net.minecraft.world.item.Items.ARROW);
+                    if (ammoBefore < 0) ammoBefore = now;
+                    if (now < ammoBefore) { arrows += ammoBefore - now; ammoBefore = now; }
                 } else {
                     a.commandUseItem(true);
                 }
