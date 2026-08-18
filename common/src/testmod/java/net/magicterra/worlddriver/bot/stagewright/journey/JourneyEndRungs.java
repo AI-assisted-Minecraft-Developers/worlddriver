@@ -24,6 +24,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.FullChunkStatus;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
@@ -38,6 +39,9 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.EndPortalFrameBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.ChunkAccess;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.dimension.end.EndDragonFight;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
@@ -1349,6 +1353,11 @@ public final class JourneyEndRungs {
         // rather than as「身体不在场」.
         rig.evidence("dragon.rangeNow", fightRangeNow(rig));
         recordTheFightNow(rig, end);
+        // BEFORE the UUID lookup, not after it: `dragon.byUuid` cannot interpret its own miss, and
+        // this is the row that interprets it. Printing them in this order is the whole fix — a
+        // reader who meets「查不到」first has already formed the conclusion the next row exists to
+        // forbid.
+        rig.evidence("dragon.arenaLoaded", arenaLoaded(end));
         rig.evidence("dragon.byUuid", dragonByUuid(end, fight));
         ctx.fail(whyNoDragon(rig, end, fight, inList));
     }
@@ -1364,19 +1373,44 @@ public final class JourneyEndRungs {
      * {@code ServerLevel.getEntity(UUID)} goes to the level's entity index instead, so its answer
      * does not depend on where the body is.
      *
-     * <h2>How to read it — all three of these print {@code dragon.present=false}</h2>
+     * <h2>What this row is NOT allowed to conclude</h2>
+     *
+     * It used to end its miss branch on「即龙被移除了」, and <b>that is one claim past what the call
+     * can support</b>. {@code ServerLevel.getEntity(UUID)} reads the level's <i>loaded</i> entity
+     * index — the same index an unloaded chunk's entities are absent from — so 「查不到」 covers two
+     * different worlds and this call cannot tell them apart:
      *
      * <ul>
-     *   <li><b>查到</b> ⇒ <b>the dragon IS there and the body is not with it.</b> The rung's problem
-     *       is the body's position, not the fight. The coordinates, health and {@code isRemoved}
+     *   <li>the dragon was genuinely removed; or</li>
+     *   <li>the dragon is alive in a chunk that is no longer loaded, and the index simply does not
+     *       hold it. This is not hypothetical on this rung: a body more than 192 blocks from
+     *       {@code (0,128,0)} fails {@code EndDragonFight.validPlayer}, so {@code updatePlayers}
+     *       empties {@code dragonEvent}, so {@code tick()} takes its {@code else} branch and calls
+     *       {@code removeRegionTicket(TicketType.DRAGON, ChunkPos(0,0), 9, …)} — the arena's only
+     *       ticket. Losing the ticket <b>permits</b> the unload rather than performing it, which is
+     *       exactly why whether it happened has to be MEASURED and not inferred.</li>
+     * </ul>
+     *
+     * <h2>How to read it — all four of these print {@code dragon.present=false}</h2>
+     *
+     * <ul>
+     *   <li><b>查到</b> ⇒ <b>the dragon IS there and the body is not with it.</b> A hit is
+     *       conclusive in a way a miss is not: an entity in the index exists. The rung's problem is
+     *       the body's position, not the fight. The coordinates, health and {@code isRemoved}
      *       printed beside it say whether it is also still where it was born.</li>
-     *   <li><b>查不到, UUID non-null</b> ⇒ <b>the dragon was removed.</b> Vanilla built one — only
-     *       {@code createNewDragon}/{@code findOrCreateDragon} write that field — and the level no
-     *       longer holds that entity.</li>
+     *   <li><b>查不到, UUID non-null, {@code dragon.arenaLoaded} = 全加载</b> ⇒ <b>the dragon was
+     *       removed.</b> Vanilla built one — only {@code createNewDragon}/{@code findOrCreateDragon}
+     *       write that field — the arena chunks are loaded, and the index still does not hold it.
+     *       This is the only combination that supports「被移除」.</li>
+     *   <li><b>查不到, UUID non-null, {@code dragon.arenaLoaded} = anything else</b> ⇒ <b>no
+     *       verdict.</b> Alive-but-unloaded and removed print the same {@code null} here. Say so
+     *       rather than pick one.</li>
      *   <li><b>无UUID</b> ⇒ this row has NO opinion: nothing was ever built, and that fork belongs to
      *       {@code dragonFight.now.dragonUUID} and {@link #whyNoDragon}. Printed as a word rather
      *       than left blank, because an empty row reads like a lookup that came back empty.</li>
      * </ul>
+     *
+     * @see #arenaLoaded the row that decides which of the two miss branches applies
      */
     private static String dragonByUuid(ServerLevel end, EndDragonFight fight) {
         UUID id = fight == null ? null : fight.getDragonUUID();
@@ -1387,7 +1421,11 @@ public final class JourneyEndRungs {
         Entity e = end.getEntity(id);
         if (e == null) {
             return "查不到：level.getEntity(" + id + ")=null —— 龙战建过龙（dragonUUID 非空），"
-                    + "而这个末地现在没有这个实体，即龙被移除了；不是「身体不在一起」";
+                    + "而这个末地的【已加载实体索引】里现在没有这个实体。⚠️ 这只有两种可能，"
+                    + "而这一行分不开它们：(a) 龙已被移除；(b) 龙还活着，但它所在的区块没加载 —— "
+                    + "getEntity(UUID) 查的就是已加载实体索引，卸载了的区块里的实体不在其中。"
+                    + "分叉要看 dragon.arenaLoaded：竞技场全加载还查不到 ⇒ 真的被移除；"
+                    + "没全加载 ⇒ 这一问无从判断，别把它当成「龙没了」";
         }
         String hp = e instanceof LivingEntity le
                 ? String.format(Locale.ROOT, "%.1f/%.1f", le.getHealth(), le.getMaxHealth())
@@ -1395,6 +1433,75 @@ public final class JourneyEndRungs {
         return "查到：" + BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()) + " 在 "
                 + xyz(e.blockPosition()) + "，血 " + hp + "，isRemoved=" + e.isRemoved()
                 + " —— 龙还在，是身体没跟它在一起（dragon.present=false 说的是盒子，不是世界）";
+    }
+
+    /** Half-width, in chunks, of the square {@code EndDragonFight} calls the arena — vanilla's own
+     *  {@code ARENA_SIZE_CHUNKS}, and the radius of the {@code TicketType.DRAGON} region ticket its
+     *  {@code tick()} adds and drops around {@code ChunkPos(0,0)}. */
+    private static final int ARENA_CHUNKS = 8;
+
+    /**
+     * Is the End's dragon arena still loaded? — <b>the reading that makes {@link #dragonByUuid}'s
+     * miss mean something.</b>
+     *
+     * <p>{@code getEntity(UUID)} answers「已加载实体里有没有它」. On its own that is not a statement
+     * about the world, because vanilla itself takes the arena's loading away on this exact rung:
+     * {@code EndDragonFight.tick()} keeps {@code TicketType.DRAGON} on {@code ChunkPos(0,0)} only
+     * while {@code dragonEvent} has players, and {@code updatePlayers} refills that set from
+     * {@code level.getPlayers(validPlayer)} — a body 192+ blocks from {@code (0,128,0)} is not in it.
+     * So a fallen body drops the ticket for the very chunks the dragon lives in, and the resulting
+     * empty lookup says nothing about whether there is a dragon.
+     *
+     * <p>This reproduces vanilla's own private {@code EndDragonFight.isArenaLoaded()} rather than
+     * approximating it, so the row and the engine agree by construction: every chunk in
+     * {@code [-8,8]^2} must be a {@code LevelChunk} at {@code ChunkStatus.FULL} whose
+     * {@code FullChunkStatus} is at least {@code BLOCK_TICKING}. {@code getChunk(..., false)} is the
+     * non-generating overload — asking this question must never be what generates the arena, both
+     * because that would block the server thread on worldgen and because a reading that changes what
+     * it measures is not a reading.
+     *
+     * <h2>判读</h2>
+     *
+     * <ul>
+     *   <li><b>全加载 (289/289)</b> — the arena is there. A {@code dragon.byUuid} miss beside this
+     *       DOES mean the dragon was removed: the index covers the chunks it would be in.</li>
+     *   <li><b>anything less</b> — part or all of the arena is unloaded. {@code dragon.byUuid} has
+     *       no verdict at all in this state, and neither does anything else that queries entities
+     *       by position or by id. The question to ask next is why the ticket went away, which is
+     *       {@code dragon.rangeNow}'s 192-block half.</li>
+     * </ul>
+     *
+     * <p>Note the asymmetry, because it is easy to state backwards: 全加载 lets a miss become a
+     * verdict, but 没全加载 does <b>not</b> turn a miss into「龙还活着」. It turns it into no answer.
+     */
+    private static String arenaLoaded(ServerLevel end) {
+        int loaded = 0, total = 0;
+        for (int cx = -ARENA_CHUNKS; cx <= ARENA_CHUNKS; cx++) {
+            for (int cz = -ARENA_CHUNKS; cz <= ARENA_CHUNKS; cz++) {
+                total++;
+                if (chunkTicking(end, cx, cz)) loaded++;
+            }
+        }
+        boolean all = loaded == total;
+        return (all ? "全加载" : "没全加载") + "：" + loaded + "/" + total
+                + " 个区块达到 FULL+BLOCK_TICKING（EndDragonFight.isArenaLoaded 的原判据，"
+                + "chunk [-" + ARENA_CHUNKS + "," + ARENA_CHUNKS + "]^2 绕 ChunkPos(0,0)）；"
+                + "龙出生的 (0,128,0) 那一格 level.isLoaded="
+                + end.isLoaded(new BlockPos(0, 128, 0))
+                + " —— " + (all
+                        ? "所以 dragon.byUuid 的「查不到」这一次是有效结论：龙确实被移除了"
+                        : "所以 dragon.byUuid 的「查不到」这一次什么都不能证明：龙就算活着也不在"
+                                + "已加载实体索引里。⚠️ 反过来也不成立——这不等于「龙还活着」，"
+                                + "而是这一问没有答案");
+    }
+
+    /** One chunk of {@link #arenaLoaded}'s square, by vanilla's own two-part test. Non-generating:
+     *  {@code getChunk(..., false)} returns null rather than building the chunk, so the diagnostic
+     *  cannot manufacture the state it is asking about. */
+    private static boolean chunkTicking(ServerLevel end, int cx, int cz) {
+        ChunkAccess c = end.getChunk(cx, cz, ChunkStatus.FULL, false);
+        return c instanceof LevelChunk lc
+                && lc.getFullStatus().isOrAfter(FullChunkStatus.BLOCK_TICKING);
     }
 
     /**
@@ -1441,12 +1548,16 @@ public final class JourneyEndRungs {
                     .append("（起跑时刻是 dragonFight.dragonUUID / dragonFight.crystalsAlive，对照着读）。")
                     .append("所以这一级的问题不是「没有对手」，是身体和对手不在一起：龙生在 (0,128,0)，"
                             + "身体在 ").append(String.format(Locale.ROOT, "%.1f", away))
-                    .append(" 格外。这一分叉由 dragon.byUuid 判：那一行拿 dragonUUID 直接问 "
-                            + "level.getEntity()，查到 = 龙还在、只是盒子没罩到；查不到 = 龙已经不在了。");
+                    .append(" 格外。这一分叉由 dragon.byUuid 和 dragon.arenaLoaded 两行合判："
+                            + "byUuid 拿 dragonUUID 直接问 level.getEntity()，那是【已加载实体索引】——"
+                            + "查到 = 龙还在、只是盒子没罩到；查不到只说明「已加载实体里没有它」，"
+                            + "既可能是被移除，也可能是它所在的区块已经卸载。只有 arenaLoaded=全加载 时，"
+                            + "「查不到」才等于「被移除」。");
             if (away > 192.0) {
                 s.append("另外 validPlayer 的 192 格这一半此刻不成立，龙战已经不 tick 了"
                         + "（dragonEvent 空 ⇒ tick() 走 else 分支，连 arena ticket 都退掉），"
-                        + "所以龙多半也停在原地不动。");
+                        + "所以龙多半也停在原地不动 —— 而且退掉 ticket 正是竞技场可能卸载的原因，"
+                        + "这一趟的 dragon.byUuid 是不是有效结论，要先看 dragon.arenaLoaded。");
             }
             return s.toString();
         }
