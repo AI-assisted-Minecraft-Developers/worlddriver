@@ -47,6 +47,12 @@ public final class ParkourDescend extends Move {
         if (BotConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) return false;
         if (!Move.hasRunway(w, from)) return false;
         BlockPos to = apply(from);                 // (sx*dist, -drop, sz*dist)
+        // The void rule covers the WHOLE leap family, not the three members it was first written
+        // against. An exemption narrower than the family it must cover is how this class of bug
+        // leaks back: rung 20 kept leaving the world from cells the first three gates never saw.
+        // See Move.overTheVoid — a rule and not a price, and only while a bridge is affordable.
+        if (BotConfig.pathfinderForbidParkourOverTheVoid && BotConfig.allowPlace
+                && Move.overTheVoid(w, from, to)) return false;
         if (!w.canStandAt(to)) return false;
         // Buoyancy: no parkour LANDING in submerged water — the bot sinks/stalls there
         // instead of leaping (mirrors Fall/StepDown's submerged gate; surface/solid OK).
