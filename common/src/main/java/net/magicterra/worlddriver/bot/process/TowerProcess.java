@@ -99,6 +99,7 @@ public final class TowerProcess implements BotProcess {
     private int jumpFromX;
     private int jumpFromZ;
     private int settling;
+    private boolean startedWhileMoving;
     private Phase phase = Phase.READY;
     private enum Phase { READY, JUMPING, PLACING, DONE }
 
@@ -138,13 +139,29 @@ public final class TowerProcess implements BotProcess {
         // from — measured by `wd.serverTowersWithoutOnGround`, which spent 60 ticks and zero blocks.
         boolean footed = WalkerGeometry.soleOnSolid(w, p) > 0.0;
         if (feetY >= targetY && footed) {
-            st.builder.lastError = "done (placed=" + placed + ", feetY=" + feetY + ")";
+            // A tower that was never needed and a tower that built must not read alike. They did:
+            // both said `done (placed=N)`, so a rung whose body was already above its target printed
+            // the same row as one that climbed there, and four such rows on ladder rung 20 hid the
+            // fact that the tower had never once been exercised. BotApiImpl already refuses this
+            // argument ("target Y must be > current feet Y"); the constructor cannot, because
+            // startFeetY is not known until the first tick — so the honest place to say it is here.
+            st.builder.lastError = placed == 0 && startFeetY >= targetY
+                    ? "not needed (feetY=" + feetY + " already ≥ targetY=" + targetY + ")"
+                    : "done (placed=" + placed + ", feetY=" + feetY + ")";
             st.builder.reset();
             a.releaseInputs();
             return true;
         }
         if (++stuckTicks > STUCK_TICKS && feetY <= lastApexFloorY) {
-            st.builder.lastError = "stuck (no Y gain in " + STUCK_TICKS + "t — out of blocks?)";
+            // Report what is known, not a guess. "out of blocks?" was printed while the body held a
+            // full stack — on ladder rung 20 it was printed with 933 cobblestone in the bag — and it
+            // sent two rounds of debugging at the inventory. The block count, the phase and the apex
+            // together separate the three real causes: nothing to place, a jump that never cleared
+            // its cell (phase stays JUMPING), and a body being carried off its own column.
+            st.builder.lastError = "stuck (no Y gain in " + STUCK_TICKS + "t: placed=" + placed
+                    + ", holding=" + p.getMainHandItem().getCount()
+                    + ", phase=" + phase + ", apexFeetY=" + lastApexFloorY
+                    + (startedWhileMoving ? ", started while still moving" : "") + ")";
             st.builder.reset();
             a.releaseInputs();
             return true;
@@ -169,6 +186,7 @@ public final class TowerProcess implements BotProcess {
                 // only waits for it.
                 if (p.getDeltaMovement().horizontalDistance() > SETTLE_SPEED) {
                     if (++settling <= SETTLE_TICKS) return false;
+                    startedWhileMoving = true;   // said out loud by the stuck message, not swallowed
                 }
                 settling = 0;
                 a.commandJump(true);
