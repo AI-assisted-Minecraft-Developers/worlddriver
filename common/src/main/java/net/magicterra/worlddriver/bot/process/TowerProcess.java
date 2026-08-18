@@ -189,6 +189,15 @@ public final class TowerProcess implements BotProcess {
                     startedWhileMoving = true;   // said out loud by the stuck message, not swallowed
                 }
                 settling = 0;
+                // A tower is a purely vertical move, and a sprinting body's jump is not: vanilla
+                // adds +0.2 along the yaw on top of the 0.42 whenever `isSprinting()`. `releaseInputs`
+                // clears forward/sneak/jump and deliberately leaves the sprint FLAG alone, so a tower
+                // begun at the end of a walk launches sideways once per course — measured, that was
+                // the half of `wd.serverTowersAfterAWalk`'s drift that survived waiting for the body
+                // to stop (4 cells -> 2). Cleared here rather than in `releaseInputs` because that
+                // default is on every avatar and the Walker rewrites the flag every tick anyway;
+                // this process is the one that must never have it set.
+                p.setSprinting(false);
                 a.commandJump(true);
                 sinceJump = 0;
                 jumpFromY = feetY;               // cell we'll fill = the one we jump from
