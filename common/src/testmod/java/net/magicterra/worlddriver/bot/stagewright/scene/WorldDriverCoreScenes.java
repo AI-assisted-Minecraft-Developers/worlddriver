@@ -765,7 +765,8 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         WorldDriverCommon.LOG.info("[wd.climbableGroundJump] adjacent={} underfoot={}", adjacent, underfoot);
         ctx.passNote("adjacent=" + adjacent.rises() + " underfoot首跳="
                 + String.format(Locale.ROOT, "%.4f", underfoot.first()) + " 之后=" + underfoot.later()
-                + " 底y=" + String.format(Locale.ROOT, "%.4f", underfoot.minY()));
+                + " 之后底y=" + String.format(Locale.ROOT, "%.4f", underfoot.minY())
+                + " 底tick=" + underfoot.minTick() + " 地板=" + standY);
 
         if (adjacent.rises() < 2)
             ctx.fail("climbableGroundJump: adjacent arm jumped " + adjacent.rises() + " time(s), expected >=2. "
@@ -781,17 +782,27 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                     + String.format(Locale.ROOT, "%.4f", underfoot.first()) + " on its first held tick,"
                     + " not the 0.42 ground jump. Standing in a climbable cell is still standing;"
                     + " refusing every jump on a climbable is an over-correction, not a fix.");
-        if (underfoot.later() > 0 && underfoot.minY() > standY + 0.1)
+        boolean landedAgain = underfoot.minY() <= standY + 0.1;
+        if (underfoot.later() > 0 && !landedAgain)
             ctx.fail("climbableGroundJump: the underfoot body launched " + underfoot.later()
-                    + " further ground jump(s) without ever returning to the floor (底y="
+                    + " further ground jump(s) without ever returning to the floor (之后底y="
                     + String.format(Locale.ROOT, "%.4f", underfoot.minY()) + ", floor at " + standY
                     + "). Hovering inside the climbable rewrite is not standing — the support test is"
                     + " answering for a body whose sole is flush against nothing.");
-        if (underfoot.later() == 0 && underfoot.minY() <= standY + 0.1)
-            ctx.fail("climbableGroundJump: the underfoot body DID come back to the floor (底y="
-                    + String.format(Locale.ROOT, "%.4f", underfoot.minY()) + ") and never jumped again."
-                    + " That is the ground gate self-locking on a climbable, and it is the defect this"
-                    + " arm exists to catch. Fix the gate, do not relax this arena.");
+        // Landing on the FINAL tick leaves no tick in which a jump could be observed. That is the
+        // window being too short, not the gate refusing — say which, or the next reader reads an
+        // arena limit as a product defect.
+        if (underfoot.later() == 0 && landedAgain && underfoot.minTick() >= 59)
+            ctx.fail("climbableGroundJump: the underfoot body only returned to the floor on the last"
+                    + " tick of the window (底tick=" + underfoot.minTick() + "), so no jump could"
+                    + " follow it. Lengthen the window — this says nothing about the gate.");
+        if (underfoot.later() == 0 && landedAgain && underfoot.minTick() < 59)
+            ctx.fail("climbableGroundJump: the underfoot body came back to the floor at tick "
+                    + underfoot.minTick() + " (之后底y=" + String.format(Locale.ROOT, "%.4f", underfoot.minY())
+                    + ", floor at " + standY + ") and never jumped again in the "
+                    + (59 - underfoot.minTick()) + " tick(s) that followed. That is the ground gate"
+                    + " self-locking on a climbable, and it is the defect this arm exists to catch."
+                    + " Fix the gate, do not relax this arena.");
     }
 
     /**
@@ -869,8 +880,15 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      * <p>{@code minY} is the reading that keeps a silent arm honest: "never jumped again" and "never
      * came back down to jump from" produce the same count and mean opposite things, so the floor of
      * the trajectory has to be recorded, not inferred from the count.
+     *
+     * <p><b>It excludes the release tick, and that is the whole point.</b> The body is created AT
+     * {@code standY}, so seeding {@code minY} with its starting {@code y} makes "did it come back to
+     * the floor" answer YES before a single tick runs — a criterion comparing the setup with itself.
+     * The first version did exactly that and turned a healthy arm red. {@code minY} is therefore the
+     * minimum over the ticks AFTER the first jump: the only ones during which returning to the floor
+     * means anything.
      */
-    private record HeldJump(double first, int later, double minY, boolean climbable, boolean inWater) {
+    private record HeldJump(double first, int later, double minY, int minTick, boolean climbable, boolean inWater) {
         int rises() {
             return (first > 0.3 ? 1 : 0) + later;
         }
@@ -887,22 +905,27 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ctx.cleanup(() -> fp.discard());
         for (int i = 0; i < 3; i++) av.step();
         StringBuilder head = new StringBuilder();
-        double prev = fp.getY(), first = 0.0, minY = fp.getY();
-        int later = 0;
+        double prev = fp.getY(), first = 0.0, minY = Double.POSITIVE_INFINITY;
+        int later = 0, minTick = -1;
         for (int i = 0; i < 60; i++) {
             av.commandJump(true);
             av.step();
             double rise = fp.getY() - prev;
             if (i == 0) first = rise;
             else if (rise > 0.3) later++;
-            minY = Math.min(minY, fp.getY());
+            if (i > 0 && fp.getY() < minY) {
+                minY = fp.getY();
+                minTick = i;
+            }
             if (i < 10) head.append(String.format(java.util.Locale.ROOT, " t%d:y=%.4f dy=%.4f", i, fp.getY(), rise));
             prev = fp.getY();
         }
-        HeldJump out = new HeldJump(first, later, minY, fp.onClimbable(), fp.isInWater());
-        WorldDriverCommon.LOG.info("[held-jump] {} 首跳={} 之后>0.3={} 底y={} climbable={} inWater={}{}",
+        HeldJump out = new HeldJump(first, later, minY, minTick, fp.onClimbable(), fp.isInWater());
+        // 底tick sits next to 底y because "came back to the floor on the LAST tick" and "came back
+        // with forty ticks left and stayed silent" are the same y and opposite verdicts.
+        WorldDriverCommon.LOG.info("[held-jump] {} 首跳={} 之后>0.3={} 之后底y={} 底tick={} climbable={} inWater={}{}",
                 arm, String.format(java.util.Locale.ROOT, "%.4f", first), later,
-                String.format(java.util.Locale.ROOT, "%.4f", minY), out.climbable(), out.inWater(), head);
+                String.format(java.util.Locale.ROOT, "%.4f", minY), minTick, out.climbable(), out.inWater(), head);
         return out;
     }
 
