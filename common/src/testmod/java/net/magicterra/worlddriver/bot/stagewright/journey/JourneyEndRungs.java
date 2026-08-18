@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
@@ -36,6 +37,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.EndPortalFrameBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.dimension.end.EndDragonFight;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -904,18 +906,50 @@ public final class JourneyEndRungs {
         marchInTheEnd(ctx, rig, 0);
     }
 
-    /** What vanilla's own bookkeeping says about this fight, read before anything is attempted —
-     *  because "there is no dragon" has a cause that lives here rather than in the combat loop. */
+    /**
+     * What vanilla's own bookkeeping says about this fight, read before anything is attempted —
+     * because "there is no dragon" has a cause that lives here rather than in the combat loop.
+     *
+     * <p><b>Every row written here is a START-OF-RUNG reading, and now says so in its own text.</b>
+     * At that instant the fight has usually not scanned even once: {@code EndDragonFight.tick} takes
+     * the arena ticket, runs {@code scanState}, {@code findOrCreateDragon} and
+     * {@code updateCrystalCount} <i>only</i> while {@code dragonEvent.getPlayers()} is non-empty, and
+     * that set is refilled every twenty ticks from {@code level.getPlayers(validPlayer)}. So
+     * {@code crystalsAlive = 0} and {@code dragonUUID = null} here are the <b>healthy</b> reading —
+     * 「还没数过、还没建过」, not「没有水晶、没有龙」. Measured 2026-08-17: this ran at 10:49:07 and
+     * vanilla logged「Scanning for legacy world dragon fight…」in the same second, i.e. immediately
+     * after it, and by the end of that run the same fight held {@code crystalsAlive = 5} and a real
+     * {@code dragonUUID}.
+     *
+     * <p>The failure-time half is {@link #recordTheFightNow}, under {@code dragonFight.now.*}. The
+     * two moments must keep <b>separate keys</b>: {@link JourneyRig#evidence} is a map put, so one
+     * shared key would silently keep only the later reading — and a row that exists only at failure
+     * cannot say what healthy looked like.
+     */
     private static void recordTheFight(JourneyRig rig, ServerLevel end) {
         rig.evidence("level.realPlayers", end.players().size());
+        recordTheFight(rig, end, "起跑时刻", "");
+    }
+
+    /** The same three readings taken again at the moment of the failure, under {@code now.} keys. */
+    private static void recordTheFightNow(JourneyRig rig, ServerLevel end) {
+        recordTheFight(rig, end, "失败时刻", "now.");
+    }
+
+    private static void recordTheFight(JourneyRig rig, ServerLevel end, String when, String key) {
+        String at = "【" + when + "】";
         var fight = end.getDragonFight();
         if (fight == null) {
-            rig.evidence("dragonFight", "无 —— 这个末地没有 EndDragonFight");
+            rig.evidence("dragonFight." + key + "absent", at + "无 —— 这个末地没有 EndDragonFight");
             return;
         }
-        rig.evidence("dragonFight.crystalsAlive", fight.getCrystalsAlive());
-        rig.evidence("dragonFight.previouslyKilled", fight.hasPreviouslyKilledDragon());
-        rig.evidence("dragonFight.dragonUUID", String.valueOf(fight.getDragonUUID()));
+        rig.evidence("dragonFight." + key + "crystalsAlive", at + fight.getCrystalsAlive()
+                + "（只有 EndDragonFight.updateCrystalCount 写这个数，而它只在龙战 tick 到有效玩家、"
+                + "竞技场已加载时每 100 tick 跑一次 —— 0 可能是「还没数过」，不等于「没有水晶」）");
+        rig.evidence("dragonFight." + key + "previouslyKilled", at + fight.hasPreviouslyKilledDragon()
+                + "（scanState 写的，同样要先有有效玩家）");
+        rig.evidence("dragonFight." + key + "dragonUUID", at + fight.getDragonUUID()
+                + "（非 null = createNewDragon 已经跑过，龙被建出来了）");
     }
 
     /**
@@ -1154,26 +1188,29 @@ public final class JourneyEndRungs {
     }
 
     /**
-     * There is no dragon, and the reason is not the combat loop.
+     * {@link #nearestDragon} came back empty — <b>and that is the only thing this method knows.</b>
      *
-     * <p>{@code EndDragonFight.tick} rescans {@code ServerLevel.getPlayers(...)} every twenty ticks
-     * and does <b>nothing at all</b> — no arena ticket, no state scan, no {@code createNewDragon} —
-     * while that list is empty. This track's body is a {@code FakePlayer}: it was never placed
-     * through {@code PlayerList.placeNewPlayer}, so it is not in {@code level.players()} and the
-     * fight cannot see it. The crystals are there (worldgen places those), the arena is there, and
-     * the boss simply is never created.
+     * <p>It used to know more, and it was wrong. The old text asserted one mechanism:
+     * {@code EndDragonFight.tick} rescans {@code ServerLevel.getPlayers(validPlayer)} every twenty
+     * ticks and does nothing at all while that set is empty — no arena ticket, no {@code scanState},
+     * no {@code createNewDragon} — and this track's body is a {@code FakePlayer} that never went
+     * through {@code PlayerList.placeNewPlayer}. Every clause of that is a real vanilla fact and the
+     * conclusion was still false: measured 2026-08-17 the body WAS in {@code level.players()} (the
+     * {@code JoinedPlayerBodies} seam, {@code -Dworlddriver.realPlayerBodies=true}, is on), the fight
+     * HAD run — {@code dragonUUID = 967f837e-…}, {@code crystalsAlive = 5} — and the search still
+     * found nothing, because the body had fallen 32 500 blocks out of the world and
+     * {@code nearestDragon} centres its box on the body.
      *
-     * <p>So this is a capability finding about the BODY rather than a defeat, and it is reported as
-     * one, naming both halves: which vanilla method makes the decision, and the flag that changes
-     * the answer. {@code JoinedPlayerBodies} — {@code -Dworlddriver.realPlayerBodies=true} — joins
-     * the server for real and puts the body in that list; the same seam that flipped three
-     * advancements is the one this rung is waiting on.
+     * <p>So the readings come first and the sentence is assembled from them in {@link #whyNoDragon}.
+     * The rows this writes are the failure-time half of a pair; the start-of-rung half is
+     * {@link #recordTheFight}, and neither is readable without the other.
      */
     private static void noDragonHere(SceneContext ctx, JourneyRig rig, ServerLevel end) {
         var fight = end.getDragonFight();
         rig.evidence("dragon.present", false);
         rig.evidence("level.realPlayers", end.players().size());
-        rig.evidence("body.inPlayerList", end.players().contains(rig.player()));
+        boolean inList = end.players().contains(rig.player());
+        rig.evidence("body.inPlayerList", inList);
         // BEFORE blaming the player list, read the distance AGAIN. The list and the range are two
         // independent halves of `validPlayer`, a rehearsal records the range once at staging time,
         // and a body that has since moved makes that stale row read as an all-clear for the one
@@ -1181,16 +1218,85 @@ public final class JourneyEndRungs {
         // failed 23 000 blocks below the island, and `dragonUUID = null` was read as「没有对手」
         // rather than as「身体不在场」.
         rig.evidence("dragon.rangeNow", fightRangeNow(rig));
-        ctx.fail("末地里没有龙可打。EndDragonFight.tick 每 20 tick 重扫一次 ServerLevel 的玩家列表，"
-                + "列表为空时它什么都不做 —— 不占 arena ticket、不 scanState、更不会 createNewDragon。"
-                + "这条赛道的身体是 FakePlayer，从没走过 PlayerList.placeNewPlayer，所以永远不在那张表里"
-                + "（level.realPlayers=" + end.players().size() + "，crystalsAlive="
-                + (fight == null ? "无龙战" : String.valueOf(fight.getCrystalsAlive()))
-                + "，dragonUUID=" + (fight == null ? "无" : String.valueOf(fight.getDragonUUID()))
-                + "）。⚠️ 先读 dragon.rangeNow：玩家列表和 192 格是 validPlayer 的两半，"
-                + "任何一半不成立都会得到同一个 dragonUUID=null，而排练的 rehearsal.fightRange "
-                + "是布景时刻测的、此刻多半已过期。这不是打不过，是这一级没有对手：要让它有对手，身体得真的加入服务器"
-                + "（-Dworlddriver.realPlayerBodies=true，见 JoinedPlayerBodies）");
+        recordTheFightNow(rig, end);
+        ctx.fail(whyNoDragon(rig, end, fight, inList));
+    }
+
+    /**
+     * The sentence {@link #noDragonHere} ends on — <b>derived from the readings beside it, never
+     * asserted ahead of them.</b>
+     *
+     * <p>The message this replaces named one mechanism unconditionally:「这条赛道的身体是 FakePlayer，
+     * 从没走过 PlayerList.placeNewPlayer，所以永远不在那张表里」. On 2026-08-17 it printed that beside
+     * its own interpolated {@code dragonUUID=967f837e-…}, {@code crystalsAlive=5} and an evidence row
+     * reading {@code body.inPlayerList=true} — three values that each refute it — and cost a round of
+     * investigation. Two rules follow, and they are the whole reason this method exists rather than a
+     * string literal:
+     *
+     * <ul>
+     *   <li><b>{@code dragonUUID != null} forbids「没有龙」.</b> Only {@code createNewDragon} and
+     *       {@code scanState}/{@code findOrCreateDragon} write that field, so a non-null value is
+     *       vanilla saying the dragon was built.</li>
+     *   <li><b>{@code inPlayerList == true} forbids「身体从没走过 placeNewPlayer」.</b> That half of
+     *       {@code validPlayer} is satisfied; whatever is wrong is the other half.</li>
+     * </ul>
+     *
+     * <p>And {@code dragon.present=false} is stated as what it measures: {@link #nearestDragon}
+     * builds its box around <b>the body</b>, so it answers「盒子里有没有龙」, never「世界里有没有龙」.
+     */
+    private static String whyNoDragon(JourneyRig rig, ServerLevel end,
+                                      EndDragonFight fight, boolean inList) {
+        UUID dragon = fight == null ? null : fight.getDragonUUID();
+        double away = Math.sqrt(rig.player().distanceToSqr(0.0, 128.0, 0.0));
+        StringBuilder s = new StringBuilder();
+        s.append("打不到龙：nearestDragon 在以身体为中心 ±").append(DRAGON_SEARCH)
+                .append(" 的盒子里没找到 EnderDragon（身体 ").append(xyz(rig.player().blockPosition()))
+                .append("，距龙战中心 (0,128,0) ").append(String.format(Locale.ROOT, "%.1f", away))
+                .append(" 格）。⚠️ 这一行说的是「盒子里没有」，不是「世界里没有」—— 盒子跟着身体走。");
+        if (fight == null) {
+            s.append("这个末地没有 EndDragonFight（dragonFight.now.absent），所以确实不会有龙。");
+            return s.toString();
+        }
+        if (dragon != null) {
+            // The branch the old text could not say: the fight HAS a dragon and the search still
+            // came back empty. Naming the missing reading is the point — the rung records the UUID
+            // and the box, and nothing that resolves one against the other.
+            s.append("而龙战自己说龙已经建出来了：dragonFight.now.dragonUUID=").append(dragon)
+                    .append("，crystalsAlive=").append(fight.getCrystalsAlive())
+                    .append("（起跑时刻是 dragonFight.dragonUUID / dragonFight.crystalsAlive，对照着读）。")
+                    .append("所以这一级的问题不是「没有对手」，是身体和对手不在一起：龙生在 (0,128,0)，"
+                            + "身体在 ").append(String.format(Locale.ROOT, "%.1f", away))
+                    .append(" 格外。缺的读数是 level.getEntity(dragonUUID) —— 只有它能分开"
+                            + "「龙还在、只是盒子没罩到」和「龙已经不在了」。");
+            if (away > 192.0) {
+                s.append("另外 validPlayer 的 192 格这一半此刻不成立，龙战已经不 tick 了"
+                        + "（dragonEvent 空 ⇒ tick() 走 else 分支，连 arena ticket 都退掉），"
+                        + "所以龙多半也停在原地不动。");
+            }
+            return s.toString();
+        }
+        s.append("龙战也没有 dragonUUID（dragonFight.now.dragonUUID=null），createNewDragon 还没跑过。"
+                + "EndDragonFight.tick 只有在 dragonEvent 非空时才占 arena ticket、scanState、"
+                + "findOrCreateDragon，而 dragonEvent 每 20 tick 由 updatePlayers 从 "
+                + "level.getPlayers(validPlayer) 重填；validPlayer = ENTITY_STILL_ALIVE.and("
+                + "withinDistance(0,128,0,192)) 是两半，缺哪一半结果都一样。");
+        if (!inList) {
+            s.append("这一趟缺的是玩家表那一半：body.inPlayerList=false，level.realPlayers=")
+                    .append(end.players().size())
+                    .append(" —— 身体没走过 PlayerList.placeNewPlayer，就不在 level.players() 里。"
+                            + "要让它在表里：-Dworlddriver.realPlayerBodies=true（见 JoinedPlayerBodies）。");
+        } else if (away > 192.0) {
+            s.append("玩家表那一半是成立的：body.inPlayerList=true，level.players() 有 ")
+                    .append(end.players().size())
+                    .append(" 人 —— 所以不要再怪 placeNewPlayer。不成立的是距离那一半，见 dragon.rangeNow。");
+        } else {
+            s.append("两半都成立（body.inPlayerList=true，距中心 ")
+                    .append(String.format(Locale.ROOT, "%.1f", away))
+                    .append(" 格 ≤ 192），龙却仍未被建出来 —— 那么可疑的是 tick() 里 findOrCreateDragon "
+                            + "前面的 isArenaLoaded()，或者 dragonKilled 已经是 true。这两项都还没有读数。");
+        }
+        s.append("⚠️ rehearsal.fightRange 是布景时刻测的，别拿它给此刻的距离开脱。");
+        return s.toString();
     }
 
     // =====================================================================================
