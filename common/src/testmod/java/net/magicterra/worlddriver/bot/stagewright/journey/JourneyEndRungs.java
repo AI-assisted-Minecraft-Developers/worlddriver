@@ -1972,6 +1972,8 @@ public final class JourneyEndRungs {
             Entity aim = head != null && headAway <= reach ? head
                     : nearestAway <= reach ? nearest : null;
             if (aim != null && sinceSwing >= SWING_EVERY) {
+                if (p.isUsingItem()) a.commandUseItem(false);   // drop the draw, this is melee now
+                holdSword(p);
                 a.attackEntity(aim);
                 sinceSwing = 0;
                 swings++;
@@ -1985,7 +1987,7 @@ public final class JourneyEndRungs {
             // same mechanism, aimed at the head rather than at whatever part is nearest: an arrow
             // into the body is worth a quarter of one into the head, and the dragon presents its
             // body far more often.
-            if (aim == null && head != null && holdingBow(p)) {
+            if (aim == null && head != null && holdBow(p)) {
                 aimAtPart(p, head, headAway * 0.12);      // lead high for arrow drop
                 if (p.isUsingItem() && p.getTicksUsingItem() >= BOW_FULL_DRAW) {
                     a.commandUseItem(false);              // up-edge = release = shoot
@@ -2018,8 +2020,34 @@ public final class JourneyEndRungs {
         /** Vanilla's own full-draw window: 20 ticks of use is maximum power. */
         private static final int BOW_FULL_DRAW = 20;
 
-        private static boolean holdingBow(Player p) {
-            return p.getMainHandItem().getItem() instanceof net.minecraft.world.item.BowItem;
+        /** Put the wanted item in the main hand, swapping up from the bag if need be, or say it is
+         *  not carried. Reading the main hand alone was worth exactly zero arrows: the body walks
+         *  this rung holding a sword or a stack of cobblestone, so a draw gated on「弓在手上」never
+         *  ran once in a whole fight while 256 arrows sat in the bag. Owning is not holding —
+         *  the same shape that cost this rung its buckets. */
+        private static boolean select(Player p, java.util.function.Predicate<ItemStack> want) {
+            var inv = p.getInventory();
+            if (want.test(p.getMainHandItem())) return true;
+            for (int i = 0; i < 9; i++)
+                if (want.test(inv.items.get(i))) { inv.selected = i; return true; }
+            for (int i = 9; i < inv.items.size(); i++) {
+                if (!want.test(inv.items.get(i))) continue;
+                ItemStack bag = inv.items.get(i);
+                inv.items.set(i, inv.items.get(inv.selected));
+                inv.items.set(inv.selected, bag);
+                return true;
+            }
+            return false;
+        }
+
+        private static boolean holdBow(Player p) {
+            return select(p, st -> st.getItem() instanceof net.minecraft.world.item.BowItem);
+        }
+
+        /** A bow in the main hand melees for 1. Swinging without this swap turns every perch —
+         *  the only window vanilla gives full damage — into a wasted one. */
+        private static void holdSword(Player p) {
+            select(p, st -> st.getItem() instanceof net.minecraft.world.item.SwordItem);
         }
 
         private static void aimAtPart(Player p, Entity part, double lead) {
