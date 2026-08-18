@@ -63,6 +63,24 @@ public final class TowerProcess implements BotProcess {
      *  this delay alone (which by itself fired at ~+0.99 and silently no-op'd). */
     private static final int PLACE_DELAY_TICKS = 3;
     private static final int STUCK_TICKS = 60;
+    /** Horizontal speed (blocks/tick) below which a course may start.
+     *
+     *  <p>A tower jumps, waits ~4 ticks, then fills the cell it jumped from. A body still travelling
+     *  when the course begins crosses a cell boundary inside that window, so the fill lands in a
+     *  column the body is no longer over — and the next course starts from a cell with nothing under
+     *  it. Measured 2026-08-18 by {@code wd.serverTowersAfterAWalk}, whose ONLY difference from the
+     *  green {@code wd.serverTowersTwelveCourses} is that the body arrives walking: it spent 3
+     *  blocks, put 0 of them in the target column, drifted 4 cells and fell 39. On the real ladder
+     *  the same shape spent 13 blocks for 5 blocks of height.
+     *
+     *  <p>0.05 keeps the drift under half a cell across a whole course (≈9 ticks). Ground friction
+     *  (0.6 × 0.91 per tick with no input) takes a walk's 0.156 below it in four ticks, so waiting
+     *  is cheap; {@link #SETTLE_TICKS} is the backstop for a body something else is pushing. */
+    private static final double SETTLE_SPEED = 0.05;
+    /** How long a course waits for the body to stop before starting anyway. Generous next to the
+     *  four ticks friction needs: expiry means something is actively moving the body, which the
+     *  stuck message reports rather than hiding. */
+    private static final int SETTLE_TICKS = 20;
 
     private final int targetY;
     private final String preferredBlockId;
@@ -72,6 +90,15 @@ public final class TowerProcess implements BotProcess {
     private int lastApexFloorY;
     private int sinceJump;
     private int jumpFromY;            // feet cell at the moment of the jump press
+    /** The column the current course jumped from, latched with {@link #jumpFromY}.
+     *
+     *  <p>Before this existed, PLACING recomputed x/z from the body's CURRENT position while taking
+     *  y from the jump — two halves of one coordinate describing two different moments, which is
+     *  how a drifting body filled a different column every course. The fill belongs to the course,
+     *  and a course is defined by where it started. */
+    private int jumpFromX;
+    private int jumpFromZ;
+    private int settling;
     private Phase phase = Phase.READY;
     private enum Phase { READY, JUMPING, PLACING, DONE }
 
@@ -136,9 +163,19 @@ public final class TowerProcess implements BotProcess {
             case READY -> {
                 if (!footed) return false;       // still falling / not landed
                 a.releaseInputs();
+                // Let the body stop before starting a course. `releaseInputs` only stops STEERING —
+                // it does not touch the velocity already in the body, so a tower begun at the end of
+                // a walk coasts out of the column it is filling. Friction does the braking; this
+                // only waits for it.
+                if (p.getDeltaMovement().horizontalDistance() > SETTLE_SPEED) {
+                    if (++settling <= SETTLE_TICKS) return false;
+                }
+                settling = 0;
                 a.commandJump(true);
                 sinceJump = 0;
                 jumpFromY = feetY;               // cell we'll fill = the one we jump from
+                jumpFromX = (int) Math.floor(p.getX());
+                jumpFromZ = (int) Math.floor(p.getZ());
                 phase = Phase.JUMPING;
             }
             case JUMPING -> {
@@ -161,9 +198,7 @@ public final class TowerProcess implements BotProcess {
                 // Fill the cell we jumped from: click the block directly beneath
                 // it (jumpFromY - 1) on its top face. We only reach here once the
                 // feet are clear of jumpFromY, so the placement isn't obstructed.
-                int sx = (int) Math.floor(p.getX());
-                int sz = (int) Math.floor(p.getZ());
-                BlockPos support = new BlockPos(sx, jumpFromY - 1, sz);
+                BlockPos support = new BlockPos(jumpFromX, jumpFromY - 1, jumpFromZ);
                 faceDown(p);
                 a.placeOn(support, Direction.UP);
                 // Count only VERIFIED placements (gap #75-a family audit): placeOn can
