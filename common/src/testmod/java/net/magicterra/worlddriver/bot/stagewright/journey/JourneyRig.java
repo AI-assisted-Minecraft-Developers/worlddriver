@@ -130,6 +130,22 @@ public final class JourneyRig {
     private final List<String> clashes = new ArrayList<>();
     private String note = "未记录原因";
     private boolean claimed;
+    /**
+     * Non-null once the body has fallen out of the world, holding the reading that proves it.
+     *
+     * <p>Measured 2026-08-18 on rung 20: the body left the island during the fourth crystal's leg,
+     * and the rung then spent <b>five more legs and five more towers — about 15 000 ticks, half its
+     * entire budget — issuing orders to a body at y=-1514, then -13270, then -26833, then -40396,
+     * then -55767</b>. Every one of those legs ran its full 2999 ticks, every one recorded
+     * {@code 脚下=void_air 放了 0 块}, and the rung's verdict was「打不到龙」— a symptom of a body
+     * 69 457 blocks from the arena, naming neither the fall nor the leg it happened on.
+     *
+     * <p>Nothing stops the fall on its own: both bodies override
+     * {@code isInvulnerableTo} to {@code true}, so vanilla's {@code Entity.checkBelowWorld} calls
+     * {@code onBelowWorld} every tick and the out-of-world damage it deals is refused. A body that
+     * leaves this world falls forever.
+     */
+    private String lostTheWorld;
 
     private JourneyRig(SceneContext ctx, JourneyStage stage) {
         this.ctx = ctx;
@@ -395,16 +411,72 @@ public final class JourneyRig {
      * ground when the walk decided it was done.
      */
     public void settle(BotProcess process, int ticks, TickWatcher watcher, Runnable then) {
+        // THE one place that runs on every tick of every leg of every rung, which is why the
+        // out-of-world check lives here and not at the call sites: there are dozens of settles and
+        // a body that has left the world invalidates all of them equally. Same shape as the walker's
+        // single `step++` exit — one guard covers every path because there is only one path.
+        if (bodyLeftTheWorld()) { skipSettle(then); return; }
         ServerWorldDriver d = body();
         ServerAvatarManager.register(d.runProcess(process));
         int[] waited = {0};
         await(() -> {
             if (watcher != null) watcher.tick();
-            return d.finished() || ++waited[0] >= ticks;
+            return d.finished() || bodyLeftTheWorld() || ++waited[0] >= ticks;
         }, ticks + 100, () -> {
             ServerAvatarManager.unregister(d);
             then.run();
         });
+    }
+
+    /**
+     * Whether the body is below the floor vanilla itself calls out-of-world, recording the reading
+     * the first time it is.
+     *
+     * <p>The threshold is {@code getMinBuildHeight() - 64}, taken from {@code Entity.checkBelowWorld}
+     * rather than invented here, so「掉出世界」means in this rig exactly what it means in the game.
+     * It is dimension-correct without a special case: the End's floor is 0 and the Overworld's is
+     * -64, and each answers for itself.
+     *
+     * <p>Latched, not recomputed: once tripped it stays tripped even if a later read finds the body
+     * somewhere else, because the rung is already invalid by then and a body that is teleported or
+     * re-created afterwards must not erase the fall that happened.
+     */
+    private boolean bodyLeftTheWorld() {
+        if (lostTheWorld != null) return true;
+        if (driver == null) return false;
+        ServerPlayer fp = driver.fakePlayer();
+        int floor = fp.level().getMinBuildHeight() - 64;
+        if (fp.getY() >= floor) return false;
+        lostTheWorld = "身体掉出世界：y=" + Math.round(fp.getY()) + " 已低于 "
+                + fp.level().dimension().location() + " 的出界线 "
+                + fp.level().getMinBuildHeight() + "−64=" + floor
+                + "（vanilla Entity.checkBelowWorld 用的同一条线）；位置=" + fp.blockPosition().getX()
+                + "," + fp.blockPosition().getY() + "," + fp.blockPosition().getZ()
+                + " @ " + fp.level().dimension().location()
+                + "。⚠️ 这具身体 isInvulnerableTo 恒为 true，所以出界伤害被拒、它会一直掉下去 ——"
+                + " 之后每一段行走和每一座塔都是对着虚空下的令，读它们的读数没有意义。";
+        evidence("body.leftTheWorld", lostTheWorld);
+        return true;
+    }
+
+    /**
+     * The reading that says the body left the world, or {@code null} while it has not.
+     *
+     * <p>A rung reads this to fail with the fall as its verdict instead of with whatever the fall
+     * made impossible afterwards.
+     */
+    public String lostTheWorld() { return lostTheWorld; }
+
+    /**
+     * Hand control to the continuation without running the process at all.
+     *
+     * <p>Deliberately {@link SceneContext#await} and not {@link #await}: the rig's own await pins a
+     * region ticket around the body every tick, and around a body in free fall that means loading a
+     * fresh column every few hundred blocks for the rest of the run. That pinning is a large part of
+     * why the five dead legs took 25 minutes of wall clock rather than being merely pointless.
+     */
+    private void skipSettle(Runnable then) {
+        ctx.await(() -> true).within(2).then(then);
     }
 
     /**

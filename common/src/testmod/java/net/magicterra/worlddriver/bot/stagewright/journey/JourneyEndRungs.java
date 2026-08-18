@@ -1124,6 +1124,17 @@ public final class JourneyEndRungs {
     }
 
     private static void smashCrystal(SceneContext ctx, JourneyRig rig, List<EndCrystal> crystals, int i) {
+        // BEFORE the size check, so a fall during the island march — which leaves no crystals to
+        // find — still fails with the fall rather than with「一座水晶都没找到」. The loop is where
+        // this rung spends its budget, so it is where a body that can no longer act must stop it.
+        if (rig.lostTheWorld() != null) {
+            ctx.fail("屠龙中断于第 " + i + " 座水晶之前 —— " + rig.lostTheWorld()
+                    + " 已砸碎 " + smashedSoFar(crystals) + "/" + crystals.size() + " 座。"
+                    + "⚠️ 这一行取代的旧判词是「打不到龙」，那是这次坠落的后果而不是它的死因："
+                    + "身体离开世界之后，龙、水晶、塔、行走段的读数全部作废，"
+                    + "要查的是坠落发生在哪一段的 crystal.N.leg 里。");
+            return;
+        }
         if (i >= crystals.size()) {
             int left = 0;
             for (EndCrystal c : crystals) if (c.isAlive()) left++;
@@ -1175,6 +1186,15 @@ public final class JourneyEndRungs {
                 });
             });
         });
+    }
+
+    /** How many of this rung's crystals are already gone — the only part of the tally that stays
+     *  true after the body has left the world, since everything else it could report is a reading
+     *  taken in the void. */
+    private static int smashedSoFar(List<EndCrystal> crystals) {
+        int gone = 0;
+        for (EndCrystal c : crystals) if (!c.isAlive()) gone++;
+        return gone;
     }
 
     /**
