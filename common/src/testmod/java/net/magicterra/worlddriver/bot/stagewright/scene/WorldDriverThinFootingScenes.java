@@ -67,6 +67,9 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      *  ledge is unambiguously lost rather than merely hurt. */
     private static final int VOID_DEPTH = 30;
 
+    /** Idle ticks the stand must survive untouched before the subject is allowed to act. */
+    private static final int SETTLE_TICKS = 20;
+
     @Override
     public List<Scene> scenes() {
         return List.of(Scene.of("wd.serverWidensAThinFooting", 600,
@@ -126,6 +129,21 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         if (sole >= Walker.footingMin()) {
             ctx.fail("THE RIG, not the subject: could not stage a stand under the footing threshold"
                     + " (sole=" + sole + ")");
+            return;
+        }
+
+        // Let vanilla physics have the stand BEFORE any driver touches it. Without this the two
+        // explanations for a fall — "the rig handed over a stand vanilla was never going to hold"
+        // and "the subject walked off a stand it was given" — produce the same reading, and the
+        // first one is a rig fault masquerading as a finding.
+        for (int i = 0; i < SETTLE_TICKS; i++) av.step();
+        ctx.record("settle", String.format(Locale.ROOT,
+                "%d ticks with no driver: y=%.3f sole=%.4f", SETTLE_TICKS, fp.getY(),
+                WalkerGeometry.soleOnSolid(w, fp)));
+        if (fp.getY() < standY - 0.5) {
+            ctx.fail("THE RIG, not the subject: vanilla itself dropped the staged stand in "
+                    + SETTLE_TICKS + " idle ticks (y=" + fp.getY() + "), so this arena is not the"
+                    + " ladder's cell — there the body stood on it for 2400 ticks");
             return;
         }
 

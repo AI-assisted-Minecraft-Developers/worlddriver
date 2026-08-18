@@ -1466,8 +1466,17 @@ public final class Walker {
     boolean footingGuard(Avatar a, WorldView world) {
         if (!BotConfig.lethalEdgeBrake) return false;
         Player p = a.player();
-        if (p == null || !p.onGround() || p.isInWater()) return false;
-        if (soleOnSolid(world, p) >= FOOTING_MIN) return false;
+        if (p == null || p.isInWater()) return false;
+        // NOT p.onGround(): that flag is verticalCollisionBelow, i.e. a report on the last move(),
+        // and this guard's worst ticks are exactly the ones with no informative last move — the tick
+        // after a placement, after a jump, after a reposition. The sole read below is the same
+        // question asked of the world, so the flag was never adding a fact, only a false negative:
+        // wd.serverWidensAThinFooting stages a body flush on obsidian with sole 0.168 and the guard
+        // returned on this line every tick while the body walked off the ledge in 18.
+        // A zero sole is still a return: nothing is under the body, it is falling, and sneak is a
+        // refusal to step further out rather than a rescue (see the note above).
+        double sole = soleOnSolid(world, p);
+        if (sole <= 0.0 || sole >= FOOTING_MIN) return false;
         BlockPos foot = BlockPos.containing(p.getX(), p.getY() + 0.05, p.getZ());
         // A PLANNED DESCENT is exempt, and this is not a nicety — it is the same release the drive's
         // own lethal-edge gate has carried since DEATH #8, for the same reason: vanilla's sneak

@@ -68,6 +68,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exactly the reading.
 
 ### Fixed
+
+**The footing guard asked `onGround()` before it asked the world.** Its first line returned on
+`!p.onGround()`, which is `verticalCollisionBelow` — a report on the last `move()`, not on what is
+under the body. The guard's worst ticks are precisely the ones with no informative last move (after
+a placement, after a jump, after a reposition), and the very next line already read the sole from
+the world, so the flag contributed no fact and only false negatives. Replaced with a single sole
+read: a zero sole still returns, because a body with nothing under it is falling and sneak is a
+refusal to step further out, not a rescue. **Unverified as a remedy**: the arena built for this cell
+(`wd.serverWidensAThinFooting`) reads byte-identically before and after — 18 ticks, same exit
+coordinates, `widen=0` — so something else is keeping the guard out of this path, and this change is
+recorded as removing a known-bad read rather than as a fix. No other scene changed colour.
+
+
 - **A tower begun at the end of a walk no longer walks off the column it is filling.** `TowerProcess`
   jumps, waits for the feet to clear the cell, then fills it — and `Avatar.releaseInputs` clears
   forward/sneak/jump but touches neither the velocity already in the body nor the sprint FLAG. A body
