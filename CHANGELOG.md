@@ -69,6 +69,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+**`Walker.widenFooting` was never observed to fire, and the arena was why.** The remedy only spends
+a block over a column that is bottomless all the way to `BOTTOMLESS_SCAN_FLOOR` (-70), and rightly
+so — over an ordinary drop a thin sole is a graze, and paying a block per ridge walk eats a bridging
+contract. The first cut of `wd.serverWidensAThinFooting` put a catch floor 30 cells under the ledge
+for tidiness, so the column read as ordinary ground and the remedy declined. With a genuine shaft
+under the footprint the same arm reads **1 cobblestone spent** and the sole one tick later goes
+**0.168 → 0.360** instead of 0.168 → 0.184. The arm was measuring its own arena, not the subject.
+
+
+
 **The footing guard asked `onGround()` before it asked the world.** Its first line returned on
 `!p.onGround()`, which is `verticalCollisionBelow` — a report on the last `move()`, not on what is
 under the body. The guard's worst ticks are precisely the ones with no informative last move (after

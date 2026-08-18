@@ -97,8 +97,21 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         level.setBlockAndUpdate(landing, Blocks.OBSIDIAN.defaultBlockState());
         for (int dx = -8; dx <= 8; dx++)
             for (int dz = -8; dz <= 8; dz++)
-                level.setBlockAndUpdate(new BlockPos(cx + dx, deckY - VOID_DEPTH, cz + dz),
-                        Blocks.STONE.defaultBlockState());
+                if (dx < -2 || dx > 2 || dz < -2 || dz > 3)      // outside the shaft, see below
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, deckY - VOID_DEPTH, cz + dz),
+                            Blocks.STONE.defaultBlockState());
+        // A GENUINE shaft under the cells the body's own footprint spans. The remedy this arm judges
+        // only spends a block over a column that is bottomless — scanned all the way to
+        // Walker.BOTTOMLESS_SCAN_FLOOR (-70) — and it is right to: over an ordinary drop a thin sole
+        // is a graze, and paying a block per ridge walk eats a bridging contract. A catch floor 30
+        // cells down therefore reads as ordinary ground and the remedy declines, which is the arm
+        // measuring its own arena rather than the subject. The End void the ladder dies over has no
+        // floor, so neither does this.
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= 3; dz++)
+                for (int y = level.getMinBuildHeight(); y < deckY; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz),
+                            Blocks.AIR.defaultBlockState());
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
@@ -147,6 +160,18 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
             return;
         }
 
+        // Every clause of the guard's own fire predicate, asked here in the same order it asks them.
+        // The guard's log line is unconditional, so zero lines proves it never got past one of these
+        // — and "never entered" is a different defect from "entered and declined".
+        BlockPos footCell = BlockPos.containing(fp.getX(), fp.getY() + 0.05, fp.getZ());
+        ctx.record("guardClauses", "lethalEdgeBrake=" + BotConfig.lethalEdgeBrake
+                + " inWater=" + fp.isInWater()
+                + " sole=" + String.format(Locale.ROOT, "%.4f", sole)
+                + " foot=" + footCell.getX() + "," + footCell.getY() + "," + footCell.getZ()
+                + " (" + level.getBlockState(footCell) + ")"
+                + " below=" + level.getBlockState(footCell.below())
+                + " lethalDropAdjacent=" + WalkerGeometry.lethalDropAdjacent(w, fp, footCell));
+
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));
         fp.getInventory().selected = 0;
@@ -156,7 +181,15 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         double minY = fp.getY();
         int t = 0;
         Walker.Step s = Walker.Step.WALKING;
+        int fireable = 0;                 // ticks on which the guard's whole predicate held
+        StringBuilder soles = new StringBuilder();
         for (; t < 400 && s == Walker.Step.WALKING; t++) {
+            double sn = WalkerGeometry.soleOnSolid(w, fp);
+            BlockPos fc = BlockPos.containing(fp.getX(), fp.getY() + 0.05, fp.getZ());
+            if (BotConfig.lethalEdgeBrake && !fp.isInWater() && sn > 0.0
+                    && sn < Walker.footingMin() && WalkerGeometry.lethalDropAdjacent(w, fp, fc))
+                fireable++;
+            if (t < 8) soles.append(String.format(Locale.ROOT, " t%d=%.3f", t, sn));
             s = walker.tick(av, w);
             av.step();
             minY = Math.min(minY, fp.getY());
@@ -169,6 +202,10 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                 && Math.abs(fp.getX() - (landing.getX() + 0.5)) < 1.2
                 && Math.abs(fp.getZ() - (landing.getZ() + 0.5)) < 1.2;
 
+        ctx.record("fireable", fireable + " of " + t + " drive ticks had the guard's WHOLE"
+                + " predicate true; its log line is unconditional, so any gap between this count"
+                + " and the [walker] footing guard lines is the guard not being reached at all."
+                + " sole per tick:" + soles);
         ctx.record("drive", String.format(Locale.ROOT, "%d ticks, body=(%.2f,%.2f,%.2f) step=%s",
                 t, fp.getX(), fp.getY(), fp.getZ(), s));
         ctx.record("minY", String.format(Locale.ROOT, "%.3f (deck %d, criterion > %d)",
