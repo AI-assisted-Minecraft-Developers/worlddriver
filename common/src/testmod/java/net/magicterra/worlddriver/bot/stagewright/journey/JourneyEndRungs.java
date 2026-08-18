@@ -1306,6 +1306,11 @@ public final class JourneyEndRungs {
                 + " 起塔y=" + fromY + " 实到y=" + y + " 差=" + (top - y)
                 + " 放了 " + blocksSpent(rig, pillar, stockBefore) + " 块 " + pillar
                 + " 用了 " + watch.ticks() + " tick"
+                // The tower's OWN account of why it stopped. It carries placed / holding / phase /
+                // apexFeetY, which separate「没东西可放」from「跳没能离开自己那一格」from「身体被带离
+                // 了自己那一列」— and none of that is derivable from the heights on this row. It was
+                // being written and thrown away: the process reported it, the rung never read it.
+                + " 自述=" + rig.body().botState().builder.lastError
                 + " 结论=" + verdict;
     }
 

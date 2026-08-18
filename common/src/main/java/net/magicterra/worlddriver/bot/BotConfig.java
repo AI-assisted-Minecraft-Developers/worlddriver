@@ -44,6 +44,18 @@ public final class BotConfig {
      *  burning CPU. 0 disables both. */
     public static volatile int walkerFutileSearchCap = 5;
 
+    /** Consecutive ascent dead-zones from the SAME foot for the SAME node before the leg fail-stops.
+     *
+     *  <p>{@link #walkerFutileSearchCap} cannot cover this case — it is gated on the search NOT
+     *  reaching the goal, and a dead-zone is what happens when the search reaches it and the
+     *  executor then refuses the edge. Measured on journey rung 20: a body perched on a 0.16 sole
+     *  beside the void spent 2400 ticks re-routing to the same {@code diagUp} node, silently, while
+     *  every guard that could have moved it correctly declined. Bigger than the search cap because a
+     *  dead-zone can be transient — a re-route from a slightly different position may legitimately
+     *  produce a reachable edge — and the counter only advances while BOTH the foot cell and the
+     *  target node are unchanged. 0 disables. */
+    public static volatile int walkerAscendDeadZoneCap = 40;
+
     /** Stride floor-guard (gap #53, the 2026-07-12 survival death; same family as #51):
      *  while GROUNDED and dry, if the cell one stride ahead along the drive heading has no
      *  floor within {@link #pathfinderMaxDryFall}+1 below — a drop the planner can never

@@ -258,8 +258,29 @@ final class WalkerTickDrive {
             switch (wk.ascendMovement.updateState(ctx)) {
                 case UNREACHABLE, FAILED -> {                          // fold into the existing re-route (consumed next tick at line 1042)
                     wk.forceFellOffPath = true;
-                    LOG.info("[walker] ascend dead-zone UNREACHABLE move={} node={} foot={} pos=({},{},{}) → re-route (task#82)",
-                            edge.move, wk.path.get(wk.step), foot, p.getX(), p.getY(), p.getZ());
+                    BlockPos dzNode = wk.path.get(wk.step);
+                    // A re-route only helps if the next one can differ. Count the ones that cannot:
+                    // same foot cell, same target node, same verdict. Reset on either changing, so a
+                    // body that actually shifts keeps its full allowance.
+                    if (foot.equals(wk.searchGov.deadZoneFoot) && dzNode.equals(wk.searchGov.deadZoneNode)) {
+                        wk.searchGov.deadZoneRepeats++;
+                    } else {
+                        wk.searchGov.deadZoneFoot = foot;
+                        wk.searchGov.deadZoneNode = dzNode;
+                        wk.searchGov.deadZoneRepeats = 1;
+                    }
+                    LOG.info("[walker] ascend dead-zone UNREACHABLE move={} node={} foot={} pos=({},{},{}) 连续={} → re-route (task#82)",
+                            edge.move, dzNode, foot, p.getX(), p.getY(), p.getZ(),
+                            wk.searchGov.deadZoneRepeats);
+                    if (BotConfig.walkerAscendDeadZoneCap > 0
+                            && wk.searchGov.deadZoneRepeats >= BotConfig.walkerAscendDeadZoneCap) {
+                        wk.lastError = "ascent dead-zone " + wk.searchGov.deadZoneRepeats
+                                + " times from the same cell — the search keeps returning "
+                                + edge.move + " to " + dzNode + " and the executor keeps refusing it"
+                                + " (foot=" + foot + "); the plan is fine and the body cannot perform it";
+                        return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.NO_PATH,
+                                wk.lastError, "failed:" + wk.lastError, p.blockPosition());
+                    }
                 }
                 case PREP, RUNNING, SUCCESS -> { }                     // fall through — legacy drive actuates this tick
             }
