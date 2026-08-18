@@ -198,6 +198,15 @@ public final class TowerProcess implements BotProcess {
                 // default is on every avatar and the Walker rewrites the flag every tick anyway;
                 // this process is the one that must never have it set.
                 p.setSprinting(false);
+                // And BRAKE, not merely stop asking. The READY gate waits for horizontal speed to
+                // fall under SETTLE_SPEED, but「under the threshold」is not zero: whatever is left
+                // is carried through the whole jump arc, and a body that lands one cell beside its
+                // own 1-wide pillar has nothing under it. Rung 20 left the world from -33,82,26 and
+                // -35,82,26 — two tower tops two blocks apart, with the entire leap family already
+                // gated, so no planned jump was involved. Vertical is untouched: this is the tick
+                // the jump impulse is asked for.
+                Vec3 keep = p.getDeltaMovement();
+                p.setDeltaMovement(0.0, keep.y, 0.0);
                 a.commandJump(true);
                 sinceJump = 0;
                 jumpFromY = feetY;               // cell we'll fill = the one we jump from
