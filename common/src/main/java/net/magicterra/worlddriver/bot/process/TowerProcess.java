@@ -8,6 +8,7 @@ import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.elytra.ElytraPhysics;
 import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.movement.Walker;
+import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
@@ -98,10 +99,18 @@ public final class TowerProcess implements BotProcess {
         st.builder.pathStep = placed;
         st.builder.pathLen = targetY - startFeetY;
 
-        // Require onGround: feetY momentarily hits targetY at the apex of the
-        // last jump while still airborne, which would stop the tower one block
-        // short. Only finish once actually standing at/above the target.
-        if (feetY >= targetY && p.onGround()) {
+        // Require a real footing: feetY momentarily hits targetY at the apex of the last jump while
+        // still airborne, which would stop the tower one block short. Only finish once actually
+        // standing at/above the target.
+        //
+        // soleOnSolid, NOT p.onGround(). `onGround` is `verticalCollisionBelow` — it describes the
+        // last move() and is wrong in both directions; ServerPlayerAvatar's own jump gate abandoned
+        // it for exactly this reason (see the note at its jump branch) and `wd.flushJumpIgnoresOnGround`
+        // pins that a body can be flush on stone with onGround false. This process was the last
+        // reader of it, which made a tower refuse to start on a footing the engine was happy to jump
+        // from — measured by `wd.serverTowersWithoutOnGround`, which spent 60 ticks and zero blocks.
+        boolean footed = WalkerGeometry.soleOnSolid(w, p) > 0.0;
+        if (feetY >= targetY && footed) {
             st.builder.lastError = "done (placed=" + placed + ", feetY=" + feetY + ")";
             st.builder.reset();
             a.releaseInputs();
@@ -125,7 +134,7 @@ public final class TowerProcess implements BotProcess {
 
         switch (phase) {
             case READY -> {
-                if (!p.onGround()) return false;  // still falling / not landed
+                if (!footed) return false;       // still falling / not landed
                 a.releaseInputs();
                 a.commandJump(true);
                 sinceJump = 0;
