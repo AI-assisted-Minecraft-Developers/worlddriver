@@ -194,17 +194,20 @@ public abstract class Move {
      * issued afterwards is issued to a body in the void. Rung 20 has ended that way repeatedly
      * (measured: 身体掉出世界 y=-65, 位置 -61,-65,16, 已砸碎 5/10 座).
      */
+    /** True when nothing at all stands under {@code col} down to {@link #VOID_SCAN_FLOOR}. */
+    public static boolean bottomless(WorldView w, BlockPos col) {
+        for (int y = col.getY() - 1; y >= VOID_SCAN_FLOOR; y--) {
+            if (!w.isPassable(new BlockPos(col.getX(), y, col.getZ()))) return false;
+        }
+        return true;
+    }
+
     public static boolean overTheVoid(WorldView w, BlockPos from, BlockPos to) {
         int steps = Math.max(Math.abs(to.getX() - from.getX()), Math.abs(to.getZ() - from.getZ()));
         if (steps < 2) return false;
         int sx = Integer.signum(to.getX() - from.getX()), sz = Integer.signum(to.getZ() - from.getZ());
         for (int i = 1; i < steps; i++) {
-            BlockPos col = from.offset(sx * i, 0, sz * i);
-            boolean bottomless = true;
-            for (int y = col.getY() - 1; y >= VOID_SCAN_FLOOR; y--) {
-                if (!w.isPassable(new BlockPos(col.getX(), y, col.getZ()))) { bottomless = false; break; }
-            }
-            if (!bottomless) return false;
+            if (!bottomless(w, from.offset(sx * i, 0, sz * i))) return false;
         }
         return true;
     }

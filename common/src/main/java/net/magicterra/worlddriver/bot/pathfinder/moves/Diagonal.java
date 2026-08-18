@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.pathfinder.moves;
 
+import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
@@ -23,6 +24,14 @@ public final class Diagonal extends Move {
         // to route a blocked corner as two cardinal walks through the open cell —
         // which the Walker executes cleanly. Costs at most one extra step per
         // corner; in exchange no diagonal ever wedges.
+        // ...and at least one corner must have GROUND under it. Passable is the wedge test; it says
+        // nothing about what the body walks over. A diagonal is executed by aiming straight at the
+        // destination centre, so the hitbox crosses both corner columns — and on an island rim both
+        // of them are open void. Rung 20 kept ending 「身体掉出世界」 from cells like -15,60,36:
+        // flat ground, no leap involved, a diagonal off the edge. One cornered floor is enough,
+        // because the body then always has something under some part of it during the crossing.
+        if (BotConfig.pathfinderForbidParkourOverTheVoid
+                && Move.bottomless(w, sideA) && Move.bottomless(w, sideB)) return false;
         return clearColumn(w, sideA) && clearColumn(w, sideB);
     }
     private static boolean clearColumn(WorldView w, BlockPos p) {
