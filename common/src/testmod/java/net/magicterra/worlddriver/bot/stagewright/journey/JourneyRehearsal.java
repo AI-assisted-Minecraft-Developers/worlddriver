@@ -1042,7 +1042,7 @@ public final class JourneyRehearsal {
     /** How many blocks rung 20 starts with. See {@link #stageDragon} for the arithmetic; the point of
      *  the number is that it is roughly TWICE the worst case, so that「跑到一半没方块了」can never be
      *  the thing that decides a rehearsal of the bridge and the towers. */
-    private static final int BLOCKS_A_DRAGON_TRIP_NEEDS = 1_024;
+    private static final int BLOCKS_A_DRAGON_TRIP_NEEDS = 3_072;
 
     /**
      * Rung 20's starting conditions: a body on the End's arrival platform, with something to bridge
@@ -1164,7 +1164,11 @@ public final class JourneyRehearsal {
         }
         JourneyLedger.staged("rehearsal: gave " + gave);
         ctx.record("rehearsal.gave", gave + "（全部 PROVISIONAL：真梯从未爬到 12 级以上。"
-                + "圆石 " + BLOCKS_A_DRAGON_TRIP_NEEDS + " 是最坏情况（约 60 格架桥 + 10 座塔 × 约 40）"
+                + "圆石 " + BLOCKS_A_DRAGON_TRIP_NEEDS + " —— 原本是 1024，按「约 60 格架桥 + 10 座塔"
+                + " × 约 40」的两倍估的，2026-08-18 起不再成立：路径规划现在拒绝在可架桥时跨越虚空"
+                + "（Move.overTheVoid）与两角皆空的对角线，于是每一道过去靠跳过去的缺口都改成了架桥。"
+                + "实测一趟打完水晶后 holding=11，塔因此报 stuck 而不是报缺料 —— 缺料不会说自己缺料，"
+                + "它会伪装成走不动或塔停住，那正是这一级要考的两个机制"
                 + "的两倍上下 —— 缺料不会报成缺料，会报成「走不到主岛」或塔提前停，"
                 + "那正是这一级要考的两个机制；只给圆石是为了让 pillarBlock 的选择确定）");
 
