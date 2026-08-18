@@ -315,6 +315,30 @@ boolean swimColumn = p.isInWater() && (p.isUnderWater() || world.isWater(foot.ab
 | `水=true 脚格=water` | 那一格真有水 ⇒ 布景／世界的账 |
 | `水=false` | 标签与自己的前置条件矛盾 ⇒ 先查标签链取的是不是同一批状态，别信标签 |
 
+### ✅ 读到了第一行，链条闭合（2026-08-17，r20r/r20s 两趟一致）
+
+```
+t=117 支=swimColumn 身体=100,49,0 水=true 没顶=true 脚格=air 脚上=air
+t=124 支=parkour                  水=false 没顶=false
+rehearsal.wetOnDeparture = minecraft:overworld 水=true 没顶=true 脚格=Block{minecraft:water}
+                         → 落地后 水=true 没顶=true 脚格=Block{minecraft:air}
+```
+
+1. 布景把身体从**主世界的水里**（没顶）跨维度传到末地台上；
+2. **`fp.teleportTo` 不重算流体标志**——传送后立刻读，两个标志仍为真而脚格已是空气（同一条语句里测的，不是推断）；
+3. walker 在 `avatar.step()`（`baseTick` 重算标志之处）**之前**跑 ⇒ 它在末地的第一 tick 读到的是主世界的水；
+4. `swimColumn = p.isInWater() && (p.isUnderWater() || world.isWater(foot.above()))`——两项都是**身体缓存**，
+   `isUnderWater()` 为真让这条分支**一次世界读数都没做**就点了火；
+5. 身体离台 → 7 tick 后 parkour 边轮到时人在 `y=50.177` → 起跳闸**正确地**拒绝 → 走路速度迈出台沿 → 虚空。
+
+⚠️ **陈旧窗口的宽度没有测到**：`起跳来源` 是事件锁存，t=117 与 t=124 之间没有读数，
+只能说「t=117 陈旧、t=124 已正确」，不能说它持续了 7 tick。
+
+⚠️ **「这是产品缺陷还是布景产物」尚未定案**：真梯是穿传送门进末地（要塞里，身上通常不带水），
+而布景是 fixture 的跨维度 `teleportTo`。但「走出水面后第一 tick 仍读到水」这一支**与传送无关**，
+是 walker-先读-avatar-后更新的结构性一 tick 滞后——那一支在真梯的湖沿是够得着的。
+两条要分开判，不能拿一条的证据去认另一条。
+
 ---
 
 ## 🗄️（存档）B：20 级——parkour 边成为当前边时身体已在空中（等级 `compiled`，只加读数）
@@ -522,6 +546,59 @@ if (se != null && se.move != null && se.move.startsWith("parkourPlace") && !p.on
    `>0` 翻成 `0`」，所以沉默**不构成排除**。
 2. **为什么 `106659,222 → 106660,224` 答 `no reachable target`，而更远的 `106656,221` 反而规划成功** ——
    要先分清这条 `lastError` 是「A* 搜完没找到」还是「候选 stand 格一个都没枚举出来」。
+
+### ⛔ 更正：上面这两个问题**本身就问错了**（只读追查交回，2026-08-17）
+
+**「222 那格当时有支撑、随后被移除」没有被证实。** vanilla `Entity.collide` 是 **Y 轴先、XZ 轴后**，
+所以身体可以在**相邻柱**的顶面被竖直截断（`y` 因此是整数、`onGround()` 因此为真），
+**同一次 move 的水平半程**再把它带进 x=106659 那一柱——而那一柱的 222 是第一级楼梯早就挖开的洞。
+**一个方块都不需要在身体脚下消失。** 这条反例就写在 `ServerPlayerAvatar.java:894-900` 自己的
+javadoc 里（"a fall clipped at the START of a tick whose horizontal half then carried the body off the lip"）。
+
+同理：**841 的「排y=222 空」本来就该是空的**——(106659,222) 正是 stepUp 要身体**站进去**的空气格，
+支撑应在 (106659,221)。剩下的真问题只有一个：**身体为什么在 223 而不是 222。**
+
+**第二问同样没有测量支撑**：`search-begin` 只说搜索**开始了**，结果那行
+（`PathFinder.java:441-449` 的 `tax-breakdown`）被场景第 `WorldDriverScenes.java:1013` 行的
+`BotConfig.walkerDebug = false` 关掉，而且它的 `!r.path().isEmpty()` 条件意味着
+**「什么都没找到」这一种永远不打**。⇒「106656,221 那次规划成功了」是我的推断，不是读数。
+
+### 候选账（诚实记账：**四个候选一个都没排除**）
+
+| 候选 | 判定 | 依据 |
+|---|---|---|
+| M1-**指针**形式（step 指针在那格被挖开前推进到它上面） | **被证伪** | `PathSmoothing.hasPendingEdge:317-322` **同时**看 `toBreak` 和 `toPlace` ⇒ `WalkerTickProgress:301` 的硬 `break` **覆盖 break 边**；先前用 place 场景做的证伪**可以外推** |
+| M1-**身体**形式（指针不动，身体物理上跑到节点上方） | **仍在** | 那道闸管的是 `wk.step` 指针，不管身体在哪 |
+| M2（被别的力抬到 223） | **主干被证伪** | 全仓 `setPos/moveTo` 调用点与本场景无关；`allowPlace=false`；`StepUp2` 硬闸 `maxJumpUpBlocks()>=2` ⇒ A\* 永不规划 +2 |
+| M3（路径本在更高层，840 与 841 不相邻） | **仍在**，日志原理上分不出来 | 见下方时钟缺陷 |
+| **M4**（走下相邻柱的台沿，掉进第一级楼梯挖出的洞） | **仍在**，且与全部四个数字吻合、不需要任何「落脚被移除」 | Y-先-XZ-后 |
+
+### 🔴 结构性缺陷：事件闸挂在 `getGameTime()` 上，而这类场景整场跑在一个 tick 里
+
+```java
+Walker.java:1109   boolean newEvent = now - jumpAskTick > 1;      // now = getGameTime()
+Walker.java:1324   ... && now - wiggleLastTick > 1
+```
+
+`wd.buriedOre` 800 次迭代全在 **同一个** server tick（`ticks: 0`，`wallMs=208`）⇒ 第一次之后
+`now - lastTick == 0` 恒假 ⇒ **`起跳来源` 与 `恢复跳` 各只印一次，无论实际发生多少次**。
+⇒ **「只发生了一次」和「发生了很多次只印一次」在这类场景里长得一样**，影响的不只是 buriedOre，
+是**每一个用紧循环推进的场景**。已派工改成与时钟无关的「上一次调用是否也在按」。
+
+### 破坏渠道全仓只有一条（强结论，读代码得出）
+
+`ServerPlayerAvatar.java:407` 的 `fp.level().destroyBlock(target, DROP_HARVEST, fp)`（在 `destroyAimed` 内）。
+⇒ 我列的「walker 的 break 边／mine 的开路破坏／destroyBlock 某调用点」**在代码上是同一个点**；
+场景自己的 `setBlockAndUpdate(AIR)` 在 `ctx.cleanup` 里，**断言之后**才跑，时序排除。
+
+### 新候选：**自毁楼梯**（读代码得出，未证实）
+
+`MineProcess.findDigStand:921-933` 取矿的同 Y 四邻 ⇒ (106660,222)；`Walker.snapGoalToStandable:693-735`
+再把它吸附到半径 6 内最近的可站格 ⇒ **(106660,224)，石堆顶上**。而 `StairUpBreak:52-90` 从
+(106659,222)→(106660,223) 会挖掉 **(106660,223)**——**那正是吸附后目标 (106660,224) 的地板**。
+`Move.eval` 只读**当前**世界、没有「挖过之后」的模型 ⇒ 第一次搜索完全可能给出这条自相矛盾的楼梯。
+判据：**(106660,223) 为空 ⇒ 成立；为实心 ⇒ 身体连第二级都没上，病灶在第一级。**
+（与「楼梯跟自己打架」同族，但**不是同柱**，是 riser 与 destination floor 同格 ⇒ 那次的修复不一定覆盖。）
 
 ### ⛔ 「挖掉自己的落脚」这一支**被证伪**，但**证伪它的理由要改一条**
 
