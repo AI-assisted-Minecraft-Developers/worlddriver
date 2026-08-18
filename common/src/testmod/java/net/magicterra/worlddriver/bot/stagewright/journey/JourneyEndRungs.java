@@ -291,6 +291,17 @@ public final class JourneyEndRungs {
      *  ticks is ~680 ticks of CONTACT; the rest of this number is the waiting, because a dragon that
      *  is flying is not a dragon that can be hit. */
     private static final int DUEL_TICKS = 200_000;
+    /** Budget for walking back to (0,0) before the duel. Generous next to a crystal leg (3 000)
+     *  because the body starts this walk on top of whatever tower the last crystal needed. */
+    private static final int DUEL_MARCH_TICKS = 6_000;
+    /** Ticks the duel tolerates with the dragon never once inside reach before it stops waiting.
+     *
+     *  <p>{@link #DUEL_TICKS} is 200 000 — 2.8 hours at the server's own rate — and it is spent
+     *  standing still. That is the right budget for a fight the body is IN; it is the wrong one for a
+     *  body whose position the dragon's circle never passes, which is what a duel started off-centre
+     *  is. Measured: 11 400 ticks off-centre with `closest` never falling to reach. Any approach
+     *  resets it, so a long fight with lulls is unaffected. */
+    private static final int DUEL_OUT_OF_REACH_TICKS = 4_000;
 
     /** Everything a shaft yields that a tower can stand on, commonest first — copied from the
      *  overworld rungs, where the lesson was learned that a tower asked for a block the body does not
@@ -1346,6 +1357,18 @@ public final class JourneyEndRungs {
         rig.evidence("dragon.hp0", String.format(Locale.ROOT, "%.1f", dragon.getHealth()));
         rig.evidence("dragon.at", xyz(dragon.blockPosition()));
         holdBestWeapon(rig);
+        // WALK TO THE CENTRE FIRST. DuelTheDragon's first statement is `commandMove(0,0)` — it stands
+        // still and lets the dragon come to it — and the line below has always said「在中央」while
+        // nothing ever put the body there. Measured 2026-08-18: the duel began wherever the last
+        // crystal left the body, 42 blocks off-centre on a pillar top at y=103, and burned 11 400 of
+        // its 200 000 ticks without the dragon once coming within reach. The dragon circles (0,y,0);
+        // a body that is not there is not in the fight.
+        rig.attempting("走回竞技场中心，龙绕着 (0,0) 飞，不在那里就打不到");
+        rig.settle(new IntentProcess(new Intent(new Goal.XZ(0, 0, 6))), DUEL_MARCH_TICKS, () -> {
+        rig.evidence("duel.stand", xyz(rig.player().blockPosition()) + " 距中心 "
+                + String.format(Locale.ROOT, "%.1f",
+                        Math.hypot(rig.player().getX(), rig.player().getZ())) + " 格"
+                + "（DuelTheDragon 原地不动，所以这一格就是整场架的位置）");
         rig.attempting("在中央等龙够得着，够得着就打头（头部不分摊伤害，其余部位除以四）");
         DuelTheDragon fight = new DuelTheDragon(DUEL_TICKS, MELEE_REACH);
         rig.settle(fight, DUEL_TICKS + 200, () -> {
@@ -1367,7 +1390,9 @@ public final class JourneyEndRungs {
             boolean dead = seenDying || fightSaysKilled;
             rig.evidence("duel.swings", fight.swings() + "（其中打到头 " + fight.headHits() + " 次）");
             rig.evidence("duel.closest", String.format(Locale.ROOT, "%.1f 格（%s）",
-                    fight.closest(), fight.closestPart()));
+                    fight.closest(), fight.closestPart())
+                    + (fight.gaveUp() ? "；⚠️ 放弃：连续 " + DUEL_OUT_OF_REACH_TICKS
+                        + " tick 龙一次都没进过 " + MELEE_REACH + " 格 —— 这不是打不动，是没在架里" : ""));
             rig.evidence("dragon.hp", still == null ? "盒子里没有 —— 这不等于死了，见 dragon.dead"
                     : String.format(Locale.ROOT, "%.1f", still.getHealth()));
             rig.evidence("dragon.dead", dead + "（看见它在死=" + seenDying
@@ -1377,6 +1402,7 @@ public final class JourneyEndRungs {
             ctx.expect(dead).as("the ender dragon is dead — seen dying, or EndDragonFight says it was"
                     + " killed; a dragon merely absent from the search box does not count").isTrue();
             rig.reach("屠龙成功：挥 " + fight.swings() + " 刀（打到头 " + fight.headHits() + " 次）");
+        });
         });
     }
 
@@ -1737,6 +1763,8 @@ public final class JourneyEndRungs {
         private int swings;
         private int headHits;
         private double closest = Double.MAX_VALUE;
+        private int outOfReach;
+        private boolean gaveUp;
         private String closestPart = "无";
 
         DuelTheDragon(int maxTicks, double reach) {
@@ -1779,10 +1807,21 @@ public final class JourneyEndRungs {
                 swings++;
                 if (aim == head) headHits++;
             }
+            // Never once in reach for DUEL_OUT_OF_REACH_TICKS: stop waiting. Reset by any approach,
+            // so this ends a duel the body is not in, not a fight with lulls.
+            if (aim == null) {
+                if (++outOfReach >= DUEL_OUT_OF_REACH_TICKS) { gaveUp = true; return true; }
+            } else {
+                outOfReach = 0;
+            }
             return ++elapsed >= maxTicks;
         }
 
         int swings() { return swings; }
+
+        /** True when it stopped because the dragon never came within reach, not because time ran
+         *  out — the two look identical from the outside and mean different things. */
+        boolean gaveUp() { return gaveUp; }
 
         int headHits() { return headHits; }
 
