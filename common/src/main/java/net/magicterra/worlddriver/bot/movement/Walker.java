@@ -1491,7 +1491,47 @@ public final class Walker {
                     foot.getX(), foot.getY(), foot.getZ());
         }
         footingPinned = true;
+        widenFooting(a, world, p, foot);
         return true;
+    }
+
+    /**
+     * Fill the empty column under the overhanging half of the sole.
+     *
+     * <p>The stride guard plugs the cell AHEAD; nothing has ever plugged the cell the body is
+     * already half off. That gap is what makes rung 20's lip a dead end: measured across two runs at
+     * the identical cell {@code (-32,85,27)}, the body stood on 16% of its sole beside the void with
+     * 500+ cobblestone in the bag while the footing guard pinned it, the stride guard refused the
+     * next step, the recovery hop refused to jump (a lethal drop one cell away) and the ascent
+     * executor called the plan's own next node UNREACHABLE. Four correct refusals and no legal move.
+     * One block under the body turns the perch into a floor and every one of those guards releases.
+     *
+     * <p>Only over a BOTTOMLESS column, for the same reason the stride guard's instant arming is:
+     * over an ordinary drop a thin sole is a graze the body walks off, and spending blocks on every
+     * ridge walk is how a bridging contract gets eaten. Over the void it is the difference between
+     * continuing and falling forever.
+     */
+    private void widenFooting(Avatar a, WorldView world, Player p, BlockPos foot) {
+        if (!BotConfig.allowPlace || a.breakHeld() || !a.holdPlaceable()) return;
+        var box = p.getBoundingBox();
+        for (int cx = (int) Math.floor(box.minX); cx <= (int) Math.floor(box.maxX); cx++) {
+            for (int cz = (int) Math.floor(box.minZ); cz <= (int) Math.floor(box.maxZ); cz++) {
+                BlockPos support = new BlockPos(cx, foot.getY() - 1, cz);
+                if (!world.isPassable(support)) continue;             // already solid under here
+                boolean bottomless = true;
+                for (int y = support.getY() - 1; y >= BOTTOMLESS_SCAN_FLOOR; y--) {
+                    if (!world.isPassable(new BlockPos(cx, y, cz))) { bottomless = false; break; }
+                }
+                if (!bottomless) continue;
+                a.place(world, support);
+                exAlarms.notePlace(support);
+                LOG.info("[walker] footing guard: 垫脚 {},{},{}（脚底 {} < {}，该列直通虚空）",
+                        support.getX(), support.getY(), support.getZ(),
+                        String.format(java.util.Locale.ROOT, "%.4f", soleOnSolid(world, p)),
+                        FOOTING_MIN);
+                return;                                               // one block per tick
+            }
+        }
     }
 
     /** How far out {@link #wiggleHop} measures the nearest lethal drop. Beyond {@link
