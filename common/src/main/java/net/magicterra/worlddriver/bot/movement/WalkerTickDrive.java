@@ -178,7 +178,7 @@ final class WalkerTickDrive {
             // death, forbidDig is only a navigation preference, so safety wins over the constraint.
             BlockPos recCeiling = wk.pillarRecover.cell.offset(0, 2, 0);
             if (BotConfig.allowBreak && world.isSolid(recCeiling)) {
-                Walker.avatarJump(a, false);
+                wk.avatarJump(a, false);
                 a.selectTool(recCeiling);
                 a.aimAtBlock(recCeiling);
                 Walker.avatarDig(a, recCeiling);
@@ -188,9 +188,9 @@ final class WalkerTickDrive {
             p.setXRot(89.5f);                         // look straight down to aim the support
             if (p.onGround()) {
                 wk.jumpTag = "pillarRecoverRung";
-                Walker.avatarJump(a, true);     // jump off the current rung
+                wk.avatarJump(a, true);     // jump off the current rung
             } else {
-                Walker.avatarJump(a, false);
+                wk.avatarJump(a, false);
                 // Place into the feet cell once risen clear of it (vanilla rejects the place
                 // while the player AABB still overlaps the target cell — gate on real height).
                 if (p.getY() >= wk.pillarRecover.cell.getY() + 1.0) {
@@ -1106,11 +1106,11 @@ final class WalkerTickDrive {
                     wp.getX(), wp.getY(), wp.getZ(), foot.getX(), foot.getY(), foot.getZ());
         }
         if (jump) {
-            wk.jumpTag = stepUpJump ? "stepUp" : parkourEdge ? "parkour"
-                    : stepUpFreeze && p.onGround() ? "stepUpFreeze"
-                    : levelRiserJump ? "levelRiser" : wiggle ? "wiggle" : "swim";
+            wk.jumpTag = stepUpJump ? "stepUp" : parkourEdge ? "parkour"     // 其它 = this chain is stale, see Walker#avatarJump
+                    : stepUpFreeze && p.onGround() ? "stepUpFreeze" : levelRiserJump ? "levelRiser"
+                    : wiggle ? "wiggle" : swimUp ? "swimUp" : swimColumn ? "swimColumn" : deepWaterRise ? "deepWaterRise" : "其它";
         }
-        if (parkourEdge) wk.noteParkourTakeoff(world, a, p, jump, foot);  Walker.avatarJump(a, jump);  // latch: Walker.parkourTakeoff()
+        if (parkourEdge) wk.noteParkourTakeoff(world, a, p, jump, foot);  wk.avatarJump(a, jump);  // latch: Walker.parkourTakeoff()
         // Sprint in water ONLY on a FLAT crossing (flatWaterWalk: wp.y==foot.y). The
         // prone swim pose that sprint+forward forces is exactly what a wide open-ocean
         // crossing needs (vanilla's fast swim) — WITHOUT it the bot treads upright in

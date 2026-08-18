@@ -18,6 +18,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   measurement — a scene is in it iff one of those lines falls inside its window, whether or not its
   colour moved — instead of a guess from arena names.
 
+- **Every jump request now names the call site that made it.** `Walker.avatarJump` became an instance
+  method so it can latch, because the jump expression in `WalkerTickDrive` that three rounds of
+  analysis treated as *the* source of jumps is one of eleven places that set the request —
+  `WalkerTickClimb` alone has eight, and only five sites of the eleven label themselves with
+  `jumpTag`. Eliminating branches inside one of eleven and naming the survivor was never a
+  measurement, and it was wrong every time. The source is therefore taken from the stack rather than
+  from a hand-kept list: a file and line cannot fall out of date when a twelfth site appears, and a
+  site that never labelled itself still names itself. Printed with the waypoint and `wp.y − foot.y`
+  beside it, since a level platform can still hold a waypoint above the feet — the path's next node
+  is not the neighbouring cell. One line per event, capped per walker; the stack walk happens only on
+  the lines actually emitted. The drive's label chain also ends in `其它` instead of a bare `"swim"`:
+  a chain whose last arm is a real branch name silently relabels every unmatched case as that branch
+  and can never report that the labels have fallen behind the expression.
+
 - **The stuck-wiggle recovery hop now reports the two numbers its own safety gate turns on.** That
   gate suppresses the hop when a lethal drop sits within Chebyshev 2 of the foot, while the hop's
   own javadoc prices the arc it is guarding against at "~3 blocks" — so the guard's reach and the

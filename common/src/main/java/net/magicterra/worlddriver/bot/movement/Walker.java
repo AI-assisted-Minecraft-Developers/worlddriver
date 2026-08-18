@@ -1068,7 +1068,62 @@ public final class Walker {
     // AvatarInput): tick() sets a default below, branches override. p.input is always
     // an AvatarInput here (installed at the top of tick()); the guard keeps it safe if
     // a respawn swapped a fresh KeyboardInput in between.
-    static void avatarJump(Avatar a, boolean v) { a.commandJump(v); }
+    /**
+     * The one funnel every jump request goes through — and now the one place that records WHERE a
+     * jump came from.
+     *
+     * <p>It was {@code static} and the latch is why it is not any more. Enumerating the disjuncts of
+     * {@code WalkerTickDrive}'s {@code boolean jump} to work out which one fired on the End platform
+     * was wrong three ways over, and the shape of the error is worth keeping: that expression is
+     * <b>one of eleven</b> places that can set the request. {@code WalkerTickClimb} alone has eight
+     * ({@code :158, :465, :727, :781, :847, :868, :930, :1021}), and there are more in the drive's
+     * pillar-recover rung, the vine guard and the unstuck burst. Only five of them label themselves
+     * with {@code jumpTag}. Reading the branch conditions of one of eleven and calling the survivor
+     * "the only term that can fire" was never a measurement.
+     *
+     * <p>So the source is taken from the CALL SITE, not from a hand-kept list: a file and line from
+     * the stack cannot fall out of date when a twelfth site appears, and a site that never labelled
+     * itself still names itself. {@code jumpTag} is printed beside it as the human-readable branch
+     * when the site set one — {@code WalkerTickPrelude} clears it every tick, so a stale label cannot
+     * be attributed to this tick — and {@code 未标} when it did not.
+     *
+     * <p>The drive's label chain now ends in {@code 其它} rather than a bare {@code "swim"}. That is
+     * not decoration: a chain whose last arm is a real branch name labels every unmatched case as
+     * that branch, so it can never report that the labels have fallen behind the expression they
+     * describe. If {@code 支=其它} is ever printed, the chain is missing a term — fix the chain before
+     * believing any label it produced.
+     *
+     * <p>One line per EVENT (entry to a run of held ticks), capped at {@link #JUMP_SRC_EVENTS}: the
+     * walker holds jump for dozens of consecutive ticks and a per-tick line would be a hose. The
+     * stack walk happens only on the lines that are actually emitted.
+     */
+    void avatarJump(Avatar a, boolean v) {
+        if (v) noteJumpSource(a);
+        a.commandJump(v);
+    }
+
+    private void noteJumpSource(Avatar a) {
+        net.minecraft.world.entity.player.Player p = a.player();
+        if (p == null) return;
+        long now = p.level().getGameTime();
+        boolean newEvent = now - jumpAskTick > 1;
+        jumpAskTick = now;
+        if (!newEvent || jumpSrcEvents >= JUMP_SRC_EVENTS) return;
+        jumpSrcEvents++;
+        BlockPos foot = BlockPos.containing(p.getX(), p.getY(), p.getZ());
+        BlockPos wp = path != null && step >= 0 && step < path.size() ? path.get(step) : null;
+        String site = StackWalker.getInstance().walk(s -> s.skip(2)
+                .map(f -> f.getFileName() + ":" + f.getLineNumber()).findFirst().orElse("?"));
+        LOG.info("[walker] 起跳来源: t={} 支={} 处={} 身体={} 精确=({}) 路点={} wp.y-foot.y={}",
+                now, jumpTag == null ? "未标" : jumpTag, site, foot.toShortString(),
+                String.format(java.util.Locale.ROOT, "%.3f,%.3f,%.3f", p.getX(), p.getY(), p.getZ()),
+                wp == null ? "无" : wp.toShortString(), wp == null ? "?" : String.valueOf(wp.getY() - foot.getY()));
+    }
+
+    /** Jump-source lines emitted per walker before the latch goes quiet. */
+    private static final int JUMP_SRC_EVENTS = 6;
+    private int jumpSrcEvents;
+    private long jumpAskTick = Long.MIN_VALUE / 4;
     static void avatarSneak(Avatar a, boolean v) { a.commandSneak(v); }
     /** Raw forward (keyUp equivalent) for the special branches that drive the impulse
      *  themselves (the main walk path uses commandMove). v=false also zeroes strafe. */

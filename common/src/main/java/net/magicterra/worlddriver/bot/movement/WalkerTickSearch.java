@@ -221,7 +221,7 @@ final class WalkerTickSearch {
                             LOG.info("[walker] anti-spin: {} water repaths w/o progress after {} re-baselines (d={}) → end best-effort",
                                     wk.goalSpin.repathsNoProgress, wk.goalSpin.churnResets, String.format(Locale.ROOT, "%.0f", d));
                         Walker.avatarForward(a, false);
-                        Walker.avatarJump(a, false);
+                        wk.avatarJump(a, false);
                         p.setSprinting(false);
                         return wk.terminalReport(Walker.Step.ARRIVED, PathTrace.Outcome.SUCCESS, null, "churn-giveup", p.blockPosition());
                     }
@@ -317,7 +317,7 @@ final class WalkerTickSearch {
                         LOG.info("[walker] no path but stuck-penalties still live → waiting out decay ({}/{})",
                                 wk.searchGov.noPathWaitTicks, NO_PATH_WAIT_CAP);
                     Walker.avatarForward(a, false);
-                    Walker.avatarJump(a, false);
+                    wk.avatarJump(a, false);
                     p.setSprinting(false);
                     return Walker.Step.WALKING;
                 }

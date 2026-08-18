@@ -95,7 +95,7 @@ final class WalkerTickProgress {
                 // never null here in practice; if it somehow is, just hold (no
                 // quick-start/beeline) — replay never re-plans.
                 Walker.avatarForward(a, false);
-                Walker.avatarJump(a, false);
+                wk.avatarJump(a, false);
                 p.setSprinting(false);
                 return Walker.Step.WALKING;
             }
@@ -757,7 +757,7 @@ final class WalkerTickProgress {
                         wk.step = 0;
                         wk.seg.commitEnd = null;
                         Walker.avatarForward(a, false);
-                        Walker.avatarJump(a, false);
+                        wk.avatarJump(a, false);
                         p.setSprinting(false);
                         return Walker.Step.WALKING;
                     }
@@ -781,7 +781,7 @@ final class WalkerTickProgress {
                         || (!wk.tryLandBeeline(world, foot, wk.goal)
                             && !wk.tryQuickStart(world, foot, wk.goal) && !wk.tryWaterBeeline(world, foot, wk.goal))) {
                     Walker.avatarForward(a, false);
-                    Walker.avatarJump(a, false);
+                    wk.avatarJump(a, false);
                     p.setSprinting(false);
                     return Walker.Step.WALKING;
                 }

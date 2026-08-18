@@ -93,7 +93,7 @@ final class WalkerTickPrelude {
         // sneaking" so any path that returns without setting them can't leak a stale
         // value — branches below override as needed. (jump only matters on the ground,
         // so a default-false on an airborne tick is a no-op; see AvatarInput.)
-        Walker.avatarJump(a, false);
+        wk.avatarJump(a, false);
         Walker.avatarSneak(a, false);
 
         // Ground pathfinder: end creative flight so the player descends and
@@ -118,7 +118,7 @@ final class WalkerTickPrelude {
             if (!p.onGround() && !world.isWater(new BlockPos(
                     (int) Math.floor(p.getX()), (int) Math.floor(p.getY()), (int) Math.floor(p.getZ())))) {
                 Walker.avatarForward(a, false);
-                Walker.avatarJump(a, false);
+                wk.avatarJump(a, false);
                 p.setSprinting(false);
                 if (BotConfig.walkerDebug)
                     LOG.info(

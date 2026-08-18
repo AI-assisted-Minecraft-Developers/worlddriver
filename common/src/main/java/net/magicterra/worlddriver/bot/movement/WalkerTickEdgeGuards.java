@@ -240,7 +240,7 @@ final class WalkerTickEdgeGuards {
             // On a free-hanging climb hold JUMP every tick (jumping sustains the wall-less vy=+0.2);
             // otherwise jump tracks climbUp (off → slide back down a wall-backed vine to be re-planned).
             if (freeHang || climbUp) wk.jumpTag = "vineClimb";
-            Walker.avatarJump(a, freeHang || climbUp);      // continuous jump on a wall-less climb
+            wk.avatarJump(a, freeHang || climbUp);      // continuous jump on a wall-less climb
             Walker.avatarSneak(a, false);              // sneak would HALT the vine climb
             p.setShiftKeyDown(false);
             p.setSprinting(false);

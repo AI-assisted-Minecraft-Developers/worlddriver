@@ -230,7 +230,7 @@ final class WalkerTickRepath {
             wk.stepUpBackoff.ticks--;
             double sbd = Math.toRadians(angleDiff(p.getYRot(), wk.stepUpBackoff.yaw));
             a.commandMove((float) -Math.sin(sbd), (float) Math.cos(sbd));
-            Walker.avatarJump(a, false);
+            wk.avatarJump(a, false);
             p.setSprinting(false);
             return Walker.Step.WALKING;
         }
@@ -255,7 +255,7 @@ final class WalkerTickRepath {
             boolean burstJump = !(BotConfig.walkerRecoveryHopFloorGate
                     && lethalDropWithinHopRange(world, p, foot));
             if (burstJump) wk.jumpTag = "unstuckBurst";
-            Walker.avatarJump(a, burstJump);
+            wk.avatarJump(a, burstJump);
             p.setSprinting(false);
             return Walker.Step.WALKING;
         }

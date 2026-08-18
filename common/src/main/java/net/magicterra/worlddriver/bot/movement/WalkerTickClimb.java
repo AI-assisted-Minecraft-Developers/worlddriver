@@ -155,7 +155,7 @@ final class WalkerTickClimb {
                     wk.drownGuard.latch = false;
                 }
                 if (wk.drownGuard.latch && reallyInWater && p.isInWater()) {
-                    Walker.avatarJump(a, true);
+                    wk.avatarJump(a, true);
                     a.breakHold(false);
                     p.setSprinting(false);
                     boolean riseBlocked = world.isSolid(foot.offset(0, 2, 0)) || p.horizontalCollision;
@@ -462,7 +462,7 @@ final class WalkerTickClimb {
                     p.setXRot(40f);
                     Walker.avatarForward(a, true);
                     p.setSprinting(false);
-                    Walker.avatarJump(a, true);
+                    wk.avatarJump(a, true);
                     // Fill the top water cell of the LOCKED column (floating) or the feet
                     // cell (grounded on the fresh rung) — not the live foot column, which
                     // drifts off the wall-supported pillar.
@@ -724,7 +724,7 @@ final class WalkerTickClimb {
                     // staircase instead of treading in place. The 0.3 deadband + no-sprint
                     // keep the rise from overshooting back into a bob.
                     boolean needRise = p.isUnderWater() || p.getEyeY() < riser.getY() - 0.3;
-                    Walker.avatarJump(a, needRise);
+                    wk.avatarJump(a, needRise);
                     // No sprinting: a sprinting bot swim-DIVES into the prone pose and dunks
                     // its head underwater (the live "潜入水底/仰头空挖" thrash + the 25× mining
                     // penalty). Upright tread keeps the head out and the dig fast.
@@ -778,7 +778,7 @@ final class WalkerTickClimb {
                 p.setSprinting(false);
                 Walker.avatarForward(a, true);
                 if (p.horizontalCollision) wk.jumpTag = "riserHop";
-                Walker.avatarJump(a, p.horizontalCollision);   // hop only to clear a riser; flat-smooth otherwise
+                wk.avatarJump(a, p.horizontalCollision);   // hop only to clear a riser; flat-smooth otherwise
                 return Walker.Step.WALKING;
             }
             Walker.avatarForward(a, false);
@@ -788,14 +788,14 @@ final class WalkerTickClimb {
             if (wk.step != wk.pillar.step) { wk.pillar.step = wk.step; wk.pillar.sinceJump = -1; }
             if (++wk.actionTicks > BotConfig.breakTimeoutTicks) {
                 a.breakHold(false);
-                Walker.avatarJump(a, false);
+                wk.avatarJump(a, false);
                 wk.lastError = "pillar stalled at " + wk.path.get(wk.step);
                 wk.path = null;
                 return Walker.Step.WALKING;
             }
             for (BlockPos b : edge.toBreak) {
                 if (world.isSolid(b)) {
-                    Walker.avatarJump(a, false);
+                    wk.avatarJump(a, false);
                     a.selectTool(b);
                     if (breathInfeasibleDig(p, b)) {
                         a.breakHold(false);
@@ -844,7 +844,7 @@ final class WalkerTickClimb {
                 shaftFlooded = false;
             }
             if (shaftFlooded || p.isInWater() || world.isWater(wk.path.get(wk.step).offset(0, -1, 0))) {
-                Walker.avatarJump(a, true);
+                wk.avatarJump(a, true);
                 // gap#81: routine pillar/scaffold filler must not spend gathered wood.
                 if (!shaftFlooded && a.holdThrowawayPlaceable()) {
                     BlockPos wp = edge.toPlace.get(0);
@@ -865,10 +865,10 @@ final class WalkerTickClimb {
             BlockPos support = place.offset(0, -1, 0);               // click its top face (block we stood on)
             p.setXRot(89.5f);                                        // look straight down (snap)
             if (p.onGround()) {
-                Walker.avatarJump(a, true);
+                wk.avatarJump(a, true);
                 wk.pillar.sinceJump = 0;
             } else {
-                Walker.avatarJump(a, false);
+                wk.avatarJump(a, false);
                 if (wk.pillar.sinceJump >= 0) wk.pillar.sinceJump++;
                 // Place only once the feet have actually risen clear of the cell
                 // being filled. The target IS the old feet cell, so vanilla's
@@ -927,7 +927,7 @@ final class WalkerTickClimb {
             }
             p.setXRot(0f);
             Walker.avatarForward(a, true);
-            Walker.avatarJump(a, !placed && grounded);   // jump off the lip once
+            wk.avatarJump(a, !placed && grounded);   // jump off the lip once
             boolean sprint = !placed;                          // brake after the block is down
             p.setSprinting(sprint);
             Walker.avatarSneak(a, placed);               // sneak-brake / ledge-guard on landing
@@ -960,7 +960,7 @@ final class WalkerTickClimb {
             // (unreachable from down here) and hold a futile dig until its own
             // timeout — starving the recovery block below that actually climbs.
             Walker.avatarForward(a, false);
-            Walker.avatarJump(a, false);
+            wk.avatarJump(a, false);
             p.setSprinting(false);
             wk.totalTicks = 0;                       // breaking/placing IS progress
             wk.stuckTicks = 0;                       // foot stays put while placing — don't trip the wiggle-jump (it'd leap off a 1-wide bridge)
@@ -1018,7 +1018,7 @@ final class WalkerTickClimb {
                     if ((swimEscapeBreak && p.isInWater() && !p.isUnderWater()) || climbBreak) {
                         Walker.avatarForward(a, true);     // press into the aimed bank (surface only)
                         if (climbBreak || edge.move.startsWith("swimAshore"))
-                            Walker.avatarJump(a, true);   // rise to mount the +1 / out of the pocket
+                            wk.avatarJump(a, true);   // rise to mount the +1 / out of the pocket
                     }
                     return Walker.Step.WALKING;
                 }
@@ -1063,7 +1063,7 @@ final class WalkerTickClimb {
         if (edge != null && "pillarUp".equals(edge.move)
                 && !(p.onGround() && p.getY() >= wk.path.get(wk.step).getY() - 0.1)) {
             Walker.avatarForward(a, false);
-            Walker.avatarJump(a, false);
+            wk.avatarJump(a, false);
             p.setSprinting(false);
             return Walker.Step.WALKING;
         }
