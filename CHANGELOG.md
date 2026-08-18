@@ -68,6 +68,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exactly the reading.
 
 ### Fixed
+- **A tower begun at the end of a walk no longer walks off the column it is filling.** `TowerProcess`
+  jumps, waits for the feet to clear the cell, then fills it — and `Avatar.releaseInputs` clears
+  forward/sneak/jump but touches neither the velocity already in the body nor the sprint FLAG. A body
+  that arrives walking therefore crossed a cell boundary inside its own course, so the fill landed in
+  a column it was no longer over and the next course started from a cell with nothing under it.
+  Measured by `wd.serverTowersAfterAWalk`, whose ONLY difference from the green
+  `wd.serverTowersTwelveCourses` is that the body arrives walking: it spent 3 blocks, put 0 of them in
+  the target column, drifted 4 cells and fell 39. Journey rung 20 had been paying the same bill in the
+  open — one climb spent 13 cobblestone for 5 blocks of height with 933 still in the bag, another
+  ended at y=-17 while its target was y=81. Three changes, each independently insufficient: a course
+  waits for horizontal speed to fall under 0.05 (ground friction takes a walk's 0.156 there in four
+  ticks; a 20-tick backstop keeps a body something else is pushing from hanging); the column is
+  latched with `jumpFromY` at the jump instead of recomputed from the body's current x/z, which had
+  the two halves of one coordinate describing two different moments; and the sprint flag is cleared
+  before the jump, because vanilla adds +0.2 along the yaw on top of the 0.42 whenever
+  `isSprinting()` and a tower is a purely vertical move. Cleared inside the process rather than in
+  `releaseInputs`, which is a default on every avatar and which the Walker rewrites every tick anyway.
+  After: `climbed 8, drift 0,0, spent 8, 8 solid` with the body still arriving at `h=0.1563`.
+
+- **A tower asks its own sole whether it may start a course, not `onGround`.** `onGround` is
+  `verticalCollisionBelow` — it describes the last `move()` and is wrong in both directions.
+  `ServerPlayerAvatar`'s jump gate abandoned it for `WalkerGeometry.soleOnSolid` for exactly that
+  reason, and `wd.flushJumpIgnoresOnGround` already pinned that a body can be flush on stone with
+  `onGround` false; `TowerProcess` was the last reader of it, which made a tower refuse to start on a
+  footing the engine was perfectly happy to jump from. Measured by `wd.serverTowersWithoutOnGround`,
+  which forces the flag false every tick: before, 60 ticks and zero blocks; after, four courses and
+  four blocks, with the sole never leaving the stone in either case.
+
+- **A tower that was never needed no longer reports the same thing as a tower that built.** Both said
+  `done (placed=N)`, so four consecutive climbs on journey rung 20 printed「到顶」while placing
+  nothing — the body was already above its target every time, and the rows that said so were
+  indistinguishable from rows describing a climb. The tower had therefore never once been exercised in
+  the shape that rung uses it, and no reading could have said so. It now answers
+  `not needed (feetY=… already ≥ targetY=…)`. `BotApiImpl` already refuses this argument outright
+  ("target Y must be > current feet Y"); the constructor cannot, because the starting feet are not
+  known until the first tick.
+
+- **A stuck tower reports what it knows instead of guessing it ran out of blocks.**
+  `stuck (no Y gain in 60t — out of blocks?)` was printed while the body held a full stack — on rung
+  20, while holding 933 cobblestone — and a guess written into a product message gets read as a
+  measurement by whoever finds it next. It now carries `placed`, the held count, the phase and the
+  apex, which separate the three real causes: nothing to place, a jump that never cleared its own cell
+  (the phase stays `JUMPING`), and a body being carried off its own column.
+
 - **A body in mid-air could spend a path node on a climb it had not made, and nothing could report
   it.** Every one of the nine step-advance gates answers "has the body reached this node?" with a
   horizontal test and a vertical test taken at the body's *current* y — and mid-jump, the current y
