@@ -257,30 +257,8 @@ final class WalkerTickDrive {
                     wk.step >= 2 ? wk.path.get(wk.step - 2) : null, breakingEdge);
             switch (wk.ascendMovement.updateState(ctx)) {
                 case UNREACHABLE, FAILED -> {                          // fold into the existing re-route (consumed next tick at line 1042)
-                    wk.forceFellOffPath = true;
-                    BlockPos dzNode = wk.path.get(wk.step);
-                    // A re-route only helps if the next one can differ. Count the ones that cannot:
-                    // same foot cell, same target node, same verdict. Reset on either changing, so a
-                    // body that actually shifts keeps its full allowance.
-                    if (foot.equals(wk.searchGov.deadZoneFoot) && dzNode.equals(wk.searchGov.deadZoneNode)) {
-                        wk.searchGov.deadZoneRepeats++;
-                    } else {
-                        wk.searchGov.deadZoneFoot = foot;
-                        wk.searchGov.deadZoneNode = dzNode;
-                        wk.searchGov.deadZoneRepeats = 1;
-                    }
-                    LOG.info("[walker] ascend dead-zone UNREACHABLE move={} node={} foot={} pos=({},{},{}) 连续={} → re-route (task#82)",
-                            edge.move, dzNode, foot, p.getX(), p.getY(), p.getZ(),
-                            wk.searchGov.deadZoneRepeats);
-                    if (BotConfig.walkerAscendDeadZoneCap > 0
-                            && wk.searchGov.deadZoneRepeats >= BotConfig.walkerAscendDeadZoneCap) {
-                        wk.lastError = "ascent dead-zone " + wk.searchGov.deadZoneRepeats
-                                + " times from the same cell — the search keeps returning "
-                                + edge.move + " to " + dzNode + " and the executor keeps refusing it"
-                                + " (foot=" + foot + "); the plan is fine and the body cannot perform it";
-                        return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.NO_PATH,
-                                wk.lastError, "failed:" + wk.lastError, p.blockPosition());
-                    }
+                    Walker.Step give = noteDeadZone(wk, p, foot, edge);
+                    if (give != null) return give;
                 }
                 case PREP, RUNNING, SUCCESS -> { }                     // fall through — legacy drive actuates this tick
             }
@@ -1375,4 +1353,47 @@ final class WalkerTickDrive {
         }
         return Walker.Step.WALKING;
     }
+
+    /**
+     * Count an ascent dead-zone, and give up the leg once re-routing provably cannot help.
+     *
+     * <p>{@code UNREACHABLE} folds into a re-route, which is right when the next plan can differ.
+     * Measured on journey rung 20 (2026-08-18) it could not: a body perched on a 0.16 sole beside the
+     * void re-routed for 2400 ticks — the leg's entire budget — and every single re-route returned
+     * the identical {@code diagUp} to the identical node, while the footing guard, the stride
+     * floor-guard and the recovery hop each correctly declined to move it. Four right answers and no
+     * legal move, in total silence, ending as a plain timeout with {@code end=null}.
+     *
+     * <p>{@link BotConfig#walkerFutileSearchCap} structurally cannot cover it: that counter is gated
+     * on the search NOT reaching the goal, and here the search reaches it every time — the plan is
+     * fine and the body cannot perform it. That is what the message says, because「no route
+     * progress」would be a lie about which half failed.
+     *
+     * <p>The counter advances only while BOTH the foot cell and the target node are unchanged, so a
+     * body that genuinely shifts keeps its full allowance and a transient dead-zone still re-routes.
+     *
+     * @return a terminal {@code FAILED} step to return from {@code run()}, or null to carry on
+     */
+    private static Walker.Step noteDeadZone(Walker wk, Player p, BlockPos foot, Move.Edge edge) {
+        wk.forceFellOffPath = true;
+        BlockPos node = wk.path.get(wk.step);
+        if (foot.equals(wk.searchGov.deadZoneFoot) && node.equals(wk.searchGov.deadZoneNode)) {
+            wk.searchGov.deadZoneRepeats++;
+        } else {
+            wk.searchGov.deadZoneFoot = foot;
+            wk.searchGov.deadZoneNode = node;
+            wk.searchGov.deadZoneRepeats = 1;
+        }
+        LOG.info("[walker] ascend dead-zone UNREACHABLE move={} node={} foot={} pos=({},{},{}) 连续={} → re-route (task#82)",
+                edge.move, node, foot, p.getX(), p.getY(), p.getZ(), wk.searchGov.deadZoneRepeats);
+        if (BotConfig.walkerAscendDeadZoneCap <= 0
+                || wk.searchGov.deadZoneRepeats < BotConfig.walkerAscendDeadZoneCap) return null;
+        wk.lastError = "ascent dead-zone " + wk.searchGov.deadZoneRepeats
+                + " times from the same cell — the search keeps returning " + edge.move
+                + " to " + node + " and the executor keeps refusing it (foot=" + foot
+                + "); the plan is fine and the body cannot perform it";
+        return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.NO_PATH,
+                wk.lastError, "failed:" + wk.lastError, p.blockPosition());
+    }
+
 }
