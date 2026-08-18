@@ -33,6 +33,7 @@ import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
 import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
@@ -283,6 +284,12 @@ public final class JourneyEndRungs {
     private static final int CRYSTAL_WALK_TICKS = 3_000;
     private static final int CRYSTAL_CLIMB_TICKS = 6_000;
     private static final int CRYSTAL_SWING_TICKS = 400;
+    /** How close the pre-swing walk asks to get. Inside {@link #MELEE_REACH} rather than equal to it:
+     *  a goal met exactly on the reach boundary is a hit the next tick's drift can take away. */
+    private static final int CRYSTAL_APPROACH = 3;
+    /** Budget for that walk. Small on purpose — it is closing a few blocks, not crossing the island,
+     *  and a body that cannot close them has a finding to report rather than a budget to spend. */
+    private static final int CRYSTAL_APPROACH_TICKS = 600;
 
     /** How long to wait for a dragon to exist before reporting that none does. */
     private static final int DRAGON_WAIT_TICKS = 600;
@@ -1174,6 +1181,7 @@ public final class JourneyEndRungs {
             // Put the block in the HAND first: TowerProcess can only look in the hotbar, so a body
             // whose hotbar is tools reports "no placeable block" while carrying a stack of stone.
             rig.body().avatar().holdItem(itemOf(pillar));
+            stockHotbar(rig, pillar);
             int climbStock = rig.carrying(pillar);
             // Read BEFORE the tower runs. Taken afterwards it is the tower's own answer, and the one
             // question this row exists to settle is whether the tower had anything to do.
@@ -1188,6 +1196,20 @@ public final class JourneyEndRungs {
                 rig.evidence("crystal." + i + ".climb",
                         climbRow(rig, crystal, top, pillar, climbStock, climbFromY, climb));
                 holdBestWeapon(rig);
+                // CLOSE THE LAST FEW BLOCKS. SwingAt's first statement is `commandMove(0,0)` — it
+                // stands still and swings whatever comes within reach, and a crystal never moves. So
+                // the whole rung rested on the walk and the tower happening to land inside 4.5, and
+                // when they did not, nothing tried: measured 2026-08-18, crystal 0 ended
+                // 「最近 5.2 格，挥 0 刀」and crystal 4「最近 7.4 格，挥 0 刀」— both a short step from a
+                // hit that was never attempted. Radius 3 rather than MELEE_REACH so arriving at the
+                // goal is comfortably inside reach instead of exactly on its edge.
+                double beforeApproach = rig.player().distanceTo(crystal);
+                rig.settle(new IntentProcess(new Intent(new Goal.Near(base, CRYSTAL_APPROACH))),
+                        CRYSTAL_APPROACH_TICKS, () -> {
+                rig.evidence("crystal." + i + ".approach", String.format(Locale.ROOT,
+                        "砸之前收尾走位：%.1f 格 → %.1f 格（门限 %.1f）%s", beforeApproach,
+                        rig.player().distanceTo(crystal), MELEE_REACH,
+                        rig.player().distanceTo(crystal) <= MELEE_REACH ? "" : " —— 仍够不着"));
                 SwingAt swing = new SwingAt(crystal, CRYSTAL_SWING_TICKS, MELEE_REACH);
                 rig.settle(swing, CRYSTAL_SWING_TICKS + 50, () -> {
                     rig.evidence("crystal." + i + ".result", (crystal.isAlive() ? "还在" : "碎了")
@@ -1197,6 +1219,7 @@ public final class JourneyEndRungs {
                             + (swing.refused() == 0 ? "" : "，被拒 " + swing.refused() + " 次：»"
                                     + swing.refusal() + "«") + "）");
                     smashCrystal(ctx, rig, crystals, i + 1);
+                });
                 });
             });
         });
@@ -1323,6 +1346,35 @@ public final class JourneyEndRungs {
                 // being written and thrown away: the process reported it, the rung never read it.
                 + " 自述=" + rig.body().botState().builder.lastError
                 + " 结论=" + verdict;
+    }
+
+    /**
+     * Move more of the pillar block into the hotbar before a climb.
+     *
+     * <p>{@code TowerProcess.ensureHoldingPlaceable} scans hotbar slots 0..8 only (9..35 are read in
+     * creative alone), so a survival body stops the moment the ONE stack it was handed runs out —
+     * measured 2026-08-18, {@code crystal.4.climb} stopped short with
+     * {@code 自述=no placeable block in hotbar} and 542 cobblestone still in the bag.
+     *
+     * <p>This is staging around a product limit, not a fix for it: a bot that has to be handed a
+     * pre-arranged hotbar will stall the same way on a live run. It is done here because widening
+     * {@code ensureHoldingPlaceable} changes an {@code Avatar} contract the client path implements
+     * with container interactions, and {@code wd.serverTowersWithAFullBackpack} pins today's
+     * behaviour on purpose. Arranging one's own hotbar is also something a player does.
+     */
+    private static void stockHotbar(JourneyRig rig, String pillar) {
+        var inv = rig.player().getInventory();
+        Item want = itemOf(pillar);
+        for (int slot = 0; slot < 9; slot++) {
+            if (!inv.getItem(slot).isEmpty()) continue;
+            for (int from = 9; from < inv.getContainerSize(); from++) {
+                ItemStack stack = inv.getItem(from);
+                if (stack.isEmpty() || !stack.is(want)) continue;
+                inv.setItem(slot, stack.copy());
+                inv.setItem(from, ItemStack.EMPTY);
+                break;
+            }
+        }
     }
 
     /**
