@@ -1184,8 +1184,10 @@ public final class Walker {
      * ladder logs depend on.
      *
      * <p>{@code 序=} is the event ordinal within the cap; when {@code t=} is frozen (the one-tick
-     * family) it is the only thing that orders the lines, and {@code 序=6} says the cap was reached
-     * and there may have been more.
+     * family) it is the only thing that orders the lines. {@code 序=6/6} says the cap was REACHED,
+     * which is not the same claim as "more happened" — the follow-on {@code 序=7+/6 已达上限} line
+     * is the one that says an event was actually swallowed, and its ABSENCE after a {@code 序=6/6}
+     * means the body really did stop asking.
      */
     void avatarJump(Avatar a, boolean v) {
         boolean newEvent = v && !lastJumpAsk;
@@ -1197,7 +1199,18 @@ public final class Walker {
     private void noteJumpSource(Avatar a) {
         net.minecraft.world.entity.player.Player p = a.player();
         if (p == null) return;
-        if (jumpSrcEvents >= JUMP_SRC_EVENTS) return;
+        if (jumpSrcEvents >= JUMP_SRC_EVENTS) {
+            // A silent cap and a body that genuinely jumped exactly JUMP_SRC_EVENTS times print
+            // IDENTICALLY — "序=6/6" is the last line in both worlds. Say it once, at the first
+            // event actually suppressed, so the difference is on the page. One-shot on purpose:
+            // the whole reason the cap exists is that a hose of these lines is unreadable.
+            if (!jumpSrcCapped) {
+                jumpSrcCapped = true;
+                LOG.info("[walker] 起跳来源: 序={}+/{} 已达上限，后续事件未记录（此行只印一次）",
+                        JUMP_SRC_EVENTS + 1, JUMP_SRC_EVENTS);
+            }
+            return;
+        }
         jumpSrcEvents++;
         long now = p.level().getGameTime();
         BlockPos foot = BlockPos.containing(p.getX(), p.getY(), p.getZ());
@@ -1222,6 +1235,8 @@ public final class Walker {
     /** Jump-source lines emitted per walker before the latch goes quiet. */
     private static final int JUMP_SRC_EVENTS = 6;
     private int jumpSrcEvents;
+    /** One-shot latch for the "the cap swallowed an event" line — see {@link #noteJumpSource}. */
+    private boolean jumpSrcCapped;
     /** Whether the PREVIOUS {@link #avatarJump} call asked for a jump — the clock-free
      *  "entry to a held run" latch. See that method's javadoc for why a game-time delta
      *  cannot do this job in a scene that runs its whole body inside one server tick. */
@@ -1421,7 +1436,9 @@ public final class Walker {
      * precondition, so {@code call - wiggleLastCall > 1} means exactly "the immediately preceding
      * call was not itself inside the window" — the same event in a per-tick world (this is called
      * at most once per walker tick) and a working one in a one-tick world. {@code 序=} is the
-     * ordinal within the cap, the only thing that orders lines whose {@code t=} is frozen.
+     * ordinal within the cap, the only thing that orders lines whose {@code t=} is frozen; a
+     * trailing {@code 序=5+/4 已达上限} line (and only that line) means a further entry was
+     * swallowed, so {@code 序=4/4} alone still means "exactly four entries".
      *
      * <p>Why this earns a line at all: rung 20's takeoff samples showed the body already airborne
      * with {@code 距上次起跳=7}, and eliminating the jump terms that need a riser or water leaves
@@ -1442,6 +1459,13 @@ public final class Walker {
                     String.format(java.util.Locale.ROOT, "%.3f,%.3f,%.3f", p.getX(), p.getY(), p.getZ()),
                     WalkerGeometry.HOP_RANGE, ring < 0 ? ">" + WIGGLE_SCAN_MAX : String.valueOf(ring),
                     BotConfig.walkerRecoveryHopFloorGate, !gated);
+        } else if (wiggleEvents >= WIGGLE_EVENTS && !wiggleCapped && call - wiggleLastCall > 1) {
+            // Same blind spot as the jump-source cap: "序=4/4" is the last line both when the body
+            // entered the stall window exactly WIGGLE_EVENTS times and when it entered it forty
+            // times. One line, at the first entry the cap actually swallowed.
+            wiggleCapped = true;
+            LOG.info("[walker] 恢复跳: 序={}+/{} 已达上限，后续事件未记录（此行只印一次）",
+                    WIGGLE_EVENTS + 1, WIGGLE_EVENTS);
         }
         wiggleLastCall = call;
         return !gated;
@@ -1450,6 +1474,8 @@ public final class Walker {
     /** Recovery-hop events logged per walker before the latch goes quiet. */
     private static final int WIGGLE_EVENTS = 4;
     private int wiggleEvents;
+    /** One-shot latch for the "the cap swallowed an entry" line — see {@link #wiggleHop}. */
+    private boolean wiggleCapped;
     /** Monotone call counter for {@link #wiggleHop}'s clock-free adjacency latch, and the index of
      *  the last call that was inside the stall window. See that method's javadoc. */
     private long wiggleCalls;
