@@ -1988,6 +1988,7 @@ public final class JourneyEndRungs {
         private int outOfReach;
         private int arrows;
         private int ammoBefore = -1;
+        private int drawTicks;
         private int arrowsAtLastReach;
         private boolean gaveUp;
         /** Why this fight stopped. Four exits produce the identical outside view — a live dragon and
@@ -2060,8 +2061,20 @@ public final class JourneyEndRungs {
             // body far more often.
             if (aim == null && head != null && holdBow(p)) {
                 aimAtPart(p, head, headAway * 0.12);      // lead high for arrow drop
-                if (p.isUsingItem() && p.getTicksUsingItem() >= BOW_FULL_DRAW) {
-                    a.commandUseItem(false);              // up-edge = release = shoot
+                // Count OUR OWN draw ticks. p.getTicksUsingItem() never advances on this body:
+                // LivingEntity.updatingUsingItem() runs from vanilla tick(), and both fake players
+                // have an empty tick() — baseTick only enters through ServerPlayerAvatar.step().
+                // So the 20-tick full-draw test could never be satisfied, and an up-edge release at
+                // zero charge fires nothing at all: three runs held the bow, entered this branch,
+                // and reported 射出 0 箭. Release explicitly at full power instead of asking a
+                // counter that is frozen.
+                if (!p.isUsingItem()) { a.commandUseItem(true); drawTicks = 0; }
+                if (++drawTicks >= BOW_FULL_DRAW) {
+                    ItemStack bow = p.getMainHandItem();
+                    bow.getItem().releaseUsing(bow, p.level(), p,
+                            bow.getUseDuration(p) - drawTicks);
+                    p.stopUsingItem();
+                    drawTicks = 0;
                     // Count AMMO, not releases. The first cut incremented here and reported 9516
                     // shots from a quiver of 256: once the arrows run out stopUsingItem still gets
                     // called every cycle, so the counter went on climbing while nothing was fired.
@@ -2070,8 +2083,6 @@ public final class JourneyEndRungs {
                     int now = p.getInventory().countItem(net.minecraft.world.item.Items.ARROW);
                     if (ammoBefore < 0) ammoBefore = now;
                     if (now < ammoBefore) { arrows += ammoBefore - now; ammoBefore = now; }
-                } else {
-                    a.commandUseItem(true);
                 }
             }
             // Never once in reach for DUEL_OUT_OF_REACH_TICKS: stop waiting. Reset by any approach,
