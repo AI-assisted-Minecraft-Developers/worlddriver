@@ -1,7 +1,9 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
 
@@ -123,6 +125,9 @@ public final class JourneyRig {
     private final SceneContext ctx;
     private final JourneyStage stage;
     private final Map<String, Object> evidence = new LinkedHashMap<>();
+    /** Keys this stage wrote more than once with DIFFERENT values, in the order the clashes
+     *  happened. Rendered into {@code evidence.clash} — see {@link #evidence}. */
+    private final List<String> clashes = new ArrayList<>();
     private String note = "未记录原因";
     private boolean claimed;
 
@@ -700,11 +705,78 @@ public final class JourneyRig {
 
     // ---- writing the outcome ----
 
-    /** Attach a piece of evidence to whatever this stage ends up recording. */
+    /**
+     * Attach a piece of evidence to whatever this stage ends up recording.
+     *
+     * <h2>A second write under the same key is a FACT TO REPORT, never a conflict to resolve</h2>
+     *
+     * This was a plain {@code map.put}, so a later write won and nothing said so. Two call sites in
+     * {@code JourneyEndRungs} write {@code level.realPlayers} — one at the start of the rung, one at
+     * the moment of the failure — and they are a PAIR: the whole reason the second exists is to be
+     * read against the first. A put keeps one of them. On 2026-08-17 both happened to read 1, so the
+     * loss was invisible; the run where they differ is exactly the run where the lost row mattered.
+     *
+     * <p>So neither write wins and nothing is chosen:
+     *
+     * <ul>
+     *   <li><b>Same rendering</b> — the value is restated, not contradicted. Left alone; a second
+     *       row for it would be noise.</li>
+     *   <li><b>Different rendering</b> — both are kept. The first stays under {@code key}, the
+     *       second lands on {@code key#2} (then {@code #3}…), a WARN names the key and both values,
+     *       and {@code evidence.clash} lists every key it happened to, so a reader of the RESULTS
+     *       FILE sees it without going to the log.</li>
+     * </ul>
+     *
+     * <p><b>Rendered strings rather than {@code equals}</b>, because the record is text by the time
+     * anyone reads it: {@code 1} and {@code "1"} are one reading and must not be reported as a
+     * clash.
+     *
+     * <p><b>Not a rename of the caller's key.</b> A reader who greps for {@code level.realPlayers}
+     * still finds the first write where it has always been; the suffix only ever appears on writes
+     * that would otherwise have vanished.
+     */
     public JourneyRig evidence(String key, Object value) {
+        Slot slot = slotFor(key, value);
+        if (slot.clashed()) {
+            WorldDriverCommon.LOG.warn(
+                    "[journey] {} 同一个 evidence key 被写了两次且值不同：{} —— 旧值 {} ／ 新值 {}；"
+                            + "两个都保留了，新值落在 {}",
+                    stage.name(), key, evidence.get(key), value, slot.key());
+            clashes.add(key + "（旧值在 " + key + "，新值在 " + slot.key() + "）");
+            put("evidence.clash", String.join("；", clashes));
+        }
+        put(slot.key(), value);
+        return this;
+    }
+
+    /** Where a write landed, and whether landing there meant an existing row was being contradicted. */
+    private record Slot(String key, boolean clashed) {}
+
+    /** The raw write. Both {@link #evidence} and its own clash row go through here, so there is one
+     *  place that keeps the evidence map and the scene record in step. {@code evidence.clash} is the
+     *  one key that SHOULD overwrite itself — it is a running list, not a reading, so it goes through
+     *  here rather than through the clash detection it would otherwise trip on every entry. */
+    private void put(String key, Object value) {
         evidence.put(key, value);
         ctx.record(key, value);
-        return this;
+    }
+
+    /**
+     * The row this write belongs in: {@code key} while it is free or already says the same thing,
+     * otherwise the first unused {@code key#n}.
+     *
+     * <p>Deliberately idempotent — a value restated a third time lands back on the row that already
+     * holds it rather than growing a new suffix, so a loop that re-records an unchanged reading
+     * cannot manufacture clashes.
+     */
+    private Slot slotFor(String key, Object value) {
+        if (!evidence.containsKey(key)) return new Slot(key, false);
+        String now = String.valueOf(value);
+        for (int n = 1; ; n++) {
+            String slot = n == 1 ? key : key + "#" + n;
+            if (!evidence.containsKey(slot)) return new Slot(slot, true);
+            if (String.valueOf(evidence.get(slot)).equals(now)) return new Slot(slot, false);
+        }
     }
 
     /** Say what this stage would be failing for, if it fails from here on. */
