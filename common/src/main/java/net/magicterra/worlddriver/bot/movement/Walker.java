@@ -1784,6 +1784,16 @@ public final class Walker {
                 break;
             }
         }
+        // Over the void, BRAKE — do not merely stop asking the body to move. Vanilla's own edge
+        // protection, Player.maybeBackOffFromEdge, is gated on p.onGround(), the flag this file has
+        // documented as wrong in BOTH directions; on the tick it reads false the sneak above buys
+        // nothing and the body slides off carrying the momentum it already had. That is the whole
+        // gap between「守卫点了火」and「身体还是走下去了」: rung 20 logged the guard firing at the
+        // lip and left the world anyway, from -15,60,36 / -16,61,34 / -18,61,36 — three cells
+        // inside four blocks of each other on the same island rim. Only bottomless columns get
+        // this: over an ordinary drop a graze costs health the body walks off, and killing momentum
+        // on every ledge would make ridge walking crawl.
+        if (bottomless) p.setDeltaMovement(0.0, dm.y, 0.0);
         boolean canPlug = BotConfig.allowPlace && !a.breakHeld()
                 && (bottomless || constructionPlan || guardPlugFires >= GUARD_PLUG_ARM_FIRES);
         boolean held = canPlug && a.holdPlaceable();
