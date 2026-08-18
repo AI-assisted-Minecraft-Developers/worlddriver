@@ -1096,20 +1096,40 @@ public final class Walker {
      * <p>One line per EVENT (entry to a run of held ticks), capped at {@link #JUMP_SRC_EVENTS}: the
      * walker holds jump for dozens of consecutive ticks and a per-tick line would be a hose. The
      * stack walk happens only on the lines that are actually emitted.
+     *
+     * <p><b>"Entry to a run" is measured against the PREVIOUS CALL, and must never be measured
+     * against the clock.</b> It used to be {@code getGameTime() - jumpAskTick > 1}, and that is
+     * blind for a whole family of scenes: anything that pumps the body in a tight in-body loop
+     * ({@code wd.buriedOre} runs 800 {@code ServerAvatarManager.tickAll()} iterations inside ONE
+     * server tick, as do the {@code wd.serverMine*} family, {@code wd.selfShaftDigUp} and every
+     * other synchronous scene body) advances the walker without advancing the clock, so {@code now}
+     * is CONSTANT for the whole run. After the first emitted line {@code now - jumpAskTick == 0} is
+     * permanently false, the latch never re-opens, and exactly one line is printed no matter how
+     * many separate jump events occurred — so "it happened once" and "it happened forty times and
+     * only the first was printed" read identically. {@code lastJumpAsk} states the same semantics
+     * without a clock: {@code WalkerTickPrelude} calls this once per walker tick with the
+     * {@code false} baseline and the branches override it, so "the previous call also asked" IS
+     * "the previous tick also asked" — in a per-tick world and in a one-tick world alike. A held
+     * run still yields exactly one line in a real world, which is the property the rehearsal and
+     * ladder logs depend on.
+     *
+     * <p>{@code 序=} is the event ordinal within the cap; when {@code t=} is frozen (the one-tick
+     * family) it is the only thing that orders the lines, and {@code 序=6} says the cap was reached
+     * and there may have been more.
      */
     void avatarJump(Avatar a, boolean v) {
-        if (v) noteJumpSource(a);
+        boolean newEvent = v && !lastJumpAsk;
+        lastJumpAsk = v;
+        if (newEvent) noteJumpSource(a);
         a.commandJump(v);
     }
 
     private void noteJumpSource(Avatar a) {
         net.minecraft.world.entity.player.Player p = a.player();
         if (p == null) return;
-        long now = p.level().getGameTime();
-        boolean newEvent = now - jumpAskTick > 1;
-        jumpAskTick = now;
-        if (!newEvent || jumpSrcEvents >= JUMP_SRC_EVENTS) return;
+        if (jumpSrcEvents >= JUMP_SRC_EVENTS) return;
         jumpSrcEvents++;
+        long now = p.level().getGameTime();
         BlockPos foot = BlockPos.containing(p.getX(), p.getY(), p.getZ());
         BlockPos wp = path != null && step >= 0 && step < path.size() ? path.get(step) : null;
         String site = StackWalker.getInstance().walk(s -> s.skip(2)
@@ -1119,7 +1139,8 @@ public final class Walker {
         // actually tests) and the WORLD's block at the foot are printed side by side, so a stale
         // flag, a genuinely wet cell, and a tag that disagrees with its own precondition are three
         // distinct rows instead of one ambiguous one.
-        LOG.info("[walker] 起跳来源: t={} 支={} 处={} 身体={} 精确=({}) 路点={} wp.y-foot.y={} 水={} 没顶={} 脚格={} 脚上={}",
+        LOG.info("[walker] 起跳来源: 序={}/{} t={} 支={} 处={} 身体={} 精确=({}) 路点={} wp.y-foot.y={} 水={} 没顶={} 脚格={} 脚上={}",
+                jumpSrcEvents, JUMP_SRC_EVENTS,
                 now, jumpTag == null ? "未标" : jumpTag, site, foot.toShortString(),
                 String.format(java.util.Locale.ROOT, "%.3f,%.3f,%.3f", p.getX(), p.getY(), p.getZ()),
                 wp == null ? "无" : wp.toShortString(), wp == null ? "?" : String.valueOf(wp.getY() - foot.getY()),
@@ -1131,7 +1152,10 @@ public final class Walker {
     /** Jump-source lines emitted per walker before the latch goes quiet. */
     private static final int JUMP_SRC_EVENTS = 6;
     private int jumpSrcEvents;
-    private long jumpAskTick = Long.MIN_VALUE / 4;
+    /** Whether the PREVIOUS {@link #avatarJump} call asked for a jump — the clock-free
+     *  "entry to a held run" latch. See that method's javadoc for why a game-time delta
+     *  cannot do this job in a scene that runs its whole body inside one server tick. */
+    private boolean lastJumpAsk;
     static void avatarSneak(Avatar a, boolean v) { a.commandSneak(v); }
     /** Raw forward (keyUp equivalent) for the special branches that drive the impulse
      *  themselves (the main walk path uses commandMove). v=false also zeroes strafe. */
@@ -1318,6 +1342,17 @@ public final class Walker {
      * runs of them, so a per-tick line would be a hose. Entry to the window is the event. Capped at
      * {@link #WIGGLE_EVENTS} so a body that stalls repeatedly still cannot flood a rehearsal log.
      *
+     * <p><b>"Entry" is adjacency of CALLS, never of game time.</b> The gate was
+     * {@code getGameTime() - wiggleLastTick > 1}, which cannot see anything in a scene whose whole
+     * body runs inside one server tick — {@code wd.buriedOre}'s 800 {@code tickAll()} iterations,
+     * the {@code wd.serverMine*} family, {@code wd.selfShaftDigUp}. There {@code now} never moves,
+     * so after the first line the delta is 0 forever and one line is printed however many times the
+     * body entered the stall window. {@code wiggleCalls} is bumped on EVERY call, before the
+     * precondition, so {@code call - wiggleLastCall > 1} means exactly "the immediately preceding
+     * call was not itself inside the window" — the same event in a per-tick world (this is called
+     * at most once per walker tick) and a working one in a one-tick world. {@code 序=} is the
+     * ordinal within the cap, the only thing that orders lines whose {@code t=} is frozen.
+     *
      * <p>Why this earns a line at all: rung 20's takeoff samples showed the body already airborne
      * with {@code 距上次起跳=7}, and eliminating the jump terms that need a riser or water leaves
      * {@code wiggle} as the only one that can fire on a flat dry level walk. That elimination is
@@ -1325,26 +1360,30 @@ public final class Walker {
      * This is the reading.
      */
     boolean wiggleHop(WorldView world, net.minecraft.world.entity.player.Player p, BlockPos foot, boolean precond) {
+        long call = ++wiggleCalls;   // bumped BEFORE the precondition: adjacency must count skipped calls too
         if (!(precond && stuckTicks > 10 && stuckTicks < 18)) return false;
         int ring = WalkerGeometry.nearestLethalHopRing(world, p, foot, WIGGLE_SCAN_MAX);
         boolean gated = BotConfig.walkerRecoveryHopFloorGate && ring >= 0 && ring <= WalkerGeometry.HOP_RANGE;
-        long now = p.level().getGameTime();
-        if (wiggleEvents < WIGGLE_EVENTS && now - wiggleLastTick > 1) {
+        if (wiggleEvents < WIGGLE_EVENTS && call - wiggleLastCall > 1) {
             wiggleEvents++;
-            LOG.info("[walker] 恢复跳: t={} 卡住={} 身体={} 精确=({}) 扫描半径={} 最近致命格={} 闸={} 起跳={}",
-                    now, stuckTicks, foot.toShortString(),
+            LOG.info("[walker] 恢复跳: 序={}/{} t={} 卡住={} 身体={} 精确=({}) 扫描半径={} 最近致命格={} 闸={} 起跳={}",
+                    wiggleEvents, WIGGLE_EVENTS,
+                    p.level().getGameTime(), stuckTicks, foot.toShortString(),
                     String.format(java.util.Locale.ROOT, "%.3f,%.3f,%.3f", p.getX(), p.getY(), p.getZ()),
                     WalkerGeometry.HOP_RANGE, ring < 0 ? ">" + WIGGLE_SCAN_MAX : String.valueOf(ring),
                     BotConfig.walkerRecoveryHopFloorGate, !gated);
         }
-        wiggleLastTick = now;
+        wiggleLastCall = call;
         return !gated;
     }
 
     /** Recovery-hop events logged per walker before the latch goes quiet. */
     private static final int WIGGLE_EVENTS = 4;
     private int wiggleEvents;
-    private long wiggleLastTick = Long.MIN_VALUE / 4;
+    /** Monotone call counter for {@link #wiggleHop}'s clock-free adjacency latch, and the index of
+     *  the last call that was inside the stall window. See that method's javadoc. */
+    private long wiggleCalls;
+    private long wiggleLastCall = Long.MIN_VALUE / 4;
 
     /** True while {@link #footingGuard} is holding, so the log records the entry and not every tick. */
     private boolean footingPinned;
