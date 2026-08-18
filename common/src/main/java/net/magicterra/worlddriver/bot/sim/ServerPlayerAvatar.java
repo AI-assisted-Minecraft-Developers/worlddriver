@@ -840,26 +840,88 @@ public class ServerPlayerAvatar implements Avatar {
      * {@code 悬空却报站着} is the one it takes away (a jump that no longer does). Both carry the sole
      * area and the exact y, because a block coordinate cannot tell a body resting at 222.0 from one
      * falling through 222.9.
+     *
+     * <p><b>Why the previous iteration is on the line, and what it is here to separate.</b> Every
+     * quantity above describes THIS iteration, and this iteration cannot tell two very different
+     * histories apart:
+     * <ol>
+     *   <li><b>the support was taken away</b> — the body stood on a block last iteration and
+     *       something (only ever this body's own {@code destroyAimed}, the single destroy channel in
+     *       the repo) removed it, so the body is now falling out of the cell it was standing in;</li>
+     *   <li><b>the body walked off a lip that was never under it</b> — vanilla {@code Entity.collide}
+     *       moves <b>Y first, XZ second</b>, so a fall can be clipped on the top face of the column
+     *       the body starts the tick in (which is what makes {@code y} a whole number and
+     *       {@code onGround()} true) and the horizontal half of the SAME move can then carry the body
+     *       into a DIFFERENT column whose floor was always air — a dug-out stair tread, for
+     *       instance. Not one block has to change for this to produce identical readings.</li>
+     * </ol>
+     * The distinguishing quantity is <b>which column the body was in last iteration</b>: same column
+     * means the floor under it changed, a different column means the body moved off its support. No
+     * other field on this line can make that cut, which is why {@code 上迭代身体} is here.
+     * {@code 上迭代脚底实心} says whether that previous column was standable at all (case 1 requires
+     * it to have been {@code > 0}), and {@code 上迭代水平碰撞} says whether the horizontal half of
+     * the previous move was itself clipped — a body that was pressed against a wall did not glide
+     * anywhere.
+     *
+     * <p>"Iteration", not "tick", is exact: the {@code wd.buriedOre} family pumps
+     * {@code ServerAvatarManager.tickAll()} hundreds of times inside ONE server tick, so a
+     * game-time-keyed cache would hold the value from the START of the whole scene. The snapshot is
+     * taken at the tail of {@link #step()} and is therefore always exactly one {@code step()} old.
      */
     private void noteGateDisagreement(boolean footed, double sole) {
         if (footed == fp.onGround()) return;
         if (footed && !loggedFiredOffGround) {
             loggedFiredOffGround = true;
-            WorldDriverCommon.LOG.info("[avatar] 起跳闸分歧 站着却报没站: t={} 脚底实心={} y={} 落速={} 身体={} {}",
+            WorldDriverCommon.LOG.info("[avatar] 起跳闸分歧 站着却报没站: t={} 脚底实心={} y={} 落速={} 身体={} {} {}",
                     fp.level().getGameTime(), String.format(java.util.Locale.ROOT, "%.4f", sole),
                     String.format(java.util.Locale.ROOT, "%.4f", fp.getY()),
                     String.format(java.util.Locale.ROOT, "%.4f", fp.getDeltaMovement().y),
                     fp.blockPosition().toShortString(),
-                    WalkerGeometry.soleRow(new ServerWorldView(fp.serverLevel()), fp));
+                    WalkerGeometry.soleRow(new ServerWorldView(fp.serverLevel()), fp),
+                    prevIterationRow());
         } else if (!footed && !loggedRefusedOnGround) {
             loggedRefusedOnGround = true;
-            WorldDriverCommon.LOG.info("[avatar] 起跳闸分歧 悬空却报站着: t={} 脚底实心={} y={} 落速={} 身体={} {}",
+            WorldDriverCommon.LOG.info("[avatar] 起跳闸分歧 悬空却报站着: t={} 脚底实心={} y={} 落速={} 身体={} {} {}",
                     fp.level().getGameTime(), String.format(java.util.Locale.ROOT, "%.4f", sole),
                     String.format(java.util.Locale.ROOT, "%.4f", fp.getY()),
                     String.format(java.util.Locale.ROOT, "%.4f", fp.getDeltaMovement().y),
                     fp.blockPosition().toShortString(),
-                    WalkerGeometry.soleRow(new ServerWorldView(fp.serverLevel()), fp));
+                    WalkerGeometry.soleRow(new ServerWorldView(fp.serverLevel()), fp),
+                    prevIterationRow());
         }
+    }
+
+    /** Post-move snapshot of the PREVIOUS {@link #step()} — see {@link #noteGateDisagreement}. */
+    private BlockPos prevFootPos;
+    private double prevSole = Double.NaN;
+    private boolean prevHorizontalCollision;
+
+    /** The three previous-iteration fields as one log fragment; {@code 无} before the first step. */
+    private String prevIterationRow() {
+        if (prevFootPos == null) return "上迭代身体=无 上迭代脚底实心=无 上迭代水平碰撞=无";
+        return "上迭代身体=" + prevFootPos.toShortString()
+                + " 上迭代脚底实心=" + (Double.isNaN(prevSole) ? "无"
+                        : String.format(java.util.Locale.ROOT, "%.4f", prevSole))
+                + " 上迭代水平碰撞=" + prevHorizontalCollision;
+    }
+
+    /**
+     * Take the post-move snapshot the NEXT iteration's disagreement line reads back.
+     *
+     * <p>Unconditional on purpose. The disagreement line fires at most twice per body and nothing
+     * can predict which iteration that will be, so the snapshot cannot be taken on demand; and it is
+     * deliberately not behind {@code BotConfig.walkerDebug}, because the scenes that need it most
+     * turn that flag OFF ({@code wd.buriedOre} does, at its own setup) — a diagnostic a scene can
+     * silence is a diagnostic that is absent exactly when it matters. Cost is the four block reads
+     * {@code soleOnSolid} already does at the jump gate, now once per iteration instead of once per
+     * jump ask.
+     */
+    private void rememberThisIteration() {
+        prevFootPos = fp.blockPosition();
+        prevHorizontalCollision = fp.horizontalCollision;
+        prevSole = fp.level() instanceof ServerLevel sl
+                ? WalkerGeometry.soleOnSolid(new ServerWorldView(sl), fp)
+                : Double.NaN;
     }
 
     /**
@@ -988,6 +1050,10 @@ public class ServerPlayerAvatar implements Avatar {
         // repeat each tick underwater, so only clear when NOT floating in water.
         if (!inWater) pendingJump = false;
         tellTheChunkMapWeMoved();
+        // Last thing in the iteration: the post-move readings the NEXT iteration's ground-gate
+        // disagreement line quotes as 上迭代*. Must stay at the tail — the whole point is that it
+        // describes the world AFTER this move(), not the state the gate saw before it.
+        rememberThisIteration();
     }
 
     /**
