@@ -276,3 +276,18 @@ cap.structuresRegistryReads
 # The journey ladder is off by default (-Dworlddriver.journey=true arms it); this marker always
 # registers so a family that silently stopped registering shows up in a five-minute gate.
 wd.journeyArmed
+
+# The ground-jump gate. `soleOnSolid > 0` replaced `fp.onGround()` (which reports the last move(),
+# not where the body stands) and then shed its `dy <= 0` term; these four hold both directions so a
+# future widening or over-correction cannot pass unnoticed.
+wd.airborneJumpInert
+wd.flushJumpIgnoresOnGround
+wd.climbableGroundJump
+wd.buoyantJumpStaysABob
+
+# A flat parkour leap over lethal void — the shape no scene executed until 2026-08-17, because the
+# only executing jump scene (wd.parkourAscend) jumps the ONE variant the lip's sprint gate exempted.
+# Short/long runway are the two arms; the gate arm records the planner's (still unmodelled) run-up.
+wd.parkourVoidShortRunway
+wd.parkourVoidLongRunway
+wd.parkourVoidRunwayGate
