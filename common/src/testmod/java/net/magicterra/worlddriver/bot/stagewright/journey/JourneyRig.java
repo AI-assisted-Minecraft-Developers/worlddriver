@@ -146,6 +146,8 @@ public final class JourneyRig {
      * leaves this world falls forever.
      */
     private String lostTheWorld;
+    private BlockPos lastGrounded;
+    private int sinceGrounded;
 
     private JourneyRig(SceneContext ctx, JourneyStage stage) {
         this.ctx = ctx;
@@ -446,6 +448,14 @@ public final class JourneyRig {
         if (lostTheWorld != null) return true;
         if (driver == null) return false;
         ServerPlayer fp = driver.fakePlayer();
+        // Remember the last cell the body was standing on, and how long ago. The out-of-world line
+        // says where the body ENDED, and a body falling out of the End travels a long way sideways
+        // on the way down — measured 2026-08-18, it left the island somewhere around (14,58,-36) and
+        // tripped the line at (47,-66,-60), with the 200-tick heartbeat too coarse to have sampled
+        // the departure. Where it left the ground is the coordinate the next round needs; where it
+        // ended is the one that is easy to print.
+        if (fp.onGround()) { lastGrounded = fp.blockPosition(); sinceGrounded = 0; }
+        else sinceGrounded++;
         int floor = fp.level().getMinBuildHeight() - 64;
         if (fp.getY() >= floor) return false;
         lostTheWorld = "身体掉出世界：y=" + Math.round(fp.getY()) + " 已低于 "
@@ -454,6 +464,9 @@ public final class JourneyRig {
                 + "（vanilla Entity.checkBelowWorld 用的同一条线）；位置=" + fp.blockPosition().getX()
                 + "," + fp.blockPosition().getY() + "," + fp.blockPosition().getZ()
                 + " @ " + fp.level().dimension().location()
+                + "；最后一次站在地上=" + (lastGrounded == null ? "本段从未站稳过"
+                        : lastGrounded.getX() + "," + lastGrounded.getY() + "," + lastGrounded.getZ()
+                          + "（" + sinceGrounded + " tick 之前 —— 那一格才是要查的地方）")
                 + "。⚠️ 这具身体 isInvulnerableTo 恒为 true，所以出界伤害被拒、它会一直掉下去 ——"
                 + " 之后每一段行走和每一座塔都是对着虚空下的令，读它们的读数没有意义。";
         evidence("body.leftTheWorld", lostTheWorld);
