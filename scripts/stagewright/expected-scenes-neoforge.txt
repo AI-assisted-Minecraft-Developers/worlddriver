@@ -294,3 +294,14 @@ wd.parkourVoidRunwayGate
 # its own swing — journey rung 20, 2026-08-18. Two arms, the stand is the only variable.
 wd.crystalBlastOnTheCage
 wd.crystalBlastOnThePillar
+
+# One TowerProcess call, many courses — the shape 253 scenes never executed: the only covered tower
+# (wd.serverTowersOutOfADeepShaft) drives ONE course per call, lands the body first, and stands in a
+# walled shaft, while the only multi-course production caller does none of the three. Six arms; the
+# walk, the onGround gate and the already-at-target verdict are expected RED and say why.
+wd.serverTowersTwelveCourses
+wd.serverTowersAfterAWalk
+wd.serverTowersWithoutOnGround
+wd.serverTowersOnAFreePillar
+wd.serverTowersToWhereItStands
+wd.serverTowersWithAFullBackpack
