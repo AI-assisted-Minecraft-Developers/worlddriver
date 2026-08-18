@@ -297,7 +297,11 @@ public final class JourneyEndRungs {
     private static final int CRYSTAL_APPROACH_TICKS = 600;
     /** Passes over the crystal list. Every survivor heals the dragon, so one pass that leaves five
      *  of them alive has not「基本完成」— it has made the fight unwinnable. */
-    private static final int CRYSTAL_SWEEPS = 2;
+    private static final int CRYSTAL_SWEEPS = 3;
+
+    /** The End main island's walking band. A body that has sunk below this is not going to walk
+     *  anywhere useful — every stalled leg measured this run ended at y=52 with the island at 58+. */
+    private static final int ISLAND_WALK_Y = 60;
     /** Which pass over the crystal list is running. Static because the rung is one scene at a time
      *  and the recursion that walks the list cannot carry it without threading it through every
      *  continuation; reset where the list is built. */
@@ -1191,7 +1195,18 @@ public final class JourneyEndRungs {
                     left + "/" + crystals.size() + (sweep == 0 && left > 0 ? " —— 再扫一遍" : ""));
             if (left > 0 && sweep + 1 < CRYSTAL_SWEEPS) {
                 sweep++;
-                smashCrystal(ctx, rig, crystals, 0);
+                // Unwedge before re-asking, for the reason the podium march already proved: the
+                // legs that lose a crystal end 「no progress for 1200 ticks」 with the body sunk
+                // below the island band, and a fresh sweep from down there asks the identical
+                // question that already failed. One tower back to walking height changed six
+                // straight march failures into an arrival on the next round.
+                int back = Math.max(rig.player().blockPosition().getY() + 8, ISLAND_WALK_Y);
+                rig.settle(new TowerProcess(back, pillarBlock(rig)), 2_000, () -> {
+                    rig.evidence("crystals.sweep" + sweep + ".unwedge", "重扫前先垒回 y=" + back
+                            + " → 脚在 y=" + rig.player().blockPosition().getY() + "，"
+                            + rig.body().botState().builder.lastError);
+                    smashCrystal(ctx, rig, crystals, 0);
+                });
                 return;
             }
             duel(ctx, rig, 0);
