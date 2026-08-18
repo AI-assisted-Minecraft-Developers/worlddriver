@@ -421,6 +421,7 @@ public final class JourneyRig {
         int[] waited = {0};
         await(() -> {
             if (watcher != null) watcher.tick();
+            heartbeat(waited[0], ticks, process);
             return d.finished() || bodyLeftTheWorld() || ++waited[0] >= ticks;
         }, ticks + 100, () -> {
             ServerAvatarManager.unregister(d);
@@ -457,6 +458,35 @@ public final class JourneyRig {
                 + " 之后每一段行走和每一座塔都是对着虚空下的令，读它们的读数没有意义。";
         evidence("body.leftTheWorld", lostTheWorld);
         return true;
+    }
+
+    /** Ticks between heartbeats: ten seconds of a rehearsal running at the server's own rate. */
+    private static final int HEARTBEAT_TICKS = 200;
+
+    /**
+     * Say where the body is, every {@link #HEARTBEAT_TICKS}, for as long as a leg is running.
+     *
+     * <p>A rung's evidence map is printed once, at the end. The legs in between are silent unless the
+     * walker happens to emit one of its own capped debug lines, and those caps are per body — once a
+     * long rung has spent them, it produces <b>no output at all</b>. Measured 2026-08-18: rung 20 ran
+     * 30 minutes without a single log line while the server ticked normally at 4.7% CPU, and the only
+     * way to learn that the body had vanished from the level was to query the live game over RPC.
+     * Distinguishing「still walking」from「wedged」has to be cheaper than that, because a rung whose
+     * budget is {@code DUEL_TICKS = 200_000} can otherwise burn hours before saying anything.
+     *
+     * <p>{@code 在关卡} is the reading that would have answered it in one line: a driver can keep
+     * ticking a body that {@code level.players()} no longer contains, and every other row —
+     * position, dimension, progress — looks perfectly healthy in that state.
+     */
+    private void heartbeat(int waited, int ticks, BotProcess process) {
+        if (waited == 0 || waited % HEARTBEAT_TICKS != 0 || driver == null) return;
+        ServerPlayer fp = driver.fakePlayer();
+        WorldDriverCommon.LOG.info(
+                "[journey] 心跳 {} {} 第{}/{} tick 身体={},{},{} @{} 在关卡={} 进程完成={}",
+                stage.name(), process.kind(), waited, ticks,
+                fp.blockPosition().getX(), fp.blockPosition().getY(), fp.blockPosition().getZ(),
+                fp.level().dimension().location(), fp.level().players().contains(fp),
+                driver.finished());
     }
 
     /**
