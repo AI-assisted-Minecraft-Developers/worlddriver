@@ -998,9 +998,23 @@ public final class JourneyEndRungs {
      * and {@code lastError}, so a leg whose process FINISHED reports {@code pathLen=0 move=null}
      * — indistinguishable, without {@code active}, from a planner that never produced a path. A leg
      * that merely ran out of ticks still holds live values.
+     *
+     * <p><b>{@code canPlace}/{@code placeableBlockCount} are printed because they are the only pair
+     * that separates the two ways a bridge fails to be PLANNED.</b> Every other row here describes
+     * what the body did; these two describe what the search was allowed to consider.
+     * {@code BridgePlace.eval} opens with {@code if (!w.canPlace()) return null}, and
+     * {@link net.magicterra.worlddriver.bot.world.LevelWorldView#placeableBlockCount} counts only
+     * the HOTBAR, and only items {@code BotConfig.isUsableBuildBlock} accepts — so a body carrying
+     * 1024 cobblestone in its backpack reads {@code canPlace=false} and no bridge edge is ever
+     * generated. That is a different defect from a bridge edge that IS generated and then loses on
+     * price: a {@code parkour3} across the same two cells costs 32, while the bridge chain costs
+     * {@code 20+20+10}-ish per cell and lands near 170, so the leap wins by more than five to one
+     * and「the planner never intended to bridge」is true for two unrelated reasons. Without this
+     * pair the two are one row.
      */
     private static String planOf(JourneyRig rig, String pillar, int stockBefore) {
         var slot = rig.body().botState().mc_goto;
+        var view = rig.body().world();
         int spent = stockBefore - rig.carrying(pillar);
         return "放了 " + spent + " 块 " + pillar + "；active=" + slot.active
                 + " pathLen=" + slot.pathLen + " move=" + slot.pathMove
@@ -1014,7 +1028,11 @@ public final class JourneyEndRungs {
                 // are the ones taken while there was still ground under the question.
                 + "；首次起跳 " + slot.parkourTakeoff
                 + "；首个计划 " + slot.firstPlan
-                + "；place " + rig.body().avatar().placeTally();
+                + "；place " + rig.body().avatar().placeTally()
+                + "；canPlace=" + view.canPlace()
+                + " placeableBlockCount=" + view.placeableBlockCount()
+                + "（只数快捷栏里的可建造方块 —— 背包里的不算，所以 0 说明这一段压根生成不出"
+                + " bridge 边，与「生成了但被 parkour3 的 32 比价比下去」是两回事）";
     }
 
     /**
