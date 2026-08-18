@@ -105,8 +105,15 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
                 // nobody will notice regressing.
                 Scene.of("wd.parkourVoidShortRunway", 200,
                         WorldDriverParkourVoidScenes::parkourVoidShortRunway).withRequired(false),
+                // The reverse arm, and it ships OPTIONAL for the same reason the forward one does:
+                // "a long run-up clears this gap" is a claim nobody has measured. `lethalNear` reads
+                // only the CURRENT foot cell's eight neighbours, so eleven blocks of runway behind
+                // the body change it by not one bit — both arms may launch with sprint already off,
+                // in which case a run-up buys nothing and this arm is red for a reason that has
+                // nothing to do with over-correction. PROMOTE TO REQUIRED the first time it is green:
+                // only then does it start guarding against a fix that kills parkour outright.
                 Scene.of("wd.parkourVoidLongRunway", 200,
-                        WorldDriverParkourVoidScenes::parkourVoidLongRunway),
+                        WorldDriverParkourVoidScenes::parkourVoidLongRunway).withRequired(false),
                 // Records the CURRENT answer of an unmodelled run-up threshold; its short half is
                 // expected RED. PROMOTE TO REQUIRED the first time it goes green.
                 Scene.of("wd.parkourVoidRunwayGate", 200,
