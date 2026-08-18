@@ -331,13 +331,48 @@ rehearsal.wetOnDeparture = minecraft:overworld 水=true 没顶=true 脚格=Block
    `isUnderWater()` 为真让这条分支**一次世界读数都没做**就点了火；
 5. 身体离台 → 7 tick 后 parkour 边轮到时人在 `y=50.177` → 起跳闸**正确地**拒绝 → 走路速度迈出台沿 → 虚空。
 
-⚠️ **陈旧窗口的宽度没有测到**：`起跳来源` 是事件锁存，t=117 与 t=124 之间没有读数，
-只能说「t=117 陈旧、t=124 已正确」，不能说它持续了 7 tick。
+### ⛔ 两条更正（只读追查交回，含反编译核对）
 
-⚠️ **「这是产品缺陷还是布景产物」尚未定案**：真梯是穿传送门进末地（要塞里，身上通常不带水），
-而布景是 fixture 的跨维度 `teleportTo`。但「走出水面后第一 tick 仍读到水」这一支**与传送无关**，
-是 walker-先读-avatar-后更新的结构性一 tick 滞后——那一支在真梯的湖沿是够得着的。
-两条要分开判，不能拿一条的证据去认另一条。
+**1. 陈旧窗口是 1 个 tick，不是 7 个。** `fp.baseTick()` 在 `ServerPlayerAvatar.step():881` 无条件跑，
+`:885` 的 `inWater` 在它之后读 ⇒ **同一 tick 里 walker 读到 true、`step()` 读到 false**。
+日志里的 7 tick 是**打印节流**。弹道算术独立佐证：一次 0.42 之后每 tick `v←(v−0.08)×0.98`，
+第 7 tick 正好 `50.1768`，与 `精确=(98.834,50.177,0.500)` 三位小数全中 ⇒ **只发过一次冲量**。
+⇒ **不要拿两条锁存读数之间的间隔当某个状态的寿命。**
+
+**2. 这一次是布景产物，真梯不踩。** 真梯过界在 `Entity.baseTick():535` 的 `handlePortal()`，
+流体在 **541/542** 重算——**同一次 baseTick、过界之后**；`EndPortalBlock.entityInside` 只是
+`setAsInsidePortal` 上一个一 tick 标志，不直接换维度。而 fixture 的 `fp.teleportTo` 在任何
+baseTick 之外调，且驱动器此时**尚未注册**（`JourneyRig:394` 才 register）⇒ 从传送到下一次
+`step()` 之间没有任何 baseTick。
+
+**✅ 已修（布景侧）**：传送 + `loadAround` 之后跑一次 `fp.baseTick()`——真梯的过界本来就发生在
+它里面，而且 `step()` 每 tick 都在调它，所以这不引入驱动器不做的任何行为。**并加了断言**：
+落地后若 `isInWater()||isUnderWater()` 仍为真就 `ctx.fail`，让布景**拒绝**把带缺陷的身体交给第 20 级
+（`rehearsal.wetOnDeparture` 仍然记录它带出来的东西，修掉产物但不掩盖）。
+
+### ⬜ 真正结构性的不是「落后一 tick」，是**冻结窗口**（产品侧，未修）
+
+`baseTick()` 在这具身体上**只**从 `ServerPlayerAvatar.step()` 进入（两种假玩家的 vanilla `tick()`
+都是空的），而 `step()` 只在驱动器**注册期间**跑 ⇒ **两次 settle 之间——包括全部布景代码执行期间——
+流体旗标是冻的**，冻在上一段被驱动的最后一 tick，可能是几千 tick 前、另一个维度里的值。
+
+产品里绕过 `baseTick` 的位置突变点已经存在：`ReplayInstaller:72/127` 的 `moveTo`（**已经咬过一次**——
+`WalkerTickClimb:139-146` 的 `reallyInWater` 守卫就是那次的疤）、`ServerPlayerAvatar:163-169` 的
+`setPos` 作用在 `ServerAvatarBodies.shared(level)` 这个**每 level 单例**上、`/tp`。
+
+**同病判据约 31 条（约 120 个读点），只有 4 条被证伪**；最贵的三类是冲量／弹道、**闩锁**
+（`WalkerTickAim:477` 的 `surfaceWaterLatch` 纯身体旗标写、零世界读数）、**不可逆推进**
+（`WalkerTickProgress` 一族，步进指针推过去不会退回来）。
+⚠️ 反方向（干→湿的 stale-FALSE）让整族水处理**静默一 tick 且不打任何日志行**。
+
+⬜ **下一刀的顺序（已定，未落）**：先落**跨 tick 不变量自报**（walker 读之前记一次、baseTick 之后
+再记一次，不同就打一行，与 `noteGateDisagreement` 同形）——**枚举 31 条不是测量，知道哪几条
+真被喂过脏数据才是**；再谈修法。修法两条都要做、R1-b 先：
+**R1-b**「在突变点刷新」（比较 `(level, position)` 与上次 `step()` 结束时的记录，不同才补算；
+⚠️ 它**不是只读的**，会施加一次水流推力，必须当物理变更评估）；
+**R2**「`swimColumn` 补世界读数」，且必须是**一族格的析取**再与旗标合取
+（`p.isInWater() && (isWater(foot)||isWater(foot.above())||isWater(foot.below())) && …`）——
+收紧成单格会在浮力抖动的波峰把这条分支关掉，而那正是它存在的理由。
 
 ---
 
