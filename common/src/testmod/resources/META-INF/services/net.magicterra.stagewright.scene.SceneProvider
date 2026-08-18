@@ -13,6 +13,6 @@ net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverAvatarScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverProcessScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverCoverageScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverBridgeScenes
-net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverParkourVoidScenes
 net.magicterra.worlddriver.bot.stagewright.scene.StageWrightCapabilityScenes
 net.magicterra.worlddriver.bot.stagewright.journey.WorldDriverJourneyScenes
+net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverParkourVoidScenes
