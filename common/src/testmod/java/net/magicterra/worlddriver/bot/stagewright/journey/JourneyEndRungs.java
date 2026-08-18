@@ -27,6 +27,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
 import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
 import net.minecraft.world.entity.player.Player;
@@ -1049,8 +1050,8 @@ public final class JourneyEndRungs {
     private static String planOf(JourneyRig rig, String pillar, int stockBefore) {
         var slot = rig.body().botState().mc_goto;
         var view = rig.body().world();
-        int spent = stockBefore - rig.carrying(pillar);
-        return "放了 " + spent + " 块 " + pillar + "；active=" + slot.active
+        return "放了 " + blocksSpent(rig, pillar, stockBefore) + " 块 " + pillar
+                + "；active=" + slot.active
                 + " pathLen=" + slot.pathLen + " move=" + slot.pathMove
                 + " end=" + slot.endReason + " err=" + slot.lastError
                 + (slot.active ? "" : "（进程已终止，pathLen/move 是 reset 之后的空值，"
@@ -1132,15 +1133,31 @@ public final class JourneyEndRungs {
         int top = Mth.floor(crystal.getY()) - 2;
         rig.attempting("砸掉第 " + i + " 座柱子上的末影水晶（" + xyz(base) + "）");
         rig.evidence("crystal." + i + ".at", xyz(base));
+        // Read the leg's STARTING state before the leg, not after it. The body mines and places as
+        // it walks, so `blockAt(from.below())` asked in the continuation describes the world at the
+        // END of the leg while claiming to describe its start.
+        BlockPos from = rig.player().blockPosition();
+        String fromUnder = blockAt(rig, from.below());
+        String legItem = pillarBlock(rig);
+        int legStock = rig.carrying(legItem);
+        LegWatch walk = new LegWatch(rig);
         rig.settle(new IntentProcess(new Intent(new Goal.XZ(base.getX(), base.getZ(), 2))),
-                CRYSTAL_WALK_TICKS, () -> {
+                CRYSTAL_WALK_TICKS, walk, () -> {
+            rig.evidence("crystal." + i + ".leg", legRow(rig, from, fromUnder, legItem, legStock, walk));
             String pillar = pillarBlock(rig);
             // Put the block in the HAND first: TowerProcess can only look in the hotbar, so a body
             // whose hotbar is tools reports "no placeable block" while carrying a stack of stone.
             rig.body().avatar().holdItem(itemOf(pillar));
-            rig.evidence("crystal." + i + ".climb", "爬到 y=" + top + "，用 " + pillar + " ×"
-                    + rig.carrying(pillar));
-            rig.settle(new TowerProcess(top, pillar), CRYSTAL_CLIMB_TICKS, () -> {
+            int climbStock = rig.carrying(pillar);
+            // `.climb.plan`, not `.climb`: this is what the climb SET OUT to do, and `.climb` is now
+            // what it achieved. One key for both would be the silent overwrite JourneyRig.evidence
+            // exists to shout about, and the two rows answer different questions.
+            rig.evidence("crystal." + i + ".climb.plan",
+                    "爬到 y=" + top + "，用 " + pillar + " ×" + climbStock);
+            LegWatch climb = new LegWatch(rig);
+            rig.settle(new TowerProcess(top, pillar), CRYSTAL_CLIMB_TICKS, climb, () -> {
+                rig.evidence("crystal." + i + ".climb",
+                        climbRow(rig, crystal, top, pillar, climbStock, climb));
                 holdBestWeapon(rig);
                 SwingAt swing = new SwingAt(crystal, CRYSTAL_SWING_TICKS, MELEE_REACH);
                 rig.settle(swing, CRYSTAL_SWING_TICKS + 50, () -> {
@@ -1152,6 +1169,119 @@ public final class JourneyEndRungs {
                 });
             });
         });
+    }
+
+    /**
+     * One settle's worth of tick-by-tick bookkeeping: how long it ran, and how low the body got
+     * <b>inside</b> it.
+     *
+     * <h2>Why the first sample is thrown away</h2>
+     *
+     * {@code SceneContext.advance} drains steps greedily — the tick that registers a settle also
+     * evaluates its wait condition once, before the world has moved — so sample 0 is taken at the
+     * STARTING position. A {@code 最低y} that includes its own start is a reading that can never
+     * contradict the start, and this ladder has already been misled by exactly that shape once: a
+     * healthy arm was judged red because its minimum was polluted by the spawn point the leg began
+     * on. Dropping sample 0 is what makes this a property of the leg.
+     *
+     * <p>It follows that a leg which finished before its second sample reports {@code 未采样} rather
+     * than a number. That is the honest answer: nothing between the start and the end was observed,
+     * because there was nothing between them.
+     *
+     * <h2>What it does not do</h2>
+     *
+     * It never steers, never fails and never touches the world — {@link JourneyFlight} is the full
+     * trajectory recorder and this is the two-number version, for legs that want a cost and a floor
+     * without a per-tick narrative.
+     */
+    private static final class LegWatch implements JourneyRig.TickWatcher {
+
+        private final JourneyRig rig;
+        private int samples;
+        private int lowest = Integer.MAX_VALUE;
+
+        LegWatch(JourneyRig rig) { this.rig = rig; }
+
+        @Override public void tick() {
+            if (samples++ == 0) return;
+            lowest = Math.min(lowest, rig.player().blockPosition().getY());
+        }
+
+        /** Ticks this leg actually ran. Sample 0 costs no tick of the world, so it does not count. */
+        int ticks() { return Math.max(0, samples - 1); }
+
+        /** The lowest y reached after the start, or 未采样 when the leg never got a second sample. */
+        String lowestY() { return lowest == Integer.MAX_VALUE ? "未采样" : String.valueOf(lowest); }
+    }
+
+    /**
+     * What one crystal-to-crystal move cost and where it left the body — the row {@code island.*}
+     * has for the march and the crystal phase had for nothing at all.
+     *
+     * <p>Measured 2026-08-17: after the sixth crystal the body stood on its own tower at
+     * {@code 31,100,24} with crystal 7 at {@code (-34,-25)}, did not come down, and ended at
+     * {@code -43,94,20} before falling to {@code y=-32453}. Every number in that sentence was
+     * RECONSTRUCTED — from an inventory delta, a handful of guard log lines and the two coordinates
+     * that happen to be recorded. The crystal phase recorded no start, no end, no cost and no floor
+     * for any of its moves, so「it bridged about eighty blocks through the sky」was an inference,
+     * and the next failure would have had to be inferred again.
+     *
+     * <p><b>Same 数法 as {@code island.*.plan}</b> — {@link #blocksSpent}, called from both — so a
+     * crystal leg and a march leg can be compared without first asking which counter each used.
+     *
+     * <p><b>{@code end}/{@code err} are the walker's own words</b>: {@code IntentProcess} copies
+     * {@code Walker.lastEndReason} into {@code mc_goto.endReason} and {@code Walker.lastError} into
+     * {@code mc_goto.lastError} at every terminal exit, and both survive {@code reset()} precisely so
+     * they can be read afterwards. Nothing here invents a verdict word of its own.
+     */
+    private static String legRow(JourneyRig rig, BlockPos from, String fromUnder,
+                                 String item, int stockBefore, LegWatch watch) {
+        BlockPos to = rig.player().blockPosition();
+        var slot = rig.body().botState().mc_goto;
+        return "起点=" + xyz(from) + " 脚下=" + fromUnder
+                + " → 终点=" + xyz(to) + " 脚下=" + blockAt(rig, to.below())
+                + "  放了 " + blocksSpent(rig, item, stockBefore) + " 块 " + item
+                + "  最低y=" + watch.lowestY() + "（不含起点 y=" + from.getY() + "）"
+                + "  用了 " + watch.ticks() + " tick"
+                + "  end=" + slot.endReason + " err=" + slot.lastError;
+    }
+
+    /**
+     * Whether the tower got where it was sent — stated, not left to be subtracted.
+     *
+     * <p>Crystals 1 and 2 of the 2026-08-17 run ended with the body at {@code y=56} and {@code y=59}
+     * under crystals 20.8 and 38.0 blocks away, and zero swings. All of that was readable only by
+     * taking {@code crystal.N.at}, subtracting {@code crystal.N.result}'s parenthesised y and
+     * knowing that {@code TowerProcess} aims two blocks under the crystal. A row that says
+     * {@code 结论=没到顶} needs none of that.
+     *
+     * <p>{@code 差} is {@code 目标y − 实到y}: positive is how far short it stopped. Negative would
+     * mean it overshot, which {@code TowerProcess} should never do and would itself be the finding.
+     */
+    private static String climbRow(JourneyRig rig, EndCrystal crystal, int top, String pillar,
+                                   int stockBefore, LegWatch watch) {
+        int y = rig.player().blockPosition().getY();
+        return "目标y=" + top + "（水晶在 y=" + Mth.floor(crystal.getY()) + "，塔停在它下面 2 格）"
+                + " 实到y=" + y + " 差=" + (top - y)
+                + " 放了 " + blocksSpent(rig, pillar, stockBefore) + " 块 " + pillar
+                + " 用了 " + watch.ticks() + " tick"
+                + " 结论=" + (y >= top ? "到顶" : "没到顶");
+    }
+
+    /**
+     * How many of {@code item} a leg put into the world, as a NET inventory difference.
+     *
+     * <p>The one place this file counts placements, called by {@code island.*.plan} and by both
+     * crystal rows, because two counters that disagree are worse than either alone. Net, so a leg
+     * that mined more of the item than it placed reports a negative number — that is a fact about
+     * the leg and not a reason to clamp it to zero.
+     *
+     * <p>Distinct from {@code ServerPlayerAvatar.placeTally()}, which is a lifetime counter of the
+     * ACTUATOR's calls and refusals and cannot be differenced per leg. The two answer different
+     * questions and {@code island.*.plan} prints both.
+     */
+    private static int blocksSpent(JourneyRig rig, String item, int stockBefore) {
+        return stockBefore - rig.carrying(item);
     }
 
     private static void duel(SceneContext ctx, JourneyRig rig, int round) {
@@ -1219,7 +1349,52 @@ public final class JourneyEndRungs {
         // rather than as「身体不在场」.
         rig.evidence("dragon.rangeNow", fightRangeNow(rig));
         recordTheFightNow(rig, end);
+        rig.evidence("dragon.byUuid", dragonByUuid(end, fight));
         ctx.fail(whyNoDragon(rig, end, fight, inList));
+    }
+
+    /**
+     * Ask the LEVEL for the dragon by the fight's own UUID — the reading that splits the two worlds
+     * {@code dragon.present=false} otherwise prints identically.
+     *
+     * <p>{@link #nearestDragon} builds its box around <b>the body</b>, so it can only ever answer
+     * 「盒子里有没有龙」. A body that has fallen to {@code y=-32453} is guaranteed an empty box
+     * whatever the End contains — and on 2026-08-17 that is exactly what it reported, beside a
+     * {@code dragonFight.now.dragonUUID=967f837e-…} that says vanilla had built one.
+     * {@code ServerLevel.getEntity(UUID)} goes to the level's entity index instead, so its answer
+     * does not depend on where the body is.
+     *
+     * <h2>How to read it — all three of these print {@code dragon.present=false}</h2>
+     *
+     * <ul>
+     *   <li><b>查到</b> ⇒ <b>the dragon IS there and the body is not with it.</b> The rung's problem
+     *       is the body's position, not the fight. The coordinates, health and {@code isRemoved}
+     *       printed beside it say whether it is also still where it was born.</li>
+     *   <li><b>查不到, UUID non-null</b> ⇒ <b>the dragon was removed.</b> Vanilla built one — only
+     *       {@code createNewDragon}/{@code findOrCreateDragon} write that field — and the level no
+     *       longer holds that entity.</li>
+     *   <li><b>无UUID</b> ⇒ this row has NO opinion: nothing was ever built, and that fork belongs to
+     *       {@code dragonFight.now.dragonUUID} and {@link #whyNoDragon}. Printed as a word rather
+     *       than left blank, because an empty row reads like a lookup that came back empty.</li>
+     * </ul>
+     */
+    private static String dragonByUuid(ServerLevel end, EndDragonFight fight) {
+        UUID id = fight == null ? null : fight.getDragonUUID();
+        if (id == null) {
+            return "无UUID —— " + (fight == null ? "这个末地没有 EndDragonFight" : "龙战没记过 dragonUUID")
+                    + "，所以这一行不做判断（是「龙在不在」之外的第三种情况）";
+        }
+        Entity e = end.getEntity(id);
+        if (e == null) {
+            return "查不到：level.getEntity(" + id + ")=null —— 龙战建过龙（dragonUUID 非空），"
+                    + "而这个末地现在没有这个实体，即龙被移除了；不是「身体不在一起」";
+        }
+        String hp = e instanceof LivingEntity le
+                ? String.format(Locale.ROOT, "%.1f/%.1f", le.getHealth(), le.getMaxHealth())
+                : "非 LivingEntity（" + e.getClass().getSimpleName() + "）";
+        return "查到：" + BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()) + " 在 "
+                + xyz(e.blockPosition()) + "，血 " + hp + "，isRemoved=" + e.isRemoved()
+                + " —— 龙还在，是身体没跟它在一起（dragon.present=false 说的是盒子，不是世界）";
     }
 
     /**
@@ -1266,8 +1441,8 @@ public final class JourneyEndRungs {
                     .append("（起跑时刻是 dragonFight.dragonUUID / dragonFight.crystalsAlive，对照着读）。")
                     .append("所以这一级的问题不是「没有对手」，是身体和对手不在一起：龙生在 (0,128,0)，"
                             + "身体在 ").append(String.format(Locale.ROOT, "%.1f", away))
-                    .append(" 格外。缺的读数是 level.getEntity(dragonUUID) —— 只有它能分开"
-                            + "「龙还在、只是盒子没罩到」和「龙已经不在了」。");
+                    .append(" 格外。这一分叉由 dragon.byUuid 判：那一行拿 dragonUUID 直接问 "
+                            + "level.getEntity()，查到 = 龙还在、只是盒子没罩到；查不到 = 龙已经不在了。");
             if (away > 192.0) {
                 s.append("另外 validPlayer 的 192 格这一半此刻不成立，龙战已经不 tick 了"
                         + "（dragonEvent 空 ⇒ tick() 走 else 分支，连 arena ticket 都退掉），"
