@@ -104,6 +104,66 @@ final class WalkerTickProgress {
      *  that walled pockets re-enter the repath/churn machinery promptly. */
     static final int TAIL_HOLD_STALL_TICKS = 30;
 
+    /**
+     * A body in mid-air must not spend a path node on a climb it has not made.
+     *
+     * <p>The nine advance gates each answer "has the body reached node {@code w}?" with a horizontal
+     * test plus a vertical one taken <b>at this instant's y</b>, and mid-jump this instant's y is a
+     * lie about where the body will be standing. Consuming {@code w} at the apex points the walker
+     * at {@code nx}; if {@code nx} is higher than {@code w} and the body then lands back on {@code
+     * w}'s floor, the pointer is now one step further AND one block higher than anything the body can
+     * reach — a {@code +2} that {@code StepUp2}'s own gate says A* never plans. Measured on
+     * {@code wd.buriedOre} (four consecutive advances, all airborne; this is advance 3 of them):
+     *
+     * <pre>
+     * 序=3 因=within 旧步=3 新步=4 w=106659,223,99999 nx=106660,224,100000
+     *      身体精确=(106659.527,223.252,100000.151) cur2=0.425 (&lt; REACH_DIST_SQ=0.45)
+     *      |w.y-p.y|=0.252 |nx.y-p.y|=0.748 onGround=false 脚底实心=0.0000
+     * </pre>
+     *
+     * The body landed at y=222 and spent the rest of the scene jumping at a node it tops out one
+     * block under. Note the cause: {@code within}, whose vertical clause is {@code |dyNode| < 1.2}
+     * and which has no ground test of any kind. Refuse at the ONE {@code step++} instead of inside
+     * each gate, so {@code within}/{@code passed}/{@code tail}/{@code arc} are all covered by one
+     * predicate that cannot fall out of step with them.
+     *
+     * <p>The three terms, and why each is exactly this and not something adjacent:
+     *
+     * <ul>
+     *   <li><b>{@code nx.y > w.y} only.</b> Flat and descending continuations are untouched — a body
+     *       airborne over a walk or a drop is going where the pointer says regardless of when the
+     *       node is consumed. Only a RISING continuation can strand the pointer above the body.</li>
+     *   <li><b>{@code !p.isInWater()} is load-bearing, not defensive.</b> A buoyant body reads
+     *       {@code onGround=false} and {@code soleOnSolid=0} for the whole of every crossing, and a
+     *       flat surface swim advances on {@code passed} every few ticks. Without this term the
+     *       water family would not stall occasionally — it would never advance again.</li>
+     *   <li><b>{@code soleOnSolid < FOOTING_MIN}, not {@code !onGround()}.</b> Same predicate as the
+     *       ground-jump gate and {@code Walker}'s footing guard, so this introduces no fifth opinion
+     *       about what standing means. {@code onGround} describes the previous {@code move()} and is
+     *       wrong in both directions.</li>
+     * </ul>
+     *
+     * <p><b>Part of what this does is move the failure, deliberately.</b> With the pointer held on
+     * {@code w} the walker keeps driving the body at a cell the arena's own audit says is standable;
+     * if it genuinely cannot get there, {@code noStepProgressTicks} accumulates and the wedge/repath
+     * machinery takes it from there. That is the entire gain: the old behaviour was a silent chase of
+     * an unreachable target, silent precisely because every counter that could have complained sees a
+     * pointer that keeps <i>advancing</i>. The new behaviour is a deterministic failure that reports
+     * itself.
+     *
+     * <p>Two siblings of the same defect are NOT fixed here, and both should be read as still
+     * suspect: {@code within}'s {@code |dyNode| < 1.2} and {@code stepUpCrestReach}'s
+     * {@code |dyNode| < 0.5} (default off, and the only relaxed-advance gate with no {@code nx}
+     * reachability clause at all). Both decide a vertical question from the y the body happens to
+     * hold this tick. This guard sits at the advance OUTLET, so it covers them; their own criteria
+     * remain wrong.
+     */
+    private static boolean airborneClimbConsume(WorldView world, Player p, BlockPos w, BlockPos nx) {
+        return nx != null && nx.getY() > w.getY()
+                && !p.isInWater()
+                && WalkerGeometry.soleOnSolid(world, p) < FOOTING_MIN;
+    }
+
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
@@ -745,8 +805,8 @@ final class WalkerTickProgress {
             // keeps the reach helpers (legacy drives). Edge-execution holds above still gate advancement.
             boolean legacyAdvance = within || passed || tailConsumed || crossedDescendNode || crossedWalkNode
                     || waterStepDownFloat || stepUpCrestReach || waterWalkReach;
-            boolean doAdvance = legacyAdvance
-                    || (BotConfig.walkerArcLengthAdvance && wk.arc.proj.segIdx > wk.step);
+            boolean doAdvance = (legacyAdvance || (BotConfig.walkerArcLengthAdvance && wk.arc.proj.segIdx > wk.step))
+                    && !airborneClimbConsume(world, p, w, wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null);   // ONE outlet for all nine gates — an airborne body must not spend a node on a climb; see the helper's javadoc for the wd.buriedOre reading
             if (doAdvance) {
                 // Don't CONSUME the final node of a disk goal while it sits inside the goal
                 // radius but the bot's FOOT cell is still one block short of it. The node-reach

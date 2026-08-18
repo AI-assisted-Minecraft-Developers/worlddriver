@@ -68,6 +68,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exactly the reading.
 
 ### Fixed
+- **A body in mid-air could spend a path node on a climb it had not made, and nothing could report
+  it.** Every one of the nine step-advance gates answers "has the body reached this node?" with a
+  horizontal test and a vertical test taken at the body's *current* y — and mid-jump, the current y
+  is a claim about the apex, not about where the body will be standing. `wd.buriedOre` advanced four
+  consecutive nodes while airborne, the third of them reading
+
+  ```
+  序=3 因=within 旧步=3 新步=4 w=106659,223,99999 nx=106660,224,100000
+       身体精确=(106659.527,223.252,100000.151) cur2=0.425  (< REACH_DIST_SQ=0.45)
+       |w.y-p.y|=0.252 |nx.y-p.y|=0.748 onGround=false 脚底实心=0.0000
+  ```
+
+  The advance was `within`, whose vertical clause is `|dyNode| < 1.2` and which has no ground test of
+  any kind. The body landed back at y=222, leaving the pointer at a node two blocks above its feet —
+  a `+2` that `StepUp2`'s own gate states A* never plans — and it jumped at that node for the rest of
+  the scene.
+
+  The refusal sits at the single `step++`, so `within`, `passed`, the tail consume and the arc
+  projection are all covered by one predicate that cannot drift out of step with them: don't consume
+  a node whose successor is *higher* while the sole is off solid ground. Dry land only — a buoyant
+  body reads no footing for the whole of every water crossing, so the same guard applied there would
+  freeze surface swimming outright rather than occasionally. Footing is `soleOnSolid < FOOTING_MIN`,
+  the predicate the ground-jump gate and the footing guard already use, rather than `!onGround()`,
+  which describes the previous `move()` and is wrong in both directions.
+
+  Part of the effect is to *move* the failure, which is the point. The walker now keeps driving the
+  body at a cell the arena's own audit calls standable, and if it truly cannot get there
+  `noStepProgressTicks` accumulates and the wedge/repath machinery takes over. The old behaviour was
+  a silent chase of an unreachable target — silent precisely because every counter that could have
+  complained was watching a pointer that kept advancing. Two siblings are left standing and remain
+  suspect: `within`'s `|dyNode| < 1.2`, and `stepUpCrestReach`'s `|dyNode| < 0.5`, which is the one
+  relaxed-advance gate with no `nx` reachability clause at all.
+
 - **A run-up made a leap over void *less* likely to clear it, because the lip switched off the
   sprint.** The lethal-edge sprint brake asks `lethalDropAdjacent(world, p, foot)` — does any of the
   *foot cell's* eight horizontal neighbours drop further than `survivableFall` — and its only
