@@ -708,6 +708,14 @@ public final class Walker {
     }
 
     private static void appendCell(StringBuilder sb, BlockGetter lvl, String label, BlockPos p) {
+        // A post-mortem must not MAKE world. On a ServerLevel, getBlockState on an unloaded chunk
+        // loads/generates it on the calling thread — a probe that hangs the gate run it was added
+        // to diagnose. Plan nodes are normally inside the arena the search just walked, but this
+        // is a public probe over an arbitrary plan, so 未加载 is a legal reading and a stall is not.
+        if (lvl instanceof net.minecraft.world.level.LevelReader lr && !lr.hasChunkAt(p)) {
+            sb.append(label).append("未加载");
+            return;
+        }
         BlockState st = lvl.getBlockState(p);
         sb.append(label).append(st.blocksMotion() ? "实" : "空").append(st.getBlock());
     }
