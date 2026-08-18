@@ -13,6 +13,7 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.movement.BlastFooting;
 import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.process.BotProcess;
@@ -287,6 +288,10 @@ public final class JourneyEndRungs {
     /** How close the pre-swing walk asks to get. Inside {@link #MELEE_REACH} rather than equal to it:
      *  a goal met exactly on the reach boundary is a hit the next tick's drift can take away. */
     private static final int CRYSTAL_APPROACH = 3;
+
+    /** Budget for the step onto a blast-proof stand. Short: it is one cell away or it is not
+     *  reachable, and a long budget here only delays the crystal after it. */
+    private static final int CRYSTAL_RESEAT_TICKS = 400;
     /** Budget for that walk. Small on purpose — it is closing a few blocks, not crossing the island,
      *  and a body that cannot close them has a finding to report rather than a budget to spend. */
     private static final int CRYSTAL_APPROACH_TICKS = 600;
@@ -310,8 +315,15 @@ public final class JourneyEndRungs {
     private static final int DUEL_MARCH_TICKS = 6_000;
     /** Attempts at the podium walk before the fight starts wherever the body got to. */
     private static final int DUEL_MARCH_ROUNDS = 3;
-    /** How close to the podium counts as「在中央」. A 3D radius, unlike the old {@code Goal.XZ}. */
-    private static final int DUEL_STAND_RADIUS = 6;
+    /** How close to the podium counts as「在中央」. A 3D radius, unlike the old {@code Goal.XZ}.
+     *
+     *  <p>Was 6, and 6 is what lost a fight that had already earned itself: with every crystal down
+     *  the body took the stand {@code 5,58,-1} —— 5.5 格 off-centre and TWO BELOW the platform ——
+     *  and the run's own verdict was 「连续 4000 tick 龙一次都没进过 4.5 格 —— 这不是打不动，是没在
+     *  架里」. A perched dragon's head sits over the fountain, so a radius wider than melee reach
+     *  admits stands from which the fight is unwinnable while reporting 「到了」. The radius that
+     *  decides where to fight must be smaller than the reach that decides whether a hit lands. */
+    private static final int DUEL_STAND_RADIUS = 2;
     /** Ticks the duel tolerates with the dragon never once inside reach before it stops waiting.
      *
      *  <p>{@link #DUEL_TICKS} is 200 000 — 2.8 hours at the server's own rate — and it is spent
@@ -1243,6 +1255,37 @@ public final class JourneyEndRungs {
                         rig.player().distanceTo(crystal), MELEE_REACH,
                         beforeApproach <= MELEE_REACH - 0.5 ? "（本来就够得着，没走）" : "",
                         rig.player().distanceTo(crystal) <= MELEE_REACH ? "" : " —— 仍够不着"));
+                // 「先站到炸不掉的落脚上再砍」— the two-step the guard's javadoc says attackEntity
+                // cannot do, done here because this rung owns both steps. The tower is raised
+                // BESIDE the spike, so its top is cobblestone (R=6.0) however high it goes and no
+                // change to the climb target can fix that; the blast-proof cells are the spike's
+                // own obsidian and the bedrock under the crystal, a step away.
+                // The stand list is candidates to WALK to, never「可以站」: reachability is unverified
+                // by construction (vanilla's cage lid is a solid 5x5 of iron bars over the only
+                // qualifying floor), so the walk is the test. A candidate must also be within reach
+                // of the crystal — a perfect stand 4 cells away that cannot swing is not a remedy.
+                String refusal = BlastFooting.refuseSwing(rig.player(), crystal);
+                BlockPos betterStand = null;
+                if (refusal != null) {
+                    double reach = (MELEE_REACH - 0.5) * (MELEE_REACH - 0.5);
+                    for (BlockPos st : BlastFooting.qualifyingStands(rig.player().level(),
+                            rig.player().blockPosition(), BlastFooting.needFor(crystal))) {
+                        if (st.distSqr(base) <= reach) { betterStand = st; break; }
+                    }
+                }
+                final BlockPos chosen = betterStand;
+                BotProcess reseat = chosen == null ? new HoldStill(1)
+                        : new IntentProcess(new Intent(new Goal.Block(chosen)));
+                rig.settle(reseat, CRYSTAL_RESEAT_TICKS, () -> {
+                rig.evidence("crystal." + i + ".reseat", chosen != null
+                        ? "落脚炸得掉，挪到 " + chosen.toShortString() + "（脚下 "
+                          + blockAt(rig, chosen.below()) + "）→ 挪完站在 "
+                          + xyz(rig.player().blockPosition()) + "，"
+                          + (BlastFooting.refuseSwing(rig.player(), crystal) == null
+                                  ? "不再被拒" : "仍被拒")
+                        : refusal == null ? "落脚本来就抗得住这一炸，没挪"
+                        : "拒绝挥刀，但半径 " + BlastFooting.STAND_SURVEY_RADIUS
+                          + " 内没有既抗得住这一炸、又够得着水晶的落脚");
                 SwingAt swing = new SwingAt(crystal, CRYSTAL_SWING_TICKS, MELEE_REACH);
                 rig.settle(swing, CRYSTAL_SWING_TICKS + 50, () -> {
                     rig.evidence("crystal." + i + ".result", (crystal.isAlive() ? "还在" : "碎了")
@@ -1252,6 +1295,7 @@ public final class JourneyEndRungs {
                             + (swing.refused() == 0 ? "" : "，被拒 " + swing.refused() + " 次：»"
                                     + swing.refusal() + "«") + "）");
                     smashCrystal(ctx, rig, crystals, i + 1);
+                });
                 });
                 });
             });
@@ -1428,8 +1472,12 @@ public final class JourneyEndRungs {
         if (left <= 0) { then.run(); return; }
         rig.settle(new IntentProcess(new Intent(new Goal.Near(podium, DUEL_STAND_RADIUS))),
                 DUEL_MARCH_TICKS, () -> {
-            boolean close = rig.player().blockPosition().distSqr(podium)
-                    <= DUEL_STAND_RADIUS * DUEL_STAND_RADIUS;
+            // Height is its own clause, not a component of the distance: standing 2 below the
+            // platform is 2 units of error in a radius but the whole fight in reach, because the
+            // head hovers ABOVE the fountain and every block down is a block of reach spent.
+            BlockPos me = rig.player().blockPosition();
+            boolean close = me.distSqr(podium) <= DUEL_STAND_RADIUS * DUEL_STAND_RADIUS
+                    && me.getY() >= podium.getY() - 1;
             if (close) then.run();
             else marchToPodium(rig, podium, left - 1, then);
         });

@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot.movement;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 import net.minecraft.core.BlockPos;
@@ -209,10 +211,20 @@ public final class BlastFooting {
      * blocks motion, the two body cells do not), so this survey and the escape's agree about what a
      * candidate looks like even though neither decides anything with it.
      */
-    private static String surveyStands(Level level, BlockPos from, double need) {
-        int found = 0;
-        BlockPos nearest = null;
-        double nearestDist = Double.MAX_VALUE;
+    /**
+     * The qualifying stands themselves, nearest first — the survey above as a value instead of a
+     * sentence.
+     *
+     * <p>The survey's javadoc says no caller may branch on it because reachability is unverified,
+     * and that stays true of this list: <b>a caller must treat each entry as a candidate to WALK
+     * to, and let the walk be the reachability test.</b> That is a different contract from
+     *「可以站」. A caller that teleports to one, or that reports success because the list is
+     * non-empty, is making exactly the false-yes the wording was written to prevent. Rung 20 uses
+     * it the intended way: it walks, and if the walk does not arrive it is no worse off than the
+     * refusal it started from.
+     */
+    public static List<BlockPos> qualifyingStands(Level level, BlockPos from, double need) {
+        List<BlockPos> out = new ArrayList<>();
         for (int dx = -STAND_SURVEY_RADIUS; dx <= STAND_SURVEY_RADIUS; dx++)
             for (int dy = -STAND_SURVEY_RADIUS; dy <= STAND_SURVEY_RADIUS; dy++)
                 for (int dz = -STAND_SURVEY_RADIUS; dz <= STAND_SURVEY_RADIUS; dz++) {
@@ -221,10 +233,21 @@ public final class BlastFooting {
                     if (floor.isAir() || floor.getBlock().getExplosionResistance() < need) continue;
                     if (level.getBlockState(stand).blocksMotion()
                             || level.getBlockState(stand.above()).blocksMotion()) continue;
-                    found++;
-                    double d = stand.distSqr(from);
-                    if (d < nearestDist) { nearestDist = d; nearest = stand; }
+                    out.add(stand.immutable());
                 }
+        out.sort((a, b) -> Double.compare(a.distSqr(from), b.distSqr(from)));
+        return out;
+    }
+
+    /** The threshold a stand must clear to survive a hit on {@code target}. */
+    public static double needFor(Entity target) {
+        return blastProofResistance(blastPowerOnHurt(target));
+    }
+
+    private static String surveyStands(Level level, BlockPos from, double need) {
+        List<BlockPos> stands = qualifyingStands(level, from, need);
+        int found = stands.size();
+        BlockPos nearest = found == 0 ? null : stands.get(0);
         if (found == 0)
             return String.format(Locale.ROOT,
                     "半径 %d 内一格合格落脚都看不见（每格要么脚下抗性不足/是空气，要么身体站不进去）；",
