@@ -1249,6 +1249,74 @@ public final class Walker {
      *  "entry to a held run" latch. See that method's javadoc for why a game-time delta
      *  cannot do this job in a scene that runs its whole body inside one server tick. */
     private boolean lastJumpAsk;
+
+    /**
+     * One line per STEP ADVANCE — which gate consumed the node, and whether the body was standing
+     * on anything when it did.
+     *
+     * <p><b>The pair of readings that separates two step-advance stories.</b> A pointer that has
+     * moved past a node is consistent with the body having reached it and with the body having been
+     * mid-jump over it, and the vertical distance alone cannot tell them apart: the {@code passed}
+     * gate's {@code |nx.y − p.y| < 1.2} reachability bar is evaluated against the body's y AT THIS
+     * INSTANT, and a 0.42 impulse lifts a grounded body ~1.25 blocks, so a node two above the
+     * FLOOR reads as within reach at the top of a jump the body cannot stay at. {@code onGround},
+     * {@code 脚底实心} and {@code 落速} therefore ride on the same line as the two |Δy| terms — a
+     * distance without a footing is the same row in both worlds, and the whole point of the line is
+     * that they be different rows.
+     *
+     * <p>{@code 脚底实心} is {@link WalkerGeometry#soleOnSolid}, the predicate the ground jump gate
+     * itself steers by, deliberately rather than a second opinion about what standing means: an
+     * executor and a reading that answer that question differently is how a diagnosis comes to
+     * describe a body that does not exist.
+     *
+     * <p><b>{@code 因=} is the branch that FIRED, not a reconstruction.</b> The flags are passed in
+     * from the decision site and joined, so two simultaneously-true gates print as {@code
+     * within+passed} instead of the caller having to pick one, and an advance matching NONE of the
+     * named flags prints {@code 其它} — a chain whose last arm is a real gate name would label every
+     * unmatched case as that gate and could never report that the labels had fallen behind the
+     * expression. {@code cur2}/{@code nd2}/{@code overshot} come from the same site for the same
+     * reason; {@code nd2=NaN} is the honest reading for a tick where {@code within} fired and the
+     * {@code passed} arithmetic never ran.
+     *
+     * <p>Capped like {@link #noteJumpSource} and for the same reason, with the same one-shot
+     * {@code 已达上限} line — and, as there, the gate is an ORDINAL and never the clock:
+     * {@code wd.buriedOre} pumps its whole body inside ONE server tick, so a game-time latch would
+     * print the first line and go blind for the rest of the run. NOT gated on
+     * {@code BotConfig.walkerDebug}, which that scene switches off.
+     */
+    void noteStepAdvance(WorldView world, Player p, BlockPos foot, BlockPos w, BlockPos nx,
+                         String cause, double cur2, double nd2, boolean overshot) {
+        if (stepAdvEvents >= STEP_ADV_EVENTS) {
+            if (!stepAdvCapped) {
+                stepAdvCapped = true;
+                LOG.info("[walker] 步进: 序={}+/{} 已达上限，后续事件未记录（此行只印一次）",
+                        STEP_ADV_EVENTS + 1, STEP_ADV_EVENTS);
+            }
+            return;
+        }
+        stepAdvEvents++;
+        LOG.info("[walker] 步进: 序={}/{} 因={} 旧步={} 新步={} w={} nx={} 身体={} 精确=({}) "
+                        + "cur2={} nd2={} overshot={} |w.y-p.y|={} |nx.y-p.y|={} onGround={} 脚底实心={} 落速={}",
+                stepAdvEvents, STEP_ADV_EVENTS, cause, step, step + 1,
+                w == null ? "无" : w.toShortString(),
+                nx == null ? "无(末节点)" : nx.toShortString(),
+                foot == null ? "无" : foot.toShortString(),
+                String.format(Locale.ROOT, "%.3f,%.3f,%.3f", p.getX(), p.getY(), p.getZ()),
+                String.format(Locale.ROOT, "%.3f", cur2), String.format(Locale.ROOT, "%.3f", nd2), overshot,
+                w == null ? "?" : String.format(Locale.ROOT, "%.3f", Math.abs(w.getY() - p.getY())),
+                nx == null ? "?" : String.format(Locale.ROOT, "%.3f", Math.abs(nx.getY() - p.getY())),
+                p.onGround(),
+                world == null ? "?" : String.format(Locale.ROOT, "%.4f", soleOnSolid(world, p)),
+                String.format(Locale.ROOT, "%.4f", p.getDeltaMovement().y));
+    }
+
+    /** Step-advance lines emitted per walker before the latch goes quiet. Higher than
+     *  {@link #JUMP_SRC_EVENTS} because a plan is consumed node by node and the first few
+     *  advances of a run are legitimate ones — the interesting event is not the first. */
+    private static final int STEP_ADV_EVENTS = 8;
+    private int stepAdvEvents;
+    /** One-shot latch for the "the cap swallowed an advance" line — see {@link #noteStepAdvance}. */
+    private boolean stepAdvCapped;
     static void avatarSneak(Avatar a, boolean v) { a.commandSneak(v); }
     /** Raw forward (keyUp equivalent) for the special branches that drive the impulse
      *  themselves (the main walk path uses commandMove). v=false also zeroes strafe. */

@@ -50,6 +50,54 @@ import static net.magicterra.worlddriver.bot.movement.WalkerGeometry.*;
 final class WalkerTickProgress {
     private WalkerTickProgress() {}
 
+    /** The step-advance gates, in the order {@link #advanceCause} is handed their flags. */
+    private static final String[] ADVANCE_NAMES = {
+            "within", "passed", "tail", "crossDesc", "crossWalk",
+            "waterStepDown", "crestReach", "waterWalk", "arc"};
+
+    /** [STEP-ADV-DIAG temp — remove before commit] why a grounded grossly-overshot node won't
+     *  advance (-823 dimple churn): logs which advance fired + the descend-geometry sub-conditions.
+     *  Lifted out of {@link #run} verbatim (same gate, same fields, same order) so the step-advance
+     *  reading could be added without growing that method past its source budget. */
+    private static void stepAdvDiag(Walker wk, Player p, BlockPos foot, BlockPos w, Move.Edge se,
+                                    boolean within, boolean passed, boolean crossedDescendNode,
+                                    boolean crossedWalkNode, double cur2) {
+        if (!(BotConfig.walkerDebug && !within && p.onGround() && cur2 > OVERSHOOT_RESYNC_SQ
+                && wk.stepProg.noStepProgressTicks > 6 && wk.step + 1 < wk.path.size())) return;
+        BlockPos dN = wk.path.get(wk.step + 1);
+        double dsegx = dN.getX() - w.getX(), dsegz = dN.getZ() - w.getZ();
+        double doffx = p.getX() - (w.getX() + 0.5), doffz = p.getZ() - (w.getZ() + 0.5);
+        LOG.info("[walker] STEP-ADV-DIAG step={}/{} w={} cur2={} footNodeDy={} se={} disc={} | passed={} crossDesc={} crossWalk={} | nx={} nxY={} pY={} fwdDot={} nxYgate={}",
+                wk.step, wk.path.size(), w, String.format("%.2f", cur2),
+                foot.getY() - w.getY(), (se != null && se.move != null ? se.move : "null"),
+                (se != null && se.move != null && (se.move.startsWith("fall") || se.move.equals("stepDown"))),
+                passed, crossedDescendNode, crossedWalkNode,
+                dN, dN.getY(), String.format("%.2f", p.getY()),
+                String.format("%.2f", doffx * dsegx + doffz * dsegz),
+                Math.abs(dN.getY() - p.getY()) < 1.2);
+    }
+
+    /**
+     * Every advance gate that was TRUE, joined with {@code +}; {@code 其它} when none was.
+     *
+     * <p>Not a ternary chain. A chain ending in a real gate name labels every case its earlier arms
+     * failed to match as that last gate, so it reports a confident branch name for a tick nobody
+     * described and can never say that the labels have drifted from the expression they name. Two
+     * gates firing on the same tick is a real state here (a node can be both reached and passed),
+     * and it prints as the two of them rather than as whichever the author happened to test first.
+     * {@code 其它} is the reading that means this list is now short a term — believe nothing else on
+     * that line's causal claim until the list is fixed.
+     */
+    private static String advanceCause(boolean... fired) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < fired.length && i < ADVANCE_NAMES.length; i++) {
+            if (!fired[i]) continue;
+            if (sb.length() > 0) sb.append('+');
+            sb.append(ADVANCE_NAMES[i]);
+        }
+        return sb.length() == 0 ? "其它" : sb.toString();
+    }
+
     /** Ticks of stalled step progress after which a far-ahead best-effort tail stops being
      *  held (walkerTailConsumeDirectional) and the legacy distance-consume applies — a
      *  wedge-scale window: long enough to ride out a slow but real approach, short enough
@@ -412,6 +460,11 @@ final class WalkerTickProgress {
             // sliced repath that starts from a now-stale foot) leaves `step`
             // pointing at a node BEHIND the player, so the aim flips ~180°.
             boolean passed = false;
+            // Hoisted for the advance reading below, so it prints the numbers the decision USED
+            // rather than re-deriving them after the body moved. They stay NaN/false when `within`
+            // fired and this block never ran — the honest reading for "never computed", not a zero.
+            double nd2 = Double.NaN;
+            boolean overshot = false;
             if (!within && wk.step + 1 < wk.path.size()) {
                 BlockPos nx = wk.path.get(wk.step + 1);
                 double ndx = (nx.getX() + 0.5) - p.getX();
@@ -443,8 +496,8 @@ final class WalkerTickProgress {
                 // has overshot. (b) The in-water "don't skip a buoyant +1 climb" gate
                 // is dropped. The |Δy|<1.2 reachability gate on nx STAYS in both
                 // cases, so the re-sync still can't lock onto an impossible +2 climb.
-                boolean overshot = cur2 > OVERSHOOT_RESYNC_SQ;
-                double nd2 = ndx * ndx + ndz * ndz;
+                overshot = cur2 > OVERSHOOT_RESYNC_SQ;
+                nd2 = ndx * ndx + ndz * ndz;
                 // Fell BELOW a descend node the bot has gone PAST: a steep crest /
                 // shoulder where the bot crosses with forward momentum and free-falls
                 // 2-3 blocks past the fall node, grounding on the terrace below it
@@ -679,22 +732,7 @@ final class WalkerTickProgress {
                     LOG.info("[walker] water-walk-reach ADVANCE step={}/{} node={} cur2={} stall={}",
                             wk.step, wk.path.size(), w, String.format(Locale.ROOT, "%.3f", cur2), wk.stepProg.noStepProgressTicks);
             }
-            // [STEP-ADV-DIAG temp — remove before commit] why a grounded grossly-overshot node won't
-            // advance (-823 dimple churn): logs which advance fired + the descend-geometry sub-conditions.
-            if (BotConfig.walkerDebug && !within && p.onGround() && cur2 > OVERSHOOT_RESYNC_SQ
-                    && wk.stepProg.noStepProgressTicks > 6 && wk.step + 1 < wk.path.size()) {
-                BlockPos dN = wk.path.get(wk.step + 1);
-                double dsegx = dN.getX() - w.getX(), dsegz = dN.getZ() - w.getZ();
-                double doffx = p.getX() - (w.getX() + 0.5), doffz = p.getZ() - (w.getZ() + 0.5);
-                LOG.info("[walker] STEP-ADV-DIAG step={}/{} w={} cur2={} footNodeDy={} se={} disc={} | passed={} crossDesc={} crossWalk={} | nx={} nxY={} pY={} fwdDot={} nxYgate={}",
-                        wk.step, wk.path.size(), w, String.format("%.2f", cur2),
-                        foot.getY() - w.getY(), (se != null && se.move != null ? se.move : "null"),
-                        (se != null && se.move != null && (se.move.startsWith("fall") || se.move.equals("stepDown"))),
-                        passed, crossedDescendNode, crossedWalkNode,
-                        dN, dN.getY(), String.format("%.2f", p.getY()),
-                        String.format("%.2f", doffx * dsegx + doffz * dsegz),
-                        Math.abs(dN.getY() - p.getY()) < 1.2);
-            }
+            stepAdvDiag(wk, p, foot, w, se, within, passed, crossedDescendNode, crossedWalkNode, cur2);
             // Phase-1 (walkerArcLengthAdvance): the bob-immune path projection ADDS a step-advance the legacy
             // gates miss — advance when the foot's forward projection has reached a later segment
             // (arcProj.segIdx > step). It is a SUPPLEMENT, not a replacement: the seven legacy gates
@@ -727,6 +765,14 @@ final class WalkerTickProgress {
                 if (wk.step + 1 >= wk.path.size() && diskGoal
                         && !wk.goal.reached(foot) && wk.goal.reached(wk.path.get(wk.path.size() - 1)))
                     break;
+                // The step-advance reading, at the ONE `step++` in the walker (so within/passed/tail
+                // are all covered here) and AFTER the disk-goal hold — see Walker#noteStepAdvance.
+                wk.noteStepAdvance(world, p, foot, w,
+                        wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null,
+                        advanceCause(within, passed, tailConsumed, crossedDescendNode, crossedWalkNode,
+                                waterStepDownFloat, stepUpCrestReach, waterWalkReach,
+                                BotConfig.walkerArcLengthAdvance && wk.arc.proj.segIdx > wk.step),
+                        cur2, nd2, overshot);
                 wk.step++;
             }
             else break;
