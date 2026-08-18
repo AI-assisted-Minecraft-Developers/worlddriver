@@ -172,6 +172,43 @@ public abstract class Move {
      *  the sprint-jump maximum. */
     public static final int RUNUP_CELLS = 2;
 
+    /** How far down a gap must be clear before it counts as bottomless rather than as a pit the
+     *  body would merely fall into. Matches the walker's own {@code BOTTOMLESS_SCAN_FLOOR}: the two
+     *  must agree, or the planner routes over a gap the executor's guards then refuse to cross. */
+    public static final int VOID_SCAN_FLOOR = -70;
+
+    /**
+     * True when every intermediate column of a leap from {@code from} to {@code to} falls all the
+     * way out of the world.
+     *
+     * <p>Why a leap over THIS gets refused outright rather than repriced: the arithmetic was done
+     * and it does not work. {@code parkour3} costs 32; the bridge chain that replaces it costs
+     * 80+80+10 = 170, so for a price change to prefer bridging, a placed block would have to cost
+     * under 11 — cheaper than {@code walk} itself, and 80 is exactly what killed「深谷凌空架桥」
+     * when it was raised from 30. A cost model that has to lie about the price of one move to get
+     * the right answer for another is not the tool for this; a hard rule is.
+     *
+     * <p>The asymmetry is the point. Misjudging a leap over a 3-deep pit costs a few ticks and a
+     * climb out. Misjudging one over the void ends the run: this body's {@code isInvulnerableTo} is
+     * permanently true, so it does not die and land at spawn — it falls forever, and every order
+     * issued afterwards is issued to a body in the void. Rung 20 has ended that way repeatedly
+     * (measured: 身体掉出世界 y=-65, 位置 -61,-65,16, 已砸碎 5/10 座).
+     */
+    public static boolean overTheVoid(WorldView w, BlockPos from, BlockPos to) {
+        int steps = Math.max(Math.abs(to.getX() - from.getX()), Math.abs(to.getZ() - from.getZ()));
+        if (steps < 2) return false;
+        int sx = Integer.signum(to.getX() - from.getX()), sz = Integer.signum(to.getZ() - from.getZ());
+        for (int i = 1; i < steps; i++) {
+            BlockPos col = from.offset(sx * i, 0, sz * i);
+            boolean bottomless = true;
+            for (int y = col.getY() - 1; y >= VOID_SCAN_FLOOR; y--) {
+                if (!w.isPassable(new BlockPos(col.getX(), y, col.getZ()))) { bottomless = false; break; }
+            }
+            if (!bottomless) return false;
+        }
+        return true;
+    }
+
     /**
      * The same question asked with the direction of travel — which is the only way to ask it.
      *

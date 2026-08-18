@@ -1423,6 +1423,13 @@ public final class BotConfig {
      *  move — hence lethal-only here never blocks a legitimate planned step-down. */
     public static volatile boolean lethalEdgeBrake = true;
 
+    /** Refuse to PLAN a parkour leap whose gap falls out of the world, whenever the body could
+     *  bridge instead. See {@code Move.overTheVoid}: the cost model cannot express this preference
+     *  without pricing a placed block below a walked one, and the two mistakes are not symmetric —
+     *  a misjudged leap over a pit costs a climb, a misjudged one over the void ends the run for a
+     *  body that cannot die. */
+    public static volatile boolean pathfinderForbidParkourOverTheVoid = true;
+
     /** Health at/below which the Walker goes CAREFUL: sprint is suppressed (sprint
      *  momentum is the drift amplifier behind every unplanned fall) and the
      *  lethal-edge sneak pin is KEPT across planned descents instead of releasing

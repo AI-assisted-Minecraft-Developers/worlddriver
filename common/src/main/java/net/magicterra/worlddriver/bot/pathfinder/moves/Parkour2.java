@@ -23,6 +23,11 @@ public final class Parkour2 extends Move {
         if (BotConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) return false;
         if (!Move.hasRunway(w, from)) return false;
         BlockPos to = apply(from);
+        // Never leap a bottomless gap while a bridge is affordable: see Move.overTheVoid for why
+        // this is a rule and not a price. When placement is off there is nothing better to do, so
+        // the leap stays available rather than leaving the body with no move at all.
+        if (BotConfig.pathfinderForbidParkourOverTheVoid && BotConfig.allowPlace
+                && Move.overTheVoid(w, from, to)) return false;
         if (!w.canStandAt(to)) return false;
         // Buoyancy: forbid a parkour that LANDS in submerged water (water at the
         // destination foot AND head). canStandAt accepts any water cell as a floor, so

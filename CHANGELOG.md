@@ -69,6 +69,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+**A leap over a bottomless gap is now refused outright when the body could bridge instead.** The
+cost model cannot express this preference: `parkour3` is 32 and the bridge chain that replaces it is
+80+80+10 = 170, so a price change would have to put a placed block under 11 — below `walk` itself,
+and 80 is exactly what killed「深谷凌空架桥」when it was raised from 30. The two mistakes are also
+not symmetric. Misjudging a leap over a 3-deep pit costs a climb out; misjudging one over the void
+ends the run, because this body's `isInvulnerableTo` is permanently true — it does not die and
+respawn, it falls forever, and every order after that is issued to a body in the void. Rung 20 has
+ended that way repeatedly (`身体掉出世界 y=-65, 位置 -61,-65,16, 已砸碎 5/10 座`). The rule applies
+only while `allowPlace` is on: with placement off the leap is still the best move available, and a
+guard that leaves a body with no move at all is not an improvement.
+
+
+
 **A 1-cell pad over the void planned a leap priced at the sprint-jump maximum.** `Move.hasRunway`
 looked under the launch foot and nothing else, modelling no momentum at all, so A* chained a
 `parkour3` from a standing start it could not physically cover. `wd.parkourVoidRunwayGate` has been
