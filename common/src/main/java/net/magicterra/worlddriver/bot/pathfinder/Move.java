@@ -167,6 +167,36 @@ public abstract class Move {
         return w.isSolid(from.offset(0, -1, 0));
     }
 
+    /** Cells of standable ground the body needs BEHIND a launch to reach sprint speed. Two, because
+     *  vanilla sprint takes a couple of ticks of ground contact to engage and the leap is priced at
+     *  the sprint-jump maximum. */
+    public static final int RUNUP_CELLS = 2;
+
+    /**
+     * The same question asked with the direction of travel — which is the only way to ask it.
+     *
+     * <p>The version above models no momentum whatsoever: it looks under the launch foot and
+     * nothing else, so a 1-cell pad hanging over the void reports a runway and A* prices a leap at
+     * the sprint-jump MAXIMUM that a standing body cannot cover. {@code wd.parkourVoidRunwayGate}
+     * puts two arms over the identical gap differing only in run-up length and shows both planning
+     * the identical {@code parkour3}. Rung 20 pays for that difference by falling out of the world.
+     *
+     * <p>Only the 3-block leap uses this. A 2-block gap is inside a standing jump, so requiring a
+     * run-up there would refuse leaps the body can actually make — and a guard that refuses what
+     * works is how a route gets replaced by a worse one rather than a safer one.
+     */
+    public static boolean hasRunway(WorldView w, BlockPos from, int dx, int dz) {
+        if (!hasRunway(w, from)) return false;
+        int sx = Integer.signum(dx), sz = Integer.signum(dz);
+        if (sx == 0 && sz == 0) return true;
+        for (int i = 1; i <= RUNUP_CELLS; i++) {
+            BlockPos back = from.offset(-sx * i, 0, -sz * i);
+            if (!w.isSolid(back.offset(0, -1, 0))) return false;   // nothing to run along
+            if (!w.isPassable(back)) return false;                 // a wall behind is not a runway
+        }
+        return true;
+    }
+
     /**
      * True if {@code cell} has at least one pre-existing solid neighbour to place
      * a block against — Baritone's {@code MovementHelper.canPlaceAgainst}. A block

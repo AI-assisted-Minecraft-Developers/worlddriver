@@ -18,7 +18,7 @@ public final class Parkour3 extends Move {
         // Buoyancy TAKEOFF gate: a floating bot can't sprint-jump out of deep water (no floor to push off).
         // Mirrors StepUp/DiagUp/PillarUp; complements pathfinderForbidParkourIntoDeepWater. See BotConfig doc.
         if (BotConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) return false;
-        if (!Move.hasRunway(w, from)) return false;
+        if (!Move.hasRunway(w, from, dx, dz)) return false;
         BlockPos to = apply(from);
         if (!w.canStandAt(to)) return false;
         // Buoyancy: no parkour LANDING in submerged water — the bot sinks/stalls there

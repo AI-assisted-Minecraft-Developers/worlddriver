@@ -69,6 +69,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+**A 1-cell pad over the void planned a leap priced at the sprint-jump maximum.** `Move.hasRunway`
+looked under the launch foot and nothing else, modelling no momentum at all, so A* chained a
+`parkour3` from a standing start it could not physically cover. `wd.parkourVoidRunwayGate` has been
+red by design since it was written, with two arms over the identical gap differing only in run-up
+length and both planning the identical move; it is **GREEN** now. Only the 3-block leap asks the new
+direction-aware form — a 2-block gap is inside a standing jump, and a guard that refuses what works
+replaces a route with a worse one rather than a safer one. Rung 20 had been paying for this by
+walking off ledges into the void: 8/10 crystals smashed and then `身体掉出世界 y=-67`.
+
+
+
 **`holdPlaceable` stopped at slot 8, so a body with a full bag was "out of blocks".** The server
 avatar's scan looked at the hand and hotbar slots 0..8 and gave up, while the tool selector directly
 below it in the same class has always swapped up from the bag. Two arms of `wd.serverWidens*` differ
