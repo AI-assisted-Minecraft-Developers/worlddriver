@@ -1644,7 +1644,15 @@ public final class Walker {
     boolean strideFloorGuard(Avatar a, WorldView world) {
         if (!BotConfig.walkerStrideFloorGuard || guardParkourTick) return false;
         Player p = a.player();
-        if (p == null || p.isInWater() || !p.onGround()) return false;
+        // soleOnSolid, NOT p.onGround(). `onGround` is `verticalCollisionBelow` — it describes the
+        // last move() and is wrong in BOTH directions, which is why ServerPlayerAvatar's jump gate
+        // abandoned it and why `wd.flushJumpIgnoresOnGround` pins that a body can be flush on stone
+        // while it reads false. Every other reader of it has been converted one at a time; this one
+        // is the most expensive to have left, because a stale false silently switches OFF the only
+        // guard whose job is to stop the body striding into a bottomless drop. Measured on journey
+        // rung 20 (2026-08-18): a whole run over the End island — void on every side — logged the
+        // guard ZERO times, and the body walked off the edge.
+        if (p == null || p.isInWater() || WalkerGeometry.soleOnSolid(world, p) <= 0.0) return false;
         Vec3 dm = p.getDeltaMovement();
         double h = Math.sqrt(dm.x * dm.x + dm.z * dm.z);
         if (h < 0.03) return false;                             // not translating
