@@ -1554,7 +1554,9 @@ public final class JourneyEndRungs {
             boolean fightSaysKilled = end.getDragonFight() != null
                     && end.getDragonFight().hasPreviouslyKilledDragon();
             boolean dead = seenDying || fightSaysKilled;
-            rig.evidence("duel.swings", fight.swings() + "（其中打到头 " + fight.headHits() + " 次）");
+            rig.evidence("duel.swings", fight.swings() + "（其中打到头 " + fight.headHits()
+                    + " 次）；射出 " + fight.arrows() + " 箭（近战只在龙俯冲落座那几秒有效，"
+                    + "非头部命中被 vanilla 打四折，所以盘旋期的伤害全靠箭）");
             rig.evidence("duel.closest", String.format(Locale.ROOT, "%.1f 格（%s）",
                     fight.closest(), fight.closestPart())
                     + (fight.gaveUp() ? "；⚠️ 放弃：连续 " + DUEL_OUT_OF_REACH_TICKS
@@ -1930,6 +1932,8 @@ public final class JourneyEndRungs {
         private int headHits;
         private double closest = Double.MAX_VALUE;
         private int outOfReach;
+        private int arrows;
+        private int arrowsAtLastReach;
         private boolean gaveUp;
         private String closestPart = "无";
 
@@ -1973,12 +1977,32 @@ public final class JourneyEndRungs {
                 swings++;
                 if (aim == head) headHits++;
             }
+            // Out of melee reach is the NORMAL state of this fight, not a lull: a dragon only
+            // brings its head down when it perches, and hits on any other part are quartered by
+            // vanilla (measured: 1 body hit took 200.0 -> 198.8). So the circling phase is where a
+            // bow earns the fight, and the engine has had the draw all along — CombatProcess.
+            // rangedTick draws for BOW_FULL_DRAW ticks and releases on the up-edge. This is the
+            // same mechanism, aimed at the head rather than at whatever part is nearest: an arrow
+            // into the body is worth a quarter of one into the head, and the dragon presents its
+            // body far more often.
+            if (aim == null && head != null && holdingBow(p)) {
+                aimAtPart(p, head, headAway * 0.12);      // lead high for arrow drop
+                if (p.isUsingItem() && p.getTicksUsingItem() >= BOW_FULL_DRAW) {
+                    a.commandUseItem(false);              // up-edge = release = shoot
+                    arrows++;
+                } else {
+                    a.commandUseItem(true);
+                }
+            }
             // Never once in reach for DUEL_OUT_OF_REACH_TICKS: stop waiting. Reset by any approach,
-            // so this ends a duel the body is not in, not a fight with lulls.
-            if (aim == null) {
+            // so this ends a duel the body is not in, not a fight with lulls. An arrow in flight
+            // counts as being in the fight — giving up while landing hits would report「没在架里」
+            // about a body that is winning.
+            if (aim == null && arrows == arrowsAtLastReach) {
                 if (++outOfReach >= DUEL_OUT_OF_REACH_TICKS) { gaveUp = true; return true; }
             } else {
                 outOfReach = 0;
+                arrowsAtLastReach = arrows;
             }
             return ++elapsed >= maxTicks;
         }
@@ -1988,6 +2012,26 @@ public final class JourneyEndRungs {
         /** True when it stopped because the dragon never came within reach, not because time ran
          *  out — the two look identical from the outside and mean different things. */
         boolean gaveUp() { return gaveUp; }
+
+        int arrows() { return arrows; }
+
+        /** Vanilla's own full-draw window: 20 ticks of use is maximum power. */
+        private static final int BOW_FULL_DRAW = 20;
+
+        private static boolean holdingBow(Player p) {
+            return p.getMainHandItem().getItem() instanceof net.minecraft.world.item.BowItem;
+        }
+
+        private static void aimAtPart(Player p, Entity part, double lead) {
+            double dx = part.getX() - p.getX();
+            double dy = (part.getY() + part.getBbHeight() * 0.5 + lead) - (p.getY() + p.getEyeHeight());
+            double dz = part.getZ() - p.getZ();
+            double flat = Math.sqrt(dx * dx + dz * dz);
+            p.setYRot((float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0));
+            p.setXRot((float) -Math.toDegrees(Math.atan2(dy, flat)));
+            p.yHeadRot = p.getYRot();
+            p.yBodyRot = p.getYRot();
+        }
 
         int headHits() { return headHits; }
 

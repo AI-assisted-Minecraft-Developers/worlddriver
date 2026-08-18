@@ -1149,6 +1149,13 @@ public final class JourneyRehearsal {
         // Carried for parity with the recipes below, not for a reading: this body is invulnerable and
         // never hungers, so nothing in rung 20 consumes it.
         kit.put("minecraft:cooked_beef", 16);
+        // A bow, because the dragon spends almost all of this fight out of melee reach and vanilla
+        // quarters every hit that is not on the head. Measured without one: 4000 consecutive ticks
+        // with the head never inside 4.5, and the single body hit that did land moved 200.0 -> 198.8.
+        // PROVISIONAL like everything else here — the real ladder would have to earn string from
+        // spiders — and listed in rehearsal.gave so it can never be mistaken for something climbed.
+        kit.put("minecraft:bow", 1);
+        kit.put("minecraft:arrow", 256);
         StringBuilder gave = new StringBuilder();
         for (var e : kit.entrySet()) {
             give(fp, e.getKey(), e.getValue());
