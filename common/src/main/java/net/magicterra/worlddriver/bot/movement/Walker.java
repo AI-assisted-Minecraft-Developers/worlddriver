@@ -1114,10 +1114,18 @@ public final class Walker {
         BlockPos wp = path != null && step >= 0 && step < path.size() ? path.get(step) : null;
         String site = StackWalker.getInstance().walk(s -> s.skip(2)
                 .map(f -> f.getFileName() + ":" + f.getLineNumber()).findFirst().orElse("?"));
-        LOG.info("[walker] 起跳来源: t={} 支={} 处={} 身体={} 精确=({}) 路点={} wp.y-foot.y={}",
+        // The water pair is here because a `swimColumn` tag on dry obsidian has three readings and
+        // the tag alone cannot separate them: the BODY's own flag (p.isInWater(), what the branch
+        // actually tests) and the WORLD's block at the foot are printed side by side, so a stale
+        // flag, a genuinely wet cell, and a tag that disagrees with its own precondition are three
+        // distinct rows instead of one ambiguous one.
+        LOG.info("[walker] 起跳来源: t={} 支={} 处={} 身体={} 精确=({}) 路点={} wp.y-foot.y={} 水={} 没顶={} 脚格={} 脚上={}",
                 now, jumpTag == null ? "未标" : jumpTag, site, foot.toShortString(),
                 String.format(java.util.Locale.ROOT, "%.3f,%.3f,%.3f", p.getX(), p.getY(), p.getZ()),
-                wp == null ? "无" : wp.toShortString(), wp == null ? "?" : String.valueOf(wp.getY() - foot.getY()));
+                wp == null ? "无" : wp.toShortString(), wp == null ? "?" : String.valueOf(wp.getY() - foot.getY()),
+                p.isInWater(), p.isUnderWater(),
+                p.level().getBlockState(foot).getBlock().toString(),
+                p.level().getBlockState(foot.above()).getBlock().toString());
     }
 
     /** Jump-source lines emitted per walker before the latch goes quiet. */
