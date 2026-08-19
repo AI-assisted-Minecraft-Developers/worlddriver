@@ -263,7 +263,26 @@ public final class JourneyRig {
     public void drive(BotProcess process, int withinTicks, Runnable then) {
         ServerWorldDriver d = body();
         ServerAvatarManager.register(d.runProcess(process));
-        await(() -> d.finished(), withinTicks, then);
+        await(() -> doneOrLost(d, process.kind()), withinTicks, then);
+    }
+
+    /**
+     * Finished, or there is no longer a body to finish anything — the one predicate every wait in
+     * this rig must use.
+     *
+     * <p>Four waits existed; ONE checked whether the body was still in the world. The other three
+     * ({@code drive}, {@code mineBlock}, and the mine branch of {@code settle}) waited on the driver
+     * alone, so a fall during any of them spent the whole budget on a corpse and then surfaced from
+     * the NEXT wait's entry check — which is why the fall report read 「离场时在跑的进程=没记到」
+     * and why two arena arms built on the walker trace beside it both passed: they were reproducing
+     * a moment that was never the moment. An invariant with sibling paths that ignore it is the
+     * shape this repo keeps paying for; the fix is the predicate, not another call site.
+     */
+    private boolean doneOrLost(ServerWorldDriver d, String what) {
+        if (d.finished()) return true;
+        if (!bodyLeftTheWorld()) return false;
+        if (drivingWhenLost == null) drivingWhenLost = what;
+        return true;
     }
 
     /**
@@ -278,7 +297,7 @@ public final class JourneyRig {
     public void mineBlock(BlockPos target, int withinTicks, Runnable then) {
         ServerWorldDriver d = body();
         ServerAvatarManager.register(d.mine(target));
-        await(() -> d.finished(), withinTicks, then);
+        await(() -> doneOrLost(d, "mineBlock(" + target.toShortString() + ")"), withinTicks, then);
     }
 
     /**
@@ -304,7 +323,23 @@ public final class JourneyRig {
         ServerWorldDriver d = body();
         ServerAvatarManager.register(d.mine(target));
         int[] waited = {0};
-        await(() -> d.finished() || ++waited[0] >= ticks, ticks + 100, () -> {
+        // The SAME out-of-world guard settle() has. It was missing here, and the omission was not
+        // free: a body that left the world during a mine kept the whole budget running against a
+        // corpse in the void, and — because the latch fired later, from the next settle's entry
+        // check — the fall was recorded with 「离场时在跑的进程=没记到」. Two paths that wait on the
+        // driver, one of them checking whether the driver still has a body to drive, is the shape
+        // this repo has paid for before: an invariant with a sibling path that ignores it.
+        await(() -> {
+            if (d.finished()) return true;
+            if (bodyLeftTheWorld()) {
+                if (drivingWhenLost == null) {
+                    drivingWhenLost = "mine(" + target.toShortString() + ")（第 " + waited[0]
+                            + "/" + ticks + " tick）";
+                }
+                return true;
+            }
+            return ++waited[0] >= ticks;
+        }, ticks + 100, () -> {
             ServerAvatarManager.unregister(d);
             then.run();
         });
