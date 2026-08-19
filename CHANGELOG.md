@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-19
 
+- **Rung 13 now walks into the portal by a row a body actually fits through, and opens one cell of
+  the wall when no row is open.** The ladder lit its portal and then failed with
+  `站在传送门里 1200 tick 没被送走`, over evidence that said the opposite: `stand.in =
+  Block{minecraft:air}`, eight byte-identical legs, and a scene total of 451 ticks against a message
+  quoting a 1200-tick budget. Three separate things were wrong. (1) The goal was the portal's bottom
+  cell — the only one the pathfinder can accept, since every other cell's floor is another portal
+  block — and rung 12's casting slag walls the alcove in front of it, with `allowBreak` off on this
+  rung's baseline. (2) The one row whose front was open is the TOP row, and a body is 1.8 tall in a
+  3-tall doorway, so standing there puts its head in the frame: measured as sixty ticks of held
+  forward moving the body to `z = cellZ − 0.3` and stopping with `dm.z = 0.000`. (3) Every retry
+  asked the identical question. The rung now costs each row by what would have to be mined to reach
+  it, refuses the frame itself (mining obsidian to get in would put the portal out), opens the one
+  cobblestone in front of the row it fits through, walks to that doorstep with the goal SHAPE
+  alternating between `Goal.XZ` and `Goal.Block`, and pushes the last block by hand — the pathfinder
+  can never make that move, because its destination has no floor.
+
+- **The two portal failures are now two messages.** 「站进去了没被送走」and「一次都没站进过传送门方块」
+  want opposite fixes — `Entity.handlePortal`, or the geometry in front of the door — so they are
+  separate branches decided by whether the body was ever in a portal cell, and every tick count in
+  either is summed from the level's own clock as the legs run rather than quoted from a budget. New
+  evidence rows carry the whole doorway (`portal.doorway`: each cell, whether a body fits in it, and
+  every approach cell with the reason it is not standable), the row chosen and what it costs
+  (`portal.doorstep`), the walk legs with their goal shape and how far the body actually moved
+  (`portal.walk.*`), and `portal.ticked` — the body's own `tickCount` delta across the hold, which is
+  what lets the transfer branch say「the timer did not run」out loud instead of leaving「nobody was
+  ticking it」open.
+
 - The self-built server avatar now releases a held item through `LivingEntity.releaseUsingItem()`
   instead of `stopUsingItem()`. Only the former calls `ItemStack.releaseUsing`, which is where a bow
   spawns its arrow; the latter just clears `useItem` and the in-use flag. A bow drawn to full and
