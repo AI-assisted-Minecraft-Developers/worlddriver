@@ -1487,7 +1487,19 @@ public final class Walker {
         // A zero sole is still a return: nothing is under the body, it is falling, and sneak is a
         // refusal to step further out rather than a rescue (see the note above).
         double sole = soleOnSolid(world, p);
-        if (sole <= 0.0 || sole >= FOOTING_MIN) return false;
+        if (sole <= 0.0) return false;
+        // Over the VOID the threshold is higher, because the two mistakes are not symmetric. Half a
+        // sole is the right bar beside an ordinary drop: a graze costs health the body walks off,
+        // and pinning more often would make ridge walking crawl. Beside a bottomless column the
+        // same graze ends the run — this body cannot die, so it does not respawn, it falls forever.
+        // Measured: the last tick that still had support before a rung-20 departure read
+        // 「身体=-31.05,82.75,25.49 速度h=0.000 脚底=0.212」 — stationary, so the stride guard (h ≥
+        // 0.03) was silent, and 0.212 > 0.18, so this guard was silent too. Both guards off by
+        // construction at exactly the reading that precedes the fall.
+        double bar = FOOTING_MIN;
+        BlockPos under = BlockPos.containing(p.getX(), p.getY() - 0.5, p.getZ());
+        if (bottomlessUnder(world, under)) bar = VOID_FOOTING_MIN;
+        if (sole >= bar) return false;
         BlockPos foot = BlockPos.containing(p.getX(), p.getY() + 0.05, p.getZ());
         // A PLANNED DESCENT is exempt, and this is not a nicety — it is the same release the drive's
         // own lethal-edge gate has carried since DEATH #8, for the same reason: vanilla's sneak
@@ -1535,6 +1547,20 @@ public final class Walker {
      *  An accessor rather than a copied literal: a rig that assumes 0.18 stops being a test of this
      *  guard the day the guard changes its mind. */
     public static double footingMin() { return FOOTING_MIN; }
+
+    /** The bar over a bottomless column: 5/6 of the 0.36 sole, against 1/2 beside an ordinary drop.
+     *  Not「be careful」as a number — it is the smallest reading that still leaves the body a whole
+     *  half-cell of margin on every axis, and the void gives no second attempt. */
+    static final double VOID_FOOTING_MIN = 0.30;
+
+    /** True when the column beside/under {@code at} runs out of the world. Same floor the stride
+     *  guard's own bottomless test uses, so the two guards agree about what「虚空」means. */
+    private static boolean bottomlessUnder(WorldView world, BlockPos at) {
+        for (int y = at.getY(); y >= BOTTOMLESS_SCAN_FLOOR; y--) {
+            if (!world.isPassable(new BlockPos(at.getX(), y, at.getZ()))) return false;
+        }
+        return true;
+    }
 
     private void widenFooting(Avatar a, WorldView world, Player p, BlockPos foot) {
         if (!BotConfig.allowPlace || a.breakHeld() || !a.holdPlaceable()) return;
