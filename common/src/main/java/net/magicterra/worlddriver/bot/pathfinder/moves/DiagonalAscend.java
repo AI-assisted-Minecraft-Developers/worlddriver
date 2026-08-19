@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.pathfinder.moves;
 
+import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
@@ -61,6 +62,15 @@ public final class DiagonalAscend extends Move {
         // enough here.
         BlockPos sideA = from.offset(dx, 1, 0);
         BlockPos sideB = from.offset(0, 1, dz);
+        // Both corners over the void → nothing under the crossing. Same rule as Diagonal, applied
+        // to the same family: the body aims at the destination centre, so its hitbox passes over
+        // both corner columns whatever the height change, and a rising body sweeps MORE of them.
+        // The corners here are at y+1, so the void test is asked of the columns the body actually
+        // crosses, not of the launch row. Gating only the flat Diagonal was an exemption written
+        // narrower than its family — the third such in two days; rung 20 kept leaving the world
+        // from island rims (-15,60,36 / -16,61,34 / -18,61,36 / -35,62,-6) after the flat one closed.
+        if (BotConfig.pathfinderForbidParkourOverTheVoid
+                && Move.bottomless(w, sideA) && Move.bottomless(w, sideB)) return false;
         return clearColumn(w, sideA) && clearColumn(w, sideB);
     }
     private static boolean clearColumn(WorldView w, BlockPos p) {

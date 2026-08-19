@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.pathfinder.moves;
 
+import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
@@ -40,6 +41,15 @@ public final class DiagonalDescend extends Move {
         // Both corners open at the launch foot+head band.
         BlockPos sideA = from.offset(dx, 0, 0);
         BlockPos sideB = from.offset(0, 0, dz);
+        // Both corners over the void → nothing under the crossing. Same rule as Diagonal, applied
+        // to the same family: a diagonal is executed by aiming at the destination centre, so the
+        // hitbox passes over both corner columns whatever the height change. Gating only the flat
+        // Diagonal was the third time in two days an exemption was written narrower than the family
+        // it had to cover; rung 20 kept leaving the world from island rims (-15,60,36 / -16,61,34 /
+        // -18,61,36 / -35,62,-6) after the flat one was closed.
+        if (BotConfig.pathfinderForbidParkourOverTheVoid
+                && Move.bottomless(w, sideA) && Move.bottomless(w, sideB)) return false;
+
         return clearColumn(w, sideA) && clearColumn(w, sideB);
     }
     private static boolean clearColumn(WorldView w, BlockPos p) {

@@ -69,6 +69,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+**The void rule now covers every move that crosses a corner or a gap, not the subset each patch was
+written against.** Three times in two days the same shape leaked back: the leap gate went to
+`Parkour2/2Diagonal/3` while `Parkour3Diagonal/4/Ascend/Descend` stayed open; the corner gate went
+to `Diagonal` while `DiagonalAscend/Descend` stayed open. Each time rung 20 resumed leaving the
+world from whichever cells the closed members never covered — island rims at
+`-15,60,36 / -16,61,34 / -18,61,36 / -35,62,-6`, tower tops at `-33,82,26 / -35,82,26`. With the
+families closed, `wd.serverWidensAThinFooting` and `wd.serverWidensFromTheBackpack` — written RED by
+design, with a second clause specifically so that standing perfectly still could not score full
+marks — are **GREEN**. Also braked two carriers of residual momentum that no input release reaches:
+the stride guard over a bottomless column, and `TowerProcess` at the tick it asks for its jump
+(「under SETTLE_SPEED」is not zero, and the remainder rides the whole arc).
+
+
+
 **A leap over a bottomless gap is now refused outright when the body could bridge instead.** The
 cost model cannot express this preference: `parkour3` is 32 and the bridge chain that replaces it is
 80+80+10 = 170, so a price change would have to put a placed block under 11 — below `walk` itself,
