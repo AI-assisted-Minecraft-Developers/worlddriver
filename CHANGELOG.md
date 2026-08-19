@@ -39,6 +39,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phase name sixty ticks later — cells, because this process places and never breaks, so the only
   thing it can do about a lid is name it for the caller that can mine it.
 
+- **The mine exit clears what the body has to rise through, not what its coordinate names.**
+  `JourneyShaft.ascendByTowering` opened `at.above(2)` before each course, which is exactly the shape
+  that produces the wedge above: it clears the body's own column, the body gains its block and comes
+  back down a fraction of a cell over, and the next course jumps into rock its own check has just
+  reported clear. That is why `vein2.exit#3` stalled on course ONE, after course zero had gained. The
+  course row's `above=` now lists every blocking cell, and the same predicate the builder refuses on
+  decides what gets mined — a caller mining a different set from the one the process will refuse
+  takes a course off the budget and changes nothing.
+
 - **Rung 13 now walks into the portal by a row a body actually fits through, and opens one cell of
   the wall when no row is open.** The ladder lit its portal and then failed with
   `站在传送门里 1200 tick 没被送走`, over evidence that said the opposite: `stand.in =

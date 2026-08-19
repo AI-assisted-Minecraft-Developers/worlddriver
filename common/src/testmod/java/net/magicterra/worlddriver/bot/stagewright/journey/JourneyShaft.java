@@ -5,6 +5,7 @@ import java.util.function.Consumer;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
 import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
 import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.process.Intent;
@@ -544,13 +545,29 @@ public final class JourneyShaft {
             });
             return;
         }
-        BlockPos ceiling = at.above(2);
+        // WHAT THE BODY HAS TO LIFT ITSELF THROUGH, not what its block coordinate names.
+        // `at.above(2)` is ONE column — the one `floor(x), floor(z)` picks out — and a body is 0.6
+        // wide, so one standing within 0.3 of a cell boundary also lifts a corner of itself through
+        // the NEIGHBOUR's cell. This loop makes that shape by hand: it opens the ceiling over the
+        // body's own column, the body gains its block and comes back down a fraction of a cell over,
+        // and the next course jumps into rock its own check has just reported clear. That is
+        // `vein2.exit#3` on 2026-08-19 — `climb.1.stalled = stuck (no Y gain in 60t: placed=0,
+        // holding=64, phase=JUMPING)` on course ONE, after course zero had gained — and
+        // `wd.serverTowersUnderTheNeighboursCeiling` is the same two cells in a sealed arena.
+        //
+        // Same predicate the builder now refuses on, deliberately: a caller that mines a different
+        // set of cells from the ones the process is about to refuse would take a course off the
+        // budget and change nothing.
+        //
+        // Collision shapes, not blocksMotion — same intent (swamp groundwater is not air and mining
+        // it is a no-op, so an air test would spend the whole budget breaking water that was never
+        // in the way), asked of the thing that actually stops a jump.
+        List<BlockPos> overhead = WalkerGeometry.pillarRiseBlockers(rig.player());
+        BlockPos ceiling = overhead.isEmpty() ? at.above(2) : overhead.get(0);
         rig.evidence(climbKey(step, ""), String.format("%d,%d,%d above=%s onGround=%s water=%s",
-                at.getX(), at.getY(), at.getZ(), lvl.getBlockState(ceiling).getBlock(),
+                at.getX(), at.getY(), at.getZ(), overheadRow(lvl, overhead),
                 rig.player().onGround(), rig.player().isInWater()));
-        // blocksMotion, not !isAir: swamp groundwater is not air and mining it is a no-op, so an
-        // air test would spend the whole budget breaking water that was never in the way.
-        if (lvl.getBlockState(ceiling).blocksMotion()) {
+        if (!overhead.isEmpty()) {
             // Never open a ceiling with a fluid behind it. A climb out of a mine is a hole punched
             // upward through rock nobody surveyed, and on the portal rung that hole runs the twelve
             // blocks between the mould and the lava lake the mould is cut under. Measured, run 20:
@@ -673,6 +690,20 @@ public final class JourneyShaft {
             }
             then.run();
         }));
+    }
+
+    /** The cells a one-block rise is blocked by, named, or {@code air} when it is clear — the
+     *  {@code above=} half of every course row. Plural because a straddling body has more than one,
+     *  and the whole point of the reading is that the caller used to see only its own column. */
+    private static String overheadRow(ServerLevel lvl, List<BlockPos> overhead) {
+        if (overhead.isEmpty()) return "air";
+        StringBuilder sb = new StringBuilder();
+        for (BlockPos c : overhead) {
+            if (sb.length() > 0) sb.append('+');
+            sb.append(c.toShortString()).append('=')
+              .append(BuiltInRegistries.BLOCK.getKey(lvl.getBlockState(c).getBlock()).getPath());
+        }
+        return sb.toString();
     }
 
     /**
