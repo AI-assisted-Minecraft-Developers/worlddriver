@@ -1472,12 +1472,38 @@ public final class JourneyEndRungs {
     /** Top of the central bedrock fountain — where the dragon perches, and therefore the only cell
      *  a stand-still melee fight can be won from. Scanned rather than hard-coded so a world whose
      *  podium sits at a different height still answers correctly. */
+    /**
+     * A cell on the fountain a body can actually STAND on.
+     *
+     * <p>The first cut scanned the column at exactly {@code x=0,z=0} and returned the first non-air
+     * cell's {@code above()}. That column is the exit portal's own hole: it is not floor, and the
+     * cell above whatever the scan hits is not supported. The march then walked the body to it, the
+     * walker reported {@code ARRIVED}, and the departure trace caught it red-handed —
+     * {@code step=ARRIVED 身体=-0.75,59.00,-0.76 速度h=0.007 脚底=0.000}: standing still, at the
+     * podium, with nothing whatsoever under the sole. Five rounds of gating leap and diagonal
+     * families had been chasing island-rim coordinates while the fall was happening at the target.
+     *
+     * <p>So require support: scan the 5x5 around the centre and take the highest cell whose floor
+     * is solid and whose own two body cells are clear. Nearest-to-centre breaks ties, because the
+     * perched head hovers over the middle and every block outward is reach spent.
+     */
     private static BlockPos podiumTop(ServerLevel end) {
-        for (int y = 100; y > 40; y--) {
-            BlockPos at = new BlockPos(0, y, 0);
-            if (!end.getBlockState(at).isAir()) return at.above();
-        }
-        return new BlockPos(0, 65, 0);
+        BlockPos best = null;
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                for (int y = 100; y > 40; y--) {
+                    BlockPos at = new BlockPos(dx, y, dz);
+                    if (end.getBlockState(at).isAir()) continue;
+                    BlockPos stand = at.above();
+                    if (!end.getBlockState(stand).isAir()
+                            || !end.getBlockState(stand.above()).isAir()) break;
+                    if (best == null || stand.getY() > best.getY()
+                            || (stand.getY() == best.getY()
+                                && stand.distSqr(BlockPos.ZERO) < best.distSqr(BlockPos.ZERO)))
+                        best = stand;
+                    break;
+                }
+        return best != null ? best : new BlockPos(0, 65, 0);
     }
 
     /** Walk to the podium, retrying: one stall on ground the body broke and bridged itself is not
@@ -1507,8 +1533,11 @@ public final class JourneyEndRungs {
             // platform is 2 units of error in a radius but the whole fight in reach, because the
             // head hovers ABOVE the fountain and every block down is a block of reach spent.
             BlockPos me = rig.player().blockPosition();
+            // ...and it must be STANDING there. ARRIVED is not the same as supported: the trace
+            // that found this bug reads 脚底=0.000 on an ARRIVED tick at the podium.
             boolean close = me.distSqr(podium) <= DUEL_STAND_RADIUS * DUEL_STAND_RADIUS
-                    && me.getY() >= podium.getY() - 1;
+                    && me.getY() >= podium.getY() - 1
+                    && !rig.player().level().getBlockState(me.below()).isAir();
             rig.evidence("duel.march." + left, (flat ? "XZ" : "3D") + " 目标 "
                     + podium.toShortString() + " → 停在 " + me.toShortString() + "（距 "
                     + String.format(Locale.ROOT, "%.1f", Math.sqrt(me.distSqr(podium)))
