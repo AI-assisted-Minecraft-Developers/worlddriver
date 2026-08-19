@@ -1368,6 +1368,7 @@ public final class Walker {
                         WalkerGeometry.soleOnSolid(world, tp)))
                 + " 节点=" + (path == null || step < 0 || step >= path.size()
                         ? "无" : path.get(step).toShortString());
+        if (tp != null && WalkerGeometry.soleOnSolid(world, tp) > 0.0) lastSupportedTrace = lastTickTrace;
         boolean fired = strideFloorGuard(a, world);
         boolean footing = footingGuard(a, world);
         // Pin HYSTERESIS: the guard's fire predicate needs translation (h ≥ 0.03), so the
@@ -1702,6 +1703,17 @@ public final class Walker {
      * here (a static another thread pathfinds against is how an A/B once measured nothing at all).
      */
     public static volatile String lastTickTrace = "还没跑过";
+
+    /**
+     * The last trace taken while the sole was still on something — the crime scene, as opposed to
+     * {@link #lastTickTrace}, which is wherever the body had got to by the time anyone looked.
+     *
+     * <p>Both are needed and neither substitutes for the other. The final tick of a fall reports a
+     * body at y=-64 chasing a node at y=-64: true, useless, and it reads like a planner defect when
+     * it is only the walker re-planning for a body that is already there. The interesting tick is
+     * the last one with support, which is the one that decided.
+     */
+    public static volatile String lastSupportedTrace = "还没站稳过";
 
     /** This tick's aim-tree owner ({@code aimSrc}) — same telemetry channel as
      *  {@link #jumpTag}: wedge post-mortems need "who owned the heading". */
