@@ -1840,6 +1840,19 @@ public final class Walker {
         int lethalDepth = Math.max(BotConfig.pathfinderMaxDryFall + 1, (int) Math.ceil(p.getHealth()) + 3);
         for (int i = 1; i <= lethalDepth; i++) {
             BlockPos below = strideCell.below(i);
+            // A HAZARD anywhere in the column is lethal at whatever depth it sits at, and the test
+            // has to come BEFORE the floor test because lava is `isPassable` — not solid, not water
+            // — so this scan descended straight THROUGH a lake and stopped on its stone bed, reading
+            // 「a floor → safe」about a drop into fire. Measured on nether rung 14 (2026-08-19): the
+            // body strode off 80,42,81 over a bay whose lava starts 13 down and whose netherrack bed
+            // sits exactly 23 down — one cell inside this loop's own reach at full health — so the
+            // loop found its floor on the last index and the guard stayed silent for the whole
+            // run-up. {@link WalkerGeometry#dropAdjacentExceeds} learned this in round52 and carries
+            // the same line; the two guards cannot be allowed to disagree about what a fall column
+            // ends in. Break rather than return: everything above index i is passable by
+            // construction (the loop would have returned), so「open all the way down to lava」is
+            // exactly the stride this guard exists to refuse.
+            if (world.isHazard(below)) break;
             if (!world.isPassable(below) || world.isWater(below))
                 return false;                                   // a floor or a water landing → safe
         }

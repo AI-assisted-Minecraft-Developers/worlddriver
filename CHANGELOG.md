@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-19
 
+- **The stride floor-guard could not see lava, so the Nether crossing walked into it four times.**
+  Its fall scan stopped at the first cell that is not `isPassable` — and lava is passable, being
+  neither solid nor water, so the scan descended straight through a lake and stopped on the bed
+  underneath. Measured on rung 14's fatal cell: the lava starts 13 rows under the stride cell and
+  the netherrack bed sits **exactly 23** rows under it, which is the loop's own reach at full health
+  (`ceil(20)+3`). It found a floor on the last index it looks at and reported the stride safe.
+  `WalkerGeometry.dropAdjacentExceeds` learned this in round52 and has carried the `isHazard` line
+  since; this guard never got it, and now does.
+
+  All three brakes were off on that tick and only one of them was wrong. `WalkerTickDrive`'s
+  `edgeBrake` and `Walker.footingGuard` both released for a **planned descent** — the node they were
+  steering at (`77,41,83[diagDown]`) sits one below the foot — which is deliberate and load-bearing
+  (a pin held across a step the route means to take deadlocks the descent; `wd.descent`,
+  `wd.bridgeDescend` and `wd.descentYaw` named that cost in one run). The stride guard is the one
+  with no such release: its exemption demands the descending node be in the stride column exactly,
+  and that plan was heading the other way. It was reached, it asked, and it got the wrong answer.
+
+- **Two arms in a sealed arena for it**, both `withRequired(false)`, one headland, and the bay's fill
+  as the only variable. `wd.serverStopsAtALavaShore` walks a body off a shelf into an eleven-block
+  bay — a drop that is *survivable dry*, so the lava is the only lethal thing in the arena — and each
+  arm drives that shelf twice with `walkerStrideFloorGuard` as the only difference between the
+  drives. Before the fix, control and subject were byte-identical: `1 fault(s): 42 tick, 最低
+  y=219.00, 沿台面走了 11.06 格, 钉住 0 tick, 脚下=lava`. After: `subject.after = 0 fault(s): 240
+  tick, y=231.00, 走了 6.79 格, 钉住 219 tick`. `wd.serverWalksOffASurvivableLedge` is the same bay
+  filled with stone and requires the guard to stay out of the way — control and subject identical at
+  41 ticks and 0 pinned ticks, before and after — because a fix that pinned at every lip would pass
+  the first arm and make ridge walking crawl.
+
+  `lethalEdgeBrake` is off in both arms and that is the isolation rather than a shortcut: with it on,
+  `footingGuard` pins this body as its sole thins and neither arm ever reaches the bay, so the scene
+  would be measuring the guard that was already working.
+
 - **The three `phase=JUMPING` rows of 2026-08-19 are now a sealed arena.** `vein2.exit#3.climb.1`,
   `crystal.0.climb` and the podium march all reported `stuck (no Y gain in 60t: placed=0,
   holding=64, phase=JUMPING, apexFeetY=<start>)` over a body that was on the ground, not in water,
