@@ -1143,9 +1143,15 @@ public final class JourneyRehearsal {
         JourneyLedger.staged("rehearsal: built the End arrival platform at " + platform.toShortString()
                 + " with EndPlatformFeature.createEndPlatform, the call EndPortalBlock makes");
 
+        // ORDER MATTERS, and it is not a style choice. A player inventory is 36 slots; the block
+        // budget alone is BLOCKS_A_DRAGON_TRIP_NEEDS/64 stacks, so anything handed over AFTER it has
+        // nowhere to go and is silently dropped on the floor. Raising the budget to 3072 (48 stacks)
+        // did exactly that: the bow and 256 arrows never entered the bag, and the fight reported
+        // 「进入远程分支 0 tick，箭存量 0，手上=minecraft:iron_sword」 — a ranged half that had been
+        // fixed three times and could not have worked whatever the code said. The tools go in first
+        // and the bulk last, so an overflow can only ever cost blocks, which the run counts.
         Map<String, Integer> kit = new LinkedHashMap<>();
         kit.put("minecraft:iron_sword", 1);
-        kit.put("minecraft:cobblestone", BLOCKS_A_DRAGON_TRIP_NEEDS);
         // Carried for parity with the recipes below, not for a reading: this body is invulnerable and
         // never hungers, so nothing in rung 20 consumes it.
         kit.put("minecraft:cooked_beef", 16);
@@ -1156,6 +1162,11 @@ public final class JourneyRehearsal {
         // spiders — and listed in rehearsal.gave so it can never be mistaken for something climbed.
         kit.put("minecraft:bow", 1);
         kit.put("minecraft:arrow", 256);
+        // ...and the bulk last, capped at what actually fits beside them. 36 slots minus the four
+        // the tools occupy is 32 stacks = 2048; asking for more does not carry more, it only makes
+        // the shortfall invisible.
+        kit.put("minecraft:cobblestone",
+                Math.min(BLOCKS_A_DRAGON_TRIP_NEEDS, (36 - kit.size() - 1) * 64));
         StringBuilder gave = new StringBuilder();
         for (var e : kit.entrySet()) {
             give(fp, e.getKey(), e.getValue());
