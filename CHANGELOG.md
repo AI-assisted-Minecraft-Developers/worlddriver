@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-08-19
+
+- The self-built server avatar now releases a held item through `LivingEntity.releaseUsingItem()`
+  instead of `stopUsingItem()`. Only the former calls `ItemStack.releaseUsing`, which is where a bow
+  spawns its arrow; the latter just clears `useItem` and the in-use flag. A bow drawn to full and
+  "released" the old way was indistinguishable from one that fired — draw timer climbing, ammo
+  untouched, no exception, and no projectile. Rung 20 spent four rounds of fixes on the draw, the
+  aim and the ammo because of it. With the release routed correctly the End fight went 200 → 0 HP
+  on 246 arrows and 0 melee swings, killing the dragon for the first time.
+- The crystal sweep's unwedge tower now targets the island band absolutely instead of eight blocks
+  above wherever the body stopped. The old form escalated across sweeps (103 → 111 → 119) and a
+  tower only goes up, so each re-sweep started structurally further from a y=80 crystal than the
+  one before it.
+
 ## [Unreleased]
 
 ### Added
