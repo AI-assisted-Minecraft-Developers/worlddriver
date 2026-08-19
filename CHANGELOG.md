@@ -48,6 +48,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rounding error; the same 67 out of 900 would be a re-planning problem), so the next reader chooses
   between "give it more budget" and "it cannot plan here" from a number instead of a hop line.
 
+- **`wd.serverDrawsABow` stopped losing its own arrow.** A full draw leaves the string at 3 blocks
+  per tick and the count ran ten server ticks later inside a 24-block box, so a working release
+  reported `flew=0` beside `probe.flew=1` whenever the arrow flew straight — which is most of the
+  time it is working. The box is now three times the arrow's reach.
+
 - **The three `phase=JUMPING` rows of 2026-08-19 are now a sealed arena.** `vein2.exit#3.climb.1`,
   `crystal.0.climb` and the podium march all reported `stuck (no Y gain in 60t: placed=0,
   holding=64, phase=JUMPING, apexFeetY=<start>)` over a body that was on the ground, not in water,

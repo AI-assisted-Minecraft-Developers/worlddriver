@@ -449,6 +449,20 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                 .then(() -> finishBowArm(ctx, level, fp, before, drewTo, drawLine));
     }
 
+    /**
+     * How far from the body the arrow count looks, and the number is arithmetic rather than margin.
+     *
+     * <p>A full draw leaves the string at {@code power * 3.0} = <b>3 blocks per tick</b>
+     * ({@code BowItem.releaseUsing} → {@code shootFromRotation(..., 3.0F, 1.0F)}), and the count runs
+     * ten real server ticks later — the wait that exists so the entity is promoted out of the pending
+     * queue. Thirty blocks of flight against a 24-block box is a scene that fails whenever the arrow
+     * happens to fly straight, which is most of the time it is working: one run reported
+     * {@code flew=0} beside {@code probe.flew=1} and read as「the release produced nothing」about a
+     * release that had produced an arrow and lost it. Three times the arrow's own reach, so no draw
+     * this arm can produce outruns the question.
+     */
+    private static final double ARROW_SEARCH = 96.0;
+
     private static void finishBowArm(SceneContext ctx, ServerLevel level, ServerPlayer fp,
             int before, int maxDraw, String draw) {
         int after = fp.getInventory().countItem(Items.ARROW);
@@ -457,7 +471,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         // so an ammo delta can be structurally zero while the bow is working perfectly — and that
         // is precisely the counter rung 20 has been reporting for four rounds of「fixes」.
         int flew = level.getEntitiesOfClass(net.minecraft.world.entity.projectile.AbstractArrow.class,
-                fp.getBoundingBox().inflate(24.0)).size();
+                fp.getBoundingBox().inflate(ARROW_SEARCH)).size();
 
         ctx.record("draw", "按住 60 tick，逐 tick 的 getTicksUsingItem（-1 = 那一 tick 不在使用中）:"
                 + draw + " …… 最大 " + maxDraw + "（满蓄力需要 20）");
@@ -486,7 +500,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                 + "，instabuild=" + fp.getAbilities().instabuild);
         int afterProbe = level.getEntitiesOfClass(
                 net.minecraft.world.entity.projectile.AbstractArrow.class,
-                fp.getBoundingBox().inflate(24.0)).size();
+                fp.getBoundingBox().inflate(ARROW_SEARCH)).size();
         ctx.record("probe.flew", afterProbe + " —— 直接调 releaseUsing 之后世界里的箭数。"
                 + "跟上面的 flew 一起读：两个都是 0 说明这具身体根本生不出箭；"
                 + "只有这一个非 0 说明 stopUsingItem 没走到 releaseUsing");
