@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-19
 
+- **The three `phase=JUMPING` rows of 2026-08-19 are now a sealed arena.** `vein2.exit#3.climb.1`,
+  `crystal.0.climb` and the podium march all reported `stuck (no Y gain in 60t: placed=0,
+  holding=64, phase=JUMPING, apexFeetY=<start>)` over a body that was on the ground, not in water,
+  and holding a stack — a shape no caller can produce on purpose. Two new arms, both
+  `withRequired(false)`, and in each the CONTROL is the arm carrying the fault:
+  `wd.serverTowersUnderALowCeiling` puts stone at feet+2 (the cell a whole block of rise needs) and
+  `wd.serverTowersUnderTheNeighboursCeiling` puts one stone cell over the column BESIDE the body,
+  where `blockPosition().above(2)` reads air. Measured before any fix: `control.after = 1 fault(s)`,
+  61 ticks of a 400-tick budget, `placed=0`, `spent=0`, `placeTally calls=0`, and an apex of `+0.20`
+  — the jump fired and was clipped — against `subject.after = 0 fault(s)`, 4 of 4 courses, whose
+  only difference is 0.45 of a block in x.
+
 - **Rung 13 now walks into the portal by a row a body actually fits through, and opens one cell of
   the wall when no row is open.** The ladder lit its portal and then failed with
   `站在传送门里 1200 tick 没被送走`, over evidence that said the opposite: `stand.in =

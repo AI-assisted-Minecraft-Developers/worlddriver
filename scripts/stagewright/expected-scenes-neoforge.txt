@@ -328,3 +328,11 @@ wd.unwedgeTowersBesideTheStaircase
 # with the frame's own obsidian and requires the refusal — never mine the portal to get into it.
 wd.portalEntryDigsIntoTheRowItFits
 wd.portalEntryWillNotMineItsOwnFrame
+
+# The same row three times on 2026-08-19: "stuck (no Y gain in 60t: placed=0, holding=64,
+# phase=JUMPING)" over a body on the ground holding a stack. TowerProcess leaves JUMPING on
+# p.getY() >= jumpFromY + 1.0 and on nothing else, so one jump that does not clear a whole block
+# ends the ORDER. Two arms; each control is the arm with the fault, and the second one's only
+# variable is where the body stands inside its own cell.
+wd.serverTowersUnderALowCeiling
+wd.serverTowersUnderTheNeighboursCeiling
