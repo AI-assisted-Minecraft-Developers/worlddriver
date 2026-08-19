@@ -84,7 +84,13 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                 Scene.of("wd.serverWidensFromTheBackpack", 600,
                         ctx -> widensAThinFooting(ctx, 20)).withRequired(false),
                 Scene.of("wd.serverStopsAtTheBridgeHead", 600,
-                        WorldDriverThinFootingScenes::stopsAtTheBridgeHead).withRequired(false));
+                        ctx -> stopsAtTheBridgeHead(ctx, 0)).withRequired(false),
+                // Same bridge, one variable different: the goal is off the bridge's axis, so the
+                // path must TURN at the head instead of running straight out of it. The ladder's
+                // eighth departure had node -13,111,-3 — three out and one across — and the
+                // straight arm passes, so the turn is the only difference left to test.
+                Scene.of("wd.serverTurnsAtTheBridgeHead", 600,
+                        ctx -> stopsAtTheBridgeHead(ctx, -3)).withRequired(false));
     }
 
     private static void widensAThinFooting(SceneContext ctx, int slot) {
@@ -281,7 +287,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      *       making the ladder unable to cross anything. The bar is four of the eight deck cells.</li>
      * </ol>
      */
-    private static void stopsAtTheBridgeHead(SceneContext ctx) {
+    private static void stopsAtTheBridgeHead(SceneContext ctx, int lateral) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int deckY = ctx.origin().getY() + 40;
@@ -328,7 +334,8 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         // A goal well past the deck's end, so the walk has every reason to keep going and the only
         // thing that can stop it at the head is the guard.
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(new BlockPos(cx, standY, cz + deckCells + 6)));
+        walker.setGoal(new Goal.Block(
+                new BlockPos(cx + lateral, standY, cz + deckCells + 6)));
         double minY = fp.getY();
         double farZ = fp.getZ();
         int t = 0;
@@ -343,6 +350,9 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         int spent = 64 - fp.getInventory().countItem(Items.COBBLESTONE.asItem());
         double walked = farZ - (cz + 1.5);
 
+        ctx.record("goal", lateral == 0 ? "目标在桥的延长线上（直走）"
+                : "目标横向偏 " + lateral + " 格 —— 路径必须在桥头转向，而真梯第八族的节点正是"
+                  + "「三格外、偏一格」");
         ctx.record("rig", "1 格宽黑曜石桥 x=" + cx + " z=" + cz + ".." + (cz + deckCells - 1)
                 + " y=" + deckY + "，桥外与桥下全部挖空到 y=" + level.getMinBuildHeight()
                 + "（守卫只在直通虚空的柱子上立即武装，铺接住的地板等于在量场地）");

@@ -412,6 +412,18 @@ public final class JourneyRig {
      * finished is a tick the watcher sees — which is what lets it say whether the body was on the
      * ground when the walk decided it was done.
      */
+    /** Which process was driving when the body left the world, and how far into its budget.
+     *
+     *  <p>Needed because the walker trace beside it can be arbitrarily stale: it is written on
+     *  WALKER ticks, and this rung spends much of its time under TowerProcess / SwingAt / HoldStill,
+     *  none of which tick a walker. A healthy walking line printed next to a fall therefore proves
+     *  nothing about the fall — it can be minutes old and from a different leg. Two straight arena
+     *  arms built on that line ({@code wd.serverStopsAtTheBridgeHead}, {@code …TurnsAtTheBridgeHead})
+     *  both passed, which is what forced this reading into existence. */
+    private String drivingWhenLost;
+
+    public String drivingWhenLost() { return drivingWhenLost; }
+
     public void settle(BotProcess process, int ticks, TickWatcher watcher, Runnable then) {
         // THE one place that runs on every tick of every leg of every rung, which is why the
         // out-of-world check lives here and not at the call sites: there are dozens of settles and
@@ -424,7 +436,17 @@ public final class JourneyRig {
         await(() -> {
             if (watcher != null) watcher.tick();
             heartbeat(waited[0], ticks, process);
-            return d.finished() || bodyLeftTheWorld() || ++waited[0] >= ticks;
+            if (d.finished()) return true;
+            if (bodyLeftTheWorld()) {
+                // Latched HERE, where the process that was actually driving is in scope. The walker
+                // trace printed beside it only updates on walker ticks, so on a leg driven by a
+                // tower or a swing it describes some earlier leg entirely.
+                if (drivingWhenLost == null) {
+                    drivingWhenLost = process.kind() + "（第 " + waited[0] + "/" + ticks + " tick）";
+                }
+                return true;
+            }
+            return ++waited[0] >= ticks;
         }, ticks + 100, () -> {
             ServerAvatarManager.unregister(d);
             then.run();
@@ -464,7 +486,8 @@ public final class JourneyRig {
                 + "（vanilla Entity.checkBelowWorld 用的同一条线）；位置=" + fp.blockPosition().getX()
                 + "," + fp.blockPosition().getY() + "," + fp.blockPosition().getZ()
                 + " @ " + fp.level().dimension().location()
-                + "；最后一个还有支撑的 tick walker 在做="
+                + "；离场时在跑的进程=" + (drivingWhenLost == null ? "没记到" : drivingWhenLost)
+                + "；最后一个还有支撑的 tick walker 在做（⚠️只在 walker tick 更新，可能是别的段留下的）="
                 + net.magicterra.worlddriver.bot.movement.Walker.lastSupportedTrace
                 + "；离场那一 tick walker 在做="
                 + net.magicterra.worlddriver.bot.movement.Walker.lastTickTrace
