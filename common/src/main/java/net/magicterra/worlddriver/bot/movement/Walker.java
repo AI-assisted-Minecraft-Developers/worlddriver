@@ -1544,6 +1544,24 @@ public final class Walker {
      * ridge walk is how a bridging contract gets eaten. Over the void it is the difference between
      * continuing and falling forever.
      */
+    /**
+     * True when this body is on a graze with the void beside it — the state from which no jump can
+     * be allowed to leave the ground.
+     *
+     * <p>The planner's leap and diagonal gates cannot see this. They rule on EDGES, and the jump
+     * that killed rung 20 here is the walker's own {@code stepUpFreeze}: measured
+     * 「跳标=stepUpFreeze 身体=-42.70,102.00,5.30 速度h=0.528 脚底=0.000 节点=-43,103,4」 —— a
+     * step-up fired at speed off a tower top with a sole that rounds to nothing. Six families of
+     * departure have now been closed one at a time; this is the one that belongs to the executor
+     * rather than to the plan, and it is why closing all seven planner moves did not end the falls.
+     */
+    static boolean grazingBesideTheVoid(WorldView world, Player p) {
+        if (p == null || p.isInWater()) return false;
+        double sole = soleOnSolid(world, p);
+        if (sole <= 0.0 || sole >= VOID_FOOTING_MIN) return false;
+        return voidBeside(world, BlockPos.containing(p.getX(), p.getY() - 0.5, p.getZ()));
+    }
+
     /** The footing guard's own threshold, for scenes that must stage a body it actually looks at.
      *  An accessor rather than a copied literal: a rig that assumes 0.18 stops being a test of this
      *  guard the day the guard changes its mind. */
@@ -1566,7 +1584,7 @@ public final class Walker {
      *
      * <p>Same floor as the stride guard's own bottomless test, so the two agree about「虚空」.
      */
-    private static boolean voidBeside(WorldView world, BlockPos at) {
+    static boolean voidBeside(WorldView world, BlockPos at) {
         for (int dx = -1; dx <= 1; dx++)
             for (int dz = -1; dz <= 1; dz++) {
                 if (dx == 0 && dz == 0) continue;

@@ -1146,6 +1146,7 @@ final class WalkerTickDrive {
                     (p.horizontalCollision && p.onGround() && wp.getY() < foot.getY()), stepUpJump, wiggle, wk.driveLatch.underwaterTicks,
                     wp.getX(), wp.getY(), wp.getZ(), foot.getX(), foot.getY(), foot.getZ());
         }
+        if (jump && vetoJumpOnAGraze(wk, world, p)) jump = false;
         if (jump) {
             wk.jumpTag = stepUpJump ? "stepUp" : parkourEdge ? "parkour"     // 其它 = this chain is stale, see Walker#avatarJump
                     : stepUpFreeze && p.onGround() ? "stepUpFreeze" : levelRiserJump ? "levelRiser"
@@ -1374,6 +1375,25 @@ final class WalkerTickDrive {
      *
      * @return a terminal {@code FAILED} step to return from {@code run()}, or null to carry on
      */
+    /**
+     * LAST WORD on any jump: a body on a graze beside the void does not leave the ground.
+     *
+     * <p>Every gate above rules on the PLAN; this one rules on the BODY, which is why closing all
+     * seven planner leap moves and all three diagonals still left rung 20 falling — the jump that
+     * did it was the executor's own step-up: 「跳标=stepUpFreeze 身体=-42.70,102.00,5.30 速度h=0.528
+     * 脚底=0.000」. Called after the whole decision chain so no branch can route around it, and it
+     * tags the refusal rather than vetoing silently: a jump that does not happen and a jump that was
+     * never considered look identical in a log, and this run has already paid for that confusion.
+     *
+     * <p>A helper rather than five lines inline because {@code run()} is grandfathered at 1262 lines
+     * and may shrink, not grow.
+     */
+    private static boolean vetoJumpOnAGraze(Walker wk, WorldView world, Player p) {
+        if (!Walker.grazingBesideTheVoid(world, p)) return false;
+        wk.jumpTag = "被虚空脚感否决";
+        return true;
+    }
+
     private static Walker.Step noteDeadZone(Walker wk, Player p, BlockPos foot, Move.Edge edge) {
         wk.forceFellOffPath = true;
         BlockPos node = wk.path.get(wk.step);
