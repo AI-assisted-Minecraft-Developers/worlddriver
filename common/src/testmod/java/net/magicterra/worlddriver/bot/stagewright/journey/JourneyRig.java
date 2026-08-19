@@ -464,6 +464,8 @@ public final class JourneyRig {
                 + "（vanilla Entity.checkBelowWorld 用的同一条线）；位置=" + fp.blockPosition().getX()
                 + "," + fp.blockPosition().getY() + "," + fp.blockPosition().getZ()
                 + " @ " + fp.level().dimension().location()
+                + "；离场那一 tick walker 在做="
+                + net.magicterra.worlddriver.bot.movement.Walker.lastTickTrace
                 + "；最后一次站在地上=" + (lastGrounded == null ? "本段从未站稳过"
                         : lastGrounded.getX() + "," + lastGrounded.getY() + "," + lastGrounded.getZ()
                           + "（" + sinceGrounded + " tick 之前 —— 那一格才是要查的地方）")

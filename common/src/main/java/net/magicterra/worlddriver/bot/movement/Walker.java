@@ -1358,6 +1358,16 @@ public final class Walker {
         // gap #53 death strode over a well mouth from a branch that never reached it. Run the
         // stride floor-guard here, after EVERY decision path, before the avatar integrates.
         Step s = tickInner(a, world);
+        Player tp = a.player();
+        lastTickTrace = "step=" + s + " 跳标=" + (jumpTag == null ? "未标" : jumpTag)
+                + (tp == null ? "" : " 身体=" + String.format(java.util.Locale.ROOT, "%.2f,%.2f,%.2f",
+                        tp.getX(), tp.getY(), tp.getZ())
+                    + String.format(java.util.Locale.ROOT, " 速度h=%.3f",
+                        tp.getDeltaMovement().horizontalDistance())
+                    + " 脚底=" + String.format(java.util.Locale.ROOT, "%.3f",
+                        WalkerGeometry.soleOnSolid(world, tp)))
+                + " 节点=" + (path == null || step < 0 || step >= path.size()
+                        ? "无" : path.get(step).toShortString());
         boolean fired = strideFloorGuard(a, world);
         boolean footing = footingGuard(a, world);
         // Pin HYSTERESIS: the guard's fire predicate needs translation (h ≥ 0.03), so the
@@ -1679,6 +1689,19 @@ public final class Walker {
      *  fatal arc?" (bridge battery: three different launchers over three rounds), and the
      *  aggregated drive jump erases the answer by the time the body is airborne. */
     public String jumpTag;
+
+    /**
+     * Write-only breadcrumb: what the walker was doing on its most recent tick, for readers that
+     * hold no Walker instance — chiefly the journey rig, which latches a fall long after the tick
+     * that caused it and until now could report only WHERE the body last stood.
+     *
+     * <p>Four island-rim coordinates inside four blocks of each other survived five rounds of fixes
+     * because the reading had a place and no action: every round guessed a mechanism, gated a move
+     * family, and got another coordinate back. <b>Nothing branches on this.</b> It is read on the
+     * fall path and printed; behaviour must never consult it, which is what keeps a static safe
+     * here (a static another thread pathfinds against is how an A/B once measured nothing at all).
+     */
+    public static volatile String lastTickTrace = "还没跑过";
 
     /** This tick's aim-tree owner ({@code aimSrc}) — same telemetry channel as
      *  {@link #jumpTag}: wedge post-mortems need "who owned the heading". */
