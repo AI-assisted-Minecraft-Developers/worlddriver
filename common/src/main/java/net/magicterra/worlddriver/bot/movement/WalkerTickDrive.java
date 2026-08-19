@@ -1146,7 +1146,7 @@ final class WalkerTickDrive {
                     (p.horizontalCollision && p.onGround() && wp.getY() < foot.getY()), stepUpJump, wiggle, wk.driveLatch.underwaterTicks,
                     wp.getX(), wp.getY(), wp.getZ(), foot.getX(), foot.getY(), foot.getZ());
         }
-        if (jump && vetoJumpOnAGraze(wk, world, p)) jump = false;
+        if (jump && vetoJumpOnAGraze(wk, world, p, parkourEdge)) jump = false;
         if (jump) {
             wk.jumpTag = stepUpJump ? "stepUp" : parkourEdge ? "parkour"     // 其它 = this chain is stale, see Walker#avatarJump
                     : stepUpFreeze && p.onGround() ? "stepUpFreeze" : levelRiserJump ? "levelRiser"
@@ -1388,11 +1388,31 @@ final class WalkerTickDrive {
      * <p>A helper rather than five lines inline because {@code run()} is grandfathered at 1262 lines
      * and may shrink, not grow.
      */
-    private static boolean vetoJumpOnAGraze(Walker wk, WorldView world, Player p) {
-        if (!Walker.grazingBesideTheVoid(world, p)) return false;
-        wk.jumpTag = "被虚空脚感否决";
-        return true;
+    private static boolean vetoJumpOnAGraze(Walker wk, WorldView world, Player p, boolean parkour) {
+        if (Walker.grazingBesideTheVoid(world, p)) {
+            wk.jumpTag = "被虚空脚感否决";
+            return true;
+        }
+        // A leap priced at the sprint-jump maximum, launched from a standstill. The runway rule
+        // added earlier is a PLANNER gate — it asks whether the cells behind the launch could be run
+        // along, never whether the body actually ran along them. Measured:
+        // 「跳标=parkour 身体=-32.71,18.00,37.28 速度h=0.024 脚底=0.339 节点=-34,21,37」 —— two
+        // across and three up, fired at a twentieth of walking speed, over the void. Refusing costs
+        // a few ticks of walking, which is how the momentum gets there; taking it costs the run.
+        if (parkour && p != null
+                && p.getDeltaMovement().horizontalDistance() < PARKOUR_MIN_TAKEOFF_SPEED
+                && Walker.voidBeside(world,
+                        net.minecraft.core.BlockPos.containing(p.getX(), p.getY() - 0.5, p.getZ()))) {
+            wk.jumpTag = "被起跳速度否决";
+            return true;
+        }
+        return false;
     }
+
+    /** Horizontal speed a parkour launch needs over the void. Walking is ~0.13 and a sprint ~0.28;
+     *  this is below a walk on purpose — the rule is meant to catch a standstill, not to referee
+     *  how fast is fast enough, and a bar set at sprint speed would refuse leaps that work. */
+    private static final double PARKOUR_MIN_TAKEOFF_SPEED = 0.08;
 
     private static Walker.Step noteDeadZone(Walker wk, Player p, BlockPos foot, Move.Edge edge) {
         wk.forceFellOffPath = true;
