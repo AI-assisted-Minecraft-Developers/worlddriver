@@ -2107,23 +2107,21 @@ public final class JourneyEndRungs {
             try {
             if (aim == null && head != null && holdBow(p)) {
                 aimAtPart(p, head, headAway * 0.12);      // lead high for arrow drop
-                // Count OUR OWN draw ticks. p.getTicksUsingItem() never advances on this body:
-                // LivingEntity.updatingUsingItem() runs from vanilla tick(), and both fake players
-                // have an empty tick() — baseTick only enters through ServerPlayerAvatar.step().
-                // So the 20-tick full-draw test could never be satisfied, and an up-edge release at
-                // zero charge fires nothing at all: three runs held the bow, entered this branch,
-                // and reported 射出 0 箭. Release explicitly at full power instead of asking a
-                // counter that is frozen.
+                // Vanilla's own draw, on vanilla's own counter. An earlier cut counted ticks here
+                // and called releaseUsing by hand, on the theory that getTicksUsingItem() is frozen
+                // for this body. It is NOT: ServerPlayerAvatar.mirrorPlayerTick() has always run
+                // `if (fp.isUsingItem()) fp.updatingUsingItem();`, so the timer advances exactly as
+                // it does for a real player. That workaround routed around a defect that did not
+                // exist — and a test that drives an engine path by hand stops testing it, which is
+                // the worst possible trade for a rung whose whole job is to exercise the engine.
+                // The two real causes of 「射出 0 箭」 were the HAND (the bow sat in the bag) and the
+                // SEARCH BOX (128 was narrower than the arena the dragon flies in).
                 bowTicks++;
                 if (bowBroken) { /* one failure is enough; melee still works */ }
                 else {
-                if (!p.isUsingItem()) { a.commandUseItem(true); drawTicks = 0; }
-                if (++drawTicks >= BOW_FULL_DRAW) {
-                    ItemStack bow = p.getMainHandItem();
-                    bow.getItem().releaseUsing(bow, p.level(), p,
-                            bow.getUseDuration(p) - drawTicks);
-                    p.stopUsingItem();
-                    drawTicks = 0;
+                drawTicks = p.isUsingItem() ? p.getTicksUsingItem() : 0;
+                if (drawTicks >= BOW_FULL_DRAW) {
+                    a.commandUseItem(false);              // up-edge = release = shoot
                     // Count AMMO, not releases. The first cut incremented here and reported 9516
                     // shots from a quiver of 256: once the arrows run out stopUsingItem still gets
                     // called every cycle, so the counter went on climbing while nothing was fired.
@@ -2132,6 +2130,8 @@ public final class JourneyEndRungs {
                     int now = p.getInventory().countItem(net.minecraft.world.item.Items.ARROW);
                     if (ammoBefore < 0) ammoBefore = now;
                     if (now < ammoBefore) { arrows += ammoBefore - now; ammoBefore = now; }
+                } else {
+                    a.commandUseItem(true);               // hold the draw
                 }
                 }
             }
