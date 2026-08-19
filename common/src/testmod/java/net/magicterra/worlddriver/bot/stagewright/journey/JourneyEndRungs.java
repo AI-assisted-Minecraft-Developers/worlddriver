@@ -1644,6 +1644,7 @@ public final class JourneyEndRungs {
             boolean fightSaysKilled = end.getDragonFight() != null
                     && end.getDragonFight().hasPreviouslyKilledDragon();
             boolean dead = seenDying || fightSaysKilled;
+            rig.evidence("duel.bow", fight.bowRow(rig.player()));
             rig.evidence("duel.end", fight.why() + "（打了 " + fight.elapsedTicks() + " tick）");
             rig.evidence("duel.swings", fight.swings() + "（其中打到头 " + fight.headHits()
                     + " 次）；射出 " + fight.arrows() + " 箭（近战只在龙俯冲落座那几秒有效，"
@@ -2027,6 +2028,8 @@ public final class JourneyEndRungs {
         private int ammoBefore = -1;
         private int drawTicks;
         private boolean bowBroken;
+        private String bowError;
+        private int bowTicks;   // ticks the ranged branch actually ran
         private int arrowsAtLastReach;
         private boolean gaveUp;
         /** Why this fight stopped. Four exits produce the identical outside view — a live dragon and
@@ -2111,6 +2114,7 @@ public final class JourneyEndRungs {
                 // zero charge fires nothing at all: three runs held the bow, entered this branch,
                 // and reported 射出 0 箭. Release explicitly at full power instead of asking a
                 // counter that is frozen.
+                bowTicks++;
                 if (bowBroken) { /* one failure is enough; melee still works */ }
                 else {
                 if (!p.isUsingItem()) { a.commandUseItem(true); drawTicks = 0; }
@@ -2132,7 +2136,10 @@ public final class JourneyEndRungs {
                 }
             }
             } catch (RuntimeException e) {
-                why = "拉弓那一支抛了异常：" + e;
+                // Its OWN key. Writing this into `why` let the later give-up message overwrite it,
+                // so an exception on tick 30 vanished behind 「放弃」 on tick 21102 — one key, two
+                // writers, last one wins, and the first write was the interesting one.
+                bowError = String.valueOf(e);
                 bowBroken = true;
             }
             // Never once in reach for DUEL_OUT_OF_REACH_TICKS: stop waiting. Reset by any approach,
@@ -2158,6 +2165,17 @@ public final class JourneyEndRungs {
         boolean gaveUp() { return gaveUp; }
 
         String why() { return why; }
+
+        /** Everything about the ranged half, as one row. Five runs reported 「射出 0 箭」 and each
+         *  time the cause was somewhere else entirely — wrong hand, a frozen use-timer, a search box
+         *  narrower than the arena. A count of zero says nothing about which. */
+        String bowRow(Player p) {
+            return "进入远程分支 " + bowTicks + " tick，拉弓计数 " + drawTicks
+                    + "，箭存量 " + (p == null ? -1
+                        : p.getInventory().countItem(net.minecraft.world.item.Items.ARROW))
+                    + "，手上=" + (p == null ? "?" : p.getMainHandItem().getItem())
+                    + (bowError == null ? "" : "，异常=" + bowError);
+        }
 
         int arrows() { return arrows; }
 
