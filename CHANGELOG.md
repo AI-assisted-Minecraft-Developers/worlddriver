@@ -19,6 +19,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   — the jump fired and was clipped — against `subject.after = 0 fault(s)`, 4 of 4 courses, whose
   only difference is 0.45 of a block in x.
 
+- **A tower whose jump does not clear a whole block no longer ends the order.** `TowerProcess` left
+  its `JUMPING` phase on `p.getY() >= jumpFromY + 1.0` and on nothing else, and released the jump key
+  on that phase's first tick — so a single short arc was a one-way door: the process spent every
+  remaining tick of its caller's budget face-down over a cell it had already decided not to fill.
+  `JUMPING` now returns to `READY` once the body is footed again and the rise never happened, and the
+  stuck message carries `shortJumps` so「tried fifteen arcs」and「wedged on the first」stop printing
+  alike. That wedge is what turned rung 12 into rung 9: the exit tower gained nothing, the walker
+  fallback left the body three blocks DEEPER and in another column, and the rung after it failed for
+  want of a free cell to stand a crafting table in.
+
+- **And it asks, before jumping, whether the body can rise at all — with the body's own box.** New
+  `WalkerGeometry.pillarRiseBlockers`: the cells a 0.6-wide body would have to lift itself through,
+  decided by vanilla's own collision test and then NAMED. `blockPosition().above(2)` answers about
+  one column, and a body standing within 0.3 of a cell boundary also lifts a corner of itself through
+  the neighbour's — `wd.serverTowersUnderTheNeighboursCeiling`'s two runs differ by 0.45 of a block in
+  x and by nothing else, and gain 0 of 4 courses versus 4 of 4. The verdict is now
+  `blocked overhead (placed=0, feetY=221, 升不满一格：<cell>=<block>)` on the FIRST tick instead of a
+  phase name sixty ticks later — cells, because this process places and never breaks, so the only
+  thing it can do about a lid is name it for the caller that can mine it.
+
 - **Rung 13 now walks into the portal by a row a body actually fits through, and opens one cell of
   the wall when no row is open.** The ladder lit its portal and then failed with
   `站在传送门里 1200 tick 没被送走`, over evidence that said the opposite: `stand.in =

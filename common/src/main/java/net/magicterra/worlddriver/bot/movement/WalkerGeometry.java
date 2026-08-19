@@ -7,8 +7,14 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.shapes.BooleanOp;
+import net.minecraft.world.phys.shapes.Shapes;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 import static net.magicterra.worlddriver.bot.movement.WalkerConstants.*;
@@ -127,6 +133,54 @@ public final class WalkerGeometry {
         double[] area = { 0 };
         eachSoleCell(p, (cell, cellArea) -> { if (w.isSolid(cell)) area[0] += cellArea; });
         return area[0];
+    }
+
+    /** How far a pillar-up has to lift the body before the cell it jumped from can be filled: one
+     *  whole block, because that cell is where the block goes and vanilla refuses a placement that
+     *  intersects the placer's own box. {@code TowerProcess} gates PLACING on exactly this rise. */
+    public static final double PILLAR_RISE = 1.0;
+
+    /**
+     * Every cell that would stop this body from rising {@link #PILLAR_RISE} — empty when nothing does.
+     *
+     * <p><b>A body is 0.6 wide, so「头顶那一格」is not one cell.</b> Asking
+     * {@code blockPosition().above(2)} answers about the column {@code floor(x), floor(z)} names, and
+     * a body standing anywhere within 0.3 of a cell boundary also has to lift a corner of itself
+     * through the NEIGHBOUR's cell. Measured 2026-08-19 by {@code wd.serverTowersUnderTheNeighboursCeiling},
+     * whose two runs differ by 0.45 of a block in x and by nothing else: at {@code x=cx+0.05} the box
+     * is {@code [cx-0.25, cx+0.35]}, one stone cell over {@code cx-1} clips the jump at {@code +0.20}
+     * and the tower gains 0 of 4 courses; at {@code x=cx+0.5} the same stone is beside the box and it
+     * gains 4 of 4. {@code blockPosition()} reads {@code cx} in both.
+     *
+     * <p>That is why this returns CELLS rather than a boolean: the process that finds the obstruction
+     * cannot mine it ({@code TowerProcess} places, it never breaks), and the caller that can —
+     * {@code JourneyShaft.ascendByTowering} — can only mine a cell somebody names.
+     *
+     * <p>The decision is vanilla's own ({@link Level#noCollision(net.minecraft.world.entity.Entity, AABB)}
+     * over the box moved up by the rise); the scan below only puts names to it. They can disagree in
+     * one direction — a hard-collision ENTITY blocks and has no cell — and the caller is
+     * expected to say so rather than print an empty list as「nothing in the way」.
+     *
+     * @return the blocking cells, lowest first, or an empty list when the rise is clear
+     */
+    public static List<BlockPos> pillarRiseBlockers(Player p) {
+        Level lvl = p.level();
+        AABB box = p.getBoundingBox().move(0.0, PILLAR_RISE, 0.0);
+        if (lvl.noCollision(p, box)) return List.of();
+        VoxelShape want = Shapes.create(box);
+        List<BlockPos> out = new ArrayList<>();
+        for (int x = Mth.floor(box.minX + 1.0E-7); x <= Mth.floor(box.maxX - 1.0E-7); x++) {
+            for (int z = Mth.floor(box.minZ + 1.0E-7); z <= Mth.floor(box.maxZ - 1.0E-7); z++) {
+                for (int y = Mth.floor(box.minY + 1.0E-7); y <= Mth.floor(box.maxY - 1.0E-7); y++) {
+                    BlockPos at = new BlockPos(x, y, z);
+                    VoxelShape s = lvl.getBlockState(at).getCollisionShape(lvl, at);
+                    if (s.isEmpty()) continue;
+                    if (Shapes.joinIsNotEmpty(want, s.move(x, y, z), BooleanOp.AND)) out.add(at);
+                }
+            }
+        }
+        out.sort(Comparator.comparingInt(BlockPos::getY));
+        return out;
     }
 
     /** The row {@link #soleOnSolid} sums over: {@code floor(minY − 1e-7)}, the row the sole SITS ON

@@ -100,6 +100,10 @@ public final class TowerProcess implements BotProcess {
     private int jumpFromZ;
     private int settling;
     private boolean startedWhileMoving;
+    /** Courses whose jump never lifted the body a whole block. Counted rather than merely survived:
+     *  a body that is being shoved off its own arc and one under a lid it cannot see produce the
+     *  same zero height, and only this number distinguishes「试了 15 次」from「试了 1 次就卡死了」. */
+    private int shortJumps;
     private Phase phase = Phase.READY;
     private enum Phase { READY, JUMPING, PLACING, DONE }
 
@@ -161,6 +165,7 @@ public final class TowerProcess implements BotProcess {
             st.builder.lastError = "stuck (no Y gain in " + STUCK_TICKS + "t: placed=" + placed
                     + ", holding=" + p.getMainHandItem().getCount()
                     + ", phase=" + phase + ", apexFeetY=" + lastApexFloorY
+                    + ", shortJumps=" + shortJumps + ", overhead=" + overheadRow(p)
                     + (startedWhileMoving ? ", started while still moving" : "") + ")";
             st.builder.reset();
             a.releaseInputs();
@@ -189,6 +194,29 @@ public final class TowerProcess implements BotProcess {
                     startedWhileMoving = true;   // said out loud by the stuck message, not swallowed
                 }
                 settling = 0;
+                // NOTHING TO JUMP INTO, NOTHING TO PLACE. A course fills the cell the body jumped
+                // FROM, so it needs a whole block of rise before vanilla will accept the placement
+                // (Level#isUnobstructed refuses a block inside the placer) — and a body that cannot
+                // rise a whole block here can never make that placement, however many times it tries.
+                //
+                // ASKED WITH THE BODY'S OWN BOX, not with its block coordinate. See
+                // WalkerGeometry#pillarRiseBlockers: a 0.6-wide body standing within 0.3 of a cell
+                // boundary lifts a corner of itself through the NEIGHBOUR's cell, and every
+                // column-shaped question about it — including the ceiling clear this process's own
+                // caller does before each course — comes back clean.
+                //
+                // And it says WHICH CELL. This process places and never breaks, so the only thing it
+                // can do about a lid is name it for the caller that can mine it. Before this the
+                // answer was「stuck (no Y gain in 60t: placed=0, holding=64, phase=JUMPING)」, printed
+                // sixty ticks later, naming the phase the code stopped in rather than the block.
+                if (!p.level().noCollision(p,
+                        p.getBoundingBox().move(0.0, WalkerGeometry.PILLAR_RISE, 0.0))) {
+                    st.builder.lastError = "blocked overhead (placed=" + placed + ", feetY=" + feetY
+                            + ", 升不满一格：" + overheadRow(p) + ")";
+                    st.builder.reset();
+                    a.releaseInputs();
+                    return true;
+                }
                 // A tower is a purely vertical move, and a sprinting body's jump is not: vanilla
                 // adds +0.2 along the yaw on top of the 0.42 whenever `isSprinting()`. `releaseInputs`
                 // clears forward/sneak/jump and deliberately leaves the sprint FLAG alone, so a tower
@@ -228,6 +256,27 @@ public final class TowerProcess implements BotProcess {
                 // tick delay fired ~one tick early (~Y+0.99) and the place no-op'd.
                 if (sinceJump >= PLACE_DELAY_TICKS && p.getY() >= jumpFromY + 1.0) {
                     phase = Phase.PLACING;
+                    return false;
+                }
+                // BACK TO READY WHEN THE JUMP CAME BACK DOWN. This was a one-way door: the only exit
+                // from JUMPING was the rise above, the jump key is released on this phase's first
+                // tick, and nothing here ever asked whether the body had landed — so ONE jump that
+                // failed to clear a whole block ended not the course but the ORDER, and the process
+                // spent every remaining tick of its caller's budget face-down over a cell it had
+                // already decided not to fill. Measured 2026-08-19 on three unrelated legs of the
+                // journey ladder, all reading「stuck (no Y gain in 60t: placed=0, holding=64,
+                // phase=JUMPING, apexFeetY=<start>)」over a body that was on the ground, not in water,
+                // and holding a stack; and reproduced in wd.serverTowersUnderTheNeighboursCeiling,
+                // where the body rose 0.20 of a block and then stood still for 60 ticks.
+                //
+                // Retrying is not「a retry that changes nothing」HERE because the READY branch above
+                // now refuses a course it cannot make: a lid that is still there ends the order on
+                // the next tick with the cell named, and what survives this path is the transient
+                // case — a shove, a current, a mob — where the next arc genuinely differs. The
+                // 60-tick stuck guard remains the backstop, and now reports how many arcs were short.
+                if (sinceJump >= PLACE_DELAY_TICKS && footed) {
+                    shortJumps++;
+                    phase = Phase.READY;
                 }
             }
             case PLACING -> {
@@ -247,6 +296,28 @@ public final class TowerProcess implements BotProcess {
             case DONE -> { return true; }
         }
         return false;
+    }
+
+    /** What is in the way of a one-block rise, as evidence: the cells and what stands in them.
+     *
+     *  <p>Cells, because the caller is the only party that can act on them — this process places and
+     *  never breaks. {@code 无} rather than an empty string when the rise is clear, so a stall with
+     *  nothing overhead is a POSITIVE reading instead of a missing one; and the entity case is said
+     *  out loud, because vanilla's collision test answers「blocked」for a hard-collision entity that
+     *  no cell scan can name. */
+    private static String overheadRow(Player p) {
+        List<BlockPos> lid = WalkerGeometry.pillarRiseBlockers(p);
+        if (lid.isEmpty()) {
+            return p.level().noCollision(p, p.getBoundingBox().move(0.0, WalkerGeometry.PILLAR_RISE, 0.0))
+                    ? "无" : "有东西拦着但不是方块（实体碰撞）";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (BlockPos at : lid) {
+            if (sb.length() > 0) sb.append(' ');
+            sb.append(at.toShortString()).append('=')
+              .append(BuiltInRegistries.BLOCK.getKey(p.level().getBlockState(at).getBlock()));
+        }
+        return sb.toString();
     }
 
     private void faceDown(Player p) {
