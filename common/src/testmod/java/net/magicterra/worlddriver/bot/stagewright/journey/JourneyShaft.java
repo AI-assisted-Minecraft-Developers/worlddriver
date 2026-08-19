@@ -205,9 +205,28 @@ public final class JourneyShaft {
         exitRise = rise;
         climbColX = colX;
         climbColZ = colZ;
+        // BEFORE the column is settled, so a climb that refuses to tower still reports where it
+        // started and how far it had to go — those two rows are what `gained` is read against.
         rig.evidence(climbName + ".fromY", rig.player().blockPosition().getY());
         rig.evidence(climbName + ".rise", rise + " block(s), cap " + cap + " course(s)");
-        rig.evidence(climbName + ".column", colX + "," + colZ
+        // OFF THE STAIRCASE BEFORE A SINGLE BLOCK IS PLACED. See JourneyStairs#stepInColumn: a tower
+        // fills the cell the body jumped FROM, so a climb started in a flight column walls that
+        // flight up course by course without ever choosing a cell — which is how rung 12 filled
+        // 0,58,19 and 1,58,19 and then could not walk back down past its own cobblestone.
+        // Unconditional row: a climb nowhere near a staircase has to say so too, or a results file
+        // cannot tell「不在楼梯上」from「没问过」.
+        BlockPos want = new BlockPos(climbColX, rig.player().blockPosition().getY(), climbColZ);
+        BlockPos clear = climbPinned ? want : towerColumnClearOfTheFlight(lvlOf(rig), want);
+        rig.evidence(climbName + ".offTheFlight", offTheFlightRow(lvlOf(rig), want, clear));
+        if (clear == null) {
+            rig.evidence(climbName + ".column", climbColX + "," + climbColZ
+                    + "（这一柱就是下井楼梯，不起塔，改走楼梯本身）");
+            climbTheFlightItself(rig, surfaceY, then);
+            return;
+        }
+        climbColX = clear.getX();
+        climbColZ = clear.getZ();
+        rig.evidence(climbName + ".column", climbColX + "," + climbColZ
                 + (climbPinned ? "（钉住：换柱等于换射线，不许改）" : "（起塔柱，走不回就改）"));
         // The six-arg form on purpose: the five-arg one is a standalone ENTRY point and resets the
         // column and the pin, which are exactly the two things this method has just set.
@@ -246,6 +265,102 @@ public final class JourneyShaft {
             rig.settle(new IntentProcess(new Intent(new Goal.YLevel(surfaceY))), 3_000,
                     () -> recordExit(rig, then));
         });
+    }
+
+    /**
+     * The way out for a climb that may not tower where it stands: the staircase itself.
+     *
+     * <p>Reached only from {@link #towerColumnClearOfTheFlight} returning null, which means「the body
+     * is in a flight column and there is nowhere beside it to stand」. A stairwell cut through rock is
+     * exactly that shape — the cells either side of a step are the wall — so this is the branch the
+     * ladder actually takes, and「tower anyway」is not an alternative to it: that is the defect.
+     *
+     * <p><b>Nothing is placed and nothing is broken.</b> A body standing on a step is already ON the
+     * route out; the flight is walkable by construction, and a flight that has stopped being one is
+     * what {@code walkTheFlight}'s own audit and mend answer. Placing here is what filled the steps in
+     * the first place, and breaking here is how a walk eats the mould the rung is building — the same
+     * reason the pinned fallback beside this one carries {@link NoBreak}.
+     */
+    private static void climbTheFlightItself(JourneyRig rig, int surfaceY, Runnable then) {
+        boolean couldPlace = BotConfig.allowPlace;
+        boolean couldBreak = BotConfig.allowBreak;
+        BotConfig.allowPlace = false;
+        BotConfig.allowBreak = false;
+        rig.evidence(climbName + ".walkedNotTowered", true);
+        rig.settle(new IntentProcess(new Intent(new Goal.YLevel(surfaceY), List.of(),
+                        CapabilityProfile.ALL, List.of(new NoBreak()))), 3_000, () -> {
+            BotConfig.allowPlace = couldPlace;
+            BotConfig.allowBreak = couldBreak;
+            recordExit(rig, then);
+        });
+    }
+
+    /** How far from the body a climb looks for a column the flight does not run through. Three: a
+     *  stairwell is one cell wide with rock either side, so what is reachable is either the room it
+     *  opens into or nothing at all — and a column further out than this is a walk, not a step
+     *  aside. */
+    static final int OFF_FLIGHT_REACH = 3;
+
+    /**
+     * The column a tower may build in without walling up the staircase.
+     *
+     * <p>Three answers, and the third is the one that matters: <b>null is not「nothing found, carry
+     * on」— it is「do not tower here at all」</b>. A helper that fell back to the body's own column
+     * would be a rule with a fallback that ignores it, which is the shape {@link JourneyStairs}
+     * already records losing a run to, and the ladder's own geometry makes that fallback the common
+     * case rather than the rare one: a flight cut into rock has solid stone on both sides, so there IS
+     * no neighbouring column to stand in and the honest answer is to walk the flight.
+     *
+     * <p>Standability is {@link #footholdInColumn}'s question — something solid under the feet, feet
+     * and head clear — so a column the body could not stand in is never offered, and the drift
+     * correction that has to walk there is being asked for a cell it can actually reach.
+     *
+     * @return {@code at} when the flight does not run through {@code at}'s column (nothing to avoid),
+     *         the nearest standable off-flight foot cell when one exists, and <b>null</b> when the
+     *         column is the flight's and nothing near it can be stood in.
+     */
+    static BlockPos towerColumnClearOfTheFlight(ServerLevel level, BlockPos at) {
+        if (JourneyStairs.stepInColumn(level, at.getX(), at.getZ()) == null) return at;
+        for (int r = 1; r <= OFF_FLIGHT_REACH; r++) {
+            BlockPos best = null;
+            int bestCost = Integer.MAX_VALUE;
+            for (int dx = -r; dx <= r; dx++) {
+                for (int dz = -r; dz <= r; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
+                    int x = at.getX() + dx, z = at.getZ() + dz;
+                    if (JourneyStairs.stepInColumn(level, x, z) != null) continue;
+                    BlockPos foot = footholdInColumn(level, x, z, at.getY());
+                    if (foot == null) continue;
+                    // Height counts as distance. A column whose only foothold is six rows down is a
+                    // descent the climb then pays back, and this is a step aside, not a detour.
+                    int cost = dx * dx + dz * dz + Math.abs(foot.getY() - at.getY());
+                    if (cost < bestCost) { bestCost = cost; best = foot; }
+                }
+            }
+            if (best != null) return best;
+        }
+        return null;
+    }
+
+    /** The row every climb writes about its column — see {@link #climbFrom} for why it is
+     *  unconditional. {@code chosen} is {@link #towerColumnClearOfTheFlight}'s three-valued answer. */
+    static String offTheFlightRow(ServerLevel level, BlockPos want, BlockPos chosen) {
+        String col = want.getX() + "," + want.getZ();
+        BlockPos step = JourneyStairs.stepInColumn(level, want.getX(), want.getZ());
+        String flight = "（下井楼梯 " + JourneyStairs.steps() + " 级）";
+        if (climbPinned)
+            return "起塔柱 " + col + " 是钉住的，射线选的柱不改" + flight
+                    + (step == null ? "；这一柱不在楼梯上"
+                            : "；⚠ 这一柱正是 " + step.toShortString()
+                              + " 那一级所在的柱 —— 只记下来，落在哪一柱由浇筑/装水自己的射线闸判");
+        if (step == null) return "起塔柱 " + col + " 不在楼梯上" + flight + "，照原样起塔";
+        if (chosen == null)
+            return "起塔柱 " + col + " 正是 " + step.toShortString() + " 那一级所在的柱" + flight
+                    + "，附近 " + OFF_FLIGHT_REACH + " 格内没有一根站得住的非楼梯柱 —— 这一趟不起塔，"
+                    + "改走楼梯本身（塔填的就是起跳那一格，垒下去等于把这一级砌死）";
+        return "起塔柱 " + col + " 正是 " + step.toShortString() + " 那一级所在的柱" + flight
+                + "，改到 " + chosen.getX() + "," + chosen.getZ() + " 起塔（落脚 "
+                + chosen.toShortString() + "）";
     }
 
     static void recordExit(JourneyRig rig, Runnable then) {
@@ -335,6 +450,14 @@ public final class JourneyShaft {
         BlockPos at = rig.player().blockPosition();
         climbColX = at.getX();
         climbColZ = at.getZ();
+        // The same choice climbFrom makes, at the other entry point, because an invariant only one
+        // entry enforces is not enforced — this method's own javadoc says exactly that about the
+        // column and the pin, and the flight is the third static those two entries must agree about.
+        BlockPos clear = towerColumnClearOfTheFlight(lvlOf(rig), at);
+        rig.evidence(climbName + ".offTheFlight", offTheFlightRow(lvlOf(rig), at, clear));
+        if (clear == null) { then.run(); return; }
+        climbColX = clear.getX();
+        climbColZ = clear.getZ();
         ascendByTowering(rig, surfaceY, budget, cap, WASHED_OFF_RETRIES, then);
     }
 
@@ -395,6 +518,27 @@ public final class JourneyShaft {
                                     + "接下来由浇筑/装水自己的射线闸判" : ""));
                     climbColX = back.getX();
                     climbColZ = back.getZ();
+                }
+                // ADOPTING IS ALSO A WAY ONTO THE STAIRCASE. The column was chosen off the flight at
+                // climbFrom; the correction is entitled to change it and is not entitled to change it
+                // back onto a step. A rule whose own fallback ignores it is the shape
+                // JourneyStairs#needsOpen already records losing a run to, and this branch is
+                // literally that fallback.
+                BlockPos clear = climbPinned ? back : towerColumnClearOfTheFlight(lvlOf(rig),
+                        new BlockPos(climbColX, back.getY(), climbColZ));
+                if (clear == null) {
+                    rig.evidence(climbKey(step, ".driftOntoTheFlight"), climbColX + "," + climbColZ
+                            + " 是楼梯那一柱，附近没有能改去的柱 —— 塔到此为止（垒下去就是把台阶砌死），"
+                            + "交给 climbOut 的兜底腿");
+                    then.run();
+                    return;
+                }
+                if (clear.getX() != climbColX || clear.getZ() != climbColZ) {
+                    rig.evidence(climbKey(step, ".driftOffTheFlight"), climbColX + "," + climbColZ
+                            + " 是楼梯那一柱，改到 " + clear.getX() + "," + clear.getZ()
+                            + "（落脚 " + clear.toShortString() + "）");
+                    climbColX = clear.getX();
+                    climbColZ = clear.getZ();
                 }
                 ascendByTowering(rig, surfaceY, budget - 1, cap, washedOff, then);
             });

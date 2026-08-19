@@ -316,3 +316,10 @@ wd.serverWidensFromTheBackpack
 wd.serverStopsAtTheBridgeHead
 wd.serverTurnsAtTheBridgeHead
 wd.serverDrawsABow
+
+# Rung 12's unwedge towered from wherever the body stood, and on 2026-08-19 that was step 7 of the
+# staircase it had just cut — two steps walled up with its own cobblestone, and the mend could not
+# reach back through them. Two arms over one staged flight; the ledge is the only variable, and each
+# carries a control that breaks the flight on purpose first.
+wd.unwedgeRefusesTheStaircaseColumn
+wd.unwedgeTowersBesideTheStaircase

@@ -22,6 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **A body on a cut staircase, asked to unwedge, is now a scene rather than a forty-minute ladder
+  run.** `wd.unwedgeRefusesTheStaircaseColumn` and `wd.unwedgeTowersBesideTheStaircase` stage the
+  same seven-cell flight and differ in one thing — whether there is a standable cell beside the step
+  the body is on. The first is the ladder's own geometry (stairwell cut through rock, nowhere to step
+  aside to) and requires the refusal; the second adds a ledge and requires the tower to move there,
+  climb its four courses, spend its four blocks, and leave every cell of the flight passable. Each arm
+  first drives the pre-fix behaviour and **requires the flight to come back broken**: `faults()
+  .isEmpty()` is satisfied by a tower that never reached the staircase, so an arm that cannot break it
+  on purpose has not earned the right to report that it kept it intact.
+
 - **The ground-jump gate now reports where it disagrees with `onGround`.** Swapping a predicate is
   only visible where the old and new answers differ, and a suite that reports PASS/FAIL cannot show
   that: 253 scenes moved one colour, and the one that moved (`wd.buriedOre`) was in no category
@@ -82,6 +92,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exactly the reading.
 
 ### Fixed
+
+**The journey's unwedge tower no longer builds in the staircase's own column.** Rung 12's recovery
+pillared from wherever the body was standing, and on 2026-08-19 the body was standing on step seven
+of the flight it had just cut: `cast8.returnStuck2#9.column = 0,19`, `climb.0 = 0,58,19`, and the
+next audit read `2/11 级坏了：0, 58, 19 挡住 …=cobblestone，1, 57, 19 挡住 1, 58, 19=cobblestone`.
+`TowerProcess` fills the cell the body jumped FROM, so a climb started in a flight column walls that
+flight up course after course without ever choosing a cell — and the mend could not break back
+through them (`敲不开（身体 -1, 59, 19）`), so the rung died with `走不回模腔：停在 -1, 59, 19`. Every
+climb now picks its column through `JourneyShaft.towerColumnClearOfTheFlight` and records the answer
+unconditionally (`<climb>.offTheFlight`), at **both** entry points and again where the drift
+correction adopts a column — an invariant one entry enforces is not enforced, which this class has
+already paid for twice over the column and the pin. The chooser is three-valued: the body's own
+column when no flight runs through it, the nearest standable off-flight column when one exists, and
+**null**, meaning *do not tower here at all*. Null is the ladder's common case rather than its rare
+one — a flight cut into rock has wall on both sides — so a fallback that towered anyway would be a
+rule bypassed on every run; those climbs now walk the flight instead, placing and breaking nothing.
 
 **The void rule now covers every move that crosses a corner or a gap, not the subset each patch was
 written against.** Three times in two days the same shape leaked back: the leap gate went to

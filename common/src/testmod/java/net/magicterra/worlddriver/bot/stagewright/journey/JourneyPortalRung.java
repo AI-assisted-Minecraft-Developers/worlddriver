@@ -916,7 +916,7 @@ public final class JourneyPortalRung {
                 BotConfig.allowPlace = false;
                 BlockPos start = rig.player().blockPosition();
                 stairTop = start;
-                JourneyStairs.reset(start);
+                JourneyStairs.reset(level, start);
                 stairWaits = 0;
                 stairWaitedAt = null;
                 stairDir = awayFrom(lava, start);

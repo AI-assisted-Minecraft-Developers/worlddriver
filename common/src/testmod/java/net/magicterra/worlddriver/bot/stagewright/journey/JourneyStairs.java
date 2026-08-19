@@ -50,10 +50,30 @@ final class JourneyStairs {
 
     private static boolean sabotaged;
 
+    /**
+     * Which world the flight was cut in, or null when there is no flight.
+     *
+     * <p>{@link #cells} holds bare coordinates and the ladder crosses three dimensions with the same
+     * ones: {@code 0,58,19} is a step of this rung's staircase and is also an ordinary column in the
+     * Nether. Everything that used to read this list was the portal rung's own code, which could not
+     * be anywhere else; {@link JourneyShaft#towerColumnClearOfTheFlight} is asked by every climb in
+     * the ladder, so it can be asked about a body that is nowhere near a staircase — and a false
+     * positive there would refuse a tower for a step in another world.
+     */
+    private static String dimension;
+
     /** Start a fresh flight. Called once, where the staircase's top cell is chosen. */
-    static void reset(BlockPos top) {
-        cells.clear();
+    static void reset(ServerLevel level, BlockPos top) {
+        forget();
+        dimension = level.dimension().location().toString();
         cells.add(top);
+    }
+
+    /** No flight at all. The isolated scenes stage one and must not leave it behind — a ladder run
+     *  in the same process would then start rung 12 with somebody else's staircase already cut. */
+    static void forget() {
+        cells.clear();
+        dimension = null;
         checked = 0;
         mended = 0;
         sabotaged = false;
@@ -186,6 +206,38 @@ final class JourneyStairs {
      * consults reads as enforced right up until the impolite path is the one that runs.
      */
     static boolean needsOpen(BlockPos c) { return flightCell(c) != null; }
+
+    /**
+     * Which step of the flight stands in this COLUMN, or null — the x/z half of {@link #flightCell}.
+     *
+     * <p>{@link #flightCell} answers about one named cell, which is the right question for a
+     * placement that names its target. It is the wrong question for a TOWER, because a tower names
+     * nothing: {@code TowerProcess} fills whichever cell the body jumped FROM and then rises into the
+     * next one, so a body standing anywhere in a flight column walks its own cobblestone up the
+     * flight, cell after cell, without any of them ever being chosen.
+     *
+     * <p>Measured on the ladder run of 2026-08-19, rung 12. The return-leg unwedge towered from
+     * {@code 0,58,19} — which is {@code stair.7}'s own step, {@code cast8.returnStuck2#9.column =
+     * 0,19} — and the next audit read {@code 2/11 级坏了：0, 58, 19 挡住 0, 58, 19=cobblestone，
+     * 1, 57, 19 挡住 1, 58, 19=cobblestone}. Two steps filled, the mend could not reach back through
+     * them ({@code → 敲不开（身体 -1, 59, 19）}), and the rung died with {@code 走不回模腔：停在
+     * -1, 59, 19，楼梯底 2, 56, 19}.
+     *
+     * <p>Dimension-gated, because the list is bare coordinates — see {@link #dimension}.
+     */
+    static BlockPos stepInColumn(ServerLevel level, int x, int z) {
+        if (!inThisWorld(level)) return null;
+        for (BlockPos step : cells) if (step.getX() == x && step.getZ() == z) return step;
+        return null;
+    }
+
+    /** Is the flight in the world being asked about? False when no flight has been cut at all. */
+    static boolean inThisWorld(ServerLevel level) {
+        return dimension != null && dimension.equals(level.dimension().location().toString());
+    }
+
+    /** How many steps the flight has, so a row can say「楼梯 0 级」rather than fall silent. */
+    static int steps() { return cells.size(); }
 
     /** One step that has stopped being a step, and which of the four ways it can stop being one. */
     record StairFault(BlockPos step, BlockPos cell, boolean missingSupport, String saw) {
