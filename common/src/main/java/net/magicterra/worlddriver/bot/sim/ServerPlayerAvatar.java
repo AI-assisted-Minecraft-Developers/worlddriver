@@ -177,11 +177,15 @@ public class ServerPlayerAvatar implements Avatar {
     @Override public void commandJump(boolean v) { pendingJump = v; }
     @Override public void commandSneak(boolean v) { pendingSneak = v; }
     @Override public void commandUseItem(boolean hold) {
-        // Edge-trigger: start using on the rising edge, stop (firing a bow) on the
-        // falling edge. stopUsingItem() routes through Item.releaseUsing, the same
-        // path a client up-edge takes.
+        // Edge-trigger: start using on the rising edge, release on the falling edge.
+        // It must be releaseUsingItem(), not stopUsingItem(): only the former calls
+        // ItemStack.releaseUsing, which is where a bow spawns its arrow. stopUsingItem()
+        // just clears useItem and the flag, so a bow drawn to full and "released" that
+        // way looks identical to one that fired -- draw timer climbs, ammo untouched,
+        // no exception, and no projectile. RELEASE_USE_ITEM from a real client lands on
+        // releaseUsingItem() too.
         if (hold && !useHeld) fp.startUsingItem(InteractionHand.MAIN_HAND);
-        else if (!hold && useHeld) fp.stopUsingItem();
+        else if (!hold && useHeld) fp.releaseUsingItem();
         useHeld = hold;
     }
     @Override public void requestLookSnap() { /* no camera slew server-side */ }

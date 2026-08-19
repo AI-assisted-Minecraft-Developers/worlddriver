@@ -455,7 +455,8 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         ctx.record("promote", "松手后又等了 10 个真实服务器 tick 才数箭 —— 实体是在 level tick 时"
                 + "才从待加入队列里提升的，同步循环里数等于问一个还没被告知的索引");
         ctx.record("ammo", "松手前 " + before + " 支 → 松手后 " + after + " 支"
-                + "（instabuild=" + fp.getAbilities().instabuild + " 时 vanilla 不扣箭）");
+                + "（instabuild=" + fp.getAbilities().instabuild
+                + "；为真时 vanilla 从 getProjectile 另发一支、箭袋不动，为假时必须扣一支）");
         ctx.record("flew", flew + " 支箭出现在世界里（这才是「射出去了」的证据）");
         ctx.record("hand", "主手=" + fp.getMainHandItem().getItem()
                 + "，isUsingItem=" + fp.isUsingItem());
@@ -482,6 +483,12 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                 + "只有这一个非 0 说明 stopUsingItem 没走到 releaseUsing");
 
         ctx.expect(maxDraw >= 20).as("按住 60 tick 之后，拉弓计数必须至少到过一次满蓄力 20").isTrue();
+        if (!fp.getAbilities().instabuild) {
+            // Not a duplicate of flew: an entity in the sky only proves something spawned.
+            // The quiver going down by exactly one proves it came out of BowItem.releaseUsing.
+            ctx.expect(before - after == 1).as("松手之后箭袋里必须恰好少一支，实测 "
+                    + before + " → " + after);
+        }
         ctx.expect(flew >= 1).as("松手之后世界里必须出现一支箭 —— 只断言拉弓计数的话，"
                 + "一次射不出箭的满蓄力也是满分答案；而只断言箭袋减少的话，"
                 + "instabuild 下即使正常开火也永远不合格").isTrue();
