@@ -265,7 +265,15 @@ public final class JourneyEndRungs {
     private static final int END_SIGHT_CHUNKS = 5;
 
     /** How far a search reaches for the dragon and its crystals. */
-    private static final int DRAGON_SEARCH = 128;
+    /** Half-extent of the box the duel looks for the dragon in.
+     *
+     *  <p>Was 128, and 128 is why the bow never fired once across five runs holding it: the dragon
+     *  circles the End far wider than that, the {@code dragon == null} branch returns before the
+     *  draw, and the give-up counter then ran to 20000 consecutive ticks 「够不着」 while the body
+     *  stood on the fountain with 256 arrows in the bag. A search radius that decides whether the
+     *  fight can SEE its target must be wider than the arena the target flies in — the ranged half
+     *  of this fight is worth nothing if the dragon is invisible for the whole circling phase. */
+    private static final int DRAGON_SEARCH = 320;
 
     /** Melee reach the script holds itself to. Vanilla's own attack range is 3; four and a half is
      *  forgiving about where in its cell the body stopped without being a different game. */
