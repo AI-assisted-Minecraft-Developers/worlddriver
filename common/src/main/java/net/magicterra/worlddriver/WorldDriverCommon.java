@@ -291,7 +291,45 @@ public final class WorldDriverCommon {
     }
 
     /** Called by each loader when its server enters STARTING. */
+    /** Set by the test run tasks to a millisecond budget; unset (and inert) in production. */
+    public static final String STARTUP_WATCHDOG = "worlddriver.startupWatchdogMs";
+    private static volatile boolean serverEverStarted;
+
+    /**
+     * Halt the JVM if the server never finishes starting.
+     *
+     * <p>A server that fails to initialise does not take the JVM down with it. Architectury's
+     * transformer pools are non-daemon, so the process lingers with no {@code Server thread} and
+     * nothing to do, and a Gradle run task waits on it forever. Measured: a second rehearsal
+     * launched against a run whose port was still held died at {@code java.net.BindException:
+     * Address already in use: bind}, threw {@code NullPointerException} out of {@code stopServer}
+     * with a half-built level, and then <b>hung for 5.5 hours reporting nothing</b>. The port
+     * collision was a five-line fix; the silence was the expensive part, because a wedged run and a
+     * long run look identical from outside and the only evidence was in a log nobody was reading.
+     *
+     * <p>Test-only by construction: no property, no thread. It is armed by the run tasks rather than
+     * always-on because halting a JVM is not something a mod should do to somebody's game.
+     */
+    private static void armStartupWatchdog() {
+        String budget = System.getProperty(STARTUP_WATCHDOG);
+        if (budget == null) return;
+        long ms;
+        try { ms = Long.parseLong(budget.trim()); } catch (NumberFormatException e) { return; }
+        if (ms <= 0) return;
+        Thread t = new Thread(() -> {
+            try { Thread.sleep(ms); } catch (InterruptedException e) { return; }
+            if (serverEverStarted) return;
+            LOG.error("[worlddriver] 启动看门狗：{} ms 内服务器没有启动完成，强制退出 JVM。"
+                    + "常见原因是端口被占（BindException）或世界目录被另一趟占住——"
+                    + "这两种情况服务器都会死掉而 JVM 不会，于是构建会永远等下去。", ms);
+            Runtime.getRuntime().halt(90);
+        }, "worlddriver-startup-watchdog");
+        t.setDaemon(true);
+        t.start();
+    }
+
     public static void onServerStarting() {
+        armStartupWatchdog();
         ensureRpcUp();
         ensureMcpUp();
     }
@@ -312,6 +350,7 @@ public final class WorldDriverCommon {
      *  don't deadlock the server thread); the worker waits ~500ms first so spawn
      *  chunks finish loading their persisted entities before seedTestArea scrubs them. */
     public static void onServerStarted(MinecraftServer server) {
+        serverEverStarted = true;
         if (api == null) return;
         api.attachServer(server);
         loadUserScripts();

@@ -388,6 +388,11 @@ loom {
             property 'stagewright.scenes', 'wd.rehearse*'
             property 'worlddriver.rpcPort', '0'
             property 'worlddriver.mcpPort', '0'
+            // Arm the startup watchdog: a server that fails to initialise leaves the JVM alive
+            // (architectury's transformer pools are non-daemon) and the build waits on it forever.
+            // Five minutes is far past a cold worldgen and far short of a rehearsal, so it can only
+            // fire on a launch that is never going to happen.
+            property 'worlddriver.startupWatchdogMs', '300000'
             runDir 'run-rehearsal'
             vmArg '-Xmx2g'
             source sourceSets.testmod
@@ -484,12 +489,20 @@ def provisionRun = { String taskName, String dirName, String what ->
         def world = new File(runDir, 'world')
         if (world.exists() && !world.deleteDir()) {
             throw new GradleException("could not delete ${world} — a journey run must start from an"
-                    + " unplayed world, and reusing one makes run N measure run N-1")
+                    + " unplayed world, and reusing one makes run N measure run N-1."
+                    + " On Windows the usual cause is ANOTHER RUN STILL HOLDING THIS DIRECTORY:"
+                    + " check for live java.exe before blaming the disk. Two runs sharing a run dir"
+                    + " is not a slow run, it is two runs destroying each other's world.")
         }
         new File(runDir, 'eula.txt').text = 'eula=true\n'
         def properties = new File(runDir, 'server.properties')
         def body = properties.exists() ? properties.text : ''
-        ['level-seed': '5471', 'online-mode': 'false'].each { key, value ->
+        // server-port=0 → the OS assigns a free one. Nobody connects to these servers; a fixed
+        // port buys nothing and costs collisions. Measured cost of one such collision: a second
+        // rehearsal died at `java.net.BindException: Address already in use: bind`, NPE'd in
+        // stopServer with a half-built level, and then the JVM did not exit — architectury's
+        // transformer pools are non-daemon, so the build hung for 5.5 hours reporting nothing.
+        ['level-seed': '5471', 'online-mode': 'false', 'server-port': '0'].each { key, value ->
             def line = "${key}=${value}"
             if (body =~ /(?m)^${java.util.regex.Pattern.quote(key)}\s*=.*$/) {
                 body = body.replaceAll(/(?m)^${java.util.regex.Pattern.quote(key)}\s*=.*$/, line)
