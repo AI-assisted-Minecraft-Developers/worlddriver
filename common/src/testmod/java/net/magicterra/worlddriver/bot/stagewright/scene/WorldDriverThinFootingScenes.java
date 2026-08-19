@@ -82,7 +82,9 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                 // exactly one variable is the only way to tell "the remedy is wrong" from "the
                 // remedy could not see the blocks".
                 Scene.of("wd.serverWidensFromTheBackpack", 600,
-                        ctx -> widensAThinFooting(ctx, 20)).withRequired(false));
+                        ctx -> widensAThinFooting(ctx, 20)).withRequired(false),
+                Scene.of("wd.serverStopsAtTheBridgeHead", 600,
+                        WorldDriverThinFootingScenes::stopsAtTheBridgeHead).withRequired(false));
     }
 
     private static void widensAThinFooting(SceneContext ctx, int slot) {
@@ -231,5 +233,129 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         ctx.expect(arrived).as("it must actually reach the cell one up and one across — with only"
                 + " the first clause, standing perfectly still scores full marks, and that is"
                 + " exactly today's behaviour").isTrue();
+    }
+
+    /**
+     * <b>A body with a FULL sole walks off the end of its own bridge.</b>
+     *
+     * <h2>The shape this is a copy of</h2>
+     *
+     * Seven families of rung-20 departure have been closed one at a time — three in the planner
+     * (runway, void leaps, void diagonals) and four in the executor (no brake, tower drift, jumping
+     * off a graze, leaping from a standstill). The eighth is none of them:
+     *
+     * <pre>{@code
+     * step=WALKING 跳标=未标 身体=-10.38,111.00,-2.44 速度h=0.118 脚底=0.360 节点=-13,111,-3
+     * }</pre>
+     *
+     * No jump. Sole 0.360 — the FULL 0.6×0.6 footprint, not a graze. Walking speed, level target.
+     * The body simply walked off the end of a bridge it had built, at y=111 over the End void.
+     *
+     * <h2>Why an arena and not another gate</h2>
+     *
+     * Each of the seven gates was landed straight onto the ladder and each bought exactly one thing:
+     * a new departure coordinate on the next run. The two remedies that actually turned green in
+     * this suite ({@code wd.serverWidens*}) were both built as arenas first. {@code strideFloorGuard}
+     * is the guard whose job this is, it has been changed twice this session, and nothing in 271
+     * scenes can judge it.
+     *
+     * <h2>What it actually found: the hypothesis was wrong</h2>
+     *
+     * It passes, first run, decisively — 8 deck cells walked, then <b>7 cobblestone spent bridging
+     * past the end</b> to a goal six cells out over open void, {@code minY} exactly the deck. So the
+     * stride guard is not broken for a straight walk-off, and the ladder's eighth departure is not
+     * this. Kept anyway, and not as consolation: it is the only scene in 272 that exercises the
+     * guard at all, and it pins the behaviour the next change to that guard could break silently —
+     * the same guard has been edited twice in one session with nothing able to judge either edit.
+     *
+     * <p>The ladder's node was {@code -13,111,-3} — three cells out and one across, so the path was
+     * TURNING at the head, not running straight down it. That difference is the next arm to build,
+     * and it is a fact this arena earned by not reproducing the bug.
+     *
+     * <h2>The two clauses</h2>
+     *
+     * <ol>
+     *   <li><b>It must not fall.</b> The lowest y stays at the deck.</li>
+     *   <li><b>It must actually have walked.</b> Without this, refusing to move at all is a
+     *       full-marks answer — and a guard that pins the body at the first cell would "pass" while
+     *       making the ladder unable to cross anything. The bar is four of the eight deck cells.</li>
+     * </ol>
+     */
+    private static void stopsAtTheBridgeHead(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
+        final int deckY = ctx.origin().getY() + 40;
+        final int standY = deckY + 1;
+        final int deckCells = 8;
+
+        for (int dx = -4; dx <= 4; dx++)
+            for (int dz = -4; dz <= 16; dz++)
+                for (int y = deckY - 4; y <= deckY + 6; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz),
+                            Blocks.AIR.defaultBlockState());
+        // A genuine shaft under and past the bridge: the guard only arms instantly over a column
+        // that is bottomless to Walker's own scan floor, so a catch floor would measure the arena.
+        for (int dx = -4; dx <= 4; dx++)
+            for (int dz = -4; dz <= 16; dz++)
+                for (int y = level.getMinBuildHeight(); y < deckY; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz),
+                            Blocks.AIR.defaultBlockState());
+        for (int i = 0; i < deckCells; i++)
+            level.setBlockAndUpdate(new BlockPos(cx, deckY, cz + i),
+                    Blocks.OBSIDIAN.defaultBlockState());
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        BotConfig.allowPlace = true;      // bridging onward is a legitimate answer, and the best one
+        BotConfig.allowBreak = false;
+        BotConfig.walkerDebug = true;
+
+        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, standY, cz + 1.5);
+        ServerPlayer fp = av.fakePlayer();
+        ctx.cleanup(fp::discard);
+        LevelWorldView w = new LevelWorldView(level, fp);
+        fp.getInventory().clearContent();
+        fp.getInventory().setItem(0, new ItemStack(Items.COBBLESTONE, 64));
+        fp.getInventory().selected = 0;
+
+        for (int i = 0; i < SETTLE_TICKS; i++) av.step();
+        if (fp.getY() < standY - 0.5) {
+            ctx.fail("THE RIG, not the subject: vanilla dropped the staged stand in " + SETTLE_TICKS
+                    + " idle ticks (y=" + fp.getY() + ")");
+            return;
+        }
+
+        // A goal well past the deck's end, so the walk has every reason to keep going and the only
+        // thing that can stop it at the head is the guard.
+        Walker walker = new Walker();
+        walker.setGoal(new Goal.Block(new BlockPos(cx, standY, cz + deckCells + 6)));
+        double minY = fp.getY();
+        double farZ = fp.getZ();
+        int t = 0;
+        Walker.Step s = Walker.Step.WALKING;
+        for (; t < 400 && s == Walker.Step.WALKING; t++) {
+            s = walker.tick(av, w);
+            av.step();
+            minY = Math.min(minY, fp.getY());
+            farZ = Math.max(farZ, fp.getZ());
+            if (fp.getY() < deckY - 3) break;
+        }
+        int spent = 64 - fp.getInventory().countItem(Items.COBBLESTONE.asItem());
+        double walked = farZ - (cz + 1.5);
+
+        ctx.record("rig", "1 格宽黑曜石桥 x=" + cx + " z=" + cz + ".." + (cz + deckCells - 1)
+                + " y=" + deckY + "，桥外与桥下全部挖空到 y=" + level.getMinBuildHeight()
+                + "（守卫只在直通虚空的柱子上立即武装，铺接住的地板等于在量场地）");
+        ctx.record("drive", String.format(Locale.ROOT, "%d tick，身体=(%.2f,%.2f,%.2f) step=%s",
+                t, fp.getX(), fp.getY(), fp.getZ(), s));
+        ctx.record("minY", String.format(Locale.ROOT, "%.3f（桥面 %d，判据 > %d）",
+                minY, standY, standY - 1));
+        ctx.record("walked", String.format(Locale.ROOT,
+                "沿桥走了 %.2f 格（共 %d 格），最远 z=%.2f，判据 ≥ 4", walked, deckCells, farZ));
+        ctx.record("bridged", spent + " 块圆石离开背包（守卫可以选择架桥继续，那是最好的答案）");
+
+        ctx.expect(minY > standY - 1).as("身体不许掉到桥面以下").isTrue();
+        ctx.expect(walked >= 4.0).as("而且必须真的沿桥走过 4 格 —— 只有前一条判据的话，"
+                + "「一步都不迈」就是满分答案，而那样的守卫会让整条真梯寸步难行").isTrue();
     }
 }

@@ -313,3 +313,4 @@ wd.serverTowersWithAFullBackpack
 # RED BY DESIGN until the body widens its own footing — see the class note.
 wd.serverWidensAThinFooting
 wd.serverWidensFromTheBackpack
+wd.serverStopsAtTheBridgeHead
