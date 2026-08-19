@@ -90,7 +90,9 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                 // eighth departure had node -13,111,-3 — three out and one across — and the
                 // straight arm passes, so the turn is the only difference left to test.
                 Scene.of("wd.serverTurnsAtTheBridgeHead", 600,
-                        ctx -> stopsAtTheBridgeHead(ctx, -3)).withRequired(false));
+                        ctx -> stopsAtTheBridgeHead(ctx, -3)).withRequired(false),
+                Scene.of("wd.serverDrawsABow", 300,
+                        WorldDriverThinFootingScenes::drawsABow).withRequired(false));
     }
 
     private static void widensAThinFooting(SceneContext ctx, int slot) {
@@ -367,5 +369,121 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         ctx.expect(minY > standY - 1).as("身体不许掉到桥面以下").isTrue();
         ctx.expect(walked >= 4.0).as("而且必须真的沿桥走过 4 格 —— 只有前一条判据的话，"
                 + "「一步都不迈」就是满分答案，而那样的守卫会让整条真梯寸步难行").isTrue();
+    }
+
+    /**
+     * <b>Can this body draw a bow and loose an arrow at all?</b>
+     *
+     * <h2>Why this exists</h2>
+     *
+     * Rung 20's ranged half has been fixed four times — the bow was in the bag not the hand, the
+     * dragon search box was narrower than the arena it flies in, a raised block budget overflowed
+     * the inventory and pushed the bow out of it, and the avatar's edge-triggered use flag could not
+     * re-arm after vanilla stopped the use. Every one of those was a real defect. None of them moved
+     * the number: three consecutive rehearsals reported {@code 拉弓计数 7, 箭存量 256} — the same 7,
+     * before and after a change that should have altered it. A value that does not move when its
+     * cause is removed is measuring something else, and thirty minutes per reading is the wrong
+     * price for finding out what.
+     *
+     * <p>So: flat stone, a body, a bow, arrows, and nothing else — no dragon, no walker, no
+     * knockback, no fountain. Hold the use for well past a full draw and ask the only question that
+     * matters: <b>did the quiver go down?</b> Everything the ladder adds on top of this is a
+     * separate question, and none of it is worth asking until this one has an answer.
+     */
+    private static void drawsABow(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
+        final int deckY = ctx.origin().getY() + 4;
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = -3; dz <= 3; dz++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, deckY, cz + dz),
+                        Blocks.STONE.defaultBlockState());
+                for (int y = deckY + 1; y <= deckY + 4; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz),
+                            Blocks.AIR.defaultBlockState());
+            }
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+
+        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, deckY + 1, cz + 0.5);
+        ServerPlayer fp = av.fakePlayer();
+        ctx.cleanup(fp::discard);
+        fp.getInventory().clearContent();
+        fp.getInventory().setItem(0, new ItemStack(Items.BOW, 1));
+        fp.getInventory().setItem(9, new ItemStack(Items.ARROW, 64));
+        fp.getInventory().selected = 0;
+        fp.setXRot(-20.0F);                       // aim up a little so the arrow clears the deck
+
+        int before = fp.getInventory().countItem(Items.ARROW);
+        StringBuilder draw = new StringBuilder();
+        int maxDraw = 0;
+        // Hold the use for three full draws' worth of ticks. If the counter resets on a cycle, the
+        // per-tick line shows the cycle; if it climbs and holds, the release is the suspect instead.
+        av.commandUseItem(true);
+        for (int t = 0; t < 60; t++) {
+            av.step();
+            int d = fp.isUsingItem() ? fp.getTicksUsingItem() : -1;
+            maxDraw = Math.max(maxDraw, d);
+            if (t < 24) draw.append(' ').append(d);
+        }
+        av.commandUseItem(false);                 // up-edge = release
+        final int drewTo = maxDraw;
+        final String drawLine = draw.toString();
+        // Real SERVER ticks, not av.step(). step() ticks the avatar; a freshly spawned arrow sits in
+        // the level's pending-entity queue until the LEVEL ticks, so counting inside a synchronous
+        // loop asks the entity index about something it has not been told about yet — and reports a
+        // working bow as a silent one. Same shape as an arena whose entities were inert because PREP
+        // never waited for the promotion.
+        int[] waited = {0};
+        ctx.await(() -> ++waited[0] >= 10).within(60)
+                .then(() -> finishBowArm(ctx, level, fp, before, drewTo, drawLine));
+    }
+
+    private static void finishBowArm(SceneContext ctx, ServerLevel level, ServerPlayer fp,
+            int before, int maxDraw, String draw) {
+        int after = fp.getInventory().countItem(Items.ARROW);
+        // Count the ARROWS IN THE WORLD, not the ones missing from the bag. A player with
+        // instabuild gets a fresh projectile from getProjectile() and the quiver is never touched,
+        // so an ammo delta can be structurally zero while the bow is working perfectly — and that
+        // is precisely the counter rung 20 has been reporting for four rounds of「fixes」.
+        int flew = level.getEntitiesOfClass(net.minecraft.world.entity.projectile.AbstractArrow.class,
+                fp.getBoundingBox().inflate(24.0)).size();
+
+        ctx.record("draw", "按住 60 tick，逐 tick 的 getTicksUsingItem（-1 = 那一 tick 不在使用中）:"
+                + draw + " …… 最大 " + maxDraw + "（满蓄力需要 20）");
+        ctx.record("promote", "松手后又等了 10 个真实服务器 tick 才数箭 —— 实体是在 level tick 时"
+                + "才从待加入队列里提升的，同步循环里数等于问一个还没被告知的索引");
+        ctx.record("ammo", "松手前 " + before + " 支 → 松手后 " + after + " 支"
+                + "（instabuild=" + fp.getAbilities().instabuild + " 时 vanilla 不扣箭）");
+        ctx.record("flew", flew + " 支箭出现在世界里（这才是「射出去了」的证据）");
+        ctx.record("hand", "主手=" + fp.getMainHandItem().getItem()
+                + "，isUsingItem=" + fp.isUsingItem());
+        // DISCRIMINATOR. Two explanations survive an empty sky: stopUsingItem() never reached
+        // BowItem.releaseUsing, or releaseUsing ran and this body cannot spawn a projectile at all.
+        // They call for opposite fixes, so ask directly rather than picking one. Probe on the
+        // failure path only; it never runs when the normal release already worked.
+        ItemStack bow = fp.getMainHandItem();
+        String probe;
+        try {
+            bow.getItem().releaseUsing(bow, level, fp, bow.getItem().getUseDuration(bow, fp) - 30);
+            probe = "直接调用 releaseUsing 没有抛异常";
+        } catch (RuntimeException e) {
+            probe = "直接调用 releaseUsing 抛了 " + e;
+        }
+        ctx.record("probe", probe + "；弹药查询 getProjectile="
+                + fp.getProjectile(bow).getItem()
+                + "，instabuild=" + fp.getAbilities().instabuild);
+        int afterProbe = level.getEntitiesOfClass(
+                net.minecraft.world.entity.projectile.AbstractArrow.class,
+                fp.getBoundingBox().inflate(24.0)).size();
+        ctx.record("probe.flew", afterProbe + " —— 直接调 releaseUsing 之后世界里的箭数。"
+                + "跟上面的 flew 一起读：两个都是 0 说明这具身体根本生不出箭；"
+                + "只有这一个非 0 说明 stopUsingItem 没走到 releaseUsing");
+
+        ctx.expect(maxDraw >= 20).as("按住 60 tick 之后，拉弓计数必须至少到过一次满蓄力 20").isTrue();
+        ctx.expect(flew >= 1).as("松手之后世界里必须出现一支箭 —— 只断言拉弓计数的话，"
+                + "一次射不出箭的满蓄力也是满分答案；而只断言箭袋减少的话，"
+                + "instabuild 下即使正常开火也永远不合格").isTrue();
     }
 }

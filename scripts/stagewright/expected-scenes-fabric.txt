@@ -315,3 +315,4 @@ wd.serverWidensAThinFooting
 wd.serverWidensFromTheBackpack
 wd.serverStopsAtTheBridgeHead
 wd.serverTurnsAtTheBridgeHead
+wd.serverDrawsABow
