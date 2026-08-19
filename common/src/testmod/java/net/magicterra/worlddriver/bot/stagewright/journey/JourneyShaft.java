@@ -263,8 +263,20 @@ public final class JourneyShaft {
             // ascent worked. Two ways up is belt-and-braces; hiding which one carried the body is
             // how a capability quietly stops being tested.
             rig.evidence(climbName + ".walkerFallback", true);
+            // AND IT MAY NOT LEAVE THE BODY LOWER THAN IT FOUND IT. `Goal.YLevel` is column-blind, so
+            // a route to it may descend first, and when the search then fails the body keeps whatever
+            // the partial path gave it. Measured 2026-08-19: `vein2.exit#3` reported
+            // `walkerFallback=true`, `gained=-3/20` and `endedIn=100,83（起塔柱是 94,83 —— 不是同一柱）`
+            // — three blocks DEEPER than the leg started, in a different column, and nothing read that
+            // as anything but a short climb. The rung after it then failed for want of a free cell to
+            // put a crafting table in, which is what a body still down a shaft has.
+            //
+            // One more scripted ascent from wherever the walker stopped, and it is a genuinely
+            // different attempt rather than the same question asked twice: a different column, and a
+            // builder that now refuses — by name — the ceiling that ended the first one.
+            int beforeFallbackY = rig.player().blockPosition().getY();
             rig.settle(new IntentProcess(new Intent(new Goal.YLevel(surfaceY))), 3_000,
-                    () -> recordExit(rig, then));
+                    () -> recoverIfLower(rig, surfaceY, beforeFallbackY, then));
         });
     }
 
@@ -364,6 +376,48 @@ public final class JourneyShaft {
                 + chosen.toShortString() + "）";
     }
 
+    /**
+     * A leg whose whole point was to ascend must not END lower than it started.
+     *
+     * <p>Runs after the walker fallback, which is the only part of a climb that can move the body
+     * DOWN: a tower cannot, and the mine legs only cut upward. Re-enters the scripted ascent through
+     * the six-arg form so the climb keeps its own name and its own rows — the five-arg entry bumps
+     * {@code climbSeq}, and a rescue that renamed the climb would file its evidence under a key no
+     * reader of the first half would look for.
+     *
+     * <p>The column is re-chosen from where the body actually is, and the pin is deliberately not
+     * honoured here: a pinned climb that has fallen back has already adopted another column two
+     * courses earlier (see {@link #climbPinned}), and the one thing this rescue must not do is walk
+     * BACK down to a column it cannot stand in.
+     */
+    private static void recoverIfLower(JourneyRig rig, int surfaceY, int beforeFallbackY, Runnable then) {
+        BlockPos at = rig.player().blockPosition();
+        if (at.getY() >= beforeFallbackY || at.getY() >= surfaceY) { recordExit(rig, then); return; }
+        rig.evidence(climbName + ".fallbackWentDown", "兜底腿把身体从 y=" + beforeFallbackY
+                + " 带到了 y=" + at.getY() + "（" + at.toShortString() + "）—— 一段以上升为目的的腿"
+                + "不能以更低收场，就地再垒一次");
+        boolean wasPinned = climbPinned;
+        climbPinned = false;
+        climbColX = at.getX();
+        climbColZ = at.getZ();
+        BlockPos clear = towerColumnClearOfTheFlight(lvlOf(rig), at);
+        if (clear == null) {
+            rig.evidence(climbName + ".fallbackWentDown.stopped",
+                    at.toShortString() + " 这一柱就是下井楼梯，附近没有能改去的柱 —— 不补垒");
+            climbPinned = wasPinned;
+            recordExit(rig, then);
+            return;
+        }
+        climbColX = clear.getX();
+        climbColZ = clear.getZ();
+        int rise = Math.max(1, surfaceY - at.getY());
+        int cap = climbCoursesFor(rise);
+        ascendByTowering(rig, surfaceY, cap, cap, WASHED_OFF_RETRIES, () -> {
+            climbPinned = wasPinned;
+            recordExit(rig, then);
+        });
+    }
+
     static void recordExit(JourneyRig rig, Runnable then) {
         rig.evidence(climbName + ".toY", rig.player().blockPosition().getY());
         // WHICH COLUMN IT ENDED ON, not only how high. A tower that drifts still gains height, so
@@ -378,8 +432,18 @@ public final class JourneyShaft {
         // `exit.toY=28` beside `exit.fromY=27` is only a shortfall if you remember the rise was 36,
         // and a rung that later finds what it needs underground will otherwise go green carrying a
         // capability failure nobody reads. This is the number to grep across runs.
-        rig.evidence(climbName + ".gained", (rig.player().blockPosition().getY() - exitFromY)
-                + "/" + exitRise + " block(s)");
+        int gained = rig.player().blockPosition().getY() - exitFromY;
+        rig.evidence(climbName + ".gained", gained + "/" + exitRise + " block(s)");
+        // A CLIMB THAT ENDED LOWER IS NOT A SHORT CLIMB. `gained=-3/20` reads as a fraction like any
+        // other, and on 2026-08-19 it went past every reader between `vein2.exit#3` and the rung that
+        // failed two legs later for want of a free cell to stand a crafting table in. A negative
+        // gain has exactly one meaning — the body is further from daylight than the leg found it —
+        // and it gets its own key so a results file can be grepped for it.
+        if (gained < 0)
+            rig.evidence(climbName + ".lost", "这一段比开始时又深了 " + (-gained)
+                    + " 格（" + exitFromY + " → " + rig.player().blockPosition().getY()
+                    + "，目标 " + (exitFromY + exitRise) + "）—— 不是「垒得不够高」而是「没出来」，"
+                    + "后面所有需要地面的活（放工作台、找树、看天）都建立在它没发生上面");
         rig.evidence(climbName + ".cobblestone", rig.carrying("minecraft:cobblestone"));
         // What the climb would spend NEXT, which is the reading that says whether an exit stopped
         // for want of blocks. Cobblestone alone answered that while every shaft ended above y=0.

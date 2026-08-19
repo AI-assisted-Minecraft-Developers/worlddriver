@@ -48,6 +48,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   decides what gets mined — a caller mining a different set from the one the process will refuse
   takes a course off the budget and changes nothing.
 
+- **A climb that ends lower than it started says so, and tries once more.** `gained=-3/20` reads as a
+  fraction like any other and went past every reader between `vein2.exit#3` and the rung that failed
+  two legs later. The walker fallback is the only part of a climb that can move the body DOWN
+  (`Goal.YLevel` is column-blind, so a route to it may descend first, and a failed search keeps
+  whatever the partial path gave it); it now latches the height it was handed and, when it ends below
+  it, records `fallbackWentDown` and re-enters the scripted ascent from where the body actually is. A
+  genuinely different attempt rather than the same question twice: a different column, and a builder
+  that now refuses the ceiling by name. `recordExit` additionally writes `<climb>.lost` whenever the
+  gain is negative — one meaning, its own key, greppable across runs.
+
 - **Rung 13 now walks into the portal by a row a body actually fits through, and opens one cell of
   the wall when no row is open.** The ladder lit its portal and then failed with
   `站在传送门里 1200 tick 没被送走`, over evidence that said the opposite: `stand.in =
