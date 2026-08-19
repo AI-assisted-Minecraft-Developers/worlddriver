@@ -2142,8 +2142,19 @@ public final class JourneyEndRungs {
                     int now = p.getInventory().countItem(net.minecraft.world.item.Items.ARROW);
                     if (ammoBefore < 0) ammoBefore = now;
                     if (now < ammoBefore) { arrows += ammoBefore - now; ammoBefore = now; }
+                } else if (p.isUsingItem()) {
+                    a.commandUseItem(true);               // already drawing: keep holding
                 } else {
-                    a.commandUseItem(true);               // hold the draw
+                    // RE-ARM. commandUseItem is edge-triggered on the avatar's own useHeld flag, so
+                    // once vanilla stops the use by itself — which the melee branch's release does
+                    // every time the dragon comes into reach — isUsingItem() goes false while
+                    // useHeld stays true, and every later commandUseItem(true) is a no-op. The draw
+                    // is then dead for the rest of the fight. Measured: 「进入远程分支 21982 tick，
+                    // 拉弓计数 7，箭存量 256」 —— it reached 7, was stopped once, and never drew
+                    // again in the remaining 21975 ticks. The down-edge resets the flag; the up-edge
+                    // starts a real draw.
+                    a.commandUseItem(false);
+                    a.commandUseItem(true);
                 }
                 }
             }
