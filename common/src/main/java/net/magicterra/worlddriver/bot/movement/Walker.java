@@ -1497,8 +1497,9 @@ public final class Walker {
         // 0.03) was silent, and 0.212 > 0.18, so this guard was silent too. Both guards off by
         // construction at exactly the reading that precedes the fall.
         double bar = FOOTING_MIN;
-        BlockPos under = BlockPos.containing(p.getX(), p.getY() - 0.5, p.getZ());
-        if (bottomlessUnder(world, under)) bar = VOID_FOOTING_MIN;
+        if (voidBeside(world, BlockPos.containing(p.getX(), p.getY() - 0.5, p.getZ()))) {
+            bar = VOID_FOOTING_MIN;
+        }
         if (sole >= bar) return false;
         BlockPos foot = BlockPos.containing(p.getX(), p.getY() + 0.05, p.getZ());
         // A PLANNED DESCENT is exempt, and this is not a nicety — it is the same release the drive's
@@ -1553,13 +1554,32 @@ public final class Walker {
      *  half-cell of margin on every axis, and the void gives no second attempt. */
     static final double VOID_FOOTING_MIN = 0.30;
 
-    /** True when the column beside/under {@code at} runs out of the world. Same floor the stride
-     *  guard's own bottomless test uses, so the two guards agree about what「虚空」means. */
-    private static boolean bottomlessUnder(WorldView world, BlockPos at) {
-        for (int y = at.getY(); y >= BOTTOMLESS_SCAN_FLOOR; y--) {
-            if (!world.isPassable(new BlockPos(at.getX(), y, at.getZ()))) return false;
-        }
-        return true;
+    /**
+     * True when any column NEXT TO {@code at} runs out of the world.
+     *
+     * <p>Beside, not under — and the first cut got that backwards. A body with a sole to measure is
+     * standing on something by definition, so the column under it is never bottomless; asking there
+     * returns false every time and the raised bar could never arm. On a 1-wide tower it is the
+     * pillar itself that answers, which is exactly the geometry the bar exists for: measured
+     * 「身体=-32.70,82.00,26.86 速度h=0.671 脚底=0.263」 — under the 0.30 bar, moving fast, and the
+     * guard silent because it had asked whether the tower it was standing on was made of air.
+     *
+     * <p>Same floor as the stride guard's own bottomless test, so the two agree about「虚空」.
+     */
+    private static boolean voidBeside(WorldView world, BlockPos at) {
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dz = -1; dz <= 1; dz++) {
+                if (dx == 0 && dz == 0) continue;
+                boolean open = true;
+                for (int y = at.getY(); y >= BOTTOMLESS_SCAN_FLOOR; y--) {
+                    if (!world.isPassable(new BlockPos(at.getX() + dx, y, at.getZ() + dz))) {
+                        open = false;
+                        break;
+                    }
+                }
+                if (open) return true;
+            }
+        return false;
     }
 
     private void widenFooting(Avatar a, WorldView world, Player p, BlockPos foot) {
