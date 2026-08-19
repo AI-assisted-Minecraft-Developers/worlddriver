@@ -13,8 +13,10 @@ import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -92,7 +94,14 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                 Scene.of("wd.serverTurnsAtTheBridgeHead", 600,
                         ctx -> stopsAtTheBridgeHead(ctx, -3)),
                 Scene.of("wd.serverDrawsABow", 300,
-                        WorldDriverThinFootingScenes::drawsABow));
+                        WorldDriverThinFootingScenes::drawsABow),
+                // The same shelf twice; the only variable is what is at the bottom of the bay. See
+                // stopsAtALavaShore for the measurement — the guard's floor scan counts a lava lake
+                // as a floor, so the arm whose bay is lava is the one that walks in.
+                Scene.of("wd.serverStopsAtALavaShore", 600,
+                        WorldDriverThinFootingScenes::stopsAtALavaShore).withRequired(false),
+                Scene.of("wd.serverWalksOffASurvivableLedge", 600,
+                        WorldDriverThinFootingScenes::walksOffASurvivableLedge).withRequired(false));
     }
 
     private static void widensAThinFooting(SceneContext ctx, int slot) {
@@ -492,5 +501,300 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         ctx.expect(flew >= 1).as("松手之后世界里必须出现一支箭 —— 只断言拉弓计数的话，"
                 + "一次射不出箭的满蓄力也是满分答案；而只断言箭袋减少的话，"
                 + "instabuild 下即使正常开火也永远不合格").isTrue();
+    }
+
+    // =====================================================================================
+    // A lava shore — the drop none of the three brakes could see.
+    // =====================================================================================
+
+    /**
+     * <b>A body walks straight off a shelf into a lava bay, and the guard whose job that was
+     * declines because it counted the lake as a floor.</b>
+     *
+     * <h2>The tick this is a copy of</h2>
+     *
+     * Journey rung 14 crosses the Nether to a fortress and has now ended the same way four times.
+     * The third hop of the run of 2026-08-19 printed the whole tick, read off the level rather than
+     * off the bot's own view:
+     *
+     * <pre>{@code
+     * fortress.ground.3.0 = 上一 tick：位置 (80.407, 42.0000, 81.368) 速度 (0.109, -0.078, 0.045)
+     *   onGround=true 潜行=false；walker 那一 tick：drive=y-59 F1.00 L0.00 s0.00 f1.00
+     *   vanilla 自己那一问（脚下 0.0784 格内有碰撞吗）=没有；实心接触面积 0.0000/0.36
+     *   致命边刹车照 level 重算：1/0=岩10 -1/0=落1 0/1=岩10 0/-1=底 … → 该响
+     * fortress.fell.3.0   = 从 80, 42, 81 … → 落进岩浆 80, 29, 81，坠 13 格
+     *   计划下一格 77, 41, 83[diagDown]（计划第 1/6 步）… 距身体 3.70 格水平
+     * }</pre>
+     *
+     * <p>Three brakes could have held that body and all three were off, for three different reasons:
+     *
+     * <ul>
+     *   <li>{@code WalkerTickDrive}'s {@code edgeBrake} — released, because {@code plannedDescent}
+     *       was true: the node it was steering at ({@code 77,41,83}) sits one below the foot.</li>
+     *   <li>{@link Walker#footingGuard} — released by the SAME planned-descent exemption, and on the
+     *       last two ticks also by {@code sole <= 0.0}. Both releases are deliberate and both are
+     *       load-bearing: vanilla sneak refuses to walk off ANY edge, so a pin held across a step the
+     *       route means to take deadlocks the descent, and wd.descent / wd.bridgeDescend /
+     *       wd.descentYaw named that cost in one run.</li>
+     *   <li>{@link Walker#strideFloorGuard} — the one guard with NO release here. Its own
+     *       planned-descent exemption demands the descending node be in the stride column EXACTLY,
+     *       and that plan was heading the other way. It asked its question and got a wrong answer.</li>
+     * </ul>
+     *
+     * <h2>The wrong answer, and why it is arithmetic rather than judgement</h2>
+     *
+     * The guard's fall scan walks down from the stride cell and stops at the first cell that is not
+     * {@code isPassable}. <b>Lava is passable</b> — not solid, not water — so the scan descended
+     * straight through the lake and stopped on its netherrack bed. Measured on that cell: the lava
+     * begins 13 rows down and the bed sits <b>exactly 23</b> rows down, which is the loop's own reach
+     * at full health ({@code ceil(20)+3}). It found a floor on the last index it looks at and called
+     * the stride safe. {@code WalkerGeometry.dropAdjacentExceeds} learned this same lesson in round52
+     * and carries the {@code isHazard} line; this guard never got it.
+     *
+     * <h2>Two arms, one variable</h2>
+     *
+     * The same headland, the same eight cells of walk, the same eleven-block bay — a drop that is
+     * comfortably SURVIVABLE dry, so nothing in this arena is lethal except what the bay is filled
+     * with. {@code wd.serverStopsAtALavaShore} fills it with lava and requires the guard to stop the
+     * body; {@code wd.serverWalksOffASurvivableLedge} fills it with stone and requires the guard to
+     * stay out of the way. A fix that made every ledge a pin would pass the first and fail the
+     * second, which is the whole reason the second exists.
+     *
+     * <h2>Each arm carries its own control</h2>
+     *
+     * Every arm drives the shelf TWICE over an identical staging, with {@code walkerStrideFloorGuard}
+     * as the only difference between the two drives. On lava they must DISAGREE — the control walks
+     * in, and an arm whose control did not walk in has not earned the right to report that the
+     * subject stayed out. On stone they must AGREE, both reaching the bay floor, because there the
+     * guard's correct answer is silence.
+     *
+     * <h2>{@code lethalEdgeBrake} is OFF in both arms, and that is the isolation</h2>
+     *
+     * Not a convenience: with it on, {@link Walker#footingGuard} pins this body as its sole thins and
+     * neither arm ever reaches the bay, so the scene would be measuring the guard that was already
+     * working. Live it was released by the plan's own descent — the row above quotes the node. Off
+     * here, the guard that had no release is the only thing left, which is the situation rung 14
+     * actually died in.
+     *
+     * <h2>The drive is the rig's, not the pathfinder's</h2>
+     *
+     * The body is walked forward at walking speed on a heading the rig re-imposes every tick, and the
+     * walker is ticked only so that its guards run — they live in {@code Walker#tick}'s single-exit
+     * wrapper, after every branch of {@code tickInner}. A goal is set because a null one NPEs in the
+     * stall detector, and it is overridden immediately; nothing here is a claim about A*. Sneak
+     * travels on a different channel from the impulse, so a guard's pin survives the rig's drive and
+     * is what the body is actually stopped by.
+     *
+     * <h2>Arena footprint</h2>
+     *
+     * {@code dx ∈ [-6, 6]}, {@code dz ∈ [-3, 17]}, {@code dy ∈ [4, 36]} around the origin — inside
+     * the default one-chunk window ({@code dx, dz ∈ [-16, 31]}), so no {@code withChunkRadius}.
+     */
+    private static void stopsAtALavaShore(SceneContext ctx) { shoreArm(ctx, true); }
+
+    /** The lava arm's negative control — see {@link #stopsAtALavaShore}. The same bay filled with
+     *  stone, where the guard must stay silent: an eleven-block drop onto rock is a graze this body
+     *  walks off, and pinning at every such lip is what「killing momentum on every ledge would make
+     *  ridge walking crawl」means in the guard's own note. */
+    private static void walksOffASurvivableLedge(SceneContext ctx) { shoreArm(ctx, false); }
+
+    /** dy of the shelf's top block — the cell the body's sole rests on. Its foot cell is one above. */
+    private static final int SHELF = 30;
+
+    /** Cells of shelf along +z. Eight, the same run {@code wd.serverStopsAtTheBridgeHead} walks. */
+    private static final int SHELF_CELLS = 8;
+
+    /** dy of the bay's surface: ten open rows under the shelf's top block, so the fall from the foot
+     *  cell is eleven — under {@code SurvivalMath.survivableFall(20) = 22}, deliberately. A bay deep
+     *  enough to be lethal dry would let a fix pass here for the wrong reason. */
+    private static final int BAY_TOP = SHELF - 10;
+
+    /** Rows of fill under that surface. Four, so a body that goes in is IN it rather than standing on
+     *  the bed through a film of it. */
+    private static final int BAY_ROWS = 4;
+
+    /** dy of the bed's top block — the first solid cell the guard's downward scan can find, and the
+     *  cell the whole defect turns on. */
+    private static final int BAY_BED = BAY_TOP - BAY_ROWS;
+
+    /** Synchronous physics ticks one drive of the shelf gets: the walk out is ~50 and the fall ~25. */
+    private static final int SHORE_TICKS = 240;
+
+    /** What one drive of the shelf produced. */
+    private record Shore(int ticks, double walked, double minY, boolean inLava, int pinnedTicks,
+                         String endedAt) {}
+
+    private static void shoreArm(SceneContext ctx, boolean lava) {
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        BotConfig.allowPlace = false;      // the subject is the PIN; paving the bay is another answer
+        BotConfig.allowBreak = false;
+        BotConfig.walkerDebug = true;
+        BotConfig.lethalEdgeBrake = false; // see the class note: this is the isolation, not a shortcut
+        ctx.cleanup(() -> clearShore(ctx));
+
+        stageShore(ctx, lava);
+        ctx.record("rig", "3 格宽石台 dz=-2..7，顶面 dy=" + SHELF + "；越过台缘是一个 "
+                + (SHELF + 1 - BAY_TOP) + " 格深的湾（湾面 dy=" + BAY_TOP + "，" + BAY_ROWS + " 层"
+                + (lava ? "岩浆" : "石头") + "，湾底实心 dy=" + BAY_BED
+                + "）。干着落是活得下来的（满血 22 格），所以这座场地里唯一致命的东西是湾里装了什么");
+        ctx.record("scan", scanRow(ctx, lava));
+
+        Shore control = drive(ctx, "control", false);
+        ctx.record("control.after", (control.inLava() ? 1 : 0) + " fault(s): " + control.endedAt());
+        if (lava && !control.inLava())
+            ctx.fail("THE RIG, not the subject: 关掉 walkerStrideFloorGuard 之后身体也没走进岩浆，"
+                    + "那么「主体没进岩浆」这条判据就分不清「守卫拦住了」和「这座场地根本走不进去」 —— "
+                    + control.endedAt());
+        if (!lava && control.inLava())
+            ctx.fail("THE RIG, not the subject: 石头湾里出现了岩浆 —— 两条臂只差这一个变量，"
+                    + "而这一臂的布景没放对：" + control.endedAt());
+
+        stageShore(ctx, lava);
+        Shore subject = drive(ctx, "subject", true);
+        ctx.record("subject.after", (subject.inLava() ? 1 : 0) + " fault(s): " + subject.endedAt());
+
+        if (lava) {
+            ctx.check(subject.inLava()).as("A 开着守卫，身体一次都不许碰到岩浆（对照臂："
+                    + control.endedAt() + "）").isFalse();
+            ctx.check(subject.walked() >= 4.0).as("B 而且必须真的沿台面走过 4 格 —— 只有 A 的话，"
+                    + "「一步都不迈」就是满分答案，而那样的守卫会让整条真梯寸步难行：走了 "
+                    + String.format(Locale.ROOT, "%.2f", subject.walked()) + " 格").isTrue();
+            ctx.check(subject.pinnedTicks() >= 1).as("C 而且要是守卫按住的，不是别的东西碰巧停住的："
+                    + subject.pinnedTicks() + " 个 tick 处于潜行钉住状态").isTrue();
+        } else {
+            ctx.check(subject.minY() < ctx.rel(0, SHELF, 0).getY())
+                    .as("A 干湾上守卫必须让开：关着守卫落到 "
+                            + String.format(Locale.ROOT, "%.2f", control.minY()) + "，开着必须也落下去，"
+                            + "实测 " + String.format(Locale.ROOT, "%.2f", subject.minY())
+                            + "（台面 y=" + ctx.rel(0, SHELF + 1, 0).getY() + "）").isTrue();
+            ctx.check(subject.pinnedTicks()).as("B 一次都不许钉：在活得下来的落差上钉住身体，"
+                    + "等于把每一道台缘都变成一堵墙 —— " + subject.endedAt()).isEqualTo(0);
+        }
+    }
+
+    /**
+     * Re-derive the guard's own downward scan off the LEVEL, cell by cell.
+     *
+     * <p>The guard's decision and the row that judges it must not be able to disagree about what the
+     * column holds, and「the guard declined」has two causes that want opposite fixes: it never
+     * reached the scan, or it ran the scan and the scan said safe. This prints the two indices, so a
+     * reader can see the bed sitting inside the loop's reach without opening the source.
+     */
+    private static String scanRow(SceneContext ctx, boolean lava) {
+        ServerLevel level = ctx.level();
+        BlockPos stride = ctx.rel(0, SHELF + 1, SHELF_CELLS);
+        int depth = Math.max(BotConfig.pathfinderMaxDryFall + 1, 23);   // ceil(20 HP) + 3
+        int hazardAt = -1, floorAt = -1;
+        for (int i = 1; i <= depth && floorAt < 0; i++) {
+            BlockPos c = stride.below(i);
+            if (hazardAt < 0 && level.getBlockState(c).getFluidState().is(FluidTags.LAVA)) hazardAt = i;
+            if (level.getBlockState(c).blocksMotion()) floorAt = i;
+        }
+        return "从 stride 格 " + stride.toShortString() + " 往下扫，最多 " + depth
+                + " 格（max(maxDryFall+1, ceil(满血 20)+3)）："
+                + (hazardAt < 0 ? "整列没有危险物" : "第 " + hazardAt + " 格是岩浆")
+                + "，" + (floorAt < 0 ? "扫到底也没有实心格" : "第 " + floorAt + " 格是实心的")
+                + "。修好之前这个循环只认第二个数字，于是"
+                + (lava ? "它在岩浆下面找到了「地板」并放行" : "它照样在石头上找到地板并放行 —— 这一臂里那是对的");
+    }
+
+    /**
+     * Walk the shelf once and report what stopped the body, if anything.
+     *
+     * <p>{@code strideGuard} is the arm's only variable. The walker is ticked for its guards alone —
+     * they run in {@code Walker#tick}'s single-exit wrapper after every branch of {@code tickInner} —
+     * and the heading, the impulse and the jump are re-imposed after that call so the body walks one
+     * straight line whatever the walker would rather do. Sneak is NOT re-imposed: it is the channel a
+     * guard pins on, and it is the thing being measured.
+     */
+    private static Shore drive(SceneContext ctx, String arm, boolean strideGuard) {
+        ServerLevel level = ctx.level();
+        BotConfig.walkerStrideFloorGuard = strideGuard;
+
+        double startZ = ctx.origin().getZ() + 1.5;
+        int standY = ctx.rel(0, SHELF + 1, 0).getY();
+        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level,
+                ctx.origin().getX() + 0.5, standY, startZ);
+        ServerPlayer fp = av.fakePlayer();
+        ctx.cleanup(fp::discard);
+        LevelWorldView w = new LevelWorldView(level, fp);
+        fp.getInventory().clearContent();
+        aim(fp);
+        for (int i = 0; i < SETTLE_TICKS; i++) av.step();
+        if (fp.getY() < standY - 0.5)
+            ctx.fail("THE RIG, not the subject: vanilla 自己就没端住这个站位（" + SETTLE_TICKS
+                    + " 个空 tick 之后 y=" + fp.getY() + "）");
+
+        Walker walker = new Walker();
+        walker.setGoal(new Goal.Block(ctx.rel(0, SHELF + 1, SHELF_CELLS - 1)));
+        double minY = fp.getY(), farZ = fp.getZ();
+        boolean inLava = false;
+        int pinned = 0, t = 0;
+        for (; t < SHORE_TICKS; t++) {
+            walker.tick(av, w);
+            aim(fp);
+            av.commandMove(0f, 1f);
+            av.commandJump(false);
+            if (av.dbgSneak()) pinned++;
+            av.step();
+            minY = Math.min(minY, fp.getY());
+            farZ = Math.max(farZ, fp.getZ());
+            if (fp.isInLava()) { inLava = true; break; }
+            if (fp.onGround() && fp.getY() < ctx.rel(0, SHELF, 0).getY()) break;   // landed in the bay
+        }
+        String ended = String.format(Locale.ROOT,
+                "%d tick，身体=(%.2f,%.2f,%.2f)，最低 y=%.2f，沿台面走了 %.2f 格，钉住 %d tick，脚下=%s%s",
+                t, fp.getX(), fp.getY(), fp.getZ(), minY, farZ - startZ, pinned,
+                blockUnder(level, fp), inLava ? "，泡在岩浆里" : "");
+        ctx.record(arm + ".drive", "walkerStrideFloorGuard=" + strideGuard + " → " + ended);
+        return new Shore(t, farZ - startZ, minY, inLava, pinned, ended);
+    }
+
+    private static String blockUnder(ServerLevel level, ServerPlayer fp) {
+        BlockPos below = fp.blockPosition().below();
+        return BuiltInRegistries.BLOCK.getKey(level.getBlockState(below).getBlock()).getPath();
+    }
+
+    /** Face +z, head and body with it. Vanilla rotates the movement impulse by the yaw, so a heading
+     *  the walker is free to slew would turn this rig's straight walk into whatever the walker
+     *  wanted, and the arm would be measuring A* instead of a guard. */
+    private static void aim(ServerPlayer fp) {
+        fp.setYRot(0f);
+        fp.yHeadRot = 0f;
+        fp.yBodyRot = 0f;
+    }
+
+    /** Air out the working box. Called before each staging and once more on cleanup, so an arm that
+     *  fails mid-drive still hands the shared dogfood world back empty — including its lava. */
+    private static void clearShore(SceneContext ctx) {
+        for (int dx = -6; dx <= 6; dx++)
+            for (int dz = -3; dz <= 17; dz++)
+                for (int dy = 4; dy <= 36; dy++)
+                    ctx.setBlock(dx, dy, dz, Blocks.AIR);
+    }
+
+    /**
+     * The headland, the basin, and what the basin is filled with — the last of those being the two
+     * arms' only difference.
+     *
+     * <p>The basin's rim is laid solid all the way round BEFORE the fill goes in, so lava cannot flow
+     * out of it and the「floor」the guard's scan finds is real rock rather than the edge of the
+     * staging. Same ordering, and the same reason, as the blaze room's walls-before-the-lid.
+     */
+    private static void stageShore(SceneContext ctx, boolean lava) {
+        clearShore(ctx);
+        for (int dx = -3; dx <= 3; dx++)                     // the headland the body walks out on
+            for (int dz = -2; dz <= 7; dz++)
+                for (int dy = 4; dy <= SHELF; dy++)
+                    ctx.setBlock(dx, dy, dz, Blocks.STONE);
+        for (int dx = -5; dx <= 5; dx++)                     // the basin: rim and bed, one piece
+            for (int dz = 8; dz <= 16; dz++)
+                for (int dy = 4; dy <= BAY_TOP; dy++)
+                    ctx.setBlock(dx, dy, dz, Blocks.STONE);
+        for (int dx = -3; dx <= 3; dx++)                     // …and the fill. THE variable.
+            for (int dz = 8; dz <= 14; dz++)
+                for (int dy = BAY_BED + 1; dy <= BAY_TOP; dy++)
+                    ctx.setBlock(dx, dy, dz, lava ? Blocks.LAVA : Blocks.STONE);
     }
 }

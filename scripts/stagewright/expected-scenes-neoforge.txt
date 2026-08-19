@@ -336,3 +336,11 @@ wd.portalEntryWillNotMineItsOwnFrame
 # variable is where the body stands inside its own cell.
 wd.serverTowersUnderALowCeiling
 wd.serverTowersUnderTheNeighboursCeiling
+
+# Nether rung 14 walked into a lava bay four times: three brakes, three different releases, and the
+# only one with no release — the stride floor-guard — declined because lava is `isPassable`, so its
+# fall scan descended THROUGH the lake and stopped on the bed 23 rows down. Two arms over one
+# headland; the bay's fill is the only variable, and each arm drives it twice with the guard as the
+# only difference between the drives.
+wd.serverStopsAtALavaShore
+wd.serverWalksOffASurvivableLedge
