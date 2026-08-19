@@ -49,6 +49,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **The portal doorway is now a scene instead of a forty-minute ladder run.**
+  `wd.portalEntryDigsIntoTheRowItFits` and `wd.portalEntryWillNotMineItsOwnFrame` stage the same lit
+  portal walled into a hillside and differ in one thing: what the wall in front of it is made of.
+  The first is rung 12's own output — slag over the bottom two rows, the top row open and too short
+  for a body — and requires the subject to decline the open row, name the middle row and the single
+  cell in its way, open it, walk there and end up inside a `nether_portal` cell. The second surrounds
+  the doorway with the frame's own obsidian, where the cheapest thing to remove is always the portal
+  itself, and requires the refusal. Each arm carries a control: the first drives the pre-fix goal
+  (`Goal.Block` on the bottom cell) and requires the body to come back OUTSIDE the portal —
+  `control.after = 1 fault(s)` before `subject.after = 0 fault(s)` — and the second stages two cells
+  of that wall as stone and requires a way in to be found, so「obsidian means null」is a reading and
+  not a constant. The arms also record the body to three decimals across the push: `z = cellZ − 0.3`
+  with `dm.z = 0.000` is what「the head is in the frame」looks like, and no cell-resolution reading
+  can tell it from「did not move at all」.
+
 - **A body on a cut staircase, asked to unwedge, is now a scene rather than a forty-minute ladder
   run.** `wd.unwedgeRefusesTheStaircaseColumn` and `wd.unwedgeTowersBesideTheStaircase` stage the
   same seven-cell flight and differ in one thing — whether there is a standable cell beside the step

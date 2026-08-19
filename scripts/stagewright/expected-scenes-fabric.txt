@@ -323,3 +323,11 @@ wd.serverDrawsABow
 # carries a control that breaks the flight on purpose first.
 wd.unwedgeRefusesTheStaircaseColumn
 wd.unwedgeTowersBesideTheStaircase
+
+# Rung 13 lit its portal and then spent eight identical legs asking the pathfinder for a cell no
+# route reached: the casting's own cobblestone slag walls the bottom two rows of the doorway, the
+# only row left open is too short for a 1.8-tall body, and the only cell A* accepts as a goal is the
+# bottom one. One arm opens a single cell of that wall and steps in; the other surrounds the doorway
+# with the frame's own obsidian and requires the refusal — never mine the portal to get into it.
+wd.portalEntryDigsIntoTheRowItFits
+wd.portalEntryWillNotMineItsOwnFrame
