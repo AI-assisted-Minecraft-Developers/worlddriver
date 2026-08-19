@@ -2018,6 +2018,7 @@ public final class JourneyEndRungs {
         private int arrows;
         private int ammoBefore = -1;
         private int drawTicks;
+        private boolean bowBroken;
         private int arrowsAtLastReach;
         private boolean gaveUp;
         /** Why this fight stopped. Four exits produce the identical outside view — a live dragon and
@@ -2088,6 +2089,11 @@ public final class JourneyEndRungs {
             // same mechanism, aimed at the head rather than at whatever part is nearest: an arrow
             // into the body is worth a quarter of one into the head, and the dragon presents its
             // body far more often.
+            // A process that throws dies silently: the driver marks it finished and the rig's settle
+            // returns as if it had completed, so the evidence row still reads 「还在打」 while the
+            // fight has in fact stopped. That is exactly what 14594 ticks of a 200000-tick budget
+            // looked like. Name it instead of letting it read as a healthy fight that ran out.
+            try {
             if (aim == null && head != null && holdBow(p)) {
                 aimAtPart(p, head, headAway * 0.12);      // lead high for arrow drop
                 // Count OUR OWN draw ticks. p.getTicksUsingItem() never advances on this body:
@@ -2097,6 +2103,8 @@ public final class JourneyEndRungs {
                 // zero charge fires nothing at all: three runs held the bow, entered this branch,
                 // and reported 射出 0 箭. Release explicitly at full power instead of asking a
                 // counter that is frozen.
+                if (bowBroken) { /* one failure is enough; melee still works */ }
+                else {
                 if (!p.isUsingItem()) { a.commandUseItem(true); drawTicks = 0; }
                 if (++drawTicks >= BOW_FULL_DRAW) {
                     ItemStack bow = p.getMainHandItem();
@@ -2113,6 +2121,11 @@ public final class JourneyEndRungs {
                     if (ammoBefore < 0) ammoBefore = now;
                     if (now < ammoBefore) { arrows += ammoBefore - now; ammoBefore = now; }
                 }
+                }
+            }
+            } catch (RuntimeException e) {
+                why = "拉弓那一支抛了异常：" + e;
+                bowBroken = true;
             }
             // Never once in reach for DUEL_OUT_OF_REACH_TICKS: stop waiting. Reset by any approach,
             // so this ends a duel the body is not in, not a fight with lulls. An arrow in flight
