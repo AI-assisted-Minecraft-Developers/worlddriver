@@ -464,7 +464,18 @@ public final class JourneyRig {
         // out-of-world check lives here and not at the call sites: there are dozens of settles and
         // a body that has left the world invalidates all of them equally. Same shape as the walker's
         // single `step++` exit — one guard covers every path because there is only one path.
-        if (bodyLeftTheWorld()) { skipSettle(then); return; }
+        if (bodyLeftTheWorld()) {
+            // Record here too. This entry guard latches the fall for every settle AFTER the one the
+            // body actually left during, so when the departure happens somewhere no wait covers,
+            // the report reads 「没记到」 and says nothing. Naming the process that was ABOUT to run
+            // is not the same fact as naming the one that was running — say which it is.
+            if (drivingWhenLost == null) {
+                drivingWhenLost = "没在任何 wait 里被发现；下一段本来要跑 " + process.kind()
+                        + "（说明坠落发生在两段之间的场景自有代码里，不是在 rig 的等待中）";
+            }
+            skipSettle(then);
+            return;
+        }
         ServerWorldDriver d = body();
         ServerAvatarManager.register(d.runProcess(process));
         int[] waited = {0};
