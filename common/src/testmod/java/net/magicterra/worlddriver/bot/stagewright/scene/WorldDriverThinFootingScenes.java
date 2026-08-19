@@ -74,7 +74,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
     public List<Scene> scenes() {
         return List.of(
                 Scene.of("wd.serverWidensAThinFooting", 600,
-                        ctx -> widensAThinFooting(ctx, 0)).withRequired(false),
+                        ctx -> widensAThinFooting(ctx, 0)),
                 // Same cell, same stack, one difference: the blocks are in the backpack rather than
                 // the hotbar. holdPlaceable() has only ever looked at slots 0..8 (a tower once
                 // reported "out of blocks?" while the body held 110 cobblestone), and rung 20 walks
@@ -82,17 +82,17 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                 // exactly one variable is the only way to tell "the remedy is wrong" from "the
                 // remedy could not see the blocks".
                 Scene.of("wd.serverWidensFromTheBackpack", 600,
-                        ctx -> widensAThinFooting(ctx, 20)).withRequired(false),
+                        ctx -> widensAThinFooting(ctx, 20)),
                 Scene.of("wd.serverStopsAtTheBridgeHead", 600,
-                        ctx -> stopsAtTheBridgeHead(ctx, 0)).withRequired(false),
+                        ctx -> stopsAtTheBridgeHead(ctx, 0)),
                 // Same bridge, one variable different: the goal is off the bridge's axis, so the
                 // path must TURN at the head instead of running straight out of it. The ladder's
                 // eighth departure had node -13,111,-3 — three out and one across — and the
                 // straight arm passes, so the turn is the only difference left to test.
                 Scene.of("wd.serverTurnsAtTheBridgeHead", 600,
-                        ctx -> stopsAtTheBridgeHead(ctx, -3)).withRequired(false),
+                        ctx -> stopsAtTheBridgeHead(ctx, -3)),
                 Scene.of("wd.serverDrawsABow", 300,
-                        WorldDriverThinFootingScenes::drawsABow).withRequired(false));
+                        WorldDriverThinFootingScenes::drawsABow));
     }
 
     private static void widensAThinFooting(SceneContext ctx, int slot) {

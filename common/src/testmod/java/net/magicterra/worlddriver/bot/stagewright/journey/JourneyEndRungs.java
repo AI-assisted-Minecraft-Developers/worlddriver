@@ -1210,7 +1210,16 @@ public final class JourneyEndRungs {
                 // below the island band, and a fresh sweep from down there asks the identical
                 // question that already failed. One tower back to walking height changed six
                 // straight march failures into an arrival on the next round.
-                int back = Math.max(rig.player().blockPosition().getY() + 8, ISLAND_WALK_Y);
+                // ...to the island BAND, never relative to where the body happens to be now.
+                // The old form (max(now + 8, ISLAND_WALK_Y)) escalated: a sweep ending on a
+                // 103-high tower re-swept from 111, the next from 119, and a tower only goes
+                // UP, so each re-sweep started structurally further from a y=80 crystal than
+                // the one before it. Measured 2026-08-19: crystal 0 was missed three times,
+                // its climb row reading 「not needed (feetY=119 already ≥ targetY=78)」 while the
+                // body sat 41 blocks ABOVE the thing it was trying to reach. Below the band,
+                // lift to it; at or above it, the tower reports 「not needed」 in one tick and
+                // costs nothing.
+                int back = ISLAND_WALK_Y;
                 rig.settle(new TowerProcess(back, pillarBlock(rig)), 2_000, () -> {
                     rig.evidence("crystals.sweep" + sweep + ".unwedge", "重扫前先垒回 y=" + back
                             + " → 脚在 y=" + rig.player().blockPosition().getY() + "，"
@@ -1257,6 +1266,17 @@ public final class JourneyEndRungs {
             rig.settle(new TowerProcess(top, pillar), CRYSTAL_CLIMB_TICKS, climb, () -> {
                 rig.evidence("crystal." + i + ".climb",
                         climbRow(rig, crystal, top, pillar, climbStock, climbFromY, climb));
+                // 「feetY already ≥ targetY」 is the tower's success wording, and it is the WRONG
+                // wording when the body is above the target rather than at it: a tower cannot
+                // descend, so being 41 up is exactly as unreachable as being 41 down, and the row
+                // read like an accomplishment for three straight sweeps. Say so in its own key.
+                if (climbFromY > top + 3) {
+                    rig.evidence("crystal." + i + ".climb.tooHigh",
+                            "起塔时脚在 y=" + climbFromY + "，比目标 y=" + top + " 高 "
+                                    + (climbFromY - top) + " 格。塔只会向上，所以它报的"
+                                    + "「not needed」不是到位而是叠得太高；"
+                                    + "接下来能不能够着完全取决于走位能不能自己降下去");
+                }
                 holdBestWeapon(rig);
                 // CLOSE THE LAST FEW BLOCKS. SwingAt's first statement is `commandMove(0,0)` — it
                 // stands still and swings whatever comes within reach, and a crystal never moves. So
@@ -2153,6 +2173,9 @@ public final class JourneyEndRungs {
                     // 拉弓计数 7，箭存量 256」 —— it reached 7, was stopped once, and never drew
                     // again in the remaining 21975 ticks. The down-edge resets the flag; the up-edge
                     // starts a real draw.
+                    // The down-edge is safe here and does NOT waste an arrow: we only reach this
+                    // branch when isUsingItem() is false, i.e. useItem is already EMPTY, and
+                    // releaseUsingItem() skips the fire on an empty stack and just resets.
                     a.commandUseItem(false);
                     a.commandUseItem(true);
                 }
