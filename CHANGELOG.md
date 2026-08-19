@@ -39,6 +39,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `footingGuard` pins this body as its sole thins and neither arm ever reaches the bay, so the scene
   would be measuring the guard that was already working.
 
+- **The Nether crossing writes down its own arithmetic now** (`<what>.budget`, `<what>.pace`).
+  A crossing that stops short gets accused of running out of budget, and that has now been wrong
+  once: rung 14's 402-block leg needs ~10 hops of net 42 against a ceiling of `MAX_HOPS = 24`, and
+  ~3 300 ticks against `24 × 900 = 21 600` and a rung budget of 360 000 — 2.4× the hops it needs.
+  It stopped after three because the body was in lava and `hazardBlockingARetry` correctly refused a
+  fourth hop. `pace` gives `全程无计划` the denominator it never had (67 of 1517 ticks is 4%, a
+  rounding error; the same 67 out of 900 would be a re-planning problem), so the next reader chooses
+  between "give it more budget" and "it cannot plan here" from a number instead of a hop line.
+
 - **The three `phase=JUMPING` rows of 2026-08-19 are now a sealed arena.** `vein2.exit#3.climb.1`,
   `crystal.0.climb` and the podium march all reported `stuck (no Y gain in 60t: placed=0,
   holding=64, phase=JUMPING, apexFeetY=<start>)` over a body that was on the ground, not in water,

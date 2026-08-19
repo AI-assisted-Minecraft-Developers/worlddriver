@@ -1315,7 +1315,37 @@ public final class JourneyNetherRungs {
      */
     private static void crossToColumn(JourneyRig rig, String what, int x, int z, int tolerance,
                                       int hopTicks, Runnable onArrived, Runnable onStuck) {
+        BlockPos from = rig.player().blockPosition();
+        recordBudget(rig, what, Math.hypot(x - from.getX(), z - from.getZ()), hopTicks);
         oneHop(rig, what, x, z, tolerance, hopTicks, new Crossing(), onArrived, onStuck);
+    }
+
+    /**
+     * What this crossing would cost if every hop were a clean one — written down BEFORE the first
+     * hop is walked.
+     *
+     * <p><b>Because「it ran out of budget」is the first thing a short crossing gets accused of, and
+     * it has now been wrong once.</b> The run of 2026-08-19 stopped 294 blocks out after three hops
+     * and read as a cap. It was not: the arithmetic below is 10 hops against a ceiling of
+     * {@link #MAX_HOPS} = 24, and roughly 3 300 ticks against 24 × {@link #HOP_TICKS} = 21 600 and a
+     * rung budget of 360 000. The crossing ended because the body was in lava and
+     * {@link #hazardBlockingARetry} correctly refused to spend a fourth hop on it — a cause the hop
+     * lines name and the numbers cannot. Recorded so that the NEXT reader of a short crossing starts
+     * from「the budget is 2.4× what this needs, so read the death」rather than re-deriving it.
+     *
+     * <p>Net progress per hop is the reach minus the waypoint's own radius, and that is not a
+     * shortfall: {@link #HOP_ARRIVE_WITHIN} is where a hop is allowed to stop, so a healthy hop of
+     * 48 lands 43 further on by design. The run above measured exactly that, twice.
+     */
+    private static void recordBudget(JourneyRig rig, String what, double away, int hopTicks) {
+        int perHop = NETHER_HOP - HOP_ARRIVE_WITHIN;
+        int need = (int) Math.ceil(away / perHop);
+        rig.evidence(what + ".budget", Math.round(away) + " 格 ÷ 每段净进 " + perHop + " 格（伸手 "
+                + NETHER_HOP + " 减路点半径 " + HOP_ARRIVE_WITHIN + "，不是走不满）≈ " + need
+                + " 段；上限 " + MAX_HOPS + " 段 × " + hopTicks + " tick = " + (MAX_HOPS * hopTicks)
+                + " tick。段数和 tick 都不是这一趟的瓶颈（余量 "
+                + String.format(Locale.ROOT, "%.1f", MAX_HOPS / (double) Math.max(1, need))
+                + " 倍）—— 它要是半路停了，死因在 crossing 那一行，不在这里");
     }
 
     /**
@@ -1412,7 +1442,10 @@ public final class JourneyNetherRungs {
         int turn;                      // degrees off the straight line, spent after halving fails
         double best = Double.MAX_VALUE; // the closest this crossing has ever been to the goal — the
                                         // bar a hop must beat. See PROGRESS_UNDER for why a ratchet.
+        double best0 = Double.MAX_VALUE; // where the crossing started, kept so the pace row can say
+                                        // what the WHOLE walk would cost at the measured rate.
         int falls;
+        int ticks;                     // ticks, summed over hops — the denominator for noPlan
         int noPlan;                    // ticks, summed over hops — the crossing's headline reading
         String firstLava;
         String why = "";
@@ -1423,7 +1456,7 @@ public final class JourneyNetherRungs {
                                int hopTicks, Crossing c, Runnable onArrived, Runnable onStuck) {
         BlockPos before = rig.player().blockPosition();
         double away = Math.hypot(x - before.getX(), z - before.getZ());
-        if (c.hop == 0) c.best = away;   // the record starts wherever the crossing does
+        if (c.hop == 0) { c.best = away; c.best0 = away; }   // the record starts wherever the crossing does
         if (away <= tolerance + ARRIVED_WITHIN) {
             recordCrossing(rig, what, c, away);
             onArrived.run();
@@ -1460,6 +1493,7 @@ public final class JourneyNetherRungs {
             // progress cannot either, because a shuttle's two halves cancel one hop apart.
             double gained = c.best - left;
             c.falls += flight.fallCount();
+            c.ticks += flight.ticks();
             c.noPlan += flight.noPlanTicks();
             if (flight.lavaLine() != null && c.firstLava == null)
                 c.firstLava = "第 " + hop + " 段 " + flight.lavaLine();
@@ -1548,6 +1582,18 @@ public final class JourneyNetherRungs {
                 + c.falls + " 次，全程无计划 " + c.noPlan + " tick"
                 + (c.firstLava == null ? "，没进过岩浆" : "，" + c.firstLava)
                 + (c.why.isEmpty() ? "" : "；" + c.why));
+        // The denominator 无计划 never had. 67 ticks with nothing to steer at is a re-planning
+        // problem at 900 and a rounding error at 1517, and only the pair says which — so a future
+        // reader deciding between「give it more budget」and「it cannot plan here」has the number in
+        // front of them instead of a hop line to add up.
+        int walked = (int) Math.round(Math.max(0, c.best0 - Math.min(c.best, left)));
+        rig.evidence(what + ".pace", c.hop + " 段共 " + c.ticks + " tick，净走 " + walked + " 格"
+                + (walked > 0 && c.ticks > 0
+                    ? "（" + String.format(Locale.ROOT, "%.1f", c.ticks / (double) walked)
+                      + " tick/格，照这个脚程走完全程要 "
+                      + Math.round(c.best0 * c.ticks / (double) walked) + " tick）" : "")
+                + "；其中无计划 " + c.noPlan + "/" + c.ticks + " tick = "
+                + (c.ticks > 0 ? Math.round(100.0 * c.noPlan / c.ticks) : 0) + "%");
         rig.evidence(what + ".arrivedDistance", Math.round(left));
     }
 

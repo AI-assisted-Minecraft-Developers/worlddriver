@@ -484,6 +484,10 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     /** Ticks the walker had nothing to steer at. See {@link #ticksWithNoPlan}. */
     public int noPlanTicks() { return ticksWithNoPlan; }
 
+    /** Ticks this leg ran for. Read by the crossing so「no plan for 67 ticks」can be given the
+     *  denominator that decides whether re-planning was the cost or a rounding error. */
+    public int ticks() { return t; }
+
     /** How the body first entered lava on this leg, or null when it never did. */
     public String lavaLine() { return lava; }
 
