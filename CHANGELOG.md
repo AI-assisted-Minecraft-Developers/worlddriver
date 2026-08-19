@@ -109,6 +109,16 @@ column when no flight runs through it, the nearest standable off-flight column w
 one — a flight cut into rock has wall on both sides — so a fallback that towered anyway would be a
 rule bypassed on every run; those climbs now walk the flight instead, placing and breaking nothing.
 
+**Rung 12 now says when the foot of its own staircase is under water, and waits for it.** The alcove's
+floor row is the flight's bottom row, so a cast source floods the corridor and runs down the stairs:
+`cast8.landing = … 楼梯底 2, 56, 19=water（流动），其上 2, 57, 19=water（流动）`. That reading was buried
+mid-format-string in a row about the body, and `drainTheAlcove` certified `壁龛已排干` beside it,
+because the bottom step is not a corridor cell. The flood now has its own row on every return
+(`cast*.stairFoot`) and the drain waits on the stairwell's three foot cells as well as on the corridor
+(`drain.N.stairFoot`). Recording and waiting, deliberately, not repairing: a pick does not remove
+water, and the one verb that does — a placement — would fill the bottom step, which is the same
+broken stair the tower had just caused.
+
 **The void rule now covers every move that crosses a corner or a gap, not the subset each patch was
 written against.** Three times in two days the same shape leaked back: the leap gate went to
 `Parkour2/2Diagonal/3` while `Parkour3Diagonal/4/Ascend/Descend` stayed open; the corner gate went
