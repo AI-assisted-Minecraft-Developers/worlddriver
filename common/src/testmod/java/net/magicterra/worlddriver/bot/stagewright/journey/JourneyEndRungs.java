@@ -14,6 +14,8 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.movement.BlastFooting;
+import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
+import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.process.BotProcess;
@@ -1543,9 +1545,18 @@ public final class JourneyEndRungs {
             BlockPos me = rig.player().blockPosition();
             // ...and it must be STANDING there. ARRIVED is not the same as supported: the trace
             // that found this bug reads 脚底=0.000 on an ARRIVED tick at the podium.
+            // Support is measured, not looked up. Asking whether the single cell under the body's
+            // BLOCK POSITION is air rejects a body held by its footprint overlapping the next cell
+            // — which is exactly how a body stands on the rim of the fountain. Measured: five
+            // rounds in a row reported 「停在 0,60,-1（距 1.0 格，高差 0）没到 end=arrived」 while
+            // the body was standing there perfectly well, and the sixth wandered 41 格 away and
+            // stalled. The walker's own sole predicate is the authority everywhere else in this
+            // repo; a second opinion here can only ever disagree with it.
+            double sole = WalkerGeometry.soleOnSolid(
+                    new LevelWorldView(rig.player().serverLevel(), rig.player()), rig.player());
             boolean close = me.distSqr(podium) <= DUEL_STAND_RADIUS * DUEL_STAND_RADIUS
                     && me.getY() >= podium.getY() - 1
-                    && !rig.player().level().getBlockState(me.below()).isAir();
+                    && sole > 0.0;
             rig.evidence("duel.march." + left, (flat ? "XZ" : "3D") + " 目标 "
                     + podium.toShortString() + " → 停在 " + me.toShortString() + "（距 "
                     + String.format(Locale.ROOT, "%.1f", Math.sqrt(me.distSqr(podium)))
