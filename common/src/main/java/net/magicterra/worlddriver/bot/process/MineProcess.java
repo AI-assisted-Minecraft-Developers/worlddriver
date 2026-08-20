@@ -1024,8 +1024,9 @@ public final class MineProcess implements BotProcess {
         // is the drown risk this whole path exists to avoid) and cannot seed a
         // pillar from water. But vanilla block reach is 4.5: if a DRY standable
         // cell sits within reach with clear line of sight to the log, stand there
-        // and mine across the gap. The break aims via faceBlock's raycast
-        // (currentFace is cosmetic), so the non-unit offset mines fine.
+        // and mine across the gap. The break aims with `a.aimAtBlock(currentTarget)`
+        // in BREAKING — a snap onto the cell itself, not a step off a face — so
+        // `currentFace` is cosmetic here and the non-unit offset mines fine.
         return findReachStand(lvl, block);
     }
 
@@ -1080,18 +1081,16 @@ public final class MineProcess implements BotProcess {
         return hit.getType() == HitResult.Type.BLOCK && hit.getBlockPos().equals(target);
     }
 
+    /** The shared stand test ({@link net.magicterra.worlddriver.bot.util.BotUtil#canStandHereStatic})
+     *  plus one clause only mining needs. Written as「the shared answer AND …」on purpose: a digger's
+     *  extra refusal must be visibly extra, or it reads as a second opinion about what standing is
+     *  and the three processes drift apart. */
     private boolean canStandHere(Level lvl, BlockPos foot) {
-        BlockState below = lvl.getBlockState(foot.offset(0, -1, 0));
-        BlockState here = lvl.getBlockState(foot);
-        BlockState head = lvl.getBlockState(foot.offset(0, 1, 0));
-        if (!below.blocksMotion()) return false;
-        if (here.blocksMotion() && !here.getFluidState().is(Fluids.WATER)) return false;
-        if (head.blocksMotion() && !head.getFluidState().is(Fluids.WATER)) return false;
+        if (!canStandHereStatic(lvl, foot)) return false;
         // Never stand where lava touches the foot or head cell — a freshly-dug
         // pocket can flow into an adjacent cell and roast us. Reject the whole
         // 1-block shell around both body cells.
-        if (lavaTouching(lvl, foot) || lavaTouching(lvl, foot.offset(0, 1, 0))) return false;
-        return true;
+        return !lavaTouching(lvl, foot) && !lavaTouching(lvl, foot.offset(0, 1, 0));
     }
 
     private static boolean isLava(Level lvl, BlockPos p) {

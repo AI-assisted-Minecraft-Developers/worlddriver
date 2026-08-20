@@ -32,10 +32,8 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -128,7 +126,7 @@ public final class SleepProcess implements BotProcess {
                     phase = Phase.DONE;
                     return true;
                 }
-                faceBlock(p, bedPos);
+                aimAt(p, bedPos.getX() + 0.5, bedPos.getY() + 0.5, bedPos.getZ() + 0.5);
                 // Bed interaction requires not-sneaking — vanilla treats
                 // sneak+right-click on a bed as "place item against bed"
                 // rather than "enter bed". clientUseItemOn no longer
@@ -170,11 +168,4 @@ public final class SleepProcess implements BotProcess {
         return best;
     }
 
-    private void faceBlock(Player p, BlockPos block) {
-        Vec3 eye = p.getEyePosition();
-        double dx = block.getX() + 0.5 - eye.x, dy = block.getY() + 0.5 - eye.y, dz = block.getZ() + 0.5 - eye.z;
-        float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
-        float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
-        p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw; p.setXRot(pitch);
-    }
 }

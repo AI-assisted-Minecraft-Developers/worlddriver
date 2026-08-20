@@ -32,10 +32,8 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -122,7 +120,7 @@ public final class BackfillProcess implements BotProcess {
                     return false;
                 }
                 if (s == Walker.Step.ARRIVED) {
-                    faceSupportFor(p, currentBlock, currentFace);
+                    aimAtSupportFace(p, currentBlock, currentFace);
                     placeTicks = 0;
                     phase = Phase.PLACING;
                 }
@@ -132,7 +130,7 @@ public final class BackfillProcess implements BotProcess {
                 p.setSprinting(false);
                 a.commandSneak(true);
                 p.setShiftKeyDown(true);
-                faceSupportFor(p, currentBlock, currentFace);
+                aimAtSupportFace(p, currentBlock, currentFace);
                 // Approach-center gate (mirror of BuildProcess fix):
                 // walker may stop ~0.4 short of stand-center which leaves
                 // <0.2 clearance from the placement target.
@@ -148,7 +146,7 @@ public final class BackfillProcess implements BotProcess {
                     return false;
                 }
                 a.commandForward(0f);
-                faceSupportFor(p, currentBlock, currentFace);
+                aimAtSupportFace(p, currentBlock, currentFace);
                 BlockPos support = new BlockPos(
                         currentBlock.getX() - currentFace.getStepX(),
                         currentBlock.getY() - currentFace.getStepY(),
@@ -279,21 +277,6 @@ public final class BackfillProcess implements BotProcess {
         Item item = stk.getItem();
         ResourceLocation rl = BuiltInRegistries.ITEM.getKey(item);
         return rl.toString().equals(blockId);
-    }
-
-    private void faceSupportFor(Player p, BlockPos block, Direction face) {
-        BlockPos support = block.offset(-face.getStepX(), -face.getStepY(), -face.getStepZ());
-        double tx = support.getX() + 0.5 + face.getStepX() * 0.5;
-        double ty = support.getY() + 0.5 + face.getStepY() * 0.5;
-        double tz = support.getZ() + 0.5 + face.getStepZ() * 0.5;
-        Vec3 eye = p.getEyePosition();
-        double dx = tx - eye.x, dy = ty - eye.y, dz = tz - eye.z;
-        float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
-        float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
-        p.setYRot(yaw);
-        p.yHeadRot = yaw;
-        p.yBodyRot = yaw;
-        p.setXRot(pitch);
     }
 
     private record Placement(BlockPos stand, Direction face) {}

@@ -3,7 +3,9 @@ package net.magicterra.worlddriver.bot.util;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.client.Minecraft;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -19,6 +21,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Stateless conversion / parsing / threading helpers shared across the bot
@@ -144,8 +147,9 @@ public final class BotUtil {
 
     /** Cheap stand finder: 4 cardinals at same Y, then Y-1, then Y+1, then on
      *  top of the block. Water counts as passable. Used by the goto block
-     *  selector — the more thorough variants in MineProcess / BboxFillProcess
-     *  do additional reach checks tailored to mining/clearing. */
+     *  selector — the more thorough SEARCHES in MineProcess / BboxFillProcess
+     *  scan more cells and add reach checks tailored to mining/clearing, but
+     *  they all judge a candidate cell with {@link #canStandHereStatic}. */
     public static BlockPos findStandAdjacent(Level lvl, BlockPos block) {
         int[][] dxz = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
         for (int dy : new int[]{0, -1, 1}) {
@@ -159,6 +163,23 @@ public final class BotUtil {
         return null;
     }
 
+    /**
+     * Can a body stand with its feet in {@code foot}: a floor that blocks motion under it, and
+     * both body cells clear of anything that does (water excepted — a body wades).
+     *
+     * <p><b>The one answer for the process family.</b> {@code BboxFillProcess}, {@code FarmProcess}
+     * and {@code MineProcess} each carried a byte-identical private copy of this, which is how a
+     * stand test comes to mean three things: the day somebody teaches one of them about a
+     * half-slab, the other two keep walking onto it. {@code MineProcess} still refuses more than
+     * this — it additionally vetoes a cell lava touches — and that is written there as
+     * {@code canStandHereStatic(...) && no lava}, so the extra clause is visibly extra rather than
+     * a second opinion about the same question.
+     *
+     * <p>Cell-shaped, deliberately: this decides where to SEND a body, before it is there. Whether
+     * a body already standing somewhere is actually supported is a different question with a
+     * different answer — the body is 0.6 wide and can be held by a neighbour cell — and it belongs
+     * to {@code WalkerGeometry.soleOnSolid}. Do not use one for the other.
+     */
     public static boolean canStandHereStatic(Level lvl, BlockPos foot) {
         BlockState below = lvl.getBlockState(foot.offset(0, -1, 0));
         BlockState here = lvl.getBlockState(foot);
@@ -167,5 +188,46 @@ public final class BotUtil {
         if (here.blocksMotion() && !here.getFluidState().is(Fluids.WATER)) return false;
         if (head.blocksMotion() && !head.getFluidState().is(Fluids.WATER)) return false;
         return true;
+    }
+
+    // === Aiming (the process family) =========================================
+
+    /**
+     * Point the body's yaw, head, body and pitch at an exact world point.
+     *
+     * <p>The four rotation setters and the two {@code atan2} calls were copied into six process
+     * classes; an aim that is written out by hand at every call site is how「瞄的是哪一点」quietly
+     * comes to differ between two verbs that mean to do the same thing.
+     *
+     * <p><b>Not the same as {@code BotInteract.aimAtBlockSnap}, and they must not be merged.</b>
+     * That one takes a {@code LocalPlayer} and additionally asks {@code LookController} to exempt
+     * the tick from camera smoothing, because vanilla mining/interaction raycasts off the
+     * CROSSHAIR and a lagged crosshair hits the wrong block. This one only sets the angles: its
+     * callers act through {@code gameMode.useItemOn} with a hit result they computed themselves,
+     * so the crosshair is not what decides, and it also has to work for a server-side {@code
+     * Player} that has no client camera at all.
+     */
+    public static void aimAt(Player p, double tx, double ty, double tz) {
+        Vec3 eye = p.getEyePosition();
+        double dx = tx - eye.x, dy = ty - eye.y, dz = tz - eye.z;
+        float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
+        float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
+        p.setYRot(yaw);
+        p.yHeadRot = yaw;
+        p.yBodyRot = yaw;
+        p.setXRot(pitch);
+    }
+
+    /**
+     * Look at the centre of the face a placement clicks: {@code block} is where the new block is
+     * to appear and {@code face} is the side of the supporting neighbour it grows off, so the
+     * support sits opposite {@code face} and the point to aim at is half a block out from that
+     * support's centre along {@code face}.
+     */
+    public static void aimAtSupportFace(Player p, BlockPos block, Direction face) {
+        BlockPos support = block.offset(-face.getStepX(), -face.getStepY(), -face.getStepZ());
+        aimAt(p, support.getX() + 0.5 + face.getStepX() * 0.5,
+                 support.getY() + 0.5 + face.getStepY() * 0.5,
+                 support.getZ() + 0.5 + face.getStepZ() * 0.5);
     }
 }

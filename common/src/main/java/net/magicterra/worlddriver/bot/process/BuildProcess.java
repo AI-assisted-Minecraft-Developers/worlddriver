@@ -32,10 +32,8 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -142,7 +140,7 @@ public final class BuildProcess implements BotProcess {
                         phase = Phase.NEXT;
                         return false;
                     }
-                    faceSupportFor(p, currentBlock, currentFace);
+                    aimAtSupportFace(p, currentBlock, currentFace);
                     placeTicks = 0;
                     phase = Phase.PLACING;
                 }
@@ -155,7 +153,7 @@ public final class BuildProcess implements BotProcess {
                 // us, and prevents fall-off when standing on edges.
                 a.commandSneak(true);
                 p.setShiftKeyDown(true);
-                faceSupportFor(p, currentBlock, currentFace);
+                aimAtSupportFace(p, currentBlock, currentFace);
                 // Walker.REACH_DIST_SQ=0.45 means the player can ARRIVE
                 // ~0.67 short of the stand-cell center. Even sneaking
                 // (AABB half-width 0.3) that's not enough clearance from
@@ -177,7 +175,7 @@ public final class BuildProcess implements BotProcess {
                     return false;
                 }
                 a.commandForward(0f);
-                faceSupportFor(p, currentBlock, currentFace);
+                aimAtSupportFace(p, currentBlock, currentFace);
                 String wantId = schematic.entries.get(idx).blockId;
                 // Sanity-check the id before invoking the simulation so a typo
                 // surfaces as `skipped` rather than as a vanilla useItemOn
@@ -338,24 +336,6 @@ public final class BuildProcess implements BotProcess {
         Item item = stk.getItem();
         ResourceLocation rl = BuiltInRegistries.ITEM.getKey(item);
         return rl.toString().equals(blockId);
-    }
-
-    /** Look at the face of the supporting neighbor that points at `block`. */
-    private void faceSupportFor(Player p, BlockPos block, Direction face) {
-        // The supporting block sits opposite to `face`. We want to click `face` of support
-        // which points at block; aim at the center of that face.
-        BlockPos support = block.offset(-face.getStepX(), -face.getStepY(), -face.getStepZ());
-        double tx = support.getX() + 0.5 + face.getStepX() * 0.5;
-        double ty = support.getY() + 0.5 + face.getStepY() * 0.5;
-        double tz = support.getZ() + 0.5 + face.getStepZ() * 0.5;
-        Vec3 eye = p.getEyePosition();
-        double dx = tx - eye.x, dy = ty - eye.y, dz = tz - eye.z;
-        float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
-        float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
-        p.setYRot(yaw);
-        p.yHeadRot = yaw;
-        p.yBodyRot = yaw;
-        p.setXRot(pitch);
     }
 
     private record Placement(BlockPos stand, Direction face) {}

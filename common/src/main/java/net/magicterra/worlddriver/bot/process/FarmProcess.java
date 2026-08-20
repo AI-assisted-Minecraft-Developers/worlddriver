@@ -32,10 +32,8 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -186,7 +184,7 @@ public final class FarmProcess implements BotProcess {
                 // cell) on its UP face. Vanilla seed items only succeed
                 // when clicking farmland from above.
                 BlockPos farmland = currentTarget.offset(0, -1, 0);
-                faceSupportFor(p, currentTarget, Direction.UP);
+                aimAtSupportFace(p, currentTarget, Direction.UP);
                 if (placeTicks == 0) {
                     a.placeOn(farmland, Direction.UP);
                 }
@@ -279,44 +277,14 @@ public final class FarmProcess implements BotProcess {
         int[][] dxz = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
         for (int[] d : dxz) {
             BlockPos c = crop.offset(d[0], 0, d[1]);
-            if (canStandHere(lvl, c)) return c;
+            if (canStandHereStatic(lvl, c)) return c;
         }
         // Diagonals as fallback.
         int[][] diag = {{1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
         for (int[] d : diag) {
             BlockPos c = crop.offset(d[0], 0, d[1]);
-            if (canStandHere(lvl, c)) return c;
+            if (canStandHereStatic(lvl, c)) return c;
         }
         return null;
-    }
-
-    private boolean canStandHere(Level lvl, BlockPos foot) {
-        BlockState below = lvl.getBlockState(foot.offset(0, -1, 0));
-        BlockState here = lvl.getBlockState(foot);
-        BlockState head = lvl.getBlockState(foot.offset(0, 1, 0));
-        if (!below.blocksMotion()) return false;
-        if (here.blocksMotion() && !here.getFluidState().is(Fluids.WATER)) return false;
-        if (head.blocksMotion() && !head.getFluidState().is(Fluids.WATER)) return false;
-        return true;
-    }
-
-    private void faceBlock(Player p, BlockPos block) {
-        Vec3 eye = p.getEyePosition();
-        double dx = block.getX() + 0.5 - eye.x, dy = block.getY() + 0.5 - eye.y, dz = block.getZ() + 0.5 - eye.z;
-        float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
-        float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
-        p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw; p.setXRot(pitch);
-    }
-
-    private void faceSupportFor(Player p, BlockPos crop, Direction face) {
-        BlockPos support = crop.offset(-face.getStepX(), -face.getStepY(), -face.getStepZ());
-        double tx = support.getX() + 0.5 + face.getStepX() * 0.5;
-        double ty = support.getY() + 0.5 + face.getStepY() * 0.5;
-        double tz = support.getZ() + 0.5 + face.getStepZ() * 0.5;
-        Vec3 eye = p.getEyePosition();
-        double dx = tx - eye.x, dy = ty - eye.y, dz = tz - eye.z;
-        float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
-        float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
-        p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw; p.setXRot(pitch);
     }
 }
