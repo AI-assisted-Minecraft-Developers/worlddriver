@@ -102,11 +102,11 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
     public List<Scene> scenes() {
         return List.of(
                 Scene.of("wd.portalEntryDigsIntoTheRowItFits", 400,
-                        JourneyPortalEntryScenes::digsIntoTheRowItFits).withRequired(false),
+                        JourneyPortalEntryScenes::digsIntoTheRowItFits),
                 Scene.of("wd.portalEntryWillNotMineItsOwnFrame", 200,
-                        JourneyPortalEntryScenes::willNotMineItsOwnFrame).withRequired(false),
+                        JourneyPortalEntryScenes::willNotMineItsOwnFrame),
                 Scene.of("wd.portalEntryWontAskForAColumnItStandsIn", 400,
-                        JourneyPortalEntryScenes::wontAskForAColumnItStandsIn).withRequired(false));
+                        JourneyPortalEntryScenes::wontAskForAColumnItStandsIn));
     }
 
     // ----------------------------------------------------------------------- rig ----

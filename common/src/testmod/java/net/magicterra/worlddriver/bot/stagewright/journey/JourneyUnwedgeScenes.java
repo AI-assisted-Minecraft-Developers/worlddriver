@@ -116,13 +116,13 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
     public List<Scene> scenes() {
         return List.of(
                 Scene.of("wd.unwedgeRefusesTheStaircaseColumn", 200,
-                        JourneyUnwedgeScenes::refusesTheStaircaseColumn).withRequired(false),
+                        JourneyUnwedgeScenes::refusesTheStaircaseColumn),
                 Scene.of("wd.unwedgeTowersBesideTheStaircase", 200,
-                        JourneyUnwedgeScenes::towersBesideTheStaircase).withRequired(false),
+                        JourneyUnwedgeScenes::towersBesideTheStaircase),
                 Scene.of("wd.unwedgePinnedDriftRefusesTheStaircase", 200,
-                        JourneyUnwedgeScenes::pinnedDriftRefusesTheStaircase).withRequired(false),
+                        JourneyUnwedgeScenes::pinnedDriftRefusesTheStaircase),
                 Scene.of("wd.unwedgePinnedDriftTowersBesideTheStaircase", 200,
-                        JourneyUnwedgeScenes::pinnedDriftTowersBesideTheStaircase).withRequired(false));
+                        JourneyUnwedgeScenes::pinnedDriftTowersBesideTheStaircase));
     }
 
     // ---------------------------------------------------------------- rig ----

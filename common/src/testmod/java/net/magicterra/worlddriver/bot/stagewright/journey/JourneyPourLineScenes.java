@@ -160,15 +160,15 @@ public final class JourneyPourLineScenes implements SceneProvider {
     public List<Scene> scenes() {
         return List.of(
                 Scene.of("wd.pourLineBlockedByTheStepTheScoopLeft", 200,
-                        JourneyPourLineScenes::blockedByTheStepTheScoopLeft).withRequired(false),
+                        JourneyPourLineScenes::blockedByTheStepTheScoopLeft),
                 Scene.of("wd.pourLineTakesBackTheStepItBorrowed", 200,
-                        JourneyPourLineScenes::takesBackTheStepItBorrowed).withRequired(false),
+                        JourneyPourLineScenes::takesBackTheStepItBorrowed),
                 Scene.of("wd.pourLineHasNoOtherWayUp", 200,
-                        JourneyPourLineScenes::hasNoOtherWayUp).withRequired(false),
+                        JourneyPourLineScenes::hasNoOtherWayUp),
                 Scene.of("wd.pourLineRingOrderCannotShadowAPour", 200,
-                        JourneyPourLineScenes::ringOrderCannotShadowAPour).withRequired(false),
+                        JourneyPourLineScenes::ringOrderCannotShadowAPour),
                 Scene.of("wd.pourLineOccupiedStandsAreOutsideTheAlcove", 200,
-                        JourneyPourLineScenes::occupiedStandsAreOutsideTheAlcove).withRequired(false));
+                        JourneyPourLineScenes::occupiedStandsAreOutsideTheAlcove));
     }
 
     // ---------------------------------------------------------------------- rig ----

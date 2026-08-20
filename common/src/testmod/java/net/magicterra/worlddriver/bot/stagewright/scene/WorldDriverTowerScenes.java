@@ -52,10 +52,10 @@ import net.minecraft.world.phys.AABB;
  *
  * <h2>What these six arms are</h2>
  *
- * <b>Sensors. Nothing in this file touches the product.</b> All six ship
- * {@link Scene#withRequired(boolean) withRequired(false)} under this repo's promote-on-first-green
- * rule, and every arm's expected colour is written down HERE, before the first run — a criterion
- * chosen after seeing the number it has to accept is not a criterion.
+ * <b>Sensors. Nothing in this file touches the product.</b> Every arm's expected colour is written
+ * down HERE, before the first run — a criterion chosen after seeing the number it has to accept is
+ * not a criterion. They shipped {@code withRequired(false)} under this repo's promote-on-first-green
+ * rule and are all required now, each having gone green on both loaders.
  *
  * <ol>
  *   <li><b>{@code wd.serverTowersTwelveCourses} — expected GREEN.</b> The missing base case: flat
@@ -148,32 +148,32 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         return List.of(
                 // The missing base case. PROMOTE TO REQUIRED on its first green.
                 Scene.of("wd.serverTowersTwelveCourses", 200,
-                        WorldDriverTowerScenes::serverTowersTwelveCourses).withRequired(false),
+                        WorldDriverTowerScenes::serverTowersTwelveCourses),
                 // JourneyEndRungs.smashCrystal's own ordering. Expected RED.
                 Scene.of("wd.serverTowersAfterAWalk", 600,
-                        WorldDriverTowerScenes::serverTowersAfterAWalk).withRequired(false),
+                        WorldDriverTowerScenes::serverTowersAfterAWalk),
                 // Expected RED until TowerProcess:128 stops asking onGround(). Expected to die on
                 // the stuck guard, which is what keeps its red distinguishable from arms 1 and 2.
                 Scene.of("wd.serverTowersWithoutOnGround", 200,
-                        WorldDriverTowerScenes::serverTowersWithoutOnGround).withRequired(false),
+                        WorldDriverTowerScenes::serverTowersWithoutOnGround),
                 // The drift sensor for TowerProcess:155-157. Expected GREEN.
                 Scene.of("wd.serverTowersOnAFreePillar", 200,
-                        WorldDriverTowerScenes::serverTowersOnAFreePillar).withRequired(false),
+                        WorldDriverTowerScenes::serverTowersOnAFreePillar),
                 // ⚠️ RED BY DESIGN: the criterion is written before the fix. See the class javadoc —
                 // do not relax it to get a green, the whole value of the arm is that it is wrong
                 // today and says which line is wrong.
                 Scene.of("wd.serverTowersToWhereItStands", 200,
-                        WorldDriverTowerScenes::serverTowersToWhereItStands).withRequired(false),
+                        WorldDriverTowerScenes::serverTowersToWhereItStands),
                 // The anti-overfit arm. Expected GREEN today, and it must STAY green through every
                 // fix the five arms above provoke.
                 Scene.of("wd.serverTowersWithAFullBackpack", 200,
-                        WorldDriverTowerScenes::serverTowersWithAFullBackpack).withRequired(false),
+                        WorldDriverTowerScenes::serverTowersWithAFullBackpack),
                 // The three phase=JUMPING rows of 2026-08-19, isolated. Each carries its own
                 // control, and the control is the arm with the fault — see the two javadocs.
                 Scene.of("wd.serverTowersUnderALowCeiling", 200,
-                        WorldDriverTowerScenes::serverTowersUnderALowCeiling).withRequired(false),
+                        WorldDriverTowerScenes::serverTowersUnderALowCeiling),
                 Scene.of("wd.serverTowersUnderTheNeighboursCeiling", 200,
-                        WorldDriverTowerScenes::serverTowersUnderTheNeighboursCeiling).withRequired(false));
+                        WorldDriverTowerScenes::serverTowersUnderTheNeighboursCeiling));
     }
 
     // ---------------------------------------------------------------- rig ----

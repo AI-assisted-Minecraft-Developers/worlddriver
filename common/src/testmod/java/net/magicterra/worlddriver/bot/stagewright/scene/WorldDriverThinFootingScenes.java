@@ -99,17 +99,17 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                 // stopsAtALavaShore for the measurement — the guard's floor scan counts a lava lake
                 // as a floor, so the arm whose bay is lava is the one that walks in.
                 Scene.of("wd.serverStopsAtALavaShore", 600,
-                        WorldDriverThinFootingScenes::stopsAtALavaShore).withRequired(false),
+                        WorldDriverThinFootingScenes::stopsAtALavaShore),
                 Scene.of("wd.serverWalksOffASurvivableLedge", 600,
-                        WorldDriverThinFootingScenes::walksOffASurvivableLedge).withRequired(false),
+                        WorldDriverThinFootingScenes::walksOffASurvivableLedge),
                 // The shore arms above ask whether the guard STOPS a body walking into a lake. These
                 // two ask the opposite question about the same guard: what the pin costs a body whose
                 // route runs ALONG the rim and was never going in. Same trench twice, and its fill is
                 // again the only variable.
                 Scene.of("wd.serverKeepsWalkingAtALavaRim", 600,
-                        WorldDriverThinFootingScenes::keepsWalkingAtALavaRim).withRequired(false),
+                        WorldDriverThinFootingScenes::keepsWalkingAtALavaRim),
                 Scene.of("wd.serverKeepsWalkingAtADryRim", 600,
-                        WorldDriverThinFootingScenes::keepsWalkingAtADryRim).withRequired(false));
+                        WorldDriverThinFootingScenes::keepsWalkingAtADryRim));
     }
 
     private static void widensAThinFooting(SceneContext ctx, int slot) {

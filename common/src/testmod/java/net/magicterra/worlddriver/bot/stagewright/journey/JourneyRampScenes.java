@@ -105,9 +105,9 @@ public final class JourneyRampScenes implements SceneProvider {
     public List<Scene> scenes() {
         return List.of(
                 Scene.of("wd.rampStepsAsideWhenTheBodyIsInItsOwnStep", 200,
-                        JourneyRampScenes::stepsAsideWhenTheBodyIsInItsOwnStep).withRequired(false),
+                        JourneyRampScenes::stepsAsideWhenTheBodyIsInItsOwnStep),
                 Scene.of("wd.rampFootholdRisesWithTheFlightItLaid", 200,
-                        JourneyRampScenes::footholdRisesWithTheFlightItLaid).withRequired(false));
+                        JourneyRampScenes::footholdRisesWithTheFlightItLaid));
     }
 
     // ---------------------------------------------------------------------- arena ----

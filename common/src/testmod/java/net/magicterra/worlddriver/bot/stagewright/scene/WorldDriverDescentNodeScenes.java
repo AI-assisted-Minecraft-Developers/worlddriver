@@ -164,13 +164,13 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
     public List<Scene> scenes() {
         return List.of(
                 Scene.of("wd.serverStepsDownAPerchItPlanned", 600,
-                        WorldDriverDescentNodeScenes::stepsDownAPerchItPlanned).withRequired(false),
+                        WorldDriverDescentNodeScenes::stepsDownAPerchItPlanned),
                 Scene.of("wd.serverStepsDownTheLastNodeOfItsPlan", 600,
-                        WorldDriverDescentNodeScenes::stepsDownTheLastNodeOfItsPlan).withRequired(false),
+                        WorldDriverDescentNodeScenes::stepsDownTheLastNodeOfItsPlan),
                 Scene.of("wd.serverStepsDownAPlanItSpentInOneTick", 600,
-                        WorldDriverDescentNodeScenes::stepsDownAPlanItSpentInOneTick).withRequired(false),
+                        WorldDriverDescentNodeScenes::stepsDownAPlanItSpentInOneTick),
                 Scene.of("wd.serverStillWalksDownAStaircase", 600,
-                        WorldDriverDescentNodeScenes::stillWalksDownAStaircase).withRequired(false));
+                        WorldDriverDescentNodeScenes::stillWalksDownAStaircase));
     }
 
     // ---------------------------------------------------------------- the copy of rung 14's pocket

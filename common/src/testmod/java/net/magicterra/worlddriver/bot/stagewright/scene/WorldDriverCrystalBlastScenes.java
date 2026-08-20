@@ -53,8 +53,8 @@ import net.minecraft.world.phys.AABB;
  * A matched pair whose <b>only</b> variable is the block under the body's feet. Same pillar, same
  * cage, same crystal, same inventory, same tick loop; one arm stands on the cage lid and one stands
  * on the pillar-top obsidian one block from the crystal. Neither touches the product — they are
- * sensors, shipped {@link Scene#withRequired(boolean) withRequired(false)} under this repo's
- * promote-on-first-green rule.
+ * sensors, shipped {@code withRequired(false)} under this repo's promote-on-first-green rule and
+ * required now — both went green on both loaders, the cage arm by way of a refusal.
  *
  * <ul>
  *   <li>{@code wd.crystalBlastOnTheCage} — it falsifies「砍水晶时可以站在笼上」. <b>The way it goes
@@ -162,11 +162,11 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
                 // promote-on-first-green rule, and the green it is waiting for is「带理由地拒绝」
                 // (BlastFooting), not「换了个落脚」. See 判据 / X1-X3 above.
                 Scene.of("wd.crystalBlastOnTheCage", 600,
-                        WorldDriverCrystalBlastScenes::crystalBlastOnTheCage).withRequired(false),
+                        WorldDriverCrystalBlastScenes::crystalBlastOnTheCage),
                 // Expected GREEN. Optional only until one gate run confirms it, per the same rule;
                 // it is the arm that refuses "never go near a crystal" as a fix.
                 Scene.of("wd.crystalBlastOnThePillar", 600,
-                        WorldDriverCrystalBlastScenes::crystalBlastOnThePillar).withRequired(false));
+                        WorldDriverCrystalBlastScenes::crystalBlastOnThePillar));
     }
 
     // ---------------------------------------------------------------- rig ----

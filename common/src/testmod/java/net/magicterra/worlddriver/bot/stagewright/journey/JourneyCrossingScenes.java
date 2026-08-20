@@ -111,13 +111,13 @@ public final class JourneyCrossingScenes implements SceneProvider {
     public List<Scene> scenes() {
         return List.of(
                 Scene.of("wd.crossingWaitsOutASurvivableDrop", 400,
-                        JourneyCrossingScenes::waitsOutASurvivableDrop).withRequired(false),
+                        JourneyCrossingScenes::waitsOutASurvivableDrop),
                 Scene.of("wd.crossingStillStopsForALongFall", 400,
-                        JourneyCrossingScenes::stillStopsForALongFall).withRequired(false),
+                        JourneyCrossingScenes::stillStopsForALongFall),
                 Scene.of("wd.crossingRowSeparatesAPerchFromMidAir", 400,
-                        JourneyCrossingScenes::rowSeparatesAPerchFromMidAir).withRequired(false),
+                        JourneyCrossingScenes::rowSeparatesAPerchFromMidAir),
                 Scene.of("wd.guardRepathSeparatesARimWalkFromALivelock", 600,
-                        JourneyCrossingScenes::repathSeparatesARimWalkFromALivelock).withRequired(false));
+                        JourneyCrossingScenes::repathSeparatesARimWalkFromALivelock));
     }
 
     /** dy of the shelf's top block. The body's foot cell is one above it. */

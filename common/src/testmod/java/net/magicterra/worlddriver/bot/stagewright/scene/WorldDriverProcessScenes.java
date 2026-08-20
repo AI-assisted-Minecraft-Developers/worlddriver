@@ -133,15 +133,13 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 // hole at all, they were sealed inside rock the avatar had no business mining
                 // through, and the miner now peels its way down instead.
                 Scene.of("wd.serverMineHarvestBuried", 1_500, WorldDriverProcessScenes::serverMineHarvestBuriedScene),
-                // Optional and red: a body that digs the block out from under itself does not go
-                // down. It was written as the smallest statement of why the scene above was red,
-                // and it outlived that explanation — the buried drops turned out to be sealed in
-                // rock rather than lying at the bottom of a hole, so the scene above is required
-                // and green while this one is still red. It stays because the capability is still
-                // missing and the journey still scripts around it, not because it explains anything
-                // upstream any more.
-                Scene.of("wd.serverSelfShaftDescends", 1_200, WorldDriverProcessScenes::serverSelfShaftDescends)
-                        .withRequired(false),
+                // A body that digs the block out from under itself and rides it down. It shipped
+                // optional and red as the smallest statement of why the scene above was red, and
+                // outlived that explanation — the buried drops turned out to be sealed in rock
+                // rather than lying at the bottom of a hole. It has since gone green on both
+                // loaders and is required under promote-on-first-green; the descent it measures is
+                // the miner's peel-one-block-at-a-time path, so a regression there lands here.
+                Scene.of("wd.serverSelfShaftDescends", 1_200, WorldDriverProcessScenes::serverSelfShaftDescends),
                 // Pure navigation, no mining: can the walker path to the bottom of a pit? That is
                 // the question under wd.serverMineHarvestBuried, and mining it first means a
                 // failure could belong to either half. Required, because if this is red the
@@ -152,9 +150,9 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 // The same pit, with the miner's own permissions. MineProcess sweeps with breaking
                 // AND placing on, and a walker allowed to place can treat a hole as terrain to
                 // bridge rather than a place to stand — so "the walker can reach a pit" and "the
-                // collector can reach a pit" are not the same claim. Optional until measured.
-                Scene.of("wd.serverWalkIntoAPitArmed", 900, WorldDriverProcessScenes::serverWalkIntoAPitArmed)
-                        .withRequired(false),
+                // collector can reach a pit" are not the same claim. Measured green on both
+                // loaders, so it is now required: the armed walker must keep choosing to descend.
+                Scene.of("wd.serverWalkIntoAPitArmed", 900, WorldDriverProcessScenes::serverWalkIntoAPitArmed),
                 // Optional because it is GREEN on Fabric and RED on NeoForge, and a loader
                 // divergence is exactly the thing this repo has been bitten by before — it is
                 // worth a named row that says which loader, not a hidden assertion or a red gate.

@@ -54,12 +54,11 @@ import net.minecraft.world.level.block.Blocks;
  * <h2>What these three scenes are, and what they are NOT</h2>
  *
  * They are <b>sensors, not fixes</b>. Nothing in this file touches the product. Two of the three
- * shipped RED and {@link Scene#withRequired(boolean) withRequired(false)} for exactly that reason —
- * <b>each was to be promoted to required the first time it went green</b>, which is the whole point
- * of writing the criterion down before the fix rather than after. Both execution arms have since
- * been promoted, in the commit that narrowed the sprint gate to {@code parkourEdge}; only the
- * planner arm ({@code wd.parkourVoidRunwayGate}) is still optional, because nothing has yet touched
- * the run-up modelling it measures.
+ * shipped RED and {@code withRequired(false)} for exactly that reason — <b>each was to be promoted
+ * to required the first time it went green</b>, which is the whole point of writing the criterion
+ * down before the fix rather than after. Both execution arms were promoted in the commit that
+ * narrowed the sprint gate to {@code parkourEdge}; the planner arm ({@code wd.parkourVoidRunwayGate})
+ * followed once it too had gone green on both loaders. All three are required now.
  *
  * <p>The family is deliberately a POSITIVE arm, a NEGATIVE arm and a PLANNER arm, because the
  * cheapest wrong fixes are all invisible to any one of them:
@@ -122,7 +121,7 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
                 // Records the CURRENT answer of an unmodelled run-up threshold; its short half is
                 // expected RED. PROMOTE TO REQUIRED the first time it goes green.
                 Scene.of("wd.parkourVoidRunwayGate", 200,
-                        WorldDriverParkourVoidScenes::parkourVoidRunwayGate).withRequired(false));
+                        WorldDriverParkourVoidScenes::parkourVoidRunwayGate));
     }
 
     // ---------------------------------------------------------------- rig ----
