@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-20
 
+- **The fourth rung-12 family — a finished ring cell in the way of an uncast one — is neither an
+  ordering problem nor the ring's shape, and the hundred「occupied stands」are the alcove's own
+  rock.** Established rather than argued, because the fix each reading points at is a different fix.
+  The run after the borrowed-step take-back landed shows cast 8 pouring (`cast8.clear3 = 1 格要清 …`,
+  `cast8.result = CONSUME`) and cast 9 — `4,60,20`, the last cell — dying on the FIRED ray:
+
+  ```
+  cast9.picks.1 = 4, 60, 19 Block{minecraft:obsidian} face=up → 落进 4, 61, 19
+                  （想浇 4, 60, 20，瞄 5, 60, 20，身体 3, 60, 19）
+  ```
+
+  The blocker is real and is this rung's own obsidian. The body, however, is at `z=19` and the target
+  at `z=20`: the shot is a diagonal from the NEXT RANK, and a diagonal is the only shape that can
+  reach a neighbour's cell at all.
+
+- **Ordering cannot help, and one staging per cell proves it for all 3 628 800 orders.**
+  `wd.pourLineRingOrderCannotShadowAPour` stages each ring cell with all nine others already
+  obsidian — the worst shadow any order can produce, and every order casts a subset of those nine.
+  All ten keep columns in their own rank, and all ten keep one at the row `standLevelWith` verifies
+  (`target.y - 1`; the bottom pair's verified row is under the alcove floor and is excluded by the
+  geometry, not by taste). The shadow is a property of the RANK *and the ROW*: the arm's row-by-row
+  control reads `y221:1 y222:0 y223:0 y224:0 y225:1` for the neighbouring rank, with `y223` the row
+  the raise asks for. Its first draft swept the rows together, and its own rig check caught that.
+
+- **`落脚格被占=100` is the scan reaching outside the excavation.**
+  `wd.pourLineOccupiedStandsAreOutsideTheAlcove` splits the vote against the carved volume:
+  `101 = 100 outside + 1 inside`, and the one inside is a registered flight step. The arena
+  reproduces the run's 100 exactly — the scan is four cells back and two either side of a mould
+  pushed two out of a five-wide alcove, so most of it is the rock the alcove was cut into. Single
+  digits of scaffolding cannot explain a hundred, so this is **not** another instance of「a
+  recovery's placements become the next step's obstacle」 and the no-go list is the wrong place to
+  extend. That arm's exact-sum criterion also caught the arena being one row too shallow: 20 outside
+  candidates had no floor staged under them and were refused as `脚下不实心` instead — a
+  「mostly rock」criterion would have passed over it.
+
+- **No production change.** What is left is the DELIVERY, and the run names it:
+  `cast9.ramp.laid = 0/3 级垫好了（身体 2, 56, 20）` — a flight that laid nothing because the body was
+  standing on its own bottom support, whose refusal `JourneyRamp.lay` treats as「walking changes
+  nothing」— then `cast9.raisedY = 59/59（停在 3,17，指定柱 2,20，不是同一柱）`. The column the ray
+  chose was right; nothing got the body into it. That lives inside a walk-and-place loop that needs a
+  `JourneyRig` to drive, so it is written down rather than fixed blind.
+
+
 - **The step-advance log is budgeted per LEG now, not per walker, and it says whether it is
   complete.** A walker outlives a whole rung, so the old 8-line budget was spent in the opening
   seconds of the 5 209-tick crossing and the four wedged hops — 900 ticks each, 61 to 76 walk edges

@@ -88,6 +88,45 @@ import net.minecraft.world.phys.BlockHitResult;
  * hands the cell back when that cast asks for it, unless the body is resting on it. The two halves
  * are {@code wd.pourLineTakesBackTheStepItBorrowed}'s subject and control.
  *
+ * <h2>The next run's blocker was a FINISHED ring cell, and it is a different question</h2>
+ *
+ * <p>2026-08-20, the run after the take-back landed: cast 8 poured
+ * ({@code cast8.clear3 = 1 格要清 … cast8.result = CONSUME}) and cast 9 —
+ * {@code 4,60,20}, the last cell — died with the fired ray stopping on the obsidian of cast 8:
+ *
+ * <pre>
+ * cast9.picks.1 = 4, 60, 19 Block{minecraft:obsidian} face=up → 落进 4, 61, 19
+ *                 （想浇 4, 60, 20，瞄 5, 60, 20，身体 3, 60, 19）
+ * cast9.stand.3 = 3, 60, 19 瞄 5, 60, 20 否决计数 {脚下不实心=27, 落脚格被占=100, …}
+ * </pre>
+ *
+ * <p>Two things that look like new families, and neither is:
+ *
+ * <ul>
+ *   <li><b>「a finished cell shadows an uncast one」is not an ordering problem and not the ring's
+ *       shape.</b> {@code wd.pourLineRingOrderCannotShadowAPour} stages every ring cell with all
+ *       nine others already obsidian — the worst shadow ANY order can produce, so a subset argument
+ *       settles all 3 628 800 orderings at once — and every one of the ten keeps columns in its own
+ *       rank, at the row the raise verifies. The shadow exists only for a body one rank over, and
+ *       only at that row: the arm's own row-by-row reading is {@code y221:1 y223:0 y225:1}. The
+ *       body was at {@code 3,60,19}; the target is at {@code z=20}.</li>
+ *   <li><b>{@code 落脚格被占=100} is the alcove's own rock.</b>
+ *       {@code wd.pourLineOccupiedStandsAreOutsideTheAlcove} splits the vote: 100 of the 140
+ *       candidates fall outside the carved corridor (the scan reaches four back and two either side
+ *       of a mould pushed two out of a five-wide alcove), and the only one inside is a registered
+ *       flight step. Scaffolding contributes single digits, so this is NOT another instance of「a
+ *       recovery's placements become the next step's obstacle」and the no-go list is the wrong
+ *       place to look.</li>
+ * </ul>
+ *
+ * <p>What is left is the DELIVERY, and the run says so in its own rows:
+ * {@code cast9.ramp.laid = 0/3 级垫好了（身体 2, 56, 20）} — a flight that laid nothing because the
+ * body was standing on its own bottom support — and then
+ * {@code cast9.raisedY = 59/59（停在 3,17，指定柱 2,20，不是同一柱）}. The column the ray chose was
+ * right; nothing got the body into it. No fix is shipped here for that: it lives inside
+ * {@link JourneyRamp#lay}'s walk-and-place loop, which needs a {@link JourneyRig} to drive, and this
+ * file's arms deliberately stop where an arena stops being honest.
+ *
  * <h2>Staged as「the previous leg just finished」, deliberately</h2>
  *
  * <p>Two of this family's three instances were caused by the PREVIOUS step's work, so a fixture that
@@ -110,7 +149,7 @@ import net.minecraft.world.phys.BlockHitResult;
  *
  * <h2>Arena footprint</h2>
  *
- * <p>{@code dx ∈ [-2, 5]}, {@code dz ∈ [-4, 4]}, {@code dy ∈ [BASE-2, BASE+9]} around the origin —
+ * <p>{@code dx ∈ [-2, 5]}, {@code dz ∈ [-4, 4]}, {@code dy ∈ [BASE-3, BASE+9]} around the origin —
  * inside the default one-chunk window ({@code dx, dz ∈ [-16, 31]}), so no {@code withChunkRadius}.
  * Stated here rather than left to be derived because {@code scripts/check_scene_arena.py} scans the
  * {@code scene} package only: these scenes live beside the code they test.
@@ -125,7 +164,11 @@ public final class JourneyPourLineScenes implements SceneProvider {
                 Scene.of("wd.pourLineTakesBackTheStepItBorrowed", 200,
                         JourneyPourLineScenes::takesBackTheStepItBorrowed).withRequired(false),
                 Scene.of("wd.pourLineHasNoOtherWayUp", 200,
-                        JourneyPourLineScenes::hasNoOtherWayUp).withRequired(false));
+                        JourneyPourLineScenes::hasNoOtherWayUp).withRequired(false),
+                Scene.of("wd.pourLineRingOrderCannotShadowAPour", 200,
+                        JourneyPourLineScenes::ringOrderCannotShadowAPour).withRequired(false),
+                Scene.of("wd.pourLineOccupiedStandsAreOutsideTheAlcove", 200,
+                        JourneyPourLineScenes::occupiedStandsAreOutsideTheAlcove).withRequired(false));
     }
 
     // ---------------------------------------------------------------------- rig ----
@@ -213,9 +256,15 @@ public final class JourneyPourLineScenes implements SceneProvider {
         clearBox(ctx);
         // Host rock. Everything is solid to begin with and the alcove is cut out of it, which is what
         // gives the frame its backing and the corners their block.
+        //
+        // THREE ROWS BELOW THE ALCOVE FLOOR, not two. The pour's own scan reaches seven rows down
+        // from the target, so its bottom row needs a floor UNDER it — without one those twenty
+        // candidates are refused as 脚下不实心 instead of 落脚格被占, and the vote arithmetic in
+        // wd.pourLineOccupiedStandsAreOutsideTheAlcove came out 81 against 101. The arm's own
+        // exact-sum criterion is what found it; a "mostly rock" criterion would have passed over it.
         for (int dx = -2; dx <= 5; dx++)
             for (int dz = -4; dz <= 4; dz++)
-                for (int dy = BASE - 2; dy <= BASE + 8; dy++)
+                for (int dy = BASE - 3; dy <= BASE + 8; dy++)
                     ctx.setBlock(dx, dy, dz, Blocks.STONE);
 
         // The corridor: two ranks deep, five wide, seven tall. Hollow — every cell above the floor
@@ -282,7 +331,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
     private static void clearBox(SceneContext ctx) {
         for (int dx = -2; dx <= 5; dx++)
             for (int dz = -4; dz <= 4; dz++)
-                for (int dy = BASE - 2; dy <= BASE + 9; dy++)
+                for (int dy = BASE - 3; dy <= BASE + 9; dy++)
                     ctx.setBlock(dx, dy, dz, Blocks.AIR);
     }
 
@@ -669,5 +718,323 @@ public final class JourneyPourLineScenes implements SceneProvider {
         for (BlockPos s : flight)
             out.append(out.isEmpty() ? "" : " → ").append(s.below().toShortString());
         return out.toString();
+    }
+
+    // ------------------------------------------ the ring's own shadow, enumerated ----
+
+    /** How many feet a pour weighs. Four back, five wide, seven rows down — the run's own veto
+     *  histogram sums to exactly this, which is what says it is a histogram over the SCAN and not a
+     *  reading about the one stand printed beside it. */
+    private static final int CANDIDATES = 4 * 5 * 7;
+
+    private static BlockPos ring(SceneContext ctx, int i) {
+        return JourneyForge.frameCell(base(ctx), AWAY, JourneyForge.RING[i][0],
+                JourneyForge.RING[i][1]);
+    }
+
+    /**
+     * The mould with EVERY ring cell cast but one — the worst shadow any casting order can produce.
+     *
+     * <p>Worst rather than actual, and that is the whole argument about ordering: any order casts a
+     * SUBSET of the other nine before this one, so a mould that leaves a clean column with all nine
+     * standing leaves one under every order there is. One staging per cell settles all 3 628 800 of
+     * them, and no enumeration of orders is needed.
+     *
+     * <p>No scaffolding at all. The question here is what the RING does to a line, and a cobblestone
+     * in the alcove would answer a different one —
+     * {@code wd.pourLineBlockedByTheStepTheScoopLeft} already owns that.
+     */
+    private static void stageRingOnly(SceneContext ctx, int uncast) {
+        clearBox(ctx);
+        for (int dx = -2; dx <= 5; dx++)
+            for (int dz = -4; dz <= 4; dz++)
+                for (int dy = BASE - 3; dy <= BASE + 8; dy++)
+                    ctx.setBlock(dx, dy, dz, Blocks.STONE);
+        for (BlockPos c : JourneyForge.corridor(at(ctx), AWAY, PUSH))
+            ctx.level().setBlockAndUpdate(c, Blocks.AIR.defaultBlockState());
+        // The fourteen cells a bucket is ever aimed into are open by the end of the casting: the six
+        // interior cells and the two notches are air. That is the state the LAST cast sees, and the
+        // last cast is the one with nine finished cells around it.
+        for (BlockPos c : JourneyForge.aimedCells(base(ctx), AWAY))
+            ctx.level().setBlockAndUpdate(c, Blocks.AIR.defaultBlockState());
+        for (int i = 0; i < JourneyForge.RING.length; i++)
+            if (i != uncast)
+                ctx.level().setBlockAndUpdate(ring(ctx, i), Blocks.OBSIDIAN.defaultBlockState());
+        JourneyRamp.reset();
+        JourneySight.mould(base(ctx), AWAY);
+    }
+
+    /**
+     * Which corridor columns {@code side} ranks over from {@code cell} have a clear line to its
+     * backing — {@link JourneyPour}'s {@code raiseColumn} question, without the floor it does not
+     * require.
+     *
+     * <p>A raise BUILDS the floor, so「is there a column whose eye can see the backing」has to be
+     * asked of the line alone. Asking {@code gradeFoot} here would answer「is there a finished stand
+     * down there」, which in a hollow alcove is almost always no and says nothing about shadowing.
+     */
+    private static List<BlockPos> columnsThatSee(SceneContext ctx, ServerPlayer fp, BlockPos cell,
+                                                 int side, Map<String, Integer> why) {
+        return columnsThatSee(ctx, fp, cell, side, why, Integer.MIN_VALUE);
+    }
+
+    /** As above, restricted to one row when {@code onlyY} is given. The row matters and the run is
+     *  why: from a rank one over, whether a finished cell is in the way DEPENDS ON THE HEIGHT — the
+     *  diagonal from two rows below or one row above the target misses it entirely, and the diagonal
+     *  from the row {@code standLevelWith} verifies ({@code target.y - 1}) does not. A measurement
+     *  that lumps the rows together therefore answers neither question. */
+    private static List<BlockPos> columnsThatSee(SceneContext ctx, ServerPlayer fp, BlockPos cell,
+                                                 int side, Map<String, Integer> why, int onlyY) {
+        ServerLevel level = ctx.level();
+        Set<BlockPos> corridor = corridor(ctx);
+        BlockPos backing = cell.relative(AWAY);
+        List<BlockPos> out = new ArrayList<>();
+        for (int back = 1; back <= JourneyPortalRung.POUR_LINE; back++)
+            for (int dy = 0; dy < JourneyForge.ALCOVE_HEIGHT; dy++) {
+                int y = at(ctx).getY() + dy;
+                if (onlyY != Integer.MIN_VALUE && y != onlyY) continue;
+                BlockPos foot = new BlockPos(cell.getX(), y, cell.getZ())
+                        .relative(AWAY.getOpposite(), back).relative(AWAY.getClockWise(), side);
+                if (!corridor.contains(foot) || !corridor.contains(foot.above())) continue;
+                if (JourneySight.pourGrade(level, fp, foot, false, backing, cell, why)
+                        != JourneySight.ANYWHERE) continue;
+                out.add(foot.immutable());
+            }
+        return out;
+    }
+
+    /**
+     * <b>No casting order can put a finished ring cell in an uncast one's way — the RANK the body
+     * stands in is what decides, and a body in the cell's own rank is never shadowed.</b>
+     *
+     * <p>Ladder run of 2026-08-20, cast 9 of 10, the last ring cell {@code 4,60,20}:
+     *
+     * <pre>
+     * cast9.picks.1 = 4, 60, 19 Block{minecraft:obsidian} face=up → 落进 4, 61, 19
+     *                 （想浇 4, 60, 20，瞄 5, 60, 20，身体 3, 60, 19，眼睛 3.36/61.62/19.15）
+     * </pre>
+     *
+     * <p>That is the FIRED ray, not a histogram vote, so the blocker really is obsidian this rung
+     * cast itself — ring cell 8, one column north. But read the body: {@code 3,60,19} is at
+     * {@code z=19} and the target is at {@code z=20}. The shot is a DIAGONAL from the next rank, and
+     * a diagonal is the only shape that can reach a neighbour's cell at all. From the target's own
+     * rank the line is axis-aligned in z and crosses nothing but corridor air and the target.
+     *
+     * <p>So the fix is not in the ring's order and not in the ring's shape: it is in whatever left
+     * the body a rank over. On that run it is on the record —
+     * {@code cast9.ramp.laid = 0/3 级垫好了（身体 2, 56, 20）}, a flight that laid nothing because
+     * the body was standing on its own bottom support, and then
+     * {@code cast9.raisedY = 59/59（停在 3,17，指定柱 2,20，不是同一柱）}.
+     *
+     * <h2>The shadow is a property of the ROW as well as the rank, which is why this arm names both</h2>
+     *
+     * <p>Measured here, not assumed: from the neighbouring rank the finished cell is in the way at
+     * the row {@code standLevelWith} verifies ({@code target.y - 1}) and OUT of the way two rows
+     * below it and one row above. So「the next rank is shadowed」is false as a blanket statement and
+     * true where it costs the cast, and an arm that swept the rows together would have reported
+     * either one of those as the whole answer. The first draft of this arm did exactly that and its
+     * own rig check caught it.
+     *
+     * <h2>判据</h2>
+     *
+     * <ol>
+     *   <li><b>the control, and the reason criterion B is not vacuous:</b> at the row the raise
+     *       verifies, the NEXT rank over has no column that sees the backing, and the veto names the
+     *       obsidian the run named. One variable — {@code side} — at one row; if the neighbouring
+     *       rank saw the backing there too, there would be no difference to report and this arm would
+     *       be describing an alcove where nothing shadows anything;</li>
+     *   <li><b>every one of the ten ring cells keeps a column in its OWN rank under the worst shadow
+     *       any order can make</b> — all nine others already obsidian. Any order casts a subset of
+     *       those nine, so this settles every ordering at once:「换个顺序浇」would change nothing;</li>
+     *   <li>and it keeps one at the row the raise actually asks for, so criterion B is not satisfied
+     *       by a column six rows down that no raise would ever choose.</li>
+     * </ol>
+     */
+    private static void ringOrderCannotShadowAPour(SceneContext ctx) {
+        config(ctx);
+        int last = JourneyForge.RING.length - 1;
+        stageRingOnly(ctx, last);
+        // Parked outside the mould: pourGrade reads the eye HEIGHT and uses the body only as the
+        // clip's shape context, so where it stands cannot move a line — but it must not be inside a
+        // cell this arm is about to describe.
+        ServerWorldDriver driver = body(ctx, ctx.rel(0, BASE, -2));
+        ServerPlayer fp = driver.fakePlayer();
+
+        BlockPos died = ring(ctx, last);
+        BlockPos neighbour = ring(ctx, last - 1);
+        int wantY = died.getY() - 1;
+
+        // ROW BY ROW FIRST, because「隔壁那一列被挡住」is not true of the whole rank and printing it
+        // as though it were is how a reading ends a search in the wrong place.
+        StringBuilder byRow = new StringBuilder();
+        for (int dy = 0; dy < JourneyForge.ALCOVE_HEIGHT; dy++) {
+            int y = at(ctx).getY() + dy;
+            List<BlockPos> sees = columnsThatSee(ctx, fp, died, -1, new LinkedHashMap<>(), y);
+            byRow.append(dy == 0 ? "" : " ").append('y').append(y).append(':').append(sees.size());
+        }
+        ctx.record("control.byRow", "隔壁那一列（side=-1，z=" + (died.getZ() - 1)
+                + "）逐排能看见背板的柱数：" + byRow + "（要站的那一排 y=" + wantY + "）");
+
+        Map<String, Integer> nextRank = new LinkedHashMap<>();
+        List<BlockPos> fromNextRank = columnsThatSee(ctx, fp, died, -1, nextRank, wantY);
+        ctx.record("control.rank", "第 " + last + " 格 " + died.toShortString()
+                + "，隔壁那一列在 y=" + wantY + " 这一排能看见背板的柱：" + fromNextRank
+                + "；否决 " + nextRank);
+        ctx.record("control.after", (fromNextRank.isEmpty() ? 0 : 1) + " fault(s): "
+                + fromNextRank.size() + " 根");
+        if (!fromNextRank.isEmpty())
+            ctx.fail("THE RIG, not the subject: 在要站的那一排 y=" + wantY
+                    + " 上隔壁那一列也看得见背板，那么这一臂报的「本列看得见」就不是一个差别"
+                    + " —— 这个模腔里那一排根本没有遮挡可言：" + fromNextRank);
+        String shadow = String.valueOf(nextRank.keySet());
+        ctx.check(shadow.contains(neighbour.toShortString()))
+                .as("A 隔壁那一列在这一排被挡住的理由要指名这一鸢自己浇成的第 " + (last - 1) + " 格 "
+                        + neighbour.toShortString() + "（跑里印的就是它）：" + nextRank).isTrue();
+
+        List<Integer> blind = new ArrayList<>();
+        List<Integer> blindAtWantY = new ArrayList<>();
+        StringBuilder each = new StringBuilder();
+        for (int i = 0; i < JourneyForge.RING.length; i++) {
+            stageRingOnly(ctx, i);
+            BlockPos cell = ring(ctx, i);
+            List<BlockPos> own = columnsThatSee(ctx, fp, cell, 0, new LinkedHashMap<>());
+            List<BlockPos> atRow = columnsThatSee(ctx, fp, cell, 0, new LinkedHashMap<>(),
+                    cell.getY() - 1);
+            if (own.isEmpty()) blind.add(i);
+            // The bottom pair sits on the alcove floor, so ITS verified row is under the floor and no
+            // corridor cell is there at all — those two are poured from the row above, which is what
+            // `cast0.fromHere` records. Excluded by the geometry, not by taste.
+            if (atRow.isEmpty() && cell.getY() - 1 >= at(ctx).getY()) blindAtWantY.add(i);
+            each.append(i == 0 ? "" : "；").append(i).append(':').append(cell.toShortString())
+                    .append("→").append(own.size()).append(" 根")
+                    .append(own.isEmpty() ? "" : "（最低 " + own.get(0).toShortString() + "）")
+                    .append("，其中要站那一排 ").append(atRow.size()).append(" 根");
+        }
+        ctx.record("subject.perCell", each.toString());
+        ctx.record("subject.after", (blind.size() + blindAtWantY.size()) + " fault(s): 没有本列可用柱的格 "
+                + blind + "；要站那一排没有的格 " + blindAtWantY);
+        ctx.check(blind).as("B 十格全部都要在自己那一列上留下至少一根能看见背板的柱"
+                + "（其余九格都已浇成黑曜石 —— 任何浇筑顺序都只是这九格的子集，"
+                + "所以这一条一次判完所有顺序）：" + each).isEmpty();
+        ctx.check(blindAtWantY).as("C 而且要落在 raise 真正会去的那一排（target.y-1）上，"
+                + "否则 B 可以被一根六排以下、没有哪次抬高会选中的柱满足："
+                + each).isEmpty();
+    }
+
+    /**
+     * <b>The hundred「落脚格被占」are the alcove's own rock, not anything this rung put down.</b>
+     *
+     * <p>{@code cast9.stand.N} prints {@code 落脚格被占=100} beside one stand, and a hundred
+     * refusals for an occupied cell reads like scaffolding — which would make this the third instance
+     * of「a recovery's placements become the next step's obstacle」and point the fix at the no-go
+     * list. It is not. The counter is a MERGED HISTOGRAM over all {@value #CANDIDATES} candidate feet
+     * ({@link JourneyPour#standCandidates}), and that scan reaches four cells back and two either
+     * side of the target — which, for a mould pushed two out of a five-wide alcove, is mostly the
+     * rock the alcove was cut into. The run's own votes sum to exactly 140.
+     *
+     * <h2>判据 — a partition, not an emptiness claim</h2>
+     *
+     * <p>The first draft asserted that NO occupied stand is inside the alcove, and its own control
+     * caught that as false: the borrowed step this file's other arms stage is itself a candidate for
+     * the last ring cell. The scaffolding contributes — it contributes ONE. What answers the question
+     * is the split, so the arm splits it:
+     *
+     * <ol>
+     *   <li>the scan is the size the histogram is a histogram OF, so no vote is being read as
+     *       belonging to a stand that is not in it;</li>
+     *   <li><b>the count is exactly the candidates that fall outside the carved alcove, plus the
+     *       handful inside it</b> — two numbers computed independently, one from the production
+     *       predicate and one from corridor membership;</li>
+     *   <li><b>every occupied stand INSIDE the alcove is a block this rung registered as a step</b>,
+     *       so it is attributable rather than mysterious — and there are single digits of them
+     *       against dozens of rock;</li>
+     *   <li><b>the control:</b> one cobblestone dropped into a carved corridor cell that IS a
+     *       candidate and HAS a floor moves the count by exactly one. Without it, criterion 3 is
+     *       satisfied by a counter that can never see scaffolding at all.</li>
+     * </ol>
+     */
+    private static void occupiedStandsAreOutsideTheAlcove(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        config(ctx);
+        stage(ctx, true, CAST_SO_FAR);
+        // The LAST ring cell — the one the run died on, and the one with the most finished
+        // neighbours. Its own two cells are opened so the mould is in the state that cast sees.
+        int last = JourneyForge.RING.length - 1;
+        BlockPos cell = ring(ctx, last);
+        level.setBlockAndUpdate(cell, Blocks.AIR.defaultBlockState());
+        level.setBlockAndUpdate(JourneyForge.wetCellFor(base(ctx), AWAY,
+                JourneyForge.RING[last][0], JourneyForge.RING[last][1]),
+                Blocks.AIR.defaultBlockState());
+        ServerWorldDriver driver = body(ctx, stand(ctx));
+        ServerPlayer fp = driver.fakePlayer();
+
+        Set<BlockPos> corridor = corridor(ctx);
+        List<BlockPos> candidates = JourneyPour.standCandidates(cell, AWAY);
+        ctx.check(candidates.size()).as("THE RIG: 候选表要跟跑里那张一样大"
+                + "（否决计数是它的直方图）").isEqualTo(CANDIDATES);
+
+        List<BlockPos> occupied = occupiedVoters(ctx, fp, cell, candidates);
+        List<BlockPos> inside = new ArrayList<>();
+        List<BlockPos> outsideTheAlcove = new ArrayList<>();
+        for (BlockPos f : candidates) if (!corridor.contains(f)) outsideTheAlcove.add(f);
+        for (BlockPos f : occupied) if (corridor.contains(f)) inside.add(f);
+        List<BlockPos> notAStep = new ArrayList<>();
+        for (BlockPos f : inside) if (!JourneyRamp.isStep(f)) notAStep.add(f);
+        ctx.record("subject.counts", "候选 " + candidates.size() + "，落脚格被占 "
+                + occupied.size() + " ＝ 壁龛体积之外的 " + outsideTheAlcove.size()
+                + " 格 ＋ 壁龛内的 " + inside.size() + " 格 " + inside
+                + "；壁龛 " + corridor.size() + " 格，本鸢垒的 "
+                + JourneyRamp.stepsNow().size() + " 块");
+        ctx.record("subject.after", notAStep.size() + " fault(s): 壁龛内被占、又不是本鸢台阶的 "
+                + notAStep);
+        ctx.check(occupied.size()).as("A 这一票的总数恰好是「扫描伸到没挖的岩体里」的格数加上"
+                + "壁龛内被占的那几格 —— 两个数一个来自生产谓词、一个来自壁龛成员关系，各算各的："
+                + outsideTheAlcove.size() + " + " + inside.size())
+                .isEqualTo(outsideTheAlcove.size() + inside.size());
+        ctx.check(notAStep).as("B 壁龛里被占的每一格都是本鸢登记过的台阶（可归因，不是无主方块）："
+                + inside).isEmpty();
+        ctx.check(inside.size()).as("C 而且脚手架只占个位数，撑不起那一百票 —— 这一族不是"
+                + "「上一腿的落子挡住下一腿」：壁龛内 " + inside.size() + " 格，岩体 "
+                + outsideTheAlcove.size() + " 格").isLessThan(10);
+
+        // A CANDIDATE WITH A FLOOR, because gradeFoot asks 脚下不实心 first and a cell over air never
+        // reaches the occupancy test at all. The first draft planted its control over air and read
+        // the resulting no-change as「the counter cannot see scaffolding」.
+        BlockPos plant = null;
+        for (BlockPos f : candidates)
+            if (corridor.contains(f) && !occupied.contains(f) && level.getBlockState(f).isAir()
+                    && level.getBlockState(f.below()).blocksMotion()) {
+                plant = f;
+                break;
+            }
+        if (plant == null)
+            ctx.fail("THE RIG, not the subject: 壁龛里找不到一个「空、脚下实心」的候选格"
+                    + "来放对照用的圆石");
+        level.setBlockAndUpdate(plant, Blocks.COBBLESTONE.defaultBlockState());
+        List<BlockPos> after = occupiedVoters(ctx, fp, cell, candidates);
+        ctx.record("control.after", (after.size() - occupied.size() == 1 ? 0 : 1) + " fault(s): 往 "
+                + plant.toShortString() + "（脚下 " + plant.below().toShortString()
+                + "=" + level.getBlockState(plant.below()).getBlock()
+                + "）放一块圆石之后，总数 " + occupied.size() + " → " + after.size());
+        if (after.size() - occupied.size() != 1)
+            ctx.fail("THE RIG, not the subject: 往壁龛里的候选格 " + plant.toShortString()
+                    + " 放了一块圆石，这个计数却没有多出恰好一票 —— 那么上面的分账"
+                    + "是一个看不见脚手架的计数器说的，什么也没证明："
+                    + occupied.size() + " → " + after.size());
+        ctx.check(after.contains(plant)).as("D 对照那一格要真的出现在投票人名单里（同一张候选表，"
+                + "同一个谓词）：" + plant.toShortString()).isTrue();
+    }
+
+    /** The candidates the production guard refuses as「落脚格被占」, by walking the same scan one
+     *  cell at a time — the histogram counts REASONS and cannot say which cell cast which vote. */
+    private static List<BlockPos> occupiedVoters(SceneContext ctx, ServerPlayer fp, BlockPos target,
+                                                 List<BlockPos> candidates) {
+        List<BlockPos> out = new ArrayList<>();
+        for (BlockPos foot : candidates) {
+            Map<String, Integer> one = new LinkedHashMap<>();
+            JourneyPour.gradeFoot(ctx.level(), fp, foot, target.relative(AWAY), target, one);
+            if (one.containsKey("落脚格被占")) out.add(foot.immutable());
+        }
+        return out;
     }
 }

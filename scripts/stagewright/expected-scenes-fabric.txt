@@ -395,6 +395,13 @@ wd.pourLineBlockedByTheStepTheScoopLeft
 wd.pourLineTakesBackTheStepItBorrowed
 wd.pourLineHasNoOtherWayUp
 
+# The fourth family on the same rung: a FINISHED ring cell in the way of an uncast one. It is
+# not an ordering problem and not the ring's shape — the shadow exists only for a body one rank
+# over, and the hundred occupied stands are the alcove's own rock. Both established by
+# enumeration rather than argued.
+wd.pourLineRingOrderCannotShadowAPour
+wd.pourLineOccupiedStandsAreOutsideTheAlcove
+
 # Rung 14's crossing stopped 141 blocks short with 18 of 24 hops unspent, because a hop's verdict was
 # taken from a body one tick above netherrack (脚下到实心 0). One shelf, one bay, and how far it is to
 # the floor as the only variable: a survivable step-down must be waited out, a fall past the allowance
