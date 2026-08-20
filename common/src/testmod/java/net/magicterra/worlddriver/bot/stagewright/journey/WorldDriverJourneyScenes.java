@@ -444,22 +444,10 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         ctx.check(found == null ? null : found.where()).as("surveyed " + name).isEqualTo(baked);
     }
 
-    /**
-     * Assert the baked coordinate still holds the KIND of thing it was baked for.
-     *
-     * <p>The weaker sibling of {@link #checkLandmark}, for a landmark whose survey is not
-     * reproducible. Equality catches drift and also catches a search that saw less this time; this
-     * catches only the first, which is the one that breaks a rung. A constant that no longer holds a
-     * log is stale in the way that matters — the rung walks there and mines nothing — and a constant
-     * that merely is not the closest log any more still works perfectly.
-     */
-    private static void checkLandmarkStillHolds(SceneContext ctx, String name, BlockPos baked,
-                                                net.minecraft.tags.TagKey<net.minecraft.world.level.block.Block> tag) {
-        if (baked.equals(JourneyRoute.UNSURVEYED)) return;
-        var state = ctx.level().getBlockState(baked);
-        ctx.check(state.is(tag)).as("baked " + name + " at " + baked.toShortString()
-                + " still holds " + tag.location() + " (found " + state.getBlock() + ")").isTrue();
-    }
+    // The weaker「still holds the KIND of thing it was baked for」sibling of checkLandmark was
+    // written for a landmark whose survey is not reproducible, and never called: secondTree, the
+    // only such landmark, is ADOPTED from this run's own survey above rather than checked at all.
+    // A helper that looks like an assertion and runs never is worse than no helper, so it is gone.
 
     // =====================================================================================
     // 02 — spawn. A body, empty-handed, where the world puts a player.

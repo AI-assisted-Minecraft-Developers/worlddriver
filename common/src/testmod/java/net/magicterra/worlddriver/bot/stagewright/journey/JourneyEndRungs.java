@@ -485,7 +485,7 @@ public final class JourneyEndRungs {
      */
     private static void stronghold(SceneContext ctx) {
         JourneyRig rig = JourneyRig.enter(ctx, JourneyStage.STRONGHOLD);
-        if (requireSurvey(ctx, rig)) return;
+        if (WorldDriverJourneyScenes.requireSurvey(ctx, rig)) return;
         rig.generousPathfinding();
 
         rig.evidence("stronghold.baked", xyz(JourneyRoute.stronghold));
@@ -2526,14 +2526,6 @@ public final class JourneyEndRungs {
     // =====================================================================================
     // Small readings.
     // =====================================================================================
-
-    /** Stop a rung that needs surveyed coordinates before anyone has surveyed them. */
-    private static boolean requireSurvey(SceneContext ctx, JourneyRig rig) {
-        if (JourneyRoute.surveyed()) return false;
-        rig.attempting("路线未标定：JourneyRoute 常量还是 UNSURVEYED");
-        ctx.skip("UNSURVEYED: 先跑 wd.journey01Recon，把日志里的 [journey/recon] 常量烘进 JourneyRoute");
-        return true;
-    }
 
     /** The level the BODY is in, which after rung 19 is not {@code ctx.level()}. Every read in this
      *  file goes through here for that reason — a scan of the overworld for an end crystal finds
