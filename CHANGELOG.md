@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-19
 
+- **The stride guard's lava break did NOT cost rung 12, and the four ladder runs say so without
+  another playthrough.** The run after that fix regressed `wd.journey12PortalLit`, on the rung that
+  works a lava lake's rim — the shape the fix's own caveat named. The guard logs every fire
+  unconditionally, so the question is answerable off the logs: it fired **83 times in that run, all
+  of them inside rung 12, and every one on two cells of the lake's rim** (`-10,64,16` ×75 and
+  `-9,64,17` ×8). The previous run — same world, same rung, **PASS** — logged **zero** fires in that
+  rung and its 43 fires all afterwards, in the Nether at `y=43`. So the fix is exactly what changed
+  the guard's behaviour there.
+
+  It is not what changed the verdict. The rung failed at `lava9.up` with the body on `1,60,19` —
+  ten blocks and three minutes away from the last pin, which stopped at 08:22:32 while the failure
+  landed at 08:25:28 — and the pins cost the leg they happened on **nothing measurable**: every
+  `lava*.up` goto ran its full 600 ticks and ended at `-7,64,16` in the passing pre-fix run too
+  (`身体=-8,64,16` at 200, `-7,64,16` at 400, cast after cast, in both runs). The prior FAIL of this
+  rung, `走不回模腔：停在 -1, 59, 19`, is the same family and predates the fix by two runs with zero
+  guard fires in the whole log.
+
+  What did it: **`recover8.rise` towered up the staircase's own column.** The raise is
+  ray-**pinned** to column `2,19`, and `offTheFlight` records rather than moves a pinned column —
+  `⚠ 这一柱正是 2, 56, 19 那一级所在的柱 —— 只记下来`. Course 1 then drifted to `1,58,19`, could not
+  walk back (`driftWedged`), and `driftKeptPinned` adopted column **`1,19`** — a *different* column,
+  chosen by a drift, never once put to `towerColumnClearOfTheFlight`, and also a stair column. Two
+  dirt went in at `1,58,19` and `1,59,19` and the body finished standing on them. `lava9.up`'s audit
+  then mended the two blocked treads it could see (`1,57,19`, `2,56,19`) and not the block under the
+  body's own feet, and all three ascent legs died. The pin's stated reason for not moving —「换了柱
+  就等于换了射线」— is void the moment a drift changes the column anyway; that is where the flight
+  check belongs and does not run. Open, not fixed here.
+
+- **Two more arms for the same guard, asking what its refusal COSTS**, both `withRequired(false)`.
+  `wd.serverStopsAtALavaShore` drives a body AT a lake and requires it to be stopped; there,
+  stopping is the answer. `wd.serverKeepsWalkingAtALavaRim` walks a body PAST one — the ladder's own
+  reading, a lateral drift toward the lake while the route runs along the rim — and requires three
+  things, the third being the caveat's: it must not go in, the pin must be what held it, and **it
+  must keep travelling along the rim afterwards**, measured from the first pinned tick because the
+  four-cell run-up would otherwise carry a plain「walked N cells」clause on its own. Measured:
+  control `36 tick，沿岸走了 8.32 格 … 脚下=lava，泡在岩浆里`; subject `200 tick … 沿岸走了 15.70
+  格，第一次被钉住之后又走了 11.08 格，钉住 181 tick`. **Pinned for 181 of 200 ticks and eleven
+  cells further along the rim** — the pin refuses the sideways step, not the journey.
+  `wd.serverKeepsWalkingAtADryRim` is the same trench filled with stone, where the guard must stay
+  silent: control and subject byte-identical at `67 tick … 钉住 0 tick`.
+
+  Clause 3's failure is a property of the guard rather than of the arena, so the control arm cannot
+  produce it and it was attacked directly instead: the bottomless branch's
+  `setDeltaMovement(0, dy, 0)` was made unconditional — the strongest stop that guard can express —
+  and the gate re-run. **It did not go red**: post-pin travel fell 11.08 → 7.53, still four times the
+  bar, because zeroing the momentum costs one tick and vanilla's `maybeBackOffFromEdge` refuses only
+  the component of a move that would leave the floor. The line was put back and the arm's javadoc
+  carries the number rather than the assumption it replaced.
+
+  The `streak` row is unconditional in both arms and it corrects the caveat's other half: the escape
+  hatch `guardPinStreak >= 30` is reachable **or not depending on the approach**, not on the guard. A
+  body pressing steadily at a rim pins every tick and sails past it (181 here, so the path really was
+  dropped and re-searched). Rung 12's rim produced **bursts of five** — the pin decelerates the body
+  under the guard's own `h ≥ 0.03`, the fires stop, the 8-tick hold tail expires and the streak
+  resets at ~13. So「a sustained pin forces a repath and the crossing routes around」held in the
+  arena and never once fired on the ladder.
+
 - **The stride floor-guard could not see lava, so the Nether crossing walked into it four times.**
   Its fall scan stopped at the first cell that is not `isPassable` — and lava is passable, being
   neither solid nor water, so the scan descended straight through a lake and stopped on the bed

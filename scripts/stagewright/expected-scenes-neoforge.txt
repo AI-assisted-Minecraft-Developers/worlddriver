@@ -344,3 +344,11 @@ wd.serverTowersUnderTheNeighboursCeiling
 # only difference between the drives.
 wd.serverStopsAtALavaShore
 wd.serverWalksOffASurvivableLedge
+
+# The same guard's other half. The shore pair asks whether it refuses a stride INTO a lake; these
+# ask what the refusal costs a body walking PAST one — rung 12 logged 83 pins on two cells of a
+# lake's rim in one run, so「pins at every rim」is a live failure mode and not a hypothetical.
+# One trench, its fill the only variable, and each arm drives it twice with the guard as the only
+# difference between the drives.
+wd.serverKeepsWalkingAtALavaRim
+wd.serverKeepsWalkingAtADryRim

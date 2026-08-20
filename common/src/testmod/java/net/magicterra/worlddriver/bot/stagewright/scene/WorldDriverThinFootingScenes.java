@@ -101,7 +101,15 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                 Scene.of("wd.serverStopsAtALavaShore", 600,
                         WorldDriverThinFootingScenes::stopsAtALavaShore).withRequired(false),
                 Scene.of("wd.serverWalksOffASurvivableLedge", 600,
-                        WorldDriverThinFootingScenes::walksOffASurvivableLedge).withRequired(false));
+                        WorldDriverThinFootingScenes::walksOffASurvivableLedge).withRequired(false),
+                // The shore arms above ask whether the guard STOPS a body walking into a lake. These
+                // two ask the opposite question about the same guard: what the pin costs a body whose
+                // route runs ALONG the rim and was never going in. Same trench twice, and its fill is
+                // again the only variable.
+                Scene.of("wd.serverKeepsWalkingAtALavaRim", 600,
+                        WorldDriverThinFootingScenes::keepsWalkingAtALavaRim).withRequired(false),
+                Scene.of("wd.serverKeepsWalkingAtADryRim", 600,
+                        WorldDriverThinFootingScenes::keepsWalkingAtADryRim).withRequired(false));
     }
 
     private static void widensAThinFooting(SceneContext ctx, int slot) {
@@ -809,6 +817,330 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         for (int dx = -3; dx <= 3; dx++)                     // …and the fill. THE variable.
             for (int dz = 8; dz <= 14; dz++)
                 for (int dy = BAY_BED + 1; dy <= BAY_TOP; dy++)
+                    ctx.setBlock(dx, dy, dz, lava ? Blocks.LAVA : Blocks.STONE);
+    }
+
+    // ── the lava RIM pair ────────────────────────────────────────────────────────────────────
+    //
+    // Everything below measures the OTHER half of the same guard's job. stopsAtALavaShore asks
+    // whether it refuses a stride INTO a lake; these ask what its refusal costs a body that was
+    // only ever walking PAST one.
+
+    /** dy of the rim shelf's top block. The body's foot cell is one above it. */
+    private static final int RIM_DECK = 20;
+
+    /** dy of the trench fill's surface. Four rows under the deck, so a dry body that goes over the
+     *  edge falls four and loses one heart (damage is blocks − 3). The only lethal thing in this
+     *  arena is what the trench is filled with, exactly as in the shore pair. */
+    private static final int RIM_FILL_TOP = RIM_DECK - 4;
+
+    /** Rows of fill. Four, so a body that goes in is IN it rather than standing on the bed through a
+     *  film of it — and so the bed sits at index 9 of the guard's downward scan, comfortably inside
+     *  its 23-cell reach. That last part is the whole pre-fix behaviour: the scan walked through the
+     *  lava and found this bed. */
+    private static final int RIM_FILL_ROWS = 4;
+
+    /** dy of the trench bed's top block — the「floor」the scan used to stop on. */
+    private static final int RIM_BED = RIM_FILL_TOP - RIM_FILL_ROWS;
+
+    /** Westmost shelf cell. dx below this is open trench, so the rim runs down the whole arena at a
+     *  constant x and the body can walk beside it for as long as its budget lasts. */
+    private static final int RIM_EDGE = -1;
+
+    /** Heading in degrees; 0 is +z. 25° leans the walk toward -x, i.e. slightly into the trench.
+     *
+     *  <p>Not decoration and not a way to force a fall: it is the reading the ladder actually
+     *  logged. Every one of rung 12's 83 pins on 2026-08-19 was a body travelling along the shore
+     *  with {@code vel (-0.12, -0.00)} — a lateral drift toward the lake while the route it was
+     *  following ran along the rim to a goal ON the rim. A pure +z walk keeps the stride cell on the
+     *  deck forever and would measure nothing at all. */
+    private static final float RIM_YAW = 25f;
+
+    /** Synchronous physics ticks one drive of the rim gets. Long enough that the post-pin travel
+     *  clause has room to be answered either way: ~40 ticks pass before the first fire and the
+     *  sneak-limited walk that follows covers about a cell every 25. */
+    private static final int RIM_TICKS = 200;
+
+    /** What one drive of the rim produced. {@code zAfterPin} is the +z distance covered after the
+     *  FIRST pinned tick — the number the whole pair exists to produce, and the one a total stop
+     *  drives to zero while the plain「walked」figure stays healthy on the pre-pin run-up alone. */
+    private record Rim(int ticks, double walked, double zAfterPin, double minY, boolean inLava,
+                       int pinnedTicks, int longestPin, String endedAt) {}
+
+    /**
+     * <b>A body walking ALONG a lava rim, not into it.</b>
+     *
+     * <h2>The reading this is a copy of</h2>
+     *
+     * The stride guard learned to break its fall scan on {@code isHazard} on 2026-08-19, and the very
+     * next zero-staging ladder run logged it firing 83 times inside one rung — every fire on two
+     * cells of one lake's rim ({@code -10,64,16} and {@code -9,64,17}), none anywhere else in the
+     * run:
+     *
+     * <pre>{@code
+     * [walker] stride floor-guard: bottomless stride -10,64,16 (vel -0.12, -0.00) -> sneak-pin
+     * [walker] stride floor-guard: bottomless stride -10,64,16 (vel -0.08, -0.00) -> sneak-pin
+     * [walker] stride floor-guard: bottomless stride -10,64,16 (vel -0.06, -0.00) -> sneak-pin
+     * [walker] stride floor-guard: bottomless stride -10,64,16 (vel -0.05, -0.00) -> sneak-pin
+     * [walker] stride floor-guard: bottomless stride -10,64,16 (vel -0.04, -0.00) -> sneak-pin
+     * }</pre>
+     *
+     * <p>The word {@code bottomless} in that line is a hardcoded literal, not a classification — the
+     * decaying velocity is what says these were NOT bottomless columns, because the bottomless branch
+     * zeroes the horizontal momentum on its first fire and there would be no second line. They were
+     * lava columns one row under the stride cell, seen for the first time by the new break.
+     *
+     * <h2>The question, which the shore pair does not ask</h2>
+     *
+     * {@code wd.serverStopsAtALavaShore} drives a body AT a lake and requires the guard to stop it.
+     * There, stopping is the whole answer. Here the body is walking PAST a lake to somewhere else,
+     * and「stopped」is the failure: a guard that pins wherever an open column ends in lava turns
+     * every rim into a wall, and a Nether crossing is nothing but rim. So this arm asks for three
+     * things at once and the third is the one that had to be earned separately:
+     *
+     * <ol>
+     *   <li><b>It must not go in.</b> The protection is not negotiable — a body that walks into lava
+     *       dies and ends the run.</li>
+     *   <li><b>The pin must be what held it.</b> Without this, an arena whose edge the body never
+     *       reaches scores full marks for the guard.</li>
+     *   <li><b>It must keep going along the rim afterwards.</b> Measured from the first pinned tick,
+     *       not from the start: the run-up to the rim is four or five cells of ordinary walking and
+     *       would carry a plain「walked N cells」clause on its own while the body stood frozen for
+     *       the rest of the drive.</li>
+     * </ol>
+     *
+     * <h2>Each arm carries its own control</h2>
+     *
+     * Both arms drive the rim TWICE over identical staging with {@code walkerStrideFloorGuard} as the
+     * only difference. On lava the two must DISAGREE — the control walks in at 36 ticks with
+     * {@code 脚下=lava}, and an arm whose control did not walk in has not earned the right to report
+     * that the subject stayed out. On stone they must AGREE, both dropping into the trench, because
+     * there the guard's correct answer is silence.
+     *
+     * <h2>What clause 3 costs to break, measured rather than assumed</h2>
+     *
+     * Clause 3's failure is a property of the guard, not of the arena, so the control arm cannot
+     * produce it and it was attacked directly instead: the bottomless branch's
+     * {@code setDeltaMovement(0, dy, 0)} was made unconditional — one line, the strongest stop the
+     * guard is able to express — and the gate re-run. <b>It did not go red.</b> Post-pin travel fell
+     * from 11.08 cells to 7.53, still nearly four times the bar, and clauses 1 and 2 were untouched.
+     *
+     * <p>That is a result and not a shrug: zeroing the horizontal momentum stops the body for one
+     * tick and the drive re-accelerates it on the next, and vanilla's {@code maybeBackOffFromEdge}
+     * refuses only the component of a move that would leave the floor. <b>A pin at a rim is a
+     * refusal of the sideways step, not of the journey</b> — which is exactly the question the
+     * ladder's caveat asked, answered with a number. Clause 3 is kept as the floor under that
+     * finding: it is the row that would have gone red if a rim pin could immobilise this body, and
+     * it is the row a future brake-on-fire has to get past.
+     *
+     * <h2>{@code lethalEdgeBrake} is OFF, for the shore pair's reason</h2>
+     *
+     * With it on, {@link Walker#footingGuard} pins this body the moment its sole thins at the rim and
+     * the arm would be measuring the guard that was already working. Off, the sneak channel carries
+     * exactly one writer and {@code pinnedTicks} means what it says.
+     *
+     * <h2>Arena footprint</h2>
+     *
+     * {@code dx ∈ [-7, 6]}, {@code dz ∈ [-3, 21]}, {@code dy ∈ [4, 28]} — inside the default
+     * one-chunk window ({@code dx, dz ∈ [-16, 31]}), so no {@code withChunkRadius}.
+     */
+    private static void keepsWalkingAtALavaRim(SceneContext ctx) { rimArm(ctx, true); }
+
+    /** The lava arm's negative control — see {@link #keepsWalkingAtALavaRim}. The same trench filled
+     *  with stone, where the guard must stay silent and let the body drift over the edge and drop the
+     *  four blocks: a fix that pinned at every lip would pass the lava arm and fail this one, which
+     *  is the only reason a body is ever allowed to walk off anything. */
+    private static void keepsWalkingAtADryRim(SceneContext ctx) { rimArm(ctx, false); }
+
+    private static void rimArm(SceneContext ctx, boolean lava) {
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        BotConfig.allowPlace = false;      // the subject is the PIN; paving the trench is another answer
+        BotConfig.allowBreak = false;
+        BotConfig.walkerDebug = true;
+        BotConfig.lethalEdgeBrake = false; // see the class note: this is the isolation, not a shortcut
+        ctx.cleanup(() -> clearRim(ctx));
+
+        stageRim(ctx, lava);
+        ctx.record("rig", "石台面 dy=" + RIM_DECK + "（落脚排 dy=" + (RIM_DECK + 1)
+                + "），西边 dx≤" + (RIM_EDGE - 1) + " 是一条沿 z 通到底的沟，沟里装 " + RIM_FILL_ROWS
+                + " 层" + (lava ? "岩浆" : "石头") + "（面 dy=" + RIM_FILL_TOP + "，底 dy=" + RIM_BED
+                + "）。掉进去是 " + (RIM_DECK - RIM_FILL_TOP)
+                + " 格落差（落脚排 → 沟面上那一排），干着落满血只掉一颗心 —— "
+                + "所以这座场地里唯一致命的东西还是沟里装了什么");
+        ctx.record("scan", rimScanRow(ctx, lava));
+        ctx.record("heading", "偏航 " + RIM_YAW + "°（0 是 +z）：沿 +z 走，同时带一点朝沟的横移 —— "
+                + "真梯 2026-08-19 那 83 次点火，每一次的速度都是「沿岸走、横着往湖里飘」");
+
+        Rim control = rimDrive(ctx, "control", false);
+        ctx.record("control.after", (control.inLava() ? 1 : 0) + " fault(s): " + control.endedAt());
+        if (lava && !control.inLava())
+            ctx.fail("THE RIG, not the subject: 关掉 walkerStrideFloorGuard 之后身体也没走进岩浆，"
+                    + "那么「主体没进岩浆」这条判据就分不清「守卫拦住了」和「这座场地根本走不进去」 —— "
+                    + control.endedAt());
+        if (!lava && control.inLava())
+            ctx.fail("THE RIG, not the subject: 石头沟里出现了岩浆 —— 两条臂只差这一个变量，"
+                    + "而这一臂的布景没放对：" + control.endedAt());
+
+        stageRim(ctx, lava);
+        Rim subject = rimDrive(ctx, "subject", true);
+        ctx.record("subject.after", (subject.inLava() ? 1 : 0) + " fault(s): " + subject.endedAt());
+        // Unconditional, both arms. The escape hatch meant to convert a sustained pin into a fresh
+        // route is `guardPinStreak >= 30`, and whether it is ever reached is a property of the
+        // approach rather than of the guard: a body pressing steadily at a rim pins every tick and
+        // sails past 30, while the ladder's rung-12 rim produced BURSTS OF FIVE — the fires stop as
+        // soon as the pin decelerates the body under the guard's own h ≥ 0.03, and the 8-tick hold
+        // tail then expires and resets the streak. So「the crossing will route around」holds in one
+        // of those shapes and not the other, and this row is what tells a reader which shape the
+        // measurement came from instead of leaving them to re-derive the hysteresis.
+        ctx.record("streak", "最长一次连续钉住 " + subject.longestPin()
+                + " tick，强制重找路的门槛是 guardPinStreak ≥ 30 —— 这一趟"
+                + (subject.longestPin() >= 30 ? "够得着，钉住期间路是被丢掉重找过的"
+                        : "够不着，所以从头到尾没改过道，只是一轮一轮地钉、松、再钉"));
+
+        if (lava) {
+            ctx.check(subject.inLava()).as("A 开着守卫，身体一次都不许碰到岩浆（对照臂："
+                    + control.endedAt() + "）").isFalse();
+            ctx.check(subject.pinnedTicks() >= 1).as("B 而且要是守卫按住的，不是身体压根没走到沟边："
+                    + subject.pinnedTicks() + " 个 tick 处于潜行钉住状态").isTrue();
+            ctx.check(subject.zAfterPin() >= 2.0).as("C 而且钉住之后必须还能沿着坑沿继续走 —— "
+                    + "这一条量的是「第一次被钉住之后」，因为走到沟边那四五格普通行走本身就够满足一条"
+                    + "「走过几格」的判据，而那样的守卫会把每一道岩浆沿都变成一堵墙：钉住之后又走了 "
+                    + String.format(Locale.ROOT, "%.2f", subject.zAfterPin()) + " 格").isTrue();
+        } else {
+            ctx.check(subject.minY() < ctx.rel(0, RIM_DECK, 0).getY())
+                    .as("A 干沟上守卫必须让开：关着守卫落到 "
+                            + String.format(Locale.ROOT, "%.2f", control.minY()) + "，开着必须也落下去，"
+                            + "实测 " + String.format(Locale.ROOT, "%.2f", subject.minY())
+                            + "（台面 y=" + ctx.rel(0, RIM_DECK + 1, 0).getY() + "）").isTrue();
+            ctx.check(subject.pinnedTicks()).as("B 一次都不许钉：在活得下来的落差上钉住身体，"
+                    + "等于把每一道台缘都变成一堵墙 —— " + subject.endedAt()).isEqualTo(0);
+        }
+    }
+
+    /**
+     * Re-derive the guard's own downward scan off the LEVEL for the first cell out over the trench.
+     *
+     * <p>Same purpose as {@link #scanRow}: the guard's decision and the row that judges it must not
+     * be able to disagree about what the column holds. Here it also prints the two indices side by
+     * side, which is the whole of the 2026-08-19 fix in two numbers — the hazard comes first and the
+     * bed is still inside the loop's reach, so a scan that only looks for a floor finds one.
+     */
+    private static String rimScanRow(SceneContext ctx, boolean lava) {
+        ServerLevel level = ctx.level();
+        BlockPos stride = ctx.rel(RIM_EDGE - 1, RIM_DECK + 1, 6);
+        int depth = Math.max(BotConfig.pathfinderMaxDryFall + 1, 23);   // ceil(20 HP) + 3
+        int hazardAt = -1, floorAt = -1;
+        for (int i = 1; i <= depth && floorAt < 0; i++) {
+            BlockPos c = stride.below(i);
+            if (hazardAt < 0 && level.getBlockState(c).getFluidState().is(FluidTags.LAVA)) hazardAt = i;
+            if (level.getBlockState(c).blocksMotion()) floorAt = i;
+        }
+        return "从沟上第一格 " + stride.toShortString() + " 往下扫，最多 " + depth
+                + " 格（max(maxDryFall+1, ceil(满血 20)+3)）："
+                + (hazardAt < 0 ? "整列没有危险物" : "第 " + hazardAt + " 格是岩浆")
+                + "，" + (floorAt < 0 ? "扫到底也没有实心格" : "第 " + floorAt + " 格是实心的")
+                + "。只认第二个数字的那版" + (lava
+                        ? "会在岩浆下面找到「地板」并放行 —— 这一臂就是那条缺陷的现场；认第一个数字的"
+                          + "这版会点火，而点火之后身体还走不走得动，才是这一臂真正在问的"
+                        : "照样在石头上找到地板并放行 —— 这一臂里那是对的，守卫必须一声不吭");
+    }
+
+    /**
+     * Walk the rim once and report what the guard cost.
+     *
+     * <p>Same rig as the shore pair's {@link #drive}: the heading and the impulse are re-imposed
+     * after {@code walker.tick} so the body walks one straight diagonal whatever the walker would
+     * rather do, and sneak is NOT re-imposed because sneak is the channel a guard pins on and the
+     * thing being measured. The goal is level and well up the deck — nothing here is a claim about
+     * A*, and a goal BELOW the foot would hand the guard its planned-descent exemption and measure
+     * that instead.
+     */
+    private static Rim rimDrive(SceneContext ctx, String arm, boolean strideGuard) {
+        ServerLevel level = ctx.level();
+        BotConfig.walkerStrideFloorGuard = strideGuard;
+
+        double startX = ctx.origin().getX() + 1.5, startZ = ctx.origin().getZ() + 0.5;
+        int standY = ctx.rel(0, RIM_DECK + 1, 0).getY();
+        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, startX, standY, startZ);
+        ServerPlayer fp = av.fakePlayer();
+        ctx.cleanup(fp::discard);
+        LevelWorldView w = new LevelWorldView(level, fp);
+        fp.getInventory().clearContent();
+        aimRim(fp);
+        for (int i = 0; i < SETTLE_TICKS; i++) av.step();
+        if (fp.getY() < standY - 0.5)
+            ctx.fail("THE RIG, not the subject: vanilla 自己就没端住这个站位（" + SETTLE_TICKS
+                    + " 个空 tick 之后 y=" + fp.getY() + "）");
+
+        Walker walker = new Walker();
+        walker.setGoal(new Goal.Block(ctx.rel(0, RIM_DECK + 1, 18)));
+        double minY = fp.getY(), farZ = fp.getZ(), pinZ = Double.NaN, farAfterPin = 0.0;
+        boolean inLava = false;
+        int pinned = 0, run = 0, longest = 0, t = 0;
+        for (; t < RIM_TICKS; t++) {
+            walker.tick(av, w);
+            aimRim(fp);
+            av.commandMove(0f, 1f);
+            av.commandJump(false);
+            if (av.dbgSneak()) {
+                pinned++;
+                longest = Math.max(longest, ++run);
+                if (Double.isNaN(pinZ)) pinZ = fp.getZ();
+            } else run = 0;
+            av.step();
+            minY = Math.min(minY, fp.getY());
+            farZ = Math.max(farZ, fp.getZ());
+            if (!Double.isNaN(pinZ)) farAfterPin = Math.max(farAfterPin, fp.getZ() - pinZ);
+            if (fp.isInLava()) { inLava = true; break; }
+            if (fp.getZ() > ctx.origin().getZ() + 17) break;      // ran out of staged deck
+        }
+        String ended = String.format(Locale.ROOT,
+                "%d tick，身体=(%.2f,%.2f,%.2f)，最低 y=%.2f，沿岸走了 %.2f 格，"
+                + "第一次被钉住之后又走了 %.2f 格，钉住 %d tick（最长连续 %d），脚下=%s%s",
+                t, fp.getX(), fp.getY(), fp.getZ(), minY, farZ - startZ, farAfterPin, pinned,
+                longest, blockUnder(level, fp), inLava ? "，泡在岩浆里" : "");
+        ctx.record(arm + ".drive", "walkerStrideFloorGuard=" + strideGuard + " → " + ended);
+        return new Rim(t, farZ - startZ, farAfterPin, minY, inLava, pinned, longest, ended);
+    }
+
+    /** Face {@link #RIM_YAW}, head and body with it — see {@link #aim} for why the heading has to be
+     *  re-imposed every tick rather than left to the walker. */
+    private static void aimRim(ServerPlayer fp) {
+        fp.setYRot(RIM_YAW);
+        fp.yHeadRot = RIM_YAW;
+        fp.yBodyRot = RIM_YAW;
+    }
+
+    /** Air out the working box, on cleanup as well as before each staging, so an arm that fails
+     *  mid-drive still hands the shared dogfood world back without its lava. */
+    private static void clearRim(SceneContext ctx) {
+        for (int dx = -7; dx <= 6; dx++)
+            for (int dz = -3; dz <= 21; dz++)
+                for (int dy = 4; dy <= 28; dy++)
+                    ctx.setBlock(dx, dy, dz, Blocks.AIR);
+    }
+
+    /**
+     * One solid block, a trench cut out of it, and the fill put back — in that order.
+     *
+     * <p>The trench's walls and bed therefore exist BEFORE any lava does, so the lava cannot flow out
+     * of the arena and the「floor」the guard's scan finds under it is real rock rather than the edge
+     * of the staging. Same ordering, and the same reason, as {@link #stageShore}.
+     */
+    private static void stageRim(SceneContext ctx, boolean lava) {
+        clearRim(ctx);
+        for (int dx = -7; dx <= 6; dx++)                     // one solid mass, walls and bed included
+            for (int dz = -3; dz <= 21; dz++)
+                for (int dy = 4; dy <= RIM_DECK; dy++)
+                    ctx.setBlock(dx, dy, dz, Blocks.STONE);
+        for (int dx = -6; dx <= -2; dx++)                    // the trench, cut back out of it
+            for (int dz = -2; dz <= 20; dz++)
+                for (int dy = RIM_BED + 1; dy <= RIM_DECK; dy++)
+                    ctx.setBlock(dx, dy, dz, Blocks.AIR);
+        for (int dx = -6; dx <= -2; dx++)                    // …and the fill. THE variable.
+            for (int dz = -2; dz <= 20; dz++)
+                for (int dy = RIM_BED + 1; dy <= RIM_FILL_TOP; dy++)
                     ctx.setBlock(dx, dy, dz, lava ? Blocks.LAVA : Blocks.STONE);
     }
 }
