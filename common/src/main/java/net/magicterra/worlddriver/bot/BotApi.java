@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot;
 
 import java.util.Map;
+import net.magicterra.worlddriver.bot.process.BotProcess;
 import net.magicterra.worlddriver.bot.world.WorldModel;
 
 /**
@@ -154,6 +155,60 @@ public interface BotApi {
      * can read the latest snapshot off-thread without blocking the tick.
      */
     WorldModel worldModel();
+
+    // ---- the object seam: hand the client a process, not a verb ----------------
+    // Everything above takes a verb plus params, because everything above is an MCP
+    // route and an LLM has no way to hand over an object. The three below are NOT
+    // routes and must never become routes; they exist so in-JVM code that has already
+    // BUILT a {@link BotProcess} can run it on the real player.
+    //
+    // Why that matters: {@code BotProcess.tick(Minecraft,...)} default-bridges to
+    // {@code tick(Avatar,...)} over a {@code ClientPlayerAvatar}, so the SAME process
+    // object drives a client {@code LocalPlayer} here and a headless {@code FakePlayer}
+    // under {@code ServerWorldDriver}. That is the whole point of the Avatar seam, and
+    // without these three the only in-JVM caller of it — the playthrough ladder — had to
+    // spawn a fake body even on a topology that has a real player standing right there.
+
+    /**
+     * Run {@code process} as the foreground user task on the real player.
+     *
+     * <p><b>Never blocks.</b> Marshals onto the client thread and returns
+     * {@code {started:true, kind, seq}} immediately — a caller on the server thread of an
+     * integrated server must not wait for the client thread, and every other method on
+     * this interface does exactly that. Supersedes whatever the user task was holding,
+     * the same way a {@code mc.bot.goto} would.
+     *
+     * <p>Observe completion with {@link #userTaskLeg()}, never by sleeping.
+     */
+    Map<String, Object> runProcess(BotProcess process);
+
+    /**
+     * One self-consistent reading of the leg {@link #runProcess} started:
+     * {@code {seq:long, busy:bool, kind:String|null, error:String|null}}.
+     *
+     * <p><b>One call, not two, and that is the point.</b> "Is it still running" and "how did
+     * it end" are separate volatiles updated by the client thread while the caller reads
+     * from the server thread, and two atomic reads do not compose into an atomic pair: a
+     * poll landing between them sees {@code busy=false} beside the PREVIOUS leg's ending, so
+     * 「这一腿刚跑完」and「上一腿早跑完、这一腿还没装上」render identically. This repo has
+     * already paid for that exact shape — a {@code null} that meant「还没算过」read as
+     * 「算出来是零」. So the whole reading is published as one immutable snapshot and handed
+     * over in one field read.
+     *
+     * <p>{@code busy} is true from the instant {@code runProcess} returns and goes false only
+     * on the client thread, and only once the process object it installed has actually left
+     * the chain — so the window between "enqueued" and "installed" can never be read as
+     * "already finished".
+     *
+     * <p>{@code error} is non-null when the chain let go for a reason other than running to
+     * completion: it threw, or a higher-priority chain (panic / dodge / combat) cancelled it.
+     * A caller that ignores this cannot tell a leg a creeper interrupted from a leg that
+     * finished, because {@code busy} goes false for both.
+     *
+     * <p>{@code seq} increments once per {@code runProcess}, so a caller can tell a stale
+     * snapshot from a current one.
+     */
+    Map<String, Object> userTaskLeg();
 
     /**
      * Elytra flight (Baritone elytra-alignment, milestone A). Takes the bot off

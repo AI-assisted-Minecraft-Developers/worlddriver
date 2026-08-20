@@ -257,24 +257,52 @@ transformer leaves the server waiting forever with an empty, healthy-looking log
 port is **25701**, deliberately not the gate companion's 25601: a ladder on that number would be
 joined by, or would refuse to start beside, somebody else's gate run.
 
-**What the three topologies do and do not vary.** They vary the RUN — whether a client half of the
-driver is loaded in the JVM at all, whether packets are really encoded, whether a real player holds
-chunks and keeps a level ticking. They do **not** vary the BODY: all three climb on the avatar
-`JourneyRig.spawnBody()` builds, never on the human client's player. So a capability the fake body
-lacks — `fallDistance` pinned at 0, `isInvulnerableTo` refusing every source, an advancement that is
-never awarded — is missing on all three, and a difference between two runs is never explained by
-that. Driving the real player instead is unbuilt work, not a switch; `JourneyRig`'s class note names
-the three walls.
+**The integrated topology climbs on the client's REAL player.** 集成服上验证本就需要真实玩家来执行
+— a rung that spawned an invulnerable fake body beside a real player would be testing the wrong one.
+So on `runJourneyIntegratedServer`, `JourneyRig.spawnBody()` **adopts** the player that is already
+there (forcing survival, an empty inventory and world spawn — irreversibly; never point it at a save
+you care about) and the ladder drives it. That body takes fall damage, starves, drowns, dies,
+respawns and earns advancements, because it is a player who joined.
 
-Because of that, **every rung records two keys, on every exit path including a BLOCKED skip**, and
-they are what makes two results rows comparable:
+The other two keep the fake body, and the joining one does so **by construction, not by omission**:
+its client bot lives in the other PROCESS, and the object this seam passes cannot cross a socket.
+
+*How the same rung code drives either.* `BotProcess.tick(Minecraft,…)` default-bridges to
+`tick(Avatar,…)` over a `ClientPlayerAvatar`, so one process object drives a `LocalPlayer` on the
+client tick and a `FakePlayer` on the server tick. A rung still builds a `TowerProcess` and hands it
+to `rig.drive`; only the **helm** changes — `ServerAvatarManager` headless, `BotApi.runProcess` (the
+client's own user-task chain) integrated. Every path that starts a leg goes through
+`JourneyRig.startLeg`, and that is load-bearing: registering the adopted driver with
+`ServerAvatarManager` would run manual physics on a client-controlled body, which the client then
+contradicts with its own movement packet every tick.
+
+*Two honest compromises.* `breakItWhereItStands` is a server-side `Level#destroyBlock` on every
+topology, so an in-place swing never exercises the client's multi-tick `continueDestroy`. And under
+the real-player helm the rung's process runs inside the full client scheduler, so panic / dodge /
+combat / bunker chains can preempt it — the reflexes the fake body never had. That is the
+topology's purpose rather than a regression, and `journey.helm.endings` names every leg a reflex
+took.
+
+*What the server thread must never do here is wait.* `DriverApi`'s `awaitMs` and `BotUtil.onClient`
+both block the caller until the client answers, and the caller is the server thread the client is
+ticking against. Starts are fire-and-forget (`mc.execute`); completion is polled from the scene's
+own await predicate.
+
+Because a topology now varies more than one thing, **every rung records three keys, on every exit
+path including a BLOCKED skip**, and they are what makes two results rows comparable:
 
 | Key | Says |
 |---|---|
 | `journey.topology` | which of the three, **read off the running game** (`isDedicatedServer`, `BotHooks.isAvailable`, the non-driver players and their dimensions) rather than echoed from a `-D` — a launch that did not do what it promised cannot make this row lie |
-| `journey.body` | which body is climbing: joined-vs-fake, its class, whether it is in the player list, whether it is invulnerable. `journey.body.spawned` on rung 2 is the body SPAWN actually created |
+| `journey.body` | which body is climbing: real-vs-joined-vs-fake, its class, whether it is in the player list, whether it is invulnerable, its game mode. `journey.body.spawned` on rung 2 is the body SPAWN actually created |
+| `journey.steer` | which helm advanced the processes: `serverTick/ServerAvatarManager` or `clientUserTask/ClientPlayerAvatar`. **Separate from `journey.body` on purpose** — the integrated run swaps both at once, so a row carrying only the topology would let a divergence be explained equally well by「假人的 gap」or by「客户端链和服务端链本来就不同」, and two arms are only readable when they differ in one variable. The fourth arm that would actually separate them (a dedicated server driving a real body, or an integrated one driving a fake) does not exist yet |
 
-**`-Dworlddriver.realPlayerBodies=true` stays on for all three, and that is not a copied line.**
+`journey.helm.endings` is written only under the real-player helm and only as legs end: it lists each
+leg's ending as `kind→跑完` or `kind→被结束：<reason>`. Read it before blaming a rung — the chain
+nulls its process for three different reasons and the busy flag goes false for all three alike.
+
+**`-Dworlddriver.realPlayerBodies=true` stays on for all three, and that is not a copied line.** It
+is moot on the integrated one now — nothing mints a body there — and load-bearing on the other two.
 `ServerLevel.players()` is per level and the human client never leaves the overworld: rungs 14–15 ask
 the **nether's** list (`BaseSpawner.isNearPlayer`, for a fortress spawner) and 19–20 ask the **end's**
 (`EndDragonFight.tick`). A client standing at world spawn contributes to neither. Dropping the flag

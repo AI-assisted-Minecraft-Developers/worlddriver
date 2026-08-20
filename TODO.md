@@ -30,33 +30,41 @@ cast9.ramp.aside=这一趟一级没垫：身体 2, 56, 20 正压在 2, 56, 20 �
 （排练命令：`./gradlew :fabric:runRehearsalServer -Prehearse=PORTAL_LIT`，约 3 分钟到 12 级，
 真梯连着两趟死在 12 级之前，用真梯验证 12 级的修复是拿抽签换 40 分钟。）
 
-## 🟡 梯子有三个拓扑了，但**爬的还是同一具身体**（2026-08-20）
+## 🟡 集成梯子已经在开真玩家了，**但两个自变量还绑在一起**（2026-08-20）
 
-`runJourneyIntegratedServer`（真客户端自己开世界，同一个 JVM）和
+三条拓扑都能跑，各自独立 run 目录，伴随客户端由 gradle 起、由 build service 收尾：
+`runJourneyServer`（无头）／`runJourneyIntegratedServer`（真客户端自己开世界，同一 JVM）／
 `runJourneyDedicatedServerWithClient` + `runJourneyJoiningClient`（真客户端从 socket 连进来，
-两个 JVM，自己的 25701 端口）已经能跑，各自独立的 run 目录，伴随客户端由 gradle 起、由
-build service 保证收尾。两条都冒烟到第 2 级：`JoinedPlayerBodies.placeNewPlayer` 头一回在
-`IntegratedPlayerList` 上跑通，`agent-body-1` 两边都进了玩家表。
+两个 JVM，25701 端口）。
 
-**没解决的仍然是那一半**：三条都在爬 `JourneyRig.spawnBody()` 造的身体，没有一条驱动真玩家。
-所以假玩家的能力缺口（`fallDistance` 恒 0、`isInvulnerableTo` 恒 true、拿不到进度）在三条里
-一模一样，**两趟之间的差别永远不是它们造成的**。要换成真玩家，缺的是三样东西，都不是开关：
+**集成那条现在收养真玩家**：`JourneyRig.spawnBody()` 不再另造假人，而是把已经站在那儿的
+`ServerPlayer` 强制成 SURVIVAL、清包、传到出生点，然后由**客户端自己的 user-task 链**推进每一级的
+`BotProcess`（靠 `BotProcess.tick(Minecraft,…)` 默认桥接到 `tick(Avatar,…)` 这条缝，同一个 process
+对象在两边都能跑）。joining 那条**故意**仍用假人：客户端 bot 在另一个**进程**里，对象过不去 socket。
 
-1. `JourneyRig.drive` 把 `BotProcess` **对象**交给 `ServerAvatarManager`；客户端那边只收
-   动词+参数（`DriverApi.route("mc.bot.*", …)`），完成信号只能轮询 `status()`。
-   传输层是通的——integrated 拓扑同一个 JVM 里 `BotHooks` 就在——是这个 rig 从头到尾写死在
-   `ServerWorldDriver` 上。
-2. `breakItWhereItStands` 天生只对服务端成立：客户端的 `Avatar.breakHold` 只按下键位，
-   不配多 tick 的 `continueDestroy` 就一格都挖不开。
-3. `awaitMs` / `mc.wait.*` 睡的是**调用线程**，在布景体里就是服务器线程——正被等的那个客户端
-   进程反过来在等这条线程，一等就是死锁。
+**没解决的是可归因性**。集成拓扑一次换了两样东西——身体（假人→真玩家）和舵（服务端 tick 的
+`ServerAvatarManager` → 客户端链上的 `ClientPlayerAvatar`）。于是「集成绿、专用红」有两种解释都
+成立，而这个仓库反复吃亏的正是这个形状：两条臂只有差**一个**自变量时才读得出因果。
 
-判据：每一级都无条件记 `journey.topology` 和 `journey.body`，两者都是**问出来的**
-（`isDedicatedServer()`、`BotHooks.isAvailable()`、玩家表里不是 `JoinedBody` 的那些人及其维度），
-不是把 `-D` 抄回来——伴随客户端死在 architectury transformer 里的那种趟数，正是抄 `-D` 会读绿的那种。
+- 已做：每一级无条件记第三个 key `journey.steer`，取值 `serverTick/ServerAvatarManager` 或
+  `clientUserTask/ClientPlayerAvatar`，所以一次分歧至少能被归到其中一侧。
+- **未做，且是这条 TODO 的正题**：造第四条臂。要么让专用服驱动一具真身体（需要 joining 那条
+  能把「起哪个 process」翻成动词+参数走 RPC，完成信号轮询 `mc.bot.status`），要么让集成服照旧
+  用假人跑一遍（把 helm 判定改成可用 `-D` 强制）。**后者便宜得多**，而且正好是把两个自变量
+  拆开所需的最小改动：同一个真玩家世界，一条真身体一条假身体。
 
-⚠️ 三条都留着 `-Dworlddriver.realPlayerBodies=true`，不是复制粘贴：`ServerLevel.players()` 是
-**按维度**的，真客户端一直待在主世界，14–15 级问的是**下界**那份名单、19–20 级问的是**末地**那份。
+**还没被证明的**（冒烟只到第 2 级，没有任何一次完整攀爬）：
+
+1. 真玩家舵下每一级的预算够不够——腿是按**客户端** tick 完成的，而 `within` 数的是服务端 tick。
+2. 反射链（panic/dodge/combat/bunker）会抢占级里的 process，假人从来没有这些。
+   `journey.helm.endings` 会把每条被抢占的腿记下来，但哪些级会因此变红只有真跑才知道。
+3. `breakItWhereItStands` 在两种舵下都是服务端 `Level#destroyBlock`，所以**就地挥开这条路径
+   永远不检验客户端的多 tick `continueDestroy`**。真正走客户端挖掘的只有 `MineProcess` 那条。
+4. 收养会**不可逆地**清空这具身体的背包并改写 gamemode。只可用于测试拓扑。
+
+⚠️ 三条都留着 `-Dworlddriver.realPlayerBodies=true`：集成那条现在用不上（不再造身体），另外两条
+是必需的——`ServerLevel.players()` 是**按维度**的，真客户端一直待在主世界，14–15 级问的是**下界**
+那份名单、19–20 级问的是**末地**那份。
 
 ## ✅ 第 12 级：**漂移改柱之后没人再问「这一柱是不是楼梯」**（2026-08-19 定案，2026-08-20 修完，两边闸 GREEN）
 

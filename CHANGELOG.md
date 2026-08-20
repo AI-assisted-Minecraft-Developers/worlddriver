@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-20
 
+- **The integrated ladder climbs on the client's real player.** 集成服上验证本就需要真实玩家来执行,
+  and until now all three topologies spawned an invulnerable fake body beside the real player and
+  drove that instead — so the whole validation set this comparison exists to reveal (`fallDistance`
+  pinned at 0, `isInvulnerableTo` refusing every source, a death that is a no-op, an advancement
+  never awarded) was missing on the client topologies too. `JourneyRig.spawnBody()` now ADOPTS the
+  player that is already there on `runJourneyIntegratedServer`.
+- **How the same rung code drives either body: the helm, not the verbs.** Rewriting 25 000 lines of
+  rungs into `mc.bot.*` verb calls was never on. `BotProcess.tick(Minecraft,…)` already
+  default-bridges to `tick(Avatar,…)` over a `ClientPlayerAvatar`, so ONE process object drives a
+  client `LocalPlayer` and a headless `FakePlayer`. A rung still builds a `TowerProcess` and hands
+  it to `rig.drive`; only who advances it changes.
+- **Four sibling paths that each engaged the helm became one.** `drive`, `settle`, `mineBlock` and
+  `mineCellOrGiveUp` each called `ServerAvatarManager.register` for themselves. Under the real-player
+  helm that would step `ServerPlayerAvatar`'s manual physics on a client-controlled body, which the
+  client contradicts with its own movement packet every tick and vanilla resolves by rubber-banding.
+  Routing all four through `startLeg` makes it structurally unreachable rather than conventionally
+  avoided — the shape this repo keeps paying for is an invariant with siblings that ignore it.
+- **`mc.execute`, never `onClient`.** The scene body runs on the server thread of a server the client
+  is ticking against, and both `DriverApi.awaitMs` and `BotUtil.onClient` block the caller until the
+  client answers. Starts are fire-and-forget; completion is polled from the scene's own await
+  predicate, which is the only code that already runs on every tick of a leg.
+- **One leg reading, not two.** `BotApi.userTaskLeg()` publishes `{seq, busy, kind, error}` as a
+  single immutable snapshot. Two independently-volatile fields do not compose into an atomic pair:
+  a poll landing between them reads `busy=false` beside the PREVIOUS leg's ending, so 「这一腿刚跑完」
+  and「上一腿早跑完、这一腿还没装上」render identically. `busy` goes false only on the client thread
+  and only once the process object that was installed has really left the chain, so the window
+  between enqueued and installed can never be read as finished.
+- **A third evidence key, because the integrated topology changes two variables at once.**
+  `journey.steer` (`serverTick/ServerAvatarManager` vs `clientUserTask/ClientPlayerAvatar`) is
+  recorded beside `journey.topology` and `journey.body` on every exit path. Without it a divergence
+  is explained equally well by「假人的 gap」or by「客户端链和服务端链本来就不同」, and two arms are
+  only readable when they differ in ONE variable. The fourth arm that would separate them does not
+  exist yet.
+- **The joining topology keeps the fake body on purpose.** Its client bot is in the other PROCESS,
+  and a `BotProcess` object cannot cross a socket. `journey.body` says so rather than leaving it to
+  be inferred.
 - **The ladder's searches are bounded by nodes, not by the wall clock.** `pathfinderMaxMs` was 4000;
   it is now `Long.MAX_VALUE/2` with an explicit `pathfinderMaxNodes = 100_000`, the shape 58 scene
   sites already use, for the reason `PathFinder`'s own comment gives: a millisecond cap makes the
@@ -14,6 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `STOP cause=` appears zero times across three ladder logs against 496 `search-begin` lines — so
   this bound never once fired and this is hardening, **not** a fix for anything observed, and
   emphatically not a claim that the ladder became reproducible.
+- **Readings that stated what was once true now ask.** The out-of-world report hardcoded
+  「这具身体 isInvulnerableTo 恒为 true，会一直掉下去」; an adopted real body dies instead, which is a
+  different diagnosis and must not print as the same one.
 
 - **The ladder runs under all three topologies now, and every rung says which one it climbed in.**
   `wd.journey*` had exactly one run configuration, and it was the one with no client in the JVM at

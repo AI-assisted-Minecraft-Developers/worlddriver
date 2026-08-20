@@ -9,9 +9,13 @@ import java.util.function.BooleanSupplier;
 
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
+import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.process.BotProcess;
+import net.magicterra.worlddriver.bot.process.Intent;
+import net.magicterra.worlddriver.bot.process.IntentProcess;
 import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.sim.JoinedPlayerBodies;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
@@ -25,6 +29,7 @@ import net.minecraft.server.level.TicketType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameRules;
+import net.minecraft.world.level.GameType;
 
 /**
  * The body, the world and the bookkeeping one journey run shares.
@@ -68,25 +73,37 @@ import net.minecraft.world.level.GameRules;
  * interaction are outside what this track can observe. {@link #bodyIsInvulnerable} states the
  * limitation into the record of every stage, so no green row can be read as more than it is.
  *
- * <p><b>And that bound does not lift on the client topologies.</b> The ladder runs under three of
- * them now ({@code journeyServer} / {@code journeyIntegratedServer} /
- * {@code journeyDedicatedServerWithClient}), and all three climb on the body {@link #spawnBody()}
- * builds — never on the human client's player. What varies is the RUN: whether a client half of the
- * driver is loaded at all, whether packets are really encoded, whether a real player holds chunks.
- * Every rung records {@code journey.topology} and {@code journey.body} so that no two rows can be
- * compared without saying which of those two changed.
+ * <p><b>That bound is exactly what the integrated topology lifts.</b> The ladder runs under three
+ * of them ({@code journeyServer} / {@code journeyIntegratedServer} /
+ * {@code journeyDedicatedServerWithClient}), and on {@code journeyIntegratedServer} it climbs on
+ * the CLIENT'S REAL PLAYER — a body that takes fall damage, starves, drowns, dies, respawns and
+ * earns advancements, because it is a player who joined. The other two still climb on the headless
+ * body {@link #spawnBody()} mints, and the bound above is theirs.
  *
- * <p>Driving the real player instead is a documented and unbuilt piece of work, not a switch. The
- * transport is there — under the integrated topology this JVM also holds {@code BotHooks}, so a
- * scene body can reach the client bot through {@code DriverApi.route("mc.bot.*", …)} — but this rig
- * is written against {@link ServerWorldDriver} end to end: {@link #drive} hands a
- * {@code BotProcess} OBJECT to {@code ServerAvatarManager}, and the client side takes verbs and
- * params instead and reports completion only by polling {@code status()}. Two further walls stand
- * behind that one. {@link #breakItWhereItStands} is server-only by construction — {@code
- * Avatar.breakHold} on a client sets a keybind and breaks nothing without a multi-tick {@code
- * continueDestroy}. And {@code DriverApi}'s own {@code awaitMs} / {@code mc.wait.*} sleep the
- * CALLING thread, which from a scene body is the server thread, so the obvious way to wait for a
- * client process stops the server that the client process is waiting on.
+ * <h2>How a real player gets driven, and why it is the same code</h2>
+ *
+ * {@code BotProcess.tick(Minecraft,…)} default-bridges to {@code tick(Avatar,…)} over a
+ * {@code ClientPlayerAvatar}, so ONE process object drives a client {@code LocalPlayer} on the
+ * client tick and a headless {@code FakePlayer} on the server tick. That seam is what makes this
+ * possible without a second ladder: a rung still builds a {@code TowerProcess} or an
+ * {@code IntentProcess} and hands it to {@link #drive}, and only the HELM changes —
+ * {@code ServerAvatarManager} on the headless topologies, {@code BotApi.runProcess} (the client's
+ * own user-task chain) on the integrated one. See {@link #startLeg}.
+ *
+ * <p><b>What the server thread must never do here is wait.</b> {@code DriverApi}'s {@code awaitMs}
+ * and {@code BotUtil.onClient} both block the calling thread until the client answers, and the
+ * caller here is the server thread of a server the client is ticking against. So the start is
+ * fire-and-forget ({@code mc.execute}) and completion is polled from the scene's own await
+ * predicate, which is the one thing that already runs on every tick of a leg.
+ *
+ * <p><b>Two honest compromises</b>, both stated into the record rather than hidden.
+ * {@link #breakItWhereItStands} calls {@code Level#destroyBlock} through a
+ * {@link ServerPlayerAvatar} wrapped around the real player, so an in-place swing is a
+ * server-side write on every topology and never exercises the client's multi-tick
+ * {@code continueDestroy}. And the joining topology ({@code dedicatedServerWithClient}) keeps the
+ * headless body on purpose: the client bot lives in the OTHER process, and a
+ * {@code BotProcess} object cannot cross a socket. {@code journey.body} says which of the three a
+ * row came from, unconditionally, so no two rows can be compared without it.
  */
 public final class JourneyRig {
 
@@ -141,6 +158,25 @@ public final class JourneyRig {
     private static ChunkPos pinned;
     private static ServerLevel pinnedLevel;
 
+    /**
+     * Whose hand is on the controls for this whole run, decided once and never re-asked.
+     *
+     * <p>{@code TRUE} = the client's real player, driven through its own bot; {@code FALSE} = the
+     * headless body. Latched rather than recomputed per rung because「本轮爬的是哪具身体」has to be
+     * ONE answer: a run that silently changed helms halfway would produce rows that look comparable
+     * and are not, which is the failure these evidence keys exist to prevent.
+     */
+    private static Boolean realPlayerHelm;
+
+    /**
+     * Whether {@link #spawnBody()} ADOPTED a player rather than minting one.
+     *
+     * <p>Read by {@link #teardown()}, and that is the whole reason it exists: the teardown
+     * {@code discard()}s the body, which is right for a fake player and is a way to delete a human's
+     * player entity out from under a live connection.
+     */
+    private static boolean adoptedRealPlayer;
+
     // ---- this stage's state ----
 
     private final SceneContext ctx;
@@ -189,9 +225,11 @@ public final class JourneyRig {
         // declined to be attempted in. A results row without these two cannot be compared with the
         // same row from another topology, and comparing them is now the whole reason three exist.
         String topology = topology(ctx);
-        String body = bodyDescription();
+        String body = bodyDescription(ctx);
+        String steer = steerDescription(ctx);
         ctx.record(TOPOLOGY_KEY, topology);
         ctx.record(BODY_KEY, body);
+        ctx.record(STEER_KEY, steer);
         JourneyStage below = stage.requires();
         if (below != null && !JourneyLedger.has(below)) {
             JourneyLedger.blocked(stage, below, tick(ctx));
@@ -206,6 +244,7 @@ public final class JourneyRig {
         // clash detector would only re-record what is there.
         rig.evidence.put(TOPOLOGY_KEY, topology);
         rig.evidence.put(BODY_KEY, body);
+        rig.evidence.put(STEER_KEY, steer);
         // The obituary. A scene that times out never reaches its own last line, so the only place
         // a missed rung can be written down is a cleanup — those drain on every exit path.
         ctx.cleanup(() -> {
@@ -226,11 +265,35 @@ public final class JourneyRig {
     // ---- the body ----
 
     /**
-     * Create the run's body at world spawn, empty-handed.
+     * Put the run's body at world spawn, empty-handed — by ADOPTING the client's player where there
+     * is one, and only otherwise by minting a headless one.
      *
      * <p>Called by the SPAWN stage and by nothing else — every later stage inherits whatever this
      * body has become. Loads the spawn chunks to completion first: a body placed into a chunk that
      * has only been requested falls through terrain that has not generated yet.
+     *
+     * <h2>Adoption</h2>
+     *
+     * <p>On the integrated topology a real player is already standing in this world, and a rung that
+     * spawned a second, invulnerable body beside it would be testing the wrong one — 「集成服上验证
+     * 本就需要真实玩家来执行」. So the driver is built around the player that is there:
+     * {@code ServerPlayerAvatar} takes any {@link ServerPlayer}, so every single-shot actuation the
+     * rungs already use ({@code holdItem}, {@code aimAtBlock}, {@code useItemInHand},
+     * {@code placeOn}, {@code canBreak}) and every read ({@code player()}, inventory, advancements)
+     * is unchanged code operating on a real body. Only the per-tick DRIVING changes helms — see
+     * {@link #startLeg}.
+     *
+     * <p>Three things are forced rather than trusted. <b>Survival</b>, because a creative player
+     * takes no fall damage, needs no food and breaks anything instantly, which would quietly restore
+     * exactly the fake-player bound this topology exists to remove. <b>An empty inventory</b>, the
+     * same premise the headless run starts from. <b>The position</b>, because the ladder's whole
+     * script is written against world spawn on a fixed seed.
+     *
+     * <p><b>⚠️ Those three writes are irreversible and nothing restores them.</b> Adoption WIPES the
+     * adopted player's inventory, overwrites their game mode and teleports them. That is correct for
+     * the throwaway client {@code journeyIntegratedServer} launches into a provisioned world, and it
+     * is a way to destroy somebody's save if this ever runs against a client a person is using. The
+     * ladder is a test topology; do not point it at a world you care about.
      */
     public ServerWorldDriver spawnBody() {
         ServerLevel level = ctx.level();
@@ -247,14 +310,30 @@ public final class JourneyRig {
 
         int surface = level.getHeightmapPos(
                 net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, spawn).getY();
-        driver = ServerWorldDriver.createIsolated(level,
-                spawn.getX() + 0.5, surface, spawn.getZ() + 0.5);
-        driver.fakePlayer().getInventory().clearContent();
+        if (realPlayerHelm(ctx)) {
+            List<ServerPlayer> humans = humanPlayers(ctx);
+            if (humans.isEmpty()) {
+                ctx.fail("journey: 本轮判定为真玩家驾驶，SPAWN 时却一个真玩家都没有 —— "
+                        + "客户端在开跑和这一级之间掉线了");
+            }
+            ServerPlayer real = humans.get(0);
+            real.setGameMode(GameType.SURVIVAL);
+            real.getInventory().clearContent();
+            real.teleportTo(level, spawn.getX() + 0.5, surface, spawn.getZ() + 0.5,
+                    real.getYRot(), real.getXRot());
+            driver = new ServerWorldDriver(new ServerPlayerAvatar(real));
+            adoptedRealPlayer = true;
+        } else {
+            driver = ServerWorldDriver.createIsolated(level,
+                    spawn.getX() + 0.5, surface, spawn.getZ() + 0.5);
+            driver.fakePlayer().getInventory().clearContent();
+            adoptedRealPlayer = false;
+        }
         // Its own key rather than a second write of `journey.body`. This rung ENTERED without a body
         // and leaves with one, so the two readings are both true and neither contradicts the other —
         // and routing a legitimate change through the clash detector would print a WARN on every
         // single run, which is how a diagnostic teaches its reader to stop looking at it.
-        evidence("journey.body.spawned", bodyDescription());
+        evidence("journey.body.spawned", bodyDescription(ctx));
         return driver;
     }
 
@@ -283,8 +362,10 @@ public final class JourneyRig {
      * virtual call and makes the row follow the code.
      *
      * <p>{@code generic()} rather than the out-of-world source: it is the damage type the existing
-     * scenes already probe invulnerability with ({@code WorldDriverScenes}), and both overrides
-     * refuse every source alike, so the two answers cannot differ without the override being gone.
+     * scenes already probe invulnerability with ({@code WorldDriverScenes}), and both fake-body
+     * overrides refuse every source alike, so the two answers cannot differ without the override
+     * being gone. An adopted real player answers {@code false} here, which is the single reading
+     * that separates the integrated topology's bound from the other two.
      *
      * <p>True when there is no body yet. RECON runs before SPAWN, and「没有身体所以受得了伤」is not
      * a statement anyone should be able to read off this.
@@ -296,6 +377,164 @@ public final class JourneyRig {
         return fp.isInvulnerableTo(fp.damageSources().generic());
     }
 
+    // ---- who is on the controls ----
+
+    /**
+     * Whether this run drives the client's real player instead of a headless body.
+     *
+     * <p>Three facts, all read off the running game rather than off a {@code -D} that only promises
+     * something (the launch that says {@code client} and then dies in architectury's transformer is
+     * a shape this repo has already paid three weeks for):
+     *
+     * <ul>
+     *   <li>the server is INTEGRATED — a dedicated server has no client thread to marshal onto, and
+     *       on the joining topology the client bot is in another PROCESS, where a
+     *       {@link BotProcess} object cannot follow it;</li>
+     *   <li>{@link BotHooks#isAvailable()} — the client half of the driver really constructed in
+     *       this JVM, so there is a user-task chain to hand a process to;</li>
+     *   <li>a human player is actually in the level. {@code stagewright.awaitPlayer} holds the
+     *       suite until one is placed, so by the first rung this is settled.</li>
+     * </ul>
+     */
+    private static boolean realPlayerHelm(SceneContext ctx) {
+        Boolean decided = realPlayerHelm;
+        if (decided != null) return decided;
+        MinecraftServer server = ctx.server();
+        boolean integrated = server != null && !server.isDedicatedServer();
+        boolean now = integrated && BotHooks.isAvailable() && !humanPlayers(ctx).isEmpty();
+        realPlayerHelm = now;
+        return now;
+    }
+
+    /** {@link #realPlayerHelm(SceneContext)} for this rung's scene. */
+    public boolean drivesRealPlayer() { return realPlayerHelm(ctx); }
+
+    /** What actually advances a {@link BotProcess} this run, named after the two classes that
+     *  differ. See {@link #STEER_KEY} for why this is not folded into {@link #BODY_KEY}. */
+    private static String steerDescription(SceneContext ctx) {
+        return realPlayerHelm(ctx)
+                ? "clientUserTask/ClientPlayerAvatar（进程跑在客户端 tick 上，途中会被 panic/dodge/combat 抢占）"
+                : "serverTick/ServerAvatarManager（进程跑在服务端 tick 上，没有反射链，没有客户端物理）";
+    }
+
+    /**
+     * Start one leg's process — <b>the only place either helm is engaged</b>.
+     *
+     * <p>Four call sites used to register with {@code ServerAvatarManager} independently
+     * ({@link #drive}, {@link #settle}, {@link #mineBlock}, {@link #mineCellOrGiveUp}). That is the
+     * shape this repo keeps paying for: an invariant with sibling paths that ignore it. Here the
+     * invariant is load-bearing — registering the adopted driver would run
+     * {@code ServerPlayerAvatar.step()}'s manual physics ON a client-controlled player, which the
+     * client then contradicts with its own movement packet every tick, and vanilla resolves that by
+     * rubber-banding. Routing all four through one method makes that structurally unreachable
+     * instead of conventionally avoided.
+     */
+    private void startLeg(ServerWorldDriver d, BotProcess process) {
+        if (realPlayerHelm(ctx)) {
+            BotApi bot = BotHooks.impl();
+            if (bot == null) {
+                ctx.fail("journey: 本轮判定为真玩家驾驶，但 BotHooks 里没有实现 —— 客户端半边不在本 JVM");
+            }
+            bot.runProcess(process);
+            return;
+        }
+        ServerAvatarManager.register(d.runProcess(process));
+    }
+
+    /** Whether the leg {@link #startLeg} began has ended, under whichever helm began it. */
+    private boolean legEnded(ServerWorldDriver d) {
+        if (realPlayerHelm(ctx)) {
+            BotApi bot = BotHooks.impl();
+            if (bot == null) return true;
+            // ONE read of the whole leg, kept for the continuation. Asking again there would ask a
+            // different moment, and the second answer can already describe the NEXT leg.
+            Map<String, Object> now = bot.userTaskLeg();
+            if (Boolean.TRUE.equals(now.get("busy"))) return false;
+            endedLeg = now;
+            return true;
+        }
+        return d.finished();
+    }
+
+    /** The snapshot that made {@link #legEnded} true, held for {@link #noteLegEnding}. */
+    private Map<String, Object> endedLeg;
+
+    /**
+     * Release the leg. The client's chain drops its own process; only the server helm holds a
+     * registration that would otherwise keep stepping a body nobody is waiting on.
+     *
+     * <p>Use {@link #noteLeg()} instead where the server helm deliberately did NOT unregister —
+     * {@link #drive} never has, and making it start to would change what the headless ladder does
+     * on the one path that carries a body out of the world.
+     */
+    private void endLeg(ServerWorldDriver d) {
+        noteLeg();
+        if (realPlayerHelm(ctx)) return;
+        ServerAvatarManager.unregister(d);
+    }
+
+    /** The client helm's half of {@link #endLeg}, on its own, for the call sites where the server
+     *  helm must stay byte-for-byte what it was. */
+    private void noteLeg() {
+        if (realPlayerHelm(ctx)) noteLegEnding();
+    }
+
+    /**
+     * Start a leg whose completion the CALLER watches — the public face of {@link #startLeg}.
+     *
+     * <p>For the legs {@link #drive} and {@link #settle} cannot express: a fight ends when the
+     * target dies, not when the process says so, so those rungs own their own await predicate. They
+     * used to reach past this rig and call {@code ServerAvatarManager.register} themselves, which
+     * on the real-player helm would step manual physics on a client-controlled body. Pair with
+     * {@link #legDone()} and {@link #legReleased()}.
+     */
+    public void legStart(BotProcess process) { startLeg(body(), process); }
+
+    /** Whether the leg {@link #legStart} began has ended, under whichever helm began it. */
+    public boolean legDone() { return legEnded(body()); }
+
+    /** Release the leg {@link #legStart} began. Call from the continuation, once. */
+    public void legReleased() { endLeg(body()); }
+
+    /** Every leg's ending under the real-player helm, in order. See {@link #noteLegEnding}. */
+    private final List<String> legEndings = new ArrayList<>();
+
+    /**
+     * Record HOW the client's chain let go of the leg, not merely that it did.
+     *
+     * <p>{@code userTaskBusy()} goes false for three different endings — ran to completion, threw,
+     * or was cancelled by a higher-priority chain — and the real player's helm is the one that has
+     * reflexes at all: Panic (creeper), Dodge (projectile), Combat and Bunker can all preempt the
+     * rung's own process. Without this row a leg a creeper interrupted reads exactly like a leg
+     * that finished, which is {@code UserTaskChain}'s own documented ambiguity arriving one layer
+     * up.
+     *
+     * <p>Through {@link #put} rather than {@link #evidence}: it is a running list, not a reading, so
+     * it must overwrite itself — the same exemption {@code evidence.clash} takes.
+     */
+    private void noteLegEnding() {
+        Map<String, Object> end = endedLeg;
+        endedLeg = null;
+        if (end == null) return;
+        Object err = end.get("error");
+        String line = String.valueOf(end.get("kind")) + (err == null ? "→跑完" : "→被结束：" + err);
+        // Collapse an unchanged repeat rather than printing「goto→跑完」forty times: a rung that
+        // settles per cell would otherwise bury its one interesting ending under its own noise.
+        int n = legEndings.size();
+        if (n > 0 && legEndings.get(n - 1).startsWith(line)) {
+            legEndings.set(n - 1, line + " ×" + (repeatOf(legEndings.get(n - 1)) + 1));
+        } else {
+            legEndings.add(line);
+        }
+        put("journey.helm.endings", String.join("；", legEndings));
+    }
+
+    private static int repeatOf(String line) {
+        int at = line.lastIndexOf(" ×");
+        if (at < 0) return 1;
+        try { return Integer.parseInt(line.substring(at + 2)); } catch (NumberFormatException e) { return 1; }
+    }
+
     // ---- which run this rung climbed in ----
 
     /** Every rung's row says which of the three ladder topologies produced it. */
@@ -303,6 +542,21 @@ public final class JourneyRig {
 
     /** ...and which body did the climbing. Together they are what makes two rows comparable. */
     private static final String BODY_KEY = "journey.body";
+
+    /**
+     * ...and which HELM drove it, as a third field of its own.
+     *
+     * <p><b>Because the integrated topology changes two variables at once</b>, and the entire
+     * reason three topologies exist is to tell 「假人的 gap」 apart from 「真问题」. That run swaps
+     * the BODY (fake → real) and the STEER (the server tick's {@code ServerAvatarManager} → the
+     * client's user-task chain over a {@code ClientPlayerAvatar}) in the same step. A row carrying
+     * only topology and body would let a divergence be explained equally well by either, which is
+     * the conjunction this repo keeps paying for: two arms are only readable when they differ in
+     * ONE variable. Recording the steer separately does not create the fourth arm that would
+     * actually separate them — a dedicated server driving a real body, or an integrated one
+     * driving a fake — but it does say which side of the pair a given row sits on.
+     */
+    private static final String STEER_KEY = "journey.steer";
 
     /**
      * Which of the three ladder topologies this run is, read off the running game.
@@ -381,27 +635,34 @@ public final class JourneyRig {
     }
 
     /**
-     * Which body this run climbs on.
+     * Which body this run climbs on, and who is driving it.
      *
-     * <p><b>The same on all three topologies, and saying so is the point.</b> Every rung drives the
-     * avatar {@link #spawnBody()} builds, never the human client's player — see the class note for
-     * the seam that would be needed and does not exist. So a capability the FAKE body lacks
-     * ({@code fallDistance} pinned at 0, {@code isInvulnerableTo} refusing everything, an
-     * advancement that is never awarded) is missing on the client topologies too, and a row that
+     * <p><b>Not the same on all three topologies any more, and saying WHICH is the whole point.</b>
+     * The integrated run adopts the client's real player; the headless and joining runs mint a fake
+     * one. So the capabilities a fake body lacks — {@code fallDistance} pinned at 0,
+     * {@code isInvulnerableTo} refusing every source, a death that is a no-op, an advancement that
+     * is never awarded — are present on one topology and absent on the other two, and a row that
      * named only the topology would invite exactly the wrong conclusion from a difference.
      *
-     * <p>{@code inPlayerList} is what the flag actually buys and the one thing vanilla asks before
-     * it will spawn a dragon, turn a spawner or spawn anything naturally.
+     * <p>{@code 免伤} is read from the body rather than assumed, so this row reports the change the
+     * day it happens instead of restating what was true when it was written.
+     *
+     * <p>{@code 在玩家表} is what {@code -Dworlddriver.realPlayerBodies=true} buys for a fake body,
+     * and the one thing vanilla asks before it will spawn a dragon, turn a spawner or spawn anything
+     * naturally. A real player is in it by construction.
      */
-    private static String bodyDescription() {
+    private static String bodyDescription(SceneContext ctx) {
+        boolean helm = realPlayerHelm(ctx);
+        String kind = helm ? "real（客户端 bot 驾驶）"
+                : (JoinedPlayerBodies.armed() ? "joined" : "fake") + "（服务端 tick 驾驶）";
         ServerWorldDriver d = driver;
-        String kind = JoinedPlayerBodies.armed() ? "joined" : "fake";
-        if (d == null) return kind + "（SPAWN 之前，本轮还没有身体）";
+        if (d == null) return kind + "：SPAWN 之前，本轮还没有身体";
         ServerPlayer fp = d.fakePlayer();
         return kind + ":" + fp.getClass().getSimpleName()
                 + " " + fp.getGameProfile().getName()
                 + "（在玩家表=" + fp.level().players().contains(fp)
                 + "，免伤=" + fp.isInvulnerableTo(fp.damageSources().generic())
+                + "，模式=" + (fp.gameMode == null ? "?" : fp.gameMode.getGameModeForPlayer().getName())
                 + "，@" + fp.level().dimension().location() + "）";
     }
 
@@ -427,8 +688,11 @@ public final class JourneyRig {
      */
     public void drive(BotProcess process, int withinTicks, Runnable then) {
         ServerWorldDriver d = body();
-        ServerAvatarManager.register(d.runProcess(process));
-        await(() -> doneOrLost(d, process.kind()), withinTicks, then);
+        startLeg(d, process);
+        await(() -> doneOrLost(d, process.kind()), withinTicks, () -> {
+            noteLeg();
+            then.run();
+        });
     }
 
     /**
@@ -444,7 +708,7 @@ public final class JourneyRig {
      * shape this repo keeps paying for; the fix is the predicate, not another call site.
      */
     private boolean doneOrLost(ServerWorldDriver d, String what) {
-        if (d.finished()) return true;
+        if (legEnded(d)) return true;
         if (!bodyLeftTheWorld()) return false;
         if (drivingWhenLost == null) drivingWhenLost = what;
         return true;
@@ -461,8 +725,36 @@ public final class JourneyRig {
      */
     public void mineBlock(BlockPos target, int withinTicks, Runnable then) {
         ServerWorldDriver d = body();
+        if (realPlayerHelm(ctx)) {
+            walkToAndBreak(d, target, withinTicks, then);
+            return;
+        }
         ServerAvatarManager.register(d.mine(target));
         await(() -> doneOrLost(d, "mineBlock(" + target.toShortString() + ")"), withinTicks, then);
+    }
+
+    /**
+     * The real-player helm's stand-in for {@code ServerWorldDriver.mine}.
+     *
+     * <p>{@code mine} is not a {@link BotProcess} — it is a walker goal the SERVER driver checks
+     * every tick plus a swing once navigation stops — so it has nothing to hand a client chain.
+     * This is the same two beats spelled out with the pieces that do cross the helm: an
+     * {@link IntentProcess} to within reach, then the same in-place swing every other cell in this
+     * rig is opened with. Deliberately not {@code mc.bot.mine}: {@code MineProcess} finds its OWN
+     * targets by id and radius, and this suite's premise is that the caller already knows the
+     * coordinate.
+     */
+    private void walkToAndBreak(ServerWorldDriver d, BlockPos target, int withinTicks, Runnable then) {
+        if (breakItWhereItStands(target)) {
+            settle(new HoldStill(1), 4, then);
+            return;
+        }
+        startLeg(d, new IntentProcess(new Intent(new Goal.Near(target, 2))));
+        await(() -> doneOrLost(d, "mineBlock(" + target.toShortString() + ")"), withinTicks, () -> {
+            noteLeg();
+            breakItWhereItStands(target);
+            then.run();
+        });
     }
 
     /**
@@ -486,6 +778,30 @@ public final class JourneyRig {
             return;
         }
         ServerWorldDriver d = body();
+        if (realPlayerHelm(ctx)) {
+            // Same GIVE-UP contract, client helm — and the counter is what makes it that rather
+            // than a {@link #mineBlock}: without it a walk that never arrives spends the outer
+            // bound and dies on the framework's generic「await step exceeded」, which is the exact
+            // failure this method was extracted to stop.
+            startLeg(d, new IntentProcess(new Intent(new Goal.Near(target, 2))));
+            int[] spent = {0};
+            await(() -> {
+                if (legEnded(d)) return true;
+                if (bodyLeftTheWorld()) {
+                    if (drivingWhenLost == null) {
+                        drivingWhenLost = "mine(" + target.toShortString() + ")（第 " + spent[0]
+                                + "/" + ticks + " tick，真玩家）";
+                    }
+                    return true;
+                }
+                return ++spent[0] >= ticks;
+            }, ticks + 100, () -> {
+                endLeg(d);
+                breakItWhereItStands(target);
+                then.run();
+            });
+            return;
+        }
         ServerAvatarManager.register(d.mine(target));
         int[] waited = {0};
         // The SAME out-of-world guard settle() has. It was missing here, and the omission was not
@@ -505,7 +821,7 @@ public final class JourneyRig {
             }
             return ++waited[0] >= ticks;
         }, ticks + 100, () -> {
-            ServerAvatarManager.unregister(d);
+            endLeg(d);
             then.run();
         });
     }
@@ -642,12 +958,12 @@ public final class JourneyRig {
             return;
         }
         ServerWorldDriver d = body();
-        ServerAvatarManager.register(d.runProcess(process));
+        startLeg(d, process);
         int[] waited = {0};
         await(() -> {
             if (watcher != null) watcher.tick();
             heartbeat(waited[0], ticks, process);
-            if (d.finished()) return true;
+            if (legEnded(d)) return true;
             if (bodyLeftTheWorld()) {
                 // Latched HERE, where the process that was actually driving is in scope. The walker
                 // trace printed beside it only updates on walker ticks, so on a leg driven by a
@@ -659,7 +975,7 @@ public final class JourneyRig {
             }
             return ++waited[0] >= ticks;
         }, ticks + 100, () -> {
-            ServerAvatarManager.unregister(d);
+            endLeg(d);
             then.run();
         });
     }
@@ -705,8 +1021,17 @@ public final class JourneyRig {
                 + "；最后一次站在地上=" + (lastGrounded == null ? "本段从未站稳过"
                         : lastGrounded.getX() + "," + lastGrounded.getY() + "," + lastGrounded.getZ()
                           + "（" + sinceGrounded + " tick 之前 —— 那一格才是要查的地方）")
-                + "。⚠️ 这具身体 isInvulnerableTo 恒为 true，所以出界伤害被拒、它会一直掉下去 ——"
-                + " 之后每一段行走和每一座塔都是对着虚空下的令，读它们的读数没有意义。";
+                + "。⚠️ "
+                // ASKED, not asserted. This sentence used to state「恒为 true」unconditionally, and
+                // it stopped being true the day the integrated topology started adopting the
+                // client's real player: a real body takes the out-of-world damage and DIES, which
+                // is a different diagnosis from falling forever and must not be printed as the same
+                // one.
+                + (bodyIsInvulnerable()
+                        ? "这具身体 isInvulnerableTo 为 true，所以出界伤害被拒、它会一直掉下去 ——"
+                          + " 之后每一段行走和每一座塔都是对着虚空下的令，读它们的读数没有意义。"
+                        : "这具身体会受伤（isInvulnerableTo=false），所以出界伤害会杀死它 ——"
+                          + " 之后的读数描述的是一具尸体或一次重生，同样不能当作这一级的执行结果。");
         evidence("body.leftTheWorld", lostTheWorld);
         return true;
     }
@@ -1182,9 +1507,31 @@ public final class JourneyRig {
     public static void teardown() {
         ServerAvatarManager.clear();
         if (driver != null) {
-            try { driver.fakePlayer().discard(); } catch (RuntimeException ignored) { /* already gone */ }
+            // NEVER discard an adopted body. On the integrated topology the body IS the client's
+            // player: discarding it deletes the entity out from under a live connection, and the
+            // teardown that did it would look like the client crashing.
+            if (!adoptedRealPlayer) {
+                try { driver.fakePlayer().discard(); } catch (RuntimeException ignored) { /* already gone */ }
+            } else {
+                BotApi bot = BotHooks.impl();
+                // Hand the controls back. A process still held by the client's user-task chain would
+                // keep walking the player after the suite has stopped watching, and the next run in
+                // the same JVM would start from wherever that ended.
+                //
+                // A one-tick HoldStill rather than `cancel`, deliberately: cancel marshals through
+                // BotUtil.onClient, which WAITS on the client thread, and this runs on the server
+                // thread during teardown — the one moment the client may already be tearing itself
+                // down. runProcess is fire-and-forget, and installing any process supersedes (and
+                // therefore cancels) whatever was held, with HoldStill releasing the keys.
+                if (bot != null) {
+                    try { bot.runProcess(new HoldStill(1)); }
+                    catch (RuntimeException ignored) { /* client gone */ }
+                }
+            }
             driver = null;
         }
+        adoptedRealPlayer = false;
+        realPlayerHelm = null;
         if (pinned != null && pinnedLevel != null) {
             try {
                 pinnedLevel.getChunkSource().removeRegionTicket(

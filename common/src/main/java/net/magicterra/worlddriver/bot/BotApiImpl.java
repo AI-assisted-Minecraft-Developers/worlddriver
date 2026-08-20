@@ -1231,6 +1231,9 @@ public final class BotApiImpl implements BotApi {
         // presses still need the one-shot cleanup below.
         boolean schedulerDroveThisTick = scheduler.current() != null;
         scheduler.tick(mc, world, state);
+        // Immediately after the chain has had its turn, so a caller polling on the next server
+        // tick sees the ending rather than one tick of stale "still busy".
+        settleLeg();
         if (schedulerDroveThisTick) releaseGate.markDirtied();
         // Edge-clear: only release the bot's OWN trailing presses, never the
         // human's keys on the steady idle stream (the manual-input clobber bug).
@@ -1308,6 +1311,80 @@ public final class BotApiImpl implements BotApi {
     void startProcess(BotProcess next) {
         userTask.setProcess(next);
         paused = false;
+    }
+
+    // === the object seam: run a caller's own BotProcess on the real player ======
+    // See BotApi for why these two are not routes. They are the in-JVM entry point the
+    // playthrough ladder uses to climb on the client's real player instead of spawning a
+    // headless FakePlayer beside it.
+
+    /**
+     * One leg's whole state, published as a single immutable value.
+     *
+     * <p>A record rather than three volatile fields because the reader is on ANOTHER THREAD and
+     * wants the three together: two independently-atomic reads do not compose into an atomic
+     * pair, and the torn pair「busy 已清，但 error 还是上一腿的」is indistinguishable from a
+     * leg that just finished cleanly. One reference, one read, one consistent answer.
+     */
+    private record Leg(long seq, boolean busy, String kind, String error) {}
+
+    private volatile Leg leg = new Leg(0L, false, null, null);
+    private final java.util.concurrent.atomic.AtomicLong legSeq = new java.util.concurrent.atomic.AtomicLong();
+
+    /** The process {@link #runProcess} handed to the chain, once it is really in it.
+     *  <b>Client thread only</b> — written by the installer, read by {@link #settleLeg}. */
+    private BotProcess installedLeg;
+    private long installedLegSeq;
+
+    @Override public Map<String, Object> runProcess(BotProcess process) {
+        long seq = legSeq.incrementAndGet();
+        // Published from the CALLER's thread, before the install is even enqueued. This is what
+        // closes the window the caller polls in: between "enqueued" and "installed" the chain
+        // holds nothing, and a reader that asked the chain would conclude the leg had already
+        // finished — so every drive would return instantly having moved nothing.
+        leg = new Leg(seq, true, process.kind(), null);
+        Runnable install = () -> {
+            startProcess(process);
+            installedLeg = process;
+            installedLegSeq = seq;
+        };
+        Minecraft mc = Minecraft.getInstance();
+        // mc.execute, deliberately NOT BotUtil.onClient: onClient waits on a future, and the
+        // caller this exists for is the server thread of an INTEGRATED server — the same JVM, the
+        // other side of a tick handshake. Blocking it for a client frame is the stall a
+        // fire-and-forget start exists to avoid.
+        if (mc.isSameThread()) install.run(); else mc.execute(install);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("started", true);
+        out.put("kind", process.kind());
+        out.put("seq", seq);
+        return out;
+    }
+
+    /**
+     * Close out a leg whose process has left the chain. <b>Client thread only</b>, once per tick.
+     *
+     * <p>The test is the process OBJECT, not「链子空不空」: the chain is empty during the whole
+     * window between enqueue and install too, and closing the leg there is the false-completion
+     * this seam exists to prevent.
+     */
+    private void settleLeg() {
+        BotProcess mine = installedLeg;
+        if (mine == null || userTask.process() == mine) return;
+        Map<String, Object> end = userTask.lastEnd();
+        Object err = end == null ? null : end.get("error");
+        leg = new Leg(installedLegSeq, false, mine.kind(), err == null ? null : String.valueOf(err));
+        installedLeg = null;
+    }
+
+    @Override public Map<String, Object> userTaskLeg() {
+        Leg now = leg;
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("seq", now.seq());
+        out.put("busy", now.busy());
+        out.put("kind", now.kind());
+        out.put("error", now.error());
+        return out;
     }
 
     private void cancelCurrent(String reason) {

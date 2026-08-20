@@ -20,7 +20,6 @@ import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
 import net.magicterra.worlddriver.bot.pathfinder.moves.DiagonalAscend;
 import net.magicterra.worlddriver.bot.process.Intent;
 import net.magicterra.worlddriver.bot.process.IntentProcess;
-import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.minecraft.core.BlockPos;
@@ -441,16 +440,14 @@ public final class JourneyNetherRungs {
         // with is whatever the last approach or quarry leg left there, and a fight lost bare-handed
         // reads exactly like a fight lost to a broken combat loop.
         final String weapon = holdBestWeapon(rig);
-        ServerWorldDriver driver = rig.body();
-        ServerAvatarManager.register(driver.runProcess(
-                new CombatProcess(CombatProcess.Mode.KILL, target.getId(), null)));
+        rig.legStart(new CombatProcess(CombatProcess.Mode.KILL, target.getId(), null));
         double[] highest = {target.getY()};
         int[] waited = {0};
         rig.await(() -> {
             if (target.isAlive()) highest[0] = Math.max(highest[0], target.getY());
-            return !target.isAlive() || driver.finished() || ++waited[0] >= BLAZE_FIGHT_TICKS;
+            return !target.isAlive() || rig.legDone() || ++waited[0] >= BLAZE_FIGHT_TICKS;
         }, BLAZE_FIGHT_TICKS + 100, () -> {
-            ServerAvatarManager.unregister(driver);
+            rig.legReleased();
             boolean dead = !target.isAlive();
             if (dead) killed[0]++;
             int now = rig.carrying(BLAZE_ROD);
@@ -949,13 +946,11 @@ public final class JourneyNetherRungs {
             // Re-held after the approach: the walk may have swapped a pickaxe into the hand — see
             // the same note on the blaze fight.
             final String weapon = holdBestWeapon(rig);
-            ServerWorldDriver driver = rig.body();
-            ServerAvatarManager.register(driver.runProcess(
-                    new CombatProcess(CombatProcess.Mode.KILL, man.getId(), null)));
+            rig.legStart(new CombatProcess(CombatProcess.Mode.KILL, man.getId(), null));
             int[] waited = {0};
-            rig.await(() -> !man.isAlive() || driver.finished() || ++waited[0] >= ENDERMAN_FIGHT_TICKS,
+            rig.await(() -> !man.isAlive() || rig.legDone() || ++waited[0] >= ENDERMAN_FIGHT_TICKS,
                     ENDERMAN_FIGHT_TICKS + 100, () -> {
-                ServerAvatarManager.unregister(driver);
+                rig.legReleased();
                 boolean dead = !man.isAlive();
                 if (dead) foundAndKilled[1]++;
                 int now = rig.carrying(ENDER_PEARL);
