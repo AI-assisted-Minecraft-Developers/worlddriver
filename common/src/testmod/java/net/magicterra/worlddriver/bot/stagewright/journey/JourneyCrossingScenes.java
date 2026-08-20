@@ -766,8 +766,16 @@ public final class JourneyCrossingScenes implements SceneProvider {
         return BuiltInRegistries.BLOCK.getKey(ctx.level().getBlockState(below).getBlock()).getPath();
     }
 
-    /** How far it is straight down to the first block that would hold the body. Same question the
-     *  rung's own {@code dropBelow} asks, so a control line here reads like the live evidence row. */
+    /**
+     * How far it is straight down to the first block that would hold the body.
+     *
+     * <p><b>Not the same reading as the rung's own {@code dropBelow}</b>, which this comment used to
+     * claim it was. {@link JourneyNetherRungs}' probe stops at 16 and answers「虚空」below the build
+     * limit; this one looks 48 down and has no void case, because the arena's bay is deeper than a
+     * nether cave and no scene here can fall out of the world. So a number printed by one and a
+     * number printed by the other are comparable only up to 16 — say which probe produced a row
+     * before reading them side by side.
+     */
     private static String dropBelow(SceneContext ctx, BlockPos at) {
         for (int d = 1; d <= 48; d++) {
             if (ctx.level().getBlockState(at.below(d)).blocksMotion()) return String.valueOf(d - 1);
