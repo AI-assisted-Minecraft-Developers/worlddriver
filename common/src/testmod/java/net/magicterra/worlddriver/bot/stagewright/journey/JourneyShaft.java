@@ -153,6 +153,15 @@ public final class JourneyShaft {
      * <p>So a pinned climb falls back too, and the one thing its fallback may not do is DIG. Its
      * source sits inside the frame the rung is building, which is the only thing down there tall
      * enough to be in a walker's way — the same reason the recover's fill leg carries {@link NoBreak}.
+     *
+     * <h2>And the pin survives only as long as the column it was taken out for</h2>
+     *
+     * <p>The one thing a pin is still allowed to do is keep {@link #climbFrom} from moving the
+     * REQUESTED column off a staircase — there the column is the ray's, and moving it answers a
+     * different question. That entitlement ends the instant the drift correction adopts a different
+     * column, and {@link #towerColumnAfterDrift} is where it ends: an adopted column goes through
+     * {@link #towerColumnClearOfTheFlight} exactly like an unpinned one, because there is no longer
+     * a ray to protect. Rung 12 lost a run to the missing half of that sentence.
      */
     static boolean climbPinned;
 
@@ -353,6 +362,54 @@ public final class JourneyShaft {
             if (best != null) return best;
         }
         return null;
+    }
+
+    /**
+     * The flight check at the point a drift correction DECIDES the column, rather than at the point
+     * a caller REQUESTS one.
+     *
+     * <p>A pinned climb does not have its requested column moved off the flight: the column came out
+     * of the pour's own ray, and moving it would be answering a different question from the one the
+     * caller asked — so {@link #climbFrom} records the collision and leaves the column alone. That
+     * reasoning has exactly one premise: <b>the column is still the one the ray chose</b>. The moment
+     * the drift correction gives up and adopts wherever the body ended, the premise is gone — the
+     * ray's column has already been abandoned — and「换了柱就等于换了射线」stops being a reason to
+     * skip the check and becomes the reason to run it.
+     *
+     * <p>Measured on the ladder run of 2026-08-19, rung 12, which is the whole reason this is a
+     * method and not an inline ternary:
+     *
+     * <pre>
+     * recover8.rise#9.offTheFlight     起塔柱 2,19 是钉住的…⚠ 这一柱正是 2, 56, 19 那一级所在的柱
+     * recover8.rise#9.climb.1.driftWedged.1   1, 58, 19 这一腿一格没挪
+     * recover8.rise#9.climb.1.driftKeptPinned 1, 58, 19 走不回 2,19，改以这一柱为准
+     * recover8.rise#9.climb.3.with / climb.4.with   minecraft:dirt ×173 / ×172
+     * lava9.stairsBroken               2/11 级坏了：1, 57, 19 挡住 …dirt，2, 56, 19 挡住 …dirt
+     * FAIL 走不上楼梯：停在 1, 60, 19 … 1/11 级坏了：1, 57, 19 挡住 1, 58, 19=dirt
+     * </pre>
+     *
+     * <p>Column {@code 1,19} was never put through {@link #towerColumnClearOfTheFlight} by anybody:
+     * it was not requested, it was adopted by a drift, and it is a flight column too. Two dirt went
+     * into it and the body finished standing on the second of them, which is the one cell
+     * {@code lava9.up}'s tread audit cannot mend — a body cannot mine the block under its own feet,
+     * and that audit runs once and never re-asks.
+     *
+     * <p><b>The tread audit is not where this belongs.</b> It ran on that very trip and mended the two
+     * treads it could see; what it could not do is un-place the block holding the body up. A repair
+     * that has to reach through the body is the wrong repair — the placement must not happen.
+     *
+     * @param want       the column a tower is about to build in, at the height the body is at
+     * @param pinned     the caller pinned the column to a ray ({@link #climbPinned})
+     * @param driftMoved the correction ended somewhere other than that column, so the pin's premise
+     *                   is already void
+     * @return {@link #towerColumnClearOfTheFlight}'s three-valued answer, except for a pin whose
+     *         column the drift has NOT touched — that one is honoured and merely recorded, which is
+     *         the behaviour {@link #climbFrom} documents
+     */
+    static BlockPos towerColumnAfterDrift(ServerLevel level, BlockPos want, boolean pinned,
+                                          boolean driftMoved) {
+        if (pinned && !driftMoved) return want;
+        return towerColumnClearOfTheFlight(level, want);
     }
 
     /** The row every climb writes about its column — see {@link #climbFrom} for why it is
@@ -575,7 +632,8 @@ public final class JourneyShaft {
                 // the tower that would have paid it back. What the pin is entitled to is that nobody
                 // downstream may mistake the result for the raise that was asked for, and that is a
                 // job for a row and for the pour's gate, not for a body left standing in a puddle.
-                if (back.getX() != climbColX || back.getZ() != climbColZ) {
+                boolean adopted = back.getX() != climbColX || back.getZ() != climbColZ;
+                if (adopted) {
                     rig.evidence(climbKey(step, climbPinned ? ".driftKeptPinned" : ".driftKept"),
                             back.toShortString() + " 走不回 " + climbColX + "," + climbColZ
                             + "，改以这一柱为准"
@@ -584,24 +642,34 @@ public final class JourneyShaft {
                     climbColX = back.getX();
                     climbColZ = back.getZ();
                 }
-                // ADOPTING IS ALSO A WAY ONTO THE STAIRCASE. The column was chosen off the flight at
-                // climbFrom; the correction is entitled to change it and is not entitled to change it
-                // back onto a step. A rule whose own fallback ignores it is the shape
-                // JourneyStairs#needsOpen already records losing a run to, and this branch is
-                // literally that fallback.
-                BlockPos clear = climbPinned ? back : towerColumnClearOfTheFlight(lvlOf(rig),
-                        new BlockPos(climbColX, back.getY(), climbColZ));
+                // ADOPTING IS ALSO A WAY ONTO THE STAIRCASE — AND A PIN IS NOT A REASON NOT TO LOOK.
+                // The column was chosen off the flight at climbFrom; the correction is entitled to
+                // change it and is not entitled to change it back onto a step. A rule whose own
+                // fallback ignores it is the shape JourneyStairs#needsOpen already records losing a
+                // run to, and this branch is literally that fallback.
+                //
+                // This line used to read `climbPinned ? back : towerColumnClearOfTheFlight(...)`,
+                // i.e. a pinned climb skipped the check here as well as at climbFrom. The skip's
+                // stated reason —「换了柱就等于换了射线」— is about a column the ray chose, and the
+                // adopt above has just thrown that column away; see towerColumnAfterDrift for the
+                // rung-12 run where the column a DRIFT picked was a staircase column nobody ever
+                // checked. `adopted` is captured before the assignment because after it the two are
+                // equal by construction.
+                BlockPos clear = towerColumnAfterDrift(lvlOf(rig),
+                        new BlockPos(climbColX, back.getY(), climbColZ), climbPinned, adopted);
+                String pinNote = climbPinned && adopted
+                        ? "（钉住的柱已经被漂移换掉了，所以这一次照样问航道）" : "";
                 if (clear == null) {
                     rig.evidence(climbKey(step, ".driftOntoTheFlight"), climbColX + "," + climbColZ
                             + " 是楼梯那一柱，附近没有能改去的柱 —— 塔到此为止（垒下去就是把台阶砌死），"
-                            + "交给 climbOut 的兜底腿");
+                            + "交给 climbOut 的兜底腿" + pinNote);
                     then.run();
                     return;
                 }
                 if (clear.getX() != climbColX || clear.getZ() != climbColZ) {
                     rig.evidence(climbKey(step, ".driftOffTheFlight"), climbColX + "," + climbColZ
                             + " 是楼梯那一柱，改到 " + clear.getX() + "," + clear.getZ()
-                            + "（落脚 " + clear.toShortString() + "）");
+                            + "（落脚 " + clear.toShortString() + "）" + pinNote);
                     climbColX = clear.getX();
                     climbColZ = clear.getZ();
                 }

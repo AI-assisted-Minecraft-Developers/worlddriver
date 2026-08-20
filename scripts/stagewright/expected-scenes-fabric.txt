@@ -324,6 +324,13 @@ wd.serverDrawsABow
 wd.unwedgeRefusesTheStaircaseColumn
 wd.unwedgeTowersBesideTheStaircase
 
+# The same flight, and the column NOBODY asked for. A pinned climb's column is left alone on the
+# flight on purpose — it came out of the pour's ray — and rung 12 then drifted, could not walk
+# back, and adopted a DIFFERENT staircase column that no chooser had ever seen. Two dirt went in,
+# the body stood on the second, and the tread audit cannot mine what a body is standing on.
+wd.unwedgePinnedDriftRefusesTheStaircase
+wd.unwedgePinnedDriftTowersBesideTheStaircase
+
 # Rung 13 lit its portal and then spent eight identical legs asking the pathfinder for a cell no
 # route reached: the casting's own cobblestone slag walls the bottom two rows of the doorway, the
 # only row left open is too short for a 1.8-tall body, and the only cell A* accepts as a goal is the

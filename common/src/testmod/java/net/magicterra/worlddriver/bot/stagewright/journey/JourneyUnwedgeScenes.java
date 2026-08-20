@@ -46,10 +46,10 @@ import net.minecraft.world.level.block.Blocks;
  * steps, a body on one of them, and one tower order. That fits in an arena, runs in a fraction of a
  * second, and is executed by every one of the six gates.
  *
- * <h2>Two arms, one variable</h2>
+ * <h2>Four arms over one staged flight, two pairs, one variable each</h2>
  *
- * The two scenes stage <b>the same flight</b> and differ in exactly one thing: whether there is a
- * standable cell beside the step the body is on.
+ * Every scene here stages <b>the same flight</b>. The first pair differs in exactly one thing —
+ * whether there is a standable cell beside the step the body is on — and asks what a climb REQUESTS:
  *
  * <ul>
  *   <li>{@code wd.unwedgeRefusesTheStaircaseColumn} — a stairwell cut through rock, which is the
@@ -59,13 +59,30 @@ import net.minecraft.world.level.block.Blocks;
  *       step. Now there IS somewhere to go, and the chooser must find it and tower there.</li>
  * </ul>
  *
+ * The second pair asks the same two questions of a column nobody requested — the one a PINNED climb's
+ * drift correction adopted after it could not walk back. That column reached the tower without ever
+ * being put through the chooser at all, and it killed rung 12 on 2026-08-19; see
+ * {@link JourneyShaft#towerColumnAfterDrift} for the readings.
+ *
+ * <ul>
+ *   <li>{@code wd.unwedgePinnedDriftRefusesTheStaircase} — nowhere to step aside to, so an adopted
+ *       flight column must still answer null even though the climb is pinned.</li>
+ *   <li>{@code wd.unwedgePinnedDriftTowersBesideTheStaircase} — a ledge exists, so it must be found
+ *       and used. Without this one,「the pin now refuses」would be satisfied by a chooser that had
+ *       simply been switched off.</li>
+ * </ul>
+ *
  * <h2>Every arm carries its own control, because「the stairs are fine」is easy to say by accident</h2>
  *
- * The criterion both arms end on is {@code JourneyStairs.faults(level).isEmpty()} — and a scene whose
+ * The criterion these arms end on is {@code JourneyStairs.faults(level).isEmpty()} — and a scene whose
  * tower never reached the flight at all would satisfy it without measuring anything. So each arm
- * FIRST drives the pre-fix behaviour (a tower from the step the body stands on) and requires the
- * flight to come back BROKEN. Only then is it restaged and the subject run. An arm that cannot break
- * the staircase on purpose has not earned the right to report that it kept it intact.
+ * FIRST drives the pre-fix behaviour (a tower from the flight cell the old code path handed back) and
+ * requires the flight to come back BROKEN. Only then is it restaged and the subject run. An arm that
+ * cannot break the staircase on purpose has not earned the right to report that it kept it intact.
+ *
+ * <p>The drift pair's control is stronger than an imitation: it asks the SAME production chooser for
+ * its answer with {@code driftMoved=false}, which is both the pre-fix behaviour and the behaviour
+ * still kept for a pin the drift has not touched. One boolean separates the control from the subject.
  *
  * <h2>What these arms do NOT cover</h2>
  *
@@ -73,7 +90,8 @@ import net.minecraft.world.level.block.Blocks;
  * {@code JourneyShaft.ascendByTowering}'s drift correction, it needs the pathfinder and a rig, and
  * it has its own rows ({@code climb.N.drift*}) on every ladder run. Here the body is placed in the
  * chosen cell directly, so a green arm says「the column chosen is a column a tower may safely build
- * in」and nothing about how the body gets there.
+ * in」and nothing about how the body gets there. The drift pair covers what that correction DECIDES,
+ * not the walking it does to get there.
  *
  * <h2>Arena footprint</h2>
  *
@@ -100,7 +118,11 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
                 Scene.of("wd.unwedgeRefusesTheStaircaseColumn", 200,
                         JourneyUnwedgeScenes::refusesTheStaircaseColumn).withRequired(false),
                 Scene.of("wd.unwedgeTowersBesideTheStaircase", 200,
-                        JourneyUnwedgeScenes::towersBesideTheStaircase).withRequired(false));
+                        JourneyUnwedgeScenes::towersBesideTheStaircase).withRequired(false),
+                Scene.of("wd.unwedgePinnedDriftRefusesTheStaircase", 200,
+                        JourneyUnwedgeScenes::pinnedDriftRefusesTheStaircase).withRequired(false),
+                Scene.of("wd.unwedgePinnedDriftTowersBesideTheStaircase", 200,
+                        JourneyUnwedgeScenes::pinnedDriftTowersBesideTheStaircase).withRequired(false));
     }
 
     // ---------------------------------------------------------------- rig ----
@@ -118,6 +140,17 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
      *  above it to be blocked by. */
     private static final int STAND_ON = 3;
 
+    /** The step whose column a pinned climb was aimed at — the column the pour's ray chose. Two,
+     *  which puts it ON the flight, exactly like rung 12's {@code 2,19}: {@code climbFrom} records
+     *  the collision and leaves a pinned column alone, so the arm starts from the state the ladder
+     *  actually starts from. */
+    private static final int AIMED_ON = 2;
+
+    /** The step the drift correction ended on — a DIFFERENT flight column, which is the whole point.
+     *  Four, two along from {@link #AIMED_ON}, so「the correction changed the column」is true by
+     *  construction and the arm asserts it rather than assuming it. */
+    private static final int DRIFTED_ON = 4;
+
     private static final String BLOCK_ID = "minecraft:cobblestone";
     private static final int STOCK = 64;
 
@@ -134,7 +167,7 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
     private static BlockPos step(SceneContext ctx, int s) { return ctx.rel(s, BASE + 7 - s, 0); }
 
     /**
-     * Cut the flight, register it, and (optionally) open a ledge beside the body's step.
+     * Cut the flight, register it, and (optionally) open a ledge beside one of its steps.
      *
      * <p>Called again between the control and the subject, so「restage」is literally the same
      * arrangement rather than a repair of the damage the control did — a restage that patched only
@@ -143,8 +176,13 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
      * <p>Three cells per step: the step, its head room, and the cell two above it that a climb has to
      * jump through. That third one is not spare — {@link JourneyStairs#faults} audits it, and leaving
      * it out would stage a flight that is faulty before anything runs.
+     *
+     * @param ledgeBesideStep which step gets a standable cell beside it, or {@code 0} for none. It is
+     *                        a step number rather than a boolean because the drift arms stage their
+     *                        ledge beside the step the DRIFT ended on, which is not the step the
+     *                        original arms stand on.
      */
-    private static void stage(SceneContext ctx, boolean withLedge) {
+    private static void stage(SceneContext ctx, int ledgeBesideStep) {
         clearBox(ctx);
         // The hill the flight is cut into — exactly the columns the chooser may inspect, solid from
         // below its search floor to above the flight's top. See the class note's footprint paragraph
@@ -162,12 +200,12 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
             for (int dy = 0; dy <= 2; dy++)
                 ctx.setBlock(s, BASE + 7 - s + dy, 0, Blocks.AIR);
 
-        if (withLedge) {
-            // ONE standable cell beside the body's step, level with it. Its floor stays stone; the
+        if (ledgeBesideStep > 0) {
+            // ONE standable cell beside the named step, level with it. Its floor stays stone; the
             // column above it is opened far enough that a tower started there is limited by its
             // order and not by the ceiling.
             for (int dy = 0; dy <= 9; dy++)
-                ctx.setBlock(STAND_ON, BASE + 7 - STAND_ON + dy, 1, Blocks.AIR);
+                ctx.setBlock(ledgeBesideStep, BASE + 7 - ledgeBesideStep + dy, 1, Blocks.AIR);
         }
 
         JourneyStairs.reset(ctx.level(), top(ctx));
@@ -252,7 +290,8 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
     }
 
     /**
-     * The pre-fix behaviour, run on purpose: tower from the step the body stands on.
+     * The pre-fix behaviour, run on purpose: tower from the flight cell the chooser would have
+     * handed back.
      *
      * <p>Its job is to make the arm's real criterion mean something. {@code faults().isEmpty()} is
      * satisfied by a tower that never touched the flight — by an arena where the body was staged
@@ -260,10 +299,17 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
      * in it. So the arm requires the flight to come back BROKEN here first, and hard-fails naming
      * the rig if it does not: an arm that cannot break the staircase deliberately cannot report that
      * it kept it intact.
+     *
+     * @param stand           the cell to drive the control tower from. The drift arms pass the cell
+     *                        {@code towerColumnAfterDrift} itself returns under the PRE-FIX flags, so
+     *                        their control is the old code path rather than a hand-made imitation of
+     *                        it — one boolean apart from the subject, same world, same tower order.
+     * @param ledgeBesideStep what {@link #stage} is re-run with, so the restage is the arm's own
+     *                        arrangement and not a guess at it
      */
-    private static void controlMustBreakTheFlight(SceneContext ctx, boolean withLedge) {
+    private static void controlMustBreakTheFlight(SceneContext ctx, BlockPos stand,
+                                                  int ledgeBesideStep) {
         ServerLevel level = ctx.level();
-        BlockPos stand = step(ctx, STAND_ON);
         ctx.record("control.staged", "flight " + JourneyStairs.steps() + " cell(s), body on "
                 + stand.toShortString() + " | " + JourneyStairs.report(level));
         if (!JourneyStairs.faults(level).isEmpty())
@@ -280,7 +326,7 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
                     + " could not tell a fix from a tower that never reached it — climbed "
                     + r.climbed() + ", spent " + r.spent + ", " + broken);
 
-        stage(ctx, withLedge);
+        stage(ctx, ledgeBesideStep);
         ctx.record("control.restaged", JourneyStairs.report(level));
         if (!JourneyStairs.faults(level).isEmpty())
             ctx.fail("THE RIG, not the subject: re-staging did not put the flight back — "
@@ -314,8 +360,8 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
     private static void refusesTheStaircaseColumn(SceneContext ctx) {
         ServerLevel level = ctx.level();
         config(ctx);
-        stage(ctx, false);
-        controlMustBreakTheFlight(ctx, false);
+        stage(ctx, 0);
+        controlMustBreakTheFlight(ctx, step(ctx, STAND_ON), 0);
 
         BlockPos stand = step(ctx, STAND_ON);
         BlockPos chosen = JourneyShaft.towerColumnClearOfTheFlight(level, stand);
@@ -369,8 +415,8 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
     private static void towersBesideTheStaircase(SceneContext ctx) {
         ServerLevel level = ctx.level();
         config(ctx);
-        stage(ctx, true);
-        controlMustBreakTheFlight(ctx, true);
+        stage(ctx, STAND_ON);
+        controlMustBreakTheFlight(ctx, step(ctx, STAND_ON), STAND_ON);
 
         BlockPos stand = step(ctx, STAND_ON);
         BlockPos ledge = ctx.rel(STAND_ON, BASE + 7 - STAND_ON, 1);
@@ -396,6 +442,190 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
         ctx.check(faults).as("D 楼梯每一级仍然走得通（支撑、台阶、头顶格、起跳格四读）: " + after)
                 .isEqualTo(0);
         ctx.check(after.contains("级都完好")).as("E 自检自己的判词要是「都完好」而不是「修好了」: »"
+                + after + "«").isTrue();
+    }
+
+    // ------------------------------------------------- arms: the drift path ----
+
+    /**
+     * The state the drift arms start from, recorded and CHECKED rather than assumed.
+     *
+     * <p>Three premises, and a rig that broke any of them would let both arms below report a colour
+     * about something else: the aimed column is a flight column (so a pinned climb really does reach
+     * {@code climbFrom}'s「只记下来」branch), the drifted column is a flight column too (so the
+     * adopted column is the thing under test), and the two are DIFFERENT (so {@code driftMoved} is
+     * true of the arena and not merely of the argument the scene passes).
+     */
+    private static void driftPremises(SceneContext ctx, BlockPos aimed, BlockPos drifted) {
+        ServerLevel level = ctx.level();
+        BlockPos aimedStep = JourneyStairs.stepInColumn(level, aimed.getX(), aimed.getZ());
+        BlockPos driftedStep = JourneyStairs.stepInColumn(level, drifted.getX(), drifted.getZ());
+        ctx.record("drift.premise", "钉住的柱 " + aimed.getX() + "," + aimed.getZ() + " → "
+                + (aimedStep == null ? "null" : aimedStep.toShortString()) + "；漂移后落在 "
+                + drifted.toShortString() + "，其柱 " + drifted.getX() + "," + drifted.getZ()
+                + " → " + (driftedStep == null ? "null" : driftedStep.toShortString()));
+        if (aimedStep == null || driftedStep == null
+                || (aimed.getX() == drifted.getX() && aimed.getZ() == drifted.getZ()))
+            ctx.fail("THE RIG, not the subject: this arm needs a PINNED column on the flight and a"
+                    + " drift that ended in a DIFFERENT flight column — 钉住 " + aimed.getX() + ","
+                    + aimed.getZ() + "=" + aimedStep + "，漂到 " + drifted.getX() + ","
+                    + drifted.getZ() + "=" + driftedStep);
+    }
+
+    /**
+     * The pre-fix answer, taken from the production chooser itself and then driven.
+     *
+     * <p>{@code towerColumnAfterDrift(level, drifted, pinned=true, driftMoved=false)} is exactly what
+     * the drift branch used to compute for a pinned climb — the old {@code climbPinned ? back :
+     * check(...)} — and it is still what the code computes for a pin the drift has NOT moved, which
+     * is the behaviour {@code climbFrom} documents and this fix deliberately keeps. So the control is
+     * not an imitation of the old path: it IS the old path, one boolean away from the subject.
+     *
+     * <p>It hard-fails on two different things, because they are two different lies. If the chooser
+     * hands back anything but the drifted cell, the control is not the pre-fix answer at all. If a
+     * tower driven from that cell leaves the flight intact, the arm's「楼梯还好」criterion cannot tell
+     * a fix from a tower that never reached the staircase.
+     */
+    private static void driftControlMustBreakTheFlight(SceneContext ctx, BlockPos drifted,
+                                                       int ledgeBesideStep) {
+        ServerLevel level = ctx.level();
+        BlockPos prefix = JourneyShaft.towerColumnAfterDrift(level, drifted, true, false);
+        ctx.record("control.prefixChoice", (prefix == null ? "null" : prefix.toShortString())
+                + "（钉住、且柱没被漂移换掉 ⇒ 不问航道，这就是修法之前的那个答案）");
+        if (!drifted.equals(prefix))
+            ctx.fail("THE RIG, not the subject: the control is supposed to BE the pre-fix answer and"
+                    + " it is not — towerColumnAfterDrift(" + drifted.toShortString()
+                    + ", pinned=true, driftMoved=false) = " + prefix);
+        controlMustBreakTheFlight(ctx, prefix, ledgeBesideStep);
+    }
+
+    /**
+     * <b>A pinned climb whose drift ended in a staircase column: the pin stops protecting that column
+     * the moment the drift replaced it, and there is nowhere to step aside to, so nothing is built.</b>
+     *
+     * <p>This is rung 12 of 2026-08-19. The raise was pinned to column {@code 2,19} — itself a flight
+     * column, which {@code climbFrom} records and leaves alone because the column came out of the
+     * pour's ray. Course one drifted to {@code 1,58,19}, {@code driftWedged} (a leg that moved the
+     * body zero cells), and {@code driftKeptPinned} adopted column {@code 1,19}: a different column,
+     * chosen by a drift, and <b>a flight column that nothing ever put through the chooser</b>. Two
+     * dirt went into {@code 1,58,19} and {@code 1,59,19}, the body finished standing on the second,
+     * and all three ascent legs then died on a staircase it was itself blocking.
+     *
+     * <p>The tread audit is not the fix, and this arm is why: {@code lava9.up} ran on that same trip
+     * and mended the two treads it could see. The one it could not is the block under the body's own
+     * feet — a body cannot mine what it is standing on — and that audit runs once and never re-asks.
+     *
+     * <h2>判据</h2>
+     *
+     * <ol>
+     *   <li>the premises hold: a pinned flight column, and a drift into a DIFFERENT flight column;</li>
+     *   <li>the control — the same chooser with {@code driftMoved=false} — hands back the drifted
+     *       cell, and a tower there breaks the flight. Without this, criterion 3 is 0 == 0;</li>
+     *   <li>with {@code driftMoved=true} the answer is <b>null</b>: do not tower here at all;</li>
+     *   <li>the unpinned answer is the same null, so the outcome is a property of the geometry and
+     *       not a special case bolted onto the pin.</li>
+     * </ol>
+     */
+    private static void pinnedDriftRefusesTheStaircase(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        config(ctx);
+        stage(ctx, 0);
+
+        BlockPos aimed = step(ctx, AIMED_ON);
+        BlockPos drifted = step(ctx, DRIFTED_ON);
+        driftPremises(ctx, aimed, drifted);
+        driftControlMustBreakTheFlight(ctx, drifted, 0);
+
+        BlockPos chosen = JourneyShaft.towerColumnAfterDrift(level, drifted, true, true);
+        BlockPos unpinned = JourneyShaft.towerColumnAfterDrift(level, drifted, false, true);
+        ctx.record("subject.chosen", chosen == null ? "null（不许起塔）" : chosen.toShortString());
+        ctx.record("subject.unpinned", unpinned == null ? "null" : unpinned.toShortString());
+        ctx.record("subject.row", JourneyShaft.offTheFlightRow(level, drifted, chosen));
+
+        ctx.check(chosen).as("A 漂移已经把钉住的柱换掉了，所以这一次必须问航道:"
+                + " towerColumnAfterDrift(" + drifted.toShortString()
+                + ", pinned=true, driftMoved=true) — 井壁两侧都是石头，答案只能是 null").isNull();
+        ctx.check(unpinned).as("B 去掉钉住也是同一个答案，否则「拒绝」是对钉住打的补丁而不是"
+                + "这套几何的性质: " + unpinned).isNull();
+        ctx.check(JourneyShaft.offTheFlightRow(level, drifted, chosen).contains("改走楼梯本身"))
+                .as("C 记录要说出它拒绝了哪一级、为什么: »"
+                        + JourneyShaft.offTheFlightRow(level, drifted, chosen) + "«").isTrue();
+    }
+
+    /**
+     * <b>The same drift with one standable cell beside it: the adopted column moves off the flight,
+     * the tower is built there, and the staircase is still walkable.</b>
+     *
+     * <p>The arm above proves the pin stops REFUSING to look. This one proves the look then ACTS —
+     * an arm that only ever answered null would be satisfied by a chooser that had simply been
+     * switched off. The only difference from it is nine cells of air over one stone floor beside step
+     * {@value #DRIFTED_ON}.
+     *
+     * <h2>判据 — six, and none of them redundant</h2>
+     *
+     * <ol>
+     *   <li>the premises hold, as above;</li>
+     *   <li>the control is still the pre-fix answer and still breaks the flight;</li>
+     *   <li>the chosen column is the ledge, not the flight's;</li>
+     *   <li>the unpinned answer is the same ledge — once the drift has moved the column the pin makes
+     *       no difference at all, which is this fix stated as an equality;</li>
+     *   <li>the tower actually climbed its courses and spent its blocks, so the last one is not
+     *       0 == 0;</li>
+     *   <li>every cell of the flight is passable, and the audit's own sentence says「都完好」rather
+     *       than「修好了」.</li>
+     * </ol>
+     *
+     * <p>The tower is driven from what the chooser returned rather than from the ledge this scene
+     * staged, and that is not a detail: the pre-fix reproduction of this arm handed back the STEP and
+     * still reported {@code subject.after = 0 fault(s): 7 级都完好}, because the drive had been given
+     * the right cell by the test instead of by the code.</p>
+     */
+    private static void pinnedDriftTowersBesideTheStaircase(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        config(ctx);
+        stage(ctx, DRIFTED_ON);
+
+        BlockPos aimed = step(ctx, AIMED_ON);
+        BlockPos drifted = step(ctx, DRIFTED_ON);
+        BlockPos ledge = ctx.rel(DRIFTED_ON, BASE + 7 - DRIFTED_ON, 1);
+        driftPremises(ctx, aimed, drifted);
+        driftControlMustBreakTheFlight(ctx, drifted, DRIFTED_ON);
+
+        BlockPos chosen = JourneyShaft.towerColumnAfterDrift(level, drifted, true, true);
+        BlockPos unpinned = JourneyShaft.towerColumnAfterDrift(level, drifted, false, true);
+        ctx.record("subject.chosen", (chosen == null ? "null" : chosen.toShortString())
+                + "（台阶 " + drifted.toShortString() + "，壁架 " + ledge.toShortString() + "）");
+        ctx.record("subject.unpinned", unpinned == null ? "null" : unpinned.toShortString());
+        ctx.record("subject.row", JourneyShaft.offTheFlightRow(level, drifted, chosen));
+
+        ctx.check(chosen).as("A 漂移改了柱之后，钉住的塔也要改到那一格壁架上: 壁架在 "
+                + ledge.toShortString()).isEqualTo(ledge);
+        ctx.check(unpinned).as("B 漂移之后，钉不钉住不影响结果（射线选的那一柱已经不在了）: "
+                + unpinned).isEqualTo(chosen);
+
+        // FROM THE CHOOSER'S OWN ANSWER, not from the cell this scene knows to be right. Driving the
+        // tower from `ledge` would make the two criteria below true of a run in which the chooser had
+        // handed back the staircase — measured: the pre-fix reproduction of this arm reported
+        // `subject.after = 0 fault(s): 7 级都完好` beside `subject.chosen = …,100000`, the step
+        // itself. `ctx.check` accumulates rather than throws, so a null here has to be stopped by a
+        // `fail` or it would arrive as an NPE with no evidence attached.
+        if (chosen == null)
+            ctx.fail("the chooser refused a column that has a ledge beside it, so there is no tower"
+                    + " to drive — 壁架 " + ledge.toShortString() + "，台阶 " + drifted.toShortString());
+        final int courses = 4;
+        Run r = tower(ctx, "subject", body(ctx, chosen), courses);
+        String after = JourneyStairs.report(level);
+        int faults = JourneyStairs.faults(level).size();
+        ctx.record("subject.after", faults + " fault(s): " + after);
+
+        ctx.check(r.climbed()).as("C 塔真的垒了 " + courses + " 级（否则「楼梯还好」是 0==0）: from y="
+                + r.startY() + " to y=" + r.endY() + ", drift " + r.driftX() + "," + r.driftZ()
+                + ", lastError=" + r.lastError()).isEqualTo(courses);
+        ctx.check(r.spent()).as("D 恰好花掉 " + courses + " 块圆石: spent " + r.spent())
+                .isEqualTo(courses);
+        ctx.check(faults).as("E 楼梯每一级仍然走得通（支撑、台阶、头顶格、起跳格四读）: " + after)
+                .isEqualTo(0);
+        ctx.check(after.contains("级都完好")).as("F 自检自己的判词要是「都完好」而不是「修好了」: »"
                 + after + "«").isTrue();
     }
 }

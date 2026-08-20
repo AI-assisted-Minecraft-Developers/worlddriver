@@ -1,4 +1,4 @@
-## ⬜ 第 12 级：**漂移改柱之后没人再问「这一柱是不是楼梯」**（2026-08-19，已定案未修）
+## ✅ 第 12 级：**漂移改柱之后没人再问「这一柱是不是楼梯」**（2026-08-19 定案，2026-08-20 修完，两边闸 GREEN）
 
 ```
 recover8.rise#9.offTheFlight       起塔柱 2,19 是钉住的，射线选的柱不改（下井楼梯 11 级）；
@@ -18,10 +18,28 @@ FAIL 走不上楼梯：停在 1, 60, 19 … 楼梯自检：1/11 级坏了：1, 5
 **一次都不问**。钉住的理由是「换了柱就等于换了射线」——**漂移已经把柱换掉了**，这个理由当场作废，
 所以那正是该补一次航道检查的时刻，而不是该跳过的时刻。
 
-⬜ 修法：`driftKeptPinned` 采纳新柱前跑一遍 `towerColumnClearOfTheFlight`，落在楼梯柱上就改到
+✅ 修法：`driftKeptPinned` 采纳新柱前跑一遍 `towerColumnClearOfTheFlight`，落在楼梯柱上就改到
 邻近的非楼梯柱（`towerColumnClearOfTheFlight` 已有三值返回，`null` 时不起塔、改走楼梯本身）。
 ⛔ 不许只在 `lava*.up` 的自检里补：那一步已经在这一趟里跑过了，它敲开了看得见的两级、
 **敲不开身体正踩着的那一格**——自检只跑一次、修完不复审，也是这一趟的第二笔账。
+
+### 已修（2026-08-20）：航道检查改到「柱真正被决定的地方」
+
+`JourneyShaft.towerColumnAfterDrift(level, want, pinned, driftMoved)`——漂移换了柱就问航道，
+不管钉没钉；漂移没换柱的钉住仍然只记录（`climbFrom` 那一层的语义不变）。
+两者只差一个布尔量，所以新场景能拿旧行为当对照组。
+
+```
+wd.unwedgePinnedDriftRefusesTheStaircase        PASS
+wd.unwedgePinnedDriftTowersBesideTheStaircase   PASS
+修之前同两条：subject.chosen=236196,223,100000（台阶本身）  subject.unpinned=null
+                       ⇒ 不钉住的路径早就拒绝了，只有钉住的那条没拒
+```
+
+⬜ **审计留下的唯一一条未检查写入**：`climbFrom` 里钉住的**请求**柱
+（`JourneyShaft.java` L216）仍然只记录不改。那是有意的：那一柱是浇筑的射线选的，
+改它等于回答另一个问题。但本趟里 `2,56,19` 这一级确实就是被它垒坏的（后来被
+`lava9.up` 的自检敲开了）。下一趟真梯如果还在楼梯柱上看到 dirt，先看这一条。
 
 ---
 

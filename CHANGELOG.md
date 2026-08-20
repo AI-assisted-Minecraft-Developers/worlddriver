@@ -5,6 +5,39 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-08-20
+
+- **A pin is not a reason to skip the flight check once a drift has already changed the column.**
+  `JourneyShaft`'s drift correction used to read `climbPinned ? back : towerColumnClearOfTheFlight(...)`,
+  so a pinned climb skipped the check in the one place the column is not the caller's any more. Rung 12
+  of 2026-08-19 died on exactly that: the raise was pinned to column `2,19` (itself a stair column,
+  which `climbFrom` records and deliberately leaves alone because it came out of the pour's ray),
+  course one drifted to `1,58,19`, `driftWedged`, and `driftKeptPinned` adopted column `1,19` — a
+  DIFFERENT stair column that nothing ever put through the chooser. Two dirt went into `1,58,19` and
+  `1,59,19`, the body finished standing on the second, and all three ascent legs died. The new
+  `towerColumnAfterDrift` runs the check whenever the drift moved the column, pinned or not, and keeps
+  the record-only behaviour for a pin the drift has not touched — the two are one boolean apart, which
+  is what lets a scene use the old one as the control for the new one.
+
+  The tread audit was NOT the place for this and the same run proves it: `lava9.up` ran on that trip
+  and mended the two treads it could see. The one it could not is the block under the body's own feet
+  — a body cannot mine what it is standing on — and that audit runs once and never re-asks.
+
+- **Two more arms on the staged flight, both `withRequired(false)`**, so the drift-adopt decision has
+  coverage that costs a fraction of a second instead of a forty-minute ladder run.
+  `wd.unwedgePinnedDriftRefusesTheStaircase` (stairwell cut through rock: the answer must stay null
+  even for a pinned climb) and `wd.unwedgePinnedDriftTowersBesideTheStaircase` (a ledge exists, so it
+  must be found and built on — without it,「the pin now refuses」would be satisfied by a chooser that
+  had simply been switched off). Both take their CONTROL from the production chooser itself with
+  `driftMoved=false`, drive a tower from whatever it hands back, and hard-fail the rig unless the
+  flight comes back broken. Measured pre-fix: `subject.chosen=236196,223,100000` (the step) beside
+  `subject.unpinned=null` — the unpinned path already refused, and only the pinned one did not.
+
+  The ledge arm drives its tower from `subject.chosen` rather than from the ledge the scene staged.
+  That is not tidiness: the pre-fix reproduction handed back the STEP and still reported
+  `subject.after = 0 fault(s): 7 级都完好`, because the drive had been given the right cell by the
+  test instead of by the code.
+
 ## 2026-08-19
 
 - **The stride guard's lava break did NOT cost rung 12, and the four ladder runs say so without
