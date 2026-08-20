@@ -513,6 +513,43 @@ public final class JourneyPortalEntry {
     }
 
     /**
+     * The goal one walk leg asks for — {@code Goal.XZ} on a flat turn, {@code Goal.Block} otherwise,
+     * <b>except that a column the body is already standing in is not a question.</b>
+     *
+     * <p>The legs alternate SHAPE because a retry that asks the identical question gets the identical
+     * answer. But {@code Goal.XZ} {@link Goal#ignoresY() ignores Y by construction}, so a body one row
+     * ABOVE the doorstep, in its column, satisfies it where it stands: the walker's own
+     * {@code goal.reached(foot)} fires on tick one, it returns ARRIVED having moved nothing, and the
+     * leg is spent asking something whose answer was already yes. Measured on the ladder
+     * (2026-08-20 15:20), doorstep {@code 3,57,20}, body {@code 3,58,20}:
+     *
+     * <pre>
+     * portal.walk.1 = XZ 目标 3, 57, 20：2, 58, 20 → 3, 58, 20（挪了 1 格）end=arrived
+     * portal.walk.3 = XZ 目标 3, 57, 20：3, 58, 20 → 3, 58, 20（挪了 0 格）end=arrived
+     * </pre>
+     *
+     * {@code walk.3} is a no-op that reports success AND counts toward the two-still-legs terminator,
+     * so half the budget was being spent on a shape that could not express「and be on that row」.
+     *
+     * <p><b>The alternation is kept, not replaced.</b> A body that is NOT in the column still gets the
+     * XZ leg — that is the case the alternation was adopted for, where dropping the Y requirement is a
+     * genuinely different and easier question. Only the degenerate turn is converted. Adding a THIRD
+     * shape would have left the degenerate one in the rotation.
+     */
+    static Goal legGoal(BlockPos here, BlockPos stand, boolean flatTurn) {
+        Goal.XZ column = new Goal.XZ(stand.getX(), stand.getZ(), 0);
+        return flatTurn && here != null && !column.reached(here) ? column : new Goal.Block(stand);
+    }
+
+    /** What {@link #legGoal} actually picked, for the evidence row — a leg that says「XZ」when it
+     *  asked a 3D question is a row that will mislead the next reader the way {@code walk.3} did. */
+    static String legShape(BlockPos here, BlockPos stand, boolean flatTurn) {
+        Goal picked = legGoal(here, stand, flatTurn);
+        if (picked instanceof Goal.XZ) return "XZ";
+        return flatTurn ? "3D（本轮该问 XZ，但身体已经在那一列上，XZ 问不出新东西）" : "3D";
+    }
+
+    /**
      * Walk to the doorstep, re-planning from wherever each leg ends, <b>alternating the goal
      * SHAPE</b>.
      *
@@ -522,6 +559,10 @@ public final class JourneyPortalEntry {
      * the row as well. Either shape alone has been observed to stall, so the rounds alternate, and
      * two consecutive legs that move the body zero cells end the walk rather than spend the rest of
      * the budget re-asking.
+     *
+     * <p>The shape each leg actually asks for comes from {@link #legGoal}, which drops a flat turn
+     * whose column the body is ALREADY standing in — that turn is a no-op that reports arrival, and
+     * it counts toward the still-leg terminator. See that method for the ladder rows.
      */
     private static void walkToTheDoorstep(SceneContext ctx, JourneyRig rig, BlockPos portal,
                                           Doorstep door, BlockPos from, Attempt attempt, int left) {
@@ -538,9 +579,9 @@ public final class JourneyPortalEntry {
                     DOOR_LEGS + " 趟都没走到门口 " + door.stand().toShortString());
             return;
         }
-        final boolean flat = (left % 2) == 0;
-        Goal goal = flat ? new Goal.XZ(door.stand().getX(), door.stand().getZ(), 0)
-                         : new Goal.Block(door.stand());
+        final boolean flatTurn = (left % 2) == 0;
+        Goal goal = legGoal(here, door.stand(), flatTurn);
+        final String shape = legShape(here, door.stand(), flatTurn);
         final long began = level.getGameTime();
         final int leg = DOOR_LEGS - left + 1;
         rig.settle(new IntentProcess(new Intent(goal)), DOOR_LEG_TICKS,
@@ -557,7 +598,7 @@ public final class JourneyPortalEntry {
             attempt.waited += spent;
             BlockPos at = rig.player().blockPosition();
             int moved = here.distManhattan(at);
-            rig.evidence("portal.walk." + leg, (flat ? "XZ" : "3D") + " 目标 "
+            rig.evidence("portal.walk." + leg, shape + " 目标 "
                     + door.stand().toShortString() + "：" + here.toShortString() + " → "
                     + at.toShortString() + "（挪了 " + moved + " 格，花了 " + spent + " tick）"
                     + " end=" + rig.body().botState().mc_goto.endReason
@@ -657,11 +698,9 @@ public final class JourneyPortalEntry {
                     neverGotIn(ctx, rig, portal, attempt, "身体被挤出门洞后，门洞四周再没有站得住的落脚格");
                     return;
                 }
-                boolean flat = (legs % 2) == 0;
-                run = new IntentProcess(new Intent(flat
-                        ? new Goal.XZ(door.stand().getX(), door.stand().getZ(), 0)
-                        : new Goal.Block(door.stand())));
-                what = (flat ? "XZ" : "3D") + " 走回门口 " + door.stand().toShortString();
+                boolean flatTurn = (legs % 2) == 0;
+                run = new IntentProcess(new Intent(legGoal(at, door.stand(), flatTurn)));
+                what = legShape(at, door.stand(), flatTurn) + " 走回门口 " + door.stand().toShortString();
             }
         }
         final long began = level.getGameTime();

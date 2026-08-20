@@ -338,6 +338,10 @@ wd.unwedgePinnedDriftTowersBesideTheStaircase
 # with the frame's own obsidian and requires the refusal — never mine the portal to get into it.
 wd.portalEntryDigsIntoTheRowItFits
 wd.portalEntryWillNotMineItsOwnFrame
+# Goal.XZ ignores Y, so a leg asking for a column the body already stands in reports arrival
+# without moving AND feeds the still-leg terminator. The control drives that goal and must not
+# reach the doorstep; the last clause keeps the alternation from being deleted rather than fixed.
+wd.portalEntryWontAskForAColumnItStandsIn
 
 # The same row three times on 2026-08-19: "stuck (no Y gain in 60t: placed=0, holding=64,
 # phase=JUMPING)" over a body on the ground holding a stack. TowerProcess leaves JUMPING on

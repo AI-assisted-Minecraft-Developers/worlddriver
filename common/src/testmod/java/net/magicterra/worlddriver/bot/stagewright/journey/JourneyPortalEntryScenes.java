@@ -104,7 +104,9 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
                 Scene.of("wd.portalEntryDigsIntoTheRowItFits", 400,
                         JourneyPortalEntryScenes::digsIntoTheRowItFits).withRequired(false),
                 Scene.of("wd.portalEntryWillNotMineItsOwnFrame", 200,
-                        JourneyPortalEntryScenes::willNotMineItsOwnFrame).withRequired(false));
+                        JourneyPortalEntryScenes::willNotMineItsOwnFrame).withRequired(false),
+                Scene.of("wd.portalEntryWontAskForAColumnItStandsIn", 400,
+                        JourneyPortalEntryScenes::wontAskForAColumnItStandsIn).withRequired(false));
     }
 
     // ----------------------------------------------------------------------- rig ----
@@ -253,8 +255,14 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
 
     /** A body standing in {@code foot}, settled, with a pickaxe and the cleanup that removes it. */
     private static ServerWorldDriver body(SceneContext ctx, BlockPos foot) {
+        return body(ctx, foot, 0.5);
+    }
+
+    /** The same, with the body's z inside its own cell named — a stance on the LIP of a block is a
+     *  different situation from one at its centre, and one arm here needs the lip. */
+    private static ServerWorldDriver body(SceneContext ctx, BlockPos foot, double dz) {
         ServerWorldDriver driver = ServerWorldDriver.createIsolated(ctx.level(),
-                foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5);
+                foot.getX() + 0.5, foot.getY(), foot.getZ() + dz);
         ServerPlayer fp = driver.fakePlayer();
         ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); });
         fp.getInventory().clearContent();
@@ -335,6 +343,151 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
 
     // ---------------------------------------------------------------------- arms ----
 
+    // ------------------------------------------- the leg that asked a question already answered ----
+
+    /** The perch arm's floor, as a dy offset. Its own {@code BASE} so a re-stage cannot inherit the
+     *  portal arms' hill. */
+    private static final int LEDGE = 40;
+
+    /** The body's z inside its own cell. {@code 0.79} leaves {@code 0.6 x 0.09 = 0.054} of sole on the
+     *  perch north of it — the ladder's own stance was {@code 0.794} for {@code 0.0563}. Rounded to
+     *  the cell centre the body has no support at all and simply falls, which would answer the
+     *  question by accident. */
+    private static final double LEDGE_DZ = 0.79;
+
+    /** Ticks one leg gets. The whole move is one cell down; the ladder's legs were over in 11. */
+    private static final int LEDGE_TICKS = 80;
+
+    /** Where the body stands: one row ABOVE the doorstep, in its column, held up by the perch. */
+    private static BlockPos ledgePerch(SceneContext ctx) { return ctx.rel(0, LEDGE + 2, 0); }
+
+    /** The doorstep, straight down from {@link #ledgePerch}. */
+    private static BlockPos ledgeStep(SceneContext ctx) { return ctx.rel(0, LEDGE + 1, 0); }
+
+    /**
+     * <b>{@code Goal.XZ} ignores Y, so a leg that asks for a column the body is already standing in
+     * reports success without moving — and the rung counted that as a still leg.</b>
+     *
+     * <h2>What the ladder did</h2>
+     *
+     * Rung 13 alternates its walk legs between {@code Goal.XZ} and {@code Goal.Block} because a retry
+     * that asks the identical question gets the identical answer. On 2026-08-20 15:20 the doorstep was
+     * {@code 3,57,20} and the body ended one row directly above it, on {@code 3,58,20}:
+     *
+     * <pre>
+     * portal.walk.1 = XZ 目标 3, 57, 20：2, 58, 20 → 3, 58, 20（挪了 1 格）end=arrived
+     * portal.walk.2 = 3D 目标 3, 57, 20：3, 58, 20 → 3, 58, 20（挪了 0 格）end=path-consumed
+     * portal.walk.3 = XZ 目标 3, 57, 20：3, 58, 20 → 3, 58, 20（挪了 0 格）end=arrived
+     * </pre>
+     *
+     * {@code walk.1} and {@code walk.3} both say {@code arrived} and neither body was ever on the
+     * doorstep, because {@code Goal.XZ(3,20,0).reached(3,58,20)} is TRUE — the column matches and the
+     * row is not part of the question. {@code walk.3} is a pure no-op that reports success, and
+     * because it moved zero cells it also fed the two-still-legs terminator that ended the rung. So
+     * half of the leg budget was being spent on a shape that could not express「and be on that row」,
+     * and the shape that could was being interleaved with it.
+     *
+     * <h2>What this asks, and what it deliberately does not</h2>
+     *
+     * The subject is {@link JourneyPortalEntry#legGoal}, not the terrain — so unlike
+     * {@code wd.serverStepsDownAPlanItSpentInOneTick}, whose subject IS the plan the terrain produces
+     * and which therefore copies the region file cell for cell, this arm stages the smallest world in
+     * which the situation is real: a doorstep, a perch, and a body standing on the lip of the perch
+     * one row above the doorstep. The stance is not incidental and is checked — a body at the cell
+     * centre has nothing under it and falls onto the doorstep by gravity, which would pass every
+     * clause below while measuring nothing.
+     *
+     * <h2>判据</h2>
+     *
+     * <ol>
+     *   <li><b>the XZ leg is a no-op</b> — drive the goal the old alternation would have issued and
+     *       require the body NOT to reach the doorstep. This is the control: if this arm can descend,
+     *       the scene cannot tell a fix from a walk that was never blocked;</li>
+     *   <li><b>{@code legGoal} does not issue it</b> on a flat turn from that cell — it must hand back
+     *       a {@code Goal.Block};</li>
+     *   <li><b>and driving what it does issue lands the body on the doorstep</b>;</li>
+     *   <li><b>the alternation still exists.</b> From a cell OUTSIDE the doorstep's column a flat turn
+     *       must still be {@code Goal.XZ}. Without this the fix could have deleted the alternation
+     *       outright and every clause above would still be green.</li>
+     * </ol>
+     *
+     * <h2>Arena footprint</h2>
+     *
+     * {@code dx in [-3, 3]}, {@code dz in [-3, 3]}, {@code dy in [LEDGE, LEDGE + 4]} — inside the
+     * default one-chunk window, so no {@code withChunkRadius}.
+     */
+    private static void wontAskForAColumnItStandsIn(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        config(ctx);
+        ctx.cleanup(() -> clearLedge(ctx));
+        stageLedge(ctx);
+
+        BlockPos perch = ledgePerch(ctx);
+        BlockPos step = ledgeStep(ctx);
+        ctx.record("rig", "身体那一格 " + perch.toShortString() + "（脚下 "
+                + level.getBlockState(perch.below()).getBlock() + "，靠北边那块垫脚撑住），门口 "
+                + step.toShortString() + " 就在正下方 —— 同一列，差一行");
+        ctx.check(JourneyPortalEntry.standable(level, step))
+                .as("THE RIG: 门口 " + step.toShortString() + " 得是站得住的，不然量的是别的东西")
+                .isTrue();
+
+        // ---- control: the goal the alternation used to issue on this turn ----
+        ServerWorldDriver blind = body(ctx, perch, LEDGE_DZ);
+        BlockPos before = blind.fakePlayer().blockPosition();
+        Goal.XZ column = new Goal.XZ(step.getX(), step.getZ(), 0);
+        ctx.record("blind.premise", "XZ(" + step.getX() + "," + step.getZ() + ",0).reached("
+                + before.toShortString() + ") = " + column.reached(before)
+                + " —— 身体站的就是目标那一列，所以这一问的答案本来就是「是」");
+        int blindTicks = drive(blind, new IntentProcess(new Intent(column)), LEDGE_TICKS);
+        boolean blindArrived = blind.fakePlayer().blockPosition().equals(step);
+        ctx.record("blind.leg", "XZ 目标 " + step.toShortString() + "：" + before.toShortString()
+                + " → " + where(blind) + "（" + blindTicks + " tick） end="
+                + blind.botState().mc_goto.endReason + " " + exactly(blind));
+        if (blindArrived)
+            ctx.fail("THE RIG, not the subject: XZ 那一腿自己就走到了门口 " + step.toShortString()
+                    + "，那么「换成 3D 才走得到」就分不清修好了和这座场地本来就走得通 —— " + where(blind));
+
+        // ---- subject: what legGoal issues on the same turn, from the same cell ----
+        ServerWorldDriver seeing = body(ctx, perch, LEDGE_DZ);
+        BlockPos here = seeing.fakePlayer().blockPosition();
+        Goal picked = JourneyPortalEntry.legGoal(here, step, true);
+        ctx.record("picked", JourneyPortalEntry.legShape(here, step, true) + " → " + picked);
+        int seeTicks = drive(seeing, new IntentProcess(new Intent(picked)), LEDGE_TICKS);
+        ctx.record("subject.leg", "目标 " + step.toShortString() + "：" + here.toShortString()
+                + " → " + where(seeing) + "（" + seeTicks + " tick） end="
+                + seeing.botState().mc_goto.endReason + " " + exactly(seeing));
+
+        // The alternation has to survive the fix, or this is a deletion wearing a fix's clothes.
+        BlockPos far = step.offset(4, 1, 4);
+        Goal stillXz = JourneyPortalEntry.legGoal(far, step, true);
+        ctx.record("alternation", "从 " + far.toShortString() + "（不在那一列上）问平的那一轮 → "
+                + stillXz);
+
+        ctx.check(picked instanceof Goal.Block).as("A 身体已经站在门口那一列上时，平的那一轮不许再问 XZ："
+                + "实测 " + picked + "（XZ 对这一格的答案是 " + column.reached(here) + "）").isTrue();
+        ctx.check(seeing.fakePlayer().blockPosition()).as("B 而且换来的那个目标要真把身体带到门口 "
+                + step.toShortString() + " —— 实测 " + where(seeing)).isEqualTo(step);
+        ctx.check(stillXz instanceof Goal.XZ).as("C 而且不在那一列上时，平的那一轮还得是 XZ —— "
+                + "交替是为了换个问法，不是为了删掉一种问法：实测 " + stillXz).isTrue();
+    }
+
+    /** Floor, doorstep and the one block the body balances on. Nothing else: the subject is which
+     *  goal a leg asks for, so terrain past that would only add ways for the arm to be wrong. */
+    private static void stageLedge(SceneContext ctx) {
+        clearLedge(ctx);
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = -3; dz <= 3; dz++)
+                ctx.setBlock(dx, LEDGE, dz, Blocks.STONE);
+        // The perch: its top face is the body's floor, one row ABOVE the doorstep, one cell north.
+        ctx.setBlock(0, LEDGE + 1, 1, Blocks.STONE);
+    }
+
+    private static void clearLedge(SceneContext ctx) {
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = -3; dz <= 3; dz++)
+                for (int dy = LEDGE; dy <= LEDGE + 4; dy++)
+                    ctx.setBlock(dx, dy, dz, Blocks.AIR);
+    }
     /**
      * <b>The one open row is too short to walk through: open the row below it and step in there.</b>
      *

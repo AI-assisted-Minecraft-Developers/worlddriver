@@ -23,6 +23,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   air whose own floor is air. The body was legitimately perched on the north lip of the cobblestone
   at `3,57,21`, `脚底实心 0.0563`. Nothing invisible was left behind by rung 12.
 
+- **`Goal.XZ` ignores Y by construction, so half the retry legs asked a question the body had already
+  answered.** `XZ(3,20,0).reached(3,58,20)` is TRUE — the column matches and the row is not part of
+  the question — which is why `walk.1` and `walk.3` both report `arrived` with the body never on the
+  doorstep. `walk.3` is a pure no-op that reports success, and because it moved zero cells it also
+  fed the two-still-legs terminator that ended the rung. **A descent to a specific cell has to be a
+  3D goal**, so `JourneyPortalEntry.legGoal` now converts the flat turn to `Goal.Block` when the body
+  is already standing in the target column, and keeps `Goal.XZ` for a body outside it. The
+  alternation is still an alternation — the point of it is to change the question on a retry, and
+  deleting it would have passed every clause that only checks the descent.
+
 - **`step == 1` was a POINTER index standing in for「the body has not walked this plan」, and the next
   run walked straight through it.** A\* answered `Goal.Block(3,57,20)` from `3,58,20` with a TWO-node
   plan — `[3,58,21 → 3,57,20]`, sideways onto the standable cell beside the body and then down — and
@@ -73,6 +83,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   search's `PathStats`, because these arenas emit no `[walker]` line into the run's log at all, so
   「the plan was two nodes and both were spent at once」had to be recorded in the scene or it was not
   recorded anywhere.
+
+- **`wd.portalEntryWontAskForAColumnItStandsIn`, `withRequired(false)`.** The smallest world in which
+  the `Goal.XZ` blindness is real: a doorstep, a perch, and a body on the perch's lip one row above.
+  The control drives the goal the old alternation issued and requires it NOT to arrive — measured,
+  `XZ 目标 …,241,…：…,242,… → …,242,…（1 tick） end=arrived`, a success reported from one row up
+  without moving. The subject requires `legGoal` to hand back a `Goal.Block` and that goal to land the
+  body on the doorstep (45 ticks), and a fourth clause requires a flat turn from OUTSIDE the column to
+  still be `Goal.XZ`, so the fix cannot be a deletion wearing a fix's clothes. The stance is checked
+  too: at the cell centre the body has no support and falls onto the doorstep by gravity, which would
+  pass every clause while measuring nothing.
 
 - **Rung 13 could not walk the last cell into the portal it had lit, because the walker spends the
   LAST node of a plan that steps down.** The run of 2026-08-20 13:44 got the geometry right — it
