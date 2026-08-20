@@ -127,6 +127,10 @@ public final class JourneyPortalRung {
         }
         rig.attempting("装一桶水带下去 —— 底下没有水可回头取");
         rig.settle(new IntentProcess(new Intent(new Goal.Near(water, 2))), 2_000, () -> {
+            // The leg that had no reading. Everything below aims and uses a bucket, and a body that
+            // stopped thirty blocks short produces exactly the same rows as one that arrived and
+            // missed — so a failed fill here has read as「装水失败」whatever the real cause was.
+            JourneyLeg.record(rig, "waterFill", water);
             BlockPos aim = JourneyTerrain.shallowWaterNear(rig, 8);
             if (aim == null) aim = water;
             WorldDriverJourneyScenes.holdForUse(rig, Items.BUCKET, "waterFill");
