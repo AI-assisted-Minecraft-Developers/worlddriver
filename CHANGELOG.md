@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-20
 
+- **Rung 14's Nether crossing stopped 141 blocks short because a hop's verdict was taken from a body
+  one tick above the floor.** The crossing itself is healthy — 11.4 tick/block, 1% of its ticks
+  without a plan, 2 968 of a 21 600-tick hop budget spent — and it quit on this:
+
+  ```
+  fortress.crossing = 6 段，还差 141 格 …… 第 6 段之后停手：身体还在下坠
+                      （179, 43, 198，落速 -0.38 格/tick，脚下到实心 0 格）
+  ```
+
+  `脚下到实心 0`: the body was a hair above netherrack, mid-landing, and would have been standing on
+  it on the next tick. `hazardBlockingARetry` is right that a walk order cannot act on a falling body
+  — its own note says "its position is not where the next plan will start from" — but the reading was
+  taken from a body it never let finish falling. Eighteen of twenty-four hops and 16 200 hop ticks
+  went unspent over one tick of patience, against 141 blocks the same leg's own pace prices at
+  ~1 600 ticks. `oneHop` now wraps its whole continuation in `settleToGround`: when the leg ends with
+  the body still falling it gets `LANDING_TICKS = 26` under `HoldStill` first, and only then is the
+  hop judged, its distance measured and the next hop started — all four want the same settled body.
+  Twenty-six ticks is arithmetic, not caution: vanilla gravity covers 23.4 blocks in 26 ticks and
+  `survivableFall(20) = 22` is the deepest dry drop this body walks away from, so anything past the
+  allowance is a genuine chasm and the verdict is right to stop on it. A hop that ends on the ground
+  pays nothing — the predicate is asked first and the settle skipped.
+
+- **The walker is NOT the defect here, and the measurement says so twice.** Both falls on that leg
+  launched from a tick whose sole read `0.0000/0.36` while `onGround` still read true — vanilla's own
+  ground sweep disagreed with the flag on the same tick, so it was genuinely a tick stale. But
+  nothing in the walker steers on it: `footingGuard` and `strideFloorGuard` both open on
+  `WalkerGeometry.soleOnSolid`, which was 0 on that tick, and both were silent for the reason the
+  evidence row spells out — **the drops were 4 and 8 blocks** against a lethal line of 22, and the
+  row's own re-derivation of the lethal-edge brake off the level ends `→ 不该响`. Teaching either
+  guard to refuse those strides is the failure `wd.serverWalksOffASurvivableLedge` was committed to
+  catch: a guard that pins at every lip turns a Nether crossing, which is nothing but lips, into a
+  wall. The new arena reproduces the launch tick verbatim (`脚底实心 0.0000/0.36，onGround=true，
+  vanilla 自己那一问=没有`) and records `守卫钉住 0 tick` beside it.
+
+- **Two arms, one variable: how far it is to the floor.** `wd.crossingWaitsOutASurvivableDrop` walks
+  a body off a four-block lip with the guards at their live values and judges the same fall twice —
+  once at the instant the leg would have ended (`脚下到实心 0 格，还在下坠`, the control, which fails
+  the arm as THE RIG if it comes back clean) and once after the allowance, where it must clear.
+  `wd.crossingStillStopsForALongFall` drops the same body thirty-nine blocks: the allowance expires
+  with it ten blocks up and the verdict must STILL stop the crossing, so「the verdict now clears」
+  cannot be satisfied by deleting the branch. Sabotage-verified: with `LANDING_TICKS = 0` — the
+  pre-fix crossing exactly — the first arm fails all three checks and the second stays green.
+
 - **Rung 13 failed again on the next ladder run, faster and one cell east, and neither half of the
   first fix was wrong — both were too narrow.** The 15:20 run lit the portal, surveyed the doorway
   and derived `站 3,57,20 迈进 4,57,20（门洞第 0 排），现在就能走进去`, then spent all three legs

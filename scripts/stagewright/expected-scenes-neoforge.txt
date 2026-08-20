@@ -391,3 +391,11 @@ wd.serverStepsDownAPlanItSpentInOneTick
 wd.pourLineBlockedByTheStepTheScoopLeft
 wd.pourLineTakesBackTheStepItBorrowed
 wd.pourLineHasNoOtherWayUp
+
+# Rung 14's crossing stopped 141 blocks short with 18 of 24 hops unspent, because a hop's verdict was
+# taken from a body one tick above netherrack (脚下到实心 0). One shelf, one bay, and how far it is to
+# the floor as the only variable: a survivable step-down must be waited out, a fall past the allowance
+# must still stop the crossing. The first arm judges the same fall twice, before and after the
+# allowance, so「等待起了作用」cannot be confused with「这座场地本来就不会停手」.
+wd.crossingWaitsOutASurvivableDrop
+wd.crossingStillStopsForALongFall

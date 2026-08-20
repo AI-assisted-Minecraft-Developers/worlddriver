@@ -23,3 +23,4 @@ net.magicterra.worlddriver.bot.stagewright.journey.JourneyUnwedgeScenes
 net.magicterra.worlddriver.bot.stagewright.journey.JourneyPortalEntryScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverDescentNodeScenes
 net.magicterra.worlddriver.bot.stagewright.journey.JourneyPourLineScenes
+net.magicterra.worlddriver.bot.stagewright.journey.JourneyCrossingScenes

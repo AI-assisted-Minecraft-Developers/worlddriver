@@ -1485,7 +1485,7 @@ public final class JourneyNetherRungs {
         JourneyFlight flight = JourneyFlight.watching(rig, before, wx, wz);
         rig.settle(new IntentProcess(new Intent(new Goal.XZ(wx, wz, hopTolerance),
                         List.of(), NO_PARKOUR, List.of())), hopTicks,
-                flight, () -> {
+                flight, () -> settleToGround(rig, what, hop, () -> {
             BlockPos at = rig.player().blockPosition();
             double left = Math.hypot(x - at.getX(), z - at.getZ());
             // THE quantity. Not how far the body moved — how much closer to the goal the crossing
@@ -1519,7 +1519,7 @@ public final class JourneyNetherRungs {
 
             // WALKING IS AN ORDER ABOUT THE GROUND. A body inside lava swims; it cannot carry one
             // out, so the next hop would be the retry-that-changes-nothing in its purest form.
-            String hazard = hazardBlockingARetry(rig, at);
+            String hazard = hazardBlockingARetry(rig.player(), at);
             if (hazard != null) {
                 c.why = "第 " + hop + " 段之后停手：" + hazard
                         + " —— 再走一段只会得到同样的答案，先要把身体从这里弄出来，那是另一件事";
@@ -1566,7 +1566,40 @@ public final class JourneyNetherRungs {
             rig.evidence(what + ".reaim." + hop, "下一段改问 " + c.reach + " 格、偏 " + c.turn
                     + "° —— 同一个问题问第二遍只会得到同一个答案");
             oneHop(rig, what, x, z, tolerance, hopTicks, c, onArrived, onStuck);
-        });
+        }));
+    }
+
+    /**
+     * Let the body finish falling before a hop is judged from where it is.
+     *
+     * <p><b>A leg's verdict is taken from a body at rest, or it is taken from a photograph of one
+     * tick of a fall.</b> {@link #hazardBlockingARetry} is right that a walk order cannot act on a
+     * falling body — its own note says why, "its position is not where the next plan will start
+     * from" — and on 2026-08-20 it stopped a healthy crossing 141 blocks short with this:
+     *
+     * <pre>
+     * 第 6 段之后停手：身体还在下坠（179, 43, 198，落速 -0.38 格/tick，脚下到实心 0 格）
+     * </pre>
+     *
+     * <p>{@code 脚下到实心 0}: the body was a hair above netherrack and would have been standing on
+     * it on the next tick. Eighteen of twenty-four hops and 16 200 hop ticks went unspent, against
+     * 141 blocks that the same leg's own pace (11.4 tick/block) prices at ~1 600 ticks. The reading
+     * was not wrong; it was taken too early.
+     *
+     * <p>So the wait goes HERE, wrapping the whole continuation, rather than into the verdict: the
+     * verdict is also what decides the next hop's starting position, its distance and its progress,
+     * and all four want the same settled body. Under {@link HoldStill}, because a landing allowance
+     * that keeps the walk's impulse would walk the body off whatever it lands on.
+     *
+     * <p>Costs nothing on a hop that ends on the ground, which is nearly all of them — the predicate
+     * is asked first and the settle is skipped outright.
+     */
+    private static void settleToGround(JourneyRig rig, String what, int hop, Runnable then) {
+        if (!stillFalling(rig.player())) { then.run(); return; }
+        rig.evidence(what + ".landing." + hop, "这一段结束时身体还在下坠（"
+                + surroundings(rig, rig.player().blockPosition()) + "） —— 先给 " + LANDING_TICKS
+                + " tick 落地余量，再判决");
+        rig.settle(new HoldStill(LANDING_TICKS), LANDING_TICKS + 4, then);
     }
 
     /** Everything the crossing did, in three rows rather than one per hop. */
@@ -1677,19 +1710,34 @@ public final class JourneyNetherRungs {
      * plan will start from). Anything else — low health, a mob on it, awkward terrain — is a reason
      * a retry may fail, not a reason it cannot be attempted, and stopping on those would turn a
      * hard crossing into a rung that never tries twice.
+     *
+     * <p>Takes the BODY and not the rig, so {@code JourneyCrossingScenes} can put the same verdict
+     * over a staged fall. A copy of these three clauses in an arena would be a scene measuring
+     * itself.
      */
-    private static String hazardBlockingARetry(JourneyRig rig, BlockPos at) {
-        ServerPlayer fp = rig.player();
+    static String hazardBlockingARetry(ServerPlayer fp, BlockPos at) {
         if (fp.isInLava())
             return "身体泡在岩浆里（" + at.toShortString() + "，血 " + Math.round(fp.getHealth()) + "）";
         if (fp.isInWater())
             return "身体泡在水里（" + at.toShortString() + "）";
-        if (!fp.onGround() && fp.getDeltaMovement().y < FALLING_OVER)
+        if (stillFalling(fp))
             return "身体还在下坠（" + at.toShortString() + "，落速 "
                     + String.format(java.util.Locale.ROOT, "%.2f", fp.getDeltaMovement().y)
                     + " 格/tick，脚下到实心 "
-                    + dropBelow(rig.player().serverLevel(), at) + " 格）";
+                    + dropBelow(fp.serverLevel(), at) + " 格）";
         return null;
+    }
+
+    /**
+     * Whether the body is on its way down rather than standing somewhere.
+     *
+     * <p>One predicate, two readers: {@link #hazardBlockingARetry} refuses to judge a leg from a
+     * body in this state, and {@link #settleToGround} is what gives it the chance to leave it. They
+     * must not be able to disagree — a wait that stops one tick before the verdict starts is a wait
+     * that does nothing, and it would look exactly like a wait that works.
+     */
+    static boolean stillFalling(ServerPlayer fp) {
+        return !fp.onGround() && fp.getDeltaMovement().y < FALLING_OVER;
     }
 
     /**
@@ -1706,6 +1754,21 @@ public final class JourneyNetherRungs {
      * tick, against a {@code fallDistance} of 0.0 for the same fall.
      */
     private static final double FALLING_OVER = -0.3;
+
+    /**
+     * How long a leg is allowed to keep falling before its verdict is taken anyway.
+     *
+     * <p>Twenty-six ticks, and the number is arithmetic rather than a guess: vanilla gravity covers
+     * {@code 23.4} blocks in 26 ticks, and {@code SurvivalMath.survivableFall(20) = 22} is the
+     * deepest DRY drop this body takes at full health. So the allowance is「as long as the deepest
+     * fall the body can walk away from」. Past it the fall is a genuine one — a chasm, or the void —
+     * and {@link #hazardBlockingARetry} is right to stop the crossing on it.
+     *
+     * <p>Spent only by a hop that ends mid-air, which is rare: measured on the 2026-08-20 rehearsal,
+     * one hop out of six, and that one needed a single tick. 26 ticks against a hop's own
+     * {@link #HOP_TICKS} = 900 is under 3% even when it is spent in full.
+     */
+    static final int LANDING_TICKS = 26;
 
     /** A block's short id, so a surroundings line stays readable. */
     private static String blockName(ServerLevel level, BlockPos p) {
