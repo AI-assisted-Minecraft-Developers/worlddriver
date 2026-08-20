@@ -113,7 +113,9 @@ public final class JourneyCrossingScenes implements SceneProvider {
                 Scene.of("wd.crossingWaitsOutASurvivableDrop", 400,
                         JourneyCrossingScenes::waitsOutASurvivableDrop).withRequired(false),
                 Scene.of("wd.crossingStillStopsForALongFall", 400,
-                        JourneyCrossingScenes::stillStopsForALongFall).withRequired(false));
+                        JourneyCrossingScenes::stillStopsForALongFall).withRequired(false),
+                Scene.of("wd.crossingRowSeparatesAPerchFromMidAir", 400,
+                        JourneyCrossingScenes::rowSeparatesAPerchFromMidAir).withRequired(false));
     }
 
     /** dy of the shelf's top block. The body's foot cell is one above it. */
@@ -245,6 +247,194 @@ public final class JourneyCrossingScenes implements SceneProvider {
         ctx.check(judgedAfter).as("B 余量花完身体还在下坠，判决必须照样停手 —— 否则下一段计划是"
                 + "对着一具还在半空中的身体下的令，那正是这一级早就命过名的「换汤不换药的重试」")
                 .isNotNull();
+    }
+
+    // ── the row a wedged hop is read from ────────────────────────────────────────────────────
+
+    /**
+     * <b>Two bodies, opposite situations, one identical evidence row.</b>
+     *
+     * <h2>The reading this is a copy of</h2>
+     *
+     * The 2026-08-20 ladder ended rung 14 in a shuttle, and the rows a reader goes to first are the
+     * ones the crossing prints for each wedged hop. Two of the four were unreadable:
+     *
+     * <pre>
+     * fortress.around.4 = 脚下=dirt …… onGround=true 落速=-0.08 血=20 脚下到实心=0
+     * fortress.around.8 = 脚下=air  …… onGround=true 落速=-0.08 血=20 脚下到实心=&gt;16
+     * </pre>
+     *
+     * <p>{@code around.8} reads as a body hanging over a void. It was not: hop 9 started from that
+     * cell and its own flight row says {@code y 43→43（途中最高 44，最低 41）}, so the body was
+     * standing — balanced on the corner of a NEIGHBOURING block, with its own centre column open
+     * sixteen blocks down. Recovering that took cross-referencing a different row from a different
+     * hop, and the same three readings are also what a genuinely airborne body prints on the tick it
+     * walks off a lip: {@code onGround} is a tick stale there, so the flag says {@code true} while
+     * the sole is on nothing.
+     *
+     * <p>{@link JourneyFlight}'s class note already names this — three different bugs all end with a
+     * body hanging in {@code cave_air} and the snapshot reporting it is the same line in all three —
+     * and fixed it for the RECORDER by reading the footprint. {@code surroundings}, the row every
+     * wedged hop prints, never got that fix: it asks only the cell under the body's centre, and a
+     * player is 0.6 wide.
+     *
+     * <h2>What this arm measures</h2>
+     *
+     * Both bodies stand over the same bottomless shaft and both must print {@code 脚下=air},
+     * {@code onGround=true} and {@code 脚下到实心=&gt;16} — that is the CONTROL, and it is a
+     * measurement rather than an assertion of intent: if the two situations do not produce those
+     * same three readings, this arena has not reproduced the ambiguity and the arm fails as THE RIG
+     * instead of reporting that the new clause separated them. What must then separate them is the
+     * sole, printed through {@link WalkerGeometry#soleRow} — this repo's single enumeration of
+     * 「身体站在哪一格上」, not a fourth opinion invented here.
+     *
+     * <p><b>Red before the row learned to say it.</b> Without the sole clause the two rows are
+     * byte-identical and the first check cannot pass.
+     */
+    private static void rowSeparatesAPerchFromMidAir(SceneContext ctx) {
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        BotConfig.allowPlace = false;
+        BotConfig.allowBreak = false;
+        BotConfig.walkerDebug = false;
+        ctx.cleanup(() -> clearShaft(ctx));
+
+        stageShaft(ctx);
+        ctx.record("rig", "一口井：井底 dy=" + SHAFT_FLOOR + "，离脚下那一格 18 格 —— 比 surroundings"
+                + " 自己往下探的 16 格深（所以两具身体都读到「>16」），又比两个 walker 守卫拒绝的落差浅"
+                + "（所以走的那一半走得下去）；台面 dy=" + DECK + "，台缘外什么都没有；另有一块孤零零的"
+                + "下界岩在 dx=-1、dy=" + DECK + " —— 身体骑在它的边角上，自己那一格底下是空的");
+
+        // A: a body cornered on a neighbour. x = +0.05 puts its 0.6-wide box across the cell
+        // boundary, so 0.15 of the sole is on the lone block and its own centre column is air.
+        ServerPlayerAvatar perch = ServerPlayerAvatar.createUnique(ctx.level(),
+                ctx.originX() + 0.05, ctx.rel(0, DECK + 1, 0).getY(), ctx.originZ() + 0.5);
+        ServerPlayer pf = perch.fakePlayer();
+        ctx.cleanup(pf::discard);
+        pf.getInventory().clearContent();
+        aim(pf);
+        for (int i = 0; i < SETTLE_TICKS; i++) step(perch);
+        String rowPerch = JourneyNetherRungs.surroundings(pf, pf.blockPosition());
+        ctx.record("perch.row", rowPerch);
+        ctx.record("perch.sole", String.format(Locale.ROOT, "%.4f/0.36 @ %.3f,%.3f,%.3f",
+                WalkerGeometry.soleOnSolid(new LevelWorldView(ctx.level(), pf), pf),
+                pf.getX(), pf.getY(), pf.getZ()));
+        if (!pf.onGround())
+            ctx.fail("THE RIG, not the subject: 骑在邻格边角上的身体没站住（" + where(ctx, pf)
+                    + "） —— 这一臂的前提就是它 onGround=true 却不站在自己那一格上");
+
+        // B: the stale-flag tick. A body one tick past the lip still reports onGround=true with its
+        // whole sole on nothing — the same three readings, the opposite situation.
+        ServerPlayerAvatar off = spawn(ctx, ctx.originZ() + 1.5, DECK + 1, true);
+        ServerPlayer wf = off.fakePlayer();
+        String rowAir = walkToTheStaleTick(ctx, off);
+        ctx.record("midAir.row", rowAir);
+        ctx.record("midAir.sole", String.format(Locale.ROOT, "%.4f/0.36 @ %.3f,%.3f,%.3f",
+                WalkerGeometry.soleOnSolid(new LevelWorldView(ctx.level(), wf), wf),
+                wf.getX(), wf.getY(), wf.getZ()));
+
+        // THE CONTROL. Three readings, both bodies, or this arena is not the one that was confusing.
+        for (String must : List.of("脚下=air", "onGround=true", "脚下到实心=>16")) {
+            if (!rowPerch.contains(must) || !rowAir.contains(must))
+                ctx.fail("THE RIG, not the subject: 两具身体本该给出同一句「" + must
+                        + "」，实测 骑边角=「" + rowPerch + "」／半空中=「" + rowAir
+                        + "」 —— 那么「新读数把它们分开了」就分不清是新读数起了作用，还是"
+                        + "这座场地本来就分得开");
+        }
+
+        // B and C read the NEW clause only. The old row already contains the character 实 inside
+        // 「脚下到实心」, so a whole-row contains() would be satisfied by the very sentence this arm
+        // exists to say is not enough — a check that passes on the pre-fix row is not a check.
+        String soleOf = soleClause(rowPerch), soleOfAir = soleClause(rowAir);
+        ctx.record("perch.soleClause", soleOf.isEmpty() ? "（这一句里没有脚底那一段）" : soleOf);
+        ctx.record("midAir.soleClause", soleOfAir.isEmpty() ? "（这一句里没有脚底那一段）" : soleOfAir);
+
+        ctx.check(rowPerch).as("A 两句必须不再一样 —— 旧读数只问身体正中那一格，而身体宽 0.6 格，"
+                + "所以「骑在邻格边角上」和「真的悬空」印出来是同一句话：" + rowPerch)
+                .isNotEqualTo(rowAir);
+        ctx.check(soleOf.contains("实")).as("B 骑边角的那一句，脚底那一段里必须有一格是实的："
+                + (soleOf.isEmpty() ? rowPerch : soleOf)).isTrue();
+        ctx.check(soleOfAir.contains("实")).as("C 半空中的那一句，脚底那一段里一格实的都不许有 —— "
+                + "否则 B 会被一句对两种情形都成立的话满足：" + (soleOfAir.isEmpty() ? rowAir : soleOfAir))
+                .isFalse();
+    }
+
+    /** The tail of a {@code surroundings} row from its sole clause on, or empty when the row has no
+     *  such clause. Empty is the pre-fix answer and it must make B fail rather than throw. */
+    private static String soleClause(String row) {
+        int i = row.indexOf("脚底=");
+        return i < 0 ? "" : row.substring(i);
+    }
+
+    /**
+     * dy of the shaft's floor — eighteen rows under the foot cell, and the number is squeezed
+     * between three constants rather than picked.
+     *
+     * <p>It has to be deeper than {@code surroundings}' own 16-cell probe, or neither body reads
+     * {@code 脚下到实心=>16} and the control has nothing to be about. It has to be SHALLOWER than
+     * what the walker's two guards refuse, or the walking half never happens: measured on the first
+     * cut of this arena, over a bottomless shaft {@link Walker#strideFloorGuard} fired, killed the
+     * horizontal momentum and sneak-pinned the body on a 0.0001-wide sliver of the lip for all 160
+     * ticks — the guard doing exactly its job, and an arena that mistook it for a rig failure.
+     * Eighteen clears both: the stride guard's fall scan reaches 23 at full health and finds this
+     * floor, and {@code survivableFall(20) = 22} keeps {@link Walker#footingGuard} out too.
+     */
+    private static final int SHAFT_FLOOR = DECK + 1 - 18 - 1;
+
+    /** dy the shaft is cleared up from — one row over its floor. */
+    private static final int SHAFT_CLEAR = SHAFT_FLOOR + 1;
+
+    /**
+     * Walk the deck until the body is ONE TICK past the lip, and take the row there.
+     *
+     * <p>Not the first {@code stillFalling} tick — that is four ticks later, by which time
+     * {@code onGround} has caught up and the two rows would differ for a reason that has nothing to
+     * do with the sole. The tick wanted is the stale one: the sole already on nothing and the flag
+     * still saying {@code true}, which is what {@code fortress.ground.*} printed on the live falls.
+     */
+    private static String walkToTheStaleTick(SceneContext ctx, ServerPlayerAvatar av) {
+        ServerLevel level = ctx.level();
+        ServerPlayer fp = av.fakePlayer();
+        LevelWorldView w = new LevelWorldView(level, fp);
+        Walker walker = new Walker();
+        walker.setGoal(new Goal.Block(ctx.rel(0, DECK + 1, SHELF_CELLS + 3)));
+        for (int t = 0; t < WALK_TICKS; t++) {
+            walker.tick(av, w);
+            aim(fp);
+            av.commandMove(0f, 1f);
+            av.commandJump(false);
+            av.step();
+            if (fp.onGround() && WalkerGeometry.soleOnSolid(w, fp) <= 0.0)
+                return JourneyNetherRungs.surroundings(fp, fp.blockPosition());
+            if (!fp.onGround()) break;                        // the stale tick was overshot
+        }
+        ctx.fail("THE RIG, not the subject: 走完 " + WALK_TICKS
+                + " tick 也没抓到「脚底实心=0 而 onGround 还报 true」那一 tick（" + where(ctx, fp)
+                + "） —— 这一臂的另一半没有布出来");
+        return "";
+    }
+
+    /** Air out the shaft arena, well below the origin too: {@code surroundings} probes 16 cells down
+     *  and an unstaged floor inside that reach would decide the control's own premise. */
+    private static void clearShaft(SceneContext ctx) {
+        for (int dx = -4; dx <= 4; dx++)
+            for (int dz = -3; dz <= 16; dz++)
+                for (int dy = SHAFT_CLEAR; dy <= DECK + 4; dy++)
+                    ctx.setBlock(dx, dy, dz, Blocks.AIR);
+    }
+
+    /** The deck, the lone block beside it that a body can corner on, and the floor eighteen rows
+     *  down. Nothing in between — the column under BOTH bodies has to be open past the row's own
+     *  16-cell probe, which is the whole premise of the control. */
+    private static void stageShaft(SceneContext ctx) {
+        clearShaft(ctx);
+        for (int dx = -4; dx <= 4; dx++)
+            for (int dz = -3; dz <= 16; dz++)
+                ctx.setBlock(dx, SHAFT_FLOOR, dz, Blocks.NETHERRACK);
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dz = 1; dz <= SHELF_CELLS - 2; dz++)
+                ctx.setBlock(dx, DECK, dz, Blocks.NETHERRACK);
+        ctx.setBlock(-1, DECK, 0, Blocks.NETHERRACK);         // the perch's neighbour, on its own
     }
 
     // ── the rig ──────────────────────────────────────────────────────────────────────────────

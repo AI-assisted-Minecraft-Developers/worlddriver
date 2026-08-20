@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-20
 
+- **The landing allowance did not cost the next ladder run anything: it never ran.** The run after it
+  went 286 blocks short against the previous run's 141, and the allowance is not why.
+  `settleToGround` writes a `fortress.landing.<hop>` row unconditionally on entry, before its settle,
+  and **the results file contains none** — zero in nine hops, so every hop ended grounded, the
+  predicate declined and no `HoldStill` ever ran. Zero ticks spent, zero trajectories changed. The
+  row was added for exactly this: a wait that costs nothing is indistinguishable from a wait that
+  never happened unless it says which.
+
+- **The two runs cannot be compared, and the divergence is visible at hop 2.** Same seed, same
+  arrival cell, hop 1 ending at the same place — then, at the same lip, one tick apart:
+
+  | | run A (no allowance) | run B (allowance) |
+  |---|---|---|
+  | `ground.2.0` | `t=105 (50.325, 53.0000, 50.994) 速度 (0.091, -0.078, 0.065)` | `t=106 (50.321, 53.0000, 51.005) 速度 (0.093, -0.078, 0.062)` |
+  | plan in hand | `50,47,50[fall3]（第 2/19 步）` | `49,53,50[walk]（第 1/21 步）` |
+  | fall | 8 blocks | 3, then 7 |
+
+  Four thousandths of a block apart, and a **different plan** — 19 steps against 21. `PathFinder`
+  budgets itself in wall-clock (`advance(sliceMs)` stops on `System.nanoTime()`, the search on
+  `spentMs > maxMs`), so how many nodes A\* expands per tick is a property of the machine that hour.
+  A fixed seed does not make this rung reproducible, and n=1 per version cannot rank two versions of
+  anything downstream of a plan.
+
+- **The new run died of something else entirely: a shuttle, not a stop.** Terminating condition
+  moved from `hazardBlockingARetry` to `MAX_WEDGED_HOPS` (`连着 4 段没比纪录（263 格）更近`). Hops 1–3
+  were the healthiest this crossing has walked — 128 blocks in 1 230 ticks, **9.6 tick/block against
+  the previous run's 11.4** — and then hops 4, 6, 8 and 9 each burned their full 900 ticks inside one
+  box (x∈[69,96], z∈[77,108], y≈43), walking 61–76 edges while 9–10 blocks off the node they were
+  steered at, cornering on block edges for up to 23% of their grounded ticks. The 37.7 tick/block
+  headline is that shuttle, not the walking.
+
+- **`surroundings` — the row every wedged hop prints — could not tell a body standing from a body
+  falling.** It asks the cell under the body's CENTRE, and a player is 0.6 wide:
+
+  ```
+  fortress.around.8 = 脚下=air …… onGround=true 落速=-0.08 血=20 脚下到实心=>16
+  ```
+
+  That reads as a body over a void. It was a body standing, cornered on a neighbour with its own
+  column open sixteen down — recoverable only from a different row of a different hop (hop 9's
+  flight, `y 43→43`). A body one tick past a lip prints the same three readings for the opposite
+  reason, because `onGround` is a tick stale there. `wd.crossingRowSeparatesAPerchFromMidAir` stages
+  both over one shaft and measured the rows **byte-identical** while their soles read `0.1500/0.36`
+  and `0.0000/0.36`. The row now carries the sole and its per-cell row, through
+  `WalkerGeometry.soleOnSolid`/`soleRow` — the repo's single enumeration, so this row and the guards
+  that steer on it cannot disagree about what standing means. `JourneyFlight` learned this for the
+  recorder already; the crossing's own snapshot never got it.
+
+  <p>The arena's own shaft is 18 blocks deep and that is squeezed, not chosen: deeper than the row's
+  16-cell probe so both bodies read `>16`, shallower than what the walker refuses. The first cut made
+  it bottomless, `strideFloorGuard` correctly killed the momentum and sneak-pinned the body on a
+  0.0001-wide sliver of the lip for all 160 ticks, and the arm reported a rig failure over a guard
+  doing its job.
+
 - **Rung 14's Nether crossing stopped 141 blocks short because a hop's verdict was taken from a body
   one tick above the floor.** The crossing itself is healthy — 11.4 tick/block, 1% of its ticks
   without a plan, 2 968 of a 21 600-tick hop budget spent — and it quit on this:

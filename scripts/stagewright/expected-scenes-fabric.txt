@@ -402,3 +402,4 @@ wd.pourLineHasNoOtherWayUp
 # allowance, so「等待起了作用」cannot be confused with「这座场地本来就不会停手」.
 wd.crossingWaitsOutASurvivableDrop
 wd.crossingStillStopsForALongFall
+wd.crossingRowSeparatesAPerchFromMidAir

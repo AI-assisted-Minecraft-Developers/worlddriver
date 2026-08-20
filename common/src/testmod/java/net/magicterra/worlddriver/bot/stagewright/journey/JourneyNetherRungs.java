@@ -13,6 +13,7 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
 import net.magicterra.worlddriver.bot.process.CombatProcess;
 import net.magicterra.worlddriver.bot.pathfinder.Capability;
 import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
@@ -20,6 +21,7 @@ import net.magicterra.worlddriver.bot.pathfinder.moves.DiagonalAscend;
 import net.magicterra.worlddriver.bot.process.Intent;
 import net.magicterra.worlddriver.bot.process.IntentProcess;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
+import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -1524,7 +1526,7 @@ public final class JourneyNetherRungs {
                 c.why = "第 " + hop + " 段之后停手：" + hazard
                         + " —— 再走一段只会得到同样的答案，先要把身体从这里弄出来，那是另一件事";
                 rig.evidence(what + ".flight." + hop, flight.report());
-                rig.evidence(what + ".around." + hop, surroundings(rig, at));
+                rig.evidence(what + ".around." + hop, surroundings(rig.player(), at));
                 recordCrossing(rig, what, c, left);
                 onStuck.run();
                 return;
@@ -1549,7 +1551,7 @@ public final class JourneyNetherRungs {
             rig.evidence(what + ".flight." + hop, flight.report());
             rig.evidence(what + ".goto." + hop, "end=" + rig.body().botState().mc_goto.endReason
                     + " err=" + rig.body().botState().mc_goto.lastError);
-            rig.evidence(what + ".around." + hop, surroundings(rig, at));
+            rig.evidence(what + ".around." + hop, surroundings(rig.player(), at));
             if (c.wedged >= MAX_WEDGED_HOPS) {
                 // Says NOTHING about whether the body moved — it may have walked 200 blocks. What it
                 // says is that four hops in a row failed to get the crossing closer than its own
@@ -1597,7 +1599,7 @@ public final class JourneyNetherRungs {
     private static void settleToGround(JourneyRig rig, String what, int hop, Runnable then) {
         if (!stillFalling(rig.player())) { then.run(); return; }
         rig.evidence(what + ".landing." + hop, "这一段结束时身体还在下坠（"
-                + surroundings(rig, rig.player().blockPosition()) + "） —— 先给 " + LANDING_TICKS
+                + surroundings(rig.player(), rig.player().blockPosition()) + "） —— 先给 " + LANDING_TICKS
                 + " tick 落地余量，再判决");
         rig.settle(new HoldStill(LANDING_TICKS), LANDING_TICKS + 4, then);
     }
@@ -1646,9 +1648,8 @@ public final class JourneyNetherRungs {
      * question is "is the view lying about where the body is", the view is not the witness to ask.
      * The body's own chunk is loaded by definition, so this costs no chunk load.
      */
-    private static String surroundings(JourneyRig rig, BlockPos at) {
-        ServerLevel level = rig.player().serverLevel();
-        ServerPlayer fp = rig.player();
+    static String surroundings(ServerPlayer fp, BlockPos at) {
+        ServerLevel level = fp.serverLevel();
         StringBuilder sb = new StringBuilder();
         sb.append("脚下=").append(blockName(level, at.below()))
           .append(" 身处=").append(blockName(level, at))
@@ -1681,6 +1682,26 @@ public final class JourneyNetherRungs {
           .append(" 落速=").append(String.format(java.util.Locale.ROOT, "%.2f", fp.getDeltaMovement().y))
           .append(" 血=").append(Math.round(fp.getHealth()))
           .append(" 脚下到实心=").append(dropBelow(level, at));
+        // THE CELL UNDER THE CENTRE IS NOT THE BODY'S SUPPORT. A player is 0.6 wide, so every
+        // reading above answers about the column `at` names and none of them answers「is this body
+        // standing on anything」. Measured 2026-08-20, rung 14's shuttle:
+        //
+        //   fortress.around.8 = 脚下=air …… onGround=true 落速=-0.08 脚下到实心=>16
+        //
+        // which reads as a body hanging over a void and was a body STANDING — cornered on a
+        // neighbour with its own column open sixteen down. Recovering that took a different row from
+        // a different hop (hop 9's flight: y 43→43), and a body one tick past a lip prints the same
+        // three readings for the opposite reason: `onGround` is a tick stale there, so the flag says
+        // true while the sole is on nothing. wd.crossingRowSeparatesAPerchFromMidAir stages both and
+        // measured the two rows BYTE-IDENTICAL before this line existed.
+        //
+        // Through WalkerGeometry, not a local scan: soleOnSolid/soleRow are this repo's single
+        // enumeration of「身体站在哪一格上」, and a row that answered it differently from the guards
+        // that steer on it is how a diagnosis comes to describe a body that does not exist.
+        LevelWorldView view = new LevelWorldView(level, fp);
+        sb.append(" 脚底=")
+          .append(String.format(java.util.Locale.ROOT, "%.4f/0.36", WalkerGeometry.soleOnSolid(view, fp)))
+          .append("（").append(WalkerGeometry.soleRow(view, fp)).append("）");
         return sb.toString();
     }
 
