@@ -7,6 +7,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-20
 
+- **The Nether crossing's 41% no-plan burn was a step pointer spending a descent the body never made.**
+  Rung 14 (2026-08-19) reported `全程无计划 3551 tick` = 41% of the run, and that reading is not spread
+  over the crossing: **3,517 of those 3,551 ticks are four consecutive hops standing at one
+  coordinate**, `159,53,187`, and the other nine hops contribute 34 ticks between them (0.2–2.8%
+  each). The hops the summary blamed were not it — hop 4 burned its whole 900-tick budget to travel
+  4 blocks while holding a plan on **898 of them**. Two different failures, and only the second is a
+  planning failure.
+
+  At that coordinate the body had finished a dug descent perched on a cell whose OWN floor is air,
+  held up by `0.125` of `0.36` of sole on the corner of `158,52,187`, with the column at `158,·,188`
+  ending in the lava lake at `y=50`. `Walker.footingGuard` sneak-pinned it, correctly. A* answered
+  with the three-node way out — `[158,53,187 → 159,52,187 → 159,51,188]`, every cell standable — and
+  the walker spent all three in ONE tick without moving a block:
+
+  ```
+  步进 序=2/8 因=within 旧步=2 新步=3 w=159,52,187 nx=159,51,188 身体=(159.092,53.000,187.700)
+       cur2=0.207 |w.y-p.y|=1.000 onGround=true 脚底实心=0.1250
+  ```
+
+  `|w.y-p.y|=1.000` is printed on the line that advanced. `within`'s vertical clause is
+  `|dyNode| < 1.2`, so a waypoint a full block under the feet reads as reached — the sibling
+  `WalkerTickProgress#airborneClimbConsume`'s javadoc named as still suspect when it fixed the
+  climbing direction and left this one. The pointer descended; the body did not; the plan was gone.
+  `WalkerTickProgress#unwalkedDescentConsume` now refuses that consume at the same single advance
+  outlet, so the two directions cannot drift apart.
+
+  **Holding the pointer is also what releases the pin.** `footingGuard`'s planned-descent exemption
+  asks `path.get(step).getY() < foot.getY()`, which is true exactly while the node is held and false
+  the moment it is spent — so the old behaviour re-engaged the sneak over the very step the route
+  meant to take. The two mechanisms only compose in this order.
+
+- **Everything after that was downstream, and it is written down because none of it fired.** With the
+  plan spent, `path == null` makes every tick a safety repath: `latest.log` carries ~3,500
+  `[pathfinder] search-begin` lines from the same start, twenty a second, for 2,700 ticks. Both
+  governors that exist for this are switched off by the same condition. `walkerFutileSearchCap` (5)
+  is exempted whenever `world.hasStuckPenalties()`; a body that is not moving trips the anti-churn
+  every `CHURN_WINDOW = 400` ticks and each firing re-charges penalties that live `15 s × strength`
+  — so **the「wait for the penalties to decay」hold is waiting for something the waiting prevents**.
+  That leaves `NO_PATH_WAIT_CAP`, which is `900`, **exactly the crossing's own per-hop tick budget**,
+  so it cannot be reached inside a hop. All four hops ended `end=null err=null`: no arrival, no
+  error, no signal the crossing could act on. Left as it is deliberately — changing a number without
+  a measurement that names what it should become is how numbers here have been mis-tuned before —
+  but the coincidence is now on the record and in `wd.serverStepsDownAPerchItPlanned`'s `ledger` row.
+
+- **Two arms, and the arena is a copy rather than a drawing.** `wd.serverStepsDownAPerchItPlanned`
+  stages a verbatim 17×17×13 block copy of that pocket read out of the run's own region file, with
+  the body at the ladder's exact stance (`+0.092, +0.700` off the cell corner — that offset IS the
+  0.125 sole), and drives it twice with `walkerDescentNodeHold` as the only difference:
+
+  | arm | 无计划 | moved | minY | holds |
+  |---|---|---|---|---|
+  | control (hold OFF) | **260/260 tick** | 0.89 格 | 213 — never descended | 0 |
+  | subject (hold ON) | 10/260 tick | 7.98 格 | 211 | 20 |
+
+  The control's 100% and the subject's 3.8% bracket the ladder's own two populations — its wedged
+  hops ran 94–100% and its healthy ones 0.2–2.8%. The rig hard-fails if the control walks out.
+  `wd.serverStillWalksDownAStaircase` is the other half: the same switch over an ordinary descent,
+  where both arms must agree (35 ticks, 8/8 treads, both) AND the hold must be shown to have run
+  (4 holds) — without that last clause two identical tick counts read the same whether the hold is
+  cheap or dead code.
+
+  **Two tidyings of the copy each destroyed the defect before it was believed.** Re-placing the 32
+  FLOWING lava cells as sources built a 34-source lake the ladder never had and drowned the subject
+  at tick 44; copying only the two genuine sources instead left a lava-free pocket that the CONTROL
+  walked 19.61 blocks out of with a plan on 252/260 ticks. The lava is the wall that makes the pocket
+  a pocket. The one deliberate deviation is that the box's faces are sealed, because the ladder's
+  cave carries on past where the copy ends and this suite shares one world.
+
+- **The hold is scoped by two terms and each was bought with a red gate.** Unbounded, it deadlocked
+  against a guard refusing the same step: `wd.serverMineHarvest` went red at `100011,222,100000` with
+  the stride floor-guard printing `bottomless stride … plug FAILED` while the hold insisted on that
+  stride, and the sweep ended `broke 2/4`. Applied to a path's LAST node, it replaced the walker's
+  arrival handling with a drive at a node the body was already at and carried it one cell past onto
+  bottomless ground — same scene, same `2/4`. So: mid-path nodes only (`nx != null`, the scoping
+  `airborneClimbConsume` already had), released after `TAIL_HOLD_STALL_TICKS` of stalled step
+  progress (the file's existing stall window rather than a new number; the two arenas need ~1 tick
+  per tread and 20 ticks per 260-tick drive).
+
+
 - **A pin is not a reason to skip the flight check once a drift has already changed the column.**
   `JourneyShaft`'s drift correction used to read `climbPinned ? back : towerColumnClearOfTheFlight(...)`,
   so a pinned climb skipped the check in the one place the column is not the caller's any more. Rung 12

@@ -164,6 +164,87 @@ final class WalkerTickProgress {
                 && WalkerGeometry.soleOnSolid(world, p) < FOOTING_MIN;
     }
 
+    /**
+     * A body standing on a floor must not spend a path node that lies below that floor.
+     *
+     * <p>The descending twin of {@link #airborneClimbConsume}, and the sibling that helper's javadoc
+     * names and declines to fix: {@code within}'s vertical clause is {@code |dyNode| < 1.2}, so a
+     * waypoint a FULL BLOCK under the feet reads as reached. Climbing and descending fail the same
+     * way and cost differently — a stranded climb leaves the body jumping at a node it tops out under,
+     * a spent descent leaves it with no plan at all, because a descent is usually the last node or two
+     * of a short segment and consuming it exhausts the path.
+     *
+     * <p>Measured on nether rung 14 (2026-08-19), the crossing's terminal wedge. The body finished a
+     * dug shaft perched on {@code 159,53,187} — a cell whose own floor is air, held up by 0.125 of
+     * 0.36 of sole on the corner of {@code 158,52,187}, with a column three cells away that ends in
+     * the lava lake at {@code y=50}. The footing guard sneak-pinned it, correctly. A* answered with
+     * the three-node way out, {@code [158,53,187 → 159,52,187 → 159,51,188]}, every cell of it
+     * standable; the walker consumed all three in ONE tick without moving:
+     *
+     * <pre>{@code
+     * 步进 序=1/8 因=within 旧步=1 新步=2 w=158,53,187 nx=159,52,187 身体=(159.092,53.000,187.700) cur2=0.390 |w.y-p.y|=0.000
+     * 步进 序=2/8 因=within 旧步=2 新步=3 w=159,52,187 nx=159,51,188 身体=(159.092,53.000,187.700) cur2=0.207 |w.y-p.y|=1.000
+     * }</pre>
+     *
+     * The second line prints {@code |w.y-p.y|=1.000} and advances on it. The pointer descended, the
+     * body did not, and the plan was gone. What follows is all downstream: {@code path == null} makes
+     * every tick a safety repath, so A* is re-asked from the same cell ~3,500 times over four hops
+     * (20 searches a second in {@code latest.log}), and 3,517 of the run's 3,551 no-plan ticks are
+     * those four hops standing at that one coordinate.
+     *
+     * <p><b>Holding the pointer is what releases the pin.</b> {@link Walker#footingGuard}'s
+     * planned-descent exemption asks whether {@code path.get(step).getY() < foot.getY()} — which is
+     * true exactly while this node is held and false the moment it is spent. The old behaviour spent
+     * the node, so the exemption stopped applying and the sneak re-engaged over a step the route meant
+     * to take. The two mechanisms only compose the right way round.
+     *
+     * <p>The terms, for the same reasons {@link #airborneClimbConsume} lists:
+     *
+     * <ul>
+     *   <li><b>Cell comparison, not a y delta.</b> {@code w.getY() < foot.getY()} asks whether the
+     *       node is in a lower CELL than the body, which is the question a step-down is; a float
+     *       threshold would re-introduce the {@code |dyNode| &lt; 1.2} arbitrariness this exists to
+     *       remove.</li>
+     *   <li><b>{@code soleOnSolid > 0}, not {@code onGround()}.</b> A body actually falling toward
+     *       the node is going there and must keep advancing; a body with anything under it has not
+     *       descended yet. Zero is the bar rather than {@code FOOTING_MIN} on purpose — the rung-14
+     *       body was on 0.125 of a sole, well under that threshold, and it was emphatically not
+     *       falling. Same reading {@code footingGuard} opens with, so no fifth opinion about
+     *       standing.</li>
+     *   <li><b>{@code !p.isInWater()}.</b> A buoyant body reads no sole for a whole crossing and
+     *       descends by sinking; the water gates own that.</li>
+     *   <li><b>{@code nx != null} — mid-path nodes only</b>, the same scoping
+     *       {@link #airborneClimbConsume} has. The pointer reaching {@code path.size()} is what runs
+     *       the walker's segment-end handling, so holding the LAST node does not delay an arrival, it
+     *       replaces it with a drive at a node the body is already effectively at: measured on
+     *       {@code wd.serverMineHarvest}, the held final node {@code 100010,221,100000} drove the body
+     *       one cell past it onto {@code 100011}, which is bottomless, and the sweep ended
+     *       {@code broke 2/4}. The rung-14 plan needs only its MIDDLE node held — {@code 159,52,187},
+     *       with {@code 159,51,188} still ahead of it — which is the node that was being spent.</li>
+     *   <li><b>{@link #TAIL_HOLD_STALL_TICKS} of stalled step progress releases it</b>, and that
+     *       bound is not defensive — the first cut had no bound and turned {@code wd.serverMineHarvest}
+     *       red: at {@code 100011,222,100000} the stride floor-guard refuses the very stride this hold
+     *       insists on ({@code bottomless stride … plug FAILED}), so the two sat on each other and the
+     *       sweep gave up with {@code broke 2/4}. A hold that outlives a guard's refusal of the same
+     *       step is a deadlock by construction. Reusing the tail's own stall window rather than
+     *       inventing a second one: it is already the file's answer to「long enough to ride out a slow
+     *       but real approach, short enough that walled pockets re-enter the repath machinery
+     *       promptly」, and the two arenas below need a small fraction of it (the staircase holds ~1
+     *       tick per tread, the perch 20 ticks over a 260-tick drive).</li>
+     * </ul>
+     */
+    private static boolean unwalkedDescentConsume(Walker wk, WorldView world, Player p,
+                                                  BlockPos foot, BlockPos w, BlockPos nx) {
+        boolean held = BotConfig.walkerDescentNodeHold
+                && nx != null
+                && w.getY() < foot.getY()
+                && !p.isInWater()
+                && WalkerGeometry.soleOnSolid(world, p) > 0.0
+                && wk.stepProg.noStepProgressTicks <= TAIL_HOLD_STALL_TICKS;
+        if (held) Walker.descentHolds++;
+        return held;
+    }
+
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
@@ -806,7 +887,9 @@ final class WalkerTickProgress {
             boolean legacyAdvance = within || passed || tailConsumed || crossedDescendNode || crossedWalkNode
                     || waterStepDownFloat || stepUpCrestReach || waterWalkReach;
             boolean doAdvance = (legacyAdvance || (BotConfig.walkerArcLengthAdvance && wk.arc.proj.segIdx > wk.step))
-                    && !airborneClimbConsume(world, p, w, wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null);   // ONE outlet for all nine gates — an airborne body must not spend a node on a climb; see the helper's javadoc for the wd.buriedOre reading
+                    && !airborneClimbConsume(world, p, w, wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null)   // ONE outlet for all nine gates — an airborne body must not spend a node on a climb; see the helper's javadoc for the wd.buriedOre reading
+                    && !unwalkedDescentConsume(wk, world, p, foot, w,
+                            wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null);                                                          // …and a standing body must not spend one on a descent; see that helper for the rung-14 reading
             if (doAdvance) {
                 // Don't CONSUME the final node of a disk goal while it sits inside the goal
                 // radius but the bot's FOOT cell is still one block short of it. The node-reach

@@ -362,3 +362,11 @@ wd.serverWalksOffASurvivableLedge
 # difference between the drives.
 wd.serverKeepsWalkingAtALavaRim
 wd.serverKeepsWalkingAtADryRim
+
+# Rung 14's terminal wedge: a verbatim copy of the Nether pocket the crossing stood in for its last
+# four hops. The plan that would have walked the body out was spent in one tick without a block of
+# movement — a waypoint one block under the feet read as reached — so the pair asks whether the body
+# LEAVES the perch, not whether it survives it. The staircase arm is the other half: the same switch
+# over an ordinary descent, where both arms must agree.
+wd.serverStepsDownAPerchItPlanned
+wd.serverStillWalksDownAStaircase

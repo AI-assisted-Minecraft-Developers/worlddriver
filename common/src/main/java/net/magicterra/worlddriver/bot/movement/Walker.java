@@ -56,6 +56,16 @@ public final class Walker {
     public record PathStats(int expanded, long ms, boolean goalReached, double finalCost, int pathLen) {}
     public static volatile PathStats lastStats;
 
+    /** How many times {@code WalkerTickProgress}'s unwalked-descent refusal has held the step pointer
+     *  on a node below the body's feet, process-wide. Monotone, never reset by the walker — a caller
+     *  that wants a window takes the difference, the way {@link #lastStats} is read.
+     *
+     *  <p>Exists so a scene can tell「the hold cost nothing」from「the hold never ran」, which are the
+     *  same reading from outside and want opposite conclusions: a negative control over an ordinary
+     *  staircase passes identically whether the guard is doing its job cheaply or is inert, and a
+     *  guard that is inert on every descent this suite stages is a guard the suite cannot judge. */
+    public static volatile long descentHolds;
+
     /** gap#72-④: the chain/verb this walker moves for (e.g. "mine", "retreat",
      *  "goto") — threaded into every {@link PathFinder} it launches so latest.log's
      *  search-begin lines are attributable. "?" = an untagged caller (test rigs,
