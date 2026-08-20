@@ -7,6 +7,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-20
 
+- **Rung 13 could not walk the last cell into the portal it had lit, because the walker spends the
+  LAST node of a plan that steps down.** The run of 2026-08-20 13:44 got the geometry right — it
+  surveyed the doorway, declined the one open row a 1.8-tall body does not fit through, priced the
+  ways in, took the one that cost a single cobblestone (`3,59,19`), mined it and re-derived the
+  doorstep from the world afterwards. Then it could not move:
+
+  ```
+  portal.walk.2 = 3D 目标 3,58,19：3,59,18 → 3,59,18（挪了 0 格，花了 11 tick） end=path-consumed
+  portal.walk.3 = XZ 目标 3,58,19：3,59,18 → 3,59,18（挪了 0 格，花了 11 tick） end=path-consumed
+  ```
+
+  The walker printed the cause on the tick it happened, both times:
+
+  ```
+  步进 序=1/8 因=within 旧步=1 新步=2 w=3,58,19 nx=无(末节点) 身体=(3.463,59.000,18.939)
+       cur2=0.316 |w.y-p.y|=1.000 onGround=true 脚底实心=0.2168
+  ```
+
+  A* answered `Goal.Block(3,58,19)` with the one-step plan `[3,59,18 → 3,58,19]` — its only node both
+  first and last. `within` (`cur2 < REACH_DIST_SQ = 0.45 && |dyNode| < 1.2`, no ground test) accepted
+  it while the body stood a full block above it, the pointer reached `path.size()`, and the segment
+  ended `path-consumed` **on the tick the plan was adopted**, goal unreached, body where it started.
+  Re-asking gets the identical plan, which is what the rung's two-still-legs terminator said out loud
+  — that part is the design working: the message named the mechanism instead of blaming the transfer
+  timer, and pointed at `portal.walk.*` rather than at `Entity.handlePortal`.
+
+  This is the same defect `wd.serverStepsDownAPerchItPlanned` closed three commits earlier, at the one
+  node that fix scoped out. `WalkerTickProgress#unwalkedDescentConsume` now covers the final node too,
+  under two clauses that were bought rather than argued (each was removed and the gate re-run):
+  `goal.reached(w) && !goal.reached(foot)` — spending it would report an arrival that has not
+  happened — and `step == 1`, the one-step plan, where zero movement is guaranteed by construction.
+
+- **Both scoping clauses cost a scene when they were left out, and the gate said which.** Holding
+  every final node below the feet wedged `wd.serverFightsAFlyingBlaze` into a **60-second server
+  tick** and a watchdog crash (`java.lang.Error: Watchdog` in `PathFinder$Search.advance`): that
+  scene pumps ~3 000 walker ticks inside ONE server tick, so a held node that never resolves is a
+  pathfinder search per iteration. Adding only the arrival clause cleared the blaze but left
+  `wd.serverMineHarvest` red at `broke 2/4` across two runs — with a probe showing the hold never
+  fired inside that scene at all and **299 times inside `wd.descent`**, whose knock-on is what moved
+  the sweep. `step == 1` cuts the blast radius to the shape the ladder reports and both go green
+  (`wd.serverMineHarvest` 115 ticks). A longer plan whose tail is a step down still ends one cell
+  short — but the caller re-plans from where it stopped, and that re-plan IS a one-step plan.
+
+- **It is rung 12's geometry and the walker's defect, and neither half is optional.** Rung 13 passed
+  on the two ladder runs before this one (06:41, 10:26) and never walked on either: that casting had
+  left the middle row's front open (`3,58,19 = air 站得住`) and the body was already standing ON the
+  doorstep when the rung started, so `stepFrom` answered immediately — those runs' evidence has no
+  `portal.walk.*` row at all. The 13:44 pour left five more cobblestone cells in the alcove
+  (`3,57,19 3,57,20 3,58,20 3,59,19 3,59,20`) and the body two cells west of them, so the walk to a
+  doorstep one row DOWN ran for the first time. Rung 12's change is what exposed it; the defect is
+  the walker's and older than both.
+
+- **`wd.serverStepsDownTheLastNodeOfItsPlan`, `withRequired(false)`.** A verbatim 6×7×7 copy of that
+  doorway read out of the run's own region file — the mined cell already air, the portal lit and
+  checked (six `nether_portal` cells still standing, so the arm cannot walk a body up to six cells of
+  air), the body at the ladder's exact stance. `+0.463, +0.939` off the cell corner is load-bearing:
+  it is what makes `cur2` exactly `0.316`, and the cell centre makes it `1.0`, where `within` never
+  fires and the arena reproduces nothing. Driven twice with `walkerDescentNodeHold` as the only
+  difference:
+
+  | arm | ticks | moved | minY | end | holds | on the doorstep |
+  |---|---|---|---|---|---|---|
+  | control (hold OFF = the ladder's build) | 60 | **0.00 格** | 212.00 — never descended | `path-consumed` | 0 | no |
+  | subject (hold ON) | 4 | 0.76 格 | 211.92 | — | 3 | **yes** |
+
+  The control's row is the ladder's two legs byte for byte. The rig hard-fails if the control walks
+  in, if the two arms' hold counts are not `0 → >0`, or if the stance drifts off `脚底实心 0.2168`;
+  the subject is judged on **standing on the doorstep cell**, not on having moved, and a third check
+  requires the control to have ended for the ladder's own reason (`end=path-consumed`) rather than a
+  timeout. Pre-fix, both arms read `走了 0.00 格 … end=path-consumed` and checks A and B were red —
+  that run is the proof the criterion can fail.
+
 - **Rung 12's third failure family: the scoop's own staircase stood in the cell the cast had to stand
   in — and in the line it had to shoot down.** Cast 8 of an `east` mould based at `4,56,19` pours
   `4,60,19`, and its two halves want the same cell for opposite things. `standBehind` laid a step at

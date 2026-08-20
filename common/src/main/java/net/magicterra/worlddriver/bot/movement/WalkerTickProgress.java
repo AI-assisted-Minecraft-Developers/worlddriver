@@ -213,14 +213,47 @@ final class WalkerTickProgress {
      *       standing.</li>
      *   <li><b>{@code !p.isInWater()}.</b> A buoyant body reads no sole for a whole crossing and
      *       descends by sinking; the water gates own that.</li>
-     *   <li><b>{@code nx != null} — mid-path nodes only</b>, the same scoping
-     *       {@link #airborneClimbConsume} has. The pointer reaching {@code path.size()} is what runs
-     *       the walker's segment-end handling, so holding the LAST node does not delay an arrival, it
-     *       replaces it with a drive at a node the body is already effectively at: measured on
-     *       {@code wd.serverMineHarvest}, the held final node {@code 100010,221,100000} drove the body
-     *       one cell past it onto {@code 100011}, which is bottomless, and the sweep ended
-     *       {@code broke 2/4}. The rung-14 plan needs only its MIDDLE node held — {@code 159,52,187},
-     *       with {@code 159,51,188} still ahead of it — which is the node that was being spent.</li>
+     *   <li><b>The LAST node counts too, but only when consuming it would declare an arrival the body
+     *       has not made.</b> This shipped scoped {@code nx != null} — mid-path nodes only — on the
+     *       reading that the pointer reaching {@code path.size()} merely hands the segment to the
+     *       walker's arrival handling. That is true when the body is already at the node and false
+     *       when the last node is a step DOWN it has not taken: then「arrival」is not the remaining
+     *       work, the step across is. Journey rung 13 (2026-08-20) mined its one way into a lit portal
+     *       and could not walk the last cell. A* answered {@code Goal.Block(3,58,19)} with the one-step
+     *       plan {@code [3,59,18 → 3,58,19]}, its only node both first and last, and the walker spent
+     *       it on the tick it was adopted:
+     *
+     *       <pre>{@code
+     *       步进 序=1/8 因=within 旧步=1 新步=2 w=3,58,19 nx=无(末节点) 身体=(3.463,59.000,18.939)
+     *            cur2=0.316 |w.y-p.y|=1.000 onGround=true 脚底实心=0.2168
+     *       }</pre>
+     *
+     *       The segment ended {@code path-consumed} with the goal unreached and the body where it
+     *       started — 「连着两趟（XZ 和 3D 各一趟）一格没挪」— and re-asking got the identical plan.
+     *       Reproduced verbatim in {@code wd.serverStepsDownTheLastNodeOfItsPlan}, whose pre-fix arms
+     *       both read {@code 走了 0.00 格 … end=path-consumed}.
+     *
+     *       <p><b>The final-node case is scoped twice over, and each term was bought.</b> Both were
+     *       measured on the dedicated-server gate rather than argued:
+     *
+     *       <ul>
+     *         <li>{@code wk.goal.reached(w) && !wk.goal.reached(foot)} — spending this node would
+     *             report an arrival that has not happened. Without it (hold every final node below
+     *             the feet) {@code wd.serverFightsAFlyingBlaze} wedged the server thread for
+     *             <b>60 seconds</b> and took a watchdog crash: that scene pumps ~3 000 walker ticks
+     *             inside ONE server tick, so a held node that never resolves is a pathfinder search
+     *             per iteration. The clause excludes it because a BEST-EFFORT segment's last node
+     *             does not satisfy the goal — it is a splice point, not an arrival — and a body
+     *             already inside its goal has nothing left to walk. It is deliberately the same
+     *             question the disk-goal hold below asks, extended from radius-{@code >0} goals.</li>
+     *         <li>{@code wk.step == 1} — the ONE-STEP plan, where the body has not walked a node of
+     *             this path and consuming it therefore ends the segment with zero movement <i>by
+     *             construction</i>. That is rung 13's shape exactly. Without it the hold reached
+     *             every ordinary descent's last node — 299 firings inside {@code wd.descent} alone in
+     *             one gate run — which is a blast radius this reading does not justify. A longer plan
+     *             whose tail is a step down still ends one cell short; the caller re-plans from where
+     *             it stopped, that re-plan IS a one-step plan, and it is held.</li>
+     *       </ul></li>
      *   <li><b>{@link #TAIL_HOLD_STALL_TICKS} of stalled step progress releases it</b>, and that
      *       bound is not defensive — the first cut had no bound and turned {@code wd.serverMineHarvest}
      *       red: at {@code 100011,222,100000} the stride floor-guard refuses the very stride this hold
@@ -235,12 +268,19 @@ final class WalkerTickProgress {
      */
     private static boolean unwalkedDescentConsume(Walker wk, WorldView world, Player p,
                                                   BlockPos foot, BlockPos w, BlockPos nx) {
-        boolean held = BotConfig.walkerDescentNodeHold
-                && nx != null
+        boolean unwalked = BotConfig.walkerDescentNodeHold
                 && w.getY() < foot.getY()
                 && !p.isInWater()
                 && WalkerGeometry.soleOnSolid(world, p) > 0.0
                 && wk.stepProg.noStepProgressTicks <= TAIL_HOLD_STALL_TICKS;
+        // Mid-path, hold outright: spending the node strands the pointer for the rest of the plan.
+        // At the LAST node, only the ONE-STEP plan — step 1 with nothing after it, so the body has
+        // not walked a node of this path and consuming it produces an arrival with zero movement by
+        // construction. `wk.goal.reached(w) && !reached(foot)` is the other half: `w` is the plan's
+        // end here, so this says the plan's end satisfies the goal while the body does not. See the
+        // javadoc for what each of the two costs when it is left out.
+        boolean held = unwalked && (nx != null
+                || (wk.step == 1 && wk.goal != null && wk.goal.reached(w) && !wk.goal.reached(foot)));
         if (held) Walker.descentHolds++;
         return held;
     }
@@ -889,7 +929,7 @@ final class WalkerTickProgress {
             boolean doAdvance = (legacyAdvance || (BotConfig.walkerArcLengthAdvance && wk.arc.proj.segIdx > wk.step))
                     && !airborneClimbConsume(world, p, w, wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null)   // ONE outlet for all nine gates — an airborne body must not spend a node on a climb; see the helper's javadoc for the wd.buriedOre reading
                     && !unwalkedDescentConsume(wk, world, p, foot, w,
-                            wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null);                                                          // …and a standing body must not spend one on a descent; see that helper for the rung-14 reading
+                            wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null);                                                          // …and a standing body must not spend one on a descent — the LAST node too when spending it would fake an arrival; see that helper for the rung-14 and rung-13 readings
             if (doAdvance) {
                 // Don't CONSUME the final node of a disk goal while it sits inside the goal
                 // radius but the bot's FOOT cell is still one block short of it. The node-reach

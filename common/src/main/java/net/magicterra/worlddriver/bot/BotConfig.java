@@ -1769,8 +1769,11 @@ public final class BotConfig {
      *  four hops (2026-08-19) all ended perched at {@code 159,53,187} on 0.125 of a sole, and the plan
      *  that would have walked the body out — {@code [158,53,187 → 159,52,187 → 159,51,188]} — was spent
      *  in a single tick without one block of movement, {@code 因=within} with {@code |w.y-p.y|=1.000}
-     *  printed on the very line that advanced. The pointer descended; the body did not. Default ON;
-     *  the OFF arm is the control in {@code wd.serverStepsDownAPerchItPlanned}. */
+     *  printed on the very line that advanced. The pointer descended; the body did not. Covers the
+     *  LAST node of a plan as well as its middle: rung 13's doorstep was a one-node plan spent on the
+     *  tick it was adopted, and the segment then ends {@code path-consumed} with the body where it
+     *  started. Default ON; the OFF arm is the control in {@code wd.serverStepsDownAPerchItPlanned}
+     *  and {@code wd.serverStepsDownTheLastNodeOfItsPlan}. */
     public static volatile boolean walkerDescentNodeHold = true;
 
     /** Phase-2 of the arc-length pursuit refactor (#55): aim BOTH the camera and the body at the bob-immune

@@ -371,6 +371,12 @@ wd.serverKeepsWalkingAtADryRim
 wd.serverStepsDownAPerchItPlanned
 wd.serverStillWalksDownAStaircase
 
+# Rung 13's doorway, one node later: the same defect at the LAST node of a plan, which the perch's
+# fix scoped out. A verbatim copy of the cells the body could not walk the last cell of, with the
+# stance that makes cur2=0.316 — the pair asks whether the body ends STANDING ON the doorstep, and
+# the control must end for the ladder's own reason (end=path-consumed).
+wd.serverStepsDownTheLastNodeOfItsPlan
+
 # Rung 12's third failure family: the scoop's own flight fills the cell the lava cast has to
 # stand in AND shoot through, and clearPourLine then exempts it for being a step the rung laid
 # on purpose. One staged alcove at the instant the cast walks back in; the blocked shot, the
