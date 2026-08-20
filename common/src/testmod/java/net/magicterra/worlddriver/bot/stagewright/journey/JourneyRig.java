@@ -820,7 +820,15 @@ public final class JourneyRig {
         ctx.cleanup(pin::close);
         BotConfig.walkerDebug = false;
         BotConfig.pathfinderSliceMs = 30;
-        BotConfig.pathfinderMaxMs = 4_000;
+        // Bound by NODES, not by the wall clock — the shape 58 scene sites across nine files
+        // already use, and for the reason PathFinder's own comment gives: a millisecond cap makes
+        // the same search answer differently depending on how busy the box is that day, while a
+        // node budget is deterministic. The hang backstop is CEILING_MS, which is separate and
+        // still in force. Measured before changing it: `STOP cause=` appears ZERO times across
+        // journey11/12/13's logs against 496 `search-begin` lines, so the 4000 ms cap never once
+        // bound a real plan and this is hardening, not a fix for anything observed.
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxNodes = 100_000;
         BotConfig.allowBreak = true;
         BotConfig.allowPlace = true;
     }

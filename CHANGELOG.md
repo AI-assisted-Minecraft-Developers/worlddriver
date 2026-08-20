@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-20
 
+- **The ladder's searches are bounded by nodes, not by the wall clock.** `pathfinderMaxMs` was 4000;
+  it is now `Long.MAX_VALUE/2` with an explicit `pathfinderMaxNodes = 100_000`, the shape 58 scene
+  sites already use, for the reason `PathFinder`'s own comment gives: a millisecond cap makes the
+  same search answer differently depending on how busy the box is. Measured before changing it —
+  `STOP cause=` appears zero times across three ladder logs against 496 `search-begin` lines — so
+  this bound never once fired and this is hardening, **not** a fix for anything observed, and
+  emphatically not a claim that the ladder became reproducible.
+
 - **The ladder runs under all three topologies now, and every rung says which one it climbed in.**
   `wd.journey*` had exactly one run configuration, and it was the one with no client in the JVM at
   all — so a defect that lives on the client side could not be observed by it, only inferred from
