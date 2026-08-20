@@ -116,15 +116,38 @@ final class JourneyRamp {
      * next pour stands on, and sweeping it is what leaves the top rows unreachable again one cell
      * later. Kept as a set rather than re-derived, for the same reason {@code forgeStuck} is: "solid
      * and the rung put it there" is not a question a block id can answer.
+     *
+     * <p><b>Membership is an exemption from a SWEEP, not a title deed.</b> {@code tidyTheAlcove} and
+     * {@code standBehind}'s litter clear still honour it unconditionally — they are looking for
+     * blocks nobody meant to place. {@link JourneySight#blockersOnTheLine} does not: a step standing
+     * in the line of a pour that is due now was BORROWED from that pour, and it goes back unless the
+     * body is resting on it. The run that named the difference is quoted in JourneySight; in one
+     * sentence, the flight filled the cell the next cast had to stand in, and the exemption then
+     * stopped anyone taking it out again.
      */
     private static final Set<BlockPos> steps = new LinkedHashSet<>();
 
     /** Is this one of the steps this rung built on purpose? */
     static boolean isStep(BlockPos c) { return steps.contains(c); }
 
+    /** This cell is no longer a step. Called where one is taken back —
+     *  {@link JourneyPortalRung#clearPourLine} hands a borrowed step to the pour whose line it was
+     *  standing in. An entry left behind for a cell that is now air would exempt whatever arrives
+     *  there next from every sweep in this rung, on the strength of a step that no longer exists. */
+    static void forget(BlockPos c) { steps.remove(c); }
+
     /** Forget the previous mould's flight. Called where {@code forgeCorridor} is replaced — a step
      *  set that outlives its corridor would exempt a cell of the NEW alcove from every sweep. */
     static void reset() { steps.clear(); }
+
+    /** The steps this flight owns right now, for a scene that has to state what it staged. */
+    static java.util.Set<BlockPos> stepsNow() { return java.util.Set.copyOf(steps); }
+
+    /** Record a cell as a step of this flight. The one place {@link #steps} grows, so a scene that
+     *  stages a FINISHED flight registers it exactly the way {@link #lay} does — the same seam
+     *  {@link JourneyStairs#cut} gives the staircase, and for the same reason: a staged fixture that
+     *  registered itself by a private back door would be testing its own copy of the bookkeeping. */
+    static void laid(BlockPos c) { steps.add(c.immutable()); }
 
     /** How many courses one flight may be. Six is the alcove's full height, so a request past it is
      *  arithmetic gone wrong rather than a tall staircase. */
@@ -320,7 +343,7 @@ final class JourneyRamp {
                     && Math.sqrt(body.distSqr(shoulder)) <= JourneyStairs.MEND_REACH
                     && rig.body().avatar().holdItem(Items.COBBLESTONE)) {
                 JourneyStairs.placeInto(level, rig, shoulder);
-                if (level.getBlockState(shoulder).blocksMotion()) steps.add(shoulder.immutable());
+                if (level.getBlockState(shoulder).blocksMotion()) laid(shoulder);
             }
             boolean held = rig.body().avatar().holdItem(Items.COBBLESTONE);
             if (held) JourneyStairs.placeInto(level, rig, support);
@@ -333,7 +356,17 @@ final class JourneyRamp {
                         + "），身体 " + body.toShortString());
                 break;
             }
-            steps.add(support.immutable());
+            laid(support);
+            // NAMED AT THE MOMENT IT IS BORROWED. This is the row that would have made the ladder run
+            // of 2026-08-20 a one-round diagnosis: `wet.8.ramp.flight` and `cast8.picks.1` were two
+            // hundred lines apart and nothing said the cobblestone in the second was the fourth
+            // course of the first. Silent when the flight owes nothing, so the row's presence IS the
+            // reading — see JourneySight for why the reservation is redeemed rather than enforced.
+            BlockPos owner = JourneySight.lineOwner(level, support);
+            if (owner != null)
+                rig.evidence(tag + ".borrowed." + laid, support.toShortString() + " 正在 "
+                        + owner.toShortString() + " 那一格的浇筑射线上 —— 这一级没有别的落法，先借下来；"
+                        + "等浇那一格时 clearPourLine 会把它收回去");
             laid++;
         }
         if (laid >= flight.size() || laid == from) {
@@ -416,13 +449,32 @@ final class JourneyRamp {
      */
     private static List<BlockPos> plan(ServerLevel level, Set<BlockPos> corridor, int floorY,
                                        BlockPos landing) {
+        // TWO PASSES, and the second is not the first one giving up. Pass one refuses to FILL a cell
+        // a cast still to come has to shoot through ({@link JourneySight#onALineToCome}) — the
+        // sight-line half of the same no-go discipline JourneyStairs#needsOpen is the walkable half
+        // of. Pass two drops that refusal, because on the geometry that named this rule there is no
+        // route around it: the wet cell sits one row above the frame cell, so its landing rests on
+        // exactly the cell the frame cell has to stand in, and refusing there would leave the water
+        // pour with no way up at all — measured in wd.pourLineHasNoOtherWayUp. A flight that has to
+        // borrow says so (see #lay) and clearPourLine hands the cell back when the pour asks.
+        List<BlockPos> clear = planKeeping(level, corridor, floorY, landing, true);
+        return clear != null ? clear : planKeeping(level, corridor, floorY, landing, false);
+    }
+
+    /** One pass of {@link #plan}, named so a scene can ask the two separately: with the reservation
+     *  honoured there is no flight in this alcove, and without it there is exactly one whose top
+     *  support is the reserved cell. That pair is the arithmetic behind「redeem, do not refuse」and it
+     *  is measured in {@code wd.pourLineHasNoOtherWayUp} rather than argued. */
+    static List<BlockPos> planKeeping(ServerLevel level, Set<BlockPos> corridor, int floorY,
+                                      BlockPos landing, boolean keepLinesClear) {
         List<BlockPos> found = new ArrayList<>();
-        return walkDown(level, corridor, floorY, landing, found) ? found : null;
+        return walkDown(level, corridor, floorY, landing, found, keepLinesClear) ? found : null;
     }
 
     private static boolean walkDown(ServerLevel level, Set<BlockPos> corridor, int floorY,
-                                    BlockPos stand, List<BlockPos> found) {
-        if (!standable(level, corridor, stand) || !supportable(level, corridor, stand.below()))
+                                    BlockPos stand, List<BlockPos> found, boolean keepLinesClear) {
+        if (!standable(level, corridor, stand)
+                || !supportable(level, corridor, stand.below(), keepLinesClear))
             return false;
         if (stand.getY() == floorY + 1) {
             // The bottom course. Its own support rests on the rock under the alcove, and the body
@@ -436,7 +488,7 @@ final class JourneyRamp {
             return true;
         }
         for (Direction d : Direction.Plane.HORIZONTAL) {
-            if (walkDown(level, corridor, floorY, stand.relative(d).below(), found)) {
+            if (walkDown(level, corridor, floorY, stand.relative(d).below(), found, keepLinesClear)) {
                 found.add(stand);
                 return true;
             }
@@ -468,15 +520,33 @@ final class JourneyRamp {
      * construction, so it is placeable the moment that course is, and {@link #lay} builds bottom-up.
      */
     private static boolean supportable(ServerLevel level, Set<BlockPos> corridor, BlockPos c) {
+        return supportable(level, corridor, c, false);
+    }
+
+    /** As above, with {@code keepLinesClear} asking pass one's stricter question — see {@link #plan}.
+     *  A cell that is ALREADY solid is not affected by it: the reservation is about what this flight
+     *  would FILL, and a block that is already standing in a line is that line's problem to clear,
+     *  not this flight's to route around. */
+    private static boolean supportable(ServerLevel level, Set<BlockPos> corridor, BlockPos c,
+                                       boolean keepLinesClear) {
         if (level.getBlockState(c).blocksMotion()) return true;
-        return fillable(level, corridor, c)
-                && (placeable(level, c) || fillable(level, corridor, c.below()));
+        return fillable(level, corridor, c, keepLinesClear)
+                && (placeable(level, c) || fillable(level, corridor, c.below(), keepLinesClear));
     }
 
     /** Is this a cell the rung is allowed to drop a cobblestone into? The membership half of
      *  {@link #supportable}, split out because the shoulder has to pass it too and must not be held
      *  to the face test — having no face is the whole reason a shoulder exists. */
     private static boolean fillable(ServerLevel level, Set<BlockPos> corridor, BlockPos c) {
+        return fillable(level, corridor, c, false);
+    }
+
+    /** As above, plus the sight-line half of the no-go discipline when {@code keepLinesClear}: a
+     *  cell a cast still to come has to shoot through. Off by default because {@link #lay}'s shoulder
+     *  is laid against a plan that has already been made — the route decision is {@link #plan}'s. */
+    private static boolean fillable(ServerLevel level, Set<BlockPos> corridor, BlockPos c,
+                                    boolean keepLinesClear) {
+        if (keepLinesClear && JourneySight.onALineToCome(level, c)) return false;
         return corridor.contains(c) && !JourneyStairs.needsOpen(c)
                 && level.getBlockState(c).canBeReplaced() && !level.getFluidState(c).isSource();
     }

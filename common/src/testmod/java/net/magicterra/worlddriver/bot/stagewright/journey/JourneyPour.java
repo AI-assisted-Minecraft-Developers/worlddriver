@@ -8,6 +8,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 
 /**
  * Where to stand to empty a bucket into the mould, and how to get the body there.
@@ -68,7 +69,7 @@ final class JourneyPour {
         // that the NEXT pour then has to stand around. Asking standToPour in verified-only mode is
         // the same question the pour is about to ask, so this cannot raise for a cell that would
         // have poured anyway.
-        if (standToPour(ctx.level(), rig, target, away, new java.util.LinkedHashMap<>(), true) != null) {
+        if (standToPour(ctx.level(), rig.player(), target, away, new java.util.LinkedHashMap<>(), true) != null) {
             then.run();
             return;
         }
@@ -420,8 +421,8 @@ final class JourneyPour {
                 // `cast9.lift` then chose -10,59,37 and reported「被 cobblestone 占着」.
                 if (level.getBlockState(foot).blocksMotion()
                         || level.getBlockState(foot.above()).blocksMotion()) continue;
-                if (!(pouring ? pourLandsFrom(level, rig, foot, target, away)
-                              : scoopSeesFrom(level, rig, foot, target))) continue;
+                if (!(pouring ? pourLandsFrom(level, rig.player(), foot, target, away)
+                              : scoopSeesFrom(level, rig.player(), foot, target))) continue;
                 long dx = foot.getX() - here.getX(), dz = foot.getZ() - here.getZ();
                 long d = dx * dx + dz * dz;
                 if (d < bestD) { bestD = d; best = foot; }
@@ -432,15 +433,15 @@ final class JourneyPour {
     /** Would a body standing at {@code foot} be able to FILL from the fluid in {@code target}? The
      *  same {@code SOURCE_ONLY} clip {@code BucketItem.use} runs — the scoop's counterpart to
      *  {@link #pourLandsFrom}, and the reason a raise has to be told which of the two it is for. */
-    private static boolean scoopSeesFrom(ServerLevel level, JourneyRig rig, BlockPos foot,
+    private static boolean scoopSeesFrom(ServerLevel level, ServerPlayer body, BlockPos foot,
                                          BlockPos target) {
         var eye = new net.minecraft.world.phys.Vec3(foot.getX() + 0.5,
-                foot.getY() + rig.player().getEyeHeight(), foot.getZ() + 0.5);
+                foot.getY() + body.getEyeHeight(), foot.getZ() + 0.5);
         var to = net.minecraft.world.phys.Vec3.atCenterOf(target);
         if (eye.distanceTo(to) > JourneyFill.BUCKET_REACH) return false;
         var hit = level.clip(new net.minecraft.world.level.ClipContext(eye, to,
                 net.minecraft.world.level.ClipContext.Block.OUTLINE,
-                net.minecraft.world.level.ClipContext.Fluid.SOURCE_ONLY, rig.player()));
+                net.minecraft.world.level.ClipContext.Fluid.SOURCE_ONLY, body));
         return hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
                 && hit.getBlockPos().equals(target);
     }
@@ -448,7 +449,7 @@ final class JourneyPour {
     /** Would a bucket emptied by a body standing at {@code foot} land in {@code target}? The same
      *  clip {@link #standToAimAt} runs, from the eye that body WOULD have — a prediction about a
      *  cell the rung is about to build a floor under, which is why it cannot ask for one. */
-    private static boolean pourLandsFrom(ServerLevel level, JourneyRig rig, BlockPos foot,
+    private static boolean pourLandsFrom(ServerLevel level, ServerPlayer body, BlockPos foot,
                                          BlockPos target, Direction away) {
         // THE WHOLE CELL, exactly as a stand is judged — see JourneySight. A column is chosen once and
         // then PINNED («换柱等于换射线，不许改»), so a column that only verifies from its own centre
@@ -461,7 +462,7 @@ final class JourneyPour {
         Map<String, Integer> why = new java.util.LinkedHashMap<>();
         for (BlockPos aim : List.of(target.relative(away), target.below())) {
             if (!level.getBlockState(aim).isSolidRender(level, aim)) continue;
-            if (JourneySight.pourGrade(level, rig, foot, afloat, aim, target, why)
+            if (JourneySight.pourGrade(level, body, foot, afloat, aim, target, why)
                     == JourneySight.ANYWHERE) return true;
         }
         return false;
@@ -512,7 +513,7 @@ final class JourneyPour {
         BlockPos verified = JourneyPortalRung.forgeCorridor.contains(behindLow) && JourneyPortalRung.forgeCorridor.contains(behindLow.above())
                 && !ctx.level().getBlockState(behindLow).blocksMotion()
                 && !ctx.level().getBlockState(behindLow.above()).blocksMotion()
-                && pourLandsFrom(ctx.level(), rig, behindLow, target, away)
+                && pourLandsFrom(ctx.level(), rig.player(), behindLow, target, away)
                 ? behindLow : raiseColumn(ctx.level(), rig, target, away, wantY, true);
         BlockPos here = rig.player().blockPosition();
         BlockPos landing = verified != null ? verified : new BlockPos(here.getX(), wantY, here.getZ());
@@ -556,9 +557,9 @@ final class JourneyPour {
      * backing's near face, which is what puts the fluid in {@code target} and nowhere else. Nearest
      * to the body wins, so a cell it is already standing in costs no walk at all.
      */
-    static PourSpot standToPour(ServerLevel level, JourneyRig rig, BlockPos target,
+    static PourSpot standToPour(ServerLevel level, ServerPlayer body, BlockPos target,
                                 Direction away, Map<String, Integer> why) {
-        return standToPour(level, rig, target, away, why, false);
+        return standToPour(level, body, target, away, why, false);
     }
 
     /** Where to stand and what to aim at — one answer, because the two are chosen together. */
@@ -585,16 +586,16 @@ final class JourneyPour {
      * The exception is the top pair, whose floor is an interior cell opened three casts earlier;
      * there this finds nothing and {@link #standLevelWith} still has to build the step.
      */
-    private static PourSpot standToPour(ServerLevel level, JourneyRig rig, BlockPos target,
+    private static PourSpot standToPour(ServerLevel level, ServerPlayer body, BlockPos target,
                                         Direction away, Map<String, Integer> why,
                                         boolean verifiedOnly) {
-        BlockPos standable = firstStandable(level, rig, target, away);
+        BlockPos standable = firstStandable(level, body, target, away);
         for (BlockPos aim : List.of(target.relative(away), target.below())) {
             if (!level.getBlockState(aim).isSolidRender(level, aim)) {
                 why.merge(aim.toShortString() + " 不是实心的，弹不出流体", 1, Integer::sum);
                 continue;
             }
-            BlockPos best = standToAimAt(level, rig, target, away, aim, why, verifiedOnly);
+            BlockPos best = standToAimAt(level, body, target, away, aim, why, verifiedOnly);
             if (best != null) return new PourSpot(best, aim);
         }
         return standable == null || verifiedOnly ? null
@@ -668,10 +669,8 @@ final class JourneyPour {
             // the caller's very next act is to aim at whatever this returns, so the body ends up
             // pointing at the candidate either way — this only makes the decision and the aim the
             // same act.
-            rig.body().avatar().aimAtBlock(aim);
-            var fired = WorldDriverJourneyScenes.aimedAt(rig.player(), JourneyFill.BUCKET_REACH, false);
-            BlockPos into = fired.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
-                    ? fired.getBlockPos().relative(fired.getDirection()) : null;
+            var fired = fire(rig.body().avatar(), rig.player(), aim);
+            BlockPos into = landedIn(fired);
             if (target.equals(into)) return aim;
             // Named, and named per candidate. A row that only said「没有能浇的落脚点」would send the
             // next reader looking at the geometry, which is fine — and this one says the geometry was
@@ -688,80 +687,133 @@ final class JourneyPour {
         return null;
     }
 
+    /**
+     * Aim at {@code at} and take the shot the bucket would take — the ray that DECIDES, not the
+     * segment that chose the candidate. See {@link #aimThatLandsIn} for why the two are not the same
+     * line even from a body standing still.
+     *
+     * <p>Two calls rather than one because both halves are read: the hit's own type is the only
+     * thing that distinguishes「射线没打到方块」from a landing, and {@link #landedIn} throws that
+     * away. Package-private so an isolated arena can fire the production shot at a staged mould
+     * instead of hand-rolling a clip beside it.
+     */
+    static net.minecraft.world.phys.BlockHitResult fire(net.magicterra.worlddriver.bot.movement.Avatar av,
+                                                        ServerPlayer body, BlockPos at) {
+        av.aimAtBlock(at);
+        return WorldDriverJourneyScenes.aimedAt(body, JourneyFill.BUCKET_REACH, false);
+    }
+
+    /** Which cell a filled bucket would empty into, given that shot — the cell in front of the face
+     *  it hit, or null when it hit nothing. */
+    static BlockPos landedIn(net.minecraft.world.phys.BlockHitResult fired) {
+        return fired.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+                ? fired.getBlockPos().relative(fired.getDirection()) : null;
+    }
+
     /** The nearest cell the body could stand in at all, ray or no ray. Kept apart from the aim scan
      *  so a body is never left with nowhere to go because the ray test is stricter than it should be
      *  — the pour's own {@code .picks} gate still refuses to spend the bucket, so falling back here
      *  cannot cause a wrong-cell pour. */
-    private static BlockPos firstStandable(ServerLevel level, JourneyRig rig, BlockPos target,
+    private static BlockPos firstStandable(ServerLevel level, ServerPlayer body, BlockPos target,
                                            Direction away) {
-        BlockPos from = rig.player().blockPosition();
+        BlockPos from = body.blockPosition();
         BlockPos standable = null;
         double standableD = Double.MAX_VALUE;
-        for (int back = 1; back <= 4; back++)
-            for (int side = -2; side <= 2; side++)
-                for (int dy = 0; dy >= -6; dy--) {
-                    BlockPos foot = target.relative(away.getOpposite(), back)
-                            .relative(away.getClockWise(), side).above(dy);
-                    if (!level.getBlockState(foot.below()).blocksMotion()) continue;
-                    if (!level.getBlockState(foot).getCollisionShape(level, foot).isEmpty()) continue;
-                    BlockPos head = foot.above();
-                    if (!level.getBlockState(head).getCollisionShape(level, head).isEmpty()) continue;
-                    double d = foot.distSqr(from);
-                    if (d < standableD) { standableD = d; standable = foot; }
-                }
+        for (BlockPos foot : standCandidates(target, away)) {
+            if (!level.getBlockState(foot.below()).blocksMotion()) continue;
+            if (!level.getBlockState(foot).getCollisionShape(level, foot).isEmpty()) continue;
+            BlockPos head = foot.above();
+            if (!level.getBlockState(head).getCollisionShape(level, head).isEmpty()) continue;
+            double d = foot.distSqr(from);
+            if (d < standableD) { standableD = d; standable = foot; }
+        }
         return standable;
     }
 
-    private static BlockPos standToAimAt(ServerLevel level, JourneyRig rig, BlockPos target,
-                                         Direction away, BlockPos backing, Map<String, Integer> why,
-                                         boolean robustOnly) {
-        BlockPos from = rig.player().blockPosition();
-        BlockPos best = null, loose = null;
-        double bestD = Double.MAX_VALUE, looseD = Double.MAX_VALUE;
+    /**
+     * Every foot cell a pour weighs, in one place.
+     *
+     * <p>The bounds were written out twice — here and in {@link #standToAimAt} — and the two had to
+     * agree for the standable fallback to mean anything. They also have to be readable from OUTSIDE,
+     * because can be answered by no veto histogram: it counts REASONS, not cells, so a row
+     * that names a cell says nothing about which candidate cast that vote. Rung 12 spent a round
+     * reading {@code 4, 60, 18} as though the stand printed beside it had produced it. See
+     * {@code wd.pourLineBlockedByTheStepTheScoopLeft}, which walks this list and attributes every
+     * vote to the cell that cast it.
+     *
+     * <p>Four back, two either side, seven rows down: the alcove is {@code push}-deep and five wide,
+     * so this is the whole of it plus the reach a body has from the rank behind.
+     */
+    static List<BlockPos> standCandidates(BlockPos target, Direction away) {
+        List<BlockPos> out = new java.util.ArrayList<>();
         for (int back = 1; back <= 4; back++)
             for (int side = -2; side <= 2; side++)
-                for (int dy = 0; dy >= -6; dy--) {
-                    BlockPos foot = target.relative(away.getOpposite(), back)
-                            .relative(away.getClockWise(), side).above(dy);
-                    double d = foot.distSqr(from);
-                    if (!level.getBlockState(foot.below()).blocksMotion()) {
-                        why.merge("脚下不实心", 1, Integer::sum); continue;
-                    }
-                    if (!level.getBlockState(foot).getCollisionShape(level, foot).isEmpty()) {
-                        why.merge("落脚格被占", 1, Integer::sum); continue;
-                    }
-                    BlockPos head = foot.above();
-                    if (!level.getBlockState(head).getCollisionShape(level, head).isEmpty()) {
-                        why.merge("头顶被占", 1, Integer::sum); continue;
-                    }
-                    // A BODY IN WATER FLOATS, and the whole aim turns on one block of height.
-                    //
-                    // The cast's own bucket floods the corridor — the source sits in an interior cell
-                    // open to it — so by the third cell the row the pours stand in is water. The body
-                    // then does not stand in the cell this loop picked; it bobs a block above it.
-                    // Measured, cell 2: `water2.stand=-9,56,37` chosen and `water2.picks=…身体
-                    // -9,57,37` an instant later, and from that extra block the ray to a backing two
-                    // away enters the plane one row high — `落进 -9,58,37` for a target at
-                    // `-9,57,38`. Nothing was wrong with the choice; the body was not where the
-                    // choice assumed. So predict the float instead of assuming it away, and require
-                    // the extra headroom the floating body actually occupies.
-                    boolean afloat = !level.getFluidState(foot).isEmpty();
-                    if (afloat) {
-                        BlockPos over = foot.above(2);
-                        if (!level.getBlockState(over).getCollisionShape(level, over).isEmpty()) {
-                            why.merge("浮起来会顶到 " + over.toShortString(), 1, Integer::sum);
-                            continue;
-                        }
-                    }
-                    // THE WHOLE CELL, not the one point in it a body is never at. See JourneySight
-                    // for the eye this used to test and the eye that fired a tick later, three
-                    // tenths of a block apart and one column of crossings apart with it.
-                    int grade = JourneySight.pourGrade(level, rig, foot, afloat, backing, target, why);
-                    if (grade == JourneySight.REFUSED) continue;
-                    if (grade == JourneySight.ANYWHERE) {
-                        if (d < bestD) { bestD = d; best = foot; }
-                    } else if (d < looseD) { looseD = d; loose = foot; }
-                }
+                for (int dy = 0; dy >= -6; dy--)
+                    out.add(target.relative(away.getOpposite(), back)
+                            .relative(away.getClockWise(), side).above(dy));
+        return out;
+    }
+
+    /**
+     * How one candidate foot weighs, and the veto it writes when it does not.
+     *
+     * <p>The body of {@link #standToAimAt}'s loop, extracted so the same scan can be asked cell by
+     * cell — a scene that has to say WHICH cell produced a veto cannot get that from the histogram,
+     * and re-implementing the four guards beside it would be an imitation rather than the subject.
+     */
+    static int gradeFoot(ServerLevel level, ServerPlayer body, BlockPos foot, BlockPos backing,
+                         BlockPos target, Map<String, Integer> why) {
+        if (!level.getBlockState(foot.below()).blocksMotion()) {
+            why.merge("脚下不实心", 1, Integer::sum);
+            return JourneySight.REFUSED;
+        }
+        if (!level.getBlockState(foot).getCollisionShape(level, foot).isEmpty()) {
+            why.merge("落脚格被占", 1, Integer::sum);
+            return JourneySight.REFUSED;
+        }
+        BlockPos head = foot.above();
+        if (!level.getBlockState(head).getCollisionShape(level, head).isEmpty()) {
+            why.merge("头顶被占", 1, Integer::sum);
+            return JourneySight.REFUSED;
+        }
+        // A BODY IN WATER FLOATS, and the whole aim turns on one block of height.
+        //
+        // The cast's own bucket floods the corridor - the source sits in an interior cell open to it
+        // - so by the third cell the row the pours stand in is water. The body then does not stand in
+        // the cell this loop picked; it bobs a block above it. Measured, cell 2:
+        // `water2.stand=-9,56,37` chosen and `water2.picks=...body -9,57,37` an instant later, and
+        // from that extra block the ray to a backing two away enters the plane one row high -
+        // `落进 -9,58,37` for a target at `-9,57,38`. Nothing was wrong with the choice; the body was
+        // not where the choice assumed. So predict the float instead of assuming it away, and require
+        // the extra headroom the floating body actually occupies.
+        boolean afloat = !level.getFluidState(foot).isEmpty();
+        if (afloat) {
+            BlockPos over = foot.above(2);
+            if (!level.getBlockState(over).getCollisionShape(level, over).isEmpty()) {
+                why.merge("浮起来会顶到 " + over.toShortString(), 1, Integer::sum);
+                return JourneySight.REFUSED;
+            }
+        }
+        // THE WHOLE CELL, not the one point in it a body is never at. See JourneySight for the eye
+        // this used to test and the eye that fired a tick later, three tenths of a block apart and
+        // one column of crossings apart with it.
+        return JourneySight.pourGrade(level, body, foot, afloat, backing, target, why);
+    }
+
+    private static BlockPos standToAimAt(ServerLevel level, ServerPlayer body, BlockPos target,
+                                         Direction away, BlockPos backing, Map<String, Integer> why,
+                                         boolean robustOnly) {
+        BlockPos from = body.blockPosition();
+        BlockPos best = null, loose = null;
+        double bestD = Double.MAX_VALUE, looseD = Double.MAX_VALUE;
+        for (BlockPos foot : standCandidates(target, away)) {
+            double d = foot.distSqr(from);
+            int grade = gradeFoot(level, body, foot, backing, target, why);
+            if (grade == JourneySight.REFUSED) continue;
+            if (grade == JourneySight.ANYWHERE) {
+                if (d < bestD) { bestD = d; best = foot; }
+            } else if (d < looseD) { looseD = d; loose = foot; }
+        }
         // A CENTRE-ONLY SPOT IS A PLACE TO WALK TO AND NOT AN ANSWER TO「要不要垒台阶」.
         // standLevelWith asks in verified-only mode and skips the raise on a yes, so a maybe there
         // costs the cell; the pour asks for somewhere to stand, and its .picks gate is what spends

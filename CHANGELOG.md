@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-20
 
+- **Rung 12's third failure family: the scoop's own staircase stood in the cell the cast had to stand
+  in — and in the line it had to shoot down.** Cast 8 of an `east` mould based at `4,56,19` pours
+  `4,60,19`, and its two halves want the same cell for opposite things. `standBehind` laid a step at
+  `3,58,19` *for that cell*, so the body could stand in `3,59,19` and shoot the backing along the
+  axis. The WET half of the same cast fills the notch one row higher (`4,61,19`), so its flight had to
+  reach `3,60,19` — and the only support for that landing is `3,59,19`. The lava half came back to
+  find its own stand solid:
+
+  ```
+  cell.8.step       = 3, 58, 19 垫一格给 4, 60, 19 用 → 站得住了（cobblestone）
+  wet.8.ramp.flight = 4 级：2, 56, 17 → 3, 57, 17 → 3, 58, 18 → 3, 59, 19
+  cast8.picks.1     = 3, 59, 19 cobblestone face=west → 落进 2, 59, 19（想浇 4, 60, 19）
+  cast8.clear3      = 浇线上没有可清的方块（3, 59, 19=cobblestone(壁龛内) …）
+  ```
+
+  The last row is the one that made it unrecoverable: `clearPourLine` exempted the blocker because
+  `JourneyRamp.isStep` said the rung had placed it deliberately. **The rung built the obstacle and
+  then excused it.** Membership of the step set is now an exemption from a SWEEP rather than a title
+  deed — `JourneySight.blockersOnTheLine` hands a step back to the pour whose line it is standing in,
+  unless the body is resting on it (all four corners of the footprint, not `blockPosition()`).
+
+- **The reservation is redeemed, not enforced, and that is arithmetic rather than taste.** The
+  sight-line no-go list (`JourneySight.onALineToCome` — cells a ring cell not yet cast has to shoot
+  through) is the counterpart of `JourneyStairs.needsOpen`, which keeps cells WALKABLE. `JourneyRamp`
+  now plans in two passes and prefers a route that keeps those lines clear, and says
+  `ramp.borrowed.N` when it has to take one anyway. It always has to here: the wet cell is one row
+  above the frame cell, so its landing's support *is* the frame cell's stand. Forbidding the fill
+  would move the failure one leg earlier — measured in `wd.pourLineHasNoOtherWayUp`, where the strict
+  pass finds no flight and the permissive one finds exactly one, resting on the reserved cell.
+
+- **`4, 60, 18` in `cast8.stand.1` was never the stand's own reading.** The veto map is a HISTOGRAM
+  over all 140 candidate feet, so a row prints one stand beside the reasons *every* candidate was
+  refused for. `4,60,18` is the mould's uncarved frame corner and only feet at `z=18` name it —
+  measured per candidate in `wd.pourLineBlockedByTheStepTheScoopLeft`, which walks
+  `JourneyPour.standCandidates` and attributes each vote to the cell that cast it. The stand's own
+  veto names `3,59,19`, at the target's z.
+
+- **Three scenes, one staged alcove, `withRequired(false)`.** `wd.pourLineBlockedByTheStepTheScoopLeft`
+  (the blocked shot and the vote attribution), `wd.pourLineTakesBackTheStepItBorrowed` (the take-back,
+  with a body standing on the step as the control that must be refused), `wd.pourLineHasNoOtherWayUp`
+  (why a refusal is not the fix). All three are staged at the instant the lava half walks back in —
+  eight ring cells cast, the flight standing — because two of this family's three instances were
+  caused by the PREVIOUS leg, and a single-leg fixture is blind to them. `JourneySight` and the pour's
+  stand-choosing layer take a `ServerPlayer` instead of a `JourneyRig` so an arena can ask the
+  production question at all.
+
 - **The Nether crossing's 41% no-plan burn was a step pointer spending a descent the body never made.**
   Rung 14 (2026-08-19) reported `全程无计划 3551 tick` = 41% of the run, and that reading is not spread
   over the crossing: **3,517 of those 3,551 ticks are four consecutive hops standing at one

@@ -1,10 +1,18 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
@@ -52,6 +60,36 @@ import net.minecraft.world.phys.Vec3;
  * existing question more times, from the positions the body is entitled to occupy, and a shot that
  * is axis-aligned — the shape this rung's every successful cast has — is unaffected by construction,
  * because sliding the eye along its own axis does not move which cells the line crosses.
+ *
+ * <h2>The second kind of no-go list: cells that must stay clear of a LINE</h2>
+ *
+ * <p>{@link JourneyStairs#needsOpen} is the first kind — cells the descent flight needs to stay
+ * WALKABLE, which {@link JourneyRamp#fillable} refuses to build into. A block that cannot stop a
+ * body can still stop a ray, so the mould needs the other kind too, and rung 12 lost a run to not
+ * having it (ladder run of 2026-08-20, cast 8 of an {@code east} mould at {@code 4,56,19}):
+ *
+ * <pre>
+ * cell.8.step       = 3, 58, 19 垫一格给 4, 60, 19 用 → 站得住了（cobblestone）
+ * wet.8.ramp.flight = 4 级：2, 56, 17 → 3, 57, 17 → 3, 58, 18 → 3, 59, 19
+ * cast8.picks.1     = 3, 59, 19 Block{minecraft:cobblestone} face=west → 落进 2, 59, 19
+ *                     （想浇 4, 60, 19，瞄 5, 60, 19，身体 2, 58, 19，眼睛 2.04/59.62/19.48）
+ * cast8.clear3      = 浇线上没有可清的方块（3, 59, 19=Block{minecraft:cobblestone}(壁龛内) …）
+ * </pre>
+ *
+ * <p>Read in order: a step was placed at {@code 3,58,19} <b>for this very cell</b>, so that the body
+ * could stand in {@code 3,59,19} and shoot the backing along the axis. The WET half of the same cell
+ * then needed to be one row higher, its flight filled {@code 3,59,19} to get there — and the LAVA
+ * half came back to find its own stand solid, its line blocked by that same block, and
+ * {@code clearPourLine} exempting it because {@link JourneyRamp#isStep} said the rung had put it
+ * there on purpose. The rung built the blocker and then excused it.
+ *
+ * <p><b>Refusing the fill is not available here, and that is measured rather than assumed</b> — see
+ * {@code wd.pourLineHasNoOtherWayUp}. The wet cell is one row above the frame cell, so the stand it
+ * needs is one row above the frame cell's stand, so its flight's landing rests on exactly the cell
+ * the frame cell wants to stand IN. {@link JourneyRamp#plan} is given the reservation and prefers a
+ * route around it, but in this alcove there is no route around it: the reserved cell IS the landing's
+ * own support. So the reservation is redeemed instead of enforced — the step is BORROWED, and
+ * {@link #blockersOnTheLine} hands it back the moment the pour that reserved it asks.
  */
 final class JourneySight {
 
@@ -79,10 +117,15 @@ final class JourneySight {
      * reads the same as it did before. The corner passes add one row of their own, naming the cell
      * that stops the shot, because "the geometry is fine and the body's own footwork is not" is a
      * different search from "there is nothing to aim at down here".
+     *
+     * <p>Takes the BODY rather than the rig, and that is not cosmetic: everything here is geometry
+     * plus one eye height, so an isolated arena can ask the production question of a staged mould
+     * with its own avatar. A predicate that could only be reached through {@link JourneyRig} could
+     * only be tested by a forty-minute ladder run.
      */
-    static int pourGrade(ServerLevel level, JourneyRig rig, BlockPos foot, boolean afloat,
+    static int pourGrade(ServerLevel level, ServerPlayer body, BlockPos foot, boolean afloat,
                          BlockPos backing, BlockPos target, Map<String, Integer> why) {
-        String centre = pourLine(level, rig, foot, 0.5, 0.5, afloat ? 1 : 0, backing, target);
+        String centre = pourLine(level, body, foot, 0.5, 0.5, afloat ? 1 : 0, backing, target);
         if (centre != null) {
             why.merge(centre, 1, Integer::sum);
             return REFUSED;
@@ -95,7 +138,7 @@ final class JourneySight {
                 // (measured `water2.stand=-9,56,37` against `身体 -9,57,37`). A line that needs one
                 // of the two to be true is not a line this rung may plan on.
                 for (int lift = 0; lift <= (afloat ? 1 : 0); lift++) {
-                    String edge = pourLine(level, rig, foot, x, z, lift, backing, target);
+                    String edge = pourLine(level, body, foot, x, z, lift, backing, target);
                     if (edge == null) continue;
                     why.merge("只有正对格心才成立（走位偏 " + OFF_CENTRE + " 格就 " + edge + "）",
                             1, Integer::sum);
@@ -107,14 +150,14 @@ final class JourneySight {
     /** Null when the line holds from this one eye; otherwise the veto that stopped it. The clip is
      *  the one a filled bucket runs — {@code Fluid.NONE}, because that is what a non-empty bucket
      *  uses — and it is the same call the chooser has always made, only from more places. */
-    private static String pourLine(ServerLevel level, JourneyRig rig, BlockPos foot, double x,
+    private static String pourLine(ServerLevel level, ServerPlayer body, BlockPos foot, double x,
                                    double z, int lift, BlockPos backing, BlockPos target) {
-        var eye = new Vec3(foot.getX() + x, foot.getY() + lift + rig.player().getEyeHeight(),
+        var eye = new Vec3(foot.getX() + x, foot.getY() + lift + body.getEyeHeight(),
                 foot.getZ() + z);
         var aim = Vec3.atCenterOf(backing);
         if (eye.distanceTo(aim) > JourneyFill.BUCKET_REACH) return "够不着 " + backing.toShortString();
         var hit = level.clip(new ClipContext(eye, aim, ClipContext.Block.OUTLINE,
-                ClipContext.Fluid.NONE, rig.player()));
+                ClipContext.Fluid.NONE, body));
         if (hit.getType() != HitResult.Type.BLOCK) return "射线没打到方块";
         if (!hit.getBlockPos().equals(backing))
             return "射线停在 " + hit.getBlockPos().toShortString() + " "
@@ -122,5 +165,116 @@ final class JourneySight {
         if (!backing.relative(hit.getDirection()).equals(target))
             return "打中 " + backing.toShortString() + " 的 " + hit.getDirection() + " 面";
         return null;
+    }
+
+    // ------------------------------------------------ the sight-line reservation ----
+
+    /** The mould whose casts still have lines to protect, or null when there is none. Bare
+     *  coordinates, like {@link JourneyStairs#cells}, so it is cleared with the corridor it belongs
+     *  to rather than left to be inherited by the next hole. */
+    private static BlockPos mouldBase;
+    private static Direction mouldAway;
+
+    /** Register the mould this reservation is about. Called where {@code forgeCorridor} is
+     *  replaced — one lifetime, one alcove. */
+    static void mould(BlockPos base, Direction away) {
+        mouldBase = base == null ? null : base.immutable();
+        mouldAway = away;
+    }
+
+    /** No mould at all. The isolated scenes stage one and must not leave it behind. */
+    static void forgetMould() { mould(null, null); }
+
+    /**
+     * Is this cell on the pour line of a ring cell that has NOT been cast yet?
+     *
+     * <p>「Not cast yet」is read off the WORLD rather than kept as an index, for the same reason
+     * {@link JourneyRamp}'s footing scan reads the world: a cell that was cast and then lost is
+     * still a cell this rung has to pour into, and an index would say it was done. Obsidian in a
+     * ring cell is the one state that means the line is spent.
+     *
+     * <p>Cheap enough to ask per placement — ten ring cells times the {@link
+     * JourneyPortalRung#POUR_LINE} window is at most 120 comparisons and no block reads until a
+     * ring cell matches.
+     */
+    static boolean onALineToCome(ServerLevel level, BlockPos cell) {
+        return lineOwner(level, cell) != null;
+    }
+
+    /** Which pending cast needs this cell clear, or null — the named half of
+     *  {@link #onALineToCome}, so a row can say WHICH pour it is borrowing from. */
+    static BlockPos lineOwner(ServerLevel level, BlockPos cell) {
+        if (mouldBase == null || mouldAway == null) return null;
+        for (int[] c : JourneyForge.RING) {
+            BlockPos ring = JourneyForge.frameCell(mouldBase, mouldAway, c[0], c[1]);
+            if (level.getBlockState(ring).is(Blocks.OBSIDIAN)) continue;
+            if (onTheLineOf(ring, mouldAway, cell)) return ring;
+        }
+        return null;
+    }
+
+    /** The window {@link JourneyPortalRung#clearPourLine} sweeps, as a predicate: {@code depth}
+     *  cells back along the pour's own axis, one row below the target for the feet and two above it
+     *  for the head a floating body has. */
+    private static boolean onTheLineOf(BlockPos target, Direction away, BlockPos cell) {
+        for (int k = 1; k <= JourneyPortalRung.POUR_LINE; k++)
+            for (int dy = -1; dy <= 2; dy++)
+                if (target.relative(away.getOpposite(), k).above(dy).equals(cell)) return true;
+        return false;
+    }
+
+    /**
+     * What is standing in this pour's line that the rung may take back.
+     *
+     * <p>Moved out of {@link JourneyPortalRung#clearPourLine} so an arena can ask the production
+     * question without a rig, and given the clause that run cost: <b>a flight step on the line goes
+     * back unless the body is resting on it.</b>
+     *
+     * <p>The exemption it replaces was unconditional, and its reasoning was sound as far as it went
+     * — breaking the floor a pour is standing on is the same mistake as the clear that mined the
+     * frame it was pouring into. What it missed is that the step blocking a line is usually not the
+     * step holding the body up: on the run above the body stood at {@code 2,58,19} and the blocker
+     * was {@code 3,59,19}, a column over and a row up. So the question is asked of the body's own
+     * footprint instead of of the block's provenance, and a step that is genuinely load-bearing is
+     * still refused — {@code wd.pourLineWillNotMineTheStepUnderItsOwnFeet} is that half.
+     *
+     * <p>Nothing outside {@code corridor} is ever touched: one cell below the bottom frame row is
+     * the mould's own floor, and answering a blocked ray by breaking it would drain every cast.
+     * Fluid is skipped because the alcove floods with the rung's own water and a puddle is not a
+     * wall — {@code mine} on water is a no-op that spends the whole budget.
+     */
+    static List<BlockPos> blockersOnTheLine(ServerLevel level, Set<BlockPos> corridor,
+                                            BlockPos target, Direction away, int depth,
+                                            ServerPlayer body) {
+        List<BlockPos> blocked = new ArrayList<>();
+        for (int k = 1; k <= depth; k++)
+            for (int dy = -1; dy <= 2; dy++) {
+                BlockPos c = target.relative(away.getOpposite(), k).above(dy);
+                if (!corridor.contains(c)) continue;
+                if (level.getBlockState(c).isAir()) continue;
+                if (!level.getFluidState(c).isEmpty()) continue;   // the rung's own water, not a wall
+                if (JourneyRamp.isStep(c) && restsOn(body, c)) continue;
+                blocked.add(c.immutable());
+            }
+        return blocked;
+    }
+
+    /**
+     * Is the body in this cell, or standing on it?
+     *
+     * <p>All four corners of the footprint, because a 0.6-wide box a fifth of a cell off centre
+     * rests on the cell next door — the same reason {@link JourneyShaft#supportUnder} looks there,
+     * and the same measurement ({@code 身体精确位置 6.60/57.00/17.78}) that
+     * {@link JourneyRamp#approach} was written around. Asked of the BOX rather than of
+     * {@code blockPosition()} for exactly that: the cell a body rounds to is not the whole of what
+     * it is resting on.
+     */
+    static boolean restsOn(ServerPlayer body, BlockPos c) {
+        if (body == null) return false;
+        AABB box = body.getBoundingBox();
+        if (box.intersects(new AABB(c))) return true;
+        if (c.getY() != Mth.floor(box.minY) - 1) return false;
+        return c.getX() >= Mth.floor(box.minX) && c.getX() <= Mth.floor(box.maxX)
+                && c.getZ() >= Mth.floor(box.minZ) && c.getZ() <= Mth.floor(box.maxZ);
     }
 }

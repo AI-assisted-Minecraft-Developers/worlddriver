@@ -370,3 +370,11 @@ wd.serverKeepsWalkingAtADryRim
 # over an ordinary descent, where both arms must agree.
 wd.serverStepsDownAPerchItPlanned
 wd.serverStillWalksDownAStaircase
+
+# Rung 12's third failure family: the scoop's own flight fills the cell the lava cast has to
+# stand in AND shoot through, and clearPourLine then exempts it for being a step the rung laid
+# on purpose. One staged alcove at the instant the cast walks back in; the blocked shot, the
+# take-back and the arithmetic that says a refusal would only move the failure one leg earlier.
+wd.pourLineBlockedByTheStepTheScoopLeft
+wd.pourLineTakesBackTheStepItBorrowed
+wd.pourLineHasNoOtherWayUp

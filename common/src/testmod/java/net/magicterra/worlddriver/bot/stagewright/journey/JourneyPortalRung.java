@@ -1069,6 +1069,11 @@ public final class JourneyPortalRung {
         // the NEW alcove from every sweep, on the strength of a flight built in a different hole.
         JourneyRamp.reset();
         BlockPos base = at.relative(away, push);
+        // The lines the casts still to come have to see along — the second no-go list, registered
+        // with the corridor for the same reason the first one is cleared with it. See JourneySight:
+        // it is what lets a flight prefer a route that does not fill a cell a later pour has to
+        // shoot through, and what names the borrow when there is no such route.
+        JourneySight.mould(base, away);
         rig.evidence("forge.face", base.toShortString() + " 朝 " + away
                 + "（背离岩浆，外推 " + push + " 格，井底 y=" + at.getY() + "，岩浆层 y=" + lava.getY() + "）");
         // Corridor only. The twelve frame cells were checked for fluid above (via `cells`) but are
@@ -1745,7 +1750,9 @@ public final class JourneyPortalRung {
             // A step of the flight is not something that "arrived since" — it is the floor a stand
             // one row up rests on, and `behind`'s own support is exactly the cell a taller cell's
             // landing was built over. Breaking it here would clear the stand this dig is about to
-            // choose. Same exemption tidyTheAlcove and clearPourLine carry, for the same reason.
+            // choose. Same exemption tidyTheAlcove carries, for the same reason — and NOT the one
+            // clearPourLine carries any more: a step in a pour's line is a step that pour lent the
+            // flight, and it goes back. See JourneySight#blockersOnTheLine.
             if (JourneyRamp.isStep(c)) continue;
             if (!level.getBlockState(c).blocksMotion()) continue;   // air, and the rung's own water
             return c;
@@ -2201,7 +2208,7 @@ public final class JourneyPortalRung {
                     + target.toShortString() + "（不走了）；" + JourneyFill.eyeNow(rig));
             spot = new JourneyPour.PourSpot(rig.player().blockPosition(), already);
         }
-        if (spot == null) spot = JourneyPour.standToPour(ctx.level(), rig, target, away, why);
+        if (spot == null) spot = JourneyPour.standToPour(ctx.level(), rig.player(), target, away, why);
         if (spot == null) {
             ctx.fail("模腔里没有能浇到 " + target.toShortString() + " 的落脚点："
                     + "要求脚下实心、头顶两格空、射线打在背板 " + target.relative(away).toShortString()
@@ -2410,28 +2417,37 @@ public final class JourneyPortalRung {
      * for the whole casting phase now, so this should find nothing, and finding something is itself
      * the report. Outside that set nothing is touched: one cell below the bottom frame row is the
      * mould's own floor, and answering a blocked ray by breaking it would drain every cast.
+     *
+     * <p><b>A flight step in the line is now taken back.</b> The rule and the measurement behind it
+     * are {@link JourneySight#blockersOnTheLine}'s; what belongs here is what happens after: the cell
+     * stops being a step. {@link JourneyRamp#steps} is the exemption list every sweep in this rung
+     * consults, so an entry left behind for a cell that is now air would quietly exempt whatever
+     * lands there next.
      */
     private static void clearPourLine(SceneContext ctx, JourneyRig rig, BlockPos target,
                                       Direction away, String tag, Runnable then) {
         ServerLevel level = ctx.level();
-        List<BlockPos> blocked = new ArrayList<>();
-        for (int k = 1; k <= POUR_LINE; k++)
-            for (int dy = -1; dy <= 2; dy++) {
-                BlockPos c = target.relative(away.getOpposite(), k).above(dy);
-                if (!forgeCorridor.contains(c)) continue;
-                if (level.getBlockState(c).isAir()) continue;
-                if (!level.getFluidState(c).isEmpty()) continue;   // the rung's own water, not a wall
-                // NOR THE FLOOR THE POUR IS STANDING ON. A step of the flight can fall inside this
-                // window — the row under a target is `dy=-1` — and breaking it is the same mistake
-                // as the clear that mined the frame it was pouring into: the remedy destroys the
-                // thing that made the pour possible. A step that genuinely blocks a line is a wrong
-                // LANDING, and the ray gate refuses that pour without anybody digging.
-                if (JourneyRamp.isStep(c)) continue;
-                blocked.add(c);
-            }
+        List<BlockPos> blocked = JourneySight.blockersOnTheLine(level, forgeCorridor, target, away,
+                POUR_LINE, rig.player());
+        // WHICH OF THEM WERE THE RUNG'S OWN STEPS, named before they are spent. "1 格要清" over a
+        // stray block and over a borrowed staircase step are the same sentence and want opposite
+        // reading — the first is litter, the second is this rung handing back a cell it filled on
+        // purpose two legs ago.
+        StringBuilder borrowed = new StringBuilder();
+        for (BlockPos c : blocked)
+            if (JourneyRamp.isStep(c))
+                borrowed.append(borrowed.isEmpty() ? "" : "，").append(c.toShortString());
         rig.evidence(tag, blocked.isEmpty() ? "浇线上没有可清的方块（" + pourLine(level, target, away) + "）"
-                : blocked.size() + " 格要清：" + pourLine(level, target, away));
-        clearNext(rig, blocked, 0, then);
+                : blocked.size() + " 格要清：" + pourLine(level, target, away)
+                  + (borrowed.isEmpty() ? ""
+                        : "；其中 " + borrowed + " 是自己垒的台阶 —— 当初为上一格的活儿垫的，"
+                          + "现在挡着这一格的射线，收回来（身体 "
+                          + rig.player().blockPosition().toShortString() + " 不站在它上面）"));
+        clearNext(rig, blocked, 0, () -> {
+            for (BlockPos c : blocked)
+                if (!level.getBlockState(c).blocksMotion()) JourneyRamp.forget(c);
+            then.run();
+        });
     }
 
     private static void clearNext(JourneyRig rig, List<BlockPos> blocked, int i, Runnable then) {
