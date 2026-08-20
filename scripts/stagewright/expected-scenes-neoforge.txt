@@ -408,3 +408,14 @@ wd.crossingWaitsOutASurvivableDrop
 wd.crossingStillStopsForALongFall
 wd.crossingRowSeparatesAPerchFromMidAir
 wd.guardRepathSeparatesARimWalkFromALivelock
+
+# The delivery half of rung 12's cast-9 death: the raise walks the body into the column it verified,
+# the planner's bottom course comes to rest on the very cell the body is standing in, and the loop
+# answers「laid nothing」with the rule written for a refused placement — 0/3, silently. The arms drive
+# the production loop and its decision directly; the controls are a spent step-aside, a REFUSED pass
+# and an OUT_OF_REACH pass, all of which must still get nothing. The second arm settles that the
+# pinned tower's drift into the flooded floor row is a consequence of the empty flight, not a second
+# defect: the column had one foothold because the staircase that would have given it three was never
+# built.
+wd.rampStepsAsideWhenTheBodyIsInItsOwnStep
+wd.rampFootholdRisesWithTheFlightItLaid

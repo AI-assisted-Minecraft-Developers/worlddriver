@@ -8,6 +8,7 @@ import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
 import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.process.Intent;
 import net.magicterra.worlddriver.bot.process.IntentProcess;
+import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -415,10 +416,17 @@ final class JourneyStairs {
      *  rung's own placer; the return value is read off the WORLD, because a placement can be
      *  refused for reasons the caller cannot see. */
     static boolean placeInto(ServerLevel level, JourneyRig rig, BlockPos cell) {
+        return placeInto(level, rig.body().avatar(), cell);
+    }
+
+    /** The same, against the {@link Avatar} alone. Split out so {@link JourneyRamp#layWhereItStands}
+     *  can be driven by a scene: a rig is a scene's problem to host, an avatar is not, and this
+     *  method never wanted anything else off it. */
+    static boolean placeInto(ServerLevel level, Avatar av, BlockPos cell) {
         for (Direction d : Direction.values()) {
             BlockPos against = cell.relative(d);
             if (!level.getBlockState(against).blocksMotion()) continue;
-            rig.body().avatar().placeOn(against, d.getOpposite());
+            av.placeOn(against, d.getOpposite());
             if (level.getBlockState(cell).blocksMotion()) return true;
         }
         return false;

@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-20
 
+- **A flight that laid nothing because the body was standing on its own bottom step, and a rule that
+  answered two findings with one sentence.** `JourneyRamp.lay` stopped when a pass laid nothing new,
+  on the grounds that「walking changes nothing when the block that refused is the one the next stand
+  rests on」. That is true of a REFUSED placement and false of a body standing in the cell, and the
+  ladder run of 2026-08-20 printed both an hour apart:
+
+  ```
+  cell.9.ramp.step.2   = 3, 58, 20 垫不上（… 六邻没有能贴的实心面），身体 0, 58, 19
+  cell.9.ramp.step.2#2 = 3, 58, 20 垫不上（… 六邻没有能贴的实心面），身体 2, 56, 20
+  cast9.ramp.flight    = 3 级：2, 56, 20 → 3, 57, 20 → 2, 58, 20（… 身体 2, 56, 20）
+  cast9.ramp.laid      = 0/3 级垫好了（身体 2, 56, 20）
+  ```
+
+  The first pair is the same cell refused from two stands nine blocks apart — `#2` is the rig's own
+  duplicate-key marker — and the rule earning its keep. The second is `flight.get(0).below()` being
+  the cell the body was standing in, where one cell sideways is the whole answer. `Stop` now names
+  why a pass stopped and `stepAsideFor` spends one step-aside on `BODY_IN_THE_WAY` and none on the
+  other three; the step-aside is handed back only by a pass that makes progress, so a body that
+  cannot get off the flight asks twice and stops.
+
+- **The loop can be driven by a scene now, which is why the fix is measured rather than argued.**
+  The walk-and-place loop needed a `JourneyRig` for four services and only two of them were real:
+  the other two are a level and a body, which any scene has, and the placement comes off the
+  `Avatar` interface (`JourneyStairs.placeInto` grew an `Avatar` overload). `layWhereItStands` and
+  `stepAsideFor` are therefore ordinary static functions, and `wd.rampStepsAsideWhenTheBodyIsInItsOwnStep`
+  calls them over a staged alcove with a real body and real cobblestone. What is left in `lay` is
+  the `walkTo` and the recursion, and those two lines are covered by reading the diff — the scene's
+  own javadoc says so, and substitutes putting the body in the cell the decision named.
+
+- **The planner is not where this belongs, enumerated against the run's own geometry.** Refusing to
+  plan a course into the body's cell — the walkable twin of the sight-line reservation — has no
+  second answer here. From the landing `2,59,20` the descent has three continuations and with
+  `2,56,20` forbidden all three die: `2,58,19` needs `2,57,19`, the descent staircase's head room;
+  `3,58,20` continues only into `2,57,20` (whose support IS the body's cell), `3,57,19` and
+  `3,57,21`, both already cobblestone from earlier cells' flights; `2,58,21` continues into the same
+  three. A reservation there would have moved the failure one leg earlier.
+
+- **The pinned tower's drift into the flooded floor row is a consequence of the empty flight, not a
+  second defect.** `wd.rampFootholdRisesWithTheFlightItLaid` measures `JourneyShaft.footholdInColumn`
+  on the landing's column before and after the production loop runs: before, the column's only cell
+  with anything solid under it is the alcove floor row, and that row is under water — which is what
+  `climb.12.afloat = 2, 56, 18 浮在水里，8 次都没落地` reports and what a tower cannot start from.
+  After the flight, the same call returns a dry cell three rows up, and it is a step of the flight.
+  The column had one foothold because the staircase that would have given it three was never built.
+
+- **`approach` says where it went.** Cast nine printed the body at `2, 56, 20` twice — once at
+  `buildTo` entry and once in `.laid` — so `approach` either found nowhere to walk to or walked and
+  did not arrive, and the run could not say which, because it wrote no row at all. `.stand` and
+  `.standShort` are unconditional for that reason. No arena in this repo can see a failed walk, so
+  if the WALK is the remaining blocker only the ladder will say so.
+
 - **The fourth rung-12 family — a finished ring cell in the way of an uncast one — is neither an
   ordering problem nor the ring's shape, and the hundred「occupied stands」are the alcove's own
   rock.** Established rather than argued, because the fix each reading points at is a different fix.

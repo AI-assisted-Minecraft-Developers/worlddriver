@@ -4,8 +4,10 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
 import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.process.Intent;
@@ -13,6 +15,7 @@ import net.magicterra.worlddriver.bot.process.IntentProcess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.AABB;
 
@@ -220,7 +223,8 @@ final class JourneyRamp {
         }
         rig.evidence(tag + ".flight", flight.size() + " 级：" + describe(flight)
                 + "（壁龛地板 y=" + floorY + "，身体 " + here.toShortString() + "）");
-        approach(rig, corridor, flight, () -> lay(rig, corridor, flight, 0, landing, tag, then));
+        approach(rig, corridor, flight, tag,
+                () -> lay(rig, corridor, flight, 0, landing, false, tag, then));
     }
 
     /**
@@ -255,12 +259,42 @@ final class JourneyRamp {
      * wherever the last edge ended, not in the middle of a cell. The remedy is therefore not a
      * tolerance anywhere: it is to stand somewhere the flight does not pass through at all, which in
      * a five-wide corridor is an ordinary floor cell one rank over.
+     *
+     * <p><b>It says where it went, which it did not until 2026-08-20.</b> Cast nine of that run
+     * printed {@code cast9.ramp.flight = 3 级：2, 56, 20 → …（身体 2, 56, 20）} and then
+     * {@code cast9.ramp.laid = 0/3 级垫好了（身体 2, 56, 20）} — two readings, the same cell, the
+     * body on the flight's own bottom support both times. So this method either found nothing to
+     * walk to or walked and did not arrive, and the run could not say which: it wrote no row at all.
+     * Both rows below are unconditional for that reason. They cost two lines of a results file and
+     * they are the difference between「the loop gave up」and「the walk never moved」, which want
+     * completely different work.
      */
     private static void approach(JourneyRig rig, Set<BlockPos> corridor, List<BlockPos> flight,
-                                 Runnable then) {
-        BlockPos from = builderStand(rig, corridor, flight);
-        if (from == null || rig.player().blockPosition().equals(from)) { then.run(); return; }
-        walkTo(rig, from, then);
+                                 String tag, Runnable then) {
+        ServerLevel level = rig.ctx().level();
+        BlockPos here = rig.player().blockPosition();
+        BlockPos from = builderStand(level, corridor, flight);
+        if (from == null) {
+            rig.evidence(tag + ".stand", here.toShortString()
+                    + " 壁龛里没有一格能当施工位（要实底、头脚都空、且不在这道楼梯的足迹上）—— 就地开垫"
+                    + (onTheFlight(flight, here) || onTheFlight(flight, here.above())
+                            ? "，而身体正压在足迹上" : ""));
+            then.run();
+            return;
+        }
+        if (here.equals(from)) { then.run(); return; }
+        rig.evidence(tag + ".stand", here.toShortString() + " → " + from.toShortString()
+                + (onTheFlight(flight, here) || onTheFlight(flight, here.above())
+                        ? "（现在正压在这道楼梯的足迹上，不挪开第一级就垫不了）" : "（现在不在足迹上）"));
+        walkTo(rig, from, () -> {
+            BlockPos now = rig.player().blockPosition();
+            if (!now.equals(from))
+                rig.evidence(tag + ".standShort", "没走到 " + from.toShortString() + "，停在 "
+                        + now.toShortString()
+                        + (onTheFlight(flight, now) || onTheFlight(flight, now.above())
+                                ? " —— 还压在足迹上" : ""));
+            then.run();
+        });
     }
 
     /**
@@ -271,9 +305,8 @@ final class JourneyRamp {
      * stand can lay and {@link JourneyStairs#MEND_REACH} is only five. Null when the corridor has no
      * such cell, and the caller then does what it did before rather than refusing to build.
      */
-    private static BlockPos builderStand(JourneyRig rig, Set<BlockPos> corridor,
-                                         List<BlockPos> flight) {
-        ServerLevel level = rig.ctx().level();
+    static BlockPos builderStand(ServerLevel level, Set<BlockPos> corridor,
+                                 List<BlockPos> flight) {
         BlockPos bottom = flight.get(0).below();
         BlockPos best = null;
         double bestD = Double.MAX_VALUE;
@@ -310,27 +343,75 @@ final class JourneyRamp {
     }
 
     /**
-     * Lay every step within arm's length, then climb what was laid and lay the rest.
+     * Why one pass of {@link #layWhereItStands} stopped — and the reason a pass is a value now
+     * rather than an {@code int}.
+     *
+     * <p>Two of these used to be one finding, "laid nothing", and {@link #lay} answered both with
+     * 「walking changes nothing」. That answer is right for {@link #REFUSED} and wrong for
+     * {@link #BODY_IN_THE_WAY}. The ladder run of 2026-08-20 printed both, and the rows are worth
+     * reading side by side because they look identical from a distance:
+     *
+     * <pre>
+     * cell.9.ramp.step.2   = 3, 58, 20 垫不上（… 六邻没有能贴的实心面），身体 0, 58, 19
+     * cell.9.ramp.step.2#2 = 3, 58, 20 垫不上（… 六邻没有能贴的实心面），身体 2, 56, 20
+     * cell.9.ramp.laid     = 2/3 级垫好了
+     *
+     * cast9.ramp.flight    = 3 级：2, 56, 20 → 3, 57, 20 → 2, 58, 20（… 身体 2, 56, 20）
+     * cast9.ramp.laid      = 0/3 级垫好了（身体 2, 56, 20）
+     * </pre>
+     *
+     * <p>The first pair is the SAME cell refused from two stands nine blocks apart — the {@code #2}
+     * suffix is the rig's own duplicate-key marker — and it is the rule earning its keep: the walk
+     * between them changed nothing about six air neighbours, and a third stand would not have
+     * either. The second pair is the body standing on {@code flight.get(0).below()}, where one cell
+     * sideways is the whole fix, and the rule refused to take it: {@code 0/3}, and the raise that
+     * depended on it ended in the wrong column.
+     */
+    enum Stop {
+        /** Every course is solid. Nothing left to lay from anywhere. */
+        FINISHED,
+        /** The next support is the cell the body occupies. Vanilla's {@code isUnobstructed} refuses
+         *  a placement into it, and a body is the one obstacle that can walk away. */
+        BODY_IN_THE_WAY,
+        /** The next support is further than {@link JourneyStairs#MEND_REACH}. */
+        OUT_OF_REACH,
+        /** A placement was attempted and the world did not take it. Named by {@code .step.N}. */
+        REFUSED
+    }
+
+    /** How far one pass of {@link #layWhereItStands} got and why it stopped. {@code at} is the
+     *  support it stopped ON, or null when it {@link Stop#FINISHED}. */
+    record Pass(int laid, Stop stop, BlockPos at) {}
+
+    /**
+     * Lay every step within arm's length of wherever the body is standing right now — one pass, no
+     * walking, no rig.
+     *
+     * <p><b>The whole loop, split off from its driver so an arena can run it.</b> Everything above
+     * this line was measured on the real ladder and nothing could be measured anywhere else: the
+     * loop needed a {@link JourneyRig} for four services and only two of them were real. The two
+     * that were not are a level and a body, which any scene has; {@code holdItem} and
+     * {@code placeOn} come off the {@link Avatar} interface the rig hands out; and the evidence sink
+     * is a {@link BiConsumer} the rig satisfies by method reference. What is left in {@link #lay} is
+     * walking and recursion — see that method's note for the two lines a scene cannot reach.
      *
      * <p>Arm's length is the same {@link JourneyStairs#MEND_REACH} the stair mend and the backing
      * mend run on, and for the same reason: {@code placeOn} goes straight to
      * {@code gameMode.useItemOn}, which has no reach gate on this avatar, so without it a flight
      * could be built through ten blocks of rock and read as one the body earned.
-     *
-     * <p>A pass that lays nothing new stops rather than walking again — walking changes nothing when
-     * the block that refused is the one the next stand rests on, and this rung has paid for retries
-     * that re-asked an unchanged question before.
      */
-    private static void lay(JourneyRig rig, Set<BlockPos> corridor, List<BlockPos> flight, int from,
-                            BlockPos landing, String tag, Runnable then) {
-        ServerLevel level = rig.ctx().level();
-        BlockPos body = rig.player().blockPosition();
+    static Pass layWhereItStands(ServerLevel level, ServerPlayer player, Avatar av,
+                                 Set<BlockPos> corridor, List<BlockPos> flight, int from,
+                                 BiConsumer<String, Object> evidence, String tag) {
+        BlockPos body = player.blockPosition();
         int laid = from;
         while (laid < flight.size()) {
             BlockPos support = flight.get(laid).below();
             if (level.getBlockState(support).blocksMotion()) { laid++; continue; }
-            if (support.equals(body) || support.equals(body.above())) break;
-            if (Math.sqrt(body.distSqr(support)) > JourneyStairs.MEND_REACH) break;
+            if (support.equals(body) || support.equals(body.above()))
+                return new Pass(laid, Stop.BODY_IN_THE_WAY, support.immutable());
+            if (Math.sqrt(body.distSqr(support)) > JourneyStairs.MEND_REACH)
+                return new Pass(laid, Stop.OUT_OF_REACH, support.immutable());
             // THE SHOULDER FIRST, and only when the world offers nothing else. It is the cell under
             // the step, which lies in the previous course's own row — so it is the one cell of this
             // flight that can be clicked against what the flight has already built. Laid on its own
@@ -341,20 +422,20 @@ final class JourneyRamp {
                     && !walkedThrough(flight, shoulder)
                     && !shoulder.equals(body) && !shoulder.equals(body.above())
                     && Math.sqrt(body.distSqr(shoulder)) <= JourneyStairs.MEND_REACH
-                    && rig.body().avatar().holdItem(Items.COBBLESTONE)) {
-                JourneyStairs.placeInto(level, rig, shoulder);
+                    && av.holdItem(Items.COBBLESTONE)) {
+                JourneyStairs.placeInto(level, av, shoulder);
                 if (level.getBlockState(shoulder).blocksMotion()) laid(shoulder);
             }
-            boolean held = rig.body().avatar().holdItem(Items.COBBLESTONE);
-            if (held) JourneyStairs.placeInto(level, rig, support);
+            boolean held = av.holdItem(Items.COBBLESTONE);
+            if (held) JourneyStairs.placeInto(level, av, support);
             // THE WORLD, not the call — the same discipline the stair mend and the backing mend
             // already run on. `placeOn` reports nothing, and a step that was never laid produces the
             // identical row to one that was.
             if (!level.getBlockState(support).blocksMotion()) {
-                rig.evidence(tag + ".step." + laid, support.toShortString() + " 垫不上（"
-                        + (held ? whyNotLaid(level, rig, support) : "手上没有圆石")
+                evidence.accept(tag + ".step." + laid, support.toShortString() + " 垫不上（"
+                        + (held ? whyNotLaid(level, player, support) : "手上没有圆石")
                         + "），身体 " + body.toShortString());
-                break;
+                return new Pass(laid, Stop.REFUSED, support.immutable());
             }
             laid(support);
             // NAMED AT THE MOMENT IT IS BORROWED. This is the row that would have made the ladder run
@@ -364,26 +445,85 @@ final class JourneyRamp {
             // reading — see JourneySight for why the reservation is redeemed rather than enforced.
             BlockPos owner = JourneySight.lineOwner(level, support);
             if (owner != null)
-                rig.evidence(tag + ".borrowed." + laid, support.toShortString() + " 正在 "
+                evidence.accept(tag + ".borrowed." + laid, support.toShortString() + " 正在 "
                         + owner.toShortString() + " 那一格的浇筑射线上 —— 这一级没有别的落法，先借下来；"
                         + "等浇那一格时 clearPourLine 会把它收回去");
             laid++;
         }
-        if (laid >= flight.size() || laid == from) {
-            rig.evidence(tag + ".laid", laid + "/" + flight.size() + " 级垫好了（身体 "
-                    + body.toShortString() + "）");
+        return new Pass(laid, Stop.FINISHED, null);
+    }
+
+    /**
+     * Where to stand before asking the same pass again — or null when asking again is pointless.
+     *
+     * <p><b>A pass that laid nothing is not automatically a pass with nothing left to try.</b> The
+     * rule this replaces was written for one shape and applied to two. It is kept, exactly, for
+     * {@link Stop#REFUSED}: a placement the world would not take was refused for a reason a stand
+     * does not change, and {@code cell.9.ramp.step.2}/{@code #2} is that measured twice from two
+     * stands. It never held for {@link Stop#BODY_IN_THE_WAY}, where the obstruction is the body's
+     * own 0.6-wide box and one cell sideways removes it — and that is the case the run of
+     * 2026-08-20 died on, silently, at {@code 0/3}.
+     *
+     * <p><b>Once.</b> The step-aside is spent the moment a pass makes no progress, and only a pass
+     * that DOES make progress hands it back ({@link #lay} passes {@code alreadyAside} as
+     * 「this pass laid nothing」). So a body that cannot get off the flight asks twice and stops,
+     * which is one more question than before and not a loop — the shape 「a retry that changes
+     * nothing」 warns about is a retry with no bound, not a second attempt at a question whose
+     * premise changed.
+     *
+     * <p>{@link Stop#OUT_OF_REACH} keeps the old answer on purpose. {@link #approach} has already
+     * stood the body at {@link #builderStand}'s nearest cell, so a reach failure means that cell was
+     * not near enough — and walking back to the same cell is the retry with no new information.
+     */
+    static BlockPos stepAsideFor(ServerLevel level, ServerPlayer player, Set<BlockPos> corridor,
+                                 List<BlockPos> flight, Pass pass, int from, boolean alreadyAside) {
+        if (pass.stop() == Stop.FINISHED) return null;
+        BlockPos body = player.blockPosition();
+        BlockPos aside = builderStand(level, corridor, flight);
+        if (pass.laid() > from) {
+            // STEP ASIDE RATHER THAN CLIMB. Climbing onto the course below is what put the body's own
+            // box inside the next step's cell — see approach's note for the two runs that measured
+            // it. A stand off the footprint is the same cell approach chose and is still legal; the
+            // climb stays only as the fallback for a corridor that has no such cell, where doing
+            // nothing would be worse than doing the thing that sometimes works.
+            return aside != null && !aside.equals(body) ? aside : flight.get(pass.laid() - 1);
+        }
+        if (pass.stop() != Stop.BODY_IN_THE_WAY || alreadyAside) return null;
+        return aside != null && !aside.equals(body) ? aside : null;
+    }
+
+    /**
+     * Drive {@link #layWhereItStands}, walking between passes until it has nothing left to try.
+     *
+     * <p>Two lines here are covered by reading the diff and not by a test, and they are named rather
+     * than glossed: the {@link #walkTo} that carries the body to the cell
+     * {@link #stepAsideFor} names, and the recursion that re-enters with the pass's own
+     * {@code laid}. {@code wd.rampStepsAsideWhenTheBodyIsInItsOwnStep} drives every other line of
+     * this method — the pass, the decision, the one-shot latch — with the walk replaced by putting
+     * the body in the named cell, because a scene cannot host a {@link JourneyRig} and a settle
+     * needs one. That substitution is also why {@link #approach} now prints where it went: if the
+     * WALK is what fails here, only the run can say so, and until 2026-08-20 it said nothing.
+     */
+    private static void lay(JourneyRig rig, Set<BlockPos> corridor, List<BlockPos> flight, int from,
+                            BlockPos landing, boolean alreadyAside, String tag, Runnable then) {
+        ServerLevel level = rig.ctx().level();
+        Pass pass = layWhereItStands(level, rig.player(), rig.body().avatar(), corridor, flight,
+                from, rig::evidence, tag);
+        BlockPos to = stepAsideFor(level, rig.player(), corridor, flight, pass, from, alreadyAside);
+        if (to == null) {
+            rig.evidence(tag + ".laid", pass.laid() + "/" + flight.size() + " 级垫好了（身体 "
+                    + rig.player().blockPosition().toShortString() + "，停在 " + pass.stop()
+                    + (pass.at() == null ? "" : " " + pass.at().toShortString()) + "）");
             walkTo(rig, landing, () -> done(rig, landing, tag, then));
             return;
         }
-        int next = laid;
-        // STEP ASIDE RATHER THAN CLIMB. Climbing onto the course below is what put the body's own
-        // box inside the next step's cell — see approach's note for the two runs that measured it.
-        // A stand off the footprint is the same cell approach chose and is still legal; the climb
-        // stays only as the fallback for a corridor that has no such cell, where doing nothing would
-        // be worse than doing the thing that sometimes works.
-        BlockPos aside = builderStand(rig, corridor, flight);
-        BlockPos to = aside != null && !aside.equals(body) ? aside : flight.get(next - 1);
-        walkTo(rig, to, () -> lay(rig, corridor, flight, next, landing, tag, then));
+        if (pass.laid() == from)
+            rig.evidence(tag + ".aside", "这一趟一级没垫：身体 "
+                    + rig.player().blockPosition().toShortString() + " 正压在 "
+                    + pass.at().toShortString() + " 里（vanilla 的 isUnobstructed 会拒）—— 挪到 "
+                    + to.toShortString() + " 再问一次，只问这一次");
+        walkTo(rig, to, () -> lay(rig, corridor, flight, pass.laid(), landing,
+                pass.laid() == from, tag, then));
     }
 
     /**
@@ -417,14 +557,14 @@ final class JourneyRamp {
      * <p>So both states are measured and named separately. They want opposite work: no face wants a
      * shoulder or a different route, a body in the way wants one step sideways.
      */
-    private static String whyNotLaid(ServerLevel level, JourneyRig rig, BlockPos cell) {
+    private static String whyNotLaid(ServerLevel level, ServerPlayer fp, BlockPos cell) {
         String now = "现在是 " + level.getBlockState(cell).getBlock();
         if (!placeable(level, cell)) return now + "，六邻没有能贴的实心面（放方块要贴着一个面点）";
-        boolean inTheWay = rig.player().getBoundingBox().intersects(new AABB(cell));
+        boolean inTheWay = fp.getBoundingBox().intersects(new AABB(cell));
         return now + "，贴得到实心面（"
                 + (inTheWay ? "但身体自己的碰撞箱压在这一格里 —— vanilla 的 isUnobstructed 会拒，"
                               + "身体精确位置 " + String.format("%.2f/%.2f/%.2f",
-                                      rig.player().getX(), rig.player().getY(), rig.player().getZ())
+                                      fp.getX(), fp.getY(), fp.getZ())
                             : "身体也不压在这一格里 —— 拒绝的原因不在这两条里，去看 placeOn 那一侧")
                 + "）";
     }
