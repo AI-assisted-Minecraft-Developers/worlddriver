@@ -10,12 +10,15 @@ import java.util.function.BooleanSupplier;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.process.BotProcess;
 import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.sim.JoinedPlayerBodies;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.TicketType;
@@ -58,14 +61,32 @@ import net.minecraft.world.level.GameRules;
  *
  * <h2>What this rig cannot test, and must not pretend to</h2>
  *
- * The headless body is a {@code FakePlayer}: on both loaders it is invulnerable, its death is a
- * no-op and it opens no menus. That is not a defect of this rig — it is what a server-side avatar
- * is — but it bounds what a green headless run means. <b>It shows the API could execute the plan.
- * It does not show a player could survive it.</b> Hunger, fall damage, drowning, mob threat and
- * every container-driven interaction are outside what this track can observe, which is exactly why
- * the same ladder also runs over {@code mc.bot.*} on the integrated topology, where the player is
- * real. {@link #bodyIsInvulnerable} states the limitation into the record of every stage that runs
- * here, so no green row can be read as more than it is.
+ * The body is a {@code FakePlayer}: on both loaders it is invulnerable, its death is a no-op and it
+ * opens no menus. That is not a defect of this rig — it is what a server-side avatar is — but it
+ * bounds what a green run means. <b>It shows the API could execute the plan. It does not show a
+ * player could survive it.</b> Hunger, fall damage, drowning, mob threat and every container-driven
+ * interaction are outside what this track can observe. {@link #bodyIsInvulnerable} states the
+ * limitation into the record of every stage, so no green row can be read as more than it is.
+ *
+ * <p><b>And that bound does not lift on the client topologies.</b> The ladder runs under three of
+ * them now ({@code journeyServer} / {@code journeyIntegratedServer} /
+ * {@code journeyDedicatedServerWithClient}), and all three climb on the body {@link #spawnBody()}
+ * builds — never on the human client's player. What varies is the RUN: whether a client half of the
+ * driver is loaded at all, whether packets are really encoded, whether a real player holds chunks.
+ * Every rung records {@code journey.topology} and {@code journey.body} so that no two rows can be
+ * compared without saying which of those two changed.
+ *
+ * <p>Driving the real player instead is a documented and unbuilt piece of work, not a switch. The
+ * transport is there — under the integrated topology this JVM also holds {@code BotHooks}, so a
+ * scene body can reach the client bot through {@code DriverApi.route("mc.bot.*", …)} — but this rig
+ * is written against {@link ServerWorldDriver} end to end: {@link #drive} hands a
+ * {@code BotProcess} OBJECT to {@code ServerAvatarManager}, and the client side takes verbs and
+ * params instead and reports completion only by polling {@code status()}. Two further walls stand
+ * behind that one. {@link #breakItWhereItStands} is server-only by construction — {@code
+ * Avatar.breakHold} on a client sets a keybind and breaks nothing without a multi-tick {@code
+ * continueDestroy}. And {@code DriverApi}'s own {@code awaitMs} / {@code mc.wait.*} sleep the
+ * CALLING thread, which from a scene body is the server thread, so the obvious way to wait for a
+ * client process stops the server that the client process is waiting on.
  */
 public final class JourneyRig {
 
@@ -164,6 +185,13 @@ public final class JourneyRig {
      * failure, once, against a floor that was written down deliberately.
      */
     public static JourneyRig enter(SceneContext ctx, JourneyStage stage) {
+        // BEFORE the blocked check, so a rung that never gets attempted still says which run it
+        // declined to be attempted in. A results row without these two cannot be compared with the
+        // same row from another topology, and comparing them is now the whole reason three exist.
+        String topology = topology(ctx);
+        String body = bodyDescription();
+        ctx.record(TOPOLOGY_KEY, topology);
+        ctx.record(BODY_KEY, body);
         JourneyStage below = stage.requires();
         if (below != null && !JourneyLedger.has(below)) {
             JourneyLedger.blocked(stage, below, tick(ctx));
@@ -171,6 +199,13 @@ public final class JourneyRig {
                     + stage.name() + " 不予尝试");
         }
         JourneyRig rig = new JourneyRig(ctx, stage);
+        // Into the LEDGER's evidence map as well, which the results row does not carry: the verdict
+        // scene prints the ledger, and a ledger that does not name the run it describes is the same
+        // uncomparable row one level up. The raw put rather than `evidence(...)`, because this is the
+        // rig's FIRST write of both keys and the value is already in ctx — routing it through the
+        // clash detector would only re-record what is there.
+        rig.evidence.put(TOPOLOGY_KEY, topology);
+        rig.evidence.put(BODY_KEY, body);
         // The obituary. A scene that times out never reaches its own last line, so the only place
         // a missed rung can be written down is a cleanup — those drain on every exit path.
         ctx.cleanup(() -> {
@@ -215,6 +250,11 @@ public final class JourneyRig {
         driver = ServerWorldDriver.createIsolated(level,
                 spawn.getX() + 0.5, surface, spawn.getZ() + 0.5);
         driver.fakePlayer().getInventory().clearContent();
+        // Its own key rather than a second write of `journey.body`. This rung ENTERED without a body
+        // and leaves with one, so the two readings are both true and neither contradicts the other —
+        // and routing a legitimate change through the clash detector would print a WARN on every
+        // single run, which is how a diagnostic teaches its reader to stop looking at it.
+        evidence("journey.body.spawned", bodyDescription());
         return driver;
     }
 
@@ -233,12 +273,137 @@ public final class JourneyRig {
     public ServerPlayer player() { return body().fakePlayer(); }
 
     /**
-     * Whether the body under this rig cannot be hurt.
+     * Whether the body under this rig cannot be hurt — <b>asked, not asserted</b>.
      *
-     * <p>Always true on the headless track and recorded into every stage, because a green row here
-     * is a statement about the API and not about survivability. See the class note.
+     * <p>This was a literal {@code return true} with a comment saying it is always true on the
+     * headless track. It is: both bodies override {@code isInvulnerableTo}. But a hardcoded reading
+     * is an evidence row that cannot ever report a change, and this row is recorded into every rung
+     * as the bound on what a green climb proves — so the day somebody drops the override for a
+     * survival-fidelity run, every row would keep claiming the old world. Asking the body costs one
+     * virtual call and makes the row follow the code.
+     *
+     * <p>{@code generic()} rather than the out-of-world source: it is the damage type the existing
+     * scenes already probe invulnerability with ({@code WorldDriverScenes}), and both overrides
+     * refuse every source alike, so the two answers cannot differ without the override being gone.
+     *
+     * <p>True when there is no body yet. RECON runs before SPAWN, and「没有身体所以受得了伤」is not
+     * a statement anyone should be able to read off this.
      */
-    public boolean bodyIsInvulnerable() { return true; }
+    public boolean bodyIsInvulnerable() {
+        ServerWorldDriver d = driver;
+        if (d == null) return true;
+        ServerPlayer fp = d.fakePlayer();
+        return fp.isInvulnerableTo(fp.damageSources().generic());
+    }
+
+    // ---- which run this rung climbed in ----
+
+    /** Every rung's row says which of the three ladder topologies produced it. */
+    private static final String TOPOLOGY_KEY = "journey.topology";
+
+    /** ...and which body did the climbing. Together they are what makes two rows comparable. */
+    private static final String BODY_KEY = "journey.body";
+
+    /**
+     * Which of the three ladder topologies this run is, read off the running game.
+     *
+     * <p><b>Read rather than declared.</b> The run tasks already know — they set the properties —
+     * and a row that merely echoed a {@code -D} would be green on a run where the property was set
+     * and the thing it promises never happened. That failure has a name in this repo: a client half
+     * that crashed in architectury's transformer while the server waited 21 minutes for a player.
+     * The two questions below are about the JVM and the world, and neither can be answered wrongly
+     * by a launch that did not do what it said.
+     *
+     * <ul>
+     *   <li>{@code isDedicatedServer()} — false only inside a game client hosting its own world.</li>
+     *   <li>{@link BotHooks#isAvailable()} — the client half of the DRIVER, registered only by a
+     *       loader's client entrypoint. This is the fact that decides whether a rung's failure could
+     *       possibly be client-side code at all: on a dedicated server that code is not merely
+     *       unexercised, it is absent from the JVM.</li>
+     * </ul>
+     *
+     * <p>The human players are listed with their DIMENSION, and that is the load-bearing part rather
+     * than decoration. {@code ServerLevel.players()} is per level, and a client standing at world
+     * spawn contributes to the overworld's list and to no other — which is why every ladder topology
+     * still arms {@code -Dworlddriver.realPlayerBodies=true}. Rungs 14–15 ask the NETHER's list
+     * (BaseSpawner.isNearPlayer) and 19–20 ask the END's (EndDragonFight.tick); a run that read
+     * 「有真玩家」and dropped the flag would find neither blazes nor a dragon, silently.
+     */
+    private static String topology(SceneContext ctx) {
+        MinecraftServer server = ctx.server();
+        boolean dedicated = server == null || server.isDedicatedServer();
+        boolean driverClientHalf = BotHooks.isAvailable();
+        List<ServerPlayer> humans = humanPlayers(ctx);
+        String kind;
+        if (!dedicated) {
+            kind = "integratedServer";
+        } else if (!humans.isEmpty()) {
+            kind = "dedicatedServerWithClient";
+        } else {
+            kind = "dedicatedServer";
+        }
+        StringBuilder s = new StringBuilder(kind)
+                .append("（真玩家 ").append(humans.size());
+        for (ServerPlayer p : humans) {
+            BlockPos at = p.blockPosition();
+            s.append("：").append(p.getGameProfile().getName())
+                    .append('@').append(p.level().dimension().location())
+                    // WHERE, because this player is standing in the ladder's world doing nothing and
+                    // is still an actor in it: vanilla's `Player.pushEntities` shoves anything it
+                    // shares a cell with, and the ladder plays AT world spawn, which is exactly
+                    // where a client that entered and never moved is standing. A body that drifted
+                    // for no reason the walker trace explains has a second suspect on these
+                    // topologies, and it is nameless unless this row says where it was.
+                    .append(' ').append(at.getX()).append(',').append(at.getY())
+                    .append(',').append(at.getZ())
+                    .append(p.isAlive() ? "" : "，已死亡")
+                    .append(p.isSpectator() ? "，旁观" : "");
+        }
+        return s.append("；mc.bot.* 在本 JVM=").append(driverClientHalf).append("）").toString();
+    }
+
+    /**
+     * Everyone on the server who is not the ladder's own body.
+     *
+     * <p>{@code ctx.players()} is the whole player list, and with
+     * {@code -Dworlddriver.realPlayerBodies=true} the ladder's body is IN it — that is the entire
+     * point of the flag. So counting that list would report a human client on the headless topology,
+     * which is the exact thing these rows exist to tell apart. {@link JoinedPlayerBodies.JoinedBody}
+     * is the type only the driver mints, so the test is exact rather than a name match.
+     */
+    private static List<ServerPlayer> humanPlayers(SceneContext ctx) {
+        List<ServerPlayer> out = new ArrayList<>();
+        for (ServerPlayer p : ctx.players()) {
+            if (p instanceof JoinedPlayerBodies.JoinedBody) continue;
+            out.add(p);
+        }
+        return out;
+    }
+
+    /**
+     * Which body this run climbs on.
+     *
+     * <p><b>The same on all three topologies, and saying so is the point.</b> Every rung drives the
+     * avatar {@link #spawnBody()} builds, never the human client's player — see the class note for
+     * the seam that would be needed and does not exist. So a capability the FAKE body lacks
+     * ({@code fallDistance} pinned at 0, {@code isInvulnerableTo} refusing everything, an
+     * advancement that is never awarded) is missing on the client topologies too, and a row that
+     * named only the topology would invite exactly the wrong conclusion from a difference.
+     *
+     * <p>{@code inPlayerList} is what the flag actually buys and the one thing vanilla asks before
+     * it will spawn a dragon, turn a spawner or spawn anything naturally.
+     */
+    private static String bodyDescription() {
+        ServerWorldDriver d = driver;
+        String kind = JoinedPlayerBodies.armed() ? "joined" : "fake";
+        if (d == null) return kind + "（SPAWN 之前，本轮还没有身体）";
+        ServerPlayer fp = d.fakePlayer();
+        return kind + ":" + fp.getClass().getSimpleName()
+                + " " + fp.getGameProfile().getName()
+                + "（在玩家表=" + fp.level().players().contains(fp)
+                + "，免伤=" + fp.isInvulnerableTo(fp.damageSources().generic())
+                + "，@" + fp.level().dimension().location() + "）";
+    }
 
     // ---- driving ----
 

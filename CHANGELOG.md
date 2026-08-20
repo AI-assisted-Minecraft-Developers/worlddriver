@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-20
 
+- **The ladder runs under all three topologies now, and every rung says which one it climbed in.**
+  `wd.journey*` had exactly one run configuration, and it was the one with no client in the JVM at
+  all — so a defect that lives on the client side could not be observed by it, only inferred from
+  its absence. That is how `ServerPlayerAvatar.commandUseItem(false)` shipped calling
+  `stopUsingItem()` (clears a flag) where `releaseUsingItem()` routes to `ItemStack.releaseUsing`: a
+  fully drawn bow「fired」and produced no arrow, silently, past 222 green scenes and four rounds of
+  wrong fixes. `journeyIntegratedServer` (a real client hosts the world, one JVM) and
+  `journeyDedicatedServerWithClient` + `journeyJoiningClient` (a real client joins over a socket, two
+  JVMs, its own port 25701) are the same ladder in their own run directories — own directories
+  because a playthrough leaves its trees felled and its shafts dug, so two of them sharing one would
+  each measure the other.
+
+  Smoke-tested to rung 2 on both: the integrated run reads
+  `journey.topology = integratedServer（真玩家 1：…@minecraft:overworld；mc.bot.* 在本 JVM=true）`,
+  the joining run reads `dedicatedServerWithClient（…；mc.bot.* 在本 JVM=false）`, and
+  `JoinedPlayerBodies.placeNewPlayer` — which had never once run against an `IntegratedPlayerList` —
+  puts `agent-body-1` in the player list on both.
+
+- **What a topology varies, and what it does not.** All three climb on the body
+  `JourneyRig.spawnBody()` builds; none of them drives the human client's player. So the fake-player
+  gaps — `fallDistance` pinned at 0, `isInvulnerableTo` refusing every source, an advancement that is
+  never awarded — are properties of the BODY and are present in all three, and a difference between
+  two runs is never explained by them. Driving the real player is unbuilt work rather than a switch:
+  this rig hands a `BotProcess` OBJECT to `ServerAvatarManager` while the client side takes verbs and
+  polls `status()`; `breakItWhereItStands` is server-only by construction (`Avatar.breakHold` on a
+  client sets a keybind and breaks nothing without a multi-tick `continueDestroy`); and `awaitMs` /
+  `mc.wait.*` sleep the CALLING thread, which from a scene body is the server thread the client
+  process is waiting on. `JourneyRig`'s class note carried a sentence claiming the ladder already ran
+  over `mc.bot.*` on the integrated topology; it never has, and that sentence is now what is true.
+
+- **`journey.topology` and `journey.body` on every rung row, including a BLOCKED skip.** A results
+  row that does not name its run cannot be compared with the same row from another run, which is the
+  only reason to have three. Both are **read off the running game** — `isDedicatedServer()`,
+  `BotHooks.isAvailable()`, and the players who are not the driver's own `JoinedBody` — rather than
+  echoed back from the `-D` that asked for them, because a launch that did not do what it promised is
+  exactly the case these rows exist to catch (a companion client that dies in architectury's
+  transformer leaves the server waiting for a player with no timeout, and its own log looks fine).
+  `bodyIsInvulnerable()` stopped being a literal `return true` for the same reason: both bodies do
+  override `isInvulnerableTo`, so the value is unchanged, but a hardcoded row cannot report the day
+  somebody drops the override for a survival-fidelity run.
+
+- **`-Dworlddriver.realPlayerBodies=true` stays on for the client topologies, and it is not a copied
+  line.** `ServerLevel.players()` is per level and the human client never leaves the overworld: rungs
+  14–15 ask the NETHER's list (`BaseSpawner.isNearPlayer`) and 19–20 ask the END's
+  (`EndDragonFight.tick`). Dropping the flag on a run that has a real player would produce no blazes
+  and no dragon, silently, in a run that looks better resourced than the headless one.
+
+- **The port-pinning guard is a rule about the family now, not a list of names.**
+  `runConfigs.configureEach` in `fabric/build.gradle` excluded the self-driving runs by enumerating
+  them, and the enumeration silently stopped covering the ladder the moment it grew a second and
+  third topology — the new names matched no clause, fell through, and would have had their ephemeral
+  agent ports overwritten with the pinned 39800/39801 pair. On the two-process topology that is two
+  JVMs binding one port; everywhere else it is a headless run fighting a live dev client. A guard
+  whose failure mode is「a config added later is quietly not covered」cannot be a list.
+
+- **The ladder's own provisioning caught up with the framework's.** It deleted `world/` and nothing
+  else, which was survivable while there was one ladder and nobody diffed its output. It now also
+  deletes `saves/` (a client keeps its world there, so the integrated topology would otherwise reuse
+  a played one forever), the stale results and heartbeat files (a run that dies before writing a
+  header leaves the previous run's complete, plausible file exactly where a reader expects this
+  one), and seeds `options.txt` with `pauseOnLostFocus:false` — vanilla singleplayer pauses when the
+  window loses focus, which on a desktop stops the integrated server dead and reports a step timeout
+  on whatever leg was in flight when somebody alt-tabbed.
+
 - **A flight that laid nothing because the body was standing on its own bottom step, and a rule that
   answered two findings with one sentence.** `JourneyRamp.lay` stopped when a pass laid nothing new,
   on the grounds that「walking changes nothing when the block that refused is the one the next stand

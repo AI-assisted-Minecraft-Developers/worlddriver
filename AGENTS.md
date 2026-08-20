@@ -230,6 +230,60 @@ JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39800 -Dworlddriver.rpcPort=39801" \
 scripts/smoke-test-react.sh
 ```
 
+## The playthrough ladder, and its three topologies
+
+`wd.journey*` is one body climbing twenty rungs from an empty inventory at world spawn to a dead
+ender dragon. It is **not** a gate — a climb is 25–40 minutes where the gates are five — so it arms
+behind its own property, filters to its own family, and is never part of `build`. Since a filtered
+run skips expected-scenes reconciliation, no `wd.journey*` rung appears in
+`scripts/stagewright/expected-scenes-*.txt`; only `wd.journeyArmed`, which registers in every run,
+is listed there.
+
+Fabric only, and three topologies of it. Each has its own run directory, because the ladder **plays**
+its world — it fells trees, digs shafts and pours lava — so two ladders sharing a directory would
+each measure the other's leftovers:
+
+```bash
+./gradlew :fabric:runJourneyServer                      # headless. No client exists at all.
+./gradlew :fabric:runJourneyIntegratedServer            # a real client hosts the world (one JVM)
+./gradlew :fabric:runJourneyDedicatedServerWithClient    # a real client JOINS over a socket (two JVMs)
+```
+
+The third starts its companion client for you, from the same build service the gate twin uses, so
+Gradle kills it on every exit path. Its log is `fabric/run-journey-with-client/companion-client.log`
+— **read it first when a run seems to hang**: the server holds its suite back until a player joins
+(`stagewright.awaitPlayer`) and nothing times that out, so a companion that died in architectury's
+transformer leaves the server waiting forever with an empty, healthy-looking log of its own. Its
+port is **25701**, deliberately not the gate companion's 25601: a ladder on that number would be
+joined by, or would refuse to start beside, somebody else's gate run.
+
+**What the three topologies do and do not vary.** They vary the RUN — whether a client half of the
+driver is loaded in the JVM at all, whether packets are really encoded, whether a real player holds
+chunks and keeps a level ticking. They do **not** vary the BODY: all three climb on the avatar
+`JourneyRig.spawnBody()` builds, never on the human client's player. So a capability the fake body
+lacks — `fallDistance` pinned at 0, `isInvulnerableTo` refusing every source, an advancement that is
+never awarded — is missing on all three, and a difference between two runs is never explained by
+that. Driving the real player instead is unbuilt work, not a switch; `JourneyRig`'s class note names
+the three walls.
+
+Because of that, **every rung records two keys, on every exit path including a BLOCKED skip**, and
+they are what makes two results rows comparable:
+
+| Key | Says |
+|---|---|
+| `journey.topology` | which of the three, **read off the running game** (`isDedicatedServer`, `BotHooks.isAvailable`, the non-driver players and their dimensions) rather than echoed from a `-D` — a launch that did not do what it promised cannot make this row lie |
+| `journey.body` | which body is climbing: joined-vs-fake, its class, whether it is in the player list, whether it is invulnerable. `journey.body.spawned` on rung 2 is the body SPAWN actually created |
+
+**`-Dworlddriver.realPlayerBodies=true` stays on for all three, and that is not a copied line.**
+`ServerLevel.players()` is per level and the human client never leaves the overworld: rungs 14–15 ask
+the **nether's** list (`BaseSpawner.isNearPlayer`, for a fortress spawner) and 19–20 ask the **end's**
+(`EndDragonFight.tick`). A client standing at world spawn contributes to neither. Dropping the flag
+on a client topology would produce no blazes and no dragon, silently, in a run that looks better
+resourced than the headless one.
+
+One rung at a time, with its preconditions staged by hand, is `wd.rehearse*` — a different family in
+a fourth directory, deliberately unable to be read as a climb. See `JourneyRehearsal`.
+
 ## When you add a new MCP tool
 
 0. **First**, re-read Hard Rule #6 — can you extend an existing tool instead?

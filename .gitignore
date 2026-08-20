@@ -5,7 +5,11 @@ run/
 run-stagewright/
 run-dogfood/
 run-contract/
-run-journey/
+# Every ladder topology, not just the headless one. The three play the SAME world in three
+# directories on purpose (a playthrough leaves its trees felled and its shafts dug, so two of them
+# sharing a directory would each measure the other), and a glob is what keeps a fourth from being
+# committable the day it is added.
+run-journey*/
 run-rehearsal/
 .idea/
 *.log

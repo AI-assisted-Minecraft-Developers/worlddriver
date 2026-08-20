@@ -1,3 +1,63 @@
+## 🔬 第 12 级：**挪位走不到位，于是那一趟仍然一级没垫**（2026-08-20 排练观测，未修）
+
+`4bd6b83a`（`layWhereItStands` / `stepAsideFor`）**已在排练里验到起作用**，不是靠一条 PASS 推断的
+—— `runRehearsalServer -Prehearse=PORTAL_LIT` 一趟里 `BODY_IN_THE_WAY` 被识别、身体挪位、
+下一趟把每一级都垫上，四趟 `FINISHED`：
+
+```
+ramp.stand=3, 59, 19 → 2, 56, 20（现在正压在这道楼梯的足迹上，不挪开第一级就垫不了
+ramp.laid=4/4 级垫好了（身体 2, 56, 18，停在 FINISHED
+ramp.laid=3/3 级垫好了（身体 2, 56, 18，停在 FINISHED
+ramp.laid=2/2 级垫好了（身体 2, 56, 17，停在 FINISHED
+```
+
+**残留在挪位的那一步本身。** 同一趟的 cast9：
+
+```
+ramp.standShort=没走到 2, 56, 19，停在 2, 56, 20 —— 还压在足迹上
+cast9.ramp.aside=这一趟一级没垫：身体 2, 56, 20 正压在 2, 56, 20 里
+```
+
+修复覆盖的是「身体挡住了自己要垫的那一级」这个**判断**，没覆盖「照判断挪，但走不到挪去的那一格」。
+`stepAsideFor` 选了 `2,56,19`，`walkTo` 停在 `2,56,20`，而那正是它要让出来的格 —— 于是这一趟
+退化回修复之前的形状：laid=0，且**理由行说的是原因而不是后果**（这一点是对的，不要改回去）。
+
+**下一步不是加重试。** 先回答：挪位目标是怎么选的 —— 它有没有要求「挪去的格不在足迹上」？
+`ramp.stand=... → 2, 56, 20（现在不在足迹上` 这行说明这个判断存在。那么 cast9 里它选了
+`2,56,19` 而身体停在 `2,56,20`，是走失败（返回什么？日志没有 walkTo 的结果）还是判定失败。
+**在读到 `walkTo` 的返回之前，这两个都只是猜。** 加一行无条件的 `ramp.aside.walk=<结果>`。
+
+（排练命令：`./gradlew :fabric:runRehearsalServer -Prehearse=PORTAL_LIT`，约 3 分钟到 12 级，
+真梯连着两趟死在 12 级之前，用真梯验证 12 级的修复是拿抽签换 40 分钟。）
+
+## 🟡 梯子有三个拓扑了，但**爬的还是同一具身体**（2026-08-20）
+
+`runJourneyIntegratedServer`（真客户端自己开世界，同一个 JVM）和
+`runJourneyDedicatedServerWithClient` + `runJourneyJoiningClient`（真客户端从 socket 连进来，
+两个 JVM，自己的 25701 端口）已经能跑，各自独立的 run 目录，伴随客户端由 gradle 起、由
+build service 保证收尾。两条都冒烟到第 2 级：`JoinedPlayerBodies.placeNewPlayer` 头一回在
+`IntegratedPlayerList` 上跑通，`agent-body-1` 两边都进了玩家表。
+
+**没解决的仍然是那一半**：三条都在爬 `JourneyRig.spawnBody()` 造的身体，没有一条驱动真玩家。
+所以假玩家的能力缺口（`fallDistance` 恒 0、`isInvulnerableTo` 恒 true、拿不到进度）在三条里
+一模一样，**两趟之间的差别永远不是它们造成的**。要换成真玩家，缺的是三样东西，都不是开关：
+
+1. `JourneyRig.drive` 把 `BotProcess` **对象**交给 `ServerAvatarManager`；客户端那边只收
+   动词+参数（`DriverApi.route("mc.bot.*", …)`），完成信号只能轮询 `status()`。
+   传输层是通的——integrated 拓扑同一个 JVM 里 `BotHooks` 就在——是这个 rig 从头到尾写死在
+   `ServerWorldDriver` 上。
+2. `breakItWhereItStands` 天生只对服务端成立：客户端的 `Avatar.breakHold` 只按下键位，
+   不配多 tick 的 `continueDestroy` 就一格都挖不开。
+3. `awaitMs` / `mc.wait.*` 睡的是**调用线程**，在布景体里就是服务器线程——正被等的那个客户端
+   进程反过来在等这条线程，一等就是死锁。
+
+判据：每一级都无条件记 `journey.topology` 和 `journey.body`，两者都是**问出来的**
+（`isDedicatedServer()`、`BotHooks.isAvailable()`、玩家表里不是 `JoinedBody` 的那些人及其维度），
+不是把 `-D` 抄回来——伴随客户端死在 architectury transformer 里的那种趟数，正是抄 `-D` 会读绿的那种。
+
+⚠️ 三条都留着 `-Dworlddriver.realPlayerBodies=true`，不是复制粘贴：`ServerLevel.players()` 是
+**按维度**的，真客户端一直待在主世界，14–15 级问的是**下界**那份名单、19–20 级问的是**末地**那份。
+
 ## ✅ 第 12 级：**漂移改柱之后没人再问「这一柱是不是楼梯」**（2026-08-19 定案，2026-08-20 修完，两边闸 GREEN）
 
 ```
