@@ -1312,6 +1312,11 @@ public final class Walker {
      */
     void noteStepAdvance(WorldView world, Player p, BlockPos foot, BlockPos w, BlockPos nx,
                          String cause, double cur2, double nd2, boolean overshot) {
+        if (seenLegEpoch != legEpoch) {                 // a new leg: fresh budget, see #newLeg
+            seenLegEpoch = legEpoch;
+            stepAdvEvents = 0;
+            stepAdvCapped = false;
+        }
         if (stepAdvEvents >= STEP_ADV_EVENTS) {
             if (!stepAdvCapped) {
                 stepAdvCapped = true;
@@ -1321,6 +1326,7 @@ public final class Walker {
             return;
         }
         stepAdvEvents++;
+        stepAdvancesLogged++;
         LOG.info("[walker] 步进: 序={}/{} 因={} 旧步={} 新步={} w={} nx={} 身体={} 精确=({}) "
                         + "cur2={} nd2={} overshot={} |w.y-p.y|={} |nx.y-p.y|={} onGround={} 脚底实心={} 落速={}",
                 stepAdvEvents, STEP_ADV_EVENTS, cause, step, step + 1,
@@ -1336,13 +1342,67 @@ public final class Walker {
                 String.format(Locale.ROOT, "%.4f", p.getDeltaMovement().y));
     }
 
-    /** Step-advance lines emitted per walker before the latch goes quiet. Higher than
-     *  {@link #JUMP_SRC_EVENTS} because a plan is consumed node by node and the first few
-     *  advances of a run are legitimate ones — the interesting event is not the first. */
-    private static final int STEP_ADV_EVENTS = 8;
+    /**
+     * Step-advance lines emitted per LEG before the latch goes quiet.
+     *
+     * <p>Sixty-four, and the number is measured rather than chosen. It was 8 <b>per walker</b>, and
+     * a walker outlives a whole rung: on the 2026-08-20 ladder the budget was spent in the first
+     * seconds of a 5 209-tick crossing, so the four wedged hops that are the entire question —
+     * 900 ticks each, 61 to 76 walk edges apiece — produced not one advance line between them. The
+     * reading those hops need is whether the pointer advanced through nodes the body never walked,
+     * and that is exactly what an exhausted latch cannot say. 64 covers the 61 edges the worst
+     * measured hop walked, so a wedge can be read end to end instead of only its opening.
+     *
+     * <p><b>Still bounded, and per leg rather than unbounded</b>: 24 hops x 64 lines of ~300 chars
+     * is about 460 KB for a whole crossing, which is a log a human opens. An uncapped advance log
+     * over a wedged hop is how a 40-minute run becomes an unreadable one.
+     */
+    private static final int STEP_ADV_EVENTS = 64;
     private int stepAdvEvents;
+    /** The leg this walker last refreshed its advance budget for — see {@link #newLeg}. */
+    private int seenLegEpoch = -1;
     /** One-shot latch for the "the cap swallowed an advance" line — see {@link #noteStepAdvance}. */
     private boolean stepAdvCapped;
+
+    /**
+     * Which leg the per-leg log budgets belong to, and the one call that starts a new one.
+     *
+     * <h2>One definition of「leg」, not a second one</h2>
+     *
+     * A walker outlives every leg that uses it, so a per-walker budget is spent by whichever leg
+     * happens to run first. What the instruments mean by a leg is already defined — {@link
+     * net.magicterra.worlddriver.bot.stagewright.journey.JourneyFlight JourneyFlight} is constructed
+     * once per leg and takes its {@code guardForcedRepaths} delta from exactly that moment — so this
+     * is bumped from the same constructor rather than being given a notion of its own. Two
+     * definitions of one word is how the pin/streak confusion started, and it is not repeated here.
+     *
+     * <h2>Behaviour must not read this</h2>
+     *
+     * It gates a LOG BUDGET and nothing else, which is why a static is safe where {@link
+     * #lastTickTrace}'s note says one would not be: every walker in the JVM refreshing its logging
+     * allowance on a new leg is the intended effect, and no decision the bot makes can observe it.
+     */
+    public static volatile int legEpoch;
+
+    /** Start a new leg: every walker's per-leg log budget refreshes on its next line. */
+    public static void newLeg() { legEpoch++; }
+
+    /**
+     * Advance lines actually emitted, so a leg can report whether its own log is COMPLETE.
+     *
+     * <p>The budget above is worth nothing if a reader cannot tell「this hop advanced 61 times and
+     * all 61 are here」from「this hop advanced 300 times and you are looking at the first 64」. The
+     * landing allowance taught the same lesson one commit ago from the other side: an instrument
+     * that costs nothing and an instrument that never ran are indistinguishable unless one of them
+     * says which. {@code JourneyFlight} prints this as a per-leg delta against
+     * {@link #STEP_ADV_EVENTS}.
+     */
+    public static volatile int stepAdvancesLogged;
+
+    /** The per-leg advance budget, for the instrument that reports how much of it a leg spent. An
+     *  accessor rather than a copied literal: a row that assumes 64 stops being a report about this
+     *  budget the day the budget changes. */
+    public static int stepAdvanceBudget() { return STEP_ADV_EVENTS; }
     static void avatarSneak(Avatar a, boolean v) { a.commandSneak(v); }
     /** Raw forward (keyUp equivalent) for the special branches that drive the impulse
      *  themselves (the main walk path uses commandMove). v=false also zeroes strafe. */
@@ -1878,6 +1938,25 @@ public final class Walker {
      *  strides (live well-mouth crossing; arena pillar-top drift) moved the body along headings
      *  the drive variables did not predict. Planned descents (current waypoint below foot in
      *  the stride column) and parkour launches are exempt; water has its own physics. */
+    /**
+     * <b>Recorded, not acted on: this guard is also an unplanned bridge-builder.</b>
+     *
+     * <p>Rung 14's crossing of 2026-08-20 was read back out of its own region files, and the box it
+     * shuttled in is a lava sea — 18 458 lava cells against 2 543 netherrack in the walk band. The
+     * only ground in it beyond one netherrack shelf is a <b>127-block dirt causeway running from
+     * (74,86) to (96,110)</b>, and dirt does not generate in nether wastes. The body built it. Not
+     * by plan either: the plans walked ONE {@code bridgePlace} edge per hop, while this guard fired
+     * <b>491 times and plugged 142 blocks</b> across 184 distinct cells, of which only 5 ever
+     * reached {@link #GUARD_PLUG_ARM_FIRES}. Thirty blocks of lava sea were bridged one safety
+     * backfill at a time, and the crossing then shuttled up and down the bridge it had made.
+     *
+     * <p>That is a surprise worth having written down where the code is, and it is <b>deliberately
+     * not acted on</b>. The backfill may be load-bearing: without it the body may have no route
+     * across a lava sea at all, and「stop paving」could turn a slow crossing into an impossible one.
+     * Deciding that needs the readings the next ladder run will carry — {@code guardForcedRepaths}
+     * per leg, the distinct-cell count in the discard line, and {@code 计划最往回指}. Do not tune the
+     * plug on the strength of this paragraph; it is a measurement, not a verdict.
+     */
     boolean strideFloorGuard(Avatar a, WorldView world) {
         if (!BotConfig.walkerStrideFloorGuard || guardParkourTick) return false;
         Player p = a.player();

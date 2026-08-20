@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-20
 
+- **The step-advance log is budgeted per LEG now, not per walker, and it says whether it is
+  complete.** A walker outlives a whole rung, so the old 8-line budget was spent in the opening
+  seconds of the 5 209-tick crossing and the four wedged hops — 900 ticks each, 61 to 76 walk edges
+  apiece — produced not one advance line between them. That is exactly the log that would say
+  whether the pointer advanced through nodes the body never walked. Sixty-four per leg: it covers
+  the 61 edges the worst measured hop walked, and 24 hops x 64 x ~300 chars is about 460 KB for a
+  whole crossing — still a log a human opens, which an uncapped one over a wedged hop would not be.
+
+  <p>The leg boundary is `JourneyFlight`'s constructor, which is where the `guardForcedRepaths`
+  delta is already taken and the only place a `JourneyFlight` is built. One definition of「leg」,
+  not a second one. `Walker.legEpoch` gates a log budget and nothing else — no decision the bot
+  makes can observe it — which is what makes a static safe here where `lastTickTrace`'s note says
+  one would not be.
+
+  <p>And the leg reports its own budget usage (`步进记了 N 条（记满了…／…是完整的）`), because a
+  reader cannot otherwise tell「this hop advanced 61 times and all 61 are here」from「this hop
+  advanced 300 times and you have the first 64」. Same lesson the landing allowance taught from the
+  other side one commit ago.
+
+- **A leg now measures whether its plan points BACKWARDS**, per grounded tick: the node's distance
+  to the leg's goal minus the body's own (`计划最往回指`). The forced-repath line names the discarded
+  plan's last node, but only when a discard happens — and「the plans themselves route backwards」is
+  precisely the branch where none does. This needs no plan end node and no plumbing: it is computed
+  from the goal the leg already holds. A leg that walks 61 edges to a net −8 either shows a positive
+  worst here or it does not, and that is the whole question.
+
+- **Written down beside the guard: it is also an unplanned bridge-builder.** 491 fires, 142 blocks
+  plugged, a 127-block dirt causeway across a lava sea that no plan asked for, and a crossing that
+  then shuttled along the bridge it had made. Recorded in `strideFloorGuard`'s own javadoc and
+  **deliberately not acted on** — the backfill may be load-bearing, since without it the body may
+  have no route across a lava sea at all, and that is a decision the next run's readings should make,
+  not a paragraph.
+
 - **Rung 14's shuttle: the box is a lava sea, and the only ground in it is the causeway the body
   built itself.** Read out of that run's own region files rather than inferred — 18 458 lava cells
   against 2 543 netherrack in `x∈[62,100] z∈[76,112] y∈[20,50]`, and **127 dirt cells** running

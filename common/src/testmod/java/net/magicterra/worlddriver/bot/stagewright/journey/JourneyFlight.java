@@ -163,6 +163,10 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
      *  fall starts. */
     private double worstOffPlan = -1;
     private String worstOffPlanAt = "";
+    /** The worst amount by which the node being steered at was FURTHER from this leg's goal than the
+     *  body itself, and where. Never negative in a healthy leg by more than a node's own length. */
+    private double backwards = -1;
+    private String backwardsAt = "";
     /** Ticks the walker had no node to steer at. A leg that spends most of itself here is not being
      *  steered at all, which is a different machine from one steered at a bad node. */
     private int ticksWithNoPlan;
@@ -179,6 +183,10 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         this.goalZ = goalZ;
         this.legLength = (int) Math.round(Math.hypot(from.getX() - goalX, from.getZ() - goalZ));
         this.repathsAtStart = Walker.guardForcedRepaths;
+        this.advancesAtStart = Walker.stepAdvancesLogged;
+        // THE leg boundary, for everything that is budgeted per leg. Walker#newLeg's note says why
+        // it is taken from here and not given a definition of its own.
+        Walker.newLeg();
     }
 
     /** {@link Walker#guardForcedRepaths} when this leg began, so the leg can report its own DELTA.
@@ -188,6 +196,10 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
      *  a body given a bad plan, and a body whose good plan kept being discarded under it — and the
      *  evidence map could not choose. A per-leg count, next to the moves the leg walked, can. */
     private final int repathsAtStart;
+
+    /** {@link Walker#stepAdvancesLogged} when this leg began — the denominator that says whether the
+     *  advance log a reader is holding is the WHOLE leg or only its opening. */
+    private final int advancesAtStart;
 
     /** Start watching a leg that is about to be walked towards the column {@code (x, z)}. */
     public static JourneyFlight watching(JourneyRig rig, BlockPos from, int x, int z) {
@@ -364,6 +376,23 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
             moveTally.merge(move == null ? "?" : move, 1, Integer::sum);
         }
         if (!onGround) return;
+        // IS THE PLAN POINTING BACKWARDS? The node's distance to this leg's goal, minus the body's.
+        // Positive means the walker is being steered further from the goal than it already is.
+        //
+        // This exists because the forced-repath line cannot answer it in the case that matters
+        // most. That line names the discarded plan's last node — but only when a discard happens,
+        // and「the plans themselves route backwards」is precisely the branch where no discard does.
+        // Measured per grounded tick out of the goal this leg already holds, so it needs no plan
+        // end node and no plumbing: a leg that walks 61 edges to a net −8 either shows a positive
+        // worst here (bad plans) or does not (good plans, taken away).
+        double nodeAway = Math.hypot(node.getX() + 0.5 - goalX, node.getZ() + 0.5 - goalZ);
+        double bodyAway = Math.hypot(fp.getX() - goalX, fp.getZ() - goalZ);
+        if (nodeAway - bodyAway > backwards) {
+            backwards = nodeAway - bodyAway;
+            backwardsAt = "t=" + t + " 身体 " + at.toShortString() + "（离目标 "
+                    + Math.round(bodyAway) + "）计划下一格 " + node.toShortString() + "["
+                    + rig.body().botState().mc_goto.pathMove + "]（离目标 " + Math.round(nodeAway) + "）";
+        }
         double gap = Math.hypot(node.getX() + 0.5 - fp.getX(), node.getZ() + 0.5 - fp.getZ());
         if (gap <= worstOffPlan) return;
         worstOffPlan = gap;
@@ -448,6 +477,12 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         // A leg that walked 61 edges to a net −8 has either been given bad plans or has had good
         // ones taken away from it. This is the number that says which, and it is the leg's own
         // delta rather than the JVM total — see repathsAtStart.
+        sb.append("；计划最往回指 ").append(backwards < 0 ? "没量到"
+                : String.format(Locale.ROOT, "%.2f 格（%s）", backwards, backwardsAt));
+        int advances = Walker.stepAdvancesLogged - advancesAtStart;
+        sb.append("；步进记了 ").append(advances).append(" 条")
+          .append(advances >= Walker.stepAdvanceBudget()
+                  ? "（记满了，后面的步进没进日志 —— 这一段的步进日志不完整）" : "（这一段的步进日志是完整的）");
         int repaths = Walker.guardForcedRepaths - repathsAtStart;
         sb.append("；守卫钉住把计划丢掉重找 ").append(repaths).append(" 次")
           .append(repaths == 0 ? "（所以这一段走的一直是同一批计划）"
