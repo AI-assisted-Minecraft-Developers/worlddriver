@@ -115,7 +115,9 @@ public final class JourneyCrossingScenes implements SceneProvider {
                 Scene.of("wd.crossingStillStopsForALongFall", 400,
                         JourneyCrossingScenes::stillStopsForALongFall).withRequired(false),
                 Scene.of("wd.crossingRowSeparatesAPerchFromMidAir", 400,
-                        JourneyCrossingScenes::rowSeparatesAPerchFromMidAir).withRequired(false));
+                        JourneyCrossingScenes::rowSeparatesAPerchFromMidAir).withRequired(false),
+                Scene.of("wd.guardRepathSeparatesARimWalkFromALivelock", 600,
+                        JourneyCrossingScenes::repathSeparatesARimWalkFromALivelock).withRequired(false));
     }
 
     /** dy of the shelf's top block. The body's foot cell is one above it. */
@@ -247,6 +249,187 @@ public final class JourneyCrossingScenes implements SceneProvider {
         ctx.check(judgedAfter).as("B 余量花完身体还在下坠，判决必须照样停手 —— 否则下一段计划是"
                 + "对着一具还在半空中的身体下的令，那正是这一级早就命过名的「换汤不换药的重试」")
                 .isNotNull();
+    }
+
+    // ── the plan the guard throws away ───────────────────────────────────────────────────────
+
+    /**
+     * <b>A sustained pin discards the plan, and until now it did so in total silence.</b>
+     *
+     * <h2>The run this is a copy of</h2>
+     *
+     * Rung 14's 2026-08-20 shuttle: four hops of 900 ticks each, 61–76 walk edges apiece, net −8 to
+     * −28 blocks, all four inside one 27×31 box. The terrain, read out of that run's own region
+     * files, is a lava sea — 18 458 lava cells against 2 543 netherrack in the walk band — and the
+     * only ground in it beyond one netherrack shelf is a <b>127-block dirt causeway the body built
+     * itself</b>. The stride guard fired 491 times in that crossing across 184 distinct cells and
+     * plugged 142 of them; only 5 cells ever reached the 12-fire plug dwell.
+     *
+     * <p>With {@link Walker#GUARD_PIN_HOLD} = 8, a fire every eight ticks keeps
+     * {@code guardPinStreak} alive, and at ≥30 it throws the plan away. So two opposite diagnoses
+     * fit every row that run produced — the body was given plans that route backwards, or the body
+     * was given good plans that kept being discarded under it — and <b>nothing in the log or the
+     * evidence map could choose</b>, because the discard logged nothing and was counted nowhere.
+     *
+     * <h2>What this arm asks</h2>
+     *
+     * Not whether the discard is right. That is a behaviour question this run cannot answer, and
+     * {@code wd.serverKeepsWalkingAtALavaRim} already records that the escape hatch is reached in
+     * one approach shape and not another. This asks only whether the new reading <b>separates the
+     * two situations the counter was built for</b>:
+     *
+     * <ul>
+     *   <li>a LIVELOCK — the body held against one lip, pinning on the same cell, which is the
+     *       567-pins-at-one-cell run the forced repath exists for;</li>
+     *   <li>a RIM WALK — the body travelling along a lava shore, pinning on a new cell every few
+     *       ticks, which is what a Nether crossing is made of.</li>
+     * </ul>
+     *
+     * <p>Both must force a repath — that is the CONTROL, and an arm where either does not has not
+     * reproduced the situation and fails as THE RIG rather than reporting that the reading told
+     * them apart. What must differ is the distinct-cell count in the line.
+     *
+     * <p><b>Red before the line existed:</b> the discard produced no line at all, so neither arm
+     * had anything to read.
+     */
+    private static void repathSeparatesARimWalkFromALivelock(SceneContext ctx) {
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        BotConfig.allowPlace = false;      // paving the trench is another answer; the pin is the subject
+        BotConfig.allowBreak = false;
+        BotConfig.walkerDebug = false;
+        BotConfig.lethalEdgeBrake = false; // isolate the STRIDE guard, as the shore/rim pairs do
+        ctx.cleanup(() -> clearTrench(ctx));
+
+        stageTrench(ctx);
+        ctx.record("rig", "一条沿 z 通到底的岩浆沟（沟面 dy=" + (TRENCH_DECK - 4) + "，" + TRENCH_ROWS
+                + " 层岩浆），东侧 dx≥" + TRENCH_EDGE + " 是一条 " + TRENCH_CELLS
+                + " 格长的石台。两条臂踩同一条岸，唯一的自变量是身体准不准往前走");
+
+        Pin walk = drivePin(ctx, "rimWalk", true);
+        Pin lock = drivePin(ctx, "livelock", false);
+        ctx.record("rimWalk", walk.line());
+        ctx.record("livelock", lock.line());
+
+        // THE CONTROL: both situations must actually reach the discard, or the arm has measured
+        // nothing and must not report that the reading separated them.
+        if (walk.repaths() < 1)
+            ctx.fail("THE RIG, not the subject: 沿岸走那一臂一次都没触发强制重规划（" + walk.line()
+                    + "） —— 没有事件就没有读数可比");
+        if (lock.repaths() < 1)
+            ctx.fail("THE RIG, not the subject: 原地卡死那一臂一次都没触发强制重规划（" + lock.line()
+                    + "） —— 那么「沿岸走报了很多格」就分不清是读数在起作用还是这一臂根本没跑到");
+
+        ctx.check(lock.cells()).as("A 原地卡死必须报成一格 —— 这正是这个计数器当初为之而生的那种情形："
+                + lock.line()).isEqualTo(1);
+        ctx.check(walk.cells() > lock.cells()).as("B 沿岸走必须报出比它多的格子 —— 否则这条线还是"
+                + "把「走了九十格」和「卡在一格上」印成同一句话：沿岸走 " + walk.cells()
+                + " 格，原地 " + lock.cells() + " 格").isTrue();
+    }
+
+    /** What one drive against the trench produced. */
+    private record Pin(int ticks, int repaths, int cells, int pinnedTicks, double travelled) {
+        String line() {
+            return String.format(Locale.ROOT,
+                    "%d tick，钉住 %d tick，强制重规划 %d 次，最后一次覆盖 %d 个不同格子，沿岸走了 %.2f 格",
+                    ticks, pinnedTicks, repaths, cells, travelled);
+        }
+    }
+
+    /**
+     * Drive the trench once and report the discard the pin forced.
+     *
+     * <p>{@code travelling} is the arm's only variable. Both bodies stand on the same shore and
+     * both are steered at the lava; the travelling one is also pushed along +z, so its stride cell
+     * sweeps, while the other is held against one lip and pins on the same cell for as long as it
+     * takes. Sneak is not re-imposed — it is the channel the pin uses and the thing being measured.
+     */
+    private static Pin drivePin(SceneContext ctx, String arm, boolean travelling) {
+        stageTrench(ctx);
+        ServerLevel level = ctx.level();
+        int standY = ctx.rel(0, TRENCH_DECK + 1, 0).getY();
+        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level,
+                ctx.originX() + TRENCH_EDGE + 0.5, standY, ctx.originZ() + 1.5);
+        ServerPlayer fp = av.fakePlayer();
+        ctx.cleanup(fp::discard);
+        fp.getInventory().clearContent();
+        // Face into the trench (−x) for the livelock, and RIM_LEAN for the rim walk so the body
+        // also travels along +z — the heading the ladder's own rim pins were all measured on.
+        fp.setYRot(travelling ? RIM_LEAN : 90f);
+        fp.yHeadRot = fp.getYRot();
+        fp.yBodyRot = fp.getYRot();
+        for (int i = 0; i < SETTLE_TICKS; i++) step(av);
+
+        LevelWorldView w = new LevelWorldView(level, fp);
+        Walker walker = new Walker();
+        walker.setGoal(new Goal.Block(ctx.rel(TRENCH_EDGE - 6, TRENCH_DECK + 1, TRENCH_CELLS - 2)));
+        int before = Walker.guardForcedRepaths;
+        double z0 = fp.getZ();
+        int pinned = 0, t = 0;
+        for (; t < PIN_TICKS; t++) {
+            walker.tick(av, w);
+            fp.setYRot(travelling ? RIM_LEAN : 90f);
+            fp.yHeadRot = fp.getYRot();
+            fp.yBodyRot = fp.getYRot();
+            av.commandMove(0f, 1f);
+            av.commandJump(false);
+            if (av.dbgSneak()) pinned++;
+            av.step();
+            if (Walker.guardForcedRepaths - before >= 2) break;   // two is enough to read the line
+        }
+        int repaths = Walker.guardForcedRepaths - before;
+        int cells = cellsIn(Walker.lastGuardRepath);
+        ctx.record(arm + ".lastLine", repaths == 0 ? "（没有强制重规划）" : Walker.lastGuardRepath);
+        return new Pin(t, repaths, cells, pinned, Math.abs(fp.getZ() - z0));
+    }
+
+    /** The distinct-cell count out of the walker's forced-repath line, or −1 when it has none.
+     *  Parsed rather than recomputed: the arm's whole claim is about what that LINE says. */
+    private static int cellsIn(String line) {
+        var m = java.util.regex.Pattern.compile("点火过 (\\d+) 个不同的格子").matcher(line);
+        return m.find() ? Integer.parseInt(m.group(1)) : -1;
+    }
+
+    /** dy of the shore deck's top block. */
+    private static final int TRENCH_DECK = 20;
+    /** Rows of lava in the trench. Four, so a body that goes in is in it. */
+    private static final int TRENCH_ROWS = 4;
+    /** Westmost deck cell: dx below this is open trench, so the rim runs the whole arena at one x. */
+    private static final int TRENCH_EDGE = 1;
+    /** Cells of shore along +z — long enough that a travelling pin sweeps many stride cells. */
+    private static final int TRENCH_CELLS = 26;
+    /** Physics ticks one drive gets. Past 30 pinned ticks with room to spare. */
+    private static final int PIN_TICKS = 220;
+
+    /** Heading for the travelling arm, in degrees; 0 is +z and 90 is −x (into the trench). 30°
+     *  walks the shore while leaning at it — the same shape as {@code wd.serverKeepsWalkingAtALavaRim}'s
+     *  own 25°, and the shape every one of rung 12's 83 rim pins was measured on. The first cut used
+     *  150°, which is mostly −z: the body walked backwards off the arena and pinned on one cell,
+     *  and the arm reported the livelock's own answer for the rim. */
+    private static final float RIM_LEAN = 30f;
+
+    private static void clearTrench(SceneContext ctx) {
+        for (int dx = -8; dx <= 8; dx++)
+            for (int dz = -3; dz <= TRENCH_CELLS + 2; dz++)
+                for (int dy = TRENCH_DECK - 10; dy <= TRENCH_DECK + 4; dy++)
+                    ctx.setBlock(dx, dy, dz, Blocks.AIR);
+    }
+
+    /** One shore, one lava trench beside it. The rim under both arms is identical. */
+    private static void stageTrench(SceneContext ctx) {
+        clearTrench(ctx);
+        for (int dx = TRENCH_EDGE; dx <= 8; dx++)                       // the deck
+            for (int dz = -3; dz <= TRENCH_CELLS + 2; dz++)
+                for (int dy = TRENCH_DECK - 10; dy <= TRENCH_DECK; dy++)
+                    ctx.setBlock(dx, dy, dz, Blocks.STONE);
+        for (int dx = -8; dx <= TRENCH_EDGE - 1; dx++)                  // the basin, rim and bed
+            for (int dz = -3; dz <= TRENCH_CELLS + 2; dz++)
+                for (int dy = TRENCH_DECK - 10; dy <= TRENCH_DECK - 8; dy++)
+                    ctx.setBlock(dx, dy, dz, Blocks.STONE);
+        for (int dx = -7; dx <= TRENCH_EDGE - 1; dx++)                  // …and the lava in it
+            for (int dz = -2; dz <= TRENCH_CELLS + 1; dz++)
+                for (int dy = TRENCH_DECK - 7; dy <= TRENCH_DECK - 4; dy++)
+                    ctx.setBlock(dx, dy, dz, Blocks.LAVA);
     }
 
     // ── the row a wedged hop is read from ────────────────────────────────────────────────────

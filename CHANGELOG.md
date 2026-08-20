@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-20
 
+- **Rung 14's shuttle: the box is a lava sea, and the only ground in it is the causeway the body
+  built itself.** Read out of that run's own region files rather than inferred — 18 458 lava cells
+  against 2 543 netherrack in `x∈[62,100] z∈[76,112] y∈[20,50]`, and **127 dirt cells** running
+  diagonally from `(74,86)` to `(96,110)`. Dirt does not generate in nether wastes: that causeway is
+  the body's. It was not planned either — the plans walked one `bridgePlace` edge per hop, while the
+  **stride floor-guard fired 491 times in that crossing and plugged 142 blocks**, on 184 distinct
+  cells of which only 5 ever reached the 12-fire plug dwell. The crossing bridged 30 blocks of lava
+  sea one safety backfill at a time, reached the tip, and walked back down its own bridge.
+
+- **Which of the two possible causes it is cannot be decided from that run, and saying so is the
+  finding.** A leg that walks 61–76 edges to a net −8..−28 has either been given plans that route
+  backwards or has had good plans taken away from it under its feet. Both fit every row: `goto.N =
+  end=null err=null` on all four wedged hops (no error, no verdict, the hop's tick budget cut it),
+  `离计划最远 9.12/10.34 格` while grounded with `move=walk` (a one-cell edge whose node is ten cells
+  away), and search counts that do not separate them (hop 9 wedged on 42 searches, hop 2 was healthy
+  on 34). The waypoint-standability theory died on the same table: hop 2 aimed at a column with
+  7/169 standable neighbours and walked 42/48, hop 6 aimed at 134/169 and wedged.
+
+- **The reason it cannot be decided is that the walker's plan-discard was silent.** `guardPinStreak
+  >= 30 → path = null` logged nothing and was counted nowhere, and with `GUARD_PIN_HOLD = 8` a fire
+  every eight ticks keeps that streak alive — the crossing had fires in 132 of its 187 seconds, up
+  to 19 in one second. So it now says so, once per event, naming the streak length, the plan it is
+  throwing away (remaining nodes and last node), the body, and **how many DISTINCT stride cells the
+  streak covered**. That last number is the one that separates the two situations the counter was
+  built for: a livelock is one cell (the run that motivated it was 567 pins at one cell), a rim walk
+  is many. `JourneyFlight` reports the per-leg delta beside the moves the leg walked.
+
+  <p>**Nothing branches on it.** Whether the streak should reset when the cell moves is a behaviour
+  question this run cannot answer — `wd.serverKeepsWalkingAtALavaRim` already records that the
+  escape hatch is reached in one approach shape and not the other. Instrument first.
+
+- **`wd.guardRepathSeparatesARimWalkFromALivelock`** stages one lava trench and drives it twice, the
+  only variable being whether the body is allowed to travel along the shore. Both arms must force a
+  repath — that is the control, and an arm where either does not fails as THE RIG — and the line must
+  then report 1 cell for the body held against one lip and more for the body walking the rim.
+  Sabotage-verified: with the distinct-cell count pinned to 1 the arm fails. The first cut aimed the
+  travelling arm at 150°, which is mostly −z; the body walked backwards off the arena, pinned on one
+  cell, and the rim reported the livelock's own answer.
+
 - **The landing allowance did not cost the next ladder run anything: it never ran.** The run after it
   went 286 blocks short against the previous run's 141, and the allowance is not why.
   `settleToGround` writes a `fortress.landing.<hop>` row unconditionally on entry, before its settle,

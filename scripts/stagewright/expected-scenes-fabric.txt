@@ -403,3 +403,4 @@ wd.pourLineHasNoOtherWayUp
 wd.crossingWaitsOutASurvivableDrop
 wd.crossingStillStopsForALongFall
 wd.crossingRowSeparatesAPerchFromMidAir
+wd.guardRepathSeparatesARimWalkFromALivelock

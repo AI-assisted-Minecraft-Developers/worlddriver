@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import net.magicterra.worlddriver.bot.movement.Walker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
@@ -177,7 +178,16 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         this.goalX = goalX;
         this.goalZ = goalZ;
         this.legLength = (int) Math.round(Math.hypot(from.getX() - goalX, from.getZ() - goalZ));
+        this.repathsAtStart = Walker.guardForcedRepaths;
     }
+
+    /** {@link Walker#guardForcedRepaths} when this leg began, so the leg can report its own DELTA.
+     *
+     *  <p>The one thing the walker does that used to leave no trace: a sustained guard pin throws
+     *  the plan away. On the 2026-08-20 shuttle that made two opposite diagnoses fit every row —
+     *  a body given a bad plan, and a body whose good plan kept being discarded under it — and the
+     *  evidence map could not choose. A per-leg count, next to the moves the leg walked, can. */
+    private final int repathsAtStart;
 
     /** Start watching a leg that is about to be walked towards the column {@code (x, z)}. */
     public static JourneyFlight watching(JourneyRig rig, BlockPos from, int x, int z) {
@@ -435,6 +445,13 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         sb.append("；").append(ticksWithNoPlan).append("/").append(t).append(" tick 身上没有计划");
         sb.append("；").append(contactLine());
         sb.append("；走过的边 ").append(moveTally.isEmpty() ? "没有（这一段没执行过任何计划边）" : moveTally);
+        // A leg that walked 61 edges to a net −8 has either been given bad plans or has had good
+        // ones taken away from it. This is the number that says which, and it is the leg's own
+        // delta rather than the JVM total — see repathsAtStart.
+        int repaths = Walker.guardForcedRepaths - repathsAtStart;
+        sb.append("；守卫钉住把计划丢掉重找 ").append(repaths).append(" 次")
+          .append(repaths == 0 ? "（所以这一段走的一直是同一批计划）"
+                  : "，最后一次 " + Walker.lastGuardRepath);
         sb.append("；收工那一刻：").append(finishedAt == null
                 ? "没有 —— 这一段是跑满 tick 被叫停的，不是进程自己结束的" : finishedAt);
         if (lava != null) sb.append("；首次入岩浆 ").append(lava);
