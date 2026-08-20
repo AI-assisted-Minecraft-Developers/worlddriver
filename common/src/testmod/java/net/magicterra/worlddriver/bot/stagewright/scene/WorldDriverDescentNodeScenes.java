@@ -167,6 +167,8 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
                         WorldDriverDescentNodeScenes::stepsDownAPerchItPlanned).withRequired(false),
                 Scene.of("wd.serverStepsDownTheLastNodeOfItsPlan", 600,
                         WorldDriverDescentNodeScenes::stepsDownTheLastNodeOfItsPlan).withRequired(false),
+                Scene.of("wd.serverStepsDownAPlanItSpentInOneTick", 600,
+                        WorldDriverDescentNodeScenes::stepsDownAPlanItSpentInOneTick).withRequired(false),
                 Scene.of("wd.serverStillWalksDownAStaircase", 600,
                         WorldDriverDescentNodeScenes::stillWalksDownAStaircase).withRequired(false));
     }
@@ -271,6 +273,11 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
                 + (lavaAt < 0 ? "一列都没扫到岩浆（流动的那 32 格按空气布的，两个源在 dy=+2）"
                         : lavaCol.toShortString() + " 往下第 " + lavaAt + " 格是岩浆")
                 + " —— 致命落差是旁边那几列给的，不是脚下那个两格的坑";
+    }
+
+    /** {@code x,y,z} with no spaces — a trace row holds a dozen of these. */
+    private static String cell(BlockPos p) {
+        return p.getX() + "," + p.getY() + "," + p.getZ();
     }
 
     private static String name(ServerLevel level, BlockPos p) {
@@ -530,51 +537,87 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
     /** Columns of the doorway copy, {@code dx ∈ [DOOR_X0, DOOR_X0 + DOOR_NX - 1]} ↔ world
      *  {@code x ∈ [1,6]}. */
     private static final int DOOR_NX = 6, DOOR_X0 = -2;
-    /** Rows, {@code dz ∈ [DOOR_Z0, DOOR_Z0 + DOOR_NZ - 1]} ↔ world {@code z ∈ [16,22]}. */
-    private static final int DOOR_NZ = 7, DOOR_Z0 = -2;
+    /** Rows, {@code dz ∈ [dw.z0(), dw.z0() + DOOR_NZ - 1]} ↔ world {@code z ∈ [16,22]}. */
+    private static final int DOOR_NZ = 7;
     /** Layers, {@code dy ∈ [DOOR_Y0, DOOR_Y0 + DOOR_NL - 1]} ↔ world {@code y ∈ [55,61]}. */
     private static final int DOOR_NL = 7, DOOR_Y0 = 8;
-    /** Layer holding the body's foot cell — world {@code y=59} is layer 4. */
-    private static final int DOOR_LAYER = 4;
 
-    /** The body's exact stance on the ladder: world {@code (3.463, 59.000, 18.939)} relative to the
-     *  foot cell's corner. Load-bearing to three decimals, and for a reason the whole scene turns on —
-     *  {@code within}'s horizontal clause is {@code cur2 < REACH_DIST_SQ = 0.45}, and this stance is
-     *  what makes {@code cur2} exactly {@code 0.316}. Rounded to the cell centre it is {@code 1.0},
-     *  {@code within} never fires, and the arena reproduces nothing. */
-    private static final double DOOR_DX = 0.463, DOOR_DZ = 0.939;
+    /** How many opening ticks each arm records node by node — long enough to show a plan being made
+     *  and spent, short enough that the row stays readable. */
+    private static final int TRACE_TICKS = 8;
 
-    /** Ticks per arm. The whole move is one cell; the ladder's own leg was over in 11. Kept well under
-     *  the 80-tick portal delay so a staged, LIT portal two cells away cannot take the body to the
-     *  Nether in the middle of a measurement. */
+    /** Ticks per arm. The whole move is one cell; the ladder's own legs were over in 11. Kept well
+     *  under the 80-tick portal delay so a staged, LIT portal two cells away cannot take the body to
+     *  the Nether in the middle of a measurement. */
     private static final int DOOR_TICKS = 60;
 
     /**
-     * Rung 13's doorway, verbatim, run-length encoded the same way {@link #BOX} is.
+     * One verbatim copy of rung 13's doorway, and where the body stood in it.
      *
-     * <p>Cells in {@code dy} (7 layers, world {@code y=55} first) then {@code dz} ({@code -2..4})
-     * then {@code dx} ({@code -2..3}), read out of {@code fabric/run-journey/world/region/r.0.0.mca}
-     * after the run of 2026-08-20 13:44 — so the one cobblestone the rung mined ({@code 3,59,19}) is
-     * already air here, exactly as it was when the walk began.
+     * <p>Two runs of that rung produced two different doorways — the casting's slag lands somewhere
+     * new every time — and they defeat different halves of the same guard, so both are here rather
+     * than one being the copy. The record exists so the staging, the stance and the doorstep travel
+     * together: the first cut hard-coded all three as constants and the second geometry needed every
+     * one of them changed.
      *
-     * <p>{@code .} air, {@code #} stone, {@code d} dirt, {@code c} cobblestone, {@code o} obsidian,
-     * {@code p} nether_portal, {@code g} granite, {@code a} andesite, {@code u} copper ore.
+     * @param cells run-length encoded, same scheme as {@link #BOX}: cells in {@code dy} (7 layers,
+     *              world {@code y=55} first) then {@code dz} then {@code dx}. {@code .} air,
+     *              {@code #} stone, {@code d} dirt, {@code c} cobblestone, {@code o} obsidian,
+     *              {@code p} nether_portal, {@code g} granite, {@code a} andesite, {@code u} copper
+     * @param z0    dz of the copy's north row — {@code 16 - worldZ} of the body's own cell
+     * @param layer layer holding the body's foot cell, {@code worldY - 55}
+     * @param dx    the body's exact offset inside its foot cell, x. Load-bearing to three decimals:
+     *              {@code within}'s horizontal clause is {@code cur2 < REACH_DIST_SQ = 0.45}, and the
+     *              cell centre puts {@code cur2} outside it, where the arena reproduces nothing
+     * @param dz    ditto, z
+     * @param stepDz the doorstep's dz from the body's own cell; it is always one row DOWN
+     * @param sole  the {@code soleOnSolid} the ladder printed for this stance — the rig's premise
+     * @param when  which run this was read out of
      */
-    private static final String DOORWAY =
+    private record Doorway(String cells, int z0, int layer, double dx, double dz, int stepDz,
+                           double sole, String when) {}
+
+    /**
+     * The 13:44 doorway: the doorstep is one row down and one cell +z, and A* answers with ONE node.
+     *
+     * <p>Read out of {@code fabric/run-journey/world/region/r.0.0.mca} after that run, so the one
+     * cobblestone the rung mined ({@code 3,59,19}) is already air, exactly as it was when the walk
+     * began. Body cell {@code 3,59,18}; stance {@code (3.463, 59.000, 18.939)}, which is what makes
+     * {@code cur2} exactly {@code 0.316}.
+     */
+    private static final Doorway DOOR_A = new Doorway(
             "6a36#a4#g#2c2#g#2.2#g#2.o#g#2co3#d.14#g#.c2#g2.co#g2.cp#g#.cp3#dco4#u5#4d#2.3d2.co2d3.p2d#.c"
-            + "p2d#.co15d2.3d3.o2d3.p3d.cp3d2.o15d2.3d3.3d3.o3d2.o3d2.16d2.3d3.3d4.3d3.3d2.9d";
+            + "p2d#.co15d2.3d3.o2d3.p3d.cp3d2.o15d2.3d3.3d3.o3d2.o3d2.16d2.3d3.3d4.3d3.3d2.9d",
+            -2, 4, 0.463, 0.939, 1, 0.2166, "2026-08-20 13:44");
+
+    /**
+     * The 15:20 doorway: the doorstep is STRAIGHT DOWN, and A* answers with TWO nodes.
+     *
+     * <p>Same rung, same portal plane, different slag. Body cell {@code 3,58,20} — a cell whose own
+     * floor {@code 3,57,20} is air; the body is held up by {@code 0.056} of sole on the north lip of
+     * the cobblestone at {@code 3,57,21}. The doorstep {@code 3,57,20} is directly beneath it, so A*
+     * routes sideways onto {@code 3,58,21} first and then down, and the walker spent both nodes in
+     * ONE tick. That second node is why a pointer-index scope could not see this one.
+     */
+    private static final Doorway DOOR_B = new Doorway(
+            "6a36#a4#g#2c2#g#2.2#g#2.o#g#.co3#d.14#g#.c2#g#.co#g.dcp#g#2.p3#dco4#u5#4d#2.3d#.co2d2.cp2d#"
+            + "2.p2d#2.o15d2.4d2.o2d2.cp3d2.p3d2.o15d2.4d2.4d2.o3d2.o3d2.16d2.4d2.4d3.3d3.3d2.9d",
+            -4, 3, 0.700, 0.794, 0, 0.0564, "2026-08-20 15:20");
 
     /** How one doorway drive ended. */
     private record Door(int ticks, int noPlan, double minY, double moved, boolean onDoorstep,
                         long holds, String end, String ended) {}
 
-    /** The cell the body starts perched on — world {@code 3,59,18}, the copy's own origin. */
-    private static BlockPos doorPerch(SceneContext ctx) { return ctx.rel(0, DOOR_Y0 + DOOR_LAYER, 0); }
+    /** The cell the body starts perched on — the copy's own origin. */
+    private static BlockPos doorPerch(SceneContext ctx, Doorway dw) {
+        return ctx.rel(0, DOOR_Y0 + dw.layer(), 0);
+    }
 
-    /** The goal: world {@code 3,58,19}, one cell +z and one row DOWN. Standable by construction — its
-     *  floor {@code 3,57,19} is the casting's cobblestone, its own cell and the cell over its head are
-     *  the air the rung's one dig left. */
-    private static BlockPos doorstep(SceneContext ctx) { return ctx.rel(0, DOOR_Y0 + DOOR_LAYER - 1, 1); }
+    /** The goal: one row DOWN and {@code stepDz} along. Standable by construction — its floor is the
+     *  casting's cobblestone and its own cell and head cell are the air the rung's dig left. */
+    private static BlockPos doorstep(SceneContext ctx, Doorway dw) {
+        return ctx.rel(0, DOOR_Y0 + dw.layer() - 1, dw.stepDz());
+    }
 
     /**
      * <b>The last node of a plan is a node too, and a plan whose last node is a step DOWN was spent on
@@ -643,7 +686,41 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
      * {@code dx ∈ [-3, 4]}, {@code dz ∈ [-3, 5]}, {@code dy ∈ [DOOR_Y0 - 1, DOOR_Y0 + DOOR_NL]} —
      * inside the default one-chunk window ({@code dx, dz ∈ [-16, 31]}), so no {@code withChunkRadius}.
      */
-    private static void stepsDownTheLastNodeOfItsPlan(SceneContext ctx) {
+    private static void stepsDownTheLastNodeOfItsPlan(SceneContext ctx) { walkTheDoorstep(ctx, DOOR_A); }
+
+    /**
+     * <b>The same defect through a TWO-node plan, which is why the first fix did not hold it.</b>
+     *
+     * <p>Rung 13's next run (2026-08-20 15:20) failed again, faster — 36 ticks instead of 100 — with a
+     * doorway the previous arm's copy does not contain: this time the casting left {@code 3,57,20}
+     * open and the body ended one row directly ABOVE it, on {@code 3,58,20}, a cell whose own floor is
+     * air. A* answered {@code Goal.Block(3,57,20)} with TWO nodes — sideways onto the standable
+     * {@code 3,58,21}, then down — and the walker spent both in ONE tick, at the same body coordinates
+     * to three decimals:
+     *
+     * <pre>{@code
+     * 步进 序=1 因=passed 旧步=1 新步=2 w=3,58,21 nx=3,57,20 身体=(3.700,58.000,20.794) 脚底实心=0.0563
+     * 步进 序=2 因=within 旧步=2 新步=3 w=3,57,20 nx=无(末节点) 身体=(3.700,58.000,20.794) |w.y-p.y|=1.000
+     * }</pre>
+     *
+     * <p><b>{@code 旧步=2} on the deciding line is the whole finding.</b> The first cut of the
+     * final-node hold asked {@code wk.step == 1} — a POINTER index standing in for「the body has not
+     * walked this plan」— and a plan whose first node is consumed in the same tick defeats it while
+     * being exactly the thing it was written for. The predicate now asks the BODY:
+     * {@code foot.equals(path.get(0))}, true on both lines above. This arm is the one that would have
+     * caught the substitution, and it is staged from the region file rather than drawn, because the
+     * two-node plan is a product of this terrain and not of a hand-picked shape.
+     *
+     * <h2>Arena footprint</h2>
+     *
+     * Same box as {@link #stepsDownTheLastNodeOfItsPlan}, re-anchored: {@code dx ∈ [-3, 4]},
+     * {@code dz ∈ [-5, 3]}, {@code dy ∈ [DOOR_Y0 - 1, DOOR_Y0 + DOOR_NL]} — inside the default
+     * one-chunk window.
+     */
+    private static void stepsDownAPlanItSpentInOneTick(SceneContext ctx) { walkTheDoorstep(ctx, DOOR_B); }
+
+    /** Both doorway arms: stage the copy, drive it twice, and judge on standing ON the doorstep. */
+    private static void walkTheDoorstep(SceneContext ctx, Doorway dw) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
         BotConfig.walkerDebug = true;
@@ -654,15 +731,15 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
         BotConfig.allowPlace = false;
         // Registered before anything is built: a LIT portal left standing in the shared dogfood world
         // would take the next scene's body to the Nether.
-        ctx.cleanup(() -> clearDoorway(ctx));
+        ctx.cleanup(() -> clearDoorway(ctx, dw));
 
-        stageDoorway(ctx);
-        ctx.record("rig", "真梯 2026-08-20 13:44 第 13 级的门洞，6×7×7 原样搬过来（世界 x∈[1,6] "
-                + "z∈[16,22] y∈[55,61]，身体那一格 3,59,18 落在本场地的 (0," + (DOOR_Y0 + DOOR_LAYER)
-                + ",0)）。站位也是原样：格角偏 (" + DOOR_DX + ", " + DOOR_DZ + ")，这正是 cur2=0.316");
-        ctx.record("doorway", doorRow(ctx));
+        stageDoorway(ctx, dw);
+        ctx.record("rig", "真梯 " + dw.when() + " 第 13 级的门洞，6×7×7 原样搬过来（世界 x∈[1,6] "
+                + "z∈[16,22] y∈[55,61]，身体那一格落在本场地的 " + doorPerch(ctx, dw).toShortString()
+                + "）。站位也是原样：格角偏 (" + dw.dx() + ", " + dw.dz() + ")");
+        ctx.record("doorway", doorRow(ctx, dw));
 
-        Door control = doorDrive(ctx, "control", false);
+        Door control = doorDrive(ctx, dw, "control", false);
         if (control.onDoorstep())
             ctx.fail("THE RIG, not the subject: 关掉 walkerDescentNodeHold 之后身体照样走上了门口那一格，"
                     + "那么「主体走上了门口」就分不清「修好了」和「这座场地本来就拦不住人」 —— " + control.ended());
@@ -670,20 +747,21 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
             ctx.fail("THE RIG, not the subject: 开关关着，拦截计数却涨了 " + control.holds()
                     + " 次 —— 两条臂就不是只差这一个变量了");
 
-        stageDoorway(ctx);
-        Door subject = doorDrive(ctx, "subject", true);
+        stageDoorway(ctx, dw);
+        Door subject = doorDrive(ctx, dw, "subject", true);
         // Unconditional, both arms: the pair IS the finding, and a PASS prints no evidence map.
         ctx.record("delta", "走了 " + String.format(Locale.ROOT, "%.2f → %.2f 格", control.moved(),
                 subject.moved()) + "；最低 y " + String.format(Locale.ROOT, "%.2f → %.2f",
                 control.minY(), subject.minY()) + "；收场 " + control.end() + " → " + subject.end()
                 + "；拦下推进 " + control.holds() + " → " + subject.holds() + " 次");
-        ctx.record("payoff", "门口东边那一格 " + doorstep(ctx).east().toShortString() + " 是 "
-                + ctx.level().getBlockState(doorstep(ctx).east()).getBlock()
+        BlockPos door = doorstep(ctx, dw).east();
+        ctx.record("payoff", "门口东边那一格 " + door.toShortString() + " 是 "
+                + ctx.level().getBlockState(door).getBlock()
                 + " —— 走上门口之后，第 13 级剩下的就是 JourneyPortalEntry.stepInto 那一推");
 
-        ctx.check(subject.onDoorstep()).as("A 主体必须真的站上门口那一格 " + doorstep(ctx).toShortString()
-                + "：那一步下降就是被指针花掉的那一步，真梯为此连着两趟一格没挪 —— 实测 "
-                + subject.ended()).isTrue();
+        ctx.check(subject.onDoorstep()).as("A 主体必须真的站上门口那一格 "
+                + doorstep(ctx, dw).toShortString() + "：那一步下降就是被指针花掉的那一步，"
+                + "真梯为此连着两趟一格没挪 —— 实测 " + subject.ended()).isTrue();
         ctx.check(subject.holds() > 0).as("B 而且这要是那道拦截干的：主体拦下了 " + subject.holds()
                 + " 次「身体还站着、节点在脚下面」的推进，对照臂 " + control.holds() + " 次").isTrue();
         // Without this the arm cannot tell「the fix let it walk in」from「the arena was walkable all
@@ -696,17 +774,20 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
 
     /** Re-derive the doorway off the LEVEL rather than off the staging constants, so the copy and the
      *  reading cannot disagree about what was built. Prints the four cells the wedge is made of. */
-    private static String doorRow(SceneContext ctx) {
+    private static String doorRow(SceneContext ctx, Doorway dw) {
         ServerLevel level = ctx.level();
-        BlockPos perch = doorPerch(ctx);
-        BlockPos step = doorstep(ctx);
+        BlockPos perch = doorPerch(ctx, dw);
+        BlockPos step = doorstep(ctx, dw);
         return "身体那一格 " + perch.toShortString() + "=" + name(level, perch)
                 + "，脚下 " + perch.below().toShortString() + "=" + name(level, perch.below())
                 + "；门口 " + step.toShortString() + "=" + name(level, step)
                 + "（脚下 " + name(level, step.below()) + "，头顶 " + name(level, step.above()) + "）"
                 + "；门 " + step.east().toShortString() + "=" + name(level, step.east())
                 + "，它头顶 " + name(level, step.east().above())
-                + " —— 门口比身体低一格、偏北一格，所以计划只有一个节点，而那个节点是最后一个";
+                + " —— 门口比身体低一格"
+                + (dw.stepDz() == 0 ? "、就在正下方（所以 A* 得先横过去一格，计划有两个节点）"
+                        : "、偏 " + dw.stepDz() + " 格（所以计划只有一个节点）")
+                + "，而那个下降节点是计划的最后一个";
     }
 
     /**
@@ -715,13 +796,13 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
      * <p>Nothing here re-imposes a heading or an impulse after {@code walker.tick} — the subject IS
      * the step pointer, so a fixture that drove the body would be answering its own question.
      */
-    private static Door doorDrive(SceneContext ctx, String arm, boolean hold) {
+    private static Door doorDrive(SceneContext ctx, Doorway dw, String arm, boolean hold) {
         ServerLevel level = ctx.level();
         BotConfig.walkerDescentNodeHold = hold;
 
-        BlockPos perch = doorPerch(ctx);
-        BlockPos step = doorstep(ctx);
-        double x0 = perch.getX() + DOOR_DX, z0 = perch.getZ() + DOOR_DZ;
+        BlockPos perch = doorPerch(ctx, dw);
+        BlockPos step = doorstep(ctx, dw);
+        double x0 = perch.getX() + dw.dx(), z0 = perch.getZ() + dw.dz();
         ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, x0, perch.getY(), z0);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
@@ -736,10 +817,11 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
             ctx.fail("THE RIG, not the subject: vanilla 自己就没端住这个站位（" + SETTLE_TICKS
                     + " 个空 tick 之后 y=" + String.format(Locale.ROOT, "%.2f", settledY) + "）");
         double sole = WalkerGeometry.soleOnSolid(w, fp);
-        // 0.2168 是真梯那一行印的读数；两位小数的窗口是留给不同 loader 的浮点尾巴的，不是留给别的站位的。
-        if (Math.abs(sole - 0.2168) > 0.01)
+        // The reading the ladder printed for this stance; the 0.01 window is for a loader's floating
+        // point tail, not for a different stance.
+        if (Math.abs(sole - dw.sole()) > 0.01)
             ctx.fail("THE RIG, not the subject: 脚底实心 " + String.format(Locale.ROOT, "%.4f", sole)
-                    + "，真梯那一 tick 印的是 0.2168 —— 站位不对，这座场地量的就不是那一格");
+                    + "，真梯那一 tick 印的是 " + dw.sole() + " —— 站位不对，这座场地量的就不是那一格");
 
         Walker walker = new Walker();
         walker.setGoal(new Goal.Block(step));
@@ -747,9 +829,20 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
         double minY = fp.getY();
         int t = 0, noPlan = 0;
         boolean onDoorstep = false;
+        // THE PLAN, tick by tick, for the first few ticks. This scene's whole claim is about what the
+        // walker does with a plan on the tick it gets one, and none of that is visible from outside:
+        // the arena scenes in this file emit no [walker] lines into the run's log at all (the perch
+        // arm walks 8 blocks with a plan on 250 of 260 ticks and logs nothing), so「the plan was two
+        // nodes and both were spent at once」has to be recorded here or it is not recorded.
+        StringBuilder trace = new StringBuilder();
         for (; t < DOOR_TICKS; t++) {
             walker.tick(av, w);
             if (walker.pathNode() == null) noPlan++;
+            if (t < TRACE_TICKS)
+                trace.append(t == 0 ? "" : " ").append(t).append(':').append(cell(fp.blockPosition()))
+                     .append(" 步").append(walker.pathStep()).append('/').append(walker.pathLen())
+                     .append(" 点").append(walker.pathNode() == null ? "无" : cell(walker.pathNode()))
+                     .append(" 拦").append(Walker.descentHolds - holds0);
             av.step();
             minY = Math.min(minY, fp.getY());
             if (fp.blockPosition().equals(step)) { onDoorstep = true; t++; break; }
@@ -757,6 +850,11 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
             // in the Nether eighty ticks later — after this scene's cleanup has aired the box.
             if (level.getBlockState(fp.blockPosition()).is(Blocks.NETHER_PORTAL)) { t++; break; }
         }
+        ctx.record(arm + ".trace", trace.toString());
+        Walker.PathStats st = Walker.lastStats;
+        ctx.record(arm + ".lastSearch", st == null ? "这一趟没有一次搜索留下统计"
+                : "expanded=" + st.expanded() + " ms=" + st.ms() + " 够到目标=" + st.goalReached()
+                        + " 计划长度=" + st.pathLen());
         double moved = Math.hypot(fp.getX() - x0, fp.getZ() - z0);
         long holds = Walker.descentHolds - holds0;
         String end = walker.lastEndReason;
@@ -771,9 +869,9 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
     }
 
     /** Air out the working box — the copy plus the seal plus one layer over the top. */
-    private static void clearDoorway(SceneContext ctx) {
+    private static void clearDoorway(SceneContext ctx, Doorway dw) {
         for (int dx = DOOR_X0 - 1; dx <= DOOR_X0 + DOOR_NX; dx++)
-            for (int dz = DOOR_Z0 - 1; dz <= DOOR_Z0 + DOOR_NZ; dz++)
+            for (int dz = dw.z0() - 1; dz <= dw.z0() + DOOR_NZ; dz++)
                 for (int dy = DOOR_Y0 - 1; dy <= DOOR_Y0 + DOOR_NL; dy++)
                     ctx.setBlock(dx, dy, dz, Blocks.AIR);
     }
@@ -793,32 +891,32 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
      * sky over it, and a ceiling one cell above the body's head is a different arena for anything that
      * jumps.
      */
-    private static void stageDoorway(SceneContext ctx) {
-        clearDoorway(ctx);
-        String cells = decodeDoorway();
+    private static void stageDoorway(SceneContext ctx, Doorway dw) {
+        clearDoorway(ctx, dw);
+        String cells = decodeDoorway(dw);
         for (int pass = 0; pass < 2; pass++)
             for (int dx = DOOR_X0; dx < DOOR_X0 + DOOR_NX; dx++)
-                for (int dz = DOOR_Z0; dz < DOOR_Z0 + DOOR_NZ; dz++)
+                for (int dz = dw.z0(); dz < dw.z0() + DOOR_NZ; dz++)
                     for (int k = 0; k < DOOR_NL; k++) {
-                        char c = cells.charAt(((k * DOOR_NZ) + (dz - DOOR_Z0)) * DOOR_NX + (dx - DOOR_X0));
+                        char c = cells.charAt(((k * DOOR_NZ) + (dz - dw.z0())) * DOOR_NX + (dx - DOOR_X0));
                         boolean solid = c != '.' && c != 'p';
                         if (solid != (pass == 0)) continue;
                         ctx.setBlock(dx, DOOR_Y0 + k, dz, doorBlock(c));
                     }
         for (int dx = DOOR_X0 - 1; dx <= DOOR_X0 + DOOR_NX; dx++)
-            for (int dz = DOOR_Z0 - 1; dz <= DOOR_Z0 + DOOR_NZ; dz++)
+            for (int dz = dw.z0() - 1; dz <= dw.z0() + DOOR_NZ; dz++)
                 for (int dy = DOOR_Y0 - 1; dy < DOOR_Y0 + DOOR_NL; dy++)
                     if (dx == DOOR_X0 - 1 || dx == DOOR_X0 + DOOR_NX
-                            || dz == DOOR_Z0 - 1 || dz == DOOR_Z0 + DOOR_NZ || dy == DOOR_Y0 - 1)
+                            || dz == dw.z0() - 1 || dz == dw.z0() + DOOR_NZ || dy == DOOR_Y0 - 1)
                         ctx.setBlock(dx, dy, dz, Blocks.STONE);
         // AXIS is not in the copy because a block name does not carry it. The frame lies in the plane
         // x=4, so the interior spans z — the only axis vanilla's own PortalShape would have produced.
         ServerLevel level = ctx.level();
         int lit = 0;
         for (int dx = DOOR_X0; dx < DOOR_X0 + DOOR_NX; dx++)
-            for (int dz = DOOR_Z0; dz < DOOR_Z0 + DOOR_NZ; dz++)
+            for (int dz = dw.z0(); dz < dw.z0() + DOOR_NZ; dz++)
                 for (int k = 0; k < DOOR_NL; k++) {
-                    char c = cells.charAt(((k * DOOR_NZ) + (dz - DOOR_Z0)) * DOOR_NX + (dx - DOOR_X0));
+                    char c = cells.charAt(((k * DOOR_NZ) + (dz - dw.z0())) * DOOR_NX + (dx - DOOR_X0));
                     if (c != 'p') continue;
                     level.setBlockAndUpdate(ctx.rel(dx, DOOR_Y0 + k, dz),
                             Blocks.NETHER_PORTAL.defaultBlockState()
@@ -827,7 +925,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
                 }
         int stood = 0;
         for (int dx = DOOR_X0; dx < DOOR_X0 + DOOR_NX; dx++)
-            for (int dz = DOOR_Z0; dz < DOOR_Z0 + DOOR_NZ; dz++)
+            for (int dz = dw.z0(); dz < dw.z0() + DOOR_NZ; dz++)
                 for (int k = 0; k < DOOR_NL; k++)
                     if (level.getBlockState(ctx.rel(dx, DOOR_Y0 + k, dz)).is(Blocks.NETHER_PORTAL)) stood++;
         if (stood != lit)
@@ -849,13 +947,14 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
     }
 
     /** Expand {@link #DOORWAY}, same encoding {@link #decode} reads. */
-    private static String decodeDoorway() {
+    private static String decodeDoorway(Doorway dw) {
+        String rle = dw.cells();
         StringBuilder sb = new StringBuilder(DOOR_NL * DOOR_NZ * DOOR_NX);
-        for (int i = 0; i < DOORWAY.length(); ) {
+        for (int i = 0; i < rle.length(); ) {
             int j = i;
-            while (Character.isDigit(DOORWAY.charAt(j))) j++;
-            int n = j > i ? Integer.parseInt(DOORWAY.substring(i, j)) : 1;
-            char c = DOORWAY.charAt(j);
+            while (Character.isDigit(rle.charAt(j))) j++;
+            int n = j > i ? Integer.parseInt(rle.substring(i, j)) : 1;
+            char c = rle.charAt(j);
             for (int k = 0; k < n; k++) sb.append(c);
             i = j + 1;
         }

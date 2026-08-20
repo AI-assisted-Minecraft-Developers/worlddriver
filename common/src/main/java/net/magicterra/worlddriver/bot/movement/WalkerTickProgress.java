@@ -246,13 +246,63 @@ final class WalkerTickProgress {
      *             does not satisfy the goal — it is a splice point, not an arrival — and a body
      *             already inside its goal has nothing left to walk. It is deliberately the same
      *             question the disk-goal hold below asks, extended from radius-{@code >0} goals.</li>
-     *         <li>{@code wk.step == 1} — the ONE-STEP plan, where the body has not walked a node of
-     *             this path and consuming it therefore ends the segment with zero movement <i>by
-     *             construction</i>. That is rung 13's shape exactly. Without it the hold reached
-     *             every ordinary descent's last node — 299 firings inside {@code wd.descent} alone in
-     *             one gate run — which is a blast radius this reading does not justify. A longer plan
-     *             whose tail is a step down still ends one cell short; the caller re-plans from where
-     *             it stopped, that re-plan IS a one-step plan, and it is held.</li>
+     *         <li>{@code foot.getY() >= wk.path.get(0).getY()} — the body has not gone DOWN under
+     *             this plan, so the descent the plan ends in has not been taken. Without a term of
+     *             this kind the hold reached every ordinary descent's last node — 299 firings inside
+     *             {@code wd.descent} alone in one gate run — a blast radius this reading does not
+     *             justify, and one that put {@code wd.serverMineHarvest} red across three runs.
+     *
+     *             <p><b>Two narrower terms were tried first and both were wrong, each measured.</b>
+     *             {@code wk.step == 1} — a POINTER index standing in for「the body has not walked
+     *             this plan」— died on rung 13's next run: A* answered {@code Goal.Block(3,57,20)}
+     *             from {@code 3,58,20} with a TWO-node plan, {@code [3,58,21 → 3,57,20]} (sideways
+     *             onto the standable cell beside the body, then down), and the walker spent BOTH in
+     *             one tick, at the same body coordinates to three decimals:
+     *
+     *             <pre>{@code
+     *             步进 序=1 因=passed 旧步=1 新步=2 w=3,58,21 nx=3,57,20 身体=(3.700,58.000,20.794) 脚底实心=0.0563
+     *             步进 序=2 因=within 旧步=2 新步=3 w=3,57,20 nx=无(末节点) 身体=(3.700,58.000,20.794) |w.y-p.y|=1.000
+     *             }</pre>
+     *
+     *             {@code 旧步=2} on the deciding line, so no index test can see it. The replacement,
+     *             {@code foot.equals(path.get(0))}, held for two ticks and then released one step too
+     *             early — measured in the arena, {@code 拦1 拦2} and then the body took the plan's
+     *             LATERAL first node, changed cell, and the guard let the descent be spent:
+     *
+     *             <pre>
+     *             0:239776,211,100000 步2/3 点239776,210,100000 拦1
+     *             2:239776,211,100001 步3/3 点无            拦2   ← moved sideways, hold gone, plan gone
+     *             </pre>
+     *
+     *             Walking a plan's flat nodes is not taking its descent, so the reading is the ROW.
+     *             Both arenas pin it: {@code wd.serverStepsDownTheLastNodeOfItsPlan} (one-node plan)
+     *             and {@code wd.serverStepsDownAPlanItSpentInOneTick} (two-node).</li>
+     *         <li>{@code wk.stepProg.noStepProgressTicks == 0} — the body is still CLOSING on this
+     *             node <i>this tick</i>. The row term alone is not enough: it is a statement about
+     *             the plan, and a body can satisfy it forever while standing perfectly still.
+     *
+     *             <p><b>That is what widening the scope cost, and it was measured rather than
+     *             guessed.</b> A temporary per-firing probe over a filtered gate run
+     *             ({@code -Pstagewright.scenes=…}) counted final-node holds and printed the stall
+     *             clock and the sole at each:
+     *
+     *             <pre>
+     *             wd.serverMineHarvest   100 holds  stall 0→27 (a smooth ramp)  sole 0.0015..0.0041  y=222.000 at ALL 100
+     *             the two descent arenas   9 holds  stall 0 on 8 of 9, max 13   sole 0.0180..0.2631  the body shuffling and dropping
+     *             </pre>
+     *
+     *             Identical shape, opposite meaning. mineHarvest is the stride-floor-guard deadlock
+     *             this javadoc already records, re-entered once per plan and now sat in for 27 ticks
+     *             instead of released: the body never moved a millimetre across a hundred holds, and
+     *             the scene went from 113 ticks and green to 191 and {@code broke 2/4}. The arenas
+     *             are the opposite — the stall clock RESETS on eight of nine holds, i.e. the body got
+     *             closer to the node on that very tick, which is the hold doing its job.
+     *
+     *             <p>So the tail branch does not reuse {@link #TAIL_HOLD_STALL_TICKS}: over the same
+     *             run, {@code == 0} keeps 8 of 9 arena holds and 12 of 100 mineHarvest ones. A hold
+     *             may extend an approach that is working; it may not outlive one that has stopped.
+     *             {@code wd.serverMineHarvest} is the standing witness — 64 archived gate runs at
+     *             104..125 ticks, and every widening without this term put it at 190+.</li>
      *       </ul></li>
      *   <li><b>{@link #TAIL_HOLD_STALL_TICKS} of stalled step progress releases it</b>, and that
      *       bound is not defensive — the first cut had no bound and turned {@code wd.serverMineHarvest}
@@ -274,13 +324,17 @@ final class WalkerTickProgress {
                 && WalkerGeometry.soleOnSolid(world, p) > 0.0
                 && wk.stepProg.noStepProgressTicks <= TAIL_HOLD_STALL_TICKS;
         // Mid-path, hold outright: spending the node strands the pointer for the rest of the plan.
-        // At the LAST node, only the ONE-STEP plan — step 1 with nothing after it, so the body has
-        // not walked a node of this path and consuming it produces an arrival with zero movement by
-        // construction. `wk.goal.reached(w) && !reached(foot)` is the other half: `w` is the plan's
-        // end here, so this says the plan's end satisfies the goal while the body does not. See the
-        // javadoc for what each of the two costs when it is left out.
+        // At the LAST node, three terms, each bought on the gate — see the javadoc:
+        //   · the body has not gone DOWN under this plan (its row is still at or above the row the
+        //     plan was searched from), because that is what「the descent has not happened」means and
+        //     lateral progress along the plan does not make it happen;
+        //   · the body is still CLOSING on the node this tick, so a hold can only ever extend an
+        //     approach that is working, never outlive one that has stopped;
+        //   · and the plan's end satisfies the goal while the body does not.
         boolean held = unwalked && (nx != null
-                || (wk.step == 1 && wk.goal != null && wk.goal.reached(w) && !wk.goal.reached(foot)));
+                || (foot.getY() >= wk.path.get(0).getY()
+                        && wk.stepProg.noStepProgressTicks == 0
+                        && wk.goal != null && wk.goal.reached(w) && !wk.goal.reached(foot)));
         if (held) Walker.descentHolds++;
         return held;
     }

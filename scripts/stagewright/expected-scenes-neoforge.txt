@@ -374,6 +374,12 @@ wd.serverStillWalksDownAStaircase
 # the control must end for the ladder's own reason (end=path-consumed).
 wd.serverStepsDownTheLastNodeOfItsPlan
 
+# The same defect through a TWO-node plan, which is why the first fix's pointer-index scope
+# (step == 1) did not hold it: A* routed sideways onto the standable cell beside the body and then
+# down, and the walker spent both nodes in one tick without moving. A second verbatim copy of the
+# same rung's doorway, from the run after.
+wd.serverStepsDownAPlanItSpentInOneTick
+
 # Rung 12's third failure family: the scoop's own flight fills the cell the lava cast has to
 # stand in AND shoot through, and clearPourLine then exempts it for being a step the rung laid
 # on purpose. One staged alcove at the instant the cast walks back in; the blocked shot, the

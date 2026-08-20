@@ -7,6 +7,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-20
 
+- **Rung 13 failed again on the next ladder run, faster and one cell east, and neither half of the
+  first fix was wrong — both were too narrow.** The 15:20 run lit the portal, surveyed the doorway
+  and derived `站 3,57,20 迈进 4,57,20（门洞第 0 排），现在就能走进去`, then spent all three legs
+  standing on `3,58,20`, one row directly above that doorstep:
+
+  ```
+  portal.walk.1 = XZ 目标 3,57,20：2,58,20 → 3,58,20（挪了 1 格，13 tick） end=arrived
+  portal.walk.2 = 3D 目标 3,57,20：3,58,20 → 3,58,20（挪了 0 格，11 tick） end=path-consumed
+  portal.walk.3 = XZ 目标 3,57,20：3,58,20 → 3,58,20（挪了 0 格，11 tick） end=arrived
+  ```
+
+  **The doorstep was not stale.** Read out of `run-journey`'s own region file rather than inferred:
+  `3,57,20` is air over cobblestone at `3,56,20` — standable, correctly derived — and `3,58,20` is
+  air whose own floor is air. The body was legitimately perched on the north lip of the cobblestone
+  at `3,57,21`, `脚底实心 0.0563`. Nothing invisible was left behind by rung 12.
+
+- **`step == 1` was a POINTER index standing in for「the body has not walked this plan」, and the next
+  run walked straight through it.** A\* answered `Goal.Block(3,57,20)` from `3,58,20` with a TWO-node
+  plan — `[3,58,21 → 3,57,20]`, sideways onto the standable cell beside the body and then down — and
+  the walker spent both nodes in ONE tick, at the same body coordinates to three decimals:
+
+  ```
+  步进 序=1 因=passed 旧步=1 新步=2 w=3,58,21 nx=3,57,20 身体=(3.700,58.000,20.794) 脚底实心=0.0563
+  步进 序=2 因=within 旧步=2 新步=3 w=3,57,20 nx=无(末节点) 身体=(3.700,58.000,20.794) |w.y-p.y|=1.000
+  ```
+
+  `旧步=2` on the deciding line, so no index test can see it. The reading is the **row**: the body has
+  not gone down under this plan while its foot row is still at or above the row the plan was searched
+  from, and walking a plan's flat nodes is not taking its descent. An intermediate cut,
+  `foot.equals(path.get(0))`, released one step too early for exactly that reason and is recorded in
+  the guard's javadoc next to the arena trace that killed it.
+
+- **Widening the scope re-opened a deadlock this guard already documents, and the cost was measured
+  before anything was tuned.** A temporary per-firing probe over a filtered gate run counted every
+  final-node hold and printed the stall clock and the sole at each:
+
+  | | holds | stall clock | sole | body |
+  |---|---|---|---|---|
+  | `wd.serverMineHarvest` | 100 | 0 → 27, a smooth ramp | 0.0015..0.0041 | `y=222.000` at **all 100** |
+  | the two descent arenas | 9 | **0 on 8 of 9**, max 13 | 0.0180..0.2631 | shuffling onto the lip, then dropping |
+
+  Identical shape, opposite meaning. mineHarvest is the stride-floor-guard deadlock already in the
+  javadoc — the guard refuses the very stride the hold insists on — re-entered once per plan and now
+  sat in for 27 ticks instead of released; the scene went from 113 ticks and green to 191 and
+  `broke 2/4`. The arenas are the opposite: the stall clock RESETS on eight of nine holds, meaning the
+  body got closer to the node on that very tick. So the final-node branch does not reuse
+  `TAIL_HOLD_STALL_TICKS` (30) but requires `noStepProgressTicks == 0` — **a hold may extend an
+  approach that is working, and may not outlive one that has stopped.** Over the same run that keeps
+  8 of 9 arena holds and 12 of 100 mineHarvest ones. `wd.serverMineHarvest` is the standing witness:
+  64 archived gate runs at 104..125 ticks, and every widening without this term put it at 190+.
+
+- **`wd.serverStepsDownAPlanItSpentInOneTick`, `withRequired(false)`.** A second verbatim 6×7×7 copy
+  of the same rung's doorway, from the 15:20 run, at the ladder's exact stance (`+0.700, +0.794`,
+  `脚底实心 0.0564`) — the geometry that produces the TWO-node plan, which the 13:44 copy does not.
+  Both arms differ only in `walkerDescentNodeHold`:
+
+  | arm | ticks | moved | minY | holds | on the doorstep |
+  |---|---|---|---|---|---|
+  | control (hold OFF) | 60 | **0.00 格** | 211.00 — never descended | 0 | no |
+  | subject (hold ON) | 19 | 0.30 格 | 210.92 | 3 | **yes** |
+
+  Under `step == 1` the subject arm read `60 tick，走了 0.00 格` and went red — that run is the proof
+  the criterion can fail. Both descent arenas also now record the plan tick by tick and the last
+  search's `PathStats`, because these arenas emit no `[walker]` line into the run's log at all, so
+  「the plan was two nodes and both were spent at once」had to be recorded in the scene or it was not
+  recorded anywhere.
+
 - **Rung 13 could not walk the last cell into the portal it had lit, because the walker spends the
   LAST node of a plan that steps down.** The run of 2026-08-20 13:44 got the geometry right — it
   surveyed the doorway, declined the one open row a 1.8-tall body does not fit through, priced the
