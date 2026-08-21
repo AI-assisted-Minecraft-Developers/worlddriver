@@ -17,10 +17,12 @@ import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
 import net.magicterra.worlddriver.bot.process.CombatProcess;
 import net.magicterra.worlddriver.bot.pathfinder.Capability;
 import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
+import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
 import net.magicterra.worlddriver.bot.pathfinder.moves.DiagonalAscend;
 import net.magicterra.worlddriver.bot.process.Intent;
 import net.magicterra.worlddriver.bot.process.IntentProcess;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
+import net.magicterra.worlddriver.bot.world.SurvivalMath;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -1315,6 +1317,14 @@ public final class JourneyNetherRungs {
                                       int hopTicks, Runnable onArrived, Runnable onStuck) {
         BlockPos from = rig.player().blockPosition();
         recordBudget(rig, what, Math.hypot(x - from.getX(), z - from.getZ()), hopTicks);
+        // Say that this leg carries the tax, because a leg that carries it and a leg that does not
+        // are otherwise indistinguishable in the results — and the hop lines that would show it
+        // (「守卫钉住把计划丢掉重找」going to zero) only exist on hops that wedge.
+        rig.evidence(what + ".lipTax", "唇沿每踏一格加价 " + (int) LIP_TAX + "（普通走一格是 10，"
+                + "即绕 " + (int) (LIP_TAX / 10) + " 格也比踏上去便宜）；判据是执行侧自己那个"
+                + " WalkerGeometry.dropAdjacentExceeds（八个水平邻格里落脚格与其下方都空、"
+                + "落柱里碰到 hazard 或深过可生还高度），阈值每段按当时血量重取。"
+                + "这是加价不是禁行 —— 唯一的路是唇沿时仍然走得通");
         Crossing c = new Crossing();
         c.hopTicks = hopTicks;
         oneHop(rig, what, x, z, tolerance, hopTicks, c, onArrived, onStuck);
@@ -1505,8 +1515,18 @@ public final class JourneyNetherRungs {
         // JourneyFlight: three different bugs all end with a body hanging in cave_air, and the
         // `around.N` line prints the same sentence for all three.
         JourneyFlight flight = JourneyFlight.watching(rig, before, wx, wz);
+        // READ ON THE SERVER THREAD, ONCE PER HOP, and passed to the search as a plain int. The
+        // lambda below runs on the SEARCH thread, where the only legal thing to touch is the
+        // WorldView snapshot — rung 12's version of this tax says so in as many words ("the search's
+        // own thread only ever does a hash lookup against an immutable set"), and a lambda holding
+        // the live Player would be calling getHealth() off-thread on every expanded node. Re-read
+        // each hop so the threshold follows the body's health down.
+        final int lipDepth = SurvivalMath.survivableFall(rig.player().getHealth());
+        List<CostModifier> avoidTheLip = List.of(
+                (from, to, edge, goal, world) ->
+                        WalkerGeometry.dropAdjacentExceeds(world, to, lipDepth) ? LIP_TAX : 0.0);
         rig.settle(new IntentProcess(new Intent(new Goal.XZ(wx, wz, hopTolerance),
-                        List.of(), NO_PARKOUR, List.of())), hopTicks,
+                        avoidTheLip, NO_PARKOUR, List.of())), hopTicks,
                 flight, () -> settleToGround(rig, what, hop, () -> {
             BlockPos at = rig.player().blockPosition();
             double left = Math.hypot(x - at.getX(), z - at.getZ());
@@ -1884,6 +1904,51 @@ public final class JourneyNetherRungs {
     /** The shortest a halved hop may get. Under a chunk, a hop stops being a different question
      *  from the one that just failed and starts being the same one asked slower. */
     private static final int HOP_MIN = 16;
+
+    /**
+     * What a step onto a ledge above lava costs this crossing's search.
+     *
+     * <h2>The planner and the executor did not agree on which cells are walkable</h2>
+     *
+     * The rehearsal of 2026-08-21 stopped 255 blocks out with a profile that is the mirror image of
+     * the ladder run that raised {@link #MAX_HOPS}: <b>1%</b> of its ticks had no plan, against 28%.
+     * The body had a route almost the whole time and did not move — hops #4, #8 and #9 spent 2 700
+     * ticks between them and displaced <b>six blocks</b>. What those hops report:
+     *
+     * <pre>
+     * 守卫钉住把计划丢掉重找 2 次，最后一次 连钉 30 tick，其间点火过 4 个不同的格子（一路换格 —— 这是沿岸走）
+     * 37/900 个着地 tick 接触面积不足 0.09（等于只踩住一个角）
+     * 计划最往回指 14.18 格（身体 90,41,96 离目标 55，计划下一格 90,41,78 离目标 69）
+     * </pre>
+     *
+     * <p>The body was walking the shore of a lava sea. {@code WalkerGeometry.lethalDropAdjacent}
+     * pinned it there — correctly, that is what the guard is for — every pin ran to
+     * {@code guardPinStreak >= 30} and threw the plan away, and the re-search handed back a route
+     * pointing fifteen blocks BACK from the goal. Nine hops of that is a crossing that shuttles.
+     *
+     * <p><b>The defect is that only one half of the walker knows those cells are dangerous.</b> The
+     * executor asks {@code WalkerGeometry.lethalDropAdjacent}; the planner asks
+     * {@code ClientWorldView.dangerCost}, and those are different predicates.
+     * {@link BotConfig#lavaDangerPenalty} is 300 and was ON for the whole run — but it prices a
+     * stand cell that TOUCHES lava, and a lip cell touches nothing: the lava is eight blocks down,
+     * past a drop. So A* priced the shore at a plain 10 per step and routed along it, straight into
+     * the cells its own executor refuses to walk through.
+     *
+     * <h2>Why a tax on this rung rather than a fix in the planner</h2>
+     *
+     * Because the engine does not need a new capability to get this right — it needs the cost
+     * function to ask the question the executor already asks, and a per-leg {@link CostModifier} is
+     * how this repo has done that before. Rung 12's lava lake had the same shape and the same cure:
+     * {@code JourneyPortalRung#LIP_TAX} prices the crater's rim, and the leg that had never once
+     * arrived reported {@code end=arrived … 这条腿上 footing guard：0 条}. This is that fix, on the
+     * terrain it was not applied to.
+     *
+     * <p>Three hundred, same as rung 12's and as {@link BotConfig#lavaDangerPenalty}: a plain walk
+     * edge is 10, so a lip cell is worth thirty blocks of detour. <b>A tax, never a
+     * {@code Constraint}</b> — a crossing whose only route is a lip still has one, merely dear. That
+     * distinction is why this is safe on 400 blocks of terrain nobody has surveyed.
+     */
+    private static final double LIP_TAX = 300;
 
     /** Degrees off the straight line a detour hop aims, once halving has failed. Sixty rather than
      *  ninety: the obstacle a bee-line meets in the Nether is a lava sea with ground either side,
