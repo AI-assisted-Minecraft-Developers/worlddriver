@@ -1,3 +1,34 @@
+## 🔴 集成服上这具身体是**分裂**的，而且分歧是恒定的不是竞态（2026-08-22，`b39d84ab` 量出来了）
+
+`wd.actuatorSplitOnAnAdoptedBody`，集成服闸 GREEN（295 执行）。**测量推翻了两个人的预测。**
+
+| | 服务端 | 客户端 |
+|---|---|---|
+| slot 同 tick / 过 10 tick | **4 / 4** | **0 / 0** |
+| aim 过 10 tick | −55.32 / 29.55 | **283.23 / 0.00** |
+
+腿（每 tick 驱动）走 `ClientPlayerAvatar` → `mc.player`（真 `LocalPlayer` + 客户端物理），
+**而 36 个单发动作**（`holdItem`×12、`aimAtBlock`×8、`useItemInHand`×6、`canBreak`×6、`useBlock`×2，
+外加整个 `breakItWhereItStands`）走 `ServerPlayerAvatar`——`spawnBody()` 收养分支
+`new ServerWorldDriver(new ServerPlayerAvatar(real))`。
+
+**我猜「服务端的写没人反驳所以活下来了」，topology 猜「aim 是竞态、服务端多半赢」——
+两个人都默认了「没被回滚 ≈ 生效了」。** 服务端的值确实没被回滚，**而客户端从第一 tick 起就没动过，
+10 tick 后一模一样地不一致**。没有传播、没有覆盖、没有收敛：**两边各持一份互不相干的值。**
+`holdItem` 返回 `True`——它确实改了服务端的 `inv.selected`，那个数字对真正在被驱动的
+`LocalPlayer` 毫无意义。**这不是「会被盖掉」，是 36 个调用点在对着一具没人看的身体下令。**
+
+**为什么 1–13 级照样 PASS**：真梯跑的是 `journeyServer`，**无头、零客户端**
+（`journey.topology=dedicatedServer（真玩家 0）`、`journey.steer=serverTick/ServerAvatarManager`）。
+`startLeg` 的 `realPlayerHelm` 分支在真梯上根本不进，腿也走服务端，
+**服务端和服务端没有第二份值可以分歧**。所以 1–13 级的绿**不是假绿，是没测过**——
+它对集成服那条分裂一个字都没说过。
+
+**验收判据**：这条场景从「⚠️ 不一致」翻成「一致」。**它在缺陷存在时会红，而梯子那条不会。**
+先量再改这个顺序是对的：直接改 36 处然后拿梯子验收，验的是一条永远碰不到这个缺陷的路径。
+
+---
+
 ## 🟡 第 14 级 wp8：**死因定位在引擎，已修，回测被我自己搞成了双变量**（2026-08-22，`d8e4e650` `ea41335f` `d68edd8c`）
 
 **wp8 的死因不在走廊代码里。** 我和 advisor 各自猜过「规划下潜」「y 带没约束」「岩浆下方没标价」，
