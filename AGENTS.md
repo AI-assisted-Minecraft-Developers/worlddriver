@@ -286,9 +286,35 @@ client's own user-task chain) integrated. Every path that starts a leg goes thro
 `ServerAvatarManager` would run manual physics on a client-controlled body, which the client then
 contradicts with its own movement packet every tick.
 
-*Two honest compromises.* `breakItWhereItStands` is a server-side `Level#destroyBlock` on every
-topology, so an in-place swing never exercises the client's multi-tick `continueDestroy`. And under
-the real-player helm the rung's process runs inside the full client scheduler, so panic / dodge /
+*The helm has two halves, and both must be routed.* The paragraph above is about the per-tick LEGS.
+Single-shot actions — hold an item, aim, right-click, place — are a second population of 36 call
+sites, and they were NOT routed for the first day this topology existed: they went through a
+`ServerPlayerAvatar` wrapped around the adopted player, i.e. they wrote the SERVER's copy of
+quantities vanilla lets only the client own. Measured on this topology by
+`wd.actuatorSplitOnAnAdoptedBody`: server slot 4 against client 0, server aim (-55.32, 29.55)
+against client (283.23, 0.00), unchanged ten ticks later — not a race, two unrelated values. They
+now go through `JourneyRig.avatar()`, which picks `BotApi.clientAvatar()` under the real-player
+helm, mirroring `startLeg`. **A new rung must use `rig.avatar()`, never `rig.body().avatar()`.**
+
+*Ten sites deliberately did NOT move, and reading them as oversights would break things.* The
+client's `breakHold` only presses a keybind, so `breakItWhereItStands` — whose contract is「did this
+cell open within this call」, verified against the world — stays server-side or becomes a silent
+no-op. `canBreak` is `default -> true` on the client, so routing it produces an always-true
+predicate, worse than deleting the check. `placeTally` is not on the `Avatar` interface at all. Two
+sites that mixed aiming with breaking now hold one avatar of each kind.
+
+*The ladder cannot judge any of this.* `runJourneyServer` is headless — no client, `realPlayerHelm`
+false, both halves the server — so the defect above is unreachable there and rungs 1-13 were green
+throughout. Judge changes to this seam with `wd.actuatorSplitThroughTheClientAvatar` instead, and
+note what it does not prove: both its `thread.*` rows read `Server thread`, so a pass means the
+mechanism is right, not that the threading is safe. Originating single-shot actions from the client
+tick chain is the coherent fix and is **not built**; `BotApi.clientAvatar()` carries the open-defect
+note.
+
+*One honest compromise.* (`breakItWhereItStands` used to be listed here as a second; it is now
+stated above as a mechanism-driven decision rather than a concession — the client's `breakHold`
+cannot satisfy its contract, so server-side is the correct side, not a lesser one.) Under the
+real-player helm the rung's process runs inside the full client scheduler, so panic / dodge /
 combat / bunker chains can preempt it — the reflexes the fake body never had. That is the
 topology's purpose rather than a regression, and `journey.helm.endings` names every leg a reflex
 took.
@@ -305,7 +331,7 @@ path including a BLOCKED skip**, and they are what makes two results rows compar
 |---|---|
 | `journey.topology` | which of the three, **read off the running game** (`isDedicatedServer`, `BotHooks.isAvailable`, the non-driver players and their dimensions) rather than echoed from a `-D` — a launch that did not do what it promised cannot make this row lie |
 | `journey.body` | which body is climbing: real-vs-joined-vs-fake, its class, whether it is in the player list, whether it is invulnerable, its game mode. `journey.body.spawned` on rung 2 is the body SPAWN actually created |
-| `journey.steer` | which helm advanced the processes: `serverTick/ServerAvatarManager` or `clientUserTask/ClientPlayerAvatar`. **Separate from `journey.body` on purpose** — the integrated run swaps both at once, so a row carrying only the topology would let a divergence be explained equally well by「假人的 gap」or by「客户端链和服务端链本来就不同」, and two arms are only readable when they differ in one variable. The fourth arm that would actually separate them (a dedicated server driving a real body, or an integrated one driving a fake) does not exist yet |
+| `journey.steer` | which helm advanced the LEGS: `serverTick/ServerAvatarManager` or `clientUserTask/ClientPlayerAvatar`. It does **not** cover the single-shot actuations — those follow `JourneyRig.avatar()`, and for one day they diverged from this row while it kept reading correctly, so do not take it as a statement about the whole body. **Separate from `journey.body` on purpose** — the integrated run swaps both at once, so a row carrying only the topology would let a divergence be explained equally well by「假人的 gap」or by「客户端链和服务端链本来就不同」, and two arms are only readable when they differ in one variable. The fourth arm that would actually separate them (a dedicated server driving a real body, or an integrated one driving a fake) does not exist yet |
 
 `journey.helm.endings` is written only under the real-player helm and only as legs end: it lists each
 leg's ending as `kind→跑完` or `kind→被结束：<reason>`. Read it before blaming a rung — the chain
