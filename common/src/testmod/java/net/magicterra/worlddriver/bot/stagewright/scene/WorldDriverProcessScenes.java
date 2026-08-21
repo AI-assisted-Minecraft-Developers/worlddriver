@@ -160,9 +160,15 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 //   PlayerAdvancements.award   → `if (this.player instanceof FakePlayer) return false;`
                 //   PlayerList.getPlayerAdvancements → `if (!(arg instanceof FakePlayer)) …setPlayer(arg);`
                 //
-                // (neoforge 21.0.167 minecraft-merged-mojang-patched.jar, PlayerAdvancements:188 and
-                // PlayerList:815; vanilla has NEITHER branch — PlayerAdvancements:182 and
-                // PlayerList:787 are unconditional. Both jars decompiled and compared, 2026-08-20.)
+                // Cite the method, not the line: line numbers move with the decompiler's flags, so
+                // the two `instanceof FakePlayer` branches above are the durable part. For a fresh
+                // re-derivation, decompile with vineflower 1.10.1 `-dgs=1`:
+                //   .gradle/caches/fabric-loom/1.21.1/neoforge/21.1.230/minecraft-merged-mojang-patched.jar
+                //     → PlayerAdvancements.java:186 (method at :185), PlayerList.java:821
+                // and compare against the vanilla merged jar, which has NEITHER branch —
+                // PlayerAdvancements.award:182 and PlayerList:787 are unconditional there.
+                // 21.1.230 is what gradle.properties:26 pins; a 21.0.167 tree also sits in that
+                // cache and is MC 1.21.0, i.e. NOT what this repo builds. Re-checked 2026-08-21.
                 //
                 // So on NeoForge this body cannot earn ANY advancement, in ANY scene, ever — no
                 // amount of driver-side work moves it. What DOES move it is the body: both patches

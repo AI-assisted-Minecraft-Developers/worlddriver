@@ -486,13 +486,26 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         int before = fp.getStats().getValue(Stats.CUSTOM.get(Stats.WALK_ONE_CM));
         Vec3 from = fp.position();
         avatar.commandMove(0f, 1f);
-        // WALK_TICKS, not「走够远」: a vanilla walk covers ~0.11 blocks/tick, so 40 ticks would
-        // carry the body ~4.3 blocks — off a pad whose half-width is 3. It would then FALL, and a
-        // falling body reports a displacement that is mostly vertical while the next probe
-        // (jumpApex) starts from mid-air and reads its own start height wrong. Two readings
-        // corrupted by a rig that walked off its own floor, which is exactly the class of bug this
-        // census exists to expose in the driver — it does not get to have one itself.
-        for (int i = 0; i < WALK_TICKS; i++) avatar.step();
+        // Bounded by DISTANCE, not by a tick count. A tick count needs a per-tick speed to prove it
+        // is safe, and this probe cannot know that speed — that is one of the things it is here to
+        // measure, and the two columns may not share it. The first version of this probe asserted
+        // "~0.11 blocks/tick" from nothing; vanilla walking is roughly twice that, which would have
+        // walked the body straight off the pad it measures from. A body that falls reports a
+        // displacement that is mostly vertical, AND leaves the next probe (jumpApex) reading its
+        // start height in mid-air — two readings corrupted by a rig that walked off its own floor.
+        //
+        // WALK_TARGET = 2.0 against a pad of solid cells cx-3..cx+3: from the centre at cx+0.5 the
+        // last supported foot position is about +3.2, so this stops with a full block of margin.
+        // WALK_TICK_CAP only stops a body that is not moving at all — reaching it is a READING
+        // (recorded below), not a failure, and it is exactly what a body off the tick channel looks
+        // like. Both columns walk to the same distance, so their walk_one_cm deltas stay comparable
+        // in a way that equal tick counts at unequal speeds would not be.
+        int ticks = 0;
+        while (ticks < WALK_TICK_CAP && horiz(fp, cx, cz) < WALK_TARGET) {
+            avatar.step();
+            ticks++;
+        }
+        boolean hitCap = ticks >= WALK_TICK_CAP;
         avatar.commandMove(0f, 0f);
         avatar.step();
         int after = fp.getStats().getValue(Stats.CUSTOM.get(Stats.WALK_ONE_CM));
@@ -503,13 +516,26 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);
         fp.setDeltaMovement(Vec3.ZERO);
         return String.format(Locale.ROOT,
-                "走 %d tick：实际位移 %.2f 格（仍在台面上=%b），walk_one_cm %d→%d",
-                WALK_TICKS, moved, stillOnPad, before, after);
+                "走到水平 %.1f 格用了 %d tick（撞上限=%b，上限 %d）：实际位移 %.2f 格"
+                        + "（≈%.3f 格/tick，仍在台面上=%b），walk_one_cm %d→%d",
+                WALK_TARGET, ticks, hitCap, WALK_TICK_CAP, moved,
+                ticks == 0 ? 0.0 : moved / ticks, stillOnPad, before, after);
     }
 
-    /** How long the walk probe drives forward. Deliberately short enough that the body cannot
-     *  reach the edge of its own pad — see {@link #walkStat}. */
-    private static final int WALK_TICKS = 20;
+    /** Horizontal distance from the pad centre, ignoring height — the walk probe is bounded on
+     *  this and not on 3D distance, so a body that is falling cannot spend its budget going down. */
+    private static double horiz(ServerPlayer fp, int cx, int cz) {
+        double dx = fp.getX() - (cx + 0.5), dz = fp.getZ() - (cz + 0.5);
+        return Math.sqrt(dx * dx + dz * dz);
+    }
+
+    /** How far the walk probe drives before stopping. Chosen against the pad, not against a
+     *  speed — see {@link #walkStat}. */
+    private static final double WALK_TARGET = 2.0;
+
+    /** Ceiling on the walk probe, so a body that never moves still ends the probe. Reaching it is
+     *  a recorded reading, not an error. */
+    private static final int WALK_TICK_CAP = 60;
 
     /**
      * How high one commanded jump actually goes, from a body that is standing still.

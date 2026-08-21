@@ -224,7 +224,7 @@ fabric/build.gradle:481   runRehearsalServer
 
 | # | 条目 | 为什么这具身体做不到 | 谁能接手 |
 |---|---|---|---|
-| **X1-0a** | **进度体系（原 X2-1）** | neoforge `PlayerAdvancements.java:188` 对 `FakePlayer` 直接 `return false` | **`JoinedBody`**——它不是 `FakePlayer`，走 else 分支。见 §6.5 甲档。**这条不需要写任何代码** |
+| **X1-0a** | **进度体系（原 X2-1）** | neoforge `PlayerAdvancements.award`（21.1.230 的 `:186`）对 `FakePlayer` 直接 `return false` | **`JoinedBody`**——它不是 `FakePlayer`，走 else 分支。见 §6.5 甲档。**这条不需要写任何代码** |
 | **X1-0b** | **`level.players()` 一族在专用服上（原 X2-2）** | 身体不在玩家表里 | **`JoinedBody`**——`placeNewPlayer` 就是把它放进那张表。今天缺的只是六条闸没设 `realPlayerBodies`，那是配置不是代码 |
 | X1-1 | `kill_dragon` | 上面 X1-0a 的一个实例 | 同上 |
 | X1-2 | 末影龙战、`BaseSpawner.isNearPlayer`、`NaturalSpawner` | 身体不在玩家表里 | 同 X1-0b |
@@ -247,11 +247,19 @@ fabric/build.gradle:481   runRehearsalServer
 
 **X1-0a / X1-0b 的机制（原 X2-1/X2-2），以及为什么它们降级了**：
 
-- neoforge `PlayerAdvancements.java:188`：`if (this.player instanceof FakePlayer) { return false; }`
-- neoforge `PlayerList.java:815`：`if (!(arg instanceof FakePlayer)) { playeradvancements.setPlayer(arg); }`
+- neoforge `PlayerAdvancements.award`（`PlayerAdvancements.java:186`，方法起于 `:185`）：`if (this.player instanceof FakePlayer) { return false; }`
+- neoforge `PlayerList.getPlayerAdvancements`（`PlayerList.java:821`，方法起于 `:812`）：`if (!(var1 instanceof FakePlayer)) { playeradvancements.setPlayer(var1); }`
 - **vanilla 两处都没有这个分支**（vanilla `PlayerAdvancements.java:182` 起的 `award` 里没有 `FakePlayer` 字样；vanilla `PlayerList.java:787` 无条件调 `setPlayer`）。
 
-**两份 jar 我都亲自反编译核对过**，不是转述：vanilla 用 `minecraft-merged-1.21.1-loom.mappings…jar`，neoforge 用 `.gradle/caches/fabric-loom/1.21/neoforge/21.0.167/minecraft-merged-mojang-patched.jar`，都是 vineflower 1.10.1。
+**两份 jar 我都亲自反编译核对过**，不是转述：vanilla 用 `minecraft-merged-1.21.1-loom.mappings…jar`，neoforge 用
+`.gradle/caches/fabric-loom/**1.21.1**/neoforge/**21.1.230**/minecraft-merged-mojang-patched.jar`，都是 vineflower 1.10.1，`-dgs=1`。
+
+> **引用行号前先核对 jar 的版本和反编译参数。** 这份文档 2026-08-20 的第一版把上面两行标成了
+> `21.0.167` 的 `:188` / `:815`。同一个 loom 缓存下确实躺着一棵 `1.21/neoforge/21.0.167/` 的树，但那是
+> **MC 1.21.0**，不是本仓库编译的版本（`gradle.properties:26` = `21.1.230`，`:18` = `1.21.1`）。
+> 行号还会随反编译参数漂移：带参数名的那次反编译把同一个分支印在 `:188`，`-dgs=1` 印在 `:186`。
+> 机制两次都一样，结论没变 —— 但**「我核对过」这四个字如果指向的是另一个游戏版本，下一个人核对时会
+> 对不上，然后重新怀疑整条结论**。所以下面每条 jar 引用都写死版本号，并且优先引方法名。
 
 推论链：
 
@@ -325,7 +333,7 @@ fabric/build.gradle:481   runRehearsalServer
 
 | # | 差异 | 为什么废弃即消失 |
 |---|---|---|
-| N1 | NeoForge 上假人永远拿不到任何进度 | neoforge `PlayerAdvancements.java:188` 是 `if (this.player instanceof FakePlayer) return false;`。**我重新反编译了 neoforge 21.0.167 的 patched merged jar 核对过这一行**（不是转述）。而 `JoinedBody extends ServerPlayer`（`JoinedPlayerBodies.java:167`），**不是** `FakePlayer` → 走 else 分支，和真玩家同一条路 |
+| N1 | NeoForge 上假人永远拿不到任何进度 | neoforge `PlayerAdvancements.award`（21.1.230 的 `:186`）是 `if (this.player instanceof FakePlayer) return false;`。**我重新反编译了 neoforge 21.1.230 的 patched merged jar 核对过这一行**（不是转述；21.1.230 才是 `gradle.properties:26` 里编译用的版本）。而 `JoinedBody extends ServerPlayer`（`JoinedPlayerBodies.java:167`），**不是** `FakePlayer` → 走 else 分支，和真玩家同一条路 |
 | N2 | `PlayerList.getPlayerAdvancements` 跳过 `setPlayer` | neoforge `PlayerList.java:815` 是 `if (!(arg instanceof FakePlayer)) playeradvancements.setPlayer(arg);`。同上，`JoinedBody` 落进 `!instanceof` 为真的那一支。**两处拦截键在同一个 `instanceof` 上，所以是同一个开关的两个齿** |
 | N15a | `updateOptions` no-op → 视距恒为默认 | 只有 `AvatarFakePlayer.java:80` 覆盖了它；`JoinedBody` 没有这个覆盖，且 `placeNewPlayer` 会通过 `CommonListenerCookie` 送进一份真的 `ClientInformation`。**注意只有一半**：`JoinedBody` 拿到的是 `ClientInformation.createDefault()`（`JoinedPlayerBodies.java:172-174`），是一份**真的默认值**而不是「没有值」——差异从「缺失」降级成「不可配」，见 N15b |
 
@@ -335,7 +343,23 @@ fabric/build.gradle:481   runRehearsalServer
 
 **这四条有一个共同的病灶：`JoinedPlayerBodies.java:217` 那行 `@Override public void tick() { }`。**
 
-`placeNewPlayer` 会把身体送进 `ServerLevel`（vanilla `PlayerList.java:232` → `ServerLevel.addNewPlayer:909` → `addPlayer:917` → `addEntity:931`），于是 `ServerLevel` 的实体循环（neoforge `ServerLevel.java:402` 的 `entityTickList.forEach` → `tickNonPassenger:766` → `var1.tick()` at `:773`）**每 tick 都会调用它**。也就是说通道(一)对 `JoinedBody` 是**接通的**——被我们自己那一行覆盖掐断了。
+`placeNewPlayer` 会把身体送进 `ServerLevel` 的**实体 tick 名单**，于是通道(一)每 tick 都会调用它。
+全链（neoforge 21.1.230 / MC 1.21.1，vineflower 1.10.1 `-dgs=1`；vanilla 行号另注）：
+
+| 步 | 位置 | 这一步做了什么 |
+|---|---|---|
+| 1 | `PlayerList.placeNewPlayer:144` → `:232` | `serverlevel1.addNewPlayer(var2)`（vanilla 同一句在 `PlayerList.java:221`） |
+| 2 | `ServerLevel.addNewPlayer:915` → `addPlayer:923` | `this.entityManager.addNewEntityWithoutEvent(var1)` |
+| 3 | `ServerLevel$EntityCallbacks.onTickingStart:24-25` | `this.this$0.entityTickList.add(var1)` —— **身体进了 tick 名单** |
+| 4 | `ServerLevel.java:408` `entityTickList.forEach` → `:428` `guardEntityTick(this::tickNonPassenger, …)` | 每 tick 遍历名单 |
+| 5 | `tickNonPassenger:771` → `:778` `var1.tick()` | **调用到身体自己的 `tick()`** |
+
+也就是说通道(一)对 `JoinedBody` 是**接通的**——被我们自己那一行覆盖掐断了。
+
+> 第 2 步值得单独记一笔：**玩家不走 `ServerLevel.addEntity`**。`addEntity`（`:937`）是给非玩家实体的
+> 另一个私有方法，玩家走的是 `addPlayer` → `addNewEntityWithoutEvent`。本文档第一版把链条写成
+> `addPlayer → addEntity`，那一步是错的（结论不变，因为两条路最终都落到第 3 步的
+> `onTickingStart`）。写链条时**每一跳都要在反编译源里看见调用语句**，不要靠方法名推。
 
 | # | 差异 | 删掉那行 `tick()` 覆盖后会怎样 |
 |---|---|---|
