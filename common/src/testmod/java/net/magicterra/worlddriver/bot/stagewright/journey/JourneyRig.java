@@ -1149,9 +1149,22 @@ public final class JourneyRig {
         // already use, and for the reason PathFinder's own comment gives: a millisecond cap makes
         // the same search answer differently depending on how busy the box is that day, while a
         // node budget is deterministic. The hang backstop is CEILING_MS, which is separate and
-        // still in force. Measured before changing it: `STOP cause=` appears ZERO times across
-        // journey11/12/13's logs against 496 `search-begin` lines, so the 4000 ms cap never once
-        // bound a real plan and this is hardening, not a fix for anything observed.
+        // still in force.
+        //
+        // ⚠️ THIS BOUGHT NOTHING MEASURABLE, and the row that would have said so is easy to skip.
+        // Across the whole 14th ladder run — 6289 `search-begin` lines — `STOP cause=` appears ZERO
+        // times: no search has ever been cut off by either cap. So this is a determinism argument,
+        // not a fix, and nothing here should be cited as having unblocked a rung.
+        //
+        // ⚠️ AND IT DOES NOT REACH EVERY SEARCH. These two fields are read by `PathFinder`'s
+        // BotConfig-defaulting constructors only. `Walker.setSearchBudget(nodes, ms)` overrides them
+        // per walker, and `Walker.newPathFinder` prefers that override unconditionally whenever it is
+        // positive — so a process that sets one never sees this. `MineProcess` does, in an instance
+        // initialiser (8000/400, for its own documented reason: deep searches chopped the client's
+        // frame rate after every break). Same run, by channel: 5154 searches on THESE values (82%),
+        // 208 on MineProcess's, 927 on a 600/80 pair nobody has yet traced. A rung whose leg is a
+        // mine is therefore NOT running with the budget set here, and a change to these two lines
+        // can never explain a change in its behaviour.
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxNodes = 100_000;
         BotConfig.allowBreak = true;
