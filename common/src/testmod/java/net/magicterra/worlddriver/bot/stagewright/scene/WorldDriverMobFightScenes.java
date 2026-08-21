@@ -381,8 +381,24 @@ public final class WorldDriverMobFightScenes {
      *
      * <p>So the fix is a <b>per-tick wall-clock budget</b>, not merely a yield: a loop that yields
      * once but still runs all 3000 iterations across two ticks has only halved the problem. Each
-     * {@link #pump()} spends at most {@link #SLICE_MS} and then returns false to be resumed on the
-     * next server tick, and it always completes at least one iteration so the fight cannot stall.
+     * {@link #pump()} stops starting new iterations once {@link #SLICE_MS} is gone and returns false
+     * to be resumed on the next server tick, and it always completes at least one iteration so the
+     * fight cannot stall.
+     *
+     * <p><b>⚠️ That budget bounds the ITERATION COUNT per tick, never the tick. It cannot.</b> The
+     * deadline can only be read between iterations, so a pump costs its slice <i>plus one whole
+     * iteration's overrun</i> — and the overrun is unbounded here, because every one of these scenes
+     * sets {@code BotConfig.pathfinderSliceMs} and {@code pathfinderMaxMs} to {@code Long.MAX_VALUE
+     * / 2} (see the four setup blocks) so that a search is never truncated mid-measurement. Bounded
+     * iterations, unbounded cost per iteration: a single slow search inside {@code tickAll()} blows
+     * the slice on its own, with nothing underneath to catch it. Measured on the NeoForge jumpfix
+     * A1 run: {@code worstIterMs=80.6} against a 40 ms budget, {@code worstServerTickMs=116.8}.
+     * So the old 60 s hang is gone — the sum is bounded now — but the failure mode that replaced it
+     * is a rare single iteration, and <b>it is intermittent: one green run does not retire it.</b>
+     * Any overrun is logged the instant it happens rather than only in {@link #finish()}, because a
+     * tick that kills the server never reaches {@code finish()} and takes every {@code ctx.record}
+     * with it. Actually capping it means giving the search back a real budget, which changes the
+     * fight being measured — an A/B, not a tidy-up, and not yet done.
      *
      * <p>The {@code blaze.tick()} / {@code tickAll()} interleaving is preserved exactly, because it
      * is a real requirement rather than an artifact: the mob and the body must advance in lockstep
@@ -453,6 +469,19 @@ public final class WorldDriverMobFightScenes {
                 }
                 long spent = System.nanoTime() - iter;
                 if (spent > worstIter) { worstIter = spent; worstAt = t; }
+                // THE MOMENT IT HAPPENS, not in finish(). One iteration costing more than the whole
+                // per-tick slice is the failure mode this pump cannot prevent (see the class note),
+                // and it is exactly the run that may not survive to record anything: if the overrun
+                // is the tick the watchdog kills, finish() never runs and worstIterMs dies with it.
+                // WARN rather than info because the periodic every-200 line above is a progress
+                // trace, and this is the rare event that a future intermittent red needs to find by
+                // grepping several runs' logs — the one thing a single green run cannot tell you.
+                if (spent > SLICE_MS * 1_000_000L)
+                    net.magicterra.worlddriver.WorldDriverCommon.LOG.warn(
+                            "[blazefight] {} SINGLE ITERATION OVERRAN THE SLICE: iter={} took {} ms"
+                                    + " > sliceMs={} — bounded iterations, unbounded cost per"
+                                    + " iteration (pathfinder budgets are MAX_VALUE/2 in this scene)",
+                            tag, t, spent / 1_000_000L, SLICE_MS);
                 t++;
                 // LOGGED, not merely recorded. If this ever blows a tick budget again the server is
                 // killed part way through, and every `ctx.record` in `finish()` never runs — the
