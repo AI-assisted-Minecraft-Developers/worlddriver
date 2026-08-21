@@ -67,6 +67,25 @@ public final class ServerAvatarBodies {
         return joined;
     }
 
+    /**
+     * The LOADER's own body factory, bypassing the joined-body seam — {@code null} before install.
+     *
+     * <p><b>Why this exists, and why it is not a way around the flip.</b> {@link #require()} answers
+     * 「armed ⇒ a body that joins」 for every production caller, which is correct and is the whole
+     * point of the flip. It also means that once {@code -Dworlddriver.realPlayerBodies=true} is on,
+     * <b>nothing can reach the loader's own body any more</b> — and {@code wd.bodyParityCensus}
+     * exists precisely to hold those two bodies side by side and measure the difference. With the
+     * flip armed and no way past it, both of the census's columns mint a {@code JoinedBody}, the two
+     * columns come back identical, and the natural reading of that is 「换身体没有区别」 — a
+     * conclusion that is completely wrong and looks perfectly clean.
+     *
+     * <p>So this is the census's <b>negative control</b>: the one quantity that is supposed to stay
+     * DIFFERENT when everything else is working. It is deliberately not routed through
+     * {@code require()} and must not be used by anything that drives the game — production code
+     * wants the joined body, and any caller here that is not a measurement is a bug.
+     */
+    public static BodyFactory loaderFactoryOrNull() { return factory; }
+
     private static BodyFactory require() {
         JoinedPlayerBodies real = joinedOrNull();
         if (real != null) return real;      // armed: a body that JOINS, not one that pretends

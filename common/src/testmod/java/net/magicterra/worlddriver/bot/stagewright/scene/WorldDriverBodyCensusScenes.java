@@ -79,16 +79,37 @@ import net.minecraft.world.phys.Vec3;
  * columns AGREE is a difference the retirement will NOT fix; every row where they DIFFER is one it
  * will. That is the archive this scene exists to leave behind.
  *
+ * <p><b>「regardless of whether the flag is set」 was untrue for exactly one run, and that is worth
+ * keeping.</b> Column A used to mint via {@code ServerPlayerAvatar.createUnique}, which routes
+ * through {@code ServerAvatarBodies.require()}, whose first line is
+ * {@code if (real != null) return real;}. So on 2026-08-22 — the first dedicated-server run after
+ * {@code -Dworlddriver.realPlayerBodies=true} was armed for the gates — <b>both columns minted a
+ * {@code JoinedBody}</b> and every one of the 26 rows came back identical. Nothing failed; the
+ * scene passed; the two matching columns read exactly like 「换身体没有区别」, which is the
+ * opposite of the truth. It was caught only because {@code census.armProperty} records this run's
+ * PREMISE unconditionally, so the identical columns could be attributed to the switch instead of to
+ * the bodies. Column A now bypasses {@code require()} via
+ * {@code ServerAvatarBodies.loaderFactoryOrNull()}, and {@code census.factoryColumnSource} names
+ * the factory it actually got. The general rule, which outlives this scene: <b>a control that can
+ * silently degenerate into its own treatment arm is worse than no control</b>, and the only cheap
+ * defence is to record, unconditionally, what the run's premise actually was.
+ *
  * <h2>Reading the output</h2>
  *
  * Keys are {@code body.<column>.<quantity>}, where {@code <column>} is {@code factory} or
- * {@code joined}. Three coordinates are recorded before any of them:
+ * {@code joined}. Four coordinates are recorded before any of them, and all four are premises
+ * rather than results — read them first, because each one can invalidate every row below it:
  *
  * <ul>
  *   <li>{@code census.topology} — which of the three topologies this run is, <b>read off the
  *       running game</b> rather than echoed from a {@code -D} flag. A row that merely repeated the
  *       flag would be green on a run where the flag was set and the thing it promises never
  *       happened; that failure has a name in this repo.</li>
+ *   <li>{@code census.factoryColumnSource} — the concrete factory class column A was minted from.
+ *       This is the <b>negative control</b>: the reading that must stay DIFFERENT from column B
+ *       while everything else works. If it ever names a joined-body factory, or reports
+ *       {@code unavailable}, then the two columns are not a comparison and no row below them
+ *       means what it appears to mean.</li>
  *   <li>{@code body.<column>.identity} — the concrete class, the profile name, whether it is in
  *       {@code level.players()}, and whether it is a NeoForge {@code FakePlayer}. The last is the
  *       one the whole retirement turns on.</li>
@@ -190,9 +211,32 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
                 + (JoinedPlayerBodies.armed() ? "true" : "false")
                 + "（两列都量，与这个开关无关）");
 
-        // ---- column A: whatever the loader's factory mints (the body about to be retired) ----
-        ServerPlayerAvatar factoryAvatar = measureColumn(ctx, "factory", level, ox, floorY, oz, () ->
-                ServerPlayerAvatar.createUnique(level, ox + 0.5, floorY + 1, oz + 0.5));
+        // ---- column A: the LOADER's own body — the negative control, and it must stay different ----
+        //
+        // Not ServerPlayerAvatar.createUnique(): that routes through ServerAvatarBodies.require(),
+        // whose first line is `if (real != null) return real;`, so with the flip armed it hands back
+        // a JoinedBody and this column silently becomes a second copy of column B. That is not a
+        // hypothetical — it is what the 2026-08-22 NeoForge run actually did, and the two identical
+        // columns read exactly like 「换身体没有区别」. A control is the reading that is supposed to
+        // stay DIFFERENT while everything else works; one that quietly degenerates into its own
+        // treatment arm measures nothing and still prints a colour.
+        ServerAvatarBodies.BodyFactory loaderFactory = ServerAvatarBodies.loaderFactoryOrNull();
+        ctx.record("census.factoryColumnSource", loaderFactory == null
+                ? "unavailable/loader 尚未 install（这一列没有对照可言）"
+                : loaderFactory.getClass().getName() + "（绕过 require()，所以翻闸不会把这一列变成 JoinedBody）");
+        ServerPlayerAvatar factoryAvatar = measureColumn(ctx, "factory", level, ox, floorY, oz, () -> {
+            if (loaderFactory == null) {
+                throw new IllegalStateException("loader body factory not installed");
+            }
+            GameProfile profile = new GameProfile(
+                    java.util.UUID.nameUUIDFromBytes(
+                            "OfflinePlayer:wd-census-loader".getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                    "wd-census-loader");
+            ServerPlayer body = loaderFactory.unique(level, profile);
+            body.setPos(ox + 0.5, floorY + 1, oz + 0.5);
+            body.setDeltaMovement(Vec3.ZERO);
+            return new ServerPlayerAvatar(body);
+        });
 
         // ---- column B: a JoinedBody, minted directly rather than through the seam ----
         // Directly, because ServerAvatarBodies.require() only returns a joined body when the
