@@ -323,10 +323,32 @@ public final class JourneyNetherRungs {
      * every expanded node. Rebuilt per leg so the threshold follows the body's health down.
      */
     private static List<CostModifier> lipTax(JourneyRig rig) {
-        final int lipDepth = SurvivalMath.survivableFall(rig.player().getHealth());
         return List.of((from, to, edge, goal, world) ->
-                WalkerGeometry.dropAdjacentExceeds(world, to, lipDepth) ? LIP_TAX : 0.0);
+                WalkerGeometry.dropAdjacentExceeds(world, to, LIP_DROP) ? LIP_TAX : 0.0);
     }
+
+    /**
+     * How deep a neighbouring drop has to be before this crossing prices the cell beside it.
+     *
+     * <p><b>Not {@code survivableFall}, and the difference is the whole point.</b> The first version
+     * of this tax used the executor's own threshold — {@code survivableFall(20 HP)}, which is 23 —
+     * because sharing the guard's predicate was the fix. Sharing the PREDICATE was right; inheriting
+     * its BAR was not. Corridor leg 4 walked the body into the right column and twenty-three blocks
+     * down, at full health, and then reported {@code no path (expanded=1)}: not one successor of the
+     * start cell could be generated, because the body was at the bottom of a shaft it had no way to
+     * climb. A fall of exactly 23 clears {@code fall > threshold} by nothing at all, so neither the
+     * tax nor the lethal-edge pin said a word about it.
+     *
+     * <p><b>A survivable fall into somewhere you cannot leave ends the crossing exactly as a lethal
+     * one does.</b> The guard is asking「will this kill the body」and it is right to; this crossing
+     * has to ask「will this end the walk」, and those have different answers. Four blocks is a step
+     * the body can climb back out of with a placed block, which is the shape of an accident that
+     * costs ticks rather than the run.
+     *
+     * <p>Deliberately not health-derived any more, which also retires the server-thread read the
+     * first version needed: a constant cannot be stale and cannot be touched off-thread.
+     */
+    private static final int LIP_DROP = 4;
 
     /**
      * The fortress landmark, surveyed on the spot when nobody has baked one.
@@ -1458,7 +1480,8 @@ public final class JourneyNetherRungs {
         rig.evidence(what + ".lipTax", "唇沿每踏一格加价 " + (int) LIP_TAX + "（普通走一格是 10，"
                 + "即绕 " + (int) (LIP_TAX / 10) + " 格也比踏上去便宜）；判据是执行侧自己那个"
                 + " WalkerGeometry.dropAdjacentExceeds（八个水平邻格里落脚格与其下方都空、"
-                + "落柱里碰到 hazard 或深过可生还高度），阈值每段按当时血量重取。"
+                + "落柱里碰到 hazard 或深过 " + LIP_DROP + " 格）。阈值不是「摔不死」的高度："
+                + "摔不死地掉进一个爬不出来的坑，对这一趟和摔死没有区别 —— 见 LIP_DROP。"
                 + "这是加价不是禁行 —— 唯一的路是唇沿时仍然走得通");
         Crossing c = new Crossing();
         c.hopTicks = hopTicks;
