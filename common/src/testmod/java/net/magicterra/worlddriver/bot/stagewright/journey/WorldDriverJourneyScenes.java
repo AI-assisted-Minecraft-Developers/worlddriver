@@ -1242,7 +1242,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * way to the portal — so "fell more wood" does not converge, it just moves which rung starves.
      *
      * <p>A reclaim that failed did not destroy the table; it left it on the ground where the craft
-     * happened, which is exactly the shape {@link #collectByHand} was written for. One walk costs
+     * happened, which is exactly the shape {@link JourneyRig#collectByHand} was written for. One walk costs
      * nothing and usually returns it. Re-crafting stays as the fallback for the case where the drop
      * is genuinely gone, and the two are recorded under different keys — {@code recovered} versus
      * {@code remade} — because "the sweep dropped it and we picked it up" and "the sweep dropped it

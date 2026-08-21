@@ -1227,10 +1227,19 @@ public final class JourneyRig {
 
     // ---- reading the body ----
 
+    /**
+     * An item id, resolved. Lives here because four call sites across two classes had written the
+     * same two lines out by hand, and one of them was private in a rung class where a second class
+     * that needed it could not reach it.
+     */
+    public static net.minecraft.world.item.Item item(String itemId) {
+        return net.minecraft.core.registries.BuiltInRegistries.ITEM
+                .get(net.minecraft.resources.ResourceLocation.parse(itemId));
+    }
+
     /** How many of an item the body is carrying, across the whole inventory. */
     public int carrying(String itemId) {
-        var item = net.minecraft.core.registries.BuiltInRegistries.ITEM
-                .get(net.minecraft.resources.ResourceLocation.parse(itemId));
+        var item = item(itemId);
         var inventory = player().getInventory();
         int total = 0;
         for (int i = 0; i < inventory.getContainerSize(); i++) {
@@ -1249,8 +1258,7 @@ public final class JourneyRig {
      * carries the same pair named its failure on the first run rather than the fourth.
      */
     public int dropsNearby(String itemId, double radius) {
-        var item = net.minecraft.core.registries.BuiltInRegistries.ITEM
-                .get(net.minecraft.resources.ResourceLocation.parse(itemId));
+        var item = item(itemId);
         ServerPlayer fp = player();
         int total = 0;
         for (var drop : fp.level().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
@@ -1270,8 +1278,7 @@ public final class JourneyRig {
      * attributable, because a pickup that then does not happen cannot be the search's fault.
      */
     public BlockPos nearestDrop(String itemId, double radius) {
-        var item = net.minecraft.core.registries.BuiltInRegistries.ITEM
-                .get(net.minecraft.resources.ResourceLocation.parse(itemId));
+        var item = item(itemId);
         ServerPlayer fp = player();
         BlockPos best = null;
         double bestD2 = Double.MAX_VALUE;
