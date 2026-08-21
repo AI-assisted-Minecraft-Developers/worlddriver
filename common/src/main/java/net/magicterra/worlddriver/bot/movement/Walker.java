@@ -1960,6 +1960,30 @@ public final class Walker {
     /** Streaks whose plan was replaced by some other branch mid-streak, so the pinned ticks were
      *  evidence against a plan that no longer exists. Neither a discard nor a keep. */
     public static volatile int guardStreakRebases;
+
+    /**
+     * The water climb-out pillar takeover, reported for the same reason the guard counters above
+     * are: an instrument holds no {@link Walker}, and the whole water-climb scene family records
+     * <b>zero</b> evidence — eleven scenes whose only published bit is their own colour.
+     *
+     * <p><b>Read the three together.</b> A takeover that never engages and one that engages and
+     * tops out well under its ceiling both leave {@link #waterPillarCeilingBails} at zero, and
+     * those are opposite findings: the first means the branch was never exercised at all — the
+     * scene proved nothing about it — and the second means it was exercised and stayed in bounds.
+     * {@link #waterPillarEngages} separates them, and {@link #waterPillarTopRise} says how close
+     * the run ever came to the ceiling, so「never fired」can be told from「never got near」.
+     *
+     * <p>Written by {@code WalkerTickClimb.engagePillar} and the pillar branch beside it. This
+     * exists because a A/B over the whole suite could not see a bail that was
+     * <i>unconditionally false</i>: nothing changed colour, so nothing changed.
+     */
+    public static volatile int waterPillarEngages;
+    /** Times the pillar exceeded its engage-anchored ceiling and bailed to the fallback actuators.
+     *  <b>Never read alone</b> — see {@link #waterPillarEngages}. */
+    public static volatile int waterPillarCeilingBails;
+    /** The greatest rise above the engage foot any pillar reached, in blocks. Distinguishes a bail
+     *  that never fired because the climb stayed low from one that could not fire at all. */
+    public static volatile int waterPillarTopRise;
     /** Streaks that hit the threshold with no plan in hand. Not a discard — there was nothing to
      *  discard — and counted apart so it stops inflating {@link #guardForcedRepaths}. */
     public static volatile int guardPinnedWithNoPlan;

@@ -49,6 +49,59 @@ import static net.magicterra.worlddriver.bot.movement.WalkerGeometry.*;
  * restructure here without live/testkit evidence (this file is state-machine surgery).
  */
 final class WalkerTickClimb {
+    /**
+     * Latch the pillar takeover's column, heading and safety ceiling — <b>once, at engage</b>.
+     *
+     * <p>The takeover pillars the bot's own column STRAIGHT UP, pinned to one bank, until it tops
+     * out of the water onto dry ground. Following the live (repathing) node instead made the bot
+     * wander between columns — chasing dive-to-floor and other-column pillar nodes A* kept
+     * replanning — and lose the wall-supported foothold (live round76c: engaged toward y145 pool
+     * floor + x2438→2441 drift, never climbed out).
+     *
+     * <p><b>⚠️ Everything here is a LATCH, and it is a separate method so that it has exactly one
+     * call site and that call site is behind the engage transition.</b> The caller's condition is
+     * satisfied on every tick of a pillar that is already running — {@code waterClimb.stall} is
+     * cleared only when the climb context is LEFT, and a body busy pillaring is still in the
+     * context, so {@code stall} only grows and the branch re-enters every tick. Running these four
+     * assignments on each of those ticks is what the missing gate used to do, and it silently
+     * undid BOTH of the things they exist for:
+     *
+     * <ul>
+     *   <li>the column/heading re-locked onto wherever the body had drifted to — which IS the
+     *       round76c drift the lock was written to stop; the latch followed the body instead of
+     *       pinning it;</li>
+     *   <li>the safety ceiling re-anchored to the current foot, so the caller's
+     *       {@code tooHigh = foot.getY() > targetY} read {@code foot.getY() > foot.getY() + 5}
+     *       (one {@code foot} per tick, from {@code cx.frame.foot}) and was UNCONDITIONALLY FALSE.
+     *       The bail could not fire, and it failed hardest exactly when it was needed most: the
+     *       longer the body stayed wedged, the larger {@code stall} grew and the more reliably the
+     *       ceiling was pushed back out of reach.</li>
+     * </ul>
+     *
+     * <p>Both are one defect: <b>a guard whose threshold is computed from the very quantity it is
+     * meant to bound can never bind it.</b> Keeping the assignment of {@link WalkerState#targetY}
+     * to a single call site inside a method named for the transition is the structural half of the
+     * fix — a future "just refresh it each tick" has to go through this name first.
+     */
+    private static void engagePillar(Walker wk, Player p, BlockPos foot, BlockPos cwp) {
+        Walker.waterPillarEngages++;
+        wk.waterClimb.colX = foot.getX();
+        wk.waterClimb.colZ = foot.getZ();
+        double ex = (cwp.getX() + 0.5) - p.getX();
+        double ez = (cwp.getZ() + 0.5) - p.getZ();
+        wk.waterClimb.yaw = (ex * ex + ez * ez > 1e-4)
+                ? (float) Math.toDegrees(Math.atan2(-ex, ez)) : p.getYRot();
+        // Safety ceiling: a sane bank is +1..+3; never pillar more than +5 above the engage
+        // foot, then bail to the fallback actuators.
+        wk.waterClimb.targetY = foot.getY() + PILLAR_CEILING_RISE;
+    }
+
+    /** How far above the engage foot the pillar may climb before bailing to the fallback
+     *  actuators. Named so the ceiling and the rise reported by {@link Walker#waterPillarTopRise}
+     *  cannot drift apart, and so the reader can see it is a CONSTANT above a FIXED anchor —
+     *  the whole defect this replaced was an anchor that moved with the body. */
+    static final int PILLAR_CEILING_RISE = 5;
+
     /** TTL for a breath-infeasible break cell in {@link ClientWorldView}'s poison set
      *  (~60 s): long enough that repeated repaths within the episode route around it,
      *  short enough that a later revisit with tools / from dry ground reprices it. */
@@ -357,26 +410,18 @@ final class WalkerTickClimb {
             if (waterClimbing && wk.waterClimb.stall > WATER_CLIMB_STALL && !wk.waterClimb.pillarGaveUp
                     && (!deepDig || swimAshorePillarFallback)
                     && BotConfig.allowSwimEscapePlace && a.holdPlaceable()) {
-                if (!wk.waterClimb.pillaring && BotConfig.walkerDebug)
+                // THIS CONDITION IS SATISFIED ON EVERY TICK OF A PILLAR THAT IS ALREADY RUNNING,
+                // so everything latched below has to be gated on the transition rather than on
+                // the condition. `wk.waterClimb.stall` is only cleared when the climb context is
+                // LEFT (see the reset above: `(!wantClimb || !nearWater) && !digCommitted`); a body
+                // that is busy pillaring is still in the context, so `stall` only grows and this
+                // `if` re-enters every tick. Re-entry is the normal case here, not an edge case.
+                boolean engaging = !wk.waterClimb.pillaring;
+                if (engaging && BotConfig.walkerDebug)
                     LOG.info("[walker] water climb-out: pillar takeover engaged (bob-stalled) toward bank node {},{},{}",
                             cwp.getX(), cwp.getY(), cwp.getZ());
                 wk.waterClimb.pillaring = true;
-                // LOCK the column + heading at engage. The takeover pillars the bot's
-                // own column STRAIGHT UP, pinned to this one bank, until it tops out of
-                // the water onto dry ground. Following the live (repathing) node instead
-                // made the bot wander between columns — chasing dive-to-floor and
-                // other-column pillar nodes A* kept replanning — and lose the
-                // wall-supported foothold (live round76c: engaged toward y145 pool
-                // floor + x2438→2441 drift, never climbed out).
-                wk.waterClimb.colX = foot.getX();
-                wk.waterClimb.colZ = foot.getZ();
-                double ex = (cwp.getX() + 0.5) - p.getX();
-                double ez = (cwp.getZ() + 0.5) - p.getZ();
-                wk.waterClimb.yaw = (ex * ex + ez * ez > 1e-4)
-                        ? (float) Math.toDegrees(Math.atan2(-ex, ez)) : p.getYRot();
-                // Safety ceiling: a sane bank is +1..+3; never pillar more than +5 above
-                // the engage foot, then bail to the fallback actuators.
-                wk.waterClimb.targetY = foot.getY() + 5;
+                if (engaging) engagePillar(wk, p, foot, cwp);
             }
             // PILLAR-UP climb-out: place support blocks in the bot's OWN column up to the
             // bank stand level, so the final move onto the bank is a flush WALK — not a
@@ -402,6 +447,13 @@ final class WalkerTickClimb {
                         // level is the real bank top.
                         && !(wantClimbNow && cwp.getY() - foot.getY() >= 2);
                 boolean tooHigh = foot.getY() > wk.waterClimb.targetY;
+                // Reported whether or not it fires: this bail was unconditionally false until the
+                // engage latch was fixed, and the water-climb family records no evidence at all, so
+                // a guard that could not fire changed no colour and nothing in the suite could see
+                // it. Rise is kept so「never got near」differs from「never asked」. See Walker.
+                if (tooHigh) Walker.waterPillarCeilingBails++;
+                Walker.waterPillarTopRise = Math.max(Walker.waterPillarTopRise,
+                        foot.getY() - (wk.waterClimb.targetY - PILLAR_CEILING_RISE));
                 // Self-correction: the latch pins the bot to ONE locked column +
                 // heading, which goes stale two ways in a live crossing — (a) the bot
                 // DRIFTS off the column (swimming along a continuous bank), so the place
