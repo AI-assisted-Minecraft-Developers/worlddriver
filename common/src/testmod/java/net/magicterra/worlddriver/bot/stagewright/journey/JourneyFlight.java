@@ -183,6 +183,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         this.goalZ = goalZ;
         this.legLength = (int) Math.round(Math.hypot(from.getX() - goalX, from.getZ() - goalZ));
         this.repathsAtStart = Walker.guardForcedRepaths;
+        this.keptAtStart = Walker.guardKeptPlans;
         this.advancesAtStart = Walker.stepAdvancesLogged;
         // THE leg boundary, for everything that is budgeted per leg. Walker#newLeg's note says why
         // it is taken from here and not given a definition of its own.
@@ -196,6 +197,12 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
      *  a body given a bad plan, and a body whose good plan kept being discarded under it — and the
      *  evidence map could not choose. A per-leg count, next to the moves the leg walked, can. */
     private final int repathsAtStart;
+
+    /** {@link Walker#guardKeptPlans} when this leg began. <b>Reported beside the discards and never
+     *  instead of them</b>: since 2026-08-21 a pinned streak has two outcomes, so a leg that reports
+     *  zero discards may have been pinned to the threshold dozens of times and kept its plan every
+     *  time. 0/0 was never pinned; 0/45 walked a rim. One number can no longer say which. */
+    private final int keptAtStart;
 
     /** {@link Walker#stepAdvancesLogged} when this leg began — the denominator that says whether the
      *  advance log a reader is holding is the WHOLE leg or only its opening. */
@@ -484,9 +491,15 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
           .append(advances >= Walker.stepAdvanceBudget()
                   ? "（记满了，后面的步进没进日志 —— 这一段的步进日志不完整）" : "（这一段的步进日志是完整的）");
         int repaths = Walker.guardForcedRepaths - repathsAtStart;
-        sb.append("；守卫钉住把计划丢掉重找 ").append(repaths).append(" 次")
-          .append(repaths == 0 ? "（所以这一段走的一直是同一批计划）"
-                  : "，最后一次 " + Walker.lastGuardRepath);
+        int kept = Walker.guardKeptPlans - keptAtStart;
+        // BOTH, ALWAYS, and never the discard alone — see keptAtStart. "丢掉 0 次" used to mean the
+        // pin never reached its threshold; it now also covers a leg pinned to the threshold every
+        // thirty ticks that kept its plan each time, and those are opposite terrain reports.
+        sb.append("；守卫钉满 ").append(repaths + kept).append(" 次：丢掉计划 ").append(repaths)
+          .append(" 次、判定沿岸走而保留 ").append(kept).append(" 次")
+          .append(repaths + kept == 0 ? "（这一段从没被钉满过，走的一直是同一批计划）"
+                  : repaths == 0 ? "（计划一次都没被丢掉 —— 每次钉满时它都在前进）"
+                  : "，最后一次丢弃 " + Walker.lastGuardRepath);
         sb.append("；收工那一刻：").append(finishedAt == null
                 ? "没有 —— 这一段是跑满 tick 被叫停的，不是进程自己结束的" : finishedAt);
         if (lava != null) sb.append("；首次入岩浆 ").append(lava);
