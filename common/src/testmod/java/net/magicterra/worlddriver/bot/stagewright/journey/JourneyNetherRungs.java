@@ -308,7 +308,26 @@ public final class JourneyNetherRungs {
         // {71,43,69} aimed at {63,92}, five blocks beyond the {63,41,87} it landed in.
         BlockPos here = rig.player().blockPosition();
         double dx = want.getX() - here.getX(), dz = want.getZ() - here.getZ();
-        double span = Math.max(1e-6, Math.hypot(dx, dz));
+        double flat = Math.hypot(dx, dz);
+        // THE BEARING IS UNDEFINED WHEN THE BODY IS ALREADY IN THE COLUMN, and the overshoot then
+        // degenerates onto the body's own cell: dx=dz=0 makes `round(0/1e-6 * 6)` zero, so the aim
+        // becomes want's own XZ, the hop machinery's XZ-only test fires at `away = 0`, and the
+        // fallback reports「走完了整条绕行路线」having stood still. That is the same walked-nowhere
+        // failure DETOUR_OVERSHOOT's assertion was written to stop — the assertion guards the
+        // CONSTANT and cannot guard a zero direction vector.
+        //
+        // Skipped rather than nudged, because at this range the hop machinery is structurally the
+        // wrong tool: it only judges XZ, and a body already in the right column is missing height.
+        if (flat <= ARRIVED_WITHIN) {
+            rig.evidence(leg + ".detourSkipped", here.toShortString() + " 水平上离路点只有 "
+                    + Math.round(flat) + " 格（≤ " + ARRIVED_WITHIN + "）—— 跳段机器只判 XZ，"
+                    + "在这个距离上它会当场判到达、一段都不走，而这里缺的是高度不是水平位移。"
+                    + "跳过绕行，直接重问原题");
+            reaskAfterDetour(ctx, rig, fortress, i, want, leg,
+                    "跳过了绕行（水平上已在到达环内，缺的是高度）");
+            return;
+        }
+        double span = Math.max(1e-6, flat);
         int overX = want.getX() + (int) Math.round(dx / span * DETOUR_OVERSHOOT);
         int overZ = want.getZ() + (int) Math.round(dz / span * DETOUR_OVERSHOOT);
         rig.evidence(leg + ".detour", "直接瞄 " + want.toShortString() + " 走不通，改用跳段机器"
