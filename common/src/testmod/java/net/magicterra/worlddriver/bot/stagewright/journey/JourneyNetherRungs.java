@@ -221,9 +221,10 @@ public final class JourneyNetherRungs {
         }
         int[] wp = FORTRESS_WAYPOINTS[i];
         String leg = "fortress.wp" + (i + 1);
+        BlockPos want = new BlockPos(wp[0], wp[1], wp[2]);
         BlockPos at = rig.player().blockPosition();
-        rig.evidence(leg + ".from", at.toShortString() + " → " + wp[0] + "," + wp[1] + "（"
-                + Math.round(Math.hypot(wp[0] - at.getX(), wp[1] - at.getZ())) + " 格；第 " + (i + 1)
+        rig.evidence(leg + ".from", at.toShortString() + " → " + want.toShortString() + "（"
+                + Math.round(Math.sqrt(at.distSqr(want))) + " 格；第 " + (i + 1)
                 + "/" + FORTRESS_WAYPOINTS.length + " 个烘入路点，出处见 FORTRESS_WAYPOINTS）");
         // TOLERANCE 0, AND THE ZERO IS THE POINT. The first corridor run walked legs 1-4 in one hop
         // each and then failed leg 5 with 「goal unreachable from here」 — from 72,44,92, which is
@@ -233,17 +234,27 @@ public final class JourneyNetherRungs {
         // it; arriving near one buys nothing, because what was measured is that cell and not its
         // neighbourhood. (The seat decides the run — the same lesson the well-bottom taught rung 12.)
         //
-        // walkToColumn rather than crossToColumn for the same reason: it is this repo's precise
-        // walk-to-a-column, it carries the midpoint retry, and a 17-48 block leg to a real cell was
-        // never the kind of question the hop machinery was built for — those legs each took exactly
-        // one hop anyway. The hop machinery stays where it belongs, on the unsurveyed remainder.
-        WorldDriverJourneyScenes.walkToColumn(rig, leg, wp[0], wp[1], 0, WAYPOINT_LEG_TICKS,
-                lipTax(rig),
-                () -> walkTheCorridor(ctx, rig, fortress, i + 1),
-                () -> ctx.fail("走不到第 " + (i + 1) + " 个路点 " + wp[0] + "," + wp[1] + "：停在 "
-                        + rig.player().blockPosition().toShortString()
-                        + "。这一格是真梯第 14 趟身体站过的，所以它站得住 —— 死因在 " + leg
-                        + ".* 那几行，修法多半是把这个路点挪一格，不是调机制"));
+        // Goal.Block, not Goal.XZ: the waypoint has a Y and the Y is what was surveyed. See
+        // FORTRESS_WAYPOINTS for the run that arrived in the right column three blocks up and then
+        // could not generate a single successor.
+        rig.settle(new IntentProcess(new Intent(new Goal.Block(want), lipTax(rig))),
+                WAYPOINT_LEG_TICKS, () -> {
+            BlockPos now = rig.player().blockPosition();
+            int off = (int) Math.round(Math.sqrt(now.distSqr(want)));
+            // Unconditional, on arrival AND on failure: a leg that stopped two blocks out and a leg
+            // that stopped thirty read identically in a PASS, and this corridor exists to make the
+            // difference between「on the surveyed cell」and「near it」visible.
+            rig.evidence(leg + ".at", now.toShortString() + "，距路点 " + off + " 格（含 y，容差 "
+                    + WAYPOINT_ARRIVE_WITHIN + "）；" + JourneyLeg.walkerEnd(rig));
+            if (off > WAYPOINT_ARRIVE_WITHIN) {
+                ctx.fail("走不到第 " + (i + 1) + " 个路点 " + want.toShortString() + "：停在 "
+                        + now.toShortString() + "，差 " + off + " 格。这一格是真梯第 14 趟身体"
+                        + "站过的，所以它站得住 —— 死因在 " + leg + ".* 那几行，修法多半是把这个"
+                        + "路点挪一格或在它前面加一个，不是调机制");
+                return;
+            }
+            walkTheCorridor(ctx, rig, fortress, i + 1);
+        });
     }
 
     /**
@@ -2045,26 +2056,41 @@ public final class JourneyNetherRungs {
      * cannot be air — unlike a surveyed one, which has baked a tree that was not there before.
      *
      * <pre>
-     * {33,36}   ← hop #2  33, 55, 36     {132,165} ← hop #17 132, 43, 165
-     * {62,67}   ← hop #3  62, 43, 67     {152,178} ← hop #19 152, 53, 178
-     * {60,85}   ← hop #12 60, 43, 85     {154,194} ← hop #23 154, 58, 194
-     * {74,97}   ← hop #13 74, 41, 97     {189,221} ← hop #24 189, 53, 221
-     * {102,122} ← hop #14 102, 41, 122   {220,250} ← where that run stopped
+     * hop #2  33, 55, 36     hop #17 132, 43, 165
+     * hop #3  62, 43, 67     hop #19 152, 53, 178
+     * hop #12 60, 43, 85     hop #23 154, 58, 194
+     * hop #13 74, 41, 97     hop #24 189, 53, 221
+     * hop #14 102, 41, 122   （最后一个）220, 53, 250 ← where that run stopped
      * </pre>
      *
-     * <p>{33,36} and {62,67} bracket the first clean stretch. {60,85} and {74,97} sit inside the
-     * wedge zone that cost that run ten hops, and they are here precisely because the body proved
-     * they are reachable and standable: a short leg to a real cell is a different question from a
-     * long leg to a bearing, and asking a different question is the only thing that has ever got
-     * this crossing out of a wedge. From {102,122} on, every hop of that run was clean.
+     * <p>{62,43,67} and the two after it sit inside the wedge zone that cost that run ten hops, and
+     * they are here precisely because the body proved they are reachable and standable: a short leg
+     * to a real cell is a different question from a long leg to a bearing, and asking a different
+     * question is the only thing that has ever got this crossing out of a wedge.
      *
-     * <p><b>Past {220,250} nobody has been.</b> The last leg is the generic crossing with its full
-     * hop allowance, not a surveyed one, and a failure there must not be read as a route defect.
+     * <h2>The Y is part of the waypoint, and leaving it out cost a run</h2>
+     *
+     * The first two corridor runs baked only {@code x,z} and walked them with a {@code Goal.XZ},
+     * whose {@code ignoresY()} is true. Legs 1-3 landed on their cell at distance 0 and leg 4 landed
+     * at {@code 73,44,97} — one block out horizontally and <b>three blocks above</b> the surveyed
+     * {@code 74,41,97}. Leg 5 then failed three times with {@code no path (expanded=1)}: not one
+     * successor of the start cell was generated, and the body ended up at {@code 68,20,97} after a
+     * twenty-four block fall. <b>A column in the Nether has many levels</b> — caves, shelves, the
+     * roof of a lava sea — and the one that was surveyed is the one the body walked. Arriving in the
+     * right column on the wrong level is arriving somewhere nobody has been.
+     *
+     * <p><b>Past {@code 220,53,250} nobody has been.</b> The last leg is the generic crossing with
+     * its full hop allowance, not a surveyed one, and a failure there is not a route defect.
      */
     private static final int[][] FORTRESS_WAYPOINTS = {
-            {33, 36}, {62, 67}, {60, 85}, {74, 97}, {102, 122},
-            {132, 165}, {152, 178}, {154, 194}, {189, 221}, {220, 250},
+            {33, 55, 36}, {62, 43, 67}, {60, 43, 85}, {74, 41, 97}, {102, 41, 122},
+            {132, 43, 165}, {152, 53, 178}, {154, 58, 194}, {189, 53, 221}, {220, 53, 250},
     };
+
+    /** How close to a surveyed waypoint counts as being ON it, in 3D. Two, because the survey is a
+     *  cell the body stood in and the point of the whole corridor is to put the body back in it —
+     *  the run that let a leg finish three blocks high proved that a column is not a cell. */
+    private static final int WAYPOINT_ARRIVE_WITHIN = 2;
 
     /** Ticks one surveyed leg gets. The first corridor run walked its four completed legs in
      *  184–530 ticks each, so 3 000 is six times the slowest measured leg — wide enough for a leg
