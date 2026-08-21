@@ -708,7 +708,25 @@ public final class JourneyRehearsal {
         // the room is the rung's own plan; food because the fight is long.
         kit.put("minecraft:iron_sword", 1);
         kit.put("minecraft:stone_pickaxe", 1);
-        kit.put("minecraft:cobblestone", 128);
+        // 128 → 384, AND THIS MAKES THE REHEARSAL EASIER THAN A CLIMB. Saying so first because that
+        // is the cost: a rehearsal PASS bought with stone the ladder would have had to mine is not
+        // evidence the ladder can do this, and this number must not be read as one.
+        //
+        // What it buys is a MEASUREMENT nothing else can produce. On 2026-08-21 the corridor reached
+        // waypoint 9 of 17 and then reported `expanded=100000` — which reads as a pathfinding
+        // failure, and was read as one for four rounds. The causeway note said what was actually
+        // true: 「直段已经放了 73 格，身上还剩 0 个可放置方块」. A bridge edge needs something to
+        // place; with an empty bag there are no bridge edges at all, so the search over open sky has
+        // nothing to expand and burns its node cap. 缺料 wearing a search failure's uniform.
+        //
+        // The corridor's second half is not ground — six of its seventeen waypoints have no floor
+        // under them at all, and the three that do have one twenty blocks down under LAVA — so the
+        // bridging is intrinsic, not a symptom. The open question is therefore「这条走廊要多少石
+        // 头」, and it cannot be answered by a run that runs out: a body that stops at zero measures
+        // the allowance, not the requirement. Give it more than it can need, and the number it
+        // actually spends is the requirement — which then becomes a claim on rungs 9-13, that the
+        // climb must ARRIVE holding that many.
+        kit.put("minecraft:cobblestone", 384);
         kit.put("minecraft:cooked_beef", 16);
         crossToTheNether(ctx, "BLAZE_ROD", kit, "要塞没有布景，得这一级自己找");
     }
