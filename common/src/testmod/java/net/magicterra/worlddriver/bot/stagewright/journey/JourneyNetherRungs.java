@@ -1965,7 +1965,16 @@ public final class JourneyNetherRungs {
         // reports a big number here has NOT been fixed by being cut up, whatever its distance says.
         // 全程最近 is not the same as 还差, and the gap between them IS the finding when a crossing
         // shuttles: the run that named this ended 265 blocks out having once been 244 out.
-        rig.evidence(what + ".crossing", c.hop + " 段，还差 " + Math.round(left) + " 格水平（全程最近 "
+        // 「还差 N 格」 IS NOT A VERDICT, and printed alone it contradicts one. A fortress crossing
+        // arrives with tolerance 24, so a body that walked the whole way and finished reaches this row
+        // with left as large as 29 — and「24 段，还差 29 格水平」with an empty why reads exactly like a
+        // crossing that ran out of hops. The distance is still worth printing (it says how deep into
+        // the tolerance the body landed), but the fact of arrival has to be stated, not left to be
+        // inferred from a number whose bar lives in the caller. `arrived` is passed for this.
+        rig.evidence(what + ".crossing", c.hop + " 段，" + (arrived
+                        ? "到了（离目标 " + Math.round(left) + " 格水平，在调用方的容差之内）"
+                        : "还差 " + Math.round(left) + " 格水平")
+                + "（全程最近 "
                 + Math.round(Math.min(c.best, left)) + " 格），离地 "
                 + c.falls + " 次，全程无计划 " + c.noPlan + " tick"
                 + (c.firstLava == null ? "，没进过岩浆" : "，" + c.firstLava)
