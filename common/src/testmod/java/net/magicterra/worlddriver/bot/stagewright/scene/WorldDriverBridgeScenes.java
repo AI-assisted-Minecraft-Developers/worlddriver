@@ -341,7 +341,20 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
     }
 
     /** 1.5格高障碍+旁路: block+bottom-slab (1.5 > jump reach 1.25) seals the mainline;
-     *  the |dz|=3 branch is the only route. Obstacle must survive (break stays OFF). */
+     *  the |dz|=3 branch is the only route.
+     *
+     *  <p>The routing claim is carried by {@code assertArrived}, not by the {@code assertBlock}
+     *  below: {@code bypass()} widens the deck to {@code z=0..4}, the obstacle seals only
+     *  {@code z=0}, and with break OFF there is no way to reach the goal except around it. So
+     *  「arrived」IS「went around」here — that is the assertion that can go red.
+     *
+     *  <p><b>The {@code assertBlock} is staging self-defence, not a behavioural test.</b>
+     *  {@code liveStack} pins {@code allowBreak=false}, which prunes break edges in the planner
+     *  ({@code Move}) and refuses them in the executor ({@code Walker.mayBreak}), so nothing in
+     *  this arm can remove that stone and the row cannot fail on behaviour. It is worth keeping
+     *  only as a check that the staging is what the scene thinks it is. The arm that really
+     *  grades「dig or detour」is {@link #bridgeDetourCheap}, whose identical two lines mean
+     *  something because it turns {@code allowBreak} back ON. */
     private static void bridgeHurdleSlabBypass(SceneContext ctx) {
         liveStack(ctx);
         BlockPos goal = frame(ctx, 24);
@@ -354,7 +367,11 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         ctx.assertBlock(12, DECK + 1, 0, Blocks.STONE);
     }
 
-    /** 2格高障碍+旁路: full 2-tall pillar on the deck, bypass branch is the route. */
+    /** 2格高障碍+旁路: full 2-tall pillar on the deck, bypass branch is the route.
+     *
+     *  <p>Same division of labour as {@link #bridgeHurdleSlabBypass}: {@code assertArrived} is what
+     *  can go red (with break OFF and only {@code z=0} sealed, arriving requires the detour), while
+     *  the {@code assertBlock} is a staging check that cannot fail on behaviour. */
     private static void bridgeHurdle2Bypass(SceneContext ctx) {
         liveStack(ctx);
         BlockPos goal = frame(ctx, 24);
