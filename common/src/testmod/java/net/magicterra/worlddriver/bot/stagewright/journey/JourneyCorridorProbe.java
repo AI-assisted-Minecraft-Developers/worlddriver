@@ -125,7 +125,13 @@ final class JourneyCorridorProbe {
                       // NAMED, and asked about lava, because「下面 20 格有个面」does not say whether a
                       // route could run along it. The whole wp6..wp11 span sits over a drop with a
                       // floor about twenty blocks down, and re-baking that span onto it is only an
-                      // option if it is rock. A lava roof reads as a solid surface to blocksMotion().
+                      // option if it is rock.
+                      //
+                      // Lava is why the NAME is needed rather than just the depth: it has an EMPTY
+                      // collision shape, so this scan falls straight through a lava lake and reports
+                      // the lake's BASIN as the floor. That number is true and useless on its own —
+                      // the basin is under twenty blocks of lava. So the floor is named, and asked
+                      // separately whether lava sits on it.
                       + name(level, cell.getX(), floor, cell.getZ())
                       + (lavaAt(level, cell.getX(), floor, cell.getZ()) ? "，**而且是岩浆面**" : "")
                       + "）");
