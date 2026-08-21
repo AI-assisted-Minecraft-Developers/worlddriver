@@ -507,7 +507,7 @@ final class JourneyRamp {
     private static void lay(JourneyRig rig, Set<BlockPos> corridor, List<BlockPos> flight, int from,
                             BlockPos landing, boolean alreadyAside, String tag, Runnable then) {
         ServerLevel level = rig.ctx().level();
-        Pass pass = layWhereItStands(level, rig.player(), rig.body().avatar(), corridor, flight,
+        Pass pass = layWhereItStands(level, rig.player(), rig.avatar(), corridor, flight,
                 from, rig::evidence, tag);
         BlockPos to = stepAsideFor(level, rig.player(), corridor, flight, pass, from, alreadyAside);
         if (to == null) {

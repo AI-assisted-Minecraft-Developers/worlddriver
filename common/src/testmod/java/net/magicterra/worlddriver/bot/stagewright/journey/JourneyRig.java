@@ -352,6 +352,44 @@ public final class JourneyRig {
     public ServerPlayer player() { return body().fakePlayer(); }
 
     /**
+     * The actuator every single-shot action must go through — <b>the helm's other half</b>.
+     *
+     * <p>{@link #startLeg} routes the per-tick driving to whichever side owns the body. This routes
+     * the one-shot verbs the same way, and for the same reason. Thirty-six call sites reached
+     * {@code body().avatar()} directly, which is a {@code ServerPlayerAvatar} even when the body is
+     * the client's real player — so on the integrated topology they wrote the SERVER's copy of
+     * quantities vanilla lets only the client own.
+     *
+     * <p><b>Measured, not reasoned about</b> ({@code wd.actuatorSplitOnAnAdoptedBody}, integrated
+     * Fabric): the server's selected slot went to 4 while the client's stayed 0; the server's aim
+     * went to (−55.32, 29.55) while the client's stayed (283.23, 0.00). Identical ten ticks later —
+     * so this was never the race it looked like. Nothing propagates in either direction: the two
+     * sides hold unrelated values, and a {@code holdItem} that returns {@code true} has changed a
+     * number the body being steered has never heard of.
+     *
+     * <p><b>Why the ladder still passed.</b> It did not test this. {@code runJourneyServer} is
+     * headless — no client exists, {@code realPlayerHelm} is false, and both halves are the server,
+     * which cannot disagree with itself. Rungs 1–13 are green on a topology where the defect is
+     * unreachable, which is exactly why a fix here must be judged by the scene above rather than by
+     * the ladder going green again.
+     *
+     * <p>Null-safe by falling back: a client that has no {@code LocalPlayer} yet (loading, dead,
+     * changing dimension) gets the server avatar rather than a {@link NullPointerException} — with
+     * the fallback RECORDED, because a silent downgrade to the broken path is the failure this
+     * whole change exists to remove.
+     */
+    public Avatar avatar() {
+        if (!realPlayerHelm(ctx)) return body().avatar();
+        BotApi bot = BotHooks.impl();
+        Avatar client = bot == null ? null : bot.clientAvatar();
+        if (client != null) return client;
+        evidence("actuator.fellBackToServerAvatar",
+                "客户端没有 LocalPlayer（加载中／死亡／换维度），这一次单发动作退回了服务端 avatar —— "
+                        + "它写的是服务端自己的那份值，客户端不会跟着动");
+        return body().avatar();
+    }
+
+    /**
      * Whether the body under this rig cannot be hurt — <b>asked, not asserted</b>.
      *
      * <p>This was a literal {@code return true} with a comment saying it is always true on the
@@ -873,6 +911,13 @@ public final class JourneyRig {
      */
     public boolean breakItWhereItStands(BlockPos target) {
         if (ctx.level().getBlockState(target).isAir()) return true;
+        // DELIBERATELY the server avatar, on every topology — the one exception to {@link #avatar()}.
+        // This method's whole contract is「一次调用之内这一格开没开」, and it tests the WORLD below to
+        // prove it. The client's `breakHold` only presses a keybind: destruction then takes many
+        // ticks of `continueDestroy`, so a client-routed call would return with the block still
+        // standing and this method would report false for every cell it was actually able to break.
+        // Routing it through avatar() to be consistent would turn every in-place dig into a silent
+        // no-op — the class of change that looks like tidying and removes a capability.
         Avatar a = body().avatar();
         if (!a.canBreak(target)) return false;
         a.selectTool(target);

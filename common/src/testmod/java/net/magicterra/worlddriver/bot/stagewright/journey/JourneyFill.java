@@ -460,7 +460,7 @@ public final class JourneyFill {
         // HoldStill for the run where a ten-tick wait dropped the body four blocks.
         var eyeBeforeSettling = rig.player().getEyePosition();
         rig.settle(new HoldStill(2), 10, () -> {
-            rig.body().avatar().aimAtBlock(aim);
+            rig.avatar().aimAtBlock(aim);
             ServerLevel level = ctx.level();
             var pre = WorldDriverJourneyScenes.aimedAt(rig.player(), BUCKET_REACH, true);
             // A SOURCE, not merely the right cell with the right fluid in it. `BucketItem.use` clips
@@ -602,7 +602,7 @@ public final class JourneyFill {
         // and walks a full bucket short to a pour that will report「浇不出黑曜石」. Measure the
         // DELTA and that is impossible at any bucket count.
         int before = rig.carrying(id);
-        rig.evidence(tag + ".result", String.valueOf(rig.body().avatar().useItemInHand()));
+        rig.evidence(tag + ".result", String.valueOf(rig.avatar().useItemInHand()));
         int after = rig.carrying(id);
         if (after > before) { then.run(); return; }
         var hit = WorldDriverJourneyScenes.aimedAt(rig.player(), BUCKET_REACH, true);
@@ -710,10 +710,10 @@ public final class JourneyFill {
                 then.run();
                 return;
             }
-            rig.body().avatar().aimAtBlock(more);
+            rig.avatar().aimAtBlock(more);
             WorldDriverJourneyScenes.holdForUse(rig, Items.BUCKET, tag + ".more" + carried);
             int before = rig.carrying("minecraft:lava_bucket");
-            var result = rig.body().avatar().useItemInHand();
+            var result = rig.avatar().useItemInHand();
             int after = rig.carrying("minecraft:lava_bucket");
             if (after <= before) {
                 noteLoad(rig, tag, carried, "第 " + (carried + 1) + " 桶没装上：瞄 "

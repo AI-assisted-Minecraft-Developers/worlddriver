@@ -740,12 +740,12 @@ public final class JourneyEndRungs {
         // note on why this file will not let it.
         rig.settle(new IntentProcess(new Intent(new Goal.Near(frame, EYE_REACH))), 600, () -> {
             ServerLevel level = levelOf(rig);
-            boolean held = rig.body().avatar().holdItem(Items.ENDER_EYE);
+            boolean held = rig.avatar().holdItem(Items.ENDER_EYE);
             if (!held) {
                 rig.evidence("eye." + i + ".hand", "拿不到 ender_eye，手上是 " + heldItem(rig));
             }
             double reach = Math.sqrt(rig.player().blockPosition().distSqr(frame));
-            rig.body().avatar().useBlock(frame, Direction.UP);
+            rig.avatar().useBlock(frame, Direction.UP);
             rig.settle(new HoldStill(2), 10, () -> {
                 if (!hasEye(level, frame)) {
                     rig.evidence("eye." + i + ".missed", xyz(frame) + " 仍是 "
@@ -1248,7 +1248,7 @@ public final class JourneyEndRungs {
             String pillar = pillarBlock(rig);
             // Put the block in the HAND first: TowerProcess can only look in the hotbar, so a body
             // whose hotbar is tools reports "no placeable block" while carrying a stack of stone.
-            rig.body().avatar().holdItem(itemOf(pillar));
+            rig.avatar().holdItem(itemOf(pillar));
             stockHotbar(rig, pillar);
             int climbStock = rig.carrying(pillar);
             // Read BEFORE the tower runs. Taken afterwards it is the tower's own answer, and the one
@@ -2558,7 +2558,7 @@ public final class JourneyEndRungs {
     private static void holdBestWeapon(JourneyRig rig) {
         String id = bestWeapon(rig);
         if ("空手".equals(id)) { rig.evidence("weapon", "空手"); return; }
-        boolean ok = rig.body().avatar().holdItem(itemOf(id));
+        boolean ok = rig.avatar().holdItem(itemOf(id));
         rig.evidence("weapon", id + (ok ? "" : "（拿不到手上，手里是 " + heldItem(rig) + "）"));
     }
 

@@ -782,7 +782,7 @@ public final class JourneyShaft {
         var pillarItem = BuiltInRegistries.ITEM.get(net.minecraft.resources.ResourceLocation.parse(pillar));
         // Recorded only when it fails: a course that got what it asked for is already described by
         // `.with`, and thirty-six successful hand-swaps would bury the one that did not.
-        if (!rig.body().avatar().holdItem(pillarItem)) {
+        if (!rig.avatar().holdItem(pillarItem)) {
             rig.evidence(climbKey(step, ".hand"), "拿不到 " + pillar + "，手上是 "
                     + BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem()));
         }

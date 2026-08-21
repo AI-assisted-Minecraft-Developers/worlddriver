@@ -657,7 +657,7 @@ public final class JourneyNetherRungs {
             if (nether.getBlockState(cell).blocksMotion()) continue;
             if (cell.equals(body) || cell.equals(body.above())) { occupied++; continue; }
             String id = placeableBlock(rig);
-            if (id == null || !rig.body().avatar().holdItem(item(id))) { ranOut++; continue; }
+            if (id == null || !rig.avatar().holdItem(item(id))) { ranOut++; continue; }
             if (JourneyStairs.placeInto(nether, rig, cell)) {
                 placed++;
                 if (cell.getY() - spawner.getY() >= ROOM_HEIGHT) roof++; else walls++;
@@ -1546,7 +1546,7 @@ public final class JourneyNetherRungs {
     private static String holdBestWeapon(JourneyRig rig) {
         for (String id : WEAPONS) {
             if (rig.carrying(id) < 1) continue;
-            if (rig.body().avatar().holdItem(item(id))) return id;
+            if (rig.avatar().holdItem(item(id))) return id;
         }
         return "空手（包里一件武器都没有）";
     }

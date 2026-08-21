@@ -360,7 +360,7 @@ final class JourneyStairs {
                 return;
             }
             if (f.missingSupport()) {
-                boolean held = rig.body().avatar().holdItem(Items.COBBLESTONE);
+                boolean held = rig.avatar().holdItem(Items.COBBLESTONE);
                 boolean put = held && placeInto(level, rig, f.cell());
                 mended += put ? 1 : 0;
                 rig.evidence(tag + ".stairsMend." + i, f.describe() + " → "
@@ -415,7 +415,7 @@ final class JourneyStairs {
     /** Click the block into {@code cell} against whichever neighbour is solid. The return value is
      *  read off the WORLD, because a placement can be refused for reasons the caller cannot see. */
     static boolean placeInto(ServerLevel level, JourneyRig rig, BlockPos cell) {
-        return placeInto(level, rig.body().avatar(), cell);
+        return placeInto(level, rig.avatar(), cell);
     }
 
     /**

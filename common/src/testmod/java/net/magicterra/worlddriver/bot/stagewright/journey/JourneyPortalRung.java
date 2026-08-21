@@ -134,14 +134,14 @@ public final class JourneyPortalRung {
             BlockPos aim = JourneyTerrain.shallowWaterNear(rig, 8);
             if (aim == null) aim = water;
             WorldDriverJourneyScenes.holdForUse(rig, Items.BUCKET, "waterFill");
-            rig.body().avatar().aimAtBlock(aim);
+            rig.avatar().aimAtBlock(aim);
             final BlockPos at = aim;
             rig.settle(new HoldStill(2), 10, () -> {
                 // Increment, for the same reason `scoop` measures one — see its own note. The
                 // short-circuit above means `before` is 0 today, so this changes nothing now and
                 // stops being a lie the moment the body arrives here already holding water.
                 int before = rig.carrying("minecraft:water_bucket");
-                rig.evidence("waterFill.result", String.valueOf(rig.body().avatar().useItemInHand()));
+                rig.evidence("waterFill.result", String.valueOf(rig.avatar().useItemInHand()));
                 int after = rig.carrying("minecraft:water_bucket");
                 rig.evidence("water_bucket", after);
                 rig.evidence("waterFill.cellAfter", String.valueOf(ctx.level().getBlockState(at).getBlock()));
@@ -1666,7 +1666,7 @@ public final class JourneyPortalRung {
                     () -> walkToStand(rig, tag, cell, lower, then));
             return;
         }
-        boolean held = rig.body().avatar().holdItem(Items.COBBLESTONE);
+        boolean held = rig.avatar().holdItem(Items.COBBLESTONE);
         if (held) JourneyStairs.placeInto(level, rig, step);
         // THE WORLD, not the call. A placement can be refused for reasons the caller cannot see, and
         // a step that was never there leaves exactly the "the dig just did not work" row this rung
@@ -2093,7 +2093,7 @@ public final class JourneyPortalRung {
             then.run();
             return;
         }
-        boolean held = rig.body().avatar().holdItem(Items.COBBLESTONE);
+        boolean held = rig.avatar().holdItem(Items.COBBLESTONE);
         if (held) JourneyStairs.placeInto(level, rig, backing);
         // THE WORLD, not the call. Same reason the step and the stair mend read it back: a placement
         // can be refused for reasons the caller cannot see, and a backing that was never rebuilt
@@ -2269,7 +2269,7 @@ public final class JourneyPortalRung {
                 BlockPos settled = JourneyPour.aimThatLandsIn(ctx.level(), rig, target, away,
                         tag + "." + tries + ".settled");
                 BlockPos at = settled != null ? settled : planned;
-                rig.body().avatar().aimAtBlock(at);
+                rig.avatar().aimAtBlock(at);
                 // Where the fluid is actually going to land, recorded BEFORE it is spent. A filled
                 // bucket clips with `Fluid.NONE` and empties into the cell in front of the face it
                 // hits, so this pick IS the destination — and without it a pour that succeeded into
@@ -2321,7 +2321,7 @@ public final class JourneyPortalRung {
                             + "然后这一级会把失败写成「浇不出黑曜石」");
                     return;
                 }
-                rig.evidence(tag + ".result", String.valueOf(rig.body().avatar().useItemInHand()));
+                rig.evidence(tag + ".result", String.valueOf(rig.avatar().useItemInHand()));
                 then.run();
             }));
         });
@@ -2484,13 +2484,19 @@ public final class JourneyPortalRung {
         BlockPos plant = hit.getBlockPos();
         rig.evidence(tag + ".clearedPlant", plant.toShortString() + " "
                 + level.getBlockState(plant).getBlock());
-        var av = rig.body().avatar();
-        av.aimAtBlock(plant);
-        av.breakHold(true);
-        av.continueDestroy(plant);
-        av.breakHold(false);
+        // The BREAK stays server-side, the AIM does not — and they are split rather than sharing one
+        // avatar because they need opposite sides. `breakHold`+`continueDestroy` on the client only
+        // press a keybind and advance a multi-tick dig, so a client-routed break here would leave the
+        // plant standing (same reason breakItWhereItStands is pinned server-side). The aim, on the
+        // other hand, is a quantity the CLIENT owns: written server-side it never reaches the body
+        // being steered — measured as a 21.45° yaw gap that ten ticks did not close.
+        var breaker = rig.body().avatar();
+        rig.avatar().aimAtBlock(plant);
+        breaker.breakHold(true);
+        breaker.continueDestroy(plant);
+        breaker.breakHold(false);
         rig.settle(new HoldStill(3), 12, () -> {
-            av.aimAtBlock(want);
+            rig.avatar().aimAtBlock(want);
             then.run();
         });
     }
@@ -2566,7 +2572,7 @@ public final class JourneyPortalRung {
             for (int iy = 1; iy <= 3; iy++) interior.add(frameCell(base, away, ix, iy));
 
         // DAM FIRST. Clearing a cell that something is still pouring into buys one tick of air.
-        boolean held = rig.body().avatar().holdItem(Items.COBBLESTONE);
+        boolean held = rig.avatar().holdItem(Items.COBBLESTONE);
         StringBuilder dammed = new StringBuilder();
         for (BlockPos c : interior) {
             BlockPos behind = c.relative(away.getOpposite());
@@ -2603,7 +2609,7 @@ public final class JourneyPortalRung {
                     boolean source = level.getFluidState(c).isSource();
                     String fluid = BuiltInRegistries.FLUID.getKey(level.getFluidState(c).getType())
                             .toString();
-                    boolean plugged = rig.body().avatar().holdItem(Items.COBBLESTONE)
+                    boolean plugged = rig.avatar().holdItem(Items.COBBLESTONE)
                             && JourneyStairs.placeInto(level, rig, c);
                     rig.evidence("portal.plug." + c.toShortString(),
                             (source ? "源块 " : "流动 ") + fluid
@@ -2647,9 +2653,9 @@ public final class JourneyPortalRung {
         ServerLevel level = ctx.level();
         rig.settle(new IntentProcess(new Intent(new Goal.Near(hearth, 3))), 1_500, () -> {
             WorldDriverJourneyScenes.holdForUse(rig, Items.FLINT_AND_STEEL, "light");
-            rig.body().avatar().aimAtBlock(hearth);
+            rig.avatar().aimAtBlock(hearth);
             rig.settle(new HoldStill(2), 10, () -> {
-                rig.body().avatar().useBlock(hearth, Direction.UP);
+                rig.avatar().useBlock(hearth, Direction.UP);
                 rig.settle(new HoldStill(5), 20, () -> {
                     int lit = 0;
                     for (int ix = 0; ix <= 1; ix++)

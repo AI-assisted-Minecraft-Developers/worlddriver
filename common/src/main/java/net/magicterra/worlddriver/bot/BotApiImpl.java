@@ -1387,6 +1387,18 @@ public final class BotApiImpl implements BotApi {
         return out;
     }
 
+    /**
+     * Built fresh per call rather than cached, because {@code ClientPlayerAvatar} binds
+     * {@code mc.player} in its constructor and that reference dies on every respawn and dimension
+     * change. A cached one would keep actuating a stale body — the same「视图不跟着身体走」shape the
+     * driver has already paid for once, where a view built at construction planned over the old
+     * dimension's terrain for every rung after the portal.
+     */
+    @Override public net.magicterra.worlddriver.bot.movement.Avatar clientAvatar() {
+        Minecraft mc = Minecraft.getInstance();
+        return mc.player == null ? null : new net.magicterra.worlddriver.bot.movement.ClientPlayerAvatar(mc);
+    }
+
     private void cancelCurrent(String reason) {
         userTask.cancel(reason);
     }

@@ -2407,7 +2407,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                                    + " 次爬回机会" : ""));
             return;
         }
-        rig.body().avatar().aimAtBlock(src);
+        rig.avatar().aimAtBlock(src);
         // The aim has to land before anything reads it — the same tick wd.serverCastsObsidian needed
         // between aiming and using, and for the same reason.
         rig.settle(new HoldStill(2), 10, () -> {
@@ -2494,7 +2494,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * only way to tell those two apart afterwards is this evidence line.
      */
     static boolean holdForUse(JourneyRig rig, net.minecraft.world.item.Item item, String what) {
-        boolean ok = rig.body().avatar().holdItem(item);
+        boolean ok = rig.avatar().holdItem(item);
         rig.evidence(what + ".hand", (ok ? "" : "拿不到 " + BuiltInRegistries.ITEM.getKey(item) + "，手上是 ")
                 + BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem()));
         return ok;
@@ -2504,9 +2504,9 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     private static void fillFrom(SceneContext ctx, JourneyRig rig, BlockPos src, Runnable then) {
         rig.attempting("从 " + src.toShortString() + " 装一桶岩浆");
         holdForUse(rig, Items.BUCKET, "fill");
-        rig.body().avatar().aimAtBlock(src);
+        rig.avatar().aimAtBlock(src);
         rig.settle(new HoldStill(2), 10, () -> {
-            rig.evidence("fill.result", String.valueOf(rig.body().avatar().useItemInHand()));
+            rig.evidence("fill.result", String.valueOf(rig.avatar().useItemInHand()));
             int filled = rig.carrying("minecraft:lava_bucket");
             rig.evidence("lava_bucket", filled);
             // Where the source went is the other half of the reading: a fill that worked empties the
@@ -2626,7 +2626,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // fluids ignored, so the block it lands on is the bed, and the fluid goes into the cell in
         // front of the face it hit — which is the water cell above.
         holdForUse(rig, Items.LAVA_BUCKET, "cast");
-        rig.body().avatar().aimAtBlock(target.below());
+        rig.avatar().aimAtBlock(target.below());
         rig.settle(new HoldStill(2), 10, () -> {
             // hitFluids=false, matching what a FILLED bucket's own clip does. A pick that ignores
             // fluids is the only pick that predicts this pour.
@@ -2663,11 +2663,15 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                             + (noCollider ? "（无碰撞箱的植物：直接挥手清掉，mine 清不动）"
                                           : "（挡在瞄准线上，先清掉）"));
                     if (noCollider) {
-                        var av = rig.body().avatar();
-                        av.aimAtBlock(inTheWay);
-                        av.breakHold(true);
-                        av.continueDestroy(inTheWay);
-                        av.breakHold(false);
+                        // Break server-side, aim client-side — see the same split in
+                        // JourneyPortalRung.clearPlant. A client `breakHold` only presses a key, so
+                        // routing the break there leaves the blocker standing; a server-side aim
+                        // never reaches the body the client is steering.
+                        var breaker = rig.avatar();
+                        rig.avatar().aimAtBlock(inTheWay);
+                        breaker.breakHold(true);
+                        breaker.continueDestroy(inTheWay);
+                        breaker.breakHold(false);
                         rig.settle(new HoldStill(3), 12, () -> {
                             rig.evidence("cast.cleared." + inTheWay.toShortString(),
                                     String.valueOf(level.getBlockState(inTheWay).getBlock()));
@@ -2695,7 +2699,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                         + "\"浇不出黑曜石\"");
                 return;
             }
-            rig.evidence("cast.result", String.valueOf(rig.body().avatar().useItemInHand()));
+            rig.evidence("cast.result", String.valueOf(rig.avatar().useItemInHand()));
             rig.settle(new HoldStill(10), 20, () -> {
                 var got = level.getBlockState(target).getBlock();
                 rig.evidence("cast.cellAfter", String.valueOf(got));

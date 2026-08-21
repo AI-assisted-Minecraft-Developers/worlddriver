@@ -669,7 +669,7 @@ final class JourneyPour {
             // the caller's very next act is to aim at whatever this returns, so the body ends up
             // pointing at the candidate either way — this only makes the decision and the aim the
             // same act.
-            var fired = fire(rig.body().avatar(), rig.player(), aim);
+            var fired = fire(rig.avatar(), rig.player(), aim);
             BlockPos into = landedIn(fired);
             if (target.equals(into)) return aim;
             // Named, and named per candidate. A row that only said「没有能浇的落脚点」would send the

@@ -211,6 +211,34 @@ public interface BotApi {
     Map<String, Object> userTaskLeg();
 
     /**
+     * The {@link net.magicterra.worlddriver.bot.movement.Avatar} over this client's own
+     * {@code LocalPlayer} — the single-shot actuator face of the same seam {@link #runProcess}
+     * gives the per-tick one.
+     *
+     * <p><b>Why in-JVM code cannot just build one.</b> {@code ClientPlayerAvatar} imports
+     * {@code net.minecraft.client}, so merely NAMING it from code that also runs headless makes the
+     * JVM resolve it there — the {@code NoClassDefFoundError} shape StageWright's {@code DriverFeed}
+     * documents, where a client half died on the tick after arming and the server then ran a suite
+     * with no player. Returning it through this interface keeps the reference on the client side of
+     * the boundary, exactly like every other method here.
+     *
+     * <p><b>Why it matters that this exists at all.</b> Measured by
+     * {@code wd.actuatorSplitOnAnAdoptedBody} on the integrated topology, driving the adopted player
+     * through a server-side {@code ServerPlayerAvatar} instead: the server's selected slot went to 4
+     * and the client's stayed at 0; the server's aim went to (−55.32, 29.55) and the client's stayed
+     * at (283.23, 0.00) — identical ten ticks later, so nothing propagated in either direction. The
+     * two sides simply hold unrelated values, and every such write lands on a body nobody is
+     * steering. {@code ClientPlayerAvatar} does the same operations the way vanilla requires:
+     * {@code setSelectedSlot} sends {@code ServerboundSetCarriedItemPacket}, and the aim moves the
+     * player the server is receiving movement packets from.
+     *
+     * <p><b>Never blocks</b>, and callers must keep it that way: the returned avatar's methods touch
+     * client state, so a caller on an integrated server's SERVER thread must invoke them from a
+     * client-thread hop it does not wait on. Null when no {@code LocalPlayer} exists yet.
+     */
+    net.magicterra.worlddriver.bot.movement.Avatar clientAvatar();
+
+    /**
      * Elytra flight (Baritone elytra-alignment, milestone A). Takes the bot off
      * the ground (jump → deploy elytra) or out of a fall, then flies at a fixed
      * heading, optionally boosting with fireworks. Params:
