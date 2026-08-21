@@ -762,18 +762,37 @@ public class ServerPlayerAvatar implements Avatar {
      *       lives in {@code aiStep} too but moves nothing, so mirroring it cannot double-integrate
      *       anything. "aiStep is not run" was true and was quietly read as "nothing in aiStep is
      *       needed", which is how the pickup went missing.</li>
-     *   <li>{@code foodData.tick()}: hunger would be a half-truth here. Exhaustion accrues in
-     *       {@code Player.aiStep}/{@code causeFoodExhaustion}, which this avatar never runs, so the
-     *       bot would never get hungry no matter what {@code foodData.tick()} did — and starvation
-     *       could not hurt it anyway (next bullet). The whole hunger/health dimension is absent, and
-     *       saying so is better than mirroring one visible half of it.</li>
+     *   <li>{@code foodData.tick()}: still not mirrored, but <b>the reason below is now only half
+     *       true, and the half that broke is the load-bearing one.</b> It used to read "exhaustion
+     *       accrues in {@code Player.aiStep}/{@code causeFoodExhaustion}, which this avatar never
+     *       runs, so the bot would never get hungry". Since the jump branch of {@link #step()} began
+     *       calling {@link net.minecraft.world.entity.player.Player#jumpFromGround()} instead of
+     *       hand-copying its velocity, {@code causeFoodExhaustion} <b>does</b> run — every jump
+     *       spends 0.05, or 0.2 sprinting. {@code wd.bodyParityCensus} measures it:
+     *       {@code foodExhaustion 0.050→0.100} across one jump.
+     *
+     *       <p>So this body now accrues exhaustion and has no {@code foodData.tick()} to convert it,
+     *       and no way to eat. Today that is inert — the number climbs and nothing reads it — and it
+     *       stops being inert the moment anyone removes the empty {@code tick()} override, because
+     *       then hunger starts draining on a body that cannot feed itself. <b>Do not mirror
+     *       {@code foodData.tick()} here as an isolated fix</b>; it is one half of a pair, and the
+     *       other half (a feeding path, or a written decision to exempt this body from hunger) has
+     *       to land with it. See {@code docs/fake-player-parity.md} §6.5.</li>
      *   <li>damage, health and every health-driven reflex: NeoForge's {@code FakePlayer.isInvulnerableTo}
      *       returns {@code true} unconditionally — a server avatar cannot be hurt by anything. On top
      *       of that {@link ServerWorldDriver} wires no reflex chains at all (no Retreat/Panic/Bunker/
      *       Dodge/AutoHeal/AutoShield). The server agent is a TASK automaton, not a survivalist; treat
      *       any survival guarantee on this path as absent until both of those change.</li>
-     *   <li>cosmetic/irrelevant server bookkeeping: swim amount, arrow/stinger counts, statistics,
-     *       cloak, container-menu validity.</li>
+     *   <li>cosmetic/irrelevant server bookkeeping: swim amount, arrow/stinger counts, cloak,
+     *       container-menu validity.
+     *
+     *       <p><b>「statistics」 used to be in this list and does not belong here.</b> On a
+     *       {@code JoinedBody} — which is what the loaders' factory mints once
+     *       {@code -Dworlddriver.realPlayerBodies=true} is armed, i.e. the production body — stats
+     *       are live and are written by ordinary play: {@code wd.bodyParityCensus} measures
+     *       {@code walk_one_cm 0→227} over a 2-block walk and {@code Stats.JUMP 0→1} over one jump.
+     *       Calling them cosmetic is what let the hand-copied jump drop {@code awardStat} unnoticed;
+     *       stats are the observable that made that defect visible, not noise.</li>
      * </ul>
      */
     private void mirrorPlayerTick() {
