@@ -2056,12 +2056,26 @@ public final class JourneyNetherRungs {
      * cannot be air — unlike a surveyed one, which has baked a tree that was not there before.
      *
      * <pre>
-     * hop #2  33, 55, 36     hop #17 132, 43, 165
-     * hop #3  62, 43, 67     hop #19 152, 53, 178
-     * hop #12 60, 43, 85     hop #23 154, 58, 194
-     * hop #13 74, 41, 97     hop #24 189, 53, 221
-     * hop #14 102, 41, 122   （最后一个）220, 53, 250 ← where that run stopped
+     * hop #2  33, 55, 36     hop #16 103, 41, 132    hop #22 162, 56, 177
+     * hop #3  62, 43, 67     hop #17 132, 43, 165    hop #23 154, 58, 194
+     * hop #6  71, 43, 69     hop #18 135, 43, 167    hop #24 189, 53, 221
+     * hop #7  63, 41, 87     hop #19 152, 53, 178    （末位）220, 53, 250 ← 那一趟停下的地方
+     * hop #13 74, 41, 97     hop #14 102, 41, 122
      * </pre>
+     *
+     * <h2>Consecutive cells, not a shortlist of nice ones</h2>
+     *
+     * The first 3-D corridor run failed its third leg — {62,43,67} to {60,43,85}, eighteen blocks —
+     * with {@code no progress for 1200 ticks}. Both cells are surveyed and both are standable, and
+     * <b>the body never walked between them</b>: it went {62,43,67} → {71,43,69}, then a 60° detour
+     * to {63,41,87}, and reached {60,43,85} eight hops later from the far side. Picking waypoints by
+     * eye out of the hop table rebuilt exactly the guess this corridor was meant to replace — a line
+     * between two known-good cells is not a known-good line.
+     *
+     * <p>So the list below is the ladder's own trajectory, hop by hop, with only its shuttles
+     * dropped: where the body went backwards and came back ({102,41,122} → {90,41,119} →
+     * {103,41,132}, and the four wedge hops around {56,49,89}), the corridor takes the forward pair
+     * directly, because those two ARE consecutive cells in the direction of travel.
      *
      * <p>{62,43,67} and the two after it sit inside the wedge zone that cost that run ten hops, and
      * they are here precisely because the body proved they are reachable and standable: a short leg
@@ -2083,8 +2097,9 @@ public final class JourneyNetherRungs {
      * its full hop allowance, not a surveyed one, and a failure there is not a route defect.
      */
     private static final int[][] FORTRESS_WAYPOINTS = {
-            {33, 55, 36}, {62, 43, 67}, {60, 43, 85}, {74, 41, 97}, {102, 41, 122},
-            {132, 43, 165}, {152, 53, 178}, {154, 58, 194}, {189, 53, 221}, {220, 53, 250},
+            {33, 55, 36}, {62, 43, 67}, {71, 43, 69}, {63, 41, 87}, {74, 41, 97},
+            {102, 41, 122}, {103, 41, 132}, {132, 43, 165}, {135, 43, 167},
+            {152, 53, 178}, {162, 56, 177}, {154, 58, 194}, {189, 53, 221}, {220, 53, 250},
     };
 
     /** How close to a surveyed waypoint counts as being ON it, in 3D. Two, because the survey is a
