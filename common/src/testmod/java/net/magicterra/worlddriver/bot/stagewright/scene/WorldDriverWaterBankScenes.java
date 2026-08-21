@@ -262,6 +262,12 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         Walker walker = new Walker();
         walker.setGoal(new Goal.Block(goal));
 
+        // DELTAS, taken here rather than read absolute: these are per-JVM counters and other
+        // scenes in the same run also climb out of water.
+        final int engages0 = Walker.waterPillarEngages;
+        final int bails0 = Walker.waterPillarCeilingBails;
+        Walker.waterPillarTopRise = 0;
+
         Walker.Step s = Walker.Step.WALKING;
         double maxY = fp.getY();
         boolean everDry = false;
@@ -276,6 +282,24 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         boolean onPlateau = fp.getZ() > (cz + 2) + 0.5 && fp.getY() >= plateauTop + 1 - 0.4;
         WorldDriverCommon.LOG.info("[wd.buoyantWall] step={} pos=({},{},{}) maxY={} everDry={} onPlateau={} bobTicks={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), maxY, everDry, onPlateau, bobTicks);
+        // THE FIRST EVIDENCE THIS FAMILY HAS EVER RECORDED. All eleven water-climb scenes published
+        // nothing but their own colour, which is why a safety bail that was UNCONDITIONALLY FALSE
+        // (see WalkerTickClimb.engagePillar) survived here unnoticed: a guard that cannot fire
+        // changes no colour, and colour was the only channel. Recorded on every run, PASS included —
+        // a PASS prints no failure text, so this is the only place a reader can see whether the
+        // pillar branch was even entered.
+        int engages = Walker.waterPillarEngages - engages0;
+        int bails = Walker.waterPillarCeilingBails - bails0;
+        ctx.record("pillar.engages", engages == 0
+                ? "0 —— 这一趟从没走过 pillar 接管那条路，所以它对那条路什么都没测到"
+                : String.valueOf(engages));
+        ctx.record("pillar.ceilingBails", engages == 0
+                ? "unavailable/接管一次都没发生，0 不代表守卫没开火而是没人问过它"
+                : bails + " 次越过 engage 脚下 +" + 5 + " 的天花板");
+        ctx.record("pillar.topRise", engages == 0
+                ? "unavailable/同上"
+                : Walker.waterPillarTopRise + " 格（离天花板还差 "
+                        + (5 - Walker.waterPillarTopRise) + " 格）");
         if (!onPlateau)
             ctx.fail("buoyantWall: BUOYANT +5 wall: Walker failed to mount from water: pos=("
                     + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY
