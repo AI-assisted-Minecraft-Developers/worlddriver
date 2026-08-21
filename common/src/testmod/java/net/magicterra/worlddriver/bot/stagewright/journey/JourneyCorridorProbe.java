@@ -1,0 +1,179 @@
+package net.magicterra.worlddriver.bot.stagewright.journey;
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.FluidTags;
+
+/**
+ * What the ground under a corridor leg actually looks like, printed as a map.
+ *
+ * <h2>Why the corridor needed a map before it needed another fix</h2>
+ *
+ * Rung 14 walks {@code JourneyNetherRungs.FORTRESS_WAYPOINTS}, eighteen cells baked from a run that
+ * reached the fortress. Legs 8, 9 and 10 came back {@code {bridgePlace=15}}, {@code {bridgePlace=13}},
+ * {@code {bridgePlace=14}} — and {@code walk=0}. Not one step on existing ground.
+ *
+ * <p>That is not a bug in the walker. The waypoints are body positions recorded AFTER that run
+ * bridged, so <b>they describe a causeway, not terrain</b>, and a fresh world has none of it. Every
+ * later leg has to rebuild the span it is standing on, and the corridor's pass rate is therefore the
+ * per-cell placement success rate raised to the number of laid cells. Legs 11 onward then fail with
+ * {@code expanded=100000}, which is what an A* over open sky looks like: with a bridge edge available
+ * off every face and no wall to bound the frontier, the search fans out in three dimensions and hits
+ * its node cap.
+ *
+ * <p>Three fixes were argued for on the strength of guesses about what is out there — reroute, split
+ * the leg, raise the node cap — and <b>nobody had looked</b>. This looks. It is a measurement and
+ * nothing else: it never fails a scene, never changes what a rung does next, and writes only rows.
+ *
+ * <h2>What each map answers</h2>
+ *
+ * <ul>
+ *   <li><b>stand</b> — is there anything to stand on in this column at all, and at what height. A
+ *       field of {@code .} says the surveyed line genuinely has no floor and rerouting is the only
+ *       honest answer; a band of digits says dry ground exists and the waypoints are simply aimed
+ *       beside it.</li>
+ *   <li><b>headroom</b> — how many passable cells sit above that floor. <b>This is the one that can
+ *       name the killer outright.</b> A bridge edge needs a body-height gap to move into; a ceiling
+ *       two or three above the stand level erases every bridge edge across the span, and a search
+ *       with no edges to expand reports exactly {@code expanded=100000}. A corridor that looks open
+ *       in the stand map and reads {@code 0} or {@code 1} in the headroom map is a roofed tunnel,
+ *       and no amount of node budget will get a body through it.</li>
+ * </ul>
+ *
+ * <h2>It generates chunks, and that has to be said out loud</h2>
+ *
+ * Reading a block in an ungenerated column runs worldgen on the server thread. The probe therefore
+ * bounds itself to {@link #SPAN} blocks around the legs it is asked about, and records the wall time
+ * it spent plus the fact that it pre-generated terrain. <b>A run carrying this probe is not tick-
+ * comparable with one that does not</b> — the chunks are warm afterwards — so a tick count that
+ * shifts between a probed and an unprobed run is the probe, not a regression. Saying so here is
+ * cheaper than the round it would otherwise cost.
+ *
+ * <p>Solidity is {@code getCollisionShape().isEmpty()} and lava is {@link FluidTags#LAVA}, which is
+ * what the rest of this package already uses — see {@code JourneyFill}'s note on why that and not
+ * {@code blocksMotion()}. A probe that answered「实心吗」by a different predicate than the scenes
+ * around it would produce a map nobody could line up against a failure.
+ */
+final class JourneyCorridorProbe {
+    private JourneyCorridorProbe() {}
+
+    /** Half-width, in blocks, of the box probed around the legs of interest. */
+    private static final int SPAN = 10;
+    /** Widest map printed. Beyond this the rows wrap in a terminal and stop being readable. */
+    private static final int MAX_COLS = 56;
+    private static final int Y_LO = 20;
+    private static final int Y_HI = 80;
+    /** A body is two cells tall; this many passable cells above the floor is what a move needs. */
+    private static final int BODY_HEIGHT = 2;
+
+    /**
+     * Probe the box spanning {@code from} and the next {@code legs} waypoints, and write the maps.
+     *
+     * <p>Keyed {@code <what>.probe.*}. Call it once, at the leg that is failing — probing every leg
+     * would pre-generate the whole corridor and cost more wall time than the rung has.
+     */
+    static void record(JourneyRig rig, String what, BlockPos from, int[][] waypoints, int i, int legs) {
+        int x0 = from.getX(), x1 = from.getX(), z0 = from.getZ(), z1 = from.getZ();
+        for (int k = i; k < Math.min(waypoints.length, i + legs); k++) {
+            x0 = Math.min(x0, waypoints[k][0]); x1 = Math.max(x1, waypoints[k][0]);
+            z0 = Math.min(z0, waypoints[k][2]); z1 = Math.max(z1, waypoints[k][2]);
+        }
+        x0 -= SPAN; x1 += SPAN; z0 -= SPAN; z1 += SPAN;
+        // Clipped at the far edge rather than sampled with a stride. A map with a stride can step
+        // over a one-block gap or a one-block bridge, and a one-block gap is exactly the feature
+        // this is here to find — a truncated map that is right beats a complete map that lies.
+        boolean clipped = (x1 - x0 + 1) > MAX_COLS || (z1 - z0 + 1) > MAX_COLS;
+        x1 = Math.min(x1, x0 + MAX_COLS - 1);
+        z1 = Math.min(z1, z0 + MAX_COLS - 1);
+
+        ServerLevel level = rig.player().serverLevel();
+        long t0 = System.nanoTime();
+        StringBuilder stand = new StringBuilder();
+        StringBuilder head = new StringBuilder();
+        for (int z = z0; z <= z1; z++) {
+            StringBuilder rs = new StringBuilder();
+            StringBuilder rh = new StringBuilder();
+            for (int x = x0; x <= x1; x++) {
+                int y = standY(level, x, z);
+                if (y == Integer.MIN_VALUE) { rs.append('.'); rh.append('.'); continue; }
+                rs.append(lavaAt(level, x, y, z) ? '~' : heightChar(y));
+                rh.append(headChar(headroom(level, x, y, z)));
+            }
+            stand.append('\n').append(pad(z)).append(' ').append(rs);
+            head.append('\n').append(pad(z)).append(' ').append(rh);
+        }
+        long ms = (System.nanoTime() - t0) / 1_000_000L;
+
+        rig.evidence(what + ".probe.box", "x " + x0 + ".." + x1 + "，z " + z0 + ".." + z1
+                + "，y 只看 " + Y_LO + ".." + Y_HI + "；耗时 " + ms + " ms"
+                + (clipped ? "；⚠️ 这个盒子比 " + MAX_COLS + " 宽，远端被裁掉了（没有隔行取样："
+                        + "有跨度的图会跨过一格宽的缺口，而那正是要找的东西）" : "")
+                + "。⚠️ 这次扫描会生成区块：带探针的一趟和不带的一趟 tick 数不可比，"
+                + "之后的 tick 变化是探针不是回归");
+        rig.evidence(what + ".probe.stand", "每列最高的可站立面（. = 这一柱在 y 带里没有落脚点，"
+                + "~ = 落脚面是岩浆，" + legend() + "）：" + stand);
+        rig.evidence(what + ".probe.head", "落脚面之上的通行高度（. = 没有落脚点，0/1 = 不够身体过去，"
+                + "2..9 = 够，+ = 9 以上）。**架桥的边需要 " + BODY_HEIGHT
+                + " 格净空**，所以一片 0/1 就是有顶的隧道；那种地形上 expanded=100000 不是预算不够，"
+                + "是压根没有边可以扩：" + head);
+    }
+
+    /**
+     * The highest cell in the band whose floor is solid and which is not itself roofed over.
+     *
+     * <p>Highest rather than lowest on purpose: the corridor's question is「能不能在这一带上走」, and
+     * a floor buried under a roof is not somewhere a leg can be routed through. A column whose only
+     * floor has no clearance still reports its height here and shows up as {@code 0}/{@code 1} in the
+     * headroom map — the two maps disagreeing is what a tunnel looks like, and dropping such columns
+     * from the stand map would hide exactly that.
+     */
+    private static int standY(ServerLevel level, int x, int z) {
+        for (int y = Y_HI; y >= Y_LO; y--) {
+            if (!solid(level, x, y, z)) continue;
+            if (solid(level, x, y + 1, z)) continue;
+            return y;
+        }
+        return Integer.MIN_VALUE;
+    }
+
+    private static int headroom(ServerLevel level, int x, int y, int z) {
+        int n = 0;
+        for (int h = y + 1; h <= Y_HI && n < 10; h++) {
+            if (solid(level, x, h, z)) break;
+            n++;
+        }
+        return n;
+    }
+
+    private static boolean solid(ServerLevel level, int x, int y, int z) {
+        BlockPos p = new BlockPos(x, y, z);
+        return !level.getBlockState(p).getCollisionShape(level, p).isEmpty();
+    }
+
+    private static boolean lavaAt(ServerLevel level, int x, int y, int z) {
+        BlockPos p = new BlockPos(x, y, z);
+        return level.getFluidState(p).is(FluidTags.LAVA)
+                || level.getFluidState(p.above()).is(FluidTags.LAVA);
+    }
+
+    /** {@code 0..9} for y=40..49, then {@code a..z} upward, {@code <} below 40 and {@code >} above. */
+    private static char heightChar(int y) {
+        if (y < 40) return '<';
+        if (y <= 49) return (char) ('0' + (y - 40));
+        if (y <= 75) return (char) ('a' + (y - 50));
+        return '>';
+    }
+
+    private static char headChar(int n) {
+        return n >= 10 ? '+' : (char) ('0' + n);
+    }
+
+    private static String legend() {
+        return "0-9 = y40-49，a-z = y50-75，< = 低于 40，> = 高于 75";
+    }
+
+    private static String pad(int z) {
+        String s = String.valueOf(z);
+        return s.length() >= 4 ? s : "    ".substring(s.length()) + s;
+    }
+}

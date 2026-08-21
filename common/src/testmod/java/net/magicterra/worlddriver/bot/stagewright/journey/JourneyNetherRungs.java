@@ -607,6 +607,12 @@ public final class JourneyNetherRungs {
      */
     private static void corridorGaveUp(SceneContext ctx, JourneyRig rig, int i, BlockPos want,
                                        BlockPos now, int off, int bridged) {
+        // BEFORE ctx.fail, which throws. The map is the whole reason this run is worth its ten
+        // minutes: three different fixes have been argued for this corridor (reroute it, split the
+        // leg, raise the node cap) and every one of them is a guess about terrain nobody has looked
+        // at. Probing only here, and only three legs ahead, keeps the worldgen bounded to the span
+        // that actually failed.
+        JourneyCorridorProbe.record(rig, "fortress.wp" + (i + 1), now, FORTRESS_WAYPOINTS, i, 3);
         ctx.fail("走不到第 " + (i + 1) + " 个路点 " + want.toShortString() + "：停在 "
                 + now.toShortString() + "，差 " + off + " 格（容差 " + WAYPOINT_ARRIVE_WITHIN
                 + "）。**搜索自己放弃了**（" + JourneyLeg.walkerEnd(rig) + "），不是走不完预算 —— "
