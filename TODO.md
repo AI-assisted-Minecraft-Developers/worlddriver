@@ -159,6 +159,17 @@ blaze.pickup.left    0        dropsNearby  0（上一趟是 2）
 ⇒ 修法必须是**主动采石**（到某个路点前先挖够 N 格再走），不是调寻路参数。
 这条对不对，下一段的结果会说话；但即使 14 级这趟侥幸过了，这个反相关也还在。
 
+**实现时先避开这个坑（读代码时发现的，别等它咬一轮）**：采石例程已经有了
+（`JourneyShelter.quarryUntilStocked`），走廊要用**就复用它，别再抄一份**——
+这正是 [[a-private-fix-is-an-unfixed-caller]] 的形状，而它现在是 private。
+
+但**照搬会让身体拆掉自己刚架的栈道**：`quarryCell` 只保护了 `body.below()` 一格，
+其余靠调用方传 `keepOut`（屋子那边传的是外壳）。而 `QUARRYABLE` 里
+**同时有 netherrack 和 cobblestone**——栈道正是这两样。走廊调用时
+`keepOut` 必须包含**刚放下的那些桥格**，否则就是
+[[what-a-recovery-leaves-behind]] 再来一次：补救留下的东西成了下一步的障碍，
+只不过这次是补救把自己脚下的路挖了。
+
 ### 还开着（不在这一轮）
 
 - **`advancement.obtain_blaze_rod = not-earned`，而包里有 2 根。** 这具身体拿到了物品却没拿到
