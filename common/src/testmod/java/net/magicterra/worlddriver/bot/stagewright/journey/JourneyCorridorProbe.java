@@ -63,6 +63,11 @@ final class JourneyCorridorProbe {
     private static final int MAX_COLS = 56;
     private static final int Y_LO = 20;
     private static final int Y_HI = 80;
+    /** How far above the leg's band a floor still counts as a floor this leg could climb onto. */
+    private static final int ABOVE_BAND = 4;
+    /** ...and how far below. Wider than {@link #ABOVE_BAND}: dropping to a ledge is cheap, and the
+     *  corridor's real routes have been running a few blocks under the surveyed line all along. */
+    private static final int BELOW_BAND = 12;
     /** A body is two cells tall; this many passable cells above the floor is what a move needs. */
     private static final int BODY_HEIGHT = 2;
 
@@ -74,6 +79,10 @@ final class JourneyCorridorProbe {
      */
     static void record(JourneyRig rig, String what, BlockPos from, int[][] waypoints, int i, int legs) {
         int x0 = from.getX(), x1 = from.getX(), z0 = from.getZ(), z1 = from.getZ();
+        // The reference height the maps are cut at — the surveyed line this leg was walking, NOT the
+        // body's current Y. The body that triggers this probe has usually fallen; cutting the map at
+        // where it ended would map the hole it is lying in instead of the route it failed to walk.
+        int ref = waypoints[Math.min(waypoints.length - 1, i)][1];
         for (int k = i; k < Math.min(waypoints.length, i + legs); k++) {
             x0 = Math.min(x0, waypoints[k][0]); x1 = Math.max(x1, waypoints[k][0]);
             z0 = Math.min(z0, waypoints[k][2]); z1 = Math.max(z1, waypoints[k][2]);
@@ -94,7 +103,7 @@ final class JourneyCorridorProbe {
             StringBuilder rs = new StringBuilder();
             StringBuilder rh = new StringBuilder();
             for (int x = x0; x <= x1; x++) {
-                int y = standY(level, x, z);
+                int y = standY(level, x, z, ref);
                 if (y == Integer.MIN_VALUE) { rs.append('.'); rh.append('.'); continue; }
                 rs.append(lavaAt(level, x, y, z) ? '~' : heightChar(y));
                 rh.append(headChar(headroom(level, x, y, z)));
@@ -105,7 +114,11 @@ final class JourneyCorridorProbe {
         long ms = (System.nanoTime() - t0) / 1_000_000L;
 
         rig.evidence(what + ".probe.box", "x " + x0 + ".." + x1 + "，z " + z0 + ".." + z1
-                + "，y 只看 " + Y_LO + ".." + Y_HI + "；耗时 " + ms + " ms"
+                + "，两张图都是在 y=" + ref + " 这条勘测线上下切的（上 " + ABOVE_BAND
+                + " 格、下 " + BELOW_BAND + " 格，硬边界 " + Y_LO + ".." + Y_HI
+                + "）。**不是整柱最高面**：第 5 段的 72,42,85 那一柱最高面在 y=67，"
+                + "而路线是从那座山体底下的洞里过去的，按最高面画出来的图会说这条路不存在。"
+                + "耗时 " + ms + " ms"
                 + (clipped ? "；⚠️ 这个盒子比 " + MAX_COLS + " 宽，远端被裁掉了（没有隔行取样："
                         + "有跨度的图会跨过一格宽的缺口，而那正是要找的东西）" : "")
                 + "。⚠️ 这次扫描会生成区块：带探针的一趟和不带的一趟 tick 数不可比，"
@@ -119,16 +132,31 @@ final class JourneyCorridorProbe {
     }
 
     /**
-     * The highest cell in the band whose floor is solid and which is not itself roofed over.
+     * The highest standable floor <b>at or just above the leg's own band</b> — not the highest in
+     * the world column.
      *
-     * <p>Highest rather than lowest on purpose: the corridor's question is「能不能在这一带上走」, and
-     * a floor buried under a roof is not somewhere a leg can be routed through. A column whose only
-     * floor has no clearance still reports its height here and shows up as {@code 0}/{@code 1} in the
-     * headroom map — the two maps disagreeing is what a tunnel looks like, and dropping such columns
-     * from the stand map would hide exactly that.
+     * <h2>The first cut of this scanned from the sky down, and produced a true map of the wrong
+     * thing</h2>
+     *
+     * Leg 5 aims at {@code 72,42,85}. Scanning from {@code Y_HI} down, that column reports
+     * {@code y=67}, and its neighbours 66–69: a massif. Read literally, the map says the waypoint is
+     * buried twenty-five blocks under a mountain and the route is impossible. <b>It is not</b> — the
+     * previous run stood at {@code 71,43,85}. The corridor runs through a CAVE beneath that massif,
+     * and a topmost-surface scan cannot see a cave by construction.
+     *
+     * <p>So the reference is the leg's band ceiling, and the scan starts a little above it. What
+     * comes back is the floor a leg could actually be routed along, which is the only question this
+     * probe was ever asked. Columns whose only floor is far below the band still read
+     * {@code Integer.MIN_VALUE} and print {@code .}, because a floor thirty blocks down is not this
+     * leg's floor either.
+     *
+     * <p>A surveyed cell is not its column — this suite has paid for that sentence before, and the
+     * probe written to end the guessing reproduced it on its first run.
      */
-    private static int standY(ServerLevel level, int x, int z) {
-        for (int y = Y_HI; y >= Y_LO; y--) {
+    private static int standY(ServerLevel level, int x, int z, int ref) {
+        int top = Math.min(Y_HI, ref + ABOVE_BAND);
+        int bottom = Math.max(Y_LO, ref - BELOW_BAND);
+        for (int y = top; y >= bottom; y--) {
             if (!solid(level, x, y, z)) continue;
             if (solid(level, x, y + 1, z)) continue;
             return y;
