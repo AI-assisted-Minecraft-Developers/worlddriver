@@ -320,6 +320,18 @@ public final class JourneyCrossingScenes implements SceneProvider {
             ctx.fail("THE RIG, not the subject: 原地卡死那一臂一次都没触发强制重规划（" + lock.line()
                     + "） —— 那么「沿岸走报了很多格」就分不清是读数在起作用还是这一臂根本没跑到");
 
+        // THE PARSER'S OWN CONTRACT, checked before the two readings are compared. cellsIn reads the
+        // walker's WORDING, and that wording has silently changed twice under it (see cellsIn). A −1
+        // is not a measurement of the body — it is this scene failing to read the line — and left to
+        // flow into the checks below it arrives as「覆盖 -1 个不同格子」, which reads like a subject
+        // that misbehaved and sent the 2026-08-22 gate looking at the walker. It is the rig.
+        if (walk.cells() < 0 || lock.cells() < 0)
+            ctx.fail("THE RIG, not the subject: 读不懂 walker 的强制重规划行 —— cellsIn 的正则"
+                    + " CELLS_IN_LINE（" + CELLS_IN_LINE.pattern() + "）跟这行现在的措辞对不上，"
+                    + "沿岸走解析出 " + walk.cells() + "，原地解析出 " + lock.cells()
+                    + "。原文见证据行 rimWalk.lastLine / livelock.lastLine —— 先让正则跟上那行的"
+                    + "措辞，再谈这两条臂分不分得开；在那之前这个场景什么都没测到");
+
         ctx.check(lock.cells()).as("A 原地卡死必须报成一格 —— 这正是这个计数器当初为之而生的那种情形："
                 + lock.line()).isEqualTo(1);
         ctx.check(walk.cells() > lock.cells()).as("B 沿岸走必须报出比它多的格子 —— 否则这条线还是"
@@ -383,12 +395,39 @@ public final class JourneyCrossingScenes implements SceneProvider {
         return new Pin(t, repaths, cells, pinned, Math.abs(fp.getZ() - z0));
     }
 
-    /** The distinct-cell count out of the walker's forced-repath line, or −1 when it has none.
-     *  Parsed rather than recomputed: the arm's whole claim is about what that LINE says. */
+    /**
+     * The cell-coverage count out of the walker's forced-repath line, or −1 when the line cannot be
+     * read at all.
+     *
+     * <p><b>Parsed rather than recomputed, on purpose:</b> this arm's whole claim is that the LINE
+     * separates a rim walk from a livelock, so reading {@code Walker.guardStreakCells} directly
+     * would assert something no reader ever sees and leave the sentence itself untested.
+     *
+     * <p><b>⚠️ That couples this scene to the WORDING of a log line, and the coupling has already
+     * rotted twice unnoticed.</b> The pattern was written for「其间点火过 4 个不同的格子」; the walker
+     * then reworded it to「点火过 4 次换格」and again to「钉过 4 个格位（含首格）」, and this matcher
+     * went on returning −1 through both. The 2026-08-22 double-loader gate is what finally caught
+     * it, and only because −1 reached an assertion: <b>both loaders</b> reported「最后一次覆盖 -1
+     * 个不同格子」while the walker's own numbers were exactly right (rim 2, livelock 1) — the body,
+     * the scene's premise and the walker's arithmetic were all correct and the parser was the only
+     * broken part. A silent −1 that goes on to be compared as if it were a cell count is the entire
+     * defect, which is why this no longer gets to be quiet: see the caller, which fails the RIG
+     * rather than the subject the moment this returns −1.
+     *
+     * <p>Contrast {@code WorldDriverCoverageScenes}'s {@code churnEsc=(\d+)}, which has never
+     * rotted: it parses a {@code key=value} probe rather than a sentence. Prose gets reworded, a key
+     * does not — and this one has to stay prose precisely because the prose IS the subject.
+     */
     private static int cellsIn(String line) {
-        var m = java.util.regex.Pattern.compile("点火过 (\\d+) 个不同的格子").matcher(line);
+        var m = CELLS_IN_LINE.matcher(line);
         return m.find() ? Integer.parseInt(m.group(1)) : -1;
     }
+
+    /** The walker's CURRENT wording, deliberately not a union of every past phrasing: accepting the
+     *  dead ones would buy nothing and would hide the next rewording exactly the way the last two
+     *  were hidden. The caller turns a miss into a loud rig failure that names this constant. */
+    private static final java.util.regex.Pattern CELLS_IN_LINE =
+            java.util.regex.Pattern.compile("钉过 (\\d+) 个格位");
 
     /** dy of the shore deck's top block. */
     private static final int TRENCH_DECK = 20;
