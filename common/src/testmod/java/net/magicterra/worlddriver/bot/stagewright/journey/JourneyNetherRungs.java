@@ -190,6 +190,13 @@ public final class JourneyNetherRungs {
         rig.evidence("fortress.at", fortress.toShortString()
                 + "（距身体 " + away + " 格水平；地标的 y=" + fortress.getY() + " 是 locate 的占位，不是可站立高度）");
         rig.attempting("走到要塞 " + fortress.toShortString() + "（" + away + " 格）");
+        // ASK ALL EIGHTEEN BEFORE WALKING ONE. The corridor has been diagnosed a leg at a time for
+        // four runs, and each leg's verdict can only ever say「这一段没走到」. The waypoints are body
+        // positions from a run that BRIDGED, so some of them are cells that run created and a fresh
+        // world does not have — wp4 is one: the body was declared arrived 1 block from it, in mid
+        // air, over a shaft. Which of the eighteen are causeway artifacts is one cheap column scan
+        // each, and it is knowable before the rung takes a single step rather than after four runs.
+        JourneyCorridorProbe.auditWaypoints(rig, FORTRESS_WAYPOINTS);
         walkTheCorridor(ctx, rig, fortress, 0, 0);
     }
 
@@ -472,6 +479,10 @@ public final class JourneyNetherRungs {
                                 + " 且没有支撑，是落地后才判的（掉了 " + (ended.getY() - now.getY())
                                 + " 格）"));
                 if (off > WAYPOINT_ARRIVE_WITHIN) {
+                    // BEFORE ctx.fail, which throws. And here as well as in corridorGaveUp: the
+                    // 2026-08-21 run died down this exit and produced no map at all, because the
+                    // probe was wired to only one of the two ways a leg can be abandoned.
+                    JourneyCorridorProbe.record(rig, leg + ".reask", now, FORTRESS_WAYPOINTS, i, 3);
                     ctx.fail("走不到第 " + (i + 1) + " 个路点 " + want.toShortString() + "：停在 "
                             + now.toShortString() + "，差 " + off + " 格（容差 " + WAYPOINT_ARRIVE_WITHIN
                             + "）。直走、" + detourOutcome + "、以及从 " + over.toShortString()

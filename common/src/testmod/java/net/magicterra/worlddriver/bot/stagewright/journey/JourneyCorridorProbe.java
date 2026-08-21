@@ -72,6 +72,69 @@ final class JourneyCorridorProbe {
     private static final int BODY_HEIGHT = 2;
 
     /**
+     * Ask every baked waypoint whether it exists in THIS world, before the rung walks any of them.
+     *
+     * <h2>Why the whole table, and why up front</h2>
+     *
+     * The corridor has been diagnosed one leg per run: a leg fails, its verdict says「这一段没走到」,
+     * and the next round guesses at that leg. But {@code FORTRESS_WAYPOINTS} are body positions
+     * recorded from a run that BRIDGED its way across, so an unknown number of them are cells that
+     * run <b>created</b> — and in a fresh world those columns are open air. A leg aimed at one of
+     * them cannot succeed no matter what the walker does, and it will keep reporting a walking
+     * failure because「走不到」is the only thing a leg knows how to say.
+     *
+     * <p>Measured on wp4 ({@code 63,41,87}): the walker declared {@code arrived} at {@code 63,42,86}
+     * with {@code 支撑[63,42,86=air 63,42,87=air]} — inside the two-block goal sphere, in mid-air,
+     * over a shaft — and the body then fell fourteen blocks. Four runs read that as a pathfinding
+     * problem. <b>It is a table problem</b>, and one column scan per waypoint answers it for all
+     * eighteen at once, before a single step, for the price of eighteen block reads.
+     *
+     * <p>Reports three things per waypoint, because the table deliberately mixes FEET cells with
+     * FLOOR cells and no single test fits both: whether the cell itself is solid, whether a body
+     * could stand in it (air here, air above, something solid below), and where the nearest floor in
+     * that column actually is. A reader classifies from those; this does not guess.
+     *
+     * <p>Pure measurement, like the rest of this file: no verdict, no behaviour change, only rows.
+     */
+    static void auditWaypoints(JourneyRig rig, int[][] waypoints) {
+        ServerLevel level = rig.player().serverLevel();
+        StringBuilder sb = new StringBuilder();
+        int hollow = 0, unstandable = 0;
+        for (int i = 0; i < waypoints.length; i++) {
+            BlockPos cell = new BlockPos(waypoints[i][0], waypoints[i][1], waypoints[i][2]);
+            boolean solidHere = solid(level, cell.getX(), cell.getY(), cell.getZ());
+            boolean canStand = !solidHere
+                    && !solid(level, cell.getX(), cell.getY() + 1, cell.getZ())
+                    && solid(level, cell.getX(), cell.getY() - 1, cell.getZ());
+            int floor = Integer.MIN_VALUE;
+            for (int d = 0; d <= COLUMN_LOOK; d++) {
+                int y = cell.getY() - d;
+                if (y < Y_LO) break;
+                if (solid(level, cell.getX(), y, cell.getZ())) { floor = y; break; }
+            }
+            if (!solidHere) hollow++;
+            if (!solidHere && !canStand) unstandable++;
+            sb.append("\n wp").append(i + 1).append(' ').append(cell.toShortString())
+              .append(solidHere ? " 本格实心（是地板格，身体站它上面）"
+                      : canStand ? " 本格空、脚下有实心（是落脚格，可站）"
+                      : " **本格空且脚下也空** —— 这一格在新世界里不存在")
+              .append("，这一柱往下最近的实心面 ")
+              .append(floor == Integer.MIN_VALUE ? COLUMN_LOOK + " 格内没有（是竖井）" : "y=" + floor)
+              .append(floor == Integer.MIN_VALUE ? "" : "（差 " + (cell.getY() - floor) + " 格）");
+        }
+        rig.evidence("fortress.waypointAudit", "十八个烘入路点在**全新世界**里的样子：本格空的 "
+                + hollow + " 个，其中 " + unstandable + " 个**脚下也是空的**。"
+                + "路点表是一趟【架过桥的】跑动记录，所以本格空且脚下空的那些是那一趟自己摆出来的"
+                + "石头，这个世界里没有——瞄准它们的段无论寻路怎么改都走不到，而它们只会报"
+                + "「走不到」。**先看这张表再去改机制。**（表里同时混着落脚格和地板格，所以三个"
+                + "读数都给出来，不替读者归类）" + sb);
+    }
+
+    /** How far down a waypoint's own column is searched for a floor. Past this it is a shaft, and
+     *  the exact depth stops mattering to the question being asked. */
+    private static final int COLUMN_LOOK = 24;
+
+    /**
      * Probe the box spanning {@code from} and the next {@code legs} waypoints, and write the maps.
      *
      * <p>Keyed {@code <what>.probe.*}. Call it once, at the leg that is failing — probing every leg
