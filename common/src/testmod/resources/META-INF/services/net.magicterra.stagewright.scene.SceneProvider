@@ -25,3 +25,4 @@ net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverDescentNodeScenes
 net.magicterra.worlddriver.bot.stagewright.journey.JourneyPourLineScenes
 net.magicterra.worlddriver.bot.stagewright.journey.JourneyCrossingScenes
 net.magicterra.worlddriver.bot.stagewright.journey.JourneyRampScenes
+net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverBodyCensusScenes

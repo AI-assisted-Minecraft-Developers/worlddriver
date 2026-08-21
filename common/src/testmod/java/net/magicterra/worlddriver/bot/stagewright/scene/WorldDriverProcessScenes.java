@@ -153,9 +153,23 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 // collector can reach a pit" are not the same claim. Measured green on both
                 // loaders, so it is now required: the armed walker must keep choosing to descend.
                 Scene.of("wd.serverWalkIntoAPitArmed", 900, WorldDriverProcessScenes::serverWalkIntoAPitArmed),
-                // Optional because it is GREEN on Fabric and RED on NeoForge, and a loader
-                // divergence is exactly the thing this repo has been bitten by before — it is
-                // worth a named row that says which loader, not a hidden assertion or a red gate.
+                // Optional because it is GREEN on Fabric and RED on NeoForge — and the NeoForge red
+                // is NOT a worlddriver defect. NeoForge patches two vanilla classes to refuse a
+                // FakePlayer any progression at all:
+                //
+                //   PlayerAdvancements.award   → `if (this.player instanceof FakePlayer) return false;`
+                //   PlayerList.getPlayerAdvancements → `if (!(arg instanceof FakePlayer)) …setPlayer(arg);`
+                //
+                // (neoforge 21.0.167 minecraft-merged-mojang-patched.jar, PlayerAdvancements:188 and
+                // PlayerList:815; vanilla has NEITHER branch — PlayerAdvancements:182 and
+                // PlayerList:787 are unconditional. Both jars decompiled and compared, 2026-08-20.)
+                //
+                // So on NeoForge this body cannot earn ANY advancement, in ANY scene, ever — no
+                // amount of driver-side work moves it. What DOES move it is the body: both patches
+                // key on `instanceof FakePlayer`, and JoinedBody extends ServerPlayer without being
+                // one. THIS RED THEREFORE DISAPPEARS WITH THE FakePlayer RETIREMENT rather than with
+                // a fix, and this scene should be promoted back to required at that point, not
+                // before. See docs/fake-player-parity.md §6.5 (甲档) for the full derivation.
                 Scene.of("wd.serverAvatarEarnsAdvancement", 300,
                         WorldDriverProcessScenes::serverAvatarEarnsAdvancementScene).withRequired(false),
                 Scene.of("wd.serverMineNoTool", 600, WorldDriverProcessScenes::serverMineNoToolScene),

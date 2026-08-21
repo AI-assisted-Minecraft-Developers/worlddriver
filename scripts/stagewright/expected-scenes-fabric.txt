@@ -422,3 +422,9 @@ wd.guardRepathSeparatesARimWalkFromALivelock
 # built.
 wd.rampStepsAsideWhenTheBodyIsInItsOwnStep
 wd.rampFootholdRisesWithTheFlightItLaid
+# A ruler, not a test: zero assertions, only ctx.record. Permanently optional — it has no
+# verdict to give. Its readings compare the loader's factory body against a JoinedBody in the
+# same run, which is the only way to tell a FakePlayer-specific difference (retiring that body
+# fixes it) from a never-goes-through-the-real-handler one (it does not). See
+# docs/fake-player-parity.md §6.5.
+wd.bodyParityCensus
