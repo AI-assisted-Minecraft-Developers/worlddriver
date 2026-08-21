@@ -1352,12 +1352,39 @@ public final class BotConfig {
      *  face up front. At 200 (≈ a 20-block detour budget per lip cell) the planner
      *  routes around the cliff via gentler terrain: live leg2 max stuck 1491 → 144,
      *  >300-tick stalls 0. Still additive (a sole cliff route is taken), and only
-     *  LETHAL lips count, so survivable hillside descents are unaffected. */
+     *  LETHAL lips count, so survivable hillside descents are unaffected.
+     *
+     *  <p><b>It does not price a survivable drop, and that is a decision rather than
+     *  an omission.</b> Charging survivable hillside step-downs was measured PURE
+     *  HARM (A/B, 2026-06-06): it inflated every descending route, so best-effort
+     *  fled UP onto hilltops and canopy and the bot walked in circles — the
+     *  dense-jungle backtrack. Do not "fix" the gap by lowering the threshold here.
+     *
+     *  <p>The consequence to know is that this says NOTHING about a drop the body
+     *  SURVIVES but cannot climb out of. The depth it fires at is
+     *  {@code max(ledgeDangerMinDrop, survivableFall(hp) + 1)} — 23 at full health —
+     *  so a 23-block fall into a sheer shaft is charged nothing here and pinned by
+     *  no executor guard either (measured 2026-08-21: {@code no path (expanded=1)},
+     *  not one successor of the start cell). That is the right trade for ordinary
+     *  navigation, where falling is usually just going downhill.
+     *
+     *  <p>It is the wrong trade wherever an unescapable pit ends the whole run, so a
+     *  caller crossing that kind of terrain brings its OWN threshold instead of
+     *  borrowing this one — see {@code JourneyNetherRungs.LIP_DROP}, which taxes any
+     *  drop over 4 regardless of health. Borrowing the predicate is right; borrowing
+     *  its threshold is not. This guard asks "will this kill the body"; a crossing
+     *  has to ask "will this end the trip", and those have different answers. */
     public static volatile double ledgeDangerPenalty = 200;
 
     /** Minimum empty blocks below an open neighbour for it to count as a real
      *  cliff for {@link #ledgeDangerPenalty} (so a harmless 1–2 block step-down
-     *  next to the path isn't treated as a void edge). */
+     *  next to the path isn't treated as a void edge).
+     *
+     *  <p>A FLOOR, not the threshold: the tax actually fires at
+     *  {@code max(this, survivableFall(hp) + 1)}, so at full health this 4 is not
+     *  what decides — 23 is. Raising it does nothing useful, and lowering it does
+     *  not reach the survivable-but-inescapable pit either; that gap is deliberate
+     *  and {@link #ledgeDangerPenalty} says why. */
     public static volatile int ledgeDangerMinDrop = 4;
 
     /** Cost added per node where the bot's foot is in water, when {@link
