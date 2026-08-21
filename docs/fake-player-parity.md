@@ -438,7 +438,8 @@ fabric/build.gradle:481   runRehearsalServer
 > `neoforge/run-dogfood/stagewright-results.jsonl` 写于本地时间 2026-08-21 23:52:38，
 > 302 条 scene 行，非 PASS 恰为基线的 5 条（2 条框架 canary + 3 条 `withRequired(false)` 传感器），
 > **没有多出任何红**。场景本身 `PASS (1 ticks, 201 ms)`，28 个读数一个不缺。
-> 代码 HEAD = `a50c501f`。
+> 起跑时树上是 `a50c501f`；**普查场景本身的版本是 `60585162`**（该文件此后未再被改动，
+> 两趟一致）。仓库 HEAD 在两趟之间被别的 agent 推进过，范围见 §6.7 末尾那条注。
 
 | 量 | `factory`（**真 neoforge `FakePlayer`**） | `joined`（`JoinedBody`） | 两列一样？ |
 |---|---|---|---|
@@ -510,7 +511,7 @@ vineflower 1.10.1 `-dgs=1` 反编译，全类只有约 60 行，这是其中一�
 
 ## 6.7 同一份代码在 Fabric 上的第二趟（2026-08-22 00:08）
 
-同一个提交、同一套场景，`stagewrightDedicatedServerFabric`，
+`stagewrightDedicatedServerFabric`，
 `fabric/run-dogfood/stagewright-results.jsonl` 写于本地 00:08:26，302 条 scene 行。
 普查 `PASS (1 ticks, 444 ms)`，28 个读数一个不缺。
 
@@ -551,14 +552,33 @@ Dimension `stagewright:generated` at 1124512,100000」。
 判它不是普查造成的，靠三条互相独立的证据，**不是靠「我觉得不像」**：
 
 1. **时序**：它在 00:04:52 失败，普查在 00:08:13 才运行。**一个还没跑的场景不能影响一个已经失败的场景。**
-2. **同码对照**：二十分钟前 NeoForge 用**同一个提交**跑完，这条场景 PASS
-   （`surfaceY=64, relief=4, underfoot=grass_block`），全场 GREEN。同码两趟一绿一红 → 非确定性。
+2. **同码对照**：二十分钟前 NeoForge 跑完，这条场景 PASS
+   （`surfaceY=64, relief=4, underfoot=grass_block`），全场 GREEN。一绿一红 → 非确定性。
+   「同码」的准确范围见下面那条注，**这条场景本身两趟确实同码**。
 3. **早于普查存在**：同一句失败信息（「0 of 9 arena chunks ever loaded after 201 ticks」）
    出现在 2026-08-12 的 `journey7/14/15` 排练日志里，比这个普查场景（2026-08-20 才建）早九天。
 
 所以这是一条**先前就存在的、间歇性的舞台区块加载停顿**，属于
 `stagewright:generated` 在远坐标处的 worldgen/tick 家族，不在本文档的范围内。
 **记在这里只是为了下一个人看到这趟 RED 时不必重查一遍。**
+
+> **「两趟同码」到底同到哪一层（这句话我第一版写过头了，在此更正）。**
+> 这棵树上同时有别的 agent 在提交，两趟**并不是同一个仓库 HEAD**：
+> NeoForge 起跑时树上是 `a50c501f`，Fabric 起跑时是 `d8ac9174`，中间落了
+> `55349bcc` 和 `7bcdd266` 两个别人的提交。
+> **真正成立、也是这条论证需要的，是下面这三条：**
+>
+> 1. **普查场景本身两趟同码**——`WorldDriverBodyCensusScenes.java` 最后一次被改是 `60585162`，
+>    早于两次起跑（`git log -- <该文件>` 可核）。
+> 2. **中间那两个提交只碰了 `JourneyNetherRungs.java` / `JourneyStairs.java`**，
+>    是 journey 排练台的场景，**dogfood 闸根本不跑它们**；`common/src/main` 一行没动。
+> 3. **`terrainGeneratedPutsTheArenaOnTheSurface` 和它依赖的布景代码来自已发布的 stagewright 工件
+>    （`mavenLocal`），不在这棵树里**，所以这棵树上的并发提交碰不到它。
+>
+> 因此第 2 条证据要读作「**同布景代码**」而不是「同提交」。
+> 它变窄了，但第 1 条（时序）和第 3 条（早九天）各自独立且已足够，
+> 归因不受影响。**写下这条更正，是因为一句没核过的「同一个提交」下一个人一 `git show` 就对不上，
+> 然后会开始怀疑整张表——这正是本文档 §6.5 那个 21.0.167 警告框讲的同一件事。**
 
 ---
 
