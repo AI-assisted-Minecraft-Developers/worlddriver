@@ -58,6 +58,31 @@ wd.serverEarnsABlazeRod   blaze.killed=24/24, rods.total=11   ← 战利品闸�
 `dropsNearby` 小；`blaze_rod ≥ 1` 则 14 级通过。**若走了但仍 0**，那才轮到怀疑拾取本身
 （`headless-avatar-could-not-gather` 那一族），别提前跳过去。
 
+### ✅ 兑现了：**14 级 PASS**（`1c5d6b10`）
+
+```
+wd.rehearse14BlazeRod -> PASS — 打死 8 只烈焰人，收 2 根烈焰棒
+blaze.pickup.walks   1        blaze.pickup.target   224,64,281
+blaze.pickup.walks#2 2        blaze.pickup.target#2 225,63,284
+blaze.pickup.left    0        dropsNearby  0（上一趟是 2）
+```
+
+**读的是机制不是结论**：两次走位、两个真实掉落坐标、地上剩余 2→0。
+
+### 这一趟又暴露一条会撒谎的证据行（已修，`3766e049`）
+
+`rods.perKill=0,0,0,0,0,0,0,0` —— **而这一趟收了 2 根。** 那一行量的是每次击杀后的
+**背包增量**，而收集挪到战斗之后以后，它结构上必然恒为 0。**它印出来的正是
+「killed_by_player 闸没过」的签名，而这一趟的闸完全正常。** 改成数
+「进入存在的根数」（背包 + 地上），才回答它被问的那个问题。
+
+### 还开着（不在这一轮）
+
+- **`advancement.obtain_blaze_rod = not-earned`，而包里有 2 根。** 这具身体拿到了物品却没拿到
+  进度，是 `a-server-avatar-that-earns-nothing` 那一族的又一例，单独立题。
+- 排练 PASS **不是攀爬**（`staging.calls=13`）：14 级的前置是布景摆的，石料是给的。
+  真梯还需要 9~13 级把 ~106 格石料和一把剑真的带到这里。
+
 ---
 
 ## 🟢 删掉 wp4 之后，走廊一次推进了整整六段；卡住它的是**石头用光了**（2026-08-21，实测）
