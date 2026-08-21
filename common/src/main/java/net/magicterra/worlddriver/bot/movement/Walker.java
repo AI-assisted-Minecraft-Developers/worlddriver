@@ -1492,12 +1492,12 @@ public final class Walker {
             // recovery nudge pushed the 2.5HP body over a 6-block drop — the guard's save undone
             // by the machinery around it).
             if (stuckTicks > 0) stuckTicks--;
-            // Sustained pinning is a PLANNING fact — the current route leads over a lethal lip —
-            // not an actuation stall. Drop the path so safetyRepath solves a fresh route from
-            // here instead of letting the drive fight the pin indefinitely (descentDrift
-            // livelock: 567 pins in one run). The planner does not yet tax the hazard cell, so
-            // the new route may re-approach it; the streak then trips again — bounded churn that
-            // the futile-search cap ultimately converts into an actionable FAILED.
+            // Sustained pinning MAY be a planning fact — the current route leads over a lethal lip
+            // — rather than an actuation stall, and when it is, dropping the path lets safetyRepath
+            // solve a fresh route from here instead of letting the drive fight the pin indefinitely
+            // (descentDrift livelock: 567 pins in one run). It is not always that: a rim walk pins
+            // every few ticks for tens of blocks while consuming a perfectly good plan. The callee
+            // decides which one this is — do NOT read this call as an unconditional discard.
             forcedRepathIfPinnedTooLong(a);
         } else if (pinned) {
             // Held ticks keep the streak alive AND advancing: the pin/release alternation
@@ -1782,12 +1782,21 @@ public final class Walker {
      *  two call sites are the fire path and the hold path and they must not be able to drift. */
     static final int GUARD_PIN_REPATH = 30;
 
-    /** The last stride cell this pin streak fired on, and how many DISTINCT ones it has covered. */
+    /** The last stride cell this pin streak fired on, and how many times that cell has CHANGED
+     *  during it. Not a distinct-cell count: an A→B→A→B oscillation reads 4, not 2. That is why
+     *  it is diagnostics and not the repath predicate — see {@link #forcedRepathIfPinnedTooLong}. */
     private BlockPos guardStreakCell;
     private int guardStreakCells;
 
+    /** The plan this pin streak opened on, and the step index it was at. The repath predicate
+     *  reads them; reference identity is the right comparison because every re-plan hands back a
+     *  fresh list (smoothing included), so a changed reference IS a changed plan. */
+    private List<BlockPos> guardStreakPath;
+    private int guardStreakStartStep;
+
     /**
-     * Throw the plan away when the pin has held for {@link #GUARD_PIN_REPATH} ticks, and SAY SO.
+     * Throw the plan away when the pin has held for {@link #GUARD_PIN_REPATH} ticks —
+     * <b>unless the body is consuming that plan</b> — and SAY SO either way.
      *
      * <h2>Why this was worth a method</h2>
      *
@@ -1800,36 +1809,100 @@ public final class Walker {
      * 「the plan is bad」were both consistent with every row the run produced, and nothing in the
      * log or the evidence map could separate them.
      *
-     * <h2>The reading that separates them</h2>
+     * <h2>The measurement that separated them</h2>
      *
-     * <b>How many distinct cells the streak covered.</b> This counter exists for a livelock — its
-     * own note says「the current route leads over a lethal lip」, and the run that motivated it was
-     * 567 pins at ONE cell. A body walking ninety blocks along a lava rim pins on a new cell every
-     * few ticks and is not livelocked at all. One number tells those apart, and the guard already
-     * tracks the cell for its plug-arming dwell ({@link #guardPlugCell}) — this reads the same
-     * field rather than opening a second opinion about which cell a pin belongs to.
+     * The 2026-08-21 BLAZE_ROD rehearsal, walking the scripted Nether corridor. Between two
+     * waypoints 45 blocks apart the body was pinned to the threshold three times, and every
+     * discarded plan was <b>complete</b>:
      *
-     * <p><b>Nothing branches on the count.</b> It is recorded and printed, and whether the streak
-     * should reset when the cell moves is a behaviour question this run cannot answer — the arms of
-     * {@code wd.serverKeepsWalkingAtALavaRim} already show the escape hatch is reached in one
-     * approach shape and not the other. Instrument first.
+     * <pre>
+     * 第 43 次：连钉 30 tick，4 个不同的格子；丢掉的计划还剩 134 个节点，末节点 132,43,165；身体 103,41,135
+     * 第 44 次：连钉 30 tick，3 个不同的格子；丢掉的计划还剩 132 个节点，末节点 132,43,165；身体 102,41,131
+     * 第 45 次：连钉 30 tick，4 个不同的格子；丢掉的计划还剩 123 个节点，末节点 130,43,167；身体  97,41,115
+     * </pre>
+     *
+     * {@code 132,43,165} was the leg's goal. The pathfinder kept solving the whole crossing — 132
+     * nodes for 45 blocks of straight-line distance is the long way around the lava sea, which is
+     * the correct route — and the body never got to walk it, because a rim walk pins every few
+     * ticks and the 8-tick hold tail bridges the gaps. 45 forced repaths in one run. The escape
+     * hatch built for a livelock was firing on a body that was not stuck.
+     *
+     * <h2>What it branches on, and what it does not</h2>
+     *
+     * <b>Whether {@link #step} advanced while the streak ran.</b> Sustained pinning is evidence
+     * against a <i>route</i>; a route the body is visibly consuming is not the thing to indict. The
+     * livelock this hatch exists for (567 pins at ONE cell) has a frozen step, so it still escapes.
+     *
+     * <p><b>Not the cell count.</b> That was the obvious candidate and it is the wrong predicate: a
+     * body oscillating between two cells is livelocked and would read「一路换格」just as a rim walk
+     * does. The count stays for the reader; only {@code step} decides.
+     *
+     * <p>A plan swapped out from under the streak (some other branch re-planned) rebases the streak
+     * instead of being discarded: the pinned ticks were evidence against the plan they accrued
+     * against, and a plan that has not been walked yet has not earned them.
+     *
+     * <p>Keeping a plan is not unbounded — {@link BotConfig#walkerTotalTickBudget} and the caller's
+     * own tick cap still convert a slow-but-progressing route into an actionable FAILED. That is
+     * deliberately the only backstop: a second threshold here (「enough progress」) would be a free
+     * parameter with no measurement behind it.
      */
     private void forcedRepathIfPinnedTooLong(Avatar a) {
+        if (guardPinStreak == 0) {
+            guardStreakPath = path;
+            guardStreakStartStep = step;
+        }
         if (guardPlugCell != null && !guardPlugCell.equals(guardStreakCell)) {
             guardStreakCell = guardPlugCell;
             guardStreakCells++;
         }
         if (++guardPinStreak < GUARD_PIN_REPATH) return;
         Player p = a.player();
+        String where = "；身体 " + (p == null ? "无" : p.blockPosition().toShortString());
+        String cells = "，其间点火过 " + guardStreakCells + " 次换格"
+                + (guardStreakCells <= 1 ? "（一直是同一格）" : "（换过格 —— 参考项，不是判据）");
+
+        if (path != guardStreakPath) {
+            guardStreakRebases++;
+            if (guardStreakRebases <= GUARD_STREAK_EVENTS) {
+                LOG.info("[walker] guard pin streak rebased: 连钉 {} tick{} —— 期间计划被别处换过，"
+                        + "这 {} tick 是记在旧计划头上的，新计划还没走过一步，不丢{}",
+                        guardPinStreak, cells, guardPinStreak, where);
+            }
+            guardPinStreak = 0;
+            guardStreakCells = 0;
+            guardStreakCell = null;
+            return;
+        }
+
+        int consumed = step - guardStreakStartStep;
+        if (consumed > 0) {
+            guardKeptPlans++;
+            lastGuardKeep = "第 " + guardKeptPlans + " 次：连钉 " + guardPinStreak
+                    + " tick，但计划前进了 " + consumed + " 步（第 " + guardStreakStartStep
+                    + " → " + step + " 节点）—— 身体在沿岸走，不是卡死，计划保留" + cells
+                    + "；这条计划还剩 " + Math.max(0, path.size() - Math.max(step, 0))
+                    + " 个节点，末节点 "
+                    + (path.isEmpty() ? "无" : path.get(path.size() - 1).toShortString()) + where;
+            if (guardKeptPlans <= GUARD_STREAK_EVENTS) {
+                LOG.info("[walker] guard pin kept the plan: {}", lastGuardKeep);
+            } else if (guardKeptPlans == GUARD_STREAK_EVENTS + 1) {
+                LOG.info("[walker] guard pin kept the plan: 已达上限，后续保留只计数不再逐条打印"
+                        + "（读 guardKeptPlans / lastGuardKeep）");
+            }
+            guardPinStreak = 0;
+            guardStreakCells = 0;
+            guardStreakCell = null;
+            return;
+        }
+
         guardForcedRepaths++;
         lastGuardRepath = "第 " + guardForcedRepaths + " 次：连钉 " + guardPinStreak
-                + " tick，其间点火过 " + guardStreakCells + " 个不同的格子"
-                + (guardStreakCells <= 1 ? "（同一格 —— 这是原地卡死）"
-                        : "（一路换格 —— 这是沿岸走，不是卡死）")
+                + " tick，计划一步都没前进（停在第 " + guardStreakStartStep + " 节点）—— 这是原地卡死"
+                + cells
                 + "；丢掉的计划还剩 " + (path == null ? 0 : Math.max(0, path.size() - Math.max(step, 0)))
                 + " 个节点，末节点 "
                 + (path == null || path.isEmpty() ? "无" : path.get(path.size() - 1).toShortString())
-                + "；身体 " + (p == null ? "无" : p.blockPosition().toShortString());
+                + where;
         LOG.info("[walker] guard pin forced a repath: {}", lastGuardRepath);
         path = null;
         guardPinStreak = 0;
@@ -1837,15 +1910,29 @@ public final class Walker {
         guardStreakCell = null;
     }
 
+    /** Per-JVM cap on how many kept/rebased streaks print in full; both keep counting past it. */
+    private static final int GUARD_STREAK_EVENTS = 8;
+
     /**
-     * Forced repaths since this JVM started, and what the last one looked like.
+     * What {@link #forcedRepathIfPinnedTooLong} decided, since this JVM started, and what the last
+     * decision of each kind looked like.
      *
      * <p>Write-only breadcrumbs on the same terms as {@link #lastTickTrace}: nothing branches on
      * them, they are read by instruments that hold no Walker instance — chiefly {@code
      * JourneyFlight}, which needs a per-leg delta and has no channel to the walker driving it.
+     *
+     * <p><b>Read the pair, never {@code guardForcedRepaths} alone.</b> Before 2026-08-21 a pinned
+     * streak had exactly one outcome, so one counter said everything; now「never reached the
+     * threshold」and「reached it 45 times and kept the plan every time」are different runs that both
+     * report zero forced repaths. A leg that reports 0/0 was never pinned; 0/45 walked a rim.
      */
     public static volatile int guardForcedRepaths;
     public static volatile String lastGuardRepath = "还没强制重规划过";
+    public static volatile int guardKeptPlans;
+    public static volatile String lastGuardKeep = "还没有过「钉满但计划仍在前进」";
+    /** Streaks whose plan was replaced by some other branch mid-streak, so the pinned ticks were
+     *  evidence against a plan that no longer exists. Neither a discard nor a keep. */
+    public static volatile int guardStreakRebases;
 
     /** Remaining hold-tail ticks after the last guard fire (pin hysteresis). */
     int guardHoldTicks;
