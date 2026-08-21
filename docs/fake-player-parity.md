@@ -252,7 +252,8 @@ fabric/build.gradle:481   runRehearsalServer
 - **vanilla 两处都没有这个分支**（vanilla `PlayerAdvancements.java:182` 起的 `award` 里没有 `FakePlayer` 字样；vanilla `PlayerList.java:787` 无条件调 `setPlayer`）。
 
 **两份 jar 我都亲自反编译核对过**，不是转述：vanilla 用 `minecraft-merged-1.21.1-loom.mappings…jar`，neoforge 用
-`.gradle/caches/fabric-loom/**1.21.1**/neoforge/**21.1.230**/minecraft-merged-mojang-patched.jar`，都是 vineflower 1.10.1，`-dgs=1`。
+`.gradle/caches/fabric-loom/1.21.1/neoforge/21.1.230/minecraft-merged-mojang-patched.jar`
+（注意路径里的 **1.21.1** 和 **21.1.230**，见下），都是 vineflower 1.10.1，`-dgs=1`。
 
 > **引用行号前先核对 jar 的版本和反编译参数。** 这份文档 2026-08-20 的第一版把上面两行标成了
 > `21.0.167` 的 `:188` / `:815`。同一个 loom 缓存下确实躺着一棵 `1.21/neoforge/21.0.167/` 的树，但那是
@@ -298,7 +299,7 @@ fabric/build.gradle:481   runRehearsalServer
 | # | 新发现 | 依据 | 为什么贵 |
 |---|---|---|---|
 | N1 | **NeoForge 上假人永远拿不到任何进度** | neoforge `PlayerAdvancements.java:187-189` vs vanilla `PlayerAdvancements.java:182`（无此分支） | 进度保真度是 loader 相关的。而解药（`realPlayerBodies`）从未装在 NeoForge 上 |
-| N2 | NeoForge `PlayerList.getPlayerAdvancements` 跳过 `setPlayer` | neoforge `:815` vs vanilla `:787` | 同上，第二道锁 |
+| N2 | NeoForge `PlayerList.getPlayerAdvancements` 跳过 `setPlayer` | neoforge 21.1.230 `:821` vs vanilla `:787` | 同上，第二道锁 |
 | N3 | `fallDistance ≡ 0` 的**机制**是 `ServerPlayer.checkFallDamage` 空覆盖 | vanilla `ServerPlayer.java:1012-1014`、`Entity.java:711`、`ServerPlayer.java:1023` | 说明补法只有一行，且必须补在 `step()` 里而不是指望 `move()` |
 | N4 | `invulnerableTime` 永不递减 | `LivingEntity.java:468-470` 显式排除 `ServerPlayer` | **摘掉 `isInvulnerableTo` 并不能让身体变成可打的**。任何「让身体会死」的计划必须同时补这一行，否则会得到一具第一次挨打后近乎免疫的身体 |
 | N5 | **这具身体一辈子只吸一颗经验球** | `Player.tick():292-293` 是 `takeXpDelay` 唯一的减法；`ExperienceOrb.java:234` 门、`:239` 设回 2 | 附魔、经验相关的整条链条都测不到，而症状是「捡了但没涨」 |
@@ -334,7 +335,7 @@ fabric/build.gradle:481   runRehearsalServer
 | # | 差异 | 为什么废弃即消失 |
 |---|---|---|
 | N1 | NeoForge 上假人永远拿不到任何进度 | neoforge `PlayerAdvancements.award`（21.1.230 的 `:186`）是 `if (this.player instanceof FakePlayer) return false;`。**我重新反编译了 neoforge 21.1.230 的 patched merged jar 核对过这一行**（不是转述；21.1.230 才是 `gradle.properties:26` 里编译用的版本）。而 `JoinedBody extends ServerPlayer`（`JoinedPlayerBodies.java:167`），**不是** `FakePlayer` → 走 else 分支，和真玩家同一条路 |
-| N2 | `PlayerList.getPlayerAdvancements` 跳过 `setPlayer` | neoforge `PlayerList.java:815` 是 `if (!(arg instanceof FakePlayer)) playeradvancements.setPlayer(arg);`。同上，`JoinedBody` 落进 `!instanceof` 为真的那一支。**两处拦截键在同一个 `instanceof` 上，所以是同一个开关的两个齿** |
+| N2 | `PlayerList.getPlayerAdvancements` 跳过 `setPlayer` | neoforge `PlayerList.getPlayerAdvancements`（21.1.230 的 `:821`，方法起于 `:812`）是 `if (!(var1 instanceof FakePlayer)) playeradvancements.setPlayer(var1);`。同上，`JoinedBody` 落进 `!instanceof` 为真的那一支。**两处拦截键在同一个 `instanceof` 上，所以是同一个开关的两个齿** |
 | N15a | `updateOptions` no-op → 视距恒为默认 | 只有 `AvatarFakePlayer.java:80` 覆盖了它；`JoinedBody` 没有这个覆盖，且 `placeNewPlayer` 会通过 `CommonListenerCookie` 送进一份真的 `ClientInformation`。**注意只有一半**：`JoinedBody` 拿到的是 `ClientInformation.createDefault()`（`JoinedPlayerBodies.java:172-174`），是一份**真的默认值**而不是「没有值」——差异从「缺失」降级成「不可配」，见 N15b |
 
 > **顺带的直接后果**：`wd.serverAvatarEarnsAdvancement`（`WorldDriverProcessScenes.java:222`）的 NeoForge 红**会随 `FakePlayer` 的废弃一起消失**，不需要为它写任何代码。§4.4 原来把这条列在 X2-1（「不可能但仍需要」）里，**现在它降到第三类**——有 `JoinedBody` 可以接手。
