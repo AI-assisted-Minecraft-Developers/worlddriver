@@ -257,9 +257,16 @@ public final class JourneyNetherRungs {
         // there, or hung in cave_air — three different bugs that print one identical coordinate,
         // which is the entire reason JourneyFlight exists. The corridor is the part of rung 14 under
         // active repair, so it is the last place that should be reading a photograph of the wreckage.
+        // NO_PARKOUR HERE TOO — its own javadoc says「scoped to the crossing hops on purpose」, and
+        // that scope was wrong: these precise legs walk the SAME lava sea, and the argument for it
+        // holds word for word here. Leg 5 was measured taking nine parkour launches across four runs
+        // and NOT ONE landed on its node; two of them ended in the lava at y=5 and killed the rung.
+        // A leap's cost still does not include what is under the gap, and the stride floor-guard is
+        // still disarmed on a parkour tick. The crossing already bridges instead, and the rung
+        // arrives carrying 128 blocks.
         JourneyFlight flight = JourneyFlight.watching(rig, at, want.getX(), want.getZ());
         rig.settle(new IntentProcess(new Intent(new Goal.Near(want, WAYPOINT_ARRIVE_WITHIN),
-                        lipTax(rig))),
+                        lipTax(rig), NO_PARKOUR, List.of())),
                 WAYPOINT_LEG_TICKS, flight, () -> {
             BlockPos now = rig.player().blockPosition();
             int off = (int) Math.round(Math.sqrt(now.distSqr(want)));
@@ -386,7 +393,7 @@ public final class JourneyNetherRungs {
         // the fallback, exactly the mismatch the fallback is here to survive.
         JourneyFlight flight = JourneyFlight.watching(rig, over, want.getX(), want.getZ());
         rig.settle(new IntentProcess(new Intent(new Goal.Near(want, WAYPOINT_ARRIVE_WITHIN),
-                        lipTax(rig))),
+                        lipTax(rig), NO_PARKOUR, List.of())),
                 DETOUR_REASK_TICKS, flight, () -> {
             BlockPos now = rig.player().blockPosition();
             int off = (int) Math.round(Math.sqrt(now.distSqr(want)));
