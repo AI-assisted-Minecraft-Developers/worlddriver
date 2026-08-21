@@ -1544,8 +1544,11 @@ public final class JourneyNetherRungs {
             // the goto's own verdict, what is touching the body) are only worth having together.
             c.wedged++;
             rig.evidence(what + ".flight." + hop, flight.report());
-            rig.evidence(what + ".goto." + hop, "end=" + rig.body().botState().mc_goto.endReason
-                    + " err=" + rig.body().botState().mc_goto.lastError);
+            // Through JourneyLeg so a hop stopped by its own budget says so, instead of printing
+            // `end=null` — which reads as「没有信息」and is really「预算用完时进程还在走」. Rung 14
+            // of 2026-08-20 spent eight of its ten wedged hops in exactly that state and could not
+            // be told from a search that ran and lost.
+            rig.evidence(what + ".goto." + hop, JourneyLeg.walkerEnd(rig));
             rig.evidence(what + ".around." + hop, surroundings(rig.player(), at));
             if (c.wedged >= MAX_WEDGED_HOPS) {
                 // Says NOTHING about whether the body moved — it may have walked 200 blocks. What it

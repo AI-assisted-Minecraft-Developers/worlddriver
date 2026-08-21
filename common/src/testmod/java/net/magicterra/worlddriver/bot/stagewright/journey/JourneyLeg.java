@@ -77,19 +77,37 @@ final class JourneyLeg {
     /**
      * What the walker said about the leg it just ended.
      *
-     * <p>{@code endReason} is written on the terminal exits only, so a leg whose process never
-     * reached one leaves it unwritten — and「未写」and「走完了但没说理由」are different findings,
-     * which is why the unwritten case is spelled out rather than printed as {@code null}.
+     * <h2>{@code end=null} is a reading, and printing it as「null」threw it away</h2>
      *
-     * <p>{@code lastError}'s {@code null} is genuinely ambiguous in {@code BotState}: its own
-     * javadoc says「null if last run ok or in-progress」. So「无」here means「这一腿没有报错」and
-     * does <b>not</b> prove the leg is over — read it beside {@code end=}.
+     * {@code IntentProcess.attach} nulls {@code endReason}, and the only writes to it are on the
+     * terminal exits: {@code tick} returns early on {@code Step.WALKING} and stamps
+     * {@code walker.lastEndReason} only once the step is no longer WALKING (plus
+     * {@code crossedOut}'s {@code DIMENSION_CHANGED}). So {@code endReason == null} is not「没查到」
+     * — it is exactly「这一腿被叫停的时候，进程还在走」, i.e. something OUTSIDE the process ended
+     * it, which in this suite is the {@code settle} budget running out.
+     *
+     * <p>That distinction is the whole point of the row. A leg that ended
+     * {@code failed:no route progress …} is a search that ran and lost to the terrain; a leg that
+     * ended still-walking is a search that was never allowed to finish, and the two want opposite
+     * responses (re-route vs. more budget). Printed as {@code end=null} they read alike, and read
+     * like「没有信息」— which is how {@code 0}/{@code null} has repeatedly been mistaken in this
+     * suite for an answer rather than for an unasked question.
+     *
+     * <p><b>Measured</b>, rung 14 of the run of 2026-08-20 (`journey14BlazeRod`, 24 hops): all eight
+     * hops with {@code end=null} had spent exactly their 900-tick budget, and both hops with a real
+     * {@code endReason} had stopped early (546t, 200t). Ten of ten, in the direction the code says.
+     *
+     * <p>{@code lastError}'s {@code null} is separately ambiguous — {@code BotState}'s own javadoc
+     * says「null if last run ok or in-progress」— so「无」here means「没有报错」and does <b>not</b>
+     * prove the leg is over. Read it beside {@code end=}.
      */
-    private static String walkerEnd(JourneyRig rig) {
+    static String walkerEnd(JourneyRig rig) {
         var goto_ = rig.body().botState().mc_goto;
         String end = goto_.endReason;
         String err = goto_.lastError;
-        return "end=" + (end == null ? "unavailable/走完这一腿时 endReason 还没被写过" : end)
+        return "end=" + (end == null
+                        ? "unavailable/预算用完时进程还在走（endReason 只在终止步写，没写=没走到终止步）"
+                        : end)
                 + " err=" + (err == null ? "无" : err);
     }
 }
