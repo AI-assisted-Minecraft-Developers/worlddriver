@@ -32,9 +32,19 @@ import net.minecraft.world.phys.Vec3;
  * (Approach A): the agent sets impulse/jump/yaw each tick, then {@link #step()}
  * runs the same {@link Player#travel(Vec3)} → move()/collision the client runs
  * for a LocalPlayer (the bugs we hunt live in {@code Entity.move()} collision,
- * identical client/server). Jump is replicated by seeding {@code deltaMovement.y}
- * (the protected {@code jumping}/{@code jumpFromGround} path isn't reachable
- * externally). Validated by the SimPhysicsParity GameTest before any harder use.
+ * identical client/server). Jump CALLS {@link net.minecraft.world.entity.player.Player#jumpFromGround()}.
+ *
+ * <p><b>This line used to say the opposite, and the lie cost a defect.</b> It read "Jump is
+ * replicated by seeding {@code deltaMovement.y} (the protected {@code jumping}/{@code jumpFromGround}
+ * path isn't reachable externally)". On 1.21.1 {@code jumpFromGround()} is {@code public} on both
+ * {@code LivingEntity} (:2094) and {@code Player} (:1471); only the {@code jumping} FIELD is
+ * protected, and the accesswidener already opens that. Because the comment said the door was
+ * locked, nobody tried it, and the hand-copy at {@link #step()} kept dropping
+ * {@code awardStat(Stats.JUMP)} and {@code causeFoodExhaustion} for as long as it stood — see the
+ * jump branch there for the full list. If a comment here ever tells you a vanilla path is
+ * unreachable, <b>check the modifier before believing it</b>.
+ *
+ * <p>Validated by the SimPhysicsParity GameTest before any harder use.
  *
  * <p>MIGRATION (P1.6 Task 1): moved verbatim from
  * {@code net.magicterra.worlddriver.neoforge.sim.ServerPlayerAvatar}; the ONLY
@@ -1027,16 +1037,35 @@ public class ServerPlayerAvatar implements Avatar {
             noteGateDisagreement(footed, sole);
             if (footed) {
                 lastJumpTick = fp.level().getGameTime();
-                // Ground / shallow-water jump: vanilla jumpFromGround (y=0.42 on
-                // normal blocks + a sprint forward boost). One-shot edge.
-                double jp = 0.42;
-                Vec3 dm = fp.getDeltaMovement();
-                fp.setDeltaMovement(dm.x, jp, dm.z);
-                if (fp.isSprinting()) {
-                    float yawRad = fp.getYRot() * ((float) Math.PI / 180f);
-                    fp.setDeltaMovement(fp.getDeltaMovement().add(-Math.sin(yawRad) * 0.2, 0.0, Math.cos(yawRad) * 0.2));
-                }
-                fp.hasImpulse = true;
+                // Ground / shallow-water jump: CALL vanilla's jump, do not re-implement it.
+                //
+                // This used to hand-copy the body of Player.jumpFromGround — `y = 0.42`, plus the
+                // 0.2 sprint forward boost — because the class javadoc claimed the real method
+                // "isn't reachable externally". That claim is false on 1.21.1 and cost us a defect:
+                // `LivingEntity.jumpFromGround()` is `public` (LivingEntity.java:2094) and
+                // `Player` overrides it, also `public` (Player.java:1471). Only the `jumping` FIELD
+                // is protected, and that one is already opened by the accesswidener (see :1073).
+                // Decompiled from neoforge 21.1.230 minecraft-merged-mojang-patched.jar with
+                // vineflower 1.10.1 `-dgs=1`, 2026-08-22 — cite the METHOD, the line drifts with
+                // the decompiler's flags.
+                //
+                // The copy reproduced the VELOCITY and silently dropped everything else, and
+                // `wd.bodyParityCensus` measured the damage: `Stats.JUMP 0→0` on a body whose
+                // awardStat was demonstrably live. What the real call restores:
+                //
+                //   Player.jumpFromGround     → awardStat(Stats.JUMP)
+                //                             → causeFoodExhaustion(sprinting ? 0.2F : 0.05F)
+                //   LivingEntity.jumpFromGround → getJumpPower() instead of a literal 0.42, i.e.
+                //                                 JUMP_STRENGTH × getBlockJumpFactor() + jump-boost
+                //                                 (honey/slime damp the jump; the potion raises it —
+                //                                 the copy ignored both and always jumped 0.42)
+                //                             → the `power <= 1e-5` refusal
+                //                             → hasImpulse, and the loader's own jump event
+                //
+                // On plain ground with no effects getJumpPower() is 0.42 × 1.0 + 0.0 = 0.42, so the
+                // ordinary case is bit-identical to the copy; the differences are exactly the cases
+                // the copy got wrong.
+                fp.jumpFromGround();
             } else if (inWater) {
                 // Buoyant bob: vanilla aiStep calls jumpInLiquid every tick the
                 // jump is held while FLOATING (not a one-shot) — adds 0.04*swimSpeed

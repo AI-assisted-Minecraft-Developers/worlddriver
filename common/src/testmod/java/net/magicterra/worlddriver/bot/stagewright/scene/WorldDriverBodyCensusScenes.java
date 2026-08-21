@@ -240,6 +240,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         record(ctx, column, "pose", () -> poseSeries(fp, avatar));
         record(ctx, column, "walkStat", () -> walkStat(fp, avatar, cx, floorY, cz));
         record(ctx, column, "jumpApex", () -> jumpApex(fp, avatar, floorY));
+        record(ctx, column, "jumpExhaustion", () -> jumpExhaustion(fp, avatar, cx, floorY, cz));
         record(ctx, column, "swinging", () -> swinging(level, fp, avatar, cx, floorY, cz));
         record(ctx, column, "mineDrop", () -> mineDrop(level, fp, avatar, cx, floorY, cz));
         record(ctx, column, "tickCount", () -> String.valueOf(fp.tickCount)
@@ -547,6 +548,49 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
      * velocity, apex ≈ 1.25 blocks). What this row is FOR is the {@code Stats.JUMP} beside it — a
      * jump that visibly happens while the statistic stays flat is the reading that matters.
      */
+    /**
+     * The OTHER half of {@code Player.jumpFromGround} — its own key, deliberately.
+     *
+     * <p>{@code jumpFromGround} has two side effects, {@code awardStat(Stats.JUMP)} and
+     * {@code causeFoodExhaustion(sprinting ? 0.2F : 0.05F)} (`Player.java:1471-1479`). They are
+     * recorded separately because merging them would mean one {@code ctx.record} key describing two
+     * mechanisms, and a half-working fix would then read as a clean pass on whichever half happened
+     * to be quoted. It also cannot share {@link #jumpApex}'s key: two writes to one key means the
+     * second silently swallows the first.
+     *
+     * <p>Reads exhaustion straight off {@code FoodData.getExhaustionLevel()} (public, {@code :107})
+     * rather than waiting for food or saturation to move — a single jump adds 0.05, and
+     * {@code FoodData.tick} only converts exhaustion into saturation once it passes 4.0, so a
+     * food-level reading would show nothing here even when the mechanism works perfectly.
+     */
+    private static String jumpExhaustion(ServerPlayer fp, ServerPlayerAvatar avatar,
+                                         int cx, int floorY, int cz) {
+        // Start from a known cell on solid ground: jumpApex ran just before this and left the body
+        // wherever its fall ended.
+        fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);
+        fp.setDeltaMovement(Vec3.ZERO);
+        avatar.step();
+        boolean sprinting = fp.isSprinting();
+        float before = fp.getFoodData().getExhaustionLevel();
+        double startY = fp.getY();
+        avatar.commandJump(true);
+        avatar.step();
+        avatar.commandJump(false);
+        double apex = startY;
+        for (int i = 0; i < 30 && fp.getY() >= startY - 0.01; i++) {
+            avatar.step();
+            apex = Math.max(apex, fp.getY());
+        }
+        float after = fp.getFoodData().getExhaustionLevel();
+        // The rise is reported alongside the exhaustion for the same reason the fall probe reports
+        // its drop: a zero delta beside a zero rise is a jump that never happened, which is a broken
+        // rig; a zero delta beside a real rise is the defect this key exists to see.
+        return String.format(Locale.ROOT,
+                "起跳升高 %.3f 格（冲刺=%b），foodExhaustion %.3f→%.3f（差 %.3f；"
+                        + "真玩家 jumpFromGround 应加 %.2f）",
+                apex - startY, sprinting, before, after, after - before, sprinting ? 0.2f : 0.05f);
+    }
+
     private static String jumpApex(ServerPlayer fp, ServerPlayerAvatar avatar, int floorY) {
         int jumpBefore = fp.getStats().getValue(Stats.CUSTOM.get(Stats.JUMP));
         double startY = fp.getY();
