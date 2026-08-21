@@ -166,7 +166,18 @@ public final class JourneyFill {
     /** A station candidate and the two numbers it was ranked on. */
     private record Pick(BlockPos foot, int seen, double dist) {}
 
-    /** One pass of the station scan. {@code refuseTheLip} is what separates the two. */
+    /**
+     * One pass of the station scan. {@code refuseTheLip} is what separates the two.
+     *
+     * <p><b>Its「站得住」is the third in this package and the strictest, deliberately.</b> It asks
+     * {@code getCollisionShape().isEmpty()} rather than {@code blocksMotion()}, and it refuses fluid
+     * at the HEAD as well as at the foot — neither of which
+     * {@code JourneyPortalEntry.standable} or {@code JourneyEndRungs.standingCellInTheRoom} does.
+     * That is because this is not choosing somewhere to walk to or to dig into: it is choosing
+     * somewhere to STAND AND AIM A BUCKET FROM, and a cell a body can occupy but cannot work from
+     * is worthless here. See {@code standable}'s note for the clause-by-clause comparison of all
+     * three, and do not substitute one for another.
+     */
     private static Pick pickStation(ServerLevel level, JourneyRig rig, BlockPos lava, int surfaceY,
                                     BlockPos stairTop, List<BlockPos> sources,
                                     Map<String, Integer> why, boolean refuseTheLip) {

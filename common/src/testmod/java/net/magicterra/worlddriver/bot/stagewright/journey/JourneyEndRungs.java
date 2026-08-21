@@ -2370,6 +2370,14 @@ public final class JourneyEndRungs {
      * the cell is solid, its head room is solid, there is nothing under it, or it is the lava vanilla
      * pools under the portal's own interior. {@link #ROOM_STAND_MIN} keeps the whole search clear of
      * the frame ring, because a shaft that lands on a frame destroys the thing the next rung came for.
+     *
+     * <p><b>Not {@code JourneyPortalEntry.standable}, and not interchangeable with it.</b> This is
+     * the only「站得住」in the package that refuses a cell whose FLOOR is fluid — which is the whole
+     * point here, since that fluid is the lava pool under the end portal — and the only one that
+     * asks nothing about fire. {@code standable} is the A*-matching predicate for choosing a
+     * doorstep to WALK to; this one chooses a cell to DIG DOWN INTO, so it refuses things a walk
+     * would happily accept and accepts hazards a walk would refuse. See that method's note for the
+     * three-way comparison.
      */
     static BlockPos standingCellInTheRoom(ServerLevel level, BlockPos centre) {
         BlockPos best = null;

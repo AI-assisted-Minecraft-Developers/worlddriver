@@ -157,6 +157,31 @@ public final class JourneyPortalEntry {
      * {@code LevelWorldView}: a solid non-hazard floor, a passable non-hazard foot, a passable
      * non-hazard head. A doorstep chosen by a LOOSER rule is a doorstep A* will refuse to walk to,
      * and the rung would then be retrying a goal for a different reason than the one it just fixed.
+     *
+     * <h2>Two other「站得住」live in this package, and none of the three may be swapped for another</h2>
+     *
+     * They ask overlapping but different questions, because they are asked for different purposes.
+     * Written down because「看起来该合」is exactly how a predicate gets reused into a scene it was
+     * never meant to judge:
+     *
+     * <ul>
+     *   <li><b>This one</b> — the only one that asks about HAZARDS (lava/fire under, at and above
+     *       the foot). It says nothing about water: a doorstep in shallow water is walkable and A*
+     *       agrees, so refusing it would put this out of step with the planner it exists to match.</li>
+     *   <li><b>{@code JourneyEndRungs.standingCellInTheRoom}</b> — the only one that refuses a cell
+     *       whose FLOOR is fluid. That is not a stricter version of this: it is the stronghold's
+     *       portal room, where the floor under the frame is vanilla's own lava pool, and a shaft
+     *       landing there destroys what the next rung came for. It asks nothing about fire, because
+     *       there is none there.</li>
+     *   <li><b>{@code JourneyFill.pickStation}</b> — the only one that uses {@code getCollisionShape}
+     *       rather than {@code blocksMotion}, and the only one that refuses fluid at the HEAD. It is
+     *       picking a place to STAND AND AIM A BUCKET, so a cell a body could technically occupy but
+     *       not work from is no use to it.</li>
+     * </ul>
+     *
+     * <p>The rule of thumb: this one is「A* 会不会走到这一格」, the room one is「这一格能不能挖」,
+     * the station one is「站这儿能不能干活」. A caller that wants one of those three questions must
+     * call the one that asks it, not the nearest one to hand.
      */
     public static boolean standable(ServerLevel level, BlockPos foot) {
         BlockPos below = foot.below();
