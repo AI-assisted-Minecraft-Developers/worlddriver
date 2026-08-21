@@ -274,8 +274,22 @@ public final class JourneyNetherRungs {
      */
     private static void detourTo(SceneContext ctx, JourneyRig rig, BlockPos fortress, int i,
                                  BlockPos want, String leg) {
+        // AIM PAST IT, and by exactly as much as the hop machinery calls "arrived". crossToColumn
+        // judges arrival in XZ only (away <= tolerance + ARRIVED_WITHIN), so a body standing in the
+        // right column 23 blocks below its waypoint is ARRIVED as far as it is concerned — the first
+        // cut of this fallback aimed at the cell itself and ran 「一段都没走，还差 0 格」, a fallback
+        // that reported success without moving. Aiming past the cell gives the hop machinery
+        // somewhere to walk AND reproduces what the ladder actually did here: its escape from
+        // {71,43,69} aimed at {63,92}, five blocks beyond the {63,41,87} it landed in.
+        BlockPos here = rig.player().blockPosition();
+        double dx = want.getX() - here.getX(), dz = want.getZ() - here.getZ();
+        double span = Math.max(1e-6, Math.hypot(dx, dz));
+        int overX = want.getX() + (int) Math.round(dx / span * DETOUR_OVERSHOOT);
+        int overZ = want.getZ() + (int) Math.round(dz / span * DETOUR_OVERSHOOT);
         rig.evidence(leg + ".detour", "直接瞄 " + want.toShortString() + " 走不通，改用跳段机器"
-                + "（减半 → 偏 ±60°）问同一格 —— 能到达的格未必是能瞄的格，见 detourTo");
+                + "（减半 → 偏 ±60°）瞄过头到 " + overX + "," + overZ + "（多 " + DETOUR_OVERSHOOT
+                + " 格）—— 能到达的格未必是能瞄的格，而跳段机器只判 XZ，瞄本格会当场判到达、一段都不走。"
+                + "见 detourTo");
         Runnable judge = () -> {
             BlockPos now = rig.player().blockPosition();
             int off = (int) Math.round(Math.sqrt(now.distSqr(want)));
@@ -290,9 +304,14 @@ public final class JourneyNetherRungs {
             }
             walkTheCorridor(ctx, rig, fortress, i + 1);
         };
-        crossToColumn(rig, leg + ".hop", want.getX(), want.getZ(), 0, HOP_TICKS,
+        crossToColumn(rig, leg + ".hop", overX, overZ, 0, HOP_TICKS,
                 WAYPOINT_DETOUR_HOPS, judge, judge);
     }
+
+    /** How far past a waypoint the fallback aims. Six, because that is one more than
+     *  {@link #ARRIVED_WITHIN}: any less and the hop machinery's XZ-only arrival test fires before
+     *  the body has taken a step. The ladder's own escape from this terrain overshot by five. */
+    private static final int DETOUR_OVERSHOOT = 6;
 
     /**
      * The lip tax, built fresh for one leg.
