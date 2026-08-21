@@ -285,26 +285,49 @@ public final class JourneyNetherRungs {
         rig.settle(new IntentProcess(new Intent(new Goal.Near(want, WAYPOINT_ARRIVE_WITHIN),
                         lipAndBandTax(ceiling), NO_PARKOUR, List.of())),
                 WAYPOINT_LEG_TICKS, flight, () -> {
-            BlockPos now = rig.player().blockPosition();
-            int off = (int) Math.round(Math.sqrt(now.distSqr(want)));
-            // Unconditional, on arrival AND on failure: a leg that stopped two blocks out and a leg
-            // that stopped thirty read identically in a PASS, and this corridor exists to make the
-            // difference between「on the surveyed cell」and「near it」visible.
-            rig.evidence(leg + ".at", now.toShortString() + "，距路点 " + off + " 格（含 y，容差 "
-                    + WAYPOINT_ARRIVE_WITHIN + "）；" + aboveBand(now, ceiling) + "；"
-                    + JourneyLeg.walkerEnd(rig));
+            // A LEG'S VERDICT IS TAKEN FROM A BODY AT REST, AND THIS ONE'S WAS NOT. wp4 of the
+            // 2026-08-21 rehearsal ended 「goalReached=true end=arrived 在 63,42,86 onGround=false
+            // 支撑[63,42,86=air 63,42,87=air]」: off=1, comfortably inside the bar, and in free fall
+            // over a hole — the floor under that column is y=40. It passed. wp5 then opened with
+            // 「起步时就不在地上」 and was at 64,25,88 in lava a hundred ticks later, and took the
+            // blame for a fall wp4 handed it. crossToColumn has wrapped its hops in this settle
+            // since 2026-08-20 for exactly this reason; the precise legs were the one path still
+            // judging from a photograph of one tick of a fall.
+            //
+            // The settle wraps the CONTINUATION, not just the evidence row, because `off`, the
+            // arrival test, and the next leg's starting position are four readings of one body and
+            // all four want it settled. Cheap: the predicate is asked first and a leg that ends
+            // standing — nearly all of them — skips the wait outright.
+            BlockPos ended = rig.player().blockPosition();
             flight.recordInto(leg, "direct");
             int laid = bridged + flight.moveCount("bridgePlace");
-            if (off <= WAYPOINT_ARRIVE_WITHIN) { walkTheCorridor(ctx, rig, fortress, i + 1, laid); return; }
-            // THE DETOUR IS NOT A SECOND CHANCE AT A SEARCH THAT ALREADY GAVE UP. See
-            // JourneyLeg.searchGaveUp: re-aiming six blocks PAST a cell the search could not reach
-            // asks the same search a strictly harder question, and the two measured attempts both
-            // released the body onto an open lava sea and drowned it — wp5 ended at 59,5,90 and
-            // wp11 at 62,3,86, neither recovering a single block first. What the detour IS for is a
-            // leg that ran out of TICKS while still walking, which is a different question and is
-            // the one case where it has ever worked (wp2, real ladder, arrived 1 block out).
-            if (!JourneyLeg.searchGaveUp(rig)) { detourTo(ctx, rig, fortress, i, want, leg, laid); return; }
-            corridorGaveUp(ctx, rig, i, want, now, off, laid);
+            settleToGround(rig, leg, i, () -> {
+                BlockPos now = rig.player().blockPosition();
+                int off = (int) Math.round(Math.sqrt(now.distSqr(want)));
+                // Unconditional, on arrival AND on failure: a leg that stopped two blocks out and a
+                // leg that stopped thirty read identically in a PASS, and this corridor exists to
+                // make the difference between「on the surveyed cell」and「near it」visible.
+                rig.evidence(leg + ".at", now.toShortString() + "，距路点 " + off + " 格（含 y，容差 "
+                        + WAYPOINT_ARRIVE_WITHIN + "）；" + aboveBand(now, ceiling) + "；"
+                        + JourneyLeg.walkerEnd(rig)
+                        // The drop is printed even when it is zero blocks of movement but the body
+                        // was unsupported, because「走完时没有支撑」is the defect whether or not the
+                        // landing allowance was long enough to resolve it.
+                        + (ended.equals(now) ? "" : "；⚠️ 走完那一刻身体在 " + ended.toShortString()
+                                + " 且没有支撑，是落地后才判的（掉了 " + (ended.getY() - now.getY())
+                                + " 格）—— 上面那个 end= 描述的是下坠开始前的那一刻"));
+                if (off <= WAYPOINT_ARRIVE_WITHIN) { walkTheCorridor(ctx, rig, fortress, i + 1, laid); return; }
+                // THE DETOUR IS NOT A SECOND CHANCE AT A SEARCH THAT ALREADY GAVE UP. See
+                // JourneyLeg.searchGaveUp: re-aiming six blocks PAST a cell the search could not
+                // reach asks the same search a strictly harder question, and the two measured
+                // attempts both released the body onto an open lava sea and drowned it — wp5 ended
+                // at 59,5,90 and wp11 at 62,3,86, neither recovering a single block first. What the
+                // detour IS for is a leg that ran out of TICKS while still walking, which is a
+                // different question and is the one case where it has ever worked (wp2, real
+                // ladder, arrived 1 block out).
+                if (!JourneyLeg.searchGaveUp(rig)) { detourTo(ctx, rig, fortress, i, want, leg, laid); return; }
+                corridorGaveUp(ctx, rig, i, want, now, off, laid);
+            });
         });
     }
 
@@ -427,29 +450,45 @@ public final class JourneyNetherRungs {
         rig.settle(new IntentProcess(new Intent(new Goal.Near(want, WAYPOINT_ARRIVE_WITHIN),
                         lipAndBandTax(ceiling), NO_PARKOUR, List.of())),
                 DETOUR_REASK_TICKS, flight, () -> {
-            BlockPos now = rig.player().blockPosition();
-            int off = (int) Math.round(Math.sqrt(now.distSqr(want)));
+            // THE SAME SETTLE AS THE DIRECT LEG, and for the same reason its comment gives: the
+            // verdict, the distance and the next leg's starting position are readings of one body
+            // and all of them want it at rest. A FALLBACK MUST NOT BE ABLE TO SKIP AN INVARIANT THE
+            // MAIN PATH HOLDS — twelve lines up this method already carries a note about a fallback
+            // that planned under different rules than the thing it was falling back from, and this
+            // would have been the same mistake in the same method: the direct leg would hand on a
+            // settled body while the re-ask, reached only when things have ALREADY gone wrong, handed
+            // on whatever was mid-air at tick 1200.
+            BlockPos ended = rig.player().blockPosition();
             flight.recordInto(leg, "reask");
-            rig.evidence(leg + ".detourReask", "从 " + over.toShortString() + " 重问 "
-                    + want.toShortString() + "：停在 " + now.toShortString() + "，差 " + off
-                    + " 格（含 y，容差 " + WAYPOINT_ARRIVE_WITHIN + "）；" + aboveBand(now, ceiling)
-                    + "；" + JourneyLeg.walkerEnd(rig));
-            if (off > WAYPOINT_ARRIVE_WITHIN) {
-                ctx.fail("走不到第 " + (i + 1) + " 个路点 " + want.toShortString() + "：停在 "
-                        + now.toShortString() + "，差 " + off + " 格（容差 " + WAYPOINT_ARRIVE_WITHIN
-                        + "）。直走、" + detourOutcome + "、以及从 " + over.toShortString()
-                        + " 换个座位重问，三条都试过了。"
-                        // NOT「这一格身体站过所以它站得住」any more. wp4 is 63,41,87 and the body that
-                        // "stood there" had its feet at 63,42,87 — the cell in the table is the FLOOR.
-                        // That sentence sent a reader looking for a mechanism fault at a cell whose
-                        // own premise was wrong, and the engine had been silently re-aiming off it.
-                        + "注意 FORTRESS_WAYPOINTS 混着落脚格和地板格：如果这一格不可站立，"
-                        + "身体最好也只能站到它上方一格，判据的 " + WAYPOINT_ARRIVE_WITHIN
-                        + " 格容差就是留给这个的。死因在 " + leg + ".* 那几行"
-                        + causewayNote(rig, bridged + flight.moveCount("bridgePlace")));
-                return;
-            }
-            walkTheCorridor(ctx, rig, fortress, i + 1, bridged + flight.moveCount("bridgePlace"));
+            int laid = bridged + flight.moveCount("bridgePlace");
+            settleToGround(rig, leg + ".reask", i, () -> {
+                BlockPos now = rig.player().blockPosition();
+                int off = (int) Math.round(Math.sqrt(now.distSqr(want)));
+                rig.evidence(leg + ".detourReask", "从 " + over.toShortString() + " 重问 "
+                        + want.toShortString() + "：停在 " + now.toShortString() + "，差 " + off
+                        + " 格（含 y，容差 " + WAYPOINT_ARRIVE_WITHIN + "）；" + aboveBand(now, ceiling)
+                        + "；" + JourneyLeg.walkerEnd(rig)
+                        + (ended.equals(now) ? "" : "；⚠️ 走完那一刻身体在 " + ended.toShortString()
+                                + " 且没有支撑，是落地后才判的（掉了 " + (ended.getY() - now.getY())
+                                + " 格）"));
+                if (off > WAYPOINT_ARRIVE_WITHIN) {
+                    ctx.fail("走不到第 " + (i + 1) + " 个路点 " + want.toShortString() + "：停在 "
+                            + now.toShortString() + "，差 " + off + " 格（容差 " + WAYPOINT_ARRIVE_WITHIN
+                            + "）。直走、" + detourOutcome + "、以及从 " + over.toShortString()
+                            + " 换个座位重问，三条都试过了。"
+                            // NOT「这一格身体站过所以它站得住」any more. wp4 is 63,41,87 and the body
+                            // that "stood there" had its feet at 63,42,87 — the cell in the table is
+                            // the FLOOR. That sentence sent a reader looking for a mechanism fault at
+                            // a cell whose own premise was wrong, and the engine had been silently
+                            // re-aiming off it.
+                            + "注意 FORTRESS_WAYPOINTS 混着落脚格和地板格：如果这一格不可站立，"
+                            + "身体最好也只能站到它上方一格，判据的 " + WAYPOINT_ARRIVE_WITHIN
+                            + " 格容差就是留给这个的。死因在 " + leg + ".* 那几行"
+                            + causewayNote(rig, laid));
+                    return;
+                }
+                walkTheCorridor(ctx, rig, fortress, i + 1, laid);
+            });
         });
     }
 
@@ -2155,11 +2194,42 @@ public final class JourneyNetherRungs {
      * is asked first and the settle is skipped outright.
      */
     private static void settleToGround(JourneyRig rig, String what, int hop, Runnable then) {
-        if (!stillFalling(rig.player())) { then.run(); return; }
-        rig.evidence(what + ".landing." + hop, "这一段结束时身体还在下坠（"
-                + surroundings(rig.player(), rig.player().blockPosition()) + "） —— 先给 " + LANDING_TICKS
+        ServerPlayer fp = rig.player();
+        boolean falling = stillFalling(fp);
+        if (!falling && !nothingUnderfoot(fp)) { then.run(); return; }
+        rig.evidence(what + ".landing." + hop, "这一段结束时身体"
+                + (falling ? "还在下坠" : "脚下没有支撑（还没坠起来，速度还够不上下坠的门槛）")
+                + "（" + surroundings(fp, fp.blockPosition()) + "） —— 先给 " + LANDING_TICKS
                 + " tick 落地余量，再判决");
         rig.settle(new HoldStill(LANDING_TICKS), LANDING_TICKS + 4, then);
+    }
+
+    /**
+     * Nothing is holding the body up — asked as geometry, because velocity answers too late.
+     *
+     * <h2>Why {@link #stillFalling} cannot be the only trigger</h2>
+     *
+     * {@code stillFalling} needs {@code dy < }{@link #FALLING_OVER} = −0.3, about four ticks of
+     * gravity. <b>A body that stepped off a ledge on the verdict tick has not accelerated that far
+     * yet</b> — its {@code dy} is roughly −0.08 — so the velocity gate says「没在下坠」 about a body
+     * with two air cells under it. That is precisely how corridor leg 4 was judged: {@code
+     * onGround=false 支撑[63,42,86=air 63,42,87=air]}, and the fall it was one tick into carried the
+     * NEXT leg seventeen blocks down into lava.
+     *
+     * <p>So this asks the question the failure is actually about — is there a floor — and asks it of
+     * the world rather than of the body's momentum. {@code onGround()} short-circuits it because a
+     * body genuinely standing on the lip of a block reports {@code true} while {@code below()} is
+     * air, and 26 ticks of waiting for a body that is already standing buys nothing.
+     *
+     * <p><b>Deliberately broader than {@code stillFalling}, and only in this direction.</b> The two
+     * readers' invariant is that the WAIT must never skip a case the REFUSAL would then trip on;
+     * widening the wait keeps that, while widening the refusal would start declining healthy legs.
+     */
+    private static boolean nothingUnderfoot(ServerPlayer fp) {
+        // A fluid holds the body too — and a body in lava has a hazard, not a landing problem, which
+        // hazardBlockingARetry is the one that should speak about.
+        if (fp.onGround() || fp.isInWater() || fp.isInLava()) return false;
+        return !fp.serverLevel().getBlockState(fp.blockPosition().below()).blocksMotion();
     }
 
     /**
@@ -2393,10 +2463,13 @@ public final class JourneyNetherRungs {
     /**
      * Whether the body is on its way down rather than standing somewhere.
      *
-     * <p>One predicate, two readers: {@link #hazardBlockingARetry} refuses to judge a leg from a
-     * body in this state, and {@link #settleToGround} is what gives it the chance to leave it. They
-     * must not be able to disagree — a wait that stops one tick before the verdict starts is a wait
-     * that does nothing, and it would look exactly like a wait that works.
+     * <p>Two readers: {@link #hazardBlockingARetry} refuses to judge a leg from a body in this
+     * state, and {@link #settleToGround} is what gives it the chance to leave it. The invariant
+     * between them is <b>one-sided</b>: the wait must never skip a case the refusal would then trip
+     * on, because a wait that stops one tick before the verdict starts is a wait that does nothing
+     * and looks exactly like a wait that works. The reverse is fine and is now the case — the wait
+     * also fires on {@link #nothingUnderfoot}, which catches the body this predicate is blind to,
+     * the one still on its first tick off a ledge and not yet moving fast enough to count.
      */
     static boolean stillFalling(ServerPlayer fp) {
         return !fp.onGround() && fp.getDeltaMovement().y < FALLING_OVER;
