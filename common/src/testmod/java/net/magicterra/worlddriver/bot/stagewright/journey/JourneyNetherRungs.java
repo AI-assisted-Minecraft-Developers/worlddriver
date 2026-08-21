@@ -190,12 +190,47 @@ public final class JourneyNetherRungs {
         rig.evidence("fortress.at", fortress.toShortString()
                 + "（距身体 " + away + " 格水平；地标的 y=" + fortress.getY() + " 是 locate 的占位，不是可站立高度）");
         rig.attempting("走到要塞 " + fortress.toShortString() + "（" + away + " 格）");
-        crossToColumn(rig, "fortress", fortress.getX(), fortress.getZ(), FORTRESS_ARRIVE_WITHIN,
-                HOP_TICKS,
-                () -> findTheSpawner(ctx, rig),
-                () -> ctx.fail("走不到要塞 " + fortress.toShortString() + "：停在 "
+        walkTheCorridor(ctx, rig, fortress, 0);
+    }
+
+    /**
+     * Walk {@link #FORTRESS_WAYPOINTS} in order, then let the generic crossing finish the last leg.
+     *
+     * <p>Recursive rather than a loop for the same reason every other leg on this ladder is: a leg
+     * hands control back through a continuation when the body has settled, and a {@code for} would
+     * have to block the server thread to wait for one.
+     *
+     * <p><b>Each leg fails under its own name.</b> {@code fortress.wp3} carries its own hop lines,
+     * its own pace and its own {@code why}, so「the crossing did not make it」becomes「the leg from
+     * {60,85} to {74,97} did not make it」— which is a route edit, not a mechanism hunt. That is the
+     * whole of what a scripted route buys: it cannot fix the executor's drift and does not try, it
+     * removes the case where a waypoint dead-reckoned along a bearing lands in the sea.
+     */
+    private static void walkTheCorridor(SceneContext ctx, JourneyRig rig, BlockPos fortress, int i) {
+        if (i >= FORTRESS_WAYPOINTS.length) {
+            // The unsurveyed remainder. Full hop allowance, because past the last waypoint this is
+            // an ordinary crossing over ground no run has reported on.
+            crossToColumn(rig, "fortress", fortress.getX(), fortress.getZ(), FORTRESS_ARRIVE_WITHIN,
+                    HOP_TICKS, MAX_HOPS,
+                    () -> findTheSpawner(ctx, rig),
+                    () -> ctx.fail("走完了烘入的走廊，最后一段走不到要塞 " + fortress.toShortString()
+                            + "：停在 " + rig.player().blockPosition().toShortString()
+                            + "。这一段没有任何一趟勘测过，读 fortress.* 那几行的死因，"
+                            + "不要当成路点选错了"));
+            return;
+        }
+        int[] wp = FORTRESS_WAYPOINTS[i];
+        String leg = "fortress.wp" + (i + 1);
+        BlockPos at = rig.player().blockPosition();
+        rig.evidence(leg + ".from", at.toShortString() + " → " + wp[0] + "," + wp[1] + "（"
+                + Math.round(Math.hypot(wp[0] - at.getX(), wp[1] - at.getZ())) + " 格；第 " + (i + 1)
+                + "/" + FORTRESS_WAYPOINTS.length + " 个烘入路点，出处见 FORTRESS_WAYPOINTS）");
+        crossToColumn(rig, leg, wp[0], wp[1], HOP_ARRIVE_WITHIN, HOP_TICKS, WAYPOINT_LEG_HOPS,
+                () -> walkTheCorridor(ctx, rig, fortress, i + 1),
+                () -> ctx.fail("走不到第 " + (i + 1) + " 个路点 " + wp[0] + "," + wp[1] + "：停在 "
                         + rig.player().blockPosition().toShortString()
-                        + "。下界的路是熔岩海和峡谷，这一段是这一级最贵的一步"));
+                        + "。这一格是真梯第 14 趟身体站过的，所以它站得住 —— 死因在 " + leg
+                        + ".* 那几行，修法多半是把这个路点挪一格，不是调机制"));
     }
 
     /**
@@ -1315,8 +1350,13 @@ public final class JourneyNetherRungs {
      */
     private static void crossToColumn(JourneyRig rig, String what, int x, int z, int tolerance,
                                       int hopTicks, Runnable onArrived, Runnable onStuck) {
+        crossToColumn(rig, what, x, z, tolerance, hopTicks, MAX_HOPS, onArrived, onStuck);
+    }
+
+    private static void crossToColumn(JourneyRig rig, String what, int x, int z, int tolerance,
+                                      int hopTicks, int maxHops, Runnable onArrived, Runnable onStuck) {
         BlockPos from = rig.player().blockPosition();
-        recordBudget(rig, what, Math.hypot(x - from.getX(), z - from.getZ()), hopTicks);
+        recordBudget(rig, what, Math.hypot(x - from.getX(), z - from.getZ()), hopTicks, maxHops);
         // Say that this leg carries the tax, because a leg that carries it and a leg that does not
         // are otherwise indistinguishable in the results — and the hop lines that would show it
         // (「守卫钉住把计划丢掉重找」going to zero) only exist on hops that wedge.
@@ -1327,6 +1367,7 @@ public final class JourneyNetherRungs {
                 + "这是加价不是禁行 —— 唯一的路是唇沿时仍然走得通");
         Crossing c = new Crossing();
         c.hopTicks = hopTicks;
+        c.maxHops = maxHops;
         oneHop(rig, what, x, z, tolerance, hopTicks, c, onArrived, onStuck);
     }
 
@@ -1363,11 +1404,12 @@ public final class JourneyNetherRungs {
      * 48 lands 42 further on by design. Both runs above measured exactly that on their clean hops —
      * the 2026-08-21 leg's hops #23 and #24 netted 44 and 42. Clean hops were never the problem.
      */
-    private static void recordBudget(JourneyRig rig, String what, double away, int hopTicks) {
+    private static void recordBudget(JourneyRig rig, String what, double away, int hopTicks,
+                                     int maxHops) {
         int perHop = NETHER_HOP - HOP_ARRIVE_WITHIN;
         int need = (int) Math.ceil(away / perHop);
-        rig.evidence(what + ".budget", Math.round(away) + " 格；上限 " + MAX_HOPS + " 段 × "
-                + hopTicks + " tick = " + (MAX_HOPS * hopTicks) + " tick。若每段都干净（净进 "
+        rig.evidence(what + ".budget", Math.round(away) + " 格；上限 " + maxHops + " 段 × "
+                + hopTicks + " tick = " + (maxHops * hopTicks) + " tick。若每段都干净（净进 "
                 + perHop + " 格 = 伸手 " + NETHER_HOP + " 减路点半径 " + HOP_ARRIVE_WITHIN
                 + "）要 " + need + " 段 —— 这是计划速率，不是实测速率：楔死的段和干净的段花掉一样多的"
                 + "段数、三倍的 tick，所以两个上限逼近的速度不同，别拿这一行替这一趟排除任何一个。"
@@ -1475,6 +1517,8 @@ public final class JourneyNetherRungs {
         int noPlan;                    // ticks, summed over hops — the crossing's headline reading
         int hopTicks;                  // the per-hop ceiling this crossing runs under, kept so the
                                         // pace row can report a share rather than a bare count.
+        int maxHops = MAX_HOPS;        // per-leg, because a 20-block waypoint leg and a 400-block
+                                        // bearing are not owed the same number of questions.
         int capped;                    // hops that ran to their full HOP_TICKS. The other ceiling:
                                         // MAX_HOPS and HOP_TICKS are approached at different rates,
                                         // so knowing which one a crossing is pressing needs both
@@ -1494,8 +1538,8 @@ public final class JourneyNetherRungs {
             onArrived.run();
             return;
         }
-        if (c.hop >= MAX_HOPS) {
-            c.why = "走完了 " + MAX_HOPS + " 段还没到（还差 " + Math.round(away) + " 格）";
+        if (c.hop >= c.maxHops) {
+            c.why = "走完了 " + c.maxHops + " 段还没到（还差 " + Math.round(away) + " 格）";
             recordCrossing(rig, what, c, away);
             onStuck.run();
             return;
@@ -1687,7 +1731,7 @@ public final class JourneyNetherRungs {
         // advance. See recordBudget. Whichever ceiling is at 100% is the one that ended the walk,
         // and c.why in the crossing row above names it in words.
         int walked = (int) Math.round(Math.max(0, c.best0 - Math.min(c.best, left)));
-        int tickCeiling = MAX_HOPS * Math.max(1, c.hopTicks);
+        int tickCeiling = c.maxHops * Math.max(1, c.hopTicks);
         rig.evidence(what + ".pace", c.hop + " 段共 " + c.ticks + " tick，净走 " + walked + " 格"
                 + (walked > 0 && c.ticks > 0
                     ? "（" + String.format(Locale.ROOT, "%.1f", c.ticks / (double) walked)
@@ -1695,8 +1739,8 @@ public final class JourneyNetherRungs {
                       + Math.round(c.best0 * c.ticks / (double) walked) + " tick）" : "")
                 + "；其中无计划 " + c.noPlan + "/" + c.ticks + " tick = "
                 + (c.ticks > 0 ? Math.round(100.0 * c.noPlan / c.ticks) : 0) + "%"
-                + "。两个上限各用了：段数 " + c.hop + "/" + MAX_HOPS + " = "
-                + Math.round(100.0 * c.hop / MAX_HOPS) + "%，tick " + c.ticks + "/" + tickCeiling
+                + "。两个上限各用了：段数 " + c.hop + "/" + c.maxHops + " = "
+                + Math.round(100.0 * c.hop / c.maxHops) + "%，tick " + c.ticks + "/" + tickCeiling
                 + " = " + Math.round(100.0 * c.ticks / tickCeiling) + "%（其中 " + c.capped + " 段"
                 + "跑满了自己那 " + c.hopTicks + " tick）—— 满掉的那个才是结束这一趟的那个");
         rig.evidence(what + ".arrivedDistance", Math.round(left));
@@ -1954,6 +1998,57 @@ public final class JourneyNetherRungs {
      *  ninety: the obstacle a bee-line meets in the Nether is a lava sea with ground either side,
      *  and a hop that turns square to the goal spends its whole reach going nowhere useful. */
     private static final int HOP_TURN = 60;
+
+    /**
+     * The corridor to the fortress, in cells the body has actually STOOD on.
+     *
+     * <h2>Why a route and not another knob</h2>
+     *
+     * Three runs of the generic crossing over this sea, three different deaths, no arrivals: the
+     * ladder run of 2026-08-21 spent all 24 hops it had and stopped 75 blocks out; the rehearsal of
+     * it wedged at 9 hops, 255 out; the rehearsal carrying {@link #LIP_TAX} ended 277 out with the
+     * body sitting in lava. Each change was right about what it fixed — the hop ceiling genuinely
+     * was too low, the planner genuinely does not price a ledge over lava — and none of them got the
+     * body across. <b>The standing rule on this project is to script the route before asking the
+     * engine for anything, and three rounds of tuning is where that rule stops being theoretical.</b>
+     *
+     * <h2>Where these numbers come from</h2>
+     *
+     * The ladder run's own {@code fortress.hops} rows. Every entry is a position a hop STARTED from,
+     * which means the body stood there, on ground, on this seed. That is deliberately NOT the list
+     * that run aimed at: those waypoints were dead-reckoned along a bearing, several of them lay
+     * over the sea, and that is most of why its hops wedged. A cell a body was measured standing in
+     * cannot be air — unlike a surveyed one, which has baked a tree that was not there before.
+     *
+     * <pre>
+     * {33,36}   ← hop #2  33, 55, 36     {132,165} ← hop #17 132, 43, 165
+     * {62,67}   ← hop #3  62, 43, 67     {152,178} ← hop #19 152, 53, 178
+     * {60,85}   ← hop #12 60, 43, 85     {154,194} ← hop #23 154, 58, 194
+     * {74,97}   ← hop #13 74, 41, 97     {189,221} ← hop #24 189, 53, 221
+     * {102,122} ← hop #14 102, 41, 122   {220,250} ← where that run stopped
+     * </pre>
+     *
+     * <p>{33,36} and {62,67} bracket the first clean stretch. {60,85} and {74,97} sit inside the
+     * wedge zone that cost that run ten hops, and they are here precisely because the body proved
+     * they are reachable and standable: a short leg to a real cell is a different question from a
+     * long leg to a bearing, and asking a different question is the only thing that has ever got
+     * this crossing out of a wedge. From {102,122} on, every hop of that run was clean.
+     *
+     * <p><b>Past {220,250} nobody has been.</b> The last leg is the generic crossing with its full
+     * hop allowance, not a surveyed one, and a failure there must not be read as a route defect.
+     */
+    private static final int[][] FORTRESS_WAYPOINTS = {
+            {33, 36}, {62, 67}, {60, 85}, {74, 97}, {102, 122},
+            {132, 165}, {152, 178}, {154, 194}, {189, 221}, {220, 250},
+    };
+
+    /** Hops one surveyed leg may spend. These legs are 18–43 blocks, so a clean one is a single hop;
+     *  six leaves room for the halved hop and both detours ({@link #MAX_WEDGED_HOPS} is 4) and still
+     *  bounds ten legs at 60 hops rather than 400. A leg that needs more than its four different
+     *  questions plus two is not going to be rescued by a seventh — that is the finding, and it
+     *  lands on a NAMED leg where the next reader moves one waypoint instead of debugging a
+     *  mechanism. */
+    private static final int WAYPOINT_LEG_HOPS = 6;
 
     /**
      * How many hops a crossing may spend.
