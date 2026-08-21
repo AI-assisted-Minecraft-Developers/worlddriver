@@ -390,15 +390,41 @@ fabric/build.gradle:481   runRehearsalServer
 | N16 | 区块批次从不 ack | `SilentConnection` 吞掉一切，且没有客户端会 ack |
 | **N19** | **avatar 从不调 `Player.jumpFromGround()`** | **驱动器自己写的**，见下。换身体不动它 |
 
-**所以第二阶段的账是**：甲档 3 条不用做；乙档 4 条是「删一行覆盖 + 量一次代价」；**丙档 12 条才是真工作量**，而其中 N7/N8/N9/N10/N11/N14/N19 七条**完全落在我自己的产权路径 `bot/sim/**` 里**，不需要动别人的文件。
+### 乙档落地前**必须先解决**的前置：跳跃现在会扣饥饿，而这具身体不会吃饭
+
+**这不是注意事项，是前置条件。** 从 `e110fcb3` 起，avatar 调真的 `jumpFromGround()`，
+于是每次起跳都会走 `causeFoodExhaustion`（冲刺 `0.2F` / 不冲刺 `0.05F`）。
+
+今天**看不出任何区别**，因为 `ServerPlayerAvatar.java:765-769` 明确**故意不镜像
+`foodData.tick()`**：exhaustion 一路累到 `FoodData.addExhaustion` 的 40.0 上限，
+**永远不折算成饥饿值**，闸里所有场景都不受影响。
+
+**但乙档要做的恰恰是删掉 `JoinedPlayerBodies.java:217` 那行空 `tick()`。**
+那一行删掉之后通道(一)接通，`ServerPlayer.tick()` → `Player.tick()` → `foodData.tick()` 开始跑，
+**积压的 exhaustion 立刻开始折算成真实的饥饿掉档——而这具身体没有任何吃饭的动作**
+（§3 审计里 `handleUseItem` 那一族本来就没有驱动器动词）。
+
+真梯里塔、楼梯、parkour 全都在不停地跳。**这是一笔会在别处爆炸的账**：
+将来真梯掉级，第一直觉不会是「因为我们把跳跃修对了」。
+**所以乙档删那行覆盖之前，必须先给这具身体一条进食路径，或者显式决定让它免疫饥饿并写下理由。**
+
+---
+
+**所以第二阶段的账是**：甲档 3 条不用做；乙档 4 条是「删一行覆盖 + 量一次代价 + **先还上面那笔饥饿账**」；**丙档 12 条才是真工作量**，而其中 N7/N8/N9/N10/N11/N14/N19 七条**完全落在我自己的产权路径 `bot/sim/**` 里**，不需要动别人的文件。
 
 ### N19 单列：一个缺陷被另一个缺陷完整遮住
 
 `ServerPlayerAvatar` 不调 `jumpFromGround()`，而是**手抄它的速度效果**：
 `:1030-1038` 直接把 `deltaMovement.y` 设成 `0.42`，冲刺时再加 `0.2` 的前推。
-速度抄对了，**两个副作用没抄**——`Player.jumpFromGround()`（`Player.java:1471-1474`）除了
-`super.jumpFromGround()` 还做 `awardStat(Stats.JUMP)` 和冲刺时的 `causeFoodExhaustion(0.2F)`。
+速度抄对了，**两个副作用没抄**——`Player.jumpFromGround()`（`Player.java:1471-1479`）除了
+`super.jumpFromGround()` 还做 `awardStat(Stats.JUMP)` 和 `causeFoodExhaustion`
+（**两支都有**：冲刺 `0.2F`，不冲刺 `0.05F`。本文档第一版只写了冲刺那支，是错的）。
 所以这具身体**跳一辈子也不饿、跳一辈子也不计数**。
+
+> **已修（`e110fcb3`）**：手抄换成 `fp.jumpFromGround()`。平地无药水时
+> `getJumpPower()` = `JUMP_STRENGTH(0.42) × getBlockJumpFactor()(1.0) + 跳跃提升(0)` = `0.42`，
+> **与手抄逐位相同**，所以普通场景行为不变；变的恰是手抄搞错的两处——
+> **蜂蜜/黏液块**（`getBlockJumpFactor` 会压低跳跃，手抄永远跳 0.42）和**跳跃提升药水**。
 
 **为什么必须有第二列才看得见。** `Stats.JUMP` 在两列都是 `0→0`。只看 `factory` 一列，
 这个 0 会被 N18（`awardStat` 空覆盖）**完整解释掉**，而且解释得毫无破绽——
@@ -433,6 +459,33 @@ fabric/build.gradle:481   runRehearsalServer
 
 > **这一节是存档，不是分析。** `FakePlayer` 一旦按 §0 废弃，`factory` 这一列就再也取不到了，
 > 所以原始读数逐字抄在这里，而不是只留结论。
+
+### 先读这个：为什么这份存档必须在翻闸**之前**取
+
+**顺序是被设计的，不是运气**：「普查落地 → 翻闸 → 按真账清红」，三步不能并、不能换序。
+理由是废弃类改动的一个通性——**被废弃的那一侧，废弃之后就不再是一个可观测对象**，
+而甲/乙/丙的分类**全靠两列并排**才判得出来。
+
+这不是理论。翻闸当天就撞上了：六条闸开了 `worlddriver.realPlayerBodies` 之后，
+`ServerAvatarBodies.require()`（`:70-72`）在 armed 时直接返回 joined 工厂——
+
+```java
+JoinedPlayerBodies real = joinedOrNull();
+if (real != null) return real;      // armed: a body that JOINS, not one that pretends
+```
+
+而 `ServerPlayerAvatar.createUnique()` 正是走这条路。**于是普查的 `factory` 列铸出来的也是
+`JoinedBody`，两列变成同一种身体量了两遍。翻闸之后再想取那一列，取不到了。**
+
+**给下一个做废弃类改动的人：需要的是这个顺序，不是这份数据。**
+在删掉/绕开一个实现之前，先跑一趟把它和替代者**并排**量下来并提交；
+之后再想补，被测对象已经不在了。
+
+> **`census.armProperty` 这条读数就是为这一天加的。** 它无条件记录「这一趟的前提是什么」。
+> **没有它，翻闸后的普查会显示两列读数完全相同，而最自然的解读是「换身体没有区别」——
+> 一个彻底错误、却看起来非常干净的结论。**
+> 通则：**每条普查都该无条件记下自己的前提**。它的价值不在读数本身，
+> 而在于把一次静默退化变成可见的。
 >
 > 出处：`stagewrightDedicatedServerNeoforge`，`BUILD SUCCESSFUL`，`VERDICT: GREEN`，
 > `neoforge/run-dogfood/stagewright-results.jsonl` 写于本地时间 2026-08-21 23:52:38，
