@@ -2420,7 +2420,17 @@ public final class JourneyNetherRungs {
      * a scan can name a cell that turns out to be air, and one on this ladder once did.
      */
     private static final int[][] FORTRESS_WAYPOINTS = {
-            {33, 55, 36}, {62, 43, 67}, {71, 43, 69}, {63, 41, 87}, {74, 41, 97},
+            {33, 55, 36}, {62, 43, 67}, {71, 43, 69}, {63, 41, 87},
+            // EAST FIRST. Leg {63,41,87} → {74,41,97} is bistable across four runs — two reached the
+            // waypoint, two ended in the lava at y=5 — and the two outcomes differ by DIRECTION, not
+            // by luck. The runs that passed went east immediately (63,41,85 → 72,42,85 → 73,42,86);
+            // the runs that died went WEST to x=61,58,57 while their target was at x=74, jumping at
+            // a node below them and landing one block higher each time (y 44→45→46) until they came
+            // off the rim. Nine parkour launches were recorded across those runs and NOT ONE landed
+            // on its node, so the leg cannot be repaired by making the leap work — it has to not need
+            // the leap. This cell is on the successful runs' own track, nine blocks due east.
+            {72, 42, 85},
+            {74, 41, 97},
             // The 39-block leg, split into four ~9-block ones. See the class note above.
             {82, 41, 100}, {89, 41, 108}, {95, 41, 115},
             {102, 41, 122}, {103, 41, 132}, {132, 43, 165}, {135, 43, 167},
