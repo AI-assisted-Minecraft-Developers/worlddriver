@@ -1858,8 +1858,11 @@ public final class Walker {
         if (++guardPinStreak < GUARD_PIN_REPATH) return;
         Player p = a.player();
         String where = "；身体 " + (p == null ? "无" : p.blockPosition().toShortString());
-        String cells = "，其间点火过 " + guardStreakCells + " 次换格"
-                + (guardStreakCells <= 1 ? "（一直是同一格）" : "（换过格 —— 参考项，不是判据）");
+        // A COVERAGE COUNT, NOT A MOVE COUNT. guardStreakCells increments on every cell ENTRY and
+        // the first entry is the streak's own opening cell, so 1 means the body never left it. The
+        // first cut printed「点火过 1 次换格（一直是同一格）」, which contradicts itself in one clause.
+        String cells = "，其间钉过 " + guardStreakCells + " 个格位（含首格）"
+                + (guardStreakCells <= 1 ? "（没离开过那一格）" : "（换过格 —— 参考项，不是判据）");
 
         if (path != guardStreakPath) {
             guardStreakRebases++;
@@ -1895,13 +1898,31 @@ public final class Walker {
             return;
         }
 
+        if (path == null) {
+            // NOTHING TO THROW AWAY, so this is not a discard and must not be counted as one. Ten of
+            // the 45 "forced repaths" in the 2026-08-21 rehearsal read「丢掉的计划还剩 0 个节点，
+            // 末节点 无」— a body pinned with empty hands. Left in the same counter they inflate it
+            // by a fifth, and a before/after comparison of guardForcedRepaths silently compares two
+            // different populations. safetyRepath already re-plans on a null path; nothing to do here
+            // but let the clock start over.
+            guardPinnedWithNoPlan++;
+            if (guardPinnedWithNoPlan <= GUARD_STREAK_EVENTS) {
+                LOG.info("[walker] guard pin with no plan: 连钉 {} tick，而这段时间身上一直没有计划{}"
+                        + " —— 没有东西可丢，不计入丢弃数{}", guardPinStreak, cells, where);
+            }
+            guardPinStreak = 0;
+            guardStreakCells = 0;
+            guardStreakCell = null;
+            return;
+        }
+
         guardForcedRepaths++;
         lastGuardRepath = "第 " + guardForcedRepaths + " 次：连钉 " + guardPinStreak
                 + " tick，计划一步都没前进（停在第 " + guardStreakStartStep + " 节点）—— 这是原地卡死"
                 + cells
-                + "；丢掉的计划还剩 " + (path == null ? 0 : Math.max(0, path.size() - Math.max(step, 0)))
+                + "；丢掉的计划还剩 " + Math.max(0, path.size() - Math.max(step, 0))
                 + " 个节点，末节点 "
-                + (path == null || path.isEmpty() ? "无" : path.get(path.size() - 1).toShortString())
+                + (path.isEmpty() ? "无" : path.get(path.size() - 1).toShortString())
                 + where;
         LOG.info("[walker] guard pin forced a repath: {}", lastGuardRepath);
         path = null;
@@ -1921,10 +1942,16 @@ public final class Walker {
      * them, they are read by instruments that hold no Walker instance — chiefly {@code
      * JourneyFlight}, which needs a per-leg delta and has no channel to the walker driving it.
      *
-     * <p><b>Read the pair, never {@code guardForcedRepaths} alone.</b> Before 2026-08-21 a pinned
-     * streak had exactly one outcome, so one counter said everything; now「never reached the
+     * <p><b>Read them together, never {@code guardForcedRepaths} alone.</b> Before 2026-08-21 a
+     * pinned streak had exactly one outcome, so one counter said everything; now「never reached the
      * threshold」and「reached it 45 times and kept the plan every time」are different runs that both
      * report zero forced repaths. A leg that reports 0/0 was never pinned; 0/45 walked a rim.
+     *
+     * <p><b>And the old number was never one population to begin with.</b> Of the 45 discards in the
+     * run that motivated all this, 10 had no plan in hand at all (「还剩 0 个节点，末节点 无」), 25
+     * dropped a 7-node scrap, and <b>3</b> dropped a complete route to the leg's goal — the three
+     * that actually cost the crossing. Splitting them into four counters is what makes 45 → N a
+     * comparison of the same thing twice instead of a headline.
      */
     public static volatile int guardForcedRepaths;
     public static volatile String lastGuardRepath = "还没强制重规划过";
@@ -1933,6 +1960,9 @@ public final class Walker {
     /** Streaks whose plan was replaced by some other branch mid-streak, so the pinned ticks were
      *  evidence against a plan that no longer exists. Neither a discard nor a keep. */
     public static volatile int guardStreakRebases;
+    /** Streaks that hit the threshold with no plan in hand. Not a discard — there was nothing to
+     *  discard — and counted apart so it stops inflating {@link #guardForcedRepaths}. */
+    public static volatile int guardPinnedWithNoPlan;
 
     /** Remaining hold-tail ticks after the last guard fire (pin hysteresis). */
     int guardHoldTicks;
