@@ -237,8 +237,14 @@ public final class JourneyNetherRungs {
         // Goal.Block, not Goal.XZ: the waypoint has a Y and the Y is what was surveyed. See
         // FORTRESS_WAYPOINTS for the run that arrived in the right column three blocks up and then
         // could not generate a single successor.
+        // THE SAME RECORDER THE GENERIC CROSSING HAS, and the precise legs went without it for a
+        // whole run. `.at` says where the body stopped; it cannot say whether it walked there, fell
+        // there, or hung in cave_air — three different bugs that print one identical coordinate,
+        // which is the entire reason JourneyFlight exists. The corridor is the part of rung 14 under
+        // active repair, so it is the last place that should be reading a photograph of the wreckage.
+        JourneyFlight flight = JourneyFlight.watching(rig, at, want.getX(), want.getZ());
         rig.settle(new IntentProcess(new Intent(new Goal.Block(want), lipTax(rig))),
-                WAYPOINT_LEG_TICKS, () -> {
+                WAYPOINT_LEG_TICKS, flight, () -> {
             BlockPos now = rig.player().blockPosition();
             int off = (int) Math.round(Math.sqrt(now.distSqr(want)));
             // Unconditional, on arrival AND on failure: a leg that stopped two blocks out and a leg
@@ -246,6 +252,7 @@ public final class JourneyNetherRungs {
             // difference between「on the surveyed cell」and「near it」visible.
             rig.evidence(leg + ".at", now.toShortString() + "，距路点 " + off + " 格（含 y，容差 "
                     + WAYPOINT_ARRIVE_WITHIN + "）；" + JourneyLeg.walkerEnd(rig));
+            flight.recordInto(leg, "direct");
             if (off > WAYPOINT_ARRIVE_WITHIN) { detourTo(ctx, rig, fortress, i, want, leg); return; }
             walkTheCorridor(ctx, rig, fortress, i + 1);
         });
@@ -338,10 +345,12 @@ public final class JourneyNetherRungs {
                 + (hopArrived ? "跳段机器走完了整条绕行路线" : "跳段机器没走到瞄点就停了")
                 + " —— 瞄过头是为了让身体动起来，动起来之后还得走回路点，所以这里重问原题（同一个判据 "
                 + WAYPOINT_ARRIVE_WITHIN + " 格），不在这里判");
+        JourneyFlight flight = JourneyFlight.watching(rig, over, want.getX(), want.getZ());
         rig.settle(new IntentProcess(new Intent(new Goal.Block(want), lipTax(rig))),
-                DETOUR_REASK_TICKS, () -> {
+                DETOUR_REASK_TICKS, flight, () -> {
             BlockPos now = rig.player().blockPosition();
             int off = (int) Math.round(Math.sqrt(now.distSqr(want)));
+            flight.recordInto(leg, "reask");
             rig.evidence(leg + ".detourReask", "从 " + over.toShortString() + " 重问 "
                     + want.toShortString() + "：停在 " + now.toShortString() + "，差 " + off
                     + " 格（含 y，容差 " + WAYPOINT_ARRIVE_WITHIN + "）；" + JourneyLeg.walkerEnd(rig));
