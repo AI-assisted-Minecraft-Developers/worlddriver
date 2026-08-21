@@ -1566,6 +1566,38 @@ public final class BotConfig {
      *  {@code mc.bot.setting} so a live run can flip it. */
     public static volatile boolean walkerParkourAscendHold = true;
 
+    /** Refuse a jump toward a node that is BOTH below the foot AND already within
+     *  {@code walkerNoLaunchWithin} blocks horizontally. In that geometry a jump cannot help — the
+     *  cell is adjacent, so a step reaches it — and it is strictly harmful: the launch adds upward
+     *  and forward momentum to a body that is already on top of its target.
+     *  <p><b>Measured, five leaps, cleanly separated</b> (2026-08-22, rung 14 corridor leg 5, the
+     *  {@code fortress.wp5.leap.*} rows). Remaining horizontal distance at the launch tick against
+     *  what the leap did:
+     *  <pre>
+     *  2.90  dy-1 → missed by 2.24, survived
+     *  3.08  dy 0 → missed by 3.00, survived
+     *  2.29  dy 0 → missed by 1.00, survived
+     *  0.75  dy-1 → missed by 4.12, dy-14, LANDED IN LAVA
+     *  0.64  dy-1 → (previous run, same leg) fell 15 blocks, LANDED IN LAVA
+     *  </pre>
+     *  Every fatal launch was under one block; every survivable one was over two. The two fatal ones
+     *  are the whole reason the ladder cannot pass rung 14: the body drifts one block above its route
+     *  on a lava-sea rim, then jumps at a node it is already standing next to.
+     *  <p><b>Why the existing suppression misses it.</b> {@code WalkerTickDrive}'s below-node term is
+     *  {@code !(p.horizontalCollision && p.onGround() && wp.getY() < foot.getY())} — it requires a
+     *  WALL to ram. On a rim there is nothing to ram, so a body one above its node jumps anyway.
+     *  <p><b>Why it cannot hurt a real leap.</b> A genuine parkour gap puts its landing two or more
+     *  blocks out; {@code wd.parkourVoid{Short,Long}Runway} both launch across a gap, not at an
+     *  adjacent cell, and this term is inert for them. It is also inert for every ASCEND
+     *  ({@code wp.y > foot.y}), which is the case {@link #walkerParkourAscendHold} owns. */
+    public static volatile boolean walkerNoLaunchAtAdjacentBelowNode = true;
+
+    /** The radius for {@link #walkerNoLaunchAtAdjacentBelowNode}. One block, because one block is
+     *  the width of a cell: inside it the node is not across anything and a step reaches it. The
+     *  measurement it comes from separates at 0.75 vs 2.29, so this is not tuned to the edge of the
+     *  data — anything in [1.0, 2.0] would classify all five samples identically. */
+    public static volatile double walkerNoLaunchWithin = 1.0;
+
     /** Walker SPRINT brake for descending/walking ALONG a DEEP-water edge. The sibling
      *  of {@link #lethalEdgeBrake}/{@code steepDescentNear} for a water hazard instead of
      *  a dry cliff: when the bot is grounded and a DEEP floating-water cell

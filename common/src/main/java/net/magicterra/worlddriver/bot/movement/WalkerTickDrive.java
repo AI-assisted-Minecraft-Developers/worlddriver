@@ -92,6 +92,31 @@ import static net.magicterra.worlddriver.bot.movement.WalkerGeometry.*;
 final class WalkerTickDrive {
     private WalkerTickDrive() {}
 
+    /**
+     * The below-node jump suppression <b>without a wall to ram</b>.
+     *
+     * <p>{@link #run}'s existing term is {@code !(p.horizontalCollision && p.onGround() &&
+     * wp.getY() < foot.getY())}: it kills the futile overhang bob-jump, but it needs
+     * {@code horizontalCollision}. On an open rim there is nothing to ram, so a body that has
+     * drifted one block above its route still jumps at a node it is <b>already standing next to</b>,
+     * and the launch's forward momentum carries it past the cell it was trying to step onto.
+     *
+     * <p>Measured on rung 14's corridor leg 5 — five leaps, and the split is clean: the two launched
+     * under one block out both ended in lava (one missed by 4.12 and fell fourteen, one fell
+     * fifteen), the three launched over two blocks out all survived. The table, and why this is
+     * inert on a genuine gap and on every ascend, is on
+     * {@link BotConfig#walkerNoLaunchAtAdjacentBelowNode}.
+     *
+     * <p>Lives here rather than inline because {@code run} is on the source-budget grandfather list
+     * and may only shrink — the same reason this class's other shared reasoning is up top.
+     */
+    private static boolean atAnAdjacentNodeBelow(Player p, BlockPos wp, BlockPos foot) {
+        if (!BotConfig.walkerNoLaunchAtAdjacentBelowNode) return false;
+        if (!p.onGround() || wp.getY() >= foot.getY()) return false;
+        return Math.hypot(wp.getX() + 0.5 - p.getX(), wp.getZ() + 0.5 - p.getZ())
+                < BotConfig.walkerNoLaunchWithin;
+    }
+
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
@@ -1117,6 +1142,7 @@ final class WalkerTickDrive {
                 // and a jump-to-a-lower-node is a parkour/fall edge (own gates) not this walk-drive — so this
                 // kills ONLY the futile overhang bob-jump.
                 && !(p.horizontalCollision && p.onGround() && wp.getY() < foot.getY())
+                && !atAnAdjacentNodeBelow(p, wp, foot)
                 && (stepUpJump || parkourEdge
                     // Freeze-breaker: force a GROUNDED jump straight up the step once a
                     // stepUp/diagUp has rammed the riser past STEPUP_FREEZE_TICKS — the
