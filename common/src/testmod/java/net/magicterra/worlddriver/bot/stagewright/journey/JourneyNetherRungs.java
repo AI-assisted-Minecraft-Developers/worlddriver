@@ -2395,9 +2395,34 @@ public final class JourneyNetherRungs {
      *
      * <p><b>Past {@code 220,53,250} nobody has been.</b> The last leg is the generic crossing with
      * its full hop allowance, not a surveyed one, and a failure there is not a route defect.
+     *
+     * <h2>The 39-block leg was the one that built a 45-block bridge</h2>
+     *
+     * {74,41,97} → {102,41,122} was thirty-nine blocks, and a run measured it walking that distance
+     * on {@code {bridgePlace=45, walk=2}}: the body finished the previous leg <b>one block above the
+     * floor</b> (at {101,42,121} rather than {101,41,121} — both inside the two-block bar the judge
+     * uses), and from a cell one above the netherrack every forward step is「air with a floor two
+     * down」, which prices as a bridge rather than a walk. It bridged the whole way, and the leg
+     * AFTER it then failed with {@code no path (expanded=100000)} seven blocks from its waypoint —
+     * a hundred thousand nodes expanded from the tip of a self-built bridge over a lava sea.
+     *
+     * <p><b>The remedy is more waypoints, not a tighter arrival bar.</b> Tightening the bar would
+     * re-break leg 4, which legitimately finishes two blocks out because its waypoint is the solid
+     * block the ladder stood ON. A shorter leg cannot drift a block upward and then spend thirty
+     * blocks there: the next waypoint pulls it back down to the surveyed level within ten blocks.
+     * The standing instruction for this rung is scripted steps before engine capability, and this is
+     * what that looks like when a scripted step turns out to be too long.
+     *
+     * <p><b>The three inserted cells are not surveyed — they are OCCUPIED.</b> They come from the
+     * per-100-tick track of the run that walked this leg AND the one after it successfully
+     * ({@code 73,41,96 → 82,41,100 → 89,41,108 → 95,41,115 → 98,41,118}), so each is a cell the body
+     * was standing in on a run that reached the fortress. That is a stronger warrant than a scan:
+     * a scan can name a cell that turns out to be air, and one on this ladder once did.
      */
     private static final int[][] FORTRESS_WAYPOINTS = {
             {33, 55, 36}, {62, 43, 67}, {71, 43, 69}, {63, 41, 87}, {74, 41, 97},
+            // The 39-block leg, split into four ~9-block ones. See the class note above.
+            {82, 41, 100}, {89, 41, 108}, {95, 41, 115},
             {102, 41, 122}, {103, 41, 132}, {132, 43, 165}, {135, 43, 167},
             {152, 53, 178}, {162, 56, 177}, {154, 58, 194}, {189, 53, 221}, {220, 53, 250},
     };
