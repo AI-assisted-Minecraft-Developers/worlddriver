@@ -269,8 +269,10 @@ public final class JourneyNetherRungs {
      * could not.
      *
      * <p><b>The fallback changes the QUESTION, never the bar.</b> Arrival is still
-     * {@link #WAYPOINT_ARRIVE_WITHIN} in three dimensions, checked here again on the way out: every
-     * invariant on this ladder that ever broke, broke through a fallback that quietly relaxed it.
+     * {@link #WAYPOINT_ARRIVE_WITHIN} in three dimensions — but it is NOT checked when the hop
+     * machinery stops, because where the hop machinery stops is {@link #DETOUR_OVERSHOOT} blocks past
+     * the waypoint <i>by design</i>. Judging there made the bar unreachable by arithmetic. It is
+     * checked one step later, in {@link #reaskAfterDetour}, after the body has walked back.
      */
     private static void detourTo(SceneContext ctx, JourneyRig rig, BlockPos fortress, int i,
                                  BlockPos want, String leg) {
@@ -290,23 +292,81 @@ public final class JourneyNetherRungs {
                 + "（减半 → 偏 ±60°）瞄过头到 " + overX + "," + overZ + "（多 " + DETOUR_OVERSHOOT
                 + " 格）—— 能到达的格未必是能瞄的格，而跳段机器只判 XZ，瞄本格会当场判到达、一段都不走。"
                 + "见 detourTo");
-        Runnable judge = () -> {
+        crossToColumn(rig, leg + ".hop", overX, overZ, 0, HOP_TICKS, WAYPOINT_DETOUR_HOPS,
+                () -> reaskAfterDetour(ctx, rig, fortress, i, want, leg, true),
+                () -> reaskAfterDetour(ctx, rig, fortress, i, want, leg, false));
+    }
+
+    /**
+     * Walk the last few blocks back to the waypoint after the detour has aimed past it.
+     *
+     * <h2>Aiming past the cell is not arriving at it, and for one whole run the fallback judged as
+     * if it were</h2>
+     *
+     * <b>Without this step the fallback cannot pass, and that is arithmetic, not bad luck.</b> The
+     * detour aims {@link #DETOUR_OVERSHOOT} blocks past the waypoint on purpose, and it must: the hop
+     * machinery calls {@code away <= tolerance + ARRIVED_WITHIN} arrival, so an aim any closer fires
+     * before the body has taken a step. But the leg is then judged against
+     * {@link #WAYPOINT_ARRIVE_WITHIN} in three dimensions. So the aim must sit strictly outside 5 and
+     * the verdict strictly inside 2 — <b>and 6 &gt; 2, so a detour that works perfectly still fails.</b>
+     *
+     * <p>Corridor leg 4 did exactly that: it aimed at {61,92}, ended at {61,41,92} with
+     * {@code arrivedDistance=0} — dead on its own aim — and was judged 5 blocks off a bar of 2. The
+     * fallback had never once produced a PASS and could not have.
+     *
+     * <p>The class-load assertion on {@link #DETOUR_OVERSHOOT} guards the lower bound and says so;
+     * <b>nobody checked whether anything constrained it from above.</b> A one-sided coupling check is
+     * worse than none, because it makes the constant look already-guarded.
+     *
+     * <p><b>So overshooting is how the body gets MOVING, and this is how it gets THERE.</b> The
+     * re-ask is the original question — {@code Goal.Block(want)}, same bar, same three dimensions —
+     * asked from a different seat. That is the entire theory of the fallback and it is now actually
+     * tested: leg 4's direct ask failed from {71,43,69}, and this asks the same thing from {61,41,92}
+     * six blocks out. If seats decide runs, this is where it shows.
+     *
+     * <p><b>Two ways to reach the same cell must not print the same line.</b> {@code hopArrived}
+     * comes in explicitly rather than being inferred from a distance, because「the detour walked its
+     * whole route」and「the detour gave up somewhere short」are different findings that land at the
+     * same place often enough to be confused, and a future break of either half has to be legible in
+     * the results file without a rerun.
+     */
+    private static void reaskAfterDetour(SceneContext ctx, JourneyRig rig, BlockPos fortress, int i,
+                                         BlockPos want, String leg, boolean hopArrived) {
+        BlockPos over = rig.player().blockPosition();
+        int fromOver = (int) Math.round(Math.sqrt(over.distSqr(want)));
+        rig.evidence(leg + ".detourAt", over.toShortString() + "，距路点 " + fromOver + " 格（含 y）；"
+                + (hopArrived ? "跳段机器走完了整条绕行路线" : "跳段机器没走到瞄点就停了")
+                + " —— 瞄过头是为了让身体动起来，动起来之后还得走回路点，所以这里重问原题（同一个判据 "
+                + WAYPOINT_ARRIVE_WITHIN + " 格），不在这里判");
+        rig.settle(new IntentProcess(new Intent(new Goal.Block(want), lipTax(rig))),
+                DETOUR_REASK_TICKS, () -> {
             BlockPos now = rig.player().blockPosition();
             int off = (int) Math.round(Math.sqrt(now.distSqr(want)));
-            rig.evidence(leg + ".detourAt", now.toShortString() + "，距路点 " + off + " 格（含 y，"
-                    + "容差 " + WAYPOINT_ARRIVE_WITHIN + " —— 后备换的是问法，不是判据）");
+            rig.evidence(leg + ".detourReask", "从 " + over.toShortString() + " 重问 "
+                    + want.toShortString() + "：停在 " + now.toShortString() + "，差 " + off
+                    + " 格（含 y，容差 " + WAYPOINT_ARRIVE_WITHIN + "）；" + JourneyLeg.walkerEnd(rig));
             if (off > WAYPOINT_ARRIVE_WITHIN) {
                 ctx.fail("走不到第 " + (i + 1) + " 个路点 " + want.toShortString() + "：停在 "
-                        + now.toShortString() + "，差 " + off + " 格，直走和绕行都试过了。"
+                        + now.toShortString() + "，差 " + off + " 格。直走、绕行"
+                        + (hopArrived ? "（绕行走完了）" : "（绕行也没走到瞄点）")
+                        + "、以及从 " + over.toShortString() + " 换个座位重问，三种都试过了。"
                         + "这一格是真梯第 14 趟身体站过的，所以它站得住 —— 死因在 " + leg
                         + ".* 那几行，修法是在它前面加一个路点，不是调机制");
                 return;
             }
             walkTheCorridor(ctx, rig, fortress, i + 1);
-        };
-        crossToColumn(rig, leg + ".hop", overX, overZ, 0, HOP_TICKS,
-                WAYPOINT_DETOUR_HOPS, judge, judge);
+        });
     }
+
+    /**
+     * How long the post-detour re-ask gets.
+     *
+     * <p>Half a leg, because it is at most {@link #DETOUR_OVERSHOOT} blocks of walking — but
+     * deliberately MORE than the walker's own 1200-tick no-progress give-up, so that a re-ask which
+     * cannot be solved reports the walker's reason and not my stopwatch's. A budget that races the
+     * subject's own diagnostic buys a timeout where a cause was available.
+     */
+    private static final int DETOUR_REASK_TICKS = 1_500;
 
     /**
      * How far past a waypoint the fallback aims.
@@ -327,6 +387,15 @@ public final class JourneyNetherRungs {
      * is why the check below reads the constant through its <b>qualified</b> name: 8.3.3 restricts
      * simple names only. Change either number and the testmod fails to load with this message,
      * rather than the ladder quietly losing its fallback.
+     *
+     * <p><b>⚠️ The assertion below guards only the LOWER bound, and for one run nothing guarded the
+     * upper one.</b> The verdict wants the body within {@link #WAYPOINT_ARRIVE_WITHIN} = 2 of the
+     * waypoint, so for a while this constant had to be both {@code > 5} and {@code <= 2} —
+     * unsatisfiable, and the fallback had therefore never produced a PASS in its life. It reads as
+     * fine because the assertion makes the constant LOOK already-guarded; a one-sided coupling check
+     * is worse than no check, because it stops the reader asking whether anyone else constrains the
+     * same number. The upper bound is discharged by {@link #reaskAfterDetour}, which walks the last
+     * few blocks back — not by shrinking this, which would re-break the lower one.
      */
     private static final int DETOUR_OVERSHOOT = 6;
 
