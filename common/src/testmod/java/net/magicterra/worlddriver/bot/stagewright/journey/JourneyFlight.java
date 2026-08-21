@@ -311,6 +311,26 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
 
         if (prev == null) {                        // first tick of the leg
             startedAirborne = !onGround;
+            // A LEG CAN INHERIT A FALL, AND launch() CAN NEVER SEE ONE. It fires on a grounded →
+            // airborne TRANSITION (`prevOnGround && !onGround`), so a leg handed a body that is
+            // already in the air has no grounded previous tick and never arms any of it: `airborne`
+            // stayed false for the whole leg, and every reading taken off that flag described a body
+            // that was standing.
+            //
+            // Measured — corridor wp5, 2026-08-21 rehearsal, a leg the previous leg handed over
+            // mid-fall: 「首次入岩浆 t=18 64,29,88 —— 走进去的」about a body that had dropped
+            // thirteen blocks to get there, and 「离地 0 次」about a leg that spent all 269 of its
+            // ticks off the ground. The first row is the expensive one, because it names a
+            // MECHANISM: it says the walker steered into lava, which sends a reader after the cost
+            // function instead of after the leg before it.
+            if (startedAirborne && !inLava && !inWater) {
+                airborne = true;
+                launchAt = at;
+                launchTick = t;
+                launchY = at.getY();
+                launchWhy = "（起步时就不在地上，这一段没看见起跳 —— 上一段交过来时身体已经在坠）";
+                launchGround = "起步时就不在地上，没有起跳格可记";
+            }
             remember(fp, at, onGround, support, names(level, support), solid, box, contact);
             return;
         }
