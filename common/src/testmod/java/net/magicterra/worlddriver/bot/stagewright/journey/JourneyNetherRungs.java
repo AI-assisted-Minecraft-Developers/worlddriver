@@ -308,10 +308,37 @@ public final class JourneyNetherRungs {
                 WAYPOINT_DETOUR_HOPS, judge, judge);
     }
 
-    /** How far past a waypoint the fallback aims. Six, because that is one more than
-     *  {@link #ARRIVED_WITHIN}: any less and the hop machinery's XZ-only arrival test fires before
-     *  the body has taken a step. The ladder's own escape from this terrain overshot by five. */
+    /**
+     * How far past a waypoint the fallback aims.
+     *
+     * <p>Six, because that is one more than {@link #ARRIVED_WITHIN}: any less and the hop
+     * machinery's XZ-only arrival test fires before the body has taken a step. The ladder's own
+     * escape from this terrain overshot by five.
+     *
+     * <p><b>⚠️ It is DERIVED from {@link #ARRIVED_WITHIN}, and the two are checked against each
+     * other at class-load rather than by eye.</b> {@link #detourTo} calls the crossing with
+     * {@code tolerance = 0}, so arrival fires at {@code away <= 0 + ARRIVED_WITHIN} and the aim must
+     * land strictly outside that, or the fallback reports「arrived」having walked nowhere — the
+     * exact failure it was written to fix (「一段都没走，还差 0 格」). The margin is ONE block, the
+     * two constants live two thousand lines apart, and raising {@code ARRIVED_WITHIN} alone would
+     * re-break the fallback SILENTLY. It cannot be written as {@code ARRIVED_WITHIN + 1} here —
+     * {@code ARRIVED_WITHIN} is declared two thousand lines below and JLS 8.3.3 forbids the forward
+     * reference — and moving the relation into a static initializer does NOT escape that rule, which
+     * is why the check below reads the constant through its <b>qualified</b> name: 8.3.3 restricts
+     * simple names only. Change either number and the testmod fails to load with this message,
+     * rather than the ladder quietly losing its fallback.
+     */
     private static final int DETOUR_OVERSHOOT = 6;
+
+    static {
+        if (DETOUR_OVERSHOOT <= JourneyNetherRungs.ARRIVED_WITHIN)
+            throw new AssertionError("DETOUR_OVERSHOOT=" + DETOUR_OVERSHOOT + " must exceed"
+                    + " ARRIVED_WITHIN=" + JourneyNetherRungs.ARRIVED_WITHIN
+                    + ": detourTo aims past a waypoint with"
+                    + " tolerance 0, so an overshoot inside the arrival slack makes the hop"
+                    + " machinery report ARRIVED before the body takes a step — a fallback that"
+                    + " succeeds without running. See DETOUR_OVERSHOOT.");
+    }
 
     /**
      * The lip tax, built fresh for one leg.
@@ -1652,13 +1679,13 @@ public final class JourneyNetherRungs {
         double away = Math.hypot(x - before.getX(), z - before.getZ());
         if (c.hop == 0) { c.best = away; c.best0 = away; }   // the record starts wherever the crossing does
         if (away <= tolerance + ARRIVED_WITHIN) {
-            recordCrossing(rig, what, c, away);
+            recordCrossing(rig, what, c, away, true);
             onArrived.run();
             return;
         }
         if (c.hop >= c.maxHops) {
             c.why = "走完了 " + c.maxHops + " 段还没到（还差 " + Math.round(away) + " 格）";
-            recordCrossing(rig, what, c, away);
+            recordCrossing(rig, what, c, away, false);
             onStuck.run();
             return;
         }
@@ -1729,7 +1756,7 @@ public final class JourneyNetherRungs {
                         + " —— 再走一段只会得到同样的答案，先要把身体从这里弄出来，那是另一件事";
                 rig.evidence(what + ".flight." + hop, flight.report());
                 rig.evidence(what + ".around." + hop, surroundings(rig.player(), at));
-                recordCrossing(rig, what, c, left);
+                recordCrossing(rig, what, c, left, false);
                 onStuck.run();
                 return;
             }
@@ -1775,7 +1802,7 @@ public final class JourneyNetherRungs {
                 c.why = "连着 " + c.wedged + " 段没比纪录（" + Math.round(c.best)
                         + " 格）更近（最后停在 " + at.toShortString()
                         + "，还差 " + Math.round(left) + " 格）";
-                recordCrossing(rig, what, c, left);
+                recordCrossing(rig, what, c, left, false);
                 onStuck.run();
                 return;
             }
@@ -1840,8 +1867,20 @@ public final class JourneyNetherRungs {
      * makes the same call and says why: it leaves {@code finalDist} at −1 rather than report a
      * distance to coordinates that do not apply. A caller that needs height has to bring its own
      * goal shape; the javadoc on {@code crossToColumn} says which.
+     *
+     * <h2>{@code arrived} is PASSED, never inferred from {@code left}</h2>
+     *
+     * Arrival is {@code away <= tolerance + ARRIVED_WITHIN}, and the caller's tolerance is not
+     * visible here — the fortress crossing arrives with {@code tolerance = 24}, so a perfectly
+     * successful crossing reaches this method with {@code left} as large as 29. Any threshold this
+     * method invented (「{@code left <= 0}」was the first attempt) would therefore call a successful
+     * fortress arrival unfinished and print the pace row's「没走完」clause about a body that walked
+     * the whole way. Of the four call sites exactly one is an arrival — the {@code onArrived} branch
+     * of {@code oneHop}; the other three are the hop ceiling, the lava stop and the wedge — so each
+     * one states the fact it already knows instead of leaving it to be guessed from a distance.
      */
-    private static void recordCrossing(JourneyRig rig, String what, Crossing c, double left) {
+    private static void recordCrossing(JourneyRig rig, String what, Crossing c, double left,
+                                       boolean arrived) {
         rig.evidence(what + ".hops", c.lines.isEmpty() ? "一段都没走" : String.join(" | ", c.lines));
         // 无计划 is the headline, and it is the reading that made the hop crossing worth writing:
         // one distant goal spent 2406 of its ticks with nothing to steer at, so a crossing that
@@ -1869,8 +1908,25 @@ public final class JourneyNetherRungs {
         rig.evidence(what + ".pace", c.hop + " 段共 " + c.ticks + " tick，净走 " + walked + " 格"
                 + (walked > 0 && c.ticks > 0
                     ? "（" + String.format(Locale.ROOT, "%.1f", c.ticks / (double) walked)
-                      + " tick/格，照这个脚程走完全程要 "
-                      + Math.round(c.best0 * c.ticks / (double) walked) + " tick）" : "")
+                      + " tick/格"
+                      // THE EXTRAPOLATION IS ONLY HONEST WHEN THE CROSSING ARRIVED. It prices the
+                      // whole distance at the rate measured over the part that was walked — and on a
+                      // crossing that stopped short, the part that was NOT walked is precisely the
+                      // part the body could not walk. The fortress leg of 2026-08-21 printed「照这
+                      // 个脚程走完全程要 16289 tick」after burning 13260 without arriving, which
+                      // reads as「a bit more budget would do it」about a run whose remaining 75 格
+                      // would cost 3041 at that rate and had already refused 13260. Same family as
+                      // the row that ruled out its own cause: nothing in it was false, and the
+                      // conclusion it invited was the opposite of the truth.
+                      //
+                      // Gated on the PASSED-IN arrival, not on `left`: see this method's javadoc —
+                      // an arrival carries the caller's tolerance, so a successful fortress crossing
+                      // gets here with left as large as 29 and any local threshold would libel it.
+                      + (arrived ? "，照这个脚程走完全程要 "
+                                   + Math.round(c.best0 * c.ticks / (double) walked) + " tick"
+                                 : "，剩下的 " + Math.round(left) + " 格不适用这个脚程 —— "
+                                   + "它是走得动的那 " + walked + " 格测出来的，而没走完的正是走不动的那一段")
+                      + "）" : "")
                 + "；其中无计划 " + c.noPlan + "/" + c.ticks + " tick = "
                 + (c.ticks > 0 ? Math.round(100.0 * c.noPlan / c.ticks) : 0) + "%"
                 + "。两个上限各用了：段数 " + c.hop + "/" + c.maxHops + " = "
