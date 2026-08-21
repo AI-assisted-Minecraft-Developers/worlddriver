@@ -241,7 +241,8 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
         // ---- 2. the aim ---------------------------------------------------------------------
         // A cell far enough off-axis that the resulting angles cannot coincide with whatever the
         // body happened to be facing — an aim that agrees by luck measures nothing.
-        BlockPos aimAt = real.blockPosition().offset(7, -3, 5);
+        BlockPos aimAt = chooseAimTarget(real);
+        ctx.record("aim.选格依据", aimChoiceEvidence(real, aimAt));
         float yawBefore = real.getYRot();
         float pitchBefore = real.getXRot();
         avatar.aimAtBlock(aimAt);
@@ -321,6 +322,10 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
             // 就是把两个时刻的量放进同一个不等式，身体只要动过一点，这两支就会因为取样时刻不同
             // 而互相矛盾，而不是因为客户端真的转了。
             boolean clientAlreadyThere = aimSatisfies(clientLookSameTick, wantAtWrite);
+            // The margin, printed. Whether the control holds comfortably or by a fraction of a
+            // degree is not visible from「有效」alone, and the difference decides whether anyone
+            // should trust it next month.
+            ctx.record("aim.对照缺口", aimGap(clientLookAfter, wantAtWrite));
             ctx.record("aim.阴性对照", clientLookAfter == null
                     ? "读不到客户端朝向，这一趟没法当对照"
                     : clientAlreadyThere
@@ -462,11 +467,12 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
         // where it was (the precondition check below fires and says so) or it is left satisfying the
         // requirement by luck (same check fires). A broken actuator cannot reach a pass through
         // this door; that is the difference between this and a cleanup that runs its own verb.
-        BlockPos parkAt = real.blockPosition().offset(-7, 3, -5);
+        BlockPos aimAt = chooseAimTarget(real);
+        ctx.record("aim.选格依据", aimChoiceEvidence(real, aimAt));
+        BlockPos parkAt = chooseParkTarget(real, aimFromEyeTo(real, aimAt));
         client.aimAtBlock(parkAt);
         float[] clientLookParked = clientLook();
 
-        BlockPos aimAt = real.blockPosition().offset(7, -3, 5);
         // Same reason as the sibling: the actuator writes angles, so the requirement must be pinned
         // to the moment it was asked for. Judging at +10 ticks against a recomputed requirement would
         // let a body that merely MOVED fail this criterion, and A0 would be blamed for physics.
@@ -585,8 +591,11 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
                     .as("A0 判据（瞄准半边）：客户端自己的朝向应指向 " + aimAt.toShortString()
                             + "，几何要求 " + deg(wantAtWrite[0]) + " / " + deg(wantAtWrite[1])
                             + "，实际 " + renderLook(clientLookAfter)
-                            + "，容差 " + deg(AIM_TOLERANCE_DEG) + "°。缺陷存在时这一条会红 ——"
-                            + "尺子那条实测客户端偏了 12~24° yaw、26~30° pitch。"
+                            + "，差 " + aimGap(clientLookAfter, wantAtWrite)
+                            + "。缺陷存在时这一条会红 —— 证据去看同一趟 "
+                            + "wd.actuatorSplitOnAnAdoptedBody 的 aim.阴性对照 行，"
+                            + "那是同一条谓词喂服务端路径读数的结果（不在这里写死数字：站位一变就不成立，"
+                            + "上一版写的 12~24° 下一趟实测就成了 5.20°）。"
                             + "红了先看 aim.客户端.落地了吗 和 aim.要求漂移 两行分死因")
                     .isTrue();
         });
@@ -705,6 +714,93 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
         return look != null
                 && Math.abs(wrap(look[0] - want[0])) <= AIM_TOLERANCE_DEG
                 && Math.abs(look[1] - want[1]) <= AIM_TOLERANCE_DEG;
+    }
+
+    /**
+     * Candidate cells to aim at, spread across quadrants and above/below the eye.
+     *
+     * <p>Never picked by index — see {@link #chooseAimTarget}. A fixed choice is what put a 5.21°
+     * yaw gap into the first green run: {@code offset(7,-3,5)} happened to sit almost exactly along
+     * the body's spawn facing, so the yaw half of the test asked the actuator to turn five degrees
+     * and the whole reading rested on pitch. The measurement looked two-dimensional and was not.
+     */
+    private static final int[][] AIM_CANDIDATES = {
+            {7, -3, 5}, {-7, -3, -5}, {7, -3, -5}, {-7, -3, 5},
+            {7, 4, 5}, {-7, 4, -5}, {5, -5, -8}, {-5, -5, 8},
+    };
+
+    /**
+     * The candidate cell that forces the LARGEST movement in BOTH yaw and pitch from where the body
+     * currently looks — chosen by maximising the smaller of the two gaps.
+     *
+     * <p>Maximising the <i>minimum</i> is the whole point. Being far in one component is enough to
+     * make the aim predicate false, so a control would still read「有效」— but it would prove
+     * nothing about the other component, and the run would report a two-axis test it never
+     * performed. Requiring both gaps to be large is what makes「客户端跟到了」evidence about yaw
+     * <i>and</i> pitch.
+     *
+     * <p>Derived from the body's own SERVER-side rotation, deliberately not from the client's
+     * reported look: the client's angles are (half of) what these scenes measure, and choosing the
+     * target from the measurement is the shared-source mistake this file keeps warning about.
+     * Both scenes call this, so both aim at the same cell and their rows stay comparable.
+     */
+    private static BlockPos chooseAimTarget(ServerPlayer body) {
+        BlockPos best = null;
+        float bestScore = -1f;
+        for (int[] o : AIM_CANDIDATES) {
+            BlockPos cell = body.blockPosition().offset(o[0], o[1], o[2]);
+            float[] want = aimFromEyeTo(body, cell);
+            float score = Math.min(Math.abs(wrap(want[0] - body.getYRot())),
+                    Math.abs(want[1] - body.getXRot()));
+            if (score > bestScore) { bestScore = score; best = cell; }
+        }
+        return best;
+    }
+
+    /** The candidate furthest from {@code target}'s requirement — where the twin parks the client
+     *  before the real aim, so the parking cannot land near the target by accident. */
+    private static BlockPos chooseParkTarget(ServerPlayer body, float[] targetWant) {
+        BlockPos best = null;
+        float bestScore = -1f;
+        for (int[] o : AIM_CANDIDATES) {
+            BlockPos cell = body.blockPosition().offset(o[0], o[1], o[2]);
+            float[] want = aimFromEyeTo(body, cell);
+            float score = Math.min(Math.abs(wrap(want[0] - targetWant[0])),
+                    Math.abs(want[1] - targetWant[1]));
+            if (score > bestScore) { bestScore = score; best = cell; }
+        }
+        return best;
+    }
+
+    /**
+     * Why {@link #chooseAimTarget} picked what it picked — <b>including its input</b>.
+     *
+     * <p>The chooser reads the body's current rotation, and that rotation is not a constant: earlier
+     * actions in a scene change it, and the body is a human player who may be facing anywhere at
+     * scene start. So the chosen cell legitimately differs run to run. Recording only the OUTPUT
+     * would make a prediction that misses indistinguishable between「选择函数错了」and「输入变了」—
+     * and the second is not a defect at all. Must be called BEFORE the aim write, while the input is
+     * still the value the chooser actually saw.
+     */
+    private static String aimChoiceEvidence(ServerPlayer body, BlockPos cell) {
+        float[] w = aimFromEyeTo(body, cell);
+        float dy = Math.abs(wrap(w[0] - body.getYRot()));
+        float dp = Math.abs(w[1] - body.getXRot());
+        return "选格时身体朝向 " + deg(body.getYRot()) + " / " + deg(body.getXRot())
+                + "（这是选择函数的输入，跟它一起读）→ 选中 " + cell.toShortString()
+                + "，要求 " + deg(w[0]) + " / " + deg(w[1])
+                + "，需转 yaw " + deg(dy) + "° / pitch " + deg(dp) + "°，较弱分量 "
+                + deg(Math.min(dy, dp)) + "°（容差 " + deg(AIM_TOLERANCE_DEG) + "°，"
+                + "越大越说明两个分量都真的被验到了）";
+    }
+
+    /** How far a target sits from a look direction, per component — printed so a thin margin is
+     *  visible instead of having to be recomputed by hand from two other rows. */
+    private static String aimGap(float[] look, float[] want) {
+        if (look == null) return "unavailable/客户端没答";
+        return "yaw 差 " + deg(Math.abs(wrap(look[0] - want[0])))
+                + "°，pitch 差 " + deg(Math.abs(look[1] - want[1]))
+                + "°（容差 " + deg(AIM_TOLERANCE_DEG) + "°）";
     }
 
     private static float[] aimFromEyeTo(ServerPlayer body, BlockPos cell) {

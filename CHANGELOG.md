@@ -38,9 +38,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the interface at all. Two sites mixed aiming with breaking on one avatar and now use one of each.
 - **A0's acceptance is a second scene, never an edit to the first.**
   `wd.actuatorSplitOnAnAdoptedBody` stays a ruler for the raw divergence, so a future revert
-  re-reports it; `wd.actuatorSplitThroughTheClientAvatar` exercises the fixed path. Its assertion is
-  on the CLIENT's own value (`clientSlot == 4`), **not** on the two sides agreeing — agreement is a
-  symmetric predicate, equally satisfied by both sides being wrong together.
+  re-reports it; `wd.actuatorSplitThroughTheClientAvatar` exercises the fixed path. Its assertions
+  are on the CLIENT's own values, **not** on the two sides agreeing — agreement is a symmetric
+  predicate, equally satisfied by both sides being wrong together. The aim half is asserted as well,
+  against a requirement recomputed from geometry; rerouting eight `aimAtBlock` sites with nothing
+  but `ctx.record` rows watching them would have left that half able to regress silently.
+- **A constant target is an assumption wearing a guard's uniform.** Both criteria have the shape
+  「the client ends up at the target value」, which passes with the actuator contributing nothing
+  whenever the client already sat there. The first version hardcoded slot 4 and one aim cell, with a
+  comment arguing 4 was safe *because it is not 0* — testimony on behalf of a guard that did not
+  exist. Both targets are now derived from the pre-write reading: the slot as `(clientSlot + 4) % 9`,
+  and the aim cell as the candidate maximising the SMALLER of its two angular gaps, so one axis
+  cannot be carried by the other. Measured: the hardcoded cell sat 5.21° from the body's own facing
+  against a 5.00° tolerance, leaving yaw no range and pitch doing both jobs; derived, it scores 34.41°.
+- **A negative control instead of a ritual that would have rotted.** The aim criterion is only
+  evidence if it can fail, and on a healthy tree it never does. Rather than hand-reverting a live
+  call site once to watch it go red, the ruler evaluates the twin's *shared* predicate against the
+  server path's own reading on every run and records whether it came out false — 有效 on both runs
+  so far. It is `ctx.record`, not `ctx.check`: the ruler has no verdict by design, and asserting
+  there would amount to requiring that the defect continue to exist.
+- **A chooser must record its input, not just its choice.** The aim cell depends on the body's
+  current facing, which varies between runs, so a prediction that misses is ambiguous between a
+  broken chooser and a changed input. `aim.选格依据` prints both on one line, and earned it
+  immediately: the validating run started at −43.82° rather than the −48.79° the prediction assumed,
+  chose a different cell, and recomputing against the recorded input reproduced that cell exactly.
 - **The proof is the reversed asymmetry, not the equal numbers.** Same run, same body: the ruler
   reads server 4 / client 0, the fixed path reads server 0 / client 4, converging to 4/4 within ten
   ticks. A false fix that wrote both sides would show 4/4 immediately, with no interval where the
