@@ -264,9 +264,16 @@ public final class JourneyNetherRungs {
         // A leap's cost still does not include what is under the gap, and the stride floor-guard is
         // still disarmed on a parkour tick. The crossing already bridges instead, and the rung
         // arrives carrying 128 blocks.
+        // AND THE Y BAND — see lipAndBandTax. Arriving one block high is not a cosmetic miss: it is
+        // the single variable that separates every corridor leg that planned from every corridor leg
+        // that reported expanded=100000, and this leg's own arrival Y is the next leg's start.
+        int ceiling = bandCeiling(i);
+        rig.evidence(leg + ".band", "这一段的免税天花板 y=" + ceiling
+                + "（取自路点表，不取自身体所在高度）；每高出一格加价 " + (int) BAND_TAX
+                + "，一格平走是 10");
         JourneyFlight flight = JourneyFlight.watching(rig, at, want.getX(), want.getZ());
         rig.settle(new IntentProcess(new Intent(new Goal.Near(want, WAYPOINT_ARRIVE_WITHIN),
-                        lipTax(rig), NO_PARKOUR, List.of())),
+                        lipAndBandTax(ceiling), NO_PARKOUR, List.of())),
                 WAYPOINT_LEG_TICKS, flight, () -> {
             BlockPos now = rig.player().blockPosition();
             int off = (int) Math.round(Math.sqrt(now.distSqr(want)));
@@ -274,7 +281,8 @@ public final class JourneyNetherRungs {
             // that stopped thirty read identically in a PASS, and this corridor exists to make the
             // difference between「on the surveyed cell」and「near it」visible.
             rig.evidence(leg + ".at", now.toShortString() + "，距路点 " + off + " 格（含 y，容差 "
-                    + WAYPOINT_ARRIVE_WITHIN + "）；" + JourneyLeg.walkerEnd(rig));
+                    + WAYPOINT_ARRIVE_WITHIN + "）；" + aboveBand(now, ceiling) + "；"
+                    + JourneyLeg.walkerEnd(rig));
             flight.recordInto(leg, "direct");
             if (off > WAYPOINT_ARRIVE_WITHIN) { detourTo(ctx, rig, fortress, i, want, leg); return; }
             walkTheCorridor(ctx, rig, fortress, i + 1);
@@ -391,16 +399,21 @@ public final class JourneyNetherRungs {
         // Goal.Near for the same reason the direct leg uses it — one bar, in one place. Asking the
         // re-ask for an exact cell while judging it at WAYPOINT_ARRIVE_WITHIN would reintroduce, in
         // the fallback, exactly the mismatch the fallback is here to survive.
+        // Same Y band as the direct leg, for the same reason the goal is the same: a fallback that
+        // plans under different rules than the thing it is falling back from is a second mechanism
+        // wearing the first one's name, and this file has already paid for one of those.
+        int ceiling = bandCeiling(i);
         JourneyFlight flight = JourneyFlight.watching(rig, over, want.getX(), want.getZ());
         rig.settle(new IntentProcess(new Intent(new Goal.Near(want, WAYPOINT_ARRIVE_WITHIN),
-                        lipTax(rig), NO_PARKOUR, List.of())),
+                        lipAndBandTax(ceiling), NO_PARKOUR, List.of())),
                 DETOUR_REASK_TICKS, flight, () -> {
             BlockPos now = rig.player().blockPosition();
             int off = (int) Math.round(Math.sqrt(now.distSqr(want)));
             flight.recordInto(leg, "reask");
             rig.evidence(leg + ".detourReask", "从 " + over.toShortString() + " 重问 "
                     + want.toShortString() + "：停在 " + now.toShortString() + "，差 " + off
-                    + " 格（含 y，容差 " + WAYPOINT_ARRIVE_WITHIN + "）；" + JourneyLeg.walkerEnd(rig));
+                    + " 格（含 y，容差 " + WAYPOINT_ARRIVE_WITHIN + "）；" + aboveBand(now, ceiling)
+                    + "；" + JourneyLeg.walkerEnd(rig));
             if (off > WAYPOINT_ARRIVE_WITHIN) {
                 ctx.fail("走不到第 " + (i + 1) + " 个路点 " + want.toShortString() + "：停在 "
                         + now.toShortString() + "，差 " + off + " 格（容差 " + WAYPOINT_ARRIVE_WITHIN
@@ -482,6 +495,91 @@ public final class JourneyNetherRungs {
     private static List<CostModifier> lipTax(JourneyRig rig) {
         return List.of((from, to, edge, goal, world) ->
                 WalkerGeometry.dropAdjacentExceeds(world, to, LIP_DROP) ? LIP_TAX : 0.0);
+    }
+
+    /**
+     * The lip tax plus a ceiling on the corridor's own Y band.
+     *
+     * <h2>One block above the route is where this crossing goes to die</h2>
+     *
+     * The waypoints between {74,41,97} and {102,41,122} are body cells at y=41, taken from a run
+     * that walked them. Three measurements, two outcomes, and the only variable is the Y the
+     * previous leg finished at:
+     *
+     * <pre>
+     * arrived 101,41,121 → next leg PASSED
+     * arrived 101,42,121 → next leg no path (expanded=100000)
+     * arrived  94,42,114 → next leg no path (expanded=100000), body at 96,42,115
+     * </pre>
+     *
+     * <p>The mechanism is visible in the edge tallies: from one block above the netherrack every
+     * forward cell is「air with a floor two down」, which prices as a bridge, not a walk. One leg
+     * walked thirty-nine blocks on {@code {bridgePlace=45, walk=2}} — it built a causeway across
+     * ground it could have walked on — and the leg after it then expanded a hundred thousand nodes
+     * from the tip of that causeway without finding a route seven blocks away.
+     *
+     * <p><b>Why a cost and not a tighter arrival bar.</b> {@code Goal.Near(want, 2)} reports reached
+     * the moment the body is inside a two-block sphere, so the body ALWAYS finishes about two out —
+     * that is the goal doing exactly what it was asked. Shrinking the radius puts the executor back
+     * above the judge, which is what drove leg 4 into lava (see the class note on Goal.Near). Taxing
+     * the band instead leaves arrival alone and only makes the planner prefer the level route.
+     *
+     * <p><b>The ceiling is per-leg, and it comes from the TABLE, not from the body.</b> See
+     * {@link #bandCeiling}: taking {@code max(bodyY, wantY)} would have been the obvious spelling and
+     * it is the one broken spelling — a body that has already drifted to y=42 sets its own ceiling to
+     * 42, so the tax goes silent in precisely the state it exists to correct. Both ends of the
+     * ceiling are surveyed cells, which cannot drift.
+     *
+     * <p><b>{@link #BAND_TAX} is a guess with a measurement behind it, not a tuned constant.</b> At
+     * 100 against a walk's 10, the planner will take a ten-block level detour rather than climb one
+     * unnecessary block; that is the same shape as {@link #LIP_TAX}'s argument and the same order of
+     * magnitude. Pre-registered: if the band-taxed arm still finishes above the band, the tax is not
+     * the lever and this comes out again rather than being raised.
+     */
+    private static List<CostModifier> lipAndBandTax(int ceiling) {
+        return List.of(
+                (from, to, edge, goal, world) ->
+                        WalkerGeometry.dropAdjacentExceeds(world, to, LIP_DROP) ? LIP_TAX : 0.0,
+                (from, to, edge, goal, world) -> {
+                    int above = to.getY() - ceiling;
+                    return above > 0 ? above * BAND_TAX : 0.0;
+                });
+    }
+
+    /** Per block above a corridor leg's own Y band. See {@link #lipAndBandTax}. */
+    private static final double BAND_TAX = 100.0;
+
+    /**
+     * The Y ceiling leg {@code i} of the corridor is allowed to reach for free.
+     *
+     * <p>Both ends are read out of {@link #FORTRESS_WAYPOINTS} — the leg's own target and the
+     * waypoint before it — and never out of {@code rig.player()}. That is the whole point: the
+     * failure being taxed IS the body sitting one block above the route, so a ceiling derived from
+     * where the body currently stands raises itself to meet the drift and charges nothing. Leg 1 has
+     * no predecessor and gets its own target, which is the y=55 ridge, so its climb stays free.
+     *
+     * <p>A leg whose two surveyed ends differ (leg 1: 41→55, leg 2: 55→43) keeps the higher of the
+     * two, so descending legs pay nothing for the height they start with and only for height they
+     * ADD.
+     */
+    private static int bandCeiling(int i) {
+        int target = FORTRESS_WAYPOINTS[i][1];
+        return i == 0 ? target : Math.max(target, FORTRESS_WAYPOINTS[i - 1][1]);
+    }
+
+    /**
+     * Where the body finished relative to its leg's Y band, in words, on every leg.
+     *
+     * <p>Printed even when it is zero. This corridor spent three runs with the arrival Y sitting in
+     * plain sight inside a coordinate triple and nobody reading it as a quantity: {@code 101,41,121}
+     * planned, {@code 101,42,121} expanded a hundred thousand nodes, and the two lines look like the
+     * same line. A number with a name is read; a digit inside a coordinate is not.
+     */
+    private static String aboveBand(BlockPos now, int ceiling) {
+        int above = now.getY() - ceiling;
+        if (above > 0) return "高出免税带 " + above + " 格（天花板 y=" + ceiling + "）";
+        if (above < 0) return "在免税带以下 " + -above + " 格（天花板 y=" + ceiling + "）";
+        return "正好在免税带上（y=" + ceiling + "）";
     }
 
     /**
