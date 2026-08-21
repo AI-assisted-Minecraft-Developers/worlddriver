@@ -412,16 +412,34 @@ final class JourneyStairs {
                 + " —— 下一步 " + tag + " 应当报出这一级并垫回去");
     }
 
-    /** Click the block into {@code cell} against whichever neighbour is solid. Mirrors the nether
-     *  rung's own placer; the return value is read off the WORLD, because a placement can be
-     *  refused for reasons the caller cannot see. */
+    /** Click the block into {@code cell} against whichever neighbour is solid. The return value is
+     *  read off the WORLD, because a placement can be refused for reasons the caller cannot see. */
     static boolean placeInto(ServerLevel level, JourneyRig rig, BlockPos cell) {
         return placeInto(level, rig.body().avatar(), cell);
     }
 
-    /** The same, against the {@link Avatar} alone. Split out so {@link JourneyRamp#layWhereItStands}
-     *  can be driven by a scene: a rig is a scene's problem to host, an avatar is not, and this
-     *  method never wanted anything else off it. */
+    /**
+     * The same, against the {@link Avatar} alone. Split out so {@link JourneyRamp#layWhereItStands}
+     * can be driven by a scene: a rig is a scene's problem to host, an avatar is not, and this
+     * method never wanted anything else off it.
+     *
+     * <h2>Why this takes a {@code level} instead of using the driver's own view</h2>
+     *
+     * <b>Deliberately NOT {@code avatar().place(worldView, cell)}</b>, which does the same search
+     * through the driver's {@code WorldView} — and that view can belong to another dimension.
+     * {@code JourneyNetherRungs.theViewMatchesTheWorld} exists to catch exactly that: the driver
+     * once planned every rung past the portal over OVERWORLD terrain while standing at NETHER
+     * coordinates, silently. Asking the level the body is actually standing in is what keeps a
+     * caller from inheriting the pathfinder's problem.
+     *
+     * <p>Goes through {@code placeOn} → {@code gameMode.useItemOn}, which is the path a right click
+     * takes: the item is consumed out of the real inventory and the block lands with its real
+     * neighbour updates. Nothing here is a {@code setBlock}.
+     *
+     * <p>The nether rung's blaze-room builder used to carry a byte-identical private copy of this
+     * (its {@code placeAt}), together with the paragraph above. One copy, one place for the next
+     * person to read that warning.
+     */
     static boolean placeInto(ServerLevel level, Avatar av, BlockPos cell) {
         for (Direction d : Direction.values()) {
             BlockPos against = cell.relative(d);

@@ -508,7 +508,7 @@ public final class JourneyNetherRungs {
             if (cell.equals(body) || cell.equals(body.above())) { occupied++; continue; }
             String id = placeableBlock(rig);
             if (id == null || !rig.body().avatar().holdItem(item(id))) { ranOut++; continue; }
-            if (placeAt(rig, nether, cell)) {
+            if (JourneyStairs.placeInto(nether, rig, cell)) {
                 placed++;
                 if (cell.getY() - spawner.getY() >= ROOM_HEIGHT) roof++; else walls++;
             } else {
@@ -1329,27 +1329,10 @@ public final class JourneyNetherRungs {
     // Handling the body.
     // =====================================================================================
 
-    /**
-     * Put a block in the cell, clicking against whichever neighbour is solid.
-     *
-     * <p>Deliberately NOT {@code avatar().place(worldView, cell)}, which does the same search
-     * through the driver's {@code WorldView} — the very view {@link #theViewMatchesTheWorld} shows
-     * belongs to another dimension. This asks the level the body is standing in, so the room does
-     * not inherit the pathfinder's problem.
-     *
-     * <p>Goes through {@code placeOn} → {@code gameMode.useItemOn}, which is the path a right click
-     * takes: the item is consumed out of the real inventory and the block lands with its real
-     * neighbour updates. Nothing here is a {@code setBlock}.
-     */
-    private static boolean placeAt(JourneyRig rig, ServerLevel level, BlockPos cell) {
-        for (Direction d : Direction.values()) {
-            BlockPos against = cell.relative(d);
-            if (!level.getBlockState(against).blocksMotion()) continue;
-            rig.body().avatar().placeOn(against, d.getOpposite());
-            if (level.getBlockState(cell).blocksMotion()) return true;
-        }
-        return false;
-    }
+    // The room's placer was a byte-identical copy of JourneyStairs.placeInto; the shell builder
+    // calls that now. The reason it must not become `avatar().place(worldView, cell)` — the view
+    // belongs to another dimension, which is what theViewMatchesTheWorld above catches — moved
+    // with it, onto the surviving method.
 
     /**
      * Whichever wall material the body has most of, or null when it has none.
